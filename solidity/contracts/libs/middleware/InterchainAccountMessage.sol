@@ -1,0 +1,64 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+pragma solidity >=0.8.0;
+
+import {CallLib} from "../Call.sol";
+import {TypeCasts} from "../TypeCasts.sol";
+
+/**
+ * Format of message:
+ * [   0:  32] ICA owner
+ * [  32:  64] ICA ISM
+ * [  64:????] Calls, abi encoded
+ */
+library InterchainAccountMessage {
+    using TypeCasts for bytes32;
+
+    /**
+     * @notice Returns formatted (packed) InterchainAccountMessage
+     * @dev This function should only be used in memory message construction.
+     * @param _owner The owner of the interchain account
+     * @param _ism The address of the remote ISM
+     * @param _calls The sequence of calls to make
+     * @return Formatted message body
+     */
+    function encode(
+        bytes32 _owner,
+        bytes32 _ism,
+        CallLib.Call[] calldata _calls
+    ) internal pure returns (bytes memory) {
+        return abi.encode(_owner, _ism, _calls);
+    }
+
+    /**
+     * @notice Returns formatted (packed) InterchainAccountMessage
+     * @dev This function should only be used in memory message construction.
+     * @param _owner The owner of the interchain account
+     * @param _ism The address of the remote ISM
+     * @param _calls The sequence of calls to make
+     * @return Formatted message body
+     */
+    function encode(
+        address _owner,
+        bytes32 _ism,
+        CallLib.Call[] calldata _calls
+    ) internal pure returns (bytes memory) {
+        return encode(TypeCasts.addressToBytes32(_owner), _ism, _calls);
+    }
+
+    /**
+     * @notice Parses and returns the calls from the provided message
+     * @param _message The interchain account message
+     * @return The array of calls
+     */
+    function decode(bytes calldata _message)
+        internal
+        pure
+        returns (
+            bytes32,
+            bytes32,
+            CallLib.Call[] memory
+        )
+    {
+        return abi.decode(_message, (bytes32, bytes32, CallLib.Call[]));
+    }
+}

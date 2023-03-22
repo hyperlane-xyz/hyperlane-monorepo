@@ -13,17 +13,15 @@ library CallLib {
     }
 
     struct Call {
+        // supporting non EVM targets
+        bytes32 to;
         uint256 value;
-        StaticCall _call;
+        bytes data;
     }
 
     struct StaticCallWithCallback {
         StaticCall _call;
         bytes callback;
-    }
-
-    function target(StaticCall memory _call) internal pure returns (address) {
-        return TypeCasts.bytes32ToAddress(_call.to);
     }
 
     function call(Call memory _call)
@@ -32,8 +30,8 @@ library CallLib {
     {
         return
             Address.functionCallWithValue(
-                target(_call._call),
-                _call._call.data,
+                TypeCasts.bytes32ToAddress(_call.to),
+                _call.data,
                 _call.value
             );
     }
@@ -43,7 +41,11 @@ library CallLib {
         view
         returns (bytes memory)
     {
-        return Address.functionStaticCall(target(_call), _call.data);
+        return
+            Address.functionStaticCall(
+                TypeCasts.bytes32ToAddress(_call.to),
+                _call.data
+            );
     }
 
     function staticcall(StaticCallWithCallback memory _call)
@@ -114,7 +116,7 @@ library CallLib {
         uint256 value,
         bytes memory data
     ) internal pure returns (Call memory) {
-        return Call(value, build(to, data));
+        return Call(to, value, data);
     }
 
     function build(
@@ -122,7 +124,7 @@ library CallLib {
         uint256 value,
         bytes memory data
     ) internal pure returns (Call memory) {
-        return Call(value, build(to, data));
+        return Call(TypeCasts.addressToBytes32(to), value, data);
     }
 
     function build(

@@ -12,9 +12,10 @@ use tracing::{debug, info_span, instrument, instrument::Instrumented, Instrument
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{db::HyperlaneDB, HyperlaneDomain, HyperlaneMessage};
 
-use crate::{merkle_tree_builder::MerkleTreeBuilder, settings::matching_list::MatchingList};
-
-use super::SubmitMessageArgs;
+use crate::{
+    merkle_tree_builder::MerkleTreeBuilder, msg::PendingMessage,
+    settings::matching_list::MatchingList,
+};
 
 #[derive(Debug, new)]
 pub(crate) struct MessageProcessor {
@@ -23,13 +24,13 @@ pub(crate) struct MessageProcessor {
     blacklist: Arc<MatchingList>,
     metrics: MessageProcessorMetrics,
     prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
-    send_channels: HashMap<u32, UnboundedSender<SubmitMessageArgs>>,
+    send_channels: HashMap<u32, UnboundedSender<PendingMessage>>,
     #[new(default)]
     message_nonce: u32,
 }
 
 impl MessageProcessor {
-    pub(crate) fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
+    pub fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("MessageProcessor");
         tokio::spawn(async move { self.main_loop().await }).instrument(span)
     }
@@ -123,7 +124,7 @@ impl MessageProcessor {
             debug!(%msg, "Sending message to submitter");
 
             // Finally, build the submit arg and dispatch it to the submitter.
-            let submit_args = SubmitMessageArgs::new(msg.clone());
+            let submit_args = PendingMessage::new(msg.clone());
             // Guaranteed to exist as we return early above if it does not.
             let send_channel = self.send_channels.get(&msg.destination).unwrap();
             send_channel.send(submit_args)?;
@@ -161,12 +162,12 @@ impl MessageProcessorMetrics {
         Self {
             max_last_known_message_nonce_gauge: metrics
                 .last_known_message_nonce()
-                .with_label_values(&["processor_loop", "any", "any"]),
+                .with_label_values(&["processor_loop", origin.name(), "any"]),
             last_known_message_nonce_gauges: gauges,
         }
     }
 
-    pub fn get(&self, destination: u32) -> Option<&IntGauge> {
+    fn get(&self, destination: u32) -> Option<&IntGauge> {
         self.last_known_message_nonce_gauges.get(&destination)
     }
 }

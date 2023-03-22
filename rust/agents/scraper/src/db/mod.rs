@@ -8,6 +8,7 @@ pub use block::*;
 pub use block_cursor::BlockCursor;
 use hyperlane_core::TxnInfo;
 pub use message::*;
+pub use payment::*;
 pub use txn::*;
 
 #[allow(clippy::all)]
@@ -17,6 +18,7 @@ mod generated;
 mod block;
 mod block_cursor;
 mod message;
+mod payment;
 mod txn;
 
 impl Deref for StorableTxn {
