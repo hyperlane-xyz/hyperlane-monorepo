@@ -208,6 +208,7 @@ where
 
     /// Returns a ContractCall that processes the provided message.
     /// If the provided tx_gas_limit is None, gas estimation occurs.
+    #[instrument(err, ret, skip(self, message, metadata))]
     async fn process_contract_call(
         &self,
         message: &HyperlaneMessage,
@@ -226,9 +227,10 @@ where
                 .saturating_add(U256::from(GAS_ESTIMATE_BUFFER))
         };
 
+        debug!("Estimating EIP1559 fees");
         let Ok((max_fee, max_priority_fee)) = self.provider.estimate_eip1559_fees(None).await else {
             // Is not EIP 1559 chain
-            debug!(?gas_limit, "Assuming it is not an EIP 1559 chain, received error when estimating fees");
+            debug!(?gas_limit, "Assuming it is not an EIP1559 chain, received error when estimating fees");
             return Ok(tx.gas(gas_limit))
         };
 
@@ -236,7 +238,7 @@ where
         debug!(
             ?max_fee,
             ?max_priority_fee,
-            "Assuming it is an EIP 1559 chain"
+            "Assuming it is an EIP1559 chain"
         );
 
         let max_priority_fee = if matches!(

@@ -1,9 +1,10 @@
+use std::fmt::Debug;
 use std::time::Duration;
 
 use ethers::abi::Detokenize;
 use ethers::prelude::{NameOrAddress, TransactionReceipt};
 use ethers_contract::builders::ContractCall;
-use tracing::{error, info};
+use tracing::{error, info, instrument};
 
 use hyperlane_core::utils::fmt_bytes;
 use hyperlane_core::{ChainCommunicationError, ChainResult, H256};
@@ -11,7 +12,8 @@ use hyperlane_core::{ChainCommunicationError, ChainResult, H256};
 use crate::Middleware;
 
 /// Dispatches a transaction, logs the tx id, and returns the result
-pub(crate) async fn report_tx<M, D>(tx: ContractCall<M, D>) -> ChainResult<TransactionReceipt>
+#[instrument(err, ret)]
+pub(crate) async fn report_tx<M, D: Debug>(tx: ContractCall<M, D>) -> ChainResult<TransactionReceipt>
 where
     M: Middleware + 'static,
     D: Detokenize,
