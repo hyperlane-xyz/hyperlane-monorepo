@@ -24,19 +24,16 @@ abstract contract StaticMOfNAddressSetFactory {
         returns (address)
     {
         bytes memory _metadata = abi.encode(_values, _threshold);
-        return MetaProxyFactory.fromBytes(_implementation, _metadata);
-        /*
-        bytes32 _salt = keccak256(_metadata);
         bytes memory _bytecode = MetaProxyFactory.bytecode(
             _implementation,
             _metadata
         );
+        bytes32 _salt = keccak256(_metadata);
         bytes32 _bytecodeHash = keccak256(_bytecode);
         address _set = Create2.computeAddress(_salt, _bytecodeHash);
         if (!Address.isContract(_set)) {
             _set = Create2.deploy(0, _salt, _bytecode);
         }
         return _set;
-        */
     }
 }
