@@ -4,14 +4,14 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 import {AbstractMultisigIsm} from "./AbstractMultisigIsm.sol";
 import {MultisigIsmMetadata} from "../../libs/MultisigIsmMetadata.sol";
-import {StaticMOfNAddressSet} from "../../libs/StaticMOfNAddressSet.sol";
+import {MetaProxy} from "../../libs/MetaProxy.sol";
 
 /**
  * @title StaticMultisigIsm
  * @notice Manages per-domain m-of-n Validator sets that are used
  * to verify interchain messages.
  */
-contract StaticMultisigIsm is StaticMOfNAddressSet, AbstractMultisigIsm {
+contract StaticMultisigIsm is AbstractMultisigIsm {
     // ============ Public Functions ============
 
     /**
@@ -28,6 +28,6 @@ contract StaticMultisigIsm is StaticMOfNAddressSet, AbstractMultisigIsm {
         override
         returns (address[] memory, uint8)
     {
-        return _valuesAndThreshold();
+        return abi.decode(MetaProxy.metadata(), (address[], uint8));
     }
 }

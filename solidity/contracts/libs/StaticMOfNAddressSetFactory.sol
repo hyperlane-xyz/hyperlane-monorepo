@@ -5,7 +5,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 
 // ============ Internal Imports ============
-import {MetaProxyFactory} from "./MetaProxyFactory.sol";
+import {MetaProxy} from "./MetaProxy.sol";
 
 abstract contract StaticMOfNAddressSetFactory {
     // ============ Immutables ============
@@ -91,10 +91,7 @@ abstract contract StaticMOfNAddressSetFactory {
         returns (bytes32, bytes memory)
     {
         bytes memory _metadata = abi.encode(_values, _threshold);
-        bytes memory _bytecode = MetaProxyFactory.bytecode(
-            _implementation,
-            _metadata
-        );
+        bytes memory _bytecode = MetaProxy.bytecode(_implementation, _metadata);
         bytes32 _salt = keccak256(_metadata);
         return (_salt, _bytecode);
     }
