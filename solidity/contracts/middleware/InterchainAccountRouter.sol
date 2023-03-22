@@ -72,7 +72,7 @@ contract InterchainAccountRouter is
      * @param router The address of the remote router
      * @param ism The address of the remote ISM
      */
-    event InterchainCallDispatched(
+    event RemoteCallDispatched(
         uint32 indexed destination,
         address indexed owner,
         bytes32 router,
@@ -506,7 +506,7 @@ contract InterchainAccountRouter is
         bytes memory _body
     ) private returns (bytes32) {
         require(_router != bytes32(0), "no router specified for destination");
-        emit InterchainCallDispatched(_destination, msg.sender, _router, _ism);
+        emit RemoteCallDispatched(_destination, msg.sender, _router, _ism);
         return mailbox.dispatch(_destination, _router, _body);
     }
 
