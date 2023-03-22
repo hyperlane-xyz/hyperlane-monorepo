@@ -193,14 +193,16 @@ impl SqlChainScraper {
         trace!(?blocks, "Ensured blocks");
 
         // all txns we care about
-        let txns_with_ids = self
-            .ensure_txns(block_hash_by_txn_hash.map(move |(txn_hash, block_hash)| {
-                let block_info = *blocks.get(&block_hash).as_ref().unwrap();
-                TxnWithBlockId {
-                    txn_hash,
-                    block_id: block_info.id,
-                }
-            }))
+        let txns_with_ids =
+            self.ensure_txns(block_hash_by_txn_hash.into_iter().map(
+                move |(txn_hash, block_hash)| {
+                    let block_info = *blocks.get(&block_hash).as_ref().unwrap();
+                    TxnWithBlockId {
+                        txn_hash,
+                        block_id: block_info.id,
+                    }
+                },
+            ))
             .await?;
 
         Ok(txns_with_ids.map(move |TxnWithId { hash, id: txn_id }| TxnWithId { hash, id: txn_id }))
