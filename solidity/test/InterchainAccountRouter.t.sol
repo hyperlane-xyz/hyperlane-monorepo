@@ -6,7 +6,8 @@ import "../contracts/mock/MockMailbox.sol";
 import "../contracts/HyperlaneConnectionClient.sol";
 import "../contracts/mock/MockHyperlaneEnvironment.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
-import {InterchainAccountRouter, IInterchainAccountRouter} from "../contracts/middleware/InterchainAccountRouter.sol";
+import {InterchainAccountRouter} from "../contracts/middleware/InterchainAccountRouter.sol";
+import {InterchainAccountIsm} from "../contracts/isms/routing/InterchainAccountIsm.sol";
 import {OwnableMulticall} from "../contracts/OwnableMulticall.sol";
 import {CallLib} from "../contracts/libs/Call.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
@@ -16,6 +17,16 @@ contract Callable {
 
     function set(bytes32 _data) external {
         data[msg.sender] = _data;
+    }
+}
+
+contract FailingIsm {
+    function verify(bytes calldata, bytes calldata)
+        external
+        pure
+        returns (bool)
+    {
+        revert("failing ism");
     }
 }
 
@@ -39,6 +50,7 @@ contract InterchainAccountRouterTest is Test {
     uint32 origin = 1;
     uint32 destination = 2;
 
+    InterchainAccountIsm icaIsm;
     InterchainAccountRouter originRouter;
     InterchainAccountRouter destinationRouter;
     bytes32 ismOverride;
@@ -51,6 +63,7 @@ contract InterchainAccountRouterTest is Test {
     function setUp() public {
         environment = new MockHyperlaneEnvironment(origin, destination);
 
+        icaIsm = new InterchainAccountIsm();
         originRouter = new InterchainAccountRouter(origin, address(0));
         destinationRouter = new InterchainAccountRouter(
             destination,
@@ -61,13 +74,13 @@ contract InterchainAccountRouterTest is Test {
         originRouter.initialize(
             address(environment.mailboxes(origin)),
             address(environment.igps(destination)),
-            address(environment.isms(origin)),
+            address(icaIsm),
             owner
         );
         destinationRouter.initialize(
             address(environment.mailboxes(destination)),
             address(environment.igps(destination)),
-            address(environment.isms(destination)),
+            address(icaIsm),
             owner
         );
 
@@ -251,6 +264,20 @@ contract InterchainAccountRouterTest is Test {
             getCalls(data)
         );
         assertRemoteCallReceived(data);
+    }
+
+    function testCallRemoteWithOverridesFails(bytes32 data) public {
+        bytes32 failingIsm = TypeCasts.addressToBytes32(
+            address(new FailingIsm())
+        );
+        originRouter.callRemoteWithOverrides(
+            destination,
+            routerOverride,
+            failingIsm,
+            getCalls(data)
+        );
+        vm.expectRevert(bytes("failing ism"));
+        environment.processNextPendingMessage();
     }
 
     function testGetLocalInterchainAccount(bytes32 data) public {

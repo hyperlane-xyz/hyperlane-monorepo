@@ -7,6 +7,10 @@ contract TestIsm is IInterchainSecurityModule {
     uint8 public constant moduleType = 0;
     bool public accept;
 
+    constructor() {
+        accept = true;
+    }
+
     function setAccept(bool _val) external {
         accept = _val;
     }

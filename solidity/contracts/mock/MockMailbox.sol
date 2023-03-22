@@ -1,26 +1,28 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import {Versioned} from "../upgrade/Versioned.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
+import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 
-contract MockMailbox {
+contract MockMailbox is Versioned {
     using TypeCasts for address;
     using TypeCasts for bytes32;
     // Domain of chain on which the contract is deployed
 
     // ============ Constants ============
     uint32 public immutable localDomain;
-    uint32 public immutable VERSION = 0;
     uint256 public constant MAX_MESSAGE_BODY_BYTES = 2 * 2**10;
 
-    uint256 public outboundNonce = 0;
-    uint256 public inboundUnprocessedNonce = 0;
-    uint256 public inboundProcessedNonce = 0;
+    uint32 public outboundNonce = 0;
+    uint32 public inboundUnprocessedNonce = 0;
+    uint32 public inboundProcessedNonce = 0;
     mapping(uint32 => MockMailbox) public remoteMailboxes;
-    mapping(uint256 => Message) public inboundMessages;
+    mapping(uint256 => MockMessage) public inboundMessages;
 
-    struct Message {
+    struct MockMessage {
+        uint32 nonce;
         uint32 origin;
         address sender;
         address recipient;
@@ -47,6 +49,7 @@ contract MockMailbox {
             "Missing remote mailbox"
         );
         _destinationMailbox.addInboundMessage(
+            outboundNonce,
             localDomain,
             msg.sender,
             _recipientAddress.bytes32ToAddress(),
@@ -57,12 +60,14 @@ contract MockMailbox {
     }
 
     function addInboundMessage(
+        uint32 _nonce,
         uint32 _origin,
         address _sender,
         address _recipient,
         bytes calldata _body
     ) external {
-        inboundMessages[inboundUnprocessedNonce] = Message(
+        inboundMessages[inboundUnprocessedNonce] = MockMessage(
+            _nonce,
             _origin,
             _sender,
             _recipient,
@@ -72,12 +77,50 @@ contract MockMailbox {
     }
 
     function processNextInboundMessage() public {
-        Message memory _message = inboundMessages[inboundProcessedNonce];
+        MockMessage memory _message = inboundMessages[inboundProcessedNonce];
+        address _recipient = _message.recipient;
+        IInterchainSecurityModule _ism = _recipientIsm(_recipient);
+        if (address(_ism) != address(0)) {
+            // Do not pass any metadata
+            require(_ism.verify("", _encode(_message)), "ISM verify failed");
+        }
+
         IMessageRecipient(_message.recipient).handle(
             _message.origin,
             _message.sender.addressToBytes32(),
             _message.body
         );
         inboundProcessedNonce++;
+    }
+
+    function _encode(MockMessage memory _message)
+        private
+        view
+        returns (bytes memory)
+    {
+        return
+            abi.encodePacked(
+                VERSION,
+                _message.nonce,
+                _message.origin,
+                TypeCasts.addressToBytes32(_message.sender),
+                localDomain,
+                TypeCasts.addressToBytes32(_message.recipient),
+                _message.body
+            );
+    }
+
+    function _recipientIsm(address _recipient)
+        private
+        view
+        returns (IInterchainSecurityModule)
+    {
+        try
+            ISpecifiesInterchainSecurityModule(_recipient)
+                .interchainSecurityModule()
+        returns (IInterchainSecurityModule _val) {
+            return _val;
+        } catch {}
+        return IInterchainSecurityModule(address(0));
     }
 }
