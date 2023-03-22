@@ -13,7 +13,9 @@ use crate::Middleware;
 
 /// Dispatches a transaction, logs the tx id, and returns the result
 #[instrument(err, ret)]
-pub(crate) async fn report_tx<M, D: Debug>(tx: ContractCall<M, D>) -> ChainResult<TransactionReceipt>
+pub(crate) async fn report_tx<M, D: Debug>(
+    tx: ContractCall<M, D>,
+) -> ChainResult<TransactionReceipt>
 where
     M: Middleware + 'static,
     D: Detokenize,
