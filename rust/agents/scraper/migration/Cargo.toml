@@ -12,9 +12,10 @@ name = "migration"
 path = "src/lib.rs"
 
 [dependencies]
-sea-orm = {version = "~0.10.5", features = ["macros"]}
-sea-orm-migration = { version = "~0.10.5", features = ["runtime-tokio-native-tls", "sqlx-postgres"] }
+sea-orm = {version = "0.11.1", features = ["macros", "with-bigdecimal", "with-time"]}
+sea-orm-migration = { version = "0.11.1", features = ["runtime-tokio-native-tls", "sqlx-postgres"] }
 serde.workspace = true
+time = "0.3"
 tokio = { workspace = true, features = ["rt", "macros"] }
 
 hyperlane-core = { path = "../../../hyperlane-core" }

@@ -77,6 +77,9 @@ impl TracingConfig {
             target_layer = target_layer.with_target("hyper", Level::Info);
             target_layer = target_layer.with_target("rusoto_core", Level::Info);
             target_layer = target_layer.with_target("reqwest", Level::Info);
+
+            // only show sqlx query logs at trace level
+            target_layer = target_layer.with_target("sqlx::query", Level::Warn);
         }
         let fmt_layer: LogOutputLayer<_> = self.fmt.into();
         let err_layer = tracing_error::ErrorLayer::default();
