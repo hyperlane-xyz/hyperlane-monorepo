@@ -4,11 +4,13 @@ use std::time::Duration;
 use tokio::time::sleep;
 use tracing::{debug, info, trace};
 
-use crate::db::storage_types::InterchainGasExpenditureData;
-use crate::db::{storage_types::InterchainGasPaymentData, DbError, TypedDB, DB};
 use crate::{
+    db::{
+        storage_types::{InterchainGasExpenditureData, InterchainGasPaymentData},
+        DbError, TypedDB, DB,
+    },
     HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment, InterchainGasPaymentMeta,
-    InterchainGasPaymentWithMeta, H256, U256,
+    LogMeta, H256, U256,
 };
 
 const MESSAGE_ID: &str = "message_id_";
@@ -184,29 +186,32 @@ impl HyperlaneDB {
     /// Returns whether the gas payment was processed for the first time.
     pub fn process_gas_payment(
         &self,
-        gas_payment_with_meta: &InterchainGasPaymentWithMeta,
+        payment: InterchainGasPayment,
+        log_meta: &LogMeta,
     ) -> Result<bool> {
-        let meta = &gas_payment_with_meta.meta;
+        let payment_meta = log_meta.into();
         // If the gas payment has already been processed, do nothing
-        if self.retrieve_gas_payment_meta_processed(meta)? {
+        if self.retrieve_gas_payment_meta_processed(&payment_meta)? {
             trace!(
-                ?gas_payment_with_meta,
+                ?payment,
+                ?log_meta,
                 "Attempted to process an already-processed gas payment"
             );
             // Return false to indicate the gas payment was already processed
             return Ok(false);
         }
         // Set the gas payment as processed
-        self.store_gas_payment_meta_processed(meta)?;
+        self.store_gas_payment_meta_processed(&payment_meta)?;
 
         // Update the total gas payment for the message to include the payment
-        self.update_gas_payment_for_message_id(gas_payment_with_meta.payment)?;
+        self.update_gas_payment_for_message_id(payment)?;
 
         // Return true to indicate the gas payment was processed for the first time
         Ok(true)
     }
 
-    /// Processes the gas expenditure and store the total expenditure for the message.
+    /// Processes the gas expenditure and store the total expenditure for the
+    /// message.
     pub fn process_gas_expenditure(&self, expenditure: InterchainGasExpenditure) -> Result<()> {
         // Update the total gas expenditure for the message to include the payment
         self.update_gas_expenditure_for_message_id(expenditure)

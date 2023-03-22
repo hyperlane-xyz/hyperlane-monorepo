@@ -162,7 +162,7 @@ impl MessageProcessorMetrics {
         Self {
             max_last_known_message_nonce_gauge: metrics
                 .last_known_message_nonce()
-                .with_label_values(&["processor_loop", "any", "any"]),
+                .with_label_values(&["processor_loop", origin.name(), "any"]),
             last_known_message_nonce_gauges: gauges,
         }
     }
