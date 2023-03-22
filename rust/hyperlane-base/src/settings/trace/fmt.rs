@@ -14,16 +14,16 @@ use tracing_subscriber::{
 #[derive(Default, Debug, Clone, Copy, serde::Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum Style {
-    /// Pretty print
-    Pretty,
     /// JSON
     Json,
     /// Compact
     Compact,
-    /// Default style
-    #[serde(other)]
-    #[default]
+    /// Shows everything
     Full,
+    /// Pretty print
+    #[default]
+    #[serde(other)]
+    Pretty,
 }
 
 /// Unification of the fmt Subscriber formatting modes
@@ -238,7 +238,7 @@ mod test {
         let case = r#"{"style": "toast"}"#;
         assert_eq!(
             serde_json::from_str::<TestStyle>(case).unwrap().style,
-            Style::Full
+            Style::Pretty
         );
     }
 }
