@@ -14,5 +14,4 @@ lcov --remove lcov.info -o lcov.info 'contracts/test/**' 'contracts/mock/**' '**
 # Print output
 lcov --list lcov.info && \
 # Open more granular breakdown in browser
-genhtml -o coverage lcov.info && \
-[[ "$CI" != "true" ]] && open coverage/index.html
+[[ "$CI" != "true" ]] && genhtml -o coverage lcov.info && open coverage/index.html
