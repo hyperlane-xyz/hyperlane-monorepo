@@ -1,11 +1,14 @@
 import { ethers } from 'ethers';
 
+import {
+  TestInterchainGasPaymaster,
+  TestInterchainGasPaymaster__factory,
+} from '@hyperlane-xyz/core';
 import { types } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
 import { CoreContracts } from '../core/contracts';
 import { CoreConfig } from '../core/types';
-import { HyperlaneIgpDeployer } from '../gas/HyperlaneIgpDeployer';
 import { IgpContracts } from '../gas/contracts';
 import {
   CoinGeckoInterface,
@@ -13,7 +16,6 @@ import {
   CoinGeckoSimpleInterface,
   CoinGeckoSimplePriceParams,
 } from '../gas/token-prices';
-import { GasOracleContractType, OverheadIgpConfig } from '../gas/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { RouterConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
@@ -34,36 +36,25 @@ export function createRouterConfigMap(
   });
 }
 
-export function getTestIgpConfig(
-  owner: types.Address,
-  coreContractsMaps: ChainMap<CoreContracts>,
-): ChainMap<OverheadIgpConfig> {
-  return objMap(coreContractsMaps, (chain, contracts) => {
-    return {
-      owner,
-      beneficiary: owner,
-      proxyAdmin: contracts.proxyAdmin.address,
-      gasOracleType: objMap(coreContractsMaps, () => {
-        return GasOracleContractType.StorageGasOracle;
-      }),
-      overhead: objMap(coreContractsMaps, () => {
-        return 100_000;
-      }),
-    };
-  });
-}
-
 export async function deployTestIgpsAndGetRouterConfig(
   multiProvider: MultiProvider,
   owner: types.Address,
-  coreContractsMaps: ChainMap<CoreContracts>,
+  coreContracts: ChainMap<CoreContracts>,
 ): Promise<ChainMap<RouterConfig>> {
-  const igpDeployer = new HyperlaneIgpDeployer(
-    multiProvider,
-    getTestIgpConfig(owner, coreContractsMaps),
-  );
-  const igpContractsMaps = await igpDeployer.deploy();
-  return createRouterConfigMap(owner, coreContractsMaps, igpContractsMaps);
+  const igps: ChainMap<TestInterchainGasPaymaster> = {};
+  for (const chain of multiProvider.getKnownChainNames()) {
+    const factory = new TestInterchainGasPaymaster__factory(
+      multiProvider.getSigner(chain),
+    );
+    igps[chain] = await factory.deploy(owner);
+  }
+  return objMap(coreContracts, (chain, contracts) => {
+    return {
+      owner,
+      mailbox: contracts.mailbox.address,
+      interchainGasPaymaster: igps[chain].address,
+    };
+  });
 }
 
 const nonZeroAddress = ethers.constants.AddressZero.replace('00', '01');
