@@ -69,7 +69,7 @@ messages will not be relayed between chains).
 Off-chain agents are **not** automatically re-deployed when new contract deploys
 are merged. Auto-redeploys will be implemented at some future date.
 
-### Publishing Packages
+### Publishing JS/TS Packages
 
 Packages can be versioned and published all at once with commands from the root.
 
@@ -103,4 +103,11 @@ For the git submodules, you will have to undo the removal of the `yarn.lock` fil
 
 Make PRs for the monorepo and the submodules.
 
-Make a Github release
+Tag the commit with the appropriate version, and then create a github release with a changelog against the previous version https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/new
+
+### Release Agents
+
+- Tag the commit with the appropriate version
+- [Create a Github Release](https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/new) with a changelog against the previous version
+- include the docker image tag in the description of the release
+- make sure that breaking changes are handled and documented
