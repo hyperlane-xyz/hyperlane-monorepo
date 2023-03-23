@@ -12,7 +12,7 @@ import { TestCoreApp } from '../core/TestCoreApp';
 import { TestCoreDeployer } from '../core/TestCoreDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
 import { RouterConfig } from '../router/types';
-import { getTestOwnerConfig } from '../test/testUtils';
+import { deployTestIgpsAndGetRouterConfig } from '../test/testUtils';
 import { ChainMap } from '../types';
 import { objMap, promiseObjAll } from '../utils/objects';
 
@@ -41,8 +41,10 @@ describe('InterchainAccounts', async () => {
     const coreDeployer = new TestCoreDeployer(multiProvider);
     const coreContractsMaps = await coreDeployer.deploy();
     coreApp = new TestCoreApp(coreContractsMaps, multiProvider);
-    config = coreApp.extendWithConnectionClientConfig(
-      getTestOwnerConfig(signer.address),
+    config = await deployTestIgpsAndGetRouterConfig(
+      multiProvider,
+      signer.address,
+      coreContractsMaps,
     );
 
     config.test1.interchainSecurityModule =

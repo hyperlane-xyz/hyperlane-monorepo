@@ -4,11 +4,12 @@ import { Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
 import {
+  AgentConnectionType,
   AllChains,
   ChainName,
   Chains,
   CoreChainName,
-  HyperlaneCore,
+  HyperlaneIgp,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import { ChainMap } from '@hyperlane-xyz/sdk/dist/types';
@@ -23,7 +24,6 @@ import {
 } from '../../src/agents/keys';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { DeployEnvironment } from '../../src/config';
-import { ConnectionType } from '../../src/config/agent';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { ContextAndRoles, ContextAndRolesMap } from '../../src/config/funding';
 import { submitMetrics } from '../../src/utils/metrics';
@@ -197,10 +197,10 @@ async function main() {
 
     .string('connection-type')
     .describe('connection-type', 'The provider connection type to use for RPCs')
-    .default('connection-type', ConnectionType.Http)
+    .default('connection-type', AgentConnectionType.Http)
     .choices('connection-type', [
-      ConnectionType.Http,
-      ConnectionType.HttpQuorum,
+      AgentConnectionType.Http,
+      AgentConnectionType.HttpQuorum,
     ])
     .demandOption('connection-type')
 
@@ -260,7 +260,7 @@ async function main() {
 // Funds keys for a single context
 class ContextFunder {
   public readonly chains: ChainName[];
-  core: HyperlaneCore;
+  igp: HyperlaneIgp;
 
   constructor(
     public readonly environment: DeployEnvironment,
@@ -275,7 +275,7 @@ class ContextFunder {
     );
 
     this.chains = Array.from(uniqueChains) as ChainName[];
-    this.core = HyperlaneCore.fromEnvironment(
+    this.igp = HyperlaneIgp.fromEnvironment(
       deployEnvToSdkEnv[this.environment],
       multiProvider,
     );
@@ -497,7 +497,7 @@ class ContextFunder {
     const igpClaimThreshold = ethers.utils.parseEther(igpClaimThresholdEther);
 
     const provider = this.multiProvider.getProvider(chain);
-    const igp = this.core.getContracts(chain).interchainGasPaymaster;
+    const igp = this.igp.getContracts(chain).interchainGasPaymaster;
     const igpBalance = await provider.getBalance(igp.address);
 
     log('Checking IGP balance', {

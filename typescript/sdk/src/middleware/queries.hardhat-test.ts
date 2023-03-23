@@ -15,7 +15,7 @@ import { TestCoreApp } from '../core/TestCoreApp';
 import { TestCoreDeployer } from '../core/TestCoreDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
 import { RouterConfig } from '../router/types';
-import { getTestOwnerConfig } from '../test/testUtils';
+import { deployTestIgpsAndGetRouterConfig } from '../test/testUtils';
 import { ChainMap } from '../types';
 
 import { InterchainQueryDeployer } from './deploy';
@@ -42,8 +42,10 @@ describe('InterchainQueryRouter', async () => {
     const coreDeployer = new TestCoreDeployer(multiProvider);
     const coreContractsMaps = await coreDeployer.deploy();
     coreApp = new TestCoreApp(coreContractsMaps, multiProvider);
-    config = coreApp.extendWithConnectionClientConfig(
-      getTestOwnerConfig(signer.address),
+    config = await deployTestIgpsAndGetRouterConfig(
+      multiProvider,
+      signer.address,
+      coreContractsMaps,
     );
   });
 

@@ -8,11 +8,11 @@ import {
 
 import { bridgeAdapterConfigs } from '../../config/environments/testnet3/token-bridge';
 import { deployWithArtifacts } from '../../src/deploy';
-import { getConfiguration } from '../helloworld/utils';
 import {
   getCoreEnvironmentConfig,
   getEnvironment,
   getEnvironmentDirectory,
+  getRouterConfig,
 } from '../utils';
 
 async function main() {
@@ -26,10 +26,10 @@ async function main() {
   );
 
   // config gcp deployer key as owner
-  const ownerConfigMap = await getConfiguration(environment, multiProvider);
+  const routerConfig = await getRouterConfig(environment, multiProvider);
   const config = objMap(bridgeAdapterConfigs, (chain, conf) => ({
     ...conf,
-    ...ownerConfigMap[chain],
+    ...routerConfig[chain],
   }));
   const deployer = new LiquidityLayerDeployer(
     multiProvider,

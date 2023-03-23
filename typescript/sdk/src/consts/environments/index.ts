@@ -1,22 +1,23 @@
-import { types } from '@hyperlane-xyz/utils';
-
-import { ChainMap } from '../../types';
+import { HyperlaneAgentAddresses } from '../../agents/types';
+import { CoreAddresses } from '../../core/contracts';
+import { IgpAddresses } from '../../gas/contracts';
+import { ChainMap, ChainName } from '../../types';
 import { objMap } from '../../utils/objects';
 
 import mainnet from './mainnet.json';
 import test from './test.json';
 import testnet from './testnet.json';
 
-export const environments = { test, testnet, mainnet };
+export const hyperlaneEnvironments = { test, testnet, mainnet };
 
-type HyperlaneCoreAddressMap = ChainMap<{
-  mailbox: types.Address;
-  multisigIsm: types.Address;
-  interchainGasPaymaster: types.Address;
-  interchainAccountRouter?: types.Address;
-  interchainQueryRouter?: types.Address;
-  create2Factory: types.Address;
-}>;
+export type HyperlaneEnvironment = keyof typeof hyperlaneEnvironments;
+export type HyperlaneEnvironmentChain<E extends HyperlaneEnvironment> = Extract<
+  keyof typeof hyperlaneEnvironments[E],
+  ChainName
+>;
+
+// TODO: Add middleware addresses
+export type HyperlaneContractAddresses = CoreAddresses & IgpAddresses;
 
 // Export developer-relevant addresses
 export const hyperlaneCoreAddresses = objMap(
@@ -24,9 +25,32 @@ export const hyperlaneCoreAddresses = objMap(
   (_chain, addresses) => ({
     mailbox: addresses.mailbox.proxy,
     multisigIsm: addresses.multisigIsm,
-    interchainGasPaymaster: addresses.interchainGasPaymaster.proxy,
-    interchainAccountRouter: undefined,
-    interchainQueryRouter: undefined,
-    create2Factory: addresses.create2Factory,
+    proxyAdmin: addresses.proxyAdmin,
+    validatorAnnounce: addresses.validatorAnnounce,
   }),
-) as HyperlaneCoreAddressMap;
+) as ChainMap<CoreAddresses>;
+
+export const hyperlaneContractAddresses = objMap(
+  { ...testnet, ...mainnet },
+  (_chain, addresses) => ({
+    mailbox: addresses.mailbox.proxy,
+    multisigIsm: addresses.multisigIsm,
+    proxyAdmin: addresses.proxyAdmin,
+    validatorAnnounce: addresses.validatorAnnounce,
+    interchainGasPaymaster: addresses.interchainGasPaymaster.proxy,
+    storageGasOracle: addresses.storageGasOracle,
+    defaultIsmInterchainGasPaymaster:
+      addresses.defaultIsmInterchainGasPaymaster,
+    //interchainAccountRouter: undefined,
+    //interchainQueryRouter: undefined,
+  }),
+) as ChainMap<HyperlaneContractAddresses>;
+
+export const hyperlaneAgentAddresses = objMap(
+  { ...testnet, ...mainnet },
+  (_chain, addresses) => ({
+    mailbox: addresses.mailbox.proxy,
+    validatorAnnounce: addresses.validatorAnnounce,
+    interchainGasPaymaster: addresses.interchainGasPaymaster.proxy,
+  }),
+) as ChainMap<HyperlaneAgentAddresses>;

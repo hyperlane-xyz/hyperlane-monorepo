@@ -4,45 +4,25 @@ import {
   helloWorldFactories,
 } from '@hyperlane-xyz/helloworld';
 import {
+  AgentConnectionType,
   ChainMap,
   HyperlaneCore,
   MultiProvider,
-  RouterConfig,
   buildContracts,
 } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
-import { CoreEnvironmentConfig, DeployEnvironment } from '../../src/config';
-import { ConnectionType } from '../../src/config/agent';
+import { CoreEnvironmentConfig } from '../../src/config';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { HelloWorldConfig } from '../../src/config/helloworld';
-
-export async function getConfiguration(
-  environment: DeployEnvironment,
-  multiProvider: MultiProvider,
-): Promise<ChainMap<RouterConfig>> {
-  const ownerMap: ChainMap<{ owner: string }> = {};
-  for (const chain of multiProvider.getKnownChainNames()) {
-    ownerMap[chain] = {
-      owner: await multiProvider.getSignerAddress(chain),
-    };
-  }
-
-  const core: HyperlaneCore = HyperlaneCore.fromEnvironment(
-    deployEnvToSdkEnv[environment],
-    multiProvider,
-  );
-
-  return core.extendWithConnectionClientConfig(ownerMap);
-}
 
 export async function getApp(
   coreConfig: CoreEnvironmentConfig,
   context: Contexts,
   keyRole: KEY_ROLE_ENUM,
   keyContext: Contexts = context,
-  connectionType: ConnectionType = ConnectionType.Http,
+  connectionType: AgentConnectionType = AgentConnectionType.Http,
 ) {
   const helloworldConfig = getHelloWorldConfig(coreConfig, context);
   const contracts = buildContracts(

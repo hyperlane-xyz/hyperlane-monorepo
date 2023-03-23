@@ -5,7 +5,12 @@ import { ethers } from 'ethers';
 import fs from 'fs';
 import path from 'path';
 
-import { AllChains, ChainName, CoreChainName } from '@hyperlane-xyz/sdk';
+import {
+  AllChains,
+  ChainName,
+  CoreChainName,
+  objMerge,
+} from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import { ALL_KEY_ROLES, KEY_ROLE_ENUM } from '../agents/roles';
@@ -149,6 +154,15 @@ export function warn(text: string, padded = false) {
     );
   } else {
     console.log(`**** ${text.toUpperCase()} ****`);
+  }
+}
+
+export function writeMergedJSON(directory: string, filename: string, obj: any) {
+  if (fs.existsSync(path.join(directory, filename))) {
+    const previous = readJSON(directory, filename);
+    writeJSON(directory, filename, objMerge(previous, obj));
+  } else {
+    writeJSON(directory, filename, obj);
   }
 }
 

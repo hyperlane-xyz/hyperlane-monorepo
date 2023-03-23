@@ -1,16 +1,12 @@
 import { buildContracts } from '../../contracts';
 import { HyperlaneCore } from '../../core/HyperlaneCore';
-import { getChainToOwnerMap } from '../../deploy/utils';
+import { HyperlaneIgp } from '../../gas/HyperlaneIgp';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterContracts } from '../../router/types';
 import { ChainMap } from '../../types';
+import { createRouterConfigMap } from '../testUtils';
 
-import {
-  EnvSubsetApp,
-  EnvSubsetChecker,
-  alfajoresChainConfig,
-  envSubsetFactories,
-} from './app';
+import { EnvSubsetApp, EnvSubsetChecker, envSubsetFactories } from './app';
 
 // Copied from output of deploy-single-chain.ts script
 const deploymentAddresses = {
@@ -31,9 +27,13 @@ async function check() {
   ) as ChainMap<RouterContracts>;
   const app = new EnvSubsetApp(contractsMap, multiProvider);
   const core = HyperlaneCore.fromEnvironment('testnet', multiProvider);
-  const config = core.extendWithConnectionClientConfig(
-    getChainToOwnerMap(alfajoresChainConfig, ownerAddress),
+  const igp = HyperlaneIgp.fromEnvironment('testnet', multiProvider);
+  const config = createRouterConfigMap(
+    ownerAddress,
+    core.contractsMap,
+    igp.contractsMap,
   );
+
   const envSubsetChecker = new EnvSubsetChecker(multiProvider, app, config);
 
   console.info('Starting check');
