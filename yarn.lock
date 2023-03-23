@@ -1350,14 +1350,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/core@npm:1.2.2":
-  version: 1.2.2
-  resolution: "@hyperlane-xyz/core@npm:1.2.2"
+"@hyperlane-xyz/core@npm:1.2.3":
+  version: 1.2.3
+  resolution: "@hyperlane-xyz/core@npm:1.2.3"
   dependencies:
-    "@hyperlane-xyz/utils": 1.2.2
+    "@hyperlane-xyz/utils": 1.2.3
     "@openzeppelin/contracts": ^4.8.0
     "@openzeppelin/contracts-upgradeable": ^4.8.0
-  checksum: f20bdb6aed949a5b4a16fbb5bbd232647c39f515cc68985d9445f76082c190856e99d80f9ff0565febdd55047e4b1e0b111345a08c68971574fb3a87e5c0cff5
+  checksum: c7e8f5c37d2e6874b6ca5f16024a4ea8b413393a2a4bb770a467ca7cc031b51a89fbe6989598c171de38acafcd2e990525be0274f793742faafc832a0db359fa
   languageName: node
   linkType: hard
 
@@ -1365,7 +1365,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/helloworld@workspace:."
   dependencies:
-    "@hyperlane-xyz/sdk": 1.2.2
+    "@hyperlane-xyz/sdk": 1.2.3
     "@nomiclabs/hardhat-ethers": ^2.2.1
     "@nomiclabs/hardhat-waffle": ^2.0.3
     "@openzeppelin/contracts-upgradeable": ^4.8.0
@@ -1393,28 +1393,28 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/sdk@npm:1.2.2":
-  version: 1.2.2
-  resolution: "@hyperlane-xyz/sdk@npm:1.2.2"
+"@hyperlane-xyz/sdk@npm:1.2.3":
+  version: 1.2.3
+  resolution: "@hyperlane-xyz/sdk@npm:1.2.3"
   dependencies:
-    "@hyperlane-xyz/core": 1.2.2
-    "@hyperlane-xyz/utils": 1.2.2
+    "@hyperlane-xyz/core": 1.2.3
+    "@hyperlane-xyz/utils": 1.2.3
     "@wagmi/chains": ^0.2.6
     coingecko-api: ^1.0.10
     cross-fetch: ^3.1.5
     debug: ^4.3.4
     ethers: ^5.7.2
     zod: ^3.21.2
-  checksum: 5e6e856e413474ab9a241ce8c507683db7ff6933649d58d17323deff7c13393ce2c7b973bbd404bdd99409ff883d934b386a1e7c1830fa7257c08a893c742ceb
+  checksum: a1afc8bdfe64916fdc6623c1df06bbe1393359fe6b29cefe3f25bb5ded16108e1bac037da9a29df7f0d61cc84940e571d148e41c7fd8539964a87e9a95c03c35
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/utils@npm:1.2.2":
-  version: 1.2.2
-  resolution: "@hyperlane-xyz/utils@npm:1.2.2"
+"@hyperlane-xyz/utils@npm:1.2.3":
+  version: 1.2.3
+  resolution: "@hyperlane-xyz/utils@npm:1.2.3"
   dependencies:
     ethers: ^5.7.2
-  checksum: ac118a1604eb3d14064ccfc6208735ea6fbf909cf178592a22570864fcbce4ba55833e0bb7ec0942240eec7db36412ec21ea4ce10f3c3dd0167213c6734b302b
+  checksum: 14222632d7ef2419f6b698afa0c4c466302dd0eb6f97d3c9031b7d42c033418547bf4092d480cc4346331f0233d4076caae75b86ffa2b7beed79741a146d3325
   languageName: node
   linkType: hard
 
