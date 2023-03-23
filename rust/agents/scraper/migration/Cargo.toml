@@ -1,23 +1,28 @@
 [package]
 name = "migration"
-version = "0.1.0"
-edition = "2021"
-publish = false
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license-file.workspace = true
+publish.workspace = true
+version.workspace = true
 
 [lib]
 name = "migration"
 path = "src/lib.rs"
 
 [dependencies]
+sea-orm = {version = "0.11.1", features = ["macros", "with-bigdecimal", "with-time"]}
+sea-orm-migration = { version = "0.11.1", features = ["runtime-tokio-native-tls", "sqlx-postgres"] }
+serde.workspace = true
+time = "0.3"
+tokio = { workspace = true, features = ["rt", "macros"] }
+
 hyperlane-core = { path = "../../../hyperlane-core" }
-sea-orm = {version = "~0.10.5", features = ["macros"]}
-sea-orm-migration = { version = "~0.10.5", features = ["runtime-tokio-native-tls", "sqlx-postgres"] }
-serde = { version = "1.0", features = ["derive"] }
-tokio = { version = "1", features = ["rt", "macros"] }
 
 # bin-only deps
-tracing-subscriber = { version = "0.3" }
-tracing = { version = "0.1", features = ["release_max_level_debug"] }
+tracing-subscriber.workspace = true
+tracing.workspace = true
 
 [[bin]]
 name = "init-db"

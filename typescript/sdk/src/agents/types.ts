@@ -22,7 +22,8 @@ export type AgentConnection =
       url: string;
     }
   | { type: AgentConnectionType.Ws; url: string }
-  | { type: AgentConnectionType.HttpQuorum; urls: string };
+  | { type: AgentConnectionType.HttpQuorum; urls: string }
+  | { type: AgentConnectionType.HttpFallback; urls: string };
 
 export type HyperlaneAgentAddresses = {
   mailbox: types.Address;
@@ -30,24 +31,27 @@ export type HyperlaneAgentAddresses = {
   validatorAnnounce: types.Address;
 };
 
-export type AgentChainSetup = {
+export type AgentChainSetupBase = {
   name: ChainName;
   domain: number;
-  signer?: AgentSigner | null;
+  signer?: AgentSigner;
   finalityBlocks: number;
   addresses: HyperlaneAgentAddresses;
   protocol: 'ethereum' | 'fuel';
-  connection: AgentConnection;
+  connection?: AgentConnection;
   index?: { from: number };
 };
 
+export interface AgentChainSetup extends AgentChainSetupBase {
+  signer: AgentSigner;
+  connection: AgentConnection;
+}
+
 export type AgentConfig = {
-  chains: Partial<ChainMap<AgentChainSetup>>;
-  // TODO: Separate DBs for each chain (fold into AgentChainSetup)
-  db: string;
-  tracing: {
-    level: string;
-    fmt: 'json';
+  chains: Partial<ChainMap<AgentChainSetupBase>>;
+  tracing?: {
+    level?: string;
+    fmt?: 'json';
   };
 };
 
@@ -59,16 +63,11 @@ export function buildAgentConfig(
 ): AgentConfig {
   const agentConfig: AgentConfig = {
     chains: {},
-    db: 'db_path',
-    tracing: {
-      level: 'debug',
-      fmt: 'json',
-    },
   };
 
   for (const chain of [...chains].sort()) {
     const metadata = multiProvider.getChainMetadata(chain);
-    const chainConfig: AgentChainSetup = {
+    const chainConfig: AgentChainSetupBase = {
       name: chain,
       domain: metadata.chainId,
       addresses: {
@@ -78,13 +77,14 @@ export function buildAgentConfig(
         ),
         validatorAnnounce: getProxyAddress(addresses[chain].validatorAnnounce),
       },
-      signer: null,
       protocol: 'ethereum',
       finalityBlocks: metadata.blocks?.reorgPeriod ?? 1,
       connection: {
+        // not a valid connection but we want to fill in the HTTP type for
+        // them as a default and leave out the URL
         type: AgentConnectionType.Http,
-        url: '',
-      },
+        url: undefined,
+      } as any as AgentConnection,
     };
 
     chainConfig.index = {

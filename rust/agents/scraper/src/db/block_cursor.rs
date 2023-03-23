@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use eyre::Result;
 use sea_orm::{prelude::*, ActiveValue, Insert, Order, QueryOrder, QuerySelect};
 use tokio::sync::RwLock;
-use tracing::{debug, instrument, trace, warn};
+use tracing::{debug, info, instrument, warn};
 
 use crate::db::ScraperDb;
 
@@ -48,7 +48,13 @@ impl BlockCursor {
             .map(|h| h as u64)
             .unwrap_or(default_height);
         if height < default_height {
-            warn!("Cursor height loaded from the database is lower than the default height!")
+            warn!(
+                height,
+                default_height,
+                "Cursor height loaded from the database is lower than the default height!"
+            )
+        } else {
+            info!(height, "Restored current cursor position from database")
         }
         Ok(Self {
             db,
@@ -83,7 +89,7 @@ impl BlockCursor {
                 time_created: ActiveValue::NotSet,
                 height: ActiveValue::Set(height as i64),
             };
-            trace!(?model, "Inserting cursor");
+            debug!(?model, "Inserting cursor");
             if let Err(e) = Insert::one(model).exec(&self.db).await {
                 warn!(error = ?e, "Failed to update database with new cursor")
             } else {

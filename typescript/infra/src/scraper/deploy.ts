@@ -96,5 +96,5 @@ async function scraperHelmValues(agentConfig: AgentConfig) {
 }
 
 function getScraperHelmReleaseName() {
-  return `scraper`;
+  return `scraper3`;
 }

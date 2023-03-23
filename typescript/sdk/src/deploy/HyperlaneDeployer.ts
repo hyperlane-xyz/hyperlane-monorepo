@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 
 import {
   Create2Factory__factory,
+  HyperlaneConnectionClient,
   Ownable,
   ProxyAdmin,
   ProxyAdmin__factory,
@@ -24,6 +25,7 @@ import {
   ProxyKind,
   TransparentProxyAddresses,
 } from '../proxy';
+import { ConnectionClientConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
 import { objMap } from '../utils/objects';
 
@@ -124,6 +126,53 @@ export abstract class HyperlaneDeployer<
       this.logger('Owner and signer NOT equal, skipping', logObj);
     }
     return undefined;
+  }
+
+  protected async initConnectionClient(
+    local: ChainName,
+    connectionClient: HyperlaneConnectionClient,
+    config: ConnectionClientConfig,
+  ): Promise<void> {
+    this.logger(`Initializing connection client on ${local}...`);
+    return this.runIfOwner(local, connectionClient, async () => {
+      // set mailbox if not already set (and configured)
+      if (config.mailbox !== (await connectionClient.mailbox())) {
+        this.logger(`Set mailbox on (${local})`);
+        await this.multiProvider.handleTx(
+          local,
+          connectionClient.setMailbox(config.mailbox),
+        );
+      }
+
+      // set interchain gas paymaster if not already set (and configured)
+      if (
+        config.interchainGasPaymaster !==
+        (await connectionClient.interchainGasPaymaster())
+      ) {
+        this.logger(`Set interchain gas paymaster on ${local}`);
+        await this.multiProvider.handleTx(
+          local,
+          connectionClient.setInterchainGasPaymaster(
+            config.interchainGasPaymaster,
+          ),
+        );
+      }
+
+      // set interchain security module if not already set (and configured)
+      if (
+        config.interchainSecurityModule &&
+        config.interchainSecurityModule !==
+          (await connectionClient.interchainSecurityModule())
+      ) {
+        this.logger(`Set interchain security module on ${local}`);
+        await this.multiProvider.handleTx(
+          local,
+          connectionClient.setInterchainSecurityModule(
+            config.interchainSecurityModule,
+          ),
+        );
+      }
+    });
   }
 
   protected async deployContractFromFactory<F extends ethers.ContractFactory>(

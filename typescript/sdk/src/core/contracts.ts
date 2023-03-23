@@ -2,10 +2,10 @@ import {
   Create2Factory__factory,
   InterchainAccountRouter__factory,
   InterchainQueryRouter__factory,
+  LegacyMultisigIsm,
+  LegacyMultisigIsm__factory,
   Mailbox,
   Mailbox__factory,
-  MultisigIsm,
-  MultisigIsm__factory,
   ProxyAdmin,
   ProxyAdmin__factory,
   ValidatorAnnounce,
@@ -24,7 +24,7 @@ export type CoreAddresses = {
 
 export type CoreContracts = {
   mailbox: ProxiedContract<Mailbox, TransparentProxyAddresses>;
-  multisigIsm: MultisigIsm;
+  multisigIsm: LegacyMultisigIsm;
   proxyAdmin: ProxyAdmin;
   validatorAnnounce: ValidatorAnnounce;
 };
@@ -35,6 +35,6 @@ export const coreFactories = {
   validatorAnnounce: new ValidatorAnnounce__factory(),
   create2Factory: new Create2Factory__factory(),
   proxyAdmin: new ProxyAdmin__factory(),
-  multisigIsm: new MultisigIsm__factory(),
+  multisigIsm: new LegacyMultisigIsm__factory(),
   mailbox: new Mailbox__factory(),
 };

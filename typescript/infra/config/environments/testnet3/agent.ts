@@ -26,7 +26,7 @@ export const hyperlane: AgentConfig = {
   context: Contexts.Hyperlane,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    tag: '81ad229-20230316-173735',
+    tag: '5bf8aed-20230323-125721',
   },
   aws: {
     region: 'us-east-1',
@@ -37,7 +37,15 @@ export const hyperlane: AgentConfig = {
   validators,
   relayer: {
     default: {
-      blacklist: releaseCandidateHelloworldMatchingList,
+      blacklist: [
+        ...releaseCandidateHelloworldMatchingList,
+        {
+          // In an effort to reduce some giant retry queues that resulted
+          // from spam txs to the old TestRecipient before we were charging for
+          // gas, we blacklist the old TestRecipient address.
+          recipientAddress: '0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE',
+        },
+      ],
       gasPaymentEnforcement: [
         {
           type: GasPaymentEnforcementPolicyType.None,
@@ -63,7 +71,7 @@ export const releaseCandidate: AgentConfig = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    tag: '81ad229-20230316-173735',
+    tag: '5bf8aed-20230323-125721',
   },
   aws: {
     region: 'us-east-1',

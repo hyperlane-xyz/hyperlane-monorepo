@@ -2,8 +2,8 @@ import debug from 'debug';
 import { ethers } from 'ethers';
 
 import {
+  LegacyMultisigIsm,
   Mailbox,
-  MultisigIsm,
   Ownable,
   ProxyAdmin,
   ValidatorAnnounce,
@@ -71,7 +71,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     return validatorAnnounce;
   }
 
-  async deployMultisigIsm(chain: ChainName): Promise<MultisigIsm> {
+  async deployLegacyMultisigIsm(chain: ChainName): Promise<LegacyMultisigIsm> {
     const multisigIsm = await this.deployContract(chain, 'multisigIsm', []);
     const remotes = Object.keys(this.configMap[chain].multisigIsm);
     const overrides = this.multiProvider.getTransactionOverrides(chain);
@@ -149,7 +149,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     const provider = this.multiProvider.getProvider(chain);
     const startingBlockNumber = await provider.getBlockNumber();
     this.startingBlockNumbers[chain] = startingBlockNumber;
-    const multisigIsm = await this.deployMultisigIsm(chain);
+    const multisigIsm = await this.deployLegacyMultisigIsm(chain);
 
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
 

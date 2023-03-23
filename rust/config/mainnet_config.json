@@ -8,12 +8,10 @@
         "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
         "validatorAnnounce": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524"
       },
-      "signer": null,
       "protocol": "ethereum",
       "finalityBlocks": 0,
       "connection": {
-        "type": "http",
-        "url": ""
+        "type": "http"
       },
       "index": {
         "from": 16884144
@@ -27,12 +25,10 @@
         "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
         "validatorAnnounce": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524"
       },
-      "signer": null,
       "protocol": "ethereum",
       "finalityBlocks": 20,
       "connection": {
-        "type": "http",
-        "url": ""
+        "type": "http"
       },
       "index": {
         "from": 16271503
@@ -46,12 +42,10 @@
         "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
         "validatorAnnounce": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524"
       },
-      "signer": null,
       "protocol": "ethereum",
       "finalityBlocks": 3,
       "connection": {
-        "type": "http",
-        "url": ""
+        "type": "http"
       },
       "index": {
         "from": 24145479
@@ -65,12 +59,10 @@
         "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
         "validatorAnnounce": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524"
       },
-      "signer": null,
       "protocol": "ethereum",
       "finalityBlocks": 256,
       "connection": {
-        "type": "http",
-        "url": ""
+        "type": "http"
       },
       "index": {
         "from": 37313389
@@ -84,12 +76,10 @@
         "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
         "validatorAnnounce": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524"
       },
-      "signer": null,
       "protocol": "ethereum",
       "finalityBlocks": 15,
       "connection": {
-        "type": "http",
-        "url": ""
+        "type": "http"
       },
       "index": {
         "from": 25063295
@@ -103,12 +93,10 @@
         "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
         "validatorAnnounce": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524"
       },
-      "signer": null,
       "protocol": "ethereum",
       "finalityBlocks": 0,
       "connection": {
-        "type": "http",
-        "url": ""
+        "type": "http"
       },
       "index": {
         "from": 49073182
@@ -122,12 +110,10 @@
         "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
         "validatorAnnounce": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524"
       },
-      "signer": null,
       "protocol": "ethereum",
       "finalityBlocks": 0,
       "connection": {
-        "type": "http",
-        "url": ""
+        "type": "http"
       },
       "index": {
         "from": 55698988
@@ -141,12 +127,10 @@
         "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
         "validatorAnnounce": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524"
       },
-      "signer": null,
       "protocol": "ethereum",
       "finalityBlocks": 1,
       "connection": {
-        "type": "http",
-        "url": ""
+        "type": "http"
       },
       "index": {
         "from": 2595747
@@ -160,21 +144,14 @@
         "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
         "validatorAnnounce": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524"
       },
-      "signer": null,
       "protocol": "ethereum",
       "finalityBlocks": 14,
       "connection": {
-        "type": "http",
-        "url": ""
+        "type": "http"
       },
       "index": {
         "from": 25900000
       }
     }
-  },
-  "db": "db_path",
-  "tracing": {
-    "level": "debug",
-    "fmt": "json"
   }
 }

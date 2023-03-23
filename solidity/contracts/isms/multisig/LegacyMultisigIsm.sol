@@ -7,27 +7,30 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 // ============ Internal Imports ============
-import {IMultisigIsm} from "../../interfaces/IMultisigIsm.sol";
-import {Message} from "../libs/Message.sol";
-import {MultisigIsmMetadata} from "../libs/MultisigIsmMetadata.sol";
-import {MerkleLib} from "../libs/Merkle.sol";
+import {IInterchainSecurityModule} from "../../../interfaces/IInterchainSecurityModule.sol";
+import {Message} from "../../libs/Message.sol";
+import {IMultisigIsm} from "../../../interfaces/isms/IMultisigIsm.sol";
+import {LegacyMultisigIsmMetadata} from "../../libs/isms/LegacyMultisigIsmMetadata.sol";
+import {MerkleLib} from "../../libs/Merkle.sol";
+import {CheckpointLib} from "../../libs/CheckpointLib.sol";
 
 /**
  * @title MultisigIsm
  * @notice Manages an ownable set of validators that ECDSA sign checkpoints to
  * reach a quorum.
  */
-contract MultisigIsm is IMultisigIsm, Ownable {
+contract LegacyMultisigIsm is IMultisigIsm, Ownable {
     // ============ Libraries ============
 
     using EnumerableSet for EnumerableSet.AddressSet;
     using Message for bytes;
-    using MultisigIsmMetadata for bytes;
+    using LegacyMultisigIsmMetadata for bytes;
     using MerkleLib for MerkleLib.Tree;
 
     // ============ Constants ============
 
-    uint8 public constant moduleType = 3;
+    uint8 public constant moduleType =
+        uint8(IInterchainSecurityModule.Types.LEGACY_MULTISIG);
 
     // ============ Mutable Storage ============
 
@@ -195,7 +198,7 @@ contract MultisigIsm is IMultisigIsm, Ownable {
      * @notice Verifies that a quorum of the origin domain's validators signed
      * a checkpoint, and verifies the merkle proof of `_message` against that
      * checkpoint.
-     * @param _metadata ABI encoded module metadata (see MultisigIsmMetadata.sol)
+     * @param _metadata ABI encoded module metadata (see LegacyMultisigIsmMetadata.sol)
      * @param _message Formatted Hyperlane message (see Message.sol).
      */
     function verify(bytes calldata _metadata, bytes calldata _message)
@@ -284,7 +287,7 @@ contract MultisigIsm is IMultisigIsm, Ownable {
     /**
      * @notice Verifies the merkle proof of `_message` against the provided
      * checkpoint.
-     * @param _metadata ABI encoded module metadata (see MultisigIsmMetadata.sol)
+     * @param _metadata ABI encoded module metadata (see LegacyMultisigIsmMetadata.sol)
      * @param _message Formatted Hyperlane message (see Message.sol).
      */
     function _verifyMerkleProof(
@@ -303,7 +306,7 @@ contract MultisigIsm is IMultisigIsm, Ownable {
     /**
      * @notice Verifies that a quorum of the origin domain's validators signed
      * the provided checkpoint.
-     * @param _metadata ABI encoded module metadata (see MultisigIsmMetadata.sol)
+     * @param _metadata ABI encoded module metadata (see LegacyMultisigIsmMetadata.sol)
      * @param _message Formatted Hyperlane message (see Message.sol).
      */
     function _verifyValidatorSignatures(
@@ -324,7 +327,12 @@ contract MultisigIsm is IMultisigIsm, Ownable {
             // non-zero computed commitment, and this check will fail
             // as the commitment in storage will be zero.
             require(_commitment == commitment[_origin], "!commitment");
-            _digest = _getCheckpointDigest(_metadata, _origin);
+            _digest = CheckpointLib.digest(
+                _origin,
+                LegacyMultisigIsmMetadata.originMailbox(_metadata),
+                LegacyMultisigIsmMetadata.root(_metadata),
+                LegacyMultisigIsmMetadata.index(_metadata)
+            );
         }
         uint256 _validatorCount = _metadata.validatorCount();
         uint256 _validatorIndex = 0;
@@ -343,54 +351,5 @@ contract MultisigIsm is IMultisigIsm, Ownable {
             ++_validatorIndex;
         }
         return true;
-    }
-
-    /**
-     * @notice Returns the domain hash that validators are expected to use
-     * when signing checkpoints.
-     * @param _origin The origin domain of the checkpoint.
-     * @param _originMailbox The address of the origin mailbox as bytes32.
-     * @return The domain hash.
-     */
-    function _getDomainHash(uint32 _origin, bytes32 _originMailbox)
-        internal
-        pure
-        returns (bytes32)
-    {
-        // Including the origin mailbox address in the signature allows the slashing
-        // protocol to enroll multiple mailboxes. Otherwise, a valid signature for
-        // mailbox A would be indistinguishable from a fraudulent signature for mailbox
-        // B.
-        // The slashing protocol should slash if validators sign attestations for
-        // anything other than a whitelisted mailbox.
-        return
-            keccak256(abi.encodePacked(_origin, _originMailbox, "HYPERLANE"));
-    }
-
-    /**
-     * @notice Returns the digest validators are expected to sign when signing checkpoints.
-     * @param _metadata ABI encoded module metadata (see MultisigIsmMetadata.sol)
-     * @param _origin The origin domain of the checkpoint.
-     * @return The digest of the checkpoint.
-     */
-    function _getCheckpointDigest(bytes calldata _metadata, uint32 _origin)
-        internal
-        pure
-        returns (bytes32)
-    {
-        bytes32 _domainHash = _getDomainHash(
-            _origin,
-            _metadata.originMailbox()
-        );
-        return
-            ECDSA.toEthSignedMessageHash(
-                keccak256(
-                    abi.encodePacked(
-                        _domainHash,
-                        _metadata.root(),
-                        _metadata.index()
-                    )
-                )
-            );
     }
 }
