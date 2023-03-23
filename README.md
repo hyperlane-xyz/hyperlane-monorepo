@@ -104,3 +104,5 @@ For the git submodules, you will have to undo the removal of the `yarn.lock` fil
 Make PRs for the monorepo and the submodules.
 
 Make a Github release
+
+IGPS suck
