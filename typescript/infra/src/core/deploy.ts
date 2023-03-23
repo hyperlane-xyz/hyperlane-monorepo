@@ -21,8 +21,12 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { types } from '@hyperlane-xyz/utils';
 
-import { DeployEnvironment, RustChainSetup, RustConfig } from '../config';
-import { ConnectionType } from '../config/agent';
+import { DeployEnvironment, RustConfig } from '../config';
+import {
+  ConnectionType,
+  RustChainSetupBase,
+  RustConnection,
+} from '../config/agent';
 import { deployEnvToSdkEnv } from '../config/environment';
 import { writeJSON } from '../utils/utils';
 
@@ -111,11 +115,6 @@ export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
   writeRustConfigs(directory: string) {
     const rustConfig: RustConfig = {
       chains: {},
-      db: 'db_path',
-      tracing: {
-        level: 'debug',
-        fmt: 'json',
-      },
     };
     objMap(this.configMap, (chain) => {
       const contracts = this.deployedContracts[chain];
@@ -130,7 +129,7 @@ export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
         return;
       }
 
-      const chainConfig: RustChainSetup = {
+      const chainConfig: RustChainSetupBase = {
         name: chain,
         domain: metadata.chainId,
         addresses: {
@@ -138,13 +137,14 @@ export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
           interchainGasPaymaster: contracts.interchainGasPaymaster.address,
           validatorAnnounce: contracts.validatorAnnounce.address,
         },
-        signer: null,
         protocol: 'ethereum',
         finalityBlocks: metadata.blocks!.reorgPeriod!,
         connection: {
+          // not a valid connection but we want to fill in the HTTP type for
+          // them as a default and leave out the URL
           type: ConnectionType.Http,
-          url: '',
-        },
+          url: undefined,
+        } as any as RustConnection,
       };
 
       const startingBlockNumber = this.startingBlockNumbers[chain];

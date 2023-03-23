@@ -1,10 +1,10 @@
 [package]
 name = "backtrace-oneline"
 version = "0.1.0"
-edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+edition.workspace = true
+license-file.workspace = true
+publish.workspace = true
 
 [dependencies]
 backtrace = "0.3"
-derive-new = "0.5"
+derive-new.workspace = true

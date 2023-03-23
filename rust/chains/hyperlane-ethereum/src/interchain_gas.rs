@@ -11,8 +11,7 @@ use tracing::instrument;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster,
-    InterchainGasPaymasterIndexer, InterchainGasPayment, InterchainGasPaymentMeta,
-    InterchainGasPaymentWithMeta, H160, H256,
+    InterchainGasPaymasterIndexer, InterchainGasPayment, LogMeta, H160, H256,
 };
 
 use crate::contracts::interchain_gas_paymaster::{
@@ -107,7 +106,7 @@ where
         &self,
         from_block: u32,
         to_block: u32,
-    ) -> ChainResult<Vec<InterchainGasPaymentWithMeta>> {
+    ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
         let events = self
             .contract
             .gas_payment_filter()
@@ -118,16 +117,15 @@ where
 
         Ok(events
             .into_iter()
-            .map(|(log, log_meta)| InterchainGasPaymentWithMeta {
-                payment: InterchainGasPayment {
-                    message_id: H256::from(log.message_id),
-                    payment: log.payment,
-                    gas_amount: log.gas_amount,
-                },
-                meta: InterchainGasPaymentMeta {
-                    transaction_hash: log_meta.transaction_hash,
-                    log_index: log_meta.log_index.as_u64(),
-                },
+            .map(|(log, log_meta)| {
+                (
+                    InterchainGasPayment {
+                        message_id: H256::from(log.message_id),
+                        payment: log.payment,
+                        gas_amount: log.gas_amount,
+                    },
+                    log_meta.into(),
+                )
             })
             .collect())
     }

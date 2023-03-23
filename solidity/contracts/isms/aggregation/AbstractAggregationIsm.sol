@@ -7,7 +7,7 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 // ============ Internal Imports ============
 import {IInterchainSecurityModule} from "../../../interfaces/IInterchainSecurityModule.sol";
 import {IAggregationIsm} from "../../../interfaces/IAggregationIsm.sol";
-import {AggregationIsmMetadata} from "../../libs/AggregationIsmMetadata.sol";
+import {AggregationIsmMetadata} from "../../libs/isms/AggregationIsmMetadata.sol";
 
 /**
  * @title AggregationIsm

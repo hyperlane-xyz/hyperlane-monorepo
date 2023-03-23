@@ -76,7 +76,7 @@ use once_cell::sync::OnceCell;
 use rusoto_kms::KmsClient;
 use serde::Deserialize;
 
-pub use chains::{ChainConf, ChainSetup, CoreContractAddresses};
+pub use chains::{ChainConnectionConf, ChainSetup, CoreContractAddresses};
 use hyperlane_core::utils::StrOrInt;
 use hyperlane_core::{
     db::{HyperlaneDB, DB},

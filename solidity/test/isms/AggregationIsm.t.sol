@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 
 import {IAggregationIsm} from "../../interfaces/IAggregationIsm.sol";
 import {StaticAggregationIsmFactory} from "../../contracts/isms/aggregation/StaticAggregationIsmFactory.sol";
-import {AggregationIsmMetadata} from "../../contracts/libs/AggregationIsmMetadata.sol";
+import {AggregationIsmMetadata} from "../../contracts/libs/isms/AggregationIsmMetadata.sol";
 import {MOfNTestUtils} from "./MOfNTestUtils.sol";
 
 contract TestIsm {

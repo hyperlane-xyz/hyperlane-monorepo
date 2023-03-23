@@ -3,14 +3,14 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import {InterchainQueryRouter} from "../contracts/middleware/InterchainQueryRouter.sol";
-import {IInterchainQueryRouter} from "../interfaces/IInterchainQueryRouter.sol";
+import {IInterchainQueryRouter} from "../interfaces/middleware/IInterchainQueryRouter.sol";
 import {MockHyperlaneEnvironment} from "../contracts/mock/MockHyperlaneEnvironment.sol";
 
 import {MockToken} from "../contracts/mock/MockToken.sol";
 
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 import "../contracts/test/TestRecipient.sol";
-import {OwnableMulticall} from "../contracts/OwnableMulticall.sol";
+import {TestHyperlaneConnectionClient} from "../contracts/test/TestHyperlaneConnectionClient.sol";
 import {CallLib} from "../contracts/libs/Call.sol";
 
 contract InterchainQueryRouterTest is Test {
@@ -109,7 +109,7 @@ contract InterchainQueryRouterTest is Test {
 
     function testCannotQueryReverting() public {
         // Deploy a random ownable contract
-        OwnableMulticall ownable = new OwnableMulticall();
+        TestHyperlaneConnectionClient ownable = new TestHyperlaneConnectionClient();
         dispatchQuery(
             address(ownable),
             abi.encodeWithSelector(
@@ -124,7 +124,7 @@ contract InterchainQueryRouterTest is Test {
 
     function testCannotCallbackReverting() public {
         // Deploy a random ownable contract
-        OwnableMulticall ownable = new OwnableMulticall();
+        TestHyperlaneConnectionClient ownable = new TestHyperlaneConnectionClient();
 
         dispatchQuery(
             address(ownable),
@@ -136,10 +136,30 @@ contract InterchainQueryRouterTest is Test {
         environment.processNextPendingMessageFromDestination();
     }
 
+    function testSingleQueryAddress(address owner) public {
+        vm.assume(owner != address(0x0));
+        // Deploy a random ownable contract
+        TestHyperlaneConnectionClient ownable = new TestHyperlaneConnectionClient();
+        // Set the routers owner
+        ownable.transferOwnership(owner);
+
+        vm.expectEmit(true, true, false, true, address(originRouter));
+        emit QueryDispatched(remoteDomain, address(this));
+
+        originRouter.query(
+            remoteDomain,
+            address(ownable),
+            abi.encodePacked(ownable.owner.selector),
+            abi.encodePacked(this.receiveAddress.selector)
+        );
+        processQuery();
+        assertEq(addressResult, owner);
+    }
+
     function testQueryAddress(address owner) public {
         vm.assume(owner != address(0x0));
         // Deploy a random ownable contract
-        OwnableMulticall ownable = new OwnableMulticall();
+        TestHyperlaneConnectionClient ownable = new TestHyperlaneConnectionClient();
         // Set the routers owner
         ownable.transferOwnership(owner);
 

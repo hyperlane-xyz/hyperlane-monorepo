@@ -3,7 +3,7 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {AbstractMultisigIsm} from "./AbstractMultisigIsm.sol";
-import {MultisigIsmMetadata} from "../../libs/MultisigIsmMetadata.sol";
+import {MultisigIsmMetadata} from "../../libs/isms/MultisigIsmMetadata.sol";
 import {MetaProxy} from "../../libs/MetaProxy.sol";
 
 /**

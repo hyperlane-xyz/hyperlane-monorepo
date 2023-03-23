@@ -3,7 +3,7 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {AbstractAggregationIsm} from "./AbstractAggregationIsm.sol";
-import {AggregationIsmMetadata} from "../../libs/AggregationIsmMetadata.sol";
+import {AggregationIsmMetadata} from "../../libs/isms/AggregationIsmMetadata.sol";
 import {MetaProxy} from "../../libs/MetaProxy.sol";
 
 /**

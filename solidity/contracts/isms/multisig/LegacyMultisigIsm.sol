@@ -8,9 +8,9 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 
 // ============ Internal Imports ============
 import {IInterchainSecurityModule} from "../../../interfaces/IInterchainSecurityModule.sol";
-import {IMultisigIsm} from "../../../interfaces/IMultisigIsm.sol";
 import {Message} from "../../libs/Message.sol";
-import {LegacyMultisigIsmMetadata} from "../../libs/LegacyMultisigIsmMetadata.sol";
+import {IMultisigIsm} from "../../../interfaces/isms/IMultisigIsm.sol";
+import {LegacyMultisigIsmMetadata} from "../../libs/isms/LegacyMultisigIsmMetadata.sol";
 import {MerkleLib} from "../../libs/Merkle.sol";
 import {CheckpointLib} from "../../libs/CheckpointLib.sol";
 

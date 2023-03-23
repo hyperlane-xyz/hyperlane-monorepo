@@ -6,7 +6,6 @@ import {
   InterchainAccountRouter,
   TestRecipient__factory,
 } from '@hyperlane-xyz/core';
-import { utils } from '@hyperlane-xyz/utils';
 
 import { Chains } from '../consts/chains';
 import { TestCoreApp } from '../core/TestCoreApp';
@@ -22,7 +21,7 @@ import {
   InterchainAccountDeployer,
 } from './deploy';
 
-describe('InterchainAccountRouter', async () => {
+describe('InterchainAccounts', async () => {
   const localChain = Chains.test1;
   const remoteChain = Chains.test2;
 
@@ -51,11 +50,8 @@ describe('InterchainAccountRouter', async () => {
   });
 
   beforeEach(async () => {
-    const InterchainAccount = new InterchainAccountDeployer(
-      multiProvider,
-      config,
-    );
-    contracts = await InterchainAccount.deploy();
+    const deployer = new InterchainAccountDeployer(multiProvider, config);
+    contracts = await deployer.deploy();
 
     local = contracts[localChain].router;
     remote = contracts[remoteChain].router;
@@ -81,17 +77,21 @@ describe('InterchainAccountRouter', async () => {
       1,
       fooMessage,
     ]);
-    const icaAddress = await remote['getInterchainAccount(uint32,address)'](
+    const icaAddress = await remote[
+      'getLocalInterchainAccount(uint32,address,address,address)'
+    ](
       multiProvider.getDomainId(localChain),
       signer.address,
+      local.address,
+      ethers.constants.AddressZero,
     );
 
-    await local.dispatch(multiProvider.getDomainId(remoteChain), [
-      {
-        _call: { to: utils.addressToBytes32(recipient.address), data },
-        value: 0,
-      },
-    ]);
+    await local['callRemote(uint32,address,uint256,bytes)'](
+      multiProvider.getDomainId(remoteChain),
+      recipient.address,
+      0,
+      data,
+    );
     await coreApp.processMessages();
     expect(await recipient.lastCallMessage()).to.eql(fooMessage);
     expect(await recipient.lastCaller()).to.eql(icaAddress);

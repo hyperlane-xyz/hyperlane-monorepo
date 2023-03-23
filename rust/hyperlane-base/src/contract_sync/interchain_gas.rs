@@ -3,8 +3,12 @@ use tracing::{debug, info, info_span, instrument::Instrumented, warn, Instrument
 
 use hyperlane_core::{InterchainGasPaymasterIndexer, SyncBlockRangeCursor};
 
-use crate::contract_sync::cursor::RateLimitedSyncBlockRangeCursor;
-use crate::{contract_sync::schema::InterchainGasPaymasterContractSyncDB, ContractSync};
+use crate::{
+    contract_sync::{
+        cursor::RateLimitedSyncBlockRangeCursor, schema::InterchainGasPaymasterContractSyncDB,
+    },
+    ContractSync,
+};
 
 const GAS_PAYMENTS_LABEL: &str = "gas_payments";
 
@@ -67,10 +71,10 @@ where
                 );
 
                 let mut new_payments_processed: u64 = 0;
-                for gas_payment in gas_payments.iter() {
+                for (payment, meta) in gas_payments.iter() {
                     // Attempt to process the gas payment, incrementing new_payments_processed
                     // if it was processed for the first time.
-                    if db.process_gas_payment(gas_payment)? {
+                    if db.process_gas_payment(*payment, meta)? {
                         new_payments_processed += 1;
                     }
                 }

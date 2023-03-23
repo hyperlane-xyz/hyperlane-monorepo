@@ -6,9 +6,9 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 // ============ Internal Imports ============
 import {IInterchainSecurityModule} from "../../../interfaces/IInterchainSecurityModule.sol";
-import {IMultisigIsm} from "../../../interfaces/IMultisigIsm.sol";
+import {IMultisigIsm} from "../../../interfaces/isms/IMultisigIsm.sol";
 import {Message} from "../../libs/Message.sol";
-import {MultisigIsmMetadata} from "../../libs/MultisigIsmMetadata.sol";
+import {MultisigIsmMetadata} from "../../libs/isms/MultisigIsmMetadata.sol";
 import {CheckpointLib} from "../../libs/CheckpointLib.sol";
 import {MerkleLib} from "../../libs/Merkle.sol";
 
