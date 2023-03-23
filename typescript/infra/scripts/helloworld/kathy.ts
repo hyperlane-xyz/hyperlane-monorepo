@@ -364,7 +364,7 @@ async function sendMessage(
 ) {
   const startTime = Date.now();
   const msg = 'Hello!';
-  const expectedHandleGas = BigNumber.from(100_000);
+  const expectedHandleGas = BigNumber.from(50_000);
 
   const value = await utils.retryAsync(
     () =>

@@ -142,7 +142,10 @@ export {
   RouterContracts,
   RouterFactories,
 } from './router/types';
-export { createRouterConfigMap } from './test/testUtils';
+export {
+  createRouterConfigMap,
+  deployTestIgpsAndGetRouterConfig,
+} from './test/testUtils';
 export {
   ChainMap,
   ChainName,
