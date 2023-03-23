@@ -5,7 +5,14 @@ import {CallLib} from "../../contracts/libs/Call.sol";
 
 interface IInterchainQueryRouter {
     function query(
-        uint32 _destinationDomain,
+        uint32 _destination,
+        address _to,
+        bytes memory _data,
+        bytes memory _callback
+    ) external returns (bytes32);
+
+    function query(
+        uint32 _destination,
         CallLib.StaticCallWithCallback[] calldata calls
     ) external returns (bytes32);
 }

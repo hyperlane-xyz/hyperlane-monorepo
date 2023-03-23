@@ -24,23 +24,23 @@ use crate::{settings::signers::BuildableWithSignerConf, CoreMetrics, SignerConf}
 /// Specify the chain name (enum variant) in toml under the `chain` key
 #[derive(Clone, Debug, Deserialize)]
 #[serde(tag = "protocol", content = "connection", rename_all = "camelCase")]
-pub enum ChainConf {
+pub enum ChainConnectionConf {
     /// Ethereum configuration
     Ethereum(h_eth::ConnectionConf),
     /// Fuel configuration
     Fuel(h_fuel::ConnectionConf),
 }
 
-impl ChainConf {
+impl ChainConnectionConf {
     fn protocol(&self) -> HyperlaneDomainProtocol {
         match self {
-            ChainConf::Ethereum(_) => HyperlaneDomainProtocol::Ethereum,
-            ChainConf::Fuel(_) => HyperlaneDomainProtocol::Fuel,
+            Self::Ethereum(_) => HyperlaneDomainProtocol::Ethereum,
+            Self::Fuel(_) => HyperlaneDomainProtocol::Fuel,
         }
     }
 }
 
-impl Default for ChainConf {
+impl Default for ChainConnectionConf {
     fn default() -> Self {
         Self::Ethereum(Default::default())
     }
@@ -113,8 +113,8 @@ pub struct ChainSetup {
     /// Addresses of contracts on the chain
     pub addresses: CoreContractAddresses,
     /// The chain connection details
-    #[serde(flatten)]
-    pub chain: ChainConf,
+    #[serde(flatten, default)]
+    pub connection: Option<ChainConnectionConf>,
     /// How transactions to this chain are submitted.
     #[serde(default)]
     pub txsubmission: TransactionSubmissionType,
@@ -129,14 +129,19 @@ pub struct ChainSetup {
 }
 
 impl ChainSetup {
+    /// Get the chain connection config or generate an error
+    pub fn connection(&self) -> Result<&ChainConnectionConf> {
+        self.connection.as_ref().ok_or_else(|| eyre!("Missing chain configuration for {}; this includes protocol and connection information", self.name))
+    }
+
     /// Try to convert the chain settings into an HyperlaneProvider.
     pub async fn build_provider(
         &self,
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn HyperlaneProvider>> {
         let ctx = "Building provider";
-        match &self.chain {
-            ChainConf::Ethereum(conf) => {
+        match &self.connection()? {
+            ChainConnectionConf::Ethereum(conf) => {
                 let locator = self
                     .locator("0x0000000000000000000000000000000000000000")
                     .context(ctx)?;
@@ -144,7 +149,7 @@ impl ChainSetup {
                     .await
             }
 
-            ChainConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Fuel(_) => todo!(),
         }
         .context(ctx)
     }
@@ -154,13 +159,13 @@ impl ChainSetup {
         let ctx = "Building provider";
         let locator = self.locator(&self.addresses.mailbox).context(ctx)?;
 
-        match &self.chain {
-            ChainConf::Ethereum(conf) => {
+        match &self.connection()? {
+            ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(conf, &locator, metrics, h_eth::MailboxBuilder {})
                     .await
             }
 
-            ChainConf::Fuel(conf) => {
+            ChainConnectionConf::Fuel(conf) => {
                 let wallet = self.fuel_signer().await.context(ctx)?;
                 hyperlane_fuel::FuelMailbox::new(conf, locator, wallet)
                     .map(|m| Box::new(m) as Box<dyn Mailbox>)
@@ -178,8 +183,8 @@ impl ChainSetup {
         let ctx = "Building mailbox indexer";
         let locator = self.locator(&self.addresses.mailbox).context(ctx)?;
 
-        match &self.chain {
-            ChainConf::Ethereum(conf) => {
+        match &self.connection()? {
+            ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(
                     conf,
                     &locator,
@@ -191,7 +196,7 @@ impl ChainSetup {
                 .await
             }
 
-            ChainConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Fuel(_) => todo!(),
         }
         .context(ctx)
     }
@@ -207,8 +212,8 @@ impl ChainSetup {
             .locator(&self.addresses.interchain_gas_paymaster)
             .context(ctx)?;
 
-        match &self.chain {
-            ChainConf::Ethereum(conf) => {
+        match &self.connection()? {
+            ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(
                     conf,
                     &locator,
@@ -218,7 +223,7 @@ impl ChainSetup {
                 .await
             }
 
-            ChainConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Fuel(_) => todo!(),
         }
         .context(ctx)
     }
@@ -233,8 +238,8 @@ impl ChainSetup {
             .locator(&self.addresses.interchain_gas_paymaster)
             .context(ctx)?;
 
-        match &self.chain {
-            ChainConf::Ethereum(conf) => {
+        match &self.connection()? {
+            ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(
                     conf,
                     &locator,
@@ -252,7 +257,7 @@ impl ChainSetup {
                 .await
             }
 
-            ChainConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Fuel(_) => todo!(),
         }
         .context(ctx)
     }
@@ -263,13 +268,13 @@ impl ChainSetup {
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn ValidatorAnnounce>> {
         let locator = self.locator(&self.addresses.validator_announce)?;
-        match &self.chain {
-            ChainConf::Ethereum(conf) => {
+        match &self.connection()? {
+            ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(conf, &locator, metrics, h_eth::ValidatorAnnounceBuilder {})
                     .await
             }
 
-            ChainConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Fuel(_) => todo!(),
         }
         .context("Building ValidatorAnnounce")
     }
@@ -289,13 +294,13 @@ impl ChainSetup {
             address,
         };
 
-        match &self.chain {
-            ChainConf::Ethereum(conf) => {
+        match &self.connection()? {
+            ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(conf, &locator, metrics, h_eth::MultisigIsmBuilder {})
                     .await
             }
 
-            ChainConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Fuel(_) => todo!(),
         }
         .context(ctx)
     }
@@ -305,7 +310,7 @@ impl ChainSetup {
         HyperlaneDomain::from_config(
             (&self.domain).try_into().context("Invalid domain id")?,
             &self.name,
-            self.chain.protocol(),
+            self.connection()?.protocol(),
         )
         .map_err(|e| eyre!("{e}"))
     }
@@ -383,12 +388,12 @@ impl ChainSetup {
         let domain = self
             .domain()
             .context("Invalid domain for locating contract")?;
-        let address = match self.chain {
-            ChainConf::Ethereum(_) => address
+        let address = match self.connection()? {
+            ChainConnectionConf::Ethereum(_) => address
                 .parse::<ethers::types::Address>()
                 .context("Invalid ethereum address for locating contract")?
                 .into(),
-            ChainConf::Fuel(_) => address
+            ChainConnectionConf::Fuel(_) => address
                 .parse::<fuels::tx::ContractId>()
                 .map_err(|e| eyre!("Invalid fuel contract id for locating contract: {e}"))?
                 .into_h256(),

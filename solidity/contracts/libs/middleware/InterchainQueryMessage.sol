@@ -57,6 +57,27 @@ library InterchainQueryMessage {
     }
 
     /**
+     * @notice Returns formatted InterchainQueryMessage, type == QUERY
+     * @param _sender The query sender as bytes32
+     * @param _to The address of the contract to query
+     * @param _data The calldata encoding the query
+     * @param _callback The calldata of the callback that will be made on the sender.
+     * The return value of the query will be appended.
+     * @return Formatted message body
+     */
+    function encode(
+        bytes32 _sender,
+        address _to,
+        bytes memory _data,
+        bytes memory _callback
+    ) internal pure returns (bytes memory) {
+        CallLib.StaticCallWithCallback[]
+            memory _calls = new CallLib.StaticCallWithCallback[](1);
+        _calls[0] = CallLib.build(_to, _data, _callback);
+        return abi.encode(_sender, MessageType.QUERY, _calls);
+    }
+
+    /**
      * @notice Parses and returns the calls and callbacks from the message
      * @param _message The interchain query message, type == QUERY
      * @return _calls The sequence of queries to make with the corresponding
