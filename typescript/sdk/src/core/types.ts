@@ -2,8 +2,8 @@ import { BigNumber } from 'ethers';
 
 import {
   InterchainGasPaymaster,
+  LegacyMultisigIsm,
   Mailbox,
-  MultisigIsm,
   OverheadIgp,
 } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
@@ -72,7 +72,7 @@ export interface MailboxMultisigIsmViolation extends MailboxViolation {
 
 export interface MultisigIsmViolation extends CheckerViolation {
   type: CoreViolationType.MultisigIsm;
-  contract: MultisigIsm;
+  contract: LegacyMultisigIsm;
   subType: MultisigIsmViolationType;
   remote: ChainName;
 }

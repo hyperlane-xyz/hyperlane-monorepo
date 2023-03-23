@@ -1,4 +1,4 @@
-import { Mailbox, MultisigIsm } from '@hyperlane-xyz/core';
+import { LegacyMultisigIsm, Mailbox } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
 import type { CheckerViolation } from '../deploy/types';
@@ -44,7 +44,7 @@ export interface MailboxMultisigIsmViolation extends MailboxViolation {
 
 export interface MultisigIsmViolation extends CheckerViolation {
   type: CoreViolationType.MultisigIsm;
-  contract: MultisigIsm;
+  contract: LegacyMultisigIsm;
   subType: MultisigIsmViolationType;
   remote: ChainName;
 }
