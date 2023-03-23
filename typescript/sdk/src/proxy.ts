@@ -29,6 +29,12 @@ export function isProxyAddresses(
   );
 }
 
+export function getProxyAddress(
+  address: types.Address | ProxyAddresses<any>,
+): string {
+  return isProxyAddresses(address) ? address.proxy : address;
+}
+
 export type TransparentProxyAddresses = ProxyAddresses<ProxyKind.Transparent>;
 
 export class ProxiedContract<

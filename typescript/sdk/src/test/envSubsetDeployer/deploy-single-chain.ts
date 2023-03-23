@@ -1,10 +1,11 @@
 import { Chains } from '../../consts/chains';
 import { serializeContracts } from '../../contracts';
 import { HyperlaneCore } from '../../core/HyperlaneCore';
-import { getChainToOwnerMap } from '../../deploy/utils';
+import { HyperlaneIgp } from '../../gas/HyperlaneIgp';
 import { MultiProvider } from '../../providers/MultiProvider';
+import { createRouterConfigMap } from '../testUtils';
 
-import { EnvSubsetDeployer, alfajoresChainConfig } from './app';
+import { EnvSubsetDeployer } from './app';
 import { getAlfajoresSigner } from './utils';
 
 async function main() {
@@ -15,8 +16,11 @@ async function main() {
   multiProvider.setSigner(Chains.alfajores, signer);
 
   const core = HyperlaneCore.fromEnvironment('testnet', multiProvider);
-  const config = core.extendWithConnectionClientConfig(
-    getChainToOwnerMap(alfajoresChainConfig, signer.address),
+  const igp = HyperlaneIgp.fromEnvironment('testnet', multiProvider);
+  const config = createRouterConfigMap(
+    signer.address,
+    core.contractsMap,
+    igp.contractsMap,
   );
 
   console.info('Starting deployment');

@@ -1,7 +1,8 @@
 ENVIRONMENT=$1
+MODULE=$2
 
 if [ -z "$ENVIRONMENT" ]; then
-  echo "Usage: fork.sh <environment>"
+  echo "Usage: fork.sh <environment> <module>"
   exit 1
 fi
 
@@ -24,16 +25,16 @@ while ! cast bn; do
 done
 
 echo "=== Run checker against forked $ENVIRONMENT ==="
-DEBUG=hyperlane:* yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT --fork $FORK_CHAIN
+DEBUG=hyperlane:* yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $FORK_CHAIN -m $MODULE
 
 echo "=== Run core deployer against forked $ENVIRONMENT ==="
-DEBUG=hyperlane:* yarn ts-node ./scripts/core.ts -e $ENVIRONMENT --fork $FORK_CHAIN
+DEBUG=hyperlane:* yarn ts-node ./scripts/core.ts -e $ENVIRONMENT -f $FORK_CHAIN -m $MODULE
 
 echo "=== Run govern against forked $ENVIRONMENT ==="
-DEBUG=hyperlane:* yarn ts-node ./scripts/govern.ts -e $ENVIRONMENT --fork $FORK_CHAIN
+DEBUG=hyperlane:* yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $FORK_CHAIN --govern -m $MODULE
 
 echo "=== Run checker against forked $ENVIRONMENT ==="
-DEBUG=hyperlane:* yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT --fork $FORK_CHAIN
+DEBUG=hyperlane:* yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $FORK_CHAIN -m $MODULE
 
 SUCCESS=$?
 

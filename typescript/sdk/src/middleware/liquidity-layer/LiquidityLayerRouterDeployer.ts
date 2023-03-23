@@ -76,7 +76,7 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
         objMap(contractsMap, (_chain, contracts) => ({
           router: contracts.circleBridgeAdapter,
         })),
-        (_): _ is { router: CircleBridgeAdapter } => !!_.router,
+        (chain, _): _ is { router: CircleBridgeAdapter } => !!_.router,
       ),
     );
 
@@ -86,7 +86,7 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
         objMap(contractsMap, (_chain, contracts) => ({
           router: contracts.portalAdapter,
         })),
-        (_): _ is { router: PortalAdapter } => !!_.router,
+        (chain, _): _ is { router: PortalAdapter } => !!_.router,
       ),
     );
   }

@@ -4,24 +4,17 @@ import { Mailbox, Mailbox__factory } from '@hyperlane-xyz/core';
 import { types, utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
-import { environments } from '../consts/environments';
-import { buildContracts } from '../contracts';
+import {
+  HyperlaneEnvironment,
+  hyperlaneEnvironments,
+} from '../consts/environments';
+import { HyperlaneAddresses } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
-import { ConnectionClientConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
-import { objMap, pick } from '../utils/objects';
 
 import { CoreContracts, coreFactories } from './contracts';
 
-export type CoreEnvironment = keyof typeof environments;
-export type CoreEnvironmentChain<E extends CoreEnvironment> = Extract<
-  keyof typeof environments[E],
-  ChainName
->;
-
-export type CoreContractsMap = {
-  [chain: ChainName]: CoreContracts;
-};
+export type CoreContractsMap = ChainMap<CoreContracts>;
 
 export type DispatchedMessage = {
   id: string;
@@ -34,59 +27,32 @@ export class HyperlaneCore extends HyperlaneApp<CoreContracts> {
     super(contractsMap, multiProvider);
   }
 
-  static fromEnvironment<Env extends CoreEnvironment>(
+  static fromAddresses(
+    addresses: ChainMap<HyperlaneAddresses>,
+    multiProvider: MultiProvider,
+  ): HyperlaneCore {
+    const { contracts, intersectionProvider } =
+      this.buildContracts<CoreContracts>(
+        addresses,
+        coreFactories,
+        multiProvider,
+      );
+    return new HyperlaneCore(contracts, intersectionProvider);
+  }
+
+  static fromEnvironment<Env extends HyperlaneEnvironment>(
     env: Env,
     multiProvider: MultiProvider,
   ): HyperlaneCore {
-    const envConfig = environments[env];
-    if (!envConfig) {
-      throw new Error(`No default env config found for ${env}`);
+    const envAddresses = hyperlaneEnvironments[env];
+    if (!envAddresses) {
+      throw new Error(`No addresses found for ${env}`);
     }
-
-    const envChains = Object.keys(envConfig);
-
-    const { intersection, multiProvider: intersectionProvider } =
-      multiProvider.intersect(envChains, true);
-
-    const intersectionConfig = pick(envConfig, intersection);
-    const contractsMap = buildContracts(
-      intersectionConfig,
-      coreFactories,
-    ) as CoreContractsMap;
-
-    return new HyperlaneCore(contractsMap, intersectionProvider);
+    return HyperlaneCore.fromAddresses(envAddresses, multiProvider);
   }
 
   getContracts(chain: ChainName): CoreContracts {
     return super.getContracts(chain);
-  }
-
-  getConnectionClientConfig(chain: ChainName): ConnectionClientConfig {
-    const contracts = this.getContracts(chain);
-    return {
-      mailbox: contracts.mailbox.address,
-      // TODO allow these to be more easily changed
-      interchainGasPaymaster:
-        contracts.defaultIsmInterchainGasPaymaster.address,
-    };
-  }
-
-  getConnectionClientConfigMap(): ChainMap<ConnectionClientConfig> {
-    return objMap(this.contractsMap, (chain) =>
-      this.getConnectionClientConfig(chain),
-    );
-  }
-
-  extendWithConnectionClientConfig<T>(
-    configMap: ChainMap<T>,
-  ): ChainMap<T & ConnectionClientConfig> {
-    const connectionClientConfigMap = this.getConnectionClientConfigMap();
-    return objMap(configMap, (chain, config) => {
-      return {
-        ...config,
-        ...connectionClientConfigMap[chain],
-      };
-    });
   }
 
   protected getDestination(message: DispatchedMessage): {

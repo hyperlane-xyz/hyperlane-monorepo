@@ -21,7 +21,7 @@ import { Chains } from '../../consts/chains';
 import { TestCoreApp } from '../../core/TestCoreApp';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer';
 import { MultiProvider } from '../../providers/MultiProvider';
-import { getTestOwnerConfig } from '../../test/testUtils';
+import { deployTestIgpsAndGetRouterConfig } from '../../test/testUtils';
 import { ChainMap } from '../../types';
 import { objMap } from '../../utils/objects';
 
@@ -73,10 +73,14 @@ describe('LiquidityLayerRouter', async () => {
       signer,
     );
     messageTransmitter = await messageTransmitterF.deploy(mockToken.address);
-
-    config = coreApp.extendWithConnectionClientConfig(
-      objMap(getTestOwnerConfig(signer.address), (_chain, conf) => ({
-        ...conf,
+    const routerConfig = await deployTestIgpsAndGetRouterConfig(
+      multiProvider,
+      signer.address,
+      coreContractsMaps,
+    );
+    config = objMap(routerConfig, (chain, config) => {
+      return {
+        ...config,
         circle: {
           type: BridgeAdapterType.Circle,
           tokenMessengerAddress: circleTokenMessenger.address,
@@ -107,8 +111,8 @@ describe('LiquidityLayerRouter', async () => {
             },
           ],
         } as PortalAdapterConfig,
-      })),
-    );
+      };
+    });
   });
 
   beforeEach(async () => {
