@@ -93,8 +93,7 @@ async function main() {
   try {
     await deployer.deploy();
   } catch (e) {
-    console.error(`Encountered error during deploy`);
-    console.error(e);
+    console.error('Encountered error during deploy', e);
   }
 
   // Persist address artifacts, irrespective of deploy success

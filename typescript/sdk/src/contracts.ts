@@ -64,7 +64,11 @@ function isAddress(addressOrObject: any) {
 export function filterAddresses(
   addressOrObject: HyperlaneAddresses,
   contractNames: string[],
+  max_depth = 5,
 ): HyperlaneAddresses {
+  if (max_depth === 0) {
+    throw new Error('filterAddresses tried to go too deep');
+  }
   const ret: HyperlaneAddresses = {};
   for (const key of Object.keys(addressOrObject)) {
     if (isAddress(addressOrObject[key]) && contractNames.includes(key)) {
@@ -73,6 +77,7 @@ export function filterAddresses(
       const obj = filterAddresses(
         addressOrObject[key] as HyperlaneAddresses,
         contractNames,
+        max_depth - 1,
       );
       if (Object.keys(obj).length > 0) {
         ret[key] = obj;
