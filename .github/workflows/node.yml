@@ -126,12 +126,73 @@ jobs:
       - name: Install dependencies
         run: cd solidity && forge install
 
-      - name: core
-        run: yarn workspace @hyperlane-xyz/core run test
+      - name: Forge build
+        run: cd solidity && forge build --build-info
 
-      - name: lint
-        run: yarn workspace @hyperlane-xyz/core run lint
+      - name: Run Slither
+        uses: crytic/slither-action@main
+        id: slither
+        with:
+          target: 'solidity/'
+          slither-config: 'solidity/slither.config.json'
+          sarif: results.sarif
+          fail-on: none
+          ignore-compile: true
+
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: ${{ steps.slither.outputs.sarif }}
 
       - name: gas
-        run: yarn workspace @hyperlane-xyz/core run gas || echo "Manually update gas snapshot"
+        run: yarn workspace @hyperlane-xyz/core run gas-ci
 
+      - name: forge-test
+        run: yarn workspace @hyperlane-xyz/core run test:forge
+
+      # Will fail if hardhat tests fail but not if forge tests fail
+      - name: coverage
+        run: |
+          sudo apt-get install lcov
+          yarn workspace @hyperlane-xyz/core run coverage
+
+      - name: coverage-cache
+        uses: actions/cache@v3
+        with:
+          path: './solidity/lcov.info'
+          key: ${{ github.sha }}
+
+  coverage-sol:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    needs: [test-sol]
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        with:
+          path: ./*
+          key: ${{ github.sha }}
+
+      - name: base-coverage-cache
+        uses: actions/cache@v3
+        with:
+          path: './solidity/lcov.info'
+          key: ${{ github.event.pull_request.base.sha }}
+
+      - name: persist-base-coverage
+        run: mv ./solidity/lcov.info ./solidity/lcov.base.info
+
+      - name: ref-coverage-cache
+        uses: actions/cache@v3
+        with:
+          path: './solidity/lcov.info'
+          key: ${{ github.sha }}
+
+      - name: check-coverage
+        run: |
+          sudo apt-get install lcov
+          cd ./solidity
+          export BASE=$(lcov --summary ./lcov.base.info | grep "lines" | sed 's/.*lines......:\ //' | sed 's/% (.*//')
+          export REF=$(lcov --summary ./lcov.info | grep "lines" | sed 's/.*lines......:\ //' | sed 's/% (.*//')
+          if [[ $REF < $BASE ]]; then exit 1; fi
