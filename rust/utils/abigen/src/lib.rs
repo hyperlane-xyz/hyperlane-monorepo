@@ -1,3 +1,4 @@
+use fuels_code_gen::ProgramType;
 use std::collections::BTreeSet;
 use std::ffi::OsStr;
 use std::fs::{self, File};
@@ -101,14 +102,21 @@ pub fn generate_bindings(
     }
     #[cfg(feature = "fuels")]
     if build_type == BuildType::Fuels {
-        fuels_code_gen::Abigen::generate(contract_name, abi_source)
-            .expect("could not instantiate Abigen")
-            .generate()
-            .expect("could not generate bindings")
-            .write_to_file(&output_file)
+        let tokens = fuels_code_gen::Abigen::generate(
+            vec![fuels_code_gen::AbigenTarget {
+                name: contract_name.into(),
+                abi: abi_source.into(),
+                program_type: ProgramType::Contract,
+            }],
+            false,
+        )
+        .expect("could not generate bindings")
+        .to_string();
+        let mut outfile = File::create(&output_file).expect("Could not open output file");
+        outfile
+            .write_all(tokens.as_bytes())
             .expect("Could not write bindings to file");
 
-        // apparently fuels was too lazy to do this for us
         fmt_file(&output_file);
     }
 
