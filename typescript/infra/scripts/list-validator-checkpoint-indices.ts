@@ -4,7 +4,11 @@ import { S3Validator } from '../src/agents/aws/validator';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { concurrentMap } from '../src/utils/utils';
 
-import { getCoreEnvironmentConfig, getEnvironment } from './utils';
+import {
+  getCoreEnvironmentConfig,
+  getEnvironment,
+  getValidatorsByChain,
+} from './utils';
 
 async function main() {
   const environment = await getEnvironment();
@@ -15,8 +19,8 @@ async function main() {
     multiProvider,
   );
 
-  const validators = Object.entries(config.core).flatMap(([chain, set]) =>
-    set.multisigIsm.validators.map((validator) => ({ chain, validator })),
+  const validators = Object.entries(getValidatorsByChain(config.core)).flatMap(
+    ([chain, set]) => [...set].map((validator) => ({ chain, validator })),
   );
 
   const indices = await concurrentMap(

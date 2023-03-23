@@ -1,4 +1,4 @@
-import { ChainName, HyperlaneCore } from '@hyperlane-xyz/sdk';
+import { ChainName, HyperlaneIgp } from '@hyperlane-xyz/sdk';
 
 import { RemoteGasData, StorageGasOracleConfig } from '../../src/config';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
@@ -32,14 +32,14 @@ async function main() {
     throw Error(`No storage gas oracle config for environment ${environment}`);
   }
 
-  const core = HyperlaneCore.fromEnvironment(
+  const igp = HyperlaneIgp.fromEnvironment(
     deployEnvToSdkEnv[environment],
     multiProvider,
   );
 
-  for (const chain of core.chains()) {
+  for (const chain of igp.chains()) {
     await setStorageGasOracleValues(
-      core,
+      igp,
       storageGasOracleConfig[chain],
       chain,
       args.dryRun,
@@ -49,19 +49,19 @@ async function main() {
 }
 
 async function setStorageGasOracleValues(
-  core: HyperlaneCore,
+  igp: HyperlaneIgp,
   localStorageGasOracleConfig: StorageGasOracleConfig,
   local: ChainName,
   dryRun: boolean,
 ) {
   console.log(`Setting remote gas data on local chain ${local}...`);
-  const storageGasOracle = core.getContracts(local).storageGasOracle;
+  const storageGasOracle = igp.getContracts(local).storageGasOracle;
 
   const configsToSet: RemoteGasDataConfig[] = [];
 
   for (const remote in localStorageGasOracleConfig) {
     const desiredGasData = localStorageGasOracleConfig[remote]!;
-    const remoteId = core.multiProvider.getDomainId(remote);
+    const remoteId = igp.multiProvider.getDomainId(remote);
 
     const existingGasData: RemoteGasData = await storageGasOracle.remoteGasData(
       remoteId,
@@ -92,14 +92,14 @@ async function setStorageGasOracleValues(
     console.log(`Updating ${configsToSet.length} configs on local ${local}:`);
     console.log(
       configsToSet
-        .map((config) => prettyRemoteGasDataConfig(core.multiProvider, config))
+        .map((config) => prettyRemoteGasDataConfig(igp.multiProvider, config))
         .join('\n\t--\n'),
     );
 
     if (dryRun) {
       console.log('Running in dry run mode, not sending tx');
     } else {
-      await core.multiProvider.handleTx(
+      await igp.multiProvider.handleTx(
         local,
         storageGasOracle.setRemoteGasDataConfigs(configsToSet),
       );

@@ -1,4 +1,4 @@
-export { AgentConfig, RustConfig, RustChainSetup } from './agent';
+export { AgentConfig } from './agent';
 export { CoreEnvironmentConfig, DeployEnvironment } from './environment';
 export {
   AllStorageGasOracleConfigs,

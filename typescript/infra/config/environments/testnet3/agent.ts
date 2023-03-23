@@ -1,11 +1,8 @@
-import { chainMetadata } from '@hyperlane-xyz/sdk';
+import { AgentConnectionType, chainMetadata } from '@hyperlane-xyz/sdk';
 
 import { ALL_KEY_ROLES, KEY_ROLE_ENUM } from '../../../src/agents/roles';
 import { AgentConfig } from '../../../src/config';
-import {
-  ConnectionType,
-  GasPaymentEnforcementPolicyType,
-} from '../../../src/config/agent';
+import { GasPaymentEnforcementPolicyType } from '../../../src/config/agent';
 import { Contexts } from '../../contexts';
 import { helloworldMatchingList, routerMatchingList } from '../../utils';
 
@@ -36,7 +33,7 @@ export const hyperlane: AgentConfig = {
   },
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
-  connectionType: ConnectionType.HttpFallback,
+  connectionType: AgentConnectionType.HttpFallback,
   validators,
   relayer: {
     default: {
@@ -81,7 +78,7 @@ export const releaseCandidate: AgentConfig = {
   },
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
-  connectionType: ConnectionType.HttpFallback,
+  connectionType: AgentConnectionType.HttpFallback,
   relayer: {
     default: {
       whitelist: releaseCandidateHelloworldMatchingList,
