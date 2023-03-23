@@ -9,7 +9,7 @@ import { deployEnvToSdkEnv } from '../src/config/environment';
 import { readJSON, writeJSON } from '../src/utils/utils';
 
 import {
-  getCoreContractsSdkFilepath,
+  getContractAddressesSdkFilepath,
   getEnvironment,
   getEnvironmentDirectory,
 } from './utils';
@@ -29,7 +29,7 @@ export function mergeWithSdkContractAddressArtifacts(
 ) {
   const sdkEnvironment = deployEnvToSdkEnv[environment];
   const coreAddresses: HyperlaneAddresses = readJSON(
-    getCoreContractsSdkFilepath(),
+    getContractAddressesSdkFilepath(),
     `${sdkEnvironment}.json`,
   );
 
@@ -55,7 +55,7 @@ export function mergeWithSdkContractAddressArtifacts(
   }
 
   writeJSON(
-    getCoreContractsSdkFilepath(),
+    getContractAddressesSdkFilepath(),
     `${sdkEnvironment}.json`,
     coreAddresses,
   );

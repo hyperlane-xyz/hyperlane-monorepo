@@ -9,6 +9,10 @@ import {
   ParsedMessage,
 } from './types';
 
+export function exclude<T>(item: T, list: T[]) {
+  return list.filter((i) => i !== item);
+}
+
 export function assert(predicate: any, errorMessage?: string) {
   if (!predicate) {
     throw new Error(errorMessage ?? 'Error');

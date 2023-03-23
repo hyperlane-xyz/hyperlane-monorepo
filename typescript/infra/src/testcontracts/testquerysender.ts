@@ -2,8 +2,8 @@ import { TestQuerySender, TestQuerySender__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
-  HyperlaneCore,
   HyperlaneDeployer,
+  HyperlaneIgp,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 
@@ -25,7 +25,7 @@ export class TestQuerySenderDeployer extends HyperlaneDeployer<
   constructor(
     multiProvider: MultiProvider,
     queryRouters: ChainMap<TestQuerySenderConfig>,
-    protected core: HyperlaneCore,
+    protected igp: HyperlaneIgp,
   ) {
     super(multiProvider, queryRouters, factories);
   }
@@ -35,7 +35,7 @@ export class TestQuerySenderDeployer extends HyperlaneDeployer<
         'initialize',
         [
           config.queryRouterAddress,
-          this.core.getContracts(chain).interchainGasPaymaster.address,
+          this.igp.getContracts(chain).interchainGasPaymaster.address,
         ],
       );
     const TestQuerySender = await this.deployContract(

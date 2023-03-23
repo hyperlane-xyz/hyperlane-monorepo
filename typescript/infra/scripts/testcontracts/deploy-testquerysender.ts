@@ -1,6 +1,6 @@
 import path from 'path';
 
-import { HyperlaneCore, objMap } from '@hyperlane-xyz/sdk';
+import { HyperlaneIgp, objMap } from '@hyperlane-xyz/sdk';
 
 import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { deployWithArtifacts } from '../../src/deploy';
@@ -19,7 +19,7 @@ async function main() {
   const environment = await getEnvironment();
   const coreConfig = getCoreEnvironmentConfig(environment);
   const multiProvider = await coreConfig.getMultiProvider();
-  const core = HyperlaneCore.fromEnvironment(
+  const igp = HyperlaneIgp.fromEnvironment(
     deployEnvToSdkEnv[environment],
     multiProvider,
   );
@@ -36,7 +36,7 @@ async function main() {
   const deployer = new TestQuerySenderDeployer(
     multiProvider,
     queryRouterAddresses,
-    core,
+    igp,
   );
 
   const dir = path.join(
