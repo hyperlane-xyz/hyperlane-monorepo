@@ -105,4 +105,4 @@ Make PRs for the monorepo and the submodules.
 
 Make a Github release
 
-IGPS suck
+IGPS suck and test
