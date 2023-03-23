@@ -55,6 +55,7 @@ pub fn generate_bindings_for_dir(
 
     println!("Creating module file at {}", mod_file_path.display());
     let mut mod_file = File::create(&mod_file_path).expect("could not create modfile");
+    writeln!(mod_file, "#![allow(warnings)]").unwrap();
     writeln!(mod_file, "#![allow(clippy::all)]").unwrap();
     write!(mod_file, "#![allow(missing_docs)]\n\n").unwrap();
     for m in modules {
