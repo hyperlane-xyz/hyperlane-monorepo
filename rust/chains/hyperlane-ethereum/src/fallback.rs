@@ -15,6 +15,7 @@ const METHODS_TO_NOT_TO_FALLBACK_ON: &[&str] = &[
     "eth_estimateGas",
     "eth_sendTransaction",
     "eth_sendRawTransaction",
+    "eth_feeHistory",
 ];
 
 /// A provider that bundles multiple providers and attempts to call the first,

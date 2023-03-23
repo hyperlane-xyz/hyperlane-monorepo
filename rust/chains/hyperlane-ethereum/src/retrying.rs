@@ -14,6 +14,7 @@ const METHODS_TO_NOT_RETRY: &[&str] = &[
     "eth_estimateGas",
     "eth_sendTransaction",
     "eth_sendRawTransaction",
+    "eth_feeHistory",
 ];
 
 /// An HTTP Provider with a simple naive exponential backoff built-in
