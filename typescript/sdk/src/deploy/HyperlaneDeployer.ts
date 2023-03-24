@@ -381,9 +381,11 @@ export abstract class HyperlaneDeployer<
     this.logger(`Deploying transparent upgradable proxy`);
     let proxy: TransparentUpgradeableProxy;
     if (useCreate2) {
+      // deploy with static implementation and init data for consistent addresses
       proxy = await proxyDeployer(CREATE2FACTORY_ADDRESS, '0x');
+      // hack for skipping upgrade and initialize for dummy implementations
       if (initialize) {
-        // hack for skipping upgrade and initialize for dummy implementations
+        // upgrade and initialize with actual implementation and init data
         await this.upgradeAndInitialize(
           chain,
           proxy,
