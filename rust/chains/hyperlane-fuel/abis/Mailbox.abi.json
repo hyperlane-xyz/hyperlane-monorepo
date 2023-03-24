@@ -291,21 +291,7 @@
         "name": "",
         "type": 20,
         "typeArguments": null
-      },
-      "attributes": [
-        {
-          "name": "storage",
-          "arguments": [
-            "read"
-          ]
-        },
-        {
-          "name": "doc-comment",
-          "arguments": [
-            " Returns the number of inserted leaves (i.e. messages) in the merkle tree."
-          ]
-        }
-      ]
+      }
     },
     {
       "inputs": [
@@ -320,15 +306,7 @@
         "name": "",
         "type": 3,
         "typeArguments": null
-      },
-      "attributes": [
-        {
-          "name": "storage",
-          "arguments": [
-            "read"
-          ]
-        }
-      ]
+      }
     },
     {
       "inputs": [
@@ -359,64 +337,7 @@
         "name": "",
         "type": 2,
         "typeArguments": null
-      },
-      "attributes": [
-        {
-          "name": "storage",
-          "arguments": [
-            "read",
-            "write"
-          ]
-        },
-        {
-          "name": "doc-comment",
-          "arguments": [
-            " Dispatches a message to the destination domain and recipient."
-          ]
-        },
-        {
-          "name": "doc-comment",
-          "arguments": [
-            " Returns the message's ID."
-          ]
-        },
-        {
-          "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
-        },
-        {
-          "name": "doc-comment",
-          "arguments": [
-            " ### Arguments"
-          ]
-        },
-        {
-          "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
-        },
-        {
-          "name": "doc-comment",
-          "arguments": [
-            " * `destination_domain` - The domain of the destination chain."
-          ]
-        },
-        {
-          "name": "doc-comment",
-          "arguments": [
-            " * `recipient` - Address of the recipient on the destination chain."
-          ]
-        },
-        {
-          "name": "doc-comment",
-          "arguments": [
-            " * `message_body` - Raw bytes content of the message body."
-          ]
-        }
-      ]
+      }
     },
     {
       "inputs": [],
@@ -425,15 +346,7 @@
         "name": "",
         "type": 15,
         "typeArguments": null
-      },
-      "attributes": [
-        {
-          "name": "storage",
-          "arguments": [
-            "read"
-          ]
-        }
-      ]
+      }
     },
     {
       "inputs": [],
@@ -442,27 +355,7 @@
         "name": "",
         "type": 1,
         "typeArguments": null
-      },
-      "attributes": [
-        {
-          "name": "storage",
-          "arguments": [
-            "read"
-          ]
-        },
-        {
-          "name": "doc-comment",
-          "arguments": [
-            " Returns a checkpoint representing the current merkle tree:"
-          ]
-        },
-        {
-          "name": "doc-comment",
-          "arguments": [
-            " (root of merkle tree, index of the last element in the tree)."
-          ]
-        }
-      ]
+      }
     },
     {
       "inputs": [
@@ -488,16 +381,7 @@
         "name": "",
         "type": 0,
         "typeArguments": null
-      },
-      "attributes": [
-        {
-          "name": "storage",
-          "arguments": [
-            "read",
-            "write"
-          ]
-        }
-      ]
+      }
     },
     {
       "inputs": [],
@@ -506,21 +390,7 @@
         "name": "",
         "type": 2,
         "typeArguments": null
-      },
-      "attributes": [
-        {
-          "name": "doc-comment",
-          "arguments": [
-            " Calculates and returns the merkle tree's current root."
-          ]
-        },
-        {
-          "name": "storage",
-          "arguments": [
-            "read"
-          ]
-        }
-      ]
+      }
     },
     {
       "inputs": [
@@ -535,16 +405,7 @@
         "name": "",
         "type": 0,
         "typeArguments": null
-      },
-      "attributes": [
-        {
-          "name": "storage",
-          "arguments": [
-            "read",
-            "write"
-          ]
-        }
-      ]
+      }
     },
     {
       "inputs": [],
@@ -559,21 +420,7 @@
             "typeArguments": null
           }
         ]
-      },
-      "attributes": [
-        {
-          "name": "storage",
-          "arguments": [
-            "read"
-          ]
-        },
-        {
-          "name": "doc-comment",
-          "arguments": [
-            " Gets the current owner."
-          ]
-        }
-      ]
+      }
     },
     {
       "inputs": [
@@ -594,28 +441,7 @@
         "name": "",
         "type": 0,
         "typeArguments": null
-      },
-      "attributes": [
-        {
-          "name": "doc-comment",
-          "arguments": [
-            " Transfers ownership to `new_owner`."
-          ]
-        },
-        {
-          "name": "doc-comment",
-          "arguments": [
-            " Reverts if the msg_sender is not the current owner."
-          ]
-        },
-        {
-          "name": "storage",
-          "arguments": [
-            "read",
-            "write"
-          ]
-        }
-      ]
+      }
     }
   ],
   "loggedTypes": [
@@ -700,6 +526,5 @@
       }
     }
   ],
-  "messagesTypes": [],
-  "configurables": []
+  "messagesTypes": []
 }
