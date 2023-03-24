@@ -16,7 +16,7 @@ use hyperlane_core::{
     RawHyperlaneMessage, SignatureWithSigner, H256,
 };
 
-use crate::contracts::multisig_ism::{MultisigIsm as EthereumMultisigIsmInternal, MULTISIGISM_ABI};
+use crate::contracts::i_multisig_ism::{IMultisigIsm as EthereumMultisigIsmInternal, IMULTISIGISM_ABI};
 use crate::trait_builder::BuildableWithProvider;
 use crate::EthereumProvider;
 
@@ -168,7 +168,7 @@ impl HyperlaneAbi for EthereumMultisigIsmAbi {
     const SELECTOR_SIZE_BYTES: usize = 4;
 
     fn fn_map() -> HashMap<Vec<u8>, &'static str> {
-        super::extract_fn_map(&MULTISIGISM_ABI)
+        super::extract_fn_map(&IMULTISIGISM_ABI)
     }
 }
 
