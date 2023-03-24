@@ -5,6 +5,8 @@ import {
   Create2Factory__factory,
   HyperlaneConnectionClient,
   Ownable,
+  ProxyAdmin,
+  ProxyAdmin__factory,
   TransparentUpgradeableProxy,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
@@ -128,20 +130,30 @@ export abstract class HyperlaneDeployer<
     return undefined;
   }
 
-  protected async runIfAdmin<T>(
-    chain: ChainName,
-    proxy: TransparentUpgradeableProxy,
-    fn: () => Promise<T>,
-  ) {
-    return this.runIf(chain, await proxy.callStatic.admin(), fn);
-  }
-
   protected async runIfOwner<T>(
     chain: ChainName,
     ownable: Ownable,
     fn: () => Promise<T>,
-  ): Promise<T | undefined> {
+  ) {
     return this.runIf(chain, await ownable.callStatic.owner(), fn);
+  }
+
+  protected async runIfAdmin<T>(
+    chain: ChainName,
+    proxy: TransparentUpgradeableProxy,
+    signerAdminFn: () => Promise<T>,
+    proxyAdminOwnerFn: (proxyAdmin: ProxyAdmin) => Promise<T>,
+  ) {
+    const admin = await proxy.callStatic.admin();
+    const code = await this.multiProvider.getProvider(chain).getCode(admin);
+    if (code !== '0x') {
+      const proxyAdmin = ProxyAdmin__factory.connect(admin, proxy.signer);
+      await this.runIfOwner(chain, proxyAdmin, () =>
+        proxyAdminOwnerFn(proxyAdmin),
+      );
+    } else {
+      await this.runIf(chain, admin, signerAdminFn);
+    }
   }
 
   protected async initConnectionClient(
@@ -311,8 +323,11 @@ export abstract class HyperlaneDeployer<
     admin: string,
   ): Promise<void> {
     this.logger(`Changing proxy admin`);
-    await this.runIfAdmin(chain, proxy, () =>
-      this.multiProvider.handleTx(chain, proxy.changeAdmin(admin)),
+    await this.runIfAdmin(
+      chain,
+      proxy,
+      () => proxy.changeAdmin(admin),
+      (proxyAdmin) => proxyAdmin.changeProxyAdmin(proxy.address, admin),
     );
   }
 
@@ -323,11 +338,12 @@ export abstract class HyperlaneDeployer<
     initData: string,
   ): Promise<void> {
     this.logger(`Upgrading and initializing implementation`);
-    await this.runIfAdmin(chain, proxy, () =>
-      this.multiProvider.handleTx(
-        chain,
-        proxy.upgradeToAndCall(implementation, initData),
-      ),
+    await this.runIfAdmin(
+      chain,
+      proxy,
+      () => proxy.upgradeToAndCall(implementation, initData),
+      (proxyAdmin) =>
+        proxyAdmin.upgradeAndCall(proxy.address, implementation, initData),
     );
   }
 
