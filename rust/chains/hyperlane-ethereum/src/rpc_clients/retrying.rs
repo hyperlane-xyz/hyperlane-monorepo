@@ -89,8 +89,8 @@ where
 
         let mut last_err;
         let mut i = 1;
-        let mut rate_limited = false;
         loop {
+            let mut rate_limited = false;
             let backoff_ms = self.base_retry_ms * 2u64.pow(i - 1);
             trace!(params = %serde_json::to_string(&params).unwrap_or_default(), "Dispatching request with params");
             debug!(attempt = i, "Dispatching request");
@@ -119,7 +119,7 @@ where
             i += 1;
             if i <= self.max_requests {
                 let backoff_ms = if rate_limited {
-                    backoff_ms + 5000
+                    backoff_ms.max(60 * 1000) // 1 min is standard time lockout
                 } else {
                     backoff_ms
                 };
