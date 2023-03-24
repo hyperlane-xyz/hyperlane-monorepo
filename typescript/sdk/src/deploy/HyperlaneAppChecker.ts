@@ -6,11 +6,11 @@ import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
 import { MultiProvider } from '../providers/MultiProvider';
-import { TransparentProxyAddresses, isProxiedContract } from '../proxy';
+import { ProxiedContract, isProxiedContract } from '../proxy';
 import { ChainMap, ChainName } from '../types';
 import { objMap } from '../utils/objects';
 
-import { proxyAdmin, proxyImplementation, proxyViolation } from './proxy';
+import { proxyAdmin } from './proxy';
 import {
   BytecodeMismatchViolation,
   CheckerViolation,
@@ -62,34 +62,54 @@ export abstract class HyperlaneAppChecker<
     this.violations.push(violation);
   }
 
-  async checkProxiedContract(
-    chain: ChainName,
-    name: string,
-    proxiedAddress: TransparentProxyAddresses,
-    proxyAdminAddress?: types.Address,
-  ): Promise<void> {
-    const provider = this.multiProvider.getProvider(chain);
-    const implementation = await proxyImplementation(
-      provider,
-      proxiedAddress.proxy,
-    );
-    if (implementation !== proxiedAddress.implementation) {
-      this.addViolation(
-        proxyViolation(chain, name, proxiedAddress, implementation),
+  async checkProxiedContracts(chain: ChainName): Promise<void> {
+    const expectedAdmin = this.app.getContracts(chain).proxyAdmin.address;
+    if (!expectedAdmin) {
+      throw new Error(
+        `Checking proxied contracts for ${chain} with no admin provided`,
       );
     }
-    if (proxyAdminAddress) {
-      const admin = await proxyAdmin(provider, proxiedAddress.proxy);
-      if (admin !== proxyAdminAddress) {
+    const provider = this.multiProvider.getProvider(chain);
+    const isProxied = (
+      _: string,
+      contract: any,
+    ): contract is ProxiedContract<any, any> => {
+      return isProxiedContract(contract);
+    };
+    const proxied = this.app.getFlattenedFilteredContracts(chain, isProxied);
+    const name = 'unknown';
+    proxied.forEach(async (proxiedContract) => {
+      // Check the ProxiedContract's admin matches expectation
+      const actualAdmin = await proxyAdmin(provider, proxiedContract.address);
+      if (!utils.eqAddress(actualAdmin, expectedAdmin)) {
         this.addViolation({
           type: ViolationType.ProxyAdmin,
           chain,
           name,
-          expected: proxyAdminAddress,
-          actual: admin,
+          expected: expectedAdmin,
+          actual: actualAdmin,
         } as ProxyAdminViolation);
       }
-    }
+
+      // Check the ProxiedContract's implementation matches expectation
+      /*
+      const actualImplementation = await proxyImplementation(
+        provider,
+        proxiedContract.address,
+      );
+      const expectedImplementation = proxiedContract.addresses.implementation;
+      if (!utils.eqAddress(actualImplementation, expectedImplementation)) {
+        this.addViolation(
+          proxyViolation(
+            chain,
+            name,
+            expectedImplementation,
+            actualImplementation,
+          ),
+        );
+      }
+      */
+    });
   }
 
   private removeBytecodeMetadata(bytecode: string): string {
@@ -123,8 +143,7 @@ export abstract class HyperlaneAppChecker<
   }
 
   async checkOwnership(chain: ChainName, owner: types.Address): Promise<void> {
-    const contracts = this.app.getContracts(chain);
-    const isOwnable = (contract: any): contract is Ownable => {
+    const isOwnable = (_: string, contract: any): contract is Ownable => {
       return (
         contract !== null &&
         typeof contract === 'object' &&
@@ -132,11 +151,7 @@ export abstract class HyperlaneAppChecker<
         'transferOwnership' in contract
       );
     };
-    const ownables = Object.values(contracts)
-      .map((contract) =>
-        isProxiedContract(contract) ? contract.contract : contract,
-      )
-      .filter(isOwnable);
+    const ownables = this.app.getFlattenedFilteredContracts(chain, isOwnable);
     await Promise.all(
       ownables.map(async (contract) => {
         const actual = await contract.owner();

@@ -72,16 +72,6 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
     );
   }
 
-  async checkProxiedContracts(chain: ChainName): Promise<void> {
-    const contracts = this.app.getContracts(chain);
-    await this.checkProxiedContract(
-      chain,
-      'InterchainGasPaymaster',
-      contracts.interchainGasPaymaster.addresses,
-      contracts.proxyAdmin.address,
-    );
-  }
-
   async checkOverheadInterchainGasPaymaster(local: ChainName): Promise<void> {
     const coreContracts = this.app.getContracts(local);
     const defaultIsmIgp = coreContracts.defaultIsmInterchainGasPaymaster;

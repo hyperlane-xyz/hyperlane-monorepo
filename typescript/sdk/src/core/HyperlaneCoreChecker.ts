@@ -112,16 +112,6 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     );
   }
 
-  async checkProxiedContracts(chain: ChainName): Promise<void> {
-    const contracts = this.app.getContracts(chain);
-    await this.checkProxiedContract(
-      chain,
-      'Mailbox',
-      contracts.mailbox.addresses,
-      contracts.proxyAdmin.address,
-    );
-  }
-
   async checkValidatorAnnounce(chain: ChainName): Promise<void> {
     const expectedValidators = new Set<string>();
     const remotes = Object.keys(this.configMap).filter((c) => c !== chain);

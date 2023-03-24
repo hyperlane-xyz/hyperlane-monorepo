@@ -134,5 +134,8 @@ async function main() {
 }
 
 main()
-  .then()
-  .catch(() => process.exit(1));
+  .then(console.log)
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });

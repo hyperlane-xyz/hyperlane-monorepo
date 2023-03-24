@@ -16,6 +16,7 @@ import { getArgsWithModuleAndFork, getEnvironmentConfig } from './utils';
 async function check() {
   const { fork, govern, module, environment } = await getArgsWithModuleAndFork()
     .boolean('govern')
+    .default('govern', false)
     .alias('g', 'govern').argv;
   const config = await getEnvironmentConfig();
   const multiProvider = await config.getMultiProvider();
@@ -78,5 +79,8 @@ async function check() {
 }
 
 check()
-  .then()
-  .catch(() => process.exit(1));
+  .then(console.log)
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
