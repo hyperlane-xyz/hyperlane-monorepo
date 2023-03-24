@@ -5,14 +5,22 @@ import {
   ChainMap,
   ChainName,
   CoreConfig,
+  CoreContracts,
+  HyperlaneAgentAddresses,
   HyperlaneCoreDeployer,
   MultiProvider,
   ProxiedContract,
   TransparentProxyAddresses,
+  buildAgentConfig,
+  objMap,
+  serializeContracts,
 } from '@hyperlane-xyz/sdk';
 import { types } from '@hyperlane-xyz/utils';
 
+import { getAgentConfigDirectory } from '../../scripts/utils';
 import { DeployEnvironment } from '../config';
+import { deployEnvToSdkEnv } from '../config/environment';
+import { writeJSON } from '../utils/utils';
 
 export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
   environment: DeployEnvironment;
@@ -24,6 +32,33 @@ export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
   ) {
     super(multiProvider, configMap);
     this.environment = environment;
+  }
+
+  protected writeAgentConfig() {
+    const startBlocks = objMap(this.deployedContracts, (_, contracts) =>
+      Math.min(
+        ...Object.values(contracts).map(
+          (c) => c.deployTransaction?.blockNumber ?? Number.MAX_SAFE_INTEGER,
+        ),
+      ),
+    );
+    const addresses = serializeContracts(
+      this.deployedContracts,
+    ) as ChainMap<HyperlaneAgentAddresses>;
+    const agentConfig = buildAgentConfig(
+      this.multiProvider.getKnownChainNames(),
+      this.multiProvider,
+      addresses,
+      startBlocks,
+    );
+    const sdkEnv = deployEnvToSdkEnv[this.environment];
+    writeJSON(getAgentConfigDirectory(), `${sdkEnv}_config.json`, agentConfig);
+  }
+
+  async deploy(): Promise<ChainMap<CoreContracts>> {
+    const result = await super.deploy();
+    this.writeAgentConfig();
+    return result;
   }
 
   async deployMailbox(

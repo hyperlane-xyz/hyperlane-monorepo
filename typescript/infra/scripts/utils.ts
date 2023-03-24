@@ -38,7 +38,7 @@ export function getArgsWithContext() {
 export function getArgsWithModule() {
   return getArgs()
     .string('module')
-    .choices('module', ['core', 'igp'])
+    .choices('module', ['core', 'igp', 'ica', 'iqs', 'create2'])
     .demandOption('module')
     .alias('m', 'module');
 }

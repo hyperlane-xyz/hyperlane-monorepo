@@ -1,24 +1,30 @@
 import {
+  ChainMap,
   HyperlaneDeployer,
   HyperlaneFactories,
-  buildAgentConfig,
+  InterchainAccountDeployer,
+  InterchainQueryDeployer,
   buildContracts,
   coreFactories,
+  interchainAccountFactories,
+  interchainQueryFactories,
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
 import { igpFactories } from '@hyperlane-xyz/sdk/dist/gas/contracts';
 
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { HyperlaneCoreInfraDeployer } from '../src/core/deploy';
+import { factories as create2Factories } from '../src/create2';
+import { Create2FactoryDeployer } from '../src/create2';
 import { HyperlaneIgpInfraDeployer } from '../src/gas/deploy';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 import { readJSON, writeJSON, writeMergedJSON } from '../src/utils/utils';
 
 import {
-  getAgentConfigDirectory,
   getArgsWithModuleAndFork,
   getContractAddressesSdkFilepath,
   getEnvironmentConfig,
+  getRouterConfig,
   getVerificationDirectory,
 } from './utils';
 
@@ -40,35 +46,37 @@ async function main() {
     multiProvider.setSigner(fork, signer);
   }
 
-  // Write agent config indexing from the latest block numbers.
-  // For non-net-new deployments, these changes will need to be
-  // reverted manually.
-  const chains = multiProvider.getKnownChainNames();
-  const startBlocks = Object.fromEntries(
-    await Promise.all(
-      chains.map(async (c) => [
-        c,
-        await multiProvider.getProvider(c).getBlockNumber,
-      ]),
-    ),
-  );
-
   let factories: HyperlaneFactories;
   let deployer: HyperlaneDeployer<any, any, any>;
+  let configMap: ChainMap<any>;
   if (module === 'core') {
     factories = coreFactories;
+    configMap = config.core;
     deployer = new HyperlaneCoreInfraDeployer(
       multiProvider,
-      config.core,
+      configMap,
       environment,
     );
   } else if (module === 'igp') {
     factories = igpFactories;
+    configMap = config.igp;
     deployer = new HyperlaneIgpInfraDeployer(
       multiProvider,
       config.igp,
       environment,
     );
+  } else if (module === 'ica') {
+    factories = interchainAccountFactories;
+    configMap = await getRouterConfig(environment, multiProvider);
+    deployer = new InterchainAccountDeployer(multiProvider, configMap);
+  } else if (module === 'iqs') {
+    factories = interchainQueryFactories;
+    configMap = await getRouterConfig(environment, multiProvider);
+    deployer = new InterchainQueryDeployer(multiProvider, configMap);
+  } else if (module === 'create2') {
+    factories = create2Factories;
+    deployer = new Create2FactoryDeployer(multiProvider);
+    configMap = {};
   } else {
     throw new Error('Unknown module type');
   }
@@ -86,7 +94,7 @@ async function main() {
   }
 
   if (fork) {
-    await deployer.deployContracts(fork, config.core[fork]);
+    await deployer.deployContracts(fork, configMap[fork]);
     return;
   }
 
@@ -116,21 +124,6 @@ async function main() {
     verificationFile,
     deployer.mergeWithExistingVerificationInputs(existingVerificationInputs),
   );
-
-  const sdkEnv = deployEnvToSdkEnv[environment];
-  const addresses = readJSON(
-    getContractAddressesSdkFilepath(),
-    `${sdkEnv}.json`,
-  );
-
-  const agentConfig = await buildAgentConfig(
-    multiProvider.getKnownChainNames(),
-    multiProvider,
-    addresses,
-    startBlocks,
-  );
-
-  writeJSON(getAgentConfigDirectory(), `${sdkEnv}_config.json`, agentConfig);
 }
 
 main()

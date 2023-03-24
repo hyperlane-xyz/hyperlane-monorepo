@@ -47,6 +47,10 @@ export class ProxiedContract<
     return this.contract.address;
   }
 
+  get deployTransaction() {
+    return this.contract.deployTransaction;
+  }
+
   connect(connection: Connection): ProxiedContract<C, A> {
     return new ProxiedContract(
       this.contract.connect(connection) as C,
