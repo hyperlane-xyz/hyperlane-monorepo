@@ -39,8 +39,4 @@ DEBUG=hyperlane:* yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $FOR
 echo "=== Run checker against forked $ENVIRONMENT ==="
 DEBUG=hyperlane:* yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $FORK_CHAIN -m $MODULE
 
-SUCCESS=$?
-
 kill $ANVIL_PID
-
-exit $SUCCESS
