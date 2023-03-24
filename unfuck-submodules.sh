@@ -2,6 +2,12 @@
 
 set -e
 
+DIRNAME=$(basename "$PWD")
+if [[ "$DIRNAME" != "hyperlane-monorepo" ]]; then
+  echo "Must be run from the root of the monorepo"
+  exit 1
+fi
+
 DIRS=$(git submodule status | grep -oE "typescript/[a-zA-Z0-9_-]+")
 for DIR in $DIRS ; do
     echo "Removing '$DIR'"
