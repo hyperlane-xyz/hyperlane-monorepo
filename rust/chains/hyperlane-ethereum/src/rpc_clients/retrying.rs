@@ -1,5 +1,6 @@
 use std::{fmt::Debug, str::FromStr, time::Duration};
 
+use crate::rpc_clients::{categorize_client_response, CategorizedResponse};
 use async_trait::async_trait;
 use ethers::prelude::HttpClientError;
 use ethers::providers::{Http, JsonRpcClient, ProviderError};
@@ -8,14 +9,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 use tokio::time::sleep;
-use tracing::{debug, error, info, instrument, trace, warn};
-
-const METHODS_TO_NOT_RETRY: &[&str] = &[
-    "eth_estimateGas",
-    "eth_sendTransaction",
-    "eth_sendRawTransaction",
-    "eth_feeHistory",
-];
+use tracing::{debug, error, info_span, instrument, trace};
 
 /// An HTTP Provider with a simple naive exponential backoff built-in
 #[derive(Debug, Clone)]
@@ -157,7 +151,16 @@ where
     }
 }
 
-#[async_trait]
+const METHODS_TO_NOT_RETRY: &[&str] = &[
+    "eth_sendTransaction",
+    "eth_sendRawTransaction",
+    "eth_feeHistory",
+];
+
+const METHODS_TO_NOT_RETRY_ON_REVERT: &[&str] = &["eth_call", "eth_estimateGas"];
+
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl JsonRpcClient for RetryingProvider<PrometheusJsonRpcClient<Http>> {
     type Error = RetryingProviderError<PrometheusJsonRpcClient<Http>>;
 
@@ -167,30 +170,18 @@ impl JsonRpcClient for RetryingProvider<PrometheusJsonRpcClient<Http>> {
         T: Debug + Serialize + Send + Sync,
         R: DeserializeOwned,
     {
-        self.request_with_retry::<T, R>(method, params, |res, attempt, next_backoff_ms| match res {
-            Ok(res) => HandleMethod::Accept(res),
-            Err(HttpClientError::ReqwestError(e)) => {
-                warn!(next_backoff_ms, retries_remaining = self.max_requests - attempt, error = %e, "ReqwestError in http provider");
-                HandleMethod::Retry(HttpClientError::ReqwestError(e))
+        use CategorizedResponse::*;
+        use HandleMethod::*;
+
+        self.request_with_retry::<T, R>(method, params, |res, attempt, next_backoff_ms| {
+            let _span = info_span!("request_with_retry", next_backoff_ms, retries_remaining = self.max_requests - attempt).entered();
+
+            match categorize_client_response(method, res) {
+                IsOk(res) => Accept(res),
+                RetryableErr(e) => Retry(e),
+                NonRetryableErr(e) => Halt(e),
             }
-            Err(HttpClientError::JsonRpcError(e)) => {
-                // We don't want to retry errors that are probably not going to work if we keep
-                // retrying them or that indicate an error in higher-order logic and not
-                // transient provider (connection or other) errors.
-                if METHODS_TO_NOT_RETRY.contains(&method) {
-                    warn!(attempt, next_backoff_ms, error = %e, "JsonRpcError in http provider; not retrying");
-                    HandleMethod::Halt(HttpClientError::JsonRpcError(e))
-                } else {
-                    info!(attempt, next_backoff_ms, error = %e, "JsonRpcError in http provider");
-                    HandleMethod::Retry(HttpClientError::JsonRpcError(e))
-                }
-            }
-            Err(HttpClientError::SerdeJson { err, text }) => {
-                warn!(attempt, next_backoff_ms, error = %err, text = text,  "SerdeJson error in http provider");
-                HandleMethod::Retry(HttpClientError::SerdeJson { err, text })
-            }
-        })
-        .await
+        }).await
     }
 }
 
