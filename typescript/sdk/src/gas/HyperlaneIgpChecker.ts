@@ -31,13 +31,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
   async checkDomainOwnership(chain: ChainName): Promise<void> {
     const config = this.configMap[chain];
     if (config.owner) {
-      const contracts = this.app.getContracts(chain);
-      const ownables = [
-        contracts.proxyAdmin,
-        contracts.interchainGasPaymaster.contract,
-        contracts.defaultIsmInterchainGasPaymaster,
-      ];
-      return this.checkOwnership(chain, config.owner, ownables);
+      return this.checkOwnership(chain, config.owner);
     }
   }
 

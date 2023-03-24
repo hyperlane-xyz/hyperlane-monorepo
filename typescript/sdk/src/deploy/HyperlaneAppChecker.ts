@@ -6,7 +6,7 @@ import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
 import { MultiProvider } from '../providers/MultiProvider';
-import { TransparentProxyAddresses } from '../proxy';
+import { TransparentProxyAddresses, isProxiedContract } from '../proxy';
 import { ChainMap, ChainName } from '../types';
 import { objMap } from '../utils/objects';
 
@@ -122,15 +122,25 @@ export abstract class HyperlaneAppChecker<
     }
   }
 
-  async checkOwnership(
-    chain: ChainName,
-    owner: types.Address,
-    ownables: Ownable[],
-  ): Promise<void> {
+  async checkOwnership(chain: ChainName, owner: types.Address): Promise<void> {
+    const contracts = this.app.getContracts(chain);
+    const isOwnable = (contract: any): contract is Ownable => {
+      return (
+        contract !== null &&
+        typeof contract === 'object' &&
+        'owner' in contract &&
+        'transferOwnership' in contract
+      );
+    };
+    const ownables = Object.values(contracts)
+      .map((contract) =>
+        isProxiedContract(contract) ? contract.contract : contract,
+      )
+      .filter(isOwnable);
     await Promise.all(
       ownables.map(async (contract) => {
         const actual = await contract.owner();
-        if (actual.toLowerCase() != owner.toLowerCase()) {
+        if (!utils.eqAddress(actual, owner)) {
           const violation: OwnerViolation = {
             chain,
             type: ViolationType.Owner,

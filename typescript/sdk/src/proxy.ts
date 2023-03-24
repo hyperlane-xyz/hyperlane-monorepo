@@ -54,3 +54,18 @@ export class ProxiedContract<
     );
   }
 }
+
+export function isProxiedContract(
+  contract: unknown,
+): contract is ProxiedContract<any, any> {
+  // The presence of `implementation` is intentionally not checked
+  // to allow deploying new implementations by deleting the implementation
+  // from the artifacts
+  return (
+    contract !== null &&
+    typeof contract === 'object' &&
+    'addresses' in contract &&
+    'contract' in contract &&
+    isProxyAddresses((contract as any).addresses)
+  );
+}
