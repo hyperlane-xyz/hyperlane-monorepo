@@ -139,10 +139,23 @@ export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
   ): Promise<InterchainAccountContracts> {
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
 
-    const proxy = await this.deployProxy(chain, proxyAdmin, [] as never, {
-      create2Salt: this.create2salt,
-    });
+    // 1. deploy the proxy first with a dummy implementation
+    const dummyImplementation = InterchainAccountRouter__factory.connect(
+      proxyAdmin.address,
+      this.multiProvider.getSigner(chain),
+    );
+    const initArgs = await this.initializeArgs(chain, config);
+    const proxy = await this.deployProxy(
+      chain,
+      dummyImplementation,
+      initArgs,
+      {
+        create2Salt: this.create2salt,
+      },
+      false, // skip initializing dummy implementation
+    );
 
+    // 2. deploy the real InterchainAccountRouter and OwnableMulticall implementation with proxy address
     const domainId = this.multiProvider.getDomainId(chain);
     const implementation = await this.deployContract(
       chain,
@@ -151,16 +164,18 @@ export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
       { create2Salt: this.create2salt },
     );
 
+    // 3. upgrade the proxy to the real implementation and initialize
     this.logger('Upgrading proxy to real implementation and initializing');
     const initData = this.factories.router.interface.encodeFunctionData(
       'initialize',
-      await this.initializeArgs(chain, config),
+      initArgs,
     );
-    await this.multiProvider.handleTx(
+    await super.upgradeAndInitialize(
       chain,
-      proxy.proxy.upgradeToAndCall(implementation.address, initData), // requires admin
+      proxy.proxy,
+      implementation.address,
+      initData,
     );
-
     await super.changeAdmin(chain, proxy.proxy, proxyAdmin.address);
 
     const proxiedRouter = new ProxiedContract(

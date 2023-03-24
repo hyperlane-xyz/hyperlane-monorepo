@@ -352,43 +352,47 @@ export abstract class HyperlaneDeployer<
     implementation: C,
     initArgs: Parameters<C['initialize']>,
     deployOpts?: DeployOptions,
+    initialize = true,
   ): Promise<ProxiedContract<C, TransparentProxyAddresses>> {
     const deployer = await this.multiProvider.getSignerAddress(chain);
     const provider = this.multiProvider.getProvider(chain);
 
-    let implementationAddress: string;
-    let initData: string;
-    if (
-      deployOpts?.create2Salt &&
-      (await provider.getCode(CREATE2FACTORY_ADDRESS)) !== '0x'
-    ) {
-      implementationAddress = CREATE2FACTORY_ADDRESS;
-      initData = '0x';
-    } else {
-      implementationAddress = implementation.address;
-      initData = implementation.interface.encodeFunctionData(
-        'initialize',
-        initArgs,
-      );
-    }
-
-    this.logger(`Deploying transparent upgradable proxy`);
-    const proxy = await this.deployContractFromFactory(
-      chain,
-      new TransparentUpgradeableProxy__factory(),
-      'TransparentUpgradeableProxy',
-      [implementationAddress, deployer, initData],
-      deployOpts,
+    const initData = implementation.interface.encodeFunctionData(
+      'initialize',
+      initArgs,
     );
 
-    if ((await proxy.callStatic.implementation()) !== implementationAddress) {
-      // TODO: consider handling only upgrade case
-      await this.upgradeAndInitialize(
+    const proxyDeployer = async (
+      implementationAddress: string,
+      initCallData: string,
+    ) =>
+      await this.deployContractFromFactory(
         chain,
-        proxy,
-        implementationAddress,
-        initData,
+        new TransparentUpgradeableProxy__factory(),
+        'TransparentUpgradeableProxy',
+        [implementationAddress, deployer, initCallData],
+        deployOpts,
       );
+
+    const useCreate2 =
+      deployOpts?.create2Salt !== undefined &&
+      (await provider.getCode(CREATE2FACTORY_ADDRESS)) !== '0x';
+
+    this.logger(`Deploying transparent upgradable proxy`);
+    let proxy: TransparentUpgradeableProxy;
+    if (useCreate2) {
+      proxy = await proxyDeployer(CREATE2FACTORY_ADDRESS, '0x');
+      if (initialize) {
+        // hack for skipping upgrade and initialize for dummy implementations
+        await this.upgradeAndInitialize(
+          chain,
+          proxy,
+          implementation.address,
+          initData,
+        );
+      }
+    } else {
+      proxy = await proxyDeployer(implementation.address, initData);
     }
 
     if (deployOpts?.proxyAdmin) {
