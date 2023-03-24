@@ -142,6 +142,7 @@ export abstract class HyperlaneAppChecker<
     }
   }
 
+  // TODO: Require owner in config if ownables is non-empty
   async checkOwnership(chain: ChainName, owner: types.Address): Promise<void> {
     const isOwnable = (_: string, contract: any): contract is Ownable => {
       return (

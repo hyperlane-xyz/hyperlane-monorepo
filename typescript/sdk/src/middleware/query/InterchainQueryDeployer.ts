@@ -9,7 +9,7 @@ import {
   interchainQueryFactories,
 } from './contracts';
 
-type InterchainQueryConfig = RouterConfig;
+export type InterchainQueryConfig = RouterConfig;
 
 export class InterchainQueryDeployer extends MiddlewareRouterDeployer<
   InterchainQueryConfig,

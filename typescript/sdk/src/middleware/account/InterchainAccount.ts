@@ -1,10 +1,10 @@
-import { HyperlaneApp } from '../../HyperlaneApp';
 import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
 } from '../../consts/environments';
 import { HyperlaneAddresses } from '../../contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
+import { RouterApp } from '../../router/RouterApps';
 import { ChainMap, ChainName } from '../../types';
 
 import {
@@ -15,7 +15,7 @@ import {
 export type InterchainAccountContractsMap =
   ChainMap<InterchainAccountContracts>;
 
-export class InterchainAccounts extends HyperlaneApp<InterchainAccountContracts> {
+export class InterchainAccount extends RouterApp<InterchainAccountContracts> {
   constructor(
     contractsMap: InterchainAccountContractsMap,
     multiProvider: MultiProvider,
@@ -26,25 +26,25 @@ export class InterchainAccounts extends HyperlaneApp<InterchainAccountContracts>
   static fromAddresses(
     addresses: ChainMap<HyperlaneAddresses>,
     multiProvider: MultiProvider,
-  ): InterchainAccounts {
+  ): InterchainAccount {
     const { contracts, intersectionProvider } =
       this.buildContracts<InterchainAccountContracts>(
         addresses,
         interchainAccountFactories,
         multiProvider,
       );
-    return new InterchainAccounts(contracts, intersectionProvider);
+    return new InterchainAccount(contracts, intersectionProvider);
   }
 
   static fromEnvironment<Env extends HyperlaneEnvironment>(
     env: Env,
     multiProvider: MultiProvider,
-  ): InterchainAccounts {
+  ): InterchainAccount {
     const envAddresses = hyperlaneEnvironments[env];
     if (!envAddresses) {
       throw new Error(`No addresses found for ${env}`);
     }
-    return InterchainAccounts.fromAddresses(envAddresses, multiProvider);
+    return InterchainAccount.fromAddresses(envAddresses, multiProvider);
   }
 
   getContracts(chain: ChainName): InterchainAccountContracts {

@@ -1,10 +1,10 @@
-import { HyperlaneApp } from '../../HyperlaneApp';
 import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
 } from '../../consts/environments';
 import { HyperlaneAddresses } from '../../contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
+import { RouterApp } from '../../router/RouterApps';
 import { ChainMap, ChainName } from '../../types';
 
 import {
@@ -14,7 +14,7 @@ import {
 
 export type InterchainQueryContractsMap = ChainMap<InterchainQueryContracts>;
 
-export class InterchainQuery extends HyperlaneApp<InterchainQueryContracts> {
+export class InterchainQuery extends RouterApp<InterchainQueryContracts> {
   constructor(
     contractsMap: InterchainQueryContractsMap,
     multiProvider: MultiProvider,

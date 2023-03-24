@@ -15,7 +15,7 @@ import {
   interchainAccountFactories,
 } from './contracts';
 
-type InterchainAccountConfig = RouterConfig;
+export type InterchainAccountConfig = RouterConfig;
 
 export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
   InterchainAccountConfig,
