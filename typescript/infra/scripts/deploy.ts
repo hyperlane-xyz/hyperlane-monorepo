@@ -26,6 +26,7 @@ import {
   getEnvironmentConfig,
   getEnvironmentDirectory,
   getRouterConfig,
+  modules,
   sdkModules,
 } from './utils';
 
@@ -60,10 +61,10 @@ async function main() {
       config.igp,
       environment,
     );
-  } else if (module === 'accounts') {
+  } else if (module === 'ica') {
     const config = await getRouterConfig(environment, multiProvider);
     deployer = new InterchainAccountDeployer(multiProvider, config);
-  } else if (module === 'queries') {
+  } else if (module === 'iqs') {
     const config = await getRouterConfig(environment, multiProvider);
     deployer = new InterchainQueryDeployer(multiProvider, config);
   } else if (module === 'll') {
@@ -98,7 +99,7 @@ async function main() {
       igp,
     );
   } else {
-    throw new Error('Unknown module type');
+    throw new Error(`Unknown module: ${module}, valid: ${modules.join(', ')}`);
   }
 
   const modulePath = path.join(getEnvironmentDirectory(environment), module);
@@ -117,4 +118,7 @@ async function main() {
 
 main()
   .then()
-  .catch(() => process.exit(1));
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
