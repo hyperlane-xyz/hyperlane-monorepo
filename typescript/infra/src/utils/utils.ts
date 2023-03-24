@@ -157,28 +157,34 @@ export function warn(text: string, padded = false) {
   }
 }
 
-export function writeMergedJSON(directory: string, filename: string, obj: any) {
-  if (fs.existsSync(path.join(directory, filename))) {
-    const previous = readJSON(directory, filename);
-    writeJSON(directory, filename, objMerge(previous, obj));
+export function writeMergedJSONAtPath(filepath: string, obj: any) {
+  if (fs.existsSync(filepath)) {
+    const previous = readJSONAtPath(filepath);
+    writeJsonAtPath(filepath, objMerge(previous, obj));
   } else {
-    writeJSON(directory, filename, obj);
+    writeJsonAtPath(filepath, obj);
   }
+}
+
+export function writeMergedJSON(directory: string, filename: string, obj: any) {
+  writeMergedJSONAtPath(path.join(directory, filename), obj);
+}
+
+export function writeJsonAtPath(filepath: string, obj: any) {
+  fs.writeFileSync(filepath, JSON.stringify(obj, null, 2) + '\n');
 }
 
 export function writeJSON(directory: string, filename: string, obj: any) {
   if (!fs.existsSync(directory)) {
     fs.mkdirSync(directory, { recursive: true });
   }
-  fs.writeFileSync(
-    path.join(directory, filename),
-    JSON.stringify(obj, null, 2) + '\n',
-  );
+  writeJsonAtPath(path.join(directory, filename), obj);
 }
 
 export function readFileAtPath(filepath: string) {
   if (!fs.existsSync(filepath)) {
-    throw Error(`file doesn't exist at ${filepath}`);
+    console.error(`file doesn't exist at ${filepath}`);
+    return JSON.stringify({});
   }
   return fs.readFileSync(filepath, 'utf8');
 }

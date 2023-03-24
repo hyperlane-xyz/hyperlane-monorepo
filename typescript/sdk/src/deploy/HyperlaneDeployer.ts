@@ -55,8 +55,8 @@ export abstract class HyperlaneDeployer<
 
   constructor(
     protected readonly multiProvider: MultiProvider,
-    protected readonly configMap: ChainMap<Config>,
-    protected readonly factories: Factories,
+    public readonly configMap: ChainMap<Config>,
+    public readonly factories: Factories,
     protected readonly options?: DeployerOptions,
   ) {
     this.verificationInputs = objMap(configMap, () => []);

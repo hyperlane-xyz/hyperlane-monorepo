@@ -1,44 +1,36 @@
 import {
-  ChainMap,
-  HyperlaneContracts,
+  ChainName,
   HyperlaneDeployer,
-  HyperlaneFactories,
   buildContracts,
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
 
-import { readJSON, writeJSON } from './utils/utils';
+import {
+  readJSONAtPath,
+  writeJsonAtPath,
+  writeMergedJSONAtPath,
+} from './utils/utils';
 
-export async function deployWithArtifacts<T extends HyperlaneFactories>(
-  dir: string,
-  factories: T,
-  deployer: HyperlaneDeployer<any, any, T>,
+export async function deployWithArtifacts(
+  deployer: HyperlaneDeployer<any, any, any>,
+  addressesPath: string,
+  verificationPath: string,
+  fork?: ChainName,
 ) {
-  let contracts: ChainMap<HyperlaneContracts> = {};
-  try {
-    const addresses = readJSON(dir, 'addresses.json');
-    contracts = buildContracts(addresses, factories) as any;
-  } catch (e) {
-    console.error(e);
+  const addresses = readJSONAtPath(addressesPath);
+  const savedContracts = buildContracts(addresses, deployer.factories);
+  deployer.cacheContracts(savedContracts);
+
+  if (fork) {
+    await deployer.deployContracts(fork, deployer.configMap[fork]);
+    return;
   }
 
-  try {
-    contracts = await deployer.deploy(contracts);
-  } catch (e) {
-    console.error(e);
-    contracts = deployer.deployedContracts as any;
-  }
+  const contracts = await deployer.deploy();
+  writeMergedJSONAtPath(addressesPath, serializeContracts(contracts));
 
-  try {
-    const existingVerificationInputs = readJSON(dir, 'verification.json');
-    writeJSON(
-      dir,
-      'verification.json',
-      deployer.mergeWithExistingVerificationInputs(existingVerificationInputs),
-    );
-  } catch {
-    writeJSON(dir, 'verification.json', deployer.verificationInputs);
-  }
-
-  writeJSON(dir, 'addresses.json', serializeContracts(contracts));
+  const savedVerification = readJSONAtPath(verificationPath);
+  const inputs =
+    deployer.mergeWithExistingVerificationInputs(savedVerification);
+  writeJsonAtPath(verificationPath, inputs);
 }

@@ -35,10 +35,22 @@ export function getArgsWithContext() {
     .alias('c', 'context');
 }
 
+export const modules = [
+  'core',
+  'igp',
+  'ica',
+  'iqs',
+  'create2',
+  'll',
+  'testrecipient',
+  'testquerysender',
+];
+export const sdkModules = ['core', 'igp', 'ica', 'iqs']; // TODO: check if this is correct
+
 export function getArgsWithModule() {
   return getArgs()
     .string('module')
-    .choices('module', ['core', 'igp', 'ica', 'iqs', 'create2'])
+    .choices('module', modules)
     .demandOption('module')
     .alias('m', 'module');
 }
@@ -158,7 +170,7 @@ export async function getMultiProviderForRole(
 }
 
 export function getContractAddressesSdkFilepath() {
-  return path.join('../sdk/src/consts/environments');
+  return '../sdk/src/consts/environments';
 }
 
 export function getEnvironmentDirectory(environment: DeployEnvironment) {
