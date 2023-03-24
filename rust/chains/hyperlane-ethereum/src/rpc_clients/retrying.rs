@@ -2,14 +2,13 @@ use std::{fmt::Debug, str::FromStr, time::Duration};
 
 use crate::rpc_clients::{categorize_client_response, CategorizedResponse};
 use async_trait::async_trait;
-use ethers::prelude::HttpClientError;
 use ethers::providers::{Http, JsonRpcClient, ProviderError};
 use ethers_prometheus::json_rpc_client::PrometheusJsonRpcClient;
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 use tokio::time::sleep;
-use tracing::{debug, error, info_span, instrument, trace, warn_span};
+use tracing::{debug, error, instrument, trace, warn_span};
 
 /// An HTTP Provider with a simple naive exponential backoff built-in
 #[derive(Debug, Clone)]
