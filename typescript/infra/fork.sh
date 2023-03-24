@@ -24,6 +24,9 @@ while ! cast bn; do
   sleep 1
 done
 
+# exit 1 on any subsequent failures
+set -e
+
 echo "=== Run checker against forked $ENVIRONMENT ==="
 DEBUG=hyperlane:* yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $FORK_CHAIN -m $MODULE
 
