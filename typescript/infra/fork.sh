@@ -28,7 +28,7 @@ echo "=== Run checker against forked $ENVIRONMENT ==="
 DEBUG=hyperlane:* yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $FORK_CHAIN -m $MODULE
 
 echo "=== Run core deployer against forked $ENVIRONMENT ==="
-DEBUG=hyperlane:* yarn ts-node ./scripts/core.ts -e $ENVIRONMENT -f $FORK_CHAIN -m $MODULE
+DEBUG=hyperlane:* yarn ts-node ./scripts/deploy.ts -e $ENVIRONMENT -f $FORK_CHAIN -m $MODULE
 
 echo "=== Run govern against forked $ENVIRONMENT ==="
 DEBUG=hyperlane:* yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $FORK_CHAIN --govern -m $MODULE
