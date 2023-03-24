@@ -9,7 +9,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 use tokio::time::sleep;
-use tracing::{debug, error, info_span, instrument, trace};
+use tracing::{debug, error, info_span, instrument, trace, warn_span};
 
 /// An HTTP Provider with a simple naive exponential backoff built-in
 #[derive(Debug, Clone)]
@@ -58,6 +58,7 @@ enum HandleMethod<R, PE> {
     Accept(R),
     Halt(PE),
     Retry(PE),
+    RateLimitedRetry(PE),
 }
 
 impl<P> RetryingProvider<P>
@@ -89,6 +90,7 @@ where
 
         let mut last_err;
         let mut i = 1;
+        let mut rate_limited = false;
         loop {
             let backoff_ms = self.base_retry_ms * 2u64.pow(i - 1);
             trace!(params = %serde_json::to_string(&params).unwrap_or_default(), "Dispatching request with params");
@@ -109,11 +111,20 @@ where
                 HandleMethod::Retry(e) => {
                     last_err = e;
                 }
+                HandleMethod::RateLimitedRetry(e) => {
+                    last_err = e;
+                    rate_limited = true;
+                }
             }
 
             i += 1;
             if i <= self.max_requests {
-                trace!(backoff_ms, "Retrying provider going to sleep");
+                let backoff_ms = if rate_limited {
+                    backoff_ms + 5000
+                } else {
+                    backoff_ms
+                };
+                trace!(backoff_ms, rate_limited, "Retrying provider going to sleep");
                 sleep(Duration::from_millis(backoff_ms)).await;
             } else {
                 trace!(
@@ -151,14 +162,6 @@ where
     }
 }
 
-const METHODS_TO_NOT_RETRY: &[&str] = &[
-    "eth_sendTransaction",
-    "eth_sendRawTransaction",
-    "eth_feeHistory",
-];
-
-const METHODS_TO_NOT_RETRY_ON_REVERT: &[&str] = &["eth_call", "eth_estimateGas"];
-
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl JsonRpcClient for RetryingProvider<PrometheusJsonRpcClient<Http>> {
@@ -174,14 +177,21 @@ impl JsonRpcClient for RetryingProvider<PrometheusJsonRpcClient<Http>> {
         use HandleMethod::*;
 
         self.request_with_retry::<T, R>(method, params, |res, attempt, next_backoff_ms| {
-            let _span = info_span!("request_with_retry", next_backoff_ms, retries_remaining = self.max_requests - attempt).entered();
+            let _span = warn_span!(
+                "request_with_retry",
+                next_backoff_ms,
+                retries_remaining = self.max_requests - attempt
+            )
+            .entered();
 
             match categorize_client_response(method, res) {
                 IsOk(res) => Accept(res),
                 RetryableErr(e) => Retry(e),
+                RateLimitErr(e) => RateLimitedRetry(e),
                 NonRetryableErr(e) => Halt(e),
             }
-        }).await
+        })
+        .await
     }
 }
 

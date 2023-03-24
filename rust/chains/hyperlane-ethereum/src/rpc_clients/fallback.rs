@@ -7,18 +7,11 @@ use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 use tokio::time::sleep;
-use tracing::{info_span, instrument};
+use tracing::{instrument, warn_span};
 
 use ethers_prometheus::json_rpc_client::PrometheusJsonRpcClient;
 
 use crate::rpc_clients::{categorize_client_response, CategorizedResponse};
-
-const METHODS_TO_NOT_TO_FALLBACK_ON: &[&str] = &[
-    "eth_estimateGas",
-    "eth_sendTransaction",
-    "eth_sendRawTransaction",
-    "eth_feeHistory",
-];
 
 /// A provider that bundles multiple providers and attempts to call the first,
 /// then the second, and so on until a response is received.
@@ -110,7 +103,7 @@ impl From<FallbackError> for ProviderError {
 impl JsonRpcClient for FallbackProvider<PrometheusJsonRpcClient<Http>> {
     type Error = ProviderError;
 
-    #[instrument(skip(self))]
+    #[instrument]
     async fn request<T, R>(&self, method: &str, params: T) -> Result<R, Self::Error>
     where
         T: Debug + Serialize + Send + Sync,
@@ -127,17 +120,17 @@ impl JsonRpcClient for FallbackProvider<PrometheusJsonRpcClient<Http>> {
                 sleep(Duration::from_millis(100)).await;
             }
             for (idx, provider) in self.0.iter().enumerate() {
-                let _span =
-                    info_span!("request_with_fallback", provider_index=%idx, ?provider).entered();
-
                 let fut = match params {
                     Value::Null => provider.request(method, ()),
                     _ => provider.request(method, &params),
                 };
 
-                match categorize_client_response(method, fut.await) {
+                let resp = fut.await;
+                let _span =
+                    warn_span!("request_with_fallback", provider_index=%idx, ?provider).entered();
+                match categorize_client_response(method, resp) {
                     IsOk(v) => return Ok(serde_json::from_value(v)?),
-                    RetryableErr(e) => errors.push(e.into()),
+                    RetryableErr(e) | RateLimitErr(e) => errors.push(e.into()),
                     NonRetryableErr(e) => return Err(e.into()),
                 }
             }
