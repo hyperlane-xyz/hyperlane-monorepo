@@ -7,19 +7,17 @@ import {
   TestRecipient__factory,
 } from '@hyperlane-xyz/core';
 
-import { Chains } from '../consts/chains';
-import { TestCoreApp } from '../core/TestCoreApp';
-import { TestCoreDeployer } from '../core/TestCoreDeployer';
-import { MultiProvider } from '../providers/MultiProvider';
-import { RouterConfig } from '../router/types';
-import { deployTestIgpsAndGetRouterConfig } from '../test/testUtils';
-import { ChainMap } from '../types';
-import { objMap, promiseObjAll } from '../utils/objects';
+import { Chains } from '../../consts/chains';
+import { TestCoreApp } from '../../core/TestCoreApp';
+import { TestCoreDeployer } from '../../core/TestCoreDeployer';
+import { MultiProvider } from '../../providers/MultiProvider';
+import { RouterConfig } from '../../router/types';
+import { deployTestIgpsAndGetRouterConfig } from '../../test/testUtils';
+import { ChainMap } from '../../types';
+import { objMap, promiseObjAll } from '../../utils/objects';
 
-import {
-  InterchainAccountContracts,
-  InterchainAccountDeployer,
-} from './deploy';
+import { InterchainAccountDeployer } from './InterchainAccountDeployer';
+import { InterchainAccountContracts } from './contracts';
 
 describe('InterchainAccounts', async () => {
   const localChain = Chains.test1;

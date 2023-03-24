@@ -106,12 +106,7 @@ export {
   OverheadIgpConfig,
 } from './gas/types';
 export { HyperlaneApp } from './HyperlaneApp';
-export {
-  InterchainAccountDeployer,
-  interchainAccountFactories,
-  InterchainQueryDeployer,
-  interchainQueryFactories,
-} from './middleware/deploy';
+export { interchainAccountFactories } from './middleware/account/contracts';
 export {
   LiquidityLayerContracts,
   liquidityLayerFactories,
@@ -124,6 +119,9 @@ export {
   LiquidityLayerDeployer,
   PortalAdapterConfig,
 } from './middleware/liquidity-layer/LiquidityLayerRouterDeployer';
+export { interchainQueryFactories } from './middleware/query/contracts';
+export { InterchainQuery } from './middleware/query/InterchainQuery';
+export { InterchainQueryDeployer } from './middleware/query/InterchainQueryDeployer';
 export { MultiProvider, providerBuilder } from './providers/MultiProvider';
 export { RetryJsonRpcProvider, RetryProvider } from './providers/RetryProvider';
 export {
