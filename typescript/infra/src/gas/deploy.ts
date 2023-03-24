@@ -3,7 +3,6 @@ import { ethers } from 'ethers';
 import {
   InterchainGasPaymaster,
   OverheadIgp,
-  ProxyAdmin,
   StorageGasOracle,
 } from '@hyperlane-xyz/core';
 import {
@@ -15,6 +14,7 @@ import {
   ProxiedContract,
   TransparentProxyAddresses,
 } from '@hyperlane-xyz/sdk';
+import { DeployOptions } from '@hyperlane-xyz/sdk/dist/deploy/HyperlaneDeployer';
 import { types } from '@hyperlane-xyz/utils';
 
 import { DeployEnvironment } from '../config';
@@ -33,23 +33,18 @@ export class HyperlaneIgpInfraDeployer extends HyperlaneIgpDeployer {
 
   async deployInterchainGasPaymaster(
     chain: ChainName,
-    proxyAdmin: ProxyAdmin,
     storageGasOracle: StorageGasOracle,
+    deployOpts?: DeployOptions,
   ): Promise<
     ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
   > {
-    const deployOpts = {
+    return super.deployInterchainGasPaymaster(chain, storageGasOracle, {
+      ...deployOpts,
       create2Salt: ethers.utils.solidityKeccak256(
         ['string', 'string', 'uint8'],
         [this.environment, 'interchainGasPaymaster', 6],
       ),
-    };
-    return super.deployInterchainGasPaymaster(
-      chain,
-      proxyAdmin,
-      storageGasOracle,
-      deployOpts,
-    );
+    });
   }
 
   async deployOverheadInterchainGasPaymaster(

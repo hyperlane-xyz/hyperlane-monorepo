@@ -4,8 +4,6 @@ import {
   InterchainGasPaymaster,
   OverheadIgp,
   Ownable,
-  Ownable__factory,
-  ProxyAdmin,
   StorageGasOracle,
 } from '@hyperlane-xyz/core';
 import { types, utils } from '@hyperlane-xyz/utils';
@@ -39,7 +37,6 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
   async deployInterchainGasPaymaster(
     chain: ChainName,
-    proxyAdmin: ProxyAdmin,
     storageGasOracle: StorageGasOracle,
     deployOpts?: DeployOptions,
   ): Promise<
@@ -51,7 +48,6 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       chain,
       'interchainGasPaymaster',
       [beneficiary],
-      proxyAdmin,
       [owner, beneficiary],
       deployOpts,
     );
@@ -92,20 +88,11 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     interchainGasPaymasterAddress: types.Address,
     deployOpts?: DeployOptions,
   ): Promise<OverheadIgp> {
-    const deployer = await this.multiProvider.getSignerAddress(chain);
-    // Transfer ownership to the deployer so the destination gas overheads can be set
-    const initCalldata = Ownable__factory.createInterface().encodeFunctionData(
-      'transferOwnership',
-      [deployer],
-    );
     const overheadInterchainGasPaymaster = await this.deployContract(
       chain,
       'defaultIsmInterchainGasPaymaster',
       [interchainGasPaymasterAddress],
-      {
-        ...deployOpts,
-        initCalldata,
-      },
+      deployOpts,
     );
 
     const configChains = Object.keys(this.configMap);
@@ -162,8 +149,8 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     const storageGasOracle = await this.deployStorageGasOracle(chain);
     const interchainGasPaymaster = await this.deployInterchainGasPaymaster(
       chain,
-      proxyAdmin,
       storageGasOracle,
+      { proxyAdmin: proxyAdmin.address },
     );
     const overheadInterchainGasPaymaster =
       await this.deployOverheadInterchainGasPaymaster(

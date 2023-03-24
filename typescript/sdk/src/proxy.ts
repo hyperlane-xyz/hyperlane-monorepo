@@ -1,5 +1,6 @@
 import { Contract } from 'ethers';
 
+import { TransparentUpgradeableProxy__factory } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
 import { Connection } from './types';
@@ -49,6 +50,13 @@ export class ProxiedContract<
 
   get deployTransaction() {
     return this.contract.deployTransaction;
+  }
+
+  get proxy() {
+    return TransparentUpgradeableProxy__factory.connect(
+      this.address,
+      this.contract.signer || this.contract.provider,
+    );
   }
 
   connect(connection: Connection): ProxiedContract<C, A> {
