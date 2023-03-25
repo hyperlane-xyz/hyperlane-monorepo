@@ -16,7 +16,9 @@ use hyperlane_core::{
     RawHyperlaneMessage, SignatureWithSigner, H256,
 };
 
-use crate::contracts::i_multisig_ism::{IMultisigIsm as EthereumMultisigIsmInternal, IMULTISIGISM_ABI};
+use crate::contracts::i_multisig_ism::{
+    IMultisigIsm as EthereumMultisigIsmInternal, IMULTISIGISM_ABI,
+};
 use crate::trait_builder::BuildableWithProvider;
 use crate::EthereumProvider;
 
