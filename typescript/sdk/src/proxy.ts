@@ -1,10 +1,6 @@
 import { TransactionResponse } from '@ethersproject/abstract-provider';
 import { Contract } from 'ethers';
 
-import {
-  TransparentUpgradeableProxy,
-  TransparentUpgradeableProxy__factory,
-} from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
 import { Connection } from './types';
@@ -44,7 +40,7 @@ export type TransparentProxyAddresses = ProxyAddresses<ProxyKind.Transparent>;
 
 export class ProxiedContract<
   C extends Contract,
-  A extends ProxyAddresses<any>,
+  A extends ProxyAddresses<any> = TransparentProxyAddresses,
 > {
   constructor(public readonly contract: C, public readonly addresses: A) {}
 
@@ -54,13 +50,6 @@ export class ProxiedContract<
 
   get deployTransaction(): TransactionResponse {
     return this.contract.deployTransaction;
-  }
-
-  get proxy(): TransparentUpgradeableProxy {
-    return TransparentUpgradeableProxy__factory.connect(
-      this.address,
-      this.contract.signer || this.contract.provider,
-    );
   }
 
   connect(connection: Connection): ProxiedContract<C, A> {

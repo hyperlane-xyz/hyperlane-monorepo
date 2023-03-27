@@ -73,9 +73,10 @@ export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
   async deployMailbox(
     chain: ChainName,
     defaultIsmAddress: types.Address,
+    proxyAdmin: types.Address,
     deployOpts?: DeployOptions,
   ): Promise<ProxiedContract<Mailbox, TransparentProxyAddresses>> {
-    return super.deployMailbox(chain, defaultIsmAddress, {
+    return super.deployMailbox(chain, defaultIsmAddress, proxyAdmin, {
       ...deployOpts,
       create2Salt: ethers.utils.solidityKeccak256(
         ['string', 'string', 'uint8'],

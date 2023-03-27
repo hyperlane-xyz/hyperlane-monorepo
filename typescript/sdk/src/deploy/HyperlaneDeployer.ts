@@ -42,7 +42,6 @@ export interface DeployerOptions {
 export interface DeployOptions {
   create2Salt?: string;
   initCalldata?: string;
-  proxyAdmin?: string;
 }
 
 export const CREATE2FACTORY_ADDRESS =
@@ -351,8 +350,8 @@ export abstract class HyperlaneDeployer<
     chain: ChainName,
     implementation: C,
     initArgs: Parameters<C['initialize']>,
+    proxyAdmin: string,
     deployOpts?: DeployOptions,
-    initialize = true,
   ): Promise<ProxiedContract<C, TransparentProxyAddresses>> {
     const deployer = await this.multiProvider.getSignerAddress(chain);
     const provider = this.multiProvider.getProvider(chain);
@@ -362,43 +361,37 @@ export abstract class HyperlaneDeployer<
       initArgs,
     );
 
-    const proxyDeployer = async (
-      implementationAddress: string,
-      initCallData: string,
-    ) =>
-      await this.deployContractFromFactory(
-        chain,
-        new TransparentUpgradeableProxy__factory(),
-        'TransparentUpgradeableProxy',
-        [implementationAddress, deployer, initCallData],
-        deployOpts,
-      );
-
     const useCreate2 =
       deployOpts?.create2Salt !== undefined &&
       (await provider.getCode(CREATE2FACTORY_ADDRESS)) !== '0x';
 
-    this.logger(`Deploying transparent upgradable proxy`);
     let proxy: TransparentUpgradeableProxy;
     if (useCreate2) {
-      // deploy with static implementation and init data for consistent addresses
-      proxy = await proxyDeployer(CREATE2FACTORY_ADDRESS, '0x');
-      // hack for skipping upgrade and initialize for dummy implementations
-      if (initialize) {
-        // upgrade and initialize with actual implementation and init data
-        await this.upgradeAndInitialize(
-          chain,
-          proxy,
-          implementation.address,
-          initData,
-        );
-      }
+      // deploy with static implementation, deployer admin, and init data for consistent addresses
+      proxy = await this.deployContractFromFactory(
+        chain,
+        new TransparentUpgradeableProxy__factory(),
+        'TransparentUpgradeableProxy',
+        [CREATE2FACTORY_ADDRESS, deployer, '0x'],
+        deployOpts,
+      );
+      // upgrade and initialize with actual implementation and init data
+      await this.upgradeAndInitialize(
+        chain,
+        proxy,
+        implementation.address,
+        initData,
+      );
+      // rotate admin to the desired admin
+      await this.changeAdmin(chain, proxy, proxyAdmin);
     } else {
-      proxy = await proxyDeployer(implementation.address, initData);
-    }
-
-    if (deployOpts?.proxyAdmin) {
-      await this.changeAdmin(chain, proxy, deployOpts.proxyAdmin);
+      proxy = await this.deployContractFromFactory(
+        chain,
+        new TransparentUpgradeableProxy__factory(),
+        'TransparentUpgradeableProxy',
+        [implementation.address, proxyAdmin, initData],
+        deployOpts,
+      );
     }
 
     return new ProxiedContract<C, TransparentProxyAddresses>(
@@ -435,6 +428,7 @@ export abstract class HyperlaneDeployer<
     contractName: K,
     constructorArgs: Parameters<Factories[K]['deploy']>,
     initArgs: Parameters<C['initialize']>,
+    proxyAdmin: string,
     deployOpts?: DeployOptions,
   ): Promise<ProxiedContract<C, TransparentProxyAddresses>> {
     const cachedProxy = this.deployedContracts[chain]?.[contractName as any];
@@ -477,6 +471,7 @@ export abstract class HyperlaneDeployer<
       chain,
       implementation as C,
       initArgs,
+      proxyAdmin,
       deployOpts,
     );
     this.cacheContract(chain, contractName, contract);

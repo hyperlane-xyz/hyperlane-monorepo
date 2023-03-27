@@ -34,17 +34,23 @@ export class HyperlaneIgpInfraDeployer extends HyperlaneIgpDeployer {
   async deployInterchainGasPaymaster(
     chain: ChainName,
     storageGasOracle: StorageGasOracle,
+    proxyAdmin: string,
     deployOpts?: DeployOptions,
   ): Promise<
     ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
   > {
-    return super.deployInterchainGasPaymaster(chain, storageGasOracle, {
-      ...deployOpts,
-      create2Salt: ethers.utils.solidityKeccak256(
-        ['string', 'string', 'uint8'],
-        [this.environment, 'interchainGasPaymaster', 6],
-      ),
-    });
+    return super.deployInterchainGasPaymaster(
+      chain,
+      storageGasOracle,
+      proxyAdmin,
+      {
+        ...deployOpts,
+        create2Salt: ethers.utils.solidityKeccak256(
+          ['string', 'string', 'uint8'],
+          [this.environment, 'interchainGasPaymaster', 6],
+        ),
+      },
+    );
   }
 
   async deployOverheadInterchainGasPaymaster(

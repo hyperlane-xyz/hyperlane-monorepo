@@ -38,6 +38,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
   async deployInterchainGasPaymaster(
     chain: ChainName,
     storageGasOracle: StorageGasOracle,
+    proxyAdmin: string,
     deployOpts?: DeployOptions,
   ): Promise<
     ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
@@ -49,6 +50,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       'interchainGasPaymaster',
       [beneficiary],
       [owner, beneficiary],
+      proxyAdmin,
       deployOpts,
     );
 
@@ -150,7 +152,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     const interchainGasPaymaster = await this.deployInterchainGasPaymaster(
       chain,
       storageGasOracle,
-      { proxyAdmin: proxyAdmin.address },
+      proxyAdmin.address,
     );
     const overheadInterchainGasPaymaster =
       await this.deployOverheadInterchainGasPaymaster(

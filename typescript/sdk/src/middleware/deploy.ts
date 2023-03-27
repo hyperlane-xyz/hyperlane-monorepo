@@ -6,6 +6,7 @@ import {
   InterchainQueryRouter,
   InterchainQueryRouter__factory,
   ProxyAdmin__factory,
+  TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
 
 import { MultiProvider } from '../providers/MultiProvider';
@@ -29,7 +30,9 @@ export const interchainAccountFactories: InterchainAccountFactories = {
 };
 
 export type InterchainAccountContracts =
-  ProxiedRouterContracts<InterchainAccountRouter>;
+  ProxiedRouterContracts<InterchainAccountRouter> & {
+    interchainAccountRouter: ProxiedContract<InterchainAccountRouter>;
+  };
 
 export type InterchainQueryFactories =
   ProxiedRouterFactories<InterchainQueryRouter>;
@@ -62,13 +65,6 @@ export abstract class MiddlewareRouterDeployer<
     super(multiProvider, configMap, factories);
   }
 
-  constructorArgs(
-    _chain: ChainName,
-    _config: MiddlewareRouterConfig,
-  ): Parameters<MiddlewareFactories['router']['deploy']> {
-    return [] as any;
-  }
-
   async initializeArgs(
     chain: ChainName,
     config: MiddlewareRouterConfig,
@@ -98,11 +94,11 @@ export abstract class MiddlewareRouterDeployer<
     const proxiedRouter = await this.deployProxiedContract(
       chain,
       'router',
-      this.constructorArgs(chain, config),
+      [] as any, // generic type inference fails here
       initArgs as any, // generic type inference fails here
+      proxyAdmin.address,
       {
         create2Salt: this.create2salt,
-        proxyAdmin: proxyAdmin.address,
       },
     );
     return {
@@ -139,44 +135,51 @@ export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
   ): Promise<InterchainAccountContracts> {
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
 
-    // 1. deploy the proxy first with a dummy implementation
-    const dummyImplementation = InterchainAccountRouter__factory.connect(
-      proxyAdmin.address,
-      this.multiProvider.getSigner(chain),
-    );
-    const initArgs = await this.initializeArgs(chain, config);
-    const proxy = await this.deployProxy(
+    // adapted from HyperlaneDeployer.deployProxiedContract
+    const cached = this.deployedContracts[chain]?.interchainAccountRouter;
+    if (cached && cached.addresses.proxy && cached.addresses.implementation) {
+      this.logger('Recovered full InterchainAccountRouter');
+      return {
+        proxyAdmin,
+        proxiedRouter: cached,
+        interchainAccountRouter: cached, // for serialization
+        router: cached.contract, // for backwards compatibility
+      };
+    }
+
+    const deployer = await this.multiProvider.getSignerAddress(chain);
+
+    // 1. deploy the proxy first with a dummy implementation (proxy admin contract)
+    const proxy = await this.deployContractFromFactory(
       chain,
-      dummyImplementation,
-      initArgs,
-      {
-        create2Salt: this.create2salt,
-      },
-      false, // skip initializing dummy implementation
+      new TransparentUpgradeableProxy__factory(),
+      'TransparentUpgradeableProxy',
+      [proxyAdmin.address, deployer, '0x'],
+      { create2Salt: this.create2salt },
     );
 
     // 2. deploy the real InterchainAccountRouter and OwnableMulticall implementation with proxy address
     const domainId = this.multiProvider.getDomainId(chain);
-    const implementation = await this.deployContract(
-      chain,
-      'router',
-      [domainId, proxy.address],
-      { create2Salt: this.create2salt },
-    );
+    const implementation = await this.deployContract(chain, 'router', [
+      domainId,
+      proxy.address,
+    ]);
 
     // 3. upgrade the proxy to the real implementation and initialize
+    // adapted from HyperlaneDeployer.deployProxy.useCreate2
     this.logger('Upgrading proxy to real implementation and initializing');
+    const initArgs = await this.initializeArgs(chain, config);
     const initData = this.factories.router.interface.encodeFunctionData(
       'initialize',
       initArgs,
     );
     await super.upgradeAndInitialize(
       chain,
-      proxy.proxy,
+      proxy,
       implementation.address,
       initData,
     );
-    await super.changeAdmin(chain, proxy.proxy, proxyAdmin.address);
+    await super.changeAdmin(chain, proxy, proxyAdmin.address);
 
     const proxiedRouter = new ProxiedContract(
       implementation.attach(proxy.address),
