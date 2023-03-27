@@ -11,7 +11,11 @@ import { HyperlaneIgpGovernor } from '../src/gas/govern';
 import { HyperlaneAppGovernor } from '../src/govern/HyperlaneAppGovernor';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 
-import { getArgsWithModuleAndFork, getEnvironmentConfig } from './utils';
+import {
+  getArgsWithModuleAndFork,
+  getEnvironmentConfig,
+  modules,
+} from './utils';
 
 async function check() {
   const { fork, govern, module, environment } = await getArgsWithModuleAndFork()
@@ -40,6 +44,9 @@ async function check() {
     const igp = HyperlaneIgp.fromEnvironment(env, multiProvider);
     const checker = new HyperlaneIgpChecker(multiProvider, igp, config.igp);
     governor = new HyperlaneIgpGovernor(checker, config.owners);
+  } else if (modules.includes(module)) {
+    console.log(`Skipping ${module}, checker or governor unimplemented`);
+    return;
   } else {
     throw new Error('Unknown module type');
   }
@@ -79,4 +86,7 @@ async function check() {
 
 check()
   .then()
-  .catch(() => process.exit(1));
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });

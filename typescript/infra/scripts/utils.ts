@@ -170,7 +170,7 @@ export async function getMultiProviderForRole(
 }
 
 export function getContractAddressesSdkFilepath() {
-  return '../sdk/src/consts/environments';
+  return path.join('../sdk/src/consts/environments');
 }
 
 export function getEnvironmentDirectory(environment: DeployEnvironment) {
@@ -181,14 +181,18 @@ export function getModuleDirectory(
   environment: DeployEnvironment,
   module: string,
 ) {
-  return path.join(getEnvironmentDirectory(environment), module);
-}
-
-export function getVerificationDirectory(
-  environment: DeployEnvironment,
-  module: string,
-) {
-  return path.join(getModuleDirectory(environment, module), 'verification');
+  let suffix: string;
+  // for backwards compatibility with existing paths
+  if (module === 'ica') {
+    suffix = 'middleware/accounts';
+  } else if (module === 'iqs') {
+    suffix = 'middleware/queries';
+  } else if (module === 'll') {
+    suffix = 'middleware/liquidity-layer';
+  } else {
+    suffix = module;
+  }
+  return path.join(getEnvironmentDirectory(environment), suffix);
 }
 
 export function getAgentConfigDirectory() {

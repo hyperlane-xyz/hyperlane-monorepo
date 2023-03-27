@@ -25,6 +25,7 @@ import {
   getContractAddressesSdkFilepath,
   getEnvironmentConfig,
   getEnvironmentDirectory,
+  getModuleDirectory,
   getRouterConfig,
   modules,
   sdkModules,
@@ -102,7 +103,7 @@ async function main() {
     throw new Error(`Unknown module: ${module}, valid: ${modules.join(', ')}`);
   }
 
-  const modulePath = path.join(getEnvironmentDirectory(environment), module);
+  const modulePath = getModuleDirectory(environment, module);
 
   const addressesPath = sdkModules.includes(module)
     ? path.join(
