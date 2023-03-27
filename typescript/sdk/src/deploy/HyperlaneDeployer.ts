@@ -145,12 +145,14 @@ export abstract class HyperlaneDeployer<
   ): Promise<T | undefined> {
     const admin = await proxy.callStatic.admin();
     const code = await this.multiProvider.getProvider(chain).getCode(admin);
+    // if admin is a ProxyAdmin, run the proxyAdminOwnerFn (if deployer is owner)
     if (code !== '0x') {
       const proxyAdmin = ProxyAdmin__factory.connect(admin, proxy.signer);
       return this.runIfOwner(chain, proxyAdmin, () =>
         proxyAdminOwnerFn(proxyAdmin),
       );
     } else {
+      // if admin is an EOA, run the signerAdminFn (if deployer is admin)
       return this.runIf(chain, admin, signerAdminFn);
     }
   }
@@ -353,26 +355,41 @@ export abstract class HyperlaneDeployer<
     proxyAdmin: string,
     deployOpts?: DeployOptions,
   ): Promise<ProxiedContract<C, TransparentProxyAddresses>> {
-    const deployer = await this.multiProvider.getSignerAddress(chain);
-    const provider = this.multiProvider.getProvider(chain);
-
     const initData = implementation.interface.encodeFunctionData(
       'initialize',
       initArgs,
     );
 
-    const useCreate2 =
-      deployOpts?.create2Salt !== undefined &&
-      (await provider.getCode(CREATE2FACTORY_ADDRESS)) !== '0x';
-
     let proxy: TransparentUpgradeableProxy;
-    if (useCreate2) {
+    const provider = this.multiProvider.getProvider(chain);
+    const deployer = await this.multiProvider.getSignerAddress(chain);
+    this.logger(`Deploying transparent upgradable proxy`);
+    if (
+      deployOpts &&
+      deployOpts.create2Salt &&
+      (await provider.getCode(CREATE2FACTORY_ADDRESS)) != '0x'
+    ) {
+      // To get consistent addresses with Create2, we need to use
+      // consistent constructor arguments.
+      // The three constructor arguments we need to configure are:
+      // 1. Proxy implementation: This will start as the Create2Factory
+      //    address, as it needs to be a contract address.
+      //    After we've taken over as the proxy admin, we will set it
+      //    to the proper address.
+      // 2. Proxy admin: This will start as the deployer
+      //    address. We will use this to initialize before rotating.
+      // 3. Initialization data: This will start as null, and we will
+      //    initialize our proxied contract manually.
+      const constructorArgs: Parameters<
+        TransparentUpgradeableProxy__factory['deploy']
+      > = [CREATE2FACTORY_ADDRESS, deployer, '0x'];
+
       // deploy with static implementation, deployer admin, and init data for consistent addresses
       proxy = await this.deployContractFromFactory(
         chain,
         new TransparentUpgradeableProxy__factory(),
         'TransparentUpgradeableProxy',
-        [CREATE2FACTORY_ADDRESS, deployer, '0x'],
+        constructorArgs,
         deployOpts,
       );
       // upgrade and initialize with actual implementation and init data
@@ -385,11 +402,14 @@ export abstract class HyperlaneDeployer<
       // rotate admin to the desired admin
       await this.changeAdmin(chain, proxy, proxyAdmin);
     } else {
+      const constructorArgs: Parameters<
+        TransparentUpgradeableProxy__factory['deploy']
+      > = [implementation.address, proxyAdmin, initData];
       proxy = await this.deployContractFromFactory(
         chain,
         new TransparentUpgradeableProxy__factory(),
         'TransparentUpgradeableProxy',
-        [implementation.address, proxyAdmin, initData],
+        constructorArgs,
         deployOpts,
       );
     }

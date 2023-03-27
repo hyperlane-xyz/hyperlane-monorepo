@@ -23,6 +23,7 @@ export async function deployWithArtifacts(
 
   if (fork) {
     await deployer.deployContracts(fork, deployer.configMap[fork]);
+    // TODO: reconsider writing artifacts in fork mode
     return;
   }
 

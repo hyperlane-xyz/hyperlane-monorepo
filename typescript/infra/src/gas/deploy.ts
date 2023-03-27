@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 import {
   InterchainGasPaymaster,
   OverheadIgp,
+  ProxyAdmin,
   StorageGasOracle,
 } from '@hyperlane-xyz/core';
 import {
@@ -33,16 +34,16 @@ export class HyperlaneIgpInfraDeployer extends HyperlaneIgpDeployer {
 
   async deployInterchainGasPaymaster(
     chain: ChainName,
+    proxyAdmin: ProxyAdmin,
     storageGasOracle: StorageGasOracle,
-    proxyAdmin: string,
     deployOpts?: DeployOptions,
   ): Promise<
     ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
   > {
     return super.deployInterchainGasPaymaster(
       chain,
-      storageGasOracle,
       proxyAdmin,
+      storageGasOracle,
       {
         ...deployOpts,
         create2Salt: ethers.utils.solidityKeccak256(

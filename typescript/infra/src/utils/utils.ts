@@ -183,8 +183,7 @@ export function writeJSON(directory: string, filename: string, obj: any) {
 
 export function readFileAtPath(filepath: string) {
   if (!fs.existsSync(filepath)) {
-    console.error(`file doesn't exist at ${filepath}`);
-    return JSON.stringify({});
+    throw Error(`file doesn't exist at ${filepath}`);
   }
   return fs.readFileSync(filepath, 'utf8');
 }
