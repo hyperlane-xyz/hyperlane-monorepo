@@ -111,8 +111,8 @@ const desiredBalancePerChain: ChainMap<string> = {
   sepolia: '0.5',
   moonbasealpha: '1',
   moonbeam: '0.5',
-  optimismgoerli: '0.3',
-  arbitrumgoerli: '0.1',
+  optimismgoerli: '0.5',
+  arbitrumgoerli: '0.5',
   gnosis: '0.1',
   // unused
   test1: '0',
