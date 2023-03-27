@@ -134,7 +134,7 @@ export abstract class HyperlaneDeployer<
     chain: ChainName,
     ownable: Ownable,
     fn: () => Promise<T>,
-  ) {
+  ): Promise<T | undefined> {
     return this.runIf(chain, await ownable.callStatic.owner(), fn);
   }
 
@@ -143,16 +143,16 @@ export abstract class HyperlaneDeployer<
     proxy: TransparentUpgradeableProxy,
     signerAdminFn: () => Promise<T>,
     proxyAdminOwnerFn: (proxyAdmin: ProxyAdmin) => Promise<T>,
-  ) {
+  ): Promise<T | undefined> {
     const admin = await proxy.callStatic.admin();
     const code = await this.multiProvider.getProvider(chain).getCode(admin);
     if (code !== '0x') {
       const proxyAdmin = ProxyAdmin__factory.connect(admin, proxy.signer);
-      await this.runIfOwner(chain, proxyAdmin, () =>
+      return this.runIfOwner(chain, proxyAdmin, () =>
         proxyAdminOwnerFn(proxyAdmin),
       );
     } else {
-      await this.runIf(chain, admin, signerAdminFn);
+      return this.runIf(chain, admin, signerAdminFn);
     }
   }
 
