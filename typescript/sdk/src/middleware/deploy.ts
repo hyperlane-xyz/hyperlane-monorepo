@@ -208,7 +208,7 @@ export class InterchainQueryDeployer extends MiddlewareRouterDeployer<
   constructor(
     multiProvider: MultiProvider,
     configMap: ChainMap<InterchainQueryConfig>,
-    create2salt = 'queryrouter',
+    create2salt = 'queryrouter2',
   ) {
     super(multiProvider, configMap, interchainQueryFactories, create2salt);
   }
