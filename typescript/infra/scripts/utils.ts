@@ -246,7 +246,10 @@ export async function getRouterConfig(
   );
   const owners = getCoreEnvironmentConfig(environment).owners;
   const config: ChainMap<RouterConfig> = {};
-  for (const chain of multiProvider.getKnownChainNames()) {
+  const knownChains = multiProvider.intersect(
+    core.chains().concat(igp.chains()),
+  ).intersection;
+  for (const chain of knownChains) {
     config[chain] = {
       owner: useMultiProviderOwners
         ? await multiProvider.getSignerAddress(chain)
