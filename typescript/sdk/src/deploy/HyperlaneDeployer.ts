@@ -147,13 +147,15 @@ export abstract class HyperlaneDeployer<
     const code = await this.multiProvider.getProvider(chain).getCode(admin);
     // if admin is a ProxyAdmin, run the proxyAdminOwnerFn (if deployer is owner)
     if (code !== '0x') {
+      this.logger(`Admin is a ProxyAdmin (${admin})`);
       const proxyAdmin = ProxyAdmin__factory.connect(admin, proxy.signer);
       return this.runIfOwner(chain, proxyAdmin, () =>
         proxyAdminOwnerFn(proxyAdmin),
       );
     } else {
+      this.logger(`Admin is an EOA (${admin})`);
       // if admin is an EOA, run the signerAdminFn (if deployer is admin)
-      return this.runIf(chain, admin, signerAdminFn);
+      return this.runIf(chain, admin, () => signerAdminFn());
     }
   }
 
@@ -327,8 +329,12 @@ export abstract class HyperlaneDeployer<
     await this.runIfAdmin(
       chain,
       proxy,
-      () => proxy.changeAdmin(admin),
-      (proxyAdmin) => proxyAdmin.changeProxyAdmin(proxy.address, admin),
+      () => this.multiProvider.handleTx(chain, proxy.changeAdmin(admin)),
+      (proxyAdmin) =>
+        this.multiProvider.handleTx(
+          chain,
+          proxyAdmin.changeProxyAdmin(proxy.address, admin),
+        ),
     );
   }
 
@@ -342,9 +348,16 @@ export abstract class HyperlaneDeployer<
     await this.runIfAdmin(
       chain,
       proxy,
-      () => proxy.upgradeToAndCall(implementation, initData),
+      () =>
+        this.multiProvider.handleTx(
+          chain,
+          proxy.upgradeToAndCall(implementation, initData),
+        ),
       (proxyAdmin) =>
-        proxyAdmin.upgradeAndCall(proxy.address, implementation, initData),
+        this.multiProvider.handleTx(
+          chain,
+          proxyAdmin.upgradeAndCall(proxy.address, implementation, initData),
+        ),
     );
   }
 
@@ -400,6 +413,8 @@ export abstract class HyperlaneDeployer<
         initData,
       );
       // rotate admin to the desired admin
+      const currAdmin = await proxy.callStatic.admin();
+      console.log({ currAdmin, proxyAdmin });
       await this.changeAdmin(chain, proxy, proxyAdmin);
     } else {
       const constructorArgs: Parameters<
