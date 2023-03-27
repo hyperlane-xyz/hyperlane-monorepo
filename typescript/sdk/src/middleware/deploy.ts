@@ -167,7 +167,6 @@ export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
 
     // 3. upgrade the proxy to the real implementation and initialize
     // adapted from HyperlaneDeployer.deployProxy.useCreate2
-    this.logger('Upgrading proxy to real implementation and initializing');
     const initArgs = await this.initializeArgs(chain, config);
     const initData = this.factories.router.interface.encodeFunctionData(
       'initialize',
