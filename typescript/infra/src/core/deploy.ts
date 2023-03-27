@@ -13,6 +13,7 @@ import {
   TransparentProxyAddresses,
   buildAgentConfig,
   objMap,
+  promiseObjAll,
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
 import { DeployOptions } from '@hyperlane-xyz/sdk/dist/deploy/HyperlaneDeployer';
@@ -35,13 +36,20 @@ export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
     this.environment = environment;
   }
 
-  protected writeAgentConfig() {
-    const startBlocks = objMap(this.deployedContracts, (_, contracts) =>
-      Math.min(
-        ...Object.values(contracts).map(
-          (c) => c.deployTransaction?.blockNumber ?? Number.MAX_SAFE_INTEGER,
-        ),
-      ),
+  protected async writeAgentConfig() {
+    // Write agent config indexing from the deployed or latest block numbers.
+    // For non-net-new deployments, these changes will need to be
+    // reverted manually.
+    const startBlocks = await promiseObjAll(
+      objMap(this.deployedContracts, async (chain, contracts) => {
+        const latest = await this.multiProvider
+          .getProvider(chain)
+          .getBlockNumber();
+        const deployedBlocks = Object.values(contracts).map(
+          (c) => c.deployTransaction?.blockNumber ?? latest,
+        );
+        return Math.min(...deployedBlocks);
+      }),
     );
     const addresses = serializeContracts(
       this.deployedContracts,
@@ -58,7 +66,7 @@ export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
 
   async deploy(): Promise<ChainMap<CoreContracts>> {
     const result = await super.deploy();
-    this.writeAgentConfig();
+    await this.writeAgentConfig();
     return result;
   }
 
