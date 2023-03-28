@@ -1,9 +1,6 @@
 import {
-  ChainMap,
   ChainName,
-  HyperlaneAddresses,
   HyperlaneDeployer,
-  VerificationInput,
   buildContracts,
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
@@ -23,11 +20,11 @@ export async function deployWithArtifacts(
   fork?: ChainName,
 ) {
   if (cache) {
-    let addresses: HyperlaneAddresses = {};
+    let addresses = {};
     try {
       addresses = readJSONAtPath(cache.addresses);
     } catch (e) {
-      console.error('Failed to load cached addresses', e);
+      console.error('Failed to load cached addresses');
     }
 
     const savedContracts = buildContracts(addresses, deployer.factories);
@@ -45,17 +42,20 @@ export async function deployWithArtifacts(
   }
 
   if (cache) {
+    // cache addresses of deployed contracts
     writeMergedJSONAtPath(
       cache.addresses,
       serializeContracts(deployer.deployedContracts),
     );
 
-    let savedVerification: ChainMap<VerificationInput> = {};
+    let savedVerification = {};
     try {
       savedVerification = readJSONAtPath(cache.verification);
     } catch (e) {
-      console.error('Failed to load cached verification inputs', e);
+      console.error('Failed to load cached verification inputs');
     }
+
+    // cache verification inputs
     const inputs =
       deployer.mergeWithExistingVerificationInputs(savedVerification);
     writeJsonAtPath(cache.verification, inputs);
