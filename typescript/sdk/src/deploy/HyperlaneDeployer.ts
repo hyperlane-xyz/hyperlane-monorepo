@@ -325,6 +325,11 @@ export abstract class HyperlaneDeployer<
     proxy: TransparentUpgradeableProxy,
     admin: string,
   ): Promise<void> {
+    if (utils.eqAddress(admin, await proxy.callStatic.admin())) {
+      this.logger(`Admin set correctly, skipping admin change`);
+      return;
+    }
+
     this.logger(`Changing proxy admin`);
     await this.runIfAdmin(
       chain,
@@ -344,6 +349,12 @@ export abstract class HyperlaneDeployer<
     implementation: string,
     initData: string,
   ): Promise<void> {
+    const curr = await proxy.callStatic.implementation();
+    if (utils.eqAddress(implementation, curr)) {
+      this.logger(`Implementation set correctly, skipping upgrade`);
+      return;
+    }
+
     this.logger(`Upgrading and initializing implementation`);
     await this.runIfAdmin(
       chain,
@@ -413,8 +424,6 @@ export abstract class HyperlaneDeployer<
         initData,
       );
       // rotate admin to the desired admin
-      const currAdmin = await proxy.callStatic.admin();
-      console.log({ currAdmin, proxyAdmin });
       await this.changeAdmin(chain, proxy, proxyAdmin);
     } else {
       const constructorArgs: Parameters<
