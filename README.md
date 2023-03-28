@@ -107,7 +107,8 @@ Tag the commit with the appropriate version, and then create a github release wi
 
 ### Release Agents
 
-- Tag the commit with the appropriate version
-- [Create a Github Release](https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/new) with a changelog against the previous version
-- include the docker image tag in the description of the release
-- make sure that breaking changes are handled and documented
+- Tag the commit with the current date in the format `agents-yyyy-mm-dd`; e.g. `agents-2023-03-28`.
+- [Create a Github Release](https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/new) with a changelog against the previous version titled `Agents MMMM DD, YYYY`, e.g. `Agents March 28, 2023`.
+- Include the agent docker image tag in the description of the release
+- Create a summary of change highlights
+- Create a "breaking changes" section with any changes required
