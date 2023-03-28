@@ -50,7 +50,7 @@ export type ParsedMessage = {
   body: string;
 };
 
-export type ParsedMultisigIsmMetadata = {
+export type ParsedLegacyMultisigIsmMetadata = {
   checkpointRoot: string;
   checkpointIndex: number;
   originMailbox: string;

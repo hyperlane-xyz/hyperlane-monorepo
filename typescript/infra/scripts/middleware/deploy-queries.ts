@@ -6,12 +6,12 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { deployWithArtifacts } from '../../src/deploy';
-import { getConfiguration } from '../helloworld/utils';
 import { mergeWithSdkContractAddressArtifacts } from '../merge-sdk-contract-addresses';
 import {
   getCoreEnvironmentConfig,
   getEnvironment,
   getEnvironmentDirectory,
+  getRouterConfig,
 } from '../utils';
 
 async function main() {
@@ -25,7 +25,7 @@ async function main() {
   );
 
   // config gcp deployer key as owner
-  const configMap = await getConfiguration(environment, multiProvider);
+  const configMap = await getRouterConfig(environment, multiProvider);
 
   const deployer = new InterchainQueryDeployer(
     multiProvider,

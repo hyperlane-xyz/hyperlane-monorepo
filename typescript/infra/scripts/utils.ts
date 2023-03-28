@@ -2,11 +2,16 @@ import path from 'path';
 import yargs from 'yargs';
 
 import {
+  AgentConnectionType,
   AllChains,
   ChainMap,
   ChainMetadata,
   ChainName,
+  CoreConfig,
+  HyperlaneCore,
+  HyperlaneIgp,
   MultiProvider,
+  RouterConfig,
   objMap,
   promiseObjAll,
 } from '@hyperlane-xyz/sdk';
@@ -18,9 +23,8 @@ import { getCloudAgentKey } from '../src/agents/key-utils';
 import { CloudAgentKey } from '../src/agents/keys';
 import { KEY_ROLE_ENUM } from '../src/agents/roles';
 import { CoreEnvironmentConfig, DeployEnvironment } from '../src/config';
-import { ConnectionType } from '../src/config/agent';
 import { fetchProvider } from '../src/config/chain';
-import { EnvironmentNames } from '../src/config/environment';
+import { EnvironmentNames, deployEnvToSdkEnv } from '../src/config/environment';
 import { assertContext } from '../src/utils/utils';
 
 export function getArgsWithContext() {
@@ -31,8 +35,16 @@ export function getArgsWithContext() {
     .alias('c', 'context');
 }
 
-export function getArgsWithFork() {
+export function getArgsWithModule() {
   return getArgs()
+    .string('module')
+    .choices('module', ['core', 'igp'])
+    .demandOption('module')
+    .alias('m', 'module');
+}
+
+export function getArgsWithModuleAndFork() {
+  return getArgsWithModule()
     .string('fork')
     .describe('fork', 'network to fork')
     .alias('f', 'fork');
@@ -60,10 +72,8 @@ export function assertEnvironment(env: string): DeployEnvironment {
   );
 }
 
-export function getCoreEnvironmentConfig<Env extends DeployEnvironment>(
-  env: Env,
-): CoreEnvironmentConfig {
-  return environments[env];
+export function getCoreEnvironmentConfig(environment: DeployEnvironment) {
+  return environments[environment];
 }
 
 export async function getEnvironment() {
@@ -117,8 +127,8 @@ async function getKeyForRole(
   role: KEY_ROLE_ENUM,
   index?: number,
 ): Promise<CloudAgentKey> {
-  const coreConfig = getCoreEnvironmentConfig(environment);
-  const agentConfig = await getAgentConfig(context, coreConfig);
+  const environmentConfig = environments[environment];
+  const agentConfig = await getAgentConfig(context, environmentConfig);
   return getCloudAgentKey(agentConfig, role, chain, index);
 }
 
@@ -128,7 +138,7 @@ export async function getMultiProviderForRole(
   context: Contexts,
   role: KEY_ROLE_ENUM,
   index?: number,
-  connectionType?: ConnectionType,
+  connectionType?: AgentConnectionType,
 ): Promise<MultiProvider> {
   if (process.env.CI === 'true') {
     return new MultiProvider(); // use default RPCs
@@ -147,7 +157,7 @@ export async function getMultiProviderForRole(
   return multiProvider;
 }
 
-export function getCoreContractsSdkFilepath() {
+export function getContractAddressesSdkFilepath() {
   return path.join('../sdk/src/consts/environments');
 }
 
@@ -155,15 +165,21 @@ export function getEnvironmentDirectory(environment: DeployEnvironment) {
   return path.join('./config/environments/', environment);
 }
 
-export function getCoreDirectory(environment: DeployEnvironment) {
-  return path.join(getEnvironmentDirectory(environment), 'core');
+export function getModuleDirectory(
+  environment: DeployEnvironment,
+  module: string,
+) {
+  return path.join(getEnvironmentDirectory(environment), module);
 }
 
-export function getCoreVerificationDirectory(environment: DeployEnvironment) {
-  return path.join(getCoreDirectory(environment), 'verification');
+export function getVerificationDirectory(
+  environment: DeployEnvironment,
+  module: string,
+) {
+  return path.join(getModuleDirectory(environment, module), 'verification');
 }
 
-export function getCoreRustDirectory() {
+export function getAgentConfigDirectory() {
   return path.join('../../', 'rust', 'config');
 }
 
@@ -197,4 +213,48 @@ export async function assertCorrectKubeContext(
     );
     process.exit(1);
   }
+}
+
+export async function getRouterConfig(
+  environment: DeployEnvironment,
+  multiProvider: MultiProvider,
+  useMultiProviderOwners = false,
+): Promise<ChainMap<RouterConfig>> {
+  const core = HyperlaneCore.fromEnvironment(
+    deployEnvToSdkEnv[environment],
+    multiProvider,
+  );
+  const igp = HyperlaneIgp.fromEnvironment(
+    deployEnvToSdkEnv[environment],
+    multiProvider,
+  );
+  const owners = getCoreEnvironmentConfig(environment).owners;
+  const config: ChainMap<RouterConfig> = {};
+  for (const chain of multiProvider.getKnownChainNames()) {
+    config[chain] = {
+      owner: useMultiProviderOwners
+        ? await multiProvider.getSignerAddress(chain)
+        : owners[chain],
+      mailbox: core.getContracts(chain).mailbox.address,
+      interchainGasPaymaster:
+        igp.getContracts(chain).defaultIsmInterchainGasPaymaster.address,
+    };
+  }
+  return config;
+}
+
+export function getValidatorsByChain(
+  config: ChainMap<CoreConfig>,
+): ChainMap<Set<string>> {
+  const validators: ChainMap<Set<string>> = {};
+  objMap(config, (local, coreConfig) => {
+    objMap(coreConfig.multisigIsm, (remote, multisigIsmConfig) => {
+      if (!validators[remote]) {
+        validators[remote] = new Set(multisigIsmConfig.validators);
+      } else {
+        multisigIsmConfig.validators.map((v) => validators[remote].add(v));
+      }
+    });
+  });
+  return validators;
 }

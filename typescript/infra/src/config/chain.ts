@@ -1,11 +1,14 @@
 import { FallbackProviderConfig } from '@ethersproject/providers';
 import { ethers } from 'ethers';
 
-import { ChainName, providerBuilder } from '@hyperlane-xyz/sdk';
+import {
+  AgentConnectionType,
+  ChainName,
+  providerBuilder,
+} from '@hyperlane-xyz/sdk';
 
 import { getSecretRpcEndpoint } from '../agents';
 
-import { ConnectionType } from './agent';
 import { DeployEnvironment } from './environment';
 
 export const defaultRetry = {
@@ -16,20 +19,20 @@ export const defaultRetry = {
 export async function fetchProvider(
   environment: DeployEnvironment,
   chainName: ChainName,
-  connectionType: ConnectionType = ConnectionType.Http,
+  connectionType: AgentConnectionType = AgentConnectionType.Http,
 ): Promise<ethers.providers.Provider> {
-  const single = connectionType === ConnectionType.Http;
+  const single = connectionType === AgentConnectionType.Http;
   const rpcData = await getSecretRpcEndpoint(environment, chainName, !single);
   switch (connectionType) {
-    case ConnectionType.Http: {
+    case AgentConnectionType.Http: {
       return providerBuilder({ http: rpcData, retry: defaultRetry });
     }
-    case ConnectionType.HttpQuorum: {
+    case AgentConnectionType.HttpQuorum: {
       return new ethers.providers.FallbackProvider(
         (rpcData as string[]).map((url) => providerBuilder({ http: url })), // disable retry for quorum
       );
     }
-    case ConnectionType.HttpFallback: {
+    case AgentConnectionType.HttpFallback: {
       return new ethers.providers.FallbackProvider(
         (rpcData as string[]).map((url, index) => {
           const fallbackProviderConfig: FallbackProviderConfig = {
