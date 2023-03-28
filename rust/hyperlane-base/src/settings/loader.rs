@@ -237,7 +237,7 @@ const MISSING_URL_CTX: &str = concat!(
 
 const MISSING_OCN_CTX: &str = concat!(
     str_lits!(bp),
-    "(1) `originchainname` is specified for the relayer or validator, this should be the chain name this agent is running against",
+    "(1) `originchainname` is specified for the relayer or validator, this should be the chain name this agent is running against. You likely need to specify HYP_VALIDATOR_ORIGINCHAINNAME. Make sure you have covered the configuration/environment variables page of the validator guide.",
 );
 
 const MISSING_DTN_CTX: &str = concat!(
