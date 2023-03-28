@@ -112,3 +112,4 @@ Tag the commit with the appropriate version, and then create a github release wi
 - Include the agent docker image tag in the description of the release
 - Create a summary of change highlights
 - Create a "breaking changes" section with any changes required
+- Deploy agents with the new image tag (if it makes sense to)
