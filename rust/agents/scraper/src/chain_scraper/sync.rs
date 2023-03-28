@@ -114,13 +114,7 @@ impl Syncer {
 
         loop {
             let start_block = self.sync_cursor.current_position();
-            let (from, to) = match self.sync_cursor.next_range().await {
-                Ok(range) => range,
-                Err(err) => {
-                    warn!(error = %err, "failed to get next block range");
-                    continue;
-                }
-            };
+            let Ok((from, to)) = self.sync_cursor.next_range().await else { continue };
 
             let extracted = self.scrape_range(from, to).await?;
 

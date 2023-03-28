@@ -104,13 +104,7 @@ where
 
         loop {
             let start_block = cursor.current_position();
-            let (from, to) = match cursor.next_range().await {
-                Ok(range) => range,
-                Err(err) => {
-                    warn!(error = %err, "Failed to get next block range");
-                    continue;
-                }
-            };
+            let Ok((from, to)) = cursor.next_range().await else { continue };
 
             let mut sorted_messages: Vec<_> = self
                 .indexer

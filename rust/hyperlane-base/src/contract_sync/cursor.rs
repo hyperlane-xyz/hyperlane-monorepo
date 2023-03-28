@@ -3,6 +3,7 @@ use std::time::{Duration, Instant};
 use async_trait::async_trait;
 use eyre::Result;
 use tokio::time::sleep;
+use tracing::warn;
 
 use hyperlane_core::{ChainResult, Indexer, SyncBlockRangeCursor};
 
@@ -63,6 +64,7 @@ where
                     Ok(())
                 }
                 Err(e) => {
+                    warn!(error = %e, "Failed to get next block range");
                     // we are failing to make a basic query, we should wait before retrying.
                     sleep(Duration::from_secs(10)).await;
                     Err(e)

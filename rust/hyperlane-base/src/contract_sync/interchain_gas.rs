@@ -1,4 +1,4 @@
-use tracing::{debug, info, instrument, warn};
+use tracing::{debug, info, instrument};
 
 use hyperlane_core::{InterchainGasPaymasterIndexer, SyncBlockRangeCursor};
 
@@ -48,14 +48,7 @@ where
         indexed_height.set(start_block as i64);
 
         loop {
-            let (from, to) = match cursor.next_range().await {
-                Ok(range) => range,
-                Err(err) => {
-                    warn!(error = %err, "Failed to get next block range");
-                    continue;
-                }
-            };
-
+            let Ok((from, to)) = cursor.next_range().await else { continue };
             let gas_payments = self.indexer.fetch_gas_payments(from, to).await?;
 
             debug!(
