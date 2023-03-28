@@ -7,7 +7,6 @@ import {
   ChainName,
   DispatchedMessage,
   HyperlaneCore,
-  InterchainGasCalculator,
 } from '@hyperlane-xyz/sdk';
 import { debug, error, log, utils, warn } from '@hyperlane-xyz/utils';
 
@@ -147,10 +146,6 @@ async function main(): Promise<boolean> {
     KEY_ROLE_ENUM.Kathy,
     undefined,
     connectionType,
-  );
-  const gasCalculator = InterchainGasCalculator.fromEnvironment(
-    environment,
-    app.multiProvider as any,
   );
   const appChains = app.chains();
 
@@ -323,7 +318,6 @@ async function main(): Promise<boolean> {
         app,
         origin,
         destination,
-        gasCalculator,
         messageSendTimeout,
         messageReceiptTimeout,
       );
@@ -356,29 +350,17 @@ async function sendMessage(
   app: HelloWorldApp<any>,
   origin: ChainName,
   destination: ChainName,
-  gasCalc: InterchainGasCalculator<any>,
   messageSendTimeout: number,
   messageReceiptTimeout: number,
 ) {
   const startTime = Date.now();
   const msg = 'Hello!';
-  const expectedHandleGas = BigNumber.from(100_000);
 
-  let value = await utils.retryAsync(
-    () =>
-      gasCalc.estimatePaymentForHandleGas(
-        origin,
-        destination,
-        expectedHandleGas,
-      ),
-    2,
-  );
   const metricLabels = { origin, remote: destination };
 
   log('Sending message', {
     origin,
     destination,
-    interchainGasPayment: value.toString(),
   });
 
   // For now, pay just 1 wei, as Kathy typically doesn't have enough
@@ -387,7 +369,7 @@ async function sendMessage(
   // TODO remove this once the Kathy key is funded with a higher
   // balance and interchain gas payments are cycled back into
   // the funder frequently.
-  value = BigNumber.from(1);
+  const value = BigNumber.from(1);
   // Log it as an obvious reminder
   log('Intentionally setting interchain gas payment to 1');
 
