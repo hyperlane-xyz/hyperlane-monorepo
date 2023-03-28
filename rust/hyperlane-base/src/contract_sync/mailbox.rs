@@ -16,32 +16,30 @@ where
     /// Sync dispatched messages
     #[instrument(name = "MessageContractSync", skip(self))]
     pub(crate) async fn sync_dispatched_messages(&self) -> eyre::Result<()> {
-        let db = self.db.clone();
-        let indexer = self.indexer.clone();
-
-        let chain_name = self.domain.to_string();
+        let chain_name = self.domain.as_ref();
         let indexed_height = self
             .metrics
             .indexed_height
-            .with_label_values(&[MESSAGES_LABEL, &chain_name]);
+            .with_label_values(&[MESSAGES_LABEL, chain_name]);
         let stored_messages = self
             .metrics
             .stored_events
-            .with_label_values(&[MESSAGES_LABEL, &chain_name]);
+            .with_label_values(&[MESSAGES_LABEL, chain_name]);
         let missed_messages = self
             .metrics
             .missed_events
-            .with_label_values(&[MESSAGES_LABEL, &chain_name]);
+            .with_label_values(&[MESSAGES_LABEL, chain_name]);
 
         let message_nonce = self.metrics.message_nonce.clone();
 
         let cursor = {
             let config_initial_height = self.index_settings.from();
-            let initial_height = db
+            let initial_height = self
+                .db
                 .retrieve_latest_valid_message_range_start_block()
                 .map_or(config_initial_height, |b| b + 1);
             create_cursor(
-                indexer.clone(),
+                self.indexer.clone(),
                 self.index_settings.chunk_size(),
                 initial_height,
             )
@@ -114,7 +112,8 @@ where
                 }
             };
 
-            let mut sorted_messages: Vec<_> = indexer
+            let mut sorted_messages: Vec<_> = self
+                .indexer
                 .fetch_sorted_messages(from, to)
                 .await?
                 .into_iter()
@@ -130,7 +129,7 @@ where
 
             // Get the latest known nonce. All messages whose indices are <= this index
             // have been stored in the DB.
-            let last_nonce = db.retrieve_latest_nonce()?;
+            let last_nonce = self.db.retrieve_latest_nonce()?;
 
             // Filter out any messages that have already been successfully indexed and
             // stored. This is necessary if we're re-indexing blocks in hope of
@@ -153,7 +152,7 @@ where
             ) {
                 ListValidity::Valid => {
                     // Store messages
-                    let max_nonce_of_batch = db.store_messages(&sorted_messages)?;
+                    let max_nonce_of_batch = self.db.store_messages(&sorted_messages)?;
 
                     // Report amount of messages stored into db
                     stored_messages.inc_by(sorted_messages.len() as u64);
@@ -164,12 +163,12 @@ where
                             .map(|d| d.as_str())
                             .unwrap_or("unknown");
                         message_nonce
-                            .with_label_values(&["dispatch", &chain_name, dst])
+                            .with_label_values(&["dispatch", chain_name, dst])
                             .set(max_nonce_of_batch as i64);
                     }
 
                     // Update the latest valid start block.
-                    db.store_latest_valid_message_range_start_block(from)?;
+                    self.db.store_latest_valid_message_range_start_block(from)?;
                     last_valid_range_start_block = from;
 
                     // Move forward to the next height

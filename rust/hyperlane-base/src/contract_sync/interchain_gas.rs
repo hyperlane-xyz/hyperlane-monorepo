@@ -18,10 +18,7 @@ where
     /// Sync gas payments
     #[instrument(name = "GasPaymentContractSync", skip(self))]
     pub(crate) async fn sync_gas_payments(&self) -> eyre::Result<()> {
-        let db = self.db.clone();
-        let indexer = self.indexer.clone();
-
-        let chain_name = self.domain.name();
+        let chain_name = self.domain.as_ref();
         let indexed_height = self
             .metrics
             .indexed_height
@@ -33,11 +30,12 @@ where
 
         let cursor = {
             let config_initial_height = self.index_settings.from();
-            let initial_height = db
+            let initial_height = self
+                .db
                 .retrieve_latest_indexed_gas_payment_block()
                 .map_or(config_initial_height, |b| b + 1);
             RateLimitedSyncBlockRangeCursor::new(
-                indexer.clone(),
+                self.indexer.clone(),
                 self.index_settings.chunk_size(),
                 initial_height,
             )
@@ -58,7 +56,7 @@ where
                 }
             };
 
-            let gas_payments = indexer.fetch_gas_payments(from, to).await?;
+            let gas_payments = self.indexer.fetch_gas_payments(from, to).await?;
 
             debug!(
                 from,
@@ -71,14 +69,14 @@ where
             for (payment, meta) in gas_payments.iter() {
                 // Attempt to process the gas payment, incrementing new_payments_processed
                 // if it was processed for the first time.
-                if db.process_gas_payment(*payment, meta)? {
+                if self.db.process_gas_payment(*payment, meta)? {
                     new_payments_processed += 1;
                 }
             }
 
             stored_messages.inc_by(new_payments_processed);
 
-            db.store_latest_indexed_gas_payment_block(from)?;
+            self.db.store_latest_indexed_gas_payment_block(from)?;
             indexed_height.set(to as i64);
         }
     }
