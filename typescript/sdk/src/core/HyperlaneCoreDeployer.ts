@@ -5,7 +5,6 @@ import {
   LegacyMultisigIsm,
   Mailbox,
   Ownable,
-  ProxyAdmin,
   ValidatorAnnounce,
 } from '@hyperlane-xyz/core';
 import { types } from '@hyperlane-xyz/utils';
@@ -40,7 +39,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   async deployMailbox(
     chain: ChainName,
     defaultIsmAddress: types.Address,
-    proxyAdmin: ProxyAdmin,
+    proxyAdmin: types.Address,
     deployOpts?: DeployOptions,
   ): Promise<ProxiedContract<Mailbox, TransparentProxyAddresses>> {
     const domain = this.multiProvider.getDomainId(chain);
@@ -50,8 +49,8 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       chain,
       'mailbox',
       [domain],
-      proxyAdmin,
       [owner, defaultIsmAddress],
+      proxyAdmin,
       deployOpts,
     );
     return mailbox;
@@ -156,7 +155,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     const mailbox = await this.deployMailbox(
       chain,
       multisigIsm.address,
-      proxyAdmin,
+      proxyAdmin.address,
     );
     const validatorAnnounce = await this.deployValidatorAnnounce(
       chain,
