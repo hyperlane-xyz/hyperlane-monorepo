@@ -12,7 +12,7 @@ export const abacus: HelloWorldConfig<MainnetChains> = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: 'sha-fcc80c8',
+      tag: 'sha-dfe3ea5',
     },
     // Everything but Celo and Polygon
     chainsToSkip: [
