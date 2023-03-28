@@ -1,5 +1,4 @@
-use tokio::task::JoinHandle;
-use tracing::{debug, info, info_span, instrument::Instrumented, warn, Instrument};
+use tracing::{debug, info, instrument, warn};
 
 use hyperlane_core::{InterchainGasPaymasterIndexer, SyncBlockRangeCursor};
 
@@ -17,9 +16,8 @@ where
     I: InterchainGasPaymasterIndexer + Clone + 'static,
 {
     /// Sync gas payments
-    pub fn sync_gas_payments(&self) -> Instrumented<JoinHandle<eyre::Result<()>>> {
-        let span = info_span!("GasPaymentContractSync");
-
+    #[instrument(name = "GasPaymentContractSync", skip(self))]
+    pub(crate) async fn sync_gas_payments(&self) -> eyre::Result<()> {
         let db = self.db.clone();
         let indexer = self.indexer.clone();
 
@@ -45,46 +43,43 @@ where
             )
         };
 
-        tokio::spawn(async move {
-            let mut cursor = cursor.await?;
+        let mut cursor = cursor.await?;
 
-            let start_block = cursor.current_position();
-            info!(from = start_block, "Resuming indexer");
-            indexed_height.set(start_block as i64);
+        let start_block = cursor.current_position();
+        info!(from = start_block, "Resuming indexer");
+        indexed_height.set(start_block as i64);
 
-            loop {
-                let (from, to) = match cursor.next_range().await {
-                    Ok(range) => range,
-                    Err(err) => {
-                        warn!(error = %err, "Failed to get next block range");
-                        continue;
-                    }
-                };
-
-                let gas_payments = indexer.fetch_gas_payments(from, to).await?;
-
-                debug!(
-                    from,
-                    to,
-                    gas_payments_count = gas_payments.len(),
-                    "Indexed block range"
-                );
-
-                let mut new_payments_processed: u64 = 0;
-                for (payment, meta) in gas_payments.iter() {
-                    // Attempt to process the gas payment, incrementing new_payments_processed
-                    // if it was processed for the first time.
-                    if db.process_gas_payment(*payment, meta)? {
-                        new_payments_processed += 1;
-                    }
+        loop {
+            let (from, to) = match cursor.next_range().await {
+                Ok(range) => range,
+                Err(err) => {
+                    warn!(error = %err, "Failed to get next block range");
+                    continue;
                 }
+            };
 
-                stored_messages.inc_by(new_payments_processed);
+            let gas_payments = indexer.fetch_gas_payments(from, to).await?;
 
-                db.store_latest_indexed_gas_payment_block(from)?;
-                indexed_height.set(to as i64);
+            debug!(
+                from,
+                to,
+                gas_payments_count = gas_payments.len(),
+                "Indexed block range"
+            );
+
+            let mut new_payments_processed: u64 = 0;
+            for (payment, meta) in gas_payments.iter() {
+                // Attempt to process the gas payment, incrementing new_payments_processed
+                // if it was processed for the first time.
+                if db.process_gas_payment(*payment, meta)? {
+                    new_payments_processed += 1;
+                }
             }
-        })
-        .instrument(span)
+
+            stored_messages.inc_by(new_payments_processed);
+
+            db.store_latest_indexed_gas_payment_block(from)?;
+            indexed_height.set(to as i64);
+        }
     }
 }
