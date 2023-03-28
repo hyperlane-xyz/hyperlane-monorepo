@@ -7,10 +7,10 @@ import { Validator, types, utils } from '@hyperlane-xyz/utils';
 
 import {
   LightTestRecipient__factory,
+  TestLegacyMultisigIsm,
+  TestLegacyMultisigIsm__factory,
   TestMailbox,
   TestMailbox__factory,
-  TestMultisigIsm,
-  TestMultisigIsm__factory,
   TestRecipient__factory,
 } from '../../types';
 import {
@@ -26,8 +26,8 @@ const DESTINATION_DOMAIN = 4321;
 // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
 const domainHashTestCases = require('../../../vectors/domainHash.json');
 
-describe('MultisigIsm', async () => {
-  let multisigIsm: TestMultisigIsm,
+describe('LegacyMultisigIsm', async () => {
+  let multisigIsm: TestLegacyMultisigIsm,
     mailbox: TestMailbox,
     signer: SignerWithAddress,
     nonOwner: SignerWithAddress,
@@ -46,7 +46,7 @@ describe('MultisigIsm', async () => {
   });
 
   beforeEach(async () => {
-    const multisigIsmFactory = new TestMultisigIsm__factory(signer);
+    const multisigIsmFactory = new TestLegacyMultisigIsm__factory(signer);
     multisigIsm = await multisigIsmFactory.deploy();
   });
 
@@ -412,7 +412,7 @@ describe('MultisigIsm', async () => {
         ORIGIN_DOMAIN,
         mailbox.address,
       );
-      const parsedMetadata = utils.parseMultisigIsmMetadata(metadata);
+      const parsedMetadata = utils.parseLegacyMultisigIsmMetadata(metadata);
       const nonValidatorSignature = (
         await signCheckpoint(
           parsedMetadata.checkpointRoot,
@@ -422,7 +422,7 @@ describe('MultisigIsm', async () => {
         )
       )[0];
       parsedMetadata.signatures.push(nonValidatorSignature);
-      const modifiedMetadata = utils.formatMultisigIsmMetadata({
+      const modifiedMetadata = utils.formatLegacyMultisigIsmMetadata({
         ...parsedMetadata,
         signatures: parsedMetadata.signatures.slice(1),
       });
@@ -432,8 +432,8 @@ describe('MultisigIsm', async () => {
     });
 
     it('reverts when the provided validator set does not match the stored commitment', async () => {
-      const parsedMetadata = utils.parseMultisigIsmMetadata(metadata);
-      const modifiedMetadata = utils.formatMultisigIsmMetadata({
+      const parsedMetadata = utils.parseLegacyMultisigIsmMetadata(metadata);
+      const modifiedMetadata = utils.formatLegacyMultisigIsmMetadata({
         ...parsedMetadata,
         validators: parsedMetadata.validators.slice(1),
       });
@@ -443,8 +443,8 @@ describe('MultisigIsm', async () => {
     });
 
     it('reverts when an invalid merkle proof is provided', async () => {
-      const parsedMetadata = utils.parseMultisigIsmMetadata(metadata);
-      const modifiedMetadata = utils.formatMultisigIsmMetadata({
+      const parsedMetadata = utils.parseLegacyMultisigIsmMetadata(metadata);
+      const modifiedMetadata = utils.formatLegacyMultisigIsmMetadata({
         ...parsedMetadata,
         proof: parsedMetadata.proof.reverse(),
       });
@@ -478,7 +478,7 @@ describe('MultisigIsm', async () => {
       // hash for local domain of 1000)
       for (const testCase of domainHashTestCases) {
         const { expectedDomainHash } = testCase;
-        // This public function on TestMultisigIsm exposes
+        // This public function on TestLegacyMultisigIsm exposes
         // the internal _domainHash on MultisigIsm.
         const domainHash = await multisigIsm.getDomainHash(
           testCase.originDomain,

@@ -2,4 +2,4 @@ target
 validatordb
 relayerdb
 kathydb
-config/test_*
+config/test_config.json

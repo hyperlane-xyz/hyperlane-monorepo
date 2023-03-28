@@ -112,9 +112,10 @@ jobs:
   test-env:
     runs-on: ubuntu-latest
     needs: [yarn-build]
-    strategy: 
+    strategy:
       matrix:
         environment: [testnet3, mainnet2]
+        module: [core, igp]
 
     steps:
       - uses: actions/checkout@v3
@@ -126,8 +127,8 @@ jobs:
       - name: Install Foundry
         uses: onbjerg/foundry-toolchain@v1
 
-      - name: Test ${{ matrix.environment }} deployment (check, deploy, govern, check again)
-        run: cd typescript/infra && ./fork.sh ${{ matrix.environment }}
+      - name: Test ${{ matrix.environment }} ${{ matrix.module }} deployment (check, deploy, govern, check again)
+        run: cd typescript/infra && ./fork.sh ${{ matrix.environment }} ${{ matrix.module }}
 
   test-sol:
     env:

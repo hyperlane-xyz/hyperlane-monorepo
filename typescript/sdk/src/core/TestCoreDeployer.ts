@@ -1,38 +1,21 @@
 import { ethers } from 'ethers';
 
 import {
-  MultisigIsm,
+  LegacyMultisigIsm,
   TestInterchainGasPaymaster__factory,
   TestIsm__factory,
   TestMailbox__factory,
 } from '@hyperlane-xyz/core';
 
+import { TestChains } from '../consts/chains';
 import { MultiProvider } from '../providers/MultiProvider';
+import { testCoreConfig } from '../test/testUtils';
 import { ChainMap, ChainName } from '../types';
 
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer';
 import { TestCoreApp } from './TestCoreApp';
 import { coreFactories } from './contracts';
-import { CoreConfig, GasOracleContractType } from './types';
-
-const nonZeroAddress = ethers.constants.AddressZero.replace('00', '01');
-
-// dummy config as TestInbox and TestOutbox do not use deployed ISM
-const testConfig: CoreConfig = {
-  owner: nonZeroAddress,
-  multisigIsm: {
-    validators: [nonZeroAddress],
-    threshold: 1,
-  },
-  igp: {
-    beneficiary: nonZeroAddress,
-    gasOracles: {
-      test1: GasOracleContractType.StorageGasOracle,
-      test2: GasOracleContractType.StorageGasOracle,
-      test3: GasOracleContractType.StorageGasOracle,
-    },
-  },
-};
+import { CoreConfig } from './types';
 
 const testCoreFactories = {
   ...coreFactories,
@@ -47,17 +30,13 @@ export class TestCoreDeployer extends HyperlaneCoreDeployer {
     configMap?: ChainMap<CoreConfig>,
   ) {
     // Note that the multisig module configs are unused.
-    const configs = configMap ?? {
-      test1: testConfig,
-      test2: testConfig,
-      test3: testConfig,
-    };
+    const configs = configMap ?? testCoreConfig(TestChains);
 
     super(multiProvider, configs, testCoreFactories);
   }
 
   // deploy a test ISM in place of a multisig ISM
-  async deployMultisigIsm(chain: ChainName): Promise<MultisigIsm> {
+  async deployLegacyMultisigIsm(chain: ChainName): Promise<LegacyMultisigIsm> {
     const testIsm = await this.deployContractFromFactory(
       chain,
       testCoreFactories.testIsm,
@@ -65,7 +44,7 @@ export class TestCoreDeployer extends HyperlaneCoreDeployer {
       [],
     );
     await testIsm.setAccept(true);
-    return testIsm as unknown as MultisigIsm;
+    return testIsm as unknown as LegacyMultisigIsm;
   }
 
   // TestIsm is not ownable, so we skip ownership transfer
