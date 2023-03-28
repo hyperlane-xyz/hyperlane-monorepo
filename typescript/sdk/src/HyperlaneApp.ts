@@ -1,5 +1,6 @@
 import {
   HyperlaneAddresses,
+  HyperlaneContract,
   HyperlaneContracts,
   HyperlaneFactories,
   buildContracts,
@@ -7,9 +8,10 @@ import {
   serializeContracts,
 } from './contracts';
 import { MultiProvider } from './providers/MultiProvider';
+import { isProxiedContract } from './proxy';
 import { ChainMap, ChainName } from './types';
 import { MultiGeneric } from './utils/MultiGeneric';
-import { objMap, pick } from './utils/objects';
+import { objFilter, objMap, pick } from './utils/objects';
 
 export class HyperlaneApp<
   Contracts extends HyperlaneContracts,
@@ -43,6 +45,17 @@ export class HyperlaneApp<
 
   getContracts(chain: ChainName): Contracts {
     return this.get(chain);
+  }
+
+  getFlattenedFilteredContracts(
+    chain: ChainName,
+    filter: (k: ChainName, v: HyperlaneContract) => v is HyperlaneContract,
+  ) {
+    const filtered = objFilter(this.getContracts(chain), filter);
+    const flattened = Object.values(filtered).map((contract) =>
+      isProxiedContract(contract) ? contract.contract : contract,
+    );
+    return flattened;
   }
 
   getAddresses(chain: ChainName): HyperlaneAddresses {

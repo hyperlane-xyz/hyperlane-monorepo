@@ -9,16 +9,16 @@ import {
 } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../consts/chainMetadata';
-import { Chains } from '../consts/chains';
-import { TestCoreApp } from '../core/TestCoreApp';
-import { TestCoreDeployer } from '../core/TestCoreDeployer';
-import { MultiProvider } from '../providers/MultiProvider';
-import { RouterConfig } from '../router/types';
-import { deployTestIgpsAndGetRouterConfig } from '../test/testUtils';
-import { ChainMap } from '../types';
+import { chainMetadata } from '../../consts/chainMetadata';
+import { Chains } from '../../consts/chains';
+import { TestCoreApp } from '../../core/TestCoreApp';
+import { TestCoreDeployer } from '../../core/TestCoreDeployer';
+import { MultiProvider } from '../../providers/MultiProvider';
+import { RouterConfig } from '../../router/types';
+import { deployTestIgpsAndGetRouterConfig } from '../../test/testUtils';
+import { ChainMap } from '../../types';
 
-import { InterchainQueryDeployer } from './deploy';
+import { InterchainQueryDeployer } from './InterchainQueryDeployer';
 
 describe('InterchainQueryRouter', async () => {
   const localChain = Chains.test1;

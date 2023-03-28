@@ -11,7 +11,7 @@ import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterConfig } from '../../router/types';
 import { ChainMap, ChainName } from '../../types';
 import { objFilter, objMap } from '../../utils/objects';
-import { MiddlewareRouterDeployer } from '../deploy';
+import { MiddlewareRouterDeployer } from '../MiddlewareRouterDeployer';
 
 import {
   LiquidityLayerContracts,

@@ -1,6 +1,5 @@
 import { ethers } from 'ethers';
 
-import { Ownable } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
@@ -17,8 +16,7 @@ export class HyperlaneRouterChecker<
 > extends HyperlaneAppChecker<App, Config> {
   checkOwnership(chain: ChainName): Promise<void> {
     const owner = this.configMap[chain].owner;
-    const ownables = this.ownables(chain);
-    return super.checkOwnership(chain, owner, ownables);
+    return super.checkOwnership(chain, owner);
   }
 
   async checkChain(chain: ChainName): Promise<void> {
@@ -58,9 +56,5 @@ export class HyperlaneRouterChecker<
         utils.assert(address === utils.addressToBytes32(remoteRouter.address));
       }),
     );
-  }
-
-  ownables(chain: ChainName): Ownable[] {
-    return [this.app.getContracts(chain).router];
   }
 }
