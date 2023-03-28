@@ -8,7 +8,7 @@
         "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
         "validatorAnnounce": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524"
       },
-      "implementation": "ethereum",
+      "protocol": "ethereum",
       "finalityBlocks": 0,
       "connection": {
         "type": "http"
@@ -25,7 +25,7 @@
         "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
         "validatorAnnounce": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524"
       },
-      "implementation": "ethereum",
+      "protocol": "ethereum",
       "finalityBlocks": 20,
       "connection": {
         "type": "http"
@@ -42,7 +42,7 @@
         "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
         "validatorAnnounce": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524"
       },
-      "implementation": "ethereum",
+      "protocol": "ethereum",
       "finalityBlocks": 3,
       "connection": {
         "type": "http"
@@ -59,7 +59,7 @@
         "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
         "validatorAnnounce": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524"
       },
-      "implementation": "ethereum",
+      "protocol": "ethereum",
       "finalityBlocks": 256,
       "connection": {
         "type": "http"
@@ -76,7 +76,7 @@
         "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
         "validatorAnnounce": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524"
       },
-      "implementation": "ethereum",
+      "protocol": "ethereum",
       "finalityBlocks": 15,
       "connection": {
         "type": "http"
@@ -93,7 +93,7 @@
         "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
         "validatorAnnounce": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524"
       },
-      "implementation": "ethereum",
+      "protocol": "ethereum",
       "finalityBlocks": 0,
       "connection": {
         "type": "http"
@@ -110,7 +110,7 @@
         "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
         "validatorAnnounce": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524"
       },
-      "implementation": "ethereum",
+      "protocol": "ethereum",
       "finalityBlocks": 0,
       "connection": {
         "type": "http"
@@ -127,7 +127,7 @@
         "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
         "validatorAnnounce": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524"
       },
-      "implementation": "ethereum",
+      "protocol": "ethereum",
       "finalityBlocks": 1,
       "connection": {
         "type": "http"
@@ -144,7 +144,7 @@
         "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
         "validatorAnnounce": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524"
       },
-      "implementation": "ethereum",
+      "protocol": "ethereum",
       "finalityBlocks": 14,
       "connection": {
         "type": "http"

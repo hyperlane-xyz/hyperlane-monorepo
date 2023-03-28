@@ -37,7 +37,7 @@ export type AgentChainSetupBase = {
   signer?: AgentSigner;
   finalityBlocks: number;
   addresses: HyperlaneAgentAddresses;
-  implementation: 'ethereum' | 'fuel';
+  protocol: 'ethereum' | 'fuel';
   connection?: AgentConnection;
   index?: { from: number };
 };
@@ -77,7 +77,7 @@ export function buildAgentConfig(
         ),
         validatorAnnounce: getProxyAddress(addresses[chain].validatorAnnounce),
       },
-      implementation: 'ethereum',
+      protocol: 'ethereum',
       finalityBlocks: metadata.blocks?.reorgPeriod ?? 1,
       connection: {
         // not a valid connection but we want to fill in the HTTP type for
