@@ -24,23 +24,17 @@ export type InterchainAccountFactories =
 
 export const interchainAccountFactories: InterchainAccountFactories = {
   router: new InterchainAccountRouter__factory(),
-  // TODO: where to put these?
-  interchainAccountRouter: new InterchainAccountRouter__factory(),
   proxyAdmin: new ProxyAdmin__factory(),
 };
 
 export type InterchainAccountContracts =
-  ProxiedRouterContracts<InterchainAccountRouter> & {
-    interchainAccountRouter: ProxiedContract<InterchainAccountRouter>;
-  };
+  ProxiedRouterContracts<InterchainAccountRouter>;
 
 export type InterchainQueryFactories =
   ProxiedRouterFactories<InterchainQueryRouter>;
 
 export const interchainQueryFactories: InterchainQueryFactories = {
   router: new InterchainQueryRouter__factory(),
-  // TODO: where to put these?
-  interchainQueryRouter: new InterchainQueryRouter__factory(),
   proxyAdmin: new ProxyAdmin__factory(),
 };
 
@@ -135,15 +129,14 @@ export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
   ): Promise<InterchainAccountContracts> {
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
 
-    // adapted from HyperlaneDeployer.deployProxiedContract
-    const cached = this.deployedContracts[chain]?.interchainAccountRouter;
+    // manually recover from cache because cannot use HyperlaneDeployer.deployProxiedContract
+    const cached = this.deployedContracts[chain]?.proxiedRouter;
     if (cached && cached.addresses.proxy && cached.addresses.implementation) {
       this.logger('Recovered full InterchainAccountRouter');
       return {
         proxyAdmin,
         proxiedRouter: cached,
-        interchainAccountRouter: cached, // for serialization
-        router: cached.contract, // for backwards compatibility
+        router: cached.contract,
       };
     }
 
@@ -192,8 +185,7 @@ export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
     return {
       proxyAdmin,
       proxiedRouter,
-      router: proxiedRouter.contract, // for backwards compatibility
-      interchainAccountRouter: proxiedRouter, // for serialization
+      router: proxiedRouter.contract,
     };
   }
 }
@@ -208,7 +200,7 @@ export class InterchainQueryDeployer extends MiddlewareRouterDeployer<
   constructor(
     multiProvider: MultiProvider,
     configMap: ChainMap<InterchainQueryConfig>,
-    create2salt = 'queryrouter',
+    create2salt = 'queryrouter2',
   ) {
     super(multiProvider, configMap, interchainQueryFactories, create2salt);
   }
