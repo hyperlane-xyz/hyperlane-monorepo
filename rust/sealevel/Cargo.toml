@@ -5,4 +5,5 @@ members = [
     "programs/mailbox",
     "programs/recipient/echo",
     "programs/ism/rubber-stamp",
+    "programs/hyperlane-sealevel-token",
 ]

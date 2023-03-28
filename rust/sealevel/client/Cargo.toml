@@ -8,10 +8,14 @@ borsh = "0.9"
 clap = { version = "4", features = ["derive"] }
 hyperlane-sealevel-ism-rubber-stamp = { path = "../programs/ism/rubber-stamp" }
 hyperlane-sealevel-mailbox = { path = "../programs/mailbox" }
+# TODO?
+# hyperlane-sealevel-interchain-gas-paymaster-eclipse = { path = "../programs/interchain-gas-paymaster/eclipse" }
 hyperlane-sealevel-recipient-echo = { path = "../programs/recipient/echo" }
+hyperlane-sealevel-token = { path = "../programs/hyperlane-sealevel-token" }
 lazy_static = "1.4"
 pretty_env_logger = "0.4"
-solana-sdk = "=1.14.3"
-solana-client = "=1.14.3"
-solana-cli-config = "=1.14.3"
-solana-clap-utils = "=1.14.3"
+solana-client = "=1.14.13"
+solana-cli-config = "=1.14.13"
+solana-clap-utils = "=1.14.13"
+solana-program = "=1.14.13"
+solana-sdk = "=1.14.13"

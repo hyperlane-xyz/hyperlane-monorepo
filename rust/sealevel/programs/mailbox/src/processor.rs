@@ -1,7 +1,5 @@
 //! Entrypoint, dispatch, and execution for the Hyperlane Sealevel mailbox instruction.
 
-use std::str::FromStr as _;
-
 use hyperlane_core::{Decode, Encode, HyperlaneMessage, H256};
 #[cfg(not(feature = "no-entrypoint"))]
 use solana_program::entrypoint;
@@ -25,7 +23,6 @@ use crate::{
         InboxProcess, InboxSetDefaultModule, Init, Instruction as MailboxIxn, IsmInstruction,
         OutboxDispatch, OutboxQuery, RecipientInstruction, MAX_MESSAGE_BODY_BYTES, VERSION,
     },
-    SPL_NOOP,
 };
 
 #[cfg(not(feature = "no-entrypoint"))]
@@ -229,7 +226,7 @@ fn inbox_process(
     }
 
     let spl_noop = next_account_info(accounts_iter)?;
-    if spl_noop.key != &Pubkey::from_str(SPL_NOOP).unwrap() || !spl_noop.executable {
+    if spl_noop.key != &spl_noop::id() || !spl_noop.executable {
         return Err(ProgramError::InvalidArgument);
     }
 
@@ -314,7 +311,7 @@ fn inbox_process(
 
     // FIXME do we need an equivalent of both ProcessId and Process solidity events?
     let noop_cpi_log = Instruction {
-        program_id: Pubkey::from_str(SPL_NOOP).unwrap(),
+        program_id: spl_noop::id(),
         accounts: vec![],
         data: format!("Hyperlane inbox: {:?}", id).into_bytes(),
     };
@@ -383,7 +380,7 @@ fn outbox_dispatch(
         return Err(ProgramError::MissingRequiredSignature);
     }
     let spl_noop = next_account_info(accounts_iter)?;
-    if spl_noop.key != &Pubkey::from_str(SPL_NOOP).unwrap() || !spl_noop.executable {
+    if spl_noop.key != &spl_noop::id() || !spl_noop.executable {
         return Err(ProgramError::InvalidArgument);
     }
 
