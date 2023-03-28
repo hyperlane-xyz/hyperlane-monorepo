@@ -171,13 +171,14 @@ export function writeMergedJSON(directory: string, filename: string, obj: any) {
 }
 
 export function writeJsonAtPath(filepath: string, obj: any) {
+  const dir = path.dirname(filepath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
   fs.writeFileSync(filepath, JSON.stringify(obj, null, 2) + '\n');
 }
 
 export function writeJSON(directory: string, filename: string, obj: any) {
-  if (!fs.existsSync(directory)) {
-    fs.mkdirSync(directory, { recursive: true });
-  }
   writeJsonAtPath(path.join(directory, filename), obj);
 }
 

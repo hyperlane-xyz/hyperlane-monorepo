@@ -13,32 +13,51 @@ import {
 
 export async function deployWithArtifacts(
   deployer: HyperlaneDeployer<any, any, any>,
-  addressesPath: string,
-  verificationPath: string,
+  cache?: {
+    addresses: string;
+    verification: string;
+  },
   fork?: ChainName,
 ) {
-  const addresses = readJSONAtPath(addressesPath);
-  const savedContracts = buildContracts(addresses, deployer.factories);
-  deployer.cacheContracts(savedContracts);
+  if (cache) {
+    let addresses = {};
+    try {
+      addresses = readJSONAtPath(cache.addresses);
+    } catch (e) {
+      console.error('Failed to load cached addresses');
+    }
 
-  if (fork) {
-    await deployer.deployContracts(fork, deployer.configMap[fork]);
-    // TODO: reconsider writing artifacts in fork mode
-    return;
+    const savedContracts = buildContracts(addresses, deployer.factories);
+    deployer.cacheContracts(savedContracts);
   }
 
   try {
-    await deployer.deploy();
+    if (fork) {
+      await deployer.deployContracts(fork, deployer.configMap[fork]);
+    } else {
+      await deployer.deploy();
+    }
   } catch (e) {
-    console.error(e);
+    console.error('Failed to deploy contracts', e);
   }
-  writeMergedJSONAtPath(
-    addressesPath,
-    serializeContracts(deployer.deployedContracts),
-  );
 
-  const savedVerification = readJSONAtPath(verificationPath);
-  const inputs =
-    deployer.mergeWithExistingVerificationInputs(savedVerification);
-  writeJsonAtPath(verificationPath, inputs);
+  if (cache) {
+    // cache addresses of deployed contracts
+    writeMergedJSONAtPath(
+      cache.addresses,
+      serializeContracts(deployer.deployedContracts),
+    );
+
+    let savedVerification = {};
+    try {
+      savedVerification = readJSONAtPath(cache.verification);
+    } catch (e) {
+      console.error('Failed to load cached verification inputs');
+    }
+
+    // cache verification inputs
+    const inputs =
+      deployer.mergeWithExistingVerificationInputs(savedVerification);
+    writeJsonAtPath(cache.verification, inputs);
+  }
 }

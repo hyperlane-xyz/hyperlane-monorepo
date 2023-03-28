@@ -18,10 +18,10 @@ import { InterchainQueryGovernor } from '../src/middleware/query/govern';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 
 import {
+  Modules,
   getArgsWithModuleAndFork,
   getEnvironmentConfig,
   getRouterConfig,
-  modules,
 } from './utils';
 
 async function check() {
@@ -44,29 +44,27 @@ async function check() {
 
   let governor: HyperlaneAppGovernor<any, any>;
   const env = deployEnvToSdkEnv[environment];
-  if (module === 'core') {
+  if (module === Modules.CORE) {
     const core = HyperlaneCore.fromEnvironment(env, multiProvider);
     const checker = new HyperlaneCoreChecker(multiProvider, core, config.core);
     governor = new HyperlaneCoreGovernor(checker, config.owners);
-  } else if (module === 'igp') {
+  } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     const igp = HyperlaneIgp.fromEnvironment(env, multiProvider);
     const checker = new HyperlaneIgpChecker(multiProvider, igp, config.igp);
     governor = new HyperlaneIgpGovernor(checker, config.owners);
-  } else if (module === 'ica') {
+  } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
     const config = await getRouterConfig(environment, multiProvider);
     const ica = InterchainAccount.fromEnvironment(env, multiProvider);
     const checker = new InterchainAccountChecker(multiProvider, ica, config);
     governor = new InterchainAccountGovernor(checker, config.owners);
-  } else if (module === 'iqs') {
+  } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
     const config = await getRouterConfig(environment, multiProvider);
     const iqs = InterchainQuery.fromEnvironment(env, multiProvider);
     const checker = new InterchainQueryChecker(multiProvider, iqs, config);
     governor = new InterchainQueryGovernor(checker, config.owners);
-  } else if (modules.includes(module)) {
+  } else {
     console.log(`Skipping ${module}, checker or governor unimplemented`);
     return;
-  } else {
-    throw new Error('Unknown module type');
   }
 
   if (fork) {
