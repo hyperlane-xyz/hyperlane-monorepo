@@ -80,6 +80,10 @@ impl<I: Indexer> SyncBlockRangeCursor for RateLimitedSyncBlockRangeCursor<I> {
         self.from
     }
 
+    fn tip(&self) -> u32 {
+        self.tip
+    }
+
     async fn next_range(&mut self) -> ChainResult<(u32, u32)> {
         self.rate_limit().await?;
         let to = u32::min(self.tip, self.from + self.chunk_size);
