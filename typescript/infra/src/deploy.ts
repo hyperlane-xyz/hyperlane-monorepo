@@ -27,8 +27,15 @@ export async function deployWithArtifacts(
     return;
   }
 
-  const contracts = await deployer.deploy();
-  writeMergedJSONAtPath(addressesPath, serializeContracts(contracts));
+  try {
+    await deployer.deploy();
+  } catch (e) {
+    console.error(e);
+  }
+  writeMergedJSONAtPath(
+    addressesPath,
+    serializeContracts(deployer.deployedContracts),
+  );
 
   const savedVerification = readJSONAtPath(verificationPath);
   const inputs =
