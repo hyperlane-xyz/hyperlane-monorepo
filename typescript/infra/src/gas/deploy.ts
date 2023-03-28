@@ -9,13 +9,13 @@ import {
 import {
   ChainMap,
   ChainName,
+  DeployOptions,
   HyperlaneIgpDeployer,
   MultiProvider,
   OverheadIgpConfig,
   ProxiedContract,
   TransparentProxyAddresses,
 } from '@hyperlane-xyz/sdk';
-import { DeployOptions } from '@hyperlane-xyz/sdk/dist/deploy/HyperlaneDeployer';
 import { types } from '@hyperlane-xyz/utils';
 
 import { DeployEnvironment } from '../config';

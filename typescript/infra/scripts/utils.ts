@@ -7,6 +7,7 @@ import {
   ChainMap,
   ChainMetadata,
   ChainName,
+  Chains,
   CoreConfig,
   HyperlaneCore,
   HyperlaneIgp,
@@ -35,22 +36,27 @@ export function getArgsWithContext() {
     .alias('c', 'context');
 }
 
-export const modules = [
-  'core',
-  'igp',
-  'ica',
-  'iqs',
-  'create2',
-  'll',
-  'testrecipient',
-  'testquerysender',
+export enum Modules {
+  CORE = 'core',
+  INTERCHAIN_GAS_PAYMASTER = 'igp',
+  INTERCHAIN_ACCOUNTS = 'ica',
+  INTERCHAIN_QUERY_SYSTEM = 'iqs',
+  CREATE2_FACTORY = 'create2',
+  LIQUIDITY_LAYER = 'll',
+  TEST_QUERY_SENDER = 'testquerysender',
+  TEST_RECIPIENT = 'testrecipient',
+}
+export const SDK_MODULES = [
+  Modules.CORE,
+  Modules.INTERCHAIN_GAS_PAYMASTER,
+  Modules.INTERCHAIN_ACCOUNTS,
+  Modules.INTERCHAIN_QUERY_SYSTEM,
 ];
-export const sdkModules = ['core', 'igp', 'ica', 'iqs']; // TODO: check if this is correct
 
 export function getArgsWithModule() {
   return getArgs()
     .string('module')
-    .choices('module', modules)
+    .choices('module', Object.values(Modules))
     .demandOption('module')
     .alias('m', 'module');
 }
@@ -59,6 +65,7 @@ export function getArgsWithModuleAndFork() {
   return getArgsWithModule()
     .string('fork')
     .describe('fork', 'network to fork')
+    .choices('fork', Object.values(Chains))
     .alias('f', 'fork');
 }
 
@@ -179,20 +186,22 @@ export function getEnvironmentDirectory(environment: DeployEnvironment) {
 
 export function getModuleDirectory(
   environment: DeployEnvironment,
-  module: string,
+  module: Modules,
 ) {
-  let suffix: string;
   // for backwards compatibility with existing paths
-  if (module === 'ica') {
-    suffix = 'middleware/accounts';
-  } else if (module === 'iqs') {
-    suffix = 'middleware/queries';
-  } else if (module === 'll') {
-    suffix = 'middleware/liquidity-layer';
-  } else {
-    suffix = module;
-  }
-  return path.join(getEnvironmentDirectory(environment), suffix);
+  const suffixFn = () => {
+    switch (module) {
+      case Modules.INTERCHAIN_ACCOUNTS:
+        return 'middleware/accounts';
+      case Modules.INTERCHAIN_QUERY_SYSTEM:
+        return 'middleware/queries';
+      case Modules.LIQUIDITY_LAYER:
+        return 'middleware/liquidity-layer';
+      default:
+        return module;
+    }
+  };
+  return path.join(getEnvironmentDirectory(environment), suffixFn());
 }
 
 export function getAgentConfigDirectory() {

@@ -21,14 +21,14 @@ import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 import { readJSON } from '../src/utils/utils';
 
 import {
+  Modules,
+  SDK_MODULES,
   getArgsWithModuleAndFork,
   getContractAddressesSdkFilepath,
   getEnvironmentConfig,
   getEnvironmentDirectory,
   getModuleDirectory,
   getRouterConfig,
-  modules,
-  sdkModules,
 } from './utils';
 
 async function main() {
@@ -50,36 +50,36 @@ async function main() {
   }
 
   let deployer: HyperlaneDeployer<any, any, any>;
-  if (module === 'core') {
+  if (module === Modules.CORE) {
     deployer = new HyperlaneCoreInfraDeployer(
       multiProvider,
       config.core,
       environment,
     );
-  } else if (module === 'igp') {
+  } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     deployer = new HyperlaneIgpInfraDeployer(
       multiProvider,
       config.igp,
       environment,
     );
-  } else if (module === 'ica') {
+  } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
     const config = await getRouterConfig(environment, multiProvider);
     deployer = new InterchainAccountDeployer(multiProvider, config);
-  } else if (module === 'iqs') {
+  } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
     const config = await getRouterConfig(environment, multiProvider);
     deployer = new InterchainQueryDeployer(multiProvider, config);
-  } else if (module === 'll') {
+  } else if (module === Modules.LIQUIDITY_LAYER) {
     const routerConfig = await getRouterConfig(environment, multiProvider);
     const config = objMap(bridgeAdapterConfigs, (chain, conf) => ({
       ...conf,
       ...routerConfig[chain],
     }));
     deployer = new LiquidityLayerDeployer(multiProvider, config);
-  } else if (module === 'create2') {
+  } else if (module === Modules.CREATE2_FACTORY) {
     deployer = new Create2FactoryDeployer(multiProvider);
-  } else if (module === 'testrecipient') {
+  } else if (module === Modules.TEST_RECIPIENT) {
     deployer = new TestRecipientDeployer(multiProvider);
-  } else if (module === 'testquerysender') {
+  } else if (module === Modules.TEST_QUERY_SENDER) {
     // TODO: make this more generic
     const igp = HyperlaneIgp.fromEnvironment(
       deployEnvToSdkEnv[environment],
@@ -100,21 +100,26 @@ async function main() {
       igp,
     );
   } else {
-    throw new Error(`Unknown module: ${module}, valid: ${modules.join(', ')}`);
+    console.log(`Skipping ${module}, deployer unimplemented`);
+    return;
   }
 
   const modulePath = getModuleDirectory(environment, module);
 
-  const addressesPath = sdkModules.includes(module)
+  const addresses = SDK_MODULES.includes(module)
     ? path.join(
         getContractAddressesSdkFilepath(),
         `${deployEnvToSdkEnv[environment]}.json`,
       )
     : path.join(modulePath, 'addresses.json');
 
-  const verificationPath = path.join(modulePath, 'verification.json');
+  const verification = path.join(modulePath, 'verification.json');
 
-  await deployWithArtifacts(deployer, addressesPath, verificationPath, fork);
+  // do not cache for test environment
+  const cache =
+    environment === 'test' ? undefined : { addresses, verification };
+
+  await deployWithArtifacts(deployer, cache, fork);
 }
 
 main()
