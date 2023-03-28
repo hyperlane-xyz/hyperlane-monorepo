@@ -131,7 +131,7 @@ pub struct ChainSetup {
 impl ChainSetup {
     /// Get the chain connection config or generate an error
     pub fn connection(&self) -> Result<&ChainConnectionConf> {
-        self.connection.as_ref().ok_or_else(|| eyre!("Missing chain configuration for {}; this includes protocol and connection information", self.name))
+        self.connection.as_ref().ok_or_else(|| eyre!("Missing chain configuration for {}; this includes protocol type and the connection information", self.name))
     }
 
     /// Try to convert the chain settings into an HyperlaneProvider.
