@@ -4,6 +4,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use async_trait::async_trait;
 use num_derive::FromPrimitive;
+use num_traits::FromPrimitive;
 
 use derive_new::new;
 use eyre::Context;
@@ -20,13 +21,18 @@ use hyperlane_core::{
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
 
-#[derive(FromPrimitive)]
+#[derive(Debug, thiserror::Error)]
+pub enum MetadataBuilderError {
+    #[error("Unknown or invalid module type ({0})")]
+    UnsupportedModuleType(u8)
+}
 
-pub enum IsmTypes {
-    Routing = 1,
-    Aggregation = 2,
+#[derive(FromPrimitive)]
+pub enum SupportedIsmTypes {
+    // Routing = 1,
+    // Aggregation = 2,
     LegacyMultisig = 3,
-    Multisig = 4,
+    // Multisig = 4,
 }
 
 #[async_trait]
@@ -71,16 +77,12 @@ impl MetadataBuilder for BaseMetadataBuilder {
         const CTX: &str = "When fetching metadata";
         let ism = self.chain_setup.build_ism(ism_address, &self.metrics).await.context(CTX)?;
         let module_type = ism.module_type().await.context(CTX)?;
-        if let Some(metadata_builder) = match module_type.into() {
-            IsmTypes::LegacyMultisig => Some(LegacyMultisigIsmMetadataBuilder::new(self.clone())),
-            // Handle the rest of cases
-            _ => None
-        } {
-            metadata_builder.build(ism_address, message).await.context(CTX)
-        } else {
-            // TODO: Return error
-            Ok(None)
-        }
+        let supported_type = SupportedIsmTypes::from_u8(module_type).ok_or(MetadataBuilderError::UnsupportedModuleType(module_type))?;
+        
+        let metadata_builder = match supported_type {
+            SupportedIsmTypes::LegacyMultisig => LegacyMultisigIsmMetadataBuilder::new(self.clone()),
+        };
+        metadata_builder.build(ism_address, message).await.context(CTX)
     }
 }
 
