@@ -70,7 +70,7 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
     return 'liquidityLayerRouter';
   }
 
-  router(contracts: LiquidityLayerContracts) {
+  router(contracts: LiquidityLayerContracts): LiquidityLayerRouter {
     return contracts.liquidityLayerRouter.contract;
   }
 

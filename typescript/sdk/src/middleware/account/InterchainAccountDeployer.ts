@@ -37,7 +37,7 @@ export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
     return 'interchainAccountRouter';
   }
 
-  router(contracts: InterchainAccountContracts) {
+  router(contracts: InterchainAccountContracts): InterchainAccountRouter {
     return contracts.interchainAccountRouter.contract;
   }
 

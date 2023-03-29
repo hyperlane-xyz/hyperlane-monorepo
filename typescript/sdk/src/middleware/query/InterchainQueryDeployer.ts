@@ -1,4 +1,7 @@
-import { InterchainQueryRouter__factory } from '@hyperlane-xyz/core';
+import {
+  InterchainQueryRouter,
+  InterchainQueryRouter__factory,
+} from '@hyperlane-xyz/core';
 
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterConfig } from '../../router/types';
@@ -31,7 +34,7 @@ export class InterchainQueryDeployer extends MiddlewareRouterDeployer<
     return 'interchainQueryRouter';
   }
 
-  router(contracts: InterchainQueryContracts) {
+  router(contracts: InterchainQueryContracts): InterchainQueryRouter {
     return contracts.interchainQueryRouter.contract;
   }
 }

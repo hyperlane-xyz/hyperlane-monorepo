@@ -61,15 +61,15 @@ export class ProxiedContract<
 }
 
 export function isProxiedContract(
-  contract: any,
+  contract: unknown,
 ): contract is ProxiedContract<any, any> {
   // The presence of `implementation` is intentionally not checked
   // to allow deploying new implementations by deleting the implementation
   // from the artifacts
   return (
     contract !== null &&
-    contract.addresses &&
-    contract.contract &&
+    'addresses' in contract &&
+    'contract' in contract &&
     typeof contract === 'object' &&
     isProxyAddresses((contract as any).addresses)
   );
