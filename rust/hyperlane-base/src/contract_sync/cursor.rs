@@ -5,7 +5,7 @@ use eyre::Result;
 use tokio::time::sleep;
 use tracing::warn;
 
-use hyperlane_core::{ChainResult, Indexer, SyncBlockRangeCursor};
+use hyperlane_core::{ChainResult, Indexer, SyncBlockRangeCursor, SyncerEtaCalculator};
 
 /// Tool for handling the logic of what the next block range that should be
 /// queried is and also handling rate limiting. Rate limiting is automatically
@@ -16,6 +16,7 @@ pub struct RateLimitedSyncBlockRangeCursor<I> {
     last_tip_update: Instant,
     chunk_size: u32,
     from: u32,
+    eta_calculator: SyncerEtaCalculator,
 }
 
 impl<I> RateLimitedSyncBlockRangeCursor<I>
@@ -31,6 +32,7 @@ where
             chunk_size,
             last_tip_update: Instant::now(),
             from: initial_height,
+            eta_calculator: SyncerEtaCalculator::new(initial_height, tip),
         })
     }
 
@@ -84,12 +86,13 @@ impl<I: Indexer> SyncBlockRangeCursor for RateLimitedSyncBlockRangeCursor<I> {
         self.tip
     }
 
-    async fn next_range(&mut self) -> ChainResult<(u32, u32)> {
+    async fn next_range(&mut self) -> ChainResult<(u32, u32, Duration)> {
         self.rate_limit().await?;
         let to = u32::min(self.tip, self.from + self.chunk_size);
         let from = to.saturating_sub(self.chunk_size);
         self.from = to + 1;
-        Ok((from, to))
+        let eta = self.eta_calculator.calculate(from, self.tip);
+        Ok((from, to, eta))
     }
 
     fn backtrack(&mut self, start_from: u32) {

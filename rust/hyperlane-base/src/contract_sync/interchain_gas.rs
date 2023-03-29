@@ -48,13 +48,15 @@ where
         indexed_height.set(start_block as i64);
 
         loop {
-            let Ok((from, to)) = cursor.next_range().await else { continue };
+            let Ok((from, to, eta)) = cursor.next_range().await else { continue };
             let gas_payments = self.indexer.fetch_gas_payments(from, to).await?;
 
             debug!(
                 from,
                 to,
+                tip = cursor.tip(),
                 gas_payments_count = gas_payments.len(),
+                estimated_min_to_sync = eta.as_secs_f64() * 60.,
                 "Indexed block range"
             );
 

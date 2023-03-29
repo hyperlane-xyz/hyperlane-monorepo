@@ -1,8 +1,6 @@
 use tracing::{debug, info, instrument, warn};
 
-use hyperlane_core::{
-    Indexer, KnownHyperlaneDomain, ListValidity, MailboxIndexer, SyncBlockRangeCursor,
-};
+use hyperlane_core::{Indexer, KnownHyperlaneDomain, ListValidity, MailboxIndexer, SyncBlockRangeCursor};
 
 use crate::contract_sync::last_message::validate_message_continuity;
 use crate::{contract_sync::schema::MailboxContractSyncDB, ContractSync};
@@ -93,7 +91,6 @@ where
         // range [C,D] that indicate a previously indexed range may have
         // missed some messages.
         let mut cursor = cursor.await?;
-
         let start_block = cursor.current_position();
         let mut last_valid_range_start_block = start_block;
         info!(
@@ -104,7 +101,7 @@ where
 
         loop {
             let start_block = cursor.current_position();
-            let Ok((from, to)) = cursor.next_range().await else { continue };
+            let Ok((from, to, eta)) = cursor.next_range().await else { continue };
 
             let mut sorted_messages: Vec<_> = self
                 .indexer
@@ -114,9 +111,11 @@ where
                 .map(|(msg, _)| msg)
                 .collect();
 
-            debug!(
+            info!(
                 from,
                 to,
+                tip = cursor.tip(),
+                estimated_min_to_sync = eta.as_secs_f64() * 60.,
                 message_count = sorted_messages.len(),
                 "Indexed block range"
             );

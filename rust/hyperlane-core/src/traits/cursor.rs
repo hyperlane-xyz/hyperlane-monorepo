@@ -1,13 +1,15 @@
-use crate::ChainResult;
+use std::time::{Duration, Instant};
+
 use async_trait::async_trait;
 use auto_impl::auto_impl;
 use derive_new::new;
-use std::time::{Duration, Instant};
+
+use crate::ChainResult;
 
 /// Calculates the expected time to catch up to the tip of the blockchain.
 #[derive(new)]
 pub struct SyncerEtaCalculator {
-    #[new(value = Instant::now())]
+    #[new(value = "Instant::now()")]
     last_time: Instant,
 
     last_block: u32,
@@ -40,12 +42,11 @@ impl SyncerEtaCalculator {
         self.effective_rate = (blocks_processed - tip_progression) / elapsed * new_coeff
             + self.effective_rate * old_coeff;
 
-        let distance_from_tip = (current_tip - current_block) as f64;
         self.last_eta = if self.effective_rate <= 0. {
             // max out at 1yr if we are behind
             Duration::from_secs(60 * 60 * 24 * 365)
         } else {
-            Duration::from_secs_f64(self.effective_rate * distance_from_tip)
+            Duration::from_secs_f64(self.effective_rate * (current_tip - current_block) as f64)
         };
 
         self.last_eta
@@ -91,7 +92,7 @@ pub trait SyncBlockRangeCursor {
     /// This assumes the caller will call next_range again automatically on Err,
     /// but it returns the error to allow for tailored logging or different end
     /// cases.
-    async fn next_range(&mut self) -> ChainResult<(u32, u32)>;
+    async fn next_range(&mut self) -> ChainResult<(u32, u32, Duration)>;
 
     /// If there was an issue when a range of data was fetched, this rolls back
     /// so the next range fetched will be from `start_from`. Note that it is a
