@@ -2,6 +2,7 @@ import {
   CircleBridgeAdapter,
   CircleBridgeAdapter__factory,
   LiquidityLayerRouter,
+  LiquidityLayerRouter__factory,
   PortalAdapter,
   PortalAdapter__factory,
 } from '@hyperlane-xyz/core';
@@ -10,7 +11,6 @@ import { utils } from '@hyperlane-xyz/utils';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterConfig } from '../../router/types';
 import { ChainMap, ChainName } from '../../types';
-import { objFilter, objMap } from '../../utils/objects';
 import { MiddlewareRouterDeployer } from '../MiddlewareRouterDeployer';
 
 import {
@@ -54,7 +54,8 @@ export type LiquidityLayerConfig = RouterConfig & BridgeAdapterConfig;
 export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
   LiquidityLayerConfig,
   LiquidityLayerContracts,
-  LiquidityLayerFactories
+  LiquidityLayerFactories,
+  LiquidityLayerRouter__factory
 > {
   constructor(
     multiProvider: MultiProvider,
@@ -64,19 +65,34 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
     super(multiProvider, configMap, liquidityLayerFactories, create2salt);
   }
 
+  routerContractName(): string {
+    return 'liquidityLayerRouter';
+  }
+
+  router(contracts: LiquidityLayerContracts) {
+    return contracts.liquidityLayerRouter.contract;
+  }
+
   async enrollRemoteRouters(
     contractsMap: ChainMap<LiquidityLayerContracts>,
   ): Promise<void> {
     this.logger(`Enroll LiquidityLayerRouters with each other`);
     await super.enrollRemoteRouters(contractsMap);
 
+    throw new Error('Liquidity layer adapter deployment not supported');
+    /*
     this.logger(`Enroll CircleBridgeAdapters with each other`);
     await super.enrollRemoteRouters(
       objFilter(
         objMap(contractsMap, (_chain, contracts) => ({
           router: contracts.circleBridgeAdapter,
+          proxyAdmin: contracts.proxyAdmin,
         })),
-        (chain, _): _ is { router: CircleBridgeAdapter } => !!_.router,
+        (
+          chain,
+          _,
+        ): _ is { router: CircleBridgeAdapter; proxyAdmin: ProxyAdmin } =>
+          !!_.router,
       ),
     );
 
@@ -89,6 +105,7 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
         (chain, _): _ is { router: PortalAdapter } => !!_.router,
       ),
     );
+    */
   }
 
   // Custom contract deployment logic can go here
@@ -106,7 +123,7 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
         chain,
         config.circle,
         config.owner,
-        routerContracts.router,
+        routerContracts.liquidityLayerRouter.contract,
       );
     }
     if (config.portal) {
@@ -114,7 +131,7 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
         chain,
         config.portal,
         config.owner,
-        routerContracts.router,
+        routerContracts.liquidityLayerRouter.contract,
       );
     }
 
