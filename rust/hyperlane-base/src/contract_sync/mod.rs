@@ -9,6 +9,7 @@ pub use metrics::ContractSyncMetrics;
 use crate::chains::IndexSettings;
 
 mod cursor;
+mod eta_calculator;
 mod interchain_gas;
 /// Tools for working with message continuity.
 pub mod last_message;

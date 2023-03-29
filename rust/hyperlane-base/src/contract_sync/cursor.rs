@@ -5,7 +5,8 @@ use eyre::Result;
 use tokio::time::sleep;
 use tracing::warn;
 
-use hyperlane_core::{ChainResult, Indexer, SyncBlockRangeCursor, SyncerEtaCalculator};
+use crate::contract_sync::eta_calculator::SyncerEtaCalculator;
+use hyperlane_core::{ChainResult, Indexer, SyncBlockRangeCursor};
 
 /// Time window for the moving average used in the eta calculator.
 const ETA_TIME_WINDOW: f64 = 2. * 60.;
