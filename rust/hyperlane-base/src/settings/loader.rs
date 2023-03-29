@@ -128,6 +128,9 @@ where
                 Some("type") => err = err.context(MISSING_TYPE_CTX),
                 Some("urls") => err = err.context(MISSING_URLS_CTX),
                 Some("url") => err = err.context(MISSING_URL_CTX),
+                Some("originchainname") => err = err.context(MISSING_OCN_CTX),
+                Some("destinationchainnames") => err = err.context(MISSING_DTN_CTX),
+                Some("chainstoscrape") => err = err.context(MISSING_CTS_CTX),
                 Some("db") => err = err.context(MISSING_DB_CTX),
                 Some("v") => err = err.context(MISSING_DESTINATION_CHAIN_NAMES_CTX),
                 _ => {}
@@ -141,7 +144,7 @@ where
 /// Some constant strings that we want to compose. `concat!` requires literals
 /// so this provides them.
 macro_rules! str_lits {
-    (bp) => { "Debugging tips, please ensure: " };
+    (bp) => { "Debugging tips, a required configuration value appears to be missing, please ensure: " };
     (env) => { "an env such as `HYP_BASE_CHAINS_ALFAJORES_CONNECTION_TYPE` means the full `chains.alfajores` object must be valid" };
 }
 
@@ -230,6 +233,22 @@ const MISSING_URL_CTX: &str = concat!(
     str_lits!(bp),
     "(1) `chains.<chain_name>.connection.url` is specified for the chain ",
     "(2) `url` is used for connection types that only accept a single url like `http` and `urls` is used for connection type that accept multiple like `httpQuorum` and `httpFallback`"
+);
+
+const MISSING_OCN_CTX: &str = concat!(
+    str_lits!(bp),
+    "(1) `originchainname` is specified for the relayer or validator, this should be the chain name this agent is running against ",
+    "(2) You likely need to specify `HYP_VALIDATOR_ORIGINCHAINNAME`, ensure you have covered the configuration/environment variables page of the validator guide",
+);
+
+const MISSING_DTN_CTX: &str = concat!(
+    str_lits!(bp),
+    "(1) `destinationchainnames` is specified for the realer, this should be a comma separated list of chain names the relayer can deliver to"
+);
+
+const MISSING_CTS_CTX: &str = concat!(
+    str_lits!(bp),
+    "(1) `chainstoscrape` is specified for the scraper, this should be a comma separated list of chains names the scraper fetches data from"
 );
 
 const MISSING_DB_CTX: &str = concat!(str_lits!(bp), "(1) `db` config string is specified");

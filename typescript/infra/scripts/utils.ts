@@ -7,6 +7,7 @@ import {
   ChainMap,
   ChainMetadata,
   ChainName,
+  Chains,
   CoreConfig,
   HyperlaneCore,
   HyperlaneIgp,
@@ -35,10 +36,27 @@ export function getArgsWithContext() {
     .alias('c', 'context');
 }
 
+export enum Modules {
+  CORE = 'core',
+  INTERCHAIN_GAS_PAYMASTER = 'igp',
+  INTERCHAIN_ACCOUNTS = 'ica',
+  INTERCHAIN_QUERY_SYSTEM = 'iqs',
+  CREATE2_FACTORY = 'create2',
+  LIQUIDITY_LAYER = 'll',
+  TEST_QUERY_SENDER = 'testquerysender',
+  TEST_RECIPIENT = 'testrecipient',
+}
+export const SDK_MODULES = [
+  Modules.CORE,
+  Modules.INTERCHAIN_GAS_PAYMASTER,
+  Modules.INTERCHAIN_ACCOUNTS,
+  Modules.INTERCHAIN_QUERY_SYSTEM,
+];
+
 export function getArgsWithModule() {
   return getArgs()
     .string('module')
-    .choices('module', ['core', 'igp'])
+    .choices('module', Object.values(Modules))
     .demandOption('module')
     .alias('m', 'module');
 }
@@ -47,6 +65,7 @@ export function getArgsWithModuleAndFork() {
   return getArgsWithModule()
     .string('fork')
     .describe('fork', 'network to fork')
+    .choices('fork', Object.values(Chains))
     .alias('f', 'fork');
 }
 
@@ -167,16 +186,22 @@ export function getEnvironmentDirectory(environment: DeployEnvironment) {
 
 export function getModuleDirectory(
   environment: DeployEnvironment,
-  module: string,
+  module: Modules,
 ) {
-  return path.join(getEnvironmentDirectory(environment), module);
-}
-
-export function getVerificationDirectory(
-  environment: DeployEnvironment,
-  module: string,
-) {
-  return path.join(getModuleDirectory(environment, module), 'verification');
+  // for backwards compatibility with existing paths
+  const suffixFn = () => {
+    switch (module) {
+      case Modules.INTERCHAIN_ACCOUNTS:
+        return 'middleware/accounts';
+      case Modules.INTERCHAIN_QUERY_SYSTEM:
+        return 'middleware/queries';
+      case Modules.LIQUIDITY_LAYER:
+        return 'middleware/liquidity-layer';
+      default:
+        return module;
+    }
+  };
+  return path.join(getEnvironmentDirectory(environment), suffixFn());
 }
 
 export function getAgentConfigDirectory() {
@@ -230,7 +255,10 @@ export async function getRouterConfig(
   );
   const owners = getCoreEnvironmentConfig(environment).owners;
   const config: ChainMap<RouterConfig> = {};
-  for (const chain of multiProvider.getKnownChainNames()) {
+  const knownChains = multiProvider.intersect(
+    core.chains().concat(igp.chains()),
+  ).intersection;
+  for (const chain of knownChains) {
     config[chain] = {
       owner: useMultiProviderOwners
         ? await multiProvider.getSignerAddress(chain)

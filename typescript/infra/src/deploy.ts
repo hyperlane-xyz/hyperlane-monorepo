@@ -1,44 +1,63 @@
 import {
-  ChainMap,
-  HyperlaneContracts,
+  ChainName,
   HyperlaneDeployer,
-  HyperlaneFactories,
   buildContracts,
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
 
-import { readJSON, writeJSON } from './utils/utils';
+import {
+  readJSONAtPath,
+  writeJsonAtPath,
+  writeMergedJSONAtPath,
+} from './utils/utils';
 
-export async function deployWithArtifacts<T extends HyperlaneFactories>(
-  dir: string,
-  factories: T,
-  deployer: HyperlaneDeployer<any, any, T>,
+export async function deployWithArtifacts(
+  deployer: HyperlaneDeployer<any, any, any>,
+  cache?: {
+    addresses: string;
+    verification: string;
+  },
+  fork?: ChainName,
 ) {
-  let contracts: ChainMap<HyperlaneContracts> = {};
-  try {
-    const addresses = readJSON(dir, 'addresses.json');
-    contracts = buildContracts(addresses, factories) as any;
-  } catch (e) {
-    console.error(e);
+  if (cache) {
+    let addresses = {};
+    try {
+      addresses = readJSONAtPath(cache.addresses);
+    } catch (e) {
+      console.error('Failed to load cached addresses');
+    }
+
+    const savedContracts = buildContracts(addresses, deployer.factories);
+    deployer.cacheContracts(savedContracts);
   }
 
   try {
-    contracts = await deployer.deploy(contracts);
+    if (fork) {
+      await deployer.deployContracts(fork, deployer.configMap[fork]);
+    } else {
+      await deployer.deploy();
+    }
   } catch (e) {
-    console.error(e);
-    contracts = deployer.deployedContracts as any;
+    console.error('Failed to deploy contracts', e);
   }
 
-  try {
-    const existingVerificationInputs = readJSON(dir, 'verification.json');
-    writeJSON(
-      dir,
-      'verification.json',
-      deployer.mergeWithExistingVerificationInputs(existingVerificationInputs),
+  if (cache) {
+    // cache addresses of deployed contracts
+    writeMergedJSONAtPath(
+      cache.addresses,
+      serializeContracts(deployer.deployedContracts),
     );
-  } catch {
-    writeJSON(dir, 'verification.json', deployer.verificationInputs);
-  }
 
-  writeJSON(dir, 'addresses.json', serializeContracts(contracts));
+    let savedVerification = {};
+    try {
+      savedVerification = readJSONAtPath(cache.verification);
+    } catch (e) {
+      console.error('Failed to load cached verification inputs');
+    }
+
+    // cache verification inputs
+    const inputs =
+      deployer.mergeWithExistingVerificationInputs(savedVerification);
+    writeJsonAtPath(cache.verification, inputs);
+  }
 }

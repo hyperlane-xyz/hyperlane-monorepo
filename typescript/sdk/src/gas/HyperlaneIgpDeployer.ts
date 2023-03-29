@@ -51,8 +51,8 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       chain,
       'interchainGasPaymaster',
       [beneficiary],
-      proxyAdmin,
       [owner, beneficiary],
+      proxyAdmin.address,
       deployOpts,
     );
 
