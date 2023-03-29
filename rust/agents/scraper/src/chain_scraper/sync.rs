@@ -7,10 +7,10 @@ use itertools::Itertools;
 use prometheus::{IntCounter, IntGauge, IntGaugeVec};
 use tracing::{debug, info, instrument, trace, warn};
 
-use hyperlane_base::last_message::validate_message_continuity;
-use hyperlane_base::RateLimitedSyncBlockRangeCursor;
+use hyperlane_base::{RateLimitedSyncBlockRangeCursor, last_message::validate_message_continuity};
 use hyperlane_core::{
     KnownHyperlaneDomain, ListValidity, MailboxIndexer, SyncBlockRangeCursor, H256,
+    utils::fmt_duration,
 };
 
 use crate::chain_scraper::{
@@ -114,7 +114,14 @@ impl Syncer {
 
         loop {
             let start_block = self.sync_cursor.current_position();
-            let Ok((from, to)) = self.sync_cursor.next_range().await else { continue };
+            let Ok((from, to, eta)) = self.sync_cursor.next_range().await else { continue };
+            info!(
+                from,
+                to,
+                distance_from_tip = self.sync_cursor.distance_from_tip(),
+                estimated_time_to_sync = fmt_duration(eta),
+                "Syncing range"
+            );
 
             let extracted = self.scrape_range(from, to).await?;
 
@@ -177,9 +184,9 @@ impl Syncer {
             .mailbox_indexer
             .fetch_sorted_messages(from, to)
             .await?;
-        trace!(from, to, ?sorted_messages, "Fetched messages");
+        trace!(?sorted_messages, "Fetched messages");
 
-        debug!(from, to, "Fetching deliveries for range");
+        debug!("Fetching deliveries for range");
         let deliveries = self
             .contracts
             .mailbox_indexer
@@ -188,9 +195,9 @@ impl Syncer {
             .into_iter()
             .map(|(message_id, meta)| Delivery { message_id, meta })
             .collect_vec();
-        trace!(from, to, ?deliveries, "Fetched deliveries");
+        trace!(?deliveries, "Fetched deliveries");
 
-        debug!(from, to, "Fetching payments for range");
+        debug!("Fetching payments for range");
         let payments = self
             .contracts
             .igp_indexer
@@ -199,14 +206,12 @@ impl Syncer {
             .into_iter()
             .map(|(payment, meta)| Payment { payment, meta })
             .collect_vec();
-        trace!(from, to, ?payments, "Fetched payments");
+        trace!(?payments, "Fetched payments");
 
         info!(
-            from,
-            to,
             message_count = sorted_messages.len(),
-            deliveries_count = deliveries.len(),
-            payments = payments.len(),
+            delivery_count = deliveries.len(),
+            payment_count = payments.len(),
             "Indexed block range for chain"
         );
 
@@ -220,8 +225,6 @@ impl Syncer {
             .collect::<Vec<_>>();
 
         debug!(
-            from,
-            to,
             message_count = sorted_messages.len(),
             "Filtered any messages already indexed for mailbox"
         );

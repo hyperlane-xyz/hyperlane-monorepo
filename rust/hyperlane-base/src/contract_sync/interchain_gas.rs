@@ -1,6 +1,6 @@
 use tracing::{debug, info, instrument};
 
-use hyperlane_core::{InterchainGasPaymasterIndexer, SyncBlockRangeCursor};
+use hyperlane_core::{InterchainGasPaymasterIndexer, SyncBlockRangeCursor, utils::fmt_duration};
 
 use crate::{
     contract_sync::{
@@ -54,9 +54,9 @@ where
             debug!(
                 from,
                 to,
-                tip = cursor.tip(),
+                distance_from_tip = cursor.distance_from_tip(),
                 gas_payments_count = gas_payments.len(),
-                estimated_min_to_sync = eta.as_secs_f64() * 60.,
+                estimated_time_to_sync = fmt_duration(eta),
                 "Indexed block range"
             );
 

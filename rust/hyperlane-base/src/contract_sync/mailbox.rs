@@ -1,9 +1,14 @@
 use tracing::{debug, info, instrument, warn};
 
-use hyperlane_core::{Indexer, KnownHyperlaneDomain, ListValidity, MailboxIndexer, SyncBlockRangeCursor};
+use hyperlane_core::{
+    utils::fmt_duration, Indexer, KnownHyperlaneDomain, ListValidity, MailboxIndexer,
+    SyncBlockRangeCursor,
+};
 
-use crate::contract_sync::last_message::validate_message_continuity;
-use crate::{contract_sync::schema::MailboxContractSyncDB, ContractSync};
+use crate::{
+    contract_sync::{last_message::validate_message_continuity, schema::MailboxContractSyncDB},
+    ContractSync,
+};
 
 const MESSAGES_LABEL: &str = "messages";
 
@@ -114,8 +119,8 @@ where
             info!(
                 from,
                 to,
-                tip = cursor.tip(),
-                estimated_min_to_sync = eta.as_secs_f64() * 60.,
+                distance_from_tip = cursor.distance_from_tip(),
+                estimated_time_to_sync = fmt_duration(eta),
                 message_count = sorted_messages.len(),
                 "Indexed block range"
             );
@@ -325,7 +330,11 @@ mod test {
                             .expect__next_range()
                             .times(1)
                             .in_sequence(&mut seq)
-                            .return_once(|| Box::pin(async { Ok(($expected_from, $expected_to)) }));
+                            .return_once(|| {
+                                Box::pin(async {
+                                    Ok(($expected_from, $expected_to, Duration::from_secs(0)))
+                                })
+                            });
                         mock_indexer
                             .expect__fetch_sorted_messages()
                             .times(1)
@@ -386,7 +395,7 @@ mod test {
                         // this sleep should be longer than the test timeout since we don't actually
                         // want to yield any more values at this point.
                         sleep(Duration::from_secs(100)).await;
-                        Ok((161, 161))
+                        Ok((161, 161, Duration::from_secs(0)))
                     })
                 });
             }

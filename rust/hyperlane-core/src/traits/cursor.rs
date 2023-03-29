@@ -3,6 +3,7 @@ use std::time::{Duration, Instant};
 use async_trait::async_trait;
 use auto_impl::auto_impl;
 use derive_new::new;
+use num_traits::Zero;
 
 use crate::ChainResult;
 
@@ -17,8 +18,13 @@ pub struct SyncerEtaCalculator {
 
     #[new(default)]
     last_eta: Duration,
+    /// Block processing rate less the tip progression rate. It works
+    /// mathematically to have both rates merged as we are using a moving
+    /// average so partial updates will not overwrite
     #[new(default)]
-    effective_rate: f64,
+    effective_rate: Option<f64>,
+    /// How long we want the data to "survive" for in the moving average.
+    time_window: f64,
 }
 
 impl SyncerEtaCalculator {
@@ -28,25 +34,35 @@ impl SyncerEtaCalculator {
         let elapsed = now.duration_since(self.last_time).as_secs_f64();
         self.last_time = now;
 
-        // moving average coefficient. Every 5 min it should "discard" the previous
-        // average.
-        let new_coeff = (elapsed / (5 * 60) as f64).max(1.);
-        let old_coeff = 1. - new_coeff;
-
         let blocks_processed = (current_block - self.last_block) as f64;
         let tip_progression = (current_tip - self.last_tip) as f64;
 
         self.last_block = current_block;
         self.last_tip = current_tip;
+        let new_rate = (blocks_processed - tip_progression) / elapsed;
 
-        self.effective_rate = (blocks_processed - tip_progression) / elapsed * new_coeff
-            + self.effective_rate * old_coeff;
+        // Calculate the effective rate using a moving average. Only set the past
+        // effective rate once we have seen a move to prevent it taking a long
+        // time to normalize.
+        let effective_rate = if let Some(old_rate) = self.effective_rate {
+            let new_coeff = (elapsed / self.time_window).min(0.9);
+            let old_coeff = 1. - new_coeff;
 
-        self.last_eta = if self.effective_rate <= 0. {
-            // max out at 1yr if we are behind
-            Duration::from_secs(60 * 60 * 24 * 365)
+            let er = new_rate * new_coeff + old_rate * old_coeff;
+            self.effective_rate = Some(er);
+            er
         } else {
-            Duration::from_secs_f64(self.effective_rate * (current_tip - current_block) as f64)
+            if !new_rate.is_zero() {
+                self.effective_rate = Some(new_rate);
+            }
+            new_rate
+        };
+
+        self.last_eta = if effective_rate <= 0. {
+            // max out at 1yr if we are behind
+            Duration::from_secs_f64(60. * 60. * 24. * 365.25)
+        } else {
+            Duration::from_secs_f64((current_tip - current_block) as f64 / effective_rate)
         };
 
         self.last_eta
@@ -76,7 +92,7 @@ pub trait SyncBlockRangeCursor {
 
     /// Returns the current distance from the tip of the blockchain.
     fn distance_from_tip(&self) -> u32 {
-        self.tip() - self.current_position()
+        self.tip().saturating_sub(self.current_position())
     }
 
     /// Get the next block range `(from, to)` which should be fetched (this
