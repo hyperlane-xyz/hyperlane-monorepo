@@ -1,6 +1,6 @@
 use tracing::{debug, info, instrument};
 
-use hyperlane_core::{InterchainGasPaymasterIndexer, SyncBlockRangeCursor, utils::fmt_duration};
+use hyperlane_core::{utils::fmt_duration, InterchainGasPaymasterIndexer, SyncBlockRangeCursor};
 
 use crate::{
     contract_sync::{

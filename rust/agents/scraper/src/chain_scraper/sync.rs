@@ -7,10 +7,10 @@ use itertools::Itertools;
 use prometheus::{IntCounter, IntGauge, IntGaugeVec};
 use tracing::{debug, info, instrument, trace, warn};
 
-use hyperlane_base::{RateLimitedSyncBlockRangeCursor, last_message::validate_message_continuity};
+use hyperlane_base::{last_message::validate_message_continuity, RateLimitedSyncBlockRangeCursor};
 use hyperlane_core::{
-    KnownHyperlaneDomain, ListValidity, MailboxIndexer, SyncBlockRangeCursor, H256,
-    utils::fmt_duration,
+    utils::fmt_duration, KnownHyperlaneDomain, ListValidity, MailboxIndexer, SyncBlockRangeCursor,
+    H256,
 };
 
 use crate::chain_scraper::{

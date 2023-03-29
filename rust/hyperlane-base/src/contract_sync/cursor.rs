@@ -95,10 +95,11 @@ impl<I: Indexer> SyncBlockRangeCursor for RateLimitedSyncBlockRangeCursor<I> {
         let to = u32::min(self.tip, self.from + self.chunk_size);
         let from = to.saturating_sub(self.chunk_size);
         self.from = to + 1;
-        let mut eta = self.eta_calculator.calculate(from, self.tip);
-        if to == self.tip {
-            eta = Duration::from_secs(0);
-        }
+        let eta = if to < self.tip {
+            self.eta_calculator.calculate(from, self.tip)
+        } else {
+            Duration::from_secs(0)
+        };
         Ok((from, to, eta))
     }
 
