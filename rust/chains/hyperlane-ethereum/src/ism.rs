@@ -10,8 +10,7 @@ use tracing::instrument;
 
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneProvider, Ism,
-    H256,
+    HyperlaneProvider, Ism, H256,
 };
 
 use crate::contracts::i_interchain_security_module::{
@@ -99,14 +98,8 @@ where
     M: Middleware + 'static,
 {
     #[instrument(err, ret)]
-    async fn module_type(
-        &self
-    ) -> ChainResult<u8> {
-        let module_type = self
-            .contract
-            .module_type()
-            .call()
-            .await?;
+    async fn module_type(&self) -> ChainResult<u8> {
+        let module_type = self.contract.module_type().call().await?;
         Ok(module_type)
     }
 }

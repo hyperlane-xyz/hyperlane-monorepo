@@ -1,10 +1,10 @@
+use async_trait::async_trait;
+use num_derive::FromPrimitive;
+use num_traits::FromPrimitive;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::str::FromStr;
 use std::sync::Arc;
-use async_trait::async_trait;
-use num_derive::FromPrimitive;
-use num_traits::FromPrimitive;
 
 use derive_new::new;
 use eyre::Context;
@@ -12,19 +12,16 @@ use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
 use hyperlane_base::{
-    ChainSetup, CheckpointSyncer, CheckpointSyncerConf, CoreMetrics,
-    MultisigCheckpointSyncer,
+    ChainSetup, CheckpointSyncer, CheckpointSyncerConf, CoreMetrics, MultisigCheckpointSyncer,
 };
-use hyperlane_core::{
-    HyperlaneMessage, MultisigIsm, ValidatorAnnounce, H160, H256,
-};
+use hyperlane_core::{HyperlaneMessage, MultisigIsm, ValidatorAnnounce, H160, H256};
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
 
 #[derive(Debug, thiserror::Error)]
 pub enum MetadataBuilderError {
     #[error("Unknown or invalid module type ({0})")]
-    UnsupportedModuleType(u8)
+    UnsupportedModuleType(u8),
 }
 
 #[derive(FromPrimitive)]
@@ -38,9 +35,10 @@ pub enum SupportedIsmTypes {
 #[async_trait]
 pub trait MetadataBuilder {
     #[allow(clippy::async_yields_async)]
-    async fn build(&self, 
+    async fn build(
+        &self,
         ism_address: H256,
-        message: &HyperlaneMessage
+        message: &HyperlaneMessage,
     ) -> eyre::Result<Option<Vec<u8>>>;
 }
 
@@ -68,17 +66,27 @@ impl MetadataBuilder for BaseMetadataBuilder {
     async fn build(
         &self,
         ism_address: H256,
-        message: &HyperlaneMessage
+        message: &HyperlaneMessage,
     ) -> eyre::Result<Option<Vec<u8>>> {
         const CTX: &str = "When fetching metadata";
-        let ism = self.chain_setup.build_ism(ism_address, &self.metrics).await.context(CTX)?;
+        let ism = self
+            .chain_setup
+            .build_ism(ism_address, &self.metrics)
+            .await
+            .context(CTX)?;
         let module_type = ism.module_type().await.context(CTX)?;
-        let supported_type = SupportedIsmTypes::from_u8(module_type).ok_or(MetadataBuilderError::UnsupportedModuleType(module_type))?;
-        
+        let supported_type = SupportedIsmTypes::from_u8(module_type)
+            .ok_or(MetadataBuilderError::UnsupportedModuleType(module_type))?;
+
         let metadata_builder = match supported_type {
-            SupportedIsmTypes::LegacyMultisig => LegacyMultisigIsmMetadataBuilder::new(self.clone()),
+            SupportedIsmTypes::LegacyMultisig => {
+                LegacyMultisigIsmMetadataBuilder::new(self.clone())
+            }
         };
-        metadata_builder.build(ism_address, message).await.context(CTX)
+        metadata_builder
+            .build(ism_address, message)
+            .await
+            .context(CTX)
     }
 }
 
@@ -87,17 +95,17 @@ pub struct LegacyMultisigIsmMetadataBuilder {
     base: BaseMetadataBuilder,
 }
 
-
 #[async_trait]
 impl MetadataBuilder for LegacyMultisigIsmMetadataBuilder {
     async fn build(
         &self,
         ism_address: H256,
-        message: &HyperlaneMessage
+        message: &HyperlaneMessage,
     ) -> eyre::Result<Option<Vec<u8>>> {
         const CTX: &str = "When fetching metadata";
         let multisig_ism = self
-            .base.chain_setup
+            .base
+            .chain_setup
             .build_multisig_ism(ism_address, &self.base.metrics)
             .await
             .context(CTX)?;
@@ -133,7 +141,8 @@ impl MetadataBuilder for LegacyMultisigIsmMetadataBuilder {
         debug!(?checkpoint, "Found checkpoint with quorum");
 
         let proof = self
-            .base.prover_sync
+            .base
+            .prover_sync
             .read()
             .await
             .get_proof(message.nonce, checkpoint.checkpoint.index)
@@ -167,7 +176,8 @@ impl LegacyMultisigIsmMetadataBuilder {
         validators: &[H256],
     ) -> eyre::Result<MultisigCheckpointSyncer> {
         let storage_locations = self
-            .base.validator_announce
+            .base
+            .validator_announce
             .get_announced_storage_locations(validators)
             .await?;
 

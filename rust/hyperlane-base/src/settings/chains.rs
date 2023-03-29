@@ -8,9 +8,8 @@ use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
 };
 use hyperlane_core::{
-    Ism,
     utils::StrOrInt, ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol,
-    HyperlaneProvider, HyperlaneSigner, InterchainGasPaymaster, InterchainGasPaymasterIndexer,
+    HyperlaneProvider, HyperlaneSigner, InterchainGasPaymaster, InterchainGasPaymasterIndexer, Ism,
     Mailbox, MailboxIndexer, MultisigIsm, ValidatorAnnounce, H256,
 };
 use hyperlane_ethereum::{
@@ -281,11 +280,7 @@ impl ChainSetup {
     }
 
     /// Try to convert the chain setting into a Multisig Ism contract
-    pub async fn build_ism(
-        &self,
-        address: H256,
-        metrics: &CoreMetrics,
-    ) -> Result<Box<dyn Ism>> {
+    pub async fn build_ism(&self, address: H256, metrics: &CoreMetrics) -> Result<Box<dyn Ism>> {
         let ctx = "Building ISM";
         let locator = ContractLocator {
             domain: self

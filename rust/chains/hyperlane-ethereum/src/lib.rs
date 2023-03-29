@@ -13,7 +13,7 @@ pub use retrying::{RetryingProvider, RetryingProviderError};
 
 #[cfg(not(doctest))]
 pub use crate::{
-    fallback::*, interchain_gas::*,ism::*, mailbox::*, multisig_ism::*, provider::*, signers::*,
+    fallback::*, interchain_gas::*, ism::*, mailbox::*, multisig_ism::*, provider::*, signers::*,
     trait_builder::*, validator_announce::*,
 };
 

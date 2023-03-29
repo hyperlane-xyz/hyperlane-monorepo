@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use derive_new::new;
-use eyre::{bail, Result, Context};
+use eyre::{bail, Context, Result};
 use prometheus::{IntCounter, IntGauge};
 use tokio::sync::mpsc::{self, error::TryRecvError};
 use tokio::task::JoinHandle;
@@ -15,7 +15,10 @@ use crate::msg::PendingMessage;
 use hyperlane_base::{CachingMailbox, CoreMetrics};
 use hyperlane_core::{db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, Mailbox, U256};
 
-use super::{gas_payment::GasPaymentEnforcer, metadata_builder::BaseMetadataBuilder, metadata_builder::MetadataBuilder};
+use super::{
+    gas_payment::GasPaymentEnforcer, metadata_builder::BaseMetadataBuilder,
+    metadata_builder::MetadataBuilder,
+};
 
 /// SerialSubmitter accepts undelivered messages over a channel from a
 /// MessageProcessor. It is responsible for executing the right strategy to
@@ -219,7 +222,8 @@ impl SerialSubmitter {
             return Ok(false);
         }
 
-        let ism_address = self.mailbox
+        let ism_address = self
+            .mailbox
             .recipient_ism(msg.message.recipient)
             .await
             .context(CTX)?;
