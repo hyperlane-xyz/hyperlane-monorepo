@@ -37,9 +37,6 @@ pub enum SupportedIsmTypes {
 
 #[async_trait]
 pub trait MetadataBuilder {
-    /// The type of the ISM metadata is being built from
-    // const TYPE: &'static IsmTypes;
-
     #[allow(clippy::async_yields_async)]
     async fn build(&self, 
         ism_address: H256,
@@ -55,7 +52,6 @@ pub struct BaseMetadataBuilder {
     allow_local_checkpoint_syncers: bool,
     metrics: Arc<CoreMetrics>,
 }
-
 
 impl Debug for BaseMetadataBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
