@@ -47,17 +47,11 @@ where
             // If doing the full chunk wouldn't exceed the already known tip,
             // we don't necessarily need to fetch the new tip. Sleep a tiny bit
             // so that we can catch up to the tip relatively quickly.
-            sleep(Duration::from_secs(1)).await;
+            sleep(Duration::from_millis(100)).await;
         } else if !update_tip {
             // We are close to the tip.
             // Sleep a little longer because we have caught up.
             sleep(Duration::from_secs(10)).await;
-        } else {
-            // We are probably not caught up yet. This would happen if we
-            // started really far behind so now it is very likely the tip
-            // has moved a significant distance. We don't want to wait in
-            // this case any more than we normally would.
-            sleep(Duration::from_secs(1)).await;
         }
 
         if !update_tip {
