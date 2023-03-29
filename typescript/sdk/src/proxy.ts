@@ -68,9 +68,9 @@ export function isProxiedContract(
   // from the artifacts
   return (
     contract !== null &&
+    typeof contract === 'object' &&
     'addresses' in contract &&
     'contract' in contract &&
-    typeof contract === 'object' &&
     isProxyAddresses((contract as any).addresses)
   );
 }
