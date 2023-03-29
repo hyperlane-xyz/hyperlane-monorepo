@@ -47,6 +47,11 @@ contract DomainRoutingIsm is AbstractRoutingIsm, Ownable {
         override
         returns (IInterchainSecurityModule)
     {
-        return modules[Message.origin(_message)];
+        IInterchainSecurityModule module = modules[Message.origin(_message)];
+        require(
+            address(module) != address(0),
+            "No ISM found for origin domain"
+        );
+        return module;
     }
 }

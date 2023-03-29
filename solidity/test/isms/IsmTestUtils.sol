@@ -1,5 +1,58 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
+import {Message} from "../../contracts/libs/Message.sol";
+import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
+
+library MessageUtils {
+    function build(uint32 origin) internal pure returns (bytes memory) {
+        bytes memory body = "";
+        return formatMessage(0, 0, origin, bytes32(0), 0, bytes32(0), body);
+    }
+
+    function formatMessage(
+        uint8 _version,
+        uint32 _nonce,
+        uint32 _originDomain,
+        bytes32 _sender,
+        uint32 _destinationDomain,
+        bytes32 _recipient,
+        bytes memory _messageBody
+    ) private pure returns (bytes memory) {
+        return
+            abi.encodePacked(
+                _version,
+                _nonce,
+                _originDomain,
+                _sender,
+                _destinationDomain,
+                _recipient,
+                _messageBody
+            );
+    }
+}
+
+contract TestIsm is IInterchainSecurityModule {
+    bytes public requiredMetadata;
+
+    uint8 public constant moduleType =
+        uint8(IInterchainSecurityModule.Types.UNUSED);
+
+    constructor(bytes memory _requiredMetadata) {
+        setRequiredMetadata(_requiredMetadata);
+    }
+
+    function setRequiredMetadata(bytes memory _requiredMetadata) public {
+        requiredMetadata = _requiredMetadata;
+    }
+
+    function verify(bytes calldata _metadata, bytes calldata)
+        external
+        view
+        returns (bool)
+    {
+        return keccak256(_metadata) == keccak256(requiredMetadata);
+    }
+}
 
 library MOfNTestUtils {
     function choose(

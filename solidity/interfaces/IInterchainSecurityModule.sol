@@ -3,7 +3,7 @@ pragma solidity >=0.6.11;
 
 interface IInterchainSecurityModule {
     enum Types {
-        UNUSED_0,
+        UNUSED,
         ROUTING,
         AGGREGATION,
         LEGACY_MULTISIG,

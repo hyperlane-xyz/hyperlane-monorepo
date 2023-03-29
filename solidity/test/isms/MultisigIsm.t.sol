@@ -9,7 +9,7 @@ import {StaticMultisigIsmFactory} from "../../contracts/isms/multisig/StaticMult
 import {CheckpointLib} from "../../contracts/libs/CheckpointLib.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {Message} from "../../contracts/libs/Message.sol";
-import {MOfNTestUtils} from "./MOfNTestUtils.sol";
+import {MOfNTestUtils} from "./IsmTestUtils.sol";
 
 contract MultisigIsmTest is Test {
     uint32 constant ORIGIN = 11;

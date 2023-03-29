@@ -6,27 +6,7 @@ import "forge-std/Test.sol";
 import {IAggregationIsm} from "../../interfaces/IAggregationIsm.sol";
 import {StaticAggregationIsmFactory} from "../../contracts/isms/aggregation/StaticAggregationIsmFactory.sol";
 import {AggregationIsmMetadata} from "../../contracts/libs/isms/AggregationIsmMetadata.sol";
-import {MOfNTestUtils} from "./MOfNTestUtils.sol";
-
-contract TestIsm {
-    bytes public requiredMetadata;
-
-    constructor(bytes memory _requiredMetadata) {
-        setRequiredMetadata(_requiredMetadata);
-    }
-
-    function setRequiredMetadata(bytes memory _requiredMetadata) public {
-        requiredMetadata = _requiredMetadata;
-    }
-
-    function verify(bytes calldata _metadata, bytes calldata)
-        external
-        view
-        returns (bool)
-    {
-        return keccak256(_metadata) == keccak256(requiredMetadata);
-    }
-}
+import {TestIsm, MOfNTestUtils} from "./IsmTestUtils.sol";
 
 contract AggregationIsmTest is Test {
     StaticAggregationIsmFactory factory;
