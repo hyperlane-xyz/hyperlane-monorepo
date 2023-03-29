@@ -8,7 +8,7 @@ import { HyperlaneApp } from '../HyperlaneApp';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ProxiedContract, isProxiedContract } from '../proxy';
 import { ChainMap, ChainName } from '../types';
-import { objMap } from '../utils/objects';
+import { objMap, promiseObjAll } from '../utils/objects';
 
 import { proxyAdmin } from './proxy';
 import {
@@ -77,22 +77,22 @@ export abstract class HyperlaneAppChecker<
       return isProxiedContract(contract);
     };
     const proxied = this.app.getFlattenedFilteredContracts(chain, isProxied);
-    const name = 'unknown';
-    proxied.forEach(async (proxiedContract) => {
-      // Check the ProxiedContract's admin matches expectation
-      const actualAdmin = await proxyAdmin(provider, proxiedContract.address);
-      if (!utils.eqAddress(actualAdmin, expectedAdmin)) {
-        this.addViolation({
-          type: ViolationType.ProxyAdmin,
-          chain,
-          name,
-          expected: expectedAdmin,
-          actual: actualAdmin,
-        } as ProxyAdminViolation);
-      }
+    await promiseObjAll(
+      objMap(proxied, async (name, contract) => {
+        // Check the ProxiedContract's admin matches expectation
+        const actualAdmin = await proxyAdmin(provider, contract.address);
+        if (!utils.eqAddress(actualAdmin, expectedAdmin)) {
+          this.addViolation({
+            type: ViolationType.ProxyAdmin,
+            chain,
+            name,
+            expected: expectedAdmin,
+            actual: actualAdmin,
+          } as ProxyAdminViolation);
+        }
 
-      // Check the ProxiedContract's implementation matches expectation
-      /*
+        // Check the ProxiedContract's implementation matches expectation
+        /*
       const actualImplementation = await proxyImplementation(
         provider,
         proxiedContract.address,
@@ -109,7 +109,8 @@ export abstract class HyperlaneAppChecker<
         );
       }
       */
-    });
+      }),
+    );
   }
 
   private removeBytecodeMetadata(bytecode: string): string {
@@ -153,12 +154,13 @@ export abstract class HyperlaneAppChecker<
       );
     };
     const ownables = this.app.getFlattenedFilteredContracts(chain, isOwnable);
-    await Promise.all(
-      ownables.map(async (contract) => {
+    await promiseObjAll(
+      objMap(ownables, async (name, contract) => {
         const actual = await contract.owner();
         if (!utils.eqAddress(actual, owner)) {
           const violation: OwnerViolation = {
             chain,
+            name,
             type: ViolationType.Owner,
             actual,
             expected: owner,
