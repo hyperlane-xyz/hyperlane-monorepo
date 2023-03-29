@@ -53,13 +53,15 @@ describe('InterchainAccounts', async () => {
     const deployer = new InterchainAccountDeployer(multiProvider, config);
     contracts = await deployer.deploy();
 
-    local = contracts[localChain].router;
-    remote = contracts[remoteChain].router;
+    local = contracts[localChain].interchainAccountRouter.contract;
+    remote = contracts[remoteChain].interchainAccountRouter.contract;
   });
 
   it('deploys and sets configured ISMs', async () => {
     const deployedIsms = await promiseObjAll(
-      objMap(contracts, (_, c) => c.router.interchainSecurityModule()),
+      objMap(contracts, (_, c) =>
+        c.interchainAccountRouter.contract.interchainSecurityModule(),
+      ),
     );
     expect(deployedIsms).to.eql(
       objMap(

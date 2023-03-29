@@ -1,20 +1,21 @@
-import { ethers } from 'ethers';
+import { ContractFactory, ethers } from 'ethers';
 
 import { ProxyAdmin } from '@hyperlane-xyz/core';
 
 import { MultiProvider } from '../providers/MultiProvider';
 import { HyperlaneRouterDeployer } from '../router/HyperlaneRouterDeployer';
 import {
-  ProxiedRouterContracts,
+  ProxiedContracts,
+  ProxiedFactories,
   RouterConfig,
-  RouterFactories,
 } from '../router/types';
 import { ChainMap, ChainName } from '../types';
 
 export abstract class MiddlewareRouterDeployer<
   MiddlewareRouterConfig extends RouterConfig,
-  MiddlewareRouterContracts extends ProxiedRouterContracts,
-  MiddlewareFactories extends RouterFactories,
+  MiddlewareRouterContracts extends ProxiedContracts,
+  MiddlewareFactories extends ProxiedFactories,
+  RouterFactory extends ContractFactory,
 > extends HyperlaneRouterDeployer<
   MiddlewareRouterConfig,
   MiddlewareRouterContracts,
@@ -32,9 +33,11 @@ export abstract class MiddlewareRouterDeployer<
   constructorArgs(
     _chain: ChainName,
     _config: MiddlewareRouterConfig,
-  ): Parameters<MiddlewareFactories['router']['deploy']> {
+  ): Parameters<RouterFactory['deploy']> {
     return [] as any;
   }
+
+  abstract routerContractName(): string;
 
   async initializeArgs(
     chain: ChainName,
@@ -64,7 +67,7 @@ export abstract class MiddlewareRouterDeployer<
     const initArgs = await this.initializeArgs(chain, config);
     const proxiedRouter = await this.deployProxiedContract(
       chain,
-      'router',
+      this.routerContractName(),
       this.constructorArgs(chain, config),
       initArgs as any, // generic type inference fails here
       proxyAdmin.address,

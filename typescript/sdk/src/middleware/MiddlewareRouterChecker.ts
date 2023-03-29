@@ -1,12 +1,13 @@
+import { HyperlaneContracts } from '../contracts';
 import { HyperlaneRouterChecker } from '../router/HyperlaneRouterChecker';
 import { RouterApp } from '../router/RouterApps';
-import { RouterConfig, RouterContracts } from '../router/types';
+import { RouterConfig } from '../router/types';
 import { ChainName } from '../types';
 
 export abstract class MiddlewareRouterChecker<
   MiddlewareRouterApp extends RouterApp<MiddlewareRouterContracts>,
   MiddlewareRouterConfig extends RouterConfig,
-  MiddlewareRouterContracts extends RouterContracts,
+  MiddlewareRouterContracts extends HyperlaneContracts,
 > extends HyperlaneRouterChecker<
   MiddlewareRouterApp,
   MiddlewareRouterConfig,

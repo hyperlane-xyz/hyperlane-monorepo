@@ -1,22 +1,23 @@
 import {
   InterchainQueryRouter,
   InterchainQueryRouter__factory,
+  ProxyAdmin,
   ProxyAdmin__factory,
 } from '@hyperlane-xyz/core';
 
-import {
-  ProxiedRouterContracts,
-  ProxiedRouterFactories,
-} from '../../router/types';
+import { ProxiedContract } from '../../proxy';
 
-export type InterchainQueryFactories =
-  ProxiedRouterFactories<InterchainQueryRouter>;
-
-export const interchainQueryFactories: InterchainQueryFactories = {
-  router: new InterchainQueryRouter__factory(),
-  proxyAdmin: new ProxyAdmin__factory(),
-  interchainQueryRouter: new InterchainQueryRouter__factory(),
+export type InterchainQueryFactories = {
+  interchainQueryRouter: InterchainQueryRouter__factory;
+  proxyAdmin: ProxyAdmin__factory;
 };
 
-export type InterchainQueryContracts =
-  ProxiedRouterContracts<InterchainQueryRouter>;
+export const interchainQueryFactories = {
+  interchainQueryRouter: new InterchainQueryRouter__factory(),
+  proxyAdmin: new ProxyAdmin__factory(),
+};
+
+export type InterchainQueryContracts = {
+  interchainQueryRouter: ProxiedContract<InterchainQueryRouter>;
+  proxyAdmin: ProxyAdmin;
+};

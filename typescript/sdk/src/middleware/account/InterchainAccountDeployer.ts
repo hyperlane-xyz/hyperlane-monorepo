@@ -1,5 +1,6 @@
 import {
   InterchainAccountRouter,
+  InterchainAccountRouter__factory,
   ProxyAdmin,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
@@ -21,7 +22,8 @@ export type InterchainAccountConfig = RouterConfig;
 export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
   InterchainAccountConfig,
   InterchainAccountContracts,
-  InterchainAccountFactories
+  InterchainAccountFactories,
+  InterchainAccountRouter__factory
 > {
   constructor(
     multiProvider: MultiProvider,
@@ -29,6 +31,14 @@ export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
     create2salt = 'accountsrouter',
   ) {
     super(multiProvider, configMap, interchainAccountFactories, create2salt);
+  }
+
+  routerContractName(): string {
+    return 'interchainAccountRouter';
+  }
+
+  router(contracts: InterchainAccountContracts) {
+    return contracts.interchainAccountRouter.contract;
   }
 
   // The OwnableMulticall implementation has an immutable owner address that
@@ -53,9 +63,7 @@ export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
       this.logger('Recovered full InterchainAccountRouter');
       return {
         proxyAdmin,
-        proxiedRouter: cached,
-        interchainAccountRouter: cached, // for serialization
-        router: cached.contract, // for backwards compatibility
+        interchainAccountRouter: cached,
       };
     }
 
@@ -72,18 +80,20 @@ export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
 
     // 2. deploy the real InterchainAccountRouter and OwnableMulticall implementation with proxy address
     const domainId = this.multiProvider.getDomainId(chain);
-    const implementation = await this.deployContract(chain, 'router', [
-      domainId,
-      proxy.address,
-    ]);
+    const implementation = await this.deployContract(
+      chain,
+      'interchainAccountRouter',
+      [domainId, proxy.address],
+    );
 
     // 3. upgrade the proxy to the real implementation and initialize
     // adapted from HyperlaneDeployer.deployProxy.useCreate2
     const initArgs = await this.initializeArgs(chain, config);
-    const initData = this.factories.router.interface.encodeFunctionData(
-      'initialize',
-      initArgs,
-    );
+    const initData =
+      this.factories.interchainAccountRouter.interface.encodeFunctionData(
+        'initialize',
+        initArgs,
+      );
     await super.upgradeAndInitialize(
       chain,
       proxy,
@@ -103,8 +113,6 @@ export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
 
     return {
       proxyAdmin,
-      proxiedRouter,
-      router: proxiedRouter.contract, // for backwards compatibility
       interchainAccountRouter: proxiedRouter, // for serialization
     };
   }

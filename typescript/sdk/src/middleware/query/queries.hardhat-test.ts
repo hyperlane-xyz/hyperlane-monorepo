@@ -54,8 +54,8 @@ describe('InterchainQueryRouter', async () => {
 
     const contracts = await InterchainQuery.deploy();
 
-    local = contracts[localChain].router;
-    remote = contracts[remoteChain].router;
+    local = contracts[localChain].interchainQueryRouter.contract;
+    remote = contracts[remoteChain].interchainQueryRouter.contract;
 
     testQuery = await new TestQuery__factory(signer).deploy(local.address);
   });

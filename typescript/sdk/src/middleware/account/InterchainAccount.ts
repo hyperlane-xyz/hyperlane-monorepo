@@ -1,3 +1,5 @@
+import { InterchainAccountRouter } from '@hyperlane-xyz/core';
+
 import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
@@ -21,6 +23,10 @@ export class InterchainAccount extends RouterApp<InterchainAccountContracts> {
     multiProvider: MultiProvider,
   ) {
     super(contractsMap, multiProvider);
+  }
+
+  router(contracts: InterchainAccountContracts): InterchainAccountRouter {
+    return contracts.interchainAccountRouter.contract;
   }
 
   static fromAddresses(

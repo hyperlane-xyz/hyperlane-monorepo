@@ -1,3 +1,5 @@
+import { InterchainQueryRouter } from '@hyperlane-xyz/core';
+
 import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
@@ -20,6 +22,10 @@ export class InterchainQuery extends RouterApp<InterchainQueryContracts> {
     multiProvider: MultiProvider,
   ) {
     super(contractsMap, multiProvider);
+  }
+
+  router(contracts: InterchainQueryContracts): InterchainQueryRouter {
+    return contracts.interchainQueryRouter.contract;
   }
 
   static fromAddresses(

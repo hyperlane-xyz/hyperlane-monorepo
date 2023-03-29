@@ -72,9 +72,9 @@ export {
 } from './core/types';
 export { HyperlaneAppChecker } from './deploy/HyperlaneAppChecker';
 export {
-  HyperlaneDeployer,
-  DeployOptions,
   DeployerOptions,
+  DeployOptions,
+  HyperlaneDeployer,
 } from './deploy/HyperlaneDeployer';
 export { ProxyViolation } from './deploy/proxy';
 export {
@@ -148,12 +148,7 @@ export { GasRouterDeployer } from './router/GasRouterDeployer';
 export { HyperlaneRouterChecker } from './router/HyperlaneRouterChecker';
 export { HyperlaneRouterDeployer } from './router/HyperlaneRouterDeployer';
 export { GasRouterApp, Router, RouterApp } from './router/RouterApps';
-export {
-  GasRouterConfig,
-  RouterConfig,
-  RouterContracts,
-  RouterFactories,
-} from './router/types';
+export { GasRouterConfig, RouterConfig } from './router/types';
 export {
   createRouterConfigMap,
   deployTestIgpsAndGetRouterConfig,

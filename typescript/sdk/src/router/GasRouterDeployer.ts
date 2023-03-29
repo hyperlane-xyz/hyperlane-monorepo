@@ -1,23 +1,22 @@
 import { debug } from 'debug';
 
-import { GasRouter } from '@hyperlane-xyz/core';
-
+import { HyperlaneFactories } from '../contracts';
 import { DeployerOptions } from '../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap } from '../types';
 
 import { HyperlaneRouterDeployer } from './HyperlaneRouterDeployer';
-import { GasRouterConfig, RouterContracts, RouterFactories } from './types';
+import { GasRouterContracts } from './RouterApps';
+import { GasRouterConfig } from './types';
 
 export abstract class GasRouterDeployer<
   Config extends GasRouterConfig,
-  Contracts extends RouterContracts<GasRouter>,
-  Factories extends RouterFactories<GasRouter>,
-> extends HyperlaneRouterDeployer<Config, Contracts, Factories> {
+  Contracts extends GasRouterContracts,
+> extends HyperlaneRouterDeployer<Config, Contracts, HyperlaneFactories> {
   constructor(
     multiProvider: MultiProvider,
     configMap: ChainMap<Config>,
-    factories: Factories,
+    factories: HyperlaneFactories,
     options?: DeployerOptions,
   ) {
     super(multiProvider, configMap, factories, {
