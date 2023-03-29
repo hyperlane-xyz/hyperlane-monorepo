@@ -17,16 +17,8 @@
     "multisigIsm": "0x4D06A1671A2a345B14B15cbD50027979A5D1d8C9",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
-    "interchainAccountRouter": {
-      "kind": "Transparent",
-      "implementation": "0x26c4E2d0dc902cdc1bB69e98bE567cb8BbCdb248",
-      "proxy": "0xC40C8b62D5FC7775366B442179eD7E21C17fca11"
-    },
-    "interchainQueryRouter": {
-      "kind": "Transparent",
-      "proxy": "0xC87F9a6cADF77995b18FddE5049b6274695Dd559",
-      "implementation": "0xfFf9dB6C772525B17cd4eB863A09DcD43e085F59"
-    }
+    "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
+    "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "fuji": {
     "storageGasOracle": "0xd44E79A697136888f0d720Fb6703400a9204FD39",
@@ -46,16 +38,8 @@
     "multisigIsm": "0xD713Db664509bd057aC2b378F4B65Db468F634A5",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
-    "interchainAccountRouter": {
-      "kind": "Transparent",
-      "implementation": "0xB05524f59Afd1cf29Fe39c33C20d3C277C742153",
-      "proxy": "0xC40C8b62D5FC7775366B442179eD7E21C17fca11"
-    },
-    "interchainQueryRouter": {
-      "kind": "Transparent",
-      "proxy": "0xC87F9a6cADF77995b18FddE5049b6274695Dd559",
-      "implementation": "0xfFf9dB6C772525B17cd4eB863A09DcD43e085F59"
-    }
+    "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
+    "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "mumbai": {
     "storageGasOracle": "0x8970bdA0B0A01d1bA2656b510B2859560e75a7c5",
@@ -75,16 +59,8 @@
     "multisigIsm": "0xd71f1A64659beC0781b2aa21bc7a72F7290F6Bf3",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
-    "interchainAccountRouter": {
-      "kind": "Transparent",
-      "implementation": "0xb78Dc62cF318A344E6F4D6299a8EE3A5691F64b9",
-      "proxy": "0xC40C8b62D5FC7775366B442179eD7E21C17fca11"
-    },
-    "interchainQueryRouter": {
-      "kind": "Transparent",
-      "proxy": "0xC87F9a6cADF77995b18FddE5049b6274695Dd559",
-      "implementation": "0xfFf9dB6C772525B17cd4eB863A09DcD43e085F59"
-    }
+    "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
+    "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "bsctestnet": {
     "storageGasOracle": "0x1a75f55e8f574CdB5abb1b2702b9caF2E5F7d4D6",
@@ -104,16 +80,8 @@
     "multisigIsm": "0x34add51924C500b4428067E251168807b3f5faED",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
-    "interchainAccountRouter": {
-      "kind": "Transparent",
-      "implementation": "0x7e01e02b87CBbf2A1eBe1dD6BCDdC65a50e374C6",
-      "proxy": "0xC40C8b62D5FC7775366B442179eD7E21C17fca11"
-    },
-    "interchainQueryRouter": {
-      "kind": "Transparent",
-      "proxy": "0xC87F9a6cADF77995b18FddE5049b6274695Dd559",
-      "implementation": "0xfFf9dB6C772525B17cd4eB863A09DcD43e085F59"
-    }
+    "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
+    "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "goerli": {
     "storageGasOracle": "0xce8E9D701A1DFfe672c1d8dB20De2B3fa6F4437D",
@@ -133,16 +101,8 @@
     "multisigIsm": "0x32B34F0D86b275b92e9289d9054Db5Ec32d2CC6C",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
-    "interchainAccountRouter": {
-      "kind": "Transparent",
-      "implementation": "0xaEF66238b31D6d8bA868CD3fF7203e6a3d936Bfd",
-      "proxy": "0xC40C8b62D5FC7775366B442179eD7E21C17fca11"
-    },
-    "interchainQueryRouter": {
-      "kind": "Transparent",
-      "proxy": "0xC87F9a6cADF77995b18FddE5049b6274695Dd559",
-      "implementation": "0xfFf9dB6C772525B17cd4eB863A09DcD43e085F59"
-    }
+    "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
+    "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "moonbasealpha": {
     "storageGasOracle": "0xAd754Dbc3F725259E49A90CAB347AeC343D432ed",
@@ -162,16 +122,8 @@
     "multisigIsm": "0xec8875C7cE0a814A56654618D366641859F32C7A",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
-    "interchainAccountRouter": {
-      "kind": "Transparent",
-      "implementation": "0xcb5e7F9326e329dEcb55d1f54A281318D447d71A",
-      "proxy": "0xC40C8b62D5FC7775366B442179eD7E21C17fca11"
-    },
-    "interchainQueryRouter": {
-      "kind": "Transparent",
-      "proxy": "0xC87F9a6cADF77995b18FddE5049b6274695Dd559",
-      "implementation": "0xfFf9dB6C772525B17cd4eB863A09DcD43e085F59"
-    },
+    "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
+    "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "optimismgoerli": {
     "storageGasOracle": "0xdE72697715aAeC4CaBbD638C0Aba64488005C64b",
@@ -191,16 +143,8 @@
     "multisigIsm": "0x47384E33E67007B7fE4326fb096Bdf9CbA7AB6E4",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
-    "interchainAccountRouter": {
-      "kind": "Transparent",
-      "implementation": "0xB7912131b206e624319fC7309Ac5d08223D8bC7E",
-      "proxy": "0xC40C8b62D5FC7775366B442179eD7E21C17fca11"
-    },
-    "interchainQueryRouter": {
-      "kind": "Transparent",
-      "proxy": "0xC87F9a6cADF77995b18FddE5049b6274695Dd559",
-      "implementation": "0xfFf9dB6C772525B17cd4eB863A09DcD43e085F59"
-    },
+    "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
+    "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "arbitrumgoerli": {
     "storageGasOracle": "0xfFAEF09B3cd11D9b20d1a19bECca54EEC2884766",
@@ -220,16 +164,8 @@
     "multisigIsm": "0x47384E33E67007B7fE4326fb096Bdf9CbA7AB6E4",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
-    "interchainAccountRouter": {
-      "kind": "Transparent",
-      "implementation": "0x3699461e77B0F28f6F5883A60DF22de96dE0003d",
-      "proxy": "0xC40C8b62D5FC7775366B442179eD7E21C17fca11"
-    },
-    "interchainQueryRouter": {
-      "kind": "Transparent",
-      "proxy": "0xC87F9a6cADF77995b18FddE5049b6274695Dd559",
-      "implementation": "0xfFf9dB6C772525B17cd4eB863A09DcD43e085F59"
-    },
+    "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
+    "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "sepolia": {
     "storageGasOracle": "0x1D5EbC3e15e9ECDe0e3530C85899556797eeaea5",
@@ -248,16 +184,6 @@
     "defaultIsmInterchainGasPaymaster": "0xF987d7edcb5890cB321437d8145E3D51131298b6",
     "multisigIsm": "0xD3d062a5dcBA85ae863618d4c264d2358300c283",
     "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
-    "interchainAccountRouter": {
-      "kind": "Transparent",
-      "implementation": "0x3F09F7B1d6fF622f52277bc07cF738BbDa45A8ba",
-      "proxy": "0xC40C8b62D5FC7775366B442179eD7E21C17fca11"
-    },
-    "interchainQueryRouter": {
-      "kind": "Transparent",
-      "proxy": "0xC87F9a6cADF77995b18FddE5049b6274695Dd559",
-      "implementation": "0xfFf9dB6C772525B17cd4eB863A09DcD43e085F59"
-    }
+    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
   }
 }

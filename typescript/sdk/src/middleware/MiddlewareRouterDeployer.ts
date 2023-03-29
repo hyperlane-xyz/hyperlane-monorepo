@@ -83,11 +83,10 @@ export abstract class MiddlewareRouterDeployer<
         proxyAdmin.transferOwnership(config.owner),
       ),
     );
-
-    return {
+    const ret: MiddlewareRouterContracts = {
+      [this.routerContractName()]: proxiedRouter,
       proxyAdmin,
-      proxiedRouter,
-      router: proxiedRouter.contract, // for backwards compatibility
-    } as any; // generic type inference fails here
+    } as MiddlewareRouterContracts;
+    return ret;
   }
 }

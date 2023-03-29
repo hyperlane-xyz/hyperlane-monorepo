@@ -14,8 +14,9 @@ import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterConfig } from '../../router/types';
 import { deployTestIgpsAndGetRouterConfig } from '../../test/testUtils';
 import { ChainMap } from '../../types';
-import { objMap, promiseObjAll } from '../../utils/objects';
 
+import { InterchainAccount } from './InterchainAccount';
+import { InterchainAccountChecker } from './InterchainAccountChecker';
 import { InterchainAccountDeployer } from './InterchainAccountDeployer';
 import { InterchainAccountContracts } from './contracts';
 
@@ -52,23 +53,15 @@ describe('InterchainAccounts', async () => {
   beforeEach(async () => {
     const deployer = new InterchainAccountDeployer(multiProvider, config);
     contracts = await deployer.deploy();
-
     local = contracts[localChain].interchainAccountRouter.contract;
     remote = contracts[remoteChain].interchainAccountRouter.contract;
   });
 
-  it('deploys and sets configured ISMs', async () => {
-    const deployedIsms = await promiseObjAll(
-      objMap(contracts, (_, c) =>
-        c.interchainAccountRouter.contract.interchainSecurityModule(),
-      ),
-    );
-    expect(deployedIsms).to.eql(
-      objMap(
-        config,
-        (_, c) => c.interchainSecurityModule ?? ethers.constants.AddressZero,
-      ),
-    );
+  it('checks', async () => {
+    const app = new InterchainAccount(contracts, multiProvider);
+    const checker = new InterchainAccountChecker(multiProvider, app, config);
+    await checker.check();
+    expect(checker.violations.length).to.eql(0);
   });
 
   it('forwards calls from interchain account', async () => {

@@ -11,6 +11,7 @@ import { utils } from '@hyperlane-xyz/utils';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterConfig } from '../../router/types';
 import { ChainMap, ChainName } from '../../types';
+import { objMap } from '../../utils/objects';
 import { MiddlewareRouterDeployer } from '../MiddlewareRouterDeployer';
 
 import {
@@ -79,33 +80,25 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
     this.logger(`Enroll LiquidityLayerRouters with each other`);
     await super.enrollRemoteRouters(contractsMap);
 
-    throw new Error('Liquidity layer adapter deployment not supported');
-    /*
     this.logger(`Enroll CircleBridgeAdapters with each other`);
+    // Hack to allow use of super.enrollRemoteRouters
     await super.enrollRemoteRouters(
-      objFilter(
-        objMap(contractsMap, (_chain, contracts) => ({
-          router: contracts.circleBridgeAdapter,
-          proxyAdmin: contracts.proxyAdmin,
-        })),
-        (
-          chain,
-          _,
-        ): _ is { router: CircleBridgeAdapter; proxyAdmin: ProxyAdmin } =>
-          !!_.router,
-      ),
+      objMap(contractsMap, (_, contracts) => ({
+        liquidityLayerRouter: {
+          contract: contracts.circleBridgeAdapter,
+        },
+      })) as unknown as ChainMap<LiquidityLayerContracts>,
     );
 
     this.logger(`Enroll PortalAdapters with each other`);
+    // Hack to allow use of super.enrollRemoteRouters
     await super.enrollRemoteRouters(
-      objFilter(
-        objMap(contractsMap, (_chain, contracts) => ({
-          router: contracts.portalAdapter,
-        })),
-        (chain, _): _ is { router: PortalAdapter } => !!_.router,
-      ),
+      objMap(contractsMap, (_, contracts) => ({
+        liquidityLayerRouter: {
+          contract: contracts.portalAdapter,
+        },
+      })) as unknown as ChainMap<LiquidityLayerContracts>,
     );
-    */
   }
 
   // Custom contract deployment logic can go here
@@ -114,7 +107,10 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
     chain: ChainName,
     config: LiquidityLayerConfig,
   ): Promise<LiquidityLayerContracts> {
-    const routerContracts = await super.deployContracts(chain, config);
+    const routerContracts = (await super.deployContracts(
+      chain,
+      config,
+    )) as LiquidityLayerContracts;
 
     const bridgeAdapters: Partial<LiquidityLayerContracts> = {};
 
@@ -138,7 +134,7 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
     return {
       ...routerContracts,
       ...bridgeAdapters,
-    } as any;
+    } as LiquidityLayerContracts;
   }
 
   async deployPortalAdapter(

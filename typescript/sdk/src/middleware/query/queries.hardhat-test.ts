@@ -18,7 +18,10 @@ import { RouterConfig } from '../../router/types';
 import { deployTestIgpsAndGetRouterConfig } from '../../test/testUtils';
 import { ChainMap } from '../../types';
 
+import { InterchainQuery } from './InterchainQuery';
+import { InterchainQueryChecker } from './InterchainQueryChecker';
 import { InterchainQueryDeployer } from './InterchainQueryDeployer';
+import { InterchainQueryContracts } from './contracts';
 
 describe('InterchainQueryRouter', async () => {
   const localChain = Chains.test1;
@@ -26,6 +29,7 @@ describe('InterchainQueryRouter', async () => {
   const localDomain = chainMetadata[localChain].chainId;
   const remoteDomain = chainMetadata[remoteChain].chainId;
 
+  let contracts: ChainMap<InterchainQueryContracts>;
   let signer: SignerWithAddress;
   let local: InterchainQueryRouter;
   let remote: InterchainQueryRouter;
@@ -52,12 +56,19 @@ describe('InterchainQueryRouter', async () => {
   beforeEach(async () => {
     const InterchainQuery = new InterchainQueryDeployer(multiProvider, config);
 
-    const contracts = await InterchainQuery.deploy();
+    contracts = await InterchainQuery.deploy();
 
     local = contracts[localChain].interchainQueryRouter.contract;
     remote = contracts[remoteChain].interchainQueryRouter.contract;
 
     testQuery = await new TestQuery__factory(signer).deploy(local.address);
+  });
+
+  it('checks', async () => {
+    const app = new InterchainQuery(contracts, multiProvider);
+    const checker = new InterchainQueryChecker(multiProvider, app, config);
+    await checker.check();
+    expect(checker.violations.length).to.eql(0);
   });
 
   it('completes query round trip and invokes callback', async () => {
