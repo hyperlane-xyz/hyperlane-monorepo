@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-import { ProxyAdmin, Router } from '@hyperlane-xyz/core';
+import { ProxyAdmin, ProxyAdmin__factory, Router } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts, HyperlaneFactories } from '../contracts';
@@ -37,6 +37,11 @@ type RouterFactory<RouterContract extends Router = Router> =
 export type RouterFactories<RouterContract extends Router = Router> =
   HyperlaneFactories & {
     router: RouterFactory<RouterContract>;
+  };
+
+export type ProxiedRouterFactories<RouterContract extends Router = Router> =
+  RouterFactories<RouterContract> & {
+    proxyAdmin: ProxyAdmin__factory;
   };
 
 export type ConnectionClientConfig = {

@@ -1,7 +1,6 @@
 import { BigNumberish } from 'ethers';
 
-import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
-import { types } from '@hyperlane-xyz/utils';
+import { AgentConnectionType, ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import {
@@ -199,7 +198,7 @@ export interface AgentConfig {
   context: Contexts;
   docker: DockerConfig;
   quorumProvider?: boolean;
-  connectionType: ConnectionType;
+  connectionType: AgentConnectionType;
   index?: IndexingConfig;
   aws?: AwsConfig;
   // Names of all chains in the environment
@@ -212,57 +211,6 @@ export interface AgentConfig {
   // Roles to manage keys for
   rolesWithKeys: KEY_ROLE_ENUM[];
 }
-
-export type RustSigner = {
-  key: string;
-  type: string; // TODO
-};
-
-export enum ConnectionType {
-  Http = 'http',
-  Ws = 'ws',
-  HttpQuorum = 'httpQuorum',
-  HttpFallback = 'httpFallback',
-}
-
-export type RustConnection =
-  | {
-      type: ConnectionType.Http;
-      url: string;
-    }
-  | { type: ConnectionType.Ws; url: string }
-  | { type: ConnectionType.HttpQuorum; urls: string }
-  | { type: ConnectionType.HttpFallback; urls: string };
-
-export type RustCoreAddresses = {
-  mailbox: types.Address;
-  interchainGasPaymaster: types.Address;
-  validatorAnnounce: types.Address;
-};
-
-export interface RustChainSetupBase {
-  name: ChainName;
-  domain: number;
-  signer?: RustSigner;
-  finalityBlocks: number;
-  addresses: RustCoreAddresses;
-  protocol: 'ethereum' | 'fuel';
-  connection?: RustConnection;
-  index?: { from: number };
-}
-
-export interface RustChainSetup extends RustChainSetupBase {
-  signer: RustSigner;
-  connection: RustConnection;
-}
-
-export type RustConfig = {
-  chains: Partial<ChainMap<RustChainSetupBase>>;
-  tracing?: {
-    level?: string;
-    fmt?: 'json';
-  };
-};
 
 // Helper to get chain-specific agent configurations
 export class ChainAgentConfig {

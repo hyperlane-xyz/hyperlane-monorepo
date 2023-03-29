@@ -1,7 +1,9 @@
+import { AgentConnectionType } from '@hyperlane-xyz/sdk';
+
 import { Contexts } from '../../config/contexts';
 import { KEY_ROLE_ENUM } from '../agents/roles';
 
-import { ConnectionType, DockerConfig } from './agent';
+import { DockerConfig } from './agent';
 
 export interface ContextAndRoles {
   context: Contexts;
@@ -18,5 +20,5 @@ export interface KeyFunderConfig {
   contextsAndRolesToFund: ContextAndRolesMap;
   cyclesBetweenEthereumMessages?: number;
   prometheusPushGateway: string;
-  connectionType: ConnectionType.Http | ConnectionType.HttpQuorum;
+  connectionType: AgentConnectionType.Http | AgentConnectionType.HttpQuorum;
 }

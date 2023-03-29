@@ -1,3 +1,4 @@
+import { TransactionResponse } from '@ethersproject/abstract-provider';
 import { Contract } from 'ethers';
 
 import type { types } from '@hyperlane-xyz/utils';
@@ -29,16 +30,26 @@ export function isProxyAddresses(
   );
 }
 
+export function getProxyAddress(
+  address: types.Address | ProxyAddresses<any>,
+): string {
+  return isProxyAddresses(address) ? address.proxy : address;
+}
+
 export type TransparentProxyAddresses = ProxyAddresses<ProxyKind.Transparent>;
 
 export class ProxiedContract<
   C extends Contract,
-  A extends ProxyAddresses<any>,
+  A extends ProxyAddresses<any> = TransparentProxyAddresses,
 > {
   constructor(public readonly contract: C, public readonly addresses: A) {}
 
   get address(): string {
     return this.contract.address;
+  }
+
+  get deployTransaction(): TransactionResponse {
+    return this.contract.deployTransaction;
   }
 
   connect(connection: Connection): ProxiedContract<C, A> {

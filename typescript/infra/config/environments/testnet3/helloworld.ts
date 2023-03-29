@@ -1,5 +1,6 @@
+import { AgentConnectionType } from '@hyperlane-xyz/sdk';
+
 import { HelloWorldConfig } from '../../../src/config';
-import { ConnectionType } from '../../../src/config/agent';
 import { HelloWorldKathyRunMode } from '../../../src/config/helloworld';
 import { Contexts } from '../../contexts';
 
@@ -23,7 +24,7 @@ export const hyperlane: HelloWorldConfig = {
     },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
-    connectionType: ConnectionType.HttpFallback,
+    connectionType: AgentConnectionType.HttpFallback,
   },
 };
 
@@ -42,7 +43,7 @@ export const releaseCandidate: HelloWorldConfig = {
     },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
-    connectionType: ConnectionType.Http,
+    connectionType: AgentConnectionType.Http,
   },
 };
 
