@@ -149,8 +149,8 @@ export abstract class HyperlaneAppChecker<
       return (
         contract !== null &&
         typeof contract === 'object' &&
-        'owner' in contract &&
-        'transferOwnership' in contract
+        contract.owner &&
+        contract.transferOwnership
       );
     };
     const ownables = this.app.getFlattenedFilteredContracts(chain, isOwnable);
