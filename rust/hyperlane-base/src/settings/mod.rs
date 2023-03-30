@@ -98,6 +98,99 @@ pub mod trace;
 
 static KMS_CLIENT: OnceCell<KmsClient> = OnceCell::new();
 
+// /// Declare a configuration struct with a raw version that is entirely optional.
+// /// When using this do not add a derive for deserialize as that is configured
+// /// automatically along with serde rename.
+// macro_rules! declare_config_struct {
+//     {$(#[$struct_attr:meta])* $struct_vis:vis struct $struct_name:ident { $($(#[$field_attr:meta])* $field_vis:vis $field_name:ident: $field_ty:ty),*$(,)? }} => {paste::paste! {
+//         $(#[$struct_attr])*
+//         $struct_vis struct $struct_name {$(
+//             $(#[$field_attr])*
+//             $field_vis $field_name: $field_ty,
+//         )*}
+//
+//         $(#[$struct_attr])*
+//         #[derive(Deserialize)]
+//         #[serde(rename_all = "camelCase")]
+//         struct [<Raw $struct_name>] {$(
+//             $(#[$field_attr])*
+//             $field_name: declare_config_struct!(@make_optional $field_ty),
+//         )*}
+//
+//         static_assertions::assert_impl_all!($struct_name: TryFrom<[<Raw $struct_name>]>);
+//         static_assertions::assert_impl_all!([<Raw $struct_name>]: serde::de::DeserializeOwned);
+//
+//         impl<'de> Deserialize<'de> for $struct_name {
+//             fn deserialize<D>(des: D) -> Result<Self, D::Error>
+//             where
+//                 D: serde::Deserializer<'de>,
+//             {
+//                 [<Raw $struct_name>]::deserialize(des)?
+//                     .try_into()
+//                     .map_err(serde::de::Error::custom)
+//             }
+//         }
+//
+//         impl std::str::FromStr for $struct_name {
+//             type Err = serde_json::Error;
+//
+//             fn from_str(s: &str) -> Result<Self, Self::Err> {
+//                 serde_json::from_str(s)
+//             }
+//         }
+//     }};
+//     (@make_optional Option<$field_ty:ty>) => {
+//         Option<$field_ty>
+//     };
+//     (@make_optional $field_ty:ty) => {
+//         Option<$field_ty>
+//     };
+// }
+
+macro_rules! declare_deserialize_for_config_struct {
+    ($struct_name:ident) => {
+        paste::paste! { declare_deserialize_for_config_struct!([<Raw $struct_name>] -> $struct_name); }
+    };
+    ($raw_name:ident -> $struct_name:ident) => {
+        static_assertions::assert_impl_all!($struct_name: TryFrom<$raw_name>);
+        static_assertions::assert_impl_all!($raw_name: serde::de::DeserializeOwned);
+
+        impl<'de> Deserialize<'de> for $struct_name {
+            fn deserialize<D>(des: D) -> Result<Self, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                $raw_name::deserialize(des)?
+                    .try_into()
+                    .map_err(serde::de::Error::custom)
+            }
+        }
+
+        impl std::str::FromStr for $struct_name {
+            type Err = serde_json::Error;
+
+            fn from_str(s: &str) -> Result<Self, Self::Err> {
+                serde_json::from_str(s)
+            }
+        }
+    };
+}
+
+pub trait EyreOptionExt<T> {
+    fn expect_or_eyre<M: Into<String>>(self, msg: M) -> eyre::Result<T>;
+    fn expect_or_else_eyre(self, f: impl FnOnce() -> String) -> eyre::Result<T>;
+}
+
+impl<T> EyreOptionExt<T> for Option<T> {
+    fn expect_or_eyre<M: Into<String>>(self, msg: M) -> eyre::Result<T> {
+        self.ok_or_else(|| eyre!(msg.into()))
+    }
+
+    fn expect_or_else_eyre(self, f: impl FnOnce() -> String) -> eyre::Result<T> {
+        self.ok_or_else(|| eyre!(f()))
+    }
+}
+
 /// Settings. Usually this should be treated as a base config and used as
 /// follows:
 ///
@@ -122,19 +215,53 @@ static KMS_CLIENT: OnceCell<KmsClient> = OnceCell::new();
 ///     }
 /// }
 /// ```
-#[derive(Debug, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Default)]
 pub struct Settings {
     /// Configuration for contracts on each chain
     pub chains: HashMap<String, ChainSetup>,
-    /// Default signer configuration for chains which do not define their own.
-    /// This value is intentionally private as it will get consumed by
-    /// `post_deserialize`.
-    defaultsigner: Option<SignerConf>,
     /// Port to listen for prometheus scrape requests
-    pub metrics: Option<StrOrInt>,
+    pub metrics: Option<u16>,
     /// The tracing configuration
     pub tracing: TracingConfig,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawSettings {
+    chains: Option<HashMap<String, ChainSetup>>,
+    defaultsigner: Option<SignerConf>,
+    metrics: Option<StrOrInt>,
+    tracing: Option<TracingConfig>,
+}
+
+declare_deserialize_for_config_struct!(Settings);
+
+impl<'de> TryFrom<RawSettings> for Settings {
+    type Error = eyre::Report;
+
+    fn try_from(r: RawSettings) -> Result<Self, Self::Error> {
+        Ok(Self {
+            chains: r
+                .chains
+                .map(|mut chains| {
+                    if let Some(default_signer) = r.defaultsigner {
+                        for chain in chains.values_mut() {
+                            chain.signer.get_or_insert_with(|| default_signer.clone());
+                        }
+                    }
+                    chains
+                })
+                .unwrap_or_default(),
+            metrics: r
+                .metrics
+                .map(|port| {
+                    port.try_into()
+                        .context("Invalid metrics port; `metrics` must be a valid u16")
+                })
+                .transpose()?,
+            tracing: r.tracing.unwrap_or_default(),
+        })
+    }
 }
 
 impl Settings {
@@ -261,20 +388,9 @@ impl Settings {
     pub fn metrics(&self, name: &str) -> eyre::Result<Arc<CoreMetrics>> {
         Ok(Arc::new(CoreMetrics::new(
             name,
-            self.metrics
-                .as_ref()
-                .map(|v| v.try_into().context("Port must be a valid u16"))
-                .transpose()?,
+            self.metrics,
             prometheus::Registry::new(),
         )?))
-    }
-
-    /// Make internal connections as-needed after deserializing.
-    pub(super) fn post_deserialize(&mut self) {
-        let Some(signer) = self.defaultsigner.take() else { return };
-        for chain in self.chains.values_mut() {
-            chain.signer.get_or_insert_with(|| signer.clone());
-        }
     }
 
     /// Private to preserve linearity of AgentCore::from_settings -- creating an
@@ -284,7 +400,6 @@ impl Settings {
             chains: self.chains.clone(),
             metrics: self.metrics.clone(),
             tracing: self.tracing.clone(),
-            defaultsigner: self.defaultsigner.clone(),
         }
     }
 }

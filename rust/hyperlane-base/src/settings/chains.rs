@@ -97,6 +97,18 @@ impl IndexSettings {
     }
 }
 
+pub struct RawChainSetup {
+    name: Option<String>,
+    domain: Option<StrOrInt>,
+    signer: Option<SignerConf>,
+    finality_blocks: Option<StrOrInt>,
+    addresses: Option<CoreContractAddresses>,
+    connection: Option<ChainConnectionConf>,
+    txsubmission: Option<TransactionSubmissionType>,
+    metrics_conf: Option<PrometheusMiddlewareConf>,
+    index: Option<IndexSettings>,
+}
+
 /// A chain setup is a domain ID, an address on that chain (where the mailbox is
 /// deployed) and details for connecting to the chain API.
 #[derive(Clone, Debug, Deserialize)]
