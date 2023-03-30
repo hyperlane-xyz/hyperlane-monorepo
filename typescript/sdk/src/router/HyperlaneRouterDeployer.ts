@@ -15,9 +15,8 @@ import { objMap, promiseObjAll } from '../utils/objects';
 
 export abstract class HyperlaneRouterDeployer<
   Config extends RouterConfig,
-  Contracts extends HyperlaneContracts,
   Factories extends HyperlaneFactories,
-> extends HyperlaneDeployer<Config, Contracts, Factories> {
+> extends HyperlaneDeployer<Config, Factories> {
   constructor(
     multiProvider: MultiProvider,
     configMap: ChainMap<Config>,
@@ -30,10 +29,10 @@ export abstract class HyperlaneRouterDeployer<
     });
   }
 
-  abstract router(contracts: Contracts): Router;
+  abstract router(contracts: HyperlaneContracts<Factories>): Router;
 
   async initConnectionClients(
-    contractsMap: ChainMap<Contracts>,
+    contractsMap: ChainMap<HyperlaneContracts<Factories>>,
   ): Promise<void> {
     await promiseObjAll(
       objMap(contractsMap, async (local, contracts) =>
@@ -46,13 +45,15 @@ export abstract class HyperlaneRouterDeployer<
     );
   }
 
-  async enrollRemoteRouters(contractsMap: ChainMap<Contracts>): Promise<void> {
+  async enrollRemoteRouters(
+    contractsMap: ChainMap<HyperlaneContracts<Factories>>,
+  ): Promise<void> {
     this.logger(
       `Enrolling deployed routers with each other (if not already)...`,
     );
     // Make all routers aware of each other.
     const deployedChains = Object.keys(contractsMap);
-    for (const [chain, contracts] of Object.entries<Contracts>(contractsMap)) {
+    for (const [chain, contracts] of Object.entries(contractsMap)) {
       // only enroll chains which are deployed
       const deployedRemoteChains = this.multiProvider
         .getRemoteChains(chain)
@@ -96,7 +97,9 @@ export abstract class HyperlaneRouterDeployer<
     }
   }
 
-  async transferOwnership(contractsMap: ChainMap<Contracts>): Promise<void> {
+  async transferOwnership(
+    contractsMap: ChainMap<HyperlaneContracts<Factories>>,
+  ): Promise<void> {
     this.logger(`Transferring ownership of routers...`);
     await promiseObjAll(
       objMap(contractsMap, async (chain, contracts) => {
@@ -119,8 +122,8 @@ export abstract class HyperlaneRouterDeployer<
   }
 
   async deploy(
-    partialDeployment?: ChainMap<Contracts>,
-  ): Promise<ChainMap<Contracts>> {
+    partialDeployment?: ChainMap<HyperlaneContracts<Factories>>,
+  ): Promise<ChainMap<HyperlaneContracts<Factories>>> {
     const contractsMap = await super.deploy(partialDeployment);
 
     await this.enrollRemoteRouters(contractsMap);

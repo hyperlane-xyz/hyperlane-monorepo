@@ -31,7 +31,7 @@ describe('TestCoreDeployer', async () => {
     testCoreApp = await deployer.deployApp();
 
     const recipient = await new TestRecipient__factory(signer).deploy();
-    localMailbox = testCoreApp.getContracts(localChain).mailbox.contract;
+    localMailbox = testCoreApp.getContracts(localChain).mailbox;
 
     const dispatchResponse = localMailbox.dispatch(
       multiProvider.getDomainId(remoteChain),
@@ -43,7 +43,7 @@ describe('TestCoreDeployer', async () => {
       localChain,
       dispatchResponse,
     );
-    remoteMailbox = testCoreApp.getContracts(remoteChain).mailbox.contract;
+    remoteMailbox = testCoreApp.getContracts(remoteChain).mailbox;
     await expect(
       remoteMailbox.dispatch(
         multiProvider.getDomainId(localChain),

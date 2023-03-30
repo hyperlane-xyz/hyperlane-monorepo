@@ -4,41 +4,31 @@ import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
 } from '../../consts/environments';
-import { HyperlaneAddresses } from '../../contracts';
+import { HyperlaneAddresses, HyperlaneContracts } from '../../contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterApp } from '../../router/RouterApps';
-import { ChainMap, ChainName } from '../../types';
+import { ChainMap } from '../../types';
 
-import {
-  InterchainAccountContracts,
-  interchainAccountFactories,
-} from './contracts';
+import { interchainAccountFactories } from './contracts';
 
-export type InterchainAccountContractsMap =
-  ChainMap<InterchainAccountContracts>;
-
-export class InterchainAccount extends RouterApp<InterchainAccountContracts> {
-  constructor(
-    contractsMap: InterchainAccountContractsMap,
-    multiProvider: MultiProvider,
-  ) {
-    super(contractsMap, multiProvider);
-  }
-
-  router(contracts: InterchainAccountContracts): InterchainAccountRouter {
-    return contracts.interchainAccountRouter.contract;
+export class InterchainAccount extends RouterApp<
+  typeof interchainAccountFactories
+> {
+  router(
+    contracts: HyperlaneContracts<typeof interchainAccountFactories>,
+  ): InterchainAccountRouter {
+    return contracts.interchainAccountRouter;
   }
 
   static fromAddresses(
-    addresses: ChainMap<HyperlaneAddresses>,
+    addresses: ChainMap<HyperlaneAddresses<typeof interchainAccountFactories>>,
     multiProvider: MultiProvider,
   ): InterchainAccount {
-    const { contracts, intersectionProvider } =
-      this.buildContracts<InterchainAccountContracts>(
-        addresses,
-        interchainAccountFactories,
-        multiProvider,
-      );
+    const { contracts, intersectionProvider } = this.buildContracts(
+      addresses,
+      interchainAccountFactories,
+      multiProvider,
+    );
     return new InterchainAccount(contracts, intersectionProvider);
   }
 
@@ -51,9 +41,5 @@ export class InterchainAccount extends RouterApp<InterchainAccountContracts> {
       throw new Error(`No addresses found for ${env}`);
     }
     return InterchainAccount.fromAddresses(envAddresses, multiProvider);
-  }
-
-  getContracts(chain: ChainName): InterchainAccountContracts {
-    return super.getContracts(chain);
   }
 }

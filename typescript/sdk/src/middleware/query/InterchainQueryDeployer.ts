@@ -3,23 +3,19 @@ import {
   InterchainQueryRouter__factory,
 } from '@hyperlane-xyz/core';
 
+import { HyperlaneContracts } from '../../contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterConfig } from '../../router/types';
 import { ChainMap } from '../../types';
 import { MiddlewareRouterDeployer } from '../MiddlewareRouterDeployer';
 
-import {
-  InterchainQueryContracts,
-  InterchainQueryFactories,
-  interchainQueryFactories,
-} from './contracts';
+import { interchainQueryFactories } from './contracts';
 
 export type InterchainQueryConfig = RouterConfig;
 
 export class InterchainQueryDeployer extends MiddlewareRouterDeployer<
   InterchainQueryConfig,
-  InterchainQueryContracts,
-  InterchainQueryFactories,
+  typeof interchainQueryFactories,
   InterchainQueryRouter__factory
 > {
   constructor(
@@ -34,7 +30,9 @@ export class InterchainQueryDeployer extends MiddlewareRouterDeployer<
     return 'interchainQueryRouter';
   }
 
-  router(contracts: InterchainQueryContracts): InterchainQueryRouter {
-    return contracts.interchainQueryRouter.contract;
+  router(
+    contracts: HyperlaneContracts<typeof interchainQueryFactories>,
+  ): InterchainQueryRouter {
+    return contracts.interchainQueryRouter;
   }
 }

@@ -11,6 +11,7 @@ import { utils } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../../consts/chainMetadata';
 import { Chains } from '../../consts/chains';
+import { HyperlaneContracts } from '../../contracts';
 import { TestCoreApp } from '../../core/TestCoreApp';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer';
 import { MultiProvider } from '../../providers/MultiProvider';
@@ -21,7 +22,7 @@ import { ChainMap } from '../../types';
 import { InterchainQuery } from './InterchainQuery';
 import { InterchainQueryChecker } from './InterchainQueryChecker';
 import { InterchainQueryDeployer } from './InterchainQueryDeployer';
-import { InterchainQueryContracts } from './contracts';
+import { interchainQueryFactories } from './contracts';
 
 describe('InterchainQueryRouter', async () => {
   const localChain = Chains.test1;
@@ -29,7 +30,7 @@ describe('InterchainQueryRouter', async () => {
   const localDomain = chainMetadata[localChain].chainId;
   const remoteDomain = chainMetadata[remoteChain].chainId;
 
-  let contracts: ChainMap<InterchainQueryContracts>;
+  let contracts: ChainMap<HyperlaneContracts<typeof interchainQueryFactories>>;
   let signer: SignerWithAddress;
   let local: InterchainQueryRouter;
   let remote: InterchainQueryRouter;
@@ -58,8 +59,8 @@ describe('InterchainQueryRouter', async () => {
 
     contracts = await InterchainQuery.deploy();
 
-    local = contracts[localChain].interchainQueryRouter.contract;
-    remote = contracts[remoteChain].interchainQueryRouter.contract;
+    local = contracts[localChain].interchainQueryRouter;
+    remote = contracts[remoteChain].interchainQueryRouter;
 
     testQuery = await new TestQuery__factory(signer).deploy(local.address);
   });

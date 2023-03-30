@@ -29,13 +29,7 @@ export {
   TestChains,
   Testnets,
 } from './consts/chains';
-export {
-  hyperlaneAgentAddresses,
-  HyperlaneContractAddresses,
-  hyperlaneContractAddresses,
-  hyperlaneCoreAddresses,
-  hyperlaneEnvironments,
-} from './consts/environments';
+export { hyperlaneEnvironments } from './consts/environments';
 export { defaultMultisigIsmConfigs } from './consts/multisigIsm';
 export {
   buildContracts,
@@ -56,7 +50,7 @@ export {
 export { DispatchedMessage, HyperlaneCore } from './core/HyperlaneCore';
 export { HyperlaneCoreChecker } from './core/HyperlaneCoreChecker';
 export { HyperlaneCoreDeployer } from './core/HyperlaneCoreDeployer';
-export { TestCoreApp, TestCoreContracts } from './core/TestCoreApp';
+export { TestCoreApp } from './core/TestCoreApp';
 export { TestCoreDeployer } from './core/TestCoreDeployer';
 export {
   CoreConfig,

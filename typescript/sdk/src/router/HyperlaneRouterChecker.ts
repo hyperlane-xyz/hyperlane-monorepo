@@ -2,7 +2,7 @@ import { ethers } from 'ethers';
 
 import { utils } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts';
+import { HyperlaneFactories } from '../contracts';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
 import { ChainName } from '../types';
 
@@ -10,9 +10,9 @@ import { RouterApp } from './RouterApps';
 import { RouterConfig } from './types';
 
 export class HyperlaneRouterChecker<
-  App extends RouterApp<Contracts>,
+  Factories extends HyperlaneFactories,
+  App extends RouterApp<Factories>,
   Config extends RouterConfig,
-  Contracts extends HyperlaneContracts,
 > extends HyperlaneAppChecker<App, Config> {
   checkOwnership(chain: ChainName): Promise<void> {
     const owner = this.configMap[chain].owner;

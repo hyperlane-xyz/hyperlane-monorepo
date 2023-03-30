@@ -1,22 +1,21 @@
 import { debug } from 'debug';
 
-import { HyperlaneFactories } from '../contracts';
+import { HyperlaneContracts, HyperlaneFactories } from '../contracts';
 import { DeployerOptions } from '../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap } from '../types';
 
 import { HyperlaneRouterDeployer } from './HyperlaneRouterDeployer';
-import { GasRouterContracts } from './RouterApps';
 import { GasRouterConfig } from './types';
 
 export abstract class GasRouterDeployer<
   Config extends GasRouterConfig,
-  Contracts extends GasRouterContracts,
-> extends HyperlaneRouterDeployer<Config, Contracts, HyperlaneFactories> {
+  Factories extends HyperlaneFactories,
+> extends HyperlaneRouterDeployer<Config, Factories> {
   constructor(
     multiProvider: MultiProvider,
     configMap: ChainMap<Config>,
-    factories: HyperlaneFactories,
+    factories: Factories,
     options?: DeployerOptions,
   ) {
     super(multiProvider, configMap, factories, {
@@ -25,12 +24,14 @@ export abstract class GasRouterDeployer<
     });
   }
 
-  async enrollRemoteRouters(contractsMap: ChainMap<Contracts>): Promise<void> {
+  async enrollRemoteRouters(
+    contractsMap: ChainMap<HyperlaneContracts<Factories>>,
+  ): Promise<void> {
     await super.enrollRemoteRouters(contractsMap);
 
     this.logger(`Setting enrolled router destination gas...`);
-    for (const [chain, contracts] of Object.entries<Contracts>(contractsMap)) {
-      const remoteDomains = await contracts.router.domains();
+    for (const [chain, contracts] of Object.entries(contractsMap)) {
+      const remoteDomains = await this.router(contracts).domains();
       const remoteChains = remoteDomains.map((domain) =>
         this.multiProvider.getChainName(domain),
       );

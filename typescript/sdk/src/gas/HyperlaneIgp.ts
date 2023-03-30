@@ -12,21 +12,18 @@ import { HyperlaneAddresses } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
-import { IgpContracts, igpFactories } from './contracts';
+import { igpFactories } from './contracts';
 
-export type IgpContractsMap = ChainMap<IgpContracts>;
-
-export class HyperlaneIgp extends HyperlaneApp<IgpContracts> {
-  constructor(contractsMap: IgpContractsMap, multiProvider: MultiProvider) {
-    super(contractsMap, multiProvider);
-  }
-
+export class HyperlaneIgp extends HyperlaneApp<typeof igpFactories> {
   static fromAddresses(
-    addresses: ChainMap<HyperlaneAddresses>,
+    addresses: ChainMap<HyperlaneAddresses<typeof igpFactories>>,
     multiProvider: MultiProvider,
   ): HyperlaneIgp {
-    const { contracts, intersectionProvider } =
-      this.buildContracts<IgpContracts>(addresses, igpFactories, multiProvider);
+    const { contracts, intersectionProvider } = this.buildContracts(
+      addresses,
+      igpFactories,
+      multiProvider,
+    );
     return new HyperlaneIgp(contracts, intersectionProvider);
   }
 
@@ -39,10 +36,6 @@ export class HyperlaneIgp extends HyperlaneApp<IgpContracts> {
       throw new Error(`No addresses found for ${env}`);
     }
     return HyperlaneIgp.fromAddresses(envAddresses, multiProvider);
-  }
-
-  getContracts(chain: ChainName): IgpContracts {
-    return super.getContracts(chain);
   }
 
   /**

@@ -1,28 +1,22 @@
 import {
   InterchainAccountRouter,
   InterchainAccountRouter__factory,
-  ProxyAdmin,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
 
+import { HyperlaneContracts } from '../../contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
-import { ProxiedContract, ProxyKind } from '../../proxy';
 import { RouterConfig } from '../../router/types';
 import { ChainMap, ChainName } from '../../types';
 import { MiddlewareRouterDeployer } from '../MiddlewareRouterDeployer';
 
-import {
-  InterchainAccountContracts,
-  InterchainAccountFactories,
-  interchainAccountFactories,
-} from './contracts';
+import { interchainAccountFactories } from './contracts';
 
 export type InterchainAccountConfig = RouterConfig;
 
 export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
   InterchainAccountConfig,
-  InterchainAccountContracts,
-  InterchainAccountFactories,
+  typeof interchainAccountFactories,
   InterchainAccountRouter__factory
 > {
   constructor(
@@ -37,8 +31,10 @@ export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
     return 'interchainAccountRouter';
   }
 
-  router(contracts: InterchainAccountContracts): InterchainAccountRouter {
-    return contracts.interchainAccountRouter.contract;
+  router(
+    contracts: HyperlaneContracts<typeof interchainAccountFactories>,
+  ): InterchainAccountRouter {
+    return contracts.interchainAccountRouter;
   }
 
   // The OwnableMulticall implementation has an immutable owner address that
@@ -49,18 +45,13 @@ export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
   async deployContracts(
     chain: ChainName,
     config: InterchainAccountConfig,
-  ): Promise<InterchainAccountContracts> {
-    const proxyAdmin = (await this.deployContract(
-      chain,
-      'proxyAdmin',
-      [],
-    )) as ProxyAdmin;
+  ): Promise<HyperlaneContracts<typeof interchainAccountFactories>> {
+    const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
 
     // adapted from HyperlaneDeployer.deployProxiedContract
-    const cached = this.deployedContracts[chain]
-      ?.interchainAccountRouter as ProxiedContract<InterchainAccountRouter>;
-    if (cached && cached.addresses.proxy && cached.addresses.implementation) {
-      this.logger('Recovered full InterchainAccountRouter');
+    const cached = this.deployedContracts[chain]?.interchainAccountRouter;
+    if (cached) {
+      this.logger('Recovered InterchainAccountRouter');
       return {
         proxyAdmin,
         interchainAccountRouter: cached,
@@ -102,18 +93,11 @@ export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
     );
     await super.changeAdmin(chain, proxy, proxyAdmin.address);
 
-    const proxiedRouter = new ProxiedContract(
-      implementation.attach(proxy.address),
-      {
-        kind: ProxyKind.Transparent,
-        implementation: implementation.address,
-        proxy: proxy.address,
-      },
-    );
+    const proxiedRouter = implementation.attach(proxy.address);
 
     return {
       proxyAdmin,
-      interchainAccountRouter: proxiedRouter, // for serialization
+      interchainAccountRouter: proxiedRouter,
     };
   }
 }

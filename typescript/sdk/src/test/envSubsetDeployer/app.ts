@@ -26,21 +26,20 @@ export const testRouterFactories: TestRouterFactories = {
   router: new TestRouter__factory(),
 };
 
-export class EnvSubsetApp extends RouterApp<TestRouterContracts> {
+export class EnvSubsetApp extends RouterApp<typeof testRouterFactories> {
   router(contracts: TestRouterContracts) {
     return contracts.router;
   }
 }
 
 export class EnvSubsetChecker extends HyperlaneRouterChecker<
+  typeof testRouterFactories,
   EnvSubsetApp,
-  RouterConfig,
-  TestRouterContracts
+  RouterConfig
 > {}
 
 export class EnvSubsetDeployer extends HyperlaneRouterDeployer<
   RouterConfig,
-  TestRouterContracts,
   TestRouterFactories
 > {
   constructor(

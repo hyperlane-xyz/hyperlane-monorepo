@@ -1,26 +1,16 @@
 import { ContractFactory, ethers } from 'ethers';
 
-import { ProxyAdmin } from '@hyperlane-xyz/core';
-
+import { HyperlaneContracts } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { HyperlaneRouterDeployer } from '../router/HyperlaneRouterDeployer';
-import {
-  ProxiedContracts,
-  ProxiedFactories,
-  RouterConfig,
-} from '../router/types';
+import { ProxiedFactories, RouterConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
 
 export abstract class MiddlewareRouterDeployer<
   MiddlewareRouterConfig extends RouterConfig,
-  MiddlewareRouterContracts extends ProxiedContracts,
   MiddlewareFactories extends ProxiedFactories,
   RouterFactory extends ContractFactory,
-> extends HyperlaneRouterDeployer<
-  MiddlewareRouterConfig,
-  MiddlewareRouterContracts,
-  MiddlewareFactories
-> {
+> extends HyperlaneRouterDeployer<MiddlewareRouterConfig, MiddlewareFactories> {
   constructor(
     multiProvider: MultiProvider,
     configMap: ChainMap<MiddlewareRouterConfig>,
@@ -57,12 +47,12 @@ export abstract class MiddlewareRouterDeployer<
   async deployContracts(
     chain: ChainName,
     config: MiddlewareRouterConfig,
-  ): Promise<MiddlewareRouterContracts> {
-    const proxyAdmin = (await this.deployContract(
+  ): Promise<HyperlaneContracts<MiddlewareFactories>> {
+    const proxyAdmin = await this.deployContract(
       chain,
       'proxyAdmin',
       [] as any, // generic type inference fails here
-    )) as ProxyAdmin;
+    );
 
     const initArgs = await this.initializeArgs(chain, config);
     const proxiedRouter = await this.deployProxiedContract(
@@ -83,10 +73,10 @@ export abstract class MiddlewareRouterDeployer<
         proxyAdmin.transferOwnership(config.owner),
       ),
     );
-    const ret: MiddlewareRouterContracts = {
+    const ret = {
       [this.routerContractName()]: proxiedRouter,
       proxyAdmin,
-    } as MiddlewareRouterContracts;
-    return ret;
+    };
+    return ret as HyperlaneContracts<MiddlewareFactories>;
   }
 }

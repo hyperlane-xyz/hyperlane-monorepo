@@ -1,7 +1,7 @@
-import { ProxyAdmin, ProxyAdmin__factory } from '@hyperlane-xyz/core';
+import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts, HyperlaneFactories } from '../contracts';
+import { HyperlaneFactories } from '../contracts';
 
 export type OwnableConfig = {
   owner: types.Address;
@@ -17,10 +17,6 @@ export type GasRouterConfig = RouterConfig & GasConfig;
 
 export type ProxiedFactories = HyperlaneFactories & {
   proxyAdmin: ProxyAdmin__factory;
-};
-
-export type ProxiedContracts = HyperlaneContracts & {
-  proxyAdmin: ProxyAdmin;
 };
 
 export type ConnectionClientConfig = {

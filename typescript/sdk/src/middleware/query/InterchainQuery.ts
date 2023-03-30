@@ -4,40 +4,31 @@ import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
 } from '../../consts/environments';
-import { HyperlaneAddresses } from '../../contracts';
+import { HyperlaneAddresses, HyperlaneContracts } from '../../contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterApp } from '../../router/RouterApps';
-import { ChainMap, ChainName } from '../../types';
+import { ChainMap } from '../../types';
 
-import {
-  InterchainQueryContracts,
-  interchainQueryFactories,
-} from './contracts';
+import { interchainQueryFactories } from './contracts';
 
-export type InterchainQueryContractsMap = ChainMap<InterchainQueryContracts>;
-
-export class InterchainQuery extends RouterApp<InterchainQueryContracts> {
-  constructor(
-    contractsMap: InterchainQueryContractsMap,
-    multiProvider: MultiProvider,
-  ) {
-    super(contractsMap, multiProvider);
-  }
-
-  router(contracts: InterchainQueryContracts): InterchainQueryRouter {
-    return contracts.interchainQueryRouter.contract;
+export class InterchainQuery extends RouterApp<
+  typeof interchainQueryFactories
+> {
+  router(
+    contracts: HyperlaneContracts<typeof interchainQueryFactories>,
+  ): InterchainQueryRouter {
+    return contracts.interchainQueryRouter;
   }
 
   static fromAddresses(
-    addresses: ChainMap<HyperlaneAddresses>,
+    addresses: ChainMap<HyperlaneAddresses<typeof interchainQueryFactories>>,
     multiProvider: MultiProvider,
   ): InterchainQuery {
-    const { contracts, intersectionProvider } =
-      this.buildContracts<InterchainQueryContracts>(
-        addresses,
-        interchainQueryFactories,
-        multiProvider,
-      );
+    const { contracts, intersectionProvider } = this.buildContracts(
+      addresses,
+      interchainQueryFactories,
+      multiProvider,
+    );
     return new InterchainQuery(contracts, intersectionProvider);
   }
 
@@ -50,9 +41,5 @@ export class InterchainQuery extends RouterApp<InterchainQueryContracts> {
       throw new Error(`No addresses found for ${env}`);
     }
     return InterchainQuery.fromAddresses(envAddresses, multiProvider);
-  }
-
-  getContracts(chain: ChainName): InterchainQueryContracts {
-    return super.getContracts(chain);
   }
 }
