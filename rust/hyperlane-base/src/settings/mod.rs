@@ -76,7 +76,7 @@ use once_cell::sync::OnceCell;
 use rusoto_kms::KmsClient;
 use serde::Deserialize;
 
-pub use chains::{ChainConnectionConf, ChainSetup, CoreContractAddresses};
+pub use chains::{ChainConnectionConf, ChainConf, CoreContractAddresses};
 use hyperlane_core::utils::StrOrInt;
 use hyperlane_core::{
     db::{HyperlaneDB, DB},
@@ -171,7 +171,7 @@ impl<T> EyreOptionExt<T> for Option<T> {
 #[derive(Debug, Default)]
 pub struct Settings {
     /// Configuration for contracts on each chain
-    pub chains: HashMap<String, ChainSetup>,
+    pub chains: HashMap<String, ChainConf>,
     /// Port to listen for prometheus scrape requests
     pub metrics: Option<u16>,
     /// The tracing configuration
@@ -181,7 +181,7 @@ pub struct Settings {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RawSettings {
-    chains: Option<HashMap<String, ChainSetup>>,
+    chains: Option<HashMap<String, chains::RawChainConf>>,
     defaultsigner: Option<signers::RawSignerConf>,
     metrics: Option<StrOrInt>,
     tracing: Option<TracingConfig>,
@@ -333,7 +333,7 @@ impl Settings {
     }
 
     /// Try to get the chain setup for the provided chain name
-    pub fn chain_setup(&self, chain_name: &str) -> eyre::Result<&ChainSetup> {
+    pub fn chain_setup(&self, chain_name: &str) -> eyre::Result<&ChainConf> {
         self.chains
             .get(chain_name)
             .ok_or_else(|| eyre!("No chain setup found for {chain_name}"))

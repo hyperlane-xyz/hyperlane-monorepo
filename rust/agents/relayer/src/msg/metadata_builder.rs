@@ -9,7 +9,7 @@ use tokio::sync::RwLock;
 use tracing::{debug, info, instrument, warn};
 
 use hyperlane_base::{
-    CachingMailbox, ChainSetup, CheckpointSyncer, CheckpointSyncerConf, CoreMetrics,
+    CachingMailbox, ChainConf, CheckpointSyncer, CheckpointSyncerConf, CoreMetrics,
     MultisigCheckpointSyncer,
 };
 use hyperlane_core::{
@@ -20,7 +20,7 @@ use crate::merkle_tree_builder::MerkleTreeBuilder;
 
 #[derive(Clone, new)]
 pub struct MetadataBuilder {
-    chain_setup: ChainSetup,
+    chain_setup: ChainConf,
     prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
     validator_announce: Arc<dyn ValidatorAnnounce>,
     allow_local_checkpoint_syncers: bool,

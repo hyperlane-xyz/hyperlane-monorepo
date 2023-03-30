@@ -1,23 +1,24 @@
 use std::collections::HashMap;
 
 use ethers::prelude::Selector;
-use eyre::{eyre, Context, Result};
+use eyre::{Context, eyre, Result};
 use serde::Deserialize;
 
 use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
 };
 use hyperlane_core::{
-    utils::StrOrInt, ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol,
+    ContractLocator, H256, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol,
     HyperlaneProvider, HyperlaneSigner, InterchainGasPaymaster, InterchainGasPaymasterIndexer,
-    Mailbox, MailboxIndexer, MultisigIsm, ValidatorAnnounce, H256,
+    Mailbox, MailboxIndexer, MultisigIsm, utils::StrOrInt, ValidatorAnnounce,
 };
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
 };
 use hyperlane_fuel::{self as h_fuel, prelude::*};
 
-use crate::{settings::signers::BuildableWithSignerConf, CoreMetrics, SignerConf};
+use crate::{CoreMetrics, EyreOptionExt, settings::signers::BuildableWithSignerConf, SignerConf};
+use crate::settings::declare_deserialize_for_config_struct;
 
 /// A connection to _some_ blockchain.
 ///
@@ -57,15 +58,48 @@ pub enum TransactionSubmissionType {
 }
 
 /// Addresses for mailbox chain contracts
-#[derive(Clone, Debug, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, Default)]
 pub struct CoreContractAddresses {
     /// Address of the mailbox contract
-    pub mailbox: String,
+    pub mailbox: H256,
     /// Address of the InterchainGasPaymaster contract
-    pub interchain_gas_paymaster: String,
+    pub interchain_gas_paymaster: H256,
     /// Address of the ValidatorAnnounce contract
-    pub validator_announce: String,
+    pub validator_announce: H256,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawCoreContractAddresses {
+    mailbox: Option<String>,
+    interchain_gas_paymaster: Option<String>,
+    validator_announce: Option<String>,
+}
+
+declare_deserialize_for_config_struct!(CoreContractAddresses);
+
+impl TryFrom<RawCoreContractAddresses> for CoreContractAddresses {
+    type Error = eyre::Report;
+
+    fn try_from(r: RawCoreContractAddresses) -> Result<Self, Self::Error> {
+        Ok(Self {
+            mailbox: r
+                .mailbox
+                .expect_or_eyre("Missing `mailbox` core contract address")?
+                .parse()
+                .context("Invalid hex string for `mailbox` core contract address")?,
+            interchain_gas_paymaster: r
+                .interchain_gas_paymaster
+                .expect_or_eyre("Missing `interchainGasPaymaster` core contract address")?
+                .parse()
+                .context("Invalid hex string for `interchainGasPaymaster` core contract address")?,
+            validator_announce: r
+                .validator_announce
+                .expect_or_eyre("Missing `validatorAnnounce` core contract address")?
+                .parse()
+                .context("Invalid hex string for `validatorAnnounce` core contract address")?,
+        })
+    }
 }
 
 /// Indexing settings
@@ -97,50 +131,51 @@ impl IndexSettings {
     }
 }
 
-pub struct RawChainSetup {
-    name: Option<String>,
-    domain: Option<StrOrInt>,
-    signer: Option<SignerConf>,
-    finality_blocks: Option<StrOrInt>,
-    addresses: Option<CoreContractAddresses>,
-    connection: Option<ChainConnectionConf>,
-    txsubmission: Option<TransactionSubmissionType>,
-    metrics_conf: Option<PrometheusMiddlewareConf>,
-    index: Option<IndexSettings>,
-}
-
 /// A chain setup is a domain ID, an address on that chain (where the mailbox is
 /// deployed) and details for connecting to the chain API.
-#[derive(Clone, Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ChainSetup {
-    /// Chain name
+#[derive(Clone, Debug)]
+pub struct ChainConf {
+    /// Domain name
     pub name: String,
     /// Chain domain identifier
-    pub domain: StrOrInt,
+    pub domain: u32,
     /// Signer configuration for this chain
     pub signer: Option<SignerConf>,
     /// Number of blocks until finality
-    pub finality_blocks: StrOrInt,
+    pub finality_blocks: u32,
     /// Addresses of contracts on the chain
     pub addresses: CoreContractAddresses,
     /// The chain connection details
-    #[serde(flatten, default)]
     pub connection: Option<ChainConnectionConf>,
     /// How transactions to this chain are submitted.
-    #[serde(default)]
     pub txsubmission: TransactionSubmissionType,
     /// Configure chain-specific metrics information. This will automatically
     /// add all contract addresses but will not override any set explicitly.
     /// Use `metrics_conf()` to get the metrics.
-    #[serde(default)]
     pub metrics_conf: PrometheusMiddlewareConf,
     /// Settings for event indexing
-    #[serde(default)]
     pub index: IndexSettings,
 }
 
-impl ChainSetup {
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RawChainConf {
+    name: Option<String>,
+    domain: Option<StrOrInt>,
+    signer: Option<SignerConf>,
+    finality_blocks: Option<StrOrInt>,
+    addresses: Option<RawCoreContractAddresses>,
+    #[serde(flatten, default)]
+    connection: Option<RawChainConnectionConf>,
+    #[serde(default)]
+    txsubmission: Option<TransactionSubmissionType>,
+    #[serde(default)]
+    metrics_conf: Option<RawPrometheusMiddlewareConf>,
+    #[serde(default)]
+    index: Option<RawIndexSettings>,
+}
+
+impl ChainConf {
     /// Get the chain connection config or generate an error
     pub fn connection(&self) -> Result<&ChainConnectionConf> {
         self.connection.as_ref().ok_or_else(|| eyre!("Missing chain configuration for {}; this includes protocol and connection information", self.name))
