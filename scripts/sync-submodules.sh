@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
-# This is designed to synchronize the typescript submodules with the committed submodule version and
-# then clean and build the typescript codebase. This will not update the submodules.
+# This is designed to synchronize the typescript submodules in the current state with the committed
+# submodule version and then clean and build the typescript codebase. This will not update the
+# submodules, only bring them to the same version as they are in `.gitmodules`.
 
 set -e
 
