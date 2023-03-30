@@ -24,7 +24,7 @@ use crate::{
         metadata_builder::MetadataBuilder,
         processor::{MessageProcessor, MessageProcessorMetrics},
         serial_submitter::{SerialSubmitter, SerialSubmitterMetrics},
-        SubmitMessageArgs,
+        PendingMessage,
     },
     settings::{matching_list::MatchingList, GasPaymentEnforcementConfig, RelayerSettings},
 };
@@ -159,7 +159,7 @@ impl BaseAgent for Relayer {
         let prover_sync = Arc::new(RwLock::new(MerkleTreeBuilder::new(
             self.mailboxes.get(&self.origin_chain).unwrap().db().clone(),
         )));
-        let mut send_channels: HashMap<u32, UnboundedSender<SubmitMessageArgs>> = HashMap::new();
+        let mut send_channels: HashMap<u32, UnboundedSender<PendingMessage>> = HashMap::new();
         let destinations = self
             .mailboxes
             .keys()
@@ -168,8 +168,8 @@ impl BaseAgent for Relayer {
 
         for chain in &destinations {
             let (send_channel, receive_channel): (
-                UnboundedSender<SubmitMessageArgs>,
-                UnboundedReceiver<SubmitMessageArgs>,
+                UnboundedSender<PendingMessage>,
+                UnboundedReceiver<PendingMessage>,
             ) = mpsc::unbounded_channel();
             let mailbox: &CachingMailbox = self.mailboxes.get(chain).unwrap();
             send_channels.insert(mailbox.domain().id(), send_channel);
@@ -272,7 +272,7 @@ impl Relayer {
         metadata_builder: MetadataBuilder,
         tx_submission: TransactionSubmissionType,
         gas_payment_enforcer: Arc<GasPaymentEnforcer>,
-        msg_receive: UnboundedReceiver<SubmitMessageArgs>,
+        msg_receive: UnboundedReceiver<PendingMessage>,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let origin_mailbox = self.mailboxes.get(&self.origin_chain).unwrap();
         let destination = destination_mailbox.domain();

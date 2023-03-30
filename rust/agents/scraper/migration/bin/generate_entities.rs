@@ -12,7 +12,7 @@ mod common;
 
 const RAW_DB_PATH: &str = "./agents/scraper/src/db/generated";
 const DOCKER_NAME: &str = "scraper-entity-generator";
-const CLI_VERSION: &str = "~0.10.5";
+const CLI_VERSION: &str = "0.11.1";
 
 struct PostgresDockerContainer;
 
@@ -29,7 +29,7 @@ impl PostgresDockerContainer {
                 "5432:5432",
                 "--rm",
                 "-d",
-                "postgres:14",
+                "postgres:15",
             ])
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())

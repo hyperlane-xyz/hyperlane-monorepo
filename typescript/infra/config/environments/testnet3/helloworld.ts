@@ -1,5 +1,6 @@
+import { AgentConnectionType } from '@hyperlane-xyz/sdk';
+
 import { HelloWorldConfig } from '../../../src/config';
-import { ConnectionType } from '../../../src/config/agent';
 import { HelloWorldKathyRunMode } from '../../../src/config/helloworld';
 import { Contexts } from '../../contexts';
 
@@ -12,7 +13,7 @@ export const hyperlane: HelloWorldConfig = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: '0b10247-20230313-205735',
+      tag: '25f19b7-20230319-124624',
     },
     chainsToSkip: [],
     runEnv: environment,
@@ -23,7 +24,7 @@ export const hyperlane: HelloWorldConfig = {
     },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
-    connectionType: ConnectionType.HttpFallback,
+    connectionType: AgentConnectionType.HttpFallback,
   },
 };
 
@@ -32,7 +33,7 @@ export const releaseCandidate: HelloWorldConfig = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: '5ccba55-20230310-183328',
+      tag: '25f19b7-20230319-124624',
     },
     chainsToSkip: [],
     runEnv: environment,
@@ -42,7 +43,7 @@ export const releaseCandidate: HelloWorldConfig = {
     },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
-    connectionType: ConnectionType.Http,
+    connectionType: AgentConnectionType.Http,
   },
 };
 

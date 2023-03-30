@@ -25,7 +25,7 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
      * @param domain The domain of the new router
      * @param router The address of the new router
      */
-    event RemoteRouterEnrolled(uint32 indexed domain, bytes32 indexed router);
+    event RemoteRouterEnrolled(uint32 indexed domain, bytes32 router);
 
     // ============ Modifiers ============
     /**

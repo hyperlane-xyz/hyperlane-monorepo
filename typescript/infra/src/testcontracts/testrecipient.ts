@@ -33,17 +33,24 @@ export class TestRecipientDeployer extends HyperlaneDeployer<
     );
   }
   async deployContracts(chain: ChainName) {
+    const deployer = await this.multiProvider.getSignerAddress(chain);
     const TestRecipient = await this.deployContract(
       chain,
       'TestRecipient',
       [],
-      { create2Salt: 'testtest32' },
+      {
+        create2Salt: 'TestRecipient-March-17-2023',
+        initCalldata: new TestRecipient__factory().interface.encodeFunctionData(
+          'transferOwnership',
+          [deployer],
+        ),
+      },
     );
     const TestTokenRecipient = await this.deployContract(
       chain,
       'TestTokenRecipient',
       [],
-      { create2Salt: 'TestTokenRecipient' },
+      { create2Salt: 'TestRecipient-March-17-2023' },
     );
     return {
       TestRecipient,

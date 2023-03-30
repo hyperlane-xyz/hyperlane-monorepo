@@ -2,6 +2,14 @@
 pragma solidity >=0.6.11;
 
 interface IInterchainSecurityModule {
+    enum Types {
+        UNUSED_0,
+        ROUTING,
+        AGGREGATION,
+        LEGACY_MULTISIG,
+        MULTISIG
+    }
+
     /**
      * @notice Returns an enum that represents the type of security model
      * encoded by this ISM.

@@ -1,28 +1,26 @@
 import { ethers } from 'ethers';
 
-import {
-  InterchainGasPaymaster,
-  Mailbox,
-  OverheadIgp,
-  ProxyAdmin,
-  ValidatorAnnounce,
-} from '@hyperlane-xyz/core';
+import { Mailbox, ValidatorAnnounce } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
   CoreConfig,
-  GasOracleContracts,
+  CoreContracts,
+  HyperlaneAgentAddresses,
   HyperlaneCoreDeployer,
   MultiProvider,
   ProxiedContract,
   TransparentProxyAddresses,
-  chainMetadata,
+  buildAgentConfig,
   objMap,
+  promiseObjAll,
+  serializeContracts,
 } from '@hyperlane-xyz/sdk';
+import { DeployOptions } from '@hyperlane-xyz/sdk/dist/deploy/HyperlaneDeployer';
 import { types } from '@hyperlane-xyz/utils';
 
-import { DeployEnvironment, RustChainSetup, RustConfig } from '../config';
-import { ConnectionType } from '../config/agent';
+import { getAgentConfigDirectory } from '../../scripts/utils';
+import { DeployEnvironment } from '../config';
 import { deployEnvToSdkEnv } from '../config/environment';
 import { writeJSON } from '../utils/utils';
 
@@ -38,61 +36,53 @@ export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
     this.environment = environment;
   }
 
-  async deployInterchainGasPaymaster(
-    chain: ChainName,
-    proxyAdmin: ProxyAdmin,
-    gasOracleContracts: GasOracleContracts,
-  ): Promise<
-    ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
-  > {
-    const deployOpts = {
-      create2Salt: ethers.utils.solidityKeccak256(
-        ['string', 'string', 'uint8'],
-        [this.environment, 'interchainGasPaymaster', 6],
-      ),
-    };
-    return super.deployInterchainGasPaymaster(
-      chain,
-      proxyAdmin,
-      gasOracleContracts,
-      deployOpts,
+  protected async writeAgentConfig() {
+    // Write agent config indexing from the deployed or latest block numbers.
+    // For non-net-new deployments, these changes will need to be
+    // reverted manually.
+    const startBlocks = await promiseObjAll(
+      objMap(this.deployedContracts, async (chain, contracts) => {
+        const latest = await this.multiProvider
+          .getProvider(chain)
+          .getBlockNumber();
+        const deployedBlocks = Object.values(contracts).map(
+          (c) => c.deployTransaction?.blockNumber ?? latest,
+        );
+        return Math.min(...deployedBlocks);
+      }),
     );
+    const addresses = serializeContracts(
+      this.deployedContracts,
+    ) as ChainMap<HyperlaneAgentAddresses>;
+    const agentConfig = buildAgentConfig(
+      this.multiProvider.getKnownChainNames(),
+      this.multiProvider,
+      addresses,
+      startBlocks,
+    );
+    const sdkEnv = deployEnvToSdkEnv[this.environment];
+    writeJSON(getAgentConfigDirectory(), `${sdkEnv}_config.json`, agentConfig);
   }
 
-  async deployDefaultIsmInterchainGasPaymaster(
-    chain: ChainName,
-    interchainGasPaymasterAddress: types.Address,
-  ): Promise<OverheadIgp> {
-    const deployOpts = {
-      create2Salt: ethers.utils.solidityKeccak256(
-        ['string', 'string', 'uint8'],
-        [this.environment, 'defaultIsmInterchainGasPaymaster', 4],
-      ),
-    };
-    return super.deployDefaultIsmInterchainGasPaymaster(
-      chain,
-      interchainGasPaymasterAddress,
-      deployOpts,
-    );
+  async deploy(): Promise<ChainMap<CoreContracts>> {
+    const result = await super.deploy();
+    await this.writeAgentConfig();
+    return result;
   }
 
   async deployMailbox(
     chain: ChainName,
     defaultIsmAddress: types.Address,
-    proxyAdmin: ProxyAdmin,
+    proxyAdmin: types.Address,
+    deployOpts?: DeployOptions,
   ): Promise<ProxiedContract<Mailbox, TransparentProxyAddresses>> {
-    const deployOpts = {
+    return super.deployMailbox(chain, defaultIsmAddress, proxyAdmin, {
+      ...deployOpts,
       create2Salt: ethers.utils.solidityKeccak256(
         ['string', 'string', 'uint8'],
         [this.environment, 'mailbox', 1],
       ),
-    };
-    return super.deployMailbox(
-      chain,
-      defaultIsmAddress,
-      proxyAdmin,
-      deployOpts,
-    );
+    });
   }
 
   async deployValidatorAnnounce(
@@ -106,58 +96,5 @@ export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
       ),
     };
     return super.deployValidatorAnnounce(chain, mailboxAddress, deployOpts);
-  }
-
-  writeRustConfigs(directory: string) {
-    const rustConfig: RustConfig = {
-      chains: {},
-      db: 'db_path',
-      tracing: {
-        level: 'debug',
-        fmt: 'json',
-      },
-    };
-    objMap(this.configMap, (chain) => {
-      const contracts = this.deployedContracts[chain];
-      const metadata = chainMetadata[chain];
-      // Don't write config for undeployed chains
-      if (
-        contracts == undefined ||
-        contracts.mailbox == undefined ||
-        contracts.interchainGasPaymaster == undefined ||
-        contracts.validatorAnnounce == undefined
-      ) {
-        return;
-      }
-
-      const chainConfig: RustChainSetup = {
-        name: chain,
-        domain: metadata.chainId,
-        addresses: {
-          mailbox: contracts.mailbox.contract.address,
-          interchainGasPaymaster: contracts.interchainGasPaymaster.address,
-          validatorAnnounce: contracts.validatorAnnounce.address,
-        },
-        signer: null,
-        protocol: 'ethereum',
-        finalityBlocks: metadata.blocks!.reorgPeriod!,
-        connection: {
-          type: ConnectionType.Http,
-          url: '',
-        },
-      };
-
-      const startingBlockNumber = this.startingBlockNumbers[chain];
-      if (startingBlockNumber) {
-        chainConfig.index = { from: startingBlockNumber };
-      }
-
-      rustConfig.chains[chain] = chainConfig;
-    });
-    writeJSON(
-      directory,
-      `${deployEnvToSdkEnv[this.environment]}_config.json`,
-      rustConfig,
-    );
   }
 }

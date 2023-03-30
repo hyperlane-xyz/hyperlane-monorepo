@@ -24,7 +24,7 @@ pub mod zipkin;
 mod span_metrics;
 
 /// Logging level. A "higher level" means more will be logged.
-#[derive(Debug, Clone, Copy, serde::Deserialize, PartialOrd, Ord, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, Copy, serde::Deserialize, PartialOrd, Ord, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum Level {
     /// Off
@@ -39,13 +39,8 @@ pub enum Level {
     Trace = 5,
     /// Info
     #[serde(other)]
+    #[default]
     Info = 4,
-}
-
-impl Default for Level {
-    fn default() -> Self {
-        Level::Info
-    }
 }
 
 impl From<Level> for LevelFilter {
@@ -78,8 +73,13 @@ impl TracingConfig {
     pub fn start_tracing(&self, metrics: &CoreMetrics) -> Result<()> {
         let mut target_layer = Targets::new().with_default(self.level);
         if self.level < Level::Trace {
-            // only show hyper debug and trace logs at trace level
-            target_layer = target_layer.with_target("hyper", Level::Info)
+            // only show these debug and trace logs at trace level
+            target_layer = target_layer.with_target("hyper", Level::Info);
+            target_layer = target_layer.with_target("rusoto_core", Level::Info);
+            target_layer = target_layer.with_target("reqwest", Level::Info);
+
+            // only show sqlx query logs at trace level
+            target_layer = target_layer.with_target("sqlx::query", Level::Warn);
         }
         let fmt_layer: LogOutputLayer<_> = self.fmt.into();
         let err_layer = tracing_error::ErrorLayer::default();
