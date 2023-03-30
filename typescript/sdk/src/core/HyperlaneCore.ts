@@ -8,13 +8,10 @@ import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
 } from '../consts/environments';
-import { HyperlaneAddresses } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, ChainName } from '../types';
+import { ChainName } from '../types';
 
-import { CoreContracts, coreFactories } from './contracts';
-
-export type CoreContractsMap = ChainMap<CoreContracts>;
+import { coreFactories } from './contracts';
 
 export type DispatchedMessage = {
   id: string;
@@ -22,24 +19,7 @@ export type DispatchedMessage = {
   parsed: types.ParsedMessage;
 };
 
-export class HyperlaneCore extends HyperlaneApp<CoreContracts> {
-  constructor(contractsMap: CoreContractsMap, multiProvider: MultiProvider) {
-    super(contractsMap, multiProvider);
-  }
-
-  static fromAddresses(
-    addresses: ChainMap<HyperlaneAddresses>,
-    multiProvider: MultiProvider,
-  ): HyperlaneCore {
-    const { contracts, intersectionProvider } =
-      this.buildContracts<CoreContracts>(
-        addresses,
-        coreFactories,
-        multiProvider,
-      );
-    return new HyperlaneCore(contracts, intersectionProvider);
-  }
-
+export class HyperlaneCore extends HyperlaneApp<typeof coreFactories> {
   static fromEnvironment<Env extends HyperlaneEnvironment>(
     env: Env,
     multiProvider: MultiProvider,
@@ -48,11 +28,12 @@ export class HyperlaneCore extends HyperlaneApp<CoreContracts> {
     if (!envAddresses) {
       throw new Error(`No addresses found for ${env}`);
     }
-    return HyperlaneCore.fromAddresses(envAddresses, multiProvider);
-  }
-
-  getContracts(chain: ChainName): CoreContracts {
-    return super.getContracts(chain);
+    const { contracts, intersectionProvider } = HyperlaneApp.buildContracts(
+      envAddresses,
+      coreFactories,
+      multiProvider,
+    );
+    return new HyperlaneCore(contracts, intersectionProvider);
   }
 
   protected getDestination(message: DispatchedMessage): {
@@ -62,7 +43,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreContracts> {
     const destinationChain = this.multiProvider.getChainName(
       message.parsed.destination,
     );
-    const mailbox = this.getContracts(destinationChain).mailbox.contract;
+    const mailbox = this.getContracts(destinationChain).mailbox;
     return { destinationChain, mailbox };
   }
 

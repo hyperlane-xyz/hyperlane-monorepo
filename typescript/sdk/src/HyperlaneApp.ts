@@ -24,12 +24,12 @@ export class HyperlaneApp<
     super(connectedContractsMap);
   }
 
-  buildContracts(
-    addresses: ChainMap<HyperlaneAddresses<Factories>>,
-    factories: Factories,
+  static buildContracts<F extends HyperlaneFactories>(
+    addresses: ChainMap<HyperlaneAddresses<F>>,
+    factories: F,
     multiProvider: MultiProvider,
   ): {
-    contracts: ChainMap<HyperlaneContracts<Factories>>;
+    contracts: ChainMap<HyperlaneContracts<F>>;
     intersectionProvider: MultiProvider;
   } {
     const chains = Object.keys(addresses);

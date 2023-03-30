@@ -47,17 +47,13 @@ export {
   HyperlaneFactories,
   serializeContracts,
 } from './contracts';
-export { CoreContracts, coreFactories } from './core/contracts';
+export { coreFactories } from './core/contracts';
 export {
   AnnotatedDispatch,
   AnnotatedLifecycleEvent,
   HyperlaneLifecyleEvent,
 } from './core/events';
-export {
-  CoreContractsMap,
-  DispatchedMessage,
-  HyperlaneCore,
-} from './core/HyperlaneCore';
+export { DispatchedMessage, HyperlaneCore } from './core/HyperlaneCore';
 export { HyperlaneCoreChecker } from './core/HyperlaneCoreChecker';
 export { HyperlaneCoreDeployer } from './core/HyperlaneCoreDeployer';
 export { TestCoreApp, TestCoreContracts } from './core/TestCoreApp';
@@ -76,7 +72,6 @@ export {
   DeployOptions,
   HyperlaneDeployer,
 } from './deploy/HyperlaneDeployer';
-export { ProxyViolation } from './deploy/proxy';
 export {
   CheckerViolation,
   OwnerViolation,
@@ -138,12 +133,6 @@ export {
 } from './middleware/query/InterchainQueryDeployer';
 export { MultiProvider, providerBuilder } from './providers/MultiProvider';
 export { RetryJsonRpcProvider, RetryProvider } from './providers/RetryProvider';
-export {
-  ProxiedContract,
-  ProxyAddresses,
-  ProxyKind,
-  TransparentProxyAddresses,
-} from './proxy';
 export { GasRouterDeployer } from './router/GasRouterDeployer';
 export { HyperlaneRouterChecker } from './router/HyperlaneRouterChecker';
 export { HyperlaneRouterDeployer } from './router/HyperlaneRouterDeployer';

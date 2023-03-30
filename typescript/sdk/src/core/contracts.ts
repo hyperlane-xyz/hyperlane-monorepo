@@ -1,7 +1,4 @@
 import {
-  Create2Factory__factory,
-  InterchainAccountRouter__factory,
-  InterchainQueryRouter__factory,
   LegacyMultisigIsm__factory,
   Mailbox__factory,
   ProxyAdmin__factory,
@@ -25,10 +22,7 @@ export type CoreContracts = {
 */
 
 export const coreFactories = {
-  interchainAccountRouter: new InterchainAccountRouter__factory(),
-  interchainQueryRouter: new InterchainQueryRouter__factory(),
   validatorAnnounce: new ValidatorAnnounce__factory(),
-  create2Factory: new Create2Factory__factory(),
   proxyAdmin: new ProxyAdmin__factory(),
   multisigIsm: new LegacyMultisigIsm__factory(),
   mailbox: new Mailbox__factory(),
