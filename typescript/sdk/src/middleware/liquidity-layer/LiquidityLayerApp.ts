@@ -208,12 +208,24 @@ export class LiquidityLayerApp extends HyperlaneApp<LiquidityLayerContracts> {
     console.debug(
       `Complete portal transfer for nonce ${message.nonce} on ${message.destination}`,
     );
-    await this.multiProvider.handleTx(
-      message.destination,
-      destinationPortalAdapter.completeTransfer(
-        utils.ensure0x(Buffer.from(vaa.vaaBytes, 'base64').toString('hex')),
-      ),
-    );
+
+    try {
+      await this.multiProvider.handleTx(
+        message.destination,
+        destinationPortalAdapter.completeTransfer(
+          utils.ensure0x(Buffer.from(vaa.vaaBytes, 'base64').toString('hex')),
+        ),
+      );
+    } catch (error: any) {
+      if (error?.error?.reason?.includes('no wrapper for this token')) {
+        console.log(
+          'No wrapper for this token, you should register the token at https://wormhole-foundation.github.io/example-token-bridge-ui/#/register',
+        );
+        console.log(message);
+        return;
+      }
+      throw error;
+    }
   }
 
   async attemptCircleAttestationSubmission(
