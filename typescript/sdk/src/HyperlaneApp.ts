@@ -1,6 +1,5 @@
 import {
   HyperlaneAddresses,
-  HyperlaneContract,
   HyperlaneContracts,
   HyperlaneFactories,
   buildContracts,
@@ -8,16 +7,15 @@ import {
   serializeContracts,
 } from './contracts';
 import { MultiProvider } from './providers/MultiProvider';
-import { isProxiedContract } from './proxy';
 import { ChainMap, ChainName } from './types';
 import { MultiGeneric } from './utils/MultiGeneric';
-import { objFilter, objMap, pick } from './utils/objects';
+import { objMap, pick } from './utils/objects';
 
 export class HyperlaneApp<
-  Contracts extends HyperlaneContracts,
-> extends MultiGeneric<Contracts> {
+  Factories extends HyperlaneFactories,
+> extends MultiGeneric<HyperlaneContracts<Factories>> {
   constructor(
-    public readonly contractsMap: ChainMap<Contracts>,
+    public readonly contractsMap: ChainMap<HyperlaneContracts<Factories>>,
     public readonly multiProvider: MultiProvider,
   ) {
     const connectedContractsMap = objMap(contractsMap, (chain, contracts) =>
@@ -26,39 +24,31 @@ export class HyperlaneApp<
     super(connectedContractsMap);
   }
 
-  static buildContracts<C extends HyperlaneContracts>(
-    addresses: ChainMap<HyperlaneAddresses>,
-    factories: HyperlaneFactories,
+  buildContracts(
+    addresses: ChainMap<HyperlaneAddresses<Factories>>,
+    factories: Factories,
     multiProvider: MultiProvider,
-  ): { contracts: ChainMap<C>; intersectionProvider: MultiProvider } {
+  ): {
+    contracts: ChainMap<HyperlaneContracts<Factories>>;
+    intersectionProvider: MultiProvider;
+  } {
     const chains = Object.keys(addresses);
     const { intersection, multiProvider: intersectionProvider } =
       multiProvider.intersect(chains, true);
 
     const intersectionAddresses = pick(addresses, intersection);
-    const contracts = buildContracts(
-      intersectionAddresses,
-      factories,
-    ) as ChainMap<C>;
+    const contracts = objMap(intersectionAddresses, (chain, addresses) =>
+      buildContracts(addresses, factories),
+    );
+
     return { contracts, intersectionProvider };
   }
 
-  getContracts(chain: ChainName): Contracts {
+  getContracts(chain: ChainName): HyperlaneContracts<Factories> {
     return this.get(chain);
   }
 
-  getFlattenedFilteredContracts(
-    chain: ChainName,
-    filter: (k: ChainName, v: HyperlaneContract) => v is HyperlaneContract,
-  ) {
-    const filtered = objFilter(this.getContracts(chain), filter);
-    const flattened = objMap(filtered, (name, contract) =>
-      isProxiedContract(contract) ? contract.contract : contract,
-    );
-    return flattened;
-  }
-
-  getAddresses(chain: ChainName): HyperlaneAddresses {
+  getAddresses(chain: ChainName): HyperlaneAddresses<Factories> {
     return serializeContracts(this.get(chain));
   }
 }

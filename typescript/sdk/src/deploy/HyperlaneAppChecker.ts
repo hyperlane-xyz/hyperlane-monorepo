@@ -6,11 +6,10 @@ import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
 import { MultiProvider } from '../providers/MultiProvider';
-import { ProxiedContract, isProxiedContract } from '../proxy';
 import { ChainMap, ChainName } from '../types';
 import { objMap, promiseObjAll } from '../utils/objects';
 
-import { proxyAdmin } from './proxy';
+import { isProxy, proxyAdmin } from './proxy';
 import {
   BytecodeMismatchViolation,
   CheckerViolation,
@@ -70,25 +69,22 @@ export abstract class HyperlaneAppChecker<
       );
     }
     const provider = this.multiProvider.getProvider(chain);
-    const isProxied = (
-      _: string,
-      contract: any,
-    ): contract is ProxiedContract<any, any> => {
-      return isProxiedContract(contract);
-    };
-    const proxied = this.app.getFlattenedFilteredContracts(chain, isProxied);
+    const contracts = this.app.getContracts(chain);
+
     await promiseObjAll(
-      objMap(proxied, async (name, contract) => {
-        // Check the ProxiedContract's admin matches expectation
-        const actualAdmin = await proxyAdmin(provider, contract.address);
-        if (!utils.eqAddress(actualAdmin, expectedAdmin)) {
-          this.addViolation({
-            type: ViolationType.ProxyAdmin,
-            chain,
-            name,
-            expected: expectedAdmin,
-            actual: actualAdmin,
-          } as ProxyAdminViolation);
+      objMap(contracts, async (name, contract) => {
+        if (await isProxy(provider, contract.address)) {
+          // Check the ProxiedContract's admin matches expectation
+          const actualAdmin = await proxyAdmin(provider, contract.address);
+          if (!utils.eqAddress(actualAdmin, expectedAdmin)) {
+            this.addViolation({
+              type: ViolationType.ProxyAdmin,
+              chain,
+              name,
+              expected: expectedAdmin,
+              actual: actualAdmin,
+            } as ProxyAdminViolation);
+          }
         }
 
         // Check the ProxiedContract's implementation matches expectation
@@ -145,7 +141,7 @@ export abstract class HyperlaneAppChecker<
 
   // TODO: Require owner in config if ownables is non-empty
   async checkOwnership(chain: ChainName, owner: types.Address): Promise<void> {
-    const isOwnable = (_: string, contract: any): contract is Ownable => {
+    const isOwnable = (contract: any): contract is Ownable => {
       return (
         contract !== null &&
         typeof contract === 'object' &&
@@ -153,20 +149,22 @@ export abstract class HyperlaneAppChecker<
         contract.transferOwnership
       );
     };
-    const ownables = this.app.getFlattenedFilteredContracts(chain, isOwnable);
+    const contracts = this.app.getContracts(chain);
     await promiseObjAll(
-      objMap(ownables, async (name, contract) => {
-        const actual = await contract.owner();
-        if (!utils.eqAddress(actual, owner)) {
-          const violation: OwnerViolation = {
-            chain,
-            name,
-            type: ViolationType.Owner,
-            actual,
-            expected: owner,
-            contract,
-          };
-          this.addViolation(violation);
+      objMap(contracts, async (name, contract) => {
+        if (isOwnable(contract)) {
+          const actual = await contract.owner();
+          if (!utils.eqAddress(actual, owner)) {
+            const violation: OwnerViolation = {
+              chain,
+              name,
+              type: ViolationType.Owner,
+              actual,
+              expected: owner,
+              contract,
+            };
+            this.addViolation(violation);
+          }
         }
       }),
     );

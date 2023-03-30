@@ -2,21 +2,15 @@ import {
   Create2Factory__factory,
   InterchainAccountRouter__factory,
   InterchainQueryRouter__factory,
-  LegacyMultisigIsm,
   LegacyMultisigIsm__factory,
-  Mailbox,
   Mailbox__factory,
-  ProxyAdmin,
   ProxyAdmin__factory,
-  ValidatorAnnounce,
   ValidatorAnnounce__factory,
 } from '@hyperlane-xyz/core';
-import { types } from '@hyperlane-xyz/utils';
 
-import { ProxiedContract, TransparentProxyAddresses } from '../proxy';
-
-export type CoreAddresses = {
-  mailbox: types.Address | TransparentProxyAddresses;
+/*
+export type CoreAddresses = HyperlaneAddresses<
+  mailbox: types.Address;
   multisigIsm: types.Address;
   proxyAdmin: types.Address;
   validatorAnnounce: types.Address;
@@ -28,6 +22,7 @@ export type CoreContracts = {
   proxyAdmin: ProxyAdmin;
   validatorAnnounce: ValidatorAnnounce;
 };
+*/
 
 export const coreFactories = {
   interchainAccountRouter: new InterchainAccountRouter__factory(),

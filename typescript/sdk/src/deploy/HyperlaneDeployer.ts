@@ -1,5 +1,5 @@
 import { Debugger, debug } from 'debug';
-import { ethers } from 'ethers';
+import { Contract, ethers } from 'ethers';
 
 import {
   Create2Factory__factory,
@@ -13,22 +13,17 @@ import {
 import { types, utils } from '@hyperlane-xyz/utils';
 
 import {
-  HyperlaneContract,
   HyperlaneContracts,
   HyperlaneFactories,
   connectContractsMap,
   serializeContracts,
 } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
-import {
-  ProxiedContract,
-  ProxyKind,
-  TransparentProxyAddresses,
-} from '../proxy';
 import { ConnectionClientConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
 import { objMap } from '../utils/objects';
 
+import { proxyAdmin } from './proxy';
 import { ContractVerificationInput } from './verify/types';
 import {
   buildVerificationInput,
@@ -49,10 +44,9 @@ export const CREATE2FACTORY_ADDRESS =
 
 export abstract class HyperlaneDeployer<
   Config,
-  Contracts extends HyperlaneContracts,
   Factories extends HyperlaneFactories,
 > {
-  public deployedContracts: ChainMap<Contracts> = {};
+  public deployedContracts: ChainMap<HyperlaneContracts<Factories>> = {};
   public verificationInputs: ChainMap<ContractVerificationInput[]>;
   protected logger: Debugger;
 
@@ -66,7 +60,9 @@ export abstract class HyperlaneDeployer<
     this.logger = options?.logger || debug('hyperlane:AppDeployer');
   }
 
-  cacheContracts(partialDeployment: ChainMap<Contracts>): void {
+  cacheContracts(
+    partialDeployment: ChainMap<HyperlaneContracts<Factories>>,
+  ): void {
     this.deployedContracts = connectContractsMap(
       partialDeployment,
       this.multiProvider,
@@ -76,11 +72,11 @@ export abstract class HyperlaneDeployer<
   abstract deployContracts(
     chain: ChainName,
     config: Config,
-  ): Promise<Contracts>;
+  ): Promise<HyperlaneContracts<Factories>>;
 
   async deploy(
-    partialDeployment?: ChainMap<Contracts>,
-  ): Promise<ChainMap<Contracts>> {
+    partialDeployment?: ChainMap<HyperlaneContracts<Factories>>,
+  ): Promise<ChainMap<HyperlaneContracts<Factories>>> {
     if (partialDeployment) {
       this.cacheContracts(partialDeployment);
     }
@@ -104,9 +100,7 @@ export abstract class HyperlaneDeployer<
       // TODO: remove these logs once we have better timeouts
       this.logger(
         JSON.stringify(
-          serializeContracts(
-            (this.deployedContracts[chain] as Contracts) ?? {},
-          ),
+          serializeContracts(this.deployedContracts[chain] ?? {}),
           null,
           2,
         ),
@@ -139,11 +133,14 @@ export abstract class HyperlaneDeployer<
 
   protected async runIfAdmin<T>(
     chain: ChainName,
-    proxy: TransparentUpgradeableProxy,
+    proxy: Contract,
     signerAdminFn: () => Promise<T>,
     proxyAdminOwnerFn: (proxyAdmin: ProxyAdmin) => Promise<T>,
   ): Promise<T | undefined> {
-    const admin = await proxy.callStatic.admin();
+    const admin = await proxyAdmin(
+      this.multiProvider.getProvider(chain),
+      proxy.address,
+    );
     const code = await this.multiProvider.getProvider(chain).getCode(admin);
     // if admin is a ProxyAdmin, run the proxyAdminOwnerFn (if deployer is owner)
     if (code !== '0x') {
@@ -214,7 +211,7 @@ export abstract class HyperlaneDeployer<
     deployOpts?: DeployOptions,
   ): Promise<ReturnType<F['deploy']>> {
     const cachedContract = this.deployedContracts[chain]?.[contractName];
-    if (cachedContract && !(cachedContract instanceof ProxiedContract)) {
+    if (cachedContract) {
       this.logger(
         `Recovered ${contractName} on ${chain} ${cachedContract.address}`,
       );
@@ -308,14 +305,14 @@ export abstract class HyperlaneDeployer<
     contractName: K,
     args: Parameters<Factories[K]['deploy']>,
     deployOpts?: DeployOptions,
-  ): Promise<ReturnType<Factories[K]['deploy']>> {
-    const contract = await this.deployContractFromFactory(
+  ): Promise<HyperlaneContracts<Factories>[K]> {
+    const contract = (await this.deployContractFromFactory(
       chain,
       this.factories[contractName],
       contractName.toString(),
       args,
       deployOpts,
-    );
+    )) as HyperlaneContracts<Factories>[K];
     this.cacheContract(chain, contractName, contract);
     return contract;
   }
@@ -378,7 +375,7 @@ export abstract class HyperlaneDeployer<
     initArgs: Parameters<C['initialize']>,
     proxyAdmin: string,
     deployOpts?: DeployOptions,
-  ): Promise<ProxiedContract<C, TransparentProxyAddresses>> {
+  ): Promise<C> {
     const initData = implementation.interface.encodeFunctionData(
       'initialize',
       initArgs,
@@ -438,25 +435,17 @@ export abstract class HyperlaneDeployer<
       );
     }
 
-    return new ProxiedContract<C, TransparentProxyAddresses>(
-      implementation.attach(proxy.address) as C,
-      {
-        kind: ProxyKind.Transparent,
-        proxy: proxy.address,
-        implementation: implementation.address,
-      },
-    );
+    return implementation.attach(proxy.address) as C;
   }
 
   private cacheContract<K extends keyof Factories>(
     chain: ChainName,
     contractName: K,
-    contract: HyperlaneContract,
+    contract: HyperlaneContracts<Factories>[K],
   ) {
     if (!this.deployedContracts[chain]) {
-      this.deployedContracts[chain] = {} as Contracts;
+      this.deployedContracts[chain] = {} as HyperlaneContracts<Factories>;
     }
-    // @ts-ignore
     this.deployedContracts[chain][contractName] = contract;
   }
 
@@ -464,29 +453,22 @@ export abstract class HyperlaneDeployer<
    * Deploys the Implementation and Proxy for a given contract
    *
    */
-  async deployProxiedContract<
-    K extends keyof Factories,
-    C extends Awaited<ReturnType<Factories[K]['deploy']>>,
-  >(
+  async deployProxiedContract<K extends keyof Factories>(
     chain: ChainName,
     contractName: K,
     constructorArgs: Parameters<Factories[K]['deploy']>,
-    initArgs: Parameters<C['initialize']>,
+    initArgs: Parameters<HyperlaneContracts<Factories>[K]['initialize']>,
     proxyAdmin: string,
     deployOpts?: DeployOptions,
-  ): Promise<ProxiedContract<C, TransparentProxyAddresses>> {
-    const cachedProxy = this.deployedContracts[chain]?.[contractName as any];
-    if (
-      cachedProxy &&
-      cachedProxy.addresses.proxy &&
-      cachedProxy.addresses.implementation
-    ) {
+  ): Promise<HyperlaneContracts<Factories>[K]> {
+    const cachedProxy = this.deployedContracts[chain]?.[contractName];
+    if (cachedProxy) {
       this.logger(
-        `Recovered ${contractName.toString()} on ${chain} proxy=${
-          cachedProxy.addresses.proxy
-        } implementation=${cachedProxy.addresses.implementation}`,
+        `Recovered ${contractName as string} on ${chain} ${
+          cachedProxy.address
+        }`,
       );
-      return cachedProxy as ProxiedContract<C, TransparentProxyAddresses>;
+      return cachedProxy;
     }
 
     const implementation = await this.deployContract<K>(
@@ -495,25 +477,10 @@ export abstract class HyperlaneDeployer<
       constructorArgs,
       deployOpts,
     );
-    // If the proxy already existed in artifacts but the implementation did not,
-    // we only deploy the implementation and keep the proxy.
-    // Changing the proxy's implementation address on-chain is left to
-    // the govern / checker script
-    if (cachedProxy && cachedProxy.addresses.proxy) {
-      this.logger(
-        `Recovered ${contractName.toString()} on ${chain} proxy=${
-          cachedProxy.addresses.proxy
-        }`,
-      );
-
-      cachedProxy.addresses.implementation = implementation.address;
-      this.cacheContract(chain, contractName, cachedProxy);
-      return cachedProxy as ProxiedContract<C, TransparentProxyAddresses>;
-    }
 
     const contract = await this.deployProxy(
       chain,
-      implementation as C,
+      implementation,
       initArgs,
       proxyAdmin,
       deployOpts,

@@ -1,5 +1,4 @@
 import { HyperlaneAgentAddresses } from '../../agents/types';
-import { CoreAddresses } from '../../core/contracts';
 import { IgpAddresses } from '../../gas/contracts';
 import { ChainMap, ChainName } from '../../types';
 import { objMap } from '../../utils/objects';

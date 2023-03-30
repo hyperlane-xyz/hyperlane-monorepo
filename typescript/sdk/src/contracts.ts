@@ -3,14 +3,14 @@ import { ethers } from 'ethers';
 import type { types } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from './providers/MultiProvider';
-import { ProxiedContract, ProxyAddresses, isProxyAddresses } from './proxy';
 import { ChainMap, Connection } from './types';
-import { isObject, objMap } from './utils/objects';
+import { objFilter, objMap } from './utils/objects';
 
 export type HyperlaneFactories = {
   [key: string]: ethers.ContractFactory;
 };
 
+/*
 export type HyperlaneContract =
   | ethers.Contract
   | ProxiedContract<any, any>
@@ -23,26 +23,24 @@ export type HyperlaneContracts = {
 export type HyperlaneAddresses = {
   [key: string]: types.Address | ProxyAddresses<any> | HyperlaneAddresses;
 };
+*/
 
-export function serializeContracts(
-  contractOrObject: HyperlaneContracts,
-  max_depth = 5,
-): HyperlaneAddresses {
-  if (max_depth === 0) {
-    throw new Error('serializeContracts tried to go too deep');
-  }
-  return objMap(
-    contractOrObject,
-    (_, contract: any): string | ProxyAddresses<any> | HyperlaneAddresses => {
-      if (contract instanceof ProxiedContract) {
-        return contract.addresses;
-      } else if (contract.address) {
-        return contract.address;
-      } else {
-        return serializeContracts(contract, max_depth - 1);
-      }
-    },
-  );
+export type HyperlaneContracts<Factories extends HyperlaneFactories> = {
+  [Property in keyof Factories]: Awaited<
+    ReturnType<Factories[Property]['deploy']>
+  >;
+};
+
+export type HyperlaneAddresses<Factories extends HyperlaneFactories> = {
+  [Property in keyof Factories]: types.Address;
+};
+
+export function serializeContracts<F extends HyperlaneFactories>(
+  contractOrObject: HyperlaneContracts<F>,
+): HyperlaneAddresses<F> {
+  return objMap(contractOrObject, (_, contract): string => {
+    return contract.address;
+  }) as HyperlaneAddresses<F>;
 }
 
 function getFactory(
@@ -55,88 +53,46 @@ function getFactory(
   return factories[key];
 }
 
-function isAddress(addressOrObject: any) {
-  return (
-    isProxyAddresses(addressOrObject) || typeof addressOrObject === 'string'
-  );
-}
-
-export function filterAddresses(
-  addressOrObject: HyperlaneAddresses,
+export function filterAddresses<F extends HyperlaneFactories>(
+  addresses: HyperlaneAddresses<F>,
   contractNames: string[],
-  max_depth = 5,
-): HyperlaneAddresses {
-  if (max_depth === 0) {
-    throw new Error('filterAddresses tried to go too deep');
-  }
-  const ret: HyperlaneAddresses = {};
-  for (const key of Object.keys(addressOrObject)) {
-    if (isAddress(addressOrObject[key]) && contractNames.includes(key)) {
-      ret[key] = addressOrObject[key];
-    } else if (isObject(addressOrObject[key])) {
-      const obj = filterAddresses(
-        addressOrObject[key] as HyperlaneAddresses,
-        contractNames,
-        max_depth - 1,
-      );
-      if (Object.keys(obj).length > 0) {
-        ret[key] = obj;
-      }
-    }
-  }
-  return ret;
+): HyperlaneAddresses<any> {
+  const isIncluded = (
+    name: string,
+    address: types.Address,
+  ): address is types.Address => {
+    return contractNames.includes(name);
+  };
+  return objFilter(addresses, isIncluded);
 }
 
-export function buildContracts(
-  addressOrObject: HyperlaneAddresses,
-  factories: HyperlaneFactories,
+export function buildContracts<F extends HyperlaneFactories>(
+  addresses: HyperlaneAddresses<F>,
+  factories: F,
   filter = true,
-  max_depth = 5,
-): HyperlaneContracts {
-  if (max_depth === 0) {
-    throw new Error('buildContracts tried to go too deep');
-  }
+): HyperlaneContracts<F> {
   if (filter) {
-    addressOrObject = filterAddresses(addressOrObject, Object.keys(factories));
+    addresses = filterAddresses(addresses, Object.keys(factories));
   }
-  return objMap(addressOrObject, (key, address: any) => {
-    if (isProxyAddresses(address)) {
-      const contract = getFactory(key, factories).attach(address.proxy);
-      return new ProxiedContract(contract, address);
-    } else if (typeof address === 'string') {
-      return getFactory(key, factories).attach(address);
-    } else {
-      return buildContracts(
-        address as HyperlaneAddresses,
-        factories,
-        false,
-        max_depth - 1,
-      );
-    }
-  });
+
+  return objMap(addresses, (key, address: types.Address) => {
+    return getFactory(key, factories).attach(address);
+  }) as HyperlaneContracts<F>;
 }
 
-export function connectContracts<Contracts extends HyperlaneContracts>(
-  contractOrObject: Contracts,
+export function connectContracts<F extends HyperlaneFactories>(
+  contracts: HyperlaneContracts<F>,
   connection: Connection,
-  max_depth = 5,
-): Contracts {
-  if (max_depth === 0) {
-    throw new Error('connectContracts tried to go too deep');
-  }
-  return objMap(contractOrObject, (_, contract: any) => {
-    if (contract.connect) {
-      return contract.connect(connection);
-    } else {
-      return connectContracts(contract, connection, max_depth - 1);
-    }
-  }) as Contracts;
+): HyperlaneContracts<F> {
+  return objMap(contracts, (_, contract) =>
+    contract.connect(connection),
+  ) as HyperlaneContracts<F>;
 }
 
-export function connectContractsMap<Contracts extends HyperlaneContracts>(
-  contractsMap: ChainMap<Contracts>,
+export function connectContractsMap<F extends HyperlaneFactories>(
+  contractsMap: ChainMap<HyperlaneContracts<F>>,
   multiProvider: MultiProvider,
-): ChainMap<Contracts> {
+): ChainMap<HyperlaneContracts<F>> {
   return objMap(contractsMap, (chain, contracts) =>
     connectContracts(contracts, multiProvider.getSignerOrProvider(chain)),
   );
