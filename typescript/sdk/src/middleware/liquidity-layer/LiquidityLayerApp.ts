@@ -217,9 +217,7 @@ export class LiquidityLayerApp extends HyperlaneApp<LiquidityLayerContracts> {
         ),
       );
     } catch (error: any) {
-      if (
-        error?.error?.reason?.includes('no wrapper for this token')
-      ) {
+      if (error?.error?.reason?.includes('no wrapper for this token')) {
         console.log(
           'No wrapper for this token, you should register the token at https://wormhole-foundation.github.io/example-token-bridge-ui/#/register',
         );
