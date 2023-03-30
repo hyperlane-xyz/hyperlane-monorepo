@@ -88,7 +88,7 @@ where
 
     match Config::try_deserialize::<T>(config_deserializer) {
         Ok(mut cfg) => {
-            cfg.as_mut().post_deserialize();
+            cfg.as_mut();
             Ok(cfg)
         }
         Err(err) => {

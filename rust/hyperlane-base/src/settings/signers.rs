@@ -1,18 +1,18 @@
 use async_trait::async_trait;
 use ethers::prelude::AwsSigner;
-use eyre::{bail, Report};
+use eyre::{bail, Context, Report};
 use rusoto_core::credential::EnvironmentProvider;
 use rusoto_core::HttpClient;
 use rusoto_kms::KmsClient;
+use serde::Deserialize;
 use tracing::instrument;
 
 use hyperlane_core::utils::HexString;
 
-use crate::settings::KMS_CLIENT;
+use crate::settings::{declare_deserialize_for_config_struct, EyreOptionExt, KMS_CLIENT};
 
-/// Ethereum signer types
-#[derive(Debug, Clone, serde::Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
+/// Signer types
+#[derive(Default, Debug, Clone)]
 pub enum SignerConf {
     /// A local hex key
     HexKey {
@@ -27,14 +27,45 @@ pub enum SignerConf {
         /// The AWS region
         region: String,
     },
-    #[serde(other)]
     /// Assume node will sign on RPC calls
+    #[default]
     Node,
 }
 
-impl Default for SignerConf {
-    fn default() -> Self {
-        Self::Node
+#[derive(Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub(super) enum RawSignerConf {
+    HexKey {
+        key: Option<String>,
+    },
+    Aws {
+        id: Option<String>,
+        region: Option<String>,
+    },
+    #[serde(other)]
+    Node,
+}
+
+declare_deserialize_for_config_struct!(SignerConf);
+
+impl TryFrom<RawSignerConf> for SignerConf {
+    type Error = Report;
+
+    fn try_from(r: RawSignerConf) -> Result<Self, Self::Error> {
+        use RawSignerConf::*;
+        match r {
+            HexKey { key } => Ok(Self::HexKey {
+                key: HexString::from_string(
+                    &key.expect_or_eyre("Missing `key` for HexKey signer")?,
+                )
+                .context("Invalid hex string for HexKey signer `key`")?,
+            }),
+            Aws { id, region } => Ok(Self::Aws {
+                id: id.expect_or_eyre("Missing `id` for Aws signer")?,
+                region: region.expect_or_eyre("Missing `region` for Aws signer")?,
+            }),
+            Node => Ok(Self::Node),
+        }
     }
 }
 

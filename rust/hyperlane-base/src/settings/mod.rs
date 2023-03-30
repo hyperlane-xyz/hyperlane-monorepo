@@ -98,55 +98,6 @@ pub mod trace;
 
 static KMS_CLIENT: OnceCell<KmsClient> = OnceCell::new();
 
-// /// Declare a configuration struct with a raw version that is entirely optional.
-// /// When using this do not add a derive for deserialize as that is configured
-// /// automatically along with serde rename.
-// macro_rules! declare_config_struct {
-//     {$(#[$struct_attr:meta])* $struct_vis:vis struct $struct_name:ident { $($(#[$field_attr:meta])* $field_vis:vis $field_name:ident: $field_ty:ty),*$(,)? }} => {paste::paste! {
-//         $(#[$struct_attr])*
-//         $struct_vis struct $struct_name {$(
-//             $(#[$field_attr])*
-//             $field_vis $field_name: $field_ty,
-//         )*}
-//
-//         $(#[$struct_attr])*
-//         #[derive(Deserialize)]
-//         #[serde(rename_all = "camelCase")]
-//         struct [<Raw $struct_name>] {$(
-//             $(#[$field_attr])*
-//             $field_name: declare_config_struct!(@make_optional $field_ty),
-//         )*}
-//
-//         static_assertions::assert_impl_all!($struct_name: TryFrom<[<Raw $struct_name>]>);
-//         static_assertions::assert_impl_all!([<Raw $struct_name>]: serde::de::DeserializeOwned);
-//
-//         impl<'de> Deserialize<'de> for $struct_name {
-//             fn deserialize<D>(des: D) -> Result<Self, D::Error>
-//             where
-//                 D: serde::Deserializer<'de>,
-//             {
-//                 [<Raw $struct_name>]::deserialize(des)?
-//                     .try_into()
-//                     .map_err(serde::de::Error::custom)
-//             }
-//         }
-//
-//         impl std::str::FromStr for $struct_name {
-//             type Err = serde_json::Error;
-//
-//             fn from_str(s: &str) -> Result<Self, Self::Err> {
-//                 serde_json::from_str(s)
-//             }
-//         }
-//     }};
-//     (@make_optional Option<$field_ty:ty>) => {
-//         Option<$field_ty>
-//     };
-//     (@make_optional $field_ty:ty) => {
-//         Option<$field_ty>
-//     };
-// }
-
 macro_rules! declare_deserialize_for_config_struct {
     ($struct_name:ident) => {
         paste::paste! { declare_deserialize_for_config_struct!([<Raw $struct_name>] -> $struct_name); }
@@ -175,6 +126,8 @@ macro_rules! declare_deserialize_for_config_struct {
         }
     };
 }
+
+pub(self) use declare_deserialize_for_config_struct;
 
 pub trait EyreOptionExt<T> {
     fn expect_or_eyre<M: Into<String>>(self, msg: M) -> eyre::Result<T>;
@@ -229,29 +182,31 @@ pub struct Settings {
 #[serde(rename_all = "camelCase")]
 struct RawSettings {
     chains: Option<HashMap<String, ChainSetup>>,
-    defaultsigner: Option<SignerConf>,
+    defaultsigner: Option<signers::RawSignerConf>,
     metrics: Option<StrOrInt>,
     tracing: Option<TracingConfig>,
 }
 
 declare_deserialize_for_config_struct!(Settings);
 
-impl<'de> TryFrom<RawSettings> for Settings {
+impl TryFrom<RawSettings> for Settings {
     type Error = eyre::Report;
 
     fn try_from(r: RawSettings) -> Result<Self, Self::Error> {
         Ok(Self {
-            chains: r
-                .chains
-                .map(|mut chains| {
-                    if let Some(default_signer) = r.defaultsigner {
-                        for chain in chains.values_mut() {
-                            chain.signer.get_or_insert_with(|| default_signer.clone());
-                        }
+            chains: if let Some(mut chains) = r.chains {
+                if let Some(default_signer) = r.defaultsigner {
+                    let default_signer: SignerConf = default_signer
+                        .try_into()
+                        .context("Invalid `defaultsigner` configuration")?;
+                    for chain in chains.values_mut() {
+                        chain.signer.get_or_insert_with(|| default_signer.clone());
                     }
-                    chains
-                })
-                .unwrap_or_default(),
+                }
+                chains
+            } else {
+                Default::default()
+            },
             metrics: r
                 .metrics
                 .map(|port| {
