@@ -3,9 +3,8 @@ import { ethers } from 'hardhat';
 
 import { utils } from '@hyperlane-xyz/utils';
 
+import testCases from '../../vectors/message.json';
 import { TestMessage, TestMessage__factory } from '../types';
-
-const testCases = require('../../vectors/message.json');
 
 const remoteDomain = 1000;
 const localDomain = 2000;
@@ -52,44 +51,30 @@ describe('Message', async () => {
     expect(await messageLib.body(message)).to.equal(body);
   });
 
-  // TODO: Update rust output to new message format
-  it.skip('Matches Rust-output HyperlaneMessage and leaf', async () => {
-    const origin = 1000;
-    const sender = '0x1111111111111111111111111111111111111111';
-    const destination = 2000;
-    const recipient = '0x2222222222222222222222222222222222222222';
-    const body = '0x1234';
+  it('Matches Rust-output HyperlaneMessage and leaf', async () => {
+    for (const test of testCases) {
+      const { origin, sender, destination, recipient, body, nonce, id } = test;
 
-    const hyperlaneMessage = utils.formatMessage(
-      version,
-      nonce,
-      origin,
-      sender,
-      destination,
-      recipient,
-      body,
-    );
+      const hexBody = ethers.utils.hexlify(body);
 
-    const {
-      origin: testOrigin,
-      sender: testSender,
-      destination: testDestination,
-      recipient: testRecipient,
-      body: testBody,
-      messageHash,
-    } = testCases[0];
+      const hyperlaneMessage = utils.formatMessage(
+        version,
+        nonce,
+        origin,
+        sender,
+        destination,
+        recipient,
+        hexBody,
+      );
 
-    expect(await messageLib.origin(hyperlaneMessage)).to.equal(testOrigin);
-    expect(await messageLib.sender(hyperlaneMessage)).to.equal(testSender);
-    expect(await messageLib.destination(hyperlaneMessage)).to.equal(
-      testDestination,
-    );
-    expect(await messageLib.recipient(hyperlaneMessage)).to.equal(
-      testRecipient,
-    );
-    expect(await messageLib.body(hyperlaneMessage)).to.equal(
-      ethers.utils.hexlify(testBody),
-    );
-    expect(utils.messageId(hyperlaneMessage)).to.equal(messageHash);
+      expect(await messageLib.origin(hyperlaneMessage)).to.equal(origin);
+      expect(await messageLib.sender(hyperlaneMessage)).to.equal(sender);
+      expect(await messageLib.destination(hyperlaneMessage)).to.equal(
+        destination,
+      );
+      expect(await messageLib.recipient(hyperlaneMessage)).to.equal(recipient);
+      expect(await messageLib.body(hyperlaneMessage)).to.equal(hexBody);
+      expect(utils.messageId(hyperlaneMessage)).to.equal(id);
+    }
   });
 });
