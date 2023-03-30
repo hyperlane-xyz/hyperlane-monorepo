@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# This is designed to synchronize the typescript submodules with the committed submodule version and
+# then clean and build the typescript codebase. This will not update the submodules.
+
 set -e
 
 DIRNAME=$(basename "$PWD")
