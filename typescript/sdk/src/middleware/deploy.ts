@@ -14,25 +14,28 @@ import { ProxiedContract, ProxyKind } from '../proxy';
 import { HyperlaneRouterDeployer } from '../router/HyperlaneRouterDeployer';
 import {
   ProxiedRouterContracts,
+  ProxiedRouterFactories,
   RouterConfig,
-  RouterFactories,
 } from '../router/types';
 import { ChainMap, ChainName } from '../types';
 
 export type InterchainAccountFactories =
-  RouterFactories<InterchainAccountRouter>;
+  ProxiedRouterFactories<InterchainAccountRouter>;
 
 export const interchainAccountFactories: InterchainAccountFactories = {
   router: new InterchainAccountRouter__factory(),
+  proxyAdmin: new ProxyAdmin__factory(),
 };
 
 export type InterchainAccountContracts =
   ProxiedRouterContracts<InterchainAccountRouter>;
 
-export type InterchainQueryFactories = RouterFactories<InterchainQueryRouter>;
+export type InterchainQueryFactories =
+  ProxiedRouterFactories<InterchainQueryRouter>;
 
 export const interchainQueryFactories: InterchainQueryFactories = {
   router: new InterchainQueryRouter__factory(),
+  proxyAdmin: new ProxyAdmin__factory(),
 };
 
 export type InterchainQueryContracts =
@@ -41,7 +44,7 @@ export type InterchainQueryContracts =
 export abstract class MiddlewareRouterDeployer<
   MiddlewareRouterConfig extends RouterConfig,
   MiddlewareRouterContracts extends ProxiedRouterContracts,
-  MiddlewareFactories extends RouterFactories,
+  MiddlewareFactories extends ProxiedRouterFactories,
 > extends HyperlaneRouterDeployer<
   MiddlewareRouterConfig,
   MiddlewareRouterContracts,
@@ -54,13 +57,6 @@ export abstract class MiddlewareRouterDeployer<
     protected create2salt = 'middlewarerouter',
   ) {
     super(multiProvider, configMap, factories);
-  }
-
-  constructorArgs(
-    _chain: ChainName,
-    _config: MiddlewareRouterConfig,
-  ): Parameters<MiddlewareFactories['router']['deploy']> {
-    return [] as any;
   }
 
   async initializeArgs(
@@ -82,27 +78,22 @@ export abstract class MiddlewareRouterDeployer<
     chain: ChainName,
     config: MiddlewareRouterConfig,
   ): Promise<MiddlewareRouterContracts> {
-    const proxyAdmin = await this.deployContractFromFactory(
+    const proxyAdmin = await this.deployContract(
       chain,
-      new ProxyAdmin__factory(),
       'proxyAdmin',
-      [],
-      { create2Salt: this.create2salt },
+      [] as any, // generic type inference fails here
     );
+
     const initArgs = await this.initializeArgs(chain, config);
     const proxiedRouter = await this.deployProxiedContract(
       chain,
       'router',
-      this.constructorArgs(chain, config),
-      proxyAdmin,
+      [] as any, // generic type inference fails here
       initArgs as any, // generic type inference fails here
+      proxyAdmin.address,
       {
         create2Salt: this.create2salt,
       },
-    );
-    await this.multiProvider.handleTx(
-      chain,
-      proxyAdmin.transferOwnership(config.owner),
     );
     return {
       proxyAdmin,
@@ -136,47 +127,51 @@ export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
     chain: ChainName,
     config: InterchainAccountConfig,
   ): Promise<InterchainAccountContracts> {
-    const proxyAdmin = await this.deployContractFromFactory(
-      chain,
-      new ProxyAdmin__factory(),
-      'proxyAdmin',
-      [],
-      { create2Salt: this.create2salt },
-    );
+    const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
 
-    // 1. deploy the proxy first with a dummy implementation (ProxyAdmin)
+    // manually recover from cache because cannot use HyperlaneDeployer.deployProxiedContract
+    const cached = this.deployedContracts[chain]?.proxiedRouter;
+    if (cached && cached.addresses.proxy && cached.addresses.implementation) {
+      this.logger('Recovered full InterchainAccountRouter');
+      return {
+        proxyAdmin,
+        proxiedRouter: cached,
+        router: cached.contract,
+      };
+    }
+
+    const deployer = await this.multiProvider.getSignerAddress(chain);
+
+    // 1. deploy the proxy first with a dummy implementation (proxy admin contract)
     const proxy = await this.deployContractFromFactory(
       chain,
       new TransparentUpgradeableProxy__factory(),
-      'proxy',
-      [proxyAdmin.address, proxyAdmin.address, '0x'],
+      'TransparentUpgradeableProxy',
+      [proxyAdmin.address, deployer, '0x'],
       { create2Salt: this.create2salt },
     );
 
     // 2. deploy the real InterchainAccountRouter and OwnableMulticall implementation with proxy address
     const domainId = this.multiProvider.getDomainId(chain);
-    const implementation = await this.deployContract(
-      chain,
-      'router',
-      [domainId, proxy.address],
-      { create2Salt: this.create2salt },
-    );
+    const implementation = await this.deployContract(chain, 'router', [
+      domainId,
+      proxy.address,
+    ]);
 
     // 3. upgrade the proxy to the real implementation and initialize
-    await super.runIfOwner(chain, proxyAdmin, async () => {
-      const initData = this.factories.router.interface.encodeFunctionData(
-        'initialize',
-        await this.initializeArgs(chain, config),
-      );
-      return this.multiProvider.handleTx(
-        chain,
-        proxyAdmin.upgradeAndCall(
-          proxy.address,
-          implementation.address,
-          initData,
-        ),
-      );
-    }); // if not owner of ProxyAdmin, checker should upgrade and initialize
+    // adapted from HyperlaneDeployer.deployProxy.useCreate2
+    const initArgs = await this.initializeArgs(chain, config);
+    const initData = this.factories.router.interface.encodeFunctionData(
+      'initialize',
+      initArgs,
+    );
+    await super.upgradeAndInitialize(
+      chain,
+      proxy,
+      implementation.address,
+      initData,
+    );
+    await super.changeAdmin(chain, proxy, proxyAdmin.address);
 
     const proxiedRouter = new ProxiedContract(
       implementation.attach(proxy.address),
@@ -190,7 +185,7 @@ export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
     return {
       proxyAdmin,
       proxiedRouter,
-      router: proxiedRouter.contract, // for backwards compatibility
+      router: proxiedRouter.contract,
     };
   }
 }
@@ -205,7 +200,7 @@ export class InterchainQueryDeployer extends MiddlewareRouterDeployer<
   constructor(
     multiProvider: MultiProvider,
     configMap: ChainMap<InterchainQueryConfig>,
-    create2salt = 'queryrouter',
+    create2salt = 'queryrouter2',
   ) {
     super(multiProvider, configMap, interchainQueryFactories, create2salt);
   }

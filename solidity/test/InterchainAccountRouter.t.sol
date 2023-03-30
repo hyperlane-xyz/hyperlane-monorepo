@@ -255,8 +255,9 @@ contract InterchainAccountRouterTest is Test {
     }
 
     function testCallRemoteWithoutDefaults(bytes32 data) public {
+        CallLib.Call[] memory calls = getCalls(data);
         vm.expectRevert(bytes("no router specified for destination"));
-        originRouter.callRemote(destination, getCalls(data));
+        originRouter.callRemote(destination, calls);
     }
 
     function testCallRemoteWithOverrides(bytes32 data) public {

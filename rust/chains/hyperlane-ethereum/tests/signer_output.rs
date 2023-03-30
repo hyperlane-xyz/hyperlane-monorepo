@@ -20,6 +20,7 @@ use hyperlane_core::{
 use hyperlane_ethereum::Signers;
 
 /// Output proof to /vector/message.json
+#[test]
 pub fn output_message() {
     let hyperlane_message = HyperlaneMessage {
         nonce: 0,
@@ -57,6 +58,7 @@ pub fn output_message() {
 }
 
 /// Output merkle proof test vectors
+#[test]
 pub fn output_merkle_proof() {
     let mut tree = MerkleTree::create(&[], TREE_DEPTH);
 
@@ -94,6 +96,7 @@ pub fn output_merkle_proof() {
 }
 
 /// Outputs domain hash test cases in /vector/domainHash.json
+#[test]
 pub fn output_domain_hashes() {
     let mailbox = H256::from(H160::from_str("0x2222222222222222222222222222222222222222").unwrap());
     let test_cases: Vec<Value> = (1..=3)
@@ -120,6 +123,7 @@ pub fn output_domain_hashes() {
 }
 
 /// Outputs signed checkpoint test cases in /vector/signedCheckpoint.json
+#[test]
 pub fn output_signed_checkpoints() {
     let mailbox = H256::from(H160::from_str("0x2222222222222222222222222222222222222222").unwrap());
     let t = async {

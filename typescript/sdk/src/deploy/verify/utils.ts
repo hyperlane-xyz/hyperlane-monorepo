@@ -21,16 +21,26 @@ export function getConstructorArguments(
   return tx.data.replace(bytecode, '');
 }
 
-export function getContractVerificationInput(
+export function buildVerificationInput(
   name: string,
-  contract: ethers.Contract,
-  bytecode: string,
+  address: string,
+  constructorArguments: string,
   isProxy: boolean = name.endsWith('Proxy'),
 ): ContractVerificationInput {
   return {
     name: name.charAt(0).toUpperCase() + name.slice(1),
-    address: contract.address,
-    constructorArguments: getConstructorArguments(contract, bytecode),
+    address,
+    constructorArguments,
     isProxy,
   };
+}
+
+export function getContractVerificationInput(
+  name: string,
+  contract: ethers.Contract,
+  bytecode: string,
+  isProxy?: boolean,
+): ContractVerificationInput {
+  const args = getConstructorArguments(contract, bytecode);
+  return buildVerificationInput(name, contract.address, args, isProxy);
 }

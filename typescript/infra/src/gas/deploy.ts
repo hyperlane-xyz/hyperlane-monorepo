@@ -9,6 +9,7 @@ import {
 import {
   ChainMap,
   ChainName,
+  DeployOptions,
   HyperlaneIgpDeployer,
   MultiProvider,
   OverheadIgpConfig,
@@ -35,20 +36,21 @@ export class HyperlaneIgpInfraDeployer extends HyperlaneIgpDeployer {
     chain: ChainName,
     proxyAdmin: ProxyAdmin,
     storageGasOracle: StorageGasOracle,
+    deployOpts?: DeployOptions,
   ): Promise<
     ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
   > {
-    const deployOpts = {
-      create2Salt: ethers.utils.solidityKeccak256(
-        ['string', 'string', 'uint8'],
-        [this.environment, 'interchainGasPaymaster', 6],
-      ),
-    };
     return super.deployInterchainGasPaymaster(
       chain,
       proxyAdmin,
       storageGasOracle,
-      deployOpts,
+      {
+        ...deployOpts,
+        create2Salt: ethers.utils.solidityKeccak256(
+          ['string', 'string', 'uint8'],
+          [this.environment, 'interchainGasPaymaster', 6],
+        ),
+      },
     );
   }
 
