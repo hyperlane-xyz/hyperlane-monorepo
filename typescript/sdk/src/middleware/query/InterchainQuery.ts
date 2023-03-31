@@ -13,9 +13,7 @@ import {
   interchainQueryFactories,
 } from './contracts';
 
-export class InterchainQuery extends RouterApp<
-  typeof interchainQueryFactories
-> {
+export class InterchainQuery extends RouterApp<InterchainQueryFactories> {
   router(
     contracts: HyperlaneContracts<InterchainQueryFactories>,
   ): InterchainQueryRouter {

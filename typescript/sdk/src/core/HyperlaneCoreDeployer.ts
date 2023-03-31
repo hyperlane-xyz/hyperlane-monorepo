@@ -15,12 +15,12 @@ import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 import { objMap } from '../utils/objects';
 
-import { coreFactories } from './contracts';
+import { CoreFactories, coreFactories } from './contracts';
 import { CoreConfig } from './types';
 
 export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   CoreConfig,
-  typeof coreFactories
+  CoreFactories
 > {
   startingBlockNumbers: ChainMap<number | undefined>;
 
@@ -138,7 +138,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   async deployContracts(
     chain: ChainName,
     config: CoreConfig,
-  ): Promise<HyperlaneContracts<typeof coreFactories>> {
+  ): Promise<HyperlaneContracts<CoreFactories>> {
     if (config.remove) {
       // skip deploying to chains configured to be removed
       return undefined as any;

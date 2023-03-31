@@ -102,7 +102,7 @@ export abstract class HyperlaneRouterDeployer<
   }
 
   async transferOwnership(
-    contractsMap: ChainMap<HyperlaneContracts<Factories>>,
+    contractsMap: HyperlaneContractsMap<Factories>,
   ): Promise<void> {
     this.logger(`Transferring ownership of routers...`);
     await promiseObjAll(

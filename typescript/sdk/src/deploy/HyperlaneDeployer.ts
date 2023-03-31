@@ -14,6 +14,7 @@ import { types, utils } from '@hyperlane-xyz/utils';
 
 import {
   HyperlaneContracts,
+  HyperlaneContractsMap,
   HyperlaneFactories,
   connectContractsMap,
   serializeContracts,
@@ -46,7 +47,7 @@ export abstract class HyperlaneDeployer<
   Config,
   Factories extends HyperlaneFactories,
 > {
-  public deployedContracts: ChainMap<HyperlaneContracts<Factories>> = {};
+  public deployedContracts: HyperlaneContractsMap<Factories> = {};
   public verificationInputs: ChainMap<ContractVerificationInput[]>;
   protected logger: Debugger;
 
@@ -60,9 +61,7 @@ export abstract class HyperlaneDeployer<
     this.logger = options?.logger || debug('hyperlane:AppDeployer');
   }
 
-  cacheContracts(
-    partialDeployment: ChainMap<HyperlaneContracts<Factories>>,
-  ): void {
+  cacheContracts(partialDeployment: HyperlaneContractsMap<Factories>): void {
     this.deployedContracts = connectContractsMap(
       partialDeployment,
       this.multiProvider,
@@ -75,8 +74,8 @@ export abstract class HyperlaneDeployer<
   ): Promise<HyperlaneContracts<Factories>>;
 
   async deploy(
-    partialDeployment?: ChainMap<HyperlaneContracts<Factories>>,
-  ): Promise<ChainMap<HyperlaneContracts<Factories>>> {
+    partialDeployment?: HyperlaneContractsMap<Factories>,
+  ): Promise<HyperlaneContractsMap<Factories>> {
     if (partialDeployment) {
       this.cacheContracts(partialDeployment);
     }

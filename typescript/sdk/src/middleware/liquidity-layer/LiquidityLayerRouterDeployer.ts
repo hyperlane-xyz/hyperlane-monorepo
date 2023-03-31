@@ -8,7 +8,7 @@ import {
 } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../../contracts';
+import { HyperlaneContracts, HyperlaneContractsMap } from '../../contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterConfig } from '../../router/types';
 import { ChainMap, ChainName } from '../../types';
@@ -51,7 +51,7 @@ export type LiquidityLayerConfig = RouterConfig & BridgeAdapterConfig;
 
 export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
   LiquidityLayerConfig,
-  typeof liquidityLayerFactories,
+  LiquidityLayerFactories,
   LiquidityLayerRouter__factory
 > {
   readonly routerContractName = 'liquidityLayerRouter';
@@ -65,7 +65,7 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
   }
 
   async enrollRemoteRouters(
-    contractsMap: ChainMap<HyperlaneContracts<typeof liquidityLayerFactories>>,
+    contractsMap: HyperlaneContractsMap<LiquidityLayerFactories>,
   ): Promise<void> {
     this.logger(`Enroll LiquidityLayerRouters with each other`);
     await super.enrollRemoteRouters(contractsMap);
@@ -75,7 +75,7 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
     await super.enrollRemoteRouters(
       objMap(contractsMap, (_, contracts) => ({
         liquidityLayerRouter: contracts.circleBridgeAdapter,
-      })) as unknown as ChainMap<HyperlaneContracts<LiquidityLayerFactories>>,
+      })) as unknown as HyperlaneContractsMap<LiquidityLayerFactories>,
     );
 
     this.logger(`Enroll PortalAdapters with each other`);
@@ -83,7 +83,7 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
     await super.enrollRemoteRouters(
       objMap(contractsMap, (_, contracts) => ({
         liquidityLayerRouter: contracts.portalAdapter,
-      })) as unknown as ChainMap<HyperlaneContracts<LiquidityLayerFactories>>,
+      })) as unknown as HyperlaneContractsMap<LiquidityLayerFactories>,
     );
   }
 
@@ -92,7 +92,7 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
   async deployContracts(
     chain: ChainName,
     config: LiquidityLayerConfig,
-  ): Promise<HyperlaneContracts<typeof liquidityLayerFactories>> {
+  ): Promise<HyperlaneContracts<LiquidityLayerFactories>> {
     const routerContracts = await super.deployContracts(chain, config);
 
     const bridgeAdapters: Partial<

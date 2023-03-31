@@ -16,12 +16,12 @@ import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 import { objMap } from '../utils/objects';
 
-import { igpFactories } from './contracts';
+import { IgpFactories, igpFactories } from './contracts';
 import { OverheadIgpConfig } from './types';
 
 export class HyperlaneIgpDeployer extends HyperlaneDeployer<
   OverheadIgpConfig,
-  typeof igpFactories
+  IgpFactories
 > {
   startingBlockNumbers: ChainMap<number | undefined>;
 
@@ -149,7 +149,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
   async deployContracts(
     chain: ChainName,
     config: OverheadIgpConfig,
-  ): Promise<HyperlaneContracts<typeof igpFactories>> {
+  ): Promise<HyperlaneContracts<IgpFactories>> {
     const provider = this.multiProvider.getProvider(chain);
     const startingBlockNumber = await provider.getBlockNumber();
     this.startingBlockNumbers[chain] = startingBlockNumber;

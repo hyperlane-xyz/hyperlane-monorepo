@@ -10,21 +10,6 @@ export type HyperlaneFactories = {
   [key: string]: ethers.ContractFactory;
 };
 
-/*
-export type HyperlaneContract =
-  | ethers.Contract
-  | ProxiedContract<any, any>
-  | HyperlaneContracts;
-
-export type HyperlaneContracts = {
-  [key: Exclude<string, 'address'>]: HyperlaneContract;
-};
-
-export type HyperlaneAddresses = {
-  [key: string]: types.Address | ProxyAddresses<any> | HyperlaneAddresses;
-};
-*/
-
 export type HyperlaneContracts<Factories extends HyperlaneFactories> = {
   [Property in keyof Factories]: Awaited<
     ReturnType<Factories[Property]['deploy']>

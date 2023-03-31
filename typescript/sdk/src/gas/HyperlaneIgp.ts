@@ -8,15 +8,15 @@ import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
 } from '../consts/environments';
-import { HyperlaneAddresses } from '../contracts';
+import { HyperlaneAddressesMap } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, ChainName } from '../types';
+import { ChainName } from '../types';
 
-import { igpFactories } from './contracts';
+import { IgpFactories, igpFactories } from './contracts';
 
-export class HyperlaneIgp extends HyperlaneApp<typeof igpFactories> {
+export class HyperlaneIgp extends HyperlaneApp<IgpFactories> {
   static fromAddresses(
-    addresses: ChainMap<HyperlaneAddresses<typeof igpFactories>>,
+    addresses: HyperlaneAddressesMap<IgpFactories>,
     multiProvider: MultiProvider,
   ): HyperlaneIgp {
     const { contracts, intersectionProvider } = this.buildContracts(

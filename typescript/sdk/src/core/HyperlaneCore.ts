@@ -11,7 +11,7 @@ import {
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName } from '../types';
 
-import { coreFactories } from './contracts';
+import { CoreFactories, coreFactories } from './contracts';
 
 export type DispatchedMessage = {
   id: string;
@@ -19,7 +19,7 @@ export type DispatchedMessage = {
   parsed: types.ParsedMessage;
 };
 
-export class HyperlaneCore extends HyperlaneApp<typeof coreFactories> {
+export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   static fromEnvironment<Env extends HyperlaneEnvironment>(
     env: Env,
     multiProvider: MultiProvider,
