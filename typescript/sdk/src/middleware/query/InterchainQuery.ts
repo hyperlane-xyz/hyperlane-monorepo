@@ -23,7 +23,7 @@ export class InterchainQuery extends RouterApp<
   }
 
   static fromAddresses(
-    addresses: HyperlaneAddressesMap<InterchainQueryFactories>,
+    addresses: HyperlaneAddressesMap<any>,
     multiProvider: MultiProvider,
   ): InterchainQuery {
     const { contracts, intersectionProvider } = this.buildContracts(

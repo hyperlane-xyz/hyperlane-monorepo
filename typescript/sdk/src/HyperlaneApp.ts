@@ -11,7 +11,7 @@ import {
 import { MultiProvider } from './providers/MultiProvider';
 import { ChainMap, ChainName } from './types';
 import { MultiGeneric } from './utils/MultiGeneric';
-import { objMap, pick } from './utils/objects';
+import { objFilter, objMap, pick } from './utils/objects';
 
 export class HyperlaneApp<
   Factories extends HyperlaneFactories,
@@ -27,18 +27,26 @@ export class HyperlaneApp<
   }
 
   static buildContracts<F extends HyperlaneFactories>(
-    addresses: HyperlaneAddressesMap<F>,
+    addresses: HyperlaneAddressesMap<any>,
     factories: F,
     multiProvider: MultiProvider,
   ): {
     contracts: HyperlaneContractsMap<F>;
     intersectionProvider: MultiProvider;
   } {
-    const chains = Object.keys(addresses);
+    const filteredAddresses = objFilter(
+      addresses,
+      (chain, addrs): addrs is HyperlaneAddresses<F> => {
+        return Object.keys(factories).every((contract) =>
+          Object.keys(addrs).includes(contract),
+        );
+      },
+    );
+    const chains = Object.keys(filteredAddresses);
     const { intersection, multiProvider: intersectionProvider } =
       multiProvider.intersect(chains, true);
 
-    const intersectionAddresses = pick(addresses, intersection);
+    const intersectionAddresses = pick(filteredAddresses, intersection);
     const contracts = objMap(intersectionAddresses, (_, addresses) =>
       buildContracts(addresses, factories),
     );

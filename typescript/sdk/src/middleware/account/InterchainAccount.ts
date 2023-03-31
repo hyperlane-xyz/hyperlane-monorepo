@@ -21,7 +21,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   }
 
   static fromAddresses(
-    addresses: HyperlaneAddressesMap<InterchainAccountFactories>,
+    addresses: HyperlaneAddressesMap<any>,
     multiProvider: MultiProvider,
   ): InterchainAccount {
     const { contracts, intersectionProvider } = this.buildContracts(
