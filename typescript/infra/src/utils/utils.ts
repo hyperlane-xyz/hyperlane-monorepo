@@ -179,9 +179,6 @@ export function writeJsonAtPath(filepath: string, obj: any) {
 }
 
 export function writeJSON(directory: string, filename: string, obj: any) {
-  if (!fs.existsSync(directory)) {
-    fs.mkdirSync(directory, { recursive: true });
-  }
   writeJsonAtPath(path.join(directory, filename), obj);
 }
 

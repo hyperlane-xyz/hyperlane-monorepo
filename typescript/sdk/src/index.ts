@@ -72,9 +72,9 @@ export {
 } from './core/types';
 export { HyperlaneAppChecker } from './deploy/HyperlaneAppChecker';
 export {
-  HyperlaneDeployer,
-  DeployOptions,
   DeployerOptions,
+  DeployOptions,
+  HyperlaneDeployer,
 } from './deploy/HyperlaneDeployer';
 export { ProxyViolation } from './deploy/proxy';
 export {
@@ -110,12 +110,13 @@ export {
   OverheadIgpConfig,
 } from './gas/types';
 export { HyperlaneApp } from './HyperlaneApp';
+export { interchainAccountFactories } from './middleware/account/contracts';
+export { InterchainAccount } from './middleware/account/InterchainAccount';
+export { InterchainAccountChecker } from './middleware/account/InterchainAccountChecker';
 export {
+  InterchainAccountConfig,
   InterchainAccountDeployer,
-  interchainAccountFactories,
-  InterchainQueryDeployer,
-  interchainQueryFactories,
-} from './middleware/deploy';
+} from './middleware/account/InterchainAccountDeployer';
 export {
   LiquidityLayerContracts,
   liquidityLayerFactories,
@@ -128,6 +129,13 @@ export {
   LiquidityLayerDeployer,
   PortalAdapterConfig,
 } from './middleware/liquidity-layer/LiquidityLayerRouterDeployer';
+export { interchainQueryFactories } from './middleware/query/contracts';
+export { InterchainQuery } from './middleware/query/InterchainQuery';
+export { InterchainQueryChecker } from './middleware/query/InterchainQueryChecker';
+export {
+  InterchainQueryConfig,
+  InterchainQueryDeployer,
+} from './middleware/query/InterchainQueryDeployer';
 export { MultiProvider, providerBuilder } from './providers/MultiProvider';
 export { RetryJsonRpcProvider, RetryProvider } from './providers/RetryProvider';
 export {
@@ -140,12 +148,7 @@ export { GasRouterDeployer } from './router/GasRouterDeployer';
 export { HyperlaneRouterChecker } from './router/HyperlaneRouterChecker';
 export { HyperlaneRouterDeployer } from './router/HyperlaneRouterDeployer';
 export { GasRouterApp, Router, RouterApp } from './router/RouterApps';
-export {
-  GasRouterConfig,
-  RouterConfig,
-  RouterContracts,
-  RouterFactories,
-} from './router/types';
+export { GasRouterConfig, RouterConfig } from './router/types';
 export {
   createRouterConfigMap,
   deployTestIgpsAndGetRouterConfig,
