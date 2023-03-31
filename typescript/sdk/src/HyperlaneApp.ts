@@ -50,7 +50,7 @@ export class HyperlaneApp<
   getFlattenedFilteredContracts(
     chain: ChainName,
     filter: (k: ChainName, v: HyperlaneContract) => v is HyperlaneContract,
-  ) {
+  ): HyperlaneContracts {
     const filtered = objFilter(this.getContracts(chain), filter);
     const flattened = objMap(filtered, (name, contract) =>
       isProxiedContract(contract) ? contract.contract : contract,

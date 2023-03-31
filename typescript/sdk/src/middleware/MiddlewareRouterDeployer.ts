@@ -71,7 +71,7 @@ export abstract class MiddlewareRouterDeployer<
     const initArgs = await this.initializeArgs(chain, config);
     const proxiedRouter = await this.deployProxiedContract(
       chain,
-      this.routerContractName(),
+      this.routerContractName,
       this.constructorArgs(chain, config),
       initArgs as any, // generic type inference fails here
       proxyAdmin.address,
@@ -88,7 +88,7 @@ export abstract class MiddlewareRouterDeployer<
       ),
     );
     const ret: MiddlewareRouterContracts = {
-      [this.routerContractName()]: proxiedRouter,
+      [this.routerContractName]: proxiedRouter,
       proxyAdmin,
     } as MiddlewareRouterContracts;
     return ret;
