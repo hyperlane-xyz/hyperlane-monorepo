@@ -3,9 +3,9 @@ pragma solidity >=0.8.0;
 
 import {TypeCasts} from "../libs/TypeCasts.sol";
 
-import {IInterchainGasPaymaster} from "../../interfaces/IInterchainGasPaymaster.sol";
-import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
-import {IMailbox} from "../../interfaces/IMailbox.sol";
+import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
+import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
+import {IMailbox} from "../interfaces/IMailbox.sol";
 
 contract TestSendReceiver is IMessageRecipient {
     using TypeCasts for address;
