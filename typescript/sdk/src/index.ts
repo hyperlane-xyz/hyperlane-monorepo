@@ -95,6 +95,7 @@ export {
   queryAnnotatedEvents,
   TSContract,
 } from './events';
+export { IgpContracts } from './gas/contracts';
 export { HyperlaneIgp } from './gas/HyperlaneIgp';
 export { HyperlaneIgpChecker } from './gas/HyperlaneIgpChecker';
 export { HyperlaneIgpDeployer } from './gas/HyperlaneIgpDeployer';

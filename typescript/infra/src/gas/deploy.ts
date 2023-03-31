@@ -10,15 +10,22 @@ import {
   ChainMap,
   ChainName,
   DeployOptions,
+  HyperlaneAgentAddresses,
   HyperlaneIgpDeployer,
+  IgpContracts,
   MultiProvider,
   OverheadIgpConfig,
   ProxiedContract,
   TransparentProxyAddresses,
+  buildAgentConfig,
+  serializeContracts,
 } from '@hyperlane-xyz/sdk';
 import { types } from '@hyperlane-xyz/utils';
 
+import { getAgentConfigDirectory } from '../../scripts/utils';
 import { DeployEnvironment } from '../config';
+import { deployEnvToSdkEnv } from '../config/environment';
+import { writeMergedJSON } from '../utils/utils';
 
 export class HyperlaneIgpInfraDeployer extends HyperlaneIgpDeployer {
   environment: DeployEnvironment;
@@ -30,6 +37,30 @@ export class HyperlaneIgpInfraDeployer extends HyperlaneIgpDeployer {
   ) {
     super(multiProvider, configMap);
     this.environment = environment;
+  }
+
+  protected async writeAgentConfig() {
+    const igpAddresses = serializeContracts(
+      this.deployedContracts,
+    ) as ChainMap<HyperlaneAgentAddresses>;
+    const igpAgentConfig = buildAgentConfig(
+      this.multiProvider.getKnownChainNames(),
+      this.multiProvider,
+      igpAddresses,
+      {}, // Will defer to the startBlocks already in the config.
+    );
+    const sdkEnv = deployEnvToSdkEnv[this.environment];
+    writeMergedJSON(
+      getAgentConfigDirectory(),
+      `${sdkEnv}_config.json`,
+      igpAgentConfig,
+    );
+  }
+
+  async deploy(): Promise<ChainMap<IgpContracts>> {
+    const result = await super.deploy();
+    await this.writeAgentConfig();
+    return result;
   }
 
   async deployInterchainGasPaymaster(
