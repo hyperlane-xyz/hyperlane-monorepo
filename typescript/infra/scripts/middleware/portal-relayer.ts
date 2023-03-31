@@ -40,7 +40,9 @@ async function relayPortalTransfers() {
 
   while (true) {
     for (const chain of Object.keys(bridgeAdapterConfigs)) {
-      log('Processing chain', chain);
+      log('Processing chain', {
+        chain,
+      });
 
       const txHashes = await app.fetchPortalBridgeTransactions(chain);
       const portalMessages = (
@@ -49,7 +51,9 @@ async function relayPortalTransfers() {
         )
       ).flat();
 
-      log('Portal messages', portalMessages);
+      log('Portal messages', {
+        portalMessages,
+      });
 
       // Poll for attestation data and submit
       for (const message of portalMessages) {
