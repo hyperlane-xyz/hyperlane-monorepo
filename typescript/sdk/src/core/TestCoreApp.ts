@@ -16,7 +16,7 @@ export const testCoreFactories = {
 
 export class TestCoreApp extends HyperlaneCore {
   getContracts(chain: ChainName): HyperlaneContracts<typeof testCoreFactories> {
-    return this.getContracts(chain) as HyperlaneContracts<
+    return super.getContracts(chain) as HyperlaneContracts<
       typeof testCoreFactories
     >;
   }
