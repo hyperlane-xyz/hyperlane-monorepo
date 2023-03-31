@@ -339,11 +339,13 @@ fn main() -> ExitCode {
         "--chain",
         "test1",
     ]);
-    announce
+    let status = announce
         .current_dir("../typescript/infra")
         .stdout(Stdio::piped())
-        .spawn()
-        .expect("Failed to announce validator");
+        .status()
+        .expect("Failed to announce validator")
+        .success();
+    assert!(status, "Failed to announce validator");
 
     println!("Setup complete! Agents running in background...");
     println!("Ctrl+C to end execution...");

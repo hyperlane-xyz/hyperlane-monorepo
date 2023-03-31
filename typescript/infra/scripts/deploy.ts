@@ -115,11 +115,11 @@ async function main() {
 
   const verification = path.join(modulePath, 'verification.json');
 
-  // do not cache for test environment
-  const cache =
-    environment === 'test' ? undefined : { addresses, verification };
+  const cache = { addresses, verification };
+  // do not read cache for test environment
+  const readCache = environment !== 'test';
 
-  await deployWithArtifacts(deployer, cache, fork);
+  await deployWithArtifacts(deployer, cache, readCache, fork);
 }
 
 main()

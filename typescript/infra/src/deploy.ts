@@ -17,9 +17,10 @@ export async function deployWithArtifacts(
     addresses: string;
     verification: string;
   },
+  readCache: boolean = true,
   fork?: ChainName,
 ) {
-  if (cache) {
+  if (cache && readCache) {
     let addresses = {};
     try {
       addresses = readJSONAtPath(cache.addresses);
