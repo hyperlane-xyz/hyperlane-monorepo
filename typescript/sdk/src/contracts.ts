@@ -4,7 +4,7 @@ import type { types } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from './providers/MultiProvider';
 import { ChainMap, Connection } from './types';
-import { objFilter, objMap } from './utils/objects';
+import { objFilter, objMap, pick } from './utils/objects';
 
 export type HyperlaneFactories = {
   [key: string]: ethers.ContractFactory;
@@ -53,31 +53,46 @@ function getFactory(
   return factories[key];
 }
 
-export function filterAddresses<F extends HyperlaneFactories>(
-  addresses: HyperlaneAddresses<F>,
-  contractNames: string[],
+export function filterAddresses(
+  addresses: HyperlaneAddresses<any>,
+  factories: HyperlaneFactories,
 ): HyperlaneAddresses<any> {
-  const isIncluded = (
-    name: string,
-    address: types.Address,
-  ): address is types.Address => {
-    return contractNames.includes(name);
-  };
-  return objFilter(addresses, isIncluded);
+  return pick(addresses, Object.keys(factories));
 }
 
-export function buildContracts<F extends HyperlaneFactories>(
+export function filterAddressesMap<F extends HyperlaneFactories>(
+  addressesMap: HyperlaneAddressesMap<any>,
+  factories: F,
+): HyperlaneAddressesMap<F> {
+  const filteredAddressesMap = objMap(addressesMap, (_, addresses) =>
+    filterAddresses(addresses, factories),
+  );
+  return objFilter(
+    filteredAddressesMap,
+    (_, addresses): addresses is HyperlaneAddresses<F> => {
+      return Object.keys(factories).every((contract) =>
+        Object.keys(addresses).includes(contract),
+      );
+    },
+  );
+}
+
+export function attachContracts<F extends HyperlaneFactories>(
   addresses: HyperlaneAddresses<F>,
   factories: F,
-  filter = true,
 ): HyperlaneContracts<F> {
-  if (filter) {
-    addresses = filterAddresses(addresses, Object.keys(factories));
-  }
-
   return objMap(addresses, (key, address: types.Address) => {
     return getFactory(key, factories).attach(address);
   }) as HyperlaneContracts<F>;
+}
+
+export function attachContractsMap<F extends HyperlaneFactories>(
+  addressesMap: HyperlaneAddressesMap<F>,
+  factories: F,
+): HyperlaneContractsMap<F> {
+  return objMap(addressesMap, (chain, addresses) =>
+    attachContracts(addresses, factories),
+  );
 }
 
 export function connectContracts<F extends HyperlaneFactories>(

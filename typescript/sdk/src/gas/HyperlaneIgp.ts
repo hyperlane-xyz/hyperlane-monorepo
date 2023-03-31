@@ -8,25 +8,12 @@ import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
 } from '../consts/environments';
-import { HyperlaneAddressesMap } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName } from '../types';
 
 import { IgpFactories, igpFactories } from './contracts';
 
 export class HyperlaneIgp extends HyperlaneApp<IgpFactories> {
-  static fromAddresses(
-    addresses: HyperlaneAddressesMap<IgpFactories>,
-    multiProvider: MultiProvider,
-  ): HyperlaneIgp {
-    const { contracts, intersectionProvider } = this.buildContracts(
-      addresses,
-      igpFactories,
-      multiProvider,
-    );
-    return new HyperlaneIgp(contracts, intersectionProvider);
-  }
-
   static fromEnvironment<Env extends HyperlaneEnvironment>(
     env: Env,
     multiProvider: MultiProvider,
@@ -35,7 +22,15 @@ export class HyperlaneIgp extends HyperlaneApp<IgpFactories> {
     if (!envAddresses) {
       throw new Error(`No addresses found for ${env}`);
     }
-    return HyperlaneIgp.fromAddresses(envAddresses, multiProvider);
+    const fromAddressesMap = this.fromAddressesMap(
+      envAddresses,
+      igpFactories,
+      multiProvider,
+    );
+    return new HyperlaneIgp(
+      fromAddressesMap.contractsMap,
+      fromAddressesMap.multiProvider,
+    );
   }
 
   /**

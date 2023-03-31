@@ -28,12 +28,15 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     if (!envAddresses) {
       throw new Error(`No addresses found for ${env}`);
     }
-    const { contracts, intersectionProvider } = HyperlaneApp.buildContracts(
+    const fromAddressesMap = HyperlaneApp.fromAddressesMap(
       envAddresses,
       coreFactories,
       multiProvider,
     );
-    return new HyperlaneCore(contracts, intersectionProvider);
+    return new HyperlaneCore(
+      fromAddressesMap.contractsMap,
+      fromAddressesMap.multiProvider,
+    );
   }
 
   protected getDestination(message: DispatchedMessage): {

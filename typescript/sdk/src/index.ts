@@ -32,10 +32,12 @@ export {
 export { hyperlaneEnvironments } from './consts/environments';
 export { defaultMultisigIsmConfigs } from './consts/multisigIsm';
 export {
-  buildContracts,
+  attachContracts,
+  attachContractsMap,
   connectContracts,
   connectContractsMap,
   filterAddresses,
+  filterAddressesMap,
   HyperlaneAddresses,
   HyperlaneAddressesMap,
   HyperlaneContracts,

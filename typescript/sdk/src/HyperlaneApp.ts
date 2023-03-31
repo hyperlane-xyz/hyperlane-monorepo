@@ -4,14 +4,15 @@ import {
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneFactories,
-  buildContracts,
+  attachContractsMap,
   connectContracts,
+  filterAddressesMap,
   serializeContracts,
 } from './contracts';
 import { MultiProvider } from './providers/MultiProvider';
 import { ChainName } from './types';
 import { MultiGeneric } from './utils/MultiGeneric';
-import { objFilter, objMap, pick } from './utils/objects';
+import { objMap, pick } from './utils/objects';
 
 export class HyperlaneApp<
   Factories extends HyperlaneFactories,
@@ -26,32 +27,29 @@ export class HyperlaneApp<
     super(connectedContractsMap);
   }
 
-  static buildContracts<F extends HyperlaneFactories>(
-    addresses: HyperlaneAddressesMap<any>,
+  static fromAddressesMap<F extends HyperlaneFactories>(
+    addressesMap: HyperlaneAddressesMap<any>,
     factories: F,
     multiProvider: MultiProvider,
-  ): {
-    contracts: HyperlaneContractsMap<F>;
-    intersectionProvider: MultiProvider;
-  } {
-    const filteredAddresses = objFilter(
-      addresses,
-      (chain, addrs): addrs is HyperlaneAddresses<F> => {
-        return Object.keys(factories).every((contract) =>
-          Object.keys(addrs).includes(contract),
-        );
-      },
-    );
-    const chains = Object.keys(filteredAddresses);
-    const { intersection, multiProvider: intersectionProvider } =
-      multiProvider.intersect(chains, true);
-
-    const intersectionAddresses = pick(filteredAddresses, intersection);
-    const contracts = objMap(intersectionAddresses, (_, addresses) =>
-      buildContracts(addresses, factories),
+  ): { contractsMap: HyperlaneContractsMap<F>; multiProvider: MultiProvider } {
+    // Attaches contracts for each chain for which we have a complete set of
+    // addresses
+    const contractsMap = attachContractsMap(
+      filterAddressesMap(addressesMap, factories),
+      factories,
     );
 
-    return { contracts, intersectionProvider };
+    // Filters out providers for chains for which we don't have a complete set
+    // of addresses
+    const intersection = multiProvider.intersect(Object.keys(contractsMap));
+
+    // Filters out contracts for chains for which we don't have a provider
+    const filteredContractsMap = pick(contractsMap, intersection.intersection);
+
+    return {
+      contractsMap: filteredContractsMap,
+      multiProvider: intersection.multiProvider,
+    };
   }
 
   getContracts(chain: ChainName): HyperlaneContracts<Factories> {

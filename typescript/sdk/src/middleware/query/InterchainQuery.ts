@@ -4,7 +4,7 @@ import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
 } from '../../consts/environments';
-import { HyperlaneAddressesMap, HyperlaneContracts } from '../../contracts';
+import { HyperlaneContracts } from '../../contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterApp } from '../../router/RouterApps';
 
@@ -20,18 +20,6 @@ export class InterchainQuery extends RouterApp<InterchainQueryFactories> {
     return contracts.interchainQueryRouter;
   }
 
-  static fromAddresses(
-    addresses: HyperlaneAddressesMap<any>,
-    multiProvider: MultiProvider,
-  ): InterchainQuery {
-    const { contracts, intersectionProvider } = this.buildContracts(
-      addresses,
-      interchainQueryFactories,
-      multiProvider,
-    );
-    return new InterchainQuery(contracts, intersectionProvider);
-  }
-
   static fromEnvironment<Env extends HyperlaneEnvironment>(
     env: Env,
     multiProvider: MultiProvider,
@@ -40,6 +28,14 @@ export class InterchainQuery extends RouterApp<InterchainQueryFactories> {
     if (!envAddresses) {
       throw new Error(`No addresses found for ${env}`);
     }
-    return InterchainQuery.fromAddresses(envAddresses, multiProvider);
+    const fromAddressesMap = this.fromAddressesMap(
+      envAddresses,
+      interchainQueryFactories,
+      multiProvider,
+    );
+    return new InterchainQuery(
+      fromAddressesMap.contractsMap,
+      fromAddressesMap.multiProvider,
+    );
   }
 }
