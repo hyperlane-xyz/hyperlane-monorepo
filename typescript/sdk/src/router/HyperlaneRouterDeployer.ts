@@ -1,24 +1,22 @@
 import { debug } from 'debug';
 
+import { Router } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
+import { HyperlaneContracts, HyperlaneFactories } from '../contracts';
 import {
   DeployerOptions,
   HyperlaneDeployer,
 } from '../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
-import {
-  RouterConfig,
-  RouterContracts,
-  RouterFactories,
-} from '../router/types';
+import { RouterConfig } from '../router/types';
 import { ChainMap } from '../types';
 import { objMap, promiseObjAll } from '../utils/objects';
 
 export abstract class HyperlaneRouterDeployer<
   Config extends RouterConfig,
-  Contracts extends RouterContracts,
-  Factories extends RouterFactories,
+  Contracts extends HyperlaneContracts,
+  Factories extends HyperlaneFactories,
 > extends HyperlaneDeployer<Config, Contracts, Factories> {
   constructor(
     multiProvider: MultiProvider,
@@ -32,6 +30,8 @@ export abstract class HyperlaneRouterDeployer<
     });
   }
 
+  abstract router(contracts: Contracts): Router;
+
   async initConnectionClients(
     contractsMap: ChainMap<Contracts>,
   ): Promise<void> {
@@ -39,24 +39,20 @@ export abstract class HyperlaneRouterDeployer<
       objMap(contractsMap, async (local, contracts) =>
         super.initConnectionClient(
           local,
-          contracts.router,
+          this.router(contracts),
           this.configMap[local],
         ),
       ),
     );
   }
 
-  async enrollRemoteRouters(
-    contractsMap: ChainMap<RouterContracts>,
-  ): Promise<void> {
+  async enrollRemoteRouters(contractsMap: ChainMap<Contracts>): Promise<void> {
     this.logger(
       `Enrolling deployed routers with each other (if not already)...`,
     );
     // Make all routers aware of each other.
     const deployedChains = Object.keys(contractsMap);
-    for (const [chain, contracts] of Object.entries<RouterContracts>(
-      contractsMap,
-    )) {
+    for (const [chain, contracts] of Object.entries<Contracts>(contractsMap)) {
       // only enroll chains which are deployed
       const deployedRemoteChains = this.multiProvider
         .getRemoteChains(chain)
@@ -65,9 +61,9 @@ export abstract class HyperlaneRouterDeployer<
       const enrollEntries = await Promise.all(
         deployedRemoteChains.map(async (remote) => {
           const remoteDomain = this.multiProvider.getDomainId(remote);
-          const current = await contracts.router.routers(remoteDomain);
+          const current = await this.router(contracts).routers(remoteDomain);
           const expected = utils.addressToBytes32(
-            contractsMap[remote].router.address,
+            this.router(contractsMap[remote]).address,
           );
           return current !== expected ? [remoteDomain, expected] : undefined;
         }),
@@ -83,14 +79,14 @@ export abstract class HyperlaneRouterDeployer<
         return;
       }
 
-      await super.runIfOwner(chain, contracts.router, async () => {
+      await super.runIfOwner(chain, this.router(contracts), async () => {
         const chains = domains.map((id) => this.multiProvider.getChainName(id));
         this.logger(
           `Enrolling remote routers (${chains.join(', ')}) on ${chain}`,
         );
         await this.multiProvider.handleTx(
           chain,
-          contracts.router.enrollRemoteRouters(
+          this.router(contracts).enrollRemoteRouters(
             domains,
             addresses,
             this.multiProvider.getTransactionOverrides(chain),
@@ -105,13 +101,13 @@ export abstract class HyperlaneRouterDeployer<
     await promiseObjAll(
       objMap(contractsMap, async (chain, contracts) => {
         const owner = this.configMap[chain].owner;
-        const currentOwner = await contracts.router.owner();
+        const currentOwner = await this.router(contracts).owner();
         if (owner != currentOwner) {
           this.logger(`Transfer ownership of ${chain}'s router to ${owner}`);
-          await super.runIfOwner(chain, contracts.router, async () => {
+          await super.runIfOwner(chain, this.router(contracts), async () => {
             await this.multiProvider.handleTx(
               chain,
-              contracts.router.transferOwnership(
+              this.router(contracts).transferOwnership(
                 owner,
                 this.multiProvider.getTransactionOverrides(chain),
               ),
