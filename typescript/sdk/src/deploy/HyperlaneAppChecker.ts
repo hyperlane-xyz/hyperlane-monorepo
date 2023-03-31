@@ -90,25 +90,6 @@ export abstract class HyperlaneAppChecker<
             actual: actualAdmin,
           } as ProxyAdminViolation);
         }
-
-        // Check the ProxiedContract's implementation matches expectation
-        /*
-      const actualImplementation = await proxyImplementation(
-        provider,
-        proxiedContract.address,
-      );
-      const expectedImplementation = proxiedContract.addresses.implementation;
-      if (!utils.eqAddress(actualImplementation, expectedImplementation)) {
-        this.addViolation(
-          proxyViolation(
-            chain,
-            name,
-            expectedImplementation,
-            actualImplementation,
-          ),
-        );
-      }
-      */
       }),
     );
   }

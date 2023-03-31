@@ -58,20 +58,14 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
   LiquidityLayerFactories,
   LiquidityLayerRouter__factory
 > {
+  readonly routerContractName = 'liquidityLayerRouter';
+
   constructor(
     multiProvider: MultiProvider,
     configMap: ChainMap<LiquidityLayerConfig>,
     create2salt = 'LiquidityLayerDeployerSalt',
   ) {
     super(multiProvider, configMap, liquidityLayerFactories, create2salt);
-  }
-
-  routerContractName(): string {
-    return 'liquidityLayerRouter';
-  }
-
-  router(contracts: LiquidityLayerContracts): LiquidityLayerRouter {
-    return contracts.liquidityLayerRouter.contract;
   }
 
   async enrollRemoteRouters(

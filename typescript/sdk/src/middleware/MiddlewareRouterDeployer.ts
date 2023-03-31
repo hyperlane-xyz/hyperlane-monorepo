@@ -1,6 +1,6 @@
 import { ContractFactory, ethers } from 'ethers';
 
-import { ProxyAdmin } from '@hyperlane-xyz/core';
+import { ProxyAdmin, Router } from '@hyperlane-xyz/core';
 
 import { MultiProvider } from '../providers/MultiProvider';
 import { HyperlaneRouterDeployer } from '../router/HyperlaneRouterDeployer';
@@ -37,7 +37,11 @@ export abstract class MiddlewareRouterDeployer<
     return [] as any;
   }
 
-  abstract routerContractName(): string;
+  abstract readonly routerContractName: string;
+
+  router(contracts: MiddlewareRouterContracts): Router {
+    return contracts[this.routerContractName].contract;
+  }
 
   async initializeArgs(
     chain: ChainName,

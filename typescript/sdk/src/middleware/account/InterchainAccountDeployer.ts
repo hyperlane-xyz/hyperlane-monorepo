@@ -25,20 +25,14 @@ export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
   InterchainAccountFactories,
   InterchainAccountRouter__factory
 > {
+  readonly routerContractName = 'interchainAccountRouter';
+
   constructor(
     multiProvider: MultiProvider,
     configMap: ChainMap<InterchainAccountConfig>,
     create2salt = 'accountsrouter',
   ) {
     super(multiProvider, configMap, interchainAccountFactories, create2salt);
-  }
-
-  routerContractName(): string {
-    return 'interchainAccountRouter';
-  }
-
-  router(contracts: InterchainAccountContracts): InterchainAccountRouter {
-    return contracts.interchainAccountRouter.contract;
   }
 
   // The OwnableMulticall implementation has an immutable owner address that
