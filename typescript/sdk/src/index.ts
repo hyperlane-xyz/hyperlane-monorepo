@@ -106,10 +106,7 @@ export {
   InterchainAccountConfig,
   InterchainAccountDeployer,
 } from './middleware/account/InterchainAccountDeployer';
-export {
-  LiquidityLayerContracts,
-  liquidityLayerFactories,
-} from './middleware/liquidity-layer/contracts';
+export { liquidityLayerFactories } from './middleware/liquidity-layer/contracts';
 export { LiquidityLayerApp } from './middleware/liquidity-layer/LiquidityLayerApp';
 export {
   BridgeAdapterConfig,

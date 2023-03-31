@@ -31,16 +31,31 @@ export type HyperlaneContracts<Factories extends HyperlaneFactories> = {
   >;
 };
 
+export type HyperlaneContractsMap<Factories extends HyperlaneFactories> =
+  ChainMap<HyperlaneContracts<Factories>>;
+
 export type HyperlaneAddresses<Factories extends HyperlaneFactories> = {
   [Property in keyof Factories]: types.Address;
 };
 
+export type HyperlaneAddressesMap<Factories extends HyperlaneFactories> =
+  ChainMap<HyperlaneAddresses<Factories>>;
+
+export function serializeContractsMap<F extends HyperlaneFactories>(
+  contractsMap: HyperlaneContractsMap<F>,
+): HyperlaneAddressesMap<F> {
+  return objMap(contractsMap, (_, contracts) => {
+    return serializeContracts(contracts);
+  });
+}
+
 export function serializeContracts<F extends HyperlaneFactories>(
-  contractOrObject: HyperlaneContracts<F>,
+  contracts: HyperlaneContracts<F>,
 ): HyperlaneAddresses<F> {
-  return objMap(contractOrObject, (_, contract): string => {
-    return contract.address;
-  }) as HyperlaneAddresses<F>;
+  return objMap(
+    contracts,
+    (_, contract) => contract.address,
+  ) as HyperlaneAddresses<F>;
 }
 
 function getFactory(

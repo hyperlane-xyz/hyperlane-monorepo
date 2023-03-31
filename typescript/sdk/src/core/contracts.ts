@@ -27,3 +27,5 @@ export const coreFactories = {
   multisigIsm: new LegacyMultisigIsm__factory(),
   mailbox: new Mailbox__factory(),
 };
+
+export type CoreFactories = typeof coreFactories;

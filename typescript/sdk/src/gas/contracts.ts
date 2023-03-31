@@ -11,3 +11,5 @@ export const igpFactories = {
   defaultIsmInterchainGasPaymaster: new OverheadIgp__factory(),
   storageGasOracle: new StorageGasOracle__factory(),
 };
+
+export type IgpFactories = typeof igpFactories;
