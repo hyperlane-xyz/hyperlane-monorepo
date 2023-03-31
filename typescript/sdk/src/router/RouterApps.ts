@@ -1,6 +1,6 @@
 import type { BigNumber } from 'ethers';
 
-import { GasRouter, GasRouter__factory, Router } from '@hyperlane-xyz/core';
+import { GasRouter, Router } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
@@ -30,17 +30,11 @@ export abstract class RouterApp<
     );
 }
 
-// This isn't working b/c abstract...
-export const gasRouterFactories = {
-  router: new GasRouter__factory(),
-};
-
-export class GasRouterApp<
-  Factories extends typeof gasRouterFactories,
+export abstract class GasRouterApp<
+  Factories extends HyperlaneFactories,
+  R extends GasRouter,
 > extends RouterApp<Factories> {
-  router(contracts: HyperlaneContracts<Factories>): GasRouter {
-    return contracts.router;
-  }
+  abstract router(contracts: HyperlaneContracts<Factories>): R;
 
   async quoteGasPayment(
     origin: ChainName,
