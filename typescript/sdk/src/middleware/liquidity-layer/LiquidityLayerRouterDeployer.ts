@@ -15,7 +15,7 @@ import { ChainMap, ChainName } from '../../types';
 import { objMap } from '../../utils/objects';
 import { MiddlewareRouterDeployer } from '../MiddlewareRouterDeployer';
 
-import { liquidityLayerFactories } from './contracts';
+import { LiquidityLayerFactories, liquidityLayerFactories } from './contracts';
 
 export enum BridgeAdapterType {
   Circle = 'Circle',
@@ -54,22 +54,14 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
   typeof liquidityLayerFactories,
   LiquidityLayerRouter__factory
 > {
+  readonly routerContractName = 'liquidityLayerRouter';
+
   constructor(
     multiProvider: MultiProvider,
     configMap: ChainMap<LiquidityLayerConfig>,
     create2salt = 'LiquidityLayerDeployerSalt',
   ) {
     super(multiProvider, configMap, liquidityLayerFactories, create2salt);
-  }
-
-  routerContractName(): string {
-    return 'liquidityLayerRouter';
-  }
-
-  router(
-    contracts: HyperlaneContracts<typeof liquidityLayerFactories>,
-  ): LiquidityLayerRouter {
-    return contracts.liquidityLayerRouter;
   }
 
   async enrollRemoteRouters(
@@ -83,9 +75,7 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
     await super.enrollRemoteRouters(
       objMap(contractsMap, (_, contracts) => ({
         liquidityLayerRouter: contracts.circleBridgeAdapter,
-      })) as unknown as ChainMap<
-        HyperlaneContracts<typeof liquidityLayerFactories>
-      >,
+      })) as unknown as ChainMap<HyperlaneContracts<LiquidityLayerFactories>>,
     );
 
     this.logger(`Enroll PortalAdapters with each other`);
@@ -93,9 +83,7 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
     await super.enrollRemoteRouters(
       objMap(contractsMap, (_, contracts) => ({
         liquidityLayerRouter: contracts.portalAdapter,
-      })) as unknown as ChainMap<
-        HyperlaneContracts<typeof liquidityLayerFactories>
-      >,
+      })) as unknown as ChainMap<HyperlaneContracts<LiquidityLayerFactories>>,
     );
   }
 

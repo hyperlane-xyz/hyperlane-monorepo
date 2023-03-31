@@ -1,6 +1,6 @@
 import { debug } from 'debug';
 
-import { HyperlaneContracts, HyperlaneFactories } from '../contracts';
+import { HyperlaneContractsMap, HyperlaneFactories } from '../contracts';
 import { DeployerOptions } from '../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap } from '../types';
@@ -25,7 +25,7 @@ export abstract class GasRouterDeployer<
   }
 
   async enrollRemoteRouters(
-    contractsMap: ChainMap<HyperlaneContracts<Factories>>,
+    contractsMap: HyperlaneContractsMap<Factories>,
   ): Promise<void> {
     await super.enrollRemoteRouters(contractsMap);
 

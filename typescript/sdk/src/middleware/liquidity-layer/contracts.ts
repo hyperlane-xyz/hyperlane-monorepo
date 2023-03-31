@@ -11,3 +11,5 @@ export const liquidityLayerFactories = {
   proxyAdmin: new ProxyAdmin__factory(),
   liquidityLayerRouter: new LiquidityLayerRouter__factory(),
 };
+
+export type LiquidityLayerFactories = typeof liquidityLayerFactories;

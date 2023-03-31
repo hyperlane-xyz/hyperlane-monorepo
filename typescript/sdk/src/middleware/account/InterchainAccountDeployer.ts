@@ -1,5 +1,4 @@
 import {
-  InterchainAccountRouter,
   InterchainAccountRouter__factory,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
@@ -10,31 +9,26 @@ import { RouterConfig } from '../../router/types';
 import { ChainMap, ChainName } from '../../types';
 import { MiddlewareRouterDeployer } from '../MiddlewareRouterDeployer';
 
-import { interchainAccountFactories } from './contracts';
+import {
+  InterchainAccountFactories,
+  interchainAccountFactories,
+} from './contracts';
 
 export type InterchainAccountConfig = RouterConfig;
 
 export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
   InterchainAccountConfig,
-  typeof interchainAccountFactories,
+  InterchainAccountFactories,
   InterchainAccountRouter__factory
 > {
+  readonly routerContractName = 'interchainAccountRouter';
+
   constructor(
     multiProvider: MultiProvider,
     configMap: ChainMap<InterchainAccountConfig>,
     create2salt = 'accountsrouter',
   ) {
     super(multiProvider, configMap, interchainAccountFactories, create2salt);
-  }
-
-  routerContractName(): string {
-    return 'interchainAccountRouter';
-  }
-
-  router(
-    contracts: HyperlaneContracts<typeof interchainAccountFactories>,
-  ): InterchainAccountRouter {
-    return contracts.interchainAccountRouter;
   }
 
   // The OwnableMulticall implementation has an immutable owner address that
@@ -45,7 +39,7 @@ export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
   async deployContracts(
     chain: ChainName,
     config: InterchainAccountConfig,
-  ): Promise<HyperlaneContracts<typeof interchainAccountFactories>> {
+  ): Promise<HyperlaneContracts<InterchainAccountFactories>> {
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
 
     // adapted from HyperlaneDeployer.deployProxiedContract

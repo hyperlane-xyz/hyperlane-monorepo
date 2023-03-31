@@ -30,12 +30,15 @@ export abstract class RouterApp<
     );
 }
 
-export type GasRouterFactories = {
-  router: GasRouter__factory;
+// This isn't working b/c abstract...
+export const gasRouterFactories = {
+  router: new GasRouter__factory(),
 };
 
-export class GasRouterApp extends RouterApp<GasRouterFactories> {
-  router(contracts: GasRouterContracts): GasRouter {
+export class GasRouterApp<
+  Factories extends typeof gasRouterFactories,
+> extends RouterApp<Factories> {
+  router(contracts: HyperlaneContracts<Factories>): GasRouter {
     return contracts.router;
   }
 

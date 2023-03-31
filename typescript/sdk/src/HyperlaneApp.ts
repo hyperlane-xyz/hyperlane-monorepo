@@ -1,6 +1,8 @@
 import {
   HyperlaneAddresses,
+  HyperlaneAddressesMap,
   HyperlaneContracts,
+  HyperlaneContractsMap,
   HyperlaneFactories,
   buildContracts,
   connectContracts,
@@ -25,11 +27,11 @@ export class HyperlaneApp<
   }
 
   static buildContracts<F extends HyperlaneFactories>(
-    addresses: ChainMap<HyperlaneAddresses<F>>,
+    addresses: HyperlaneAddressesMap<F>,
     factories: F,
     multiProvider: MultiProvider,
   ): {
-    contracts: ChainMap<HyperlaneContracts<F>>;
+    contracts: HyperlaneContractsMap<F>;
     intersectionProvider: MultiProvider;
   } {
     const chains = Object.keys(addresses);
@@ -37,7 +39,7 @@ export class HyperlaneApp<
       multiProvider.intersect(chains, true);
 
     const intersectionAddresses = pick(addresses, intersection);
-    const contracts = objMap(intersectionAddresses, (chain, addresses) =>
+    const contracts = objMap(intersectionAddresses, (_, addresses) =>
       buildContracts(addresses, factories),
     );
 

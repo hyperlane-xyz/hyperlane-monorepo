@@ -7,3 +7,5 @@ export const interchainQueryFactories = {
   interchainQueryRouter: new InterchainQueryRouter__factory(),
   proxyAdmin: new ProxyAdmin__factory(),
 };
+
+export type InterchainQueryFactories = typeof interchainQueryFactories;

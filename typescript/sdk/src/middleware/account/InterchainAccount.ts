@@ -4,24 +4,24 @@ import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
 } from '../../consts/environments';
-import { HyperlaneAddresses, HyperlaneContracts } from '../../contracts';
+import { HyperlaneAddressesMap, HyperlaneContracts } from '../../contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterApp } from '../../router/RouterApps';
-import { ChainMap } from '../../types';
 
-import { interchainAccountFactories } from './contracts';
+import {
+  InterchainAccountFactories,
+  interchainAccountFactories,
+} from './contracts';
 
-export class InterchainAccount extends RouterApp<
-  typeof interchainAccountFactories
-> {
+export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   router(
-    contracts: HyperlaneContracts<typeof interchainAccountFactories>,
+    contracts: HyperlaneContracts<InterchainAccountFactories>,
   ): InterchainAccountRouter {
     return contracts.interchainAccountRouter;
   }
 
   static fromAddresses(
-    addresses: ChainMap<HyperlaneAddresses<typeof interchainAccountFactories>>,
+    addresses: HyperlaneAddressesMap<InterchainAccountFactories>,
     multiProvider: MultiProvider,
   ): InterchainAccount {
     const { contracts, intersectionProvider } = this.buildContracts(

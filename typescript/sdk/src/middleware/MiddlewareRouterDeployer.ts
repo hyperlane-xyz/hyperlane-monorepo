@@ -3,6 +3,7 @@ import { ContractFactory, ethers } from 'ethers';
 import { HyperlaneContracts } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { HyperlaneRouterDeployer } from '../router/HyperlaneRouterDeployer';
+import { Router } from '../router/RouterApps';
 import { ProxiedFactories, RouterConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
 
@@ -27,7 +28,11 @@ export abstract class MiddlewareRouterDeployer<
     return [] as any;
   }
 
-  abstract routerContractName(): string;
+  abstract readonly routerContractName: string;
+
+  router(contracts: HyperlaneContracts<MiddlewareFactories>): Router {
+    return contracts[this.routerContractName] as Router;
+  }
 
   async initializeArgs(
     chain: ChainName,
@@ -57,7 +62,7 @@ export abstract class MiddlewareRouterDeployer<
     const initArgs = await this.initializeArgs(chain, config);
     const proxiedRouter = await this.deployProxiedContract(
       chain,
-      this.routerContractName(),
+      this.routerContractName,
       this.constructorArgs(chain, config),
       initArgs as any, // generic type inference fails here
       proxyAdmin.address,
@@ -74,7 +79,7 @@ export abstract class MiddlewareRouterDeployer<
       ),
     );
     const ret = {
-      [this.routerContractName()]: proxiedRouter,
+      [this.routerContractName]: proxiedRouter,
       proxyAdmin,
     };
     return ret as HyperlaneContracts<MiddlewareFactories>;

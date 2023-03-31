@@ -1,6 +1,6 @@
+import { Contract } from 'ethers';
 import { keccak256 } from 'ethers/lib/utils';
 
-import { Ownable } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 import { utils } from '@hyperlane-xyz/utils';
 
@@ -86,25 +86,6 @@ export abstract class HyperlaneAppChecker<
             } as ProxyAdminViolation);
           }
         }
-
-        // Check the ProxiedContract's implementation matches expectation
-        /*
-      const actualImplementation = await proxyImplementation(
-        provider,
-        proxiedContract.address,
-      );
-      const expectedImplementation = proxiedContract.addresses.implementation;
-      if (!utils.eqAddress(actualImplementation, expectedImplementation)) {
-        this.addViolation(
-          proxyViolation(
-            chain,
-            name,
-            expectedImplementation,
-            actualImplementation,
-          ),
-        );
-      }
-      */
       }),
     );
   }
@@ -141,18 +122,18 @@ export abstract class HyperlaneAppChecker<
 
   // TODO: Require owner in config if ownables is non-empty
   async checkOwnership(chain: ChainName, owner: types.Address): Promise<void> {
-    const isOwnable = (contract: any): contract is Ownable => {
-      return (
-        contract !== null &&
-        typeof contract === 'object' &&
-        contract.owner &&
-        contract.transferOwnership
-      );
+    const isOwnable = async (contract: Contract): Promise<boolean> => {
+      try {
+        await contract.owner();
+        return true;
+      } catch (_) {
+        return false;
+      }
     };
     const contracts = this.app.getContracts(chain);
     await promiseObjAll(
       objMap(contracts, async (name, contract) => {
-        if (isOwnable(contract)) {
+        if (await isOwnable(contract)) {
           const actual = await contract.owner();
           if (!utils.eqAddress(actual, owner)) {
             const violation: OwnerViolation = {

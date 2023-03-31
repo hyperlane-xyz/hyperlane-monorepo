@@ -8,7 +8,7 @@ import {
 } from '@hyperlane-xyz/core';
 
 import { Chains } from '../../consts/chains';
-import { HyperlaneContracts } from '../../contracts';
+import { HyperlaneContractsMap } from '../../contracts';
 import { TestCoreApp } from '../../core/TestCoreApp';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer';
 import { MultiProvider } from '../../providers/MultiProvider';
@@ -19,16 +19,14 @@ import { ChainMap } from '../../types';
 import { InterchainAccount } from './InterchainAccount';
 import { InterchainAccountChecker } from './InterchainAccountChecker';
 import { InterchainAccountDeployer } from './InterchainAccountDeployer';
-import { interchainAccountFactories } from './contracts';
+import { InterchainAccountFactories } from './contracts';
 
 describe('InterchainAccounts', async () => {
   const localChain = Chains.test1;
   const remoteChain = Chains.test2;
 
   let signer: SignerWithAddress;
-  let contracts: ChainMap<
-    HyperlaneContracts<typeof interchainAccountFactories>
-  >;
+  let contracts: HyperlaneContractsMap<InterchainAccountFactories>;
   let local: InterchainAccountRouter;
   let remote: InterchainAccountRouter;
   let multiProvider: MultiProvider;

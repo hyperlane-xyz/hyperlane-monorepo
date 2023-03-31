@@ -4,24 +4,26 @@ import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
 } from '../../consts/environments';
-import { HyperlaneAddresses, HyperlaneContracts } from '../../contracts';
+import { HyperlaneAddressesMap, HyperlaneContracts } from '../../contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterApp } from '../../router/RouterApps';
-import { ChainMap } from '../../types';
 
-import { interchainQueryFactories } from './contracts';
+import {
+  InterchainQueryFactories,
+  interchainQueryFactories,
+} from './contracts';
 
 export class InterchainQuery extends RouterApp<
   typeof interchainQueryFactories
 > {
   router(
-    contracts: HyperlaneContracts<typeof interchainQueryFactories>,
+    contracts: HyperlaneContracts<InterchainQueryFactories>,
   ): InterchainQueryRouter {
     return contracts.interchainQueryRouter;
   }
 
   static fromAddresses(
-    addresses: ChainMap<HyperlaneAddresses<typeof interchainQueryFactories>>,
+    addresses: HyperlaneAddressesMap<InterchainQueryFactories>,
     multiProvider: MultiProvider,
   ): InterchainQuery {
     const { contracts, intersectionProvider } = this.buildContracts(

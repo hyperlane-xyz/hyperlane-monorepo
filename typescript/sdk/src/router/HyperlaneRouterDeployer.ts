@@ -3,7 +3,11 @@ import { debug } from 'debug';
 import { Router } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts, HyperlaneFactories } from '../contracts';
+import {
+  HyperlaneContracts,
+  HyperlaneContractsMap,
+  HyperlaneFactories,
+} from '../contracts';
 import {
   DeployerOptions,
   HyperlaneDeployer,
@@ -32,7 +36,7 @@ export abstract class HyperlaneRouterDeployer<
   abstract router(contracts: HyperlaneContracts<Factories>): Router;
 
   async initConnectionClients(
-    contractsMap: ChainMap<HyperlaneContracts<Factories>>,
+    contractsMap: HyperlaneContractsMap<Factories>,
   ): Promise<void> {
     await promiseObjAll(
       objMap(contractsMap, async (local, contracts) =>
@@ -46,7 +50,7 @@ export abstract class HyperlaneRouterDeployer<
   }
 
   async enrollRemoteRouters(
-    contractsMap: ChainMap<HyperlaneContracts<Factories>>,
+    contractsMap: HyperlaneContractsMap<Factories>,
   ): Promise<void> {
     this.logger(
       `Enrolling deployed routers with each other (if not already)...`,
@@ -122,8 +126,8 @@ export abstract class HyperlaneRouterDeployer<
   }
 
   async deploy(
-    partialDeployment?: ChainMap<HyperlaneContracts<Factories>>,
-  ): Promise<ChainMap<HyperlaneContracts<Factories>>> {
+    partialDeployment?: HyperlaneContractsMap<Factories>,
+  ): Promise<HyperlaneContractsMap<Factories>> {
     const contractsMap = await super.deploy(partialDeployment);
 
     await this.enrollRemoteRouters(contractsMap);
