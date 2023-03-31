@@ -44,7 +44,7 @@ export {
   serializeContracts,
   serializeContractsMap,
 } from './contracts';
-export { coreFactories } from './core/contracts';
+export { CoreFactories, coreFactories } from './core/contracts';
 export {
   AnnotatedDispatch,
   AnnotatedLifecycleEvent,

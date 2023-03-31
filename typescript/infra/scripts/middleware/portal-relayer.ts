@@ -1,10 +1,8 @@
 import path from 'path';
 
 import {
-  ChainMap,
+  HyperlaneApp,
   LiquidityLayerApp,
-  LiquidityLayerContracts,
-  buildContracts,
   liquidityLayerFactories,
 } from '@hyperlane-xyz/sdk';
 import { error, log } from '@hyperlane-xyz/utils';
@@ -28,10 +26,11 @@ async function relayPortalTransfers() {
     'middleware/liquidity-layer',
   );
   const addresses = readJSON(dir, 'addresses.json');
-  const contracts = buildContracts(
+  const { contracts } = HyperlaneApp.buildContracts(
     addresses,
     liquidityLayerFactories,
-  ) as ChainMap<LiquidityLayerContracts>;
+    multiProvider,
+  );
   const app = new LiquidityLayerApp(
     contracts,
     multiProvider,
