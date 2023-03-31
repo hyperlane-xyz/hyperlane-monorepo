@@ -37,9 +37,12 @@ export {
   connectContractsMap,
   filterAddresses,
   HyperlaneAddresses,
+  HyperlaneAddressesMap,
   HyperlaneContracts,
+  HyperlaneContractsMap,
   HyperlaneFactories,
   serializeContracts,
+  serializeContractsMap,
 } from './contracts';
 export { coreFactories } from './core/contracts';
 export {
