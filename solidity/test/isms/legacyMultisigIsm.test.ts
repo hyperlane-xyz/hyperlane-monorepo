@@ -5,6 +5,7 @@ import { ethers } from 'hardhat';
 
 import { Validator, types, utils } from '@hyperlane-xyz/utils';
 
+import domainHashTestCases from '../../../vectors/domainHash.json';
 import {
   LightTestRecipient__factory,
   TestLegacyMultisigIsm,
@@ -22,9 +23,6 @@ import {
 
 const ORIGIN_DOMAIN = 1234;
 const DESTINATION_DOMAIN = 4321;
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
-const domainHashTestCases = require('../../../vectors/domainHash.json');
 
 describe('LegacyMultisigIsm', async () => {
   let multisigIsm: TestLegacyMultisigIsm,
@@ -470,9 +468,7 @@ describe('LegacyMultisigIsm', async () => {
     });
   });
 
-  // TODO: Update rust code to output v2 domain hashes
-  // TODO: Update rust code to output checkpoint digests
-  describe.skip('#_getDomainHash', () => {
+  describe('#_getDomainHash', () => {
     it('matches Rust-produced domain hashes', async () => {
       // Compare Rust output in json file to solidity output (json file matches
       // hash for local domain of 1000)
@@ -481,8 +477,8 @@ describe('LegacyMultisigIsm', async () => {
         // This public function on TestLegacyMultisigIsm exposes
         // the internal _domainHash on MultisigIsm.
         const domainHash = await multisigIsm.getDomainHash(
-          testCase.originDomain,
-          testCase.originMailbox,
+          testCase.domain,
+          testCase.mailbox,
         );
         expect(domainHash).to.equal(expectedDomainHash);
       }
