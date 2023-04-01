@@ -3,9 +3,9 @@ pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
 import {HyperlaneConnectionClient} from "./HyperlaneConnectionClient.sol";
-import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
-import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
-import {IMailbox} from "../interfaces/IMailbox.sol";
+import {IInterchainGasPaymaster} from "./interfaces/IInterchainGasPaymaster.sol";
+import {IMessageRecipient} from "./interfaces/IMessageRecipient.sol";
+import {IMailbox} from "./interfaces/IMailbox.sol";
 import {EnumerableMapExtended} from "./libs/EnumerableMapExtended.sol";
 
 abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {

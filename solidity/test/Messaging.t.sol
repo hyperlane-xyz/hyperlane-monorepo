@@ -5,8 +5,8 @@ import "forge-std/Test.sol";
 import "../contracts/mock/MockMailbox.sol";
 import "../contracts/mock/MockMailbox.sol";
 import "../contracts/test/TestRecipient.sol";
-import "../interfaces/IMailbox.sol";
-import "../interfaces/IMailbox.sol";
+import "../contracts/interfaces/IMailbox.sol";
+import "../contracts/interfaces/IMailbox.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 
 contract MessagingTest is Test {

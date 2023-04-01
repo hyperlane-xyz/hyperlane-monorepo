@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import {InterchainQueryRouter} from "../contracts/middleware/InterchainQueryRouter.sol";
-import {IInterchainQueryRouter} from "../interfaces/middleware/IInterchainQueryRouter.sol";
+import {IInterchainQueryRouter} from "../contracts/interfaces/middleware/IInterchainQueryRouter.sol";
 import {MockHyperlaneEnvironment} from "../contracts/mock/MockHyperlaneEnvironment.sol";
 
 import {MockToken} from "../contracts/mock/MockToken.sol";
