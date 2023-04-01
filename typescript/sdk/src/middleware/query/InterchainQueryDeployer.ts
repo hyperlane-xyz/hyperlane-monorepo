@@ -6,7 +6,6 @@ import { ChainMap } from '../../types';
 import { MiddlewareRouterDeployer } from '../MiddlewareRouterDeployer';
 
 import {
-  InterchainQueryContracts,
   InterchainQueryFactories,
   interchainQueryFactories,
 } from './contracts';
@@ -15,7 +14,6 @@ export type InterchainQueryConfig = RouterConfig;
 
 export class InterchainQueryDeployer extends MiddlewareRouterDeployer<
   InterchainQueryConfig,
-  InterchainQueryContracts,
   InterchainQueryFactories,
   InterchainQueryRouter__factory
 > {

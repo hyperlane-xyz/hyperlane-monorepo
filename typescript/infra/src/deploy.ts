@@ -5,11 +5,11 @@ import {
   HyperlaneAgentAddresses,
   HyperlaneDeployer,
   MultiProvider,
+  attachContractsMap,
   buildAgentConfig,
-  buildContracts,
   objMap,
   promiseObjAll,
-  serializeContracts,
+  serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
 
 import { getAgentConfigDirectory } from '../scripts/utils';
@@ -27,7 +27,7 @@ export async function writeAgentConfig(
   multiProvider: MultiProvider,
   environment: DeployEnvironment,
 ) {
-  let addresses: ChainMap<HyperlaneAddresses> = {};
+  let addresses: ChainMap<HyperlaneAddresses<any>> = {};
   try {
     addresses = readJSONAtPath(addressesPath);
   } catch (e) {
@@ -52,7 +52,7 @@ export async function writeAgentConfig(
 }
 
 export async function deployWithArtifacts(
-  deployer: HyperlaneDeployer<any, any, any>,
+  deployer: HyperlaneDeployer<any, any>,
   cache: {
     addresses: string;
     verification: string;
@@ -74,7 +74,7 @@ export async function deployWithArtifacts(
       console.error('Failed to load cached addresses');
     }
 
-    const savedContracts = buildContracts(addresses, deployer.factories);
+    const savedContracts = attachContractsMap(addresses, deployer.factories);
     deployer.cacheContracts(savedContracts);
   }
 
@@ -92,7 +92,7 @@ export async function deployWithArtifacts(
     // cache addresses of deployed contracts
     writeMergedJSONAtPath(
       cache.addresses,
-      serializeContracts(deployer.deployedContracts),
+      serializeContractsMap(deployer.deployedContracts),
     );
 
     let savedVerification = {};

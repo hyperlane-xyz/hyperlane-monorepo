@@ -1,7 +1,6 @@
 import { types } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider';
-import { getProxyAddress } from '../proxy';
 import { ChainMap, ChainName } from '../types';
 
 export type AgentSigner = {
@@ -71,11 +70,9 @@ export function buildAgentConfig(
       name: chain,
       domain: metadata.chainId,
       addresses: {
-        mailbox: getProxyAddress(addresses[chain].mailbox),
-        interchainGasPaymaster: getProxyAddress(
-          addresses[chain].interchainGasPaymaster,
-        ),
-        validatorAnnounce: getProxyAddress(addresses[chain].validatorAnnounce),
+        mailbox: addresses[chain].mailbox,
+        interchainGasPaymaster: addresses[chain].interchainGasPaymaster,
+        validatorAnnounce: addresses[chain].validatorAnnounce,
       },
       protocol: 'ethereum',
       finalityBlocks: metadata.blocks?.reorgPeriod ?? 1,

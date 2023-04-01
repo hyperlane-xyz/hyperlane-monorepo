@@ -4,41 +4,20 @@ import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
 } from '../../consts/environments';
-import { HyperlaneAddresses } from '../../contracts';
+import { HyperlaneContracts } from '../../contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterApp } from '../../router/RouterApps';
-import { ChainMap, ChainName } from '../../types';
 
 import {
-  InterchainQueryContracts,
+  InterchainQueryFactories,
   interchainQueryFactories,
 } from './contracts';
 
-export type InterchainQueryContractsMap = ChainMap<InterchainQueryContracts>;
-
-export class InterchainQuery extends RouterApp<InterchainQueryContracts> {
-  constructor(
-    contractsMap: InterchainQueryContractsMap,
-    multiProvider: MultiProvider,
-  ) {
-    super(contractsMap, multiProvider);
-  }
-
-  router(contracts: InterchainQueryContracts): InterchainQueryRouter {
-    return contracts.interchainQueryRouter.contract;
-  }
-
-  static fromAddresses(
-    addresses: ChainMap<HyperlaneAddresses>,
-    multiProvider: MultiProvider,
-  ): InterchainQuery {
-    const { contracts, intersectionProvider } =
-      this.buildContracts<InterchainQueryContracts>(
-        addresses,
-        interchainQueryFactories,
-        multiProvider,
-      );
-    return new InterchainQuery(contracts, intersectionProvider);
+export class InterchainQuery extends RouterApp<InterchainQueryFactories> {
+  router(
+    contracts: HyperlaneContracts<InterchainQueryFactories>,
+  ): InterchainQueryRouter {
+    return contracts.interchainQueryRouter;
   }
 
   static fromEnvironment<Env extends HyperlaneEnvironment>(
@@ -49,10 +28,14 @@ export class InterchainQuery extends RouterApp<InterchainQueryContracts> {
     if (!envAddresses) {
       throw new Error(`No addresses found for ${env}`);
     }
-    return InterchainQuery.fromAddresses(envAddresses, multiProvider);
-  }
-
-  getContracts(chain: ChainName): InterchainQueryContracts {
-    return super.getContracts(chain);
+    const fromAddressesMap = this.fromAddressesMap(
+      envAddresses,
+      interchainQueryFactories,
+      multiProvider,
+    );
+    return new InterchainQuery(
+      fromAddressesMap.contractsMap,
+      fromAddressesMap.multiProvider,
+    );
   }
 }

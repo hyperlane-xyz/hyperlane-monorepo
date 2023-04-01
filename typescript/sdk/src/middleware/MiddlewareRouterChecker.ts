@@ -1,17 +1,16 @@
-import { HyperlaneContracts } from '../contracts';
 import { HyperlaneRouterChecker } from '../router/HyperlaneRouterChecker';
 import { RouterApp } from '../router/RouterApps';
-import { RouterConfig } from '../router/types';
+import { ProxiedFactories, RouterConfig } from '../router/types';
 import { ChainName } from '../types';
 
 export abstract class MiddlewareRouterChecker<
-  MiddlewareRouterApp extends RouterApp<MiddlewareRouterContracts>,
+  Factories extends ProxiedFactories,
+  MiddlewareRouterApp extends RouterApp<Factories>,
   MiddlewareRouterConfig extends RouterConfig,
-  MiddlewareRouterContracts extends HyperlaneContracts,
 > extends HyperlaneRouterChecker<
+  Factories,
   MiddlewareRouterApp,
-  MiddlewareRouterConfig,
-  MiddlewareRouterContracts
+  MiddlewareRouterConfig
 > {
   async checkChain(chain: ChainName): Promise<void> {
     await super.checkChain(chain);
