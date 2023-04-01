@@ -9,4 +9,4 @@ copy() {
     jq .abi < artifacts/contracts/"$1".sol/"$CONTRACT_NAME".json > ../rust/chains/hyperlane-ethereum/abis/"$CONTRACT_NAME".abi.json
 }
 
-copy Mailbox && copy InterchainGasPaymaster && copy isms/MultisigIsm && copy ValidatorAnnounce
+copy interfaces/IMailbox && copy interfaces/IInterchainGasPaymaster && copy interfaces/isms/IMultisigIsm && copy interfaces/IValidatorAnnounce

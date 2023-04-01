@@ -2,6 +2,7 @@ import {
   CircleBridgeAdapter,
   CircleBridgeAdapter__factory,
   LiquidityLayerRouter,
+  LiquidityLayerRouter__factory,
   PortalAdapter,
   PortalAdapter__factory,
 } from '@hyperlane-xyz/core';
@@ -10,8 +11,8 @@ import { utils } from '@hyperlane-xyz/utils';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterConfig } from '../../router/types';
 import { ChainMap, ChainName } from '../../types';
-import { objFilter, objMap } from '../../utils/objects';
-import { MiddlewareRouterDeployer } from '../deploy';
+import { objMap } from '../../utils/objects';
+import { MiddlewareRouterDeployer } from '../MiddlewareRouterDeployer';
 
 import {
   LiquidityLayerContracts,
@@ -54,8 +55,11 @@ export type LiquidityLayerConfig = RouterConfig & BridgeAdapterConfig;
 export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
   LiquidityLayerConfig,
   LiquidityLayerContracts,
-  LiquidityLayerFactories
+  LiquidityLayerFactories,
+  LiquidityLayerRouter__factory
 > {
+  readonly routerContractName = 'liquidityLayerRouter';
+
   constructor(
     multiProvider: MultiProvider,
     configMap: ChainMap<LiquidityLayerConfig>,
@@ -71,23 +75,23 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
     await super.enrollRemoteRouters(contractsMap);
 
     this.logger(`Enroll CircleBridgeAdapters with each other`);
+    // Hack to allow use of super.enrollRemoteRouters
     await super.enrollRemoteRouters(
-      objFilter(
-        objMap(contractsMap, (_chain, contracts) => ({
-          router: contracts.circleBridgeAdapter,
-        })),
-        (chain, _): _ is { router: CircleBridgeAdapter } => !!_.router,
-      ),
+      objMap(contractsMap, (_, contracts) => ({
+        liquidityLayerRouter: {
+          contract: contracts.circleBridgeAdapter,
+        },
+      })) as unknown as ChainMap<LiquidityLayerContracts>,
     );
 
     this.logger(`Enroll PortalAdapters with each other`);
+    // Hack to allow use of super.enrollRemoteRouters
     await super.enrollRemoteRouters(
-      objFilter(
-        objMap(contractsMap, (_chain, contracts) => ({
-          router: contracts.portalAdapter,
-        })),
-        (chain, _): _ is { router: PortalAdapter } => !!_.router,
-      ),
+      objMap(contractsMap, (_, contracts) => ({
+        liquidityLayerRouter: {
+          contract: contracts.portalAdapter,
+        },
+      })) as unknown as ChainMap<LiquidityLayerContracts>,
     );
   }
 
@@ -97,7 +101,10 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
     chain: ChainName,
     config: LiquidityLayerConfig,
   ): Promise<LiquidityLayerContracts> {
-    const routerContracts = await super.deployContracts(chain, config);
+    const routerContracts = (await super.deployContracts(
+      chain,
+      config,
+    )) as LiquidityLayerContracts;
 
     const bridgeAdapters: Partial<LiquidityLayerContracts> = {};
 
@@ -106,7 +113,7 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
         chain,
         config.circle,
         config.owner,
-        routerContracts.router,
+        routerContracts.liquidityLayerRouter.contract,
       );
     }
     if (config.portal) {
@@ -114,14 +121,14 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
         chain,
         config.portal,
         config.owner,
-        routerContracts.router,
+        routerContracts.liquidityLayerRouter.contract,
       );
     }
 
     return {
       ...routerContracts,
       ...bridgeAdapters,
-    } as any;
+    } as LiquidityLayerContracts;
   }
 
   async deployPortalAdapter(

@@ -1,6 +1,5 @@
-import { TestRouter__factory } from '@hyperlane-xyz/core';
+import { TestRouter, TestRouter__factory } from '@hyperlane-xyz/core';
 
-import { HyperlaneApp } from '../../HyperlaneApp';
 import { chainMetadata } from '../../consts/chainMetadata';
 import { Chains } from '../../consts/chains';
 import { HyperlaneCore } from '../../core/HyperlaneCore';
@@ -8,43 +7,56 @@ import { HyperlaneDeployer } from '../../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { HyperlaneRouterChecker } from '../../router/HyperlaneRouterChecker';
 import { HyperlaneRouterDeployer } from '../../router/HyperlaneRouterDeployer';
-import {
-  RouterConfig,
-  RouterContracts,
-  RouterFactories,
-} from '../../router/types';
+import { RouterApp } from '../../router/RouterApps';
+import { RouterConfig } from '../../router/types';
 import { ChainMap, ChainName } from '../../types';
 import { objMap, pick, promiseObjAll } from '../../utils/objects';
 
 export const alfajoresChainConfig = pick(chainMetadata, [Chains.alfajores]);
 
-export class EnvSubsetApp extends HyperlaneApp<RouterContracts> {}
+export type TestRouterContracts = {
+  router: TestRouter;
+};
+
+export type TestRouterFactories = {
+  router: TestRouter__factory;
+};
+
+export const testRouterFactories: TestRouterFactories = {
+  router: new TestRouter__factory(),
+};
+
+export class EnvSubsetApp extends RouterApp<TestRouterContracts> {
+  router(contracts: TestRouterContracts) {
+    return contracts.router;
+  }
+}
 
 export class EnvSubsetChecker extends HyperlaneRouterChecker<
   EnvSubsetApp,
   RouterConfig,
-  RouterContracts
+  TestRouterContracts
 > {}
-
-export const envSubsetFactories: RouterFactories = {
-  router: new TestRouter__factory(),
-};
 
 export class EnvSubsetDeployer extends HyperlaneRouterDeployer<
   RouterConfig,
-  RouterContracts,
-  RouterFactories
+  TestRouterContracts,
+  TestRouterFactories
 > {
   constructor(
     multiProvider: MultiProvider,
     configMap: ChainMap<RouterConfig>,
     protected core: HyperlaneCore,
   ) {
-    super(multiProvider, configMap, envSubsetFactories, {});
+    super(multiProvider, configMap, testRouterFactories, {});
+  }
+
+  router(contracts: TestRouterContracts): TestRouter {
+    return contracts.router;
   }
 
   // Consider moving this up to HyperlaneRouterDeployer
-  async initRouter(contractsMap: ChainMap<RouterContracts>): Promise<void> {
+  async initRouter(contractsMap: ChainMap<TestRouterContracts>): Promise<void> {
     this.logger(`Calling initialize on routers...`);
     await promiseObjAll(
       objMap(contractsMap, async (chain, contracts) => {
@@ -53,17 +65,16 @@ export class EnvSubsetDeployer extends HyperlaneRouterDeployer<
         const overrides = this.multiProvider.getTransactionOverrides(chain);
         await this.multiProvider.handleTx(
           chain,
-          // @ts-ignore TestRouter does implement this, though Router type does not
-          contracts.router.initialize(mailbox, igp, overrides),
+          this.router(contracts).initialize(mailbox, igp, overrides),
         );
       }),
     );
   }
 
-  async deploy(): Promise<ChainMap<RouterContracts>> {
+  async deploy(): Promise<ChainMap<TestRouterContracts>> {
     const contractsMap = (await HyperlaneDeployer.prototype.deploy.apply(
       this,
-    )) as ChainMap<RouterContracts>;
+    )) as ChainMap<TestRouterContracts>;
     await this.initRouter(contractsMap);
     await this.enrollRemoteRouters(contractsMap);
     return contractsMap;
