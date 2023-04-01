@@ -8,6 +8,7 @@ import {
 } from '@hyperlane-xyz/core';
 
 import { Chains } from '../../consts/chains';
+import { HyperlaneContractsMap } from '../../contracts';
 import { TestCoreApp } from '../../core/TestCoreApp';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer';
 import { MultiProvider } from '../../providers/MultiProvider';
@@ -18,14 +19,14 @@ import { ChainMap } from '../../types';
 import { InterchainAccount } from './InterchainAccount';
 import { InterchainAccountChecker } from './InterchainAccountChecker';
 import { InterchainAccountDeployer } from './InterchainAccountDeployer';
-import { InterchainAccountContracts } from './contracts';
+import { InterchainAccountFactories } from './contracts';
 
 describe('InterchainAccounts', async () => {
   const localChain = Chains.test1;
   const remoteChain = Chains.test2;
 
   let signer: SignerWithAddress;
-  let contracts: ChainMap<InterchainAccountContracts>;
+  let contracts: HyperlaneContractsMap<InterchainAccountFactories>;
   let local: InterchainAccountRouter;
   let remote: InterchainAccountRouter;
   let multiProvider: MultiProvider;
@@ -53,8 +54,8 @@ describe('InterchainAccounts', async () => {
   beforeEach(async () => {
     const deployer = new InterchainAccountDeployer(multiProvider, config);
     contracts = await deployer.deploy();
-    local = contracts[localChain].interchainAccountRouter.contract;
-    remote = contracts[remoteChain].interchainAccountRouter.contract;
+    local = contracts[localChain].interchainAccountRouter;
+    remote = contracts[remoteChain].interchainAccountRouter;
   });
 
   it('checks', async () => {

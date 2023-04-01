@@ -49,7 +49,7 @@ async function main() {
     multiProvider.setSigner(fork, signer);
   }
 
-  let deployer: HyperlaneDeployer<any, any, any>;
+  let deployer: HyperlaneDeployer<any, any>;
   if (module === Modules.CORE) {
     deployer = new HyperlaneCoreInfraDeployer(
       multiProvider,

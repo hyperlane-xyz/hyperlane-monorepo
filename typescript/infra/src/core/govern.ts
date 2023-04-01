@@ -9,8 +9,6 @@ import {
   MultisigIsmViolation,
   MultisigIsmViolationType,
   OwnerViolation,
-  ProxyKind,
-  ProxyViolation,
   ViolationType,
 } from '@hyperlane-xyz/sdk';
 import { types, utils } from '@hyperlane-xyz/utils';
@@ -37,10 +35,6 @@ export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
         }
         case ViolationType.Owner: {
           this.handleOwnerViolation(violation as OwnerViolation);
-          break;
-        }
-        case ProxyKind.Transparent: {
-          this.handleProxyViolation(violation as ProxyViolation);
           break;
         }
         default:

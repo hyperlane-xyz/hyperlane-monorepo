@@ -6,13 +6,14 @@ import sinon from 'sinon';
 import {
   ChainMap,
   CoreConfig,
-  CoreContractsMap,
+  HyperlaneContractsMap,
   HyperlaneCore,
   HyperlaneCoreChecker,
   MultiProvider,
   objMap,
-  serializeContracts,
+  serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
+import { CoreFactories } from '@hyperlane-xyz/sdk/dist/core/contracts';
 
 import { environment as testConfig } from '../config/environments/test';
 import { HyperlaneCoreInfraDeployer } from '../src/core/deploy';
@@ -24,7 +25,7 @@ describe('core', async () => {
   let multiProvider: MultiProvider;
   let deployer: HyperlaneCoreInfraDeployer;
   let core: HyperlaneCore;
-  let contracts: CoreContractsMap;
+  let contracts: HyperlaneContractsMap<CoreFactories>;
   let coreConfig: ChainMap<CoreConfig>;
 
   let owners: ChainMap<string>;
@@ -48,7 +49,7 @@ describe('core', async () => {
 
   it('writes', async () => {
     const base = './test/outputs/core';
-    writeJSON(base, 'contracts.json', serializeContracts(contracts));
+    writeJSON(base, 'contracts.json', serializeContractsMap(contracts));
     writeJSON(base, 'verification.json', deployer.verificationInputs);
     // deployer.writeRustConfigs(base);
   });
@@ -97,36 +98,6 @@ describe('core', async () => {
       const result = await deployer.deploy();
       expect(result.test2).to.have.keys(Object.keys(result.test1));
       expect(result.test3).to.have.keys(Object.keys(result.test1));
-    });
-  });
-
-  describe('proxy upgrades', async () => {
-    beforeEach(async () => {
-      deployer = new HyperlaneCoreInfraDeployer(
-        multiProvider,
-        coreConfig,
-        environment,
-      );
-      await deployer.deploy();
-    });
-
-    it('deploys a new implementation if it has been removed from the artifacts', async () => {
-      // Copy the old addresses
-      const oldAddresses = {
-        ...deployer.deployedContracts.test2!.mailbox!.addresses,
-      };
-      // @ts-ignore
-      delete deployer.deployedContracts.test2!.mailbox!.addresses
-        .implementation;
-      const result = await deployer.deploy();
-      const newAddresses = result.test2.mailbox.addresses;
-      // New implementation
-      expect(newAddresses.implementation).to.not.be.undefined;
-      expect(newAddresses.implementation).to.not.equal(
-        oldAddresses.implementation,
-      );
-      // Same proxy
-      expect(newAddresses.proxy).to.equal(oldAddresses.proxy);
     });
   });
 

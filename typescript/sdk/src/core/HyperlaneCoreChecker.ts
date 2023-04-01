@@ -4,6 +4,7 @@ import { utils } from '@hyperlane-xyz/utils';
 
 import { BytecodeHash } from '../consts/bytecode';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
+import { proxyImplementation } from '../deploy/proxy';
 import { ChainName } from '../types';
 
 import { HyperlaneCore } from './HyperlaneCore';
@@ -46,7 +47,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
 
   async checkMailbox(chain: ChainName): Promise<void> {
     const contracts = this.app.getContracts(chain);
-    const mailbox = contracts.mailbox.contract;
+    const mailbox = contracts.mailbox;
     const localDomain = await mailbox.localDomain();
     utils.assert(localDomain === this.multiProvider.getDomainId(chain));
 
@@ -67,13 +68,17 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
 
   async checkBytecodes(chain: ChainName): Promise<void> {
     const contracts = this.app.getContracts(chain);
-    const mailbox = contracts.mailbox.contract;
+    const mailbox = contracts.mailbox;
     const localDomain = await mailbox.localDomain();
+    const implementation = await proxyImplementation(
+      this.multiProvider.getProvider(chain),
+      mailbox.address,
+    );
 
     await this.checkBytecode(
       chain,
       'Mailbox implementation',
-      contracts.mailbox.addresses.implementation,
+      implementation,
       [
         BytecodeHash.MAILBOX_WITHOUT_LOCAL_DOMAIN_BYTE_CODE_HASH,
         BytecodeHash.MAILBOX_WITHOUT_LOCAL_DOMAIN_NONZERO_PAUSE_BYTE_CODE_HASH,

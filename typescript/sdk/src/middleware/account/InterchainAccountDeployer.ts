@@ -1,18 +1,15 @@
 import {
-  InterchainAccountRouter,
   InterchainAccountRouter__factory,
-  ProxyAdmin,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
 
+import { HyperlaneContracts } from '../../contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
-import { ProxiedContract, ProxyKind } from '../../proxy';
 import { RouterConfig } from '../../router/types';
 import { ChainMap, ChainName } from '../../types';
 import { MiddlewareRouterDeployer } from '../MiddlewareRouterDeployer';
 
 import {
-  InterchainAccountContracts,
   InterchainAccountFactories,
   interchainAccountFactories,
 } from './contracts';
@@ -21,7 +18,6 @@ export type InterchainAccountConfig = RouterConfig;
 
 export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
   InterchainAccountConfig,
-  InterchainAccountContracts,
   InterchainAccountFactories,
   InterchainAccountRouter__factory
 > {
@@ -43,18 +39,13 @@ export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
   async deployContracts(
     chain: ChainName,
     config: InterchainAccountConfig,
-  ): Promise<InterchainAccountContracts> {
-    const proxyAdmin = (await this.deployContract(
-      chain,
-      'proxyAdmin',
-      [],
-    )) as ProxyAdmin;
+  ): Promise<HyperlaneContracts<InterchainAccountFactories>> {
+    const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
 
     // adapted from HyperlaneDeployer.deployProxiedContract
-    const cached = this.deployedContracts[chain]
-      ?.interchainAccountRouter as ProxiedContract<InterchainAccountRouter>;
-    if (cached && cached.addresses.proxy && cached.addresses.implementation) {
-      this.logger('Recovered full InterchainAccountRouter');
+    const cached = this.deployedContracts[chain]?.interchainAccountRouter;
+    if (cached) {
+      this.logger('Recovered InterchainAccountRouter');
       return {
         proxyAdmin,
         interchainAccountRouter: cached,
@@ -96,18 +87,11 @@ export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
     );
     await super.changeAdmin(chain, proxy, proxyAdmin.address);
 
-    const proxiedRouter = new ProxiedContract(
-      implementation.attach(proxy.address),
-      {
-        kind: ProxyKind.Transparent,
-        implementation: implementation.address,
-        proxy: proxy.address,
-      },
-    );
+    const proxiedRouter = implementation.attach(proxy.address);
 
     return {
       proxyAdmin,
-      interchainAccountRouter: proxiedRouter, // for serialization
+      interchainAccountRouter: proxiedRouter,
     };
   }
 }

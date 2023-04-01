@@ -29,38 +29,33 @@ export {
   TestChains,
   Testnets,
 } from './consts/chains';
-export {
-  hyperlaneAgentAddresses,
-  HyperlaneContractAddresses,
-  hyperlaneContractAddresses,
-  hyperlaneCoreAddresses,
-  hyperlaneEnvironments,
-} from './consts/environments';
+export { hyperlaneEnvironments } from './consts/environments';
 export { defaultMultisigIsmConfigs } from './consts/multisigIsm';
 export {
-  buildContracts,
+  attachContracts,
+  attachContractsMap,
   connectContracts,
   connectContractsMap,
   filterAddresses,
+  filterAddressesMap,
   HyperlaneAddresses,
+  HyperlaneAddressesMap,
   HyperlaneContracts,
+  HyperlaneContractsMap,
   HyperlaneFactories,
   serializeContracts,
+  serializeContractsMap,
 } from './contracts';
-export { CoreContracts, coreFactories } from './core/contracts';
+export { CoreFactories, coreFactories } from './core/contracts';
 export {
   AnnotatedDispatch,
   AnnotatedLifecycleEvent,
   HyperlaneLifecyleEvent,
 } from './core/events';
-export {
-  CoreContractsMap,
-  DispatchedMessage,
-  HyperlaneCore,
-} from './core/HyperlaneCore';
+export { DispatchedMessage, HyperlaneCore } from './core/HyperlaneCore';
 export { HyperlaneCoreChecker } from './core/HyperlaneCoreChecker';
 export { HyperlaneCoreDeployer } from './core/HyperlaneCoreDeployer';
-export { TestCoreApp, TestCoreContracts } from './core/TestCoreApp';
+export { TestCoreApp } from './core/TestCoreApp';
 export { TestCoreDeployer } from './core/TestCoreDeployer';
 export {
   CoreConfig,
@@ -76,7 +71,6 @@ export {
   DeployOptions,
   HyperlaneDeployer,
 } from './deploy/HyperlaneDeployer';
-export { ProxyViolation } from './deploy/proxy';
 export {
   CheckerViolation,
   OwnerViolation,
@@ -117,10 +111,7 @@ export {
   InterchainAccountConfig,
   InterchainAccountDeployer,
 } from './middleware/account/InterchainAccountDeployer';
-export {
-  LiquidityLayerContracts,
-  liquidityLayerFactories,
-} from './middleware/liquidity-layer/contracts';
+export { liquidityLayerFactories } from './middleware/liquidity-layer/contracts';
 export { LiquidityLayerApp } from './middleware/liquidity-layer/LiquidityLayerApp';
 export {
   BridgeAdapterConfig,
@@ -138,12 +129,6 @@ export {
 } from './middleware/query/InterchainQueryDeployer';
 export { MultiProvider, providerBuilder } from './providers/MultiProvider';
 export { RetryJsonRpcProvider, RetryProvider } from './providers/RetryProvider';
-export {
-  ProxiedContract,
-  ProxyAddresses,
-  ProxyKind,
-  TransparentProxyAddresses,
-} from './proxy';
 export { GasRouterDeployer } from './router/GasRouterDeployer';
 export { HyperlaneRouterChecker } from './router/HyperlaneRouterChecker';
 export { HyperlaneRouterDeployer } from './router/HyperlaneRouterDeployer';
