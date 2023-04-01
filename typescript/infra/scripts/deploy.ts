@@ -115,11 +115,21 @@ async function main() {
 
   const verification = path.join(modulePath, 'verification.json');
 
-  // do not cache for test environment
-  const cache =
-    environment === 'test' ? undefined : { addresses, verification };
+  const cache = {
+    addresses,
+    verification,
+    read: environment !== 'test',
+    write: true,
+  };
+  const agentConfig = ['core', 'igp'].includes(module)
+    ? {
+        addresses,
+        environment,
+        multiProvider,
+      }
+    : undefined;
 
-  await deployWithArtifacts(deployer, cache, fork);
+  await deployWithArtifacts(deployer, cache, fork, agentConfig);
 }
 
 main()

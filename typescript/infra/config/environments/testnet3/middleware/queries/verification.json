@@ -2,65 +2,127 @@
   "alfajores": [
     {
       "name": "InterchainQueryRouter",
-      "address": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818",
-      "isProxy": false,
-      "constructorArguments": "0x"
+      "address": "0xfFf9dB6C772525B17cd4eB863A09DcD43e085F59",
+      "constructorArguments": "0x",
+      "isProxy": false
+    },
+    {
+      "name": "TransparentUpgradeableProxy",
+      "address": "0xC87F9a6cADF77995b18FddE5049b6274695Dd559",
+      "constructorArguments": "0x000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": true
     }
   ],
   "fuji": [
     {
       "name": "InterchainQueryRouter",
-      "address": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818",
-      "isProxy": false,
-      "constructorArguments": "0x"
+      "address": "0xfFf9dB6C772525B17cd4eB863A09DcD43e085F59",
+      "constructorArguments": "0x",
+      "isProxy": false
+    },
+    {
+      "name": "TransparentUpgradeableProxy",
+      "address": "0xC87F9a6cADF77995b18FddE5049b6274695Dd559",
+      "constructorArguments": "0x000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": true
     }
   ],
   "mumbai": [
     {
       "name": "InterchainQueryRouter",
-      "address": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818",
-      "isProxy": false,
-      "constructorArguments": "0x"
+      "address": "0xfFf9dB6C772525B17cd4eB863A09DcD43e085F59",
+      "constructorArguments": "0x",
+      "isProxy": false
+    },
+    {
+      "name": "TransparentUpgradeableProxy",
+      "address": "0xC87F9a6cADF77995b18FddE5049b6274695Dd559",
+      "constructorArguments": "0x000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": true
     }
   ],
   "bsctestnet": [
     {
       "name": "InterchainQueryRouter",
-      "address": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818",
-      "isProxy": false,
-      "constructorArguments": "0x"
+      "address": "0xfFf9dB6C772525B17cd4eB863A09DcD43e085F59",
+      "constructorArguments": "0x",
+      "isProxy": false
+    },
+    {
+      "name": "TransparentUpgradeableProxy",
+      "address": "0xC87F9a6cADF77995b18FddE5049b6274695Dd559",
+      "constructorArguments": "0x000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": true
     }
   ],
   "goerli": [
     {
       "name": "InterchainQueryRouter",
-      "address": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818",
-      "isProxy": false,
-      "constructorArguments": "0x"
+      "address": "0xfFf9dB6C772525B17cd4eB863A09DcD43e085F59",
+      "constructorArguments": "0x",
+      "isProxy": false
+    },
+    {
+      "name": "TransparentUpgradeableProxy",
+      "address": "0xC87F9a6cADF77995b18FddE5049b6274695Dd559",
+      "constructorArguments": "0x000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": true
     }
   ],
   "moonbasealpha": [
     {
       "name": "InterchainQueryRouter",
-      "address": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818",
-      "isProxy": false,
-      "constructorArguments": "0x"
+      "address": "0xfFf9dB6C772525B17cd4eB863A09DcD43e085F59",
+      "constructorArguments": "0x",
+      "isProxy": false
+    },
+    {
+      "name": "TransparentUpgradeableProxy",
+      "address": "0xC87F9a6cADF77995b18FddE5049b6274695Dd559",
+      "constructorArguments": "0x000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": true
     }
   ],
   "optimismgoerli": [
     {
       "name": "InterchainQueryRouter",
-      "address": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818",
-      "isProxy": false,
-      "constructorArguments": "0x"
+      "address": "0xfFf9dB6C772525B17cd4eB863A09DcD43e085F59",
+      "constructorArguments": "0x",
+      "isProxy": false
+    },
+    {
+      "name": "TransparentUpgradeableProxy",
+      "address": "0xC87F9a6cADF77995b18FddE5049b6274695Dd559",
+      "constructorArguments": "0x000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": true
     }
   ],
   "arbitrumgoerli": [
     {
       "name": "InterchainQueryRouter",
-      "address": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818",
-      "isProxy": false,
-      "constructorArguments": "0x"
+      "address": "0xfFf9dB6C772525B17cd4eB863A09DcD43e085F59",
+      "constructorArguments": "0x",
+      "isProxy": false
+    },
+    {
+      "name": "TransparentUpgradeableProxy",
+      "address": "0xC87F9a6cADF77995b18FddE5049b6274695Dd559",
+      "constructorArguments": "0x000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": true
+    }
+  ],
+  "sepolia": [
+    {
+      "name": "InterchainQueryRouter",
+      "address": "0xfFf9dB6C772525B17cd4eB863A09DcD43e085F59",
+      "constructorArguments": "0x",
+      "isProxy": false
+    },
+    {
+      "name": "TransparentUpgradeableProxy",
+      "address": "0xC87F9a6cADF77995b18FddE5049b6274695Dd559",
+      "constructorArguments": "0x000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": true
     }
   ]
 }

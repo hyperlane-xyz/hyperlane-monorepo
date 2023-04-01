@@ -6,11 +6,11 @@ import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
 import { MultiProvider } from '../providers/MultiProvider';
-import { TransparentProxyAddresses } from '../proxy';
+import { ProxiedContract, isProxiedContract } from '../proxy';
 import { ChainMap, ChainName } from '../types';
-import { objMap } from '../utils/objects';
+import { objMap, promiseObjAll } from '../utils/objects';
 
-import { proxyAdmin, proxyImplementation, proxyViolation } from './proxy';
+import { proxyAdmin } from './proxy';
 import {
   BytecodeMismatchViolation,
   CheckerViolation,
@@ -62,34 +62,36 @@ export abstract class HyperlaneAppChecker<
     this.violations.push(violation);
   }
 
-  async checkProxiedContract(
-    chain: ChainName,
-    name: string,
-    proxiedAddress: TransparentProxyAddresses,
-    proxyAdminAddress?: types.Address,
-  ): Promise<void> {
-    const provider = this.multiProvider.getProvider(chain);
-    const implementation = await proxyImplementation(
-      provider,
-      proxiedAddress.proxy,
-    );
-    if (implementation !== proxiedAddress.implementation) {
-      this.addViolation(
-        proxyViolation(chain, name, proxiedAddress, implementation),
+  async checkProxiedContracts(chain: ChainName): Promise<void> {
+    const expectedAdmin = this.app.getContracts(chain).proxyAdmin.address;
+    if (!expectedAdmin) {
+      throw new Error(
+        `Checking proxied contracts for ${chain} with no admin provided`,
       );
     }
-    if (proxyAdminAddress) {
-      const admin = await proxyAdmin(provider, proxiedAddress.proxy);
-      if (admin !== proxyAdminAddress) {
-        this.addViolation({
-          type: ViolationType.ProxyAdmin,
-          chain,
-          name,
-          expected: proxyAdminAddress,
-          actual: admin,
-        } as ProxyAdminViolation);
-      }
-    }
+    const provider = this.multiProvider.getProvider(chain);
+    const isProxied = (
+      _: string,
+      contract: any,
+    ): contract is ProxiedContract<any, any> => {
+      return isProxiedContract(contract);
+    };
+    const proxied = this.app.getFlattenedFilteredContracts(chain, isProxied);
+    await promiseObjAll(
+      objMap(proxied, async (name, contract) => {
+        // Check the ProxiedContract's admin matches expectation
+        const actualAdmin = await proxyAdmin(provider, contract.address);
+        if (!utils.eqAddress(actualAdmin, expectedAdmin)) {
+          this.addViolation({
+            type: ViolationType.ProxyAdmin,
+            chain,
+            name,
+            expected: expectedAdmin,
+            actual: actualAdmin,
+          } as ProxyAdminViolation);
+        }
+      }),
+    );
   }
 
   private removeBytecodeMetadata(bytecode: string): string {
@@ -122,17 +124,24 @@ export abstract class HyperlaneAppChecker<
     }
   }
 
-  async checkOwnership(
-    chain: ChainName,
-    owner: types.Address,
-    ownables: Ownable[],
-  ): Promise<void> {
-    await Promise.all(
-      ownables.map(async (contract) => {
+  // TODO: Require owner in config if ownables is non-empty
+  async checkOwnership(chain: ChainName, owner: types.Address): Promise<void> {
+    const isOwnable = (_: string, contract: any): contract is Ownable => {
+      return (
+        contract !== null &&
+        typeof contract === 'object' &&
+        contract.owner &&
+        contract.transferOwnership
+      );
+    };
+    const ownables = this.app.getFlattenedFilteredContracts(chain, isOwnable);
+    await promiseObjAll(
+      objMap(ownables, async (name, contract) => {
         const actual = await contract.owner();
-        if (actual.toLowerCase() != owner.toLowerCase()) {
+        if (!utils.eqAddress(actual, owner)) {
           const violation: OwnerViolation = {
             chain,
+            name,
             type: ViolationType.Owner,
             actual,
             expected: owner,

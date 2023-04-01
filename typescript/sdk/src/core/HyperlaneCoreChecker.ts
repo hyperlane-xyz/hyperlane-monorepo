@@ -40,13 +40,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
   async checkDomainOwnership(chain: ChainName): Promise<void> {
     const config = this.configMap[chain];
     if (config.owner) {
-      const contracts = this.app.getContracts(chain);
-      const ownables = [
-        contracts.proxyAdmin,
-        contracts.mailbox.contract,
-        contracts.multisigIsm,
-      ];
-      return this.checkOwnership(chain, config.owner, ownables);
+      return this.checkOwnership(chain, config.owner);
     }
   }
 
@@ -115,16 +109,6 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       'MultisigIsm implementation',
       contracts.multisigIsm.address,
       [BytecodeHash.MULTISIG_ISM_BYTECODE_HASH],
-    );
-  }
-
-  async checkProxiedContracts(chain: ChainName): Promise<void> {
-    const contracts = this.app.getContracts(chain);
-    await this.checkProxiedContract(
-      chain,
-      'Mailbox',
-      contracts.mailbox.addresses,
-      contracts.proxyAdmin.address,
     );
   }
 
