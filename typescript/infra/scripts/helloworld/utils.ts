@@ -1,9 +1,9 @@
 import { HelloWorldApp, helloWorldFactories } from '@hyperlane-xyz/helloworld';
 import {
   AgentConnectionType,
-  HyperlaneApp,
   HyperlaneCore,
   MultiProvider,
+  attachContractsMap,
 } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
@@ -25,10 +25,9 @@ export async function getApp(
     connectionType,
   );
   const helloworldConfig = getHelloWorldConfig(coreConfig, context);
-  const { contracts } = HyperlaneApp.buildContracts(
+  const contracts = attachContractsMap(
     helloworldConfig.addresses,
     helloWorldFactories,
-    multiProvider,
   );
   const core = HyperlaneCore.fromEnvironment(
     deployEnvToSdkEnv[coreConfig.environment],

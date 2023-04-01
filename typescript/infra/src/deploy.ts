@@ -5,8 +5,8 @@ import {
   HyperlaneAgentAddresses,
   HyperlaneDeployer,
   MultiProvider,
+  attachContractsMap,
   buildAgentConfig,
-  buildContracts,
   objMap,
   promiseObjAll,
   serializeContractsMap,
@@ -74,7 +74,7 @@ export async function deployWithArtifacts(
       console.error('Failed to load cached addresses');
     }
 
-    const savedContracts = buildContracts(addresses, deployer.factories);
+    const savedContracts = attachContractsMap(addresses, deployer.factories);
     deployer.cacheContracts(savedContracts);
   }
 

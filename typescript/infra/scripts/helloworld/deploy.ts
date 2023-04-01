@@ -6,9 +6,9 @@ import {
   helloWorldFactories,
 } from '@hyperlane-xyz/helloworld';
 import {
-  HyperlaneApp,
   HyperlaneContractsMap,
   HyperlaneCore,
+  attachContractsMap,
   serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
 
@@ -49,11 +49,7 @@ async function main() {
   let existingVerificationInputs = {};
   try {
     const addresses = readJSON(dir, 'addresses.json');
-    ({ contracts } = HyperlaneApp.buildContracts(
-      addresses,
-      helloWorldFactories,
-      multiProvider,
-    ));
+    contracts = attachContractsMap(addresses, helloWorldFactories);
     existingVerificationInputs = readJSON(dir, 'verification.json');
   } catch (e) {
     console.info(`Could not load previous deployment, file may not exist`);

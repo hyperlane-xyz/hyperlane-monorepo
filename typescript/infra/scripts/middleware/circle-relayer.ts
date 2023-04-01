@@ -2,8 +2,8 @@ import path from 'path';
 
 import {
   Chains,
-  HyperlaneApp,
   LiquidityLayerApp,
+  attachContractsMap,
   liquidityLayerFactories,
 } from '@hyperlane-xyz/sdk';
 
@@ -26,11 +26,7 @@ async function check() {
     'middleware/liquidity-layer',
   );
   const addresses = readJSON(dir, 'addresses.json');
-  const { contracts } = HyperlaneApp.buildContracts(
-    addresses,
-    liquidityLayerFactories,
-    multiProvider,
-  );
+  const contracts = attachContractsMap(addresses, liquidityLayerFactories);
   const app = new LiquidityLayerApp(
     contracts,
     multiProvider,
