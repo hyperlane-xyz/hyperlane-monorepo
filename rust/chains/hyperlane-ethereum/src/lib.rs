@@ -13,8 +13,8 @@ pub use retrying::{RetryingProvider, RetryingProviderError};
 
 #[cfg(not(doctest))]
 pub use crate::{
-    fallback::*, interchain_gas::*, ism::*, mailbox::*, multisig_ism::*, provider::*, signers::*,
-    trait_builder::*, validator_announce::*,
+    fallback::*, interchain_gas::*, interchain_security_module::*, mailbox::*, multisig_ism::*,
+    provider::*, signers::*, trait_builder::*, validator_announce::*,
 };
 
 #[cfg(not(doctest))]
@@ -35,9 +35,9 @@ mod provider;
 #[cfg(not(doctest))]
 mod interchain_gas;
 
-/// Ism abi
+/// interchain_security_module abi
 #[cfg(not(doctest))]
-mod ism;
+mod interchain_security_module;
 
 /// MultisigIsm abi
 #[cfg(not(doctest))]

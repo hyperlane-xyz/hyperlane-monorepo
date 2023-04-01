@@ -1,15 +1,15 @@
 use async_trait::async_trait;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::str::FromStr;
 use std::sync::Arc;
+use std::{collections::HashMap, ops::Deref};
 
 use derive_new::new;
 use eyre::Context;
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use tracing::{debug, info, instrument, warn};
 
 use hyperlane_base::{
     ChainSetup, CheckpointSyncer, CheckpointSyncerConf, CoreMetrics, MultisigCheckpointSyncer,
@@ -63,12 +63,13 @@ impl Debug for BaseMetadataBuilder {
 
 #[async_trait]
 impl MetadataBuilder for BaseMetadataBuilder {
+    #[instrument(err)]
     async fn build(
         &self,
         ism_address: H256,
         message: &HyperlaneMessage,
     ) -> eyre::Result<Option<Vec<u8>>> {
-        const CTX: &str = "When fetching metadata";
+        const CTX: &str = "When fetching module type";
         let ism = self
             .chain_setup
             .build_ism(ism_address, &self.metrics)
@@ -76,7 +77,8 @@ impl MetadataBuilder for BaseMetadataBuilder {
             .context(CTX)?;
         let module_type = ism.module_type().await.context(CTX)?;
         let supported_type = SupportedIsmTypes::from_u8(module_type)
-            .ok_or(MetadataBuilderError::UnsupportedModuleType(module_type))?;
+            .ok_or(MetadataBuilderError::UnsupportedModuleType(module_type))
+            .context(CTX)?;
 
         let metadata_builder = match supported_type {
             SupportedIsmTypes::LegacyMultisig => {
@@ -90,23 +92,32 @@ impl MetadataBuilder for BaseMetadataBuilder {
     }
 }
 
-#[derive(Clone, new)]
+#[derive(Clone, Debug, new)]
 pub struct LegacyMultisigIsmMetadataBuilder {
     base: BaseMetadataBuilder,
 }
 
+impl Deref for LegacyMultisigIsmMetadataBuilder {
+    type Target = BaseMetadataBuilder;
+
+    fn deref(&self) -> &Self::Target {
+        &self.base
+    }
+}
+
 #[async_trait]
 impl MetadataBuilder for LegacyMultisigIsmMetadataBuilder {
+    #[instrument(err)]
     async fn build(
         &self,
         ism_address: H256,
         message: &HyperlaneMessage,
     ) -> eyre::Result<Option<Vec<u8>>> {
-        const CTX: &str = "When fetching metadata";
+        const CTX: &str = "When fetching LegacyMultisigIsm metadata";
         let multisig_ism = self
             .base
             .chain_setup
-            .build_multisig_ism(ism_address, &self.base.metrics)
+            .build_multisig_ism(ism_address, &self.metrics)
             .await
             .context(CTX)?;
 
@@ -114,7 +125,7 @@ impl MetadataBuilder for LegacyMultisigIsmMetadataBuilder {
             .validators_and_threshold(message)
             .await
             .context(CTX)?;
-        let highest_known_nonce = self.base.prover_sync.read().await.count() - 1;
+        let highest_known_nonce = self.prover_sync.read().await.count() - 1;
         let checkpoint_syncer = self
             .build_checkpoint_syncer(&validators)
             .await
@@ -141,7 +152,6 @@ impl MetadataBuilder for LegacyMultisigIsmMetadataBuilder {
         debug!(?checkpoint, "Found checkpoint with quorum");
 
         let proof = self
-            .base
             .prover_sync
             .read()
             .await
@@ -176,7 +186,6 @@ impl LegacyMultisigIsmMetadataBuilder {
         validators: &[H256],
     ) -> eyre::Result<MultisigCheckpointSyncer> {
         let storage_locations = self
-            .base
             .validator_announce
             .get_announced_storage_locations(validators)
             .await?;
@@ -192,7 +201,7 @@ impl LegacyMultisigIsmMetadataBuilder {
 
                 // If this is a LocalStorage based checkpoint syncer and it's not
                 // allowed, ignore it
-                if !self.base.allow_local_checkpoint_syncers
+                if !self.allow_local_checkpoint_syncers
                     && matches!(config, CheckpointSyncerConf::LocalStorage { .. })
                 {
                     debug!(

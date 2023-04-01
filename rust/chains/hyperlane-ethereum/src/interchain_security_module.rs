@@ -10,50 +10,45 @@ use tracing::instrument;
 
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneProvider, Ism, H256,
+    HyperlaneProvider, InterchainSecurityModule, H256,
 };
 
 use crate::contracts::i_interchain_security_module::{
-    IInterchainSecurityModule as EthereumIsmInternal, IINTERCHAINSECURITYMODULE_ABI,
+    IInterchainSecurityModule as EthereumInterchainSecurityModuleInternal,
+    IINTERCHAINSECURITYMODULE_ABI,
 };
 use crate::trait_builder::BuildableWithProvider;
 use crate::EthereumProvider;
 
-impl<M> std::fmt::Display for EthereumIsmInternal<M>
-where
-    M: Middleware,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-pub struct IsmBuilder {}
+pub struct InterchainSecurityModuleBuilder {}
 
 #[async_trait]
-impl BuildableWithProvider for IsmBuilder {
-    type Output = Box<dyn Ism>;
+impl BuildableWithProvider for InterchainSecurityModuleBuilder {
+    type Output = Box<dyn InterchainSecurityModule>;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
         locator: &ContractLocator,
     ) -> Self::Output {
-        Box::new(EthereumIsm::new(Arc::new(provider), locator))
+        Box::new(EthereumInterchainSecurityModule::new(
+            Arc::new(provider),
+            locator,
+        ))
     }
 }
 
-/// A reference to an Ism contract on some Ethereum chain
+/// A reference to an InterchainSecurityModule contract on some Ethereum chain
 #[derive(Debug)]
-pub struct EthereumIsm<M>
+pub struct EthereumInterchainSecurityModule<M>
 where
     M: Middleware,
 {
-    contract: Arc<EthereumIsmInternal<M>>,
+    contract: Arc<EthereumInterchainSecurityModuleInternal<M>>,
     domain: HyperlaneDomain,
 }
 
-impl<M> EthereumIsm<M>
+impl<M> EthereumInterchainSecurityModule<M>
 where
     M: Middleware + 'static,
 {
@@ -61,13 +56,16 @@ where
     /// chain
     pub fn new(provider: Arc<M>, locator: &ContractLocator) -> Self {
         Self {
-            contract: Arc::new(EthereumIsmInternal::new(locator.address, provider)),
+            contract: Arc::new(EthereumInterchainSecurityModuleInternal::new(
+                locator.address,
+                provider,
+            )),
             domain: locator.domain.clone(),
         }
     }
 }
 
-impl<M> HyperlaneChain for EthereumIsm<M>
+impl<M> HyperlaneChain for EthereumInterchainSecurityModule<M>
 where
     M: Middleware + 'static,
 {
@@ -83,7 +81,7 @@ where
     }
 }
 
-impl<M> HyperlaneContract for EthereumIsm<M>
+impl<M> HyperlaneContract for EthereumInterchainSecurityModule<M>
 where
     M: Middleware + 'static,
 {
@@ -93,7 +91,7 @@ where
 }
 
 #[async_trait]
-impl<M> Ism for EthereumIsm<M>
+impl<M> InterchainSecurityModule for EthereumInterchainSecurityModule<M>
 where
     M: Middleware + 'static,
 {
@@ -104,9 +102,9 @@ where
     }
 }
 
-pub struct EthereumIsmAbi;
+pub struct EthereumInterchainSecurityModuleAbi;
 
-impl HyperlaneAbi for EthereumIsmAbi {
+impl HyperlaneAbi for EthereumInterchainSecurityModuleAbi {
     const SELECTOR_SIZE_BYTES: usize = 4;
 
     fn fn_map() -> HashMap<Vec<u8>, &'static str> {

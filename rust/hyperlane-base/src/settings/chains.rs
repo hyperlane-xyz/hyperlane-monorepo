@@ -9,8 +9,8 @@ use ethers_prometheus::middleware::{
 };
 use hyperlane_core::{
     utils::StrOrInt, ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol,
-    HyperlaneProvider, HyperlaneSigner, InterchainGasPaymaster, InterchainGasPaymasterIndexer, Ism,
-    Mailbox, MailboxIndexer, MultisigIsm, ValidatorAnnounce, H256,
+    HyperlaneProvider, HyperlaneSigner, InterchainGasPaymaster, InterchainGasPaymasterIndexer,
+    InterchainSecurityModule, Mailbox, MailboxIndexer, MultisigIsm, ValidatorAnnounce, H256,
 };
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
@@ -279,8 +279,12 @@ impl ChainSetup {
         .context("Building ValidatorAnnounce")
     }
 
-    /// Try to convert the chain setting into a Multisig Ism contract
-    pub async fn build_ism(&self, address: H256, metrics: &CoreMetrics) -> Result<Box<dyn Ism>> {
+    /// Try to convert the chain setting into an InterchainSecurityModule contract
+    pub async fn build_ism(
+        &self,
+        address: H256,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn InterchainSecurityModule>> {
         let ctx = "Building ISM";
         let locator = ContractLocator {
             domain: self
@@ -292,8 +296,13 @@ impl ChainSetup {
 
         match &self.connection()? {
             ChainConnectionConf::Ethereum(conf) => {
-                self.build_ethereum(conf, &locator, metrics, h_eth::IsmBuilder {})
-                    .await
+                self.build_ethereum(
+                    conf,
+                    &locator,
+                    metrics,
+                    h_eth::InterchainSecurityModuleBuilder {},
+                )
+                .await
             }
 
             ChainConnectionConf::Fuel(_) => todo!(),
