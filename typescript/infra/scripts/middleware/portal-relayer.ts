@@ -69,7 +69,7 @@ async function relayPortalTransfers() {
     try {
       await tick();
     } catch (err) {
-      error('Error in tick', {
+      error('Error processing chains in tick', {
         err,
       });
     }
