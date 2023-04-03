@@ -2813,6 +2813,7 @@ dependencies = [
  "thiserror",
  "tracing",
  "tracing-futures",
+ "url",
 ]
 
 [[package]]

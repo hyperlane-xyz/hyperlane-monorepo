@@ -7,6 +7,8 @@ use std::collections::HashMap;
 
 use ethers::abi::FunctionExt;
 use ethers::prelude::{abi, BlockId, BlockNumber, Http, Lazy, Middleware, NameOrAddress, Provider};
+use serde::Deserialize;
+use url::Url;
 
 use hyperlane_core::*;
 pub use retrying::{RetryingProvider, RetryingProviderError};
@@ -56,35 +58,86 @@ mod fallback;
 mod signers;
 
 /// Ethereum connection configuration
-#[derive(Debug, serde::Deserialize, Clone)]
-#[serde(tag = "type", rename_all = "camelCase")]
+#[derive(Debug, Clone)]
 pub enum ConnectionConf {
     /// An HTTP-only quorum.
     HttpQuorum {
         /// List of fully qualified strings to connect to
-        urls: String,
+        urls: Vec<Url>,
     },
     /// An HTTP-only fallback set.
     HttpFallback {
         /// List of fully qualified strings to connect to in order of priority
-        urls: String,
+        urls: Vec<Url>,
     },
     /// HTTP connection details
     Http {
         /// Fully qualified string to connect to
-        url: String,
+        url: Url,
     },
     /// Websocket connection details
     Ws {
         /// Fully qualified string to connect to
-        url: String,
+        url: Url,
     },
 }
 
-impl Default for ConnectionConf {
-    fn default() -> Self {
-        Self::Http {
-            url: Default::default(),
+/// Raw ethereum connection configuration used for better deserialization errors.
+#[derive(Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum RawConnectionConf {
+    HttpQuorum { urls: Option<String> },
+    HttpFallback { urls: Option<String> },
+    Http { url: Option<String> },
+    Ws { url: Option<String> },
+}
+
+hyperlane_base::declare_deserialize_for_config_struct!(ConnectionConf);
+
+/// Error type when parsing a connection configuration.
+#[derive(Debug, thiserror::Error)]
+pub enum ConnectionConfError {
+    #[error("Unsupported connection type: {0}")]
+    UnsupportedConnectionType(String),
+    #[error("Missing `url` for connection configuration")]
+    MissingConnectionUrl,
+    #[error("Missing `urls` for connection configuration")]
+    MissingConnectionUrls,
+    #[error("Invalid `url` for connection configuration: `{0}` ({1})")]
+    InvalidConnectionUrl(String, url::ParseError),
+    #[error("Invalid `urls` list for connection configuration: `{0}` ({1})")]
+    InvalidConnectionUrls(String, url::ParseError),
+}
+
+impl TryFrom<RawConnectionConf> for ConnectionConf {
+    type Error = ConnectionConfError;
+
+    fn try_from(r: RawConnectionConf) -> Result<Self, Self::Error> {
+        use ConnectionConfError::*;
+        use RawConnectionConf::*;
+        match r {
+            HttpQuorum { urls: Some(urls) } => Ok(Self::HttpQuorum {
+                urls: urls
+                    .split(',')
+                    .map(|s| s.parse())
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|e| InvalidConnectionUrls(urls, e))?,
+            }),
+            HttpFallback { urls: Some(urls) } => Ok(Self::HttpFallback {
+                urls: urls
+                    .split(',')
+                    .map(|s| s.parse())
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|e| InvalidConnectionUrls(urls, e))?,
+            }),
+            Http { url: Some(url) } => Ok(Self::Http {
+                url: url.parse().map_err(|e| InvalidConnectionUrl(url, e))?,
+            }),
+            Ws { url: Some(url) } => Ok(Self::Ws {
+                url: url.parse().map_err(|e| InvalidConnectionUrl(url, e))?,
+            }),
+            HttpQuorum { urls: None } | HttpFallback { urls: None } => Err(MissingConnectionUrls),
+            Http { url: None } | Ws { url: None } => Err(MissingConnectionUrl),
         }
     }
 }

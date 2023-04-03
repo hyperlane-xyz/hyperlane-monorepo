@@ -1,35 +1,57 @@
 use std::collections::HashMap;
 
 use ethers::prelude::Selector;
-use eyre::{Context, eyre, Result};
+use eyre::{eyre, Context, Result};
 use serde::Deserialize;
 
 use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
 };
 use hyperlane_core::{
-    ContractLocator, H256, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol,
+    utils::StrOrInt, ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol,
     HyperlaneProvider, HyperlaneSigner, InterchainGasPaymaster, InterchainGasPaymasterIndexer,
-    Mailbox, MailboxIndexer, MultisigIsm, utils::StrOrInt, ValidatorAnnounce,
+    Mailbox, MailboxIndexer, MultisigIsm, ValidatorAnnounce, H256,
 };
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
 };
 use hyperlane_fuel::{self as h_fuel, prelude::*};
 
-use crate::{CoreMetrics, EyreOptionExt, settings::signers::BuildableWithSignerConf, SignerConf};
 use crate::settings::declare_deserialize_for_config_struct;
+use crate::{
+    declare_deserialize_for_config_struct, settings::signers::BuildableWithSignerConf, CoreMetrics,
+    EyreOptionExt, SignerConf,
+};
 
 /// A connection to _some_ blockchain.
-///
-/// Specify the chain name (enum variant) in toml under the `chain` key
-#[derive(Clone, Debug, Deserialize)]
-#[serde(tag = "protocol", content = "connection", rename_all = "camelCase")]
+#[derive(Clone, Debug)]
 pub enum ChainConnectionConf {
     /// Ethereum configuration
     Ethereum(h_eth::ConnectionConf),
     /// Fuel configuration
     Fuel(h_fuel::ConnectionConf),
+}
+
+/// Specify the chain name (enum variant) under the `chain` key
+#[derive(Deserialize)]
+#[serde(tag = "protocol", content = "connection", rename_all = "camelCase")]
+enum RawChainConnectionConf {
+    Ethereum(h_eth::RawConnectionConf),
+    Fuel(h_fuel::RawConnectionConf),
+    #[serde(other)]
+    None,
+}
+
+impl TryFrom<RawChainConnectionConf> for ChainConnectionConf {
+    type Error = eyre::Report;
+
+    fn try_from(r: RawChainConnectionConf) -> Result<Self, Self::Error> {
+        match r {
+            RawChainConnectionConf::Ethereum(r) => Ok(Self::Ethereum(r.try_into()?)),
+            RawChainConnectionConf::Fuel(r) => Ok(Self::Fuel(r.try_into()?)),
+            RawChainConnectionConf::None => Err(eyre!("Unknown chain protocol")),
+        }
+    }
 }
 
 impl ChainConnectionConf {
@@ -103,31 +125,40 @@ impl TryFrom<RawCoreContractAddresses> for CoreContractAddresses {
 }
 
 /// Indexing settings
-#[derive(Debug, Deserialize, Default, Clone)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Default, Clone)]
 pub struct IndexSettings {
     /// The height at which to start indexing the Outbox contract
-    pub from: Option<StrOrInt>,
+    pub from: u32,
     /// The number of blocks to query at once at which to start indexing the
     /// Mailbox contract
-    pub chunk: Option<StrOrInt>,
+    pub chunk: u32,
 }
 
-impl IndexSettings {
-    /// Get the `from` setting
-    pub fn from(&self) -> u32 {
-        self.from
-            .as_ref()
-            .and_then(|s| s.try_into().ok())
-            .unwrap_or_default()
-    }
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawIndexSettings {
+    from: Option<StrOrInt>,
+    chunk: Option<StrOrInt>,
+}
 
-    /// Get the `chunk_size` setting
-    pub fn chunk_size(&self) -> u32 {
-        self.chunk
-            .as_ref()
-            .and_then(|s| s.try_into().ok())
-            .unwrap_or(1999)
+impl TryFrom<RawIndexSettings> for IndexSettings {
+    type Error = eyre::Report;
+
+    fn try_from(r: RawIndexSettings) -> Result<Self, Self::Error> {
+        Ok(Self {
+            from: r
+                .from
+                .map(|v| v.try_into())
+                .transpose()
+                .context("Invalid `from` index setting")?
+                .unwrap_or_default(),
+            chunk: r
+                .chunk
+                .map(|v| v.try_into())
+                .transpose()
+                .context("Invalid `chunk` index setting")?
+                .unwrap_or(1999),
+        })
     }
 }
 
@@ -135,10 +166,8 @@ impl IndexSettings {
 /// deployed) and details for connecting to the chain API.
 #[derive(Clone, Debug)]
 pub struct ChainConf {
-    /// Domain name
-    pub name: String,
-    /// Chain domain identifier
-    pub domain: u32,
+    /// The domain
+    pub domain: HyperlaneDomain,
     /// Signer configuration for this chain
     pub signer: Option<SignerConf>,
     /// Number of blocks until finality
@@ -168,11 +197,70 @@ pub struct RawChainConf {
     #[serde(flatten, default)]
     connection: Option<RawChainConnectionConf>,
     #[serde(default)]
-    txsubmission: Option<TransactionSubmissionType>,
+    txsubmission: Option<String>,
+    // TODO: if people actually use the metrics conf we should also add a raw form.
     #[serde(default)]
-    metrics_conf: Option<RawPrometheusMiddlewareConf>,
+    metrics_conf: Option<PrometheusMiddlewareConf>,
     #[serde(default)]
     index: Option<RawIndexSettings>,
+}
+
+declare_deserialize_for_config_struct!(ChainConf);
+
+impl TryFrom<RawChainConf> for ChainConf {
+    type Error = eyre::Report;
+
+    fn try_from(r: RawChainConf) -> Result<ChainConf> {
+        Ok(Self {
+            domain: HyperlaneDomain::from_config(
+                r.domain
+                    .as_deref()
+                    .expect_or_eyre("Missing `domain` chain configuration")?
+                    .try_into()
+                    .context("Invalid domain id")?,
+                r.name
+                    .as_deref()
+                    .expect_or_eyre("Missing `name` chain configuration")?,
+                r.connection
+                    .expect_or_eyre("Missing `protocol` configuration")?
+                    .protocol(),
+            )?,
+            signer: r.signer,
+            finality_blocks: r
+                .finality_blocks
+                .map(|v| v.try_into())
+                .transpose()
+                .context("Invalid `finalityBlocks` chain configuration")?
+                .unwrap_or(0),
+            addresses: r
+                .addresses
+                .map(|v| v.try_into())
+                .transpose()
+                .context("Invalid `addresses` chain configuration")?
+                .unwrap_or_default(),
+            connection: r
+                .connection
+                .map(|v| v.try_into())
+                .transpose()
+                .context("Invalid `connection` chain configuration")?,
+            txsubmission: r
+                .txsubmission
+                .map(|v| v.try_into())
+                .transpose()
+                .context("Invalid `txsubmission` chain configuration")?
+                .unwrap_or_default(),
+            metrics_conf: r
+                .metrics_conf
+                .unwrap_or_default()
+                .with_addresses(r.addresses.map(|v| v.try_into()).transpose()?),
+            index: r
+                .index
+                .map(|v| v.try_into())
+                .transpose()
+                .context("Invalid `index` chain configuration")?
+                .unwrap_or_default(),
+        })
+    }
 }
 
 impl ChainConf {
@@ -431,21 +519,10 @@ impl ChainConf {
         cfg
     }
 
-    fn locator(&self, address: &str) -> Result<ContractLocator> {
+    fn locator(&self, address: H256) -> Result<ContractLocator> {
         let domain = self
             .domain()
             .context("Invalid domain for locating contract")?;
-        let address = match self.connection()? {
-            ChainConnectionConf::Ethereum(_) => address
-                .parse::<ethers::types::Address>()
-                .context("Invalid ethereum address for locating contract")?
-                .into(),
-            ChainConnectionConf::Fuel(_) => address
-                .parse::<fuels::tx::ContractId>()
-                .map_err(|e| eyre!("Invalid fuel contract id for locating contract: {e}"))?
-                .into_h256(),
-        };
-
         Ok(ContractLocator { domain, address })
     }
 

@@ -76,7 +76,7 @@ use once_cell::sync::OnceCell;
 use rusoto_kms::KmsClient;
 use serde::Deserialize;
 
-pub use chains::{ChainConnectionConf, ChainConf, CoreContractAddresses};
+pub use chains::{ChainConf, ChainConnectionConf, CoreContractAddresses};
 use hyperlane_core::utils::StrOrInt;
 use hyperlane_core::{
     db::{HyperlaneDB, DB},
@@ -98,6 +98,9 @@ pub mod trace;
 
 static KMS_CLIENT: OnceCell<KmsClient> = OnceCell::new();
 
+/// Define Deserialize and FromStr for a config struct that has a "raw" variant.
+/// This requires the raw config struct to implement both `Deserialize` and the
+/// config type to implement `TryFrom<RawConfig>`.
 macro_rules! declare_deserialize_for_config_struct {
     ($struct_name:ident) => {
         paste::paste! { declare_deserialize_for_config_struct!([<Raw $struct_name>] -> $struct_name); }
