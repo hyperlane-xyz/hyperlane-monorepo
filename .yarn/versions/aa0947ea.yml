@@ -1,8 +1,0 @@
-undecided:
-  - "@hyperlane-xyz/monorepo"
-  - "@hyperlane-xyz/core"
-  - "@hyperlane-xyz/helloworld"
-  - "@hyperlane-xyz/infra"
-  - "@hyperlane-xyz/sdk"
-  - "@hyperlane-xyz/hyperlane-token"
-  - "@hyperlane-xyz/utils"
