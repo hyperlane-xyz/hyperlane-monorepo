@@ -130,17 +130,13 @@ contract InterchainAccountRouterTest is Test {
         );
     }
 
-    function testEnrollRemoteRouters(
-        uint8 count,
-        uint32 domain,
-        bytes32 router
-    ) public {
-        vm.assume(count > 0 && count < uint256(router) && count < domain);
+    function testEnrollRemoteRouters(uint8 count) public {
+        vm.assume(count < type(uint8).max);
         uint32[] memory domains = new uint32[](count);
         bytes32[] memory routers = new bytes32[](count);
         for (uint256 i = 0; i < count; i++) {
-            domains[i] = domain - uint32(i);
-            routers[i] = bytes32(uint256(router) - i);
+            domains[i] = uint8(i + 1);
+            routers[i] = bytes32(i + 1);
         }
         originRouter.enrollRemoteRouters(domains, routers);
         uint32[] memory actualDomains = originRouter.domains();
