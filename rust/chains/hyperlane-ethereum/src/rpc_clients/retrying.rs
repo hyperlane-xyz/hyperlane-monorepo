@@ -119,7 +119,7 @@ where
             i += 1;
             if i <= self.max_requests {
                 let backoff_ms = if rate_limited {
-                    backoff_ms.max(60 * 1000) // 1 min is standard time lockout
+                    backoff_ms.max(20 * 1000) // 20s timeout
                 } else {
                     backoff_ms
                 };
