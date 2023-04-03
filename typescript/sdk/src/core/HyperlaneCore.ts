@@ -99,6 +99,11 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     );
   }
 
+  // Redundant with static method but keeping for backwards compatibility
+  getDispatchedMessages(sourceTx: ethers.ContractReceipt): DispatchedMessage[] {
+    return HyperlaneCore.getDispatchedMessages(sourceTx);
+  }
+
   static getDispatchedMessages(
     sourceTx: ethers.ContractReceipt,
   ): DispatchedMessage[] {
