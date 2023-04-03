@@ -14,8 +14,8 @@ use hyperlane_core::{
     InterchainGasPaymasterIndexer, InterchainGasPayment, LogMeta, H160, H256,
 };
 
-use crate::contracts::interchain_gas_paymaster::{
-    InterchainGasPaymaster as EthereumInterchainGasPaymasterInternal, INTERCHAINGASPAYMASTER_ABI,
+use crate::contracts::i_interchain_gas_paymaster::{
+    IInterchainGasPaymaster as EthereumInterchainGasPaymasterInternal, IINTERCHAINGASPAYMASTER_ABI,
 };
 use crate::trait_builder::BuildableWithProvider;
 use crate::EthereumProvider;
@@ -210,6 +210,6 @@ impl HyperlaneAbi for EthereumInterchainGasPaymasterAbi {
     const SELECTOR_SIZE_BYTES: usize = 4;
 
     fn fn_map() -> HashMap<Vec<u8>, &'static str> {
-        super::extract_fn_map(&INTERCHAINGASPAYMASTER_ABI)
+        super::extract_fn_map(&IINTERCHAINGASPAYMASTER_ABI)
     }
 }

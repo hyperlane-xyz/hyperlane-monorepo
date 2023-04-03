@@ -1,35 +1,41 @@
 import type { BigNumber } from 'ethers';
 
-import { GasRouter } from '@hyperlane-xyz/core';
+import { GasRouter, Router } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
+import { HyperlaneContracts, HyperlaneFactories } from '../contracts';
 import { ChainMap, ChainName } from '../types';
 import { objMap, promiseObjAll } from '../utils/objects';
 
-import { RouterContracts } from './types';
-
 export { Router } from '@hyperlane-xyz/core';
 
-export class RouterApp<
-  Contracts extends RouterContracts,
-> extends HyperlaneApp<Contracts> {
+export abstract class RouterApp<
+  Factories extends HyperlaneFactories,
+> extends HyperlaneApp<Factories> {
+  abstract router(contracts: HyperlaneContracts<Factories>): Router;
+
   getSecurityModules = (): Promise<ChainMap<types.Address>> =>
     promiseObjAll(
       objMap(this.contractsMap, (_, contracts) =>
-        contracts.router.interchainSecurityModule(),
+        this.router(contracts).interchainSecurityModule(),
       ),
     );
 
   getOwners = (): Promise<ChainMap<types.Address>> =>
     promiseObjAll(
-      objMap(this.contractsMap, (_, contracts) => contracts.router.owner()),
+      objMap(this.contractsMap, (_, contracts) =>
+        this.router(contracts).owner(),
+      ),
     );
 }
 
-export class GasRouterApp<
-  Contracts extends RouterContracts<GasRouter>,
-> extends RouterApp<Contracts> {
+export abstract class GasRouterApp<
+  Factories extends HyperlaneFactories,
+  R extends GasRouter,
+> extends RouterApp<Factories> {
+  abstract router(contracts: HyperlaneContracts<Factories>): R;
+
   async quoteGasPayment(
     origin: ChainName,
     destination: ChainName,

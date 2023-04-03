@@ -447,7 +447,7 @@ async function messageIsProcessed(
   destination: ChainName,
   message: DispatchedMessage,
 ): Promise<boolean> {
-  const destinationMailbox = core.getContracts(destination).mailbox.contract;
+  const destinationMailbox = core.getContracts(destination).mailbox;
   return destinationMailbox.delivered(message.id);
 }
 

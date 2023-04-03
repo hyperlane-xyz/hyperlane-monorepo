@@ -1,21 +1,7 @@
 import { ethers } from 'ethers';
 
 import type { types } from '@hyperlane-xyz/utils';
-
-import { TransparentProxyAddresses } from '../proxy';
-import { ChainName } from '../types';
-
-import { CheckerViolation } from './types';
-
-export interface ProxyViolation extends CheckerViolation {
-  type: TransparentProxyAddresses['kind'];
-  data: {
-    proxyAddresses: TransparentProxyAddresses;
-    name: string;
-  };
-  actual: string;
-  expected: string;
-}
+import { eqAddress } from '@hyperlane-xyz/utils/dist/src/utils';
 
 export async function proxyImplementation(
   provider: ethers.providers.Provider,
@@ -41,20 +27,10 @@ export async function proxyAdmin(
   return ethers.utils.getAddress(storageValue.slice(26));
 }
 
-export function proxyViolation<Chain extends ChainName>(
-  chain: Chain,
-  name: string,
-  proxyAddresses: TransparentProxyAddresses,
-  actual: types.Address,
-): ProxyViolation {
-  return {
-    chain,
-    type: proxyAddresses.kind,
-    actual,
-    expected: proxyAddresses.implementation,
-    data: {
-      name,
-      proxyAddresses,
-    },
-  };
+export async function isProxy(
+  provider: ethers.providers.Provider,
+  proxy: types.Address,
+): Promise<boolean> {
+  const admin = await proxyAdmin(provider, proxy);
+  return !eqAddress(admin, ethers.constants.AddressZero);
 }

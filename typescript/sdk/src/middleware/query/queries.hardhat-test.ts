@@ -9,16 +9,20 @@ import {
 } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../consts/chainMetadata';
-import { Chains } from '../consts/chains';
-import { TestCoreApp } from '../core/TestCoreApp';
-import { TestCoreDeployer } from '../core/TestCoreDeployer';
-import { MultiProvider } from '../providers/MultiProvider';
-import { RouterConfig } from '../router/types';
-import { deployTestIgpsAndGetRouterConfig } from '../test/testUtils';
-import { ChainMap } from '../types';
+import { chainMetadata } from '../../consts/chainMetadata';
+import { Chains } from '../../consts/chains';
+import { HyperlaneContractsMap } from '../../contracts';
+import { TestCoreApp } from '../../core/TestCoreApp';
+import { TestCoreDeployer } from '../../core/TestCoreDeployer';
+import { MultiProvider } from '../../providers/MultiProvider';
+import { RouterConfig } from '../../router/types';
+import { deployTestIgpsAndGetRouterConfig } from '../../test/testUtils';
+import { ChainMap } from '../../types';
 
-import { InterchainQueryDeployer } from './deploy';
+import { InterchainQuery } from './InterchainQuery';
+import { InterchainQueryChecker } from './InterchainQueryChecker';
+import { InterchainQueryDeployer } from './InterchainQueryDeployer';
+import { InterchainQueryFactories } from './contracts';
 
 describe('InterchainQueryRouter', async () => {
   const localChain = Chains.test1;
@@ -26,6 +30,7 @@ describe('InterchainQueryRouter', async () => {
   const localDomain = chainMetadata[localChain].chainId;
   const remoteDomain = chainMetadata[remoteChain].chainId;
 
+  let contracts: HyperlaneContractsMap<InterchainQueryFactories>;
   let signer: SignerWithAddress;
   let local: InterchainQueryRouter;
   let remote: InterchainQueryRouter;
@@ -52,12 +57,19 @@ describe('InterchainQueryRouter', async () => {
   beforeEach(async () => {
     const InterchainQuery = new InterchainQueryDeployer(multiProvider, config);
 
-    const contracts = await InterchainQuery.deploy();
+    contracts = await InterchainQuery.deploy();
 
-    local = contracts[localChain].router;
-    remote = contracts[remoteChain].router;
+    local = contracts[localChain].interchainQueryRouter;
+    remote = contracts[remoteChain].interchainQueryRouter;
 
     testQuery = await new TestQuery__factory(signer).deploy(local.address);
+  });
+
+  it('checks', async () => {
+    const app = new InterchainQuery(contracts, multiProvider);
+    const checker = new InterchainQueryChecker(multiProvider, app, config);
+    await checker.check();
+    expect(checker.violations.length).to.eql(0);
   });
 
   it('completes query round trip and invokes callback', async () => {
