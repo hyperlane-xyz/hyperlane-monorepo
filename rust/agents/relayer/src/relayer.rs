@@ -21,7 +21,7 @@ use crate::{
     merkle_tree_builder::MerkleTreeBuilder,
     msg::{
         gas_payment::GasPaymentEnforcer,
-        metadata_builder::MetadataBuilder,
+        metadata_builder::BaseMetadataBuilder,
         processor::{MessageProcessor, MessageProcessorMetrics},
         serial_submitter::{SerialSubmitter, SerialSubmitterMetrics},
         PendingMessage,
@@ -182,7 +182,7 @@ impl BaseAgent for Relayer {
                 .clone();
 
             let txsubmission = chain_setup.txsubmission;
-            let metadata_builder = MetadataBuilder::new(
+            let metadata_builder = BaseMetadataBuilder::new(
                 chain_setup,
                 prover_sync.clone(),
                 self.validator_announce.clone(),
@@ -269,7 +269,7 @@ impl Relayer {
     fn run_destination_mailbox(
         &self,
         destination_mailbox: CachingMailbox,
-        metadata_builder: MetadataBuilder,
+        metadata_builder: BaseMetadataBuilder,
         tx_submission: TransactionSubmissionType,
         gas_payment_enforcer: Arc<GasPaymentEnforcer>,
         msg_receive: UnboundedReceiver<PendingMessage>,
