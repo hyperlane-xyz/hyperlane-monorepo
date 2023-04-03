@@ -27,16 +27,16 @@ done
 # exit 1 on any subsequent failures
 set -e
 
-echo "=== Run checker against forked $ENVIRONMENT ==="
+echo "=== Run $MODULE checker against forked $ENVIRONMENT ==="
 DEBUG=hyperlane:* yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $FORK_CHAIN -m $MODULE
 
-echo "=== Run core deployer against forked $ENVIRONMENT ==="
+echo "=== Run $MODULE deployer against forked $ENVIRONMENT ==="
 DEBUG=hyperlane:* yarn ts-node ./scripts/deploy.ts -e $ENVIRONMENT -f $FORK_CHAIN -m $MODULE
 
-echo "=== Run govern against forked $ENVIRONMENT ==="
+echo "=== Run $MODULE govern against forked $ENVIRONMENT ==="
 DEBUG=hyperlane:* yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $FORK_CHAIN --govern -m $MODULE
 
-echo "=== Run checker against forked $ENVIRONMENT ==="
+echo "=== Run $MODULE checker against forked $ENVIRONMENT after governance ==="
 DEBUG=hyperlane:* yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $FORK_CHAIN -m $MODULE
 
 kill $ANVIL_PID

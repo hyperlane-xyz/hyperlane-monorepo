@@ -1,15 +1,13 @@
-import { buildContracts } from '../../contracts';
+import { attachContractsMap } from '../../contracts';
 import { HyperlaneCore } from '../../core/HyperlaneCore';
 import { HyperlaneIgp } from '../../gas/HyperlaneIgp';
 import { MultiProvider } from '../../providers/MultiProvider';
-import { RouterContracts } from '../../router/types';
-import { ChainMap } from '../../types';
 import { createRouterConfigMap } from '../testUtils';
 
-import { EnvSubsetApp, EnvSubsetChecker, envSubsetFactories } from './app';
+import { EnvSubsetApp, EnvSubsetChecker, testRouterFactories } from './app';
 
 // Copied from output of deploy-single-chain.ts script
-const deploymentAddresses = {
+const deploymentAddressesMap = {
   alfajores: {
     router: '0x0666AD4F636210B6a418f97790b7BAABAC54b9A4',
   },
@@ -21,10 +19,10 @@ async function check() {
   console.info('Preparing utilities');
   const multiProvider = new MultiProvider();
 
-  const contractsMap = buildContracts(
-    deploymentAddresses,
-    envSubsetFactories,
-  ) as ChainMap<RouterContracts>;
+  const contractsMap = attachContractsMap(
+    deploymentAddressesMap,
+    testRouterFactories,
+  );
   const app = new EnvSubsetApp(contractsMap, multiProvider);
   const core = HyperlaneCore.fromEnvironment('testnet', multiProvider);
   const igp = HyperlaneIgp.fromEnvironment('testnet', multiProvider);

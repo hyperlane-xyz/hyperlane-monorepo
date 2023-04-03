@@ -1,25 +1,34 @@
+import path from 'path';
+
 import {
   HyperlaneDeployer,
-  HyperlaneFactories,
-  buildAgentConfig,
-  buildContracts,
-  coreFactories,
-  serializeContracts,
+  HyperlaneIgp,
+  InterchainAccountDeployer,
+  InterchainQueryDeployer,
+  LiquidityLayerDeployer,
+  objMap,
 } from '@hyperlane-xyz/sdk';
-import { igpFactories } from '@hyperlane-xyz/sdk/dist/gas/contracts';
 
+import { bridgeAdapterConfigs } from '../config/environments/test/liquidityLayer';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { HyperlaneCoreInfraDeployer } from '../src/core/deploy';
+import { Create2FactoryDeployer } from '../src/create2';
+import { deployWithArtifacts } from '../src/deploy';
 import { HyperlaneIgpInfraDeployer } from '../src/gas/deploy';
+import { TestQuerySenderDeployer } from '../src/testcontracts/testquerysender';
+import { TestRecipientDeployer } from '../src/testcontracts/testrecipient';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
-import { readJSON, writeJSON, writeMergedJSON } from '../src/utils/utils';
+import { readJSON } from '../src/utils/utils';
 
 import {
-  getAgentConfigDirectory,
+  Modules,
+  SDK_MODULES,
   getArgsWithModuleAndFork,
   getContractAddressesSdkFilepath,
   getEnvironmentConfig,
-  getVerificationDirectory,
+  getEnvironmentDirectory,
+  getModuleDirectory,
+  getRouterConfig,
 } from './utils';
 
 async function main() {
@@ -40,99 +49,92 @@ async function main() {
     multiProvider.setSigner(fork, signer);
   }
 
-  // Write agent config indexing from the latest block numbers.
-  // For non-net-new deployments, these changes will need to be
-  // reverted manually.
-  const chains = multiProvider.getKnownChainNames();
-  const startBlocks = Object.fromEntries(
-    await Promise.all(
-      chains.map(async (c) => [
-        c,
-        await multiProvider.getProvider(c).getBlockNumber,
-      ]),
-    ),
-  );
-
-  let factories: HyperlaneFactories;
-  let deployer: HyperlaneDeployer<any, any, any>;
-  if (module === 'core') {
-    factories = coreFactories;
+  let deployer: HyperlaneDeployer<any, any>;
+  if (module === Modules.CORE) {
     deployer = new HyperlaneCoreInfraDeployer(
       multiProvider,
       config.core,
       environment,
     );
-  } else if (module === 'igp') {
-    factories = igpFactories;
+  } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     deployer = new HyperlaneIgpInfraDeployer(
       multiProvider,
       config.igp,
       environment,
     );
+  } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
+    const config = await getRouterConfig(environment, multiProvider);
+    deployer = new InterchainAccountDeployer(multiProvider, config);
+  } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
+    const config = await getRouterConfig(environment, multiProvider);
+    deployer = new InterchainQueryDeployer(multiProvider, config);
+  } else if (module === Modules.LIQUIDITY_LAYER) {
+    const routerConfig = await getRouterConfig(environment, multiProvider);
+    const config = objMap(bridgeAdapterConfigs, (chain, conf) => ({
+      ...conf,
+      ...routerConfig[chain],
+    }));
+    deployer = new LiquidityLayerDeployer(multiProvider, config);
+  } else if (module === Modules.CREATE2_FACTORY) {
+    deployer = new Create2FactoryDeployer(multiProvider);
+  } else if (module === Modules.TEST_RECIPIENT) {
+    deployer = new TestRecipientDeployer(multiProvider);
+  } else if (module === Modules.TEST_QUERY_SENDER) {
+    // TODO: make this more generic
+    const igp = HyperlaneIgp.fromEnvironment(
+      deployEnvToSdkEnv[environment],
+      multiProvider,
+    );
+    // Get query router addresses
+    const queryRouterDir = path.join(
+      getEnvironmentDirectory(environment),
+      'middleware/queries',
+    );
+    const queryRouterAddresses = objMap(
+      readJSON(queryRouterDir, 'addresses.json'),
+      (_c, conf) => ({ queryRouterAddress: conf.router }),
+    );
+    deployer = new TestQuerySenderDeployer(
+      multiProvider,
+      queryRouterAddresses,
+      igp,
+    );
   } else {
-    throw new Error('Unknown module type');
-  }
-
-  if (environment !== 'test') {
-    try {
-      const addresses = readJSON(
-        getContractAddressesSdkFilepath(),
-        `${deployEnvToSdkEnv[environment]}.json`,
-      );
-      deployer.cacheContracts(buildContracts(addresses, factories) as any);
-    } catch (e) {
-      console.info('Could not load partial addresses, file may not exist');
-    }
-  }
-
-  if (fork) {
-    await deployer.deployContracts(fork, config.core[fork]);
+    console.log(`Skipping ${module}, deployer unimplemented`);
     return;
   }
 
-  try {
-    await deployer.deploy();
-  } catch (e) {
-    console.error('Encountered error during deploy', e);
-  }
+  const modulePath = getModuleDirectory(environment, module);
 
-  // Persist address artifacts, irrespective of deploy success
-  writeMergedJSON(
-    getContractAddressesSdkFilepath(),
-    `${deployEnvToSdkEnv[environment]}.json`,
-    serializeContracts(deployer.deployedContracts),
-  );
-  const verificationDir = getVerificationDirectory(environment, module);
-  const verificationFile = 'verification.json';
-  let existingVerificationInputs = [];
-  try {
-    existingVerificationInputs = readJSON(verificationDir, verificationFile);
-  } catch (err) {
-    /* ignore error */
-  }
+  const addresses = SDK_MODULES.includes(module)
+    ? path.join(
+        getContractAddressesSdkFilepath(),
+        `${deployEnvToSdkEnv[environment]}.json`,
+      )
+    : path.join(modulePath, 'addresses.json');
 
-  writeJSON(
-    verificationDir,
-    verificationFile,
-    deployer.mergeWithExistingVerificationInputs(existingVerificationInputs),
-  );
+  const verification = path.join(modulePath, 'verification.json');
 
-  const sdkEnv = deployEnvToSdkEnv[environment];
-  const addresses = readJSON(
-    getContractAddressesSdkFilepath(),
-    `${sdkEnv}.json`,
-  );
-
-  const agentConfig = await buildAgentConfig(
-    multiProvider.getKnownChainNames(),
-    multiProvider,
+  const cache = {
     addresses,
-    startBlocks,
-  );
+    verification,
+    read: environment !== 'test',
+    write: true,
+  };
+  const agentConfig = ['core', 'igp'].includes(module)
+    ? {
+        addresses,
+        environment,
+        multiProvider,
+      }
+    : undefined;
 
-  writeJSON(getAgentConfigDirectory(), `${sdkEnv}_config.json`, agentConfig);
+  await deployWithArtifacts(deployer, cache, fork, agentConfig);
 }
 
 main()
   .then()
-  .catch(() => process.exit(1));
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });

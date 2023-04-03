@@ -1,15 +1,14 @@
 import { ethers } from 'ethers';
 
-import { Mailbox, ProxyAdmin, ValidatorAnnounce } from '@hyperlane-xyz/core';
+import { Mailbox, ValidatorAnnounce } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
   CoreConfig,
   HyperlaneCoreDeployer,
   MultiProvider,
-  ProxiedContract,
-  TransparentProxyAddresses,
 } from '@hyperlane-xyz/sdk';
+import { DeployOptions } from '@hyperlane-xyz/sdk/dist/deploy/HyperlaneDeployer';
 import { types } from '@hyperlane-xyz/utils';
 
 import { DeployEnvironment } from '../config';
@@ -29,20 +28,16 @@ export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
   async deployMailbox(
     chain: ChainName,
     defaultIsmAddress: types.Address,
-    proxyAdmin: ProxyAdmin,
-  ): Promise<ProxiedContract<Mailbox, TransparentProxyAddresses>> {
-    const deployOpts = {
+    proxyAdmin: types.Address,
+    deployOpts?: DeployOptions,
+  ): Promise<Mailbox> {
+    return super.deployMailbox(chain, defaultIsmAddress, proxyAdmin, {
+      ...deployOpts,
       create2Salt: ethers.utils.solidityKeccak256(
         ['string', 'string', 'uint8'],
         [this.environment, 'mailbox', 1],
       ),
-    };
-    return super.deployMailbox(
-      chain,
-      defaultIsmAddress,
-      proxyAdmin,
-      deployOpts,
-    );
+    });
   }
 
   async deployValidatorAnnounce(

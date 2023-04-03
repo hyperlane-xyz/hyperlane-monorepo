@@ -4,8 +4,8 @@ pragma solidity ^0.8.13;
 // ============ Internal Imports ============
 import {OwnableMulticall} from "../OwnableMulticall.sol";
 import {HyperlaneConnectionClient} from "../HyperlaneConnectionClient.sol";
-import {IRouter} from "../../interfaces/IRouter.sol";
-import {IInterchainAccountRouter} from "../../interfaces/middleware/IInterchainAccountRouter.sol";
+import {IRouter} from "../interfaces/IRouter.sol";
+import {IInterchainAccountRouter} from "../interfaces/middleware/IInterchainAccountRouter.sol";
 import {InterchainAccountMessage} from "../libs/middleware/InterchainAccountMessage.sol";
 import {MinimalProxy} from "../libs/MinimalProxy.sol";
 import {CallLib} from "../libs/Call.sol";
