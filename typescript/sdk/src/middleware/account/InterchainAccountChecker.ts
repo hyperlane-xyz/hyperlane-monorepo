@@ -2,10 +2,10 @@ import { MiddlewareRouterChecker } from '../MiddlewareRouterChecker';
 
 import { InterchainAccount } from './InterchainAccount';
 import { InterchainAccountConfig } from './InterchainAccountDeployer';
-import { InterchainAccountContracts } from './contracts';
+import { InterchainAccountFactories } from './contracts';
 
 export class InterchainAccountChecker extends MiddlewareRouterChecker<
+  InterchainAccountFactories,
   InterchainAccount,
-  InterchainAccountConfig,
-  InterchainAccountContracts
+  InterchainAccountConfig
 > {}

@@ -1,14 +1,9 @@
-import {
-  HelloWorldApp,
-  HelloWorldContracts,
-  helloWorldFactories,
-} from '@hyperlane-xyz/helloworld';
+import { HelloWorldApp, helloWorldFactories } from '@hyperlane-xyz/helloworld';
 import {
   AgentConnectionType,
-  ChainMap,
   HyperlaneCore,
   MultiProvider,
-  buildContracts,
+  attachContractsMap,
 } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
@@ -24,20 +19,20 @@ export async function getApp(
   keyContext: Contexts = context,
   connectionType: AgentConnectionType = AgentConnectionType.Http,
 ) {
-  const helloworldConfig = getHelloWorldConfig(coreConfig, context);
-  const contracts = buildContracts(
-    helloworldConfig.addresses,
-    helloWorldFactories,
-  ) as ChainMap<HelloWorldContracts>;
   const multiProvider: MultiProvider = await coreConfig.getMultiProvider(
     keyContext,
     keyRole,
     connectionType,
   );
+  const helloworldConfig = getHelloWorldConfig(coreConfig, context);
+  const contracts = attachContractsMap(
+    helloworldConfig.addresses,
+    helloWorldFactories,
+  );
   const core = HyperlaneCore.fromEnvironment(
     deployEnvToSdkEnv[coreConfig.environment],
     multiProvider,
-  ) as HyperlaneCore;
+  );
   return new HelloWorldApp(core, contracts, multiProvider);
 }
 
