@@ -1,44 +1,117 @@
 import {
   ChainMap,
-  HyperlaneContracts,
+  ChainName,
+  HyperlaneAddresses,
+  HyperlaneAgentAddresses,
   HyperlaneDeployer,
-  HyperlaneFactories,
-  buildContracts,
-  serializeContracts,
+  MultiProvider,
+  attachContractsMap,
+  buildAgentConfig,
+  objMap,
+  promiseObjAll,
+  serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
 
-import { readJSON, writeJSON } from './utils/utils';
+import { getAgentConfigDirectory } from '../scripts/utils';
 
-export async function deployWithArtifacts<T extends HyperlaneFactories>(
-  dir: string,
-  factories: T,
-  deployer: HyperlaneDeployer<any, any, T>,
+import { DeployEnvironment, deployEnvToSdkEnv } from './config/environment';
+import {
+  readJSONAtPath,
+  writeJSON,
+  writeJsonAtPath,
+  writeMergedJSONAtPath,
+} from './utils/utils';
+
+export async function writeAgentConfig(
+  addressesPath: string,
+  multiProvider: MultiProvider,
+  environment: DeployEnvironment,
 ) {
-  let contracts: ChainMap<HyperlaneContracts> = {};
+  let addresses: ChainMap<HyperlaneAddresses<any>> = {};
   try {
-    const addresses = readJSON(dir, 'addresses.json');
-    contracts = buildContracts(addresses, factories) as any;
+    addresses = readJSONAtPath(addressesPath);
   } catch (e) {
-    console.error(e);
+    console.error('Failed to load cached addresses');
+  }
+  // Write agent config indexing from the deployed or latest block numbers.
+  // For non-net-new deployments, these changes will need to be
+  // reverted manually.
+  const startBlocks = await promiseObjAll(
+    objMap(addresses, (chain, _) =>
+      multiProvider.getProvider(chain).getBlockNumber(),
+    ),
+  );
+  const agentConfig = buildAgentConfig(
+    multiProvider.getKnownChainNames(),
+    multiProvider,
+    addresses as ChainMap<HyperlaneAgentAddresses>,
+    startBlocks,
+  );
+  const sdkEnv = deployEnvToSdkEnv[environment];
+  writeJSON(getAgentConfigDirectory(), `${sdkEnv}_config.json`, agentConfig);
+}
+
+export async function deployWithArtifacts(
+  deployer: HyperlaneDeployer<any, any>,
+  cache: {
+    addresses: string;
+    verification: string;
+    read: boolean;
+    write: boolean;
+  },
+  fork?: ChainName,
+  agentConfig?: {
+    multiProvider: MultiProvider;
+    addresses: string;
+    environment: DeployEnvironment;
+  },
+) {
+  if (cache.read) {
+    let addresses = {};
+    try {
+      addresses = readJSONAtPath(cache.addresses);
+    } catch (e) {
+      console.error('Failed to load cached addresses');
+    }
+
+    const savedContracts = attachContractsMap(addresses, deployer.factories);
+    deployer.cacheContracts(savedContracts);
   }
 
   try {
-    contracts = await deployer.deploy(contracts);
+    if (fork) {
+      await deployer.deployContracts(fork, deployer.configMap[fork]);
+    } else {
+      await deployer.deploy();
+    }
   } catch (e) {
-    console.error(e);
-    contracts = deployer.deployedContracts as any;
+    console.error('Failed to deploy contracts', e);
   }
 
-  try {
-    const existingVerificationInputs = readJSON(dir, 'verification.json');
-    writeJSON(
-      dir,
-      'verification.json',
-      deployer.mergeWithExistingVerificationInputs(existingVerificationInputs),
+  if (cache.write) {
+    // cache addresses of deployed contracts
+    writeMergedJSONAtPath(
+      cache.addresses,
+      serializeContractsMap(deployer.deployedContracts),
     );
-  } catch {
-    writeJSON(dir, 'verification.json', deployer.verificationInputs);
-  }
 
-  writeJSON(dir, 'addresses.json', serializeContracts(contracts));
+    let savedVerification = {};
+    try {
+      savedVerification = readJSONAtPath(cache.verification);
+    } catch (e) {
+      console.error('Failed to load cached verification inputs');
+    }
+
+    // cache verification inputs
+    const inputs =
+      deployer.mergeWithExistingVerificationInputs(savedVerification);
+    writeJsonAtPath(cache.verification, inputs);
+  }
+  if (agentConfig) {
+    await writeAgentConfig(
+      agentConfig.addresses,
+      agentConfig.multiProvider,
+      agentConfig.environment,
+    );
+  }
 }

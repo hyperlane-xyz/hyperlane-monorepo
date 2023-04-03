@@ -2,8 +2,8 @@
 pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
-import {IGasOracle} from "../../interfaces/IGasOracle.sol";
-import {IInterchainGasPaymaster} from "../../interfaces/IInterchainGasPaymaster.sol";
+import {IGasOracle} from "../interfaces/IGasOracle.sol";
+import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
 // ============ External Imports ============
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 

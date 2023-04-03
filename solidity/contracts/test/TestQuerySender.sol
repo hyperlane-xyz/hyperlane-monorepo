@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import {IInterchainGasPaymaster} from "../../interfaces/IInterchainGasPaymaster.sol";
-import {IInterchainQueryRouter} from "../../interfaces/middleware/IInterchainQueryRouter.sol";
+import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
+import {IInterchainQueryRouter} from "../interfaces/middleware/IInterchainQueryRouter.sol";
 import {CallLib} from "../libs/Call.sol";
 
 contract TestQuerySender {
