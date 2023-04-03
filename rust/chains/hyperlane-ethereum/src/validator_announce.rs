@@ -12,8 +12,8 @@ use hyperlane_core::{
     HyperlaneProvider, ValidatorAnnounce, H160, H256,
 };
 
-use crate::contracts::validator_announce::{
-    ValidatorAnnounce as EthereumValidatorAnnounceInternal, VALIDATORANNOUNCE_ABI,
+use crate::contracts::i_validator_announce::{
+    IValidatorAnnounce as EthereumValidatorAnnounceInternal, IVALIDATORANNOUNCE_ABI,
 };
 use crate::trait_builder::BuildableWithProvider;
 use crate::EthereumProvider;
@@ -118,6 +118,6 @@ impl HyperlaneAbi for EthereumValidatorAnnounceAbi {
     const SELECTOR_SIZE_BYTES: usize = 4;
 
     fn fn_map() -> HashMap<Vec<u8>, &'static str> {
-        super::extract_fn_map(&VALIDATORANNOUNCE_ABI)
+        super::extract_fn_map(&IVALIDATORANNOUNCE_ABI)
     }
 }

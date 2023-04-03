@@ -6,9 +6,9 @@ import {Versioned} from "./upgrade/Versioned.sol";
 import {MerkleLib} from "./libs/Merkle.sol";
 import {Message} from "./libs/Message.sol";
 import {TypeCasts} from "./libs/TypeCasts.sol";
-import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
-import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
-import {IMailbox} from "../interfaces/IMailbox.sol";
+import {IMessageRecipient} from "./interfaces/IMessageRecipient.sol";
+import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "./interfaces/IInterchainSecurityModule.sol";
+import {IMailbox} from "./interfaces/IMailbox.sol";
 import {PausableReentrancyGuardUpgradeable} from "./PausableReentrancyGuard.sol";
 
 // ============ External Imports ============
@@ -56,44 +56,6 @@ contract Mailbox is
      * @param module The new default ISM
      */
     event DefaultIsmSet(address indexed module);
-
-    /**
-     * @notice Emitted when a new message is dispatched via Hyperlane
-     * @param sender The address that dispatched the message
-     * @param destination The destination domain of the message
-     * @param recipient The message recipient address on `destination`
-     * @param message Raw bytes of message
-     */
-    event Dispatch(
-        address indexed sender,
-        uint32 indexed destination,
-        bytes32 indexed recipient,
-        bytes message
-    );
-
-    /**
-     * @notice Emitted when a new message is dispatched via Hyperlane
-     * @param messageId The unique message identifier
-     */
-    event DispatchId(bytes32 indexed messageId);
-
-    /**
-     * @notice Emitted when a Hyperlane message is processed
-     * @param messageId The unique message identifier
-     */
-    event ProcessId(bytes32 indexed messageId);
-
-    /**
-     * @notice Emitted when a Hyperlane message is delivered
-     * @param origin The origin domain of the message
-     * @param sender The message sender address on `origin`
-     * @param recipient The address that handled the message
-     */
-    event Process(
-        uint32 indexed origin,
-        bytes32 indexed sender,
-        address indexed recipient
-    );
 
     /**
      * @notice Emitted when Mailbox is paused

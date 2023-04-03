@@ -11,11 +11,12 @@ import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../../HyperlaneApp';
 import { Chains } from '../../consts/chains';
+import { HyperlaneContracts } from '../../contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ChainMap, ChainName } from '../../types';
 
 import { BridgeAdapterConfig } from './LiquidityLayerRouterDeployer';
-import { LiquidityLayerContracts } from './contracts';
+import { liquidityLayerFactories } from './contracts';
 
 const PORTAL_VAA_SERVICE_TESTNET_BASE_URL =
   'https://wormhole-v2-testnet-api.certus.one/v1/signed_vaa/';
@@ -54,9 +55,13 @@ interface PortalBridgeMessage {
   destination: ChainName;
 }
 
-export class LiquidityLayerApp extends HyperlaneApp<LiquidityLayerContracts> {
+export class LiquidityLayerApp extends HyperlaneApp<
+  typeof liquidityLayerFactories
+> {
   constructor(
-    public readonly contractsMap: ChainMap<LiquidityLayerContracts>,
+    public readonly contractsMap: ChainMap<
+      HyperlaneContracts<typeof liquidityLayerFactories>
+    >,
     public readonly multiProvider: MultiProvider,
     public readonly config: ChainMap<BridgeAdapterConfig>,
   ) {

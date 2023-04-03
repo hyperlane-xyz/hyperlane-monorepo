@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 
-import {IMultisigIsm} from "../../interfaces/isms/IMultisigIsm.sol";
+import {IMultisigIsm} from "../../contracts/interfaces/isms/IMultisigIsm.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 import {StaticMultisigIsmFactory} from "../../contracts/isms/multisig/StaticMultisigIsmFactory.sol";
 import {CheckpointLib} from "../../contracts/libs/CheckpointLib.sol";

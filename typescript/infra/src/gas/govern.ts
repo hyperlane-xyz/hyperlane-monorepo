@@ -10,8 +10,6 @@ import {
   IgpViolation,
   IgpViolationType,
   OverheadIgpConfig,
-  ProxyKind,
-  ProxyViolation,
 } from '@hyperlane-xyz/sdk';
 import { types } from '@hyperlane-xyz/utils';
 
@@ -30,10 +28,6 @@ export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
       switch (violation.type) {
         case 'InterchainGasPaymaster': {
           this.handleIgpViolation(violation as IgpViolation);
-          break;
-        }
-        case ProxyKind.Transparent: {
-          this.handleProxyViolation(violation as ProxyViolation);
           break;
         }
         default:

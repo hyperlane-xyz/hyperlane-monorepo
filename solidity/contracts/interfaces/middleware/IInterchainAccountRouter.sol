@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
 
-import {OwnableMulticall} from "../../contracts/OwnableMulticall.sol";
-import {CallLib} from "../../contracts/libs/Call.sol";
+import {OwnableMulticall} from "../../OwnableMulticall.sol";
+import {CallLib} from "../../libs/Call.sol";
 
 interface IInterchainAccountRouter {
     function callRemote(
