@@ -13,8 +13,6 @@ import {
   HyperlaneIgpDeployer,
   MultiProvider,
   OverheadIgpConfig,
-  ProxiedContract,
-  TransparentProxyAddresses,
 } from '@hyperlane-xyz/sdk';
 import { types } from '@hyperlane-xyz/utils';
 
@@ -37,9 +35,7 @@ export class HyperlaneIgpInfraDeployer extends HyperlaneIgpDeployer {
     proxyAdmin: ProxyAdmin,
     storageGasOracle: StorageGasOracle,
     deployOpts?: DeployOptions,
-  ): Promise<
-    ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
-  > {
+  ): Promise<InterchainGasPaymaster> {
     return super.deployInterchainGasPaymaster(
       chain,
       proxyAdmin,

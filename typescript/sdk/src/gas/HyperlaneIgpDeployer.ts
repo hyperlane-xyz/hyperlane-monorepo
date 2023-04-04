@@ -10,19 +10,18 @@ import {
 } from '@hyperlane-xyz/core';
 import { types, utils } from '@hyperlane-xyz/utils';
 
+import { HyperlaneContracts } from '../contracts';
 import { DeployOptions, HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
-import { ProxiedContract, TransparentProxyAddresses } from '../proxy';
 import { ChainMap, ChainName } from '../types';
 import { objMap } from '../utils/objects';
 
-import { IgpContracts, igpFactories } from './contracts';
+import { IgpFactories, igpFactories } from './contracts';
 import { OverheadIgpConfig } from './types';
 
 export class HyperlaneIgpDeployer extends HyperlaneDeployer<
   OverheadIgpConfig,
-  IgpContracts,
-  typeof igpFactories
+  IgpFactories
 > {
   startingBlockNumbers: ChainMap<number | undefined>;
 
@@ -42,9 +41,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     proxyAdmin: ProxyAdmin,
     storageGasOracle: StorageGasOracle,
     deployOpts?: DeployOptions,
-  ): Promise<
-    ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
-  > {
+  ): Promise<InterchainGasPaymaster> {
     const owner = this.configMap[chain].owner;
     const beneficiary = this.configMap[chain].beneficiary;
     const igp = await this.deployProxiedContract(
@@ -67,7 +64,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
     for (const remote of remotes) {
       const remoteId = this.multiProvider.getDomainId(remote);
-      const currentGasOracle = await igp.contract.gasOracles(remoteId);
+      const currentGasOracle = await igp.gasOracles(remoteId);
       if (!utils.eqAddress(currentGasOracle, storageGasOracle.address)) {
         gasOracleConfigsToSet.push({
           remoteDomain: remoteId,
@@ -77,10 +74,10 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     }
 
     if (gasOracleConfigsToSet.length > 0) {
-      await this.runIfOwner(chain, igp.contract, async () =>
+      await this.runIfOwner(chain, igp, async () =>
         this.multiProvider.handleTx(
           chain,
-          igp.contract.setGasOracles(gasOracleConfigsToSet),
+          igp.setGasOracles(gasOracleConfigsToSet),
         ),
       );
     }
@@ -152,7 +149,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
   async deployContracts(
     chain: ChainName,
     config: OverheadIgpConfig,
-  ): Promise<IgpContracts> {
+  ): Promise<HyperlaneContracts<IgpFactories>> {
     const provider = this.multiProvider.getProvider(chain);
     const startingBlockNumber = await provider.getBlockNumber();
     this.startingBlockNumbers[chain] = startingBlockNumber;

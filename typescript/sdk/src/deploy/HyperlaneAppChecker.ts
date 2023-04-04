@@ -1,3 +1,4 @@
+import { Contract } from 'ethers';
 import { keccak256 } from 'ethers/lib/utils';
 
 import { Ownable } from '@hyperlane-xyz/core';
@@ -6,11 +7,10 @@ import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
 import { MultiProvider } from '../providers/MultiProvider';
-import { TransparentProxyAddresses } from '../proxy';
 import { ChainMap, ChainName } from '../types';
-import { objMap } from '../utils/objects';
+import { objFilter, objMap, promiseObjAll } from '../utils/objects';
 
-import { proxyAdmin, proxyImplementation, proxyViolation } from './proxy';
+import { isProxy, proxyAdmin } from './proxy';
 import {
   BytecodeMismatchViolation,
   CheckerViolation,
@@ -62,34 +62,33 @@ export abstract class HyperlaneAppChecker<
     this.violations.push(violation);
   }
 
-  async checkProxiedContract(
-    chain: ChainName,
-    name: string,
-    proxiedAddress: TransparentProxyAddresses,
-    proxyAdminAddress?: types.Address,
-  ): Promise<void> {
-    const provider = this.multiProvider.getProvider(chain);
-    const implementation = await proxyImplementation(
-      provider,
-      proxiedAddress.proxy,
-    );
-    if (implementation !== proxiedAddress.implementation) {
-      this.addViolation(
-        proxyViolation(chain, name, proxiedAddress, implementation),
+  async checkProxiedContracts(chain: ChainName): Promise<void> {
+    const expectedAdmin = this.app.getContracts(chain).proxyAdmin.address;
+    if (!expectedAdmin) {
+      throw new Error(
+        `Checking proxied contracts for ${chain} with no admin provided`,
       );
     }
-    if (proxyAdminAddress) {
-      const admin = await proxyAdmin(provider, proxiedAddress.proxy);
-      if (admin !== proxyAdminAddress) {
-        this.addViolation({
-          type: ViolationType.ProxyAdmin,
-          chain,
-          name,
-          expected: proxyAdminAddress,
-          actual: admin,
-        } as ProxyAdminViolation);
-      }
-    }
+    const provider = this.multiProvider.getProvider(chain);
+    const contracts = this.app.getContracts(chain);
+
+    await promiseObjAll(
+      objMap(contracts, async (name, contract) => {
+        if (await isProxy(provider, contract.address)) {
+          // Check the ProxiedContract's admin matches expectation
+          const actualAdmin = await proxyAdmin(provider, contract.address);
+          if (!utils.eqAddress(actualAdmin, expectedAdmin)) {
+            this.addViolation({
+              type: ViolationType.ProxyAdmin,
+              chain,
+              name,
+              expected: expectedAdmin,
+              actual: actualAdmin,
+            } as ProxyAdminViolation);
+          }
+        }
+      }),
+    );
   }
 
   private removeBytecodeMetadata(bytecode: string): string {
@@ -122,26 +121,45 @@ export abstract class HyperlaneAppChecker<
     }
   }
 
-  async checkOwnership(
-    chain: ChainName,
-    owner: types.Address,
-    ownables: Ownable[],
-  ): Promise<void> {
-    await Promise.all(
-      ownables.map(async (contract) => {
-        const actual = await contract.owner();
-        if (actual.toLowerCase() != owner.toLowerCase()) {
-          const violation: OwnerViolation = {
-            chain,
-            type: ViolationType.Owner,
-            actual,
-            expected: owner,
-            contract,
-          };
-          this.addViolation(violation);
-        }
-      }),
+  async ownables(chain: ChainName): Promise<{ [key: string]: Ownable }> {
+    const isOwnable = async (
+      _: string,
+      contract: Contract,
+    ): Promise<boolean> => {
+      try {
+        await contract.owner();
+        return true;
+      } catch (_) {
+        return false;
+      }
+    };
+    const contracts = this.app.getContracts(chain);
+    const isOwnableContracts = await promiseObjAll(
+      objMap(contracts, isOwnable),
     );
+    return objFilter(
+      contracts,
+      (name, contract): contract is Ownable => isOwnableContracts[name],
+    );
+  }
+
+  // TODO: Require owner in config if ownables is non-empty
+  async checkOwnership(chain: ChainName, owner: types.Address): Promise<void> {
+    const ownableContracts = await this.ownables(chain);
+    for (const [name, contract] of Object.entries(ownableContracts)) {
+      const actual = await contract.owner();
+      if (!utils.eqAddress(actual, owner)) {
+        const violation: OwnerViolation = {
+          chain,
+          name,
+          type: ViolationType.Owner,
+          actual,
+          expected: owner,
+          contract,
+        };
+        this.addViolation(violation);
+      }
+    }
   }
 
   expectViolations(violationCounts: Record<string, number>): void {

@@ -1,15 +1,15 @@
 import path from 'path';
 
 import {
-  HelloWorldContracts,
   HelloWorldDeployer,
+  HelloWorldFactories,
   helloWorldFactories,
 } from '@hyperlane-xyz/helloworld';
 import {
-  ChainMap,
+  HyperlaneContractsMap,
   HyperlaneCore,
-  buildContracts,
-  serializeContracts,
+  attachContractsMap,
+  serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
@@ -45,21 +45,18 @@ async function main() {
     context,
   );
 
-  let previousContracts: ChainMap<HelloWorldContracts> = {};
+  let contracts: HyperlaneContractsMap<HelloWorldFactories> = {};
   let existingVerificationInputs = {};
   try {
     const addresses = readJSON(dir, 'addresses.json');
-    previousContracts = buildContracts(
-      addresses,
-      helloWorldFactories,
-    ) as ChainMap<HelloWorldContracts>;
+    contracts = attachContractsMap(addresses, helloWorldFactories);
     existingVerificationInputs = readJSON(dir, 'verification.json');
   } catch (e) {
     console.info(`Could not load previous deployment, file may not exist`);
   }
 
   try {
-    await deployer.deploy(previousContracts);
+    await deployer.deploy(contracts);
   } catch (e) {
     console.error(`Encountered error during deploy`);
     console.error(e);
@@ -68,7 +65,7 @@ async function main() {
   writeJSON(
     dir,
     'addresses.json',
-    serializeContracts(deployer.deployedContracts),
+    serializeContractsMap(deployer.deployedContracts),
   );
   writeJSON(
     dir,

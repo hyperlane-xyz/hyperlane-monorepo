@@ -5,18 +5,23 @@ import { TestChains } from '../../consts/chains';
 import { TestCoreApp } from '../../core/TestCoreApp';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer';
 import { MultiProvider } from '../../providers/MultiProvider';
-import { RouterConfig, RouterContracts } from '../../router/types';
+import { RouterConfig } from '../../router/types';
 import { ChainMap, ChainName } from '../../types';
 import { deployTestIgpsAndGetRouterConfig, testCoreConfig } from '../testUtils';
 
-import { EnvSubsetApp, EnvSubsetChecker, EnvSubsetDeployer } from './app';
+import {
+  EnvSubsetApp,
+  EnvSubsetChecker,
+  EnvSubsetDeployer,
+  TestRouterContracts,
+} from './app';
 
 // Tests deploying the basic EnvSubsetApp to a local hardhat-based test env
 describe('deploy app for full test env', async () => {
   let multiProvider: MultiProvider;
   let config: ChainMap<RouterConfig>;
   let deployer: EnvSubsetDeployer;
-  let contracts: ChainMap<RouterContracts>;
+  let contracts: ChainMap<TestRouterContracts>;
   let app: EnvSubsetApp;
 
   before(async () => {
@@ -46,7 +51,7 @@ describe('deploy app to test env subset', async () => {
   let multiProvider: MultiProvider;
   let config: ChainMap<RouterConfig>;
   let deployer: EnvSubsetDeployer;
-  let contracts: ChainMap<RouterContracts>;
+  let contracts: ChainMap<TestRouterContracts>;
   let app: EnvSubsetApp;
 
   before(async () => {

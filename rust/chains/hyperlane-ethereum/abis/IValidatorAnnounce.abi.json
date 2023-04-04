@@ -3,36 +3,6 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_mailbox",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "nonpayable",
-    "type": "constructor"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "validator",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "string",
-        "name": "storageLocation",
-        "type": "string"
-      }
-    ],
-    "name": "ValidatorAnnouncement",
-    "type": "event"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
         "name": "_validator",
         "type": "address"
       },

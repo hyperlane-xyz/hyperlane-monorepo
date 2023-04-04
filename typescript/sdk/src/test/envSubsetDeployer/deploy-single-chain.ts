@@ -1,5 +1,5 @@
 import { Chains } from '../../consts/chains';
-import { serializeContracts } from '../../contracts';
+import { serializeContractsMap } from '../../contracts';
 import { HyperlaneCore } from '../../core/HyperlaneCore';
 import { HyperlaneIgp } from '../../gas/HyperlaneIgp';
 import { MultiProvider } from '../../providers/MultiProvider';
@@ -26,7 +26,7 @@ async function main() {
   console.info('Starting deployment');
   const deployer = new EnvSubsetDeployer(multiProvider, config, core);
   const chainToContracts = await deployer.deploy();
-  const addresses = serializeContracts(chainToContracts);
+  const addresses = serializeContractsMap(chainToContracts);
   console.info('===Contract Addresses===');
   console.info(JSON.stringify(addresses));
 }

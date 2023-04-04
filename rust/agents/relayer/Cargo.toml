@@ -29,6 +29,8 @@ tracing.workspace = true
 hyperlane-core = { path = "../../hyperlane-core" }
 hyperlane-base = { path = "../../hyperlane-base" }
 hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
+num-derive.workspace = true
+num-traits.workspace = true
 
 [dev-dependencies]
 tokio-test = "0.4"

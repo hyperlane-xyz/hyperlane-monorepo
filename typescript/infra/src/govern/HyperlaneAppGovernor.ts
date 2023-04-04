@@ -3,11 +3,9 @@ import { prompts } from 'prompts';
 import {
   ChainMap,
   ChainName,
-  CoreContracts,
   HyperlaneApp,
   HyperlaneAppChecker,
   OwnerViolation,
-  ProxyViolation,
   objMap,
 } from '@hyperlane-xyz/sdk';
 import { types } from '@hyperlane-xyz/utils';
@@ -131,21 +129,6 @@ export abstract class HyperlaneAppGovernor<
   }
 
   protected abstract mapViolationsToCalls(): Promise<void>;
-
-  handleProxyViolation(violation: ProxyViolation) {
-    const contracts: CoreContracts =
-      this.checker.app.contractsMap[violation.chain];
-    const data = contracts.proxyAdmin.interface.encodeFunctionData('upgrade', [
-      violation.data.proxyAddresses.proxy,
-      violation.data.proxyAddresses.implementation,
-    ]);
-
-    this.pushCall(violation.chain, {
-      to: contracts.proxyAdmin.address,
-      data,
-      description: `Upgrade proxy ${violation.data.proxyAddresses.proxy} to implementation ${violation.data.proxyAddresses.implementation}`,
-    });
-  }
 
   protected async inferCallSubmissionTypes() {
     for (const chain of Object.keys(this.calls)) {

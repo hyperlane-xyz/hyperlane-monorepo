@@ -38,7 +38,7 @@ async function main() {
       if (balance.lt(RECLAIM_BALANCE_THRESHOLD)) {
         return 'N/A';
       }
-      const tx = await paymaster.contract.claim();
+      const tx = await paymaster.claim();
       return multiProvider.tryGetExplorerTxUrl(chain, tx);
     }),
   );

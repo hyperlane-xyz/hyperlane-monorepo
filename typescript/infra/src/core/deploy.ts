@@ -7,8 +7,6 @@ import {
   CoreConfig,
   HyperlaneCoreDeployer,
   MultiProvider,
-  ProxiedContract,
-  TransparentProxyAddresses,
 } from '@hyperlane-xyz/sdk';
 import { DeployOptions } from '@hyperlane-xyz/sdk/dist/deploy/HyperlaneDeployer';
 import { types } from '@hyperlane-xyz/utils';
@@ -32,7 +30,7 @@ export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
     defaultIsmAddress: types.Address,
     proxyAdmin: types.Address,
     deployOpts?: DeployOptions,
-  ): Promise<ProxiedContract<Mailbox, TransparentProxyAddresses>> {
+  ): Promise<Mailbox> {
     return super.deployMailbox(chain, defaultIsmAddress, proxyAdmin, {
       ...deployOpts,
       create2Salt: ethers.utils.solidityKeccak256(

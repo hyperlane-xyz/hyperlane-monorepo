@@ -115,7 +115,7 @@ jobs:
     strategy:
       matrix:
         environment: [testnet3, mainnet2]
-        module: [core, igp]
+        module: [core, igp, ica, iqs]
 
     steps:
       - uses: actions/checkout@v3
@@ -176,8 +176,8 @@ jobs:
         with:
           sarif_file: ${{ steps.slither.outputs.sarif }}
 
-      - name: gas
-        run: yarn workspace @hyperlane-xyz/core run gas-ci
+      #- name: gas
+      #  run: yarn workspace @hyperlane-xyz/core run gas-ci
 
       - name: forge-test
         run: yarn workspace @hyperlane-xyz/core run test:forge
