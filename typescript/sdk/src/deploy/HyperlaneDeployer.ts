@@ -17,12 +17,13 @@ import {
   HyperlaneContractsMap,
   HyperlaneFactories,
   connectContractsMap,
-  serializeContracts,
+  serializeContractsMap,
 } from '../contracts';
+import { HyperlaneAddressesMap } from '../contracts';
+import { attachContractsMap } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ConnectionClientConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
-import { objMap } from '../utils/objects';
 
 import { proxyAdmin } from './proxy';
 import { ContractVerificationInput } from './verify/types';
@@ -33,6 +34,7 @@ import {
 
 export interface DeployerOptions {
   logger?: Debugger;
+  chainTimeoutMs?: number;
 }
 
 export interface DeployOptions {
@@ -47,18 +49,19 @@ export abstract class HyperlaneDeployer<
   Config,
   Factories extends HyperlaneFactories,
 > {
-  public deployedContracts: HyperlaneContractsMap<Factories> = {};
-  public verificationInputs: ChainMap<ContractVerificationInput[]>;
+  protected deployedContracts: HyperlaneContractsMap<Factories> = {};
+  protected startingBlockNumbers: ChainMap<number | undefined> = {};
+  protected verificationInputs: ChainMap<ContractVerificationInput[]> = {};
   protected logger: Debugger;
+  protected chainTimeoutMs: number;
 
   constructor(
     protected readonly multiProvider: MultiProvider,
-    public readonly configMap: ChainMap<Config>,
-    public readonly factories: Factories,
+    protected readonly factories: Factories,
     protected readonly options?: DeployerOptions,
   ) {
-    this.verificationInputs = objMap(configMap, () => []);
-    this.logger = options?.logger || debug('hyperlane:AppDeployer');
+    this.logger = options?.logger ?? debug('hyperlane:deployer');
+    this.chainTimeoutMs = options?.chainTimeoutMs ?? 5 * 60 * 1000; // 5 minute timeout per chain
   }
 
   cacheContracts(partialDeployment: HyperlaneContractsMap<Factories>): void {
@@ -68,19 +71,27 @@ export abstract class HyperlaneDeployer<
     );
   }
 
+  cachedContracts(): HyperlaneContractsMap<Factories> {
+    return this.deployedContracts;
+  }
+
+  cacheAddresses(partialDeployment: HyperlaneAddressesMap<Factories>): void {
+    this.cacheContracts(attachContractsMap(partialDeployment, this.factories));
+  }
+
+  cachedAddresses(): HyperlaneAddressesMap<Factories> {
+    return serializeContractsMap(this.deployedContracts);
+  }
+
   abstract deployContracts(
     chain: ChainName,
     config: Config,
   ): Promise<HyperlaneContracts<Factories>>;
 
   async deploy(
-    partialDeployment?: HyperlaneContractsMap<Factories>,
+    configMap: ChainMap<Config>,
   ): Promise<HyperlaneContractsMap<Factories>> {
-    if (partialDeployment) {
-      this.cacheContracts(partialDeployment);
-    }
-
-    const configChains = Object.keys(this.configMap);
+    const configChains = Object.keys(configMap);
     const targetChains = this.multiProvider.intersect(
       configChains,
       true,
@@ -91,18 +102,12 @@ export abstract class HyperlaneDeployer<
       const signerUrl = await this.multiProvider.tryGetExplorerAddressUrl(
         chain,
       );
-      this.logger(`Deploying to ${chain} from ${signerUrl} ...`);
-      this.deployedContracts[chain] = await this.deployContracts(
-        chain,
-        this.configMap[chain],
-      );
-      // TODO: remove these logs once we have better timeouts
-      this.logger(
-        JSON.stringify(
-          serializeContracts(this.deployedContracts[chain] ?? {}),
-          null,
-          2,
-        ),
+      this.logger(`Deploying to ${chain} from ${signerUrl}`);
+      this.startingBlockNumbers[chain] = await this.multiProvider
+        .getProvider(chain)
+        .getBlockNumber();
+      await utils.runWithTimeout(this.chainTimeoutMs, () =>
+        this.deployContracts(chain, configMap[chain]),
       );
     }
     return this.deployedContracts;
@@ -267,6 +272,7 @@ export abstract class HyperlaneDeployer<
         contractAddr,
         encodedConstructorArgs,
       );
+      this.verificationInputs[chain] = this.verificationInputs[chain] || [];
       this.verificationInputs[chain].push(input);
 
       return factory.attach(contractAddr).connect(signer) as ReturnType<
@@ -293,6 +299,7 @@ export abstract class HyperlaneDeployer<
         contract,
         factory.bytecode,
       );
+      this.verificationInputs[chain] = this.verificationInputs[chain] || [];
       this.verificationInputs[chain].push(verificationInput);
 
       return contract as ReturnType<F['deploy']>;
@@ -486,22 +493,6 @@ export abstract class HyperlaneDeployer<
     );
     this.cacheContract(chain, contractName, contract);
     return contract;
-  }
-
-  mergeWithExistingVerificationInputs(
-    existingInputsMap: ChainMap<ContractVerificationInput[]>,
-  ): ChainMap<ContractVerificationInput[]> {
-    const allChains = new Set<ChainName>();
-    Object.keys(existingInputsMap).forEach((_) => allChains.add(_));
-    Object.keys(this.verificationInputs).forEach((_) => allChains.add(_));
-
-    const ret: ChainMap<ContractVerificationInput[]> = {};
-    for (const chain of allChains) {
-      const existingInputs = existingInputsMap[chain] || [];
-      const newInputs = this.verificationInputs[chain] || [];
-      ret[chain] = [...existingInputs, ...newInputs];
-    }
-    return ret;
   }
 
   protected async transferOwnershipOfContracts(

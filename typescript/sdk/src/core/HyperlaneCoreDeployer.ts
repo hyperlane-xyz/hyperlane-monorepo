@@ -13,36 +13,31 @@ import { HyperlaneContracts } from '../contracts';
 import { DeployOptions, HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
-import { objMap } from '../utils/objects';
 
 import { CoreFactories, coreFactories } from './contracts';
-import { CoreConfig } from './types';
+import { CoreConfig, MultisigIsmConfig } from './types';
 
 export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   CoreConfig,
   CoreFactories
 > {
-  startingBlockNumbers: ChainMap<number | undefined>;
+  startingBlockNumbers: ChainMap<number | undefined> = {};
 
-  constructor(
-    multiProvider: MultiProvider,
-    configMap: ChainMap<CoreConfig>,
-    factoriesOverride = coreFactories,
-  ) {
-    super(multiProvider, configMap, factoriesOverride, {
+  constructor(multiProvider: MultiProvider) {
+    super(multiProvider, coreFactories, {
       logger: debug('hyperlane:CoreDeployer'),
+      chainTimeoutMs: 1000 * 60 * 10, // 10 minutes
     });
-    this.startingBlockNumbers = objMap(configMap, () => undefined);
   }
 
   async deployMailbox(
     chain: ChainName,
     defaultIsmAddress: types.Address,
     proxyAdmin: types.Address,
+    owner: types.Address,
     deployOpts?: DeployOptions,
   ): Promise<Mailbox> {
     const domain = this.multiProvider.getDomainId(chain);
-    const owner = this.configMap[chain].owner;
 
     const mailbox = await this.deployProxiedContract(
       chain,
@@ -69,9 +64,12 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     return validatorAnnounce;
   }
 
-  async deployLegacyMultisigIsm(chain: ChainName): Promise<LegacyMultisigIsm> {
+  async deployLegacyMultisigIsm(
+    chain: ChainName,
+    multisigIsmConfig: ChainMap<MultisigIsmConfig>,
+  ): Promise<LegacyMultisigIsm> {
     const multisigIsm = await this.deployContract(chain, 'multisigIsm', []);
-    const remotes = Object.keys(this.configMap[chain].multisigIsm);
+    const remotes = Object.keys(multisigIsmConfig);
     const overrides = this.multiProvider.getTransactionOverrides(chain);
 
     await super.runIfOwner(chain, multisigIsm, async () => {
@@ -81,7 +79,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         remoteDomains.map((id) => multisigIsm.validators(id)),
       );
       const expectedValidators = remotes.map(
-        (remote) => this.configMap[chain].multisigIsm[remote].validators,
+        (remote) => multisigIsmConfig[remote].validators,
       );
       const validatorsToEnroll = expectedValidators.map((validators, i) =>
         validators.filter(
@@ -111,7 +109,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         remoteDomains.map((id) => multisigIsm.threshold(id)),
       );
       const expectedThresholds = remotes.map(
-        (remote) => this.configMap[chain].multisigIsm[remote].threshold,
+        (remote) => multisigIsmConfig[remote].threshold,
       );
       const chainsToSetThreshold = remotes.filter(
         (_, i) => actualThresholds[i] !== expectedThresholds[i],
@@ -125,7 +123,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
           multisigIsm.setThresholds(
             chainsToSetThreshold.map((c) => this.multiProvider.getDomainId(c)),
             chainsToSetThreshold.map(
-              (remote) => this.configMap[chain].multisigIsm[remote].threshold,
+              (remote) => multisigIsmConfig[remote].threshold,
             ),
             overrides,
           ),
@@ -144,10 +142,14 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       return undefined as any;
     }
 
-    const provider = this.multiProvider.getProvider(chain);
-    const startingBlockNumber = await provider.getBlockNumber();
-    this.startingBlockNumbers[chain] = startingBlockNumber;
-    const multisigIsm = await this.deployLegacyMultisigIsm(chain);
+    this.startingBlockNumbers[chain] = await this.multiProvider
+      .getProvider(chain)
+      .getBlockNumber();
+
+    const multisigIsm = await this.deployLegacyMultisigIsm(
+      chain,
+      config.multisigIsm,
+    );
 
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
 
@@ -155,6 +157,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       chain,
       multisigIsm.address,
       proxyAdmin.address,
+      config.owner,
     );
     const validatorAnnounce = await this.deployValidatorAnnounce(
       chain,
