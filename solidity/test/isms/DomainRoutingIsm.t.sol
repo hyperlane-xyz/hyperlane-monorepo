@@ -36,6 +36,29 @@ contract DomainRoutingIsmTest is Test {
         assertEq(address(ism.modules(domain)), address(_ism));
     }
 
+    function testSetMany(
+        uint8 count,
+        uint32 domain,
+        IInterchainSecurityModule _ism
+    ) public {
+        vm.assume(domain > count && uint160(address(_ism)) > count);
+        uint32[] memory _domains = new uint32[](count);
+        IInterchainSecurityModule[]
+            memory _isms = new IInterchainSecurityModule[](count);
+        for (uint32 i = 0; i < count; ++i) {
+            _domains[i] = domain - i;
+            _isms[i] = IInterchainSecurityModule(
+                address(uint160(address(_ism)) - i)
+            );
+            vm.expectEmit(true, true, false, true);
+            emit ModuleSet(_domains[i], _isms[i]);
+        }
+        ism.set(_domains, _isms);
+        for (uint256 i = 0; i < count; ++i) {
+            assertEq(address(ism.modules(_domains[i])), address(_isms[i]));
+        }
+    }
+
     function testSetNonOwner(uint32 domain, IInterchainSecurityModule _ism)
         public
     {
