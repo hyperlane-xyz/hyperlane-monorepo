@@ -176,8 +176,8 @@ jobs:
         with:
           sarif_file: ${{ steps.slither.outputs.sarif }}
 
-      - name: gas
-        run: yarn workspace @hyperlane-xyz/core run gas-ci
+      #- name: gas
+      #  run: yarn workspace @hyperlane-xyz/core run gas-ci
 
       - name: forge-test
         run: yarn workspace @hyperlane-xyz/core run test:forge

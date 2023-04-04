@@ -7,6 +7,7 @@ import {
   MultiProvider,
   attachContractsMap,
   buildAgentConfig,
+  filterAddressesMap,
   objMap,
   promiseObjAll,
   serializeContractsMap,
@@ -74,8 +75,15 @@ export async function deployWithArtifacts(
       console.error('Failed to load cached addresses');
     }
 
-    const savedContracts = attachContractsMap(addresses, deployer.factories);
-    deployer.cacheContracts(savedContracts);
+    const filteredAddressesMap = filterAddressesMap(
+      addresses,
+      deployer.factories,
+    );
+    const attachedContractsMap = attachContractsMap(
+      filteredAddressesMap,
+      deployer.factories,
+    );
+    deployer.cacheContracts(attachedContractsMap);
   }
 
   try {

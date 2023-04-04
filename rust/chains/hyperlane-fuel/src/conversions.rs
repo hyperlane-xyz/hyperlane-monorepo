@@ -43,11 +43,9 @@ impl_h256!(
     |v| H256::from(*v.hash)
 );
 
-impl_h256!(
-    fuels::prelude::Bits256,
-    |v| fuels::prelude::Bits256(v.0),
-    |v| H256::from(v.0)
-);
+impl_h256!(fuels::types::Bits256, |v| fuels::types::Bits256(v.0), |v| {
+    H256::from(v.0)
+});
 
 impl_h256!(
     fuels::prelude::ContractId,
