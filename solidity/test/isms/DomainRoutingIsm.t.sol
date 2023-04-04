@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 
 import {DomainRoutingIsm} from "../../contracts/isms/routing/DomainRoutingIsm.sol";
+import {DomainRoutingIsmFactory} from "../../contracts/isms/routing/DomainRoutingIsmFactory.sol";
 import {IInterchainSecurityModule} from "../../contracts/interfaces/IInterchainSecurityModule.sol";
 import {MessageUtils, TestIsm} from "./IsmTestUtils.sol";
 
@@ -14,6 +15,7 @@ contract DomainRoutingIsmTest is Test {
 
     function setUp() public {
         ism = new DomainRoutingIsm();
+        ism.initialize(address(this));
     }
 
     function deployTestIsm(uint32 domain, bytes32 requiredMetadata)
@@ -36,12 +38,13 @@ contract DomainRoutingIsmTest is Test {
         assertEq(address(ism.modules(domain)), address(_ism));
     }
 
-    function testSetMany(
+    function testSetManyViaFactory(
         uint8 count,
         uint32 domain,
         IInterchainSecurityModule _ism
     ) public {
         vm.assume(domain > count && uint160(address(_ism)) > count);
+        DomainRoutingIsmFactory factory = new DomainRoutingIsmFactory();
         uint32[] memory _domains = new uint32[](count);
         IInterchainSecurityModule[]
             memory _isms = new IInterchainSecurityModule[](count);
@@ -53,7 +56,7 @@ contract DomainRoutingIsmTest is Test {
             vm.expectEmit(true, true, false, true);
             emit ModuleSet(_domains[i], _isms[i]);
         }
-        ism.set(_domains, _isms);
+        ism = factory.deploy(_domains, _isms);
         for (uint256 i = 0; i < count; ++i) {
             assertEq(address(ism.modules(_domains[i])), address(_isms[i]));
         }

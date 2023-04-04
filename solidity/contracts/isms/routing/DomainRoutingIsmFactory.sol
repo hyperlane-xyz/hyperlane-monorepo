@@ -29,10 +29,11 @@ contract DomainRoutingIsmFactory {
     function deploy(
         uint32[] calldata _domains,
         IInterchainSecurityModule[] calldata _modules
-    ) external {
+    ) external returns (DomainRoutingIsm) {
         DomainRoutingIsm _ism = DomainRoutingIsm(
             MinimalProxy.create(_implementation)
         );
-        _ism.set(_domains, _modules);
+        _ism.initialize(msg.sender, _domains, _modules);
+        return _ism;
     }
 }

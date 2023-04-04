@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 // ============ External Imports ============
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 // ============ Internal Imports ============
 import {AbstractRoutingIsm} from "./AbstractRoutingIsm.sol";
@@ -11,7 +11,7 @@ import {Message} from "../../libs/Message.sol";
 /**
  * @title DomainRoutingIsm
  */
-contract DomainRoutingIsm is AbstractRoutingIsm, Ownable {
+contract DomainRoutingIsm is AbstractRoutingIsm, OwnableUpgradeable {
     // ============ Public Storage ============
     mapping(uint32 => IInterchainSecurityModule) public modules;
 
@@ -24,27 +24,34 @@ contract DomainRoutingIsm is AbstractRoutingIsm, Ownable {
      */
     event ModuleSet(uint32 indexed domain, IInterchainSecurityModule module);
 
-    // ============ Constructor ============
-
-    // solhint-disable-next-line no-empty-blocks
-    constructor() Ownable() {}
-
     // ============ External Functions ============
 
     /**
+     * @param _owner The owner of the contract.
+     */
+    function initialize(address _owner) public initializer {
+        __Ownable_init();
+        _transferOwnership(_owner);
+    }
+
+    /**
      * @notice Sets the ISMs to be used for the specified origin domains
+     * @param _owner The owner of the contract.
      * @param _domains The origin domains
      * @param _modules The ISMs to use to verify messages
      */
-    function set(
+    function initialize(
+        address _owner,
         uint32[] calldata _domains,
         IInterchainSecurityModule[] calldata _modules
-    ) external onlyOwner {
+    ) public initializer {
+        __Ownable_init();
         require(_domains.length == _modules.length, "length mismatch");
         uint256 _length = _domains.length;
         for (uint256 i = 0; i < _length; ++i) {
             _set(_domains[i], _modules[i]);
         }
+        _transferOwnership(_owner);
     }
 
     /**
