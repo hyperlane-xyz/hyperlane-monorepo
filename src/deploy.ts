@@ -3,6 +3,7 @@ import {
   ChainName,
   GasRouterConfig,
   GasRouterDeployer,
+  HyperlaneContracts,
   MultiProvider,
   objMap,
 } from '@hyperlane-xyz/sdk';
@@ -17,7 +18,7 @@ import {
   isSyntheticConfig,
   isUriConfig,
 } from './config';
-import { HypERC20Contracts, HypERC721Contracts } from './contracts';
+import { HypERC20Factories, HypERC721Factories } from './contracts';
 import {
   HypERC20Collateral__factory,
   HypERC20__factory,
@@ -62,8 +63,7 @@ const gasDefaults = (config: TokenConfig, tokenType: TokenType) => {
 
 export class HypERC20Deployer extends GasRouterDeployer<
   HypERC20Config & GasRouterConfig,
-  HypERC20Contracts,
-  any // RouterFactories doesn't work well when router has multiple types
+  HypERC20Factories
 > {
   constructor(
     multiProvider: MultiProvider,
@@ -84,6 +84,10 @@ export class HypERC20Deployer extends GasRouterDeployer<
       factories,
       options,
     );
+  }
+
+  router(contracts: HyperlaneContracts<HypERC20Factories>) {
+    return contracts.router;
   }
 
   async deployContracts(chain: ChainName, config: HypERC20Config) {
@@ -137,8 +141,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
 // TODO: dedupe?
 export class HypERC721Deployer extends GasRouterDeployer<
   HypERC721Config & GasRouterConfig,
-  HypERC721Contracts,
-  any
+  HypERC721Factories
 > {
   constructor(
     multiProvider: MultiProvider,
@@ -159,6 +162,10 @@ export class HypERC721Deployer extends GasRouterDeployer<
       factories,
       options,
     );
+  }
+
+  router(contracts: HyperlaneContracts<HypERC721Factories>) {
+    return contracts.router;
   }
 
   async deployContracts(chain: ChainName, config: HypERC721Config) {

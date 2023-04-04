@@ -1,15 +1,20 @@
-import { RouterContracts } from '@hyperlane-xyz/sdk';
-
 import {
-  HypERC20,
-  HypERC20Collateral,
-  HypERC721,
-  HypERC721Collateral,
-  HypERC721URICollateral,
-  HypNative,
+  HypERC20Collateral__factory,
+  HypERC20__factory,
+  HypERC721Collateral__factory,
+  HypERC721URICollateral__factory,
+  HypERC721__factory,
+  HypNative__factory,
 } from './types';
 
-export type HypERC20Contracts = RouterContracts<HypERC20 | HypERC20Collateral | HypNative>;
-export type HypERC721Contracts = RouterContracts<
-  HypERC721 | HypERC721Collateral | HypERC721URICollateral
->;
+export type HypERC20Factories = {
+  router: HypERC20__factory | HypERC20Collateral__factory | HypNative__factory;
+};
+export type HypERC721Factories = {
+  router:
+    | HypERC721__factory
+    | HypERC721Collateral__factory
+    | HypERC721URICollateral__factory;
+};
+
+export type TokenFactories = HypERC20Factories | HypERC721Factories;

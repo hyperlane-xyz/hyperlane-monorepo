@@ -1,8 +1,5 @@
 export { HypERC20App, HypERC721App } from './app';
 export {
-  TokenType,
-  TokenConfig,
-  SyntheticConfig,
   CollateralConfig,
   HypERC20CollateralConfig,
   HypERC20Config,
@@ -10,7 +7,10 @@ export {
   HypERC721Config,
   isCollateralConfig,
   isUriConfig,
+  SyntheticConfig,
+  TokenConfig,
+  TokenType,
 } from './config';
-export { HypERC20Contracts, HypERC721Contracts } from './contracts';
+export { HypERC20Factories, HypERC721Factories } from './contracts';
 export { HypERC20Deployer, HypERC721Deployer } from './deploy';
 export * from './types';

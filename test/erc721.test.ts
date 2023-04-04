@@ -4,12 +4,15 @@ import { expect } from 'chai';
 import { BigNumber, BigNumberish } from 'ethers';
 import { ethers } from 'hardhat';
 
+import { InterchainGasPaymaster__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   Chains,
+  HyperlaneContractsMap,
   MultiProvider,
   TestCoreApp,
   TestCoreDeployer,
+  deployTestIgpsAndGetRouterConfig,
   objMap,
 } from '@hyperlane-xyz/sdk';
 import { utils } from '@hyperlane-xyz/utils';
@@ -20,7 +23,7 @@ import {
   SyntheticConfig,
   TokenType,
 } from '../src/config';
-import { HypERC721Contracts } from '../src/contracts';
+import { HypERC721Factories } from '../src/contracts';
 import { HypERC721Deployer } from '../src/deploy';
 import {
   ERC721,
@@ -72,7 +75,7 @@ for (const withCollateral of [true, false]) {
       let recipient: SignerWithAddress;
       let core: TestCoreApp;
       let deployer: HypERC721Deployer;
-      let contracts: ChainMap<HypERC721Contracts>;
+      let contracts: HyperlaneContractsMap<HypERC721Factories>;
       let local: HypERC721 | HypERC721Collateral | HypERC721URICollateral;
       let remote: HypERC721 | HypERC721Collateral | HypERC721URIStorage;
       let interchainGasPayment: BigNumberish;
@@ -88,7 +91,11 @@ for (const withCollateral of [true, false]) {
         const coreDeployer = new TestCoreDeployer(multiProvider);
         const coreContractsMaps = await coreDeployer.deploy();
         core = new TestCoreApp(coreContractsMaps, multiProvider);
-        const coreConfig = core.getConnectionClientConfigMap();
+        const coreConfig = await deployTestIgpsAndGetRouterConfig(
+          multiProvider,
+          owner.address,
+          core.contractsMap,
+        );
         const configWithTokenInfo: ChainMap<
           HypERC721Config | HypERC721CollateralConfig
         > = objMap(coreConfig, (key) => ({
@@ -252,8 +259,7 @@ for (const withCollateral of [true, false]) {
 
       it('benchmark handle gas overhead', async () => {
         const localRaw = local.connect(ethers.provider);
-        const mailboxAddress =
-          core.contractsMap[localChain].mailbox.contract.address;
+        const mailboxAddress = core.contractsMap[localChain].mailbox.address;
         let tokenIdToUse: number;
         if (withCollateral) {
           const tokenAddress = await (
@@ -285,8 +291,9 @@ for (const withCollateral of [true, false]) {
       });
 
       it('allows interchain gas payment for remote transfers', async () => {
-        const interchainGasPaymaster =
-          core.contractsMap[localChain].interchainGasPaymaster.contract;
+        const interchainGasPaymaster = new InterchainGasPaymaster__factory()
+          .attach(await local.interchainGasPaymaster())
+          .connect(owner);
         await expect(
           local.transferRemote(
             remoteDomain,
