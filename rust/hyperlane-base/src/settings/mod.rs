@@ -208,8 +208,13 @@ impl TryFrom<RawSettings> for Settings {
                 }
                 chains
                     .into_iter()
-                    .map(|(k, v)| Ok((k, v.try_into()?)))
-                    .collect::<Result<_, Self::Error>>()?
+                    .map(|(k, v)| {
+                        let parsed = v
+                            .try_into()
+                            .with_context(|| format!("When parsing chain `{k}` config"))?;
+                        Ok((k, parsed))
+                    })
+                    .collect::<eyre::Result<_>>()?
             } else {
                 Default::default()
             },
