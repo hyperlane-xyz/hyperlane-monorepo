@@ -9,7 +9,7 @@ use tracing::instrument;
 
 use hyperlane_core::H256;
 
-use crate::settings::{declare_deserialize_for_config_struct, EyreOptionExt, KMS_CLIENT};
+use crate::settings::{EyreOptionExt, KMS_CLIENT};
 
 /// Signer types
 #[derive(Default, Debug, Clone)]
@@ -32,7 +32,7 @@ pub enum SignerConf {
     Node,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub(super) enum RawSignerConf {
     HexKey {
@@ -45,8 +45,6 @@ pub(super) enum RawSignerConf {
     #[serde(other)]
     Node,
 }
-
-declare_deserialize_for_config_struct!(SignerConf);
 
 impl TryFrom<RawSignerConf> for SignerConf {
     type Error = Report;

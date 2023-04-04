@@ -12,7 +12,7 @@ pub struct ConnectionConf {
 }
 
 /// Raw fuel connection configuration used for better deserialization errors.
-#[derive(serde::Deserialize)]
+#[derive(Debug, serde::Deserialize)]
 pub struct RawConnectionConf {
     url: Option<String>,
 }

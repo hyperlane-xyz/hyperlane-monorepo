@@ -44,11 +44,13 @@ macro_rules! decl_agent {
     };
 }
 
-use crate::Settings;
+use crate::settings::RawSettings;
 /// Export this so they don't need to import paste.
 #[doc(hidden)]
 pub use paste;
 use serde::Deserialize;
+#[doc(hidden)]
+pub use static_assertions;
 
 #[macro_export]
 /// Declare a new settings block
@@ -73,22 +75,44 @@ use serde::Deserialize;
 /// ```
 macro_rules! decl_settings {
     (
-        $name:ident {
-            $($(#[$tags:meta])* $prop:ident: $type:ty,)*
-        }
+        $name:ident,
+        Parsed {
+            $($(#[$parsed_tags:meta])* $parsed_prop:ident: $parsed_type:ty,)*
+        },
+        Raw {
+            $($(#[$raw_tags:meta])* $raw_prop:ident: $raw_type:ty,)*
+        }$(,)?
     ) => {
         hyperlane_base::macros::paste::paste! {
-            #[derive(Debug, serde::Deserialize)]
-            #[serde(rename_all = "camelCase")]
-            #[doc = "Settings for `" $name]
+            #[doc = "Settings for `" $name "`"]
+            #[derive(Debug)]
             pub struct [<$name Settings>] {
-                #[serde(flatten)]
-                pub(crate) base: hyperlane_base::Settings,
+                base: hyperlane_base::Settings,
                 $(
-                    $(#[$tags])*
-                    pub(crate) $prop: $type,
+                    $(#[$parsed_tags])*
+                    pub(crate) $parsed_prop: $parsed_type,
                 )*
             }
+
+            #[doc = "Raw settings for `" $name "`"]
+            #[derive(Debug, serde::Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            pub struct [<Raw $name Settings>] {
+                #[serde(flatten, default)]
+                base: hyperlane_base::RawSettings,
+                $(
+                    $(#[$raw_tags])*
+                    $raw_prop: $raw_type,
+                )*
+            }
+
+            impl AsMut<hyperlane_base::RawSettings> for [<Raw $name Settings>] {
+                fn as_mut(&mut self) -> &mut hyperlane_base::RawSettings {
+                    &mut self.base
+                }
+            }
+
+            hyperlane_base::macros::static_assertions::assert_impl_all!([<$name Settings>]: TryFrom<[<Raw $name Settings>]>);
 
             impl std::ops::Deref for [<$name Settings>] {
                 type Target = hyperlane_base::Settings;
@@ -110,12 +134,12 @@ macro_rules! decl_settings {
                 }
             }
 
-            impl hyperlane_base::NewFromSettings for [<$name Settings>] {
+            impl hyperlane_base::NewFromSettings<> for [<$name Settings>] {
                 type Error = eyre::Report;
 
                 /// See `load_settings_object` for more information about how settings are loaded.
                 fn new() -> Result<Self, Self::Error> {
-                    hyperlane_base::macros::_new_settings(stringify!($name))
+                    hyperlane_base::macros::_new_settings::<[<Raw $name Settings>], [<$name Settings>]>(stringify!($name))
                 }
             }
         }
@@ -124,11 +148,12 @@ macro_rules! decl_settings {
 
 /// Static logic called by the decl_settings! macro. Do not call directly!
 #[doc(hidden)]
-pub fn _new_settings<'de, T>(name: &str) -> eyre::Result<T>
+pub fn _new_settings<'de, T, R>(name: &str) -> eyre::Result<R>
 where
-    T: Deserialize<'de> + AsMut<Settings>,
+    T: Deserialize<'de> + AsMut<RawSettings>,
+    R: TryFrom<T, Error = eyre::Report>,
 {
     use crate::settings::loader::load_settings_object;
-
-    load_settings_object::<T, &str>(name, &[])
+    let raw = load_settings_object::<T, &str>(name, &[])?;
+    R::try_from(raw)
 }

@@ -98,40 +98,6 @@ pub mod trace;
 
 static KMS_CLIENT: OnceCell<KmsClient> = OnceCell::new();
 
-/// Define Deserialize and FromStr for a config struct that has a "raw" variant.
-/// This requires the raw config struct to implement both `Deserialize` and the
-/// config type to implement `TryFrom<RawConfig>`.
-macro_rules! declare_deserialize_for_config_struct {
-    ($struct_name:ident) => {
-        paste::paste! { declare_deserialize_for_config_struct!([<Raw $struct_name>] -> $struct_name); }
-    };
-    ($raw_name:ident -> $struct_name:ident) => {
-        static_assertions::assert_impl_all!($struct_name: TryFrom<$raw_name>);
-        static_assertions::assert_impl_all!($raw_name: serde::de::DeserializeOwned);
-
-        impl<'de> Deserialize<'de> for $struct_name {
-            fn deserialize<D>(des: D) -> Result<Self, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                $raw_name::deserialize(des)?
-                    .try_into()
-                    .map_err(serde::de::Error::custom)
-            }
-        }
-
-        impl std::str::FromStr for $struct_name {
-            type Err = serde_json::Error;
-
-            fn from_str(s: &str) -> Result<Self, Self::Err> {
-                serde_json::from_str(s)
-            }
-        }
-    };
-}
-
-pub(self) use declare_deserialize_for_config_struct;
-
 pub trait EyreOptionExt<T> {
     fn expect_or_eyre<M: Into<String>>(self, msg: M) -> eyre::Result<T>;
     fn expect_or_else_eyre(self, f: impl FnOnce() -> String) -> eyre::Result<T>;
@@ -181,16 +147,16 @@ pub struct Settings {
     pub tracing: TracingConfig,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct RawSettings {
+pub struct RawSettings {
     chains: Option<HashMap<String, chains::RawChainConf>>,
     defaultsigner: Option<signers::RawSignerConf>,
     metrics: Option<StrOrInt>,
     tracing: Option<TracingConfig>,
 }
 
-declare_deserialize_for_config_struct!(Settings);
+// declare_deserialize_for_config_struct!(Settings);
 
 impl TryFrom<RawSettings> for Settings {
     type Error = eyre::Report;
@@ -198,20 +164,23 @@ impl TryFrom<RawSettings> for Settings {
     fn try_from(r: RawSettings) -> Result<Self, Self::Error> {
         Ok(Self {
             chains: if let Some(mut chains) = r.chains {
-                if let Some(default_signer) = r.defaultsigner {
-                    let default_signer: SignerConf = default_signer
-                        .try_into()
-                        .context("Invalid `defaultsigner` configuration")?;
-                    for chain in chains.values_mut() {
-                        chain.signer.get_or_insert_with(|| default_signer.clone());
-                    }
-                }
+                let default_signer: Option<SignerConf> = r
+                    .defaultsigner
+                    .map(|default_signer| {
+                        default_signer
+                            .try_into()
+                            .context("Invalid `defaultsigner` configuration")
+                    })
+                    .transpose()?;
                 chains
                     .into_iter()
                     .map(|(k, v)| {
-                        let parsed = v
+                        let mut parsed: ChainConf = v
                             .try_into()
                             .with_context(|| format!("When parsing chain `{k}` config"))?;
+                        if let Some(default_signer) = &default_signer {
+                            parsed.signer.get_or_insert_with(|| default_signer.clone());
+                        }
                         Ok((k, parsed))
                     })
                     .collect::<eyre::Result<_>>()?

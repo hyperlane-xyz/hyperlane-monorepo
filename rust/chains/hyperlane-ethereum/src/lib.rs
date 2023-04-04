@@ -84,7 +84,7 @@ pub enum ConnectionConf {
 
 /// Raw ethereum connection configuration used for better deserialization
 /// errors.
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum RawConnectionConf {
     HttpQuorum { urls: Option<String> },

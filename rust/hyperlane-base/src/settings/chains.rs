@@ -19,7 +19,7 @@ use hyperlane_ethereum::{
 };
 use hyperlane_fuel as h_fuel;
 
-use crate::settings::declare_deserialize_for_config_struct;
+use crate::settings::signers::RawSignerConf;
 use crate::{settings::signers::BuildableWithSignerConf, CoreMetrics, EyreOptionExt, SignerConf};
 
 /// A connection to _some_ blockchain.
@@ -32,7 +32,7 @@ pub enum ChainConnectionConf {
 }
 
 /// Specify the chain name (enum variant) under the `chain` key
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(tag = "protocol", content = "connection", rename_all = "camelCase")]
 enum RawChainConnectionConf {
     Ethereum(h_eth::RawConnectionConf),
@@ -83,15 +83,13 @@ pub struct CoreContractAddresses {
     pub validator_announce: H256,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RawCoreContractAddresses {
     mailbox: Option<String>,
     interchain_gas_paymaster: Option<String>,
     validator_announce: Option<String>,
 }
-
-declare_deserialize_for_config_struct!(CoreContractAddresses);
 
 impl TryFrom<RawCoreContractAddresses> for CoreContractAddresses {
     type Error = eyre::Report;
@@ -127,7 +125,7 @@ pub struct IndexSettings {
     pub chunk_size: u32,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RawIndexSettings {
     from: Option<StrOrInt>,
@@ -179,12 +177,12 @@ pub struct ChainConf {
     pub index: IndexSettings,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RawChainConf {
     name: Option<String>,
     domain: Option<StrOrInt>,
-    pub(super) signer: Option<SignerConf>,
+    pub(super) signer: Option<RawSignerConf>,
     finality_blocks: Option<StrOrInt>,
     addresses: Option<RawCoreContractAddresses>,
     #[serde(flatten, default)]
@@ -197,8 +195,6 @@ pub struct RawChainConf {
     #[serde(default)]
     index: Option<RawIndexSettings>,
 }
-
-declare_deserialize_for_config_struct!(ChainConf);
 
 impl TryFrom<RawChainConf> for ChainConf {
     type Error = eyre::Report;
@@ -231,7 +227,11 @@ impl TryFrom<RawChainConf> for ChainConf {
                 .transpose()
                 .context("Invalid `addresses` chain configuration")?
                 .unwrap_or_default(),
-            signer: r.signer,
+            signer: r
+                .signer
+                .map(|v| v.try_into())
+                .transpose()
+                .context("Invalid `signer` chain configuration")?,
             finality_blocks: r
                 .finality_blocks
                 .map(|v| v.try_into())

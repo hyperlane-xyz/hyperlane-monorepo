@@ -7,8 +7,8 @@ use tokio::task::JoinHandle;
 use tracing::{info_span, instrument::Instrumented, trace, Instrument};
 
 use hyperlane_base::{
-    decl_settings, run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
-    Settings,
+    decl_settings, run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, EyreOptionExt,
+    HyperlaneAgentCore, Settings,
 };
 
 use crate::chain_scraper::{Contracts, SqlChainScraper};
@@ -24,12 +24,35 @@ pub struct Scraper {
     scrapers: HashMap<u32, SqlChainScraper>,
 }
 
-decl_settings!(Scraper {
-    /// Database connection string
-    db: String,
-    /// Comma separated list of chains to scrape
-    chainstoscrape: String,
-});
+decl_settings!(Scraper,
+    Parsed {
+        db: String,
+        chains_to_scrape: Vec<String>,
+    },
+    Raw {
+        /// Database connection string
+        db: Option<String>,
+        /// Comma separated list of chains to scrape
+        chainstoscrape: Option<String>,
+    }
+);
+
+impl TryFrom<RawScraperSettings> for ScraperSettings {
+    type Error = eyre::Report;
+
+    fn try_from(r: RawScraperSettings) -> Result<Self, Self::Error> {
+        Ok(Self {
+            base: r.base.try_into()?,
+            db: r.db.expect_or_eyre("Missing `db` connection string")?,
+            chains_to_scrape: r
+                .chainstoscrape
+                .expect_or_eyre("Missing `chainstoscrape` list")?
+                .split(',')
+                .map(|s| s.to_string())
+                .collect(),
+        })
+    }
+}
 
 #[async_trait]
 impl BaseAgent for Scraper {
@@ -49,8 +72,7 @@ impl BaseAgent for Scraper {
         let contract_sync_metrics = ContractSyncMetrics::new(metrics.clone());
         let mut scrapers: HashMap<u32, SqlChainScraper> = HashMap::new();
 
-        let chains_to_scrape = settings.chainstoscrape.split(',');
-        for chain_name in chains_to_scrape {
+        for chain_name in settings.chains_to_scrape.iter() {
             let chain_setup = settings
                 .chains
                 .get(chain_name)

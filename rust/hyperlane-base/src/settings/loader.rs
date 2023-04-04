@@ -3,11 +3,11 @@ use std::env;
 use std::error::Error;
 use std::path::PathBuf;
 
-use config::{Config, Environment, File};
-use eyre::{Context, Result};
+use config::{Config, ConfigError, Environment, File};
+use eyre::{eyre, Context, Report, Result};
 use serde::Deserialize;
 
-use crate::Settings;
+use crate::settings::RawSettings;
 
 /// Load a settings object from the config locations.
 /// Further documentation can be found in the `settings` module.
@@ -16,7 +16,7 @@ pub(crate) fn load_settings_object<'de, T, S>(
     ignore_prefixes: &[S],
 ) -> Result<T>
 where
-    T: Deserialize<'de> + AsMut<Settings>,
+    T: Deserialize<'de> + AsMut<RawSettings>,
     S: AsRef<str>,
 {
     // Derive additional prefix from agent name
@@ -93,6 +93,13 @@ where
             Ok(cfg)
         }
         Err(err) => {
+            // let mut err: Report = match err {
+            //     ConfigError::Foreign(err) => {
+            //         err.downcast::<Report>().map(|b| *b).or_else(|err| Ok(err.into())).unwrap()
+            //     }
+            //     err => err.into(),
+            // };
+
             let mut err = if let Some(source_err) = err.source() {
                 let source = format!("Config error source: {source_err}");
                 Err(err).context(source)
@@ -100,9 +107,13 @@ where
                 Err(err.into())
             };
 
+            println!("Err: {:?}", err.as_ref().err().unwrap());
+
             for cfg_path in base_config_sources.iter().chain(config_file_paths.iter()) {
                 err = err.with_context(|| format!("Config loaded: {cfg_path}"));
             }
+
+            println!("Err: {:?}", err.as_ref().err().unwrap());
 
             println!(
                 "Error during deserialization, showing the config for debugging: {}",
