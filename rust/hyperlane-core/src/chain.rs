@@ -292,7 +292,9 @@ impl HyperlaneDomain {
                 Err(HyperlaneDomainConfigError::UnknownDomainName(name))
             }
         } else if name.as_str().parse::<KnownHyperlaneDomain>().is_ok() {
-            Err(HyperlaneDomainConfigError::DomainNameMismatch(name, domain_id))
+            Err(HyperlaneDomainConfigError::DomainNameMismatch(
+                name, domain_id,
+            ))
         } else {
             Ok(HyperlaneDomain::Unknown {
                 domain_id,

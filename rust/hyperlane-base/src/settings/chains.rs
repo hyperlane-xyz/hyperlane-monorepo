@@ -347,8 +347,7 @@ impl ChainConf {
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn InterchainGasPaymaster>> {
         let ctx = "Building IGP";
-        let locator = self
-            .locator(self.addresses.interchain_gas_paymaster);
+        let locator = self.locator(self.addresses.interchain_gas_paymaster);
 
         match &self.connection()? {
             ChainConnectionConf::Ethereum(conf) => {
@@ -372,8 +371,7 @@ impl ChainConf {
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn InterchainGasPaymasterIndexer>> {
         let ctx = "Building IGP indexer";
-        let locator = self
-            .locator(self.addresses.interchain_gas_paymaster);
+        let locator = self.locator(self.addresses.interchain_gas_paymaster);
 
         match &self.connection()? {
             ChainConnectionConf::Ethereum(conf) => {
@@ -504,7 +502,10 @@ impl ChainConf {
     }
 
     fn locator(&self, address: H256) -> ContractLocator {
-        ContractLocator { domain: &self.domain, address }
+        ContractLocator {
+            domain: &self.domain,
+            address,
+        }
     }
 
     async fn build_ethereum<B>(
