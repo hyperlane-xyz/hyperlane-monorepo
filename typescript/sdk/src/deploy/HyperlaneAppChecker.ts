@@ -1,13 +1,14 @@
 import { Contract } from 'ethers';
 import { keccak256 } from 'ethers/lib/utils';
 
+import { Ownable } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
-import { objMap, promiseObjAll } from '../utils/objects';
+import { objFilter, objMap, promiseObjAll } from '../utils/objects';
 
 import { isProxy, proxyAdmin } from './proxy';
 import {
@@ -120,9 +121,11 @@ export abstract class HyperlaneAppChecker<
     }
   }
 
-  // TODO: Require owner in config if ownables is non-empty
-  async checkOwnership(chain: ChainName, owner: types.Address): Promise<void> {
-    const isOwnable = async (contract: Contract): Promise<boolean> => {
+  async ownables(chain: ChainName): Promise<{ [key: string]: Ownable }> {
+    const isOwnable = async (
+      _: string,
+      contract: Contract,
+    ): Promise<boolean> => {
       try {
         await contract.owner();
         return true;
@@ -131,24 +134,32 @@ export abstract class HyperlaneAppChecker<
       }
     };
     const contracts = this.app.getContracts(chain);
-    await promiseObjAll(
-      objMap(contracts, async (name, contract) => {
-        if (await isOwnable(contract)) {
-          const actual = await contract.owner();
-          if (!utils.eqAddress(actual, owner)) {
-            const violation: OwnerViolation = {
-              chain,
-              name,
-              type: ViolationType.Owner,
-              actual,
-              expected: owner,
-              contract,
-            };
-            this.addViolation(violation);
-          }
-        }
-      }),
+    const isOwnableContracts = await promiseObjAll(
+      objMap(contracts, isOwnable),
     );
+    return objFilter(
+      contracts,
+      (name, contract): contract is Ownable => isOwnableContracts[name],
+    );
+  }
+
+  // TODO: Require owner in config if ownables is non-empty
+  async checkOwnership(chain: ChainName, owner: types.Address): Promise<void> {
+    const ownableContracts = await this.ownables(chain);
+    for (const [name, contract] of Object.entries(ownableContracts)) {
+      const actual = await contract.owner();
+      if (!utils.eqAddress(actual, owner)) {
+        const violation: OwnerViolation = {
+          chain,
+          name,
+          type: ViolationType.Owner,
+          actual,
+          expected: owner,
+          contract,
+        };
+        this.addViolation(violation);
+      }
+    }
   }
 
   expectViolations(violationCounts: Record<string, number>): void {
