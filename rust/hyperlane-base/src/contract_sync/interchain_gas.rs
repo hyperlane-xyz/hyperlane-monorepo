@@ -34,13 +34,13 @@ where
             .with_label_values(&[GAS_PAYMENTS_LABEL, chain_name]);
 
         let cursor = {
-            let config_initial_height = self.index_settings.from();
+            let config_initial_height = self.index_settings.from;
             let initial_height = db
                 .retrieve_latest_indexed_gas_payment_block()
                 .map_or(config_initial_height, |b| b + 1);
             RateLimitedSyncBlockRangeCursor::new(
                 indexer.clone(),
-                self.index_settings.chunk_size(),
+                self.index_settings.chunk_size,
                 initial_height,
             )
         };

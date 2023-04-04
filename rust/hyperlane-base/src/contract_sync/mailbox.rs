@@ -411,7 +411,7 @@ mod test {
                 indexer,
                 IndexSettings {
                     from: Some(0.into()),
-                    chunk: Some(19.into()),
+                    chunk_size: Some(19.into()),
                 },
                 sync_metrics,
             );

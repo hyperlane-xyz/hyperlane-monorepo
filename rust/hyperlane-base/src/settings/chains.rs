@@ -124,7 +124,7 @@ pub struct IndexSettings {
     pub from: u32,
     /// The number of blocks to query at once at which to start indexing the
     /// Mailbox contract
-    pub chunk: u32,
+    pub chunk_size: u32,
 }
 
 #[derive(Deserialize)]
@@ -145,7 +145,7 @@ impl TryFrom<RawIndexSettings> for IndexSettings {
                 .transpose()
                 .context("Invalid `from` index setting")?
                 .unwrap_or_default(),
-            chunk: r
+            chunk_size: r
                 .chunk
                 .map(|v| v.try_into())
                 .transpose()
