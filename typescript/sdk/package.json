@@ -5,18 +5,18 @@
   "dependencies": {
     "@hyperlane-xyz/core": "1.2.3",
     "@hyperlane-xyz/utils": "1.2.3",
+    "@types/coingecko-api": "^1.0.10",
     "@wagmi/chains": "^0.2.6",
     "coingecko-api": "^1.0.10",
     "cross-fetch": "^3.1.5",
     "debug": "^4.3.4",
+    "@types/debug": "^4.1.7",
     "ethers": "^5.7.2",
     "zod": "^3.21.2"
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.2.1",
     "@nomiclabs/hardhat-waffle": "^2.0.3",
-    "@types/coingecko-api": "^1.0.10",
-    "@types/debug": "^4.1.7",
     "@types/node": "^16.9.1",
     "chai": "^4.3.6",
     "dotenv": "^10.0.0",
