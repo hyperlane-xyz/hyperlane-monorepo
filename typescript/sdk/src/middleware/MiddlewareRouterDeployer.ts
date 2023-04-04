@@ -62,9 +62,9 @@ export abstract class MiddlewareRouterDeployer<
     const proxiedRouter = await this.deployProxiedContract(
       chain,
       this.routerContractName,
+      proxyAdmin.address,
       this.constructorArgs(chain, config),
       initArgs as any, // generic type inference fails here
-      proxyAdmin.address,
     );
 
     this.logger(`Transferring ownership of proxy admin to ${config.owner}`);

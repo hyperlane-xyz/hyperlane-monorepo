@@ -40,14 +40,14 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     proxyAdmin: ProxyAdmin,
     storageGasOracle: StorageGasOracle,
   ): Promise<InterchainGasPaymaster> {
-    const owner = this.configMap[chain].owner;
     const beneficiary = this.configMap[chain].beneficiary;
+    // The IGP initializes itself in the constructor, so we do not
+    // pass initialization args.
     const igp = await this.deployProxiedContract(
       chain,
       'interchainGasPaymaster',
-      [beneficiary],
-      [owner, beneficiary],
       proxyAdmin.address,
+      [beneficiary],
     );
 
     // Set the gas oracles

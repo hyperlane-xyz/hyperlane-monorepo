@@ -313,18 +313,22 @@ export abstract class HyperlaneDeployer<
   protected async deployProxy<C extends ethers.Contract>(
     chain: ChainName,
     implementation: C,
-    initializeArgs: Parameters<C['initialize']>,
     proxyAdmin: string,
+    initializeArgs?: Parameters<C['initialize']>,
   ): Promise<C> {
-    const initData = implementation.interface.encodeFunctionData(
-      'initialize',
-      initializeArgs,
-    );
+    const initData = initializeArgs
+      ? implementation.interface.encodeFunctionData(
+          'initialize',
+          initializeArgs,
+        )
+      : '0x';
 
     this.logger(`Deploying transparent upgradable proxy`);
-    const constructorArgs: Parameters<
-      TransparentUpgradeableProxy__factory['deploy']
-    > = [implementation.address, proxyAdmin, initData];
+    const constructorArgs: [string, string, string] = [
+      implementation.address,
+      proxyAdmin,
+      initData,
+    ];
     const proxy = await this.deployContractFromFactory(
       chain,
       new TransparentUpgradeableProxy__factory(),
@@ -353,9 +357,9 @@ export abstract class HyperlaneDeployer<
   async deployProxiedContract<K extends keyof Factories>(
     chain: ChainName,
     contractName: K,
-    constructorArgs: Parameters<Factories[K]['deploy']>,
-    initializeArgs: Parameters<HyperlaneContracts<Factories>[K]['initialize']>,
     proxyAdmin: string,
+    constructorArgs: Parameters<Factories[K]['deploy']>,
+    initializeArgs?: Parameters<HyperlaneContracts<Factories>[K]['initialize']>,
   ): Promise<HyperlaneContracts<Factories>[K]> {
     const cachedProxy = this.deployedContracts[chain]?.[contractName];
     if (cachedProxy) {
@@ -379,8 +383,8 @@ export abstract class HyperlaneDeployer<
     const contract = await this.deployProxy(
       chain,
       implementation,
-      initializeArgs,
       proxyAdmin,
+      initializeArgs,
     );
     this.cacheContract(chain, contractName, contract);
     return contract;
