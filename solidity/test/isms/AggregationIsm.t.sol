@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 
-import {IAggregationIsm} from "../../interfaces/IAggregationIsm.sol";
+import {IAggregationIsm} from "../../contracts/interfaces/isms/IAggregationIsm.sol";
 import {StaticAggregationIsmFactory} from "../../contracts/isms/aggregation/StaticAggregationIsmFactory.sol";
 import {AggregationIsmMetadata} from "../../contracts/libs/isms/AggregationIsmMetadata.sol";
 import {TestIsm, MOfNTestUtils} from "./IsmTestUtils.sol";

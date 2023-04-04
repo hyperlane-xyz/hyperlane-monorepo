@@ -2,8 +2,8 @@
 pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 import {AbstractRoutingIsm} from "./AbstractRoutingIsm.sol";
-import {IMailbox} from "../../../interfaces/IMailbox.sol";
-import {IInterchainSecurityModule} from "../../../interfaces/IInterchainSecurityModule.sol";
+import {IMailbox} from "../../interfaces/IMailbox.sol";
+import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {Message} from "../../libs/Message.sol";
 import {InterchainAccountMessage} from "../../libs/middleware/InterchainAccountMessage.sol";
 

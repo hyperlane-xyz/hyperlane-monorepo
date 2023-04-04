@@ -1,7 +1,5 @@
 import {
-  TestRecipient,
   TestRecipient__factory,
-  TestTokenRecipient,
   TestTokenRecipient__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -15,14 +13,8 @@ export const factories = {
   TestTokenRecipient: new TestTokenRecipient__factory(),
 };
 
-type Contracts = {
-  TestRecipient: TestRecipient;
-  TestTokenRecipient: TestTokenRecipient;
-};
-
 export class TestRecipientDeployer extends HyperlaneDeployer<
   any,
-  Contracts,
   typeof factories
 > {
   constructor(multiProvider: MultiProvider) {

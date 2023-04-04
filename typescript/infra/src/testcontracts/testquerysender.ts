@@ -1,4 +1,4 @@
-import { TestQuerySender, TestQuerySender__factory } from '@hyperlane-xyz/core';
+import { TestQuerySender__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
@@ -13,13 +13,8 @@ export const factories = {
 
 type TestQuerySenderConfig = { queryRouterAddress: string };
 
-type Contracts = {
-  TestQuerySender: TestQuerySender;
-};
-
 export class TestQuerySenderDeployer extends HyperlaneDeployer<
   TestQuerySenderConfig,
-  Contracts,
   typeof factories
 > {
   constructor(

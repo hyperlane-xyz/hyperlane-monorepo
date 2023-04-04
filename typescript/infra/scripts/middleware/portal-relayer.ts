@@ -1,12 +1,11 @@
 import path from 'path';
 
 import {
-  ChainMap,
   LiquidityLayerApp,
-  LiquidityLayerContracts,
-  buildContracts,
+  attachContractsMap,
   liquidityLayerFactories,
 } from '@hyperlane-xyz/sdk';
+import { error, log } from '@hyperlane-xyz/utils';
 
 import { bridgeAdapterConfigs } from '../../config/environments/testnet3/token-bridge';
 import { readJSON, sleep } from '../../src/utils/utils';
@@ -27,10 +26,7 @@ async function relayPortalTransfers() {
     'middleware/liquidity-layer',
   );
   const addresses = readJSON(dir, 'addresses.json');
-  const contracts = buildContracts(
-    addresses,
-    liquidityLayerFactories,
-  ) as ChainMap<LiquidityLayerContracts>;
+  const contracts = attachContractsMap(addresses, liquidityLayerFactories);
   const app = new LiquidityLayerApp(
     contracts,
     multiProvider,
@@ -39,6 +35,10 @@ async function relayPortalTransfers() {
 
   while (true) {
     for (const chain of Object.keys(bridgeAdapterConfigs)) {
+      log('Processing chain', {
+        chain,
+      });
+
       const txHashes = await app.fetchPortalBridgeTransactions(chain);
       const portalMessages = (
         await Promise.all(
@@ -46,9 +46,20 @@ async function relayPortalTransfers() {
         )
       ).flat();
 
+      log('Portal messages', {
+        portalMessages,
+      });
+
       // Poll for attestation data and submit
       for (const message of portalMessages) {
-        await app.attemptPortalTransferCompletion(message);
+        try {
+          await app.attemptPortalTransferCompletion(message);
+        } catch (err) {
+          error('Error attempting portal transfer', {
+            message,
+            err,
+          });
+        }
       }
       await sleep(10000);
     }

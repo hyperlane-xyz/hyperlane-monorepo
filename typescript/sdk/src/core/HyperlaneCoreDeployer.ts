@@ -9,19 +9,18 @@ import {
 } from '@hyperlane-xyz/core';
 import { types } from '@hyperlane-xyz/utils';
 
+import { HyperlaneContracts } from '../contracts';
 import { DeployOptions, HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
-import { ProxiedContract, TransparentProxyAddresses } from '../proxy';
 import { ChainMap, ChainName } from '../types';
 import { objMap } from '../utils/objects';
 
-import { CoreContracts, coreFactories } from './contracts';
+import { CoreFactories, coreFactories } from './contracts';
 import { CoreConfig } from './types';
 
 export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   CoreConfig,
-  CoreContracts,
-  typeof coreFactories
+  CoreFactories
 > {
   startingBlockNumbers: ChainMap<number | undefined>;
 
@@ -41,7 +40,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     defaultIsmAddress: types.Address,
     proxyAdmin: types.Address,
     deployOpts?: DeployOptions,
-  ): Promise<ProxiedContract<Mailbox, TransparentProxyAddresses>> {
+  ): Promise<Mailbox> {
     const domain = this.multiProvider.getDomainId(chain);
     const owner = this.configMap[chain].owner;
 
@@ -139,7 +138,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   async deployContracts(
     chain: ChainName,
     config: CoreConfig,
-  ): Promise<CoreContracts> {
+  ): Promise<HyperlaneContracts<CoreFactories>> {
     if (config.remove) {
       // skip deploying to chains configured to be removed
       return undefined as any;

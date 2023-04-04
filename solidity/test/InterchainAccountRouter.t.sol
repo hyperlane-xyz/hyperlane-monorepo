@@ -6,7 +6,7 @@ import "../contracts/mock/MockMailbox.sol";
 import "../contracts/HyperlaneConnectionClient.sol";
 import "../contracts/mock/MockHyperlaneEnvironment.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
-import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
+import {IInterchainSecurityModule} from "../contracts/interfaces/IInterchainSecurityModule.sol";
 import {InterchainAccountRouter} from "../contracts/middleware/InterchainAccountRouter.sol";
 import {InterchainAccountIsm} from "../contracts/isms/routing/InterchainAccountIsm.sol";
 import {OwnableMulticall} from "../contracts/OwnableMulticall.sol";

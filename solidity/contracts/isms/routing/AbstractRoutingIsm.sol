@@ -2,8 +2,8 @@
 pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
-import {IInterchainSecurityModule} from "../../../interfaces/IInterchainSecurityModule.sol";
-import {IRoutingIsm} from "../../../interfaces/IRoutingIsm.sol";
+import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
+import {IRoutingIsm} from "../../interfaces/isms/IRoutingIsm.sol";
 
 /**
  * @title RoutingIsm

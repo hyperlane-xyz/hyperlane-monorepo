@@ -93,8 +93,7 @@ async function checkMessage(
     return;
   }
 
-  const destinationMailbox =
-    core.getContracts(destinationChain).mailbox.contract;
+  const destinationMailbox = core.getContracts(destinationChain).mailbox;
   const delivered = await destinationMailbox.delivered(messageId);
   if (delivered) {
     console.log('Message has already been processed');

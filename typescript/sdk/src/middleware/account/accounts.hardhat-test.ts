@@ -7,26 +7,26 @@ import {
   TestRecipient__factory,
 } from '@hyperlane-xyz/core';
 
-import { Chains } from '../consts/chains';
-import { TestCoreApp } from '../core/TestCoreApp';
-import { TestCoreDeployer } from '../core/TestCoreDeployer';
-import { MultiProvider } from '../providers/MultiProvider';
-import { RouterConfig } from '../router/types';
-import { deployTestIgpsAndGetRouterConfig } from '../test/testUtils';
-import { ChainMap } from '../types';
-import { objMap, promiseObjAll } from '../utils/objects';
+import { Chains } from '../../consts/chains';
+import { HyperlaneContractsMap } from '../../contracts';
+import { TestCoreApp } from '../../core/TestCoreApp';
+import { TestCoreDeployer } from '../../core/TestCoreDeployer';
+import { MultiProvider } from '../../providers/MultiProvider';
+import { RouterConfig } from '../../router/types';
+import { deployTestIgpsAndGetRouterConfig } from '../../test/testUtils';
+import { ChainMap } from '../../types';
 
-import {
-  InterchainAccountContracts,
-  InterchainAccountDeployer,
-} from './deploy';
+import { InterchainAccount } from './InterchainAccount';
+import { InterchainAccountChecker } from './InterchainAccountChecker';
+import { InterchainAccountDeployer } from './InterchainAccountDeployer';
+import { InterchainAccountFactories } from './contracts';
 
 describe('InterchainAccounts', async () => {
   const localChain = Chains.test1;
   const remoteChain = Chains.test2;
 
   let signer: SignerWithAddress;
-  let contracts: ChainMap<InterchainAccountContracts>;
+  let contracts: HyperlaneContractsMap<InterchainAccountFactories>;
   let local: InterchainAccountRouter;
   let remote: InterchainAccountRouter;
   let multiProvider: MultiProvider;
@@ -54,21 +54,15 @@ describe('InterchainAccounts', async () => {
   beforeEach(async () => {
     const deployer = new InterchainAccountDeployer(multiProvider, config);
     contracts = await deployer.deploy();
-
-    local = contracts[localChain].router;
-    remote = contracts[remoteChain].router;
+    local = contracts[localChain].interchainAccountRouter;
+    remote = contracts[remoteChain].interchainAccountRouter;
   });
 
-  it('deploys and sets configured ISMs', async () => {
-    const deployedIsms = await promiseObjAll(
-      objMap(contracts, (_, c) => c.router.interchainSecurityModule()),
-    );
-    expect(deployedIsms).to.eql(
-      objMap(
-        config,
-        (_, c) => c.interchainSecurityModule ?? ethers.constants.AddressZero,
-      ),
-    );
+  it('checks', async () => {
+    const app = new InterchainAccount(contracts, multiProvider);
+    const checker = new InterchainAccountChecker(multiProvider, app, config);
+    await checker.check();
+    expect(checker.violations.length).to.eql(0);
   });
 
   it('forwards calls from interchain account', async () => {

@@ -3,8 +3,8 @@ pragma solidity ^0.8.0;
 
 import {Versioned} from "../upgrade/Versioned.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
-import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
-import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
+import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
+import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
 
 contract MockMailbox is Versioned {
     using TypeCasts for address;

@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 
 import {DomainRoutingIsm} from "../../contracts/isms/routing/DomainRoutingIsm.sol";
-import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
+import {IInterchainSecurityModule} from "../../contracts/interfaces/IInterchainSecurityModule.sol";
 import {MessageUtils, TestIsm} from "./IsmTestUtils.sol";
 
 contract DomainRoutingIsmTest is Test {

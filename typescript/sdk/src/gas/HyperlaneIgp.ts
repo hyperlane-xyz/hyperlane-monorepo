@@ -8,28 +8,12 @@ import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
 } from '../consts/environments';
-import { HyperlaneAddresses } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, ChainName } from '../types';
+import { ChainName } from '../types';
 
-import { IgpContracts, igpFactories } from './contracts';
+import { IgpFactories, igpFactories } from './contracts';
 
-export type IgpContractsMap = ChainMap<IgpContracts>;
-
-export class HyperlaneIgp extends HyperlaneApp<IgpContracts> {
-  constructor(contractsMap: IgpContractsMap, multiProvider: MultiProvider) {
-    super(contractsMap, multiProvider);
-  }
-
-  static fromAddresses(
-    addresses: ChainMap<HyperlaneAddresses>,
-    multiProvider: MultiProvider,
-  ): HyperlaneIgp {
-    const { contracts, intersectionProvider } =
-      this.buildContracts<IgpContracts>(addresses, igpFactories, multiProvider);
-    return new HyperlaneIgp(contracts, intersectionProvider);
-  }
-
+export class HyperlaneIgp extends HyperlaneApp<IgpFactories> {
   static fromEnvironment<Env extends HyperlaneEnvironment>(
     env: Env,
     multiProvider: MultiProvider,
@@ -38,11 +22,15 @@ export class HyperlaneIgp extends HyperlaneApp<IgpContracts> {
     if (!envAddresses) {
       throw new Error(`No addresses found for ${env}`);
     }
-    return HyperlaneIgp.fromAddresses(envAddresses, multiProvider);
-  }
-
-  getContracts(chain: ChainName): IgpContracts {
-    return super.getContracts(chain);
+    const fromAddressesMap = this.fromAddressesMap(
+      envAddresses,
+      igpFactories,
+      multiProvider,
+    );
+    return new HyperlaneIgp(
+      fromAddressesMap.contractsMap,
+      fromAddressesMap.multiProvider,
+    );
   }
 
   /**

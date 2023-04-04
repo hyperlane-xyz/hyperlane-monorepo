@@ -5,7 +5,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 // ============ Internal Imports ============
 import {AbstractRoutingIsm} from "./AbstractRoutingIsm.sol";
-import {IInterchainSecurityModule} from "../../../interfaces/IInterchainSecurityModule.sol";
+import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {Message} from "../../libs/Message.sol";
 
 /**

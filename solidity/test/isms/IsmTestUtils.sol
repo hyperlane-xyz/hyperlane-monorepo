@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 import {Message} from "../../contracts/libs/Message.sol";
-import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
+import {IInterchainSecurityModule} from "../../contracts/interfaces/IInterchainSecurityModule.sol";
 
 library MessageUtils {
     function build(uint32 origin) internal pure returns (bytes memory) {
