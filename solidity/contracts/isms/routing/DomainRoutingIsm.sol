@@ -30,16 +30,42 @@ contract DomainRoutingIsm is AbstractRoutingIsm, Ownable {
     constructor() Ownable() {}
 
     // ============ External Functions ============
+
+    /**
+     * @notice Sets the ISMs to be used for the specified origin domains
+     * @param _domains The origin domains
+     * @param _modules The ISMs to use to verify messages
+     */
+    function set(
+        uint32[] calldata _domains,
+        IInterchainSecurityModule[] calldata _modules
+    ) external onlyOwner {
+        require(_domains.length == _modules.length, "length mismatch");
+        uint256 _length = _domains.length;
+        for (uint256 i = 0; i < _length; ++i) {
+            _set(_domains[i], _modules[i]);
+        }
+    }
+
+    /**
+     * @notice Sets the ISM to be used for the specified origin domain
+     * @param _domain The origin domain
+     * @param _module The ISM to use to verify messages
+     */
     function set(uint32 _domain, IInterchainSecurityModule _module)
         external
         onlyOwner
     {
-        modules[_domain] = _module;
-        emit ModuleSet(_domain, _module);
+        _set(_domain, _module);
     }
 
     // ============ Public Functions ============
 
+    /**
+     * @notice Returns the ISM to use to verify `_message`
+     * @param _message The Hyperlane formatted message, see Message.sol
+     * @return The ISM to use to verify `_message`
+     */
     function route(bytes calldata _message)
         public
         view
@@ -53,5 +79,17 @@ contract DomainRoutingIsm is AbstractRoutingIsm, Ownable {
             "No ISM found for origin domain"
         );
         return module;
+    }
+
+    // ============ Internal Functions ============
+
+    /**
+     * @notice Sets the ISM to be used for the specified origin domain
+     * @param _domain The origin domain
+     * @param _module The ISM to use to verify messages
+     */
+    function _set(uint32 _domain, IInterchainSecurityModule _module) internal {
+        modules[_domain] = _module;
+        emit ModuleSet(_domain, _module);
     }
 }
