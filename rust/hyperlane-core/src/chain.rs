@@ -432,7 +432,7 @@ mod tests {
             .iter()
             .flat_map(|x: &Settings| {
                 x.chains.values().map(|v| ChainCoordinate {
-                    name: v.name.clone(),
+                    name: v.domain.name().into(),
                     domain: (&v.domain).try_into().expect("Invalid domain id"),
                 })
             })

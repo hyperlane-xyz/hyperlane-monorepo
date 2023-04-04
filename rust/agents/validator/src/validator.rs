@@ -67,7 +67,8 @@ impl BaseAgent for Validator {
             .settings
             .chain_setup(&settings.originchainname)
             .context("Validator must run on a configured chain")?
-            .domain()?;
+            .domain
+            .clone();
 
         Ok(Self {
             origin_chain,

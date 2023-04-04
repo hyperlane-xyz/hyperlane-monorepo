@@ -122,7 +122,8 @@ impl BaseAgent for Relayer {
             .settings
             .chain_setup(&settings.originchainname)
             .context("Relayer must run on a configured chain")?
-            .domain()?;
+            .domain
+            .clone();
 
         let gas_enforcement_policies =
             parse_gas_enforcement_policies(&settings.gaspaymentenforcement);

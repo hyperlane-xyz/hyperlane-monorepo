@@ -204,6 +204,15 @@ impl TryFrom<RawChainConf> for ChainConf {
     type Error = eyre::Report;
 
     fn try_from(r: RawChainConf) -> Result<ChainConf> {
+        let protocol = match r
+            .connection
+            .as_ref()
+            .expect_or_eyre("Missing `protocol` configuration")?
+        {
+            RawChainConnectionConf::Ethereum(_) => HyperlaneDomainProtocol::Ethereum,
+            RawChainConnectionConf::Fuel(_) => HyperlaneDomainProtocol::Fuel,
+            RawChainConnectionConf::None => bail!("Unknown `protocol` configuration"),
+        };
         Ok(Self {
             domain: HyperlaneDomain::from_config(
                 r.domain
@@ -214,14 +223,7 @@ impl TryFrom<RawChainConf> for ChainConf {
                 r.name
                     .as_deref()
                     .expect_or_eyre("Missing `name` chain configuration")?,
-                match r
-                    .connection
-                    .expect_or_eyre("Missing `protocol` configuration")?
-                {
-                    RawChainConnectionConf::Ethereum(_) => HyperlaneDomainProtocol::Ethereum,
-                    RawChainConnectionConf::Fuel(_) => HyperlaneDomainProtocol::Fuel,
-                    RawChainConnectionConf::None => bail!("Unknown `protocol` configuration"),
-                },
+                protocol,
             )?,
             addresses: r
                 .addresses
@@ -470,7 +472,7 @@ impl ChainConf {
                 });
         }
 
-        let register_contract = |name: &str, address: H256, fns: HashMap<Vec<u8>, String>| {
+        let mut register_contract = |name: &str, address: H256, fns: HashMap<Vec<u8>, String>| {
             cfg.contracts
                 .entry(address.into())
                 .or_insert_with(|| ContractInfo {

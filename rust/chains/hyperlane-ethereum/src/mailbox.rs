@@ -445,7 +445,7 @@ mod test {
             provider.clone(),
             &ContractLocator {
                 // An Arbitrum Nitro chain
-                domain: HyperlaneDomain::Known(KnownHyperlaneDomain::ArbitrumGoerli),
+                domain: &HyperlaneDomain::Known(KnownHyperlaneDomain::ArbitrumGoerli),
                 // Address doesn't matter because we're using a MockProvider
                 address: H256::default(),
             },
