@@ -71,17 +71,12 @@ export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
 
     // 3. upgrade the proxy to the real implementation and initialize
     const owner = await this.multiProvider.getSignerAddress(chain);
-    const initArgs = [
+    const initData = implementation.interface.encodeFunctionData('initialize', [
       config.mailbox,
       config.interchainGasPaymaster,
       config.interchainSecurityModule ?? ethers.constants.AddressZero,
       owner,
-    ];
-    const initData =
-      this.factories.interchainAccountRouter.interface.encodeFunctionData(
-        'initialize',
-        initArgs,
-      );
+    ]);
     await super.upgradeAndInitialize(
       chain,
       proxy,
@@ -90,11 +85,11 @@ export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
     );
     await super.changeAdmin(chain, proxy, proxyAdmin.address);
 
-    const proxiedRouter = implementation.attach(proxy.address);
+    const interchainAccountRouter = implementation.attach(proxy.address);
 
     return {
       proxyAdmin,
-      interchainAccountRouter: proxiedRouter,
+      interchainAccountRouter,
     };
   }
 }

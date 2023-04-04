@@ -17,7 +17,6 @@ import {
   HyperlaneContractsMap,
   HyperlaneFactories,
   connectContractsMap,
-  serializeContractsMap,
 } from '../contracts';
 import { HyperlaneAddressesMap } from '../contracts';
 import { attachContractsMap } from '../contracts';
@@ -49,9 +48,10 @@ export abstract class HyperlaneDeployer<
   Config,
   Factories extends HyperlaneFactories,
 > {
-  protected deployedContracts: HyperlaneContractsMap<Factories> = {};
-  protected startingBlockNumbers: ChainMap<number | undefined> = {};
-  protected verificationInputs: ChainMap<ContractVerificationInput[]> = {};
+  public verificationInputs: ChainMap<ContractVerificationInput[]> = {};
+  public deployedContracts: HyperlaneContractsMap<Factories> = {};
+  public startingBlockNumbers: ChainMap<number | undefined> = {};
+
   protected logger: Debugger;
   protected chainTimeoutMs: number;
 
@@ -71,16 +71,8 @@ export abstract class HyperlaneDeployer<
     );
   }
 
-  cachedContracts(): HyperlaneContractsMap<Factories> {
-    return this.deployedContracts;
-  }
-
   cacheAddresses(partialDeployment: HyperlaneAddressesMap<Factories>): void {
     this.cacheContracts(attachContractsMap(partialDeployment, this.factories));
-  }
-
-  cachedAddresses(): HyperlaneAddressesMap<Factories> {
-    return serializeContractsMap(this.deployedContracts);
   }
 
   abstract deployContracts(
@@ -106,9 +98,12 @@ export abstract class HyperlaneDeployer<
       this.startingBlockNumbers[chain] = await this.multiProvider
         .getProvider(chain)
         .getBlockNumber();
-      await utils.runWithTimeout(this.chainTimeoutMs, () =>
-        this.deployContracts(chain, configMap[chain]),
-      );
+      await utils.runWithTimeout(this.chainTimeoutMs, async () => {
+        this.deployedContracts[chain] = await this.deployContracts(
+          chain,
+          configMap[chain],
+        );
+      });
     }
     return this.deployedContracts;
   }
@@ -117,12 +112,13 @@ export abstract class HyperlaneDeployer<
     chain: ChainName,
     address: string,
     fn: () => Promise<T>,
+    label = 'address',
   ): Promise<T | undefined> {
     const signer = await this.multiProvider.getSignerAddress(chain);
-    if (address === signer) {
+    if (utils.eqAddress(address, signer)) {
       return fn();
     } else {
-      this.logger(`Signer (${signer}) does not match address (${address})`);
+      this.logger(`Signer (${signer}) does not match ${label} (${address})`);
     }
     return undefined;
   }
@@ -132,7 +128,7 @@ export abstract class HyperlaneDeployer<
     ownable: Ownable,
     fn: () => Promise<T>,
   ): Promise<T | undefined> {
-    return this.runIf(chain, await ownable.callStatic.owner(), fn);
+    return this.runIf(chain, await ownable.callStatic.owner(), fn, 'owner');
   }
 
   protected async runIfAdmin<T>(
@@ -156,7 +152,7 @@ export abstract class HyperlaneDeployer<
     } else {
       this.logger(`Admin is an EOA (${admin})`);
       // if admin is an EOA, run the signerAdminFn (if deployer is admin)
-      return this.runIf(chain, admin, () => signerAdminFn());
+      return this.runIf(chain, admin, () => signerAdminFn(), 'admin');
     }
   }
 
@@ -367,7 +363,7 @@ export abstract class HyperlaneDeployer<
           chain,
           proxy.upgradeToAndCall(implementation, initData),
         ),
-      (proxyAdmin) =>
+      (proxyAdmin: ProxyAdmin) =>
         this.multiProvider.handleTx(
           chain,
           proxyAdmin.upgradeAndCall(proxy.address, implementation, initData),
@@ -493,6 +489,22 @@ export abstract class HyperlaneDeployer<
     );
     this.cacheContract(chain, contractName, contract);
     return contract;
+  }
+
+  mergeWithExistingVerificationInputs(
+    existingInputsMap: ChainMap<ContractVerificationInput[]>,
+  ): ChainMap<ContractVerificationInput[]> {
+    const allChains = new Set<ChainName>();
+    Object.keys(existingInputsMap).forEach((_) => allChains.add(_));
+    Object.keys(this.verificationInputs).forEach((_) => allChains.add(_));
+
+    const ret: ChainMap<ContractVerificationInput[]> = {};
+    for (const chain of allChains) {
+      const existingInputs = existingInputsMap[chain] || [];
+      const newInputs = this.verificationInputs[chain] || [];
+      ret[chain] = [...existingInputs, ...newInputs];
+    }
+    return ret;
   }
 
   protected async transferOwnershipOfContracts(

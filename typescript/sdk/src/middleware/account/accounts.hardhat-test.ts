@@ -44,9 +44,6 @@ describe('InterchainAccounts', async () => {
       signer.address,
       coreApp.contractsMap,
     );
-
-    config.test1.interchainSecurityModule =
-      coreApp.getContracts('test1').multisigIsm.address;
   });
 
   beforeEach(async () => {

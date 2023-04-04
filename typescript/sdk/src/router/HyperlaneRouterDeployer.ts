@@ -39,6 +39,7 @@ export abstract class HyperlaneRouterDeployer<
     this.logger(
       `Enrolling deployed routers with each other (if not already)...`,
     );
+
     // Make all routers aware of each other.
     const deployedChains = Object.keys(contractsMap);
     for (const [chain, contracts] of Object.entries(contractsMap)) {
