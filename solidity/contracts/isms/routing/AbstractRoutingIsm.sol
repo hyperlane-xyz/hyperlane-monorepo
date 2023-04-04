@@ -20,7 +20,7 @@ abstract contract AbstractRoutingIsm is IRoutingIsm {
     /**
      * @notice Returns the ISM responsible for verifying _message
      * @dev Can change based on the content of _message
-     * @param _message Hyperlane formatted interchain message
+     * @param _message Formatted Hyperlane message (see Message.sol).
      * @return module The ISM to use to verify _message
      */
     function route(bytes calldata _message)
@@ -32,9 +32,8 @@ abstract contract AbstractRoutingIsm is IRoutingIsm {
     // ============ Public Functions ============
 
     /**
-     * @notice Requires that m-of-n validators verify a merkle root,
-     * and verifies a merkle proof of `_message` against that root.
-     * @param _metadata ABI encoded module metadata (see RoutingIsmMetadata.sol)
+     * @notice Routes _metadata and _message to the correct ISM
+     * @param _metadata ABI encoded module metadata
      * @param _message Formatted Hyperlane message (see Message.sol).
      */
     function verify(bytes calldata _metadata, bytes calldata _message)

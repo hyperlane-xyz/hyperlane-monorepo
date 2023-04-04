@@ -20,6 +20,11 @@ contract InterchainAccountIsm is AbstractRoutingIsm {
 
     // ============ Public Functions ============
 
+    /**
+     * @notice Returns the ISM responsible for verifying _message
+     * @param _message Formatted Hyperlane message (see Message.sol).
+     * @return module The ISM to use to verify _message
+     */
     function route(bytes calldata _message)
         public
         view
