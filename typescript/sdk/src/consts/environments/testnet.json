@@ -7,7 +7,6 @@
     "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
     "defaultIsmInterchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1",
     "multisigIsm": "0x4D06A1671A2a345B14B15cbD50027979A5D1d8C9",
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
     "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
     "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
@@ -20,7 +19,6 @@
     "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
     "defaultIsmInterchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1",
     "multisigIsm": "0xD713Db664509bd057aC2b378F4B65Db468F634A5",
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
     "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
     "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
@@ -33,7 +31,6 @@
     "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
     "defaultIsmInterchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1",
     "multisigIsm": "0xd71f1A64659beC0781b2aa21bc7a72F7290F6Bf3",
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
     "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
     "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
@@ -46,7 +43,6 @@
     "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
     "defaultIsmInterchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1",
     "multisigIsm": "0x34add51924C500b4428067E251168807b3f5faED",
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
     "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
     "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
@@ -59,7 +55,6 @@
     "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
     "defaultIsmInterchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1",
     "multisigIsm": "0x32B34F0D86b275b92e9289d9054Db5Ec32d2CC6C",
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
     "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
     "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
@@ -72,7 +67,6 @@
     "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
     "defaultIsmInterchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1",
     "multisigIsm": "0xec8875C7cE0a814A56654618D366641859F32C7A",
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
     "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
     "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
@@ -85,7 +79,6 @@
     "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
     "defaultIsmInterchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1",
     "multisigIsm": "0x47384E33E67007B7fE4326fb096Bdf9CbA7AB6E4",
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
     "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
     "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
@@ -98,7 +91,6 @@
     "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
     "defaultIsmInterchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1",
     "multisigIsm": "0x47384E33E67007B7fE4326fb096Bdf9CbA7AB6E4",
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
     "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
     "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
@@ -111,7 +103,6 @@
     "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
     "defaultIsmInterchainGasPaymaster": "0xF987d7edcb5890cB321437d8145E3D51131298b6",
     "multisigIsm": "0xD3d062a5dcBA85ae863618d4c264d2358300c283",
-    "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
+    "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
   }
 }

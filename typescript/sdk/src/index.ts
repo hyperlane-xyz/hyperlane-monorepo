@@ -66,11 +66,7 @@ export {
   MultisigIsmViolationType,
 } from './core/types';
 export { HyperlaneAppChecker } from './deploy/HyperlaneAppChecker';
-export {
-  DeployerOptions,
-  DeployOptions,
-  HyperlaneDeployer,
-} from './deploy/HyperlaneDeployer';
+export { DeployerOptions, HyperlaneDeployer } from './deploy/HyperlaneDeployer';
 export {
   CheckerViolation,
   OwnerViolation,

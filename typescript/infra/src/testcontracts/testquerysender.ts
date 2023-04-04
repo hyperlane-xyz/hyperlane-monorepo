@@ -25,19 +25,14 @@ export class TestQuerySenderDeployer extends HyperlaneDeployer<
     super(multiProvider, queryRouters, factories);
   }
   async deployContracts(chain: ChainName, config: TestQuerySenderConfig) {
-    const initCalldata =
-      TestQuerySender__factory.createInterface().encodeFunctionData(
-        'initialize',
-        [
-          config.queryRouterAddress,
-          this.igp.getContracts(chain).interchainGasPaymaster.address,
-        ],
-      );
     const TestQuerySender = await this.deployContract(
       chain,
       'TestQuerySender',
       [],
-      { create2Salt: 'testtest32ss', initCalldata },
+      [
+        config.queryRouterAddress,
+        this.igp.getContracts(chain).interchainGasPaymaster.address,
+      ],
     );
     return {
       TestQuerySender,

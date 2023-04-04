@@ -6,24 +6,22 @@ import sinon from 'sinon';
 import {
   ChainMap,
   CoreConfig,
+  CoreFactories,
   HyperlaneContractsMap,
   HyperlaneCore,
   HyperlaneCoreChecker,
+  HyperlaneCoreDeployer,
   MultiProvider,
   objMap,
   serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
-import { CoreFactories } from '@hyperlane-xyz/sdk/dist/core/contracts';
 
 import { environment as testConfig } from '../config/environments/test';
-import { HyperlaneCoreInfraDeployer } from '../src/core/deploy';
 import { writeJSON } from '../src/utils/utils';
 
 describe('core', async () => {
-  const environment = 'test';
-
   let multiProvider: MultiProvider;
-  let deployer: HyperlaneCoreInfraDeployer;
+  let deployer: HyperlaneCoreDeployer;
   let core: HyperlaneCore;
   let contracts: HyperlaneContractsMap<CoreFactories>;
   let coreConfig: ChainMap<CoreConfig>;
@@ -38,11 +36,7 @@ describe('core', async () => {
   });
 
   it('deploys', async () => {
-    deployer = new HyperlaneCoreInfraDeployer(
-      multiProvider,
-      coreConfig,
-      environment,
-    );
+    deployer = new HyperlaneCoreDeployer(multiProvider, coreConfig);
     contracts = await deployer.deploy();
     core = new HyperlaneCore(contracts, multiProvider);
   });
@@ -56,11 +50,7 @@ describe('core', async () => {
 
   describe('failure modes', async () => {
     beforeEach(async () => {
-      deployer = new HyperlaneCoreInfraDeployer(
-        multiProvider,
-        coreConfig,
-        environment,
-      );
+      deployer = new HyperlaneCoreDeployer(multiProvider, coreConfig);
       const stub = sinon.stub(deployer, 'deployContracts');
       stub.withArgs('test3', sinon.match.any).rejects();
       // @ts-ignore

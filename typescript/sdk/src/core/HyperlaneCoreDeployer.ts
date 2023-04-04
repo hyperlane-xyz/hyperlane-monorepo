@@ -10,7 +10,7 @@ import {
 import { types } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts';
-import { DeployOptions, HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
+import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 import { objMap } from '../utils/objects';
@@ -39,7 +39,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     chain: ChainName,
     defaultIsmAddress: types.Address,
     proxyAdmin: types.Address,
-    deployOpts?: DeployOptions,
   ): Promise<Mailbox> {
     const domain = this.multiProvider.getDomainId(chain);
     const owner = this.configMap[chain].owner;
@@ -50,7 +49,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       [domain],
       [owner, defaultIsmAddress],
       proxyAdmin,
-      deployOpts,
     );
     return mailbox;
   }
@@ -58,13 +56,11 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   async deployValidatorAnnounce(
     chain: ChainName,
     mailboxAddress: string,
-    deployOpts?: DeployOptions,
   ): Promise<ValidatorAnnounce> {
     const validatorAnnounce = await this.deployContract(
       chain,
       'validatorAnnounce',
       [mailboxAddress],
-      deployOpts,
     );
     return validatorAnnounce;
   }
