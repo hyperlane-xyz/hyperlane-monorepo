@@ -4357,6 +4357,8 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-ethereum",
  "hyperlane-test",
+ "num-derive",
+ "num-traits",
  "prometheus",
  "reqwest",
  "serde",
