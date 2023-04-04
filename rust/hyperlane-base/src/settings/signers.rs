@@ -1,12 +1,13 @@
 use async_trait::async_trait;
-use ethers::prelude::AwsSigner;
+use ethers::prelude::{AwsSigner, LocalWallet};
 use eyre::{bail, Context, Report};
-use hyperlane_core::H256;
 use rusoto_core::credential::EnvironmentProvider;
 use rusoto_core::HttpClient;
 use rusoto_kms::KmsClient;
 use serde::Deserialize;
 use tracing::instrument;
+
+use hyperlane_core::H256;
 
 use crate::settings::{declare_deserialize_for_config_struct, EyreOptionExt, KMS_CLIENT};
 
@@ -86,7 +87,12 @@ pub trait BuildableWithSignerConf: Sized {
 impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
         Ok(match conf {
-            SignerConf::HexKey { key } => hyperlane_ethereum::Signers::Local(key.as_ref().parse()?),
+            SignerConf::HexKey { key } => hyperlane_ethereum::Signers::Local(LocalWallet::from(
+                ethers::core::k256::ecdsa::SigningKey::from(
+                    ethers::core::k256::SecretKey::from_be_bytes(key.as_bytes())
+                        .context("Invalid ethereum signer key")?,
+                ),
+            )),
             SignerConf::Aws { id, region } => {
                 let client = KMS_CLIENT.get_or_init(|| {
                     KmsClient::new_with_client(
@@ -111,7 +117,8 @@ impl BuildableWithSignerConf for fuels::prelude::WalletUnlocked {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
         Ok(match conf {
             SignerConf::HexKey { key } => {
-                let key = key.as_ref().parse()?;
+                let key = fuels::signers::fuel_crypto::SecretKey::try_from(key.as_bytes())
+                    .context("Invalid fuel signer key")?;
                 fuels::prelude::WalletUnlocked::new_from_private_key(key, None)
             }
             SignerConf::Aws { .. } => bail!("Aws signer is not supported by fuel"),

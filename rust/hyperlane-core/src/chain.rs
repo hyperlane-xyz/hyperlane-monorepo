@@ -17,11 +17,11 @@ pub struct Address(pub bytes::Bytes);
 pub struct Balance(pub num::BigInt);
 
 #[derive(Debug, Clone)]
-pub struct ContractLocator {
-    pub domain: HyperlaneDomain,
+pub struct ContractLocator<'a> {
+    pub domain: &'a HyperlaneDomain,
     pub address: H256,
 }
-impl Display for ContractLocator {
+impl<'a> Display for ContractLocator<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -270,21 +270,29 @@ impl Debug for HyperlaneDomain {
     }
 }
 
+#[derive(thiserror::Error, Debug)]
+pub enum HyperlaneDomainConfigError {
+    #[error("Domain name (`{0}`) does not match the name of a known domain id; the name is probably misspelled.")]
+    UnknownDomainName(String),
+    #[error("The domain name (`{0}`) implies a different domain than the domain id provided; the domain id ({1}) is probably wrong.")]
+    DomainNameMismatch(String, u32),
+}
+
 impl HyperlaneDomain {
     pub fn from_config(
         domain_id: u32,
         name: &str,
         protocol: HyperlaneDomainProtocol,
-    ) -> Result<Self, &'static str> {
+    ) -> Result<Self, HyperlaneDomainConfigError> {
         let name = name.to_ascii_lowercase();
         if let Ok(domain) = KnownHyperlaneDomain::try_from(domain_id) {
             if name == domain.as_str() {
                 Ok(HyperlaneDomain::Known(domain))
             } else {
-                Err("Chain name does not match the name of a known domain id; the chain name is probably misspelled.")
+                Err(HyperlaneDomainConfigError::UnknownDomainName(name))
             }
         } else if name.as_str().parse::<KnownHyperlaneDomain>().is_ok() {
-            Err("Chain name implies a different domain than the domain id provided; the domain id is probably wrong.")
+            Err(HyperlaneDomainConfigError::DomainNameMismatch(name, domain_id))
         } else {
             Ok(HyperlaneDomain::Unknown {
                 domain_id,

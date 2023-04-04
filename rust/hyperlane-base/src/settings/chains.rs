@@ -1,7 +1,8 @@
 use std::collections::HashMap;
+use std::fmt::{Display, Formatter};
 
 use ethers::prelude::Selector;
-use eyre::{eyre, Context, Result};
+use eyre::{bail, eyre, Context, Result};
 use serde::Deserialize;
 
 use ethers_prometheus::middleware::{
@@ -14,14 +15,12 @@ use hyperlane_core::{
 };
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
+    EthereumValidatorAnnounceAbi,
 };
-use hyperlane_fuel::{self as h_fuel, prelude::*};
+use hyperlane_fuel as h_fuel;
 
 use crate::settings::declare_deserialize_for_config_struct;
-use crate::{
-    declare_deserialize_for_config_struct, settings::signers::BuildableWithSignerConf, CoreMetrics,
-    EyreOptionExt, SignerConf,
-};
+use crate::{settings::signers::BuildableWithSignerConf, CoreMetrics, EyreOptionExt, SignerConf};
 
 /// A connection to _some_ blockchain.
 #[derive(Clone, Debug)]
@@ -60,12 +59,6 @@ impl ChainConnectionConf {
             Self::Ethereum(_) => HyperlaneDomainProtocol::Ethereum,
             Self::Fuel(_) => HyperlaneDomainProtocol::Fuel,
         }
-    }
-}
-
-impl Default for ChainConnectionConf {
-    fn default() -> Self {
-        Self::Ethereum(Default::default())
     }
 }
 
@@ -191,7 +184,7 @@ pub struct ChainConf {
 pub struct RawChainConf {
     name: Option<String>,
     domain: Option<StrOrInt>,
-    signer: Option<SignerConf>,
+    pub(super) signer: Option<SignerConf>,
     finality_blocks: Option<StrOrInt>,
     addresses: Option<RawCoreContractAddresses>,
     #[serde(flatten, default)]
@@ -214,17 +207,28 @@ impl TryFrom<RawChainConf> for ChainConf {
         Ok(Self {
             domain: HyperlaneDomain::from_config(
                 r.domain
-                    .as_deref()
+                    .as_ref()
                     .expect_or_eyre("Missing `domain` chain configuration")?
                     .try_into()
                     .context("Invalid domain id")?,
                 r.name
                     .as_deref()
                     .expect_or_eyre("Missing `name` chain configuration")?,
-                r.connection
+                match r
+                    .connection
                     .expect_or_eyre("Missing `protocol` configuration")?
-                    .protocol(),
+                {
+                    RawChainConnectionConf::Ethereum(_) => HyperlaneDomainProtocol::Ethereum,
+                    RawChainConnectionConf::Fuel(_) => HyperlaneDomainProtocol::Fuel,
+                    RawChainConnectionConf::None => bail!("Unknown `protocol` configuration"),
+                },
             )?,
+            addresses: r
+                .addresses
+                .map(|v| v.try_into())
+                .transpose()
+                .context("Invalid `addresses` chain configuration")?
+                .unwrap_or_default(),
             signer: r.signer,
             finality_blocks: r
                 .finality_blocks
@@ -232,12 +236,6 @@ impl TryFrom<RawChainConf> for ChainConf {
                 .transpose()
                 .context("Invalid `finalityBlocks` chain configuration")?
                 .unwrap_or(0),
-            addresses: r
-                .addresses
-                .map(|v| v.try_into())
-                .transpose()
-                .context("Invalid `addresses` chain configuration")?
-                .unwrap_or_default(),
             connection: r
                 .connection
                 .map(|v| v.try_into())
@@ -245,28 +243,36 @@ impl TryFrom<RawChainConf> for ChainConf {
                 .context("Invalid `connection` chain configuration")?,
             txsubmission: r
                 .txsubmission
-                .map(|v| v.try_into())
+                .map(|v| serde_json::from_str(&v))
                 .transpose()
                 .context("Invalid `txsubmission` chain configuration")?
                 .unwrap_or_default(),
-            metrics_conf: r
-                .metrics_conf
-                .unwrap_or_default()
-                .with_addresses(r.addresses.map(|v| v.try_into()).transpose()?),
             index: r
                 .index
                 .map(|v| v.try_into())
                 .transpose()
                 .context("Invalid `index` chain configuration")?
                 .unwrap_or_default(),
+            metrics_conf: r.metrics_conf.unwrap_or_default(),
         })
+    }
+}
+
+impl Display for RawChainConf {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} (", self.name.as_deref().unwrap_or("<unknown>"))?;
+        match &self.domain {
+            Some(StrOrInt::Str(s)) => write!(f, "{s})"),
+            Some(StrOrInt::Int(i)) => write!(f, "{i})"),
+            None => write!(f, "<unknown>)"),
+        }
     }
 }
 
 impl ChainConf {
     /// Get the chain connection config or generate an error
     pub fn connection(&self) -> Result<&ChainConnectionConf> {
-        self.connection.as_ref().ok_or_else(|| eyre!("Missing chain configuration for {}; this includes protocol and connection information", self.name))
+        self.connection.as_ref().ok_or_else(|| eyre!("Missing chain configuration for {}; this includes protocol and connection information", self.domain.name()))
     }
 
     /// Try to convert the chain settings into an HyperlaneProvider.
@@ -277,9 +283,7 @@ impl ChainConf {
         let ctx = "Building provider";
         match &self.connection()? {
             ChainConnectionConf::Ethereum(conf) => {
-                let locator = self
-                    .locator("0x0000000000000000000000000000000000000000")
-                    .context(ctx)?;
+                let locator = self.locator(H256::zero());
                 self.build_ethereum(conf, &locator, metrics, h_eth::HyperlaneProviderBuilder {})
                     .await
             }
@@ -292,7 +296,7 @@ impl ChainConf {
     /// Try to convert the chain setting into a Mailbox contract
     pub async fn build_mailbox(&self, metrics: &CoreMetrics) -> Result<Box<dyn Mailbox>> {
         let ctx = "Building provider";
-        let locator = self.locator(&self.addresses.mailbox).context(ctx)?;
+        let locator = self.locator(self.addresses.mailbox);
 
         match &self.connection()? {
             ChainConnectionConf::Ethereum(conf) => {
@@ -316,7 +320,7 @@ impl ChainConf {
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn MailboxIndexer>> {
         let ctx = "Building mailbox indexer";
-        let locator = self.locator(&self.addresses.mailbox).context(ctx)?;
+        let locator = self.locator(self.addresses.mailbox);
 
         match &self.connection()? {
             ChainConnectionConf::Ethereum(conf) => {
@@ -325,7 +329,7 @@ impl ChainConf {
                     &locator,
                     metrics,
                     h_eth::MailboxIndexerBuilder {
-                        finality_blocks: self.finality_blocks(),
+                        finality_blocks: self.finality_blocks,
                     },
                 )
                 .await
@@ -344,8 +348,7 @@ impl ChainConf {
     ) -> Result<Box<dyn InterchainGasPaymaster>> {
         let ctx = "Building IGP";
         let locator = self
-            .locator(&self.addresses.interchain_gas_paymaster)
-            .context(ctx)?;
+            .locator(self.addresses.interchain_gas_paymaster);
 
         match &self.connection()? {
             ChainConnectionConf::Ethereum(conf) => {
@@ -370,8 +373,7 @@ impl ChainConf {
     ) -> Result<Box<dyn InterchainGasPaymasterIndexer>> {
         let ctx = "Building IGP indexer";
         let locator = self
-            .locator(&self.addresses.interchain_gas_paymaster)
-            .context(ctx)?;
+            .locator(self.addresses.interchain_gas_paymaster);
 
         match &self.connection()? {
             ChainConnectionConf::Ethereum(conf) => {
@@ -380,13 +382,8 @@ impl ChainConf {
                     &locator,
                     metrics,
                     h_eth::InterchainGasPaymasterIndexerBuilder {
-                        mailbox_address: self
-                            .addresses
-                            .mailbox
-                            .parse()
-                            .context("Parsing mailbox address")
-                            .context(ctx)?,
-                        finality_blocks: self.finality_blocks(),
+                        mailbox_address: self.addresses.mailbox.into(),
+                        finality_blocks: self.finality_blocks,
                     },
                 )
                 .await
@@ -402,7 +399,7 @@ impl ChainConf {
         &self,
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn ValidatorAnnounce>> {
-        let locator = self.locator(&self.addresses.validator_announce)?;
+        let locator = self.locator(self.addresses.validator_announce);
         match &self.connection()? {
             ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(conf, &locator, metrics, h_eth::ValidatorAnnounceBuilder {})
@@ -421,13 +418,7 @@ impl ChainConf {
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn MultisigIsm>> {
         let ctx = "Building multisig ISM";
-        let locator = ContractLocator {
-            domain: self
-                .domain()
-                .context("Invalid domain for locating contract")
-                .context(ctx)?,
-            address,
-        };
+        let locator = self.locator(address);
 
         match &self.connection()? {
             ChainConnectionConf::Ethereum(conf) => {
@@ -438,23 +429,6 @@ impl ChainConf {
             ChainConnectionConf::Fuel(_) => todo!(),
         }
         .context(ctx)
-    }
-
-    /// Get the domain for this chain setup
-    pub fn domain(&self) -> Result<HyperlaneDomain> {
-        HyperlaneDomain::from_config(
-            (&self.domain).try_into().context("Invalid domain id")?,
-            &self.name,
-            self.connection()?.protocol(),
-        )
-        .map_err(|e| eyre!("{e}"))
-    }
-
-    /// Get the number of blocks until finality
-    fn finality_blocks(&self) -> u32 {
-        (&self.finality_blocks)
-            .try_into()
-            .expect("could not parse finality_blocks")
     }
 
     async fn signer<S: BuildableWithSignerConf>(&self) -> Result<Option<S>> {
@@ -486,7 +460,7 @@ impl ChainConf {
 
         if cfg.chain.is_none() {
             cfg.chain = Some(ChainInfo {
-                name: Some(self.name.clone()),
+                name: Some(self.domain.name().into()),
             });
         }
 
@@ -498,38 +472,45 @@ impl ChainConf {
                 });
         }
 
-        let functions = |m: HashMap<Vec<u8>, String>| {
-            m.into_iter()
-                .map(|s| (Selector::try_from(s.0).unwrap(), s.1))
-                .collect()
+        let register_contract = |name: &str, address: H256, fns: HashMap<Vec<u8>, String>| {
+            cfg.contracts
+                .entry(address.into())
+                .or_insert_with(|| ContractInfo {
+                    name: Some(name.into()),
+                    functions: fns
+                        .into_iter()
+                        .map(|s| (Selector::try_from(s.0).unwrap(), s.1))
+                        .collect(),
+                });
         };
 
-        if let Ok(addr) = self.addresses.mailbox.parse() {
-            cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
-                name: Some("mailbox".into()),
-                functions: functions(EthereumMailboxAbi::fn_map_owned()),
-            });
-        }
-        if let Ok(addr) = self.addresses.interchain_gas_paymaster.parse() {
-            cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
-                name: Some("igp".into()),
-                functions: functions(EthereumInterchainGasPaymasterAbi::fn_map_owned()),
-            });
-        }
+        register_contract(
+            "mailbox",
+            self.addresses.mailbox,
+            EthereumMailboxAbi::fn_map_owned(),
+        );
+        register_contract(
+            "va",
+            self.addresses.validator_announce,
+            EthereumValidatorAnnounceAbi::fn_map_owned(),
+        );
+        register_contract(
+            "igp",
+            self.addresses.interchain_gas_paymaster,
+            EthereumInterchainGasPaymasterAbi::fn_map_owned(),
+        );
+
         cfg
     }
 
-    fn locator(&self, address: H256) -> Result<ContractLocator> {
-        let domain = self
-            .domain()
-            .context("Invalid domain for locating contract")?;
-        Ok(ContractLocator { domain, address })
+    fn locator(&self, address: H256) -> ContractLocator {
+        ContractLocator { domain: &self.domain, address }
     }
 
     async fn build_ethereum<B>(
         &self,
         conf: &h_eth::ConnectionConf,
-        locator: &ContractLocator,
+        locator: &ContractLocator<'_>,
         metrics: &CoreMetrics,
         builder: B,
     ) -> Result<B::Output>

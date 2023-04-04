@@ -82,7 +82,8 @@ pub enum ConnectionConf {
     },
 }
 
-/// Raw ethereum connection configuration used for better deserialization errors.
+/// Raw ethereum connection configuration used for better deserialization
+/// errors.
 #[derive(Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum RawConnectionConf {
@@ -91,8 +92,6 @@ pub enum RawConnectionConf {
     Http { url: Option<String> },
     Ws { url: Option<String> },
 }
-
-hyperlane_base::declare_deserialize_for_config_struct!(ConnectionConf);
 
 /// Error type when parsing a connection configuration.
 #[derive(Debug, thiserror::Error)]
@@ -107,6 +106,10 @@ pub enum ConnectionConfError {
     InvalidConnectionUrl(String, url::ParseError),
     #[error("Invalid `urls` list for connection configuration: `{0}` ({1})")]
     InvalidConnectionUrls(String, url::ParseError),
+    #[error("The `url` value is empty")]
+    EmptyUrl,
+    #[error("The `urls` value is empty")]
+    EmptyUrls,
 }
 
 impl TryFrom<RawConnectionConf> for ConnectionConf {
@@ -116,6 +119,14 @@ impl TryFrom<RawConnectionConf> for ConnectionConf {
         use ConnectionConfError::*;
         use RawConnectionConf::*;
         match r {
+            HttpQuorum { urls: None } | HttpFallback { urls: None } => Err(MissingConnectionUrls),
+            HttpQuorum { urls: Some(urls) } | HttpFallback { urls: Some(urls) }
+                if urls.is_empty() =>
+            {
+                Err(EmptyUrls)
+            }
+            Http { url: None } | Ws { url: None } => Err(MissingConnectionUrl),
+            Http { url: Some(url) } | Ws { url: Some(url) } if url.is_empty() => Err(EmptyUrl),
             HttpQuorum { urls: Some(urls) } => Ok(Self::HttpQuorum {
                 urls: urls
                     .split(',')
@@ -136,8 +147,6 @@ impl TryFrom<RawConnectionConf> for ConnectionConf {
             Ws { url: Some(url) } => Ok(Self::Ws {
                 url: url.parse().map_err(|e| InvalidConnectionUrl(url, e))?,
             }),
-            HttpQuorum { urls: None } | HttpFallback { urls: None } => Err(MissingConnectionUrls),
-            Http { url: None } | Ws { url: None } => Err(MissingConnectionUrl),
         }
     }
 }

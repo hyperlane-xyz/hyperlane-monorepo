@@ -207,9 +207,13 @@ impl TryFrom<RawSettings> for Settings {
                     }
                 }
                 chains
+                    .into_iter()
+                    .map(|(k, v)| Ok((k, v.try_into()?)))
+                    .collect::<Result<_, Self::Error>>()?
             } else {
                 Default::default()
             },
+            tracing: r.tracing.unwrap_or_default(),
             metrics: r
                 .metrics
                 .map(|port| {
@@ -217,7 +221,6 @@ impl TryFrom<RawSettings> for Settings {
                         .context("Invalid metrics port; `metrics` must be a valid u16")
                 })
                 .transpose()?,
-            tracing: r.tracing.unwrap_or_default(),
         })
     }
 }
