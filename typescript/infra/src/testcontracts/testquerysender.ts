@@ -1,6 +1,5 @@
 import { TestQuerySender__factory } from '@hyperlane-xyz/core';
 import {
-  ChainMap,
   ChainName,
   HyperlaneDeployer,
   HyperlaneIgp,
@@ -17,12 +16,8 @@ export class TestQuerySenderDeployer extends HyperlaneDeployer<
   TestQuerySenderConfig,
   typeof factories
 > {
-  constructor(
-    multiProvider: MultiProvider,
-    queryRouters: ChainMap<TestQuerySenderConfig>,
-    protected igp: HyperlaneIgp,
-  ) {
-    super(multiProvider, queryRouters, factories);
+  constructor(multiProvider: MultiProvider, protected igp: HyperlaneIgp) {
+    super(multiProvider, factories);
   }
   async deployContracts(chain: ChainName, config: TestQuerySenderConfig) {
     const initCalldata =

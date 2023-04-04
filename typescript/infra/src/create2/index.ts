@@ -19,11 +19,7 @@ export class Create2FactoryDeployer extends HyperlaneDeployer<
   typeof factories
 > {
   constructor(multiProvider: MultiProvider) {
-    super(
-      multiProvider,
-      multiProvider.mapKnownChains(() => ({})),
-      factories,
-    );
+    super(multiProvider, factories);
   }
   async deployContracts(chain: ChainName) {
     const provider = this.multiProvider.getProvider(chain);

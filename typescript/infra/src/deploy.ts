@@ -5,9 +5,7 @@ import {
   HyperlaneAgentAddresses,
   HyperlaneDeployer,
   MultiProvider,
-  attachContractsMap,
   buildAgentConfig,
-  filterAddressesMap,
   objMap,
   promiseObjAll,
   serializeContractsMap,
@@ -52,8 +50,9 @@ export async function writeAgentConfig(
   writeJSON(getAgentConfigDirectory(), `${sdkEnv}_config.json`, agentConfig);
 }
 
-export async function deployWithArtifacts(
-  deployer: HyperlaneDeployer<any, any>,
+export async function deployWithArtifacts<Config>(
+  configMap: ChainMap<Config>,
+  deployer: HyperlaneDeployer<Config, any>,
   cache: {
     addresses: string;
     verification: string;
@@ -75,22 +74,14 @@ export async function deployWithArtifacts(
       console.error('Failed to load cached addresses');
     }
 
-    const filteredAddressesMap = filterAddressesMap(
-      addresses,
-      deployer.factories,
-    );
-    const attachedContractsMap = attachContractsMap(
-      filteredAddressesMap,
-      deployer.factories,
-    );
-    deployer.cacheContracts(attachedContractsMap);
+    deployer.cacheAddresses(addresses);
   }
 
   try {
     if (fork) {
-      await deployer.deployContracts(fork, deployer.configMap[fork]);
+      await deployer.deployContracts(fork, configMap[fork]);
     } else {
-      await deployer.deploy();
+      await deployer.deploy(configMap);
     }
   } catch (e) {
     console.error('Failed to deploy contracts', e);

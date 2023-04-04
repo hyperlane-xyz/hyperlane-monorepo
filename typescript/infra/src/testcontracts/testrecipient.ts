@@ -18,12 +18,9 @@ export class TestRecipientDeployer extends HyperlaneDeployer<
   typeof factories
 > {
   constructor(multiProvider: MultiProvider) {
-    super(
-      multiProvider,
-      multiProvider.mapKnownChains(() => ({})),
-      factories,
-    );
+    super(multiProvider, factories);
   }
+
   async deployContracts(chain: ChainName) {
     const deployer = await this.multiProvider.getSignerAddress(chain);
     const TestRecipient = await this.deployContract(
