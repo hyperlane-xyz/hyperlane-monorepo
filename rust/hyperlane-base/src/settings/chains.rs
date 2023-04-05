@@ -1,9 +1,7 @@
 use std::collections::HashMap;
-use std::fmt::Display;
 
 use ethers::prelude::Selector;
 use eyre::{eyre, Context, Result};
-use futures_util::FutureExt;
 use serde::Deserialize;
 
 use ethers_prometheus::middleware::{
@@ -54,18 +52,6 @@ impl FromRawConf<'_, RawChainConnectionConf> for ChainConnectionConf {
                 cwp.join("protocol"),
                 eyre!("Unknown chain protocol"),
             )),
-        }
-    }
-}
-
-impl TryFrom<RawChainConnectionConf> for ChainConnectionConf {
-    type Error = eyre::Report;
-
-    fn try_from(r: RawChainConnectionConf) -> Result<Self, Self::Error> {
-        match r {
-            RawChainConnectionConf::Ethereum(r) => Ok(Self::Ethereum(r.try_into()?)),
-            RawChainConnectionConf::Fuel(r) => Ok(Self::Fuel(r.try_into()?)),
-            RawChainConnectionConf::Unknown => Err(eyre!("Unknown chain protocol")),
         }
     }
 }
@@ -219,10 +205,9 @@ impl FromRawConf<'_, RawChainConf> for ChainConf {
 
         let connection = raw
             .connection
-            .parse_config(&cwp)
-            .merge_config_err_then_none(&mut err);
+            .and_then(|r| r.parse_config(&cwp).merge_config_err_then_none(&mut err));
 
-        let domain = connection.as_ref().and_then(|c| {
+        let domain = connection.as_ref().and_then(|c: &ChainConnectionConf| {
             let protocol = c.protocol();
             let domain_id = raw
                 .domain
@@ -245,12 +230,12 @@ impl FromRawConf<'_, RawChainConf> for ChainConf {
         });
 
         let addresses = raw.addresses.and_then(|v| {
-            v.from_config(&cwp.join("addresses"))
+            v.parse_config(&cwp.join("addresses"))
                 .merge_config_err_then_none(&mut err)
         });
 
         let signer = raw.signer.and_then(|v| -> Option<SignerConf> {
-            v.from_config(&cwp.join("signer"))
+            v.parse_config(&cwp.join("signer"))
                 .merge_config_err_then_none(&mut err)
         });
 
