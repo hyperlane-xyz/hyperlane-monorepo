@@ -33,7 +33,7 @@ async function relayPortalTransfers() {
     bridgeAdapterConfigs,
   );
 
-  while (true) {
+  const tick = async () => {
     for (const chain of Object.keys(bridgeAdapterConfigs)) {
       log('Processing chain', {
         chain,
@@ -62,6 +62,16 @@ async function relayPortalTransfers() {
         }
       }
       await sleep(10000);
+    }
+  };
+
+  while (true) {
+    try {
+      await tick();
+    } catch (err) {
+      error('Error processing chains in tick', {
+        err,
+      });
     }
   }
 }

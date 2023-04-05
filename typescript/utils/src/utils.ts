@@ -126,6 +126,10 @@ export const formatLegacyMultisigIsmMetadata = (
   );
 };
 
+/**
+ * JS Implementation of solidity/contracts/libs/Message.sol#formatMessage
+ * @returns Hex string of the packed message
+ */
 export const formatMessage = (
   version: number | BigNumber,
   nonce: number | BigNumber,
@@ -134,7 +138,7 @@ export const formatMessage = (
   destinationDomain: Domain,
   recipientAddr: Address,
   body: HexString,
-): string => {
+): HexString => {
   senderAddr = addressToBytes32(senderAddr);
   recipientAddr = addressToBytes32(recipientAddr);
 
@@ -152,7 +156,12 @@ export const formatMessage = (
   );
 };
 
-export function messageId(message: HexString): string {
+/**
+ * Get ID given message bytes
+ * @param message Hex string of the packed message (see formatMessage)
+ * @returns Hex string of message id
+ */
+export function messageId(message: HexString): HexString {
   return ethers.utils.solidityKeccak256(['bytes'], [message]);
 }
 

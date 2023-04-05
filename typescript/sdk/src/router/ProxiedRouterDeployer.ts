@@ -45,9 +45,9 @@ export abstract class ProxiedRouterDeployer<
     const proxiedRouter = await this.deployProxiedContract(
       chain,
       this.routerContractName,
+      proxyAdmin.address,
       await this.constructorArgs(chain, config),
       await this.initializeArgs(chain, config),
-      proxyAdmin.address,
     );
 
     this.logger(`Transferring ownership of proxy admin to ${config.owner}`);

@@ -14,7 +14,6 @@ import {
 
 import { bridgeAdapterConfigs } from '../config/environments/test/liquidityLayer';
 import { deployEnvToSdkEnv } from '../src/config/environment';
-import { Create2FactoryDeployer } from '../src/create2';
 import { deployWithArtifacts } from '../src/deploy';
 import { TestQuerySenderDeployer } from '../src/testcontracts/testquerysender';
 import { TestRecipientDeployer } from '../src/testcontracts/testrecipient';
@@ -69,8 +68,7 @@ async function main() {
       ...conf,
       ...routerConfig[chain],
     }));
-  } else if (module === Modules.CREATE2_FACTORY) {
-    deployer = new Create2FactoryDeployer(multiProvider);
+    deployer = new LiquidityLayerDeployer(multiProvider);
   } else if (module === Modules.TEST_RECIPIENT) {
     deployer = new TestRecipientDeployer(multiProvider);
   } else if (module === Modules.TEST_QUERY_SENDER) {
@@ -110,13 +108,15 @@ async function main() {
     read: environment !== 'test',
     write: true,
   };
-  const agentConfig = ['core', 'igp'].includes(module)
-    ? {
-        addresses,
-        environment,
-        multiProvider,
-      }
-    : undefined;
+  // Don't write agent config in fork tests
+  const agentConfig =
+    ['core', 'igp'].includes(module) && !fork
+      ? {
+          addresses,
+          environment,
+          multiProvider,
+        }
+      : undefined;
 
   await deployWithArtifacts(config, deployer, cache, fork, agentConfig);
 }

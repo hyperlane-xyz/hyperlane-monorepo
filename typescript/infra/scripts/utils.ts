@@ -41,7 +41,6 @@ export enum Modules {
   INTERCHAIN_GAS_PAYMASTER = 'igp',
   INTERCHAIN_ACCOUNTS = 'ica',
   INTERCHAIN_QUERY_SYSTEM = 'iqs',
-  CREATE2_FACTORY = 'create2',
   LIQUIDITY_LAYER = 'll',
   TEST_QUERY_SENDER = 'testquerysender',
   TEST_RECIPIENT = 'testrecipient',

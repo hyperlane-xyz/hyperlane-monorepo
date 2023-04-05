@@ -2,10 +2,8 @@ import { ethers } from 'ethers';
 
 import {
   CircleBridgeAdapter,
-  CircleBridgeAdapter__factory,
   LiquidityLayerRouter,
   PortalAdapter,
-  PortalAdapter__factory,
 } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
@@ -152,23 +150,16 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
     owner: string,
     router: LiquidityLayerRouter,
   ): Promise<PortalAdapter> {
-    const initCalldata =
-      PortalAdapter__factory.createInterface().encodeFunctionData(
-        'initialize',
-        [
-          this.multiProvider.getDomainId(chain),
-          owner,
-          adapterConfig.portalBridgeAddress,
-          router.address,
-        ],
-      );
     const portalAdapter = await this.deployContract(
       chain,
       'portalAdapter',
       [],
-      {
-        initCalldata,
-      },
+      [
+        this.multiProvider.getDomainId(chain),
+        owner,
+        adapterConfig.portalBridgeAddress,
+        router.address,
+      ],
     );
 
     for (const {
@@ -213,23 +204,16 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
     owner: string,
     router: LiquidityLayerRouter,
   ): Promise<CircleBridgeAdapter> {
-    const initCalldata =
-      CircleBridgeAdapter__factory.createInterface().encodeFunctionData(
-        'initialize',
-        [
-          owner,
-          adapterConfig.tokenMessengerAddress,
-          adapterConfig.messageTransmitterAddress,
-          router.address,
-        ],
-      );
     const circleBridgeAdapter = await this.deployContract(
       chain,
       'circleBridgeAdapter',
       [],
-      {
-        initCalldata,
-      },
+      [
+        owner,
+        adapterConfig.tokenMessengerAddress,
+        adapterConfig.messageTransmitterAddress,
+        router.address,
+      ],
     );
 
     if (
