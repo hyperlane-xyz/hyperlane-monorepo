@@ -71,7 +71,6 @@
 
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::Deref;
-use std::path::Path;
 use std::rc::Rc;
 
 use eyre::{eyre, Context, Report};
@@ -165,8 +164,30 @@ impl ConfigPath {
 pub struct ParsingError(Vec<(ConfigPath, Report)>);
 
 impl ParsingError {
-    fn report(&mut self, conf_path: ConfigPath, report: Report) {
+    pub fn new(path: ConfigPath, report: impl Into<Report>) -> Self {
+        Self(vec![(path, report.into())])
+    }
+
+    pub fn from_report(conf_path: ConfigPath, report: Report) -> Self {
+        Self( vec![(conf_path, report)] )
+    }
+
+    pub fn push(&mut self, conf_path: ConfigPath, report: Report) {
         self.0.push((conf_path, report));
+    }
+
+    pub fn merge(&mut self, other: Self) {
+        self.0.extend(other.0);
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl FromIterator<ParsingError> for ParsingError {
+    fn from_iter<T: IntoIterator<Item=ParsingError>>(iter: T) -> Self {
+        Self(iter.into_iter().flat_map(|e| e.0).collect())
     }
 }
 
@@ -186,15 +207,13 @@ pub trait FromRawConf<'de, T>: Sized
 where
     T: Debug + Deserialize<'de>,
 {
-    fn from_config(raw: T, cwp: &Path) -> Result<Self, ParsingError>;
-    fn path_as_env(config_path: &Path) -> String;
-    fn path_as_json_path(config_path: &Path) -> String;
+    fn from_config(raw: T, cwp: &ConfigPath) -> Result<Self, ParsingError>;
 }
 
 pub trait IntoParsedConf<'de>: Debug + Deserialize<'de> {
     type Output: Sized;
 
-    fn parse_config(self, cwp: &Path) -> Result<Self::Output, ParsingError>;
+    fn parse_config(self, cwp: &ConfigPath) -> Result<Self::Output, ParsingError>;
 }
 
 impl<'de, T> IntoParsedConf<'de> for T
@@ -203,7 +222,74 @@ where
 {
     type Output = T;
 
-    fn parse_config(self, cwp: &Path) -> Result<Self::Output, ParsingError> {
+    fn parse_config(self, cwp: &ConfigPath) -> Result<Self::Output, ParsingError> {
         T::from_config(self, cwp)
     }
 }
+
+#[macro_export]
+macro_rules! merge_parse_res {
+    ($err:ident, Some $expr:expr) => {
+        merge_parse_res!($err, $expr.map(|v| Some(v)))
+    };
+    ($err:ident, $expr:expr) => {
+        $expr.unwrap_or_else(|e| {
+            $err.merge(e);
+            None
+        })
+    };
+}
+
+// #[macro_export]
+// macro_rules! declare_config_struct {
+//     {$(#[$struct_attrib:meta])* $(#r[$raw_struct_attrib:meta])* $struct_vis:vis struct $struct_name:ident {
+//         $($(#[$field_attrib:meta])* $field_vis:vis $field_name:ident: $field_type:ty =
+//             {$($(#[$raw_attrib:meta])* $raw_vis:vis $raw_name:ident: $raw_type:ty),+$(,)?}),*$(,)?
+//     }} => {paste::paste!{
+//         $(#[$struct_attrib])*
+//         $struct_vis struct $struct_name {
+//             $($(#[$field_attrib])* $field_vis $field_name: $field_type),*
+//         }
+//
+//         $(#[$raw_struct_attrib])*
+//         #[derive(Debug, Deserialize)]
+//         #[serde(rename_all = "camelCase")]
+//         $struct_vis struct [< Raw $struct_name >] {
+//             $($(
+//                 $(#[$raw_attrib])* $raw_vis $raw_name: $raw_type,
+//             )*)*
+//         }
+//
+//         static_assertions::assert_impl_all!($struct_name: $crate::FromRawConf<[< Raw $struct_name >]>);
+//
+//         // impl<'de> FromRawConf<'de, [< Raw $struct_name >]> for $struct_name {
+//         //     fn from_config(__raw: [< Raw $struct_name >], cwp: &ConfigPath) -> Result<Self, ParsingError> {
+//         //         let mut __err = ParsingError::default();
+//         //
+//         //         // parse each of the fields
+//         //         $(let $field_name: Result<$field_type, ParsingError> = {
+//         //             // set values expected by the parse code
+//         //             $(let $raw_name: $raw_type = __raw.$raw_name;)*
+//         //             // use closure to capture any error unwrapping as a result instead of returning
+//         //             (|| $parse)()
+//         //         };)*
+//         //
+//         //         // merge errors for each of the fields
+//         //         $(
+//         //             if let Err(e) = $field_name {
+//         //                 __err.merge(e);
+//         //             }
+//         //         )*
+//         //
+//         //         // report the results
+//         //         if __err.is_empty() {
+//         //             Ok(Self {$(
+//         //                 $field_name: $field_name.unwrap(),
+//         //             )*})
+//         //         } else {
+//         //             Err(__err)
+//         //         }
+//         //     }
+//         // }
+//     }};
+// }

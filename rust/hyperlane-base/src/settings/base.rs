@@ -2,6 +2,8 @@ use std::fmt::{Debug, Display};
 use std::{collections::HashMap, sync::Arc};
 
 use eyre::{eyre, Context};
+use futures_util::StreamExt;
+use itertools::Itertools;
 use serde::Deserialize;
 
 use hyperlane_core::utils::StrOrInt;
@@ -11,9 +13,12 @@ use hyperlane_core::{
     InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm, ValidatorAnnounce, H256,
 };
 
+use crate::chains::RawChainConf;
 use crate::{
+    declare_config_struct,
     settings::{chains::ChainConf, signers::SignerConf, trace::TracingConfig},
-    CachingInterchainGasPaymaster,
+    CachingInterchainGasPaymaster, ConfigPath, FromRawConf, IntoParsedConf, ParsingError,
+    RawSignerConf,
 };
 use crate::{CachingMailbox, CoreMetrics, HyperlaneAgentCore};
 
@@ -54,50 +59,66 @@ pub struct Settings {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RawSettings {
-    chains: Option<HashMap<String, chains::RawChainConf>>,
-    defaultsigner: Option<signers::RawSignerConf>,
+    chains: Option<HashMap<String, RawChainConf>>,
+    defaultsigner: Option<RawSignerConf>,
     metrics: Option<StrOrInt>,
     tracing: Option<TracingConfig>,
 }
 
-impl TryFrom<RawSettings> for Settings {
-    type Error = eyre::Report;
-
-    fn try_from(r: RawSettings) -> Result<Self, Self::Error> {
-        Ok(Self {
-            chains: if let Some(mut chains) = r.chains {
-                let default_signer: Option<SignerConf> = r
-                    .defaultsigner
-                    .map(|default_signer| {
-                        default_signer
-                            .try_into()
-                            .context("Invalid `defaultsigner` configuration")
-                    })
-                    .transpose()?;
-                chains
-                    .into_iter()
-                    .map(|(k, v)| {
-                        let mut parsed: ChainConf = v
-                            .try_into()
-                            .with_context(|| format!("When parsing chain `{k}` config"))?;
-                        if let Some(default_signer) = &default_signer {
-                            parsed.signer.get_or_insert_with(|| default_signer.clone());
-                        }
-                        Ok((k, parsed))
-                    })
-                    .collect::<eyre::Result<_>>()?
-            } else {
-                Default::default()
-            },
-            tracing: r.tracing.unwrap_or_default(),
-            metrics: r
-                .metrics
-                .map(|port| {
-                    port.try_into()
-                        .context("Invalid metrics port; `metrics` must be a valid u16")
+impl FromRawConf<'_, RawSettings> for Settings {
+    fn from_config(raw: RawSettings, cwp: &ConfigPath) -> Result<Self, ParsingError> {
+        let mut err = ParsingError::default();
+        let chains: HashMap<String, ChainConf> = if let Some(mut chains) = raw.chains {
+            let default_signer: Option<SignerConf> = raw
+                .defaultsigner
+                .map(|r| r.parse_config(cwp.join("defaultsigner")))
+                .transpose()
+                .unwrap_or_else(|e| {
+                    err.merge(e);
+                    None
+                });
+            chains
+                .into_iter()
+                .map(|(k, v)| {
+                    let mut parsed: ChainConf = v.parse_config(cwp.join(&k))?;
+                    if let Some(default_signer) = &default_signer {
+                        parsed.signer.get_or_insert_with(|| default_signer.clone());
+                    }
+                    Ok((k, parsed))
                 })
-                .transpose()?,
-        })
+                .filter_map(|res| match res {
+                    Ok((k, v)) => Some((k, v)),
+                    Err(e) => {
+                        err.merge(e);
+                        None
+                    }
+                })
+                .collect()
+        } else {
+            Default::default()
+        };
+        let tracing = raw.tracing.unwrap_or_default();
+        let metrics: Option<u16> = raw
+            .metrics
+            .map(|port| port.try_into())
+            .transpose()
+            .unwrap_or_else(|e| {
+                err.merge(ParsingError::new(
+                    cwp.join("metrics"),
+                    e.context("Invalid metrics port"),
+                ));
+                None
+            });
+
+        if err.is_empty() {
+            Ok(Self {
+                chains,
+                metrics,
+                tracing,
+            })
+        } else {
+            Err(err)
+        }
     }
 }
 
