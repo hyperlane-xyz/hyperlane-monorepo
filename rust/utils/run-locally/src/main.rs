@@ -242,6 +242,16 @@ fn main() -> ExitCode {
         .success();
     assert!(status, "Failed to deploy ism contracts");
 
+    println!("Rebuilding sdk...");
+    let status = Command::new("yarn")
+        .arg("build")
+        .current_dir("../typescript/sdk")
+        .stdout(Stdio::null())
+        .status()
+        .expect("Failed to rebuild sdk")
+        .success();
+    assert!(status, "Failed to rebuild sdk");
+    
     println!("Deploying hyperlane core contracts...");
     let status = Command::new("yarn")
         .arg("deploy-core")
