@@ -9,8 +9,7 @@ use tracing::instrument;
 
 use hyperlane_core::{config::*, H256};
 
-use crate::settings::{ConfigOptionExt, KMS_CLIENT};
-use crate::{ConfigErrResultExt, ConfigParsingError, ConfigPath, ConfigResult, FromRawConf};
+use crate::settings::KMS_CLIENT;
 
 /// Signer types
 #[derive(Default, Debug, Clone)]
@@ -51,8 +50,8 @@ pub enum RawSignerConf {
 impl FromRawConf<'_, RawSignerConf> for SignerConf {
     fn from_config(raw: RawSignerConf, cwp: &ConfigPath) -> ConfigResult<Self> {
         use RawSignerConf::*;
-        let key_path = || cwp.join("key");
-        let region_path = || cwp.join("region");
+        let key_path = || cwp + "key";
+        let region_path = || cwp + "region";
         match raw {
             HexKey { key } => Ok(Self::HexKey {
                 key: key
@@ -64,7 +63,7 @@ impl FromRawConf<'_, RawSignerConf> for SignerConf {
             }),
             Aws { id, region } => Ok(Self::Aws {
                 id: id.expect_or_parsing_error(|| {
-                    (cwp.join("id"), eyre!("Missing `id` for Aws signer"))
+                    (cwp + "id", eyre!("Missing `id` for Aws signer"))
                 })?,
                 region: region
                     .expect_or_parsing_error(|| {
@@ -75,7 +74,7 @@ impl FromRawConf<'_, RawSignerConf> for SignerConf {
             }),
             Node => Ok(Self::Node),
             Unknown => Err(ConfigParsingError::new(
-                cwp.join("type"),
+                cwp + "type",
                 eyre!("Unknown signer type"),
             )),
         }

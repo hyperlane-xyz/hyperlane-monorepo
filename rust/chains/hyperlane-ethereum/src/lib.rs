@@ -10,7 +10,7 @@ use ethers::prelude::{abi, BlockId, BlockNumber, Http, Lazy, Middleware, NameOrA
 use serde::Deserialize;
 use url::Url;
 
-use hyperlane_core::{config::*, Address, Balance, ChainCommunicationError, ChainResult};
+use hyperlane_core::{config::*, Address, Balance, ChainCommunicationError, ChainResult, H160};
 pub use retrying::{RetryingProvider, RetryingProviderError};
 
 #[cfg(not(doctest))]

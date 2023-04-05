@@ -101,7 +101,7 @@ impl FromRawConf<'_, RawSettings> for Settings {
             .map(|port| port.try_into())
             .transpose()
             .context("Invalid metrics port")
-            .merge_err_then_none(&mut err, || cwp.join("metrics"))
+            .merge_err_then_none(&mut err, || cwp + "metrics")
             .flatten();
 
         if err.is_empty() {

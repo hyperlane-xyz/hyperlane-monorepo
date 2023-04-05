@@ -48,8 +48,8 @@ impl FromRawConf<'_, RawChainConnectionConf> for ChainConnectionConf {
     fn from_config(raw: RawChainConnectionConf, cwp: &ConfigPath) -> ConfigResult<Self> {
         use RawChainConnectionConf::*;
         match raw {
-            Ethereum(r) => Ok(Self::Ethereum(r.from_config(&cwp.join("connection"))?)),
-            Fuel(r) => Ok(Self::Fuel(r.from_config(&cwp.join("connection"))?)),
+            Ethereum(r) => Ok(Self::Ethereum(r.parse_config(&cwp.join("connection"))?)),
+            Fuel(r) => Ok(Self::Fuel(r.parse_config(&cwp.join("connection"))?)),
             Unknown => Err(ConfigParsingError::new(
                 cwp.join("protocol"),
                 eyre!("Unknown chain protocol"),
@@ -232,15 +232,12 @@ impl FromRawConf<'_, RawChainConf> for ChainConf {
                 .merge_config_err_then_none(&mut err)?
                 .try_into()
                 .context("Invalid domain id, expected integer")
-                .merge_err_then_none(&mut err, || cwp.join("domain"))?;
+                .merge_err_then_none(&mut err, || cwp + "domain")?;
             let name = raw
                 .name
                 .as_deref()
                 .expect_or_parsing_error(|| {
-                    (
-                        cwp.join("name"),
-                        eyre!("Missing domain `name` configuration"),
-                    )
+                    (cwp + "name", eyre!("Missing domain `name` configuration"))
                 })
                 .merge_config_err_then_none(&mut err)?;
             HyperlaneDomain::from_config(domain_id, name, protocol)
@@ -262,7 +259,7 @@ impl FromRawConf<'_, RawChainConf> for ChainConf {
             .and_then(|v| {
                 v.try_into()
                     .context("Invalid `finalityBlocks`, expected integer")
-                    .merge_err_then_none(&mut err, || cwp.join("finalityBlocks"))
+                    .merge_err_then_none(&mut err, || cwp + "finalityBlocks")
             })
             .unwrap_or(0);
 
@@ -271,7 +268,7 @@ impl FromRawConf<'_, RawChainConf> for ChainConf {
             .map(|v| serde_json::from_str(&v))
             .transpose()
             .context("Invalid `txsubmission` chain configuration")
-            .merge_err_then_none(&mut err, || cwp.join("txsubmission"))
+            .merge_err_then_none(&mut err, || cwp + "txsubmission")
             .flatten()
             .unwrap_or_default();
 
@@ -280,11 +277,11 @@ impl FromRawConf<'_, RawChainConf> for ChainConf {
             .map(|v| v.try_into())
             .transpose()
             .context("Invalid `index` chain configuration")
-            .merge_err_then_none(&mut err, || cwp.join("index"))
+            .merge_err_then_none(&mut err, || cwp + "index")
             .flatten()
             .unwrap_or_default();
 
-        let metrics_conf = r.metrics_conf.unwrap_or_default();
+        let metrics_conf = raw.metrics_conf.unwrap_or_default();
 
         if err.is_empty() {
             Ok(Self {

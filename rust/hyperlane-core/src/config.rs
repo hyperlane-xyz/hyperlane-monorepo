@@ -7,6 +7,7 @@
 
 use std::fmt::{Debug, Display, Formatter};
 use std::num::{ParseIntError, TryFromIntError};
+use std::ops::Add;
 use std::rc::Rc;
 
 use eyre::{eyre, Context, Report};
@@ -109,6 +110,22 @@ pub struct ConfigPath(Vec<Rc<String>>);
 impl Display for ConfigPath {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.path_name())
+    }
+}
+
+impl<S: Into<String>> Add<S> for &ConfigPath {
+    type Output = ConfigPath;
+
+    fn add(self, rhs: S) -> Self::Output {
+        self.join(rhs)
+    }
+}
+
+impl Add<ConfigPath> for &ConfigPath {
+    type Output = ConfigPath;
+
+    fn add(self, rhs: ConfigPath) -> Self::Output {
+        self.merge(&rhs)
     }
 }
 
