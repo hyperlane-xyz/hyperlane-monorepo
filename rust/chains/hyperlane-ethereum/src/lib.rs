@@ -87,17 +87,27 @@ pub enum ConnectionConf {
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum RawConnectionConf {
-    HttpQuorum { urls: Option<String> },
-    HttpFallback { urls: Option<String> },
-    Http { url: Option<String> },
-    Ws { url: Option<String> },
+    HttpQuorum {
+        urls: Option<String>,
+    },
+    HttpFallback {
+        urls: Option<String>,
+    },
+    Http {
+        url: Option<String>,
+    },
+    Ws {
+        url: Option<String>,
+    },
+    #[serde(other)]
+    Unknown,
 }
 
 /// Error type when parsing a connection configuration.
 #[derive(Debug, thiserror::Error)]
 pub enum ConnectionConfError {
-    #[error("Unsupported connection type: {0}")]
-    UnsupportedConnectionType(String),
+    #[error("Unsupported connection type")]
+    UnsupportedConnectionType,
     #[error("Missing `url` for connection configuration")]
     MissingConnectionUrl,
     #[error("Missing `urls` for connection configuration")]
@@ -112,43 +122,58 @@ pub enum ConnectionConfError {
     EmptyUrls,
 }
 
-impl FromRawConf<'_, RawConnectionConf> for ConnectionConf {}
-
-impl TryFrom<RawConnectionConf> for ConnectionConf {
-    type Error = ConnectionConfError;
-
-    fn try_from(r: RawConnectionConf) -> Result<Self, Self::Error> {
+impl FromRawConf<'_, RawConnectionConf> for ConnectionConf {
+    fn from_config(raw: RawConnectionConf, cwp: &ConfigPath) -> ConfigResult<Self> {
         use ConnectionConfError::*;
         use RawConnectionConf::*;
-        match r {
-            HttpQuorum { urls: None } | HttpFallback { urls: None } => Err(MissingConnectionUrls),
+        match raw {
+            HttpQuorum { urls: None } | HttpFallback { urls: None } => Err(
+                ConfigParsingError::new(cwp.join("urls"), MissingConnectionUrls),
+            ),
             HttpQuorum { urls: Some(urls) } | HttpFallback { urls: Some(urls) }
                 if urls.is_empty() =>
             {
-                Err(EmptyUrls)
+                Err(ConfigParsingError::new(cwp.join("urls"), EmptyUrls))
             }
-            Http { url: None } | Ws { url: None } => Err(MissingConnectionUrl),
-            Http { url: Some(url) } | Ws { url: Some(url) } if url.is_empty() => Err(EmptyUrl),
+            Http { url: None } | Ws { url: None } => Err(ConfigParsingError::new(
+                cwp.join("url"),
+                MissingConnectionUrl,
+            )),
+            Http { url: Some(url) } | Ws { url: Some(url) } if url.is_empty() => {
+                Err(ConfigParsingError::new(cwp.join("url"), EmptyUrl))
+            }
             HttpQuorum { urls: Some(urls) } => Ok(Self::HttpQuorum {
                 urls: urls
                     .split(',')
                     .map(|s| s.parse())
                     .collect::<Result<Vec<_>, _>>()
-                    .map_err(|e| InvalidConnectionUrls(urls, e))?,
+                    .map_err(|e| InvalidConnectionUrls(urls, e))
+                    .into_config_result(|| cwp.join("urls"))?,
             }),
             HttpFallback { urls: Some(urls) } => Ok(Self::HttpFallback {
                 urls: urls
                     .split(',')
                     .map(|s| s.parse())
                     .collect::<Result<Vec<_>, _>>()
-                    .map_err(|e| InvalidConnectionUrls(urls, e))?,
+                    .map_err(|e| InvalidConnectionUrls(urls, e))
+                    .into_config_result(|| cwp.join("urls"))?,
             }),
             Http { url: Some(url) } => Ok(Self::Http {
-                url: url.parse().map_err(|e| InvalidConnectionUrl(url, e))?,
+                url: url
+                    .parse()
+                    .map_err(|e| InvalidConnectionUrl(url, e))
+                    .into_config_result(|| cwp.join("url"))?,
             }),
             Ws { url: Some(url) } => Ok(Self::Ws {
-                url: url.parse().map_err(|e| InvalidConnectionUrl(url, e))?,
+                url: url
+                    .parse()
+                    .map_err(|e| InvalidConnectionUrl(url, e))
+                    .into_config_result(|| cwp.join("url"))?,
             }),
+            Unknown => Err(ConfigParsingError::new(
+                cwp.join("type"),
+                UnsupportedConnectionType,
+            )),
         }
     }
 }
