@@ -371,7 +371,9 @@ export abstract class HyperlaneDeployer<
       return cachedProxy;
     }
 
-    // Initialize the implementation even though it may not be necessary
+    // Try to initialize the implementation even though it may not be necessary
+    // Because the InterchainGasPaymaster initializes itself in the
+    // constructor, we cannot call `initialize` on the implementation.
     const implementation = await this.deployContract(
       chain,
       contractName,
