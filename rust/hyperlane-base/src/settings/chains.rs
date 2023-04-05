@@ -94,6 +94,13 @@ struct RawCoreContractAddresses {
     validator_announce: Option<String>,
 }
 
+impl FromRawConf<'_, RawCoreContractAddresses> for CoreContractAddresses {
+    fn from_config(raw: RawCoreContractAddresses, cwp: &ConfigPath) -> ConfigResult<Self> {
+        let mut err = ConfigParsingError::default();
+        // let mailbox = raw.mailbox.expect_or_parsing_error()
+    }
+}
+
 impl TryFrom<RawCoreContractAddresses> for CoreContractAddresses {
     type Error = eyre::Report;
 
@@ -211,7 +218,7 @@ impl FromRawConf<'_, RawChainConf> for ChainConf {
             let protocol = c.protocol();
             let domain_id = raw
                 .domain
-                .expect_or_parsing_error(|| {
+                .expect_or_config_err(|| {
                     (cwp.join("domain"), eyre!("Missing `domain` configuration"))
                 })
                 .take_config_err(&mut err)?
@@ -221,7 +228,7 @@ impl FromRawConf<'_, RawChainConf> for ChainConf {
             let name = raw
                 .name
                 .as_deref()
-                .expect_or_parsing_error(|| {
+                .expect_or_config_err(|| {
                     (cwp + "name", eyre!("Missing domain `name` configuration"))
                 })
                 .take_config_err(&mut err)?;

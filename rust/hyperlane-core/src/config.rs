@@ -23,7 +23,7 @@ pub trait ConfigOptionExt<T> {
     where
         F: FnOnce() -> Report;
 
-    fn expect_or_parsing_error<F>(self, v: F) -> ConfigResult<T>
+    fn expect_or_config_err<F>(self, v: F) -> ConfigResult<T>
     where
         F: FnOnce() -> (ConfigPath, Report);
 }
@@ -40,7 +40,7 @@ impl<T> ConfigOptionExt<T> for Option<T> {
         self.ok_or_else(|| f())
     }
 
-    fn expect_or_parsing_error<F>(self, v: F) -> ConfigResult<T>
+    fn expect_or_config_err<F>(self, v: F) -> ConfigResult<T>
     where
         F: FnOnce() -> (ConfigPath, Report),
     {
