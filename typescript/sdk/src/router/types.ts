@@ -9,7 +9,7 @@ export type OwnableConfig = {
 
 export type RouterConfig = ConnectionClientConfig & OwnableConfig;
 
-type GasConfig = {
+export type GasConfig = {
   gas: number;
 };
 
