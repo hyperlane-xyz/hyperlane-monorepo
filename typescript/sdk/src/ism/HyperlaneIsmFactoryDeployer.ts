@@ -7,7 +7,7 @@ import { ChainMap, ChainName } from '../types';
 
 import { IsmFactoryFactories, ismFactoryFactories } from './contracts';
 
-export type IsmFactoryConfig = boolean;
+export type IsmFactoryConfig = any;
 
 export class HyperlaneIsmFactoryDeployer extends HyperlaneDeployer<
   IsmFactoryConfig,

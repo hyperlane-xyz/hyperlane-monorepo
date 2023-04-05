@@ -6,6 +6,7 @@ import {
   ChainName,
   CoreConfig,
   HyperlaneCoreDeployer,
+  HyperlaneIsmFactory,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import { DeployOptions } from '@hyperlane-xyz/sdk/dist/deploy/HyperlaneDeployer';
@@ -19,9 +20,10 @@ export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
   constructor(
     multiProvider: MultiProvider,
     configMap: ChainMap<CoreConfig>,
+    ismFactory: HyperlaneIsmFactory,
     environment: DeployEnvironment,
   ) {
-    super(multiProvider, configMap);
+    super(multiProvider, configMap, ismFactory);
     this.environment = environment;
   }
 

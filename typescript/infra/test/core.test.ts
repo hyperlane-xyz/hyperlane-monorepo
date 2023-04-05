@@ -9,6 +9,8 @@ import {
   HyperlaneContractsMap,
   HyperlaneCore,
   HyperlaneCoreChecker,
+  HyperlaneIsmFactory,
+  HyperlaneIsmFactoryDeployer,
   MultiProvider,
   objMap,
   serializeContractsMap,
@@ -27,12 +29,23 @@ describe('core', async () => {
   let core: HyperlaneCore;
   let contracts: HyperlaneContractsMap<CoreFactories>;
   let coreConfig: ChainMap<CoreConfig>;
+  let ismFactory: HyperlaneIsmFactory;
+  before(async () => {
+    const [signer] = await ethers.getSigners();
+    multiProvider = MultiProvider.createTestMultiProvider({ signer });
+    const ismFactoryDeployer = new HyperlaneIsmFactoryDeployer(
+      multiProvider,
+      testConfig.core,
+    );
+    const ismFactories = await ismFactoryDeployer.deploy();
+    ismFactory = new HyperlaneIsmFactory(ismFactories, multiProvider);
+  });
 
   let owners: ChainMap<string>;
+
   beforeEach(async () => {
-    const [signer, owner] = await ethers.getSigners();
+    const [_, owner] = await ethers.getSigners();
     // This is kind of awkward and really these tests shouldn't live here
-    multiProvider = MultiProvider.createTestMultiProvider({ signer });
     coreConfig = testConfig.core;
     owners = objMap(testConfig.chainMetadataConfigs, () => owner.address);
   });
@@ -41,6 +54,7 @@ describe('core', async () => {
     deployer = new HyperlaneCoreInfraDeployer(
       multiProvider,
       coreConfig,
+      ismFactory,
       environment,
     );
     contracts = await deployer.deploy();
@@ -59,6 +73,7 @@ describe('core', async () => {
       deployer = new HyperlaneCoreInfraDeployer(
         multiProvider,
         coreConfig,
+        ismFactory,
         environment,
       );
       const stub = sinon.stub(deployer, 'deployContracts');
@@ -106,7 +121,12 @@ describe('core', async () => {
       ...config,
       owner: owners[chain],
     }));
-    const checker = new HyperlaneCoreChecker(multiProvider, core, joinedConfig);
+    const checker = new HyperlaneCoreChecker(
+      multiProvider,
+      core,
+      joinedConfig,
+      ismFactory,
+    );
     await checker.check();
   });
 });

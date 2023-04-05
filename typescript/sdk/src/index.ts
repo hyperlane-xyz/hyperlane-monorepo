@@ -97,6 +97,18 @@ export {
   OverheadIgpConfig,
 } from './gas/types';
 export { HyperlaneApp } from './HyperlaneApp';
+export {
+  collectValidators,
+  HyperlaneIsmFactory,
+} from './ism/HyperlaneIsmFactory';
+export { HyperlaneIsmFactoryDeployer } from './ism/HyperlaneIsmFactoryDeployer';
+export {
+  AggregationIsmConfig,
+  IsmConfig,
+  ModuleType,
+  MultisigIsmConfig,
+  RoutingIsmConfig,
+} from './ism/types';
 export { interchainAccountFactories } from './middleware/account/contracts';
 export { InterchainAccount } from './middleware/account/InterchainAccount';
 export { InterchainAccountChecker } from './middleware/account/InterchainAccountChecker';

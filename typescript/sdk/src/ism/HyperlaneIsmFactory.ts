@@ -210,3 +210,41 @@ export async function moduleMatches(
 
   return matches;
 }
+
+export function collectValidators(
+  origin: ChainName,
+  config: IsmConfig,
+): Set<string> {
+  const validators = new Set<string>();
+
+  switch (config.type) {
+    case ModuleType.MULTISIG: {
+      config.validators.map((v) => validators.add(v));
+      break;
+    }
+    case ModuleType.ROUTING: {
+      if (Object.keys(config.domains).includes(origin)) {
+        const domainValidators = collectValidators(
+          origin,
+          config.domains[origin],
+        );
+        [...domainValidators].map((v) => validators.add(v));
+      }
+      break;
+    }
+    case ModuleType.AGGREGATION: {
+      const aggregatedValidators = config.modules.map((c) =>
+        collectValidators(origin, c),
+      );
+      aggregatedValidators.map((set) => {
+        [...set].map((v) => validators.add(v));
+      });
+      break;
+    }
+    default: {
+      throw new Error('Unsupported ModuleType');
+    }
+  }
+
+  return validators;
+}

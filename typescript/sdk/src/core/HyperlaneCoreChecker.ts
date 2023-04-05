@@ -5,8 +5,10 @@ import { utils } from '@hyperlane-xyz/utils';
 import { BytecodeHash } from '../consts/bytecode';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
 import { proxyImplementation } from '../deploy/proxy';
-import { HyperlaneIsmFactory, moduleMatches } from '../ism/HyperlaneIsmFactory';
-import { IsmConfig, ModuleType } from '../ism/types';
+import {
+  HyperlaneIsmFactory,
+  collectValidators,
+} from '../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
@@ -61,6 +63,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
 
     const actualIsm = await mailbox.defaultIsm();
     const config = this.configMap[chain];
+    /*
     const matches = await moduleMatches(
       chain,
       actualIsm,
@@ -68,6 +71,8 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       this.ismFactory.multiProvider,
       this.ismFactory.getContracts(chain),
     );
+    */
+    const matches = false;
     if (!matches) {
       const violation: MailboxViolation = {
         type: CoreViolationType.Mailbox,
@@ -130,10 +135,10 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     const validators = new Set<string>();
     const remotes = Object.keys(this.configMap).filter((c) => c !== chain);
     const remoteOriginValidators = remotes.map((remote) =>
-      this.collectValidators(chain, this.configMap[remote].defaultIsm),
+      collectValidators(chain, this.configMap[remote].defaultIsm),
     );
     remoteOriginValidators.map((set) => {
-      [...set].map(validators.add);
+      [...set].map((v) => validators.add(v));
     });
 
     const validatorAnnounce = this.app.getContracts(chain).validatorAnnounce;
@@ -154,40 +159,5 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
         this.addViolation(violation);
       }
     });
-  }
-
-  private collectValidators(origin: ChainName, config: IsmConfig): Set<string> {
-    const validators = new Set<string>();
-
-    switch (config.type) {
-      case ModuleType.MULTISIG: {
-        config.validators.map(validators.add);
-        break;
-      }
-      case ModuleType.ROUTING: {
-        if (Object.keys(config.domains).includes(origin)) {
-          const domainValidators = this.collectValidators(
-            origin,
-            config.domains[origin],
-          );
-          [...domainValidators].map(validators.add);
-        }
-        break;
-      }
-      case ModuleType.AGGREGATION: {
-        const aggregatedValidators = config.modules.map((c) =>
-          this.collectValidators(origin, c),
-        );
-        aggregatedValidators.map((set) => {
-          [...set].map(validators.add);
-        });
-        break;
-      }
-      default: {
-        throw new Error('Unsupported ModuleType');
-      }
-    }
-
-    return validators;
   }
 }

@@ -3,6 +3,8 @@ import path from 'path';
 import {
   HyperlaneDeployer,
   HyperlaneIgp,
+  HyperlaneIsmFactory,
+  HyperlaneIsmFactoryDeployer,
   InterchainAccountDeployer,
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
@@ -50,10 +52,17 @@ async function main() {
   }
 
   let deployer: HyperlaneDeployer<any, any>;
-  if (module === Modules.CORE) {
+  if (module === Modules.ISM_FACTORY) {
+    deployer = new HyperlaneIsmFactoryDeployer(multiProvider, config.core);
+  } else if (module === Modules.CORE) {
+    const ismFactory = HyperlaneIsmFactory.fromEnvironment(
+      deployEnvToSdkEnv[environment],
+      multiProvider,
+    );
     deployer = new HyperlaneCoreInfraDeployer(
       multiProvider,
       config.core,
+      ismFactory,
       environment,
     );
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
