@@ -205,7 +205,7 @@ impl FromRawConf<'_, RawChainConf> for ChainConf {
 
         let connection = raw
             .connection
-            .and_then(|r| r.parse_config(&cwp).merge_config_err_then_none(&mut err));
+            .and_then(|r| r.parse_config(&cwp).take_config_err(&mut err));
 
         let domain = connection.as_ref().and_then(|c: &ChainConnectionConf| {
             let protocol = c.protocol();
@@ -214,29 +214,29 @@ impl FromRawConf<'_, RawChainConf> for ChainConf {
                 .expect_or_parsing_error(|| {
                     (cwp.join("domain"), eyre!("Missing `domain` configuration"))
                 })
-                .merge_config_err_then_none(&mut err)?
+                .take_config_err(&mut err)?
                 .try_into()
                 .context("Invalid domain id, expected integer")
-                .merge_err_then_none(&mut err, || cwp + "domain")?;
+                .take_err(&mut err, || cwp + "domain")?;
             let name = raw
                 .name
                 .as_deref()
                 .expect_or_parsing_error(|| {
                     (cwp + "name", eyre!("Missing domain `name` configuration"))
                 })
-                .merge_config_err_then_none(&mut err)?;
+                .take_config_err(&mut err)?;
             HyperlaneDomain::from_config(domain_id, name, protocol)
-                .merge_err_then_none(&mut err, || cwp.clone())
+                .take_err(&mut err, || cwp.clone())
         });
 
         let addresses = raw.addresses.and_then(|v| {
             v.parse_config(&cwp.join("addresses"))
-                .merge_config_err_then_none(&mut err)
+                .take_config_err(&mut err)
         });
 
         let signer = raw.signer.and_then(|v| -> Option<SignerConf> {
             v.parse_config(&cwp.join("signer"))
-                .merge_config_err_then_none(&mut err)
+                .take_config_err(&mut err)
         });
 
         let finality_blocks = raw
@@ -244,7 +244,7 @@ impl FromRawConf<'_, RawChainConf> for ChainConf {
             .and_then(|v| {
                 v.try_into()
                     .context("Invalid `finalityBlocks`, expected integer")
-                    .merge_err_then_none(&mut err, || cwp + "finalityBlocks")
+                    .take_err(&mut err, || cwp + "finalityBlocks")
             })
             .unwrap_or(0);
 
@@ -253,7 +253,7 @@ impl FromRawConf<'_, RawChainConf> for ChainConf {
             .map(|v| serde_json::from_str(&v))
             .transpose()
             .context("Invalid `txsubmission` chain configuration")
-            .merge_err_then_none(&mut err, || cwp + "txsubmission")
+            .take_err(&mut err, || cwp + "txsubmission")
             .flatten()
             .unwrap_or_default();
 
@@ -262,7 +262,7 @@ impl FromRawConf<'_, RawChainConf> for ChainConf {
             .map(|v| v.try_into())
             .transpose()
             .context("Invalid `index` chain configuration")
-            .merge_err_then_none(&mut err, || cwp + "index")
+            .take_err(&mut err, || cwp + "index")
             .flatten()
             .unwrap_or_default();
 

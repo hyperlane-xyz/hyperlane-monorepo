@@ -54,11 +54,8 @@ impl<T> ConfigOptionExt<T> for Option<T> {
 pub trait ConfigErrResultExt<T> {
     fn into_config_result(self, path: impl FnOnce() -> ConfigPath) -> ConfigResult<T>;
 
-    fn merge_err_then_none(
-        self,
-        err: &mut ConfigParsingError,
-        path: impl FnOnce() -> ConfigPath,
-    ) -> Option<T>;
+    fn take_err(self, err: &mut ConfigParsingError, path: impl FnOnce() -> ConfigPath)
+        -> Option<T>;
 }
 
 impl<T, E> ConfigErrResultExt<T> for Result<T, E>
@@ -69,8 +66,7 @@ where
         self.map_err(|e| ConfigParsingError::new(path(), e.into()))
     }
 
-    // TODO: Take err?
-    fn merge_err_then_none(
+    fn take_err(
         self,
         err: &mut ConfigParsingError,
         path: impl FnOnce() -> ConfigPath,
@@ -86,12 +82,11 @@ where
 }
 
 pub trait ConfigResultExt<T> {
-    fn merge_config_err_then_none(self, err: &mut ConfigParsingError) -> Option<T>;
+    fn take_config_err(self, err: &mut ConfigParsingError) -> Option<T>;
 }
 
 impl<T> ConfigResultExt<T> for ConfigResult<T> {
-    // TODO: Take config err?
-    fn merge_config_err_then_none(self, err: &mut ConfigParsingError) -> Option<T> {
+    fn take_config_err(self, err: &mut ConfigParsingError) -> Option<T> {
         match self {
             Ok(v) => Some(v),
             Err(e) => {

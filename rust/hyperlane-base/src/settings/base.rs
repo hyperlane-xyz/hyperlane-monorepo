@@ -73,7 +73,7 @@ impl FromRawConf<'_, RawSettings> for Settings {
                 .defaultsigner
                 .map(|r| r.parse_config(&cwp.join("defaultsigner")))
                 .transpose()
-                .merge_config_err_then_none(&mut err)
+                .take_config_err(&mut err)
                 .flatten();
             chains
                 .into_iter()
@@ -101,7 +101,7 @@ impl FromRawConf<'_, RawSettings> for Settings {
             .map(|port| port.try_into())
             .transpose()
             .context("Invalid metrics port")
-            .merge_err_then_none(&mut err, || cwp + "metrics")
+            .take_err(&mut err, || cwp + "metrics")
             .flatten();
 
         if err.is_empty() {
