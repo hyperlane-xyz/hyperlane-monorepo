@@ -76,6 +76,16 @@ describe('core', async () => {
       expect(result.test2).to.have.keys(Object.keys(result.test1));
       expect(result.test3).to.have.keys(Object.keys(result.test1));
     });
+
+    it('times out ', async () => {
+      // @ts-ignore
+      deployer.chainTimeoutMs = 1;
+      try {
+        await deployer.deploy(coreConfig);
+      } catch (e: any) {
+        expect(e.message).to.include('Timed out in 1ms');
+      }
+    });
   });
 
   it('checks', async () => {
