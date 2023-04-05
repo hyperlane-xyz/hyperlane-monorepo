@@ -29,7 +29,7 @@ async function check() {
     .boolean('govern')
     .default('govern', false)
     .alias('g', 'govern').argv;
-  const config = await getEnvironmentConfig();
+  const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
 
   // must rotate to forked provider before building core contracts

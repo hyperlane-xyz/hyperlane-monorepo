@@ -33,8 +33,8 @@ import {
 
 async function main() {
   const { module, fork, environment } = await getArgsWithModuleAndFork().argv;
-  const coreConfig = await getEnvironmentConfig();
-  const multiProvider = await coreConfig.getMultiProvider();
+  const envConfig = await getEnvironmentConfig(environment);
+  const multiProvider = await envConfig.getMultiProvider();
 
   if (fork) {
     await useLocalProvider(multiProvider, fork);
