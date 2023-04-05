@@ -104,8 +104,14 @@ static KMS_CLIENT: OnceCell<KmsClient> = OnceCell::new();
 
 pub trait ConfigOptionExt<T> {
     fn expect_or_eyre<M: Into<String>>(self, msg: M) -> eyre::Result<T>;
-    fn expect_or_else_eyre(self, f: impl FnOnce() -> String) -> eyre::Result<T>;
-    fn expect_or_parsing_error(self, v: impl FnOnce() -> (ConfigPath, String)) -> ConfigResult<T>;
+    fn expect_or_else_eyre<S, F>(self, f: F) -> eyre::Result<T>
+    where
+        S: Into<String>,
+        F: FnOnce() -> S;
+    fn expect_or_parsing_error<S, F>(self, v: F) -> ConfigResult<T>
+    where
+        S: Into<String>,
+        F: FnOnce() -> (ConfigPath, S);
 }
 
 impl<T> ConfigOptionExt<T> for Option<T> {
@@ -113,19 +119,29 @@ impl<T> ConfigOptionExt<T> for Option<T> {
         self.ok_or_else(|| eyre!(msg.into()))
     }
 
-    fn expect_or_else_eyre(self, f: impl FnOnce() -> String) -> eyre::Result<T> {
-        self.ok_or_else(|| eyre!(f()))
+    fn expect_or_else_eyre<S, F>(self, f: F) -> eyre::Result<T>
+    where
+        S: Into<String>,
+        F: FnOnce() -> S,
+    {
+        self.ok_or_else(|| eyre!(f().into()))
     }
 
-    fn expect_or_parsing_error(self, v: impl FnOnce() -> (ConfigPath, String)) -> ConfigResult<T> {
+    fn expect_or_parsing_error<S, F>(self, v: F) -> ConfigResult<T>
+    where
+        S: Into<String>,
+        F: FnOnce() -> (ConfigPath, S),
+    {
         self.ok_or_else(|| {
             let (path, msg) = v();
-            ConfigParsingError::new(path, eyre!(msg))
+            ConfigParsingError::new(path, eyre!(msg.into()))
         })
     }
 }
 
 pub trait ConfigErrResultExt<T> {
+    fn into_config_result(self, path: impl FnOnce() -> ConfigPath) -> ConfigResult<T>;
+
     fn merge_err_then_none(
         self,
         err: &mut ConfigParsingError,
@@ -142,6 +158,10 @@ impl<T, E> ConfigErrResultExt<T> for Result<T, E>
 where
     E: Into<Report>,
 {
+    fn into_config_result(self, path: impl FnOnce() -> ConfigPath) -> ConfigResult<T> {
+        self.map_err(|e| ConfigParsingError::new(path(), e.into()))
+    }
+
     fn merge_err_then_none(
         self,
         err: &mut ConfigParsingError,
@@ -281,13 +301,13 @@ pub trait FromRawConf<'de, T>: Sized
 where
     T: Debug + Deserialize<'de>,
 {
-    fn from_config(raw: T, cwp: &ConfigPath) -> Result<Self, ConfigParsingError>;
+    fn from_config(raw: T, cwp: &ConfigPath) -> ConfigResult<Self>;
 }
 
 pub trait IntoParsedConf<'de>: Debug + Deserialize<'de> {
     type Output: Sized;
 
-    fn parse_config(self, cwp: &ConfigPath) -> Result<Self::Output, ConfigParsingError>;
+    fn parse_config(self, cwp: &ConfigPath) -> ConfigResult<Self::Output>;
 }
 
 impl<'de, T> IntoParsedConf<'de> for T
@@ -296,7 +316,7 @@ where
 {
     type Output = T;
 
-    fn parse_config(self, cwp: &ConfigPath) -> Result<Self::Output, ConfigParsingError> {
+    fn parse_config(self, cwp: &ConfigPath) -> ConfigResult<Self::Output> {
         T::from_config(self, cwp)
     }
 }
