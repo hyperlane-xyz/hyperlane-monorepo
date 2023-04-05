@@ -1,3 +1,12 @@
+/// Export this so they don't need to import paste.
+#[doc(hidden)]
+pub use paste;
+use serde::Deserialize;
+#[doc(hidden)]
+pub use static_assertions;
+
+use crate::settings::RawSettings;
+
 #[macro_export]
 /// Shortcut for aborting a joinhandle and then awaiting and discarding its
 /// result
@@ -43,14 +52,6 @@ macro_rules! decl_agent {
         $crate::impl_as_ref_core!($name);
     };
 }
-
-use crate::settings::RawSettings;
-/// Export this so they don't need to import paste.
-#[doc(hidden)]
-pub use paste;
-use serde::Deserialize;
-#[doc(hidden)]
-pub use static_assertions;
 
 #[macro_export]
 /// Declare a new settings block
@@ -143,7 +144,7 @@ macro_rules! decl_settings {
                 }
             }
         }
-    }
+    };
 }
 
 /// Static logic called by the decl_settings! macro. Do not call directly!

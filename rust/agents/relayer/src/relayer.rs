@@ -26,7 +26,7 @@ use crate::{
         serial_submitter::{SerialSubmitter, SerialSubmitterMetrics},
         PendingMessage,
     },
-    settings::{matching_list::MatchingList, GasPaymentEnforcementConfig, RelayerSettings},
+    settings::{matching_list::MatchingList, GasPaymentEnforcementConf, RelayerSettings},
 };
 
 /// A relayer agent
@@ -322,7 +322,7 @@ fn parse_matching_list(list: &Option<String>) -> MatchingList {
         .unwrap_or_default()
 }
 
-fn parse_gas_enforcement_policies(policies: &str) -> Vec<GasPaymentEnforcementConfig> {
+fn parse_gas_enforcement_policies(policies: &str) -> Vec<GasPaymentEnforcementConf> {
     serde_json::from_str(policies).expect("Invalid gas payment enforcement configuration received")
 }
 

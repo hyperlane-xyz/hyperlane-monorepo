@@ -11,7 +11,7 @@ use hyperlane_core::{
 
 use crate::msg::gas_payment::policies::GasPaymentPolicyOnChainFeeQuoting;
 use crate::settings::{
-    matching_list::MatchingList, GasPaymentEnforcementConfig, GasPaymentEnforcementPolicy,
+    matching_list::MatchingList, GasPaymentEnforcementConf, GasPaymentEnforcementPolicy,
 };
 
 use self::policies::{GasPaymentPolicyMinimum, GasPaymentPolicyNone};
@@ -44,7 +44,7 @@ pub struct GasPaymentEnforcer {
 
 impl GasPaymentEnforcer {
     pub fn new(
-        policy_configs: impl IntoIterator<Item = GasPaymentEnforcementConfig>,
+        policy_configs: impl IntoIterator<Item =GasPaymentEnforcementConf>,
         db: HyperlaneDB,
     ) -> Self {
         let policies = policy_configs
@@ -148,7 +148,7 @@ mod test {
     use hyperlane_test::test_utils;
 
     use crate::settings::{
-        matching_list::MatchingList, GasPaymentEnforcementConfig, GasPaymentEnforcementPolicy,
+        matching_list::MatchingList, GasPaymentEnforcementConf, GasPaymentEnforcementPolicy,
     };
 
     use super::GasPaymentEnforcer;
@@ -160,7 +160,7 @@ mod test {
 
             let enforcer = GasPaymentEnforcer::new(
                 // Require a payment
-                vec![GasPaymentEnforcementConfig {
+                vec![GasPaymentEnforcementConf {
                     policy: GasPaymentEnforcementPolicy::Minimum {
                         payment: U256::one(),
                     },
@@ -193,7 +193,7 @@ mod test {
             let matching_list = serde_json::from_str(r#"[{"originDomain": 234}]"#).unwrap();
             let enforcer = GasPaymentEnforcer::new(
                 // Require a payment
-                vec![GasPaymentEnforcementConfig {
+                vec![GasPaymentEnforcementConf {
                     policy: GasPaymentEnforcementPolicy::None,
                     matching_list,
                 }],
@@ -227,12 +227,12 @@ mod test {
 
             let enforcer = GasPaymentEnforcer::new(
                 vec![
-                    GasPaymentEnforcementConfig {
+                    GasPaymentEnforcementConf {
                         // No payment for special cases
                         policy: GasPaymentEnforcementPolicy::None,
                         matching_list,
                     },
-                    GasPaymentEnforcementConfig {
+                    GasPaymentEnforcementConf {
                         // All other messages must pass a minimum
                         policy: GasPaymentEnforcementPolicy::Minimum {
                             payment: U256::one(),

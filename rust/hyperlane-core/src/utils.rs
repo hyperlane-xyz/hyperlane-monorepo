@@ -5,7 +5,7 @@ use serde::Deserialize;
 use sha3::{digest::Update, Digest, Keccak256};
 use thiserror::Error;
 
-use crate::{KnownHyperlaneDomain, H256};
+use crate::{KnownHyperlaneDomain, H256, U256};
 
 /// Strips the '0x' prefix off of hex string so it can be deserialized.
 ///
@@ -72,6 +72,8 @@ pub enum StrOrIntParseError {
     /// The provided integer does not match the type requirements.
     #[error("Provided number is an invalid integer: {0}")]
     InvalidInt(#[from] TryFromIntError),
+    #[error("Could not parse integer: {0}")]
+    Other(String),
 }
 
 /// A type which can be used for parsing configs that may be provided as a
@@ -139,6 +141,28 @@ macro_rules! convert_to {
 convert_to!(u16);
 convert_to!(u32);
 convert_to!(u64);
+
+impl TryFrom<StrOrInt> for U256 {
+    type Error = StrOrIntParseError;
+
+    fn try_from(v: StrOrInt) -> Result<Self, Self::Error> {
+        (&v).try_into()
+    }
+}
+impl TryFrom<&StrOrInt> for U256 {
+    type Error = StrOrIntParseError;
+
+    fn try_from(v: &StrOrInt) -> Result<Self, Self::Error> {
+        Ok(match v {
+            StrOrInt::Str(s) => s.parse().map_err(|_| {
+                StrOrIntParseError::Other(format!("Unable to parse U256 string ({s})"))
+            })?,
+            StrOrInt::Int(i) => (*i).try_into().map_err(|_| {
+                StrOrIntParseError::Other(format!("Unable to parse integer as U256 ({i})"))
+            })?,
+        })
+    }
+}
 
 /// Shortcut for many-to-one match statements that get very redundant. Flips the
 /// order such that the thing which is mapped to is listed first.

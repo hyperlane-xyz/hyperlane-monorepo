@@ -69,25 +69,30 @@
 //!    intended to be used by a specific agent.
 //!    E.g. `export HYP_RELAYER_ORIGINCHAIN="ethereum"`
 
-use std::{collections::HashMap, sync::Arc};
+use std::fmt::{Debug, Display, Formatter};
+use std::ops::Deref;
+use std::path::Path;
+use std::rc::Rc;
 
-use eyre::{eyre, Context};
+use eyre::{eyre, Context, Report};
+use futures_util::AsyncReadExt;
+use itertools::Itertools;
 use once_cell::sync::OnceCell;
 use rusoto_kms::KmsClient;
 use serde::Deserialize;
 
+pub use base::*;
 pub use chains::{ChainConf, ChainConnectionConf, CoreContractAddresses};
-use hyperlane_core::utils::StrOrInt;
 use hyperlane_core::{
-    db::{HyperlaneDB, DB},
-    HyperlaneChain, HyperlaneDomain, HyperlaneProvider, InterchainGasPaymaster,
-    InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm, ValidatorAnnounce, H256,
+    HyperlaneChain, HyperlaneProvider, InterchainGasPaymaster, InterchainGasPaymasterIndexer,
+    Mailbox, MailboxIndexer, MultisigIsm, ValidatorAnnounce,
 };
-pub use signers::SignerConf;
+pub use signers::{RawSignerConf, SignerConf};
 
-use crate::{settings::trace::TracingConfig, CachingInterchainGasPaymaster};
+use crate::CachingInterchainGasPaymaster;
 use crate::{CachingMailbox, CoreMetrics, HyperlaneAgentCore};
 
+mod base;
 /// Chain configuration
 pub mod chains;
 pub(crate) mod loader;
@@ -113,251 +118,92 @@ impl<T> EyreOptionExt<T> for Option<T> {
     }
 }
 
-/// Settings. Usually this should be treated as a base config and used as
-/// follows:
-///
-/// ```
-/// use hyperlane_base::*;
-/// use serde::Deserialize;
-///
-/// pub struct OtherSettings { /* anything */ };
-///
-/// #[derive(Debug, Deserialize)]
-/// pub struct MySettings {
-///     #[serde(flatten)]
-///     base_settings: Settings,
-///     #[serde(flatten)]
-///     other_settings: (),
-/// }
-///
-/// // Make sure to define MySettings::new()
-/// impl MySettings {
-///     fn new() -> Self {
-///         unimplemented!()
-///     }
-/// }
-/// ```
-#[derive(Debug, Default)]
-pub struct Settings {
-    /// Configuration for contracts on each chain
-    pub chains: HashMap<String, ChainConf>,
-    /// Port to listen for prometheus scrape requests
-    pub metrics: Option<u16>,
-    /// The tracing configuration
-    pub tracing: TracingConfig,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RawSettings {
-    chains: Option<HashMap<String, chains::RawChainConf>>,
-    defaultsigner: Option<signers::RawSignerConf>,
-    metrics: Option<StrOrInt>,
-    tracing: Option<TracingConfig>,
-}
-
 // declare_deserialize_for_config_struct!(Settings);
 
-impl TryFrom<RawSettings> for Settings {
-    type Error = eyre::Report;
+#[derive(Debug, Default, PartialEq, Eq, Clone)]
+pub struct ConfigPath(Vec<Rc<String>>);
 
-    fn try_from(r: RawSettings) -> Result<Self, Self::Error> {
-        Ok(Self {
-            chains: if let Some(mut chains) = r.chains {
-                let default_signer: Option<SignerConf> = r
-                    .defaultsigner
-                    .map(|default_signer| {
-                        default_signer
-                            .try_into()
-                            .context("Invalid `defaultsigner` configuration")
-                    })
-                    .transpose()?;
-                chains
-                    .into_iter()
-                    .map(|(k, v)| {
-                        let mut parsed: ChainConf = v
-                            .try_into()
-                            .with_context(|| format!("When parsing chain `{k}` config"))?;
-                        if let Some(default_signer) = &default_signer {
-                            parsed.signer.get_or_insert_with(|| default_signer.clone());
-                        }
-                        Ok((k, parsed))
-                    })
-                    .collect::<eyre::Result<_>>()?
-            } else {
-                Default::default()
-            },
-            tracing: r.tracing.unwrap_or_default(),
-            metrics: r
-                .metrics
-                .map(|port| {
-                    port.try_into()
-                        .context("Invalid metrics port; `metrics` must be a valid u16")
-                })
-                .transpose()?,
-        })
+impl Display for ConfigPath {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.path_name())
     }
 }
 
-impl Settings {
-    /// Generate an agent core
-    pub fn build_hyperlane_core(&self, metrics: Arc<CoreMetrics>) -> HyperlaneAgentCore {
-        HyperlaneAgentCore {
-            metrics,
-            settings: self.clone(),
-        }
-    }
-    /// Try to get a map of chain name -> mailbox contract
-    pub async fn build_all_mailboxes(
-        &self,
-        chain_names: &[&str],
-        metrics: &CoreMetrics,
-        db: DB,
-    ) -> eyre::Result<HashMap<HyperlaneDomain, CachingMailbox>> {
-        let mut result = HashMap::new();
-        for &chain_name in chain_names {
-            let mailbox = self
-                .build_caching_mailbox(chain_name, db.clone(), metrics)
-                .await?;
-            result.insert(mailbox.domain().clone(), mailbox);
-        }
-        Ok(result)
+impl ConfigPath {
+    pub fn join(&self, part: impl Into<String>) -> Self {
+        let part = part.into();
+        debug_assert!(!part.contains('.'));
+        let mut new = self.clone();
+        new.0.push(Rc::new(part));
+        new
     }
 
-    /// Try to get a map of chain name -> interchain gas paymaster contract
-    pub async fn build_all_interchain_gas_paymasters(
-        &self,
-        chain_names: &[&str],
-        metrics: &CoreMetrics,
-        db: DB,
-    ) -> eyre::Result<HashMap<HyperlaneDomain, CachingInterchainGasPaymaster>> {
-        let mut result = HashMap::new();
-        for &chain_name in chain_names {
-            let igp = self
-                .build_caching_interchain_gas_paymaster(chain_name, db.clone(), metrics)
-                .await?;
-            result.insert(igp.paymaster().domain().clone(), igp);
-        }
-        Ok(result)
+    pub fn merge(&self, other: &Self) -> Self {
+        Self(
+            self.0
+                .iter()
+                .cloned()
+                .chain(other.0.iter().cloned())
+                .collect(),
+        )
     }
 
-    /// Try to get a CachingMailbox
-    async fn build_caching_mailbox(
-        &self,
-        chain_name: &str,
-        db: DB,
-        metrics: &CoreMetrics,
-    ) -> eyre::Result<CachingMailbox> {
-        let mailbox = self
-            .build_mailbox(chain_name, metrics)
-            .await
-            .with_context(|| format!("Building mailbox for {chain_name}"))?;
-        let indexer = self
-            .build_mailbox_indexer(chain_name, metrics)
-            .await
-            .with_context(|| format!("Building mailbox indexer for {chain_name}"))?;
-        let hyperlane_db = HyperlaneDB::new(chain_name, db);
-        Ok(CachingMailbox::new(
-            mailbox.into(),
-            hyperlane_db,
-            indexer.into(),
-        ))
+    pub fn path_name(&self) -> String {
+        self.0.iter().map(|s| s.as_str()).join(".")
     }
 
-    /// Try to get a CachingInterchainGasPaymaster
-    async fn build_caching_interchain_gas_paymaster(
-        &self,
-        chain_name: &str,
-        db: DB,
-        metrics: &CoreMetrics,
-    ) -> eyre::Result<CachingInterchainGasPaymaster> {
-        let interchain_gas_paymaster = self
-            .build_interchain_gas_paymaster(chain_name, metrics)
-            .await?;
-        let indexer = self
-            .build_interchain_gas_paymaster_indexer(chain_name, metrics)
-            .await?;
-        let hyperlane_db = HyperlaneDB::new(chain_name, db);
-        Ok(CachingInterchainGasPaymaster::new(
-            interchain_gas_paymaster.into(),
-            hyperlane_db,
-            indexer.into(),
-        ))
-    }
-
-    /// Try to get a MultisigIsm
-    pub async fn build_multisig_ism(
-        &self,
-        chain_name: &str,
-        address: H256,
-        metrics: &CoreMetrics,
-    ) -> eyre::Result<Box<dyn MultisigIsm>> {
-        let setup = self
-            .chain_setup(chain_name)
-            .with_context(|| format!("Building multisig ism for {chain_name}"))?;
-        setup.build_multisig_ism(address, metrics).await
-    }
-
-    /// Try to get a ValidatorAnnounce
-    pub async fn build_validator_announce(
-        &self,
-        chain_name: &str,
-        metrics: &CoreMetrics,
-    ) -> eyre::Result<Arc<dyn ValidatorAnnounce>> {
-        let setup = self.chain_setup(chain_name)?;
-        let announce = setup
-            .build_validator_announce(metrics)
-            .await
-            .with_context(|| format!("Building validator announce for {chain_name}"))?;
-        Ok(announce.into())
-    }
-
-    /// Try to get the chain setup for the provided chain name
-    pub fn chain_setup(&self, chain_name: &str) -> eyre::Result<&ChainConf> {
-        self.chains
-            .get(chain_name)
-            .ok_or_else(|| eyre!("No chain setup found for {chain_name}"))
-    }
-
-    /// Create the core metrics from the settings given the name of the agent.
-    pub fn metrics(&self, name: &str) -> eyre::Result<Arc<CoreMetrics>> {
-        Ok(Arc::new(CoreMetrics::new(
-            name,
-            self.metrics,
-            prometheus::Registry::new(),
-        )?))
-    }
-
-    /// Private to preserve linearity of AgentCore::from_settings -- creating an
-    /// agent consumes the settings.
-    fn clone(&self) -> Self {
-        Self {
-            chains: self.chains.clone(),
-            metrics: self.metrics.clone(),
-            tracing: self.tracing.clone(),
-        }
+    pub fn env_name(&self) -> String {
+        ["HYP", "BASE"]
+            .into_iter()
+            .chain(self.0.iter().map(|s| s.as_str()))
+            .map(|s| s.to_uppercase())
+            .join("_")
     }
 }
 
-/// Generate a call to ChainSetup for the given builder
-macro_rules! delegate_fn {
-    ($name:ident -> $ret:ty) => {
-        /// Delegates building to ChainSetup
-        pub async fn $name(
-            &self,
-            chain_name: &str,
-            metrics: &CoreMetrics,
-        ) -> eyre::Result<Box<$ret>> {
-            let setup = self.chain_setup(chain_name)?;
-            setup.$name(metrics).await
-        }
-    };
+#[derive(Debug, Default)]
+pub struct ParsingError(Vec<(ConfigPath, Report)>);
+
+impl ParsingError {
+    fn report(&mut self, conf_path: ConfigPath, report: Report) {
+        self.0.push((conf_path, report));
+    }
 }
 
-impl Settings {
-    delegate_fn!(build_interchain_gas_paymaster -> dyn InterchainGasPaymaster);
-    delegate_fn!(build_interchain_gas_paymaster_indexer -> dyn InterchainGasPaymasterIndexer);
-    delegate_fn!(build_mailbox -> dyn Mailbox);
-    delegate_fn!(build_mailbox_indexer -> dyn MailboxIndexer);
-    delegate_fn!(build_provider -> dyn HyperlaneProvider);
+impl Display for ParsingError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ParsingError [")?;
+        for (path, report) in &self.0 {
+            write!(f, "({path}: {report}),")?;
+        }
+        write!(f, "]")
+    }
+}
+
+impl std::error::Error for ParsingError {}
+
+pub trait FromRawConf<'de, T>: Sized
+where
+    T: Debug + Deserialize<'de>,
+{
+    fn from_config(raw: T, cwp: &Path) -> Result<Self, ParsingError>;
+    fn path_as_env(config_path: &Path) -> String;
+    fn path_as_json_path(config_path: &Path) -> String;
+}
+
+pub trait IntoParsedConf<'de>: Debug + Deserialize<'de> {
+    type Output: Sized;
+
+    fn parse_config(self, cwp: &Path) -> Result<Self::Output, ParsingError>;
+}
+
+impl<'de, T> IntoParsedConf<'de> for T
+where
+    T: FromRawConf<'de, Self> + Debug + Deserialize<'de>,
+{
+    type Output = T;
+
+    fn parse_config(self, cwp: &Path) -> Result<Self::Output, ParsingError> {
+        T::from_config(self, cwp)
+    }
 }

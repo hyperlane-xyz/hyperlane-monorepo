@@ -2719,6 +2719,7 @@ dependencies = [
  "hyperlane-ethereum",
  "hyperlane-fuel",
  "hyperlane-test",
+ "itertools",
  "lazy_static",
  "mockall",
  "once_cell",

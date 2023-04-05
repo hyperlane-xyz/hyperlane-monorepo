@@ -34,7 +34,7 @@ pub enum SignerConf {
 
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
-pub(super) enum RawSignerConf {
+pub enum RawSignerConf {
     HexKey {
         key: Option<String>,
     },
