@@ -342,3 +342,16 @@ export function symmetricDifference<T>(a: Set<T>, b: Set<T>) {
 export function setEquality<T>(a: Set<T>, b: Set<T>) {
   return symmetricDifference(a, b).size === 0;
 }
+
+export async function runWithTimeout<T>(
+  timeoutMs: number,
+  callback: () => Promise<T>,
+): Promise<T | void> {
+  const timeout = new Promise<void>((_, reject) =>
+    setTimeout(
+      () => reject(new Error(`Timed out in ${timeoutMs}ms.`)),
+      timeoutMs,
+    ),
+  );
+  return Promise.race([callback(), timeout]);
+}

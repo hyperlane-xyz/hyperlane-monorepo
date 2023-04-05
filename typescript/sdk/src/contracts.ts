@@ -4,7 +4,7 @@ import type { types } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from './providers/MultiProvider';
 import { ChainMap, Connection } from './types';
-import { objFilter, objMap, pick } from './utils/objects';
+import { objMap, pick } from './utils/objects';
 
 export type HyperlaneFactories = {
   [key: string]: ethers.ContractFactory;
@@ -60,37 +60,21 @@ export function filterAddresses(
   return pick(addresses, Object.keys(factories));
 }
 
-export function filterAddressesMap<F extends HyperlaneFactories>(
-  addressesMap: HyperlaneAddressesMap<any>,
-  factories: F,
-): HyperlaneAddressesMap<F> {
-  const filteredAddressesMap = objMap(addressesMap, (_, addresses) =>
-    filterAddresses(addresses, factories),
-  );
-  return objFilter(
-    filteredAddressesMap,
-    (_, addresses): addresses is HyperlaneAddresses<F> => {
-      return Object.keys(factories).every((contract) =>
-        Object.keys(addresses).includes(contract),
-      );
-    },
-  );
-}
-
 export function attachContracts<F extends HyperlaneFactories>(
   addresses: HyperlaneAddresses<F>,
   factories: F,
 ): HyperlaneContracts<F> {
-  return objMap(addresses, (key, address: types.Address) => {
-    return getFactory(key, factories).attach(address);
-  }) as HyperlaneContracts<F>;
+  return objMap(
+    filterAddresses(addresses, factories),
+    (key, address: types.Address) => getFactory(key, factories).attach(address),
+  ) as HyperlaneContracts<F>;
 }
 
 export function attachContractsMap<F extends HyperlaneFactories>(
   addressesMap: HyperlaneAddressesMap<F>,
   factories: F,
 ): HyperlaneContractsMap<F> {
-  return objMap(addressesMap, (chain, addresses) =>
+  return objMap(addressesMap, (_, addresses) =>
     attachContracts(addresses, factories),
   );
 }

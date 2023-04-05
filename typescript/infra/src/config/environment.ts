@@ -28,7 +28,7 @@ export type EnvironmentChain<E extends DeployEnvironment> = Extract<
   ChainName
 >;
 
-export type CoreEnvironmentConfig = {
+export type EnvironmentConfig = {
   environment: DeployEnvironment;
   chainMetadataConfigs: ChainMap<ChainMetadata>;
   // Each AgentConfig, keyed by the context

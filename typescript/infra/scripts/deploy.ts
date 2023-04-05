@@ -1,6 +1,7 @@
 import path from 'path';
 
 import {
+  ChainMap,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
   HyperlaneIgp,
@@ -32,8 +33,8 @@ import {
 
 async function main() {
   const { module, fork, environment } = await getArgsWithModuleAndFork().argv;
-  const config = await getEnvironmentConfig();
-  const multiProvider = await config.getMultiProvider();
+  const envConfig = getEnvironmentConfig(environment);
+  const multiProvider = await envConfig.getMultiProvider();
 
   if (fork) {
     await useLocalProvider(multiProvider, fork);
@@ -48,24 +49,28 @@ async function main() {
     multiProvider.setSigner(fork, signer);
   }
 
+  let config: ChainMap<unknown> = {};
   let deployer: HyperlaneDeployer<any, any>;
   if (module === Modules.CORE) {
-    deployer = new HyperlaneCoreDeployer(multiProvider, config.core);
+    config = envConfig.core;
+    deployer = new HyperlaneCoreDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
-    deployer = new HyperlaneIgpDeployer(multiProvider, config.igp);
+    config = envConfig.igp;
+    deployer = new HyperlaneIgpDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
-    const config = await getRouterConfig(environment, multiProvider);
-    deployer = new InterchainAccountDeployer(multiProvider, config);
+    config = await getRouterConfig(environment, multiProvider);
+    deployer = new InterchainAccountDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
-    const config = await getRouterConfig(environment, multiProvider);
-    deployer = new InterchainQueryDeployer(multiProvider, config);
+    config = await getRouterConfig(environment, multiProvider);
+    deployer = new InterchainQueryDeployer(multiProvider);
   } else if (module === Modules.LIQUIDITY_LAYER) {
+    deployer = new LiquidityLayerDeployer(multiProvider);
     const routerConfig = await getRouterConfig(environment, multiProvider);
-    const config = objMap(bridgeAdapterConfigs, (chain, conf) => ({
+    config = objMap(bridgeAdapterConfigs, (chain, conf) => ({
       ...conf,
       ...routerConfig[chain],
     }));
-    deployer = new LiquidityLayerDeployer(multiProvider, config);
+    deployer = new LiquidityLayerDeployer(multiProvider);
   } else if (module === Modules.TEST_RECIPIENT) {
     deployer = new TestRecipientDeployer(multiProvider);
   } else if (module === Modules.TEST_QUERY_SENDER) {
@@ -79,15 +84,10 @@ async function main() {
       getEnvironmentDirectory(environment),
       'middleware/queries',
     );
-    const queryRouterAddresses = objMap(
-      readJSON(queryRouterDir, 'addresses.json'),
-      (_c, conf) => ({ queryRouterAddress: conf.router }),
-    );
-    deployer = new TestQuerySenderDeployer(
-      multiProvider,
-      queryRouterAddresses,
-      igp,
-    );
+    config = objMap(readJSON(queryRouterDir, 'addresses.json'), (_c, conf) => ({
+      queryRouterAddress: conf.router,
+    }));
+    deployer = new TestQuerySenderDeployer(multiProvider, igp);
   } else {
     console.log(`Skipping ${module}, deployer unimplemented`);
     return;
@@ -120,7 +120,7 @@ async function main() {
         }
       : undefined;
 
-  await deployWithArtifacts(deployer, cache, fork, agentConfig);
+  await deployWithArtifacts(config, deployer, cache, fork, agentConfig);
 }
 
 main()
