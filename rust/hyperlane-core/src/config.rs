@@ -18,15 +18,13 @@ use thiserror::Error;
 pub trait ConfigOptionExt<T> {
     fn expect_or_eyre<M: Into<String>>(self, msg: M) -> eyre::Result<T>;
 
-    fn expect_or_else_eyre<S, F>(self, f: F) -> eyre::Result<T>
+    fn expect_or_else_eyre<F>(self, f: F) -> eyre::Result<T>
     where
-        S: Into<String>,
-        F: FnOnce() -> S;
+        F: FnOnce() -> Report;
 
-    fn expect_or_parsing_error<S, F>(self, v: F) -> ConfigResult<T>
+    fn expect_or_parsing_error<F>(self, v: F) -> ConfigResult<T>
     where
-        S: Into<String>,
-        F: FnOnce() -> (ConfigPath, S);
+        F: FnOnce() -> (ConfigPath, Report);
 }
 
 impl<T> ConfigOptionExt<T> for Option<T> {
@@ -34,22 +32,20 @@ impl<T> ConfigOptionExt<T> for Option<T> {
         self.ok_or_else(|| eyre!(msg.into()))
     }
 
-    fn expect_or_else_eyre<S, F>(self, f: F) -> eyre::Result<T>
+    fn expect_or_else_eyre<F>(self, f: F) -> eyre::Result<T>
     where
-        S: Into<String>,
-        F: FnOnce() -> S,
+        F: FnOnce() -> Report,
     {
-        self.ok_or_else(|| eyre!(f().into()))
+        self.ok_or_else(|| f())
     }
 
-    fn expect_or_parsing_error<S, F>(self, v: F) -> ConfigResult<T>
+    fn expect_or_parsing_error<F>(self, v: F) -> ConfigResult<T>
     where
-        S: Into<String>,
-        F: FnOnce() -> (ConfigPath, S),
+        F: FnOnce() -> (ConfigPath, Report),
     {
         self.ok_or_else(|| {
             let (path, msg) = v();
-            ConfigParsingError::new(path, eyre!(msg.into()))
+            ConfigParsingError::new(path, msg)
         })
     }
 }
@@ -62,11 +58,6 @@ pub trait ConfigErrResultExt<T> {
         err: &mut ConfigParsingError,
         path: impl FnOnce() -> ConfigPath,
     ) -> Option<T>;
-
-    fn merge_err_with_ctx_then_none<S, F>(self, err: &mut ConfigParsingError, ctx: F) -> Option<T>
-    where
-        S: Into<String>,
-        F: FnOnce() -> (ConfigPath, S);
 }
 
 impl<T, E> ConfigErrResultExt<T> for Result<T, E>
@@ -77,6 +68,7 @@ where
         self.map_err(|e| ConfigParsingError::new(path(), e.into()))
     }
 
+    // TODO: Take err?
     fn merge_err_then_none(
         self,
         err: &mut ConfigParsingError,
@@ -90,30 +82,15 @@ where
             }
         }
     }
-
-    fn merge_err_with_ctx_then_none<S, F>(self, err: &mut ConfigParsingError, ctx: F) -> Option<T>
-    where
-        S: Into<String>,
-        F: FnOnce() -> (ConfigPath, S),
-    {
-        match self {
-            Ok(v) => Some(v),
-            Err(e) => {
-                let (path, ctx) = ctx();
-                let report: Report = Err::<(), _>(e.into()).context(ctx.into()).err().unwrap();
-                err.merge(ConfigParsingError::new(path, report));
-                None
-            }
-        }
-    }
 }
 
 pub trait ConfigResultExt<T> {
-    fn merge_parsing_err_then_none(self, err: &mut ConfigParsingError) -> Option<T>;
+    fn merge_config_err_then_none(self, err: &mut ConfigParsingError) -> Option<T>;
 }
 
 impl<T> ConfigResultExt<T> for ConfigResult<T> {
-    fn merge_parsing_err_then_none(self, err: &mut ConfigParsingError) -> Option<T> {
+    // TODO: Take config err?
+    fn merge_config_err_then_none(self, err: &mut ConfigParsingError) -> Option<T> {
         match self {
             Ok(v) => Some(v),
             Err(e) => {
@@ -214,6 +191,8 @@ impl std::error::Error for ConfigParsingError {}
 
 pub trait FromRawConf<'de, T>: Sized
 where
+    // technically we don't need this bound but it enforces the
+    // correct usage.
     T: Debug + Deserialize<'de>,
 {
     fn from_config(raw: T, cwp: &ConfigPath) -> ConfigResult<Self>;

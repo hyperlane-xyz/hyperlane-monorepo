@@ -1,8 +1,9 @@
 use std::collections::HashMap;
-use std::fmt::{Display, Formatter};
+use std::fmt::Display;
 
 use ethers::prelude::Selector;
-use eyre::{bail, eyre, Context, Result};
+use eyre::{eyre, Context, Result};
+use futures_util::FutureExt;
 use serde::Deserialize;
 
 use ethers_prometheus::middleware::{
@@ -21,7 +22,7 @@ use hyperlane_fuel as h_fuel;
 
 use crate::{
     settings::signers::{BuildableWithSignerConf, RawSignerConf},
-    CoreMetrics,
+    CoreMetrics, SignerConf,
 };
 
 /// A connection to _some_ blockchain.
@@ -212,80 +213,106 @@ pub struct RawChainConf {
     index: Option<RawIndexSettings>,
 }
 
-impl TryFrom<RawChainConf> for ChainConf {
-    type Error = eyre::Report;
+impl FromRawConf<'_, RawChainConf> for ChainConf {
+    fn from_config(raw: RawChainConf, cwp: &ConfigPath) -> ConfigResult<Self> {
+        let mut err = ConfigParsingError::default();
 
-    fn try_from(r: RawChainConf) -> Result<ChainConf> {
-        let protocol = match r
+        let connection = raw
             .connection
-            .as_ref()
-            .expect_or_eyre("Missing `protocol` configuration")?
-        {
-            RawChainConnectionConf::Ethereum(_) => HyperlaneDomainProtocol::Ethereum,
-            RawChainConnectionConf::Fuel(_) => HyperlaneDomainProtocol::Fuel,
-            RawChainConnectionConf::Unknown => bail!("Unknown `protocol` configuration"),
-        };
-        Ok(Self {
-            domain: HyperlaneDomain::from_config(
-                r.domain
-                    .as_ref()
-                    .expect_or_eyre("Missing `domain` chain configuration")?
-                    .try_into()
-                    .context("Invalid domain id")?,
-                r.name
-                    .as_deref()
-                    .expect_or_eyre("Missing `name` chain configuration")?,
-                protocol,
-            )?,
-            addresses: r
-                .addresses
-                .map(|v| v.try_into())
-                .transpose()
-                .context("Invalid `addresses` chain configuration")?
-                .unwrap_or_default(),
-            signer: r
-                .signer
-                .map(|v| v.try_into())
-                .transpose()
-                .context("Invalid `signer` chain configuration")?,
-            finality_blocks: r
-                .finality_blocks
-                .map(|v| v.try_into())
-                .transpose()
-                .context("Invalid `finalityBlocks` chain configuration")?
-                .unwrap_or(0),
-            connection: r
-                .connection
-                .map(|v| v.try_into())
-                .transpose()
-                .context("Invalid `connection` chain configuration")?,
-            txsubmission: r
-                .txsubmission
-                .map(|v| serde_json::from_str(&v))
-                .transpose()
-                .context("Invalid `txsubmission` chain configuration")?
-                .unwrap_or_default(),
-            index: r
-                .index
-                .map(|v| v.try_into())
-                .transpose()
-                .context("Invalid `index` chain configuration")?
-                .unwrap_or_default(),
-            metrics_conf: r.metrics_conf.unwrap_or_default(),
-        })
-    }
-}
+            .parse_config(&cwp)
+            .merge_config_err_then_none(&mut err);
 
-impl Display for RawChainConf {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} (", self.name.as_deref().unwrap_or("<unknown>"))?;
-        match &self.domain {
-            Some(StrOrInt::Str(s)) => write!(f, "{s})"),
-            Some(StrOrInt::Int(i)) => write!(f, "{i})"),
-            None => write!(f, "<unknown>)"),
+        let domain = connection.as_ref().and_then(|c| {
+            let protocol = c.protocol();
+            let domain_id = raw
+                .domain
+                .expect_or_parsing_error(|| {
+                    (cwp.join("domain"), eyre!("Missing `domain` configuration"))
+                })
+                .merge_config_err_then_none(&mut err)?
+                .try_into()
+                .context("Invalid domain id, expected integer")
+                .merge_err_then_none(&mut err, || cwp.join("domain"))?;
+            let name = raw
+                .name
+                .as_deref()
+                .expect_or_parsing_error(|| {
+                    (
+                        cwp.join("name"),
+                        eyre!("Missing domain `name` configuration"),
+                    )
+                })
+                .merge_config_err_then_none(&mut err)?;
+            HyperlaneDomain::from_config(domain_id, name, protocol)
+                .merge_err_then_none(&mut err, || cwp.clone())
+        });
+
+        let addresses = raw.addresses.and_then(|v| {
+            v.from_config(&cwp.join("addresses"))
+                .merge_config_err_then_none(&mut err)
+        });
+
+        let signer = raw.signer.and_then(|v| -> Option<SignerConf> {
+            v.from_config(&cwp.join("signer"))
+                .merge_config_err_then_none(&mut err)
+        });
+
+        let finality_blocks = raw
+            .finality_blocks
+            .and_then(|v| {
+                v.try_into()
+                    .context("Invalid `finalityBlocks`, expected integer")
+                    .merge_err_then_none(&mut err, || cwp.join("finalityBlocks"))
+            })
+            .unwrap_or(0);
+
+        let txsubmission = raw
+            .txsubmission
+            .map(|v| serde_json::from_str(&v))
+            .transpose()
+            .context("Invalid `txsubmission` chain configuration")
+            .merge_err_then_none(&mut err, || cwp.join("txsubmission"))
+            .flatten()
+            .unwrap_or_default();
+
+        let index = raw
+            .index
+            .map(|v| v.try_into())
+            .transpose()
+            .context("Invalid `index` chain configuration")
+            .merge_err_then_none(&mut err, || cwp.join("index"))
+            .flatten()
+            .unwrap_or_default();
+
+        let metrics_conf = r.metrics_conf.unwrap_or_default();
+
+        if err.is_empty() {
+            Ok(Self {
+                connection,
+                domain: domain.unwrap(),
+                addresses: addresses.unwrap(),
+                signer,
+                finality_blocks,
+                txsubmission,
+                index,
+                metrics_conf,
+            })
+        } else {
+            Err(err)
         }
     }
 }
+
+// impl Display for RawChainConf {
+//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+//         write!(f, "{} (", self.name.as_deref().unwrap_or("<unknown>"))?;
+//         match &self.domain {
+//             Some(StrOrInt::Str(s)) => write!(f, "{s})"),
+//             Some(StrOrInt::Int(i)) => write!(f, "{i})"),
+//             None => write!(f, "<unknown>)"),
+//         }
+//     }
+// }
 
 impl ChainConf {
     /// Get the chain connection config or generate an error
