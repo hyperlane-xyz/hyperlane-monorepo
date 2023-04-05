@@ -77,7 +77,7 @@ impl FromRawConf<'_, RawSettings> for Settings {
             chains
                 .into_iter()
                 .map(|(k, v)| {
-                    let mut parsed: ChainConf = v.parse_config(cwp.join(&k))?;
+                    let mut parsed: ChainConf = v.parse_config(&cwp.join(&k))?;
                     if let Some(default_signer) = &default_signer {
                         parsed.signer.get_or_insert_with(|| default_signer.clone());
                     }

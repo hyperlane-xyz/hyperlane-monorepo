@@ -20,7 +20,10 @@ use hyperlane_ethereum::{
 use hyperlane_fuel as h_fuel;
 
 use crate::settings::signers::RawSignerConf;
-use crate::{settings::signers::BuildableWithSignerConf, ConfigOptionExt, CoreMetrics, SignerConf};
+use crate::{
+    settings::signers::BuildableWithSignerConf, ConfigOptionExt, ConfigParsingError, ConfigPath,
+    ConfigResult, CoreMetrics, FromRawConf, SignerConf,
+};
 
 /// A connection to _some_ blockchain.
 #[derive(Clone, Debug)]
@@ -38,7 +41,21 @@ enum RawChainConnectionConf {
     Ethereum(h_eth::RawConnectionConf),
     Fuel(h_fuel::RawConnectionConf),
     #[serde(other)]
-    None,
+    Unknown,
+}
+
+impl FromRawConf<'_, RawChainConnectionConf> for ChainConnectionConf {
+    fn from_config(raw: RawChainConnectionConf, cwp: &ConfigPath) -> ConfigResult<Self> {
+        use RawChainConnectionConf::*;
+        match raw {
+            Ethereum(r) => Ok(Self::Ethereum(r.from_config(&cwp.join("connection"))?)),
+            Fuel(r) => Ok(Self::Fuel(r.from_config(&cwp.join("connection"))?)),
+            Unknown => Err(ConfigParsingError::new(
+                cwp.join("protocol"),
+                eyre!("Unknown chain protocol"),
+            )),
+        }
+    }
 }
 
 impl TryFrom<RawChainConnectionConf> for ChainConnectionConf {
@@ -48,7 +65,7 @@ impl TryFrom<RawChainConnectionConf> for ChainConnectionConf {
         match r {
             RawChainConnectionConf::Ethereum(r) => Ok(Self::Ethereum(r.try_into()?)),
             RawChainConnectionConf::Fuel(r) => Ok(Self::Fuel(r.try_into()?)),
-            RawChainConnectionConf::None => Err(eyre!("Unknown chain protocol")),
+            RawChainConnectionConf::Unknown => Err(eyre!("Unknown chain protocol")),
         }
     }
 }
@@ -207,7 +224,7 @@ impl TryFrom<RawChainConf> for ChainConf {
         {
             RawChainConnectionConf::Ethereum(_) => HyperlaneDomainProtocol::Ethereum,
             RawChainConnectionConf::Fuel(_) => HyperlaneDomainProtocol::Fuel,
-            RawChainConnectionConf::None => bail!("Unknown `protocol` configuration"),
+            RawChainConnectionConf::Unknown => bail!("Unknown `protocol` configuration"),
         };
         Ok(Self {
             domain: HyperlaneDomain::from_config(

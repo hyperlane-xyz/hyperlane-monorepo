@@ -102,6 +102,8 @@ pub mod trace;
 
 static KMS_CLIENT: OnceCell<KmsClient> = OnceCell::new();
 
+// TODO: Remove extension functions we are not using
+
 pub trait ConfigOptionExt<T> {
     fn expect_or_eyre<M: Into<String>>(self, msg: M) -> eyre::Result<T>;
 
