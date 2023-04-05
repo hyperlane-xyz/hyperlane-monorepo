@@ -232,6 +232,16 @@ fn main() -> ExitCode {
 
     sleep(Duration::from_secs(10));
 
+    println!("Deploying hyperlane ism contracts...");
+    let status = Command::new("yarn")
+        .arg("deploy-ism")
+        .current_dir("../typescript/infra")
+        .stdout(Stdio::null())
+        .status()
+        .expect("Failed to deploy ism contracts")
+        .success();
+    assert!(status, "Failed to deploy ism contracts");
+
     println!("Deploying hyperlane core contracts...");
     let status = Command::new("yarn")
         .arg("deploy-core")

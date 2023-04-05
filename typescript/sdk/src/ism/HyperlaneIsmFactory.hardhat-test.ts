@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
-import { types } from '@hyperlane-xyz/utils';
+import { error, types } from '@hyperlane-xyz/utils';
 
 import { TestChains } from '../consts/chains';
 import { MultiProvider } from '../providers/MultiProvider';
@@ -119,8 +119,8 @@ describe.only('HyperlaneIsmFactory', async () => {
         const ism = await factory.deploy(chain, config);
         ismAddress = ism.address;
       } catch (e) {
-        console.error('Failed to deploy random ism config', e);
-        console.error(JSON.stringify(config, null, 2));
+        error('Failed to deploy random ism config', e);
+        error(JSON.stringify(config, null, 2));
         process.exit(1);
       }
 
@@ -134,8 +134,8 @@ describe.only('HyperlaneIsmFactory', async () => {
         );
         expect(matches).to.be.true;
       } catch (e) {
-        console.error('Failed to match random ism config', e);
-        console.error(JSON.stringify(config, null, 2));
+        error('Failed to match random ism config', e);
+        error(JSON.stringify(config, null, 2));
         process.exit(1);
       }
     });

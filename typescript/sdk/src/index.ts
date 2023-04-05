@@ -59,11 +59,7 @@ export { TestCoreApp } from './core/TestCoreApp';
 export { TestCoreDeployer } from './core/TestCoreDeployer';
 export { CoreConfig, CoreViolationType } from './core/types';
 export { HyperlaneAppChecker } from './deploy/HyperlaneAppChecker';
-export {
-  DeployerOptions,
-  DeployOptions,
-  HyperlaneDeployer,
-} from './deploy/HyperlaneDeployer';
+export { DeployerOptions, HyperlaneDeployer } from './deploy/HyperlaneDeployer';
 export {
   CheckerViolation,
   OwnerViolation,

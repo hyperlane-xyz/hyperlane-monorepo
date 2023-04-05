@@ -4,7 +4,7 @@ import { Mailbox, Ownable, ValidatorAnnounce } from '@hyperlane-xyz/core';
 import { types } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts';
-import { DeployOptions, HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
+import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { HyperlaneIsmFactory, moduleMatches } from '../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
@@ -35,7 +35,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     chain: ChainName,
     defaultIsmAddress: types.Address,
     proxyAdmin: types.Address,
-    deployOpts?: DeployOptions,
   ): Promise<Mailbox> {
     const domain = this.multiProvider.getDomainId(chain);
     const owner = this.configMap[chain].owner;
@@ -43,10 +42,9 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     const mailbox = await this.deployProxiedContract(
       chain,
       'mailbox',
+      proxyAdmin,
       [domain],
       [owner, defaultIsmAddress],
-      proxyAdmin,
-      deployOpts,
     );
     return mailbox;
   }
@@ -54,13 +52,11 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   async deployValidatorAnnounce(
     chain: ChainName,
     mailboxAddress: string,
-    deployOpts?: DeployOptions,
   ): Promise<ValidatorAnnounce> {
     const validatorAnnounce = await this.deployContract(
       chain,
       'validatorAnnounce',
       [mailboxAddress],
-      deployOpts,
     );
     return validatorAnnounce;
   }
