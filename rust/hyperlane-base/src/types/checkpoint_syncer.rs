@@ -9,7 +9,7 @@ use rusoto_core::Region;
 use serde::Deserialize;
 
 use crate::{CheckpointSyncer, LocalStorage, MultisigCheckpointSyncer};
-use crate::{EyreOptionExt, S3Storage};
+use crate::{ConfigOptionExt, S3Storage};
 
 /// Checkpoint Syncer types
 #[derive(Debug, Clone)]

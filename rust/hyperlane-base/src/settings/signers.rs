@@ -8,8 +8,9 @@ use serde::Deserialize;
 use tracing::instrument;
 
 use hyperlane_core::H256;
+use crate::{ConfigPath, FromRawConf, ConfigParsingError};
 
-use crate::settings::{EyreOptionExt, KMS_CLIENT};
+use crate::settings::{ConfigOptionExt, KMS_CLIENT};
 
 /// Signer types
 #[derive(Default, Debug, Clone)]
@@ -42,8 +43,23 @@ pub enum RawSignerConf {
         id: Option<String>,
         region: Option<String>,
     },
-    #[serde(other)]
     Node,
+    #[serde(other)]
+    Unknown,
+}
+
+impl FromRawConf<'_, RawSignerConf> for SignerConf {
+    fn from_raw_conf(raw: RawSignerConf, cwp: &ConfigPath) -> Result<Self, ConfigParsingError> {
+        use RawSignerConf::*;
+        match raw {
+            HexKey { key } => Ok(Self::HexKey {
+                key: key.expect_or_parsing_error("Missing `key` for HexKey signer")?,
+            })
+            Aws { .. } => {}
+            Node => {}
+            Unknown => {}
+        }
+    }
 }
 
 impl TryFrom<RawSignerConf> for SignerConf {

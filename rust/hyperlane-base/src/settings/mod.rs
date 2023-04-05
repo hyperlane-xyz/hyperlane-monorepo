@@ -102,18 +102,135 @@ pub mod trace;
 
 static KMS_CLIENT: OnceCell<KmsClient> = OnceCell::new();
 
-pub trait EyreOptionExt<T> {
+pub trait ConfigOptionExt<T> {
     fn expect_or_eyre<M: Into<String>>(self, msg: M) -> eyre::Result<T>;
     fn expect_or_else_eyre(self, f: impl FnOnce() -> String) -> eyre::Result<T>;
+    fn expect_or_parsing_error(self, v: impl FnOnce() -> (ConfigPath, String)) -> ConfigResult<T>;
 }
 
-impl<T> EyreOptionExt<T> for Option<T> {
+impl<T> ConfigOptionExt<T> for Option<T> {
     fn expect_or_eyre<M: Into<String>>(self, msg: M) -> eyre::Result<T> {
         self.ok_or_else(|| eyre!(msg.into()))
     }
 
     fn expect_or_else_eyre(self, f: impl FnOnce() -> String) -> eyre::Result<T> {
         self.ok_or_else(|| eyre!(f()))
+    }
+
+    fn expect_or_parsing_error(self, v: impl FnOnce() -> (ConfigPath, String)) -> ConfigResult<T> {
+        self.ok_or_else(|| {
+            let (path, msg) = v();
+            ConfigParsingError::new(path, eyre!(msg))
+        })
+    }
+}
+
+pub trait ConfigErrResultExt<T> {
+    fn merge_err_then_none(
+        self,
+        err: &mut ConfigParsingError,
+        path: impl FnOnce() -> ConfigPath,
+    ) -> Option<T>;
+
+    fn merge_err_with_ctx_then_none<S, F>(self, err: &mut ConfigParsingError, ctx: F) -> Option<T>
+    where
+        S: Into<String>,
+        F: FnOnce() -> (ConfigPath, S);
+}
+
+impl<T, E> ConfigErrResultExt<T> for Result<T, E>
+where
+    E: std::error::Error,
+{
+    fn merge_err_then_none(
+        self,
+        err: &mut ConfigParsingError,
+        path: impl FnOnce() -> ConfigPath,
+    ) -> Option<T> {
+        match self {
+            Ok(v) => Some(v),
+            Err(e) => {
+                err.merge(ConfigParsingError::new(path(), e));
+                None
+            }
+        }
+    }
+
+    fn merge_err_with_ctx_then_none<S, F>(self, err: &mut ConfigParsingError, ctx: F) -> Option<T>
+    where
+        S: Into<String>,
+        F: FnOnce() -> (ConfigPath, S),
+    {
+        match self {
+            Ok(v) => Some(v),
+            Err(e) => {
+                let (path, ctx) = ctx();
+                err.merge(ConfigParsingError::new(path, e.context(ctx)));
+                None
+            }
+        }
+    }
+}
+
+impl<T, R> ConfigEyreResultExt<T> for Result<T, R>
+where
+    R: Into<Report>,
+{
+    fn merge_eyre_then_none(
+        self,
+        err: &mut ConfigParsingError,
+        path: impl FnOnce() -> ConfigPath,
+    ) -> Option<T> {
+        match self {
+            Ok(v) => Some(v),
+            Err(e) => {
+                err.merge(ConfigParsingError::new(path(), e));
+                None
+            }
+        }
+    }
+}
+
+pub trait ConfigEyreResultExt<T> {
+    fn merge_eyre_then_none(
+        self,
+        err: &mut ConfigParsingError,
+        path: impl FnOnce() -> ConfigPath,
+    ) -> Option<T>;
+}
+
+impl<T, R> ConfigEyreResultExt<T> for Result<T, R>
+where
+    R: Into<Report>,
+{
+    fn merge_eyre_then_none(
+        self,
+        err: &mut ConfigParsingError,
+        path: impl FnOnce() -> ConfigPath,
+    ) -> Option<T> {
+        match self {
+            Ok(v) => Some(v),
+            Err(e) => {
+                err.merge(ConfigParsingError::new(path(), e));
+                None
+            }
+        }
+    }
+}
+
+pub trait ConfigResultExt<T> {
+    fn merge_parsing_err_then_none(self, err: &mut ConfigParsingError) -> Option<T>;
+}
+
+impl<T> ConfigResultExt<T> for ConfigResult<T> {
+    fn merge_parsing_err_then_none(self, err: &mut ConfigParsingError) -> Option<T> {
+        match self {
+            Ok(v) => Some(v),
+            Err(e) => {
+                err.merge(e);
+                None
+            }
+        }
     }
 }
 
@@ -161,15 +278,15 @@ impl ConfigPath {
 }
 
 #[derive(Debug, Default)]
-pub struct ParsingError(Vec<(ConfigPath, Report)>);
+pub struct ConfigParsingError(Vec<(ConfigPath, Report)>);
 
-impl ParsingError {
+impl ConfigParsingError {
     pub fn new(path: ConfigPath, report: impl Into<Report>) -> Self {
         Self(vec![(path, report.into())])
     }
 
     pub fn from_report(conf_path: ConfigPath, report: Report) -> Self {
-        Self( vec![(conf_path, report)] )
+        Self(vec![(conf_path, report)])
     }
 
     pub fn push(&mut self, conf_path: ConfigPath, report: Report) {
@@ -185,13 +302,15 @@ impl ParsingError {
     }
 }
 
-impl FromIterator<ParsingError> for ParsingError {
-    fn from_iter<T: IntoIterator<Item=ParsingError>>(iter: T) -> Self {
+pub type ConfigResult<T> = Result<T, ConfigParsingError>;
+
+impl FromIterator<ConfigParsingError> for ConfigParsingError {
+    fn from_iter<T: IntoIterator<Item = ConfigParsingError>>(iter: T) -> Self {
         Self(iter.into_iter().flat_map(|e| e.0).collect())
     }
 }
 
-impl Display for ParsingError {
+impl Display for ConfigParsingError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "ParsingError [")?;
         for (path, report) in &self.0 {
@@ -201,19 +320,19 @@ impl Display for ParsingError {
     }
 }
 
-impl std::error::Error for ParsingError {}
+impl std::error::Error for ConfigParsingError {}
 
 pub trait FromRawConf<'de, T>: Sized
 where
     T: Debug + Deserialize<'de>,
 {
-    fn from_config(raw: T, cwp: &ConfigPath) -> Result<Self, ParsingError>;
+    fn from_config(raw: T, cwp: &ConfigPath) -> Result<Self, ConfigParsingError>;
 }
 
 pub trait IntoParsedConf<'de>: Debug + Deserialize<'de> {
     type Output: Sized;
 
-    fn parse_config(self, cwp: &ConfigPath) -> Result<Self::Output, ParsingError>;
+    fn parse_config(self, cwp: &ConfigPath) -> Result<Self::Output, ConfigParsingError>;
 }
 
 impl<'de, T> IntoParsedConf<'de> for T
@@ -222,30 +341,18 @@ where
 {
     type Output = T;
 
-    fn parse_config(self, cwp: &ConfigPath) -> Result<Self::Output, ParsingError> {
+    fn parse_config(self, cwp: &ConfigPath) -> Result<Self::Output, ConfigParsingError> {
         T::from_config(self, cwp)
     }
 }
 
-#[macro_export]
-macro_rules! merge_parse_res {
-    ($err:ident, Some $expr:expr) => {
-        merge_parse_res!($err, $expr.map(|v| Some(v)))
-    };
-    ($err:ident, $expr:expr) => {
-        $expr.unwrap_or_else(|e| {
-            $err.merge(e);
-            None
-        })
-    };
-}
-
 // #[macro_export]
 // macro_rules! declare_config_struct {
-//     {$(#[$struct_attrib:meta])* $(#r[$raw_struct_attrib:meta])* $struct_vis:vis struct $struct_name:ident {
-//         $($(#[$field_attrib:meta])* $field_vis:vis $field_name:ident: $field_type:ty =
-//             {$($(#[$raw_attrib:meta])* $raw_vis:vis $raw_name:ident: $raw_type:ty),+$(,)?}),*$(,)?
-//     }} => {paste::paste!{
+//     {$(#[$struct_attrib:meta])* $(#r[$raw_struct_attrib:meta])*
+// $struct_vis:vis struct $struct_name:ident {         $($(#[$field_attrib:
+// meta])* $field_vis:vis $field_name:ident: $field_type:ty =
+// {$($(#[$raw_attrib:meta])* $raw_vis:vis $raw_name:ident:
+// $raw_type:ty),+$(,)?}),*$(,)?     }} => {paste::paste!{
 //         $(#[$struct_attrib])*
 //         $struct_vis struct $struct_name {
 //             $($(#[$field_attrib])* $field_vis $field_name: $field_type),*
@@ -260,18 +367,19 @@ macro_rules! merge_parse_res {
 //             )*)*
 //         }
 //
-//         static_assertions::assert_impl_all!($struct_name: $crate::FromRawConf<[< Raw $struct_name >]>);
+//         static_assertions::assert_impl_all!($struct_name:
+// $crate::FromRawConf<[< Raw $struct_name >]>);
 //
-//         // impl<'de> FromRawConf<'de, [< Raw $struct_name >]> for $struct_name {
-//         //     fn from_config(__raw: [< Raw $struct_name >], cwp: &ConfigPath) -> Result<Self, ParsingError> {
-//         //         let mut __err = ParsingError::default();
-//         //
+//         // impl<'de> FromRawConf<'de, [< Raw $struct_name >]> for
+// $struct_name {         //     fn from_config(__raw: [< Raw $struct_name >],
+// cwp: &ConfigPath) -> Result<Self, ParsingError> {         //         let mut
+// __err = ParsingError::default();         //
 //         //         // parse each of the fields
 //         //         $(let $field_name: Result<$field_type, ParsingError> = {
 //         //             // set values expected by the parse code
 //         //             $(let $raw_name: $raw_type = __raw.$raw_name;)*
-//         //             // use closure to capture any error unwrapping as a result instead of returning
-//         //             (|| $parse)()
+//         //             // use closure to capture any error unwrapping as a
+// result instead of returning         //             (|| $parse)()
 //         //         };)*
 //         //
 //         //         // merge errors for each of the fields

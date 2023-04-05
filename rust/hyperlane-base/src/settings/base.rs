@@ -15,10 +15,9 @@ use hyperlane_core::{
 
 use crate::chains::RawChainConf;
 use crate::{
-    declare_config_struct,
     settings::{chains::ChainConf, signers::SignerConf, trace::TracingConfig},
-    CachingInterchainGasPaymaster, ConfigPath, FromRawConf, IntoParsedConf, ParsingError,
-    RawSignerConf,
+    CachingInterchainGasPaymaster, ConfigErrResultExt, ConfigParsingError, ConfigPath,
+    ConfigResultExt, FromRawConf, IntoParsedConf, RawSignerConf,
 };
 use crate::{CachingMailbox, CoreMetrics, HyperlaneAgentCore};
 
@@ -66,17 +65,14 @@ pub struct RawSettings {
 }
 
 impl FromRawConf<'_, RawSettings> for Settings {
-    fn from_config(raw: RawSettings, cwp: &ConfigPath) -> Result<Self, ParsingError> {
-        let mut err = ParsingError::default();
+    fn from_config(raw: RawSettings, cwp: &ConfigPath) -> Result<Self, ConfigParsingError> {
+        let mut err = ConfigParsingError::default();
         let chains: HashMap<String, ChainConf> = if let Some(mut chains) = raw.chains {
             let default_signer: Option<SignerConf> = raw
                 .defaultsigner
                 .map(|r| r.parse_config(cwp.join("defaultsigner")))
                 .transpose()
-                .unwrap_or_else(|e| {
-                    err.merge(e);
-                    None
-                });
+                .merge_parsing_err_then_none(&mut err);
             chains
                 .into_iter()
                 .map(|(k, v)| {
@@ -102,13 +98,10 @@ impl FromRawConf<'_, RawSettings> for Settings {
             .metrics
             .map(|port| port.try_into())
             .transpose()
-            .unwrap_or_else(|e| {
-                err.merge(ParsingError::new(
-                    cwp.join("metrics"),
-                    e.context("Invalid metrics port"),
-                ));
-                None
-            });
+            .merge_err_with_ctx_then_none(&mut err, || {
+                (cwp.join("metrics"), "Invalid metrics port")
+            })
+            .flatten();
 
         if err.is_empty() {
             Ok(Self {

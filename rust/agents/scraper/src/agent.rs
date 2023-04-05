@@ -7,7 +7,7 @@ use tokio::task::JoinHandle;
 use tracing::{info_span, instrument::Instrumented, trace, Instrument};
 
 use hyperlane_base::{
-    decl_settings, run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, EyreOptionExt,
+    decl_settings, run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, ConfigOptionExt,
     HyperlaneAgentCore, Settings,
 };
 

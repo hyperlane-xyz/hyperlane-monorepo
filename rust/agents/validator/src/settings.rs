@@ -1,7 +1,7 @@
 //! Configuration
 
 use hyperlane_base::{
-    decl_settings, CheckpointSyncerConf, EyreOptionExt, RawCheckpointSyncerConf, RawSignerConf,
+    decl_settings, CheckpointSyncerConf, ConfigOptionExt, RawCheckpointSyncerConf, RawSignerConf,
     SignerConf,
 };
 use hyperlane_core::utils::StrOrInt;

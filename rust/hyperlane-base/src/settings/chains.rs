@@ -20,7 +20,7 @@ use hyperlane_ethereum::{
 use hyperlane_fuel as h_fuel;
 
 use crate::settings::signers::RawSignerConf;
-use crate::{settings::signers::BuildableWithSignerConf, CoreMetrics, EyreOptionExt, SignerConf};
+use crate::{settings::signers::BuildableWithSignerConf, CoreMetrics, ConfigOptionExt, SignerConf};
 
 /// A connection to _some_ blockchain.
 #[derive(Clone, Debug)]

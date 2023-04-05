@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use eyre::Context;
 use serde::Deserialize;
 
-use hyperlane_base::{decl_settings, EyreOptionExt};
+use hyperlane_base::{decl_settings, ConfigOptionExt};
 use hyperlane_core::utils::StrOrInt;
 use hyperlane_core::U256;
 
