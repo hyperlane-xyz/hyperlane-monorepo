@@ -33,7 +33,7 @@ import {
 
 async function main() {
   const { module, fork, environment } = await getArgsWithModuleAndFork().argv;
-  const envConfig = await getEnvironmentConfig(environment);
+  const envConfig = getEnvironmentConfig(environment);
   const multiProvider = await envConfig.getMultiProvider();
 
   if (fork) {
@@ -52,8 +52,10 @@ async function main() {
   let config: ChainMap<unknown> = {};
   let deployer: HyperlaneDeployer<any, any>;
   if (module === Modules.CORE) {
+    config = envConfig.core;
     deployer = new HyperlaneCoreDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
+    config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
     config = await getRouterConfig(environment, multiProvider);
