@@ -1,6 +1,6 @@
 # Hyperlane Warp Route
 
-This repo contains the base Hyperlane ERC20 and ERC721 tokens (HypERC20 and HypERC721). These tokens extend the base standards with an additional `transferRemote` function. Warp Routes are way of arranging these contracts to make existing assets interchain. Read more about Warp Routes and how to deploy your own at [Warp API docs](https://docs.hyperlane.xyz/docs/developers/warp-api).
+This repo contains the base Hyperlane ERC20 and ERC721 tokens (HypERC20 and HypERC721). These tokens extend the base standards with an additional `transferRemote` function. Warp Routes make any token or native asset interchain without custom contracts. Read more about Warp Routes and how to deploy your own at [Warp API docs](https://docs.hyperlane.xyz/docs/developers/warp-api).
 
 ## Versions
 
@@ -24,26 +24,53 @@ This repo contains the base Hyperlane ERC20 and ERC721 tokens (HypERC20 and HypE
 
 graph TB
     Alice((Alice))
+    Bob((Bob))
+    Validator((Validator))
     Relayer((Relayer))
+    %% Watcher((Watcher))
 
     subgraph "Ethereum"
-        HYP_E[HYP]
+        Token_E[ERC20]
+        HYP_E[HYP-ERC20]
         M_E[(Mailbox)]
+        %% POS_E[Proof of Stake]
     end
+
+    Alice == "0. approve(HYP, infinity)" ==> Token_E
+    Alice == "1. transferRemote(Polygon, Bob, 5)" ==> HYP_E
+    Token_E -- "2. transferFrom(Alice, 5)" --> HYP_E
+    HYP_E -- "3. dispatch(Polygon, HYP, (Bob, 5))" --> M_E
+
+    M_E-."indexing".->Relayer
+    %% M_E-."indexing".->Watcher
+    M_E -. "indexing" .-> Validator
+
+    %% Validator == "staking" ==> POS_E
+    %% Watcher == "slashing" ==> POS_E
+    Validator -. "signing" .-> ISM_STORE
+
+    subgraph "Cloud Storage"
+        ISM_STORE[(ISM\nMetadata)]
+    end
+
+    ISM_STORE -. "metadata" .-> Relayer
+    ISM_STORE -. "moduleType" .- ISM_P
+    %% Watcher -. "indexing" .- ISM_P
+
+    Relayer == "4. process(metadata, Ethereum, HYP, (Bob, 5))"==> M_P
 
     subgraph "Polygon"
-        HYP_P[HYP]
+        ISM_P[ISM]
         M_P[(Mailbox)]
+        HYP_P[HYP-ERC20]
+
+        M_P -- "6. handle(Ethereum, (Bob, 5))" --> HYP_P
+        M_P -- "5. verify(metadata, Ethereum, (Bob, 5))" --> ISM_P
     end
 
-    Bob((Bob))
+    ISM_P -. "interchainSecurityModule" .- HYP_P
+    HYP_P -- "7. mint(Bob, 5)" --> Bob
 
-    Alice -- "transferRemote(Polygon, Bob, 5)" --> HYP_E
-    HYP_E -- "dispatch(Polygon, (Bob, 5))" --> M_E
-    M_E-.->Relayer
-    Relayer -- "process(Ethereum, (Bob, 5))" --> M_P
-    M_P-->|"handle(Ethereum, (Bob, 5))"|HYP_P
-    HYP_P-.->Bob
 ```
 
 ## Setup for local development
