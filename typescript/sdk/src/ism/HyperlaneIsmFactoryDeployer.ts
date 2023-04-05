@@ -7,9 +7,9 @@ import { ChainMap, ChainName } from '../types';
 
 import { IsmFactoryFactories, ismFactoryFactories } from './contracts';
 
-type IsmFactoryConfig = {};
+export type IsmFactoryConfig = boolean;
 
-export class HyperlaneIsmDeployer extends HyperlaneDeployer<
+export class HyperlaneIsmFactoryDeployer extends HyperlaneDeployer<
   IsmFactoryConfig,
   IsmFactoryFactories
 > {
@@ -19,7 +19,7 @@ export class HyperlaneIsmDeployer extends HyperlaneDeployer<
     factoriesOverride = ismFactoryFactories,
   ) {
     super(multiProvider, configMap, factoriesOverride, {
-      logger: debug('hyperlane:IsmDeployer'),
+      logger: debug('hyperlane:IsmFactoryDeployer'),
     });
   }
 

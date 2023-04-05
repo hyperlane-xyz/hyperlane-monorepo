@@ -5,7 +5,7 @@ import { types } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts';
 import { DeployOptions, HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
-import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
+import { HyperlaneIsmFactory, moduleMatches } from '../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 import { objMap } from '../utils/objects';
@@ -70,13 +70,21 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     const cachedMailbox = this.deployedContracts[chain]?.['mailbox'];
     if (cachedMailbox) {
       const module = await cachedMailbox.defaultIsm();
-      const matches = await this.ismFactory.matches(chain, module, config);
+      const matches = await moduleMatches(
+        chain,
+        module,
+        config,
+        this.ismFactory.multiProvider,
+        this.ismFactory.getContracts(chain),
+      );
       if (!matches) {
-        return this.ismFactory.deploy(chain, config);
+        const ism = await this.ismFactory.deploy(chain, config);
+        return ism.address;
       }
       return module;
     } else {
-      return this.ismFactory.deploy(chain, config);
+      const ism = await this.ismFactory.deploy(chain, config);
+      return ism.address;
     }
   }
 
@@ -102,8 +110,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       mailbox.address,
     );
     // Ownership of the Mailbox and the interchainGasPaymaster is transferred upon initialization.
-    // TODO: How to handle ownership of routingISM contract(s)?
-    const ownables: Ownable[] = [multisigIsm, proxyAdmin];
+    const ownables: Ownable[] = [proxyAdmin];
     await this.transferOwnershipOfContracts(chain, config.owner, ownables);
 
     return {

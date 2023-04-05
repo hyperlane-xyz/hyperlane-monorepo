@@ -18,7 +18,7 @@ abstract contract AbstractAggregationIsm is IAggregationIsm {
     // ============ Constants ============
 
     uint8 public constant moduleType =
-        uint8(IInterchainSecurityModule.Types.MULTISIG);
+        uint8(IInterchainSecurityModule.Types.AGGREGATION);
 
     // ============ Virtual Functions ============
     // ======= OVERRIDE THESE TO IMPLEMENT =======

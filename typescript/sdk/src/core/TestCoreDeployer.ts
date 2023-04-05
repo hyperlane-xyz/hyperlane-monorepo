@@ -1,13 +1,11 @@
-import { ethers } from 'ethers';
-
 import {
-  LegacyMultisigIsm,
   TestInterchainGasPaymaster__factory,
   TestIsm__factory,
   TestMailbox__factory,
 } from '@hyperlane-xyz/core';
 
 import { TestChains } from '../consts/chains';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../providers/MultiProvider';
 import { testCoreConfig } from '../test/testUtils';
 import { ChainMap, ChainName } from '../types';
@@ -20,8 +18,8 @@ import { CoreConfig } from './types';
 const testCoreFactories = {
   ...coreFactories,
   mailbox: new TestMailbox__factory(),
-  testIsm: new TestIsm__factory(),
   interchainGasPaymaster: new TestInterchainGasPaymaster__factory(),
+  testIsm: new TestIsm__factory(),
 };
 
 export class TestCoreDeployer extends HyperlaneCoreDeployer {
@@ -31,12 +29,14 @@ export class TestCoreDeployer extends HyperlaneCoreDeployer {
   ) {
     // Note that the multisig module configs are unused.
     const configs = configMap ?? testCoreConfig(TestChains);
+    // The IsmFactory is unused
+    const ismFactory = new HyperlaneIsmFactory({}, multiProvider);
 
-    super(multiProvider, configs, testCoreFactories);
+    super(multiProvider, configs, ismFactory, testCoreFactories);
   }
 
-  // deploy a test ISM in place of a multisig ISM
-  async deployLegacyMultisigIsm(chain: ChainName): Promise<LegacyMultisigIsm> {
+  // deploy a test ISM instead of a real ISM
+  async deployIsm(chain: ChainName): Promise<string> {
     const testIsm = await this.deployContractFromFactory(
       chain,
       testCoreFactories.testIsm,
@@ -44,12 +44,7 @@ export class TestCoreDeployer extends HyperlaneCoreDeployer {
       [],
     );
     await testIsm.setAccept(true);
-    return testIsm as unknown as LegacyMultisigIsm;
-  }
-
-  // TestIsm is not ownable, so we skip ownership transfer
-  async transferOwnershipOfContracts(): Promise<ethers.ContractReceipt[]> {
-    return [];
+    return testIsm.address;
   }
 
   async deployApp(): Promise<TestCoreApp> {

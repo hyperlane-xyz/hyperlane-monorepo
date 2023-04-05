@@ -57,14 +57,7 @@ export { HyperlaneCoreChecker } from './core/HyperlaneCoreChecker';
 export { HyperlaneCoreDeployer } from './core/HyperlaneCoreDeployer';
 export { TestCoreApp } from './core/TestCoreApp';
 export { TestCoreDeployer } from './core/TestCoreDeployer';
-export {
-  CoreConfig,
-  CoreViolationType,
-  EnrolledValidatorsViolation,
-  MultisigIsmConfig,
-  MultisigIsmViolation,
-  MultisigIsmViolationType,
-} from './core/types';
+export { CoreConfig, CoreViolationType } from './core/types';
 export { HyperlaneAppChecker } from './deploy/HyperlaneAppChecker';
 export {
   DeployerOptions,

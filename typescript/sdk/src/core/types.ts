@@ -29,7 +29,7 @@ export interface MailboxViolation extends CheckerViolation {
 
 export interface MailboxMultisigIsmViolation extends MailboxViolation {
   actual: types.Address;
-  expected: types.Address;
+  expected: IsmConfig;
 }
 
 export interface ValidatorAnnounceViolation extends CheckerViolation {

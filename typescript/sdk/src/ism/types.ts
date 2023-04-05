@@ -1,8 +1,18 @@
-import { LegacyMultisigIsm } from '@hyperlane-xyz/core';
+import {
+  DomainRoutingIsm,
+  LegacyMultisigIsm,
+  StaticAggregationIsm,
+  StaticMultisigIsm,
+} from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
 import type { CheckerViolation } from '../deploy/types';
 import { ChainMap, ChainName } from '../types';
+
+export type DeployedIsm =
+  | StaticMultisigIsm
+  | StaticAggregationIsm
+  | DomainRoutingIsm;
 
 export enum ModuleType {
   UNUSED,
