@@ -72,7 +72,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     return igp;
   }
 
-  async deployOverheadIGP(
+  async deployOverheadIgp(
     chain: ChainName,
     interchainGasPaymasterAddress: types.Address,
     config: OverheadIgpConfig,
@@ -145,7 +145,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       storageGasOracle,
       config,
     );
-    const overheadIgp = await this.deployOverheadIGP(
+    const overheadIgp = await this.deployOverheadIgp(
       chain,
       interchainGasPaymaster.address,
       config,

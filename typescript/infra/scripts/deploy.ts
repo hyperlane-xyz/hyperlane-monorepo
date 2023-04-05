@@ -1,6 +1,7 @@
 import path from 'path';
 
 import {
+  ChainMap,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
   HyperlaneIgp,
@@ -49,7 +50,7 @@ async function main() {
     multiProvider.setSigner(fork, signer);
   }
 
-  let config: any;
+  let config: ChainMap<unknown> = {};
   let deployer: HyperlaneDeployer<any, any>;
   if (module === Modules.CORE) {
     deployer = new HyperlaneCoreDeployer(multiProvider);
