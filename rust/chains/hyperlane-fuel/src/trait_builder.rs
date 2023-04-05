@@ -2,7 +2,7 @@ use fuels::client::FuelClient;
 use fuels::prelude::Provider;
 use url::Url;
 
-use hyperlane_core::{ChainCommunicationError, ChainResult};
+use hyperlane_core::{config::*, ChainCommunicationError, ChainResult};
 
 /// Fuel connection configuration
 #[derive(Debug, Clone)]
@@ -24,6 +24,24 @@ pub enum ConnectionConfError {
     MissingConnectionUrl,
     #[error("Invalid `url` for connection configuration: `{0}` ({1})")]
     InvalidConnectionUrl(String, url::ParseError),
+}
+
+impl FromRawConf<'_, RawConnectionConf> for ConnectionConf {
+    fn from_config(raw: RawConnectionConf, cwp: &ConfigPath) -> ConfigResult<Self> {
+        use ConnectionConfError::*;
+        match raw {
+            RawConnectionConf { url: Some(url) } => Ok(Self {
+                url: url
+                    .parse()
+                    .map_err(|e| InvalidConnectionUrl(url, e))
+                    .into_config_result(|| cwp.join("url"))?,
+            }),
+            RawConnectionConf { url: None } => Err(ConfigParsingError::new(
+                cwp.join("url"),
+                MissingConnectionUrl,
+            )),
+        }
+    }
 }
 
 impl TryFrom<RawConnectionConf> for ConnectionConf {
