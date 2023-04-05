@@ -108,7 +108,7 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
                             EnvironmentProvider::default(),
                             HttpClient::new().unwrap(),
                         ),
-                        region.parse().expect("invalid region"),
+                        region.clone(),
                     )
                 });
 

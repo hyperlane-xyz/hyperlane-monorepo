@@ -104,10 +104,12 @@ static KMS_CLIENT: OnceCell<KmsClient> = OnceCell::new();
 
 pub trait ConfigOptionExt<T> {
     fn expect_or_eyre<M: Into<String>>(self, msg: M) -> eyre::Result<T>;
+
     fn expect_or_else_eyre<S, F>(self, f: F) -> eyre::Result<T>
     where
         S: Into<String>,
         F: FnOnce() -> S;
+
     fn expect_or_parsing_error<S, F>(self, v: F) -> ConfigResult<T>
     where
         S: Into<String>,
@@ -304,75 +306,16 @@ where
     fn from_config(raw: T, cwp: &ConfigPath) -> ConfigResult<Self>;
 }
 
-pub trait IntoParsedConf<'de>: Debug + Deserialize<'de> {
-    type Output: Sized;
-
-    fn parse_config(self, cwp: &ConfigPath) -> ConfigResult<Self::Output>;
+pub trait IntoParsedConf<'de, O: Sized>: Debug + Deserialize<'de> {
+    fn parse_config(self, cwp: &ConfigPath) -> ConfigResult<O>;
 }
 
-impl<'de, T> IntoParsedConf<'de> for T
+impl<'de, S, O> IntoParsedConf<'de, O> for S
 where
-    T: FromRawConf<'de, Self> + Debug + Deserialize<'de>,
+    S: Deserialize<'de> + Debug,
+    O: FromRawConf<'de, S>,
 {
-    type Output = T;
-
-    fn parse_config(self, cwp: &ConfigPath) -> ConfigResult<Self::Output> {
-        T::from_config(self, cwp)
+    fn parse_config(self, cwp: &ConfigPath) -> ConfigResult<O> {
+        O::from_config(self, cwp)
     }
 }
-
-// #[macro_export]
-// macro_rules! declare_config_struct {
-//     {$(#[$struct_attrib:meta])* $(#r[$raw_struct_attrib:meta])*
-// $struct_vis:vis struct $struct_name:ident {         $($(#[$field_attrib:
-// meta])* $field_vis:vis $field_name:ident: $field_type:ty =
-// {$($(#[$raw_attrib:meta])* $raw_vis:vis $raw_name:ident:
-// $raw_type:ty),+$(,)?}),*$(,)?     }} => {paste::paste!{
-//         $(#[$struct_attrib])*
-//         $struct_vis struct $struct_name {
-//             $($(#[$field_attrib])* $field_vis $field_name: $field_type),*
-//         }
-//
-//         $(#[$raw_struct_attrib])*
-//         #[derive(Debug, Deserialize)]
-//         #[serde(rename_all = "camelCase")]
-//         $struct_vis struct [< Raw $struct_name >] {
-//             $($(
-//                 $(#[$raw_attrib])* $raw_vis $raw_name: $raw_type,
-//             )*)*
-//         }
-//
-//         static_assertions::assert_impl_all!($struct_name:
-// $crate::FromRawConf<[< Raw $struct_name >]>);
-//
-//         // impl<'de> FromRawConf<'de, [< Raw $struct_name >]> for
-// $struct_name {         //     fn from_config(__raw: [< Raw $struct_name >],
-// cwp: &ConfigPath) -> Result<Self, ParsingError> {         //         let mut
-// __err = ParsingError::default();         //
-//         //         // parse each of the fields
-//         //         $(let $field_name: Result<$field_type, ParsingError> = {
-//         //             // set values expected by the parse code
-//         //             $(let $raw_name: $raw_type = __raw.$raw_name;)*
-//         //             // use closure to capture any error unwrapping as a
-// result instead of returning         //             (|| $parse)()
-//         //         };)*
-//         //
-//         //         // merge errors for each of the fields
-//         //         $(
-//         //             if let Err(e) = $field_name {
-//         //                 __err.merge(e);
-//         //             }
-//         //         )*
-//         //
-//         //         // report the results
-//         //         if __err.is_empty() {
-//         //             Ok(Self {$(
-//         //                 $field_name: $field_name.unwrap(),
-//         //             )*})
-//         //         } else {
-//         //             Err(__err)
-//         //         }
-//         //     }
-//         // }
-//     }};
-// }

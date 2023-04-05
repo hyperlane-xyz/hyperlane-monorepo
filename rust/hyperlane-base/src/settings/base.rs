@@ -70,9 +70,10 @@ impl FromRawConf<'_, RawSettings> for Settings {
         let chains: HashMap<String, ChainConf> = if let Some(mut chains) = raw.chains {
             let default_signer: Option<SignerConf> = raw
                 .defaultsigner
-                .map(|r| r.parse_config(cwp.join("defaultsigner")))
+                .map(|r| r.parse_config(&cwp.join("defaultsigner")))
                 .transpose()
-                .merge_parsing_err_then_none(&mut err);
+                .merge_parsing_err_then_none(&mut err)
+                .flatten();
             chains
                 .into_iter()
                 .map(|(k, v)| {
