@@ -7,8 +7,6 @@ import {
   InterchainGasPaymaster__factory,
   Mailbox,
   Mailbox__factory,
-} from '../types';
-import {
   TestHyperlaneConnectionClient,
   TestHyperlaneConnectionClient__factory,
 } from '../types';
@@ -65,7 +63,8 @@ describe('HyperlaneConnectionClient', async () => {
 
     before(async () => {
       const paymasterFactory = new InterchainGasPaymaster__factory(signer);
-      newPaymaster = await paymasterFactory.deploy(signer.address);
+      newPaymaster = await paymasterFactory.deploy();
+      await newPaymaster.initialize(signer.address, signer.address);
     });
 
     it('Allows owner to set the interchainGasPaymaster', async () => {
