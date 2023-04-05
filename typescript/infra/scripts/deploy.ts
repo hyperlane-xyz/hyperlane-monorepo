@@ -110,13 +110,15 @@ async function main() {
     read: environment !== 'test',
     write: true,
   };
-  const agentConfig = ['core', 'igp'].includes(module)
-    ? {
-        addresses,
-        environment,
-        multiProvider,
-      }
-    : undefined;
+  // Don't write agent config in fork tests
+  const agentConfig =
+    ['core', 'igp'].includes(module) && !fork
+      ? {
+          addresses,
+          environment,
+          multiProvider,
+        }
+      : undefined;
 
   await deployWithArtifacts(deployer, cache, fork, agentConfig);
 }
