@@ -3,8 +3,6 @@ import { expect } from 'chai';
 import { ethers } from 'hardhat';
 import sinon from 'sinon';
 
-import { CoreFactories } from '@hyperlane-xyz/sdk/dist/core/contracts';
-
 import { TestChains } from '../consts/chains';
 import { HyperlaneContractsMap } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
@@ -14,6 +12,7 @@ import { ChainMap } from '../types';
 import { HyperlaneCore } from './HyperlaneCore';
 import { HyperlaneCoreChecker } from './HyperlaneCoreChecker';
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer';
+import { CoreFactories } from './contracts';
 import { CoreConfig } from './types';
 
 describe('core', async () => {
