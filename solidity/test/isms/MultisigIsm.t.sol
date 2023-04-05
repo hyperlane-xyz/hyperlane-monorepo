@@ -119,6 +119,7 @@ contract MultisigIsmTest is Test {
                     seed
                 );
 
+                // does not correctly account for memory expansion costs
                 uint256 gas = gasleft();
                 assertTrue(ism.verify(metadata, message));
                 gas = gas - gasleft();
