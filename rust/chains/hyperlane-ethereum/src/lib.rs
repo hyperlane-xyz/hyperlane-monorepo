@@ -10,7 +10,7 @@ use ethers::prelude::{abi, BlockId, BlockNumber, Http, Lazy, Middleware, NameOrA
 use serde::Deserialize;
 use url::Url;
 
-use hyperlane_core::*;
+use hyperlane_core::{config::*, Address, Balance, ChainCommunicationError, ChainResult};
 pub use retrying::{RetryingProvider, RetryingProviderError};
 
 #[cfg(not(doctest))]
@@ -111,6 +111,8 @@ pub enum ConnectionConfError {
     #[error("The `urls` value is empty")]
     EmptyUrls,
 }
+
+impl FromRawConf<'_, RawConnectionConf> for ConnectionConf {}
 
 impl TryFrom<RawConnectionConf> for ConnectionConf {
     type Error = ConnectionConfError;

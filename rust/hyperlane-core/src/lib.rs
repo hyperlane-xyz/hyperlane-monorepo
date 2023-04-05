@@ -5,6 +5,8 @@
 #![forbid(unsafe_code)]
 #![forbid(where_clauses_object_safety)]
 
+extern crate core;
+
 pub use chain::*;
 pub use error::{ChainCommunicationError, ChainResult, HyperlaneProtocolError};
 pub use identifiers::HyperlaneIdentifier;
@@ -21,6 +23,8 @@ pub mod utils;
 
 /// Testing utilities
 pub mod test_utils;
+
+pub mod config;
 
 /// DB related utilities
 pub mod db;

@@ -9,7 +9,7 @@ use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
 };
 use hyperlane_core::{
-    utils::StrOrInt, ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol,
+    config::*, ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol,
     HyperlaneProvider, HyperlaneSigner, InterchainGasPaymaster, InterchainGasPaymasterIndexer,
     Mailbox, MailboxIndexer, MultisigIsm, ValidatorAnnounce, H256,
 };
@@ -19,10 +19,9 @@ use hyperlane_ethereum::{
 };
 use hyperlane_fuel as h_fuel;
 
-use crate::settings::signers::RawSignerConf;
 use crate::{
-    settings::signers::BuildableWithSignerConf, ConfigOptionExt, ConfigParsingError, ConfigPath,
-    ConfigResult, CoreMetrics, FromRawConf, SignerConf,
+    settings::signers::{BuildableWithSignerConf, RawSignerConf},
+    CoreMetrics,
 };
 
 /// A connection to _some_ blockchain.

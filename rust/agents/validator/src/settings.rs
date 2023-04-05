@@ -4,7 +4,7 @@ use hyperlane_base::{
     decl_settings, CheckpointSyncerConf, ConfigOptionExt, RawCheckpointSyncerConf, RawSignerConf,
     SignerConf,
 };
-use hyperlane_core::utils::StrOrInt;
+use hyperlane_core::config::StrOrInt;
 
 decl_settings!(Validator,
     Parsed {

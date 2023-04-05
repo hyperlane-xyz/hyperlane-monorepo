@@ -6,7 +6,7 @@ use eyre::Context;
 use serde::Deserialize;
 
 use hyperlane_base::{decl_settings, ConfigOptionExt};
-use hyperlane_core::utils::StrOrInt;
+use hyperlane_core::config::StrOrInt;
 use hyperlane_core::U256;
 
 use crate::settings::matching_list::MatchingList;

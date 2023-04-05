@@ -7,7 +7,7 @@ use rusoto_kms::KmsClient;
 use serde::Deserialize;
 use tracing::instrument;
 
-use hyperlane_core::H256;
+use hyperlane_core::{config::*, H256};
 
 use crate::settings::{ConfigOptionExt, KMS_CLIENT};
 use crate::{ConfigErrResultExt, ConfigParsingError, ConfigPath, ConfigResult, FromRawConf};
