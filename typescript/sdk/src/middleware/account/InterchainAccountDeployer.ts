@@ -26,9 +26,8 @@ export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
   constructor(
     multiProvider: MultiProvider,
     configMap: ChainMap<InterchainAccountConfig>,
-    create2salt = 'accountsrouter',
   ) {
-    super(multiProvider, configMap, interchainAccountFactories, create2salt);
+    super(multiProvider, configMap, interchainAccountFactories);
   }
 
   // The OwnableMulticall implementation has an immutable owner address that
@@ -60,7 +59,6 @@ export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
       new TransparentUpgradeableProxy__factory(),
       'TransparentUpgradeableProxy',
       [proxyAdmin.address, deployer, '0x'],
-      { create2Salt: this.create2salt },
     );
 
     // 2. deploy the real InterchainAccountRouter and OwnableMulticall implementation with proxy address
@@ -74,17 +72,7 @@ export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
     // 3. upgrade the proxy to the real implementation and initialize
     // adapted from HyperlaneDeployer.deployProxy.useCreate2
     const initArgs = await this.initializeArgs(chain, config);
-    const initData =
-      this.factories.interchainAccountRouter.interface.encodeFunctionData(
-        'initialize',
-        initArgs,
-      );
-    await super.upgradeAndInitialize(
-      chain,
-      proxy,
-      implementation.address,
-      initData,
-    );
+    await super.upgradeAndInitialize(chain, proxy, implementation, initArgs);
     await super.changeAdmin(chain, proxy, proxyAdmin.address);
 
     const proxiedRouter = implementation.attach(proxy.address);

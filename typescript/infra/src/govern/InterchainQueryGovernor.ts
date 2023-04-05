@@ -6,7 +6,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { types } from '@hyperlane-xyz/utils';
 
-import { HyperlaneAppGovernor } from '../../govern/HyperlaneAppGovernor';
+import { HyperlaneAppGovernor } from './HyperlaneAppGovernor';
 
 export class InterchainQueryGovernor extends HyperlaneAppGovernor<
   InterchainQuery,

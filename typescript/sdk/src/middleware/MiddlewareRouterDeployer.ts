@@ -16,7 +16,6 @@ export abstract class MiddlewareRouterDeployer<
     multiProvider: MultiProvider,
     configMap: ChainMap<MiddlewareRouterConfig>,
     factories: MiddlewareFactories,
-    protected create2salt = 'middlewarerouter',
   ) {
     super(multiProvider, configMap, factories);
   }
@@ -63,12 +62,9 @@ export abstract class MiddlewareRouterDeployer<
     const proxiedRouter = await this.deployProxiedContract(
       chain,
       this.routerContractName,
+      proxyAdmin.address,
       this.constructorArgs(chain, config),
       initArgs as any, // generic type inference fails here
-      proxyAdmin.address,
-      {
-        create2Salt: this.create2salt,
-      },
     );
 
     this.logger(`Transferring ownership of proxy admin to ${config.owner}`);

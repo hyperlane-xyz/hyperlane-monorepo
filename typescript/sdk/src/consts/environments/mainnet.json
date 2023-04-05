@@ -7,7 +7,6 @@
     "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
     "defaultIsmInterchainGasPaymaster": "0x56f52c0A1ddcD557285f7CBc782D3d83096CE1Cc",
     "multisigIsm": "0x9bDE63104EE030d9De419EEd6bA7D14b86D6fE3f",
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
     "interchainQueryRouter": "0x234b19282985882d6d6fd54dEBa272271f4eb784"
   },
@@ -19,7 +18,6 @@
     "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
     "defaultIsmInterchainGasPaymaster": "0x56f52c0A1ddcD557285f7CBc782D3d83096CE1Cc",
     "multisigIsm": "0xec48E52D960E54a179f70907bF28b105813877ee",
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
     "interchainQueryRouter": "0x234b19282985882d6d6fd54dEBa272271f4eb784"
   },
@@ -31,7 +29,6 @@
     "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
     "defaultIsmInterchainGasPaymaster": "0x56f52c0A1ddcD557285f7CBc782D3d83096CE1Cc",
     "multisigIsm": "0xeE80ab5B563cB3825133f29502bA34eD3707cb8C",
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
     "interchainQueryRouter": "0x234b19282985882d6d6fd54dEBa272271f4eb784"
   },
@@ -43,7 +40,6 @@
     "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
     "defaultIsmInterchainGasPaymaster": "0x56f52c0A1ddcD557285f7CBc782D3d83096CE1Cc",
     "multisigIsm": "0x61A80297e77FC5395bd6Ff60EEacf7CD4f18d4a4",
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
     "interchainQueryRouter": "0x234b19282985882d6d6fd54dEBa272271f4eb784"
   },
@@ -55,7 +51,6 @@
     "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
     "defaultIsmInterchainGasPaymaster": "0x56f52c0A1ddcD557285f7CBc782D3d83096CE1Cc",
     "multisigIsm": "0x3a579C0bd04FC4C98A8D70EEABD9094e7be4B26D",
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
     "interchainQueryRouter": "0x234b19282985882d6d6fd54dEBa272271f4eb784"
   },
@@ -67,7 +62,6 @@
     "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
     "defaultIsmInterchainGasPaymaster": "0x56f52c0A1ddcD557285f7CBc782D3d83096CE1Cc",
     "multisigIsm": "0x32B92bd3e5045B67FDD8dbb7A58D25980836d04C",
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
     "interchainQueryRouter": "0x234b19282985882d6d6fd54dEBa272271f4eb784"
   },
@@ -79,7 +73,6 @@
     "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
     "defaultIsmInterchainGasPaymaster": "0x56f52c0A1ddcD557285f7CBc782D3d83096CE1Cc",
     "multisigIsm": "0xAab1D11E2063Bae5EB01fa946cA8d2FDe3db05D5",
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
     "interchainQueryRouter": "0x234b19282985882d6d6fd54dEBa272271f4eb784"
   },
@@ -91,7 +84,6 @@
     "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
     "defaultIsmInterchainGasPaymaster": "0x56f52c0A1ddcD557285f7CBc782D3d83096CE1Cc",
     "multisigIsm": "0xf3b1F415740A26568C45b1c771A737E31C198F09",
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
     "interchainQueryRouter": "0x234b19282985882d6d6fd54dEBa272271f4eb784"
   },
@@ -103,7 +95,6 @@
     "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
     "defaultIsmInterchainGasPaymaster": "0x56f52c0A1ddcD557285f7CBc782D3d83096CE1Cc",
     "multisigIsm": "0xC343A7054838FE9F249D7E3Ec1Fa6f1D108694b8",
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35"
   }
 }

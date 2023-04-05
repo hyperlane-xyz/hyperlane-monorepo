@@ -1,10 +1,8 @@
 import {
   CircleBridgeAdapter,
-  CircleBridgeAdapter__factory,
   LiquidityLayerRouter,
   LiquidityLayerRouter__factory,
   PortalAdapter,
-  PortalAdapter__factory,
 } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
@@ -59,9 +57,8 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
   constructor(
     multiProvider: MultiProvider,
     configMap: ChainMap<LiquidityLayerConfig>,
-    create2salt = 'LiquidityLayerDeployerSalt',
   ) {
-    super(multiProvider, configMap, liquidityLayerFactories, create2salt);
+    super(multiProvider, configMap, liquidityLayerFactories);
   }
 
   async enrollRemoteRouters(
@@ -128,24 +125,16 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
     owner: string,
     router: LiquidityLayerRouter,
   ): Promise<PortalAdapter> {
-    const initCalldata =
-      PortalAdapter__factory.createInterface().encodeFunctionData(
-        'initialize',
-        [
-          this.multiProvider.getDomainId(chain),
-          owner,
-          adapterConfig.portalBridgeAddress,
-          router.address,
-        ],
-      );
     const portalAdapter = await this.deployContract(
       chain,
       'portalAdapter',
       [],
-      {
-        create2Salt: this.create2salt,
-        initCalldata,
-      },
+      [
+        this.multiProvider.getDomainId(chain),
+        owner,
+        adapterConfig.portalBridgeAddress,
+        router.address,
+      ],
     );
 
     for (const {
@@ -190,24 +179,16 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
     owner: string,
     router: LiquidityLayerRouter,
   ): Promise<CircleBridgeAdapter> {
-    const initCalldata =
-      CircleBridgeAdapter__factory.createInterface().encodeFunctionData(
-        'initialize',
-        [
-          owner,
-          adapterConfig.tokenMessengerAddress,
-          adapterConfig.messageTransmitterAddress,
-          router.address,
-        ],
-      );
     const circleBridgeAdapter = await this.deployContract(
       chain,
       'circleBridgeAdapter',
       [],
-      {
-        create2Salt: this.create2salt,
-        initCalldata,
-      },
+      [
+        owner,
+        adapterConfig.tokenMessengerAddress,
+        adapterConfig.messageTransmitterAddress,
+        router.address,
+      ],
     );
 
     if (
