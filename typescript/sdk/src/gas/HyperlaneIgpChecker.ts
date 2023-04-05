@@ -1,11 +1,13 @@
 import { BigNumber, utils as ethersUtils } from 'ethers';
 
+import { Ownable } from '@hyperlane-xyz/core';
 import { types, utils } from '@hyperlane-xyz/utils';
 
 import { BytecodeHash } from '../consts/bytecode';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
 import { proxyImplementation } from '../deploy/proxy';
 import { ChainName } from '../types';
+import { objFilter } from '../utils/objects';
 
 import { HyperlaneIgp } from './HyperlaneIgp';
 import {
@@ -159,6 +161,14 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
       };
       this.addViolation(violation);
     }
+  }
+
+  // The owner of storageGasOracle is not expected to match the configured owner
+  async ownables(chain: ChainName): Promise<{ [key: string]: Ownable }> {
+    return objFilter(
+      await super.ownables(chain),
+      (name, contract): contract is Ownable => name !== 'storageGasOracle',
+    );
   }
 
   getGasOracleAddress(local: ChainName, remote: ChainName): types.Address {
