@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
+import "forge-std/console.sol";
 
 import {IMultisigIsm} from "../../contracts/interfaces/isms/IMultisigIsm.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
@@ -41,23 +42,23 @@ contract MultisigIsmTest is Test {
     function getMessage(
         uint32 destination,
         bytes32 recipient,
-        bytes calldata body
+        bytes memory body
     ) internal returns (bytes memory) {
         uint8 version = mailbox.VERSION();
         uint32 origin = mailbox.localDomain();
         bytes32 sender = TypeCasts.addressToBytes32(address(this));
         uint32 nonce = mailbox.count();
         mailbox.dispatch(destination, recipient, body);
-        bytes memory message = Message.formatMessage(
-            version,
-            nonce,
-            origin,
-            sender,
-            destination,
-            recipient,
-            body
-        );
-        return message;
+        return
+            Message.formatMessage(
+                version,
+                nonce,
+                origin,
+                sender,
+                destination,
+                recipient,
+                body
+            );
     }
 
     function getMetadata(
@@ -90,17 +91,42 @@ contract MultisigIsmTest is Test {
         return metadata;
     }
 
-    function testVerify(
-        uint32 destination,
-        bytes32 recipient,
-        bytes calldata body,
-        uint8 m,
-        uint8 n,
-        bytes32 seed
-    ) public {
-        vm.assume(0 < m && m <= n && n < 10);
+    function testVerify() public {
+        // logs do not work with fuzzing ??
+        // https://github.com/foundry-rs/foundry/issues/3843
+
+        bytes32 seed = keccak256("");
+        uint32 destination = ORIGIN + 1;
+        bytes32 recipient = keccak256("recipient");
+        bytes memory body = "body";
         bytes memory message = getMessage(destination, recipient, body);
-        bytes memory metadata = getMetadata(m, n, seed);
-        assertTrue(ism.verify(metadata, message));
+
+        uint8 MAX_VALIDATOR_COUNT = 18;
+
+        for (
+            uint8 numValidators = 1;
+            numValidators <= MAX_VALIDATOR_COUNT;
+            numValidators++
+        ) {
+            emit log_named_uint("numValidators", numValidators);
+
+            for (uint8 threshold = 1; threshold <= numValidators; threshold++) {
+                emit log_named_uint("threshold", threshold);
+
+                bytes memory metadata = getMetadata(
+                    threshold,
+                    numValidators,
+                    seed
+                );
+
+                uint256 gas = gasleft();
+                assertTrue(ism.verify(metadata, message));
+                gas = gas - gasleft();
+
+                emit log_named_uint("gas", gas);
+                console.log(" ");
+            }
+            console.log(" ");
+        }
     }
 }

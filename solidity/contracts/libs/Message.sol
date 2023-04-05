@@ -37,7 +37,7 @@ library Message {
         bytes32 _sender,
         uint32 _destinationDomain,
         bytes32 _recipient,
-        bytes calldata _messageBody
+        bytes memory _messageBody // TODO: revert to calldata
     ) internal pure returns (bytes memory) {
         return
             abi.encodePacked(
