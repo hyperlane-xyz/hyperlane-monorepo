@@ -42,10 +42,6 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
   ): Promise<InterchainGasPaymaster> {
     const beneficiary = this.configMap[chain].beneficiary;
     const owner = await this.multiProvider.getSignerAddress(chain);
-    // The IGP initializes itself in the constructor, so we do not
-    // pass initialization args.
-    // Wait scratch that, we want to initialize the proxied version but not the
-    // un-proxied version.
     const igp = await this.deployProxiedContract(
       chain,
       'interchainGasPaymaster',
@@ -74,9 +70,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       }
     }
 
-    // Okay so the deployer is not the owner of the IGP, for some reason...
     if (gasOracleConfigsToSet.length > 0) {
-      this.logger({ gasOracleConfigsToSet });
       await this.runIfOwner(chain, igp, async () =>
         this.multiProvider.handleTx(
           chain,
