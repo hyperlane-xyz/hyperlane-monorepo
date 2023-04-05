@@ -44,7 +44,7 @@ pub struct GasPaymentEnforcer {
 
 impl GasPaymentEnforcer {
     pub fn new(
-        policy_configs: impl IntoIterator<Item =GasPaymentEnforcementConf>,
+        policy_configs: impl IntoIterator<Item = GasPaymentEnforcementConf>,
         db: HyperlaneDB,
     ) -> Self {
         let policies = policy_configs

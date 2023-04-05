@@ -55,7 +55,9 @@ impl TryFrom<RawGasPaymentEnforcementPolicy> for GasPaymentEnforcementPolicy {
                 payment: payment
                     .expect_or_eyre("Missing `payment` for Minimum gas payment enforcement policy")?
                     .parse::<U256>()
-                    .context("Invalid `payment` value for Minimum gas payment enforcement policy")?,
+                    .context(
+                        "Invalid `payment` value for Minimum gas payment enforcement policy",
+                    )?,
             },
             RawGasPaymentEnforcementPolicy::OnChainFeeQuoting { .. } => {}
             RawGasPaymentEnforcementPolicy::Unknown => {}
