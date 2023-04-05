@@ -227,6 +227,7 @@ export abstract class HyperlaneDeployer<
       contract,
       factory.bytecode,
     );
+    this.verificationInputs[chain] = this.verificationInputs[chain] || [];
     this.verificationInputs[chain].push(verificationInput);
 
     return contract;
