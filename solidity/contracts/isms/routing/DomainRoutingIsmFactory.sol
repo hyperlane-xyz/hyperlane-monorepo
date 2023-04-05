@@ -13,6 +13,12 @@ contract DomainRoutingIsmFactory {
     // ============ Immutables ============
     address private immutable _implementation;
 
+    /**
+     * @notice Emitted when a routing module is deployed
+     * @param module The deployed ISM
+     */
+    event ModuleDeployed(DomainRoutingIsm module);
+
     // ============ Constructor ============
 
     constructor() {
@@ -33,6 +39,7 @@ contract DomainRoutingIsmFactory {
         DomainRoutingIsm _ism = DomainRoutingIsm(
             MinimalProxy.create(_implementation)
         );
+        emit ModuleDeployed(_ism);
         _ism.initialize(msg.sender, _domains, _modules);
         return _ism;
     }
