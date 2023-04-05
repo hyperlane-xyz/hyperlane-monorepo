@@ -1,8 +1,10 @@
 import path from 'path';
 
 import {
+  HyperlaneCoreDeployer,
   HyperlaneDeployer,
   HyperlaneIgp,
+  HyperlaneIgpDeployer,
   InterchainAccountDeployer,
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
@@ -11,10 +13,7 @@ import {
 
 import { bridgeAdapterConfigs } from '../config/environments/test/liquidityLayer';
 import { deployEnvToSdkEnv } from '../src/config/environment';
-import { HyperlaneCoreInfraDeployer } from '../src/core/deploy';
-import { Create2FactoryDeployer } from '../src/create2';
 import { deployWithArtifacts } from '../src/deploy';
-import { HyperlaneIgpInfraDeployer } from '../src/gas/deploy';
 import { TestQuerySenderDeployer } from '../src/testcontracts/testquerysender';
 import { TestRecipientDeployer } from '../src/testcontracts/testrecipient';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
@@ -51,17 +50,9 @@ async function main() {
 
   let deployer: HyperlaneDeployer<any, any>;
   if (module === Modules.CORE) {
-    deployer = new HyperlaneCoreInfraDeployer(
-      multiProvider,
-      config.core,
-      environment,
-    );
+    deployer = new HyperlaneCoreDeployer(multiProvider, config.core);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
-    deployer = new HyperlaneIgpInfraDeployer(
-      multiProvider,
-      config.igp,
-      environment,
-    );
+    deployer = new HyperlaneIgpDeployer(multiProvider, config.igp);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
     const config = await getRouterConfig(environment, multiProvider);
     deployer = new InterchainAccountDeployer(multiProvider, config);
@@ -75,8 +66,6 @@ async function main() {
       ...routerConfig[chain],
     }));
     deployer = new LiquidityLayerDeployer(multiProvider, config);
-  } else if (module === Modules.CREATE2_FACTORY) {
-    deployer = new Create2FactoryDeployer(multiProvider);
   } else if (module === Modules.TEST_RECIPIENT) {
     deployer = new TestRecipientDeployer(multiProvider);
   } else if (module === Modules.TEST_QUERY_SENDER) {
@@ -121,13 +110,15 @@ async function main() {
     read: environment !== 'test',
     write: true,
   };
-  const agentConfig = ['core', 'igp'].includes(module)
-    ? {
-        addresses,
-        environment,
-        multiProvider,
-      }
-    : undefined;
+  // Don't write agent config in fork tests
+  const agentConfig =
+    ['core', 'igp'].includes(module) && !fork
+      ? {
+          addresses,
+          environment,
+          multiProvider,
+        }
+      : undefined;
 
   await deployWithArtifacts(deployer, cache, fork, agentConfig);
 }

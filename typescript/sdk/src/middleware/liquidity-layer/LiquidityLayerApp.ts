@@ -95,6 +95,10 @@ export class LiquidityLayerApp extends HyperlaneApp<
     const req = await fetch(url);
     const response = await req.json();
 
+    if (!response.result) {
+      throw Error(`Expected result in response: ${response}`);
+    }
+
     return response.result.map((_: any) => _.transactionHash).flat();
   }
 
