@@ -140,7 +140,7 @@ pub trait ConfigErrResultExt<T> {
 
 impl<T, E> ConfigErrResultExt<T> for Result<T, E>
 where
-    E: std::error::Error,
+    E: Into<Report>,
 {
     fn merge_err_then_none(
         self,
@@ -165,53 +165,8 @@ where
             Ok(v) => Some(v),
             Err(e) => {
                 let (path, ctx) = ctx();
-                err.merge(ConfigParsingError::new(path, e.context(ctx)));
-                None
-            }
-        }
-    }
-}
-
-impl<T, R> ConfigEyreResultExt<T> for Result<T, R>
-where
-    R: Into<Report>,
-{
-    fn merge_eyre_then_none(
-        self,
-        err: &mut ConfigParsingError,
-        path: impl FnOnce() -> ConfigPath,
-    ) -> Option<T> {
-        match self {
-            Ok(v) => Some(v),
-            Err(e) => {
-                err.merge(ConfigParsingError::new(path(), e));
-                None
-            }
-        }
-    }
-}
-
-pub trait ConfigEyreResultExt<T> {
-    fn merge_eyre_then_none(
-        self,
-        err: &mut ConfigParsingError,
-        path: impl FnOnce() -> ConfigPath,
-    ) -> Option<T>;
-}
-
-impl<T, R> ConfigEyreResultExt<T> for Result<T, R>
-where
-    R: Into<Report>,
-{
-    fn merge_eyre_then_none(
-        self,
-        err: &mut ConfigParsingError,
-        path: impl FnOnce() -> ConfigPath,
-    ) -> Option<T> {
-        match self {
-            Ok(v) => Some(v),
-            Err(e) => {
-                err.merge(ConfigParsingError::new(path(), e));
+                let report: Report = Err::<(), _>(e.into()).context(ctx.into()).err().unwrap();
+                err.merge(ConfigParsingError::new(path, report));
                 None
             }
         }
