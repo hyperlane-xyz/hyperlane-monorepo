@@ -1,16 +1,16 @@
 use async_trait::async_trait;
 use ethers::prelude::{AwsSigner, LocalWallet};
-use eyre::{bail, Context, Report};
+use eyre::{bail, eyre, Context, Report};
 use rusoto_core::credential::EnvironmentProvider;
-use rusoto_core::HttpClient;
+use rusoto_core::{HttpClient, Region};
 use rusoto_kms::KmsClient;
 use serde::Deserialize;
 use tracing::instrument;
 
 use hyperlane_core::H256;
-use crate::{ConfigPath, FromRawConf, ConfigParsingError};
 
 use crate::settings::{ConfigOptionExt, KMS_CLIENT};
+use crate::{ConfigErrResultExt, ConfigParsingError, ConfigPath, ConfigResult, FromRawConf};
 
 /// Signer types
 #[derive(Default, Debug, Clone)]
@@ -26,7 +26,7 @@ pub enum SignerConf {
         /// The UUID identifying the AWS KMS Key
         id: String, // change to no _ so we can set by env
         /// The AWS region
-        region: String,
+        region: Region,
     },
     /// Assume node will sign on RPC calls
     #[default]
@@ -49,36 +49,30 @@ pub enum RawSignerConf {
 }
 
 impl FromRawConf<'_, RawSignerConf> for SignerConf {
-    fn from_raw_conf(raw: RawSignerConf, cwp: &ConfigPath) -> Result<Self, ConfigParsingError> {
+    fn from_config(raw: RawSignerConf, cwp: &ConfigPath) -> ConfigResult<Self> {
         use RawSignerConf::*;
+        let key_path = || cwp.join("key");
+        let region_path = || cwp.join("region");
         match raw {
             HexKey { key } => Ok(Self::HexKey {
-                key: key.expect_or_parsing_error("Missing `key` for HexKey signer")?,
-            })
-            Aws { .. } => {}
-            Node => {}
-            Unknown => {}
-        }
-    }
-}
-
-impl TryFrom<RawSignerConf> for SignerConf {
-    type Error = Report;
-
-    fn try_from(r: RawSignerConf) -> Result<Self, Self::Error> {
-        use RawSignerConf::*;
-        match r {
-            HexKey { key } => Ok(Self::HexKey {
                 key: key
-                    .expect_or_eyre("Missing `key` for HexKey signer")?
+                    .expect_or_parsing_error(|| (key_path(), "Missing `key` for HexKey signer"))?
                     .parse()
-                    .context("Invalid hex string for HexKey signer `key`")?,
+                    .into_config_result(key_path)?,
             }),
             Aws { id, region } => Ok(Self::Aws {
-                id: id.expect_or_eyre("Missing `id` for Aws signer")?,
-                region: region.expect_or_eyre("Missing `region` for Aws signer")?,
+                id: id
+                    .expect_or_parsing_error(|| (cwp.join("id"), "Missing `id` for Aws signer"))?,
+                region: region
+                    .expect_or_parsing_error(|| (region_path(), "Missing `region` for Aws signer"))?
+                    .parse()
+                    .into_config_result(region_path)?,
             }),
             Node => Ok(Self::Node),
+            Unknown => Err(ConfigParsingError::new(
+                cwp.join("type"),
+                eyre!("Unknown signer type"),
+            )),
         }
     }
 }
