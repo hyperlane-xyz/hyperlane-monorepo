@@ -84,7 +84,7 @@ export async function dispatchMessageAndReturnMetadata(
   recipient: string,
   messageStr: string,
   orderedValidators: Validator[],
-  threshold?: number,
+  threshold = orderedValidators.length,
   utf8 = true,
 ): Promise<MessageAndMetadata> {
   // Checkpoint indices are 0 indexed, so we pull the count before
@@ -102,7 +102,7 @@ export async function dispatchMessageAndReturnMetadata(
     root,
     index,
     mailbox.address,
-    orderedValidators,
+    orderedValidators.slice(0, threshold),
   );
   const origin = utils.parseMessage(proofAndMessage.message).origin;
   const metadata = utils.formatLegacyMultisigIsmMetadata({
