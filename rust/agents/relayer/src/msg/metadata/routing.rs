@@ -1,13 +1,13 @@
 use async_trait::async_trait;
-use std::{ops::Deref};
+use std::ops::Deref;
 
 use derive_new::new;
 use eyre::Context;
-use tracing::{instrument};
+use tracing::instrument;
 
 use hyperlane_core::{HyperlaneMessage, H256};
 
-use super::{MetadataBuilder, BaseMetadataBuilder};
+use super::{BaseMetadataBuilder, MetadataBuilder};
 
 #[derive(Clone, Debug, new)]
 pub struct RoutingIsmMetadataBuilder {

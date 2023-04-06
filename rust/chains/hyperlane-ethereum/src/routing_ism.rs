@@ -10,13 +10,10 @@ use tracing::instrument;
 
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, RoutingIsm,
-    RawHyperlaneMessage, H256,
+    HyperlaneMessage, HyperlaneProvider, RawHyperlaneMessage, RoutingIsm, H256,
 };
 
-use crate::contracts::i_routing_ism::{
-    IRoutingIsm as EthereumRoutingIsmInternal, IROUTINGISM_ABI,
-};
+use crate::contracts::i_routing_ism::{IRoutingIsm as EthereumRoutingIsmInternal, IROUTINGISM_ABI};
 use crate::trait_builder::BuildableWithProvider;
 use crate::EthereumProvider;
 
@@ -99,10 +96,7 @@ where
     M: Middleware + 'static,
 {
     #[instrument(err, ret)]
-    async fn route(
-        &self,
-        message: &HyperlaneMessage,
-    ) -> ChainResult<H256> {
+    async fn route(&self, message: &HyperlaneMessage) -> ChainResult<H256> {
         let ism = self
             .contract
             .route(RawHyperlaneMessage::from(message).to_vec().into())

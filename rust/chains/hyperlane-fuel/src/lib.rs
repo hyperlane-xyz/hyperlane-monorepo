@@ -8,8 +8,8 @@
 pub use interchain_gas::*;
 pub use mailbox::*;
 pub use multisig_ism::*;
-pub use routing_ism::*;
 pub use provider::*;
+pub use routing_ism::*;
 pub use trait_builder::*;
 
 mod contracts;
@@ -17,8 +17,8 @@ mod conversions;
 mod interchain_gas;
 mod mailbox;
 mod multisig_ism;
-mod routing_ism;
 mod provider;
+mod routing_ism;
 mod trait_builder;
 
 /// Safe default imports of commonly used traits/types.

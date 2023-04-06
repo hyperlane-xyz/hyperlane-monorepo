@@ -3,16 +3,18 @@ use ethers::abi::Token;
 use hyperlane_core::accumulator::merkle::Proof;
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::{ops::Deref};
+use std::ops::Deref;
 
 use derive_new::new;
 use eyre::Context;
 use tracing::{debug, info, instrument};
 
-use hyperlane_core::{HyperlaneMessage, MultisigIsm, H256, MultisigSignedCheckpoint, SignatureWithSigner};
+use hyperlane_core::{
+    HyperlaneMessage, MultisigIsm, MultisigSignedCheckpoint, SignatureWithSigner, H256,
+};
 
+use super::base::MetadataBuilder;
 use super::BaseMetadataBuilder;
-use super::base::{MetadataBuilder};
 
 #[derive(Clone, Debug, new)]
 pub struct MultisigIsmMetadataBuilder {
@@ -89,8 +91,7 @@ impl MetadataBuilder for MultisigIsmMetadataBuilder {
                 ?proof,
                 "Fetched metadata"
             );
-            let metadata =
-                self.format_metadata(&validators, threshold, &checkpoint, &proof);
+            let metadata = self.format_metadata(&validators, threshold, &checkpoint, &proof);
             Ok(Some(metadata))
         } else {
             info!(
@@ -142,25 +143,24 @@ impl MultisigIsmMetadataBuilder {
             .collect();
         let validator_bytes = ethers::abi::encode(&[Token::FixedArray(validator_tokens)]);
         let metadata = if !self.legacy {
-        [
-            root_bytes,
-            index_bytes,
-            mailbox_and_proof_bytes,
-            signature_bytes,
-        ]
-        .concat()
-            } else {
-
-        [
-            root_bytes,
-            index_bytes,
-            mailbox_and_proof_bytes,
-            Vec::from([threshold]),
-            signature_bytes,
-            validator_bytes,
-        ]
-        .concat()
-            };
+            [
+                root_bytes,
+                index_bytes,
+                mailbox_and_proof_bytes,
+                signature_bytes,
+            ]
+            .concat()
+        } else {
+            [
+                root_bytes,
+                index_bytes,
+                mailbox_and_proof_bytes,
+                Vec::from([threshold]),
+                signature_bytes,
+                validator_bytes,
+            ]
+            .concat()
+        };
         metadata
     }
 }
@@ -184,13 +184,13 @@ fn order_signatures(desired_order: &[H256], signatures: &[SignatureWithSigner]) 
         .map(|s| {
             let order_index = ordering_map.get(&H256::from(s.signer)).unwrap();
             (s, *order_index)
-            })
-            .collect::<Vec<(SignatureWithSigner, usize)>>();
-        // Sort by the index
-        ordered_signatures.sort_by_key(|s| s.1);
-        // Now collect only the raw signature bytes
-        ordered_signatures
-            .iter()
-            .map(|s| s.0.signature.to_vec())
-            .collect()
-    }
+        })
+        .collect::<Vec<(SignatureWithSigner, usize)>>();
+    // Sort by the index
+    ordered_signatures.sort_by_key(|s| s.1);
+    // Now collect only the raw signature bytes
+    ordered_signatures
+        .iter()
+        .map(|s| s.0.signature.to_vec())
+        .collect()
+}

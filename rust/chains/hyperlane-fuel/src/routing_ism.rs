@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 
 use hyperlane_core::{
-    ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, RoutingIsm, H256,
+    ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
+    HyperlaneProvider, RoutingIsm, H256,
 };
 
 /// A reference to a RoutingIsm contract on some Fuel chain
@@ -28,10 +28,7 @@ impl HyperlaneChain for FuelRoutingIsm {
 #[async_trait]
 impl RoutingIsm for FuelRoutingIsm {
     /// Returns the ism needed to verify message
-    async fn route(
-        &self,
-        message: &HyperlaneMessage,
-    ) -> ChainResult<H256> {
+    async fn route(&self, message: &HyperlaneMessage) -> ChainResult<H256> {
         todo!()
     }
 }
