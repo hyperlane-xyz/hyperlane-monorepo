@@ -22,6 +22,8 @@ use crate::msg::metadata::{MultisigIsmMetadataBuilder, RoutingIsmMetadataBuilder
 pub enum MetadataBuilderError {
     #[error("Unknown or invalid module type ({0})")]
     UnsupportedModuleType(u8),
+    #[error("Exceeded max depth when building metadata ({0})")]
+    MaxDepthExceeded(u32),
 }
 
 #[derive(FromPrimitive, Clone, Debug)]
@@ -49,6 +51,8 @@ pub struct BaseMetadataBuilder {
     pub validator_announce: Arc<dyn ValidatorAnnounce>,
     pub allow_local_checkpoint_syncers: bool,
     pub metrics: Arc<CoreMetrics>,
+    pub depth: u32,
+    pub max_depth: u32
 }
 
 impl Debug for BaseMetadataBuilder {
@@ -79,15 +83,16 @@ impl MetadataBuilder for BaseMetadataBuilder {
         let supported_type = SupportedIsmTypes::from_u8(module_type)
             .ok_or(MetadataBuilderError::UnsupportedModuleType(module_type))
             .context(CTX)?;
+        let base = self.clone_with_incremented_depth()?;
 
         let metadata_builder: Box<dyn MetadataBuilder> = match supported_type {
             SupportedIsmTypes::Multisig => {
-                Box::new(MultisigIsmMetadataBuilder::new(self.clone(), false))
+                Box::new(MultisigIsmMetadataBuilder::new(base, false))
             }
             SupportedIsmTypes::LegacyMultisig => {
-                Box::new(MultisigIsmMetadataBuilder::new(self.clone(), true))
+                Box::new(MultisigIsmMetadataBuilder::new(base, true))
             }
-            SupportedIsmTypes::Routing => Box::new(RoutingIsmMetadataBuilder::new(self.clone())),
+            SupportedIsmTypes::Routing => Box::new(RoutingIsmMetadataBuilder::new(base)),
         };
         metadata_builder
             .build(ism_address, message)
@@ -97,6 +102,18 @@ impl MetadataBuilder for BaseMetadataBuilder {
 }
 
 impl BaseMetadataBuilder {
+
+    pub fn clone_with_incremented_depth(&self) -> eyre::Result<BaseMetadataBuilder> {
+        let mut cloned = self.clone();
+        cloned.depth = cloned.depth + 1;
+        if cloned.depth > cloned.max_depth {
+            Err(MetadataBuilderError::MaxDepthExceeded(cloned.depth).into())
+        } else {
+            Ok(cloned)
+        }
+    }
+
+
     pub async fn build_checkpoint_syncer(
         &self,
         validators: &[H256],
