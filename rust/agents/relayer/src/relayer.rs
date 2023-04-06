@@ -20,8 +20,8 @@ use hyperlane_core::{db::DB, HyperlaneChain, HyperlaneDomain, ValidatorAnnounce}
 use crate::{
     merkle_tree_builder::MerkleTreeBuilder,
     msg::{
+        metadata::BaseMetadataBuilder,
         gas_payment::GasPaymentEnforcer,
-        metadata_builder::BaseMetadataBuilder,
         processor::{MessageProcessor, MessageProcessorMetrics},
         serial_submitter::{SerialSubmitter, SerialSubmitterMetrics},
         PendingMessage,

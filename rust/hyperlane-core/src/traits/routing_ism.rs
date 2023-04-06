@@ -8,14 +8,14 @@ use crate::{
     H256,
 };
 
-/// Interface for the MultisigIsm chain contract. Allows abstraction over
+/// Interface for the RoutingIsm chain contract. Allows abstraction over
 /// different chains
 #[async_trait]
 #[auto_impl(&, Box, Arc)]
-pub trait MultisigIsm: HyperlaneContract + Send + Sync + Debug {
+pub trait RoutingIsm: HyperlaneContract + Send + Sync + Debug {
     /// Returns the validator and threshold needed to verify message
-    async fn validators_and_threshold(
+    async fn route(
         &self,
         message: &HyperlaneMessage,
-    ) -> ChainResult<(Vec<H256>, u8)>;
+    ) -> ChainResult<H256>;
 }

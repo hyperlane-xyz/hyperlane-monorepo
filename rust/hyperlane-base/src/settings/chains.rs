@@ -10,7 +10,7 @@ use ethers_prometheus::middleware::{
 use hyperlane_core::{
     utils::StrOrInt, ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol,
     HyperlaneProvider, HyperlaneSigner, InterchainGasPaymaster, InterchainGasPaymasterIndexer,
-    InterchainSecurityModule, Mailbox, MailboxIndexer, MultisigIsm, ValidatorAnnounce, H256,
+    InterchainSecurityModule, Mailbox, MailboxIndexer, MultisigIsm, ValidatorAnnounce, H256, RoutingIsm,
 };
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
@@ -309,6 +309,7 @@ impl ChainSetup {
         }
         .context(ctx)
     }
+
     /// Try to convert the chain setting into a Multisig Ism contract
     pub async fn build_multisig_ism(
         &self,
@@ -327,6 +328,32 @@ impl ChainSetup {
         match &self.connection()? {
             ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(conf, &locator, metrics, h_eth::MultisigIsmBuilder {})
+                    .await
+            }
+
+            ChainConnectionConf::Fuel(_) => todo!(),
+        }
+        .context(ctx)
+    }
+
+    /// Try to convert the chain setting into a RoutingIsm Ism contract
+    pub async fn build_routing_ism(
+        &self,
+        address: H256,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn RoutingIsm>> {
+        let ctx = "Building routing ISM";
+        let locator = ContractLocator {
+            domain: self
+                .domain()
+                .context("Invalid domain for locating contract")
+                .context(ctx)?,
+            address,
+        };
+
+        match &self.connection()? {
+            ChainConnectionConf::Ethereum(conf) => {
+                self.build_ethereum(conf, &locator, metrics, h_eth::RoutingIsmBuilder {})
                     .await
             }
 
