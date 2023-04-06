@@ -11,6 +11,12 @@ import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/
  * @dev Supply on each chain is not constant but the aggregate supply across all chains is.
  */
 contract HypERC20 is ERC20Upgradeable, TokenRouter {
+    uint8 private immutable _decimals;
+
+    constructor(uint8 decimals) {
+        _decimals = decimals;
+    }
+
     /**
      * @notice Initializes the Hyperlane router, ERC20 metadata, and mints initial supply to deployer.
      * @param _mailbox The address of the mailbox contract.
@@ -35,6 +41,10 @@ contract HypERC20 is ERC20Upgradeable, TokenRouter {
         // Initialize ERC20 metadata
         __ERC20_init(_name, _symbol);
         _mint(msg.sender, _totalSupply);
+    }
+
+    function decimals() public view override returns (uint8) {
+        return _decimals;
     }
 
     /**
