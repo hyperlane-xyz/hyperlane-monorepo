@@ -142,7 +142,7 @@ impl MultisigIsmMetadataBuilder {
             .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
             .collect();
         let validator_bytes = ethers::abi::encode(&[Token::FixedArray(validator_tokens)]);
-        let metadata = if !self.legacy {
+        if !self.legacy {
             [
                 root_bytes,
                 index_bytes,
@@ -160,8 +160,7 @@ impl MultisigIsmMetadataBuilder {
                 validator_bytes,
             ]
             .concat()
-        };
-        metadata
+        }
     }
 }
 
