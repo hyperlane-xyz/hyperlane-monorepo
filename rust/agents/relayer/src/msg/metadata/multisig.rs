@@ -12,12 +12,12 @@ use tracing::{debug, info, instrument};
 use hyperlane_core::{HyperlaneMessage, MultisigIsm, H256, MultisigSignedCheckpoint, SignatureWithSigner};
 
 use super::BaseMetadataBuilder;
-use super::base::{MetadataBuilder, SupportedIsmTypes};
+use super::base::{MetadataBuilder};
 
 #[derive(Clone, Debug, new)]
 pub struct MultisigIsmMetadataBuilder {
-    module_type: SupportedIsmTypes,
     base: BaseMetadataBuilder,
+    legacy: bool,
 }
 
 impl Deref for MultisigIsmMetadataBuilder {
@@ -141,8 +141,7 @@ impl MultisigIsmMetadataBuilder {
             .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
             .collect();
         let validator_bytes = ethers::abi::encode(&[Token::FixedArray(validator_tokens)]);
-        let metadata = match self.module_type {
-            SupportedIsmTypes::Multisig => {
+        let metadata = if !self.legacy {
         [
             root_bytes,
             index_bytes,
@@ -150,8 +149,8 @@ impl MultisigIsmMetadataBuilder {
             signature_bytes,
         ]
         .concat()
-            }
-            SupportedIsmTypes::LegacyMultisig => {
+            } else {
+
         [
             root_bytes,
             index_bytes,
@@ -161,8 +160,7 @@ impl MultisigIsmMetadataBuilder {
             validator_bytes,
         ]
         .concat()
-            }
-        };
+            };
         metadata
     }
 }

@@ -15,7 +15,8 @@ use hyperlane_base::{
 };
 use hyperlane_core::{HyperlaneMessage, ValidatorAnnounce, H256, H160};
 
-use crate::msg::metadata::MultisigIsmMetadataBuilder;
+use crate::msg::metadata::{
+    MultisigIsmMetadataBuilder, RoutingIsmMetadataBuilder};
 use crate::{merkle_tree_builder::MerkleTreeBuilder};
 
 #[derive(Debug, thiserror::Error)]
@@ -26,14 +27,14 @@ pub enum MetadataBuilderError {
 
 #[derive(FromPrimitive, Clone, Debug)]
 pub enum SupportedIsmTypes {
-    // Routing = 1,
+    Routing = 1,
     // Aggregation = 2,
     LegacyMultisig = 3,
     Multisig = 4,
 }
 
 #[async_trait]
-pub trait MetadataBuilder {
+pub trait MetadataBuilder: Send + Sync {
     #[allow(clippy::async_yields_async)]
     async fn build(
         &self,
@@ -80,12 +81,15 @@ impl MetadataBuilder for BaseMetadataBuilder {
             .ok_or(MetadataBuilderError::UnsupportedModuleType(module_type))
             .context(CTX)?;
 
-        let metadata_builder = match supported_type {
+        let metadata_builder: Box<dyn MetadataBuilder> = match supported_type {
             SupportedIsmTypes::Multisig => {
-                MultisigIsmMetadataBuilder::new(SupportedIsmTypes::Multisig, self.clone())
+                Box::new(MultisigIsmMetadataBuilder::new(self.clone(), false))
             }
             SupportedIsmTypes::LegacyMultisig => {
-                MultisigIsmMetadataBuilder::new(SupportedIsmTypes::LegacyMultisig, self.clone())
+                Box::new(MultisigIsmMetadataBuilder::new(self.clone(), true))
+            }
+            SupportedIsmTypes::Routing => {
+                Box::new(RoutingIsmMetadataBuilder::new(self.clone()))
             }
         };
         metadata_builder
