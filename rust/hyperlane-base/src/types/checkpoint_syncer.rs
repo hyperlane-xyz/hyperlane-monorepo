@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use ethers::types::Address;
-use eyre::{bail, Context, Report, Result};
+use eyre::{eyre, Report, Result};
 use prometheus::{IntGauge, IntGaugeVec};
 use rusoto_core::Region;
 use serde::Deserialize;
@@ -40,67 +40,51 @@ pub enum RawCheckpointSyncerConf {
         region: Option<String>,
     },
     #[serde(other)]
-    None,
+    Unknown,
 }
 
-impl TryFrom<RawCheckpointSyncerConf> for CheckpointSyncerConf {
-    type Error = Report;
-
-    fn try_from(r: RawCheckpointSyncerConf) -> Result<Self> {
-        Ok(match r {
-            RawCheckpointSyncerConf::LocalStorage { path } => Self::LocalStorage {
+impl FromRawConf<'_, RawCheckpointSyncerConf> for CheckpointSyncerConf {
+    fn from_config(raw: RawCheckpointSyncerConf, cwp: &ConfigPath) -> ConfigResult<Self> {
+        match raw {
+            RawCheckpointSyncerConf::LocalStorage { path } => Ok(Self::LocalStorage {
                 path: path
-                    .expect_or_eyre("Missing `path` for LocalStorage checkpoint syncer")?
+                    .expect_or_config_err(|| {
+                        (
+                            cwp + "path",
+                            eyre!("Missing `path` for LocalStorage checkpoint syncer"),
+                        )
+                    })?
                     .parse()
-                    .context("Could not parse `path` for LocalStorage checkpoint syncer")?,
-            },
-            RawCheckpointSyncerConf::S3 { bucket, region } => Self::S3 {
-                bucket: bucket.expect_or_eyre("Missing `bucket` for S3 checkpoint syncer")?,
+                    .into_config_result(|| cwp + "path")?,
+            }),
+            RawCheckpointSyncerConf::S3 { bucket, region } => Ok(Self::S3 {
+                bucket: bucket.expect_or_config_err(|| {
+                    (
+                        cwp + "bucket",
+                        eyre!("Missing `bucket` for S3 checkpoint syncer"),
+                    )
+                })?,
                 region: region
-                    .expect_or_eyre("Missing `region` for S3 checkpoint syncer")?
+                    .expect_or_config_err(|| {
+                        (
+                            cwp + "region",
+                            eyre!("Missing `region` for S3 checkpoint syncer"),
+                        )
+                    })?
                     .parse()
-                    .context("Invalid `region` for S3 checkpoint syncer")?,
-            },
-            RawCheckpointSyncerConf::None => {
-                bail!("Missing `type` for checkpoint syncer")
-            }
-        })
+                    .into_config_result(|| cwp + "region")?,
+            }),
+            RawCheckpointSyncerConf::Unknown => Err(ConfigParsingError::new(
+                cwp + "type",
+                eyre!("Missing `type` for checkpoint syncer"),
+            )),
+        }
     }
 }
 
 /// Error for parsing announced storage locations
 #[derive(Debug, PartialEq, Eq)]
 pub struct ParseStorageLocationError;
-
-// impl FromStr for CheckpointSyncerConf {
-//     type Err = ParseStorageLocationError;
-//
-//     fn from_str(s: &str) -> Result<Self, Self::Err> {
-//         let [prefix, suffix]: [&str; 2] = s
-//             .split("://")
-//             .collect::<Vec<_>>()
-//             .try_into()
-//             .map_err(|_| ParseStorageLocationError)?;
-//
-//         match prefix {
-//             "s3" => {
-//                 let [bucket, region]: [&str; 2] = suffix
-//                     .split('/')
-//                     .collect::<Vec<_>>()
-//                     .try_into()
-//                     .map_err(|_| ParseStorageLocationError)?;
-//                 Ok(CheckpointSyncerConf::S3 {
-//                     bucket: bucket.into(),
-//                     region: region.into(),
-//                 })
-//             }
-//             "file" => Ok(CheckpointSyncerConf::LocalStorage {
-//                 path: suffix.into(),
-//             }),
-//             _ => Err(ParseStorageLocationError),
-//         }
-//     }
-// }
 
 impl CheckpointSyncerConf {
     /// Turn conf info a Checkpoint Syncer
