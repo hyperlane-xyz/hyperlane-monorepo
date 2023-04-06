@@ -2,22 +2,21 @@ use async_trait::async_trait;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use std::str::FromStr;
-use std::{fmt::Debug, collections::HashMap};
 use std::sync::Arc;
+use std::{collections::HashMap, fmt::Debug};
 
 use derive_new::new;
 use eyre::Context;
 use tokio::sync::RwLock;
-use tracing::{instrument, debug, warn};
+use tracing::{debug, instrument, warn};
 
 use hyperlane_base::{
-    ChainSetup, CoreMetrics, MultisigCheckpointSyncer, CheckpointSyncer, CheckpointSyncerConf
+    ChainSetup, CheckpointSyncer, CheckpointSyncerConf, CoreMetrics, MultisigCheckpointSyncer,
 };
-use hyperlane_core::{HyperlaneMessage, ValidatorAnnounce, H256, H160};
+use hyperlane_core::{HyperlaneMessage, ValidatorAnnounce, H160, H256};
 
-use crate::msg::metadata::{
-    MultisigIsmMetadataBuilder, RoutingIsmMetadataBuilder};
-use crate::{merkle_tree_builder::MerkleTreeBuilder};
+use crate::merkle_tree_builder::MerkleTreeBuilder;
+use crate::msg::metadata::{MultisigIsmMetadataBuilder, RoutingIsmMetadataBuilder};
 
 #[derive(Debug, thiserror::Error)]
 pub enum MetadataBuilderError {
@@ -88,9 +87,7 @@ impl MetadataBuilder for BaseMetadataBuilder {
             SupportedIsmTypes::LegacyMultisig => {
                 Box::new(MultisigIsmMetadataBuilder::new(self.clone(), true))
             }
-            SupportedIsmTypes::Routing => {
-                Box::new(RoutingIsmMetadataBuilder::new(self.clone()))
-            }
+            SupportedIsmTypes::Routing => Box::new(RoutingIsmMetadataBuilder::new(self.clone())),
         };
         metadata_builder
             .build(ism_address, message)

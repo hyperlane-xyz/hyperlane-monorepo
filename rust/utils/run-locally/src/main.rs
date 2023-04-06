@@ -251,7 +251,7 @@ fn main() -> ExitCode {
         .expect("Failed to rebuild sdk")
         .success();
     assert!(status, "Failed to rebuild sdk");
-    
+
     println!("Deploying hyperlane core contracts...");
     let status = Command::new("yarn")
         .arg("deploy-core")

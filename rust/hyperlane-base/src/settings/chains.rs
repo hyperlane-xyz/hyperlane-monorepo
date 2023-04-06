@@ -10,7 +10,8 @@ use ethers_prometheus::middleware::{
 use hyperlane_core::{
     utils::StrOrInt, ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol,
     HyperlaneProvider, HyperlaneSigner, InterchainGasPaymaster, InterchainGasPaymasterIndexer,
-    InterchainSecurityModule, Mailbox, MailboxIndexer, MultisigIsm, ValidatorAnnounce, H256, RoutingIsm,
+    InterchainSecurityModule, Mailbox, MailboxIndexer, MultisigIsm, RoutingIsm, ValidatorAnnounce,
+    H256,
 };
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
