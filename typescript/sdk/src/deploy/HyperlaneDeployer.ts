@@ -16,12 +16,12 @@ import {
   HyperlaneContractsMap,
   HyperlaneFactories,
   connectContractsMap,
-  serializeContracts,
 } from '../contracts';
+import { HyperlaneAddressesMap } from '../contracts';
+import { attachContractsMap } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ConnectionClientConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
-import { objMap } from '../utils/objects';
 
 import { proxyAdmin } from './proxy';
 import { ContractVerificationInput } from './verify/types';
@@ -29,24 +29,27 @@ import { getContractVerificationInput } from './verify/utils';
 
 export interface DeployerOptions {
   logger?: Debugger;
+  chainTimeoutMs?: number;
 }
 
 export abstract class HyperlaneDeployer<
   Config,
   Factories extends HyperlaneFactories,
 > {
+  public verificationInputs: ChainMap<ContractVerificationInput[]> = {};
   public deployedContracts: HyperlaneContractsMap<Factories> = {};
-  public verificationInputs: ChainMap<ContractVerificationInput[]>;
+  public startingBlockNumbers: ChainMap<number | undefined> = {};
+
   protected logger: Debugger;
+  protected chainTimeoutMs: number;
 
   constructor(
     protected readonly multiProvider: MultiProvider,
-    public readonly configMap: ChainMap<Config>,
-    public readonly factories: Factories,
+    protected readonly factories: Factories,
     protected readonly options?: DeployerOptions,
   ) {
-    this.verificationInputs = objMap(configMap, () => []);
-    this.logger = options?.logger || debug('hyperlane:AppDeployer');
+    this.logger = options?.logger ?? debug('hyperlane:deployer');
+    this.chainTimeoutMs = options?.chainTimeoutMs ?? 5 * 60 * 1000; // 5 minute timeout per chain
   }
 
   cacheContracts(partialDeployment: HyperlaneContractsMap<Factories>): void {
@@ -56,19 +59,19 @@ export abstract class HyperlaneDeployer<
     );
   }
 
+  cacheAddresses(partialDeployment: HyperlaneAddressesMap<Factories>): void {
+    this.cacheContracts(attachContractsMap(partialDeployment, this.factories));
+  }
+
   abstract deployContracts(
     chain: ChainName,
     config: Config,
   ): Promise<HyperlaneContracts<Factories>>;
 
   async deploy(
-    partialDeployment?: HyperlaneContractsMap<Factories>,
+    configMap: ChainMap<Config>,
   ): Promise<HyperlaneContractsMap<Factories>> {
-    if (partialDeployment) {
-      this.cacheContracts(partialDeployment);
-    }
-
-    const configChains = Object.keys(this.configMap);
+    const configChains = Object.keys(configMap);
     const targetChains = this.multiProvider.intersect(
       configChains,
       true,
@@ -79,19 +82,16 @@ export abstract class HyperlaneDeployer<
       const signerUrl = await this.multiProvider.tryGetExplorerAddressUrl(
         chain,
       );
-      this.logger(`Deploying to ${chain} from ${signerUrl} ...`);
-      this.deployedContracts[chain] = await this.deployContracts(
-        chain,
-        this.configMap[chain],
-      );
-      // TODO: remove these logs once we have better timeouts
-      this.logger(
-        JSON.stringify(
-          serializeContracts(this.deployedContracts[chain] ?? {}),
-          null,
-          2,
-        ),
-      );
+      this.logger(`Deploying to ${chain} from ${signerUrl}`);
+      this.startingBlockNumbers[chain] = await this.multiProvider
+        .getProvider(chain)
+        .getBlockNumber();
+      await utils.runWithTimeout(this.chainTimeoutMs, async () => {
+        this.deployedContracts[chain] = await this.deployContracts(
+          chain,
+          configMap[chain],
+        );
+      });
     }
     return this.deployedContracts;
   }
@@ -100,12 +100,13 @@ export abstract class HyperlaneDeployer<
     chain: ChainName,
     address: string,
     fn: () => Promise<T>,
+    label = 'address',
   ): Promise<T | undefined> {
     const signer = await this.multiProvider.getSignerAddress(chain);
-    if (address === signer) {
+    if (utils.eqAddress(address, signer)) {
       return fn();
     } else {
-      this.logger(`Signer (${signer}) does not match address (${address})`);
+      this.logger(`Signer (${signer}) does not match ${label} (${address})`);
     }
     return undefined;
   }
@@ -115,7 +116,7 @@ export abstract class HyperlaneDeployer<
     ownable: Ownable,
     fn: () => Promise<T>,
   ): Promise<T | undefined> {
-    return this.runIf(chain, await ownable.callStatic.owner(), fn);
+    return this.runIf(chain, await ownable.callStatic.owner(), fn, 'owner');
   }
 
   protected async runIfAdmin<T>(
@@ -139,7 +140,7 @@ export abstract class HyperlaneDeployer<
     } else {
       this.logger(`Admin is an EOA (${admin})`);
       // if admin is an EOA, run the signerAdminFn (if deployer is admin)
-      return this.runIf(chain, admin, () => signerAdminFn());
+      return this.runIf(chain, admin, () => signerAdminFn(), 'admin');
     }
   }
 
@@ -226,6 +227,7 @@ export abstract class HyperlaneDeployer<
       contract,
       factory.bytecode,
     );
+    this.verificationInputs[chain] = this.verificationInputs[chain] || [];
     this.verificationInputs[chain].push(verificationInput);
 
     return contract;
@@ -298,7 +300,7 @@ export abstract class HyperlaneDeployer<
           chain,
           proxy.upgradeToAndCall(implementation.address, initData),
         ),
-      (proxyAdmin) =>
+      (proxyAdmin: ProxyAdmin) =>
         this.multiProvider.handleTx(
           chain,
           proxyAdmin.upgradeAndCall(
