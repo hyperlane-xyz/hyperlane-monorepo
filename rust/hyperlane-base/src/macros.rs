@@ -1,9 +1,9 @@
+use hyperlane_core::config::*;
 /// Export this so they don't need to import paste.
 #[doc(hidden)]
 pub use paste;
 use serde::Deserialize;
-#[doc(hidden)]
-pub use static_assertions;
+use std::fmt::Debug;
 
 use crate::settings::RawSettings;
 
@@ -113,7 +113,15 @@ macro_rules! decl_settings {
                 }
             }
 
-            hyperlane_base::macros::static_assertions::assert_impl_all!([<$name Settings>]: TryFrom<[<Raw $name Settings>]>);
+            // ensure the settings struct implements `FromRawConf`
+            const _: fn() = || {
+                fn assert_impl<'de, T>()
+                where
+                    T: ?Sized + hyperlane_core::config::FromRawConf<'de, [<Raw $name Settings>]>
+                {}
+
+                assert_impl::<[<$name Settings>]>();
+            };
 
             impl std::ops::Deref for [<$name Settings>] {
                 type Target = hyperlane_base::Settings;
@@ -136,10 +144,8 @@ macro_rules! decl_settings {
             }
 
             impl hyperlane_base::NewFromSettings<> for [<$name Settings>] {
-                type Error = eyre::Report;
-
                 /// See `load_settings_object` for more information about how settings are loaded.
-                fn new() -> Result<Self, Self::Error> {
+                fn new() -> hyperlane_core::config::ConfigResult<Self> {
                     hyperlane_base::macros::_new_settings::<[<Raw $name Settings>], [<$name Settings>]>(stringify!($name))
                 }
             }
@@ -149,12 +155,14 @@ macro_rules! decl_settings {
 
 /// Static logic called by the decl_settings! macro. Do not call directly!
 #[doc(hidden)]
-pub fn _new_settings<'de, T, R>(name: &str) -> eyre::Result<R>
+pub fn _new_settings<'de, T, R>(name: &str) -> ConfigResult<R>
 where
-    T: Deserialize<'de> + AsMut<RawSettings>,
-    R: TryFrom<T, Error = eyre::Report>,
+    T: Deserialize<'de> + AsMut<RawSettings> + Debug,
+    R: FromRawConf<'de, T>,
 {
     use crate::settings::loader::load_settings_object;
-    let raw = load_settings_object::<T, &str>(name, &[])?;
-    R::try_from(raw)
+    let root_path = ConfigPath::default();
+    let raw =
+        load_settings_object::<T, &str>(name, &[]).into_config_result(|| root_path.clone())?;
+    raw.parse_config(&root_path)
 }

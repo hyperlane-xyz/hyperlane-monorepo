@@ -97,7 +97,29 @@ struct RawCoreContractAddresses {
 impl FromRawConf<'_, RawCoreContractAddresses> for CoreContractAddresses {
     fn from_config(raw: RawCoreContractAddresses, cwp: &ConfigPath) -> ConfigResult<Self> {
         let mut err = ConfigParsingError::default();
-        // let mailbox = raw.mailbox.expect_or_parsing_error()
+
+        macro_rules! parse_addr {
+            ($name:ident, $path:literal) => {
+                raw.$name
+                    .expect_or_config_err(|| (cwp + $path, eyre!("Missing core contract address")))
+                    .take_config_err(&mut err)
+                    .and_then(|v| v.parse().take_err(&mut err, || cwp + $path))
+            };
+        }
+
+        let mb = parse_addr!(mailbox, "mailbox");
+        let igp = parse_addr!(interchain_gas_paymaster, "interchainGasPaymaster");
+        let va = parse_addr!(validator_announce, "validatorAnnounce");
+
+        if err.is_empty() {
+            Ok(Self {
+                mailbox: mb.unwrap(),
+                interchain_gas_paymaster: igp.unwrap(),
+                validator_announce: va.unwrap(),
+            })
+        } else {
+            Err(err)
+        }
     }
 }
 
@@ -291,17 +313,6 @@ impl FromRawConf<'_, RawChainConf> for ChainConf {
         }
     }
 }
-
-// impl Display for RawChainConf {
-//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-//         write!(f, "{} (", self.name.as_deref().unwrap_or("<unknown>"))?;
-//         match &self.domain {
-//             Some(StrOrInt::Str(s)) => write!(f, "{s})"),
-//             Some(StrOrInt::Int(i)) => write!(f, "{i})"),
-//             None => write!(f, "<unknown>)"),
-//         }
-//     }
-// }
 
 impl ChainConf {
     /// Get the chain connection config or generate an error

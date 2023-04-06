@@ -9,6 +9,7 @@ use std::fmt::{Debug, Display, Formatter};
 use std::num::{ParseIntError, TryFromIntError};
 use std::ops::Add;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use eyre::{eyre, Context, Report};
 use itertools::Itertools;
@@ -100,7 +101,7 @@ impl<T> ConfigResultExt<T> for ConfigResult<T> {
 // declare_deserialize_for_config_struct!(Settings);
 
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
-pub struct ConfigPath(Vec<Rc<String>>);
+pub struct ConfigPath(Vec<Arc<String>>);
 
 impl Display for ConfigPath {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -129,7 +130,7 @@ impl ConfigPath {
         let part = part.into();
         debug_assert!(!part.contains('.'));
         let mut new = self.clone();
-        new.0.push(Rc::new(part));
+        new.0.push(Arc::new(part));
         new
     }
 
