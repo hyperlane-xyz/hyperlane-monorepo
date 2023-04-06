@@ -2,9 +2,10 @@ import { Wallet } from 'ethers';
 
 import {
   HyperlaneCore,
+  HyperlaneIgp,
   MultiProvider,
-  getChainToOwnerMap,
-  serializeContracts,
+  createRouterConfigMap,
+  serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
 
 import { prodConfigs } from '../deploy/config';
@@ -19,13 +20,16 @@ async function main() {
   multiProvider.setSharedSigner(signer);
 
   const core = HyperlaneCore.fromEnvironment('testnet', multiProvider);
-  const config = core.extendWithConnectionClientConfig(
-    getChainToOwnerMap(prodConfigs, signer.address),
+  const igp = HyperlaneIgp.fromEnvironment('testnet', multiProvider);
+  const config = createRouterConfigMap(
+    signer.address,
+    core.contractsMap,
+    igp.contractsMap,
   );
 
   const deployer = new HelloWorldDeployer(multiProvider, config, core);
   const chainToContracts = await deployer.deploy();
-  const addresses = serializeContracts(chainToContracts);
+  const addresses = serializeContractsMap(chainToContracts);
   console.info('===Contract Addresses===');
   console.info(JSON.stringify(addresses));
 }

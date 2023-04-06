@@ -1,22 +1,19 @@
 import {
   ChainMap,
   ChainName,
+  HyperlaneContracts,
   HyperlaneCore,
   HyperlaneRouterDeployer,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 
-import {
-  HelloWorldContracts,
-  HelloWorldFactories,
-  helloWorldFactories,
-} from '../app/contracts';
+import { HelloWorldFactories, helloWorldFactories } from '../app/contracts';
+import { HelloWorld } from '../types';
 
 import { HelloWorldConfig } from './config';
 
 export class HelloWorldDeployer extends HyperlaneRouterDeployer<
   HelloWorldConfig,
-  HelloWorldContracts,
   HelloWorldFactories
 > {
   constructor(
@@ -25,6 +22,10 @@ export class HelloWorldDeployer extends HyperlaneRouterDeployer<
     protected core: HyperlaneCore,
   ) {
     super(multiProvider, configMap, helloWorldFactories, {});
+  }
+
+  router(contracts: HyperlaneContracts<HelloWorldFactories>): HelloWorld {
+    return contracts.router;
   }
 
   // Custom contract deployment logic can go here

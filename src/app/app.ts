@@ -3,27 +3,34 @@ import { BigNumber, ethers } from 'ethers';
 import {
   ChainMap,
   ChainName,
-  HyperlaneApp,
+  HyperlaneContracts,
+  HyperlaneContractsMap,
   HyperlaneCore,
-  InterchainGasCalculator,
   MultiProvider,
+  RouterApp,
 } from '@hyperlane-xyz/sdk';
 import { debug } from '@hyperlane-xyz/utils';
 
-import { HelloWorldContracts } from './contracts';
+import { HelloWorld } from '../types';
+
+import { HelloWorldFactories } from './contracts';
 
 type Counts = {
   sent: number;
   received: number;
 };
 
-export class HelloWorldApp extends HyperlaneApp<HelloWorldContracts> {
+export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
   constructor(
     public readonly core: HyperlaneCore,
-    contractsMap: ChainMap<HelloWorldContracts>,
+    contractsMap: HyperlaneContractsMap<HelloWorldFactories>,
     multiProvider: MultiProvider,
   ) {
     super(contractsMap, multiProvider);
+  }
+
+  router(contracts: HyperlaneContracts<HelloWorldFactories>): HelloWorld {
+    return contracts.router;
   }
 
   async sendHelloWorld(
@@ -57,21 +64,6 @@ export class HelloWorldApp extends HyperlaneApp<HelloWorldContracts> {
       tx,
     });
     return tx.wait(blocks?.confirmations || 1);
-  }
-
-  async quoteGasPayment(from: ChainName, to: ChainName): Promise<BigNumber> {
-    const sender = this.getContracts(from).router;
-
-    const handleGasAmount = await sender.HANDLE_GAS_AMOUNT();
-    const calculator = new InterchainGasCalculator(
-      this.multiProvider,
-      this.core,
-    );
-    return calculator.quoteGasPaymentForDefaultIsmIgp(
-      from,
-      to,
-      handleGasAmount,
-    );
   }
 
   async waitForMessageReceipt(

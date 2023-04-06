@@ -1,11 +1,7 @@
-import { RouterContracts, RouterFactories } from '@hyperlane-xyz/sdk';
+import { HelloWorld__factory } from '../types';
 
-import { HelloWorld, HelloWorld__factory } from '../types';
-
-export type HelloWorldFactories = RouterFactories<HelloWorld>;
-
-export const helloWorldFactories: HelloWorldFactories = {
+export const helloWorldFactories = {
   router: new HelloWorld__factory(),
 };
 
-export type HelloWorldContracts = RouterContracts<HelloWorld>;
+export type HelloWorldFactories = typeof helloWorldFactories;

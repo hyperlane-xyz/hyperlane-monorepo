@@ -8,7 +8,7 @@ import {
   MultiProvider,
   TestCoreApp,
   TestCoreDeployer,
-  getTestOwnerConfig,
+  deployTestIgpsAndGetRouterConfig,
 } from '@hyperlane-xyz/sdk';
 
 import { HelloWorldConfig } from '../deploy/config';
@@ -43,8 +43,10 @@ describe('HelloWorld', async () => {
     const coreDeployer = new TestCoreDeployer(multiProvider);
     const coreContractsMaps = await coreDeployer.deploy();
     coreApp = new TestCoreApp(coreContractsMaps, multiProvider);
-    config = coreApp.extendWithConnectionClientConfig(
-      getTestOwnerConfig(signer.address),
+    config = await deployTestIgpsAndGetRouterConfig(
+      multiProvider,
+      signer.address,
+      coreContractsMaps,
     );
   });
 

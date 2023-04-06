@@ -1,13 +1,13 @@
 import {
-  ChainMap,
   HyperlaneCore,
+  HyperlaneIgp,
   MultiProvider,
-  buildContracts,
-  getChainToOwnerMap,
+  attachContractsMap,
+  createRouterConfigMap,
 } from '@hyperlane-xyz/sdk';
 
 import { HelloWorldApp } from '../app/app';
-import { HelloWorldContracts, helloWorldFactories } from '../app/contracts';
+import { helloWorldFactories } from '../app/contracts';
 import { HelloWorldChecker } from '../deploy/check';
 import { prodConfigs } from '../deploy/config';
 
@@ -21,15 +21,18 @@ async function check() {
   console.info('Preparing utilities');
   const multiProvider = new MultiProvider(prodConfigs);
 
-  const contractsMap = buildContracts(
+  const contractsMap = attachContractsMap(
     deploymentAddresses,
     helloWorldFactories,
-  ) as ChainMap<HelloWorldContracts>;
+  );
 
   const core = HyperlaneCore.fromEnvironment('testnet', multiProvider);
+  const igp = HyperlaneIgp.fromEnvironment('testnet', multiProvider);
   const app = new HelloWorldApp(core, contractsMap, multiProvider);
-  const config = core.extendWithConnectionClientConfig(
-    getChainToOwnerMap(prodConfigs, ownerAddress),
+  const config = createRouterConfigMap(
+    ownerAddress,
+    core.contractsMap,
+    igp.contractsMap,
   );
 
   console.info('Starting check');
