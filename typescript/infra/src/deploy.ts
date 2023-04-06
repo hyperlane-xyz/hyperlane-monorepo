@@ -71,7 +71,7 @@ export async function deployWithArtifacts<Config>(
     try {
       addresses = readJSONAtPath(cache.addresses);
     } catch (e) {
-      console.error('Failed to load cached addresses');
+      console.error('Failed to load cached addresses', e);
     }
 
     deployer.cacheAddresses(addresses);

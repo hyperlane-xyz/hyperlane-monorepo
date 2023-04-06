@@ -26,7 +26,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   constructor(multiProvider: MultiProvider) {
     super(multiProvider, coreFactories, {
       logger: debug('hyperlane:CoreDeployer'),
-      chainTimeoutMs: 1000 * 60 * 10, // 10 minutes
+      chainTimeoutMs: 1000 * 60 * 5, // 5 minutes
     });
   }
 
