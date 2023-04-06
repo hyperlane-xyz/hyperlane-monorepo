@@ -1,6 +1,6 @@
 mod base;
-mod legacy_multisig;
+mod multisig;
 
 pub(crate) use base::BaseMetadataBuilder;
 pub(crate) use base::MetadataBuilder;
-pub(crate) use legacy_multisig::LegacyMultisigIsmMetadataBuilder;
+pub(crate) use multisig::MultisigIsmMetadataBuilder;

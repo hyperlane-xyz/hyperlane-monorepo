@@ -4,8 +4,8 @@ use async_trait::async_trait;
 use auto_impl::auto_impl;
 
 use crate::{
-    accumulator::merkle::Proof, ChainResult, HyperlaneContract, HyperlaneMessage,
-    MultisigSignedCheckpoint, H256,
+    ChainResult, HyperlaneContract, HyperlaneMessage,
+    H256,
 };
 
 /// Interface for the MultisigIsm chain contract. Allows abstraction over
@@ -18,13 +18,4 @@ pub trait MultisigIsm: HyperlaneContract + Send + Sync + Debug {
         &self,
         message: &HyperlaneMessage,
     ) -> ChainResult<(Vec<H256>, u8)>;
-
-    /// Returns the metadata needed by the contract's verify function
-    fn format_metadata(
-        &self,
-        validators: &[H256],
-        threshold: u8,
-        checkpoint: &MultisigSignedCheckpoint,
-        proof: &Proof,
-    ) -> Vec<u8>;
 }

@@ -1,20 +1,22 @@
 use async_trait::async_trait;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
-use std::fmt::Debug;
+use std::str::FromStr;
+use std::{fmt::Debug, collections::HashMap};
 use std::sync::Arc;
 
 use derive_new::new;
 use eyre::Context;
 use tokio::sync::RwLock;
-use tracing::{instrument};
+use tracing::{instrument, debug, warn};
 
 use hyperlane_base::{
-    ChainSetup, CoreMetrics
+    ChainSetup, CoreMetrics, MultisigCheckpointSyncer, CheckpointSyncer, CheckpointSyncerConf
 };
-use hyperlane_core::{HyperlaneMessage, ValidatorAnnounce, H256};
+use hyperlane_core::{HyperlaneMessage, ValidatorAnnounce, H256, H160};
 
-use crate::{merkle_tree_builder::MerkleTreeBuilder, msg::metadata::LegacyMultisigIsmMetadataBuilder};
+use crate::msg::metadata::MultisigIsmMetadataBuilder;
+use crate::{merkle_tree_builder::MerkleTreeBuilder};
 
 #[derive(Debug, thiserror::Error)]
 pub enum MetadataBuilderError {
@@ -22,12 +24,12 @@ pub enum MetadataBuilderError {
     UnsupportedModuleType(u8),
 }
 
-#[derive(FromPrimitive)]
+#[derive(FromPrimitive, Clone, Debug)]
 pub enum SupportedIsmTypes {
     // Routing = 1,
     // Aggregation = 2,
     LegacyMultisig = 3,
-    // Multisig = 4,
+    Multisig = 4,
 }
 
 #[async_trait]
@@ -79,13 +81,75 @@ impl MetadataBuilder for BaseMetadataBuilder {
             .context(CTX)?;
 
         let metadata_builder = match supported_type {
+            SupportedIsmTypes::Multisig => {
+                MultisigIsmMetadataBuilder::new(SupportedIsmTypes::Multisig, self.clone())
+            }
             SupportedIsmTypes::LegacyMultisig => {
-                LegacyMultisigIsmMetadataBuilder::new(self.clone())
+                MultisigIsmMetadataBuilder::new(SupportedIsmTypes::LegacyMultisig, self.clone())
             }
         };
         metadata_builder
             .build(ism_address, message)
             .await
             .context(CTX)
+    }
+}
+
+impl BaseMetadataBuilder {
+    pub async fn build_checkpoint_syncer(
+        &self,
+        validators: &[H256],
+    ) -> eyre::Result<MultisigCheckpointSyncer> {
+        let storage_locations = self
+            .validator_announce
+            .get_announced_storage_locations(validators)
+            .await?;
+
+        // Only use the most recently announced location for now.
+        let mut checkpoint_syncers: HashMap<H160, Arc<dyn CheckpointSyncer>> = HashMap::new();
+        for (&validator, validator_storage_locations) in validators.iter().zip(storage_locations) {
+            for storage_location in validator_storage_locations.iter().rev() {
+                let Ok(config) = CheckpointSyncerConf::from_str(storage_location) else {
+                    debug!(?validator, ?storage_location, "Could not parse checkpoint syncer config for validator");
+                    continue
+                };
+
+                // If this is a LocalStorage based checkpoint syncer and it's not
+                // allowed, ignore it
+                if !self.allow_local_checkpoint_syncers
+                    && matches!(config, CheckpointSyncerConf::LocalStorage { .. })
+                {
+                    debug!(
+                        ?config,
+                        "Ignoring disallowed LocalStorage based checkpoint syncer"
+                    );
+                    continue;
+                }
+
+                match config.build(None) {
+                    Ok(checkpoint_syncer) => {
+                        // found the syncer for this validator
+                        checkpoint_syncers.insert(validator.into(), checkpoint_syncer.into());
+                        break;
+                    }
+                    Err(err) => {
+                        debug!(
+                            error=%err,
+                            ?config,
+                            ?validator,
+                            "Error when loading checkpoint syncer; will attempt to use the next config"
+                        );
+                    }
+                }
+            }
+            if checkpoint_syncers.get(&validator.into()).is_none() {
+                warn!(
+                    ?validator,
+                    ?validator_storage_locations,
+                    "No valid checkpoint syncer configs for validator"
+                );
+            }
+        }
+        Ok(MultisigCheckpointSyncer::new(checkpoint_syncers))
     }
 }
