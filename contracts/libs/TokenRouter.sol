@@ -11,6 +11,7 @@ import {Message} from "./Message.sol";
  */
 abstract contract TokenRouter is GasRouter {
     using TypeCasts for bytes32;
+    using TypeCasts for address;
     using Message for bytes;
 
     /**
@@ -50,7 +51,7 @@ abstract contract TokenRouter is GasRouter {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amountOrId
-    ) external payable virtual returns (bytes32 messageId) {
+    ) public payable virtual returns (bytes32 messageId) {
         bytes memory metadata = _transferFromSender(_amountOrId);
         messageId = _dispatchWithGas(
             _destination,
