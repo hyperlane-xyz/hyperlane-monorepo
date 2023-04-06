@@ -16,8 +16,9 @@ use hyperlane_base::{CachingMailbox, CoreMetrics};
 use hyperlane_core::{db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, Mailbox, U256};
 
 use super::{
-    gas_payment::GasPaymentEnforcer, metadata_builder::BaseMetadataBuilder,
-    metadata_builder::MetadataBuilder,
+    metadata::BaseMetadataBuilder,
+    metadata::MetadataBuilder,
+    gas_payment::GasPaymentEnforcer, 
 };
 
 /// SerialSubmitter accepts undelivered messages over a channel from a
