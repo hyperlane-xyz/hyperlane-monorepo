@@ -3,10 +3,11 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use ethers::types::Address;
-use eyre::{eyre, Report, Result};
+use eyre::{eyre, Context, Report, Result};
 use prometheus::{IntGauge, IntGaugeVec};
 use rusoto_core::Region;
 use serde::Deserialize;
+use warp::hyper::body::HttpBody;
 
 use hyperlane_core::config::*;
 
@@ -82,9 +83,36 @@ impl FromRawConf<'_, RawCheckpointSyncerConf> for CheckpointSyncerConf {
     }
 }
 
-/// Error for parsing announced storage locations
-#[derive(Debug, PartialEq, Eq)]
-pub struct ParseStorageLocationError;
+impl FromStr for CheckpointSyncerConf {
+    type Err = Report;
+
+    fn from_str(s: &str) -> Result<Self> {
+        let [prefix, suffix]: [&str; 2] =
+            s.split("://").collect::<Vec<_>>().try_into().map_err(|_| {
+                eyre!("Error parsing storage location; could not split prefix and suffix ({s})")
+            })?;
+
+        match prefix {
+            "s3" => {
+                let [bucket, region]: [&str; 2] = suffix
+                    .split('/')
+                    .collect::<Vec<_>>()
+                    .try_into()
+                    .map_err(|_| eyre!("Error parsing storage location; could not split bucket and region ({suffix})"))?;
+                Ok(CheckpointSyncerConf::S3 {
+                    bucket: bucket.into(),
+                    region: region
+                        .parse()
+                        .context("Invalid region when parsing storage location")?,
+                })
+            }
+            "file" => Ok(CheckpointSyncerConf::LocalStorage {
+                path: suffix.into(),
+            }),
+            _ => Err(eyre!("Unknown storage location prefix `{prefix}`")),
+        }
+    }
+}
 
 impl CheckpointSyncerConf {
     /// Turn conf info a Checkpoint Syncer

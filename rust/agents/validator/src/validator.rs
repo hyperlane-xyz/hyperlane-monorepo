@@ -48,17 +48,19 @@ impl BaseAgent for Validator {
             .await
             .map(|validator| Arc::new(validator) as Arc<dyn HyperlaneSigner>)?;
         let core = settings.build_hyperlane_core(metrics.clone());
-        let checkpoint_syncer = settings.checkpointsyncer.build(None)?.into();
+        let checkpoint_syncer = settings.checkpoint_syncer.build(None)?.into();
 
         let mailbox = settings
-            .build_mailbox(&settings.originchainname, &metrics)
+            .build_mailbox(&settings.origin_chain_name, &metrics)
             .await?
             .into();
 
         let origin_chain = core
             .settings
-            .chain_setup(&settings.originchainname)
-            .context("Validator must run on a configured chain")?
+            .chain_setup(&settings.origin_chain_name)
+            .context(
+                "Validator must run on a configured chain, verify `originchainname` is correct",
+            )?
             .domain
             .clone();
 
