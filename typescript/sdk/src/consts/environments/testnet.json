@@ -7,7 +7,8 @@
     "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
     "defaultIsmInterchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1",
     "multisigIsm": "0x4D06A1671A2a345B14B15cbD50027979A5D1d8C9",
-    "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
+    "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
+    "interchainAccountRouter": "0x67A7784fF462C89a8Fae520CA7B534BD67302D02"
   },
   "fuji": {
     "storageGasOracle": "0xd44E79A697136888f0d720Fb6703400a9204FD39",
@@ -17,7 +18,8 @@
     "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
     "defaultIsmInterchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1",
     "multisigIsm": "0xD713Db664509bd057aC2b378F4B65Db468F634A5",
-    "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
+    "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
+    "interchainAccountRouter": "0xf0F75D30CacCEB7BB32497A9eC1bad7A2D040337"
   },
   "mumbai": {
     "storageGasOracle": "0x8970bdA0B0A01d1bA2656b510B2859560e75a7c5",
@@ -27,7 +29,8 @@
     "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
     "defaultIsmInterchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1",
     "multisigIsm": "0xd71f1A64659beC0781b2aa21bc7a72F7290F6Bf3",
-    "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
+    "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
+    "interchainAccountRouter": "0x8eF45458d96A2C05A84c027290A1eBcdb6f6444a"
   },
   "bsctestnet": {
     "storageGasOracle": "0x1a75f55e8f574CdB5abb1b2702b9caF2E5F7d4D6",
@@ -37,7 +40,8 @@
     "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
     "defaultIsmInterchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1",
     "multisigIsm": "0x34add51924C500b4428067E251168807b3f5faED",
-    "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
+    "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
+    "interchainAccountRouter": "0x866D2f54Cf1c1507Be4d5fed149F94e1F938BBfa"
   },
   "goerli": {
     "storageGasOracle": "0xce8E9D701A1DFfe672c1d8dB20De2B3fa6F4437D",
@@ -48,7 +52,7 @@
     "defaultIsmInterchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1",
     "multisigIsm": "0x32B34F0D86b275b92e9289d9054Db5Ec32d2CC6C",
     "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
-    "interchainQueryRouter": "0x94d21E4B7355d88d49bE9C6AD503A04A597e0eFC"
+    "interchainAccountRouter": "0x5627e615046edc30abe89056F5300e1E354bDa8D"
   },
   "moonbasealpha": {
     "storageGasOracle": "0xAd754Dbc3F725259E49A90CAB347AeC343D432ed",
@@ -58,7 +62,8 @@
     "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
     "defaultIsmInterchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1",
     "multisigIsm": "0xec8875C7cE0a814A56654618D366641859F32C7A",
-    "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
+    "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
+    "interchainAccountRouter": "0xEB25e6e42B743a815E5C0409007993a828a0565f"
   },
   "optimismgoerli": {
     "storageGasOracle": "0xdE72697715aAeC4CaBbD638C0Aba64488005C64b",
@@ -68,7 +73,8 @@
     "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
     "defaultIsmInterchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1",
     "multisigIsm": "0x47384E33E67007B7fE4326fb096Bdf9CbA7AB6E4",
-    "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
+    "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
+    "interchainAccountRouter": "0x7146faD6Cc0508cC90DAc00a499bB8d7F608AC6d"
   },
   "arbitrumgoerli": {
     "storageGasOracle": "0xfFAEF09B3cd11D9b20d1a19bECca54EEC2884766",
@@ -78,7 +84,8 @@
     "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
     "defaultIsmInterchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1",
     "multisigIsm": "0x47384E33E67007B7fE4326fb096Bdf9CbA7AB6E4",
-    "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
+    "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
+    "interchainAccountRouter": "0x16996CDc6C5a9FaEDa8E934A6E9f9CA3AC6108E0"
   },
   "sepolia": {
     "storageGasOracle": "0x1D5EbC3e15e9ECDe0e3530C85899556797eeaea5",
@@ -88,6 +95,7 @@
     "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
     "defaultIsmInterchainGasPaymaster": "0xF987d7edcb5890cB321437d8145E3D51131298b6",
     "multisigIsm": "0xD3d062a5dcBA85ae863618d4c264d2358300c283",
-    "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
+    "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
+    "interchainAccountRouter": "0x11918DC33E067C5DA83EEF58E50F856398b8Df4C"
   }
 }
