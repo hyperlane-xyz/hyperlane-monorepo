@@ -292,8 +292,22 @@ where
     M: Middleware + 'static,
 {
     #[instrument(level = "debug", err, ret, skip(self))]
-    async fn count(&self) -> ChainResult<u32> {
-        Ok(self.contract.count().call().await?)
+    async fn count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
+        let base_call = self.contract.count();
+        let call_with_lag = match maybe_lag {
+            Some(lag) => {
+                let tip = self
+                    .provider
+                    .get_block_number()
+                    .await
+                    .map_err(ChainCommunicationError::from_other)?
+                    .as_u64();
+                base_call.block(tip.saturating_sub(lag.get()))
+            }
+            None => base_call,
+        };
+        let count = call_with_lag.call().await?;
+        Ok(count)
     }
 
     #[instrument(err, ret)]
