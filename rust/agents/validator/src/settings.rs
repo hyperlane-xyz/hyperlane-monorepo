@@ -1,6 +1,9 @@
 //! Configuration
 
+use std::time::Duration;
+
 use eyre::eyre;
+
 use hyperlane_base::{
     decl_settings, CheckpointSyncerConf, RawCheckpointSyncerConf, RawSignerConf, SignerConf,
 };
@@ -15,9 +18,9 @@ decl_settings!(Validator,
         /// The checkpoint syncer configuration
         checkpoint_syncer: CheckpointSyncerConf,
         /// The reorg_period in blocks
-        reorg_period: u32,
+        reorg_period: u64,
         /// How frequently to check for new checkpoints
-        interval: u32,
+        interval: Duration,
     },
     Raw {
         originchainname: Option<String>,
@@ -72,7 +75,11 @@ impl FromRawConf<'_, RawValidatorSettings> for ValidatorSettings {
             .interval
             .expect_or_config_err(|| (cwp + "interval", eyre!("Missing `interval`")))
             .take_config_err(&mut err)
-            .and_then(|r| r.try_into().take_err(&mut err, || cwp + "interval"));
+            .and_then(|r| {
+                r.try_into()
+                    .map(Duration::from_secs)
+                    .take_err(&mut err, || cwp + "interval")
+            });
 
         if err.is_empty() {
             Ok(Self {

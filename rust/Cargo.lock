@@ -2753,6 +2753,7 @@ dependencies = [
  "auto_impl 1.0.1",
  "bytes",
  "config",
+ "convert_case 0.6.0",
  "derive-new",
  "ethers",
  "ethers-providers",

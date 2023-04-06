@@ -5,13 +5,13 @@
 
 // TODO: Remove extension functions we are not using
 
+use convert_case::{Case, Casing};
 use std::fmt::{Debug, Display, Formatter};
 use std::num::{ParseIntError, TryFromIntError};
 use std::ops::Add;
-use std::rc::Rc;
 use std::sync::Arc;
 
-use eyre::{eyre, Context, Report};
+use eyre::{eyre, Report};
 use itertools::Itertools;
 use primitive_types::U256;
 use serde::Deserialize;
@@ -152,9 +152,17 @@ impl ConfigPath {
         ["HYP", "BASE"]
             .into_iter()
             .chain(self.0.iter().map(|s| s.as_str()))
-            .map(|s| s.to_uppercase())
+            .map(|s| s.to_case(Case::ScreamingSnake))
             .join("_")
     }
+}
+
+#[test]
+fn env_casing() {
+    assert_eq!(
+        "HYP_BASE_TEST1_CONF",
+        "hyp base test1 conf".to_case(Case::ScreamingSnake)
+    );
 }
 
 #[derive(Debug, Default)]
@@ -192,11 +200,15 @@ impl FromIterator<ConfigParsingError> for ConfigParsingError {
 
 impl Display for ConfigParsingError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ParsingError [")?;
+        writeln!(f, "ParsingError")?;
         for (path, report) in &self.0 {
-            write!(f, "({path}: {report}),")?;
+            writeln!(f, "\n#####\n")?;
+            writeln!(f, "config_path: `{path}`")?;
+            // TODO: enable this once we figure out how to do it correctly
+            // writeln!(f, "env_path: `{}`", path.env_name())?;
+            writeln!(f, "error: {report:?}")?;
         }
-        write!(f, "]")
+        Ok(())
     }
 }
 

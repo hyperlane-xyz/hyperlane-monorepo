@@ -10,6 +10,7 @@ use hyperlane_base::{
     decl_settings, run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
     Settings,
 };
+use hyperlane_core::config::*;
 
 use crate::chain_scraper::{Contracts, SqlChainScraper};
 use crate::db::ScraperDb;
@@ -37,16 +38,21 @@ decl_settings!(Scraper,
     }
 );
 
-impl TryFrom<RawScraperSettings> for ScraperSettings {
-    type Error = eyre::Report;
-
-    fn try_from(r: RawScraperSettings) -> Result<Self, Self::Error> {
+impl FromRawConf<'_, RawScraperSettings> for ScraperSettings {
+    fn from_config(raw: RawScraperSettings, cwp: &ConfigPath) -> ConfigResult<Self> {
         Ok(Self {
-            base: r.base.try_into()?,
-            db: r.db.expect_or_eyre("Missing `db` connection string")?,
-            chains_to_scrape: r
+            base: raw.base.parse_config(cwp)?,
+            db: raw
+                .db
+                .expect_or_config_err(|| (cwp + "db", eyre!("Missing `db` connection string")))?,
+            chains_to_scrape: raw
                 .chainstoscrape
-                .expect_or_eyre("Missing `chainstoscrape` list")?
+                .expect_or_config_err(|| {
+                    (
+                        cwp + "chainstoscrape",
+                        eyre!("Missing `chainstoscrape` list"),
+                    )
+                })?
                 .split(',')
                 .map(|s| s.to_string())
                 .collect(),
