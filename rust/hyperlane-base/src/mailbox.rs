@@ -80,8 +80,8 @@ impl Mailbox for CachingMailbox {
         self.mailbox.domain_hash()
     }
 
-    async fn count(&self) -> ChainResult<u32> {
-        self.mailbox.count().await
+    async fn count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
+        self.mailbox.count(maybe_lag).await
     }
 
     /// Fetch the status of a message
