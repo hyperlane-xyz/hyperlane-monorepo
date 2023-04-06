@@ -70,11 +70,12 @@ export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
     );
 
     // 3. upgrade the proxy to the real implementation and initialize
+    const owner = deployer;
     await super.upgradeAndInitialize(chain, proxy, implementation, [
       config.mailbox,
       config.interchainGasPaymaster,
       config.interchainSecurityModule ?? ethers.constants.AddressZero,
-      deployer,
+      owner,
     ]);
     await super.changeAdmin(chain, proxy, proxyAdmin.address);
 
