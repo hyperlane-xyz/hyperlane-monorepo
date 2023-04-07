@@ -208,7 +208,7 @@ impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
             .unwrap_or_else(|| {
                 std::env::current_dir().unwrap().join(format!(
                     "relayer_db_{}",
-                    origin_chain_name.as_ref().unwrap_or_default()
+                    origin_chain_name.as_deref().unwrap_or("")
                 ))
             });
 
