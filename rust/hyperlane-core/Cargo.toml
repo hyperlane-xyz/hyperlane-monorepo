@@ -41,7 +41,7 @@ tracing.workspace = true
 primitive-types = "*"
 
 [dev-dependencies]
-hyperlane-base = { path = "../hyperlane-base" }
+hyperlane-base = { path = "../hyperlane-base"}
 tokio = { workspace = true, features = ["rt", "time"] }
 walkdir = { version = "2" }
 
