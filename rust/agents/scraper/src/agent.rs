@@ -11,6 +11,7 @@ use hyperlane_base::{
     Settings,
 };
 use hyperlane_core::config::*;
+use hyperlane_core::HyperlaneDomain;
 
 use crate::chain_scraper::{Contracts, SqlChainScraper};
 use crate::db::ScraperDb;
@@ -28,7 +29,7 @@ pub struct Scraper {
 decl_settings!(Scraper,
     Parsed {
         db: String,
-        chains_to_scrape: Vec<String>,
+        chains_to_scrape: Vec<HyperlaneDomain>,
     },
     Raw {
         /// Database connection string
@@ -56,24 +57,24 @@ impl FromRawConf<'_, RawScraperSettings> for ScraperSettings {
             .chainstoscrape
             .ok_or_else(|| eyre!("Missing `chainstoscrape` list"))
             .take_err(&mut err, || cwp + "chainstoscrape")
-            .map(|s| s.split(',').map(str::to_owned).collect());
+            .map(|s| s.split(','));
 
-        if let (Some(base), Some(chains)) = (&base, &chains_to_scrape) {
-            for chain in chains {
-                if !base.chains.contains_key(chain) {
-                    err.push(
-                        cwp + "chainstoscrape",
-                        eyre!("Configuration for chain to scrape '{chain}' not found"),
-                    );
-                }
-            }
-        }
+        let chains_to_scrape = if let (Some(base), Some(chains)) = (&base, &chains_to_scrape) {
+            chains
+                .filter_map(|chain| {
+                    base.domain(chain)
+                        .take_err(&mut err, || cwp + "chainstoscrape")
+                })
+                .collect()
+        } else {
+            vec![]
+        };
 
         if err.is_empty() {
             Ok(Self {
                 base: base.unwrap(),
                 db: db.unwrap(),
-                chains_to_scrape: chains_to_scrape.unwrap(),
+                chains_to_scrape,
             })
         } else {
             Err(err)

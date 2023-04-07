@@ -230,6 +230,10 @@ impl Settings {
             .ok_or_else(|| eyre!("No chain setup found for {chain_name}"))
     }
 
+    pub fn domain(&self, chain_name: &str) -> eyre::Result<HyperlaneDomain> {
+        self.chain_setup(chain_name).map(|c| c.domain.clone())
+    }
+
     /// Create the core metrics from the settings given the name of the agent.
     pub fn metrics(&self, name: &str) -> eyre::Result<Arc<CoreMetrics>> {
         Ok(Arc::new(CoreMetrics::new(

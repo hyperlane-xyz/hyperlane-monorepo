@@ -9,11 +9,12 @@ use hyperlane_base::{
     SignerConf,
 };
 use hyperlane_core::config::*;
+use hyperlane_core::HyperlaneDomain;
 
 decl_settings!(Validator,
     Parsed {
         // The name of the origin chain
-        origin_chain_name: String,
+        origin_chain: HyperlaneDomain,
         /// The validator attestation signer
         validator: SignerConf,
         /// The checkpoint syncer configuration
@@ -80,19 +81,17 @@ impl FromRawConf<'_, RawValidatorSettings> for ValidatorSettings {
                     .take_err(&mut err, || cwp + "interval")
             });
 
-        if let (Some(base), Some(origin)) = (&base, &origin_chain_name) {
-            if !base.chains.contains_key(origin) {
-                err.push(
-                    cwp + "originchainname",
-                    eyre!("Configuration for origin chain '{origin}' not found"),
-                )
-            }
-        }
+        let origin_chain = if let (Some(base), Some(origin)) = (&base, &origin_chain_name) {
+            base.domain(&origin)
+                .take_err(&mut err, || cwp + "originchainname")
+        } else {
+            None
+        };
 
         if err.is_empty() {
             Ok(Self {
                 base: base.unwrap(),
-                origin_chain_name: origin_chain_name.unwrap(),
+                origin_chain: origin_chain.unwrap(),
                 validator: validator.unwrap(),
                 checkpoint_syncer: checkpoint_syncer.unwrap(),
                 reorg_period: reorg_period.unwrap(),

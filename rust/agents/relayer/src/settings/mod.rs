@@ -1,5 +1,6 @@
 //! Configuration
 
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 use eyre::{eyre, Context};
@@ -7,7 +8,7 @@ use serde::Deserialize;
 
 use hyperlane_base::{decl_settings, Settings};
 use hyperlane_core::config::*;
-use hyperlane_core::U256;
+use hyperlane_core::{HyperlaneDomain, U256};
 
 use crate::settings::matching_list::MatchingList;
 
@@ -113,9 +114,9 @@ decl_settings!(Relayer,
         /// Database path (path on the fs)
         db: PathBuf,
         // The name of the origin chain
-        origin_chain_name: String,
+        origin_chain: HyperlaneDomain,
         // Comma separated list of destination chains.
-        destination_chain_names: Vec<String>,
+        destination_chains: Vec<HyperlaneDomain>,
         /// The gas payment enforcement configuration as JSON. Expects an ordered array of `GasPaymentEnforcementConfig`.
         gas_payment_enforcement: Vec<GasPaymentEnforcementConf>,
         /// This is optional. If no whitelist is provided ALL messages will be considered on the
@@ -128,7 +129,7 @@ decl_settings!(Relayer,
         /// is the max allowed gas in wei to relay a transaction.
         transaction_gas_limit: Option<U256>,
         /// Comma separated List of domain ids to skip transaction gas for.
-        skip_transaction_gas_limit_for: Vec<u32>,
+        skip_transaction_gas_limit_for: HashSet<u32>,
         /// If true, allows local storage based checkpoint syncers.
         /// Not intended for production use. Defaults to false.
         allow_local_checkpoint_syncers: bool,
@@ -222,32 +223,32 @@ impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
                 ))
             });
 
-        if let (Some(base), Some(destinations)) = (&base, &destination_chain_names) {
-            for destination in destinations {
-                if !base.chains.contains_key(destination) {
-                    err.push(
-                        cwp + "destinationchainnames",
-                        eyre!("Configuration for destination chain '{destination}' not found"),
-                    );
-                }
-            }
-        }
+        let destination_chains =
+            if let (Some(base), Some(destinations)) = (&base, &destination_chain_names) {
+                destinations
+                    .iter()
+                    .filter_map(|destination| {
+                        base.domain(destination)
+                            .take_err(&mut err, || cwp + "destinationchainnames")
+                    })
+                    .collect()
+            } else {
+                vec![]
+            };
 
-        if let (Some(base), Some(origin)) = (&base, &origin_chain_name) {
-            if !base.chains.contains_key(origin) {
-                err.push(
-                    cwp + "originchainname",
-                    eyre!("Configuration for origin chain '{origin}' not found"),
-                );
-            }
-        }
+        let origin_chain = if let (Some(base), Some(origin)) = (&base, &origin_chain_name) {
+            base.domain(origin)
+                .take_err(&mut err, || cwp + "originchainname")
+        } else {
+            None
+        };
 
         if err.is_empty() {
             Ok(Self {
                 base: base.unwrap(),
                 db,
-                origin_chain_name: origin_chain_name.unwrap(),
-                destination_chain_names: destination_chain_names.unwrap(),
+                origin_chain: origin_chain.unwrap(),
+                destination_chains,
                 gas_payment_enforcement,
                 whitelist,
                 blacklist,

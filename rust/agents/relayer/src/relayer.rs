@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use eyre::{ensure, Context, Result};
-use hyperlane_core::U256;
 use tokio::sync::{
     mpsc::{self, UnboundedReceiver, UnboundedSender},
     RwLock,
@@ -15,6 +14,7 @@ use hyperlane_base::{
     chains::TransactionSubmissionType, run_all, BaseAgent, CachingInterchainGasPaymaster,
     CachingMailbox, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
 };
+use hyperlane_core::U256;
 use hyperlane_core::{db::DB, HyperlaneChain, HyperlaneDomain, ValidatorAnnounce};
 
 use crate::{
@@ -26,7 +26,7 @@ use crate::{
         serial_submitter::{SerialSubmitter, SerialSubmitterMetrics},
         PendingMessage,
     },
-    settings::{matching_list::MatchingList, GasPaymentEnforcementConf, RelayerSettings},
+    settings::{matching_list::MatchingList, RelayerSettings},
 };
 
 /// A relayer agent
@@ -107,20 +107,15 @@ impl BaseAgent for Relayer {
         let origin_chain = core
             .settings
             .chain_setup(&settings.origin_chain_name)
-            .context("Relayer must run on a configured chain")?
+            .expect("Missing origin chain config")
             .domain
             .clone();
 
-        let gas_enforcement_policies =
-            parse_gas_enforcement_policies(&settings.gaspaymentenforcement);
-        info!(?gas_enforcement_policies, "Gas enforcement configuration");
-
+        info!(gas_enforcement_policies=?settings.gas_payment_enforcement, "Gas enforcement configuration");
         let gas_payment_enforcer = Arc::new(GasPaymentEnforcer::new(
-            gas_enforcement_policies,
+            settings.gas_payment_enforcement,
             mailboxes.get(&origin_chain).unwrap().db().clone(),
         ));
-
-        let allow_local_checkpoint_syncers = settings.allowlocalcheckpointsyncers.unwrap_or(false);
 
         Ok(Self {
             origin_chain,
@@ -133,7 +128,7 @@ impl BaseAgent for Relayer {
             blacklist,
             transaction_gas_limit,
             skip_transaction_gas_limit_for,
-            allow_local_checkpoint_syncers,
+            allow_local_checkpoint_syncers: settings.allow_local_checkpoint_syncers,
         })
     }
 
@@ -298,10 +293,6 @@ impl Relayer {
         })
         .instrument(info_span!("run mailbox"))
     }
-}
-
-fn parse_gas_enforcement_policies(policies: &str) -> Vec<GasPaymentEnforcementConf> {
-    serde_json::from_str(policies).expect("Invalid gas payment enforcement configuration received")
 }
 
 #[cfg(test)]
