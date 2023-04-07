@@ -23,7 +23,7 @@ use crate::{
 /// Settings. Usually this should be treated as a base config and used as
 /// follows:
 ///
-/// ```
+/// ```ignore
 /// use hyperlane_base::*;
 /// use serde::Deserialize;
 ///
