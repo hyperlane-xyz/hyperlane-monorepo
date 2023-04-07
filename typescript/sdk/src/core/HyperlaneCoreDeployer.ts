@@ -4,12 +4,11 @@ import { ethers } from 'ethers';
 import {
   LegacyMultisigIsm,
   Mailbox,
-  Ownable,
   ValidatorAnnounce,
 } from '@hyperlane-xyz/core';
 import { types } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts';
+import { HyperlaneContracts, ownableContracts } from '../contracts';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
@@ -159,15 +158,15 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       chain,
       mailbox.address,
     );
-    // Ownership of the Mailbox and the interchainGasPaymaster is transferred upon initialization.
-    const ownables: Ownable[] = [multisigIsm, proxyAdmin];
-    await this.transferOwnershipOfContracts(chain, config.owner, ownables);
-
-    return {
+    const contracts = {
       validatorAnnounce,
       proxyAdmin,
       mailbox,
       multisigIsm,
     };
+    // Transfer ownership of all ownable contracts
+    const ownables = await ownableContracts(contracts);
+    await this.transferOwnershipOfContracts(chain, config.owner, ownables);
+    return contracts;
   }
 }

@@ -3,16 +3,16 @@ import debug from 'debug';
 import {
   InterchainGasPaymaster,
   OverheadIgp,
-  Ownable,
   ProxyAdmin,
   StorageGasOracle,
 } from '@hyperlane-xyz/core';
 import { types, utils } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts';
+import { HyperlaneContracts, ownableContracts } from '../contracts';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName } from '../types';
+import { pick } from '../utils/objects';
 
 import { IgpFactories, igpFactories } from './contracts';
 import { IgpConfig, OverheadIgpConfig } from './types';
@@ -133,15 +133,23 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       interchainGasPaymaster.address,
       config,
     );
-    // Ownership of the Mailbox and the interchainGasPaymaster is transferred upon initialization.
-    const ownables: Ownable[] = [overheadIgp];
-    await this.transferOwnershipOfContracts(chain, config.owner, ownables);
-
-    return {
+    const contracts = {
       proxyAdmin,
       storageGasOracle,
       interchainGasPaymaster,
       defaultIsmInterchainGasPaymaster: overheadIgp,
     };
+    // Do not transfer ownership of StorageGasOracle
+    const ownables = await ownableContracts(contracts);
+    const filteredOwnables = pick(
+      ownables,
+      Object.keys(contracts).filter((name) => name !== 'storageGasOracle'),
+    );
+    await this.transferOwnershipOfContracts(
+      chain,
+      config.owner,
+      filteredOwnables,
+    );
+    return contracts;
   }
 }

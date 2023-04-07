@@ -1,4 +1,3 @@
-import { Contract } from 'ethers';
 import { keccak256 } from 'ethers/lib/utils';
 
 import { Ownable } from '@hyperlane-xyz/core';
@@ -6,9 +5,10 @@ import type { types } from '@hyperlane-xyz/utils';
 import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
+import { ownableContracts } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
-import { objFilter, objMap, promiseObjAll } from '../utils/objects';
+import { objMap, promiseObjAll } from '../utils/objects';
 
 import { isProxy, proxyAdmin } from './proxy';
 import {
@@ -122,25 +122,8 @@ export abstract class HyperlaneAppChecker<
   }
 
   async ownables(chain: ChainName): Promise<{ [key: string]: Ownable }> {
-    const isOwnable = async (
-      _: string,
-      contract: Contract,
-    ): Promise<boolean> => {
-      try {
-        await contract.owner();
-        return true;
-      } catch (_) {
-        return false;
-      }
-    };
     const contracts = this.app.getContracts(chain);
-    const isOwnableContracts = await promiseObjAll(
-      objMap(contracts, isOwnable),
-    );
-    return objFilter(
-      contracts,
-      (name, contract): contract is Ownable => isOwnableContracts[name],
-    );
+    return ownableContracts(contracts);
   }
 
   // TODO: Require owner in config if ownables is non-empty

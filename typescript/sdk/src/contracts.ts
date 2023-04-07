@@ -1,10 +1,11 @@
-import { ethers } from 'ethers';
+import { Contract, ethers } from 'ethers';
 
+import { Ownable } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from './providers/MultiProvider';
 import { ChainMap, Connection } from './types';
-import { objFilter, objMap, pick } from './utils/objects';
+import { objFilter, objMap, pick, promiseObjAll } from './utils/objects';
 
 export type HyperlaneFactories = {
   [key: string]: ethers.ContractFactory;
@@ -106,5 +107,23 @@ export function connectContractsMap<F extends HyperlaneFactories>(
 ): ChainMap<HyperlaneContracts<F>> {
   return objMap(contractsMap, (chain, contracts) =>
     connectContracts(contracts, multiProvider.getSignerOrProvider(chain)),
+  );
+}
+
+export async function ownableContracts(
+  contracts: HyperlaneContracts<any>,
+): Promise<{ [key: string]: Ownable }> {
+  const isOwnable = async (_: string, contract: Contract): Promise<boolean> => {
+    try {
+      await contract.owner();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  };
+  const isOwnableContracts = await promiseObjAll(objMap(contracts, isOwnable));
+  return objFilter(
+    contracts,
+    (name, contract): contract is Ownable => isOwnableContracts[name],
   );
 }

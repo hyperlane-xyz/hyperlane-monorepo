@@ -12,13 +12,13 @@ import {
 import { types, utils } from '@hyperlane-xyz/utils';
 
 import {
+  HyperlaneAddressesMap,
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneFactories,
+  attachContractsMap,
   connectContractsMap,
 } from '../contracts';
-import { HyperlaneAddressesMap } from '../contracts';
-import { attachContractsMap } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ConnectionClientConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
@@ -411,12 +411,16 @@ export abstract class HyperlaneDeployer<
   protected async transferOwnershipOfContracts(
     chain: ChainName,
     owner: types.Address,
-    ownables: Ownable[],
+    ownables: { [key: string]: Ownable },
   ): Promise<ethers.ContractReceipt[]> {
     const receipts: ethers.ContractReceipt[] = [];
-    for (const ownable of ownables) {
+    for (const contractName of Object.keys(ownables)) {
+      const ownable = ownables[contractName];
       const currentOwner = await ownable.owner();
       if (!utils.eqAddress(currentOwner, owner)) {
+        this.logger(
+          `Transferring ownership of ${contractName} to ${owner} on ${chain}`,
+        );
         const receipt = await this.runIfOwner(chain, ownable, () =>
           this.multiProvider.handleTx(
             chain,
