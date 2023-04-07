@@ -55,19 +55,10 @@ impl GasPaymentEnforcer {
                     GasPaymentEnforcementPolicy::Minimum { payment } => {
                         Box::new(GasPaymentPolicyMinimum::new(payment))
                     }
-                    GasPaymentEnforcementPolicy::OnChainFeeQuoting { gasfraction } => {
-                        let gasfraction = gasfraction.replace(' ', "");
-                        let v: Vec<&str> = gasfraction.split('/').collect();
-                        assert_eq!(
-                            v.len(),
-                            2,
-                            r#"Could not parse gas fraction; expected "`numerator / denominator`""#
-                        );
-                        Box::new(GasPaymentPolicyOnChainFeeQuoting::new(
-                            v[0].parse::<u64>().expect("Invalid integer"),
-                            v[1].parse::<u64>().expect("Invalid integer"),
-                        ))
-                    }
+                    GasPaymentEnforcementPolicy::OnChainFeeQuoting {
+                        gas_fraction_numerator: n,
+                        gas_fraction_denominator: d,
+                    } => Box::new(GasPaymentPolicyOnChainFeeQuoting::new(n, d)),
                 };
                 (p, cfg.matching_list)
             })

@@ -69,12 +69,10 @@ impl FromRawConf<'_, RawSettings> for Settings {
     fn from_config(raw: RawSettings, cwp: &ConfigPath) -> Result<Self, ConfigParsingError> {
         let mut err = ConfigParsingError::default();
         let chains: HashMap<String, ChainConf> = if let Some(mut chains) = raw.chains {
-            let default_signer: Option<SignerConf> = raw
-                .defaultsigner
-                .map(|r| r.parse_config(&cwp.join("defaultsigner")))
-                .transpose()
-                .take_config_err(&mut err)
-                .flatten();
+            let default_signer: Option<SignerConf> = raw.defaultsigner.and_then(|r| {
+                r.parse_config(&cwp.join("defaultsigner"))
+                    .take_config_err(&mut err)
+            });
             chains
                 .into_iter()
                 .map(|(k, v)| {
@@ -98,11 +96,7 @@ impl FromRawConf<'_, RawSettings> for Settings {
         let tracing = raw.tracing.unwrap_or_default();
         let metrics: Option<u16> = raw
             .metrics
-            .map(|port| port.try_into())
-            .transpose()
-            .context("Invalid metrics port")
-            .take_err(&mut err, || cwp + "metrics")
-            .flatten();
+            .and_then(|port| port.try_into().take_err(&mut err, || cwp + "metrics"));
 
         if err.is_empty() {
             Ok(Self {

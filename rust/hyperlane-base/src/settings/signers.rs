@@ -55,19 +55,18 @@ impl FromRawConf<'_, RawSignerConf> for SignerConf {
         match raw {
             HexKey { key } => Ok(Self::HexKey {
                 key: key
-                    .expect_or_config_err(|| {
-                        (key_path(), eyre!("Missing `key` for HexKey signer"))
-                    })?
+                    .ok_or_else(|| eyre!("Missing `key` for HexKey signer"))
+                    .into_config_result(key_path)?
                     .parse()
                     .into_config_result(key_path)?,
             }),
             Aws { id, region } => Ok(Self::Aws {
                 id: id
-                    .expect_or_config_err(|| (cwp + "id", eyre!("Missing `id` for Aws signer")))?,
+                    .ok_or_else(|| eyre!("Missing `id` for Aws signer"))
+                    .into_config_result(|| cwp + "id")?,
                 region: region
-                    .expect_or_config_err(|| {
-                        (region_path(), eyre!("Missing `region` for Aws signer"))
-                    })?
+                    .ok_or_else(|| eyre!("Missing `region` for Aws signer"))
+                    .into_config_result(region_path)?
                     .parse()
                     .into_config_result(region_path)?,
             }),

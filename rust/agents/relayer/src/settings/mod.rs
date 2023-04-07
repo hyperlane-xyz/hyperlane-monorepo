@@ -24,8 +24,8 @@ pub enum GasPaymentEnforcementPolicy {
     /// The required amount of gas on the foreign chain has been paid according
     /// to on-chain fee quoting.
     OnChainFeeQuoting {
-        gas_fraction_numerator: U256,
-        gas_fraction_denominator: U256,
+        gas_fraction_numerator: u64,
+        gas_fraction_denominator: u64,
     },
 }
 
@@ -64,18 +64,19 @@ impl FromRawConf<'_, RawGasPaymentEnforcementPolicy> for GasPaymentEnforcementPo
                 let (numerator, denominator) = gasfraction
                     .ok_or_else(|| eyre!("Missing `gasfraction` for OnChainFeeQuoting gas payment enforcement policy"))
                     .into_config_result(|| cwp + "gasfraction")?
+                    .replace(' ', "")
                     .split_once('/')
-                    .ok_or_else(|| eyre!("Invalid `gasfraction` for OnChainFeeQuoting gas payment enforcement policy; expected `numerator/denominator`")
+                    .ok_or_else(|| eyre!("Invalid `gasfraction` for OnChainFeeQuoting gas payment enforcement policy; expected `numerator / denominator`")
                         .into_config_result(|| cwp + "gasfraction"))?;
                 let numerator = numerator
                     .strip_suffix(" ")
                     .unwrap_or("")
-                    .parse::<U256>()
+                    .parse()
                     .into_config_result(|| cwp + "gasfraction")?;
                 let denominator = denominator
                     .strip_prefix(" ")
                     .unwrap_or("")
-                    .parse::<U256>()
+                    .parse()
                     .into_config_result(|| cwp + "gasfraction")?;
 
                 Ok(Self::OnChainFeeQuoting {
@@ -155,22 +156,19 @@ impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
         let origin_chain_name = raw
             .originchainname
             .ok_or_else(|| eyre!("Missing `originchainname`"))
-            .into_config_result(|| cwp + "originchainname")
-            .take_config_err(&mut err);
+            .take_err(&mut err, || cwp + "originchainname");
 
         let destination_chain_names = raw
             .destinationchainnames
             .ok_or_else(|| eyre!("Missing `destinationchainnames`"))
-            .into_config_result(|| cwp + "destinationchainnames")
-            .take_config_err(&mut err)
+            .take_err(&mut err, || cwp + "destinationchainnames")
             .map(|r| r.split(',').map(|s| s.to_string()).collect());
 
         let gas_payment_enforcement = raw
             .gaspaymentenforcement
             .and_then(|j| {
                 serde_json::from_str::<Vec<RawGasPaymentEnforcementConf>>(&j)
-                    .into_config_result(|| cwp + "gaspaymentenforcement")
-                    .take_config_err(&mut err)
+                    .take_err(&mut err, || cwp + "gaspaymentenforcement")
             })
             .map(|rv| {
                 let cwp = cwp + "gaspaymentenforcement";
@@ -182,21 +180,16 @@ impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
             .unwrap_or_else(|| vec![Default::default()]);
 
         let whitelist = raw.whitelist.and_then(|j| {
-            serde_json::from_str::<MatchingList>(&j)
-                .into_config_result(|| cwp + "whitelist")
-                .take_config_err(&mut err)
+            serde_json::from_str::<MatchingList>(&j).take_err(&mut err, || cwp + "whitelist")
         });
 
         let blacklist = raw.blacklist.and_then(|j| {
-            serde_json::from_str::<MatchingList>(&j)
-                .into_config_result(|| cwp + "blacklist")
-                .take_config_err(&mut err)
+            serde_json::from_str::<MatchingList>(&j).take_err(&mut err, || cwp + "blacklist")
         });
 
         let transaction_gas_limit = raw.transactiongaslimit.and_then(|r| {
             r.try_into()
-                .into_config_result(|| cwp + "transactiongaslimit")
-                .take_config_err(&mut err)
+                .take_err(&mut err, || cwp + "transactiongaslimit")
         });
 
         let skip_transaction_gas_limit_for = raw
@@ -205,18 +198,13 @@ impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
                 r.split(',')
                     .map(str::parse)
                     .collect::<Result<_, _>>()
-                    .into_config_result(|| cwp + "skiptransactiongaslimitfor")
-                    .take_config_err(&mut err)
+                    .take_err(&mut err, || cwp + "skiptransactiongaslimitfor")
             })
             .unwrap_or_default();
 
         let db = raw
             .db
-            .and_then(|r| {
-                r.parse()
-                    .into_config_result(|| cwp + "db")
-                    .take_config_err(&mut err)
-            })
+            .and_then(|r| r.parse().take_err(&mut err, || cwp + "db"))
             .unwrap_or_else(|| {
                 std::env::current_dir().unwrap().join(format!(
                     "relayer_db_{}",

@@ -101,8 +101,8 @@ impl FromRawConf<'_, RawCoreContractAddresses> for CoreContractAddresses {
         macro_rules! parse_addr {
             ($name:ident, $path:literal) => {
                 raw.$name
-                    .expect_or_config_err(|| (cwp + $path, eyre!("Missing core contract address")))
-                    .take_config_err(&mut err)
+                    .ok_or_else(|| eyre!("Missing core contract address"))
+                    .take_err(&mut err, || cwp + $path)
                     .and_then(|v| v.parse().take_err(&mut err, || cwp + $path))
             };
         }
@@ -123,30 +123,6 @@ impl FromRawConf<'_, RawCoreContractAddresses> for CoreContractAddresses {
     }
 }
 
-impl TryFrom<RawCoreContractAddresses> for CoreContractAddresses {
-    type Error = eyre::Report;
-
-    fn try_from(r: RawCoreContractAddresses) -> Result<Self, Self::Error> {
-        Ok(Self {
-            mailbox: r
-                .mailbox
-                .expect_or_eyre("Missing `mailbox` core contract address")?
-                .parse()
-                .context("Invalid hex string for `mailbox` core contract address")?,
-            interchain_gas_paymaster: r
-                .interchain_gas_paymaster
-                .expect_or_eyre("Missing `interchainGasPaymaster` core contract address")?
-                .parse()
-                .context("Invalid hex string for `interchainGasPaymaster` core contract address")?,
-            validator_announce: r
-                .validator_announce
-                .expect_or_eyre("Missing `validatorAnnounce` core contract address")?
-                .parse()
-                .context("Invalid hex string for `validatorAnnounce` core contract address")?,
-        })
-    }
-}
-
 /// Indexing settings
 #[derive(Debug, Default, Clone)]
 pub struct IndexSettings {
@@ -164,24 +140,25 @@ struct RawIndexSettings {
     chunk: Option<StrOrInt>,
 }
 
-impl TryFrom<RawIndexSettings> for IndexSettings {
-    type Error = eyre::Report;
+impl FromRawConf<'_, RawIndexSettings> for IndexSettings {
+    fn from_config(raw: RawIndexSettings, cwp: &ConfigPath) -> ConfigResult<Self> {
+        let mut err = ConfigParsingError::default();
 
-    fn try_from(r: RawIndexSettings) -> Result<Self, Self::Error> {
-        Ok(Self {
-            from: r
-                .from
-                .map(|v| v.try_into())
-                .transpose()
-                .context("Invalid `from` index setting")?
-                .unwrap_or_default(),
-            chunk_size: r
-                .chunk
-                .map(|v| v.try_into())
-                .transpose()
-                .context("Invalid `chunk` index setting")?
-                .unwrap_or(1999),
-        })
+        let from = raw
+            .from
+            .and_then(|v| v.try_into().take_err(&mut err, || cwp + "from"))
+            .unwrap_or_default();
+
+        let chunk_size = raw
+            .chunk
+            .and_then(|v| v.try_into().take_err(&mut err, || cwp + "chunk"))
+            .unwrap_or(1999);
+
+        if err.is_empty() {
+            Ok(Self { from, chunk_size })
+        } else {
+            Err(err)
+        }
     }
 }
 
@@ -240,21 +217,19 @@ impl FromRawConf<'_, RawChainConf> for ChainConf {
             let protocol = c.protocol();
             let domain_id = raw
                 .domain
-                .expect_or_config_err(|| {
-                    (cwp.join("domain"), eyre!("Missing `domain` configuration"))
-                })
-                .take_config_err(&mut err)?
-                .try_into()
-                .context("Invalid domain id, expected integer")
-                .take_err(&mut err, || cwp + "domain")?;
+                .ok_or_else(|| eyre!("Missing `domain` configuration"))
+                .take_err(&mut err, || cwp + "domain")
+                .and_then(|r| {
+                    r.try_into()
+                        .context("Invalid domain id, expected integer")
+                        .take_err(&mut err, || cwp + "domain")
+                });
             let name = raw
                 .name
                 .as_deref()
-                .expect_or_config_err(|| {
-                    (cwp + "name", eyre!("Missing domain `name` configuration"))
-                })
-                .take_config_err(&mut err)?;
-            HyperlaneDomain::from_config(domain_id, name, protocol)
+                .ok_or_else(|| eyre!("Missing domain `name` configuration"))
+                .take_err(&mut err, || cwp + "name");
+            HyperlaneDomain::from_config(domain_id?, name?, protocol)
                 .take_err(&mut err, || cwp.clone())
         });
 
@@ -279,20 +254,12 @@ impl FromRawConf<'_, RawChainConf> for ChainConf {
 
         let txsubmission = raw
             .txsubmission
-            .map(|v| serde_json::from_str(&v))
-            .transpose()
-            .context("Invalid `txsubmission` chain configuration")
-            .take_err(&mut err, || cwp + "txsubmission")
-            .flatten()
+            .and_then(|v| serde_json::from_str(&v).take_err(&mut err, || cwp + "txsubmission"))
             .unwrap_or_default();
 
         let index = raw
             .index
-            .map(|v| v.try_into())
-            .transpose()
-            .context("Invalid `index` chain configuration")
-            .take_err(&mut err, || cwp + "index")
-            .flatten()
+            .and_then(|v| v.parse_config(&cwp.join("index")).take_config_err(&mut err))
             .unwrap_or_default();
 
         let metrics_conf = raw.metrics_conf.unwrap_or_default();

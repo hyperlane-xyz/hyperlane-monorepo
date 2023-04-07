@@ -39,13 +39,13 @@ impl FromRawConf<'_, RawValidatorSettings> for ValidatorSettings {
 
         let origin_chain_name = raw
             .originchainname
-            .expect_or_config_err(|| (cwp + "originchainname", eyre!("Missing `originchainname`")))
-            .take_config_err(&mut err);
+            .ok_or_else(|| eyre!("Missing `originchainname`"))
+            .take_err(&mut err, || cwp + "originchainname");
 
         let validator = raw
             .validator
-            .expect_or_config_err(|| (cwp + "validator", eyre!("Missing `validator`")))
-            .take_config_err(&mut err)
+            .ok_or_else(|| eyre!("Missing `validator`"))
+            .take_err(&mut err, || cwp + "validator")
             .and_then(|r| {
                 r.parse_config(&cwp.join("validator"))
                     .take_config_err(&mut err)
@@ -53,13 +53,8 @@ impl FromRawConf<'_, RawValidatorSettings> for ValidatorSettings {
 
         let checkpoint_syncer = raw
             .checkpointsyncer
-            .expect_or_config_err(|| {
-                (
-                    cwp + "checkpointsyncer",
-                    eyre!("Missing `checkpointsyncer`"),
-                )
-            })
-            .take_config_err(&mut err)
+            .ok_or_else(|| eyre!("Missing `checkpointsyncer`"))
+            .take_err(&mut err, || cwp + "checkpointsyncer")
             .and_then(|r| {
                 r.parse_config(&cwp.join("checkpointsyncer"))
                     .take_config_err(&mut err)
@@ -67,14 +62,14 @@ impl FromRawConf<'_, RawValidatorSettings> for ValidatorSettings {
 
         let reorg_period = raw
             .reorgperiod
-            .expect_or_config_err(|| (cwp + "reorgperiod", eyre!("Missing `reorgperiod`")))
-            .take_config_err(&mut err)
+            .ok_or_else(|| eyre!("Missing `reorgperiod`"))
+            .take_err(&mut err, || cwp + "reorgperiod")
             .and_then(|r| r.try_into().take_err(&mut err, || cwp + "reorgperiod"));
 
         let interval = raw
             .interval
-            .expect_or_config_err(|| (cwp + "interval", eyre!("Missing `interval`")))
-            .take_config_err(&mut err)
+            .ok_or_else(|| eyre!("Missing `interval`"))
+            .take_err(&mut err, || cwp + "interval")
             .and_then(|r| {
                 r.try_into()
                     .map(Duration::from_secs)

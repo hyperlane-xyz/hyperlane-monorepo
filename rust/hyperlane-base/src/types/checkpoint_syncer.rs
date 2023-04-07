@@ -49,29 +49,18 @@ impl FromRawConf<'_, RawCheckpointSyncerConf> for CheckpointSyncerConf {
         match raw {
             RawCheckpointSyncerConf::LocalStorage { path } => Ok(Self::LocalStorage {
                 path: path
-                    .expect_or_config_err(|| {
-                        (
-                            cwp + "path",
-                            eyre!("Missing `path` for LocalStorage checkpoint syncer"),
-                        )
-                    })?
+                    .ok_or_else(|| eyre!("Missing `path` for LocalStorage checkpoint syncer"))
+                    .into_config_result(|| cwp + "path")?
                     .parse()
                     .into_config_result(|| cwp + "path")?,
             }),
             RawCheckpointSyncerConf::S3 { bucket, region } => Ok(Self::S3 {
-                bucket: bucket.expect_or_config_err(|| {
-                    (
-                        cwp + "bucket",
-                        eyre!("Missing `bucket` for S3 checkpoint syncer"),
-                    )
-                })?,
+                bucket: bucket
+                    .ok_or_else(|| eyre!("Missing `bucket` for S3 checkpoint syncer"))
+                    .into_config_result(|| cwp + "bucket")?,
                 region: region
-                    .expect_or_config_err(|| {
-                        (
-                            cwp + "region",
-                            eyre!("Missing `region` for S3 checkpoint syncer"),
-                        )
-                    })?
+                    .ok_or_else(|| eyre!("Missing `region` for S3 checkpoint syncer"))
+                    .into_config_result(|| cwp + "region")?
                     .parse()
                     .into_config_result(|| cwp + "region")?,
             }),
