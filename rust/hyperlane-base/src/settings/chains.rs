@@ -10,7 +10,7 @@ use ethers_prometheus::middleware::{
 use hyperlane_core::{
     config::*, ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol,
     HyperlaneProvider, HyperlaneSigner, InterchainGasPaymaster, InterchainGasPaymasterIndexer,
-    Mailbox, MailboxIndexer, MultisigIsm, ValidatorAnnounce, H256,
+    Mailbox, MailboxIndexer, MultisigIsm, ValidatorAnnounce, H256, H160,
 };
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
@@ -103,7 +103,14 @@ impl FromRawConf<'_, RawCoreContractAddresses> for CoreContractAddresses {
                 raw.$name
                     .ok_or_else(|| eyre!("Missing core contract address"))
                     .take_err(&mut err, || cwp + $path)
-                    .and_then(|v| v.parse().take_err(&mut err, || cwp + $path))
+                    .and_then(|v| {
+                        if v.len() <= 42 {
+                            v.parse::<H160>().take_err(&mut err, || cwp + $path).map(Into::into)
+                        } else {
+                            v.parse().take_err(&mut err, || cwp + $path)
+                        }
+
+                    })
             };
         }
 
