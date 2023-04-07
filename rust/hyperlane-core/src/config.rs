@@ -17,9 +17,15 @@ use primitive_types::U256;
 use serde::Deserialize;
 use thiserror::Error;
 
+/// Extension trait to better support ConfigResults with non-ConfigParsingError
+/// results.
 pub trait ConfigErrResultExt<T> {
+    /// Convert a result into a ConfigResult, using the given path for the
+    /// error.
     fn into_config_result(self, path: impl FnOnce() -> ConfigPath) -> ConfigResult<T>;
 
+    /// Take the error from a result and merge it into the given
+    /// ConfigParsingError.
     fn take_err(self, err: &mut ConfigParsingError, path: impl FnOnce() -> ConfigPath)
         -> Option<T>;
 }
@@ -29,7 +35,7 @@ where
     E: Into<Report>,
 {
     fn into_config_result(self, path: impl FnOnce() -> ConfigPath) -> ConfigResult<T> {
-        self.map_err(|e| ConfigParsingError::new(path(), e.into()))
+        self.map_err(|e| ConfigParsingError(vec![(path(), e.into())]))
     }
 
     fn take_err(
@@ -40,14 +46,17 @@ where
         match self {
             Ok(v) => Some(v),
             Err(e) => {
-                err.merge(ConfigParsingError::new(path(), e));
+                err.merge(ConfigParsingError(vec![(path(), e.into())]));
                 None
             }
         }
     }
 }
 
+/// Extension trait to better support ConfigResults.
 pub trait ConfigResultExt<T> {
+    /// Take the error from a result and merge it into the given
+    /// ConfigParsingError.
     fn take_config_err(self, err: &mut ConfigParsingError) -> Option<T>;
 }
 
@@ -63,14 +72,13 @@ impl<T> ConfigResultExt<T> for ConfigResult<T> {
     }
 }
 
-// declare_deserialize_for_config_struct!(Settings);
-
+/// Path within a config tree.
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct ConfigPath(Vec<Arc<String>>);
 
 impl Display for ConfigPath {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.path_name())
+        write!(f, "{}", self.json_name())
     }
 }
 
@@ -91,6 +99,7 @@ impl Add<ConfigPath> for &ConfigPath {
 }
 
 impl ConfigPath {
+    /// Add a new part to the path.
     pub fn join(&self, part: impl Into<String>) -> Self {
         let part = part.into();
         debug_assert!(!part.contains('.'));
@@ -99,6 +108,7 @@ impl ConfigPath {
         new
     }
 
+    /// Merge two paths.
     pub fn merge(&self, other: &Self) -> Self {
         Self(
             self.0
@@ -109,13 +119,15 @@ impl ConfigPath {
         )
     }
 
-    pub fn path_name(&self) -> String {
+    /// Get the JSON formatted path.
+    pub fn json_name(&self) -> String {
         self.0
             .iter()
             .map(|s| s.as_str().to_case(Case::Camel))
             .join(".")
     }
 
+    /// Get the environment variable formatted path.
     pub fn env_name(&self) -> String {
         ["HYP", "BASE"]
             .into_iter()
@@ -133,14 +145,13 @@ fn env_casing() {
     );
 }
 
+/// A composite error type that allows for compiling multiple errors into a
+/// single result. Use `default()` to create an empty error and then take other
+/// errors using the extension traits or directly push them.
 #[derive(Debug, Default)]
 pub struct ConfigParsingError(Vec<(ConfigPath, Report)>);
 
 impl ConfigParsingError {
-    pub fn new(path: ConfigPath, report: impl Into<Report>) -> Self {
-        Self(vec![(path, report.into())])
-    }
-
     pub fn from_report(conf_path: ConfigPath, report: Report) -> Self {
         Self(vec![(conf_path, report)])
     }
@@ -183,8 +194,8 @@ impl std::error::Error for ConfigParsingError {}
 
 pub trait FromRawConf<'de, T, F = ()>: Sized
 where
-    // technically we don't need this bound but it enforces the
-    // correct usage.
+    // technically we don't need this bound but it enforces
+    // the correct usage.
     T: Debug + Deserialize<'de>,
     F: Default,
 {

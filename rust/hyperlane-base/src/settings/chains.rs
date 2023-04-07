@@ -52,10 +52,9 @@ impl FromRawConf<'_, RawChainConnectionConf> for ChainConnectionConf {
         match raw {
             Ethereum(r) => Ok(Self::Ethereum(r.parse_config(&cwp.join("connection"))?)),
             Fuel(r) => Ok(Self::Fuel(r.parse_config(&cwp.join("connection"))?)),
-            Unknown => Err(ConfigParsingError::new(
-                cwp.join("protocol"),
-                eyre!("Unknown chain protocol"),
-            )),
+            Unknown => {
+                Err(eyre!("Unknown chain protocol")).into_config_result(|| cwp.join("protocol"))
+            }
         }
     }
 }

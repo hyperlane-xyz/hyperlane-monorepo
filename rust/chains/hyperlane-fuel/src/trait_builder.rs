@@ -40,10 +40,9 @@ impl FromRawConf<'_, RawConnectionConf> for ConnectionConf {
                     .map_err(|e| InvalidConnectionUrl(url, e))
                     .into_config_result(|| cwp.join("url"))?,
             }),
-            RawConnectionConf { url: None } => Err(ConfigParsingError::new(
-                cwp.join("url"),
-                MissingConnectionUrl,
-            )),
+            RawConnectionConf { url: None } => {
+                Err(MissingConnectionUrl).into_config_result(|| cwp.join("url"))
+            }
         }
     }
 }

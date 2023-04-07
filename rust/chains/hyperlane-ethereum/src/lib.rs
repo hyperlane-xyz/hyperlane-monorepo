@@ -131,20 +131,19 @@ impl FromRawConf<'_, RawConnectionConf> for ConnectionConf {
         use ConnectionConfError::*;
         use RawConnectionConf::*;
         match raw {
-            HttpQuorum { urls: None } | HttpFallback { urls: None } => Err(
-                ConfigParsingError::new(cwp.join("urls"), MissingConnectionUrls),
-            ),
+            HttpQuorum { urls: None } | HttpFallback { urls: None } => {
+                Err(MissingConnectionUrls).into_config_result(|| cwp.join("urls"))
+            }
             HttpQuorum { urls: Some(urls) } | HttpFallback { urls: Some(urls) }
                 if urls.is_empty() =>
             {
-                Err(ConfigParsingError::new(cwp.join("urls"), EmptyUrls))
+                Err(EmptyUrls).into_config_result(|| cwp.join("urls"))
             }
-            Http { url: None } | Ws { url: None } => Err(ConfigParsingError::new(
-                cwp.join("url"),
-                MissingConnectionUrl,
-            )),
+            Http { url: None } | Ws { url: None } => {
+                Err(MissingConnectionUrl).into_config_result(|| cwp.join("url"))
+            }
             Http { url: Some(url) } | Ws { url: Some(url) } if url.is_empty() => {
-                Err(ConfigParsingError::new(cwp.join("url"), EmptyUrl))
+                Err(EmptyUrl).into_config_result(|| cwp.join("url"))
             }
             HttpQuorum { urls: Some(urls) } => Ok(Self::HttpQuorum {
                 urls: urls
@@ -174,10 +173,7 @@ impl FromRawConf<'_, RawConnectionConf> for ConnectionConf {
                     .map_err(|e| InvalidConnectionUrl(url, e))
                     .into_config_result(|| cwp.join("url"))?,
             }),
-            Unknown => Err(ConfigParsingError::new(
-                cwp.join("type"),
-                UnsupportedConnectionType,
-            )),
+            Unknown => Err(UnsupportedConnectionType).into_config_result(|| cwp.join("type")),
         }
     }
 }

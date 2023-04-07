@@ -75,10 +75,7 @@ impl FromRawConf<'_, RawSignerConf> for SignerConf {
                     .into_config_result(region_path)?,
             }),
             Node => Ok(Self::Node),
-            Unknown => Err(ConfigParsingError::new(
-                cwp + "type",
-                eyre!("Unknown signer type"),
-            )),
+            Unknown => Err(eyre!("Unknown signer type")).into_config_result(|| cwp + "type"),
         }
     }
 }

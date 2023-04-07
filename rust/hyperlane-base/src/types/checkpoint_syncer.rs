@@ -67,10 +67,8 @@ impl FromRawConf<'_, RawCheckpointSyncerConf> for CheckpointSyncerConf {
                     .parse()
                     .into_config_result(|| cwp + "region")?,
             }),
-            RawCheckpointSyncerConf::Unknown => Err(ConfigParsingError::new(
-                cwp + "type",
-                eyre!("Missing `type` for checkpoint syncer"),
-            )),
+            RawCheckpointSyncerConf::Unknown => Err(eyre!("Missing `type` for checkpoint syncer"))
+                .into_config_result(|| cwp + "type"),
         }
     }
 }
