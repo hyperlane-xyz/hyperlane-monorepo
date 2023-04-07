@@ -344,12 +344,12 @@ contract LegacyMultisigIsm is IMultisigIsm, Ownable {
         for (uint256 i = 0; i < _threshold; ++i) {
             address _signer = ECDSA.recover(_digest, _metadata.signatureAt(i));
             // Loop through remaining validators until we find a match
-            for (
-                ;
+            while (
                 _validatorIndex < _validatorCount &&
-                    _signer != _metadata.validatorAt(_validatorIndex);
-                ++_validatorIndex // solhint-disable-next-line no-empty-blocks
-            ) {}
+                _signer != _metadata.validatorAt(_validatorIndex)
+            ) {
+                ++_validatorIndex;
+            }
             // Fail if we never found a match
             require(_validatorIndex < _validatorCount, "!threshold");
             ++_validatorIndex;
