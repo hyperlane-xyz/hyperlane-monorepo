@@ -28,11 +28,9 @@ storage:
 # Note: For successful operation, one _must_ pass signer keys as
 #       they are not baked into the image for security reasons.
 hyperlane:
-  # Sets the config folder to use
+  # Defines what environment is being run
   runEnv: 'default'
   context: 'hyperlane'
-  # Sets the base config to be used (switch between Homes)
-  baseConfig: 'base.json'
   # Set the DB location to be the volume
   dbPath: /usr/share/hyperlane
   rustBacktrace: full
@@ -40,23 +38,24 @@ hyperlane:
     # Set the log formatting
     format: json
     # Set the log level
-    level: info
+    level: debug
     uri: ''
   metrics:
     port: 9090
   aws: # true | false
-  gelatoApiKeyRequired: # true | false
 
   # -- Chain overrides, a sequence
   chains:
     - name: 'alfajores'
       disabled: false
+      signer:
+        # aws:
       addresses:
         mailbox:
         multisigIsm:
         interchainGasPaymaster:
       domain:
-      rpcStyle: # "ethereum"
+      protocol: # "ethereum"
       connection:
         type: # "http"
 
@@ -101,16 +100,9 @@ hyperlane:
       requests:
         cpu: 250m
         memory: 256Mi
-    signers:
-      - name: 'kovan'
-        # aws:
-      - name: 'alfajores'
-        # aws:
     config:
       originChainName:
-      signedCheckpointPollingInterval:
       multisigCheckpointSyncer:
-        threshold:
         checkpointSyncers:
 
   scraper:
@@ -118,7 +110,7 @@ hyperlane:
     podAnnotations:
       prometheus.io/port: '9090'
       prometheus.io/scrape: 'true'
-    podLabels: { }
+    podLabels: {}
     storage:
       size: 10Mi
       snapshot:
@@ -128,7 +120,6 @@ hyperlane:
       requests:
         cpu: 250m
         memory: 256Mi
-    signers:
     config:
 
   kathy:

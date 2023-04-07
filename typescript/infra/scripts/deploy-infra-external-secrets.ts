@@ -1,11 +1,16 @@
 import { runExternalSecretsHelmCommand } from '../src/infrastructure/external-secrets/external-secrets';
 import { HelmCommand } from '../src/utils/helm';
 
-import { getCoreEnvironmentConfig, getEnvironment } from './utils';
+import {
+  assertCorrectKubeContext,
+  getEnvironment,
+  getEnvironmentConfig,
+} from './utils';
 
 async function main() {
   const environment = await getEnvironment();
-  const config = getCoreEnvironmentConfig(environment);
+  const config = getEnvironmentConfig(environment);
+  await assertCorrectKubeContext(config);
   return runExternalSecretsHelmCommand(
     HelmCommand.InstallOrUpgrade,
     config.infra,

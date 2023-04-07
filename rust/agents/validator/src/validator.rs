@@ -1,27 +1,28 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use eyre::{Context, Result};
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 
-use hyperlane_base::{
-    run_all, Agent, BaseAgent, CheckpointSyncers, CoreMetrics, HyperlaneAgentCore,
-};
-use hyperlane_core::{HyperlaneDomain, Signers};
+use hyperlane_base::{run_all, BaseAgent, CheckpointSyncer, CoreMetrics, HyperlaneAgentCore};
+use hyperlane_core::{HyperlaneDomain, HyperlaneSigner, Mailbox};
 
-use crate::submit::ValidatorSubmitterMetrics;
-use crate::{settings::ValidatorSettings, submit::ValidatorSubmitter};
+use crate::{
+    settings::ValidatorSettings, submit::ValidatorSubmitter, submit::ValidatorSubmitterMetrics,
+};
 
 /// A validator agent
 #[derive(Debug)]
 pub struct Validator {
     origin_chain: HyperlaneDomain,
-    signer: Arc<Signers>,
+    core: HyperlaneAgentCore,
+    mailbox: Arc<dyn Mailbox>,
+    signer: Arc<dyn HyperlaneSigner>,
     reorg_period: u64,
-    interval: u64,
-    checkpoint_syncer: Arc<CheckpointSyncers>,
-    pub(crate) core: HyperlaneAgentCore,
+    interval: Duration,
+    checkpoint_syncer: Arc<dyn CheckpointSyncer>,
 }
 
 impl AsRef<HyperlaneAgentCore> for Validator {
@@ -40,15 +41,26 @@ impl BaseAgent for Validator {
     where
         Self: Sized,
     {
-        let signer = settings.validator.try_into_signer().await?.into();
-        let reorg_period = settings.reorgperiod.parse().expect("invalid uint");
-        let interval = settings.interval.parse().expect("invalid uint");
-        let core = settings
-            .try_into_hyperlane_core(metrics, Some(vec![&settings.originchainname]))
-            .await?;
-        let checkpoint_syncer = settings
-            .checkpointsyncer
-            .try_into_checkpoint_syncer(None)?
+        let signer = settings
+            .validator
+            // Intentionally using hyperlane_ethereum for the validator's signer
+            .build::<hyperlane_ethereum::Signers>()
+            .await
+            .map(|validator| Arc::new(validator) as Arc<dyn HyperlaneSigner>)?;
+        let reorg_period = (&settings.reorgperiod)
+            .try_into()
+            .expect("invalid reorg period");
+        let interval = Duration::from_secs(
+            (&settings.interval)
+                .try_into()
+                .expect("invalid validator interval"),
+        );
+        let core = settings.build_hyperlane_core(metrics.clone());
+        let checkpoint_syncer = settings.checkpointsyncer.build(None)?.into();
+
+        let mailbox = settings
+            .build_mailbox(&settings.originchainname, &metrics)
+            .await?
             .into();
 
         let origin_chain = core
@@ -59,11 +71,12 @@ impl BaseAgent for Validator {
 
         Ok(Self {
             origin_chain,
+            core,
+            mailbox,
             signer,
             reorg_period,
             interval,
             checkpoint_syncer,
-            core,
         })
     }
 
@@ -72,7 +85,7 @@ impl BaseAgent for Validator {
         let submit = ValidatorSubmitter::new(
             self.interval,
             self.reorg_period,
-            self.mailbox(&self.origin_chain).unwrap().clone(),
+            self.mailbox.clone(),
             self.signer.clone(),
             self.checkpoint_syncer.clone(),
             ValidatorSubmitterMetrics::new(&self.core.metrics, &self.origin_chain),

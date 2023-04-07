@@ -5,7 +5,12 @@ import { ethers } from 'ethers';
 import fs from 'fs';
 import path from 'path';
 
-import { AllChains, ChainName } from '@hyperlane-xyz/sdk';
+import {
+  AllChains,
+  ChainName,
+  CoreChainName,
+  objMerge,
+} from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import { ALL_KEY_ROLES, KEY_ROLE_ENUM } from '../agents/roles';
@@ -152,14 +157,29 @@ export function warn(text: string, padded = false) {
   }
 }
 
-export function writeJSON(directory: string, filename: string, obj: any) {
-  if (!fs.existsSync(directory)) {
-    fs.mkdirSync(directory, { recursive: true });
+export function writeMergedJSONAtPath(filepath: string, obj: any) {
+  if (fs.existsSync(filepath)) {
+    const previous = readJSONAtPath(filepath);
+    writeJsonAtPath(filepath, objMerge(previous, obj));
+  } else {
+    writeJsonAtPath(filepath, obj);
   }
-  fs.writeFileSync(
-    path.join(directory, filename),
-    JSON.stringify(obj, null, 2),
-  );
+}
+
+export function writeMergedJSON(directory: string, filename: string, obj: any) {
+  writeMergedJSONAtPath(path.join(directory, filename), obj);
+}
+
+export function writeJsonAtPath(filepath: string, obj: any) {
+  const dir = path.dirname(filepath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  fs.writeFileSync(filepath, JSON.stringify(obj, null, 2) + '\n');
+}
+
+export function writeJSON(directory: string, filename: string, obj: any) {
+  writeJsonAtPath(path.join(directory, filename), obj);
 }
 
 export function readFileAtPath(filepath: string) {
@@ -187,7 +207,7 @@ export function assertRole(roleStr: string) {
 
 export function assertChain(chainStr: string) {
   const chain = chainStr as ChainName;
-  if (!AllChains.includes(chain)) {
+  if (!AllChains.includes(chain as CoreChainName)) {
     throw Error(`Invalid chain ${chain}`);
   }
   return chain;

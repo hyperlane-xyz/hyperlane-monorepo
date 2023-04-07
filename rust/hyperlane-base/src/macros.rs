@@ -44,6 +44,7 @@ macro_rules! decl_agent {
     };
 }
 
+use crate::Settings;
 /// Export this so they don't need to import paste.
 #[doc(hidden)]
 pub use paste;
@@ -103,6 +104,12 @@ macro_rules! decl_settings {
                 }
             }
 
+            impl AsMut<hyperlane_base::Settings> for [<$name Settings>] {
+                fn as_mut(&mut self) -> &mut hyperlane_base::Settings {
+                    &mut self.base
+                }
+            }
+
             impl hyperlane_base::NewFromSettings for [<$name Settings>] {
                 type Error = eyre::Report;
 
@@ -117,13 +124,11 @@ macro_rules! decl_settings {
 
 /// Static logic called by the decl_settings! macro. Do not call directly!
 #[doc(hidden)]
-pub fn _new_settings<'de, T: Deserialize<'de>>(name: &str) -> eyre::Result<T> {
+pub fn _new_settings<'de, T>(name: &str) -> eyre::Result<T>
+where
+    T: Deserialize<'de> + AsMut<Settings>,
+{
     use crate::settings::loader::load_settings_object;
-    use std::env;
 
-    load_settings_object::<T, &str>(
-        name,
-        Some(&env::var("BASE_CONFIG").unwrap_or_else(|_| "base".into())),
-        &[],
-    )
+    load_settings_object::<T, &str>(name, &[])
 }

@@ -1,0 +1,5 @@
+{
+  "filter_paths": "lib|node_modules|test|Mock*|Test*",
+  "compile_force_framework": "foundry",
+  "exclude_informational": true
+}

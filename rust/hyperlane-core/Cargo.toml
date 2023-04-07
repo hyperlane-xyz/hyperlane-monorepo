@@ -1,40 +1,45 @@
 [package]
 name = "hyperlane-core"
-version = "0.1.0"
-edition = "2021"
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license-file.workspace = true
+publish.workspace = true
+version.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+async-trait.workspace = true
 auto_impl = "1.0"
-ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2022-12-05-01", default-features = false, features = ['legacy'] }
-ethers-signers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2022-12-05-01", features=["aws"] }
-ethers-providers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2022-12-05-01", features=["ws", "rustls"] }
-config = "0.13"
-hex = "0.4.3"
-sha3 = "0.9.1"
-lazy_static = "*"
-thiserror = "1.0"
-async-trait = { version = "0.1", default-features = false }
-tokio = { version = "1", features = ["rt", "macros"] }
-tracing = "0.1"
-tracing-futures = "0.2"
-serde = {version = "1.0", features = ["derive"]}
-serde_json = {version = "1.0"}
-rocksdb = "0.18"
 bytes = { version = "1", features = ["serde"]}
+config.workspace = true
+derive-new.workspace = true
+ethers-providers.workspace = true
+ethers-signers.workspace = true
+ethers.workspace = true
+hex = "0.4.3"
+lazy_static = "*"
 num = {version="0", features=["serde"]}
-num-traits = "0.2"
-num-derive = "0.3"
+num-derive.workspace = true
+num-traits.workspace = true
+rocksdb.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha3 = "0.10"
 strum = "0.24"
 strum_macros = "0.24"
+thiserror.workspace = true
+tokio = { workspace = true, features = ["rt", "macros"] }
+tracing-futures.workspace = true
+tracing.workspace = true
 
 # version determined by ethers-rs
 primitive-types = "*"
 
 [dev-dependencies]
 hyperlane-base = { path = "../hyperlane-base" }
-tokio = {version = "1", features = ["rt", "time"]}
+tokio = { workspace = true, features = ["rt", "time"] }
 walkdir = { version = "2" }
 
 [features]

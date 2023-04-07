@@ -1,6 +1,7 @@
 import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
+import { DeployEnvironment } from '../config';
 
 import { KEY_ROLE_ENUM } from './roles';
 
@@ -34,7 +35,7 @@ function identifier(
 }
 
 export function keyIdentifier(
-  environment: string,
+  environment: DeployEnvironment,
   context: Contexts,
   role: string,
   chainName?: ChainName,

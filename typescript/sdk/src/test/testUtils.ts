@@ -1,51 +1,84 @@
 import { ethers } from 'ethers';
 
+import {
+  TestInterchainGasPaymaster,
+  TestInterchainGasPaymaster__factory,
+} from '@hyperlane-xyz/core';
+import { types } from '@hyperlane-xyz/utils';
+
 import { chainMetadata } from '../consts/chainMetadata';
+import { HyperlaneContractsMap } from '../contracts';
+import { CoreFactories } from '../core/contracts';
+import { CoreConfig } from '../core/types';
+import { IgpFactories } from '../gas/contracts';
 import {
   CoinGeckoInterface,
   CoinGeckoResponse,
   CoinGeckoSimpleInterface,
   CoinGeckoSimplePriceParams,
-  TokenPriceGetter,
 } from '../gas/token-prices';
+import { MultiProvider } from '../providers/MultiProvider';
+import { RouterConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
+import { objMap } from '../utils/objects';
 
-const MOCK_NETWORK = {
-  name: 'MockNetwork',
-  chainId: 1337,
-};
+export function createRouterConfigMap(
+  owner: types.Address,
+  coreContracts: HyperlaneContractsMap<CoreFactories>,
+  igpContracts: HyperlaneContractsMap<IgpFactories>,
+): ChainMap<RouterConfig> {
+  return objMap(coreContracts, (chain, contracts) => {
+    return {
+      owner,
+      mailbox: contracts.mailbox.address,
+      interchainGasPaymaster:
+        igpContracts[chain].interchainGasPaymaster.address,
+    };
+  });
+}
 
-// A mock ethers Provider used for testing with mocked provider functionality
-export class MockProvider extends ethers.providers.BaseProvider {
-  private methodResolveValues: { [key: string]: any };
-
-  constructor() {
-    super(MOCK_NETWORK);
-
-    this.methodResolveValues = {};
+export async function deployTestIgpsAndGetRouterConfig(
+  multiProvider: MultiProvider,
+  owner: types.Address,
+  coreContracts: HyperlaneContractsMap<CoreFactories>,
+): Promise<ChainMap<RouterConfig>> {
+  const igps: ChainMap<TestInterchainGasPaymaster> = {};
+  for (const chain of multiProvider.getKnownChainNames()) {
+    const factory = new TestInterchainGasPaymaster__factory(
+      multiProvider.getSigner(chain),
+    );
+    igps[chain] = await factory.deploy(owner);
   }
+  return objMap(coreContracts, (chain, contracts) => {
+    return {
+      owner,
+      mailbox: contracts.mailbox.address,
+      interchainGasPaymaster: igps[chain].address,
+    };
+  });
+}
 
-  // Required to be implemented or the BaseProvider throws
-  async detectNetwork() {
-    return Promise.resolve(MOCK_NETWORK);
-  }
+const nonZeroAddress = ethers.constants.AddressZero.replace('00', '01');
 
-  perform(method: string, params: any): Promise<any> {
-    const value = this.methodResolveValues[method];
-    if (value) {
-      return Promise.resolve(value);
-    }
-
-    return super.perform(method, params);
-  }
-
-  setMethodResolveValue(method: string, value: any) {
-    this.methodResolveValues[method] = value;
-  }
-
-  clearMethodResolveValues() {
-    this.methodResolveValues = {};
-  }
+// dummy config as TestInbox and TestOutbox do not use deployed ISM
+export function testCoreConfig(chains: ChainName[]): ChainMap<CoreConfig> {
+  const multisigIsm = {
+    validators: [nonZeroAddress],
+    threshold: 1,
+  };
+  return Object.fromEntries(
+    chains.map((local) => [
+      local,
+      {
+        owner: nonZeroAddress,
+        multisigIsm: Object.fromEntries(
+          chains
+            .filter((c) => c !== local)
+            .map((remote) => [remote, multisigIsm]),
+        ),
+      },
+    ]),
+  );
 }
 
 // A mock CoinGecko intended to be used by tests
@@ -82,43 +115,13 @@ export class MockCoinGecko implements CoinGeckoInterface {
     return this;
   }
 
-  setTokenPrice(chain: ChainName, price: number) {
+  setTokenPrice(chain: ChainName, price: number): void {
     const id = chainMetadata[chain].gasCurrencyCoinGeckoId || chain;
     this.tokenPrices[id] = price;
   }
 
-  setFail(chain: ChainName, fail: boolean) {
+  setFail(chain: ChainName, fail: boolean): void {
     const id = chainMetadata[chain].gasCurrencyCoinGeckoId || chain;
     this.fail[id] = fail;
-  }
-}
-
-// A mock TokenPriceGetter intended to be used by tests when mocking token prices
-export class MockTokenPriceGetter implements TokenPriceGetter {
-  private tokenPrices: Partial<ChainMap<ChainName, number>>;
-
-  constructor() {
-    this.tokenPrices = {};
-  }
-
-  async getTokenExchangeRate(
-    base: ChainName,
-    quote: ChainName,
-  ): Promise<number> {
-    const basePrice = await this.getTokenPrice(base);
-    const quotePrice = await this.getTokenPrice(quote);
-    return basePrice / quotePrice;
-  }
-
-  getTokenPrice(chain: ChainName): Promise<number> {
-    const price = this.tokenPrices[chain];
-    if (price) {
-      return Promise.resolve(price);
-    }
-    throw Error(`No price for chain ${chain}`);
-  }
-
-  setTokenPrice(chain: ChainName, price: number) {
-    this.tokenPrices[chain] = price;
   }
 }

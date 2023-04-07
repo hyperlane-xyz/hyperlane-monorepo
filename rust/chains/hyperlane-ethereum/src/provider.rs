@@ -4,20 +4,22 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use derive_new::new;
 use ethers::prelude::Middleware;
 use tokio::time::sleep;
 use tracing::instrument;
 
 use hyperlane_core::{
     BlockInfo, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain,
-    HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H256,
+    HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H160,
+    H256,
 };
 
 use crate::BuildableWithProvider;
 
 /// Connection to an ethereum provider. Useful for querying information about
 /// the blockchain.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct EthereumProvider<M>
 where
     M: Middleware,
@@ -32,6 +34,13 @@ where
 {
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
+    }
+
+    fn provider(&self) -> Box<dyn HyperlaneProvider> {
+        Box::new(EthereumProvider::new(
+            self.provider.clone(),
+            self.domain.clone(),
+        ))
     }
 }
 
@@ -82,6 +91,16 @@ where
             receipt,
         })
     }
+
+    #[instrument(err, skip(self))]
+    async fn is_contract(&self, address: &H256) -> ChainResult<bool> {
+        let code = self
+            .provider
+            .get_code(H160::from(*address), None)
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+        Ok(!code.is_empty())
+    }
 }
 
 /// Builder for hyperlane providers.
@@ -96,10 +115,10 @@ impl BuildableWithProvider for HyperlaneProviderBuilder {
         provider: M,
         locator: &ContractLocator,
     ) -> Self::Output {
-        Box::new(EthereumProvider {
-            provider: Arc::new(provider),
-            domain: locator.domain.clone(),
-        })
+        Box::new(EthereumProvider::new(
+            Arc::new(provider),
+            locator.domain.clone(),
+        ))
     }
 }
 

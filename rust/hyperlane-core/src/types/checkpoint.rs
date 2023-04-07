@@ -1,15 +1,14 @@
-use ethers::{
-    prelude::{Address, Signature},
-    utils::hash_message,
-};
-use ethers_signers::Signer;
+use async_trait::async_trait;
+use ethers::prelude::{Address, Signature};
 use serde::{Deserialize, Serialize};
-use sha3::{Digest, Keccak256};
+use sha3::{digest::Update, Digest, Keccak256};
+use std::fmt::{Debug, Formatter};
 
-use crate::{utils::domain_hash, Decode, Encode, HyperlaneProtocolError, SignerExt, H256};
+use crate::utils::{fmt_address_for_domain, fmt_domain};
+use crate::{utils::domain_hash, Signable, SignedType, H256};
 
 /// An Hyperlane checkpoint
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Checkpoint {
     /// The mailbox address
     pub mailbox_address: H256,
@@ -21,60 +20,24 @@ pub struct Checkpoint {
     pub index: u32,
 }
 
-impl std::fmt::Display for Checkpoint {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for Checkpoint {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Checkpoint(domain {} moved from {} to {})",
-            self.mailbox_domain, self.root, self.index
+            "Checkpoint {{ mailbox_address: {}, mailbox_domain: {}, root: {:?}, index: {} }}",
+            fmt_address_for_domain(self.mailbox_domain, self.mailbox_address),
+            fmt_domain(self.mailbox_domain),
+            self.root,
+            self.index
         )
     }
 }
 
-impl Encode for Checkpoint {
-    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
-    where
-        W: std::io::Write,
-    {
-        writer.write_all(self.mailbox_address.as_ref())?;
-        writer.write_all(&self.mailbox_domain.to_be_bytes())?;
-        writer.write_all(self.root.as_ref())?;
-        writer.write_all(&self.index.to_be_bytes())?;
-        Ok(32 + 4 + 32 + 4)
-    }
-}
-
-impl Decode for Checkpoint {
-    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
-    where
-        R: std::io::Read,
-        Self: Sized,
-    {
-        let mut mailbox_address = H256::zero();
-        reader.read_exact(mailbox_address.as_mut())?;
-
-        let mut mailbox_domain = [0u8; 4];
-        reader.read_exact(&mut mailbox_domain)?;
-
-        let mut root = H256::zero();
-        reader.read_exact(root.as_mut())?;
-
-        let mut index = [0u8; 4];
-        reader.read_exact(&mut index)?;
-
-        Ok(Self {
-            mailbox_address,
-            mailbox_domain: u32::from_be_bytes(mailbox_domain),
-            root,
-            index: u32::from_be_bytes(index),
-        })
-    }
-}
-
-impl Checkpoint {
+#[async_trait]
+impl Signable for Checkpoint {
     /// A hash of the checkpoint contents.
     /// The EIP-191 compliant version of this hash is signed by validators.
-    pub fn signing_hash(&self) -> H256 {
+    fn signing_hash(&self) -> H256 {
         // sign:
         // domain_hash(mailbox_address, mailbox_domain) || root || index (as u32)
         H256::from_slice(
@@ -86,75 +49,10 @@ impl Checkpoint {
                 .as_slice(),
         )
     }
-
-    /// EIP-191 compliant hash of the signing hash of the checkpoint.
-    pub fn eth_signed_message_hash(&self) -> H256 {
-        hash_message(self.signing_hash())
-    }
-
-    /// Sign an checkpoint using the specified signer
-    pub async fn sign_with<S: Signer>(self, signer: &S) -> Result<SignedCheckpoint, S::Error> {
-        let signature = signer
-            .sign_message_without_eip_155(self.signing_hash())
-            .await?;
-        Ok(SignedCheckpoint {
-            checkpoint: self,
-            signature,
-        })
-    }
 }
 
-/// A Signed Hyperlane checkpoint
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct SignedCheckpoint {
-    /// The checkpoint
-    pub checkpoint: Checkpoint,
-    /// The signature
-    pub signature: Signature,
-}
-
-impl Encode for SignedCheckpoint {
-    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
-    where
-        W: std::io::Write,
-    {
-        let mut written = 0;
-        written += self.checkpoint.write_to(writer)?;
-        written += self.signature.write_to(writer)?;
-        Ok(written)
-    }
-}
-
-impl Decode for SignedCheckpoint {
-    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
-    where
-        R: std::io::Read,
-        Self: Sized,
-    {
-        let checkpoint = Checkpoint::read_from(reader)?;
-        let signature = Signature::read_from(reader)?;
-        Ok(Self {
-            checkpoint,
-            signature,
-        })
-    }
-}
-
-impl SignedCheckpoint {
-    /// Recover the Ethereum address of the signer
-    pub fn recover(&self) -> Result<Address, HyperlaneProtocolError> {
-        Ok(self
-            .signature
-            .recover(self.checkpoint.eth_signed_message_hash())?)
-    }
-
-    /// Check whether a message was signed by a specific address
-    pub fn verify(&self, signer: Address) -> Result<(), HyperlaneProtocolError> {
-        Ok(self
-            .signature
-            .verify(self.checkpoint.eth_signed_message_hash(), signer)?)
-    }
-}
+/// A checkpoint that has been signed.
+pub type SignedCheckpoint = SignedType<Checkpoint>;
 
 /// An individual signed checkpoint with the recovered signer
 #[derive(Clone, Debug)]
@@ -175,12 +73,23 @@ pub struct SignatureWithSigner {
 }
 
 /// A checkpoint and multiple signatures
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct MultisigSignedCheckpoint {
     /// The checkpoint
     pub checkpoint: Checkpoint,
     /// Signatures over the checkpoint. No ordering guarantees.
     pub signatures: Vec<SignatureWithSigner>,
+}
+
+impl Debug for MultisigSignedCheckpoint {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "MultisigSignedCheckpoint {{ checkpoint: {:?}, signature_count: {} }}",
+            self.checkpoint,
+            self.signatures.len()
+        )
+    }
 }
 
 /// Error types for MultisigSignedCheckpoint
@@ -205,10 +114,10 @@ impl TryFrom<&Vec<SignedCheckpointWithSigner>> for MultisigSignedCheckpoint {
         }
         // Get the first checkpoint and ensure all other signed checkpoints are for
         // the same checkpoint
-        let checkpoint = signed_checkpoints[0].signed_checkpoint.checkpoint;
+        let checkpoint = signed_checkpoints[0].signed_checkpoint.value;
         if !signed_checkpoints
             .iter()
-            .all(|c| checkpoint == c.signed_checkpoint.checkpoint)
+            .all(|c| checkpoint == c.signed_checkpoint.value)
         {
             return Err(MultisigSignedCheckpointError::InconsistentCheckpoints());
         }

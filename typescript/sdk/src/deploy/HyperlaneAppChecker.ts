@@ -1,29 +1,37 @@
+import { Contract } from 'ethers';
+import { keccak256 } from 'ethers/lib/utils';
+
 import { Ownable } from '@hyperlane-xyz/core';
-import { utils } from '@hyperlane-xyz/utils';
 import type { types } from '@hyperlane-xyz/utils';
+import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
 import { MultiProvider } from '../providers/MultiProvider';
-import { TransparentProxyAddresses } from '../proxy';
 import { ChainMap, ChainName } from '../types';
+import { objFilter, objMap, promiseObjAll } from '../utils/objects';
 
-import { proxyAdmin, proxyImplementation, proxyViolation } from './proxy';
-import { CheckerViolation, OwnerViolation, ViolationType } from './types';
+import { isProxy, proxyAdmin } from './proxy';
+import {
+  BytecodeMismatchViolation,
+  CheckerViolation,
+  OwnerViolation,
+  ProxyAdminViolation,
+  ViolationType,
+} from './types';
 
 export abstract class HyperlaneAppChecker<
-  Chain extends ChainName,
-  App extends HyperlaneApp<any, Chain>,
+  App extends HyperlaneApp<any>,
   Config,
 > {
-  readonly multiProvider: MultiProvider<Chain>;
+  readonly multiProvider: MultiProvider;
   readonly app: App;
-  readonly configMap: ChainMap<Chain, Config>;
+  readonly configMap: ChainMap<Config>;
   readonly violations: CheckerViolation[];
 
   constructor(
-    multiProvider: MultiProvider<Chain>,
+    multiProvider: MultiProvider,
     app: App,
-    configMap: ChainMap<Chain, Config>,
+    configMap: ChainMap<Config>,
   ) {
     this.multiProvider = multiProvider;
     this.app = app;
@@ -31,15 +39,15 @@ export abstract class HyperlaneAppChecker<
     this.configMap = configMap;
   }
 
-  abstract checkChain(chain: Chain): Promise<void>;
+  abstract checkChain(chain: ChainName): Promise<void>;
 
   async check(): Promise<void[]> {
     Object.keys(this.configMap)
-      .filter((_) => !this.app.chains().includes(_ as Chain))
+      .filter((_) => !this.app.chains().includes(_))
       .forEach((chain: string) =>
         this.addViolation({
           type: ViolationType.NotDeployed,
-          chain: chain as Chain,
+          chain,
           expected: '',
           actual: '',
         }),
@@ -54,72 +62,120 @@ export abstract class HyperlaneAppChecker<
     this.violations.push(violation);
   }
 
-  async checkProxiedContract(
-    chain: Chain,
-    name: string,
-    proxiedAddress: TransparentProxyAddresses,
-    proxyAdminAddress?: types.Address,
-  ): Promise<void> {
-    const dc = this.multiProvider.getChainConnection(chain);
-    const implementation = await proxyImplementation(
-      dc.provider,
-      proxiedAddress.proxy,
-    );
-    if (implementation !== proxiedAddress.implementation) {
-      this.addViolation(
-        proxyViolation(chain, name, proxiedAddress, implementation),
+  async checkProxiedContracts(chain: ChainName): Promise<void> {
+    const expectedAdmin = this.app.getContracts(chain).proxyAdmin.address;
+    if (!expectedAdmin) {
+      throw new Error(
+        `Checking proxied contracts for ${chain} with no admin provided`,
       );
     }
-    if (proxyAdminAddress) {
-      const admin = await proxyAdmin(dc.provider, proxiedAddress.proxy);
-      utils.assert(admin === proxyAdminAddress, 'Proxy admin mismatch');
-    }
-  }
+    const provider = this.multiProvider.getProvider(chain);
+    const contracts = this.app.getContracts(chain);
 
-  async checkOwnership(
-    chain: Chain,
-    owner: types.Address,
-    ownables: Ownable[],
-  ): Promise<void> {
-    await Promise.all(
-      ownables.map(async (contract) => {
-        const actual = await contract.owner();
-        if (actual.toLowerCase() != owner.toLowerCase()) {
-          const violation: OwnerViolation = {
-            chain,
-            type: ViolationType.Owner,
-            actual,
-            expected: owner,
-            contract,
-          };
-          this.addViolation(violation);
+    await promiseObjAll(
+      objMap(contracts, async (name, contract) => {
+        if (await isProxy(provider, contract.address)) {
+          // Check the ProxiedContract's admin matches expectation
+          const actualAdmin = await proxyAdmin(provider, contract.address);
+          if (!utils.eqAddress(actualAdmin, expectedAdmin)) {
+            this.addViolation({
+              type: ViolationType.ProxyAdmin,
+              chain,
+              name,
+              expected: expectedAdmin,
+              actual: actualAdmin,
+            } as ProxyAdminViolation);
+          }
         }
       }),
     );
   }
 
-  expectViolations(types: string[], expectedMatches: number[]): void {
+  private removeBytecodeMetadata(bytecode: string): string {
+    // https://docs.soliditylang.org/en/v0.8.17/metadata.html#encoding-of-the-metadata-hash-in-the-bytecode
+    // Remove solc metadata from bytecode
+    return bytecode.substring(0, bytecode.length - 90);
+  }
+
+  // This method checks whether the bytecode of a contract matches the expected bytecode. It forces the deployer to explicitly acknowledge a change in bytecode. The violations can be remediated by updating the expected bytecode hash.
+  async checkBytecode(
+    chain: ChainName,
+    name: string,
+    address: string,
+    expectedBytecodeHashes: string[],
+    modifyBytecodePriorToHash: (bytecode: string) => string = (_) => _,
+  ): Promise<void> {
+    const provider = this.multiProvider.getProvider(chain);
+    const bytecode = await provider.getCode(address);
+    const bytecodeHash = keccak256(
+      modifyBytecodePriorToHash(this.removeBytecodeMetadata(bytecode)),
+    );
+    if (!expectedBytecodeHashes.includes(bytecodeHash)) {
+      this.addViolation({
+        type: ViolationType.BytecodeMismatch,
+        chain,
+        expected: expectedBytecodeHashes,
+        actual: bytecodeHash,
+        name,
+      } as BytecodeMismatchViolation);
+    }
+  }
+
+  async ownables(chain: ChainName): Promise<{ [key: string]: Ownable }> {
+    const isOwnable = async (
+      _: string,
+      contract: Contract,
+    ): Promise<boolean> => {
+      try {
+        await contract.owner();
+        return true;
+      } catch (_) {
+        return false;
+      }
+    };
+    const contracts = this.app.getContracts(chain);
+    const isOwnableContracts = await promiseObjAll(
+      objMap(contracts, isOwnable),
+    );
+    return objFilter(
+      contracts,
+      (name, contract): contract is Ownable => isOwnableContracts[name],
+    );
+  }
+
+  // TODO: Require owner in config if ownables is non-empty
+  async checkOwnership(chain: ChainName, owner: types.Address): Promise<void> {
+    const ownableContracts = await this.ownables(chain);
+    for (const [name, contract] of Object.entries(ownableContracts)) {
+      const actual = await contract.owner();
+      if (!utils.eqAddress(actual, owner)) {
+        const violation: OwnerViolation = {
+          chain,
+          name,
+          type: ViolationType.Owner,
+          actual,
+          expected: owner,
+          contract,
+        };
+        this.addViolation(violation);
+      }
+    }
+  }
+
+  expectViolations(violationCounts: Record<string, number>): void {
     // Every type should have exactly the number of expected matches.
-    const actualMatches = types.map(
-      (t) => this.violations.map((v) => v.type === t).filter(Boolean).length,
-    );
-    actualMatches.map((actual, index) => {
-      const expected = expectedMatches[index];
+    objMap(violationCounts, (type, count) => {
+      const actual = this.violations.filter((v) => v.type === type).length;
       utils.assert(
-        actual == expected,
-        `Expected ${expected} ${types[index]} violations, got ${actual}`,
+        actual == count,
+        `Expected ${count} ${type} violations, got ${actual}`,
       );
     });
-    // Every violation should be matched by at least one partial.
-    const unmatched = this.violations.map(
-      (v) => types.map((t) => v.type === t).filter(Boolean).length,
-    );
-    unmatched.map((count, index) => {
-      utils.assert(
-        count > 0,
-        `Expected 0 ${this.violations[index].type} violations, got ${count}`,
-      );
-    });
+    this.violations
+      .filter((v) => !(v.type in violationCounts))
+      .map((v) => {
+        utils.assert(false, `Unexpected violation: ${JSON.stringify(v)}`);
+      });
   }
 
   expectEmpty(): void {

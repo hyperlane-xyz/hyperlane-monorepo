@@ -5,20 +5,20 @@ use std::fmt::Display;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use ethers::prelude::{Middleware, Selector};
+use ethers::prelude::Middleware;
 use tracing::instrument;
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, Indexer, InterchainGasPaymaster,
-    InterchainGasPaymasterIndexer, InterchainGasPayment, InterchainGasPaymentMeta,
-    InterchainGasPaymentWithMeta, H160, H256,
+    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster,
+    InterchainGasPaymasterIndexer, InterchainGasPayment, LogMeta, H160, H256,
 };
 
-use crate::contracts::interchain_gas_paymaster::{
-    InterchainGasPaymaster as EthereumInterchainGasPaymasterInternal, INTERCHAINGASPAYMASTER_ABI,
+use crate::contracts::i_interchain_gas_paymaster::{
+    IInterchainGasPaymaster as EthereumInterchainGasPaymasterInternal, IINTERCHAINGASPAYMASTER_ABI,
 };
 use crate::trait_builder::BuildableWithProvider;
+use crate::EthereumProvider;
 
 impl<M> Display for EthereumInterchainGasPaymasterInternal<M>
 where
@@ -84,7 +84,7 @@ impl<M> Indexer for EthereumInterchainGasPaymasterIndexer<M>
 where
     M: Middleware + 'static,
 {
-    #[instrument(err, ret, skip(self))]
+    #[instrument(level = "debug", err, ret, skip(self))]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         Ok(self
             .provider
@@ -106,7 +106,7 @@ where
         &self,
         from_block: u32,
         to_block: u32,
-    ) -> ChainResult<Vec<InterchainGasPaymentWithMeta>> {
+    ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
         let events = self
             .contract
             .gas_payment_filter()
@@ -117,15 +117,15 @@ where
 
         Ok(events
             .into_iter()
-            .map(|(log, log_meta)| InterchainGasPaymentWithMeta {
-                payment: InterchainGasPayment {
-                    message_id: H256::from(log.message_id),
-                    payment: log.payment,
-                },
-                meta: InterchainGasPaymentMeta {
-                    transaction_hash: log_meta.transaction_hash,
-                    log_index: log_meta.log_index,
-                },
+            .map(|(log, log_meta)| {
+                (
+                    InterchainGasPayment {
+                        message_id: H256::from(log.message_id),
+                        payment: log.payment,
+                        gas_amount: log.gas_amount,
+                    },
+                    log_meta.into(),
+                )
             })
             .collect())
     }
@@ -155,7 +155,6 @@ pub struct EthereumInterchainGasPaymaster<M>
 where
     M: Middleware,
 {
-    #[allow(dead_code)]
     contract: Arc<EthereumInterchainGasPaymasterInternal<M>>,
     domain: HyperlaneDomain,
 }
@@ -184,6 +183,13 @@ where
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
     }
+
+    fn provider(&self) -> Box<dyn HyperlaneProvider> {
+        Box::new(EthereumProvider::new(
+            self.contract.client(),
+            self.domain.clone(),
+        ))
+    }
 }
 
 impl<M> HyperlaneContract for EthereumInterchainGasPaymaster<M>
@@ -201,7 +207,9 @@ impl<M> InterchainGasPaymaster for EthereumInterchainGasPaymaster<M> where M: Mi
 pub struct EthereumInterchainGasPaymasterAbi;
 
 impl HyperlaneAbi for EthereumInterchainGasPaymasterAbi {
-    fn fn_map() -> HashMap<Selector, &'static str> {
-        super::extract_fn_map(&INTERCHAINGASPAYMASTER_ABI)
+    const SELECTOR_SIZE_BYTES: usize = 4;
+
+    fn fn_map() -> HashMap<Vec<u8>, &'static str> {
+        super::extract_fn_map(&IINTERCHAINGASPAYMASTER_ABI)
     }
 }

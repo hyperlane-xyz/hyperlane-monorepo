@@ -1,16 +1,26 @@
+use fuels_code_gen::ProgramType;
 use std::collections::BTreeSet;
 use std::ffi::OsStr;
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::Path;
 
-use ethers::contract::Abigen;
 use inflector::Inflector;
 
-/// A `build.rs` tool for building a directory of ABIs. This will parse the `abi_dir` for ABI files
-/// ending in `.json` and write the generated rust code to `output_dir` and create an appropriate
-/// `mod.rs` file to.
-pub fn generate_bindings_for_dir(abi_dir: impl AsRef<Path>, output_dir: impl AsRef<Path>) {
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum BuildType {
+    Ethers,
+    Fuels,
+}
+
+/// A `build.rs` tool for building a directory of ABIs. This will parse the
+/// `abi_dir` for ABI files ending in `.json` and write the generated rust code
+/// to `output_dir` and create an appropriate `mod.rs` file to.
+pub fn generate_bindings_for_dir(
+    abi_dir: impl AsRef<Path>,
+    output_dir: impl AsRef<Path>,
+    build_type: BuildType,
+) {
     println!("cargo:rerun-if-changed={}", abi_dir.as_ref().display());
 
     // clean old bindings
@@ -25,13 +35,14 @@ pub fn generate_bindings_for_dir(abi_dir: impl AsRef<Path>, output_dir: impl AsR
         .filter_map(Result::ok)
         .map(|entry| entry.path())
         .filter(|path| {
+            let ending_str = ".abi.json";
             path.to_str()
-                .map(|p| p.ends_with(".abi.json"))
+                .map(|p| p.ends_with(ending_str))
                 .unwrap_or_default()
         })
         .map(|contract_path| {
             println!("Generating bindings for {:?}", &contract_path);
-            generate_bindings(&contract_path, &output_dir)
+            generate_bindings(&contract_path, &output_dir, build_type)
         })
         .collect();
 
@@ -44,6 +55,7 @@ pub fn generate_bindings_for_dir(abi_dir: impl AsRef<Path>, output_dir: impl AsR
 
     println!("Creating module file at {}", mod_file_path.display());
     let mut mod_file = File::create(&mod_file_path).expect("could not create modfile");
+    writeln!(mod_file, "#![allow(warnings)]").unwrap();
     writeln!(mod_file, "#![allow(clippy::all)]").unwrap();
     write!(mod_file, "#![allow(missing_docs)]\n\n").unwrap();
     for m in modules {
@@ -52,9 +64,14 @@ pub fn generate_bindings_for_dir(abi_dir: impl AsRef<Path>, output_dir: impl AsR
     drop(mod_file);
 }
 
-/// Generate the bindings for a given ABI and return the new module name. Will create a file within
-/// the designated path with the correct `{module_name}.rs` format.
-pub fn generate_bindings(contract_path: impl AsRef<Path>, output_dir: impl AsRef<Path>) -> String {
+/// Generate the bindings for a given ABI and return the new module name. Will
+/// create a file within the designated path with the correct `{module_name}.rs`
+/// format.
+pub fn generate_bindings(
+    contract_path: impl AsRef<Path>,
+    output_dir: impl AsRef<Path>,
+    build_type: BuildType,
+) -> String {
     println!("path {:?}", contract_path.as_ref().display());
     // contract name is the first
     let contract_name = contract_path
@@ -68,22 +85,78 @@ pub fn generate_bindings(contract_path: impl AsRef<Path>, output_dir: impl AsRef
 
     let module_name = contract_name.to_snake_case();
 
-    let bindings = Abigen::new(
-        contract_name,
-        contract_path.as_ref().to_str().expect("valid utf8 path"),
-    )
-    .expect("could not instantiate Abigen")
-    .generate()
-    .expect("could not generate bindings");
-
     let output_file = {
         let mut p = output_dir.as_ref().to_path_buf();
         p.push(format!("{module_name}.rs"));
         p
     };
-    bindings
-        .write_to_file(&output_file)
-        .expect("Could not write bidings to file");
+
+    let abi_source = contract_path.as_ref().to_str().expect("valid utf8 path");
+    #[cfg(feature = "ethers")]
+    if build_type == BuildType::Ethers {
+        ethers::contract::Abigen::new(contract_name, abi_source)
+            .expect("could not instantiate Abigen")
+            .generate()
+            .expect("could not generate bindings")
+            .write_to_file(&output_file)
+            .expect("Could not write bindings to file");
+    }
+    #[cfg(feature = "fuels")]
+    if build_type == BuildType::Fuels {
+        let tokens = fuels_code_gen::Abigen::generate(
+            vec![fuels_code_gen::AbigenTarget {
+                name: contract_name.into(),
+                abi: abi_source.into(),
+                program_type: ProgramType::Contract,
+            }],
+            false,
+        )
+        .expect("could not generate bindings")
+        .to_string();
+        let mut outfile = File::create(&output_file).expect("Could not open output file");
+        outfile
+            .write_all(tokens.as_bytes())
+            .expect("Could not write bindings to file");
+
+        fmt_file(&output_file);
+    }
 
     module_name
+}
+
+#[cfg(feature = "fmt")]
+fn fmt_file(path: &Path) {
+    if let Err(err) = std::process::Command::new(rustfmt_path())
+        .args(["--edition", "2021"])
+        .arg(path)
+        .output()
+    {
+        println!("cargo:warning=Failed to run rustfmt for {path:?}, ignoring ({err})");
+    }
+}
+
+/// Get the rustfmt binary path.
+#[cfg(feature = "fmt")]
+fn rustfmt_path() -> &'static Path {
+    use std::path::PathBuf;
+
+    // lazy static var
+    static mut PATH: Option<PathBuf> = None;
+
+    if let Some(path) = unsafe { PATH.as_ref() } {
+        return path;
+    }
+
+    if let Ok(path) = std::env::var("RUSTFMT") {
+        unsafe {
+            PATH = Some(PathBuf::from(path));
+            PATH.as_ref().unwrap()
+        }
+    } else {
+        // assume it is in PATH
+        unsafe {
+            PATH = Some(which::which("rustmft").unwrap_or_else(|_| "rustfmt".into()));
+            PATH.as_ref().unwrap()
+        }
+    }
 }

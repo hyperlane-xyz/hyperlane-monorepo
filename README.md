@@ -2,7 +2,9 @@
 
 ## Versioning
 
-Note this is the branch for Hyperlane v2. At the moment, v2 is not deployed. If you are looking for code relating to the existing deployments of the `testnet2` or `mainnet` environments, refer to the [v1](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/v1) branch.
+Note this is the branch for Hyperlane v2.
+
+V1 has since been deprecated in favor of V2, but if you are looking for code relating to the existing V1 deployments of the `testnet2` or `mainnet` environments, refer to the [v1](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/v1) branch.
 
 ## Overview
 
@@ -67,7 +69,7 @@ messages will not be relayed between chains).
 Off-chain agents are **not** automatically re-deployed when new contract deploys
 are merged. Auto-redeploys will be implemented at some future date.
 
-### Publishing Packages
+### Publishing JS/TS Packages
 
 Packages can be versioned and published all at once with commands from the root.
 
@@ -79,6 +81,8 @@ yarn version:prepare 1.1.0-beta0
 # Or a release version
 yarn version:prepare 1.1.0
 ```
+
+Commit this preparation so that it is clear which commit the release is from.
 
 Next, ensure packages are cleaned and rebuilt:
 
@@ -94,3 +98,18 @@ yarn publish:all --otp YOUR_OTP_HERE
 # Or for a pre-release, include the tag
 yarn publish:all --otp YOUR_OTP_HERE --tag beta
 ```
+
+For the git submodules, you will have to undo the removal of the `yarn.lock` files, `yarn install` and check in the yarn.lock changes on the submodule as well. Then checkin the updated commits on the monorepo itself.
+
+Make PRs for the monorepo and the submodules.
+
+Tag the commit with the appropriate version, and then create a github release with a changelog against the previous version https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/new
+
+### Release Agents
+
+- Tag the commit with the current date in the format `agents-yyyy-mm-dd`; e.g. `agents-2023-03-28`.
+- [Create a Github Release](https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/new) with a changelog against the previous version titled `Agents MMMM DD, YYYY`, e.g. `Agents March 28, 2023`.
+- Include the agent docker image tag in the description of the release
+- Create a summary of change highlights
+- Create a "breaking changes" section with any changes required
+- Deploy agents with the new image tag (if it makes sense to)

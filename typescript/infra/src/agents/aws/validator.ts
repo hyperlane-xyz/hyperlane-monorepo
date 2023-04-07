@@ -21,7 +21,7 @@ interface CheckpointMetric {
  * Shape of a checkpoint in S3 as published by the agent.
  */
 interface S3Checkpoint {
-  checkpoint: {
+  value: {
     outbox_domain: number;
     root: string;
     index: number;
@@ -38,21 +38,55 @@ type CheckpointReceipt = S3Receipt<types.Checkpoint>;
 const checkpointKey = (checkpointIndex: number) =>
   `checkpoint_${checkpointIndex}.json`;
 const LATEST_KEY = 'checkpoint_latest_index.json';
+const ANNOUNCEMENT_KEY = 'announcement.json';
+const LOCATION_PREFIX = 's3://';
 
 /**
  * Extension of BaseValidator that includes AWS S3 utilities.
  */
 export class S3Validator extends BaseValidator {
-  private s3Bucket: S3Wrapper;
+  s3Bucket: S3Wrapper;
 
   constructor(
     address: string,
     localDomain: number,
     mailbox: string,
     s3Bucket: string,
+    s3Region: string,
   ) {
     super(address, localDomain, mailbox);
-    this.s3Bucket = new S3Wrapper(s3Bucket);
+    this.s3Bucket = new S3Wrapper(s3Bucket, s3Region);
+  }
+
+  static async fromStorageLocation(
+    storageLocation: string,
+  ): Promise<S3Validator> {
+    if (storageLocation.startsWith(LOCATION_PREFIX)) {
+      const suffix = storageLocation.slice(LOCATION_PREFIX.length);
+      const pieces = suffix.split('/');
+      if (pieces.length == 2) {
+        const s3Bucket = new S3Wrapper(pieces[0], pieces[1]);
+        const announcement = await s3Bucket.getS3Obj<any>(ANNOUNCEMENT_KEY);
+        const address = announcement?.data.value.validator;
+        const mailbox = announcement?.data.value.mailbox_address;
+        const localDomain = announcement?.data.value.mailbox_domain;
+        return new S3Validator(
+          address,
+          localDomain,
+          mailbox,
+          pieces[0],
+          pieces[1],
+        );
+      }
+    }
+    throw new Error(`Unable to parse location ${storageLocation}`);
+  }
+
+  async getAnnouncement(): Promise<any> {
+    const data = await this.s3Bucket.getS3Obj<any>(ANNOUNCEMENT_KEY);
+    if (data) {
+      return data.data;
+    }
   }
 
   async getLatestCheckpointIndex() {
@@ -138,6 +172,10 @@ export class S3Validator extends BaseValidator {
     return checkpointMetrics.slice(-1 * count);
   }
 
+  storageLocation(): string {
+    return `${LOCATION_PREFIX}/${this.s3Bucket.bucket}/${this.s3Bucket.region}`;
+  }
+
   private async getCheckpointReceipt(
     index: number,
   ): Promise<CheckpointReceipt | undefined> {
@@ -148,7 +186,9 @@ export class S3Validator extends BaseValidator {
     }
     const checkpoint: types.Checkpoint = {
       signature: s3Object.data.signature,
+      // @ts-ignore Old checkpoints might still be in this format
       ...s3Object.data.checkpoint,
+      ...s3Object.data.value,
     };
     if (!utils.isCheckpoint(checkpoint)) {
       throw new Error('Failed to parse checkpoint');

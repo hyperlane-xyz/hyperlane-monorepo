@@ -4,20 +4,20 @@ import { HelmCommand } from '../src/utils/helm';
 import {
   assertCorrectKubeContext,
   getContextAgentConfig,
-  getCoreEnvironmentConfig,
   getEnvironment,
+  getEnvironmentConfig,
 } from './utils';
 
 async function deploy() {
   const environment = await getEnvironment();
 
-  const config = getCoreEnvironmentConfig(environment);
+  const config = getEnvironmentConfig(environment);
   await assertCorrectKubeContext(config);
 
   const agentConfig = await getContextAgentConfig(config);
 
   for (const chain of agentConfig.contextChainNames) {
-    await runAgentHelmCommand<any>(HelmCommand.UpgradeDiff, agentConfig, chain);
+    await runAgentHelmCommand(HelmCommand.UpgradeDiff, agentConfig, chain);
   }
 }
 

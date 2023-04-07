@@ -11,12 +11,7 @@ async function main() {
     .require('f').argv;
 
   const agentConfig = await getContextAgentConfig();
-  const envVars = await getAgentEnvVars<any>(
-    argv.c,
-    argv.r,
-    agentConfig,
-    argv.i,
-  );
+  const envVars = await getAgentEnvVars(argv.c, argv.r, agentConfig, argv.i);
 
   await writeFile(argv.f, envVars.join('\n'));
 }

@@ -5,9 +5,13 @@ import {
   Checkpoint,
   Domain,
   HexString,
+  ParsedLegacyMultisigIsmMetadata,
   ParsedMessage,
-  ParsedMultisigIsmMetadata,
 } from './types';
+
+export function exclude<T>(item: T, list: T[]) {
+  return list.filter((i) => i !== item);
+}
 
 export function assert(predicate: any, errorMessage?: string) {
   if (!predicate) {
@@ -17,6 +21,10 @@ export function assert(predicate: any, errorMessage?: string) {
 
 export function deepEquals(v1: any, v2: any) {
   return JSON.stringify(v1) === JSON.stringify(v2);
+}
+
+export function eqAddress(a: string, b: string) {
+  return ethers.utils.getAddress(a) === ethers.utils.getAddress(b);
 }
 
 export const ensure0x = (hexstr: string) =>
@@ -45,9 +53,9 @@ export function formatCallData<
   );
 }
 
-export const parseMultisigIsmMetadata = (
+export const parseLegacyMultisigIsmMetadata = (
   metadata: string,
-): ParsedMultisigIsmMetadata => {
+): ParsedLegacyMultisigIsmMetadata => {
   const MERKLE_ROOT_OFFSET = 0;
   const MERKLE_INDEX_OFFSET = 32;
   const ORIGIN_MAILBOX_OFFSET = 36;
@@ -93,8 +101,8 @@ export const parseMultisigIsmMetadata = (
   };
 };
 
-export const formatMultisigIsmMetadata = (
-  metadata: ParsedMultisigIsmMetadata,
+export const formatLegacyMultisigIsmMetadata = (
+  metadata: ParsedLegacyMultisigIsmMetadata,
 ): string => {
   return ethers.utils.solidityPack(
     [
@@ -118,6 +126,10 @@ export const formatMultisigIsmMetadata = (
   );
 };
 
+/**
+ * JS Implementation of solidity/contracts/libs/Message.sol#formatMessage
+ * @returns Hex string of the packed message
+ */
 export const formatMessage = (
   version: number | BigNumber,
   nonce: number | BigNumber,
@@ -126,7 +138,7 @@ export const formatMessage = (
   destinationDomain: Domain,
   recipientAddr: Address,
   body: HexString,
-): string => {
+): HexString => {
   senderAddr = addressToBytes32(senderAddr);
   recipientAddr = addressToBytes32(recipientAddr);
 
@@ -144,7 +156,12 @@ export const formatMessage = (
   );
 };
 
-export function messageId(message: HexString): string {
+/**
+ * Get ID given message bytes
+ * @param message Hex string of the packed message (see formatMessage)
+ * @returns Hex string of message id
+ */
+export function messageId(message: HexString): HexString {
   return ethers.utils.solidityKeccak256(['bytes'], [message]);
 }
 
@@ -324,4 +341,17 @@ export function symmetricDifference<T>(a: Set<T>, b: Set<T>) {
 
 export function setEquality<T>(a: Set<T>, b: Set<T>) {
   return symmetricDifference(a, b).size === 0;
+}
+
+export async function runWithTimeout<T>(
+  timeoutMs: number,
+  callback: () => Promise<T>,
+): Promise<T | void> {
+  const timeout = new Promise<void>((_, reject) =>
+    setTimeout(
+      () => reject(new Error(`Timed out in ${timeoutMs}ms.`)),
+      timeoutMs,
+    ),
+  );
+  return Promise.race([callback(), timeout]);
 }

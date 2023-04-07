@@ -1,7 +1,5 @@
 import {
-  TestRecipient,
   TestRecipient__factory,
-  TestTokenRecipient,
   TestTokenRecipient__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -15,33 +13,20 @@ export const factories = {
   TestTokenRecipient: new TestTokenRecipient__factory(),
 };
 
-type Contracts = {
-  TestRecipient: TestRecipient;
-  TestTokenRecipient: TestTokenRecipient;
-};
-
-export class TestRecipientDeployer<
-  Chain extends ChainName,
-> extends HyperlaneDeployer<Chain, any, Contracts, typeof factories> {
-  constructor(multiProvider: MultiProvider<Chain>) {
-    super(
-      multiProvider,
-      multiProvider.map(() => ({})),
-      factories,
-    );
+export class TestRecipientDeployer extends HyperlaneDeployer<
+  any,
+  typeof factories
+> {
+  constructor(multiProvider: MultiProvider) {
+    super(multiProvider, factories);
   }
-  async deployContracts(chain: Chain) {
-    const TestRecipient = await this.deployContract(
-      chain,
-      'TestRecipient',
-      [],
-      { create2Salt: 'testtest32' },
-    );
+
+  async deployContracts(chain: ChainName) {
+    const TestRecipient = await this.deployContract(chain, 'TestRecipient', []);
     const TestTokenRecipient = await this.deployContract(
       chain,
       'TestTokenRecipient',
       [],
-      { create2Salt: 'TestTokenRecipient' },
     );
     return {
       TestRecipient,

@@ -1,8 +1,8 @@
-import { TestQuerySender, TestQuerySender__factory } from '@hyperlane-xyz/core';
+import { TestQuerySender__factory } from '@hyperlane-xyz/core';
 import {
-  ChainMap,
   ChainName,
   HyperlaneDeployer,
+  HyperlaneIgp,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 
@@ -12,35 +12,22 @@ export const factories = {
 
 type TestQuerySenderConfig = { queryRouterAddress: string };
 
-type Contracts = {
-  TestQuerySender: TestQuerySender;
-};
-
-export class TestQuerySenderDeployer<
-  Chain extends ChainName,
-> extends HyperlaneDeployer<
-  Chain,
+export class TestQuerySenderDeployer extends HyperlaneDeployer<
   TestQuerySenderConfig,
-  Contracts,
   typeof factories
 > {
-  constructor(
-    multiProvider: MultiProvider<Chain>,
-    queryRouters: ChainMap<Chain, TestQuerySenderConfig>,
-  ) {
-    super(multiProvider, queryRouters, factories);
+  constructor(multiProvider: MultiProvider, protected igp: HyperlaneIgp) {
+    super(multiProvider, factories);
   }
-  async deployContracts(chain: Chain) {
-    const initCalldata =
-      TestQuerySender__factory.createInterface().encodeFunctionData(
-        'initialize',
-        [this.configMap[chain].queryRouterAddress],
-      );
+  async deployContracts(chain: ChainName, config: TestQuerySenderConfig) {
     const TestQuerySender = await this.deployContract(
       chain,
       'TestQuerySender',
       [],
-      { create2Salt: 'testtest32ss', initCalldata },
+      [
+        config.queryRouterAddress,
+        this.igp.getContracts(chain).interchainGasPaymaster.address,
+      ],
     );
     return {
       TestQuerySender,

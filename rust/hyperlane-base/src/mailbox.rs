@@ -1,7 +1,9 @@
 use std::fmt::Debug;
+use std::num::NonZeroU64;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use derive_new::new;
 use futures_util::future::select_all;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
@@ -10,14 +12,14 @@ use tracing::{info_span, Instrument};
 use hyperlane_core::db::HyperlaneDB;
 use hyperlane_core::{
     ChainResult, Checkpoint, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256,
+    HyperlaneProvider, Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256,
 };
 
 use crate::chains::IndexSettings;
 use crate::{ContractSync, ContractSyncMetrics};
 
 /// Caching Mailbox type
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct CachingMailbox {
     mailbox: Arc<dyn Mailbox>,
     db: HyperlaneDB,
@@ -31,19 +33,6 @@ impl std::fmt::Display for CachingMailbox {
 }
 
 impl CachingMailbox {
-    /// Instantiate new CachingMailbox
-    pub fn new(
-        mailbox: Arc<dyn Mailbox>,
-        db: HyperlaneDB,
-        indexer: Arc<dyn MailboxIndexer>,
-    ) -> Self {
-        Self {
-            mailbox,
-            db,
-            indexer,
-        }
-    }
-
     /// Return handle on mailbox object
     pub fn mailbox(&self) -> &Arc<dyn Mailbox> {
         &self.mailbox
@@ -100,13 +89,17 @@ impl Mailbox for CachingMailbox {
         self.mailbox.delivered(id).await
     }
 
-    async fn latest_checkpoint(&self, maybe_lag: Option<u64>) -> ChainResult<Checkpoint> {
+    async fn latest_checkpoint(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
         self.mailbox.latest_checkpoint(maybe_lag).await
     }
 
     /// Fetch the current default interchain security module value
     async fn default_ism(&self) -> ChainResult<H256> {
         self.mailbox.default_ism().await
+    }
+
+    async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
+        self.mailbox.recipient_ism(recipient).await
     }
 
     async fn process(
@@ -134,6 +127,10 @@ impl Mailbox for CachingMailbox {
 impl HyperlaneChain for CachingMailbox {
     fn domain(&self) -> &HyperlaneDomain {
         self.mailbox.domain()
+    }
+
+    fn provider(&self) -> Box<dyn HyperlaneProvider> {
+        self.mailbox.provider()
     }
 }
 

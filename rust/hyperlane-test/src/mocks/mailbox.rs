@@ -1,5 +1,7 @@
 #![allow(non_snake_case)]
 
+use std::num::NonZeroU64;
+
 use async_trait::async_trait;
 use mockall::*;
 
@@ -11,6 +13,8 @@ mock! {
         pub fn _address(&self) -> H256 {}
 
         pub fn _domain(&self) -> &HyperlaneDomain {}
+
+        pub fn _provider(&self) -> Box<dyn HyperlaneProvider> {}
 
         pub fn _domain_hash(&self) -> H256 {}
 
@@ -26,9 +30,10 @@ mock! {
 
         pub fn _count(&self) -> ChainResult<u32> {}
 
-        pub fn _latest_checkpoint(&self, maybe_lag: Option<u64>) -> ChainResult<Checkpoint> {}
+        pub fn _latest_checkpoint(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {}
 
         pub fn _default_ism(&self) -> ChainResult<H256> {}
+        pub fn _recipient_ism(&self, recipient: H256) -> ChainResult<H256> {}
 
         pub fn _delivered(&self, id: H256) -> ChainResult<bool> {}
 
@@ -65,12 +70,16 @@ impl Mailbox for MockMailboxContract {
         self._count()
     }
 
-    async fn latest_checkpoint(&self, maybe_lag: Option<u64>) -> ChainResult<Checkpoint> {
+    async fn latest_checkpoint(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
         self._latest_checkpoint(maybe_lag)
     }
 
     async fn default_ism(&self) -> ChainResult<H256> {
         self._default_ism()
+    }
+
+    async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
+        self._recipient_ism(recipient)
     }
 
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
@@ -102,6 +111,10 @@ impl Mailbox for MockMailboxContract {
 impl HyperlaneChain for MockMailboxContract {
     fn domain(&self) -> &HyperlaneDomain {
         self._domain()
+    }
+
+    fn provider(&self) -> Box<dyn HyperlaneProvider> {
+        self._provider()
     }
 }
 

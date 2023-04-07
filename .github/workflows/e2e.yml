@@ -8,7 +8,7 @@ on:
 
 concurrency:
   group: e2e-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref_name != 'main' }}
 
 env:
   CARGO_TERM_COLOR: always
@@ -22,6 +22,9 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
       - uses: actions/checkout@v3
         with:
           submodules: recursive
@@ -38,20 +41,17 @@ jobs:
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: "v2-rust"
-          shared-key: "e2e"
+          prefix-key: 'v2-rust'
+          shared-key: 'e2e'
           workspaces: |
             ./rust
       - name: node module cache
         uses: actions/cache@v3
         with:
-          path: '**/node_modules'
-          key: ${{ runner.os }}-yarn-cache4-${{ hashFiles('./yarn.lock') }}
-      - name: node build cache
-        uses: actions/cache@v3
-        with:
-          path: ./*
-          key: ${{ github.sha }}
+          path: |
+            **/node_modules
+            .yarn/cache
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: build test
         run: cargo build --release --bin run-locally
@@ -60,4 +60,4 @@ jobs:
         env:
           E2E_CI_MODE: 'true'
           E2E_CI_TIMEOUT_SEC: '600'
-          E2E_KATHY_ROUNDS: '3'
+          E2E_KATHY_ROUNDS: '2'

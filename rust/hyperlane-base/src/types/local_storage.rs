@@ -1,12 +1,13 @@
-use hyperlane_core::SignedCheckpoint;
-
 use async_trait::async_trait;
-use eyre::Result;
+use derive_new::new;
+use eyre::{Context, Result};
 use prometheus::IntGauge;
+
+use hyperlane_core::{SignedAnnouncement, SignedCheckpoint};
 
 use crate::traits::CheckpointSyncer;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 /// Type for reading/write to LocalStorage
 pub struct LocalStorage {
     /// base path
@@ -15,13 +16,6 @@ pub struct LocalStorage {
 }
 
 impl LocalStorage {
-    /// Constructor
-    pub fn new(path: &str, latest_index: Option<IntGauge>) -> Self {
-        LocalStorage {
-            path: path.to_owned(),
-            latest_index,
-        }
-    }
     fn checkpoint_file_path(&self, index: u32) -> String {
         format!("{}/{index}.json", self.path)
     }
@@ -31,8 +25,15 @@ impl LocalStorage {
     }
 
     async fn write_index(&self, index: u32) -> Result<()> {
-        tokio::fs::write(self.latest_index_file_path(), index.to_string()).await?;
+        let path = self.latest_index_file_path();
+        tokio::fs::write(&path, index.to_string())
+            .await
+            .with_context(|| format!("Writing index to {path}"))?;
         Ok(())
+    }
+
+    fn announcement_file_path(&self) -> String {
+        format!("{}/announcement.json", self.path)
     }
 }
 
@@ -55,6 +56,7 @@ impl CheckpointSyncer for LocalStorage {
             _ => Ok(None),
         }
     }
+
     async fn fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpoint>> {
         match tokio::fs::read(self.checkpoint_file_path(index)).await {
             Ok(data) => {
@@ -64,23 +66,37 @@ impl CheckpointSyncer for LocalStorage {
             _ => Ok(None),
         }
     }
-    async fn write_checkpoint(&self, signed_checkpoint: SignedCheckpoint) -> Result<()> {
-        let serialized_checkpoint = serde_json::to_string_pretty(&signed_checkpoint)?;
-        tokio::fs::write(
-            self.checkpoint_file_path(signed_checkpoint.checkpoint.index),
-            &serialized_checkpoint,
-        )
-        .await?;
+
+    async fn write_checkpoint(&self, signed_checkpoint: &SignedCheckpoint) -> Result<()> {
+        let serialized_checkpoint = serde_json::to_string_pretty(signed_checkpoint)?;
+        let path = self.checkpoint_file_path(signed_checkpoint.value.index);
+        tokio::fs::write(&path, &serialized_checkpoint)
+            .await
+            .with_context(|| format!("Writing checkpoint to {path}"))?;
 
         match self.latest_index().await? {
             Some(current_latest_index) => {
-                if current_latest_index < signed_checkpoint.checkpoint.index {
-                    self.write_index(signed_checkpoint.checkpoint.index).await?
+                if current_latest_index < signed_checkpoint.value.index {
+                    self.write_index(signed_checkpoint.value.index).await?
                 }
             }
-            None => self.write_index(signed_checkpoint.checkpoint.index).await?,
+            None => self.write_index(signed_checkpoint.value.index).await?,
         }
 
         Ok(())
+    }
+
+    async fn write_announcement(&self, signed_announcement: &SignedAnnouncement) -> Result<()> {
+        let serialized_announcement = serde_json::to_string_pretty(signed_announcement)?;
+        let path = self.announcement_file_path();
+        tokio::fs::write(&path, &serialized_announcement)
+            .await
+            .with_context(|| format!("Writing announcement to {path}"))?;
+        Ok(())
+    }
+    fn announcement_location(&self) -> String {
+        let mut location: String = "file://".to_owned();
+        location.push_str(self.path.as_ref());
+        location
     }
 }

@@ -4,20 +4,23 @@ use std::time::Duration;
 use tokio::time::sleep;
 use tracing::{debug, info, trace};
 
-use crate::db::{DbError, TypedDB, DB};
 use crate::{
-    accumulator::merkle::Proof, HyperlaneMessage, InterchainGasPayment, InterchainGasPaymentMeta,
-    InterchainGasPaymentWithMeta, H256, U256,
+    db::{
+        storage_types::{InterchainGasExpenditureData, InterchainGasPaymentData},
+        DbError, TypedDB, DB,
+    },
+    HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment, InterchainGasPaymentMeta,
+    LogMeta, H256, U256,
 };
 
-static MESSAGE_ID: &str = "message_id_";
-static PROOF: &str = "proof_";
-static MESSAGE: &str = "message_";
-static LATEST_NONCE: &str = "latest_known_nonce_";
-static LATEST_NONCE_FOR_DESTINATION: &str = "latest_known_nonce_for_destination_";
-static NONCE_PROCESSED: &str = "nonce_processed_";
-static GAS_PAYMENT_FOR_MESSAGE_ID: &str = "gas_payment_for_message_id_";
-static GAS_PAYMENT_META_PROCESSED: &str = "gas_payment_meta_processed_";
+const MESSAGE_ID: &str = "message_id_";
+const MESSAGE: &str = "message_";
+const LATEST_NONCE: &str = "latest_known_nonce_";
+const LATEST_NONCE_FOR_DESTINATION: &str = "latest_known_nonce_for_destination_";
+const NONCE_PROCESSED: &str = "nonce_processed_";
+const GAS_PAYMENT_FOR_MESSAGE_ID: &str = "gas_payment_for_message_id_v2_";
+const GAS_PAYMENT_META_PROCESSED: &str = "gas_payment_meta_processed_v2_";
+const GAS_EXPENDITURE_FOR_MESSAGE_ID: &str = "gas_expenditure_for_message_id_";
 
 type Result<T> = std::result::Result<T, DbError>;
 
@@ -70,11 +73,7 @@ impl HyperlaneDB {
         // If this message is not building off the latest nonce, log it.
         if let Some(nonce) = self.retrieve_latest_nonce()? {
             if nonce != message.nonce - 1 {
-                debug!(
-                    "Attempted to store message not building off latest nonce. Latest nonce: {}. Message nonce: {}.",
-                    nonce,
-                    message.nonce,
-                )
+                debug!(msg=%message, "Attempted to store message not building off latest nonce")
             }
         }
 
@@ -89,13 +88,7 @@ impl HyperlaneDB {
     pub fn store_message(&self, message: &HyperlaneMessage) -> Result<()> {
         let id = message.id();
 
-        info!(
-            id = ?id,
-            nonce = &message.nonce,
-            origin = &message.origin,
-            destination = &message.destination,
-            "Storing new message in db.",
-        );
+        info!(msg=?message, "Storing new message in db",);
         self.store_message_id(message.nonce, message.destination, id)?;
         self.store_keyed_encodable(MESSAGE, &id, message)?;
         Ok(())
@@ -137,11 +130,7 @@ impl HyperlaneDB {
 
     /// Store the message id keyed by nonce
     fn store_message_id(&self, nonce: u32, destination: u32, id: H256) -> Result<()> {
-        debug!(
-            nonce,
-            id = ?id,
-            "storing leaf hash keyed by index"
-        );
+        debug!(nonce, ?id, "storing leaf hash keyed by index");
         self.store_keyed_encodable(MESSAGE_ID, &nonce, &id)?;
         self.update_latest_nonce(nonce)?;
         self.update_latest_nonce_for_destination(destination, nonce)
@@ -166,23 +155,9 @@ impl HyperlaneDB {
         }
     }
 
-    /// Store a proof by its nonce
-    ///
-    /// Keys --> Values:
-    /// - `nonce` --> `proof`
-    pub fn store_proof(&self, nonce: u32, proof: &Proof) -> Result<()> {
-        debug!(nonce, "storing proof in DB");
-        self.store_keyed_encodable(PROOF, &nonce, proof)
-    }
-
-    /// Retrieve a proof by its nonce
-    pub fn proof_by_nonce(&self, nonce: u32) -> Result<Option<Proof>> {
-        self.retrieve_keyed_decodable(PROOF, &nonce)
-    }
-
     // TODO(james): this is a quick-fix for the prover_sync and I don't like it
-    /// poll db ever 100 milliseconds waitinf for a leaf.
-    pub fn wait_for_message_id(&self, nonce: u32) -> impl Future<Output = Result<H256>> {
+    /// poll db ever 100 milliseconds waiting for a leaf.
+    pub fn wait_for_message_nonce(&self, nonce: u32) -> impl Future<Output = Result<H256>> {
         let slf = self.clone();
         async move {
             loop {
@@ -196,7 +171,7 @@ impl HyperlaneDB {
 
     /// Mark nonce as processed
     pub fn mark_nonce_as_processed(&self, nonce: u32) -> Result<()> {
-        debug!(nonce = ?nonce, "mark nonce as processed");
+        debug!(?nonce, "mark nonce as processed");
         self.store_keyed_encodable(NONCE_PROCESSED, &nonce, &true)
     }
 
@@ -211,63 +186,105 @@ impl HyperlaneDB {
     /// Returns whether the gas payment was processed for the first time.
     pub fn process_gas_payment(
         &self,
-        gas_payment_with_meta: &InterchainGasPaymentWithMeta,
+        payment: InterchainGasPayment,
+        log_meta: &LogMeta,
     ) -> Result<bool> {
-        let meta = &gas_payment_with_meta.meta;
+        let payment_meta = log_meta.into();
         // If the gas payment has already been processed, do nothing
-        if self.retrieve_gas_payment_meta_processed(meta)? {
-            trace!(gas_payment_with_meta=?gas_payment_with_meta, "Attempted to process an already-processed gas payment");
+        if self.retrieve_gas_payment_meta_processed(&payment_meta)? {
+            trace!(
+                ?payment,
+                ?log_meta,
+                "Attempted to process an already-processed gas payment"
+            );
             // Return false to indicate the gas payment was already processed
             return Ok(false);
         }
         // Set the gas payment as processed
-        self.store_gas_payment_meta_processed(meta)?;
+        self.store_gas_payment_meta_processed(&payment_meta)?;
 
         // Update the total gas payment for the message to include the payment
-        self.update_gas_payment_for_message_id(&gas_payment_with_meta.payment)?;
+        self.update_gas_payment_for_message_id(payment)?;
 
         // Return true to indicate the gas payment was processed for the first time
         Ok(true)
     }
 
+    /// Processes the gas expenditure and store the total expenditure for the
+    /// message.
+    pub fn process_gas_expenditure(&self, expenditure: InterchainGasExpenditure) -> Result<()> {
+        // Update the total gas expenditure for the message to include the payment
+        self.update_gas_expenditure_for_message_id(expenditure)
+    }
+
     /// Record a gas payment, identified by its metadata, as processed
-    fn store_gas_payment_meta_processed(
-        &self,
-        gas_payment_meta: &InterchainGasPaymentMeta,
-    ) -> Result<()> {
-        self.store_keyed_encodable(GAS_PAYMENT_META_PROCESSED, gas_payment_meta, &true)
+    fn store_gas_payment_meta_processed(&self, meta: &InterchainGasPaymentMeta) -> Result<()> {
+        self.store_keyed_encodable(GAS_PAYMENT_META_PROCESSED, meta, &true)
     }
 
     /// Get whether a gas payment, identified by its metadata, has been
     /// processed already
-    fn retrieve_gas_payment_meta_processed(
-        &self,
-        gas_payment_meta: &InterchainGasPaymentMeta,
-    ) -> Result<bool> {
+    fn retrieve_gas_payment_meta_processed(&self, meta: &InterchainGasPaymentMeta) -> Result<bool> {
         Ok(self
-            .retrieve_keyed_decodable(GAS_PAYMENT_META_PROCESSED, gas_payment_meta)?
+            .retrieve_keyed_decodable(GAS_PAYMENT_META_PROCESSED, meta)?
             .unwrap_or(false))
     }
 
     /// Update the total gas payment for a message to include gas_payment
-    fn update_gas_payment_for_message_id(&self, gas_payment: &InterchainGasPayment) -> Result<()> {
-        let InterchainGasPayment {
-            message_id,
-            payment,
-        } = gas_payment;
-        let existing_payment = self.retrieve_gas_payment_for_message_id(*message_id)?;
-        let total = existing_payment + payment;
+    fn update_gas_payment_for_message_id(&self, event: InterchainGasPayment) -> Result<()> {
+        let existing_payment = self.retrieve_gas_payment_for_message_id(event.message_id)?;
+        let total = existing_payment + event;
 
-        info!(message_id=?message_id, gas_payment_amount=?payment, new_total_gas_payment=?total, "Storing gas payment");
-        self.store_keyed_encodable(GAS_PAYMENT_FOR_MESSAGE_ID, &gas_payment.message_id, &total)?;
+        info!(?event, new_total_gas_payment=?total, "Storing gas payment");
+        self.store_keyed_encodable::<_, InterchainGasPaymentData>(
+            GAS_PAYMENT_FOR_MESSAGE_ID,
+            &total.message_id,
+            &total.into(),
+        )?;
+
+        Ok(())
+    }
+
+    /// Update the total gas spent for a message
+    fn update_gas_expenditure_for_message_id(&self, event: InterchainGasExpenditure) -> Result<()> {
+        let existing_payment = self.retrieve_gas_expenditure_for_message_id(event.message_id)?;
+        let total = existing_payment + event;
+
+        info!(?event, new_total_gas_payment=?total, "Storing gas payment");
+        self.store_keyed_encodable::<_, U256>(
+            GAS_EXPENDITURE_FOR_MESSAGE_ID,
+            &total.message_id,
+            &total.tokens_used,
+        )?;
 
         Ok(())
     }
 
     /// Retrieve the total gas payment for a message
-    pub fn retrieve_gas_payment_for_message_id(&self, message_id: H256) -> Result<U256> {
+    pub fn retrieve_gas_payment_for_message_id(
+        &self,
+        message_id: H256,
+    ) -> Result<InterchainGasPayment> {
         Ok(self
-            .retrieve_keyed_decodable(GAS_PAYMENT_FOR_MESSAGE_ID, &message_id)?
-            .unwrap_or(U256::zero()))
+            .retrieve_keyed_decodable::<_, InterchainGasPaymentData>(
+                GAS_PAYMENT_FOR_MESSAGE_ID,
+                &message_id,
+            )?
+            .unwrap_or_default()
+            .complete(message_id))
+    }
+
+    /// Retrieve the total gas payment for a message
+    pub fn retrieve_gas_expenditure_for_message_id(
+        &self,
+        message_id: H256,
+    ) -> Result<InterchainGasExpenditure> {
+        Ok(self
+            .retrieve_keyed_decodable::<_, InterchainGasExpenditureData>(
+                GAS_EXPENDITURE_FOR_MESSAGE_ID,
+                &message_id,
+            )?
+            .unwrap_or_default()
+            .complete(message_id))
     }
 }

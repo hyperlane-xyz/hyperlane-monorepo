@@ -1,27 +1,35 @@
 [package]
 name = "hyperlane-base"
-version = "0.1.0"
-edition = "2021"
-
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license-file.workspace = true
+publish.workspace = true
+version.workspace = true
 
 [dependencies]
 # Main block
-tokio = { version = "1", features = ["rt", "macros"] }
-config = "0.13"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = { version = "1.0", default-features = false }
-serde_path_to_error = "0.1"
-ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2022-12-05-01" }
-thiserror = "1.0"
-async-trait = { version = "0.1", default-features = false }
-futures-util = "0.3"
-eyre = "0.6"
-color-eyre = { version = "0.6", optional = true }
-tracing = "0.1"
-tracing-futures = "0.2"
-tracing-subscriber = { version = "0.3", features = ["json"] }
-rocksdb = "0.18"
+async-trait.workspace = true
+color-eyre = { workspace = true, optional = true }
+config.workspace = true
+derive-new.workspace = true
+ethers.workspace = true
+eyre.workspace = true
+fuels.workspace = true
+futures-util.workspace = true
 mockall = "0.11"
+paste.workspace = true
+prometheus.workspace = true
+rocksdb.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["rt", "macros"] }
+tracing-error = "0.2"
+tracing-futures.workspace = true
+tracing-subscriber = { workspace = true, features = ["json", "ansi"] }
+tracing.workspace = true
+warp = "0.3"
 
 backtrace = { version = "0.3", optional = true }
 backtrace-oneline = { path = "../utils/backtrace-oneline", optional = true }
@@ -29,22 +37,17 @@ backtrace-oneline = { path = "../utils/backtrace-oneline", optional = true }
 ethers-prometheus = { path = "../ethers-prometheus", features = ["serde"] }
 hyperlane-core = { path = "../hyperlane-core" }
 hyperlane-ethereum = { path = "../chains/hyperlane-ethereum" }
+hyperlane-fuel = { path = "../chains/hyperlane-fuel" }
 hyperlane-test = { path = "../hyperlane-test" }
-paste = "1.0"
-tracing-error = "0.2"
-
-prometheus = "0.13"
-
-warp = "0.3"
 
 # these versions are important!
-tracing-opentelemetry = "0.17"
-opentelemetry = { version = "0.17", features = ["rt-tokio"] }
-opentelemetry-jaeger = { version = "0.16", features = [
+tracing-opentelemetry = "0.18"
+opentelemetry = { version = "0.18", features = ["rt-tokio", "trace"] }
+opentelemetry-jaeger = { version = "0.17", features = [
     "reqwest_collector_client",
     "rt-tokio"
 ] }
-opentelemetry-zipkin = { version = "0.15", default-features = false, features = [
+opentelemetry-zipkin = { version = "0.16", default-features = false, features = [
     "reqwest-client",
 ] }
 
@@ -61,5 +64,6 @@ color-eyre = "0.6"
 
 
 [features]
+default = ["oneline-errors", "color-eyre"]
 oneline-eyre = ["backtrace-oneline", "backtrace"]
 oneline-errors = ["oneline-eyre"]

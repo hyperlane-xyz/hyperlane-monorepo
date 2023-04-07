@@ -1,29 +1,108 @@
-import { HyperlaneCore, HyperlaneCoreChecker } from '@hyperlane-xyz/sdk';
+import {
+  HyperlaneCore,
+  HyperlaneCoreChecker,
+  HyperlaneIgp,
+  HyperlaneIgpChecker,
+  InterchainAccount,
+  InterchainAccountChecker,
+  InterchainQuery,
+  InterchainQueryChecker,
+} from '@hyperlane-xyz/sdk';
 
-import { getCoreEnvironmentConfig, getEnvironment } from './utils';
+import { deployEnvToSdkEnv } from '../src/config/environment';
+import { HyperlaneAppGovernor } from '../src/govern/HyperlaneAppGovernor';
+import { HyperlaneCoreGovernor } from '../src/govern/HyperlaneCoreGovernor';
+import { HyperlaneIgpGovernor } from '../src/govern/HyperlaneIgpGovernor';
+import { InterchainAccountGovernor } from '../src/govern/InterchainAccountGovernor';
+import { InterchainQueryGovernor } from '../src/govern/InterchainQueryGovernor';
+import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
+
+import {
+  Modules,
+  getArgsWithModuleAndFork,
+  getEnvironmentConfig,
+  getRouterConfig,
+} from './utils';
 
 async function check() {
-  const environment = await getEnvironment();
-  const config = getCoreEnvironmentConfig(environment);
+  const { fork, govern, module, environment } = await getArgsWithModuleAndFork()
+    .boolean('govern')
+    .default('govern', false)
+    .alias('g', 'govern').argv;
+  const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
 
-  // environments union doesn't work well with typescript
-  const core = HyperlaneCore.fromEnvironment(environment, multiProvider as any);
-  const coreChecker = new HyperlaneCoreChecker<any>(
-    multiProvider,
-    core,
-    config.core,
-  );
-  await coreChecker.check();
+  // must rotate to forked provider before building core contracts
+  if (fork) {
+    await useLocalProvider(multiProvider, fork);
+    if (govern) {
+      const owner = config.core[fork].owner;
+      const signer = await impersonateAccount(owner);
+      multiProvider.setSigner(fork, signer);
+    }
+  }
 
-  if (coreChecker.violations.length > 0) {
-    console.error(coreChecker.violations);
-    throw new Error(
-      `Checking core deploy yielded ${coreChecker.violations.length} violations`,
-    );
+  let governor: HyperlaneAppGovernor<any, any>;
+  const env = deployEnvToSdkEnv[environment];
+  if (module === Modules.CORE) {
+    const core = HyperlaneCore.fromEnvironment(env, multiProvider);
+    const checker = new HyperlaneCoreChecker(multiProvider, core, config.core);
+    governor = new HyperlaneCoreGovernor(checker, config.owners);
+  } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
+    const igp = HyperlaneIgp.fromEnvironment(env, multiProvider);
+    const checker = new HyperlaneIgpChecker(multiProvider, igp, config.igp);
+    governor = new HyperlaneIgpGovernor(checker, config.owners);
+  } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
+    const config = await getRouterConfig(environment, multiProvider);
+    const ica = InterchainAccount.fromEnvironment(env, multiProvider);
+    const checker = new InterchainAccountChecker(multiProvider, ica, config);
+    governor = new InterchainAccountGovernor(checker, config.owners);
+  } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
+    const config = await getRouterConfig(environment, multiProvider);
+    const iqs = InterchainQuery.fromEnvironment(env, multiProvider);
+    const checker = new InterchainQueryChecker(multiProvider, iqs, config);
+    governor = new InterchainQueryGovernor(checker, config.owners);
   } else {
-    console.info('CoreChecker found no violations');
+    console.log(`Skipping ${module}, checker or governor unimplemented`);
+    return;
+  }
+
+  if (fork) {
+    await governor.checker.checkChain(fork);
+    if (govern) {
+      await governor.govern(false, fork);
+    }
+  } else {
+    await governor.checker.check();
+    if (govern) {
+      await governor.govern();
+    }
+  }
+
+  if (!govern) {
+    const violations = governor.checker.violations;
+    if (violations.length > 0) {
+      console.table(violations, [
+        'chain',
+        'remote',
+        'name',
+        'type',
+        'subType',
+        'actual',
+        'expected',
+      ]);
+      throw new Error(
+        `Checking ${module} deploy yielded ${violations.length} violations`,
+      );
+    } else {
+      console.info(`${module} Checker found no violations`);
+    }
   }
 }
 
-check().then(console.log).catch(console.error);
+check()
+  .then()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });

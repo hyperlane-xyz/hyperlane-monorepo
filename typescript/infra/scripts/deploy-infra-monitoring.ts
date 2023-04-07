@@ -1,11 +1,16 @@
 import { runPrometheusHelmCommand } from '../src/infrastructure/monitoring/prometheus';
 import { HelmCommand } from '../src/utils/helm';
 
-import { getCoreEnvironmentConfig, getEnvironment } from './utils';
+import {
+  assertCorrectKubeContext,
+  getEnvironment,
+  getEnvironmentConfig,
+} from './utils';
 
 async function main() {
   const environment = await getEnvironment();
-  const config = getCoreEnvironmentConfig(environment);
+  const config = getEnvironmentConfig(environment);
+  await assertCorrectKubeContext(config);
   return runPrometheusHelmCommand(
     HelmCommand.InstallOrUpgrade,
     config.infra,

@@ -2,14 +2,14 @@ import { LedgerSigner } from '@ethersproject/hardware-wallets';
 // Due to TS funkiness, the following needs to be imported in order for this
 // code to build, but needs to be removed in order for the code to run.
 import '@ethersproject/hardware-wallets/thirdparty';
-import { SafeDelegateConfig } from '@gnosis.pm/safe-service-client';
+import { SafeDelegateConfig } from '@safe-global/safe-service-client';
 import yargs from 'yargs';
 
 import { AllChains } from '@hyperlane-xyz/sdk';
 
 import { getSafeDelegates, getSafeService } from '../src/utils/safe';
 
-import { getCoreEnvironmentConfig, getEnvironment } from './utils';
+import { getEnvironment, getEnvironmentConfig } from './utils';
 
 function getArgs() {
   return yargs(process.argv.slice(2))
@@ -29,15 +29,15 @@ function getArgs() {
 
 async function delegate() {
   const environment = await getEnvironment();
-  const config = getCoreEnvironmentConfig(environment);
+  const config = getEnvironmentConfig(environment);
   const { chain, delegate, safe, action } = await getArgs();
 
   const multiProvider = await config.getMultiProvider();
-  const connection = multiProvider.getChainConnection(chain);
 
-  const safeService = getSafeService(chain, connection);
+  const safeService = getSafeService(chain, multiProvider);
   const delegates = await getSafeDelegates(safeService, safe);
 
+  console.log('Connecting to ledger, ensure plugged in and unlocked...');
   // Ledger Live derivation path, vary by changing the index i.e.
   // "m/44'/60'/{CHANGE_ME}'/0/0";
   const path = "m/44'/60'/0'/0/0";

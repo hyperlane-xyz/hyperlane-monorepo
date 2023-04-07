@@ -1,9 +1,9 @@
 use std::{fmt, time::Duration};
 
 use async_trait::async_trait;
+use derive_new::new;
 use eyre::{bail, Result};
 use futures_util::TryStreamExt;
-use hyperlane_core::SignedCheckpoint;
 use once_cell::sync::OnceCell;
 use prometheus::IntGauge;
 use rusoto_core::{
@@ -13,6 +13,8 @@ use rusoto_core::{
 use rusoto_s3::{GetObjectError, GetObjectRequest, PutObjectRequest, S3Client, S3};
 use tokio::time::timeout;
 
+use hyperlane_core::{SignedAnnouncement, SignedCheckpoint};
+
 use crate::CheckpointSyncer;
 
 /// The timeout for S3 requests. Rusoto doesn't offer timeout configuration
@@ -20,7 +22,7 @@ use crate::CheckpointSyncer;
 /// See https://github.com/rusoto/rusoto/issues/1795.
 const S3_REQUEST_TIMEOUT_SECONDS: u64 = 30;
 
-#[derive(Clone)]
+#[derive(Clone, new)]
 /// Type for reading/writing to S3
 pub struct S3Storage {
     /// The name of the bucket.
@@ -28,8 +30,10 @@ pub struct S3Storage {
     /// The region of the bucket.
     region: Region,
     /// A client with AWS credentials.
+    #[new(default)]
     authenticated_client: OnceCell<S3Client>,
     /// A client without credentials for anonymous requests.
+    #[new(default)]
     anonymous_client: OnceCell<S3Client>,
     /// The latest seen signed checkpoint index.
     latest_index: Option<IntGauge>,
@@ -45,17 +49,6 @@ impl fmt::Debug for S3Storage {
 }
 
 impl S3Storage {
-    /// constructor
-    pub fn new(bucket: &str, region: Region, latest_index: Option<IntGauge>) -> Self {
-        Self {
-            bucket: bucket.to_owned(),
-            region,
-            authenticated_client: OnceCell::new(),
-            anonymous_client: OnceCell::new(),
-            latest_index,
-        }
-    }
-
     async fn write_to_bucket(&self, key: String, body: &str) -> Result<()> {
         let req = PutObjectRequest {
             key,
@@ -129,8 +122,13 @@ impl S3Storage {
     fn checkpoint_key(index: u32) -> String {
         format!("checkpoint_{}.json", index)
     }
+
     fn index_key() -> String {
         "checkpoint_latest_index.json".to_owned()
+    }
+
+    fn announcement_key() -> String {
+        "announcement.json".to_owned()
     }
 }
 
@@ -161,19 +159,33 @@ impl CheckpointSyncer for S3Storage {
             .map_err(Into::into)
     }
 
-    async fn write_checkpoint(&self, signed_checkpoint: SignedCheckpoint) -> Result<()> {
-        let serialized_checkpoint = serde_json::to_string_pretty(&signed_checkpoint)?;
+    async fn write_checkpoint(&self, signed_checkpoint: &SignedCheckpoint) -> Result<()> {
+        let serialized_checkpoint = serde_json::to_string_pretty(signed_checkpoint)?;
         self.write_to_bucket(
-            S3Storage::checkpoint_key(signed_checkpoint.checkpoint.index),
+            S3Storage::checkpoint_key(signed_checkpoint.value.index),
             &serialized_checkpoint,
         )
         .await?;
 
         self.write_to_bucket(
             S3Storage::index_key(),
-            &signed_checkpoint.checkpoint.index.to_string(),
+            &signed_checkpoint.value.index.to_string(),
         )
         .await?;
         Ok(())
+    }
+
+    async fn write_announcement(&self, signed_announcement: &SignedAnnouncement) -> Result<()> {
+        let serialized_announcement = serde_json::to_string_pretty(signed_announcement)?;
+        self.write_to_bucket(S3Storage::announcement_key(), &serialized_announcement)
+            .await?;
+        Ok(())
+    }
+    fn announcement_location(&self) -> String {
+        let mut location: String = "s3://".to_owned();
+        location.push_str(self.bucket.as_ref());
+        location.push('/');
+        location.push_str(self.region.name());
+        location
     }
 }

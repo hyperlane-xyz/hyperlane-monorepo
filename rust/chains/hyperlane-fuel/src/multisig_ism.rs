@@ -2,7 +2,7 @@ use async_trait::async_trait;
 
 use hyperlane_core::{
     accumulator::merkle::Proof, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    MultisigIsm, MultisigSignedCheckpoint, H160, H256,
+    HyperlaneMessage, HyperlaneProvider, MultisigIsm, MultisigSignedCheckpoint, H256,
 };
 
 /// A reference to a MultisigIsm contract on some Fuel chain
@@ -19,23 +19,30 @@ impl HyperlaneChain for FuelMultisigIsm {
     fn domain(&self) -> &HyperlaneDomain {
         todo!()
     }
+
+    fn provider(&self) -> Box<dyn HyperlaneProvider> {
+        todo!()
+    }
 }
 
 #[async_trait]
 impl MultisigIsm for FuelMultisigIsm {
-    async fn format_metadata(
+    /// Returns the validator and threshold needed to verify message
+    async fn validators_and_threshold(
         &self,
+        message: &HyperlaneMessage,
+    ) -> ChainResult<(Vec<H256>, u8)> {
+        todo!()
+    }
+
+    /// Returns the metadata needed by the contract's verify function
+    fn format_metadata(
+        &self,
+        validators: &[H256],
+        threshold: u8,
         checkpoint: &MultisigSignedCheckpoint,
-        proof: Proof,
-    ) -> ChainResult<Vec<u8>> {
-        todo!()
-    }
-
-    async fn threshold(&self, domain: u32) -> ChainResult<u8> {
-        todo!()
-    }
-
-    async fn validators(&self, domain: u32) -> ChainResult<Vec<H160>> {
+        proof: &Proof,
+    ) -> Vec<u8> {
         todo!()
     }
 }

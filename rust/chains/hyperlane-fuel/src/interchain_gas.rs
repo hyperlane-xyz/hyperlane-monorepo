@@ -1,10 +1,10 @@
 use async_trait::async_trait;
-use hyperlane_core::{HyperlaneDomain, H256};
 
 use hyperlane_core::{
     ChainResult, HyperlaneChain, HyperlaneContract, Indexer, InterchainGasPaymaster,
-    InterchainGasPaymasterIndexer, InterchainGasPaymentWithMeta,
+    InterchainGasPaymasterIndexer,
 };
+use hyperlane_core::{HyperlaneDomain, HyperlaneProvider, InterchainGasPayment, LogMeta, H256};
 
 /// A reference to an IGP contract on some Fuel chain
 #[derive(Debug)]
@@ -18,6 +18,10 @@ impl HyperlaneContract for FuelInterchainGasPaymaster {
 
 impl HyperlaneChain for FuelInterchainGasPaymaster {
     fn domain(&self) -> &HyperlaneDomain {
+        todo!()
+    }
+
+    fn provider(&self) -> Box<dyn HyperlaneProvider> {
         todo!()
     }
 }
@@ -41,7 +45,7 @@ impl InterchainGasPaymasterIndexer for FuelInterchainGasPaymasterIndexer {
         &self,
         from_block: u32,
         to_block: u32,
-    ) -> ChainResult<Vec<InterchainGasPaymentWithMeta>> {
+    ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
         todo!()
     }
 }

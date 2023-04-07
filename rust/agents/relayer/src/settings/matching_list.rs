@@ -1,12 +1,11 @@
 use std::fmt;
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::marker::PhantomData;
-use std::num::ParseIntError;
 
 use serde::de::{Error, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
-use hyperlane_core::{HyperlaneMessage, H160, H256};
+use hyperlane_core::{utils::StrOrInt, HyperlaneMessage, H160, H256};
 
 /// Defines a set of patterns for determining if a message should or should not
 /// be relayed. This is useful for determine if a message matches a given set or
@@ -41,36 +40,18 @@ impl<T: PartialEq> Filter<T> {
     }
 }
 
-impl<T: Display> Display for Filter<T> {
+impl<T: Debug> Display for Filter<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::Wildcard => write!(f, "*"),
-            Self::Enumerated(l) if l.len() == 1 => write!(f, "{}", l[0]),
+            Self::Enumerated(l) if l.len() == 1 => write!(f, "{:?}", l[0]),
             Self::Enumerated(l) => {
                 write!(f, "[")?;
                 for i in l {
-                    write!(f, "{i},")?;
+                    write!(f, "{i:?},")?;
                 }
                 write!(f, "]")
             }
-        }
-    }
-}
-
-#[derive(Deserialize)]
-#[serde(untagged)]
-enum StrOrInt<'a> {
-    Str(&'a str),
-    Int(u32),
-}
-
-impl TryFrom<StrOrInt<'_>> for u32 {
-    type Error = ParseIntError;
-
-    fn try_from(v: StrOrInt) -> Result<Self, Self::Error> {
-        match v {
-            StrOrInt::Str(s) => s.parse(),
-            StrOrInt::Int(i) => Ok(i),
         }
     }
 }
@@ -178,19 +159,26 @@ impl<'de> Deserialize<'de> for Filter<H256> {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type")]
 struct ListElement {
-    #[serde(default, rename = "sourceDomain")]
-    src_domain: Filter<u32>,
-    #[serde(default, rename = "sourceAddress")]
-    src_address: Filter<H256>,
+    #[serde(default, rename = "originDomain")]
+    origin_domain: Filter<u32>,
+    #[serde(default, rename = "senderAddress")]
+    sender_address: Filter<H256>,
     #[serde(default, rename = "destinationDomain")]
-    dst_domain: Filter<u32>,
-    #[serde(default, rename = "destinationAddress")]
-    dst_address: Filter<H256>,
+    destination_domain: Filter<u32>,
+    #[serde(default, rename = "recipientAddress")]
+    recipient_address: Filter<H256>,
 }
 
 impl Display for ListElement {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{{sourceDomain: {}, sourceAddress: {}, destinationDomain: {}, destinationAddress: {}}}", self.src_domain, self.src_address, self.dst_domain, self.dst_address)
+        write!(
+            f,
+            "{{originDomain: {}, senderAddress: {}, destinationDomain: {}, recipientAddress: {}}}",
+            self.origin_domain,
+            self.sender_address,
+            self.destination_domain,
+            self.recipient_address
+        )
     }
 }
 
@@ -233,10 +221,10 @@ impl MatchingList {
 
 fn matches_any_rule<'a>(mut rules: impl Iterator<Item = &'a ListElement>, info: MatchInfo) -> bool {
     rules.any(|rule| {
-        rule.src_domain.matches(&info.src_domain)
-            && rule.src_address.matches(info.src_addr)
-            && rule.dst_domain.matches(&info.dst_domain)
-            && rule.dst_address.matches(info.dst_addr)
+        rule.origin_domain.matches(&info.src_domain)
+            && rule.sender_address.matches(info.src_addr)
+            && rule.destination_domain.matches(&info.dst_domain)
+            && rule.recipient_address.matches(info.dst_addr)
     })
 }
 
@@ -269,27 +257,28 @@ fn parse_addr<E: Error>(addr_str: &str) -> Result<H256, E> {
 
 #[cfg(test)]
 mod test {
-    use crate::settings::matching_list::MatchInfo;
     use hyperlane_core::{H160, H256};
+
+    use crate::settings::matching_list::MatchInfo;
 
     use super::{Filter::*, MatchingList};
 
     #[test]
     fn basic_config() {
-        let list: MatchingList = serde_json::from_str(r#"[{"sourceDomain": "*", "sourceAddress": "*", "destinationDomain": "*", "destinationAddress": "*"}, {}]"#).unwrap();
+        let list: MatchingList = serde_json::from_str(r#"[{"originDomain": "*", "senderAddress": "*", "destinationDomain": "*", "recipientAddress": "*"}, {}]"#).unwrap();
         assert!(list.0.is_some());
         assert_eq!(list.0.as_ref().unwrap().len(), 2);
         let elem = &list.0.as_ref().unwrap()[0];
-        assert_eq!(elem.dst_domain, Wildcard);
-        assert_eq!(elem.dst_address, Wildcard);
-        assert_eq!(elem.src_domain, Wildcard);
-        assert_eq!(elem.src_address, Wildcard);
+        assert_eq!(elem.destination_domain, Wildcard);
+        assert_eq!(elem.recipient_address, Wildcard);
+        assert_eq!(elem.origin_domain, Wildcard);
+        assert_eq!(elem.sender_address, Wildcard);
 
         let elem = &list.0.as_ref().unwrap()[1];
-        assert_eq!(elem.dst_domain, Wildcard);
-        assert_eq!(elem.dst_address, Wildcard);
-        assert_eq!(elem.src_domain, Wildcard);
-        assert_eq!(elem.src_address, Wildcard);
+        assert_eq!(elem.destination_domain, Wildcard);
+        assert_eq!(elem.recipient_address, Wildcard);
+        assert_eq!(elem.origin_domain, Wildcard);
+        assert_eq!(elem.sender_address, Wildcard);
 
         assert!(list.matches(
             MatchInfo {
@@ -317,21 +306,21 @@ mod test {
 
     #[test]
     fn config_with_address() {
-        let list: MatchingList = serde_json::from_str(r#"[{"sourceAddress": "0x9d4454B023096f34B160D6B654540c56A1F81688", "destinationAddress": "9d4454B023096f34B160D6B654540c56A1F81688"}]"#).unwrap();
+        let list: MatchingList = serde_json::from_str(r#"[{"senderAddress": "0x9d4454B023096f34B160D6B654540c56A1F81688", "recipientAddress": "9d4454B023096f34B160D6B654540c56A1F81688"}]"#).unwrap();
         assert!(list.0.is_some());
         assert_eq!(list.0.as_ref().unwrap().len(), 1);
         let elem = &list.0.as_ref().unwrap()[0];
-        assert_eq!(elem.dst_domain, Wildcard);
+        assert_eq!(elem.destination_domain, Wildcard);
         assert_eq!(
-            elem.dst_address,
+            elem.recipient_address,
             Enumerated(vec!["0x9d4454B023096f34B160D6B654540c56A1F81688"
                 .parse::<H160>()
                 .unwrap()
                 .into()])
         );
-        assert_eq!(elem.src_domain, Wildcard);
+        assert_eq!(elem.origin_domain, Wildcard);
         assert_eq!(
-            elem.src_address,
+            elem.sender_address,
             Enumerated(vec!["0x9d4454B023096f34B160D6B654540c56A1F81688"
                 .parse::<H160>()
                 .unwrap()
@@ -375,10 +364,10 @@ mod test {
         assert!(whitelist.0.is_some());
         assert_eq!(whitelist.0.as_ref().unwrap().len(), 1);
         let elem = &whitelist.0.as_ref().unwrap()[0];
-        assert_eq!(elem.dst_domain, Enumerated(vec![13372, 13373]));
-        assert_eq!(elem.dst_address, Wildcard);
-        assert_eq!(elem.src_domain, Wildcard);
-        assert_eq!(elem.src_address, Wildcard);
+        assert_eq!(elem.destination_domain, Enumerated(vec![13372, 13373]));
+        assert_eq!(elem.recipient_address, Wildcard);
+        assert_eq!(elem.origin_domain, Wildcard);
+        assert_eq!(elem.sender_address, Wildcard);
     }
 
     #[test]

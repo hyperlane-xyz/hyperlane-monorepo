@@ -1,6 +1,6 @@
-import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
+import { AgentConnectionType, ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 
-import { ConnectionType, DockerConfig } from './agent';
+import { DockerConfig } from './agent';
 
 export enum HelloWorldKathyRunMode {
   // Sends messages between all pairwise chains
@@ -9,11 +9,11 @@ export enum HelloWorldKathyRunMode {
   Service,
 }
 
-export interface HelloWorldKathyConfig<Chain extends ChainName> {
+export interface HelloWorldKathyConfig {
   docker: DockerConfig;
   runEnv: string;
   namespace: string;
-  chainsToSkip: Chain[];
+  chainsToSkip: ChainName[];
   runConfig:
     | {
         mode: HelloWorldKathyRunMode.CycleOnce;
@@ -28,13 +28,13 @@ export interface HelloWorldKathyConfig<Chain extends ChainName> {
   /** How long kathy should wait before giving up on waiting for the message to be received (milliseconds). */
   messageReceiptTimeout: number;
 
-  // Whether to use a single HTTP provider or a quorum of HTTP providers
-  connectionType: ConnectionType.Http | ConnectionType.HttpQuorum;
+  // Which type of provider to use
+  connectionType: Exclude<AgentConnectionType, AgentConnectionType.Ws>;
   // How many cycles to skip between a cycles that send messages to/from Ethereum. Defaults to 0.
   cyclesBetweenEthereumMessages?: number;
 }
 
-export interface HelloWorldConfig<Chain extends ChainName> {
-  addresses: ChainMap<Chain, { router: string }>;
-  kathy: HelloWorldKathyConfig<Chain>;
+export interface HelloWorldConfig {
+  addresses: ChainMap<{ router: string }>;
+  kathy: HelloWorldKathyConfig;
 }

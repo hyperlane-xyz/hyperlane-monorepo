@@ -4,13 +4,11 @@ import { ethers } from 'hardhat';
 
 import {
   InterchainGasPaymaster,
-  InterchainGasPaymaster__factory,
   Mailbox,
   Mailbox__factory,
-} from '../types';
-import {
   TestHyperlaneConnectionClient,
   TestHyperlaneConnectionClient__factory,
+  TestInterchainGasPaymaster__factory,
 } from '../types';
 
 const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
@@ -64,8 +62,8 @@ describe('HyperlaneConnectionClient', async () => {
     let newPaymaster: InterchainGasPaymaster;
 
     before(async () => {
-      const paymasterFactory = new InterchainGasPaymaster__factory(signer);
-      newPaymaster = await paymasterFactory.deploy();
+      const paymasterFactory = new TestInterchainGasPaymaster__factory(signer);
+      newPaymaster = await paymasterFactory.deploy(signer.address);
     });
 
     it('Allows owner to set the interchainGasPaymaster', async () => {

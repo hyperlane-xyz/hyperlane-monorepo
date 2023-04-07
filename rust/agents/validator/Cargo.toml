@@ -1,23 +1,26 @@
 [package]
 name = "validator"
-version = "0.1.0"
-edition = "2021"
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license-file.workspace = true
+publish.workspace = true
+version.workspace = true
 
 [dependencies]
-tokio = { version = "1", features = ["rt", "macros"] }
-config = "0.13"
-serde = "1.0"
-serde_json = { version = "1.0", default-features = false }
-ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2022-12-05-01" }
-thiserror = "1.0"
-async-trait = { version = "0.1", default-features = false }
-futures-util = "0.3"
-eyre = "0.6"
-tracing = "0.1"
-tracing-futures = "0.2"
-tracing-subscriber = "0.3"
-rocksdb = "0.18"
-prometheus = "0.13"
+async-trait.workspace = true
+config.workspace = true
+ethers.workspace = true
+eyre.workspace = true
+futures-util.workspace = true
+prometheus.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["rt", "macros"] }
+tracing-futures.workspace = true
+tracing-subscriber.workspace = true
+tracing.workspace = true
 
 hyperlane-core = { path = "../../hyperlane-core" }
 hyperlane-base = { path = "../../hyperlane-base" }
@@ -28,5 +31,6 @@ tokio-test = "0.4"
 hyperlane-test = { path = "../../hyperlane-test" }
 
 [features]
-default = ["hyperlane-base/color-eyre"]
+default = ["color-eyre", "oneline-errors"]
 oneline-errors = ["hyperlane-base/oneline-errors"]
+color-eyre = ["hyperlane-base/color-eyre"]

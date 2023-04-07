@@ -1,20 +1,24 @@
 [package]
 name = "hyperlane-test"
-version = "0.1.0"
-edition = "2021"
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license-file.workspace = true
+publish.workspace = true
+version.workspace = true
 
 [dependencies]
-tokio = { version = "1", features = ["rt", "macros"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = { version = "1.0", default-features = false }
-ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2022-12-05-01" }
-async-trait = { version = "0.1", default-features = false }
-futures-util = "0.3"
-eyre = "0.6"
+async-trait.workspace = true
+ethers.workspace = true
+eyre.workspace = true
+futures-util.workspace = true
 mockall = "0.11"
-rand = "0.8.3"
-rocksdb = "0.18"
+rand = "0.8"
+rocksdb.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 tempfile = "3.3"
+tokio = { workspace = true, features = ["rt", "macros"] }
+tracing.workspace = true
 
 hyperlane-core = { path = "../hyperlane-core" }
-tracing = "0.1"

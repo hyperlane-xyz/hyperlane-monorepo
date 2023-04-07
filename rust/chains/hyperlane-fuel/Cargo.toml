@@ -1,12 +1,22 @@
 [package]
 name = "hyperlane-fuel"
-version = "0.1.0"
-edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license-file.workspace = true
+publish.workspace = true
+version.workspace = true
 
 [dependencies]
-fuels = "0.31"
+anyhow = "1.0"
+async-trait.workspace = true
+fuels.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+tracing-futures.workspace = true
+tracing.workspace = true
+
 hyperlane-core = { path = "../../hyperlane-core" }
-async-trait = { version = "0.1", default-features = false }
-thiserror = "1.0"
+
+[build-dependencies]
+abigen = { path = "../../utils/abigen", features = ["fuels"] }

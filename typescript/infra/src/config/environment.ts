@@ -1,19 +1,25 @@
 import {
+  AgentConnectionType,
   ChainMap,
+  ChainMetadata,
   ChainName,
   CoreConfig,
-  EnvironmentConfig,
   MultiProvider,
+  OverheadIgpConfig,
 } from '@hyperlane-xyz/sdk';
+import { HyperlaneEnvironment } from '@hyperlane-xyz/sdk/dist/consts/environments';
+import { types } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import { environments } from '../../config/environments';
 import { KEY_ROLE_ENUM } from '../agents/roles';
 
-import { AgentConfig, ConnectionType } from './agent';
+import { AgentConfig } from './agent';
 import { KeyFunderConfig } from './funding';
+import { AllStorageGasOracleConfigs } from './gas-oracle';
 import { HelloWorldConfig } from './helloworld';
 import { InfrastructureConfig } from './infrastructure';
+import { LiquidityLayerRelayerConfig } from './middleware';
 
 export const EnvironmentNames = Object.keys(environments);
 export type DeployEnvironment = keyof typeof environments;
@@ -22,18 +28,31 @@ export type EnvironmentChain<E extends DeployEnvironment> = Extract<
   ChainName
 >;
 
-export type CoreEnvironmentConfig<Chain extends ChainName> = {
+export type EnvironmentConfig = {
   environment: DeployEnvironment;
-  transactionConfigs: EnvironmentConfig<Chain>;
+  chainMetadataConfigs: ChainMap<ChainMetadata>;
   // Each AgentConfig, keyed by the context
-  agents: Partial<Record<Contexts, AgentConfig<Chain>>>;
-  core: ChainMap<Chain, CoreConfig>;
+  agents: Partial<Record<Contexts, AgentConfig>>;
+  core: ChainMap<CoreConfig>;
+  igp: ChainMap<OverheadIgpConfig>;
+  owners: ChainMap<types.Address>;
   infra: InfrastructureConfig;
   getMultiProvider: (
     context?: Contexts,
     role?: KEY_ROLE_ENUM,
-    connectionType?: ConnectionType,
-  ) => Promise<MultiProvider<Chain>>;
-  helloWorld?: Partial<Record<Contexts, HelloWorldConfig<Chain>>>;
+    connectionType?: AgentConnectionType,
+  ) => Promise<MultiProvider>;
+  helloWorld?: Partial<Record<Contexts, HelloWorldConfig>>;
   keyFunderConfig?: KeyFunderConfig;
+  liquidityLayerRelayerConfig?: LiquidityLayerRelayerConfig;
+  storageGasOracleConfig?: AllStorageGasOracleConfigs;
+};
+
+export const deployEnvToSdkEnv: Record<
+  DeployEnvironment,
+  HyperlaneEnvironment
+> = {
+  mainnet2: 'mainnet',
+  testnet3: 'testnet',
+  test: 'test',
 };

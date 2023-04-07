@@ -1,339 +1,354 @@
 import { Debugger, debug } from 'debug';
-import { ethers } from 'ethers';
+import { Contract, ethers } from 'ethers';
 
 import {
-  Create2Factory__factory,
+  HyperlaneConnectionClient,
   Ownable,
   ProxyAdmin,
+  ProxyAdmin__factory,
   TransparentUpgradeableProxy,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
+import { types, utils } from '@hyperlane-xyz/utils';
 
 import {
-  HyperlaneContract,
   HyperlaneContracts,
+  HyperlaneContractsMap,
   HyperlaneFactories,
-  connectContracts,
-  serializeContracts,
+  connectContractsMap,
 } from '../contracts';
+import { HyperlaneAddressesMap } from '../contracts';
+import { attachContractsMap } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
-import {
-  ProxiedContract,
-  ProxyKind,
-  TransparentProxyAddresses,
-} from '../proxy';
+import { ConnectionClientConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
-import { objMap } from '../utils/objects';
 
+import { proxyAdmin } from './proxy';
 import { ContractVerificationInput } from './verify/types';
 import { getContractVerificationInput } from './verify/utils';
 
 export interface DeployerOptions {
   logger?: Debugger;
+  chainTimeoutMs?: number;
 }
 
-export interface DeployOptions {
-  create2Salt?: string;
-  initCalldata?: string;
-}
-
-export const CREATE2FACTORY_ADDRESS =
-  '0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a';
 export abstract class HyperlaneDeployer<
-  Chain extends ChainName,
   Config,
-  Contracts extends HyperlaneContracts,
   Factories extends HyperlaneFactories,
 > {
-  public deployedContracts: Partial<Record<Chain, Partial<Contracts>>> = {};
+  public verificationInputs: ChainMap<ContractVerificationInput[]> = {};
+  public deployedContracts: HyperlaneContractsMap<Factories> = {};
+  public startingBlockNumbers: ChainMap<number | undefined> = {};
 
-  verificationInputs: ChainMap<Chain, ContractVerificationInput[]>;
   protected logger: Debugger;
+  protected chainTimeoutMs: number;
 
   constructor(
-    protected readonly multiProvider: MultiProvider<Chain>,
-    protected readonly configMap: ChainMap<Chain, Config>,
+    protected readonly multiProvider: MultiProvider,
     protected readonly factories: Factories,
     protected readonly options?: DeployerOptions,
   ) {
-    this.verificationInputs = objMap(configMap, () => []);
-    this.logger = options?.logger || debug('hyperlane:AppDeployer');
+    this.logger = options?.logger ?? debug('hyperlane:deployer');
+    this.chainTimeoutMs = options?.chainTimeoutMs ?? 5 * 60 * 1000; // 5 minute timeout per chain
   }
 
-  abstract deployContracts(chain: Chain, config: Config): Promise<Contracts>;
+  cacheContracts(partialDeployment: HyperlaneContractsMap<Factories>): void {
+    this.deployedContracts = connectContractsMap(
+      partialDeployment,
+      this.multiProvider,
+    );
+  }
+
+  cacheAddresses(partialDeployment: HyperlaneAddressesMap<Factories>): void {
+    this.cacheContracts(attachContractsMap(partialDeployment, this.factories));
+  }
+
+  abstract deployContracts(
+    chain: ChainName,
+    config: Config,
+  ): Promise<HyperlaneContracts<Factories>>;
 
   async deploy(
-    partialDeployment: Partial<Record<Chain, Partial<Contracts>>> = this
-      .deployedContracts,
-  ): Promise<Record<Chain, Contracts>> {
-    objMap(
-      partialDeployment as ChainMap<Chain, Contracts>,
-      (chain, contracts) => {
-        this.logger(
-          `Recovering contracts for ${chain} from partial deployment`,
-        );
-        const chainConnection = this.multiProvider.getChainConnection(chain);
-        this.deployedContracts[chain] = connectContracts(
-          contracts,
-          chainConnection.signer!,
-        );
-      },
-    );
-    const configChains = Object.keys(this.configMap) as Chain[];
+    configMap: ChainMap<Config>,
+  ): Promise<HyperlaneContractsMap<Factories>> {
+    const configChains = Object.keys(configMap);
     const targetChains = this.multiProvider.intersect(
       configChains,
-      false,
+      true,
     ).intersection;
 
     this.logger(`Start deploy to ${targetChains}`);
     for (const chain of targetChains) {
-      const chainConnection = this.multiProvider.getChainConnection(chain);
-      const signerUrl = await chainConnection.getAddressUrl();
-      this.logger(`Deploying to ${chain} from ${signerUrl} ...`);
-      this.deployedContracts[chain] = await this.deployContracts(
+      const signerUrl = await this.multiProvider.tryGetExplorerAddressUrl(
         chain,
-        this.configMap[chain],
       );
-      // TODO: remove these logs once we have better timeouts
-      this.logger(
-        JSON.stringify(
-          serializeContracts(
-            (this.deployedContracts[chain] as Contracts) ?? {},
-          ),
-          null,
-          2,
-        ),
-      );
+      this.logger(`Deploying to ${chain} from ${signerUrl}`);
+      this.startingBlockNumbers[chain] = await this.multiProvider
+        .getProvider(chain)
+        .getBlockNumber();
+      await utils.runWithTimeout(this.chainTimeoutMs, async () => {
+        this.deployedContracts[chain] = await this.deployContracts(
+          chain,
+          configMap[chain],
+        );
+      });
     }
-    return this.deployedContracts as ChainMap<Chain, Contracts>;
+    return this.deployedContracts;
   }
 
-  protected async runIfOwner(
-    chain: Chain,
-    ownable: Ownable,
-    fn: () => Promise<any>,
-  ): Promise<void> {
-    const dc = this.multiProvider.getChainConnection(chain);
-    const address = await dc.signer!.getAddress();
-    const owner = await ownable.owner();
-    const logObj = { owner, signer: address };
-    if (address === owner) {
-      this.logger('Owner and signer are equal, proceeding', logObj);
+  protected async runIf<T>(
+    chain: ChainName,
+    address: string,
+    fn: () => Promise<T>,
+    label = 'address',
+  ): Promise<T | undefined> {
+    const signer = await this.multiProvider.getSignerAddress(chain);
+    if (utils.eqAddress(address, signer)) {
       return fn();
     } else {
-      this.logger('Owner and signer NOT equal, skipping', logObj);
+      this.logger(`Signer (${signer}) does not match ${label} (${address})`);
+    }
+    return undefined;
+  }
+
+  protected async runIfOwner<T>(
+    chain: ChainName,
+    ownable: Ownable,
+    fn: () => Promise<T>,
+  ): Promise<T | undefined> {
+    return this.runIf(chain, await ownable.callStatic.owner(), fn, 'owner');
+  }
+
+  protected async runIfAdmin<T>(
+    chain: ChainName,
+    proxy: Contract,
+    signerAdminFn: () => Promise<T>,
+    proxyAdminOwnerFn: (proxyAdmin: ProxyAdmin) => Promise<T>,
+  ): Promise<T | undefined> {
+    const admin = await proxyAdmin(
+      this.multiProvider.getProvider(chain),
+      proxy.address,
+    );
+    const code = await this.multiProvider.getProvider(chain).getCode(admin);
+    // if admin is a ProxyAdmin, run the proxyAdminOwnerFn (if deployer is owner)
+    if (code !== '0x') {
+      this.logger(`Admin is a ProxyAdmin (${admin})`);
+      const proxyAdmin = ProxyAdmin__factory.connect(admin, proxy.signer);
+      return this.runIfOwner(chain, proxyAdmin, () =>
+        proxyAdminOwnerFn(proxyAdmin),
+      );
+    } else {
+      this.logger(`Admin is an EOA (${admin})`);
+      // if admin is an EOA, run the signerAdminFn (if deployer is admin)
+      return this.runIf(chain, admin, () => signerAdminFn(), 'admin');
     }
   }
 
-  protected async deployContractFromFactory<F extends ethers.ContractFactory>(
-    chain: Chain,
-    factory: F,
-    contractName: string,
-    constructorArgs: Parameters<F['deploy']>,
-    deployOpts?: DeployOptions,
-  ): Promise<ReturnType<F['deploy']>> {
-    const cachedContract = this.deployedContracts[chain]?.[contractName];
-    if (cachedContract) {
-      this.logger(`Recovered contract ${contractName} on ${chain}`);
-      return cachedContract as ReturnType<F['deploy']>;
-    }
-
-    const chainConnection = this.multiProvider.getChainConnection(chain);
-    const signer = chainConnection.signer;
-    if (!signer) {
-      throw new Error(`No signer for ${chain}`);
-    }
-
-    this.logger(`Deploy ${contractName} on ${chain}`);
-
-    if (
-      deployOpts &&
-      deployOpts.create2Salt &&
-      (await chainConnection.provider.getCode(CREATE2FACTORY_ADDRESS)) != '0x'
-    ) {
-      this.logger(`Deploying with CREATE2 factory`);
-
-      const create2Factory = Create2Factory__factory.connect(
-        CREATE2FACTORY_ADDRESS,
-        signer,
-      );
-      const salt = ethers.utils.keccak256(
-        ethers.utils.hexlify(ethers.utils.toUtf8Bytes(deployOpts.create2Salt)),
-      );
-      const encodedConstructorArgs =
-        factory.interface.encodeDeploy(constructorArgs);
-      const bytecode = ethers.utils.hexlify(
-        ethers.utils.concat([factory.bytecode, encodedConstructorArgs]),
-      );
-
-      // TODO: Maybe recover deployed contracts?
-      const contractAddr = await create2Factory.deployedAddress(
-        bytecode,
-        await signer.getAddress(),
-        salt,
-      );
-
-      if ((await chainConnection.provider.getCode(contractAddr)) === '0x') {
-        const deployTx = deployOpts.initCalldata
-          ? await create2Factory.deployAndInit(
-              bytecode,
-              salt,
-              deployOpts.initCalldata,
-              chainConnection.overrides,
-            )
-          : await create2Factory.deploy(
-              bytecode,
-              salt,
-              chainConnection.overrides,
-            );
-        await chainConnection.handleTx(deployTx);
-      } else {
-        this.logger(
-          `Found contract deployed at CREATE2 address, skipping contract deploy`,
+  protected async initConnectionClient(
+    local: ChainName,
+    connectionClient: HyperlaneConnectionClient,
+    config: ConnectionClientConfig,
+  ): Promise<void> {
+    this.logger(`Initializing connection client on ${local}...`);
+    return this.runIfOwner(local, connectionClient, async () => {
+      // set mailbox if not already set (and configured)
+      if (config.mailbox !== (await connectionClient.mailbox())) {
+        this.logger(`Set mailbox on (${local})`);
+        await this.multiProvider.handleTx(
+          local,
+          connectionClient.setMailbox(config.mailbox),
         );
       }
 
-      this.verificationInputs[chain].push({
-        name: contractName,
-        address: contractAddr,
-        isProxy: false,
-        constructorArguments: encodedConstructorArgs,
-      });
-
-      return factory.attach(contractAddr).connect(signer) as ReturnType<
-        F['deploy']
-      >;
-    } else {
-      const contract = await factory
-        .connect(signer)
-        .deploy(...constructorArgs, chainConnection.overrides);
-
-      await chainConnection.handleTx(contract.deployTransaction);
-
-      if (deployOpts?.initCalldata) {
-        this.logger(`Initialize ${contractName} on ${chain}`);
-        const initTx = await signer.sendTransaction({
-          to: contract.address,
-          data: deployOpts.initCalldata,
-        });
-        await chainConnection.handleTx(initTx);
+      // set interchain gas paymaster if not already set (and configured)
+      if (
+        config.interchainGasPaymaster !==
+        (await connectionClient.interchainGasPaymaster())
+      ) {
+        this.logger(`Set interchain gas paymaster on ${local}`);
+        await this.multiProvider.handleTx(
+          local,
+          connectionClient.setInterchainGasPaymaster(
+            config.interchainGasPaymaster,
+          ),
+        );
       }
 
-      const verificationInput = getContractVerificationInput(
-        contractName,
-        contract,
-        factory.bytecode,
-      );
-      this.verificationInputs[chain].push(verificationInput);
+      // set interchain security module if not already set (and configured)
+      if (
+        config.interchainSecurityModule &&
+        config.interchainSecurityModule !==
+          (await connectionClient.interchainSecurityModule())
+      ) {
+        this.logger(`Set interchain security module on ${local}`);
+        await this.multiProvider.handleTx(
+          local,
+          connectionClient.setInterchainSecurityModule(
+            config.interchainSecurityModule,
+          ),
+        );
+      }
+    });
+  }
 
-      return contract as ReturnType<F['deploy']>;
+  protected async deployContractFromFactory<F extends ethers.ContractFactory>(
+    chain: ChainName,
+    factory: F,
+    contractName: string,
+    constructorArgs: Parameters<F['deploy']>,
+    initializeArgs?: Parameters<Awaited<ReturnType<F['deploy']>>['initialize']>,
+  ): Promise<ReturnType<F['deploy']>> {
+    const cachedContract = this.deployedContracts[chain]?.[contractName];
+    if (cachedContract) {
+      this.logger(
+        `Recovered ${contractName} on ${chain} ${cachedContract.address}`,
+      );
+      return cachedContract as ReturnType<F['deploy']>;
     }
+
+    const signer = this.multiProvider.getSigner(chain);
+    const overrides = this.multiProvider.getTransactionOverrides(chain);
+
+    this.logger(`Deploy ${contractName} on ${chain}`);
+    const contract = await (factory
+      .connect(signer)
+      .deploy(...constructorArgs, overrides) as ReturnType<F['deploy']>);
+
+    await this.multiProvider.handleTx(chain, contract.deployTransaction);
+
+    if (initializeArgs) {
+      this.logger(`Initialize ${contractName} on ${chain}`);
+      const initTx = await contract.initialize(...initializeArgs);
+      await this.multiProvider.handleTx(chain, initTx);
+    }
+
+    const verificationInput = getContractVerificationInput(
+      contractName,
+      contract,
+      factory.bytecode,
+    );
+    this.verificationInputs[chain] = this.verificationInputs[chain] || [];
+    this.verificationInputs[chain].push(verificationInput);
+
+    return contract;
   }
 
   async deployContract<K extends keyof Factories>(
-    chain: Chain,
+    chain: ChainName,
     contractName: K,
-    args: Parameters<Factories[K]['deploy']>,
-    deployOpts?: DeployOptions,
-  ): Promise<ReturnType<Factories[K]['deploy']>> {
-    const contract = await this.deployContractFromFactory(
+    constructorArgs: Parameters<Factories[K]['deploy']>,
+    initializeArgs?: Parameters<
+      Awaited<ReturnType<Factories[K]['deploy']>>['initialize']
+    >,
+  ): Promise<HyperlaneContracts<Factories>[K]> {
+    const contract = (await this.deployContractFromFactory(
       chain,
       this.factories[contractName],
       contractName.toString(),
-      args,
-      deployOpts,
-    );
+      constructorArgs,
+      initializeArgs,
+    )) as HyperlaneContracts<Factories>[K];
     this.cacheContract(chain, contractName, contract);
     return contract;
   }
 
-  protected async deployProxy<C extends ethers.Contract>(
-    chain: Chain,
-    implementation: C,
-    proxyAdmin: ProxyAdmin,
-    initArgs: Parameters<C['initialize']>,
-    deployOpts?: DeployOptions,
-  ): Promise<ProxiedContract<C, TransparentProxyAddresses>> {
-    const initData = implementation.interface.encodeFunctionData(
-      'initialize',
-      initArgs,
-    );
-    let proxy: TransparentUpgradeableProxy;
-    const chainConnection = this.multiProvider.getChainConnection(chain);
-    this.logger(`Deploying transparent upgradable proxy`);
-    if (
-      deployOpts &&
-      deployOpts.create2Salt &&
-      (await chainConnection.provider.getCode(CREATE2FACTORY_ADDRESS)) != '0x'
-    ) {
-      // To get consistent addresses with Create2, we need to use
-      // consistent constructor arguments.
-      // The three constructor arguments we need to configure are:
-      // 1. Proxy implementation: This will start as the Create2Factory
-      //    address, as it needs to be a contract address.
-      //    After we've taken over as the proxy admin, we will set it
-      //    to the proper address.
-      // 2. Proxy admin: This will start as the Create2Factory contract
-      //    address. We will change this to the proper address atomically.
-      // 3. Initialization data: This will start as null, and we will
-      //    initialize our proxied contract manually.
-      const constructorArgs: Parameters<
-        TransparentUpgradeableProxy__factory['deploy']
-      > = [CREATE2FACTORY_ADDRESS, CREATE2FACTORY_ADDRESS, '0x'];
-      // We set the initCallData to atomically change admin to the proxyAdmin
-      // contract.
-      const initCalldata =
-        new TransparentUpgradeableProxy__factory().interface.encodeFunctionData(
-          'changeAdmin',
-          [proxyAdmin.address],
-        );
-      proxy = await this.deployContractFromFactory(
-        chain,
-        new TransparentUpgradeableProxy__factory(),
-        'TransparentUpgradableProxy',
-        constructorArgs,
-        { ...deployOpts, initCalldata },
-      );
-      this.logger(`Upgrading and initializing transparent upgradable proxy`);
-      // We now have a deployed proxy admin'd by ProxyAdmin.
-      // Upgrade its implementation and initialize it
-      await proxyAdmin.upgradeAndCall(
-        proxy.address,
-        implementation.address,
-        initData,
-        chainConnection.overrides,
-      );
-    } else {
-      const constructorArgs: Parameters<
-        TransparentUpgradeableProxy__factory['deploy']
-      > = [implementation.address, proxyAdmin.address, initData];
-      proxy = await this.deployContractFromFactory(
-        chain,
-        new TransparentUpgradeableProxy__factory(),
-        'TransparentUpgradableProxy',
-        constructorArgs,
-      );
+  protected async changeAdmin(
+    chain: ChainName,
+    proxy: TransparentUpgradeableProxy,
+    admin: string,
+  ): Promise<void> {
+    if (utils.eqAddress(admin, await proxy.callStatic.admin())) {
+      this.logger(`Admin set correctly, skipping admin change`);
+      return;
     }
 
-    return new ProxiedContract<C, TransparentProxyAddresses>(
-      implementation.attach(proxy.address) as C,
-      {
-        kind: ProxyKind.Transparent,
-        proxy: proxy.address,
-        implementation: implementation.address,
-      },
+    this.logger(`Changing proxy admin`);
+    await this.runIfAdmin(
+      chain,
+      proxy,
+      () => this.multiProvider.handleTx(chain, proxy.changeAdmin(admin)),
+      (proxyAdmin) =>
+        this.multiProvider.handleTx(
+          chain,
+          proxyAdmin.changeProxyAdmin(proxy.address, admin),
+        ),
     );
   }
 
+  protected async upgradeAndInitialize<C extends ethers.Contract>(
+    chain: ChainName,
+    proxy: TransparentUpgradeableProxy,
+    implementation: C,
+    initializeArgs: Parameters<C['initialize']>,
+  ): Promise<void> {
+    const current = await proxy.callStatic.implementation();
+    if (utils.eqAddress(implementation.address, current)) {
+      this.logger(`Implementation set correctly, skipping upgrade`);
+      return;
+    }
+
+    this.logger(`Upgrading and initializing implementation`);
+    const initData = implementation.interface.encodeFunctionData(
+      'initialize',
+      initializeArgs,
+    );
+    await this.runIfAdmin(
+      chain,
+      proxy,
+      () =>
+        this.multiProvider.handleTx(
+          chain,
+          proxy.upgradeToAndCall(implementation.address, initData),
+        ),
+      (proxyAdmin: ProxyAdmin) =>
+        this.multiProvider.handleTx(
+          chain,
+          proxyAdmin.upgradeAndCall(
+            proxy.address,
+            implementation.address,
+            initData,
+          ),
+        ),
+    );
+  }
+
+  protected async deployProxy<C extends ethers.Contract>(
+    chain: ChainName,
+    implementation: C,
+    proxyAdmin: string,
+    initializeArgs?: Parameters<C['initialize']>,
+  ): Promise<C> {
+    const initData = initializeArgs
+      ? implementation.interface.encodeFunctionData(
+          'initialize',
+          initializeArgs,
+        )
+      : '0x';
+
+    this.logger(`Deploying transparent upgradable proxy`);
+    const constructorArgs: [string, string, string] = [
+      implementation.address,
+      proxyAdmin,
+      initData,
+    ];
+    const proxy = await this.deployContractFromFactory(
+      chain,
+      new TransparentUpgradeableProxy__factory(),
+      'TransparentUpgradeableProxy',
+      constructorArgs,
+    );
+
+    return implementation.attach(proxy.address) as C;
+  }
+
   private cacheContract<K extends keyof Factories>(
-    chain: Chain,
+    chain: ChainName,
     contractName: K,
-    contract: HyperlaneContract,
+    contract: HyperlaneContracts<Factories>[K],
   ) {
     if (!this.deployedContracts[chain]) {
-      this.deployedContracts[chain] = {};
+      this.deployedContracts[chain] = {} as HyperlaneContracts<Factories>;
     }
-    // @ts-ignore
     this.deployedContracts[chain][contractName] = contract;
   }
 
@@ -341,57 +356,80 @@ export abstract class HyperlaneDeployer<
    * Deploys the Implementation and Proxy for a given contract
    *
    */
-  async deployProxiedContract<
-    K extends keyof Factories,
-    C extends Awaited<ReturnType<Factories[K]['deploy']>>,
-  >(
-    chain: Chain,
+  async deployProxiedContract<K extends keyof Factories>(
+    chain: ChainName,
     contractName: K,
+    proxyAdmin: string,
     constructorArgs: Parameters<Factories[K]['deploy']>,
-    proxyAdmin: ProxyAdmin,
-    initArgs: Parameters<C['initialize']>,
-    deployOpts?: DeployOptions,
-  ): Promise<ProxiedContract<C, TransparentProxyAddresses>> {
-    const cachedProxy = this.deployedContracts[chain]?.[contractName as any];
+    initializeArgs?: Parameters<HyperlaneContracts<Factories>[K]['initialize']>,
+  ): Promise<HyperlaneContracts<Factories>[K]> {
+    const cachedProxy = this.deployedContracts[chain]?.[contractName];
     if (cachedProxy) {
-      this.logger(`Recovered proxy ${contractName.toString()} on ${chain}`);
-      return cachedProxy as ProxiedContract<C, TransparentProxyAddresses>;
+      this.logger(
+        `Recovered ${contractName as string} on ${chain} ${
+          cachedProxy.address
+        }`,
+      );
+      return cachedProxy;
     }
 
-    const implementation = await this.deployContract<K>(
+    // Try to initialize the implementation even though it may not be necessary
+    const implementation = await this.deployContract(
       chain,
       contractName,
       constructorArgs,
-      deployOpts,
+      initializeArgs,
     );
 
+    // Initialize the proxy the same way
     const contract = await this.deployProxy(
       chain,
-      implementation as C,
+      implementation,
       proxyAdmin,
-      initArgs,
-      deployOpts,
+      initializeArgs,
     );
     this.cacheContract(chain, contractName, contract);
     return contract;
   }
 
   mergeWithExistingVerificationInputs(
-    existingInputsMap: ChainMap<Chain, ContractVerificationInput[]>,
-  ): ChainMap<Chain, ContractVerificationInput[]> {
-    const allChains = new Set<Chain>();
-    Object.keys(existingInputsMap).forEach((_) => allChains.add(_ as Chain));
-    Object.keys(this.verificationInputs).forEach((_) =>
-      allChains.add(_ as Chain),
-    );
+    existingInputsMap: ChainMap<ContractVerificationInput[]>,
+  ): ChainMap<ContractVerificationInput[]> {
+    const allChains = new Set<ChainName>();
+    Object.keys(existingInputsMap).forEach((_) => allChains.add(_));
+    Object.keys(this.verificationInputs).forEach((_) => allChains.add(_));
 
-    // @ts-ignore
-    const ret: ChainMap<Chain, ContractVerificationInput[]> = {};
+    const ret: ChainMap<ContractVerificationInput[]> = {};
     for (const chain of allChains) {
       const existingInputs = existingInputsMap[chain] || [];
       const newInputs = this.verificationInputs[chain] || [];
       ret[chain] = [...existingInputs, ...newInputs];
     }
     return ret;
+  }
+
+  protected async transferOwnershipOfContracts(
+    chain: ChainName,
+    owner: types.Address,
+    ownables: Ownable[],
+  ): Promise<ethers.ContractReceipt[]> {
+    const receipts: ethers.ContractReceipt[] = [];
+    for (const ownable of ownables) {
+      const currentOwner = await ownable.owner();
+      if (!utils.eqAddress(currentOwner, owner)) {
+        const receipt = await this.runIfOwner(chain, ownable, () =>
+          this.multiProvider.handleTx(
+            chain,
+            ownable.transferOwnership(
+              owner,
+              this.multiProvider.getTransactionOverrides(chain),
+            ),
+          ),
+        );
+        if (receipt) receipts.push(receipt);
+      }
+    }
+
+    return receipts.filter((x) => !!x) as ethers.ContractReceipt[];
   }
 }

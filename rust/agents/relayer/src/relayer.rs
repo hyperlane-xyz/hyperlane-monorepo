@@ -1,37 +1,48 @@
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use eyre::{Context, Result};
-use tokio::{sync::mpsc, sync::watch, task::JoinHandle};
+use eyre::{ensure, Context, Result};
+use hyperlane_core::U256;
+use tokio::sync::{
+    mpsc::{self, UnboundedReceiver, UnboundedSender},
+    RwLock,
+};
+use tokio::task::JoinHandle;
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
-use hyperlane_base::chains::TransactionSubmissionType;
-use hyperlane_base::CachingMailbox;
 use hyperlane_base::{
-    chains::GelatoConf, run_all, Agent, BaseAgent, ContractSyncMetrics, CoreMetrics,
-    HyperlaneAgentCore, MultisigCheckpointSyncer,
+    chains::TransactionSubmissionType, run_all, BaseAgent, CachingInterchainGasPaymaster,
+    CachingMailbox, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
 };
-use hyperlane_core::{HyperlaneChain, HyperlaneDomain, MultisigIsm, MultisigSignedCheckpoint};
+use hyperlane_core::{db::DB, HyperlaneChain, HyperlaneDomain, ValidatorAnnounce};
 
-use crate::msg::gas_payment::GasPaymentEnforcer;
-use crate::msg::gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics};
-use crate::msg::processor::{MessageProcessor, MessageProcessorMetrics};
-use crate::msg::serial_submitter::SerialSubmitter;
-use crate::msg::SubmitMessageArgs;
-use crate::settings::matching_list::MatchingList;
-use crate::settings::{GasPaymentEnforcementPolicy, RelayerSettings};
-use crate::{checkpoint_fetcher::CheckpointFetcher, msg::serial_submitter::SerialSubmitterMetrics};
+use crate::{
+    merkle_tree_builder::MerkleTreeBuilder,
+    msg::{
+        gas_payment::GasPaymentEnforcer,
+        metadata_builder::BaseMetadataBuilder,
+        processor::{MessageProcessor, MessageProcessorMetrics},
+        serial_submitter::{SerialSubmitter, SerialSubmitterMetrics},
+        PendingMessage,
+    },
+    settings::{matching_list::MatchingList, GasPaymentEnforcementConfig, RelayerSettings},
+};
 
 /// A relayer agent
 #[derive(Debug)]
 pub struct Relayer {
     origin_chain: HyperlaneDomain,
-    signed_checkpoint_polling_interval: u64,
-    multisig_checkpoint_syncer: MultisigCheckpointSyncer,
     core: HyperlaneAgentCore,
-    gas_payment_enforcement_policy: GasPaymentEnforcementPolicy,
+    mailboxes: HashMap<HyperlaneDomain, CachingMailbox>,
+    validator_announce: Arc<dyn ValidatorAnnounce>,
+    interchain_gas_paymasters: HashMap<HyperlaneDomain, CachingInterchainGasPaymaster>,
+    gas_payment_enforcer: Arc<GasPaymentEnforcer>,
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,
+    transaction_gas_limit: Option<U256>,
+    skip_transaction_gas_limit_for: HashSet<u32>,
+    allow_local_checkpoint_syncers: bool,
 }
 
 impl AsRef<HyperlaneAgentCore> for Relayer {
@@ -51,18 +62,61 @@ impl BaseAgent for Relayer {
     where
         Self: Sized,
     {
-        let core = settings.try_into_hyperlane_core(metrics, None).await?;
+        let core = settings.build_hyperlane_core(metrics.clone());
+        let db = DB::from_path(&settings.db)?;
 
-        let multisig_checkpoint_syncer: MultisigCheckpointSyncer = settings
-            .multisigcheckpointsyncer
-            .try_into_multisig_checkpoint_syncer(
-                &settings.originchainname,
-                core.metrics.validator_checkpoint_index(),
-            )?;
+        let destination_chains = settings.destinationchainnames.split(',');
 
-        let whitelist = parse_matching_list(&settings.whitelist);
-        let blacklist = parse_matching_list(&settings.blacklist);
-        info!(whitelist = %whitelist, blacklist = %blacklist, "Whitelist configuration");
+        for destination_chain in destination_chains.clone() {
+            let Some(cfg) = settings.chains.get(destination_chain) else { continue };
+            ensure!(
+                cfg.signer.is_some(),
+                format!("Destination chain {destination_chain} does not have a configured signer")
+            )
+        }
+
+        // Use defined remote chains + the origin chain
+        let chain_names: Vec<_> = destination_chains
+            .chain([settings.originchainname.as_str()])
+            .collect();
+
+        let mailboxes = settings
+            .build_all_mailboxes(chain_names.as_slice(), &metrics, db.clone())
+            .await?;
+        let interchain_gas_paymasters = settings
+            .build_all_interchain_gas_paymasters(chain_names.as_slice(), &metrics, db)
+            .await?;
+        let validator_announce = settings
+            .build_validator_announce(&settings.originchainname, &core.metrics.clone())
+            .await?;
+
+        let whitelist = Arc::new(parse_matching_list(&settings.whitelist));
+        let blacklist = Arc::new(parse_matching_list(&settings.blacklist));
+
+        let skip_transaction_gas_limit_for = settings
+            .skiptransactiongaslimitfor
+            .map(|l| {
+                l.split(',')
+                    .map(|d| {
+                        d.parse()
+                            .expect("Error parsing domain id for transaction gas limit")
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let transaction_gas_limit = settings
+            .transactiongaslimit
+            .map(|l| l.parse())
+            .transpose()
+            .context("Invalid transaction gas limit")?;
+        info!(
+            %whitelist,
+            %blacklist,
+            ?transaction_gas_limit,
+            ?skip_transaction_gas_limit_for,
+            "Whitelist configuration"
+        );
 
         let origin_chain = core
             .settings
@@ -70,55 +124,94 @@ impl BaseAgent for Relayer {
             .context("Relayer must run on a configured chain")?
             .domain()?;
 
+        let gas_enforcement_policies =
+            parse_gas_enforcement_policies(&settings.gaspaymentenforcement);
+        info!(?gas_enforcement_policies, "Gas enforcement configuration");
+
+        let gas_payment_enforcer = Arc::new(GasPaymentEnforcer::new(
+            gas_enforcement_policies,
+            mailboxes.get(&origin_chain).unwrap().db().clone(),
+        ));
+
+        let allow_local_checkpoint_syncers = settings.allowlocalcheckpointsyncers.unwrap_or(false);
+
         Ok(Self {
             origin_chain,
-            signed_checkpoint_polling_interval: settings
-                .signedcheckpointpollinginterval
-                .parse()
-                .unwrap_or(5),
-            multisig_checkpoint_syncer,
             core,
-            gas_payment_enforcement_policy: settings.gaspaymentenforcementpolicy,
+            mailboxes,
+            validator_announce,
+            interchain_gas_paymasters,
+            gas_payment_enforcer,
             whitelist,
             blacklist,
+            transaction_gas_limit,
+            skip_transaction_gas_limit_for,
+            allow_local_checkpoint_syncers,
         })
     }
 
     #[allow(clippy::async_yields_async)]
     async fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
-        let (signed_checkpoint_sender, signed_checkpoint_receiver) =
-            watch::channel::<Option<MultisigSignedCheckpoint>>(None);
-
-        let num_mailboxes = self.core.mailboxes.len();
+        let num_mailboxes = self.mailboxes.len();
 
         let mut tasks = Vec::with_capacity(num_mailboxes + 2);
 
-        let gas_payment_enforcer = Arc::new(GasPaymentEnforcer::new(
-            self.gas_payment_enforcement_policy.clone(),
-            self.mailbox(&self.origin_chain).unwrap().db().clone(),
-        ));
+        let prover_sync = Arc::new(RwLock::new(MerkleTreeBuilder::new(
+            self.mailboxes.get(&self.origin_chain).unwrap().db().clone(),
+        )));
+        let mut send_channels: HashMap<u32, UnboundedSender<PendingMessage>> = HashMap::new();
+        let destinations = self
+            .mailboxes
+            .keys()
+            .filter(|c| **c != self.origin_chain)
+            .collect::<Vec<&HyperlaneDomain>>();
 
-        for chain in self.core.mailboxes.keys() {
-            if *chain == self.origin_chain {
-                continue;
-            }
-            let mailbox = self.mailbox(chain).unwrap();
-            let multisig_ism = self.multisig_ism(chain).unwrap();
+        for chain in &destinations {
+            let (send_channel, receive_channel): (
+                UnboundedSender<PendingMessage>,
+                UnboundedReceiver<PendingMessage>,
+            ) = mpsc::unbounded_channel();
+            let mailbox: &CachingMailbox = self.mailboxes.get(chain).unwrap();
+            send_channels.insert(mailbox.domain().id(), send_channel);
 
+            let chain_setup = self
+                .core
+                .settings
+                .chain_setup(chain.name())
+                .unwrap_or_else(|_| panic!("No chain setup found for {}", chain.name()))
+                .clone();
+
+            let txsubmission = chain_setup.txsubmission;
+            let metadata_builder = BaseMetadataBuilder::new(
+                chain_setup,
+                prover_sync.clone(),
+                self.validator_announce.clone(),
+                self.allow_local_checkpoint_syncers,
+                self.core.metrics.clone(),
+            );
             tasks.push(self.run_destination_mailbox(
                 mailbox.clone(),
-                multisig_ism.clone(),
-                signed_checkpoint_receiver.clone(),
-                self.core.settings.chains[chain.name()].txsubmission,
-                self.core.settings.gelato.as_ref(),
-                gas_payment_enforcer.clone(),
+                metadata_builder.clone(),
+                txsubmission,
+                self.gas_payment_enforcer.clone(),
+                receive_channel,
             ));
         }
 
-        tasks.push(self.run_checkpoint_fetcher(signed_checkpoint_sender));
-
         let sync_metrics = ContractSyncMetrics::new(self.core.metrics.clone());
         tasks.push(self.run_origin_mailbox_sync(sync_metrics.clone()));
+
+        let metrics =
+            MessageProcessorMetrics::new(&self.core.metrics, &self.origin_chain, destinations);
+        let message_processor = MessageProcessor::new(
+            self.mailboxes.get(&self.origin_chain).unwrap().db().clone(),
+            self.whitelist.clone(),
+            self.blacklist.clone(),
+            metrics,
+            prover_sync,
+            send_channels,
+        );
+        tasks.push(self.run_message_processor(message_processor));
 
         tasks.push(self.run_interchain_gas_paymaster_sync(sync_metrics));
 
@@ -131,7 +224,7 @@ impl Relayer {
         &self,
         sync_metrics: ContractSyncMetrics,
     ) -> Instrumented<JoinHandle<Result<()>>> {
-        let mailbox = self.mailbox(&self.origin_chain).unwrap();
+        let mailbox = self.mailboxes.get(&self.origin_chain).unwrap();
         let sync = mailbox.sync(
             self.as_ref().settings.chains[self.origin_chain.name()]
                 .index
@@ -145,7 +238,10 @@ impl Relayer {
         &self,
         sync_metrics: ContractSyncMetrics,
     ) -> Instrumented<JoinHandle<Result<()>>> {
-        let paymaster = self.interchain_gas_paymaster(&self.origin_chain).unwrap();
+        let paymaster = self
+            .interchain_gas_paymasters
+            .get(&self.origin_chain)
+            .unwrap();
         let sync = paymaster.sync(
             self.as_ref().settings.chains[self.origin_chain.name()]
                 .index
@@ -155,41 +251,17 @@ impl Relayer {
         sync
     }
 
-    fn run_checkpoint_fetcher(
+    fn run_message_processor(
         &self,
-        signed_checkpoint_sender: watch::Sender<Option<MultisigSignedCheckpoint>>,
+        message_processor: MessageProcessor,
     ) -> Instrumented<JoinHandle<Result<()>>> {
-        let checkpoint_fetcher = CheckpointFetcher::new(
-            self.mailbox(&self.origin_chain).unwrap(),
-            self.signed_checkpoint_polling_interval,
-            self.multisig_checkpoint_syncer.clone(),
-            signed_checkpoint_sender,
-            self.core.metrics.last_known_message_nonce(),
-        );
-        checkpoint_fetcher.spawn()
-    }
-
-    /// Helper to construct a new GelatoSubmitter instance for submission to a
-    /// particular mailbox.
-    fn make_gelato_submitter(
-        &self,
-        message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
-        mailbox: CachingMailbox,
-        multisig_ism: Arc<dyn MultisigIsm>,
-        gelato_config: GelatoConf,
-        gas_payment_enforcer: Arc<GasPaymentEnforcer>,
-    ) -> GelatoSubmitter {
-        let gelato_metrics =
-            GelatoSubmitterMetrics::new(&self.core.metrics, &self.origin_chain, mailbox.domain());
-        GelatoSubmitter::new(
-            message_receiver,
-            mailbox,
-            multisig_ism,
-            self.mailbox(&self.origin_chain).unwrap().db().clone(),
-            gelato_config,
-            gelato_metrics,
-            gas_payment_enforcer,
-        )
+        let process_fut = message_processor.spawn();
+        tokio::spawn(async move {
+            let res = tokio::try_join!(process_fut)?;
+            info!(?res, "try_join finished for message processor");
+            Ok(())
+        })
+        .instrument(info_span!("run message processor"))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -197,41 +269,28 @@ impl Relayer {
     fn run_destination_mailbox(
         &self,
         destination_mailbox: CachingMailbox,
-        multisig_ism: Arc<dyn MultisigIsm>,
-        signed_checkpoint_receiver: watch::Receiver<Option<MultisigSignedCheckpoint>>,
+        metadata_builder: BaseMetadataBuilder,
         tx_submission: TransactionSubmissionType,
-        gelato_config: Option<&GelatoConf>,
         gas_payment_enforcer: Arc<GasPaymentEnforcer>,
+        msg_receive: UnboundedReceiver<PendingMessage>,
     ) -> Instrumented<JoinHandle<Result<()>>> {
-        let origin_mailbox = self.mailbox(&self.origin_chain).unwrap();
+        let origin_mailbox = self.mailboxes.get(&self.origin_chain).unwrap();
         let destination = destination_mailbox.domain();
-        let metrics =
-            MessageProcessorMetrics::new(&self.core.metrics, &self.origin_chain, destination);
-        let (msg_send, msg_receive) = mpsc::unbounded_channel();
 
         let submit_fut = match tx_submission {
-            TransactionSubmissionType::Gelato => {
-                let gelato_config = gelato_config.unwrap_or_else(|| {
-                    panic!(
-                        "Expected GelatoConf for mailbox {} using Gelato",
-                        destination
-                    )
-                });
-
-                self.make_gelato_submitter(
-                    msg_receive,
-                    destination_mailbox.clone(),
-                    multisig_ism,
-                    gelato_config.clone(),
-                    gas_payment_enforcer,
-                )
-                .spawn()
-            }
             TransactionSubmissionType::Signer => {
+                let transaction_gas_limit = if self
+                    .skip_transaction_gas_limit_for
+                    .contains(&destination.id())
+                {
+                    None
+                } else {
+                    self.transaction_gas_limit
+                };
                 let serial_submitter = SerialSubmitter::new(
                     msg_receive,
                     destination_mailbox.clone(),
-                    multisig_ism,
+                    metadata_builder,
                     origin_mailbox.db().clone(),
                     SerialSubmitterMetrics::new(
                         &self.core.metrics,
@@ -239,27 +298,14 @@ impl Relayer {
                         destination,
                     ),
                     gas_payment_enforcer,
+                    transaction_gas_limit,
                 );
                 serial_submitter.spawn()
             }
         };
 
-        let message_processor = MessageProcessor::new(
-            origin_mailbox.db().clone(),
-            destination_mailbox,
-            self.whitelist.clone(),
-            self.blacklist.clone(),
-            metrics,
-            msg_send,
-            signed_checkpoint_receiver,
-        );
-        info!(
-            message_processor=?message_processor,
-            "Using message processor"
-        );
-        let process_fut = message_processor.spawn();
         tokio::spawn(async move {
-            let res = tokio::try_join!(submit_fut, process_fut)?;
+            let res = tokio::try_join!(submit_fut)?;
             info!(?res, "try_join finished for mailbox");
             Ok(())
         })
@@ -267,14 +313,16 @@ impl Relayer {
     }
 }
 
-fn parse_matching_list(list: &Option<String>) -> Arc<MatchingList> {
-    Arc::new(
-        list.as_deref()
-            .map(serde_json::from_str)
-            .transpose()
-            .expect("Invalid matching list received")
-            .unwrap_or_default(),
-    )
+fn parse_matching_list(list: &Option<String>) -> MatchingList {
+    list.as_deref()
+        .map(serde_json::from_str)
+        .transpose()
+        .expect("Invalid matching list received")
+        .unwrap_or_default()
+}
+
+fn parse_gas_enforcement_policies(policies: &str) -> Vec<GasPaymentEnforcementConfig> {
+    serde_json::from_str(policies).expect("Invalid gas payment enforcement configuration received")
 }
 
 #[cfg(test)]

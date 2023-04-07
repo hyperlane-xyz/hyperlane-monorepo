@@ -4,18 +4,19 @@ import { format } from 'util';
 
 import { HelloWorldApp } from '@hyperlane-xyz/helloworld';
 import {
+  AgentConnectionType,
   ChainName,
   DispatchedMessage,
   HyperlaneCore,
-  InterchainGasCalculator,
+  HyperlaneIgp,
 } from '@hyperlane-xyz/sdk';
 import { debug, error, log, utils, warn } from '@hyperlane-xyz/utils';
 
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
-import { ConnectionType } from '../../src/config/agent';
+import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { startMetricsServer } from '../../src/utils/metrics';
 import { assertChain, diagonalize, sleep } from '../../src/utils/utils';
-import { getArgs, getCoreEnvironmentConfig } from '../utils';
+import { getArgsWithContext, getEnvironmentConfig } from '../utils';
 
 import { getApp } from './utils';
 
@@ -63,7 +64,7 @@ const walletBalance = new Gauge({
 const MAX_MESSAGES_ALLOWED_TO_SEND = 5;
 
 function getKathyArgs() {
-  const args = getArgs()
+  const args = getArgsWithContext()
     .boolean('cycle-once')
     .describe(
       'cycle-once',
@@ -103,10 +104,11 @@ function getKathyArgs() {
 
     .string('connection-type')
     .describe('connection-type', 'The provider connection type to use for RPCs')
-    .default('connection-type', ConnectionType.Http)
+    .default('connection-type', AgentConnectionType.Http)
     .choices('connection-type', [
-      ConnectionType.Http,
-      ConnectionType.HttpQuorum,
+      AgentConnectionType.Http,
+      AgentConnectionType.HttpQuorum,
+      AgentConnectionType.HttpFallback,
     ])
     .demandOption('connection-type');
 
@@ -140,7 +142,7 @@ async function main(): Promise<boolean> {
   startMetricsServer(metricsRegister);
   debug('Starting up', { environment });
 
-  const coreConfig = getCoreEnvironmentConfig(environment);
+  const coreConfig = getEnvironmentConfig(environment);
   const app = await getApp(
     coreConfig,
     context,
@@ -148,9 +150,9 @@ async function main(): Promise<boolean> {
     undefined,
     connectionType,
   );
-  const gasCalculator = InterchainGasCalculator.fromEnvironment(
-    environment,
-    app.multiProvider as any,
+  const igp = HyperlaneIgp.fromEnvironment(
+    deployEnvToSdkEnv[coreConfig.environment],
+    app.multiProvider,
   );
   const appChains = app.chains();
 
@@ -321,9 +323,9 @@ async function main(): Promise<boolean> {
     try {
       await sendMessage(
         app,
+        igp,
         origin,
         destination,
-        gasCalculator,
         messageSendTimeout,
         messageReceiptTimeout,
       );
@@ -353,20 +355,20 @@ async function main(): Promise<boolean> {
 }
 
 async function sendMessage(
-  app: HelloWorldApp<any>,
+  app: HelloWorldApp,
+  igp: HyperlaneIgp,
   origin: ChainName,
   destination: ChainName,
-  gasCalc: InterchainGasCalculator<any>,
   messageSendTimeout: number,
   messageReceiptTimeout: number,
 ) {
   const startTime = Date.now();
   const msg = 'Hello!';
-  const expectedHandleGas = BigNumber.from(100_000);
+  const expectedHandleGas = BigNumber.from(50_000);
 
-  let value = await utils.retryAsync(
+  const value = await utils.retryAsync(
     () =>
-      gasCalc.estimatePaymentForHandleGas(
+      igp.quoteGasPaymentForDefaultIsmIgp(
         origin,
         destination,
         expectedHandleGas,
@@ -380,16 +382,6 @@ async function sendMessage(
     destination,
     interchainGasPayment: value.toString(),
   });
-
-  // For now, pay just 1 wei, as Kathy typically doesn't have enough
-  // funds to send from a cheap chain to expensive chains like Ethereum.
-  //
-  // TODO remove this once the Kathy key is funded with a higher
-  // balance and interchain gas payments are cycled back into
-  // the funder frequently.
-  value = BigNumber.from(1);
-  // Log it as an obvious reminder
-  log('Intentionally setting interchain gas payment to 1');
 
   const receipt = await utils.retryAsync(
     () =>
@@ -450,20 +442,20 @@ async function sendMessage(
 }
 
 async function messageIsProcessed(
-  core: HyperlaneCore<any>,
+  core: HyperlaneCore,
   origin: ChainName,
   destination: ChainName,
   message: DispatchedMessage,
 ): Promise<boolean> {
-  const destinationMailbox = core.getContracts(destination).mailbox.contract;
+  const destinationMailbox = core.getContracts(destination).mailbox;
   return destinationMailbox.delivered(message.id);
 }
 
 async function updateWalletBalanceMetricFor(
-  app: HelloWorldApp<any>,
+  app: HelloWorldApp,
   chain: ChainName,
 ): Promise<void> {
-  const provider = app.multiProvider.getChainConnection(chain).provider;
+  const provider = app.multiProvider.getProvider(chain);
   const signerAddress = await app
     .getContracts(chain)
     .router.signer.getAddress();

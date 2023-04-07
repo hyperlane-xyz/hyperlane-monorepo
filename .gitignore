@@ -26,3 +26,5 @@ solidity/artifacts
 yarn-error.log
 
 .idea
+**/*.ignore
+

@@ -9,11 +9,11 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use auto_impl::auto_impl;
 
-use crate::{ChainResult, HyperlaneMessage, InterchainGasPaymentWithMeta, LogMeta, H256};
+use crate::{ChainResult, HyperlaneMessage, InterchainGasPayment, LogMeta, H256};
 
 /// Interface for an indexer.
 #[async_trait]
-#[auto_impl(Box, Arc)]
+#[auto_impl(&, Box, Arc)]
 pub trait Indexer: Send + Sync + Debug {
     /// Get the chain's latest block number that has reached finality
     async fn get_finalized_block_number(&self) -> ChainResult<u32>;
@@ -22,7 +22,7 @@ pub trait Indexer: Send + Sync + Debug {
 /// Interface for Mailbox contract indexer. Interface for allowing other
 /// entities to retrieve chain-specific data from a mailbox.
 #[async_trait]
-#[auto_impl(Box, Arc)]
+#[auto_impl(&, Box, Arc)]
 pub trait MailboxIndexer: Indexer {
     /// Fetch list of outbound messages between blocks `from` and `to`, sorted
     /// by nonce.
@@ -42,7 +42,7 @@ pub trait MailboxIndexer: Indexer {
 
 /// Interface for InterchainGasPaymaster contract indexer.
 #[async_trait]
-#[auto_impl(Box, Arc)]
+#[auto_impl(&, Box, Arc)]
 pub trait InterchainGasPaymasterIndexer: Indexer {
     /// Fetch list of gas payments between `from_block` and `to_block`,
     /// inclusive
@@ -50,5 +50,5 @@ pub trait InterchainGasPaymasterIndexer: Indexer {
         &self,
         from_block: u32,
         to_block: u32,
-    ) -> ChainResult<Vec<InterchainGasPaymentWithMeta>>;
+    ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>>;
 }

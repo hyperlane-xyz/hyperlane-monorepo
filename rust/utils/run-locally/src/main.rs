@@ -136,56 +136,47 @@ fn main() -> ExitCode {
     let validator_db = concat_path(&rocks_db_dir, "validator");
 
     let common_env = hashmap! {
-        "RUST_BACKTRACE" => "full"
+        "RUST_BACKTRACE" => "full",
+        "HYP_BASE_TRACING_FMT" => "pretty",
+        "HYP_BASE_TRACING_LEVEL" => "debug",
     };
 
     let relayer_env = hashmap! {
         "HYP_BASE_CHAINS_TEST1_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
-        "HYP_BASE_CHAINS_TEST1_CONNECTION_TYPE" => "httpQuorum",
+        "HYP_BASE_CHAINS_TEST1_CONNECTION_TYPE" => "httpFallback",
         "HYP_BASE_CHAINS_TEST2_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
         "HYP_BASE_CHAINS_TEST2_CONNECTION_TYPE" => "httpQuorum",
         "HYP_BASE_CHAINS_TEST3_CONNECTION_URL" => "http://127.0.0.1:8545",
         "HYP_BASE_CHAINS_TEST3_CONNECTION_TYPE" => "http",
-        "BASE_CONFIG" => "test_config.json",
-        "RUN_ENV" => "test",
         "HYP_BASE_METRICS" => "9092",
-        "HYP_BASE_TRACING_FMT" => "pretty",
-        "HYP_BASE_TRACING_LEVEL" => "info",
         "HYP_BASE_DB" => relayer_db.to_str().unwrap(),
-        "HYP_BASE_SIGNERS_TEST1_KEY" => "8166f546bab6da521a8369cab06c5d2b9e46670292d85c875ee9ec20e84ffb61",
-        "HYP_BASE_SIGNERS_TEST1_TYPE" => "hexKey",
-        "HYP_BASE_SIGNERS_TEST2_KEY" => "f214f2b2cd398c806f84e317254e0f0b801d0643303237d97a22a48e01628897",
-        "HYP_BASE_SIGNERS_TEST2_TYPE" => "hexKey",
-        "HYP_BASE_SIGNERS_TEST3_KEY" => "701b615bbdfb9de65240bc28bd21bbc0d996645a3dd57e7b12bc2bdf6f192c82",
-        "HYP_BASE_SIGNERS_TEST3_TYPE" => "hexKey",
-        "HYP_RELAYER_GASPAYMENTENFORCEMENTPOLICY_TYPE" => "none",
+        "HYP_BASE_CHAINS_TEST1_SIGNER_KEY" => "8166f546bab6da521a8369cab06c5d2b9e46670292d85c875ee9ec20e84ffb61",
+        "HYP_BASE_CHAINS_TEST1_SIGNER_TYPE" => "hexKey",
+        "HYP_BASE_CHAINS_TEST2_SIGNER_KEY" => "f214f2b2cd398c806f84e317254e0f0b801d0643303237d97a22a48e01628897",
+        "HYP_BASE_CHAINS_TEST2_SIGNER_TYPE" => "hexKey",
+        // default is used for TEST3
+        "HYP_BASE_DEFAULTSIGNER_KEY" => "701b615bbdfb9de65240bc28bd21bbc0d996645a3dd57e7b12bc2bdf6f192c82",
+        "HYP_BASE_DEFAULTSIGNER_TYPE" => "hexKey",
+        "HYP_RELAYER_GASPAYMENTENFORCEMENT" => r#"[{"type": "none"}]"#,
         "HYP_RELAYER_ORIGINCHAINNAME" => "test1",
-        "HYP_RELAYER_WHITELIST" => r#"[{"sourceAddress": "*", "destinationDomain": ["13372", "13373"], "destinationAddress": "*"}]"#,
-        "HYP_RELAYER_SIGNEDCHECKPOINTPOLLINGINTERVAL" => "5",
-        "HYP_RELAYER_MULTISIGCHECKPOINTSYNCER_THRESHOLD" => "1",
-        "HYP_RELAYER_MULTISIGCHECKPOINTSYNCER_CHECKPOINTSYNCERS_0x70997970c51812dc3a010c7d01b50e0d17dc79c8_TYPE" => "localStorage",
-        "HYP_RELAYER_MULTISIGCHECKPOINTSYNCER_CHECKPOINTSYNCERS_0x70997970c51812dc3a010c7d01b50e0d17dc79c8_PATH" => checkpoints_dir.path().to_str().unwrap(),
+        "HYP_RELAYER_DESTINATIONCHAINNAMES" => "test2,test3",
+        "HYP_RELAYER_WHITELIST" => r#"[{"senderAddress": "*", "destinationDomain": [13372, 13373], "recipientAddress": "*"}]"#,
+        "HYP_RELAYER_ALLOWLOCALCHECKPOINTSYNCERS" => "true",
     };
 
     let validator_env = hashmap! {
         "HYP_BASE_CHAINS_TEST1_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
         "HYP_BASE_CHAINS_TEST1_CONNECTION_TYPE" => "httpQuorum",
         "HYP_BASE_CHAINS_TEST2_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
-        "HYP_BASE_CHAINS_TEST2_CONNECTION_TYPE" => "httpQuorum",
+        "HYP_BASE_CHAINS_TEST2_CONNECTION_TYPE" => "httpFallback",
         "HYP_BASE_CHAINS_TEST3_CONNECTION_URLS" => "http://127.0.0.1:8545",
         "HYP_BASE_CHAINS_TEST3_CONNECTION_TYPE" => "http",
-        "BASE_CONFIG" => "test_config.json",
-        "RUN_ENV" => "test",
         "HYP_BASE_METRICS" => "9091",
-        "HYP_BASE_TRACING_FMT" => "pretty",
-        "HYP_BASE_TRACING_LEVEL" => "info",
-        "HYP_BASE_DB" => validator_db.to_str().unwrap(),
         "HYP_VALIDATOR_ORIGINCHAINNAME" => "test1",
         "HYP_VALIDATOR_VALIDATOR_KEY" => "59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
         "HYP_VALIDATOR_VALIDATOR_TYPE" => "hexKey",
         "HYP_VALIDATOR_REORGPERIOD" => "0",
         "HYP_VALIDATOR_INTERVAL" => "5",
-        "HYP_VALIDATOR_CHECKPOINTSYNCER_THRESHOLD" => "1",
         "HYP_VALIDATOR_CHECKPOINTSYNCER_TYPE" => "localStorage",
         "HYP_VALIDATOR_CHECKPOINTSYNCER_PATH" => checkpoints_dir.path().to_str().unwrap(),
     };
@@ -228,7 +219,7 @@ fn main() -> ExitCode {
         // node.stdout(Stdio::piped());
         node.stdout(Stdio::null());
     } else {
-        node.stdout(append_to(&hardhat_log));
+        node.stdout(append_to(hardhat_log));
     }
     let node = node.spawn().expect("Failed to start node");
     // if log_all {
@@ -241,15 +232,25 @@ fn main() -> ExitCode {
 
     sleep(Duration::from_secs(10));
 
-    println!("Deploying hyperlane contracts...");
+    println!("Deploying hyperlane core contracts...");
     let status = Command::new("yarn")
-        .arg("hyperlane")
+        .arg("deploy-core")
         .current_dir("../typescript/infra")
         .stdout(Stdio::null())
         .status()
-        .expect("Failed to deploy contracts")
+        .expect("Failed to deploy core contracts")
         .success();
-    assert!(status, "Failed to deploy contracts");
+    assert!(status, "Failed to deploy core contracts");
+
+    println!("Deploying hyperlane igp contracts...");
+    let status = Command::new("yarn")
+        .arg("deploy-igp")
+        .current_dir("../typescript/infra")
+        .stdout(Stdio::null())
+        .status()
+        .expect("Failed to deploy igp contracts")
+        .success();
+    assert!(status, "Failed to deploy igp contracts");
 
     // Follow-up 'yarn hardhat node' invocation with 'yarn prettier' to fixup
     // formatting on any autogenerated json config files to avoid any diff creation.
@@ -314,6 +315,35 @@ fn main() -> ExitCode {
         }
     }));
     state.validator = Some(validator);
+
+    // Rebuild the SDK to pick up the deployed contracts
+    println!("Rebuilding sdk...");
+    build_cmd(
+        &["yarn", "build"],
+        &build_log,
+        log_all,
+        Some("../typescript/sdk"),
+    );
+
+    // Register the validator announcement
+    println!("Announcing validator...");
+    let mut announce = Command::new("yarn");
+    let location = format!("file://{}", checkpoints_dir.path().to_str().unwrap());
+    announce.arg("ts-node");
+    announce.args([
+        "scripts/announce-validators.ts",
+        "--environment",
+        "test",
+        "--location",
+        &location,
+        "--chain",
+        "test1",
+    ]);
+    announce
+        .current_dir("../typescript/infra")
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("Failed to announce validator");
 
     println!("Setup complete! Agents running in background...");
     println!("Ctrl+C to end execution...");

@@ -2,14 +2,17 @@
 pragma solidity ^0.8.0;
 
 import {TypeCasts} from "../libs/TypeCasts.sol";
-import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
+import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
 
 contract MockMailbox {
     using TypeCasts for address;
     using TypeCasts for bytes32;
     // Domain of chain on which the contract is deployed
-    uint32 public immutable domain;
-    uint32 public immutable version = 0;
+
+    // ============ Constants ============
+    uint32 public immutable localDomain;
+    uint32 public immutable VERSION = 0;
+    uint256 public constant MAX_MESSAGE_BODY_BYTES = 2 * 2**10;
 
     uint256 public outboundNonce = 0;
     uint256 public inboundUnprocessedNonce = 0;
@@ -25,7 +28,7 @@ contract MockMailbox {
     }
 
     constructor(uint32 _domain) {
-        domain = _domain;
+        localDomain = _domain;
     }
 
     function addRemoteMailbox(uint32 _domain, MockMailbox _mailbox) external {
@@ -37,13 +40,14 @@ contract MockMailbox {
         bytes32 _recipientAddress,
         bytes calldata _messageBody
     ) external returns (bytes32) {
+        require(_messageBody.length <= MAX_MESSAGE_BODY_BYTES, "msg too long");
         MockMailbox _destinationMailbox = remoteMailboxes[_destinationDomain];
         require(
             address(_destinationMailbox) != address(0),
             "Missing remote mailbox"
         );
         _destinationMailbox.addInboundMessage(
-            domain,
+            localDomain,
             msg.sender,
             _recipientAddress.bytes32ToAddress(),
             _messageBody

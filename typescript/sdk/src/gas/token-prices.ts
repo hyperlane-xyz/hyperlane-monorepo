@@ -2,9 +2,12 @@ import CoinGecko from 'coingecko-api';
 
 import { warn } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../consts/chainMetadata';
-import { Mainnets } from '../consts/chains';
-import { ChainName } from '../types';
+import {
+  ChainMetadata,
+  chainMetadata as defaultChainMetadata,
+} from '../consts/chainMetadata';
+import { CoreChainName, Mainnets } from '../consts/chains';
+import { ChainMap, ChainName } from '../types';
 
 export interface TokenPriceGetter {
   getTokenPrice(chain: ChainName): Promise<number>;
@@ -69,10 +72,23 @@ class TokenPriceCache {
 export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
   protected coinGecko: CoinGeckoInterface;
   protected cache: TokenPriceCache;
+  protected metadata: ChainMap<ChainMetadata>;
 
-  constructor(coinGecko: CoinGeckoInterface, expirySeconds?: number) {
+  constructor(
+    coinGecko: CoinGeckoInterface,
+    expirySeconds?: number,
+    chainMetadata = defaultChainMetadata,
+  ) {
     this.coinGecko = coinGecko;
     this.cache = new TokenPriceCache(expirySeconds);
+    this.metadata = chainMetadata;
+  }
+
+  static withDefaultCoinGecko(
+    expirySeconds?: number,
+  ): CoinGeckoTokenPriceGetter {
+    const coinGecko = new CoinGecko();
+    return new CoinGeckoTokenPriceGetter(coinGecko, expirySeconds);
   }
 
   async getTokenPrice(chain: ChainName): Promise<number> {
@@ -89,7 +105,8 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
   }
 
   private async getTokenPrices(chains: ChainName[]): Promise<number[]> {
-    const isMainnet = chains.map((c) => Mainnets.includes(c));
+    // TODO improve PI support here?
+    const isMainnet = chains.map((c) => Mainnets.includes(c as CoreChainName));
     const allMainnets = isMainnet.every((v) => v === true);
     const allTestnets = isMainnet.every((v) => v === false);
     if (allTestnets) {
@@ -119,7 +136,7 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
     // The CoinGecko API expects, in some cases, IDs that do not match
     // ChainNames.
     const ids = chains.map(
-      (chain) => chainMetadata[chain].gasCurrencyCoinGeckoId || chain,
+      (chain) => this.metadata[chain].gasCurrencyCoinGeckoId || chain,
     );
     const response = await this.coinGecko.simple.price({
       ids,

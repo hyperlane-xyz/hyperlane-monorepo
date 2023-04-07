@@ -1,0 +1,9 @@
+image:
+  repository: gcr.io/abacus-labs-dev/hyperlane-monorepo
+  tag:
+abacus:
+  runEnv: testnet2
+  # Used for fetching secrets
+  chains: []
+externalSecrets:
+  clusterSecretStore:

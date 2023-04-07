@@ -43,12 +43,12 @@ export class AgentAwsKey extends CloudAgentKey {
   public remoteKey: RemoteKey = { fetched: false };
 
   constructor(
-    agentConfig: AgentConfig<any>,
+    agentConfig: AgentConfig,
     role: KEY_ROLE_ENUM,
     chainName?: ChainName,
     index?: number,
   ) {
-    super(agentConfig.environment, agentConfig.context, role, chainName, index);
+    super(agentConfig.runEnv, agentConfig.context, role, chainName, index);
     if (!agentConfig.aws) {
       throw new Error('Not configured as AWS');
     }
@@ -231,6 +231,10 @@ export class AgentAwsKey extends CloudAgentKey {
     if (!keyId) {
       throw Error('Key ID not defined');
     }
+    // @ts-ignore We're using a newer version of Provider than
+    // KmsEthersSigner. The return type for getFeeData for this newer
+    // type is a superset of the return type for getFeeData for the older type,
+    // which should be fine.
     return new KmsEthersSigner(
       {
         keyId,

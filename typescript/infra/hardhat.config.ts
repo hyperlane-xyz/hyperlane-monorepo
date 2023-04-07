@@ -6,20 +6,16 @@ import { HardhatRuntimeEnvironment } from 'hardhat/types';
 import { TestSendReceiver__factory } from '@hyperlane-xyz/core';
 import {
   ChainName,
-  ChainNameToDomainId,
   HyperlaneCore,
-  getTestMultiProvider,
+  HyperlaneIgp,
+  MultiProvider,
 } from '@hyperlane-xyz/sdk';
 
-import { getCoreEnvironmentConfig } from './scripts/utils';
 import { sleep } from './src/utils/utils';
 
-const chainSummary = async <Chain extends ChainName>(
-  core: HyperlaneCore<Chain>,
-  chain: Chain,
-) => {
+const chainSummary = async (core: HyperlaneCore, chain: ChainName) => {
   const coreContracts = core.getContracts(chain);
-  const mailbox = coreContracts.mailbox.contract;
+  const mailbox = coreContracts.mailbox;
   const dispatched = await mailbox.count();
   // TODO: Allow processed messages to be filtered by
   // origin, possibly sender and recipient.
@@ -50,13 +46,10 @@ task('kathy', 'Dispatches random hyperlane messages')
       const timeout = Number.parseInt(taskArgs.timeout);
       const environment = 'test';
       const interchainGasPayment = hre.ethers.utils.parseUnits('100', 'gwei');
-      const config = getCoreEnvironmentConfig(environment);
       const [signer] = await hre.ethers.getSigners();
-      const multiProvider = getTestMultiProvider(
-        signer,
-        config.transactionConfigs,
-      );
+      const multiProvider = MultiProvider.createTestMultiProvider({ signer });
       const core = HyperlaneCore.fromEnvironment(environment, multiProvider);
+      const igps = HyperlaneIgp.fromEnvironment(environment, multiProvider);
 
       const randomElement = <T>(list: T[]) =>
         list[Math.floor(Math.random() * list.length)];
@@ -72,16 +65,15 @@ task('kathy', 'Dispatches random hyperlane messages')
       while (run_forever || rounds-- > 0) {
         const local = core.chains()[0];
         const remote: ChainName = randomElement(core.remoteChains(local));
-        const remoteId = ChainNameToDomainId[remote];
-        const coreContracts = core.getContracts(local);
-        const mailbox = coreContracts.mailbox.contract;
-        const paymaster = coreContracts.interchainGasPaymaster;
+        const remoteId = multiProvider.getDomainId(remote);
+        const mailbox = core.getContracts(local).mailbox;
+        const igp = igps.getContracts(local).interchainGasPaymaster;
         // Send a batch of messages to the destination chain to test
         // the relayer submitting only greedily
         for (let i = 0; i < 10; i++) {
           await recipient.dispatchToSelf(
             mailbox.address,
-            paymaster.address,
+            igp.address,
             remoteId,
             '0x1234',
             {

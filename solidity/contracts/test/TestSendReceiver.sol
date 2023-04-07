@@ -3,9 +3,9 @@ pragma solidity >=0.8.0;
 
 import {TypeCasts} from "../libs/TypeCasts.sol";
 
-import {IInterchainGasPaymaster} from "../../interfaces/IInterchainGasPaymaster.sol";
-import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
-import {IMailbox} from "../../interfaces/IMailbox.sol";
+import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
+import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
+import {IMailbox} from "../interfaces/IMailbox.sol";
 
 contract TestSendReceiver is IMessageRecipient {
     using TypeCasts for address;
@@ -60,8 +60,8 @@ contract TestSendReceiver is IMessageRecipient {
         bytes calldata
     ) external override {
         bytes32 blockHash = previousBlockHash();
-        bool isBlockHashEven = uint256(blockHash) % 2 == 0;
-        require(isBlockHashEven, "block hash is odd");
+        bool isBlockHashEndIn0 = uint256(blockHash) % 16 == 0;
+        require(!isBlockHashEndIn0, "block hash ends in 0");
         emit Handled(blockHash);
     }
 

@@ -3,9 +3,9 @@ pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
 import {HyperlaneConnectionClient} from "./HyperlaneConnectionClient.sol";
-import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
-import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
-import {IMailbox} from "../interfaces/IMailbox.sol";
+import {IInterchainGasPaymaster} from "./interfaces/IInterchainGasPaymaster.sol";
+import {IMessageRecipient} from "./interfaces/IMessageRecipient.sol";
+import {IMailbox} from "./interfaces/IMailbox.sol";
 import {EnumerableMapExtended} from "./libs/EnumerableMapExtended.sol";
 
 abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
@@ -25,7 +25,7 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
      * @param domain The domain of the new router
      * @param router The address of the new router
      */
-    event RemoteRouterEnrolled(uint32 indexed domain, bytes32 indexed router);
+    event RemoteRouterEnrolled(uint32 indexed domain, bytes32 router);
 
     // ============ Modifiers ============
     /**

@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import {Call, IInterchainQueryRouter} from "../../interfaces/IInterchainQueryRouter.sol";
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
+import {IInterchainQueryRouter} from "../interfaces/middleware/IInterchainQueryRouter.sol";
+import {CallLib} from "../libs/Call.sol";
 
-contract TestQuerySender is Initializable {
+contract TestQuerySender {
     IInterchainQueryRouter queryRouter;
+    IInterchainGasPaymaster interchainGasPaymaster;
 
     address public lastAddressResult;
     uint256 public lastUint256Result;
@@ -15,23 +17,32 @@ contract TestQuerySender is Initializable {
     event ReceivedUint256Result(uint256 result);
     event ReceivedBytes32Result(bytes32 result);
 
-    function initialize(address _queryRouterAddress) public initializer {
+    function initialize(
+        address _queryRouterAddress,
+        address _interchainGasPaymaster
+    ) external {
         queryRouter = IInterchainQueryRouter(_queryRouterAddress);
+        interchainGasPaymaster = IInterchainGasPaymaster(
+            _interchainGasPaymaster
+        );
     }
 
     function queryAddress(
         uint32 _destinationDomain,
         address _target,
-        bytes calldata _targetData
-    ) public {
-        queryRouter.query(
+        bytes calldata _targetData,
+        uint256 _gasAmount
+    ) external payable {
+        queryAndPayFor(
             _destinationDomain,
-            Call({to: _target, data: _targetData}),
-            abi.encodePacked(this.handleQueryAddressResult.selector)
+            _target,
+            _targetData,
+            this.handleQueryAddressResult.selector,
+            _gasAmount
         );
     }
 
-    function handleQueryAddressResult(address _result) public {
+    function handleQueryAddressResult(address _result) external {
         emit ReceivedAddressResult(_result);
         lastAddressResult = _result;
     }
@@ -39,16 +50,19 @@ contract TestQuerySender is Initializable {
     function queryUint256(
         uint32 _destinationDomain,
         address _target,
-        bytes calldata _targetData
-    ) public {
-        queryRouter.query(
+        bytes calldata _targetData,
+        uint256 _gasAmount
+    ) external payable {
+        queryAndPayFor(
             _destinationDomain,
-            Call({to: _target, data: _targetData}),
-            abi.encodePacked(this.handleQueryUint256Result.selector)
+            _target,
+            _targetData,
+            this.handleQueryUint256Result.selector,
+            _gasAmount
         );
     }
 
-    function handleQueryUint256Result(uint256 _result) public {
+    function handleQueryUint256Result(uint256 _result) external {
         emit ReceivedUint256Result(_result);
         lastUint256Result = _result;
     }
@@ -56,17 +70,43 @@ contract TestQuerySender is Initializable {
     function queryBytes32(
         uint32 _destinationDomain,
         address _target,
-        bytes calldata _targetData
-    ) public {
-        queryRouter.query(
+        bytes calldata _targetData,
+        uint256 _gasAmount
+    ) external payable {
+        queryAndPayFor(
             _destinationDomain,
-            Call({to: _target, data: _targetData}),
-            abi.encodePacked(this.handleQueryBytes32Result.selector)
+            _target,
+            _targetData,
+            this.handleQueryBytes32Result.selector,
+            _gasAmount
         );
     }
 
-    function handleQueryBytes32Result(bytes32 _result) public {
+    function handleQueryBytes32Result(bytes32 _result) external {
         emit ReceivedBytes32Result(_result);
         lastBytes32Result = _result;
+    }
+
+    function queryAndPayFor(
+        uint32 _destinationDomain,
+        address _target,
+        bytes calldata _targetData,
+        bytes4 _callbackSelector,
+        uint256 _gasAmount
+    ) internal {
+        CallLib.StaticCallWithCallback[]
+            memory calls = new CallLib.StaticCallWithCallback[](1);
+        calls[0] = CallLib.build(
+            _target,
+            _targetData,
+            abi.encodePacked(_callbackSelector)
+        );
+        bytes32 _messageId = queryRouter.query(_destinationDomain, calls);
+        interchainGasPaymaster.payForGas{value: msg.value}(
+            _messageId,
+            _destinationDomain,
+            _gasAmount,
+            msg.sender
+        );
     }
 }

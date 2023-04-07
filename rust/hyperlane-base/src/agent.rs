@@ -1,32 +1,18 @@
+use std::env;
 use std::fmt::Debug;
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use eyre::{Report, Result};
 use futures_util::future::select_all;
-use hyperlane_core::{HyperlaneDomain, MultisigIsm};
 use tokio::task::JoinHandle;
-use tracing::instrument::Instrumented;
-use tracing::{info_span, Instrument};
+use tracing::{info_span, instrument::Instrumented, Instrument};
 
-use hyperlane_core::db::DB;
-
-use crate::{
-    cancel_task, metrics::CoreMetrics, settings::Settings, CachingInterchainGasPaymaster,
-    CachingMailbox,
-};
+use crate::{cancel_task, metrics::CoreMetrics, settings::Settings};
 
 /// Properties shared across all hyperlane agents
 #[derive(Debug)]
 pub struct HyperlaneAgentCore {
-    /// A map of mailbox contracts by chain name
-    pub mailboxes: HashMap<HyperlaneDomain, CachingMailbox>,
-    /// A map of interchain gas paymaster contracts by chain name
-    pub interchain_gas_paymasters: HashMap<HyperlaneDomain, CachingInterchainGasPaymaster>,
-    /// A map of interchain gas paymaster contracts by chain name
-    pub multisig_isms: HashMap<HyperlaneDomain, Arc<dyn MultisigIsm>>,
-    /// A persistent KV Store (currently implemented as rocksdb)
-    pub db: DB,
     /// Prometheus metrics
     pub metrics: Arc<CoreMetrics>,
     /// Settings this agent was created with
@@ -63,61 +49,23 @@ pub trait BaseAgent: Send + Sync + Debug {
     async fn run(&self) -> Instrumented<JoinHandle<Result<()>>>;
 }
 
-/// A trait for an hyperlane agent.
-/// Adds assumptions for the indexer and metric methods.
-///
-/// To use the default implementation you must `impl AsRef<HyperlaneAgentCore>`
-#[async_trait]
-pub trait Agent: BaseAgent {
-    /// Return a handle to the DB
-    fn db(&self) -> &DB;
-
-    /// Return a reference to a Mailbox contract
-    fn mailbox(&self, domain: &HyperlaneDomain) -> Option<&CachingMailbox>;
-
-    /// Return a reference to an InterchainGasPaymaster contract
-    fn interchain_gas_paymaster(
-        &self,
-        domain: &HyperlaneDomain,
-    ) -> Option<&CachingInterchainGasPaymaster>;
-
-    /// Return a reference to a Multisig Ism contract
-    fn multisig_ism(&self, domain: &HyperlaneDomain) -> Option<&Arc<dyn MultisigIsm>>;
-}
-
-#[async_trait]
-impl<B> Agent for B
-where
-    B: BaseAgent + AsRef<HyperlaneAgentCore>,
-{
-    fn db(&self) -> &DB {
-        &self.as_ref().db
-    }
-
-    fn mailbox(&self, domain: &HyperlaneDomain) -> Option<&CachingMailbox> {
-        self.as_ref().mailboxes.get(domain)
-    }
-
-    fn interchain_gas_paymaster(
-        &self,
-        domain: &HyperlaneDomain,
-    ) -> Option<&CachingInterchainGasPaymaster> {
-        self.as_ref().interchain_gas_paymasters.get(domain)
-    }
-
-    fn multisig_ism(&self, domain: &HyperlaneDomain) -> Option<&Arc<dyn MultisigIsm>> {
-        self.as_ref().multisig_isms.get(domain)
-    }
-}
-
 /// Call this from `main` to fully initialize and run the agent for its entire
 /// lifecycle. This assumes only a single agent is being run. This will
 /// initialize the metrics server and tracing as well.
 pub async fn agent_main<A: BaseAgent>() -> Result<()> {
-    #[cfg(feature = "oneline-errors")]
-    crate::oneline_eyre::install()?;
-    #[cfg(all(feature = "color_eyre", not(feature = "oneline-errors")))]
-    color_eyre::install()?;
+    if env::var("ONELINE_BACKTRACES")
+        .map(|v| v.to_lowercase())
+        .as_deref()
+        == Ok("true")
+    {
+        #[cfg(feature = "oneline-errors")]
+        crate::oneline_eyre::install()?;
+        #[cfg(not(feature = "oneline-errors"))]
+        panic!("The oneline errors feature was not included");
+    } else {
+        #[cfg(feature = "color_eyre")]
+        color_eyre::install()?;
+    }
 
     let settings = A::Settings::new().map_err(|e| e.into())?;
     let core_settings: &Settings = settings.as_ref();
@@ -125,7 +73,7 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
     let metrics = settings.as_ref().metrics(A::AGENT_NAME)?;
     core_settings.tracing.start_tracing(&metrics)?;
     let agent = A::from_settings(settings, metrics.clone()).await?;
-    let _ = metrics.run_http_server();
+    metrics.run_http_server();
 
     agent.run().await.await?
 }

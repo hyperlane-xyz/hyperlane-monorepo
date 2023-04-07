@@ -1,10 +1,14 @@
 use tokio::task::JoinHandle;
-use tracing::{info, info_span, instrument::Instrumented, warn, Instrument};
+use tracing::{debug, info, info_span, instrument::Instrumented, warn, Instrument};
 
 use hyperlane_core::{InterchainGasPaymasterIndexer, SyncBlockRangeCursor};
 
-use crate::contract_sync::cursor::RateLimitedSyncBlockRangeCursor;
-use crate::{contract_sync::schema::InterchainGasPaymasterContractSyncDB, ContractSync};
+use crate::{
+    contract_sync::{
+        cursor::RateLimitedSyncBlockRangeCursor, schema::InterchainGasPaymasterContractSyncDB,
+    },
+    ContractSync,
+};
 
 const GAS_PAYMENTS_LABEL: &str = "gas_payments";
 
@@ -45,32 +49,32 @@ where
             let mut cursor = cursor.await?;
 
             let start_block = cursor.current_position();
-            info!(from = start_block, "[GasPayments]: resuming indexer");
+            info!(from = start_block, "Resuming indexer");
             indexed_height.set(start_block as i64);
 
             loop {
                 let (from, to) = match cursor.next_range().await {
                     Ok(range) => range,
                     Err(err) => {
-                        warn!(error = %err, "[GasPayments]: failed to get next block range");
+                        warn!(error = %err, "Failed to get next block range");
                         continue;
                     }
                 };
 
                 let gas_payments = indexer.fetch_gas_payments(from, to).await?;
 
-                info!(
+                debug!(
                     from,
                     to,
                     gas_payments_count = gas_payments.len(),
-                    "[GasPayments]: indexed block range"
+                    "Indexed block range"
                 );
 
                 let mut new_payments_processed: u64 = 0;
-                for gas_payment in gas_payments.iter() {
+                for (payment, meta) in gas_payments.iter() {
                     // Attempt to process the gas payment, incrementing new_payments_processed
                     // if it was processed for the first time.
-                    if db.process_gas_payment(gas_payment)? {
+                    if db.process_gas_payment(*payment, meta)? {
                         new_payments_processed += 1;
                     }
                 }

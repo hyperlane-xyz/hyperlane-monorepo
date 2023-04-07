@@ -1,5 +1,7 @@
-use sha3::{Digest, Keccak256};
+use sha3::{digest::Update, Digest, Keccak256};
+use std::fmt::{Debug, Display, Formatter};
 
+use crate::utils::{fmt_address_for_domain, fmt_domain};
 use crate::{Decode, Encode, HyperlaneProtocolError, H256};
 
 const HYPERLANE_MESSAGE_PREFIX_LEN: usize = 77;
@@ -16,7 +18,7 @@ impl From<&HyperlaneMessage> for RawHyperlaneMessage {
 }
 
 /// A full Hyperlane message between chains
-#[derive(Debug, Default, Clone)]
+#[derive(Default, Clone)]
 pub struct HyperlaneMessage {
     /// 1   Hyperlane version number
     pub version: u8,
@@ -32,6 +34,34 @@ pub struct HyperlaneMessage {
     pub recipient: H256,
     /// 0+  Message contents
     pub body: Vec<u8>,
+}
+
+impl Debug for HyperlaneMessage {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "HyperlaneMessage {{ id: {:?}, version: {}, nonce: {}, origin: {}, sender: {}, destination: {}, recipient: {}, body: 0x{} }}",
+            self.id(),
+            self.version,
+            self.nonce,
+            fmt_domain(self.origin),
+            fmt_address_for_domain(self.origin, self.sender),
+            fmt_domain(self.destination),
+            fmt_address_for_domain(self.destination, self.recipient),
+            hex::encode(&self.body)
+        )
+    }
+}
+
+impl Display for HyperlaneMessage {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "HyperlaneMessage {{ id: {:?}, nonce: {}, .. }}",
+            self.id(),
+            self.nonce
+        )
+    }
 }
 
 impl From<RawHyperlaneMessage> for HyperlaneMessage {
@@ -118,12 +148,6 @@ impl Decode for HyperlaneMessage {
 impl HyperlaneMessage {
     /// Convert the message to a message id
     pub fn id(&self) -> H256 {
-        H256::from_slice(Keccak256::new().chain(&self.to_vec()).finalize().as_slice())
-    }
-}
-
-impl std::fmt::Display for HyperlaneMessage {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "HyperlaneMessage {}->{}", self.origin, self.destination)
+        H256::from_slice(Keccak256::new().chain(self.to_vec()).finalize().as_slice())
     }
 }

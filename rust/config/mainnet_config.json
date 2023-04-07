@@ -1,0 +1,157 @@
+{
+  "chains": {
+    "celo": {
+      "name": "celo",
+      "domain": 42220,
+      "addresses": {
+        "mailbox": "0x35231d4c2D8B8ADcB5617A638A0c4548684c7C70",
+        "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
+        "validatorAnnounce": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524"
+      },
+      "protocol": "ethereum",
+      "finalityBlocks": 0,
+      "connection": {
+        "type": "http"
+      },
+      "index": {
+        "from": 16884144
+      }
+    },
+    "ethereum": {
+      "name": "ethereum",
+      "domain": 1,
+      "addresses": {
+        "mailbox": "0x35231d4c2D8B8ADcB5617A638A0c4548684c7C70",
+        "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
+        "validatorAnnounce": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524"
+      },
+      "protocol": "ethereum",
+      "finalityBlocks": 20,
+      "connection": {
+        "type": "http"
+      },
+      "index": {
+        "from": 16271503
+      }
+    },
+    "avalanche": {
+      "name": "avalanche",
+      "domain": 43114,
+      "addresses": {
+        "mailbox": "0x35231d4c2D8B8ADcB5617A638A0c4548684c7C70",
+        "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
+        "validatorAnnounce": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524"
+      },
+      "protocol": "ethereum",
+      "finalityBlocks": 3,
+      "connection": {
+        "type": "http"
+      },
+      "index": {
+        "from": 24145479
+      }
+    },
+    "polygon": {
+      "name": "polygon",
+      "domain": 137,
+      "addresses": {
+        "mailbox": "0x35231d4c2D8B8ADcB5617A638A0c4548684c7C70",
+        "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
+        "validatorAnnounce": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524"
+      },
+      "protocol": "ethereum",
+      "finalityBlocks": 256,
+      "connection": {
+        "type": "http"
+      },
+      "index": {
+        "from": 37313389
+      }
+    },
+    "bsc": {
+      "name": "bsc",
+      "domain": 56,
+      "addresses": {
+        "mailbox": "0x35231d4c2D8B8ADcB5617A638A0c4548684c7C70",
+        "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
+        "validatorAnnounce": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524"
+      },
+      "protocol": "ethereum",
+      "finalityBlocks": 15,
+      "connection": {
+        "type": "http"
+      },
+      "index": {
+        "from": 25063295
+      }
+    },
+    "arbitrum": {
+      "name": "arbitrum",
+      "domain": 42161,
+      "addresses": {
+        "mailbox": "0x35231d4c2D8B8ADcB5617A638A0c4548684c7C70",
+        "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
+        "validatorAnnounce": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524"
+      },
+      "protocol": "ethereum",
+      "finalityBlocks": 0,
+      "connection": {
+        "type": "http"
+      },
+      "index": {
+        "from": 49073182
+      }
+    },
+    "optimism": {
+      "name": "optimism",
+      "domain": 10,
+      "addresses": {
+        "mailbox": "0x35231d4c2D8B8ADcB5617A638A0c4548684c7C70",
+        "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
+        "validatorAnnounce": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524"
+      },
+      "protocol": "ethereum",
+      "finalityBlocks": 0,
+      "connection": {
+        "type": "http"
+      },
+      "index": {
+        "from": 55698988
+      }
+    },
+    "moonbeam": {
+      "name": "moonbeam",
+      "domain": 1284,
+      "addresses": {
+        "mailbox": "0x35231d4c2D8B8ADcB5617A638A0c4548684c7C70",
+        "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
+        "validatorAnnounce": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524"
+      },
+      "protocol": "ethereum",
+      "finalityBlocks": 1,
+      "connection": {
+        "type": "http"
+      },
+      "index": {
+        "from": 2595747
+      }
+    },
+    "gnosis": {
+      "name": "gnosis",
+      "domain": 100,
+      "addresses": {
+        "mailbox": "0x35231d4c2D8B8ADcB5617A638A0c4548684c7C70",
+        "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
+        "validatorAnnounce": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524"
+      },
+      "protocol": "ethereum",
+      "finalityBlocks": 14,
+      "connection": {
+        "type": "http"
+      },
+      "index": {
+        "from": 25900000
+      }
+    }
+  }
+}

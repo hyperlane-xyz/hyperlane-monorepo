@@ -1,35 +1,28 @@
 import { ethers } from 'ethers';
 
-import { TestMailbox } from '@hyperlane-xyz/core';
+import { TestMailbox, TestMailbox__factory } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../consts/chainMetadata';
-import { DomainIdToChainName } from '../domains';
-import { ProxiedContract } from '../proxy';
-import { ChainName, TestChainNames } from '../types';
+import { HyperlaneContracts } from '../contracts';
+import { ChainName } from '../types';
 
 import { HyperlaneCore } from './HyperlaneCore';
-import { CoreContracts } from './contracts';
+import { coreFactories } from './contracts';
 
-type MockProxyAddresses = {
-  kind: 'MOCK';
-  proxy: string;
-  implementation: string;
+export const testCoreFactories = {
+  ...coreFactories,
+  mailbox: new TestMailbox__factory(),
 };
 
-export type TestCoreContracts = CoreContracts & {
-  mailbox: ProxiedContract<TestMailbox, MockProxyAddresses>;
-};
-
-export class TestCoreApp<
-  TestChain extends TestChainNames = TestChainNames,
-> extends HyperlaneCore<TestChain> {
-  getContracts<Local extends TestChain>(chain: Local): TestCoreContracts {
-    return super.getContracts(chain) as TestCoreContracts;
+export class TestCoreApp extends HyperlaneCore {
+  getContracts(chain: ChainName): HyperlaneContracts<typeof testCoreFactories> {
+    return super.getContracts(chain) as HyperlaneContracts<
+      typeof testCoreFactories
+    >;
   }
 
   async processMessages(): Promise<
-    Map<TestChain, Map<TestChain, ethers.providers.TransactionResponse[]>>
+    Map<ChainName, Map<ChainName, ethers.providers.TransactionResponse[]>>
   > {
     const responses = new Map();
     for (const origin of this.chains()) {
@@ -43,22 +36,22 @@ export class TestCoreApp<
     return responses;
   }
 
-  async processOutboundMessages<Local extends TestChain>(
-    origin: Local,
+  async processOutboundMessages(
+    origin: ChainName,
   ): Promise<Map<ChainName, ethers.providers.TransactionResponse[]>> {
     const responses = new Map<ChainName, any>();
     const contracts = this.getContracts(origin);
-    const outbox: TestMailbox = contracts.mailbox.contract;
+    const outbox = contracts.mailbox as TestMailbox;
 
     const dispatchFilter = outbox.filters.Dispatch();
     const dispatches = await outbox.queryFilter(dispatchFilter);
     for (const dispatch of dispatches) {
       const destination = dispatch.args.destination;
-      if (destination === chainMetadata[origin].id) {
+      if (destination === this.multiProvider.getDomainId(origin)) {
         throw new Error('Dispatched message to local domain');
       }
-      const destinationChain = DomainIdToChainName[destination] as TestChain;
-      const inbox = this.getContracts(destinationChain).mailbox.contract;
+      const destinationChain = this.multiProvider.getChainName(destination);
+      const inbox = this.getContracts(destinationChain).mailbox;
       const id = utils.messageId(dispatch.args.message);
       const delivered = await inbox.delivered(id);
       if (!delivered) {

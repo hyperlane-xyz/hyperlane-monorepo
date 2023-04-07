@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import {ILiquidityLayerMessageRecipient} from "../../interfaces/ILiquidityLayerMessageRecipient.sol";
+import {ILiquidityLayerMessageRecipient} from "../interfaces/ILiquidityLayerMessageRecipient.sol";
 
 contract TestTokenRecipient is ILiquidityLayerMessageRecipient {
     bytes32 public lastSender;

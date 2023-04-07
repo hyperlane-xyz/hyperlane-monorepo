@@ -1,8 +1,8 @@
-import { Contract } from 'ethers';
+import type { Contract } from 'ethers';
 
-import { Ownable } from '@hyperlane-xyz/core';
+import type { Ownable } from '@hyperlane-xyz/core';
 
-import type { ChainMap, ChainName, IChainConnection } from '../types';
+import type { ChainName } from '../types';
 
 export interface CheckerViolation {
   chain: ChainName;
@@ -12,21 +12,29 @@ export interface CheckerViolation {
   contract?: Contract;
 }
 
-export type EnvironmentConfig<Chain extends ChainName> = ChainMap<
-  Chain,
-  IChainConnection
->;
-
 export enum ViolationType {
   Owner = 'Owner',
   NotDeployed = 'NotDeployed',
+  BytecodeMismatch = 'BytecodeMismatch',
+  ProxyAdmin = 'ProxyAdmin',
 }
 
 export interface OwnerViolation extends CheckerViolation {
   type: ViolationType.Owner;
   contract: Ownable;
+  name: string;
+}
+
+export interface ProxyAdminViolation extends CheckerViolation {
+  type: ViolationType.ProxyAdmin;
+  name: string;
 }
 
 export interface NotDeployedViolation extends CheckerViolation {
   type: ViolationType.NotDeployed;
+}
+
+export interface BytecodeMismatchViolation extends CheckerViolation {
+  type: ViolationType.BytecodeMismatch;
+  name: string;
 }

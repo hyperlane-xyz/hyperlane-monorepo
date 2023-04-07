@@ -2,8 +2,10 @@
 pragma solidity ^0.8.13;
 
 import {InterchainQueryRouter} from "../middleware/InterchainQueryRouter.sol";
-import {Call} from "../OwnableMulticall.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
+import {CallLib} from "../libs/Call.sol";
+
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract TestQuery {
     InterchainQueryRouter public router;
@@ -18,21 +20,21 @@ contract TestQuery {
      * @dev Fetches owner of InterchainQueryRouter on provided domain and passes along with provided secret to `this.receiveRouterOwner`
      */
     function queryRouterOwner(uint32 domain, uint256 secret) external {
-        Call memory call = Call({
-            to: TypeCasts.bytes32ToAddress(router.routers(domain)),
-            data: abi.encodeWithSignature("owner()")
-        });
-        bytes memory callback = bytes.concat(
-            this.receiveRouterOwer.selector,
-            bytes32(secret)
+        address target = TypeCasts.bytes32ToAddress(router.routers(domain));
+        CallLib.StaticCallWithCallback[]
+            memory calls = new CallLib.StaticCallWithCallback[](1);
+        calls[0] = CallLib.build(
+            target,
+            abi.encodeWithSelector(Ownable.owner.selector),
+            abi.encodeWithSelector(this.receiveRouterOwner.selector, secret)
         );
-        router.query(domain, call, callback);
+        router.query(domain, calls);
     }
 
     /**
      * @dev `msg.sender` must be restricted to `this.router` to prevent any local account from spoofing query data.
      */
-    function receiveRouterOwer(uint256 secret, address owner) external {
+    function receiveRouterOwner(uint256 secret, address owner) external {
         require(msg.sender == address(router), "TestQuery: not from router");
         emit Owner(secret, owner);
     }

@@ -1,18 +1,26 @@
 pub use cursor::*;
+pub use deployed::*;
 pub use encode::*;
 pub use indexer::*;
 pub use interchain_gas::*;
+pub use interchain_security_module::*;
 pub use mailbox::*;
 pub use multisig_ism::*;
 pub use provider::*;
+pub use signing::*;
+pub use validator_announce::*;
 
 mod cursor;
+mod deployed;
 mod encode;
 mod indexer;
 mod interchain_gas;
+mod interchain_security_module;
 mod mailbox;
 mod multisig_ism;
 mod provider;
+mod signing;
+mod validator_announce;
 
 /// The result of a transaction
 #[derive(Debug, Clone, Copy)]
@@ -21,6 +29,10 @@ pub struct TxOutcome {
     pub txid: crate::H256,
     /// True if executed, false otherwise (reverted, etc.)
     pub executed: bool,
+    /// Amount of gas used on this transaction.
+    pub gas_used: crate::U256,
+    /// Price paid for the gas
+    pub gas_price: crate::U256,
     // TODO: more? What can be abstracted across all chains?
 }
 
@@ -29,40 +41,8 @@ impl From<ethers::prelude::TransactionReceipt> for TxOutcome {
         Self {
             txid: t.transaction_hash,
             executed: t.status.unwrap().low_u32() == 1,
+            gas_used: t.gas_used.unwrap_or(crate::U256::zero()),
+            gas_price: t.effective_gas_price.unwrap_or(crate::U256::zero()),
         }
-    }
-}
-
-/// Interface for features of something deployed on/in a domain or is otherwise
-/// connected to it.
-#[auto_impl::auto_impl(Box, Arc)]
-pub trait HyperlaneChain {
-    /// Return an identifier (not necessarily unique) for the chain this
-    /// is connected to
-    fn domain(&self) -> &crate::HyperlaneDomain;
-}
-
-/// Interface for a deployed contract.
-/// This trait is intended to expose attributes of any contract, and
-/// should not consider the purpose or implementation details of the contract.
-#[auto_impl::auto_impl(Box, Arc)]
-pub trait HyperlaneContract: HyperlaneChain {
-    /// Return the address of this contract.
-    fn address(&self) -> crate::H256;
-}
-
-/// Static contract ABI information.
-#[auto_impl::auto_impl(Box, Arc)]
-pub trait HyperlaneAbi {
-    /// Get a mapping from function selectors to human readable function names.
-    fn fn_map() -> std::collections::HashMap<ethers::prelude::Selector, &'static str>;
-
-    /// Get a mapping from function selectors to owned human readable function
-    /// names.
-    fn fn_map_owned() -> std::collections::HashMap<ethers::prelude::Selector, String> {
-        Self::fn_map()
-            .into_iter()
-            .map(|(sig, name)| (sig, name.to_owned()))
-            .collect()
     }
 }

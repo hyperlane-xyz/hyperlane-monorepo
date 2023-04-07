@@ -7,16 +7,14 @@ import { ethers } from 'hardhat';
 import { TestMailbox, TestRecipient__factory } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../consts/chainMetadata';
-import { getTestMultiProvider } from '../deploy/utils';
+import { Chains } from '../consts/chains';
+import { MultiProvider } from '../providers/MultiProvider';
 
 import { TestCoreApp } from './TestCoreApp';
 import { TestCoreDeployer } from './TestCoreDeployer';
 
-const localChain = 'test1';
-const localDomain = chainMetadata[localChain].id;
-const remoteChain = 'test2';
-const remoteDomain = chainMetadata[remoteChain].id;
+const localChain = Chains.test1;
+const remoteChain = Chains.test2;
 const message = '0xdeadbeef';
 
 describe('TestCoreDeployer', async () => {
@@ -28,26 +26,27 @@ describe('TestCoreDeployer', async () => {
   beforeEach(async () => {
     const [signer] = await ethers.getSigners();
 
-    const multiProvider = getTestMultiProvider(signer);
+    const multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const deployer = new TestCoreDeployer(multiProvider);
     testCoreApp = await deployer.deployApp();
 
     const recipient = await new TestRecipient__factory(signer).deploy();
-    localMailbox = testCoreApp.getContracts(localChain).mailbox.contract;
+    localMailbox = testCoreApp.getContracts(localChain).mailbox;
 
     const dispatchResponse = localMailbox.dispatch(
-      remoteDomain,
+      multiProvider.getDomainId(remoteChain),
       utils.addressToBytes32(recipient.address),
       message,
     );
     await expect(dispatchResponse).to.emit(localMailbox, 'Dispatch');
-    dispatchReceipt = await testCoreApp.multiProvider
-      .getChainConnection(localChain)
-      .handleTx(dispatchResponse);
-    remoteMailbox = testCoreApp.getContracts(remoteChain).mailbox.contract;
+    dispatchReceipt = await testCoreApp.multiProvider.handleTx(
+      localChain,
+      dispatchResponse,
+    );
+    remoteMailbox = testCoreApp.getContracts(remoteChain).mailbox;
     await expect(
       remoteMailbox.dispatch(
-        localDomain,
+        multiProvider.getDomainId(localChain),
         utils.addressToBytes32(recipient.address),
         message,
       ),

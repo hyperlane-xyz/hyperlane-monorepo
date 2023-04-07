@@ -1,0 +1,29 @@
+{
+  "bsc": {
+    "Create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
+  },
+  "avalanche": {
+    "Create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
+  },
+  "polygon": {
+    "Create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
+  },
+  "celo": {
+    "Create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
+  },
+  "arbitrum": {
+    "Create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
+  },
+  "optimism": {
+    "Create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
+  },
+  "ethereum": {
+    "Create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
+  },
+  "moonbeam": {
+    "Create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
+  },
+  "gnosis": {
+    "Create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
+  }
+}

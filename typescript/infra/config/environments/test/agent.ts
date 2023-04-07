@@ -1,16 +1,14 @@
+import { AgentConnectionType } from '@hyperlane-xyz/sdk';
+
 import { ALL_KEY_ROLES } from '../../../src/agents/roles';
 import { AgentConfig } from '../../../src/config';
-import {
-  ConnectionType,
-  GasPaymentEnforcementPolicyType,
-} from '../../../src/config/agent';
+import { GasPaymentEnforcementPolicyType } from '../../../src/config/agent';
 import { Contexts } from '../../contexts';
 
-import { TestChains, chainNames } from './chains';
+import { chainNames } from './chains';
 import { validators } from './validators';
 
-export const hyperlane: AgentConfig<TestChains> = {
-  environment: 'test',
+export const hyperlane: AgentConfig = {
   namespace: 'test',
   runEnv: 'test',
   context: Contexts.Hyperlane,
@@ -20,20 +18,15 @@ export const hyperlane: AgentConfig<TestChains> = {
   },
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
-  validatorSets: validators,
-  connectionType: ConnectionType.Http,
-  validator: {
-    default: {
-      interval: 5,
-      reorgPeriod: 0,
-    },
-  },
+  connectionType: AgentConnectionType.Http,
+  validators,
   relayer: {
     default: {
-      signedCheckpointPollingInterval: 5,
-      gasPaymentEnforcementPolicy: {
-        type: GasPaymentEnforcementPolicyType.None,
-      },
+      gasPaymentEnforcement: [
+        {
+          type: GasPaymentEnforcementPolicyType.None,
+        },
+      ],
     },
   },
   rolesWithKeys: ALL_KEY_ROLES,

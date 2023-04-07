@@ -1,14 +1,13 @@
-import { IMessageRecipient__factory } from '@hyperlane-xyz/helloworld/dist/src/types';
+import { TestRecipient__factory } from '@hyperlane-xyz/core';
 import {
   ChainName,
   DispatchedMessage,
-  DomainIdToChainName,
   HyperlaneCore,
   MultiProvider,
-  chainConnectionConfigs,
 } from '@hyperlane-xyz/sdk';
 import { utils } from '@hyperlane-xyz/utils';
 
+import { deployEnvToSdkEnv } from '../src/config/environment';
 import { assertChain } from '../src/utils/utils';
 
 import { getArgs, getEnvironment } from './utils';
@@ -40,11 +39,14 @@ async function main() {
 
   // Intentionally use public RPC providers to avoid requiring access to our GCP secrets
   // to run this script
-  const multiProvider = new MultiProvider(chainConnectionConfigs);
+  const multiProvider = new MultiProvider();
 
-  const core = HyperlaneCore.fromEnvironment(environment, multiProvider);
+  const core = HyperlaneCore.fromEnvironment(
+    deployEnvToSdkEnv[environment],
+    multiProvider,
+  );
 
-  const originProvider = multiProvider.getChainProvider(argv.originChain);
+  const originProvider = multiProvider.getProvider(argv.originChain);
   const dispatchReceipt = await originProvider.getTransactionReceipt(
     argv.txHash,
   );
@@ -62,8 +64,8 @@ async function main() {
 }
 
 async function checkMessage(
-  core: HyperlaneCore<any>,
-  multiProvider: MultiProvider<any>,
+  core: HyperlaneCore,
+  multiProvider: MultiProvider,
   message: DispatchedMessage,
 ) {
   const messageId = utils.messageId(message.message);
@@ -71,7 +73,9 @@ async function checkMessage(
   console.log(`Raw bytes: ${message.message}`);
   console.log('Parsed message:', message.parsed);
 
-  const destinationChain = DomainIdToChainName[message.parsed.destination];
+  const destinationChain = multiProvider.getChainName(
+    message.parsed.destination,
+  );
 
   if (destinationChain === undefined) {
     console.error(
@@ -89,8 +93,7 @@ async function checkMessage(
     return;
   }
 
-  const destinationMailbox =
-    core.getContracts(destinationChain).mailbox.contract;
+  const destinationMailbox = core.getContracts(destinationChain).mailbox;
   const delivered = await destinationMailbox.delivered(messageId);
   if (delivered) {
     console.log('Message has already been processed');
@@ -116,8 +119,8 @@ async function checkMessage(
     return;
   }
 
-  const destinationProvider = multiProvider.getChainProvider(destinationChain);
-  const recipient = IMessageRecipient__factory.connect(
+  const destinationProvider = multiProvider.getProvider(destinationChain);
+  const recipient = TestRecipient__factory.connect(
     recipientAddress,
     destinationProvider,
   );
@@ -155,11 +158,11 @@ async function checkMessage(
 }
 
 async function isContract(
-  multiProvider: MultiProvider<any>,
+  multiProvider: MultiProvider,
   chain: ChainName,
   address: string,
 ) {
-  const provider = multiProvider.getChainProvider(chain);
+  const provider = multiProvider.getProvider(chain);
   const code = await provider.getCode(address);
   // "Empty" code
   return code !== '0x';

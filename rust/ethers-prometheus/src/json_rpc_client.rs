@@ -6,11 +6,11 @@ use std::time::Instant;
 
 use async_trait::async_trait;
 use derive_builder::Builder;
+use derive_new::new;
 use ethers::prelude::JsonRpcClient;
 use maplit::hashmap;
 use prometheus::{CounterVec, IntCounterVec};
-use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::{de::DeserializeOwned, Serialize};
 
 pub use crate::ChainInfo;
 
@@ -33,18 +33,10 @@ pub struct JsonRpcClientMetrics {
     /// - `chain`: chain name (or chain id if the name is unknown) of the chain
     ///   the request was made on.
     /// - `method`: request method string.
+    /// - `status`: `success` or `failure` depending on the response. A `success`
+    ///   might still be an "error" but not one with the transport layer.
     #[builder(setter(into, strip_option), default)]
     request_count: Option<IntCounterVec>,
-
-    /// Total number of requests made which resulted in an error from the inner
-    /// client.
-    /// - `provider_node`: node this is connecting to, e.g. `alchemy.com`,
-    ///   `quicknode.pro`, or `localhost:8545`.
-    /// - `chain`: chain name (or chain id if the name is unknown) of the chain
-    ///   the request was made on.
-    /// - `method`: request method string.
-    #[builder(setter(into, strip_option), default)]
-    request_failure_count: Option<IntCounterVec>,
 
     /// Total number of seconds spent making requests.
     /// - `provider_node`: node this is connecting to, e.g. `alchemy.com`,
@@ -52,23 +44,20 @@ pub struct JsonRpcClientMetrics {
     /// - `chain`: chain name (or chain id if the name is unknown) of the chain
     ///   the request was made on.
     /// - `method`: request method string.
+    /// - `status`: `success` or `failure` depending on the response. A `success`
+    ///   might still be an "error" but not one with the transport layer.
     #[builder(setter(into, strip_option), default)]
     request_duration_seconds: Option<CounterVec>,
 }
 
 /// Expected label names for the metric.
-pub const REQUEST_COUNT_LABELS: &[&str] = &["provider_node", "chain", "method"];
+pub const REQUEST_COUNT_LABELS: &[&str] = &["provider_node", "chain", "method", "status"];
 /// Help string for the metric.
 pub const REQUEST_COUNT_HELP: &str = "Total number of requests made to this client";
 
 /// Expected label names for the metric.
-pub const REQUEST_FAILURE_COUNT_LABELS: &[&str] = &["provider_node", "chain", "method"];
-/// Help string for the metric.
-pub const REQUEST_FAILURE_COUNT_HELP: &str =
-    "Total number of requests made which resulted in an error from the inner client";
-
-/// Expected label names for the metric.
-pub const REQUEST_DURATION_SECONDS_LABELS: &[&str] = &["provider_node", "chain", "method"];
+pub const REQUEST_DURATION_SECONDS_LABELS: &[&str] =
+    &["provider_node", "chain", "method", "status"];
 /// Help string for the metric.
 pub const REQUEST_DURATION_SECONDS_HELP: &str = "Total number of seconds spent making requests";
 
@@ -106,25 +95,11 @@ impl PrometheusJsonRpcClientConfig {
 /// metrics. To make this as flexible as possible, the metric vecs need to be
 /// created and named externally, they should follow the naming convention here
 /// and must include the described labels.
+#[derive(new)]
 pub struct PrometheusJsonRpcClient<C> {
     inner: C,
     metrics: JsonRpcClientMetrics,
     config: PrometheusJsonRpcClientConfig,
-}
-
-impl<C> PrometheusJsonRpcClient<C> {
-    /// Wrap a JsonRpcClient with metrics.
-    pub fn new(
-        client: C,
-        metrics: JsonRpcClientMetrics,
-        config: PrometheusJsonRpcClientConfig,
-    ) -> Self {
-        Self {
-            inner: client,
-            metrics,
-            config,
-        }
-    }
 }
 
 impl<C> Debug for PrometheusJsonRpcClient<C>
@@ -133,6 +108,24 @@ where
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "PrometheusJsonRpcClient({:?})", self.inner)
+    }
+}
+
+impl<C> PrometheusJsonRpcClient<C> {
+    /// The "host" part of the URL this node is connecting to. E.g.
+    /// `avalanche.api.onfinality.io`.
+    pub fn node_host(&self) -> &str {
+        self.config.node_host()
+    }
+
+    /// Chain name this RPC client is connected to.
+    pub fn chain_name(&self) -> &str {
+        self.config.chain_name()
+    }
+
+    /// The inner RpcClient implementation
+    pub fn inner(&self) -> &C {
+        &self.inner
     }
 }
 
@@ -149,20 +142,16 @@ where
         T: Debug + Serialize + Send + Sync,
         R: DeserializeOwned,
     {
+        let start = Instant::now();
+        let res = self.inner.request(method, params).await;
         let labels = hashmap! {
             "provider_node" => self.config.node_host(),
             "chain" => self.config.chain_name(),
-            "method" => method
+            "method" => method,
+            "status" => if res.is_ok() { "success" } else { "failure" }
         };
         if let Some(counter) = &self.metrics.request_count {
             counter.with(&labels).inc()
-        }
-        let start = Instant::now();
-        let res = self.inner.request(method, params).await;
-        if let Some(counter) = &self.metrics.request_failure_count {
-            if res.is_err() {
-                counter.with(&labels).inc()
-            }
         }
         if let Some(counter) = &self.metrics.request_duration_seconds {
             counter
