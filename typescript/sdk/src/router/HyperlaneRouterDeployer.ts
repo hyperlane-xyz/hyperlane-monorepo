@@ -92,13 +92,12 @@ export abstract class HyperlaneRouterDeployer<
     configMap: ChainMap<Config>,
   ): Promise<void> {
     this.logger(`Transferring ownership of ownables...`);
-    await promiseObjAll(
-      objMap(contractsMap, async (chain, contracts) => {
-        const owner = configMap[chain].owner;
-        const ownables = await ownableContracts(contracts);
-        await this.transferOwnershipOfContracts(chain, owner, ownables);
-      }),
-    );
+    for (const chain of Object.keys(contractsMap)) {
+      const contracts = contractsMap[chain];
+      const owner = configMap[chain].owner;
+      const ownables = await ownableContracts(contracts);
+      await this.transferOwnershipOfContracts(chain, owner, ownables);
+    }
   }
 
   async deploy(

@@ -142,7 +142,7 @@ export abstract class HyperlaneDeployer<
     config: ConnectionClientConfig,
   ): Promise<void> {
     this.logger(`Initializing connection client on ${local}...`);
-    return this.runIfOwner(local, connectionClient, async () => {
+    await this.runIfOwner(local, connectionClient, async () => {
       // set mailbox if not already set (and configured)
       if (config.mailbox !== (await connectionClient.mailbox())) {
         this.logger(`Set mailbox on (${local})`);
@@ -181,6 +181,7 @@ export abstract class HyperlaneDeployer<
         );
       }
     });
+    this.logger(`Connection client on ${local} initialized...`);
   }
 
   protected async deployContractFromFactory<F extends ethers.ContractFactory>(
