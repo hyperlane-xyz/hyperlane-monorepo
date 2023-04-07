@@ -65,30 +65,29 @@ impl BaseAgent for Relayer {
         let core = settings.build_hyperlane_core(metrics.clone());
         let db = DB::from_path(&settings.db)?;
 
-        for destination_chain in &settings.destination_chain_names {
-            let Some(cfg) = settings.chains.get(destination_chain) else { continue };
+        for dest_chain in &settings.destination_chains {
+            let Ok(cfg) = settings.chain_setup(dest_chain) else { continue };
             ensure!(
                 cfg.signer.is_some(),
-                "Destination chain {destination_chain} does not have a configured signer"
+                "Destination chain {dest_chain} does not have a configured signer"
             )
         }
 
         // Use defined remote chains + the origin chain
-        let chain_names: Vec<_> = settings
-            .destination_chain_names
+        let domains = settings
+            .destination_chains
             .iter()
-            .chain([&settings.origin_chain_name])
-            .map(String::as_str)
-            .collect();
+            .chain([&settings.origin_chain])
+            .collect::<Vec<_>>();
 
         let mailboxes = settings
-            .build_all_mailboxes(chain_names.as_slice(), &metrics, db.clone())
+            .build_all_mailboxes(&domains, &metrics, db.clone())
             .await?;
         let interchain_gas_paymasters = settings
-            .build_all_interchain_gas_paymasters(chain_names.as_slice(), &metrics, db)
+            .build_all_interchain_gas_paymasters(&domains, &metrics, db)
             .await?;
         let validator_announce = settings
-            .build_validator_announce(&settings.origin_chain_name, &core.metrics.clone())
+            .build_validator_announce(&settings.origin_chain, &core.metrics.clone())
             .await?;
 
         let whitelist = Arc::new(settings.whitelist);
@@ -104,21 +103,14 @@ impl BaseAgent for Relayer {
             "Whitelist configuration"
         );
 
-        let origin_chain = core
-            .settings
-            .chain_setup_by_name(&settings.origin_chain_name)
-            .expect("Missing origin chain config")
-            .domain
-            .clone();
-
         info!(gas_enforcement_policies=?settings.gas_payment_enforcement, "Gas enforcement configuration");
         let gas_payment_enforcer = Arc::new(GasPaymentEnforcer::new(
             settings.gas_payment_enforcement,
-            mailboxes.get(&origin_chain).unwrap().db().clone(),
+            mailboxes.get(&settings.origin_chain).unwrap().db().clone(),
         ));
 
         Ok(Self {
-            origin_chain,
+            origin_chain: settings.origin_chain,
             core,
             mailboxes,
             validator_announce,
