@@ -67,8 +67,9 @@ impl FromRawConf<'_, RawGasPaymentEnforcementPolicy> for GasPaymentEnforcementPo
                     .into_config_result(|| cwp + "gasfraction")?
                     .replace(' ', "")
                     .split_once('/')
-                    .ok_or_else(|| eyre!("Invalid `gasfraction` for OnChainFeeQuoting gas payment enforcement policy; expected `numerator / denominator`")
-                        .into_config_result(|| cwp + "gasfraction"))?;
+                    .map(|(a, b)| (a.to_owned(), b.to_owned()))
+                    .ok_or_else(|| eyre!("Invalid `gasfraction` for OnChainFeeQuoting gas payment enforcement policy; expected `numerator / denominator`"))
+                    .into_config_result(|| cwp + "gasfraction")?;
                 let numerator = numerator
                     .strip_suffix(" ")
                     .unwrap_or("")
@@ -85,7 +86,8 @@ impl FromRawConf<'_, RawGasPaymentEnforcementPolicy> for GasPaymentEnforcementPo
                     gas_fraction_denominator: denominator,
                 })
             }
-            Unknown => Err(eyre!("Unknown gas payment enforcement policy").into_config_err(cwp)),
+            Unknown => Err(eyre!("Unknown gas payment enforcement policy"))
+                .into_config_result(|| cwp.clone()),
         }
     }
 }
@@ -104,9 +106,35 @@ pub struct GasPaymentEnforcementConf {
 #[serde(tag = "type", rename_all = "camelCase")]
 struct RawGasPaymentEnforcementConf {
     #[serde(flatten)]
-    policy: GasPaymentEnforcementPolicy,
+    policy: Option<RawGasPaymentEnforcementPolicy>,
     #[serde(default)]
-    matching_list: Option<MatchingList>,
+    matching_list: Option<String>,
+}
+
+impl FromRawConf<'_, RawGasPaymentEnforcementConf> for GasPaymentEnforcementConf {
+    fn from_config(raw: RawGasPaymentEnforcementConf, cwp: &ConfigPath) -> ConfigResult<Self> {
+        let mut err = ConfigParsingError::default();
+        let policy = raw.policy
+            .ok_or_else(|| eyre!("Missing policy for gas payment enforcement config; required if a matching list is provided"))
+            .take_err(&mut err, || cwp.clone()).and_then(|r| {
+                r.parse_config(cwp).take_config_err(&mut err)
+            });
+
+        let matching_list = raw
+            .matching_list
+            .and_then(|v| {
+                serde_json::from_str::<MatchingList>(&v).take_err(&mut err, || cwp + "matchingList")
+            })
+            .unwrap_or_default();
+        if err.is_empty() {
+            Ok(Self {
+                policy: policy.unwrap(),
+                matching_list,
+            })
+        } else {
+            Err(err)
+        }
+    }
 }
 
 decl_settings!(Relayer,
@@ -166,7 +194,7 @@ impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
             .destinationchainnames
             .ok_or_else(|| eyre!("Missing `destinationchainnames`"))
             .take_err(&mut err, || cwp + "destinationchainnames")
-            .map(|r| r.split(',').map(|s| s.to_string()).collect());
+            .map(|r| r.split(',').map(str::to_owned).collect::<Vec<_>>());
 
         let gas_payment_enforcement = raw
             .gaspaymentenforcement
@@ -178,7 +206,10 @@ impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
                 let cwp = cwp + "gaspaymentenforcement";
                 rv.into_iter()
                     .enumerate()
-                    .filter_map(|(i, r)| r.parse_config(&cwp.join(i)).take_config_err(&mut err))
+                    .filter_map(|(i, r)| {
+                        r.parse_config(&cwp.join(i.to_string()))
+                            .take_config_err(&mut err)
+                    })
                     .collect()
             })
             .unwrap_or_else(|| vec![Default::default()]);

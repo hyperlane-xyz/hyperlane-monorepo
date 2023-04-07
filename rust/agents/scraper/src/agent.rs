@@ -57,10 +57,11 @@ impl FromRawConf<'_, RawScraperSettings> for ScraperSettings {
             .chainstoscrape
             .ok_or_else(|| eyre!("Missing `chainstoscrape` list"))
             .take_err(&mut err, || cwp + "chainstoscrape")
-            .map(|s| s.split(','));
+            .map(|s| s.split(',').map(str::to_owned).collect::<Vec<_>>());
 
         let chains_to_scrape = if let (Some(base), Some(chains)) = (&base, &chains_to_scrape) {
             chains
+                .iter()
                 .filter_map(|chain| {
                     base.lookup_domain(chain)
                         .take_err(&mut err, || cwp + "chainstoscrape")
@@ -100,17 +101,14 @@ impl BaseAgent for Scraper {
         let contract_sync_metrics = ContractSyncMetrics::new(metrics.clone());
         let mut scrapers: HashMap<u32, SqlChainScraper> = HashMap::new();
 
-        for chain_name in settings.chains_to_scrape.iter() {
-            let chain_setup = settings
-                .chains
-                .get(chain_name)
-                .expect("Missing chain config");
-            let ctx = || format!("Loading chain {chain_name}");
-            let local = Self::load_chain(&settings, chain_name, &metrics)
+        for domain in settings.chains_to_scrape.iter() {
+            let chain_setup = settings.chain_setup(domain).expect("Missing chain config");
+            let ctx = || format!("Loading chain {domain}");
+            let local = Self::load_chain(&settings, domain, &metrics)
                 .await
                 .with_context(ctx)?;
             {
-                trace!(chain_name = chain_name, "Created mailbox and indexer");
+                trace!(%domain, "Created mailbox and indexer");
                 let scraper = SqlChainScraper::new(
                     db.clone(),
                     local,
@@ -118,10 +116,7 @@ impl BaseAgent for Scraper {
                     contract_sync_metrics.clone(),
                 )
                 .await?;
-                let domain = (&chain_setup.domain)
-                    .try_into()
-                    .context("Invalid domain id")?;
-                scrapers.insert(domain, scraper);
+                scrapers.insert(domain.id(), scraper);
             }
         }
 
@@ -148,15 +143,15 @@ impl BaseAgent for Scraper {
 impl Scraper {
     async fn load_chain(
         config: &Settings,
-        chain_name: &str,
+        domain: &HyperlaneDomain,
         metrics: &Arc<CoreMetrics>,
     ) -> eyre::Result<Contracts> {
         macro_rules! b {
             ($builder:ident) => {
                 config
-                    .$builder(chain_name, metrics)
+                    .$builder(domain, metrics)
                     .await
-                    .with_context(|| format!("Loading chain {chain_name}"))?
+                    .with_context(|| format!("Loading chain {domain}"))?
                     .into()
             };
         }
