@@ -44,10 +44,7 @@ export function serializeContractsMap<F extends HyperlaneFactories>(
 export function serializeContracts<F extends HyperlaneFactories>(
   contracts: HyperlaneContracts<F>,
 ): HyperlaneAddresses<F> {
-  return objMap(
-    contracts,
-    (_, contract) => contract.address,
-  ) as HyperlaneAddresses<F>;
+  return objMap(contracts, (_, contract) => contract.address);
 }
 
 function getFactory<F extends HyperlaneFactories>(

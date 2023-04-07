@@ -6,17 +6,6 @@ type MappedObject<M extends Record<any, any>, O> = {
 
 export type ValueOf<T> = T[keyof T];
 
-export function partialObjMapEntries<
-  M extends Record<K, I>,
-  K extends keyof M,
-  O,
-  I = ValueOf<M>,
->(obj: Partial<M>, func: (k: K, v: I) => O): [K, O][] {
-  return Object.entries<I | undefined>(obj)
-    .filter(([_, v]) => !!v)
-    .map(([k, v]) => [k as K, func(k as K, v as I)]);
-}
-
 export function objMapEntries<
   M extends Record<K, I>,
   K extends keyof M,
@@ -34,17 +23,6 @@ export function objMap<
   I = ValueOf<M>,
 >(obj: M, func: (k: K, v: I) => O): MappedObject<M, O> {
   return Object.fromEntries<O>(objMapEntries(obj, func)) as MappedObject<M, O>;
-}
-
-export function partialObjMap<
-  M extends Record<K, I>,
-  K extends keyof M,
-  O,
-  I = ValueOf<M>,
->(obj: Partial<M>, func: (k: K, v: I) => O): Partial<MappedObject<M, O>> {
-  return Object.fromEntries<O>(partialObjMapEntries(obj, func)) as Partial<
-    MappedObject<M, O>
-  >;
 }
 
 export function objFilter<K extends string, I, O extends I>(
