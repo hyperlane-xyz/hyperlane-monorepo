@@ -16,8 +16,10 @@ import {
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneFactories,
-  attachContractsMap,
-  connectContractsMap,
+  PartialHyperlaneContractsMap,
+  attachPartialContractsMap,
+  connectPartialContractsMap,
+  filterAddressesMap,
 } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ConnectionClientConfig } from '../router/types';
@@ -37,6 +39,7 @@ export abstract class HyperlaneDeployer<
   Factories extends HyperlaneFactories,
 > {
   public verificationInputs: ChainMap<ContractVerificationInput[]> = {};
+  public cachedContracts: PartialHyperlaneContractsMap<Factories> = {};
   public deployedContracts: HyperlaneContractsMap<Factories> = {};
   public startingBlockNumbers: ChainMap<number | undefined> = {};
 
@@ -52,15 +55,19 @@ export abstract class HyperlaneDeployer<
     this.chainTimeoutMs = options?.chainTimeoutMs ?? 5 * 60 * 1000; // 5 minute timeout per chain
   }
 
-  cacheContracts(partialDeployment: HyperlaneContractsMap<Factories>): void {
-    this.deployedContracts = connectContractsMap(
-      partialDeployment,
+  cacheAddressesMap(addressesMap: HyperlaneAddressesMap<any>): void {
+    const filteredAddressesMap = filterAddressesMap(
+      addressesMap,
+      this.factories,
+    );
+    const attachedContractsMap = attachPartialContractsMap(
+      filteredAddressesMap,
+      this.factories,
+    );
+    this.cachedContracts = connectPartialContractsMap(
+      attachedContractsMap,
       this.multiProvider,
     );
-  }
-
-  cacheAddresses(partialDeployment: HyperlaneAddressesMap<Factories>): void {
-    this.cacheContracts(attachContractsMap(partialDeployment, this.factories));
   }
 
   abstract deployContracts(
@@ -198,7 +205,7 @@ export abstract class HyperlaneDeployer<
     constructorArgs: Parameters<F['deploy']>,
     initializeArgs?: Parameters<Awaited<ReturnType<F['deploy']>>['initialize']>,
   ): Promise<ReturnType<F['deploy']>> {
-    const cachedContract = this.deployedContracts[chain]?.[contractName];
+    const cachedContract = this.cachedContracts[chain]?.[contractName];
     if (cachedContract) {
       this.logger(
         `Recovered ${contractName} on ${chain} ${cachedContract.address}`,
@@ -346,10 +353,10 @@ export abstract class HyperlaneDeployer<
     contractName: K,
     contract: HyperlaneContracts<Factories>[K],
   ) {
-    if (!this.deployedContracts[chain]) {
-      this.deployedContracts[chain] = {} as HyperlaneContracts<Factories>;
+    if (!this.cachedContracts[chain]) {
+      this.cachedContracts[chain] = {};
     }
-    this.deployedContracts[chain][contractName] = contract;
+    this.cachedContracts[chain][contractName] = contract;
   }
 
   /**
@@ -363,14 +370,14 @@ export abstract class HyperlaneDeployer<
     constructorArgs: Parameters<Factories[K]['deploy']>,
     initializeArgs?: Parameters<HyperlaneContracts<Factories>[K]['initialize']>,
   ): Promise<HyperlaneContracts<Factories>[K]> {
-    const cachedProxy = this.deployedContracts[chain]?.[contractName];
-    if (cachedProxy) {
+    const cachedProxy = this.cachedContracts[chain]?.[contractName];
+    if (cachedProxy !== undefined) {
       this.logger(
         `Recovered ${contractName as string} on ${chain} ${
           cachedProxy.address
         }`,
       );
-      return cachedProxy;
+      return cachedProxy! as Awaited<ReturnType<Factories[K]['deploy']>>;
     }
 
     // Try to initialize the implementation even though it may not be necessary

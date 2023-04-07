@@ -1,20 +1,49 @@
 // TODO move to utils package
 
-export function objMapEntries<K extends string, I = any, O = any>(
-  obj: Record<K, I>,
-  func: (k: K, _: I) => O,
-): [K, O][] {
+type MappedObject<M extends Record<any, any>, O> = {
+  [Property in keyof M]: O;
+};
+
+export type ValueOf<T> = T[keyof T];
+
+export function partialObjMapEntries<
+  M extends Record<K, I>,
+  K extends keyof M,
+  O,
+  I = ValueOf<M>,
+>(obj: Partial<M>, func: (k: K, v: I) => O): [K, O][] {
+  return Object.entries<I | undefined>(obj)
+    .filter(([_, v]) => !!v)
+    .map(([k, v]) => [k as K, func(k as K, v as I)]);
+}
+
+export function objMapEntries<
+  M extends Record<K, I>,
+  K extends keyof M,
+  O,
+  I = ValueOf<M>,
+>(obj: M, func: (k: K, v: I) => O): [K, O][] {
   return Object.entries<I>(obj).map(([k, v]) => [k as K, func(k as K, v)]);
 }
 
 // Map over the values of the object
-export function objMap<K extends string, I = any, O = any>(
-  obj: Record<K, I>,
-  func: (k: K, _: I) => O,
-) {
-  return Object.fromEntries<O>(objMapEntries<K, I, O>(obj, func)) as Record<
-    K,
-    O
+export function objMap<
+  M extends Record<K, I>,
+  K extends keyof M,
+  O,
+  I = ValueOf<M>,
+>(obj: M, func: (k: K, v: I) => O): MappedObject<M, O> {
+  return Object.fromEntries<O>(objMapEntries(obj, func)) as MappedObject<M, O>;
+}
+
+export function partialObjMap<
+  M extends Record<K, I>,
+  K extends keyof M,
+  O,
+  I = ValueOf<M>,
+>(obj: Partial<M>, func: (k: K, v: I) => O): Partial<MappedObject<M, O>> {
+  return Object.fromEntries<O>(partialObjMapEntries(obj, func)) as Partial<
+    MappedObject<M, O>
   >;
 }
 

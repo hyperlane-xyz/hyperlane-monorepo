@@ -108,7 +108,7 @@ export abstract class HyperlaneRouterDeployer<
 
     await this.enrollRemoteRouters(contractsMap, configMap);
     await this.initConnectionClients(contractsMap, configMap);
-    await this.transferOwnership(contractsMap, configMap);
+    // await this.transferOwnership(contractsMap, configMap);
 
     return contractsMap;
   }
