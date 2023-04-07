@@ -108,8 +108,8 @@ impl FromRawConf<'_, RawCoreContractAddresses> for CoreContractAddresses {
         }
 
         let mb = parse_addr!(mailbox, "mailbox");
-        let igp = parse_addr!(interchain_gas_paymaster, "interchainGasPaymaster");
-        let va = parse_addr!(validator_announce, "validatorAnnounce");
+        let igp = parse_addr!(interchain_gas_paymaster, "interchain_gas_paymaster");
+        let va = parse_addr!(validator_announce, "validator_announce");
 
         if err.is_empty() {
             Ok(Self {
@@ -248,7 +248,7 @@ impl FromRawConf<'_, RawChainConf> for ChainConf {
             .and_then(|v| {
                 v.try_into()
                     .context("Invalid `finalityBlocks`, expected integer")
-                    .take_err(&mut err, || cwp + "finalityBlocks")
+                    .take_err(&mut err, || cwp + "finality_blocks")
             })
             .unwrap_or(0);
 

@@ -123,7 +123,8 @@ impl FromRawConf<'_, RawGasPaymentEnforcementConf> for GasPaymentEnforcementConf
         let matching_list = raw
             .matching_list
             .and_then(|v| {
-                serde_json::from_str::<MatchingList>(&v).take_err(&mut err, || cwp + "matchingList")
+                serde_json::from_str::<MatchingList>(&v)
+                    .take_err(&mut err, || cwp + "matching_list")
             })
             .unwrap_or_default();
         if err.is_empty() {

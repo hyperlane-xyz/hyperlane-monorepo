@@ -110,14 +110,17 @@ impl ConfigPath {
     }
 
     pub fn path_name(&self) -> String {
-        self.0.iter().map(|s| s.as_str()).join(".")
+        self.0
+            .iter()
+            .map(|s| s.as_str().to_case(Case::Camel))
+            .join(".")
     }
 
     pub fn env_name(&self) -> String {
         ["HYP", "BASE"]
             .into_iter()
             .chain(self.0.iter().map(|s| s.as_str()))
-            .map(|s| s.to_case(Case::ScreamingSnake))
+            .map(|s| s.to_uppercase())
             .join("_")
     }
 }
@@ -125,8 +128,8 @@ impl ConfigPath {
 #[test]
 fn env_casing() {
     assert_eq!(
-        "HYP_BASE_TEST1_CONF",
-        "hyp base test1 conf".to_case(Case::ScreamingSnake)
+        "hypBaseTest1Conf",
+        "hyp_base_test1_conf".to_case(Case::Camel)
     );
 }
 
@@ -169,8 +172,7 @@ impl Display for ConfigParsingError {
         for (path, report) in &self.0 {
             writeln!(f, "\n#####\n")?;
             writeln!(f, "config_path: `{path}`")?;
-            // TODO: enable this once we figure out how to do it correctly
-            // writeln!(f, "env_path: `{}`", path.env_name())?;
+            writeln!(f, "env_path: `{}`", path.env_name())?;
             writeln!(f, "error: {report:?}")?;
         }
         Ok(())
