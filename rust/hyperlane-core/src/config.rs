@@ -5,52 +5,17 @@
 
 // TODO: Remove extension functions we are not using
 
-use convert_case::{Case, Casing};
 use std::fmt::{Debug, Display, Formatter};
 use std::num::{ParseIntError, TryFromIntError};
 use std::ops::Add;
 use std::sync::Arc;
 
-use eyre::{eyre, Report};
+use convert_case::{Case, Casing};
+use eyre::Report;
 use itertools::Itertools;
 use primitive_types::U256;
 use serde::Deserialize;
 use thiserror::Error;
-
-pub trait ConfigOptionExt<T> {
-    fn expect_or_eyre<M: Into<String>>(self, msg: M) -> eyre::Result<T>;
-
-    fn expect_or_else_eyre<F>(self, f: F) -> eyre::Result<T>
-    where
-        F: FnOnce() -> Report;
-
-    fn expect_or_config_err<F>(self, v: F) -> ConfigResult<T>
-    where
-        F: FnOnce() -> (ConfigPath, Report);
-}
-
-impl<T> ConfigOptionExt<T> for Option<T> {
-    fn expect_or_eyre<M: Into<String>>(self, msg: M) -> eyre::Result<T> {
-        self.ok_or_else(|| eyre!(msg.into()))
-    }
-
-    fn expect_or_else_eyre<F>(self, f: F) -> eyre::Result<T>
-    where
-        F: FnOnce() -> Report,
-    {
-        self.ok_or_else(|| f())
-    }
-
-    fn expect_or_config_err<F>(self, v: F) -> ConfigResult<T>
-    where
-        F: FnOnce() -> (ConfigPath, Report),
-    {
-        self.ok_or_else(|| {
-            let (path, msg) = v();
-            ConfigParsingError::new(path, msg)
-        })
-    }
-}
 
 pub trait ConfigErrResultExt<T> {
     fn into_config_result(self, path: impl FnOnce() -> ConfigPath) -> ConfigResult<T>;
@@ -223,16 +188,15 @@ where
     fn from_config(raw: T, cwp: &ConfigPath) -> ConfigResult<Self>;
 }
 
-pub trait IntoParsedConf<'de, O: Sized>: Debug + Deserialize<'de> {
-    fn parse_config(self, cwp: &ConfigPath) -> ConfigResult<O>;
+pub trait IntoParsedConf<'de>: Debug + Deserialize<'de> {
+    fn parse_config<O: FromRawConf<'de, Self>>(self, cwp: &ConfigPath) -> ConfigResult<O>;
 }
 
-impl<'de, S, O> IntoParsedConf<'de, O> for S
+impl<'de, S> IntoParsedConf<'de> for S
 where
     S: Deserialize<'de> + Debug,
-    O: FromRawConf<'de, S>,
 {
-    fn parse_config(self, cwp: &ConfigPath) -> ConfigResult<O> {
+    fn parse_config<O: FromRawConf<'de, S>>(self, cwp: &ConfigPath) -> ConfigResult<O> {
         O::from_config(self, cwp)
     }
 }
