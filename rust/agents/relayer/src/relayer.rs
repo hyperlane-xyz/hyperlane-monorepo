@@ -106,7 +106,7 @@ impl BaseAgent for Relayer {
 
         let origin_chain = core
             .settings
-            .chain_setup(&settings.origin_chain_name)
+            .chain_setup_by_name(&settings.origin_chain_name)
             .expect("Missing origin chain config")
             .domain
             .clone();
@@ -159,7 +159,7 @@ impl BaseAgent for Relayer {
             let chain_setup = self
                 .core
                 .settings
-                .chain_setup(chain.name())
+                .chain_setup_by_name(chain.name())
                 .unwrap_or_else(|_| panic!("No chain setup found for {}", chain.name()))
                 .clone();
 

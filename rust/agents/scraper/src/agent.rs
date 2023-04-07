@@ -62,7 +62,7 @@ impl FromRawConf<'_, RawScraperSettings> for ScraperSettings {
         let chains_to_scrape = if let (Some(base), Some(chains)) = (&base, &chains_to_scrape) {
             chains
                 .filter_map(|chain| {
-                    base.domain(chain)
+                    base.lookup_domain(chain)
                         .take_err(&mut err, || cwp + "chainstoscrape")
                 })
                 .collect()

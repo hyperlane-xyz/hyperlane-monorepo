@@ -228,7 +228,7 @@ impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
                 destinations
                     .iter()
                     .filter_map(|destination| {
-                        base.domain(destination)
+                        base.lookup_domain(destination)
                             .take_err(&mut err, || cwp + "destinationchainnames")
                     })
                     .collect()
@@ -237,7 +237,7 @@ impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
             };
 
         let origin_chain = if let (Some(base), Some(origin)) = (&base, &origin_chain_name) {
-            base.domain(origin)
+            base.lookup_domain(origin)
                 .take_err(&mut err, || cwp + "originchainname")
         } else {
             None

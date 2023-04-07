@@ -82,7 +82,7 @@ impl FromRawConf<'_, RawValidatorSettings> for ValidatorSettings {
             });
 
         let origin_chain = if let (Some(base), Some(origin)) = (&base, &origin_chain_name) {
-            base.domain(&origin)
+            base.lookup_domain(&origin)
                 .take_err(&mut err, || cwp + "originchainname")
         } else {
             None

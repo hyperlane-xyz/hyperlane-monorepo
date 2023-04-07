@@ -51,19 +51,12 @@ impl BaseAgent for Validator {
         let checkpoint_syncer = settings.checkpoint_syncer.build(None)?.into();
 
         let mailbox = settings
-            .build_mailbox(&settings.origin_chain_name, &metrics)
+            .build_mailbox(&settings.origin_chain, &metrics)
             .await?
             .into();
 
-        let origin_chain = core
-            .settings
-            .chain_setup(&settings.origin_chain_name)
-            .expect("Missing config for origin chain")
-            .domain
-            .clone();
-
         Ok(Self {
-            origin_chain,
+            origin_chain: settings.origin_chain,
             core,
             mailbox,
             signer,
