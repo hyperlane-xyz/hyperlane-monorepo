@@ -9,6 +9,8 @@
     "code-complexity": ["warn", 4],
     "var-name-mixedcase": "off",
     "func-name-mixedcase": "off",
-    "reason-string": ["warn",{"maxLength":64}]
-  }
+    "reason-string": ["warn",{"maxLength":64}],
+    "prettier/prettier": "error"
+  },
+  "plugins": ["prettier"]
 }

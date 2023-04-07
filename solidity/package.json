@@ -44,10 +44,10 @@
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "scripts": {
     "build": "hardhat compile && tsc",
-    "lint": "solhint (contracts/**/*.sol)|(interfaces/*.sol)",
+    "lint": "solhint contracts/**/*.sol",
     "clean": "hardhat clean && rm -rf ./dist ./cache",
     "coverage": "./coverage.sh",
-    "prettier": "prettier --write ./contracts ./interfaces ./test",
+    "prettier": "prettier --write ./contracts ./test",
     "test": "hardhat test && yarn test:forge",
     "test:forge": "forge test -vvv",
     "gas": "forge snapshot",
