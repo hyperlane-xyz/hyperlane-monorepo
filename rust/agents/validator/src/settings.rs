@@ -34,18 +34,12 @@ decl_settings!(Validator,
 );
 
 impl FromRawConf<'_, RawValidatorSettings> for ValidatorSettings {
-    fn from_config(raw: RawValidatorSettings, cwp: &ConfigPath) -> ConfigResult<Self> {
+    fn from_config_filtered(
+        raw: RawValidatorSettings,
+        cwp: &ConfigPath,
+        _filter: (),
+    ) -> ConfigResult<Self> {
         let mut err = ConfigParsingError::default();
-
-        let base = raw
-            .base
-            .parse_config::<Settings>(cwp)
-            .take_config_err(&mut err);
-
-        let origin_chain_name = raw
-            .originchainname
-            .ok_or_else(|| eyre!("Missing `originchainname`"))
-            .take_err(&mut err, || cwp + "originchainname");
 
         let validator = raw
             .validator
@@ -81,8 +75,22 @@ impl FromRawConf<'_, RawValidatorSettings> for ValidatorSettings {
                     .take_err(&mut err, || cwp + "interval")
             });
 
-        let origin_chain = if let (Some(base), Some(origin)) = (&base, &origin_chain_name) {
-            base.lookup_domain(&origin)
+        let Some(origin_chain_name) = raw
+            .originchainname
+            .ok_or_else(|| eyre!("Missing `originchainname`"))
+            .take_err(&mut err, || cwp + "originchainname")
+        else { return Err(err) };
+
+        let base = raw
+            .base
+            .parse_config_with_filter::<Settings>(
+                cwp,
+                Some(&[&*origin_chain_name].into_iter().collect()),
+            )
+            .take_config_err(&mut err);
+
+        let origin_chain = if let Some(base) = &base {
+            base.lookup_domain(&origin_chain_name)
                 .take_err(&mut err, || cwp + "originchainname")
         } else {
             None

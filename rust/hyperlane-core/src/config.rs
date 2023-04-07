@@ -181,25 +181,43 @@ impl Display for ConfigParsingError {
 
 impl std::error::Error for ConfigParsingError {}
 
-pub trait FromRawConf<'de, T>: Sized
+pub trait FromRawConf<'de, T, F = ()>: Sized
 where
     // technically we don't need this bound but it enforces the
     // correct usage.
     T: Debug + Deserialize<'de>,
+    F: Default,
 {
-    fn from_config(raw: T, cwp: &ConfigPath) -> ConfigResult<Self>;
+    fn from_config(raw: T, cwp: &ConfigPath) -> ConfigResult<Self> {
+        Self::from_config_filtered(raw, cwp, F::default())
+    }
+
+    fn from_config_filtered(raw: T, cwp: &ConfigPath, filter: F) -> ConfigResult<Self>;
 }
 
-pub trait IntoParsedConf<'de>: Debug + Deserialize<'de> {
-    fn parse_config<O: FromRawConf<'de, Self>>(self, cwp: &ConfigPath) -> ConfigResult<O>;
+pub trait IntoParsedConf<'de, F: Default>: Debug + Deserialize<'de> {
+    fn parse_config_with_filter<O: FromRawConf<'de, Self, F>>(
+        self,
+        cwp: &ConfigPath,
+        filter: F,
+    ) -> ConfigResult<O>;
+
+    fn parse_config<O: FromRawConf<'de, Self, F>>(self, cwp: &ConfigPath) -> ConfigResult<O> {
+        self.parse_config_with_filter(cwp, F::default())
+    }
 }
 
-impl<'de, S> IntoParsedConf<'de> for S
+impl<'de, S, F> IntoParsedConf<'de, F> for S
 where
     S: Deserialize<'de> + Debug,
+    F: Default,
 {
-    fn parse_config<O: FromRawConf<'de, S>>(self, cwp: &ConfigPath) -> ConfigResult<O> {
-        O::from_config(self, cwp)
+    fn parse_config_with_filter<O: FromRawConf<'de, S, F>>(
+        self,
+        cwp: &ConfigPath,
+        filter: F,
+    ) -> ConfigResult<O> {
+        O::from_config_filtered(self, cwp, filter)
     }
 }
 

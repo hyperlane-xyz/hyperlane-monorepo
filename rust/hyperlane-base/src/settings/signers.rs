@@ -48,7 +48,11 @@ pub enum RawSignerConf {
 }
 
 impl FromRawConf<'_, RawSignerConf> for SignerConf {
-    fn from_config(raw: RawSignerConf, cwp: &ConfigPath) -> ConfigResult<Self> {
+    fn from_config_filtered(
+        raw: RawSignerConf,
+        cwp: &ConfigPath,
+        _filter: (),
+    ) -> ConfigResult<Self> {
         use RawSignerConf::*;
         let key_path = || cwp + "key";
         let region_path = || cwp + "region";

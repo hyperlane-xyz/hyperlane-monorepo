@@ -48,7 +48,11 @@ enum RawGasPaymentEnforcementPolicy {
 }
 
 impl FromRawConf<'_, RawGasPaymentEnforcementPolicy> for GasPaymentEnforcementPolicy {
-    fn from_config(raw: RawGasPaymentEnforcementPolicy, cwp: &ConfigPath) -> ConfigResult<Self> {
+    fn from_config_filtered(
+        raw: RawGasPaymentEnforcementPolicy,
+        cwp: &ConfigPath,
+        _filter: (),
+    ) -> ConfigResult<Self> {
         use RawGasPaymentEnforcementPolicy::*;
         match raw {
             None => Ok(Self::None),
@@ -112,7 +116,11 @@ struct RawGasPaymentEnforcementConf {
 }
 
 impl FromRawConf<'_, RawGasPaymentEnforcementConf> for GasPaymentEnforcementConf {
-    fn from_config(raw: RawGasPaymentEnforcementConf, cwp: &ConfigPath) -> ConfigResult<Self> {
+    fn from_config_filtered(
+        raw: RawGasPaymentEnforcementConf,
+        cwp: &ConfigPath,
+        _filter: (),
+    ) -> ConfigResult<Self> {
         let mut err = ConfigParsingError::default();
         let policy = raw.policy
             .ok_or_else(|| eyre!("Missing policy for gas payment enforcement config; required if a matching list is provided"))
@@ -178,24 +186,12 @@ decl_settings!(Relayer,
 );
 
 impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
-    fn from_config(raw: RawRelayerSettings, cwp: &ConfigPath) -> ConfigResult<Self> {
+    fn from_config_filtered(
+        raw: RawRelayerSettings,
+        cwp: &ConfigPath,
+        _filter: (),
+    ) -> ConfigResult<Self> {
         let mut err = ConfigParsingError::default();
-
-        let base = raw
-            .base
-            .parse_config::<Settings>(&cwp)
-            .take_config_err(&mut err);
-
-        let origin_chain_name = raw
-            .originchainname
-            .ok_or_else(|| eyre!("Missing `originchainname`"))
-            .take_err(&mut err, || cwp + "originchainname");
-
-        let destination_chain_names = raw
-            .destinationchainnames
-            .ok_or_else(|| eyre!("Missing `destinationchainnames`"))
-            .take_err(&mut err, || cwp + "destinationchainnames")
-            .map(|r| r.split(',').map(str::to_owned).collect::<Vec<_>>());
 
         let gas_payment_enforcement = raw
             .gaspaymentenforcement
@@ -245,6 +241,11 @@ impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
             })
             .unwrap_or_default();
 
+        let origin_chain_name = raw
+            .originchainname
+            .ok_or_else(|| eyre!("Missing `originchainname`"))
+            .take_err(&mut err, || cwp + "originchainname");
+
         let db = raw
             .db
             .and_then(|r| r.parse().take_err(&mut err, || cwp + "db"))
@@ -255,21 +256,41 @@ impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
                 ))
             });
 
-        let destination_chains =
-            if let (Some(base), Some(destinations)) = (&base, &destination_chain_names) {
-                destinations
-                    .iter()
-                    .filter_map(|destination| {
-                        base.lookup_domain(destination)
-                            .take_err(&mut err, || cwp + "destinationchainnames")
-                    })
-                    .collect()
-            } else {
-                vec![]
-            };
+        let destination_chain_names = raw
+            .destinationchainnames
+            .ok_or_else(|| eyre!("Missing `destinationchainnames`"))
+            .take_err(&mut err, || cwp + "destinationchainnames")
+            .map(|r| r.split(',').map(str::to_owned).collect::<Vec<_>>());
 
-        let origin_chain = if let (Some(base), Some(origin)) = (&base, &origin_chain_name) {
-            base.lookup_domain(origin)
+        let (Some(origin_chain_name), Some(destination_chain_names)) =
+            (origin_chain_name, destination_chain_names)
+        else { return Err(err) };
+
+        let chain_filter = destination_chain_names
+            .iter()
+            .chain([&origin_chain_name])
+            .map(String::as_str)
+            .collect();
+
+        let base = raw
+            .base
+            .parse_config_with_filter::<Settings>(cwp, Some(&chain_filter))
+            .take_config_err(&mut err);
+
+        let destination_chains = if let Some(base) = &base {
+            destination_chain_names
+                .iter()
+                .filter_map(|destination| {
+                    base.lookup_domain(destination)
+                        .take_err(&mut err, || cwp + "destinationchainnames")
+                })
+                .collect()
+        } else {
+            vec![]
+        };
+
+        let origin_chain = if let Some(base) = &base {
+            base.lookup_domain(&origin_chain_name)
                 .take_err(&mut err, || cwp + "originchainname")
         } else {
             None

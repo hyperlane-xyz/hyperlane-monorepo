@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fmt::Debug;
 use std::{collections::HashMap, sync::Arc};
 
@@ -63,14 +64,21 @@ pub struct RawSettings {
     tracing: Option<TracingConfig>,
 }
 
-impl FromRawConf<'_, RawSettings> for Settings {
-    fn from_config(raw: RawSettings, cwp: &ConfigPath) -> Result<Self, ConfigParsingError> {
+impl FromRawConf<'_, RawSettings, Option<&HashSet<&str>>> for Settings {
+    fn from_config_filtered(
+        raw: RawSettings,
+        cwp: &ConfigPath,
+        filter: Option<&HashSet<&str>>,
+    ) -> Result<Self, ConfigParsingError> {
         let mut err = ConfigParsingError::default();
         let chains: HashMap<String, ChainConf> = if let Some(mut chains) = raw.chains {
             let default_signer: Option<SignerConf> = raw.defaultsigner.and_then(|r| {
                 r.parse_config(&cwp.join("defaultsigner"))
                     .take_config_err(&mut err)
             });
+            if let Some(filter) = filter {
+                chains.retain(|k, _| filter.contains(&k.as_str()));
+            }
             chains
                 .into_iter()
                 .map(|(k, v)| {

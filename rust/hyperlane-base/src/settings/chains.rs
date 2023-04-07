@@ -10,7 +10,7 @@ use ethers_prometheus::middleware::{
 use hyperlane_core::{
     config::*, ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol,
     HyperlaneProvider, HyperlaneSigner, InterchainGasPaymaster, InterchainGasPaymasterIndexer,
-    Mailbox, MailboxIndexer, MultisigIsm, ValidatorAnnounce, H256, H160,
+    Mailbox, MailboxIndexer, MultisigIsm, ValidatorAnnounce, H160, H256,
 };
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
@@ -43,7 +43,11 @@ enum RawChainConnectionConf {
 }
 
 impl FromRawConf<'_, RawChainConnectionConf> for ChainConnectionConf {
-    fn from_config(raw: RawChainConnectionConf, cwp: &ConfigPath) -> ConfigResult<Self> {
+    fn from_config_filtered(
+        raw: RawChainConnectionConf,
+        cwp: &ConfigPath,
+        _filter: (),
+    ) -> ConfigResult<Self> {
         use RawChainConnectionConf::*;
         match raw {
             Ethereum(r) => Ok(Self::Ethereum(r.parse_config(&cwp.join("connection"))?)),
@@ -95,7 +99,11 @@ struct RawCoreContractAddresses {
 }
 
 impl FromRawConf<'_, RawCoreContractAddresses> for CoreContractAddresses {
-    fn from_config(raw: RawCoreContractAddresses, cwp: &ConfigPath) -> ConfigResult<Self> {
+    fn from_config_filtered(
+        raw: RawCoreContractAddresses,
+        cwp: &ConfigPath,
+        _filter: (),
+    ) -> ConfigResult<Self> {
         let mut err = ConfigParsingError::default();
 
         macro_rules! parse_addr {
@@ -105,11 +113,12 @@ impl FromRawConf<'_, RawCoreContractAddresses> for CoreContractAddresses {
                     .take_err(&mut err, || cwp + $path)
                     .and_then(|v| {
                         if v.len() <= 42 {
-                            v.parse::<H160>().take_err(&mut err, || cwp + $path).map(Into::into)
+                            v.parse::<H160>()
+                                .take_err(&mut err, || cwp + $path)
+                                .map(Into::into)
                         } else {
                             v.parse().take_err(&mut err, || cwp + $path)
                         }
-
                     })
             };
         }
@@ -148,7 +157,11 @@ struct RawIndexSettings {
 }
 
 impl FromRawConf<'_, RawIndexSettings> for IndexSettings {
-    fn from_config(raw: RawIndexSettings, cwp: &ConfigPath) -> ConfigResult<Self> {
+    fn from_config_filtered(
+        raw: RawIndexSettings,
+        cwp: &ConfigPath,
+        _filter: (),
+    ) -> ConfigResult<Self> {
         let mut err = ConfigParsingError::default();
 
         let from = raw
@@ -213,12 +226,16 @@ pub struct RawChainConf {
 }
 
 impl FromRawConf<'_, RawChainConf> for ChainConf {
-    fn from_config(raw: RawChainConf, cwp: &ConfigPath) -> ConfigResult<Self> {
+    fn from_config_filtered(
+        raw: RawChainConf,
+        cwp: &ConfigPath,
+        _filter: (),
+    ) -> ConfigResult<Self> {
         let mut err = ConfigParsingError::default();
 
         let connection = raw
             .connection
-            .and_then(|r| r.parse_config(&cwp).take_config_err(&mut err));
+            .and_then(|r| r.parse_config(cwp).take_config_err(&mut err));
 
         let domain = connection.as_ref().and_then(|c: &ChainConnectionConf| {
             let protocol = c.protocol();

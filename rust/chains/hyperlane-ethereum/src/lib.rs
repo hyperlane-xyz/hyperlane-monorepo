@@ -123,7 +123,11 @@ pub enum ConnectionConfError {
 }
 
 impl FromRawConf<'_, RawConnectionConf> for ConnectionConf {
-    fn from_config(raw: RawConnectionConf, cwp: &ConfigPath) -> ConfigResult<Self> {
+    fn from_config_filtered(
+        raw: RawConnectionConf,
+        cwp: &ConfigPath,
+        _filter: (),
+    ) -> ConfigResult<Self> {
         use ConnectionConfError::*;
         use RawConnectionConf::*;
         match raw {

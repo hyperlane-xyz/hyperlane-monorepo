@@ -15,6 +15,7 @@ use hyperlane_core::HyperlaneDomain;
 
 use crate::chain_scraper::{Contracts, SqlChainScraper};
 use crate::db::ScraperDb;
+use itertools::Itertools;
 
 /// A message explorer scraper agent
 #[derive(Debug)]
@@ -40,27 +41,35 @@ decl_settings!(Scraper,
 );
 
 impl FromRawConf<'_, RawScraperSettings> for ScraperSettings {
-    fn from_config(raw: RawScraperSettings, cwp: &ConfigPath) -> ConfigResult<Self> {
+    fn from_config_filtered(
+        raw: RawScraperSettings,
+        cwp: &ConfigPath,
+        _filter: (),
+    ) -> ConfigResult<Self> {
         let mut err = ConfigParsingError::default();
-
-        let base = raw
-            .base
-            .parse_config::<Settings>(cwp)
-            .take_config_err(&mut err);
 
         let db = raw
             .db
             .ok_or_else(|| eyre!("Missing `db` connection string"))
             .take_err(&mut err, || cwp + "db");
 
-        let chains_to_scrape = raw
+        let Some(chains_to_scrape) = raw
             .chainstoscrape
             .ok_or_else(|| eyre!("Missing `chainstoscrape` list"))
             .take_err(&mut err, || cwp + "chainstoscrape")
-            .map(|s| s.split(',').map(str::to_owned).collect::<Vec<_>>());
+            .map(|s| s.split(',').map(str::to_owned).collect::<Vec<_>>())
+        else { return Err(err) };
 
-        let chains_to_scrape = if let (Some(base), Some(chains)) = (&base, &chains_to_scrape) {
-            chains
+        let base = raw
+            .base
+            .parse_config_with_filter::<Settings>(
+                cwp,
+                Some(&chains_to_scrape.iter().map(String::as_str).collect()),
+            )
+            .take_config_err(&mut err);
+
+        let chains_to_scrape = if let Some(base) = &base {
+            chains_to_scrape
                 .iter()
                 .filter_map(|chain| {
                     base.lookup_domain(chain)

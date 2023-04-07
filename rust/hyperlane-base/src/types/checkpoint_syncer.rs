@@ -44,7 +44,11 @@ pub enum RawCheckpointSyncerConf {
 }
 
 impl FromRawConf<'_, RawCheckpointSyncerConf> for CheckpointSyncerConf {
-    fn from_config(raw: RawCheckpointSyncerConf, cwp: &ConfigPath) -> ConfigResult<Self> {
+    fn from_config_filtered(
+        raw: RawCheckpointSyncerConf,
+        cwp: &ConfigPath,
+        _filter: (),
+    ) -> ConfigResult<Self> {
         match raw {
             RawCheckpointSyncerConf::LocalStorage { path } => Ok(Self::LocalStorage {
                 path: path
