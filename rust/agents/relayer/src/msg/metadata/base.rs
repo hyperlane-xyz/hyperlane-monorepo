@@ -52,7 +52,7 @@ pub struct BaseMetadataBuilder {
     pub allow_local_checkpoint_syncers: bool,
     pub metrics: Arc<CoreMetrics>,
     pub depth: u32,
-    pub max_depth: u32
+    pub max_depth: u32,
 }
 
 impl Debug for BaseMetadataBuilder {
@@ -86,9 +86,7 @@ impl MetadataBuilder for BaseMetadataBuilder {
         let base = self.clone_with_incremented_depth()?;
 
         let metadata_builder: Box<dyn MetadataBuilder> = match supported_type {
-            SupportedIsmTypes::Multisig => {
-                Box::new(MultisigIsmMetadataBuilder::new(base, false))
-            }
+            SupportedIsmTypes::Multisig => Box::new(MultisigIsmMetadataBuilder::new(base, false)),
             SupportedIsmTypes::LegacyMultisig => {
                 Box::new(MultisigIsmMetadataBuilder::new(base, true))
             }
@@ -102,7 +100,6 @@ impl MetadataBuilder for BaseMetadataBuilder {
 }
 
 impl BaseMetadataBuilder {
-
     pub fn clone_with_incremented_depth(&self) -> eyre::Result<BaseMetadataBuilder> {
         let mut cloned = self.clone();
         cloned.depth = cloned.depth + 1;
@@ -112,7 +109,6 @@ impl BaseMetadataBuilder {
             Ok(cloned)
         }
     }
-
 
     pub async fn build_checkpoint_syncer(
         &self,

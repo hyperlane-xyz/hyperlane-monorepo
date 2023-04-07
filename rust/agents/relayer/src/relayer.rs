@@ -189,7 +189,7 @@ impl BaseAgent for Relayer {
                 self.allow_local_checkpoint_syncers,
                 self.core.metrics.clone(),
                 0,
-                5
+                5,
             );
             tasks.push(self.run_destination_mailbox(
                 mailbox.clone(),
