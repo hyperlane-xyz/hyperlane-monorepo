@@ -72,8 +72,6 @@ export abstract class HyperlaneAppChecker<
     const provider = this.multiProvider.getProvider(chain);
     const contracts = this.app.getContracts(chain);
 
-    // TODO: proxiedContracts in the form of ownableContracts...
-    // TODO: initializableContracts in the form of ownableContracts...
     await promiseObjAll(
       objMap(contracts, async (name, contract) => {
         if (await isProxy(provider, contract.address)) {
@@ -128,7 +126,6 @@ export abstract class HyperlaneAppChecker<
     return ownableContracts(contracts);
   }
 
-  // TODO: Check initialization status
   // TODO: Require owner in config if ownables is non-empty
   async checkOwnership(chain: ChainName, owner: types.Address): Promise<void> {
     const ownableContracts = await this.ownables(chain);
