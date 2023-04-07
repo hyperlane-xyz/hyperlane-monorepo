@@ -7,7 +7,6 @@ use eyre::{eyre, Context, Report, Result};
 use prometheus::{IntGauge, IntGaugeVec};
 use rusoto_core::Region;
 use serde::Deserialize;
-use warp::hyper::body::HttpBody;
 
 use hyperlane_core::config::*;
 

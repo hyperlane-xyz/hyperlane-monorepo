@@ -107,9 +107,6 @@ fn agent_json_config_consistency_checks() {
             KnownHyperlaneDomain::try_from(domain).unwrap().to_string(),
             name
         );
-        assert_eq!(
-            name.parse::<KnownHyperlaneDomain>().unwrap() as u32,
-            domain
-        );
+        assert_eq!(name.parse::<KnownHyperlaneDomain>().unwrap() as u32, domain);
     }
 }

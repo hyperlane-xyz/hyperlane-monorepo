@@ -5,7 +5,8 @@ use std::time::Duration;
 use eyre::eyre;
 
 use hyperlane_base::{
-    decl_settings, CheckpointSyncerConf, RawCheckpointSyncerConf, RawSignerConf, SignerConf,
+    decl_settings, CheckpointSyncerConf, RawCheckpointSyncerConf, RawSignerConf, Settings,
+    SignerConf,
 };
 use hyperlane_core::config::*;
 
@@ -35,7 +36,10 @@ impl FromRawConf<'_, RawValidatorSettings> for ValidatorSettings {
     fn from_config(raw: RawValidatorSettings, cwp: &ConfigPath) -> ConfigResult<Self> {
         let mut err = ConfigParsingError::default();
 
-        let base = raw.base.parse_config(&cwp).take_config_err(&mut err);
+        let base = raw
+            .base
+            .parse_config::<Settings>(cwp)
+            .take_config_err(&mut err);
 
         let origin_chain_name = raw
             .originchainname
@@ -75,6 +79,15 @@ impl FromRawConf<'_, RawValidatorSettings> for ValidatorSettings {
                     .map(Duration::from_secs)
                     .take_err(&mut err, || cwp + "interval")
             });
+
+        if let (Some(base), Some(origin)) = (&base, &origin_chain_name) {
+            if !base.chains.contains_key(origin) {
+                err.push(
+                    cwp + "originchainname",
+                    eyre!("Configuration for origin chain '{origin}' not found"),
+                )
+            }
+        }
 
         if err.is_empty() {
             Ok(Self {

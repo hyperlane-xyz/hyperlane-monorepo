@@ -40,23 +40,44 @@ decl_settings!(Scraper,
 
 impl FromRawConf<'_, RawScraperSettings> for ScraperSettings {
     fn from_config(raw: RawScraperSettings, cwp: &ConfigPath) -> ConfigResult<Self> {
-        Ok(Self {
-            base: raw.base.parse_config(cwp)?,
-            db: raw
-                .db
-                .expect_or_config_err(|| (cwp + "db", eyre!("Missing `db` connection string")))?,
-            chains_to_scrape: raw
-                .chainstoscrape
-                .expect_or_config_err(|| {
-                    (
+        let mut err = ConfigParsingError::default();
+
+        let base = raw
+            .base
+            .parse_config::<Settings>(cwp)
+            .take_config_err(&mut err);
+
+        let db = raw
+            .db
+            .ok_or_else(|| eyre!("Missing `db` connection string"))
+            .take_err(&mut err, || cwp + "db");
+
+        let chains_to_scrape = raw
+            .chainstoscrape
+            .ok_or_else(|| eyre!("Missing `chainstoscrape` list"))
+            .take_err(&mut err, || cwp + "chainstoscrape")
+            .map(|s| s.split(',').map(str::to_owned).collect());
+
+        if let (Some(base), Some(chains)) = (&base, &chains_to_scrape) {
+            for chain in chains {
+                if !base.chains.contains_key(chain) {
+                    err.push(
                         cwp + "chainstoscrape",
-                        eyre!("Missing `chainstoscrape` list"),
-                    )
-                })?
-                .split(',')
-                .map(|s| s.to_string())
-                .collect(),
-        })
+                        eyre!("Configuration for chain to scrape '{chain}' not found"),
+                    );
+                }
+            }
+        }
+
+        if err.is_empty() {
+            Ok(Self {
+                base: base.unwrap(),
+                db: db.unwrap(),
+                chains_to_scrape: chains_to_scrape.unwrap(),
+            })
+        } else {
+            Err(err)
+        }
     }
 }
 
@@ -82,7 +103,7 @@ impl BaseAgent for Scraper {
             let chain_setup = settings
                 .chains
                 .get(chain_name)
-                .ok_or_else(|| eyre!("No configuration for chain {chain_name}"))?;
+                .expect("Missing chain config");
             let ctx = || format!("Loading chain {chain_name}");
             let local = Self::load_chain(&settings, chain_name, &metrics)
                 .await

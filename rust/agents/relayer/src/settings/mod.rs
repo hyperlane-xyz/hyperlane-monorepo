@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use eyre::{eyre, Context};
 use serde::Deserialize;
 
-use hyperlane_base::decl_settings;
+use hyperlane_base::{decl_settings, Settings};
 use hyperlane_core::config::*;
 use hyperlane_core::U256;
 
@@ -120,10 +120,10 @@ decl_settings!(Relayer,
         gas_payment_enforcement: Vec<GasPaymentEnforcementConf>,
         /// This is optional. If no whitelist is provided ALL messages will be considered on the
         /// whitelist.
-        whitelist: Option<MatchingList>,
+        whitelist: MatchingList,
         /// This is optional. If no blacklist is provided ALL will be considered to not be on
         /// the blacklist.
-        blacklist: Option<MatchingList>,
+        blacklist: MatchingList,
         /// This is optional. If not specified, any amount of gas will be valid, otherwise this
         /// is the max allowed gas in wei to relay a transaction.
         transaction_gas_limit: Option<U256>,
@@ -151,7 +151,10 @@ impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
     fn from_config(raw: RawRelayerSettings, cwp: &ConfigPath) -> ConfigResult<Self> {
         let mut err = ConfigParsingError::default();
 
-        let base = raw.base.parse_config(&cwp).take_config_err(&mut err);
+        let base = raw
+            .base
+            .parse_config::<Settings>(&cwp)
+            .take_config_err(&mut err);
 
         let origin_chain_name = raw
             .originchainname
@@ -179,13 +182,19 @@ impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
             })
             .unwrap_or_else(|| vec![Default::default()]);
 
-        let whitelist = raw.whitelist.and_then(|j| {
-            serde_json::from_str::<MatchingList>(&j).take_err(&mut err, || cwp + "whitelist")
-        });
+        let whitelist = raw
+            .whitelist
+            .and_then(|j| {
+                serde_json::from_str::<MatchingList>(&j).take_err(&mut err, || cwp + "whitelist")
+            })
+            .unwrap_or_default();
 
-        let blacklist = raw.blacklist.and_then(|j| {
-            serde_json::from_str::<MatchingList>(&j).take_err(&mut err, || cwp + "blacklist")
-        });
+        let blacklist = raw
+            .blacklist
+            .and_then(|j| {
+                serde_json::from_str::<MatchingList>(&j).take_err(&mut err, || cwp + "blacklist")
+            })
+            .unwrap_or_default();
 
         let transaction_gas_limit = raw.transactiongaslimit.and_then(|r| {
             r.try_into()
@@ -198,6 +207,7 @@ impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
                 r.split(',')
                     .map(str::parse)
                     .collect::<Result<_, _>>()
+                    .context("Error parsing domain id")
                     .take_err(&mut err, || cwp + "skiptransactiongaslimitfor")
             })
             .unwrap_or_default();
@@ -211,6 +221,26 @@ impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
                     origin_chain_name.as_deref().unwrap_or("")
                 ))
             });
+
+        if let (Some(base), Some(destinations)) = (&base, &destination_chain_names) {
+            for destination in destinations {
+                if !base.chains.contains_key(destination) {
+                    err.push(
+                        cwp + "destinationchainnames",
+                        eyre!("Configuration for destination chain '{destination}' not found"),
+                    );
+                }
+            }
+        }
+
+        if let (Some(base), Some(origin)) = (&base, &origin_chain_name) {
+            if !base.chains.contains_key(origin) {
+                err.push(
+                    cwp + "originchainname",
+                    eyre!("Configuration for origin chain '{origin}' not found"),
+                );
+            }
+        }
 
         if err.is_empty() {
             Ok(Self {

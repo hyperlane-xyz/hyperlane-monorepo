@@ -65,19 +65,20 @@ impl BaseAgent for Relayer {
         let core = settings.build_hyperlane_core(metrics.clone());
         let db = DB::from_path(&settings.db)?;
 
-        let destination_chains = settings.destinationchainnames.split(',');
-
-        for destination_chain in destination_chains.clone() {
+        for destination_chain in &settings.destination_chain_names {
             let Some(cfg) = settings.chains.get(destination_chain) else { continue };
             ensure!(
                 cfg.signer.is_some(),
-                format!("Destination chain {destination_chain} does not have a configured signer")
+                "Destination chain {destination_chain} does not have a configured signer"
             )
         }
 
         // Use defined remote chains + the origin chain
-        let chain_names: Vec<_> = destination_chains
-            .chain([settings.originchainname.as_str()])
+        let chain_names: Vec<_> = settings
+            .destination_chain_names
+            .iter()
+            .chain([&settings.origin_chain_name])
+            .map(String::as_str)
             .collect();
 
         let mailboxes = settings
@@ -87,29 +88,14 @@ impl BaseAgent for Relayer {
             .build_all_interchain_gas_paymasters(chain_names.as_slice(), &metrics, db)
             .await?;
         let validator_announce = settings
-            .build_validator_announce(&settings.originchainname, &core.metrics.clone())
+            .build_validator_announce(&settings.origin_chain_name, &core.metrics.clone())
             .await?;
 
-        let whitelist = Arc::new(parse_matching_list(&settings.whitelist));
-        let blacklist = Arc::new(parse_matching_list(&settings.blacklist));
+        let whitelist = Arc::new(settings.whitelist);
+        let blacklist = Arc::new(settings.blacklist);
+        let skip_transaction_gas_limit_for = settings.skip_transaction_gas_limit_for;
+        let transaction_gas_limit = settings.transaction_gas_limit;
 
-        let skip_transaction_gas_limit_for = settings
-            .skiptransactiongaslimitfor
-            .map(|l| {
-                l.split(',')
-                    .map(|d| {
-                        d.parse()
-                            .expect("Error parsing domain id for transaction gas limit")
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        let transaction_gas_limit = settings
-            .transactiongaslimit
-            .map(|l| l.parse())
-            .transpose()
-            .context("Invalid transaction gas limit")?;
         info!(
             %whitelist,
             %blacklist,
@@ -120,7 +106,7 @@ impl BaseAgent for Relayer {
 
         let origin_chain = core
             .settings
-            .chain_setup(&settings.originchainname)
+            .chain_setup(&settings.origin_chain_name)
             .context("Relayer must run on a configured chain")?
             .domain
             .clone();
@@ -312,14 +298,6 @@ impl Relayer {
         })
         .instrument(info_span!("run mailbox"))
     }
-}
-
-fn parse_matching_list(list: &Option<String>) -> MatchingList {
-    list.as_deref()
-        .map(serde_json::from_str)
-        .transpose()
-        .expect("Invalid matching list received")
-        .unwrap_or_default()
 }
 
 fn parse_gas_enforcement_policies(policies: &str) -> Vec<GasPaymentEnforcementConf> {

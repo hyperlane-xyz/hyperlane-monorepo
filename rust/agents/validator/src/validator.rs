@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use eyre::{Context, Result};
+use eyre::Result;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 
@@ -58,9 +58,7 @@ impl BaseAgent for Validator {
         let origin_chain = core
             .settings
             .chain_setup(&settings.origin_chain_name)
-            .context(
-                "Validator must run on a configured chain, verify `originchainname` is correct",
-            )?
+            .expect("Missing config for origin chain")
             .domain
             .clone();
 

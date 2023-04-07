@@ -343,8 +343,8 @@ impl HyperlaneDomain {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
     use crate::KnownHyperlaneDomain;
+    use std::str::FromStr;
 
     #[test]
     fn domain_strings() {
