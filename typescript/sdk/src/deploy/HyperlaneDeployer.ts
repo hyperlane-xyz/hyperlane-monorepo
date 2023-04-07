@@ -331,7 +331,7 @@ export abstract class HyperlaneDeployer<
     return implementation.attach(proxy.address) as C;
   }
 
-  private writeCache<K extends keyof Factories>(
+  protected writeCache<K extends keyof Factories>(
     chain: ChainName,
     contractName: K,
     address: types.Address,
@@ -342,7 +342,7 @@ export abstract class HyperlaneDeployer<
     this.cachedAddresses[chain][contractName] = address;
   }
 
-  private readCache<F extends ethers.ContractFactory>(
+  protected readCache<F extends ethers.ContractFactory>(
     chain: ChainName,
     factory: F,
     contractName: string,

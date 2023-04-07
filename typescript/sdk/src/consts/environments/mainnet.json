@@ -8,7 +8,8 @@
     "defaultIsmInterchainGasPaymaster": "0x56f52c0A1ddcD557285f7CBc782D3d83096CE1Cc",
     "multisigIsm": "0x9bDE63104EE030d9De419EEd6bA7D14b86D6fE3f",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
-    "interchainQueryRouter": "0x234b19282985882d6d6fd54dEBa272271f4eb784"
+    "interchainQueryRouter": "0x234b19282985882d6d6fd54dEBa272271f4eb784",
+    "interchainAccountRouter": "0xB193eBf06faD5D66492BB41DBbCd202640aE83fF"
   },
   "ethereum": {
     "storageGasOracle": "0xc9a103990A8dB11b4f627bc5CD1D0c2685484Ec5",
@@ -19,7 +20,8 @@
     "defaultIsmInterchainGasPaymaster": "0x56f52c0A1ddcD557285f7CBc782D3d83096CE1Cc",
     "multisigIsm": "0xec48E52D960E54a179f70907bF28b105813877ee",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
-    "interchainQueryRouter": "0x234b19282985882d6d6fd54dEBa272271f4eb784"
+    "interchainQueryRouter": "0x234b19282985882d6d6fd54dEBa272271f4eb784",
+    "interchainAccountRouter": "0x5fD075C2157567F7F80e6cB20dDd75F40905bd87"
   },
   "avalanche": {
     "storageGasOracle": "0x175821F30AdCAA4bbB72Ce98eF76C2E0De2C3f21",
@@ -30,7 +32,8 @@
     "defaultIsmInterchainGasPaymaster": "0x56f52c0A1ddcD557285f7CBc782D3d83096CE1Cc",
     "multisigIsm": "0xeE80ab5B563cB3825133f29502bA34eD3707cb8C",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
-    "interchainQueryRouter": "0x234b19282985882d6d6fd54dEBa272271f4eb784"
+    "interchainQueryRouter": "0x234b19282985882d6d6fd54dEBa272271f4eb784",
+    "interchainAccountRouter": "0x77c509140A45B4B85E1A28f8c21AaEB3Ca8788B3"
   },
   "polygon": {
     "storageGasOracle": "0xA3a24EC5670F1F416AB9fD554FcE2f226AE9D7eB",
