@@ -189,7 +189,7 @@ contract Mailbox is
      * @return root The root of the Mailbox's merkle tree.
      * @return index The index of the last element in the tree.
      */
-    function latestCheckpoint() public view returns (bytes32, uint32) {
+    function latestCheckpoint() external view returns (bytes32, uint32) {
         return (root(), count() - 1);
     }
 
@@ -241,6 +241,7 @@ contract Mailbox is
             if (address(_val) != address(0)) {
                 return _val;
             }
+            // solhint-disable-next-line no-empty-blocks
         } catch {}
         return defaultIsm;
     }
