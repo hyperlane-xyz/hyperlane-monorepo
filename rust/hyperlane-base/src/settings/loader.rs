@@ -3,8 +3,8 @@ use std::env;
 use std::error::Error;
 use std::path::PathBuf;
 
-use config::{Config, ConfigError, Environment, File};
-use eyre::{eyre, Context, Report, Result};
+use config::{Config, Environment, File};
+use eyre::{Context, Result};
 use serde::Deserialize;
 
 use crate::settings::RawSettings;

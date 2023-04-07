@@ -76,8 +76,7 @@ pub use base::*;
 pub use chains::{ChainConf, ChainConnectionConf, CoreContractAddresses};
 pub use signers::{RawSignerConf, SignerConf};
 
-use crate::CachingInterchainGasPaymaster;
-use crate::{CachingMailbox, CoreMetrics, HyperlaneAgentCore};
+use crate::{CoreMetrics, HyperlaneAgentCore};
 
 mod base;
 /// Chain configuration

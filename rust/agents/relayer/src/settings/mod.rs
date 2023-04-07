@@ -41,7 +41,8 @@ enum RawGasPaymentEnforcementPolicy {
         /// Optional fraction of gas which must be paid before attempting to run
         /// the transaction. Must be written as `"numerator /
         /// denominator"` where both are integers.
-        gasfraction: Option<String>,
+        #[serde(default = "default_gasfraction")]
+        gasfraction: String,
     },
     #[serde(other)]
     Unknown,
@@ -66,28 +67,21 @@ impl FromRawConf<'_, RawGasPaymentEnforcementPolicy> for GasPaymentEnforcementPo
                     .into_config_result(|| cwp + "payment")?,
             }),
             OnChainFeeQuoting { gasfraction } => {
-                let (numerator, denominator) = gasfraction
-                    .ok_or_else(|| eyre!("Missing `gasfraction` for OnChainFeeQuoting gas payment enforcement policy"))
-                    .into_config_result(|| cwp + "gasfraction")?
-                    .replace(' ', "")
-                    .split_once('/')
-                    .map(|(a, b)| (a.to_owned(), b.to_owned()))
-                    .ok_or_else(|| eyre!("Invalid `gasfraction` for OnChainFeeQuoting gas payment enforcement policy; expected `numerator / denominator`"))
-                    .into_config_result(|| cwp + "gasfraction")?;
-                let numerator = numerator
-                    .strip_suffix(" ")
-                    .unwrap_or("")
-                    .parse()
-                    .into_config_result(|| cwp + "gasfraction")?;
-                let denominator = denominator
-                    .strip_prefix(" ")
-                    .unwrap_or("")
-                    .parse()
-                    .into_config_result(|| cwp + "gasfraction")?;
+                let (numerator, denominator) =
+                    gasfraction
+                        .replace(' ', "")
+                        .split_once('/')
+                        .map(|(a, b)| (a.to_owned(), b.to_owned()))
+                        .ok_or_else(|| eyre!("Invalid `gasfraction` for OnChainFeeQuoting gas payment enforcement policy; expected `numerator / denominator`"))
+                        .into_config_result(|| cwp + "gasfraction")?;
 
                 Ok(Self::OnChainFeeQuoting {
-                    gas_fraction_numerator: numerator,
-                    gas_fraction_denominator: denominator,
+                    gas_fraction_numerator: numerator
+                        .parse()
+                        .into_config_result(|| cwp + "gasfraction")?,
+                    gas_fraction_denominator: denominator
+                        .parse()
+                        .into_config_result(|| cwp + "gasfraction")?,
                 })
             }
             Unknown => Err(eyre!("Unknown gas payment enforcement policy"))

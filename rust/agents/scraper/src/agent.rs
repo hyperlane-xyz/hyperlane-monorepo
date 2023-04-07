@@ -15,7 +15,6 @@ use hyperlane_core::HyperlaneDomain;
 
 use crate::chain_scraper::{Contracts, SqlChainScraper};
 use crate::db::ScraperDb;
-use itertools::Itertools;
 
 /// A message explorer scraper agent
 #[derive(Debug)]
