@@ -16,10 +16,6 @@ import {
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneFactories,
-  PartialHyperlaneContractsMap,
-  attachPartialContractsMap,
-  connectPartialContractsMap,
-  filterAddressesMap,
 } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ConnectionClientConfig } from '../router/types';
@@ -39,7 +35,7 @@ export abstract class HyperlaneDeployer<
   Factories extends HyperlaneFactories,
 > {
   public verificationInputs: ChainMap<ContractVerificationInput[]> = {};
-  public cachedContracts: PartialHyperlaneContractsMap<Factories> = {};
+  public cachedAddresses: HyperlaneAddressesMap<any> = {};
   public deployedContracts: HyperlaneContractsMap<Factories> = {};
   public startingBlockNumbers: ChainMap<number | undefined> = {};
 
@@ -56,18 +52,7 @@ export abstract class HyperlaneDeployer<
   }
 
   cacheAddressesMap(addressesMap: HyperlaneAddressesMap<any>): void {
-    const filteredAddressesMap = filterAddressesMap(
-      addressesMap,
-      this.factories,
-    );
-    const attachedContractsMap = attachPartialContractsMap(
-      filteredAddressesMap,
-      this.factories,
-    );
-    this.cachedContracts = connectPartialContractsMap(
-      attachedContractsMap,
-      this.multiProvider,
-    );
+    this.cachedAddresses = addressesMap;
   }
 
   abstract deployContracts(
@@ -205,12 +190,9 @@ export abstract class HyperlaneDeployer<
     constructorArgs: Parameters<F['deploy']>,
     initializeArgs?: Parameters<Awaited<ReturnType<F['deploy']>>['initialize']>,
   ): Promise<ReturnType<F['deploy']>> {
-    const cachedContract = this.cachedContracts[chain]?.[contractName];
-    if (cachedContract) {
-      this.logger(
-        `Recovered ${contractName} on ${chain} ${cachedContract.address}`,
-      );
-      return cachedContract as ReturnType<F['deploy']>;
+    const cache = this.readCache(chain, factory, contractName);
+    if (cache.hit) {
+      return cache.contract;
     }
 
     const signer = this.multiProvider.getSigner(chain);
@@ -255,7 +237,7 @@ export abstract class HyperlaneDeployer<
       constructorArgs,
       initializeArgs,
     )) as HyperlaneContracts<Factories>[K];
-    this.cacheContract(chain, contractName, contract);
+    this.writeCache(chain, contractName, contract.address);
     return contract;
   }
 
@@ -348,15 +330,36 @@ export abstract class HyperlaneDeployer<
     return implementation.attach(proxy.address) as C;
   }
 
-  private cacheContract<K extends keyof Factories>(
+  private writeCache<K extends keyof Factories>(
     chain: ChainName,
     contractName: K,
-    contract: HyperlaneContracts<Factories>[K],
+    address: types.Address,
   ) {
-    if (!this.cachedContracts[chain]) {
-      this.cachedContracts[chain] = {};
+    if (!this.cachedAddresses[chain]) {
+      this.cachedAddresses[chain] = {};
     }
-    this.cachedContracts[chain][contractName] = contract;
+    this.cachedAddresses[chain][contractName] = address;
+  }
+
+  private readCache<F extends ethers.ContractFactory>(
+    chain: ChainName,
+    factory: F,
+    contractName: string,
+  ): { hit: boolean; contract: Awaited<ReturnType<F['deploy']>> } {
+    const cachedAddress = this.cachedAddresses[chain]?.[contractName];
+    const hit = !!cachedAddress;
+    const contractAddress = hit ? cachedAddress : ethers.constants.AddressZero;
+    const contract = factory
+      .attach(contractAddress)
+      .connect(this.multiProvider.getSignerOrProvider(chain)) as Awaited<
+      ReturnType<F['deploy']>
+    >;
+    if (hit) {
+      this.logger(
+        `Recovered ${contractName.toString()} on ${chain} ${cachedAddress}`,
+      );
+    }
+    return { hit, contract };
   }
 
   /**
@@ -370,14 +373,13 @@ export abstract class HyperlaneDeployer<
     constructorArgs: Parameters<Factories[K]['deploy']>,
     initializeArgs?: Parameters<HyperlaneContracts<Factories>[K]['initialize']>,
   ): Promise<HyperlaneContracts<Factories>[K]> {
-    const cachedProxy = this.cachedContracts[chain]?.[contractName];
-    if (cachedProxy !== undefined) {
-      this.logger(
-        `Recovered ${contractName as string} on ${chain} ${
-          cachedProxy.address
-        }`,
-      );
-      return cachedProxy! as Awaited<ReturnType<Factories[K]['deploy']>>;
+    const cache = this.readCache(
+      chain,
+      this.factories[contractName],
+      contractName.toString(),
+    );
+    if (cache.hit) {
+      return cache.contract;
     }
 
     // Try to initialize the implementation even though it may not be necessary
@@ -395,7 +397,7 @@ export abstract class HyperlaneDeployer<
       proxyAdmin,
       initializeArgs,
     );
-    this.cacheContract(chain, contractName, contract);
+    this.writeCache(chain, contractName, contract.address);
     return contract;
   }
 
