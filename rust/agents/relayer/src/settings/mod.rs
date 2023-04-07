@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use eyre::Context;
+use eyre::{eyre, Context};
 use serde::Deserialize;
 
 use hyperlane_base::decl_settings;
@@ -14,9 +14,10 @@ use crate::settings::matching_list::MatchingList;
 pub mod matching_list;
 
 /// Config for a GasPaymentEnforcementPolicy
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum GasPaymentEnforcementPolicy {
     /// No requirement - all messages are processed regardless of gas payment
+    #[default]
     None,
     /// Messages that have paid a minimum amount will be processed
     Minimum { payment: U256 },
@@ -45,28 +46,50 @@ enum RawGasPaymentEnforcementPolicy {
     Unknown,
 }
 
-impl TryFrom<RawGasPaymentEnforcementPolicy> for GasPaymentEnforcementPolicy {
-    type Error = eyre::Report;
-
-    fn try_from(r: RawGasPaymentEnforcementPolicy) -> Result<Self, Self::Error> {
-        Ok(match r {
-            RawGasPaymentEnforcementPolicy::None => Self::None,
-            RawGasPaymentEnforcementPolicy::Minimum { payment } => Self::Minimum {
+impl FromRawConf<'_, RawGasPaymentEnforcementPolicy> for GasPaymentEnforcementPolicy {
+    fn from_config(raw: RawGasPaymentEnforcementPolicy, cwp: &ConfigPath) -> ConfigResult<Self> {
+        use RawGasPaymentEnforcementPolicy::*;
+        match raw {
+            None => Ok(Self::None),
+            Minimum { payment } => Ok(Self::Minimum {
                 payment: payment
-                    .expect_or_eyre("Missing `payment` for Minimum gas payment enforcement policy")?
+                    .ok_or_else(|| {
+                        eyre!("Missing `payment` for Minimum gas payment enforcement policy")
+                    })
+                    .into_config_result(|| cwp + "payment")?
+                    .try_into()
+                    .into_config_result(|| cwp + "payment")?,
+            }),
+            OnChainFeeQuoting { gasfraction } => {
+                let (numerator, denominator) = gasfraction
+                    .ok_or_else(|| eyre!("Missing `gasfraction` for OnChainFeeQuoting gas payment enforcement policy"))
+                    .into_config_result(|| cwp + "gasfraction")?
+                    .split_once('/')
+                    .ok_or_else(|| eyre!("Invalid `gasfraction` for OnChainFeeQuoting gas payment enforcement policy; expected `numerator/denominator`")
+                        .into_config_result(|| cwp + "gasfraction"))?;
+                let numerator = numerator
+                    .strip_suffix(" ")
+                    .unwrap_or("")
                     .parse::<U256>()
-                    .context(
-                        "Invalid `payment` value for Minimum gas payment enforcement policy",
-                    )?,
-            },
-            RawGasPaymentEnforcementPolicy::OnChainFeeQuoting { .. } => {}
-            RawGasPaymentEnforcementPolicy::Unknown => {}
-        })
+                    .into_config_result(|| cwp + "gasfraction")?;
+                let denominator = denominator
+                    .strip_prefix(" ")
+                    .unwrap_or("")
+                    .parse::<U256>()
+                    .into_config_result(|| cwp + "gasfraction")?;
+
+                Ok(Self::OnChainFeeQuoting {
+                    gas_fraction_numerator: numerator,
+                    gas_fraction_denominator: denominator,
+                })
+            }
+            Unknown => Err(eyre!("Unknown gas payment enforcement policy").into_config_err(cwp)),
+        }
     }
 }
 
 /// Config for gas payment enforcement
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct GasPaymentEnforcementConf {
     /// The gas payment enforcement policy
     pub policy: GasPaymentEnforcementPolicy,
@@ -123,49 +146,100 @@ decl_settings!(Relayer,
     }
 );
 
-impl TryFrom<RawRelayerSettings> for RelayerSettings {
-    type Error = eyre::Report;
+impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
+    fn from_config(raw: RawRelayerSettings, cwp: &ConfigPath) -> ConfigResult<Self> {
+        let mut err = ConfigParsingError::default();
 
-    fn try_from(r: RawRelayerSettings) -> Result<Self, Self::Error> {
-        Ok(Self {
-            base: r.base.try_into()?,
-            db: r
-                .db
-                .expect_or_eyre("Missing `db` path")?
-                .parse()
-                .context("Invalid `db` path")?,
-            origin_chain_name: r
-                .originchainname
-                .expect_or_eyre("Missing `originchainname`")?,
-            destination_chain_names: r
-                .destinationchainnames
-                .expect_or_eyre("Missing `destinationchainnames`")?
-                .split(',')
-                .map(Into::into)
-                .collect(),
-            gas_payment_enforcement: {
-                let enforcement: Vec<RawGasPaymentEnforcementConf> =
-                    serde_json::from_str(r.gaspaymentenforcement.as_deref().unwrap_or("[]"))
-                        .context("Invalid `gaspaymentenforcement`")?;
-                let parsed: Vec<GasPaymentEnforcementConf> = enforcement
-                    .into_iter()
-                    .map(|i| i.try_into().context("When parsing `gaspaymentenforcement`"))
-                    .collect::<Result<_, _>>()?;
-                if !parsed.is_empty() {
-                    parsed
-                } else {
-                    vec![GasPaymentEnforcementConf {
-                        policy: GasPaymentEnforcementPolicy::None,
-                        matching_list: MatchingList::default(),
-                    }]
-                }
-            },
-            whitelist: None,
-            blacklist: None,
-            transaction_gas_limit: None,
-            skip_transaction_gas_limit_for: vec![],
-            allow_local_checkpoint_syncers: false,
-        })
+        let base = raw.base.parse_config(&cwp).take_config_err(&mut err);
+
+        let origin_chain_name = raw
+            .originchainname
+            .ok_or_else(|| eyre!("Missing `originchainname`"))
+            .into_config_result(|| cwp + "originchainname")
+            .take_config_err(&mut err);
+
+        let destination_chain_names = raw
+            .destinationchainnames
+            .ok_or_else(|| eyre!("Missing `destinationchainnames`"))
+            .into_config_result(|| cwp + "destinationchainnames")
+            .take_config_err(&mut err)
+            .map(|r| r.split(',').map(|s| s.to_string()).collect());
+
+        let gas_payment_enforcement = raw
+            .gaspaymentenforcement
+            .and_then(|j| {
+                serde_json::from_str::<Vec<RawGasPaymentEnforcementConf>>(&j)
+                    .into_config_result(|| cwp + "gaspaymentenforcement")
+                    .take_config_err(&mut err)
+            })
+            .map(|rv| {
+                let cwp = cwp + "gaspaymentenforcement";
+                rv.into_iter()
+                    .enumerate()
+                    .filter_map(|(i, r)| r.parse_config(&cwp.join(i)).take_config_err(&mut err))
+                    .collect()
+            })
+            .unwrap_or_else(|| vec![Default::default()]);
+
+        let whitelist = raw.whitelist.and_then(|j| {
+            serde_json::from_str::<MatchingList>(&j)
+                .into_config_result(|| cwp + "whitelist")
+                .take_config_err(&mut err)
+        });
+
+        let blacklist = raw.blacklist.and_then(|j| {
+            serde_json::from_str::<MatchingList>(&j)
+                .into_config_result(|| cwp + "blacklist")
+                .take_config_err(&mut err)
+        });
+
+        let transaction_gas_limit = raw.transactiongaslimit.and_then(|r| {
+            r.try_into()
+                .into_config_result(|| cwp + "transactiongaslimit")
+                .take_config_err(&mut err)
+        });
+
+        let skip_transaction_gas_limit_for = raw
+            .skiptransactiongaslimitfor
+            .and_then(|r| {
+                r.split(',')
+                    .map(str::parse)
+                    .collect::<Result<_, _>>()
+                    .into_config_result(|| cwp + "skiptransactiongaslimitfor")
+                    .take_config_err(&mut err)
+            })
+            .unwrap_or_default();
+
+        let db = raw
+            .db
+            .and_then(|r| {
+                r.parse()
+                    .into_config_result(|| cwp + "db")
+                    .take_config_err(&mut err)
+            })
+            .unwrap_or_else(|| {
+                std::env::current_dir().unwrap().join(format!(
+                    "relayer_db_{}",
+                    origin_chain_name.as_ref().unwrap_or_default()
+                ))
+            });
+
+        if err.is_empty() {
+            Ok(Self {
+                base: base.unwrap(),
+                db,
+                origin_chain_name: origin_chain_name.unwrap(),
+                destination_chain_names: destination_chain_names.unwrap(),
+                gas_payment_enforcement,
+                whitelist,
+                blacklist,
+                transaction_gas_limit,
+                skip_transaction_gas_limit_for,
+                allow_local_checkpoint_syncers: raw.allowlocalcheckpointsyncers,
+            })
+        } else {
+            Err(err)
+        }
     }
 }
 
