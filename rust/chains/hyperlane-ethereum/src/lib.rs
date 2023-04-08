@@ -62,54 +62,77 @@ mod signers;
 pub enum ConnectionConf {
     /// An HTTP-only quorum.
     HttpQuorum {
-        /// List of fully qualified strings to connect to
+        /// List of urls to connect to
         urls: Vec<Url>,
     },
     /// An HTTP-only fallback set.
     HttpFallback {
-        /// List of fully qualified strings to connect to in order of priority
+        /// List of urls to connect to in order of priority
         urls: Vec<Url>,
     },
     /// HTTP connection details
     Http {
-        /// Fully qualified string to connect to
+        /// Url to connect to
         url: Url,
     },
     /// Websocket connection details
     Ws {
-        /// Fully qualified string to connect to
+        /// Url to connect to
         url: Url,
     },
 }
 
-/// Raw ethereum connection configuration used for better deserialization
-/// errors.
+// /// Raw ethereum connection configuration used for better deserialization
+// /// errors.
+// #[derive(Debug, Deserialize)]
+// #[serde(tag = "type", rename_all = "camelCase")]
+// pub enum RawConnectionConf {
+//     /// An HTTP-only quorum.
+//     HttpQuorum {
+//         /// Comma separated list of fully qualified strings to connect to
+//         urls: Option<String>,
+//     },
+//     /// An HTTP-only fallback set.
+//     HttpFallback {
+//         /// Comma separated list of fully qualified strings to connect to in
+// order of priority         urls: Option<String>,
+//     },
+//     /// HTTP connection details
+//     Http {
+//         /// Fully qualified string to connect to
+//         url: Option<String>,
+//     },
+//     /// Websocket connection details
+//     Ws {
+//         /// Fully qualified string to connect to
+//         url: Option<String>,
+//     },
+//     /// Unknown connection type
+//     #[serde(other)]
+//     Unknown,
+// }
+
 #[derive(Debug, Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
-pub enum RawConnectionConf {
-    HttpQuorum {
-        urls: Option<String>,
-    },
-    HttpFallback {
-        urls: Option<String>,
-    },
-    Http {
-        url: Option<String>,
-    },
-    Ws {
-        url: Option<String>,
-    },
-    #[serde(other)]
-    Unknown,
+#[serde(rename_all = "camelCase")]
+pub struct RawConnectionConf {
+    #[serde(rename = "type")]
+    connection_type: Option<String>,
+    /// A single url to connect to
+    url: Option<String>,
+    /// A comma separated list of urls to connect to
+    urls: Option<String>,
 }
 
 /// Error type when parsing a connection configuration.
 #[derive(Debug, thiserror::Error)]
 pub enum ConnectionConfError {
-    #[error("Unsupported connection type")]
-    UnsupportedConnectionType,
+    /// Unknown connection type was specified
+    #[error("Unsupported connection type '{0}'")]
+    UnsupportedConnectionType(String),
+    /// The url was not specified
     #[error("Missing `url` for connection configuration")]
     MissingConnectionUrl,
+    /// The urls were not specified
     #[error("Missing `urls` for connection configuration")]
     MissingConnectionUrls,
     #[error("Invalid `url` for connection configuration: `{0}` ({1})")]
@@ -129,51 +152,49 @@ impl FromRawConf<'_, RawConnectionConf> for ConnectionConf {
         _filter: (),
     ) -> ConfigResult<Self> {
         use ConnectionConfError::*;
-        use RawConnectionConf::*;
-        match raw {
-            HttpQuorum { urls: None } | HttpFallback { urls: None } => {
-                Err(MissingConnectionUrls).into_config_result(|| cwp.join("urls"))
-            }
-            HttpQuorum { urls: Some(urls) } | HttpFallback { urls: Some(urls) }
-                if urls.is_empty() =>
-            {
-                Err(EmptyUrls).into_config_result(|| cwp.join("urls"))
-            }
-            Http { url: None } | Ws { url: None } => {
-                Err(MissingConnectionUrl).into_config_result(|| cwp.join("url"))
-            }
-            Http { url: Some(url) } | Ws { url: Some(url) } if url.is_empty() => {
-                Err(EmptyUrl).into_config_result(|| cwp.join("url"))
-            }
-            HttpQuorum { urls: Some(urls) } => Ok(Self::HttpQuorum {
-                urls: urls
-                    .split(',')
-                    .map(|s| s.parse())
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(|e| InvalidConnectionUrls(urls, e))
-                    .into_config_result(|| cwp.join("urls"))?,
-            }),
-            HttpFallback { urls: Some(urls) } => Ok(Self::HttpFallback {
-                urls: urls
-                    .split(',')
-                    .map(|s| s.parse())
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(|e| InvalidConnectionUrls(urls, e))
-                    .into_config_result(|| cwp.join("urls"))?,
-            }),
-            Http { url: Some(url) } => Ok(Self::Http {
-                url: url
-                    .parse()
-                    .map_err(|e| InvalidConnectionUrl(url, e))
-                    .into_config_result(|| cwp.join("url"))?,
-            }),
-            Ws { url: Some(url) } => Ok(Self::Ws {
-                url: url
-                    .parse()
-                    .map_err(|e| InvalidConnectionUrl(url, e))
-                    .into_config_result(|| cwp.join("url"))?,
-            }),
-            Unknown => Err(UnsupportedConnectionType).into_config_result(|| cwp.join("type")),
+
+        let connection_type = raw.connection_type.as_deref().unwrap_or("http");
+
+        let urls = (|| -> ConfigResult<Vec<Url>> {
+            raw.urls
+                .as_ref()
+                .ok_or(MissingConnectionUrls)
+                .into_config_result(|| cwp + "urls")?
+                .split(',')
+                .map(|s| s.parse())
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| InvalidConnectionUrls(raw.urls.clone().unwrap(), e))
+                .into_config_result(|| cwp.join("urls"))
+        })();
+
+        let url = (|| -> ConfigResult<Url> {
+            raw.url
+                .as_ref()
+                .ok_or(MissingConnectionUrl)
+                .into_config_result(|| cwp + "url")?
+                .parse()
+                .map_err(|e| InvalidConnectionUrl(raw.url.clone().unwrap(), e))
+                .into_config_result(|| cwp.join("url"))
+        })();
+
+        macro_rules! make_with_urls {
+            ($variant:ident) => {
+                if let Ok(urls) = urls {
+                    Ok(Self::$variant { urls })
+                } else if let Ok(url) = url {
+                    Ok(Self::$variant { urls: vec![url] })
+                } else {
+                    Err(urls.unwrap_err())
+                }
+            };
+        }
+
+        match connection_type {
+            "httpQuorum" => make_with_urls!(HttpQuorum),
+            "httpFallback" => make_with_urls!(HttpFallback),
+            "http" => Ok(Self::Http { url: url? }),
+            "ws" => Ok(Self::Ws { url: url? }),
+            t => Err(UnsupportedConnectionType(t.into())).into_config_result(|| cwp.join("type")),
         }
     }
 }

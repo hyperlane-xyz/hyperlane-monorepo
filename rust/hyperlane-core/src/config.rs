@@ -174,7 +174,8 @@ impl ConfigParsingError {
     }
 }
 
-#[must_use]
+/// A result type that is used for config parsing and may contain multiple
+/// errors.
 pub type ConfigResult<T> = Result<T, ConfigParsingError>;
 
 impl FromIterator<ConfigParsingError> for ConfigParsingError {
@@ -198,6 +199,7 @@ impl Display for ConfigParsingError {
 
 impl std::error::Error for ConfigParsingError {}
 
+/// A trait that allows for constructing `Self` from a raw config type.
 pub trait FromRawConf<'de, T, F = ()>: Sized
 where
     // technically we don't need this bound but it enforces
@@ -205,20 +207,26 @@ where
     T: Debug + Deserialize<'de>,
     F: Default,
 {
+    /// Construct `Self` from a raw config type.
     fn from_config(raw: T, cwp: &ConfigPath) -> ConfigResult<Self> {
         Self::from_config_filtered(raw, cwp, F::default())
     }
 
+    /// Construct `Self` from a raw config type with a filter to limit what
+    /// config paths are used.
     fn from_config_filtered(raw: T, cwp: &ConfigPath, filter: F) -> ConfigResult<Self>;
 }
 
+/// A trait that allows for converting a raw config type into a "parsed" type.
 pub trait IntoParsedConf<'de, F: Default>: Debug + Deserialize<'de> {
+    /// Parse the config with a filter to limit what config paths are used.
     fn parse_config_with_filter<O: FromRawConf<'de, Self, F>>(
         self,
         cwp: &ConfigPath,
         filter: F,
     ) -> ConfigResult<O>;
 
+    /// Parse the config.
     fn parse_config<O: FromRawConf<'de, Self, F>>(self, cwp: &ConfigPath) -> ConfigResult<O> {
         self.parse_config_with_filter(cwp, F::default())
     }
@@ -247,6 +255,7 @@ pub enum StrOrIntParseError {
     /// The provided integer does not match the type requirements.
     #[error("Provided number is an invalid integer: {0}")]
     InvalidInt(#[from] TryFromIntError),
+    /// Some other error occured.
     #[error("Could not parse integer: {0}")]
     Other(String),
 }

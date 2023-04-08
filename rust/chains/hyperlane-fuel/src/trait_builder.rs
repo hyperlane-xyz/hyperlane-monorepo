@@ -20,8 +20,10 @@ pub struct RawConnectionConf {
 /// An error type when parsing a connection configuration.
 #[derive(thiserror::Error, Debug)]
 pub enum ConnectionConfError {
+    /// Missing `url` for connection configuration
     #[error("Missing `url` for connection configuration")]
     MissingConnectionUrl,
+    /// Invalid `url` for connection configuration
     #[error("Invalid `url` for connection configuration: `{0}` ({1})")]
     InvalidConnectionUrl(String, url::ParseError),
 }
