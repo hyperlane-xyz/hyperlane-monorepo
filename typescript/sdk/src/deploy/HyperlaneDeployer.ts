@@ -247,7 +247,11 @@ export abstract class HyperlaneDeployer<
     proxy: TransparentUpgradeableProxy,
     admin: string,
   ): Promise<void> {
-    if (utils.eqAddress(admin, await proxy.callStatic.admin())) {
+    const actualAdmin = await proxyAdmin(
+      this.multiProvider.getProvider(chain),
+      proxy.address,
+    );
+    if (utils.eqAddress(admin, actualAdmin)) {
       this.logger(`Admin set correctly, skipping admin change`);
       return;
     }
@@ -282,13 +286,14 @@ export abstract class HyperlaneDeployer<
       'initialize',
       initializeArgs,
     );
+    const overrides = this.multiProvider.getTransactionOverrides(chain);
     await this.runIfAdmin(
       chain,
       proxy,
       () =>
         this.multiProvider.handleTx(
           chain,
-          proxy.upgradeToAndCall(implementation.address, initData),
+          proxy.upgradeToAndCall(implementation.address, initData, overrides),
         ),
       (proxyAdmin: ProxyAdmin) =>
         this.multiProvider.handleTx(
@@ -297,6 +302,7 @@ export abstract class HyperlaneDeployer<
             proxy.address,
             implementation.address,
             initData,
+            overrides,
           ),
         ),
     );

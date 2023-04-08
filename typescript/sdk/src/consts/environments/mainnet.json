@@ -44,7 +44,8 @@
     "defaultIsmInterchainGasPaymaster": "0x56f52c0A1ddcD557285f7CBc782D3d83096CE1Cc",
     "multisigIsm": "0x61A80297e77FC5395bd6Ff60EEacf7CD4f18d4a4",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
-    "interchainQueryRouter": "0x234b19282985882d6d6fd54dEBa272271f4eb784"
+    "interchainQueryRouter": "0x234b19282985882d6d6fd54dEBa272271f4eb784",
+    "interchainAccountRouter": "0x4a4D878c41C7F71eCff182F526b7691aDC6e4150"
   },
   "bsc": {
     "storageGasOracle": "0x91d23D603d60445411C06e6443d81395593B7940",
