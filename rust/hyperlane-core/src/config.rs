@@ -148,27 +148,33 @@ fn env_casing() {
 /// A composite error type that allows for compiling multiple errors into a
 /// single result. Use `default()` to create an empty error and then take other
 /// errors using the extension traits or directly push them.
+#[must_use]
 #[derive(Debug, Default)]
 pub struct ConfigParsingError(Vec<(ConfigPath, Report)>);
 
 impl ConfigParsingError {
-    pub fn from_report(conf_path: ConfigPath, report: Report) -> Self {
-        Self(vec![(conf_path, report)])
-    }
-
+    /// Add a new error to the list.
     pub fn push(&mut self, conf_path: ConfigPath, report: Report) {
         self.0.push((conf_path, report));
     }
 
+    /// Merge all the individual errors from two `ConfigParsingErrors`.
     pub fn merge(&mut self, other: Self) {
         self.0.extend(other.0);
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+    /// Convert this error into a result, returning `Ok(())` if there are no
+    /// errors.
+    pub fn into_result(self) -> ConfigResult<()> {
+        if self.0.is_empty() {
+            Ok(())
+        } else {
+            Err(self)
+        }
     }
 }
 
+#[must_use]
 pub type ConfigResult<T> = Result<T, ConfigParsingError>;
 
 impl FromIterator<ConfigParsingError> for ConfigParsingError {

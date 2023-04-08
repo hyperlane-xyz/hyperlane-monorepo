@@ -129,14 +129,11 @@ impl FromRawConf<'_, RawGasPaymentEnforcementConf> for GasPaymentEnforcementConf
                     .take_err(&mut err, || cwp + "matching_list")
             })
             .unwrap_or_default();
-        if err.is_empty() {
-            Ok(Self {
-                policy: policy.unwrap(),
-                matching_list,
-            })
-        } else {
-            Err(err)
-        }
+        err.into_result()?;
+        Ok(Self {
+            policy: policy.unwrap(),
+            matching_list,
+        })
     }
 }
 
@@ -290,22 +287,19 @@ impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
             None
         };
 
-        if err.is_empty() {
-            Ok(Self {
-                base: base.unwrap(),
-                db,
-                origin_chain: origin_chain.unwrap(),
-                destination_chains,
-                gas_payment_enforcement,
-                whitelist,
-                blacklist,
-                transaction_gas_limit,
-                skip_transaction_gas_limit_for,
-                allow_local_checkpoint_syncers: raw.allowlocalcheckpointsyncers,
-            })
-        } else {
-            Err(err)
-        }
+        err.into_result()?;
+        Ok(Self {
+            base: base.unwrap(),
+            db,
+            origin_chain: origin_chain.unwrap(),
+            destination_chains,
+            gas_payment_enforcement,
+            whitelist,
+            blacklist,
+            transaction_gas_limit,
+            skip_transaction_gas_limit_for,
+            allow_local_checkpoint_syncers: raw.allowlocalcheckpointsyncers,
+        })
     }
 }
 

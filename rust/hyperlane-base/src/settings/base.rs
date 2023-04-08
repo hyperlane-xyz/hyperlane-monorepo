@@ -104,15 +104,12 @@ impl FromRawConf<'_, RawSettings, Option<&HashSet<&str>>> for Settings {
             .metrics
             .and_then(|port| port.try_into().take_err(&mut err, || cwp + "metrics"));
 
-        if err.is_empty() {
-            Ok(Self {
-                chains,
-                metrics,
-                tracing,
-            })
-        } else {
-            Err(err)
-        }
+        err.into_result()?;
+        Ok(Self {
+            chains,
+            metrics,
+            tracing,
+        })
     }
 }
 

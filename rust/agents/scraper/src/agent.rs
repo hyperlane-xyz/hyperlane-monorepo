@@ -79,15 +79,12 @@ impl FromRawConf<'_, RawScraperSettings> for ScraperSettings {
             vec![]
         };
 
-        if err.is_empty() {
-            Ok(Self {
-                base: base.unwrap(),
-                db: db.unwrap(),
-                chains_to_scrape,
-            })
-        } else {
-            Err(err)
-        }
+        err.into_result()?;
+        Ok(Self {
+            base: base.unwrap(),
+            db: db.unwrap(),
+            chains_to_scrape,
+        })
     }
 }
 

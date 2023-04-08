@@ -126,15 +126,12 @@ impl FromRawConf<'_, RawCoreContractAddresses> for CoreContractAddresses {
         let igp = parse_addr!(interchain_gas_paymaster, "interchain_gas_paymaster");
         let va = parse_addr!(validator_announce, "validator_announce");
 
-        if err.is_empty() {
-            Ok(Self {
-                mailbox: mb.unwrap(),
-                interchain_gas_paymaster: igp.unwrap(),
-                validator_announce: va.unwrap(),
-            })
-        } else {
-            Err(err)
-        }
+        err.into_result()?;
+        Ok(Self {
+            mailbox: mb.unwrap(),
+            interchain_gas_paymaster: igp.unwrap(),
+            validator_announce: va.unwrap(),
+        })
     }
 }
 
@@ -173,11 +170,8 @@ impl FromRawConf<'_, RawIndexSettings> for IndexSettings {
             .and_then(|v| v.try_into().take_err(&mut err, || cwp + "chunk"))
             .unwrap_or(1999);
 
-        if err.is_empty() {
-            Ok(Self { from, chunk_size })
-        } else {
-            Err(err)
-        }
+        err.into_result()?;
+        Ok(Self { from, chunk_size })
     }
 }
 
@@ -287,20 +281,17 @@ impl FromRawConf<'_, RawChainConf> for ChainConf {
 
         let metrics_conf = raw.metrics_conf.unwrap_or_default();
 
-        if err.is_empty() {
-            Ok(Self {
-                connection,
-                domain: domain.unwrap(),
-                addresses: addresses.unwrap(),
-                signer,
-                finality_blocks,
-                txsubmission,
-                index,
-                metrics_conf,
-            })
-        } else {
-            Err(err)
-        }
+        err.into_result()?;
+        Ok(Self {
+            connection,
+            domain: domain.unwrap(),
+            addresses: addresses.unwrap(),
+            signer,
+            finality_blocks,
+            txsubmission,
+            index,
+            metrics_conf,
+        })
     }
 }
 

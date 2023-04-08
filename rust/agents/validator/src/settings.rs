@@ -96,17 +96,14 @@ impl FromRawConf<'_, RawValidatorSettings> for ValidatorSettings {
             None
         };
 
-        if err.is_empty() {
-            Ok(Self {
-                base: base.unwrap(),
-                origin_chain: origin_chain.unwrap(),
-                validator: validator.unwrap(),
-                checkpoint_syncer: checkpoint_syncer.unwrap(),
-                reorg_period: reorg_period.unwrap(),
-                interval: interval.unwrap(),
-            })
-        } else {
-            Err(err)
-        }
+        err.into_result()?;
+        Ok(Self {
+            base: base.unwrap(),
+            origin_chain: origin_chain.unwrap(),
+            validator: validator.unwrap(),
+            checkpoint_syncer: checkpoint_syncer.unwrap(),
+            reorg_period: reorg_period.unwrap(),
+            interval: interval.unwrap(),
+        })
     }
 }
