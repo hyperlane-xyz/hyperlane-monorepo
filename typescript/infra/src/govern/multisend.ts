@@ -55,16 +55,19 @@ export class SafeMultiSend extends MultiSend {
       this.multiProvider,
       this.safeAddress,
     );
+    const safeService = getSafeService(this.chain, this.multiProvider);
+
     const safeTransactionData = calls.map((call) => {
       return { to: call.to, data: call.data.toString(), value: '0' };
     });
+    const nextNonce = await safeService.getNextNonce(this.safeAddress);
     const safeTransaction = await safeSdk.createTransaction({
       safeTransactionData,
+      options: { nonce: nextNonce },
     });
     const safeTxHash = await safeSdk.getTransactionHash(safeTransaction);
     const senderSignature = await safeSdk.signTransactionHash(safeTxHash);
 
-    const safeService = getSafeService(this.chain, this.multiProvider);
     const senderAddress = await this.multiProvider.getSignerAddress(this.chain);
     await safeService.proposeTransaction({
       safeAddress: this.safeAddress,

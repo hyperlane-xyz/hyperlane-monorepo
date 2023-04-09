@@ -8,7 +8,7 @@ import {
 } from '@hyperlane-xyz/core';
 import { types } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts, ownableContracts } from '../contracts';
+import { HyperlaneContracts, filterOwnableContracts } from '../contracts';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
@@ -165,7 +165,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       multisigIsm,
     };
     // Transfer ownership of all ownable contracts
-    const ownables = await ownableContracts(contracts);
+    const ownables = await filterOwnableContracts(contracts);
     await this.transferOwnershipOfContracts(chain, config.owner, ownables);
     return contracts;
   }

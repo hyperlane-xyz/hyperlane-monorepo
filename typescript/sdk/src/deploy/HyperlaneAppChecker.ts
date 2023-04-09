@@ -5,7 +5,7 @@ import type { types } from '@hyperlane-xyz/utils';
 import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
-import { ownableContracts } from '../contracts';
+import { filterOwnableContracts } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 import { objMap, promiseObjAll } from '../utils/objects';
@@ -123,7 +123,7 @@ export abstract class HyperlaneAppChecker<
 
   async ownables(chain: ChainName): Promise<{ [key: string]: Ownable }> {
     const contracts = this.app.getContracts(chain);
-    return ownableContracts(contracts);
+    return filterOwnableContracts(contracts);
   }
 
   // TODO: Require owner in config if ownables is non-empty
