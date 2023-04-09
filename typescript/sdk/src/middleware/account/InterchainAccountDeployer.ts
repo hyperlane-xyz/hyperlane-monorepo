@@ -1,13 +1,15 @@
+import { ethers } from 'ethers';
+
 import {
-  InterchainAccountRouter__factory,
+  Router,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
 
 import { HyperlaneContracts } from '../../contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
+import { HyperlaneRouterDeployer } from '../../router/HyperlaneRouterDeployer';
 import { RouterConfig } from '../../router/types';
-import { ChainMap, ChainName } from '../../types';
-import { MiddlewareRouterDeployer } from '../MiddlewareRouterDeployer';
+import { ChainName } from '../../types';
 
 import {
   InterchainAccountFactories,
@@ -16,19 +18,16 @@ import {
 
 export type InterchainAccountConfig = RouterConfig;
 
-export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
+export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
   InterchainAccountConfig,
-  InterchainAccountFactories,
-  InterchainAccountRouter__factory
+  InterchainAccountFactories
 > {
-  readonly routerContractName = 'interchainAccountRouter';
+  constructor(multiProvider: MultiProvider) {
+    super(multiProvider, interchainAccountFactories, {});
+  }
 
-  constructor(
-    multiProvider: MultiProvider,
-    configMap: ChainMap<InterchainAccountConfig>,
-    create2salt = 'accountsrouter',
-  ) {
-    super(multiProvider, configMap, interchainAccountFactories, create2salt);
+  router(contracts: HyperlaneContracts<InterchainAccountFactories>): Router {
+    return contracts.interchainAccountRouter;
   }
 
   // The OwnableMulticall implementation has an immutable owner address that
@@ -60,7 +59,6 @@ export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
       new TransparentUpgradeableProxy__factory(),
       'TransparentUpgradeableProxy',
       [proxyAdmin.address, deployer, '0x'],
-      { create2Salt: this.create2salt },
     );
 
     // 2. deploy the real InterchainAccountRouter and OwnableMulticall implementation with proxy address
@@ -72,26 +70,20 @@ export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
     );
 
     // 3. upgrade the proxy to the real implementation and initialize
-    // adapted from HyperlaneDeployer.deployProxy.useCreate2
-    const initArgs = await this.initializeArgs(chain, config);
-    const initData =
-      this.factories.interchainAccountRouter.interface.encodeFunctionData(
-        'initialize',
-        initArgs,
-      );
-    await super.upgradeAndInitialize(
-      chain,
-      proxy,
-      implementation.address,
-      initData,
-    );
+    const owner = deployer;
+    await super.upgradeAndInitialize(chain, proxy, implementation, [
+      config.mailbox,
+      config.interchainGasPaymaster,
+      config.interchainSecurityModule ?? ethers.constants.AddressZero,
+      owner,
+    ]);
     await super.changeAdmin(chain, proxy, proxyAdmin.address);
 
-    const proxiedRouter = implementation.attach(proxy.address);
+    const interchainAccountRouter = implementation.attach(proxy.address);
 
     return {
       proxyAdmin,
-      interchainAccountRouter: proxiedRouter,
+      interchainAccountRouter,
     };
   }
 }

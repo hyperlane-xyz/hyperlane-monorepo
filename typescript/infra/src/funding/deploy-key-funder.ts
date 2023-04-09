@@ -1,4 +1,4 @@
-import { AgentConfig, CoreEnvironmentConfig } from '../config';
+import { AgentConfig, EnvironmentConfig } from '../config';
 import { KeyFunderConfig } from '../config/funding';
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { execCmd } from '../utils/utils';
@@ -62,7 +62,7 @@ function getKeyFunderHelmValues(
 }
 
 export function getKeyFunderConfig(
-  coreConfig: CoreEnvironmentConfig,
+  coreConfig: EnvironmentConfig,
 ): KeyFunderConfig {
   const keyFunderConfig = coreConfig.keyFunderConfig;
   if (!keyFunderConfig) {

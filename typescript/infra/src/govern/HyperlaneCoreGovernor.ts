@@ -16,7 +16,7 @@ import { types, utils } from '@hyperlane-xyz/utils';
 import {
   AnnotatedCallData,
   HyperlaneAppGovernor,
-} from '../govern/HyperlaneAppGovernor';
+} from './HyperlaneAppGovernor';
 
 export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
   HyperlaneCore,
