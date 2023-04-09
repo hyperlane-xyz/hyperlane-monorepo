@@ -61,17 +61,16 @@ export function filterAddressesMap<F extends HyperlaneFactories>(
   addressesMap: HyperlaneAddressesMap<F>,
   factories: F,
 ): HyperlaneAddressesMap<F> {
+  const factoryKeys = Object.keys(factories);
   // Filter out addresses that we do not have factories for
   const pickedAddressesMap = objMap(addressesMap, (_, addresses) =>
-    pick(addresses, Object.keys(factories)),
+    pick(addresses, factoryKeys),
   );
   // Filter out chains for which we do not have a complete set of addresses
   return objFilter(
     pickedAddressesMap,
     (_, addresses): addresses is HyperlaneAddresses<F> => {
-      return Object.keys(factories)
-        .map((contract) => Object.keys(addresses).includes(contract))
-        .every(Boolean);
+      return Object.keys(addresses).every((a) => factoryKeys.includes(a));
     },
   );
 }
@@ -93,7 +92,7 @@ export function attachContractsMap<F extends HyperlaneFactories>(
   const filteredAddressesMap = filterAddressesMap(addressesMap, factories);
   return objMap(filteredAddressesMap, (_, addresses) =>
     attachContracts(addresses, factories),
-  );
+  ) as HyperlaneContractsMap<F>;
 }
 
 export function connectContracts<F extends HyperlaneFactories>(
@@ -115,7 +114,7 @@ export function connectContractsMap<F extends HyperlaneFactories>(
   );
 }
 
-export async function ownableContracts(
+export async function filterOwnableContracts(
   contracts: HyperlaneContracts<any>,
 ): Promise<{ [key: string]: Ownable }> {
   const isOwnable = async (_: string, contract: Contract): Promise<boolean> => {

@@ -5,7 +5,7 @@ import {
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneFactories,
-  ownableContracts,
+  filterOwnableContracts,
 } from '../contracts';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { RouterConfig } from '../router/types';
@@ -90,7 +90,7 @@ export abstract class HyperlaneRouterDeployer<
     for (const chain of Object.keys(contractsMap)) {
       const contracts = contractsMap[chain];
       const owner = configMap[chain].owner;
-      const ownables = await ownableContracts(contracts);
+      const ownables = await filterOwnableContracts(contracts);
       await this.transferOwnershipOfContracts(chain, owner, ownables);
     }
   }
