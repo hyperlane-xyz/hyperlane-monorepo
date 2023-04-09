@@ -5,7 +5,7 @@ import {
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneFactories,
-  ownableContracts,
+  filterOwnableContracts,
 } from '../contracts';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { RouterConfig } from '../router/types';
@@ -95,7 +95,7 @@ export abstract class HyperlaneRouterDeployer<
     await promiseObjAll(
       objMap(contractsMap, async (chain, contracts) => {
         const owner = configMap[chain].owner;
-        const ownables = await ownableContracts(contracts);
+        const ownables = await filterOwnableContracts(contracts);
         await this.transferOwnershipOfContracts(chain, owner, ownables);
       }),
     );

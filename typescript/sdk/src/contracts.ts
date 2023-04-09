@@ -109,7 +109,7 @@ export function connectContractsMap<F extends HyperlaneFactories>(
   );
 }
 
-export async function ownableContracts(
+export async function filterOwnableContracts(
   contracts: HyperlaneContracts<any>,
 ): Promise<{ [key: string]: Ownable }> {
   const isOwnable = async (_: string, contract: Contract): Promise<boolean> => {
