@@ -58,17 +58,16 @@ export function filterAddressesMap(
   addressesMap: HyperlaneAddressesMap<any>,
   factories: HyperlaneFactories,
 ): HyperlaneAddressesMap<typeof factories> {
+  const factoryKeys = Object.keys(factories);
   // Filter out addresses that we do not have factories for
   const pickedAddressesMap = objMap(addressesMap, (_, addresses) =>
-    pick(addresses, Object.keys(factories)),
+    pick(addresses, factoryKeys),
   );
   // Filter out chains for which we do not have a complete set of addresses
   return objFilter(
     pickedAddressesMap,
     (_, addresses): addresses is HyperlaneAddresses<typeof factories> => {
-      return Object.keys(factories)
-        .map((contract) => Object.keys(addresses).includes(contract))
-        .every(Boolean);
+      return Object.keys(addresses).every((a) => factoryKeys.includes(a));
     },
   );
 }

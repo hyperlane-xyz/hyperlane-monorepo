@@ -82,12 +82,12 @@ export abstract class HyperlaneAppGovernor<
         );
         const response =
           !confirm ||
-          prompts.confirm({
+          (await prompts.confirm({
             type: 'confirm',
             name: 'value',
             message: 'Can you confirm?',
             initial: false,
-          });
+          }));
         return !!response;
       }
       return false;
