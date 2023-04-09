@@ -34,7 +34,7 @@ async function main() {
   let existingVerificationInputs = {};
   try {
     const addresses = readJSON(dir, 'addresses.json');
-    deployer.cacheAddresses(addresses);
+    deployer.cacheAddressesMap(addresses);
     existingVerificationInputs = readJSON(dir, 'verification.json');
   } catch (e) {
     console.info(`Could not load previous deployment, file may not exist`);
