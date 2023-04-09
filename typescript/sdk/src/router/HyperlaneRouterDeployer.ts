@@ -5,6 +5,7 @@ import {
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneFactories,
+  filterOwnableContracts,
 } from '../contracts';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { RouterConfig } from '../router/types';
@@ -90,23 +91,12 @@ export abstract class HyperlaneRouterDeployer<
     contractsMap: HyperlaneContractsMap<Factories>,
     configMap: ChainMap<Config>,
   ): Promise<void> {
-    this.logger(`Transferring ownership of routers...`);
+    this.logger(`Transferring ownership of ownables...`);
     await promiseObjAll(
       objMap(contractsMap, async (chain, contracts) => {
         const owner = configMap[chain].owner;
-        const currentOwner = await this.router(contracts).owner();
-        if (owner != currentOwner) {
-          this.logger(`Transfer ownership of ${chain}'s router to ${owner}`);
-          await super.runIfOwner(chain, this.router(contracts), async () => {
-            await this.multiProvider.handleTx(
-              chain,
-              this.router(contracts).transferOwnership(
-                owner,
-                this.multiProvider.getTransactionOverrides(chain),
-              ),
-            );
-          });
-        }
+        const ownables = await filterOwnableContracts(contracts);
+        await this.transferOwnershipOfContracts(chain, owner, ownables);
       }),
     );
   }
