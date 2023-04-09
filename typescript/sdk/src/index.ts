@@ -36,7 +36,7 @@ export {
   attachContractsMap,
   connectContracts,
   connectContractsMap,
-  filterAddresses,
+  filterAddressesMap,
   HyperlaneAddresses,
   HyperlaneAddressesMap,
   HyperlaneContracts,
