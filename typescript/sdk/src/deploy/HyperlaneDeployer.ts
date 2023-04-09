@@ -191,9 +191,9 @@ export abstract class HyperlaneDeployer<
     constructorArgs: Parameters<F['deploy']>,
     initializeArgs?: Parameters<Awaited<ReturnType<F['deploy']>>['initialize']>,
   ): Promise<ReturnType<F['deploy']>> {
-    const cache = this.readCache(chain, factory, contractName);
-    if (cache.hit) {
-      return cache.contract;
+    const cachedContract = this.readCache(chain, factory, contractName);
+    if (cachedContract) {
+      return cachedContract;
     }
 
     const signer = this.multiProvider.getSigner(chain);
@@ -352,7 +352,7 @@ export abstract class HyperlaneDeployer<
     chain: ChainName,
     factory: F,
     contractName: string,
-  ): { hit: boolean; contract: Awaited<ReturnType<F['deploy']>> } {
+  ): Awaited<ReturnType<F['deploy']>> | undefined {
     const cachedAddress = this.cachedAddresses[chain]?.[contractName];
     const hit = !!cachedAddress;
     const contractAddress = hit ? cachedAddress : ethers.constants.AddressZero;
@@ -365,8 +365,9 @@ export abstract class HyperlaneDeployer<
       this.logger(
         `Recovered ${contractName.toString()} on ${chain} ${cachedAddress}`,
       );
+      return contract;
     }
-    return { hit, contract };
+    return undefined;
   }
 
   /**
@@ -380,13 +381,13 @@ export abstract class HyperlaneDeployer<
     constructorArgs: Parameters<Factories[K]['deploy']>,
     initializeArgs?: Parameters<HyperlaneContracts<Factories>[K]['initialize']>,
   ): Promise<HyperlaneContracts<Factories>[K]> {
-    const cache = this.readCache(
+    const cachedContract = this.readCache(
       chain,
       this.factories[contractName],
       contractName.toString(),
     );
-    if (cache.hit) {
-      return cache.contract;
+    if (cachedContract) {
+      return cachedContract;
     }
 
     // Try to initialize the implementation even though it may not be necessary

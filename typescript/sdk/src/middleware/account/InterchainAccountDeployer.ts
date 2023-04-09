@@ -44,13 +44,13 @@ export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
 
     let interchainAccountRouter: InterchainAccountRouter;
     // adapted from HyperlaneDeployer.deployProxiedContract
-    const cache = this.readCache(
+    const cachedContract = this.readCache(
       chain,
       this.factories['interchainAccountRouter'],
       'interchainAccountRouter',
     );
-    if (cache.hit) {
-      interchainAccountRouter = cache.contract;
+    if (cachedContract) {
+      interchainAccountRouter = cachedContract;
     } else {
       const deployer = await this.multiProvider.getSignerAddress(chain);
 
