@@ -33,7 +33,7 @@ pub enum SignerConf {
 }
 
 /// Raw signer types
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct RawSignerConf {
     #[serde(rename = "type")]
