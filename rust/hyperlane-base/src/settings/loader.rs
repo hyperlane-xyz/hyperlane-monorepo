@@ -93,13 +93,6 @@ where
             Ok(cfg)
         }
         Err(err) => {
-            // let mut err: Report = match err {
-            //     ConfigError::Foreign(err) => {
-            //         err.downcast::<Report>().map(|b| *b).or_else(|err| Ok(err.into())).unwrap()
-            //     }
-            //     err => err.into(),
-            // };
-
             let mut err = if let Some(source_err) = err.source() {
                 let source = format!("Config error source: {source_err}");
                 Err(err).context(source)
