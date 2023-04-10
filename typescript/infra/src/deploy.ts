@@ -67,14 +67,14 @@ export async function deployWithArtifacts<Config>(
   },
 ) {
   if (cache.read) {
-    let addresses = {};
+    let addressesMap = {};
     try {
-      addresses = readJSONAtPath(cache.addresses);
+      addressesMap = readJSONAtPath(cache.addresses);
     } catch (e) {
       console.error('Failed to load cached addresses');
     }
 
-    deployer.cacheAddresses(addresses);
+    deployer.cacheAddressesMap(addressesMap);
   }
 
   try {
