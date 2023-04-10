@@ -61,9 +61,18 @@ impl DB {
     /// Opens db at `db_path` and creates if missing
     #[tracing::instrument(err)]
     pub fn from_path(db_path: &Path) -> Result<DB> {
-        let path = db_path
-            .canonicalize()
-            .map_err(|e| DbError::InvalidDbPath(e, db_path.to_string_lossy().into()))?;
+        let path = {
+            let mut path = db_path
+                .parent()
+                .unwrap_or(Path::new("."))
+                .canonicalize()
+                .map_err(|e| DbError::InvalidDbPath(e, db_path.to_string_lossy().into()))?;
+            if let Some(file_name) = db_path.file_name() {
+                path.push(file_name);
+            }
+            path
+        };
+
         if path.is_dir() {
             info!(path=%path.to_string_lossy(), "Opening existing db")
         } else {
