@@ -12,7 +12,7 @@ export const mainnetConfigs: ChainMap<ChainMetadata> = {
     ...chainMetadata.polygon,
     blocks: {
       ...chainMetadata.polygon.blocks,
-      confirmations: 10,
+      confirmations: 3,
     },
     transactionOverrides: {
       maxFeePerGas: 500 * 10 ** 9, // 500 gwei
