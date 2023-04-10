@@ -15,6 +15,7 @@ use hyperlane_base::{
 };
 use hyperlane_core::{HyperlaneMessage, MultisigIsm, ValidatorAnnounce, H160, H256};
 use num_derive::FromPrimitive;
+use num_traits::FromPrimitive;
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
 

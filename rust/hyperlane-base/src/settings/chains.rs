@@ -457,8 +457,13 @@ impl ChainConf {
 
         match &self.connection()? {
             ChainConnectionConf::Ethereum(conf) => {
-                self.build_ethereum(conf, &locator, metrics, h_eth::InterchainSecurityModuleBuilder {}, )
-                    .await
+                self.build_ethereum(
+                    conf,
+                    &locator,
+                    metrics,
+                    h_eth::InterchainSecurityModuleBuilder {},
+                )
+                .await
             }
 
             ChainConnectionConf::Fuel(_) => todo!(),

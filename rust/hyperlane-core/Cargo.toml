@@ -22,7 +22,6 @@ ethers.workspace = true
 eyre.workspace = true
 hex = "0.4.3"
 itertools.workspace = true
-lazy_static = "*"
 num = {version="0", features=["serde"]}
 num-derive.workspace = true
 num-traits.workspace = true
@@ -30,8 +29,8 @@ rocksdb.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha3 = "0.10"
-strum = "0.24"
-strum_macros = "0.24"
+strum.workspace = true
+strum_macros.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "macros"] }
 tracing-futures.workspace = true
@@ -39,6 +38,7 @@ tracing.workspace = true
 
 # version determined by ethers-rs
 primitive-types = "*"
+lazy_static = "*"
 
 [dev-dependencies]
 hyperlane-base = { path = "../hyperlane-base"}
