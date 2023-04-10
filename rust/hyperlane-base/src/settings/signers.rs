@@ -33,27 +33,14 @@ pub enum SignerConf {
 }
 
 /// Raw signer types
-#[derive(Debug, Deserialize, Default)]
-#[serde(tag = "type", rename_all = "camelCase")]
-pub enum RawSignerConf {
-    /// A local hex key
-    HexKey {
-        /// Hex string of private key
-        key: Option<String>,
-    },
-    /// An AWS signer. Note that AWS credentials must be inserted into the env separately.
-    Aws {
-        /// The UUID identifying the AWS KMS Key
-        id: Option<String>,
-        /// The AWS region
-        region: Option<String>,
-    },
-    /// Assume node will sign on RPC calls
-    #[default]
-    Node,
-    /// Unknown signer type was specified
-    #[serde(other)]
-    Unknown,
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RawSignerConf {
+    #[serde(rename = "type")]
+    signer_type: Option<String>,
+    key: Option<String>,
+    id: Option<String>,
+    region: Option<String>,
 }
 
 impl FromRawConf<'_, RawSignerConf> for SignerConf {
@@ -62,29 +49,34 @@ impl FromRawConf<'_, RawSignerConf> for SignerConf {
         cwp: &ConfigPath,
         _filter: (),
     ) -> ConfigResult<Self> {
-        use RawSignerConf::*;
         let key_path = || cwp + "key";
         let region_path = || cwp + "region";
-        match raw {
-            HexKey { key } => Ok(Self::HexKey {
-                key: key
+        match raw.signer_type.as_deref() {
+            Some("hexKey") => Ok(Self::HexKey {
+                key: raw
+                    .key
                     .ok_or_else(|| eyre!("Missing `key` for HexKey signer"))
                     .into_config_result(key_path)?
                     .parse()
                     .into_config_result(key_path)?,
             }),
-            Aws { id, region } => Ok(Self::Aws {
-                id: id
+            Some("aws") => Ok(Self::Aws {
+                id: raw
+                    .id
                     .ok_or_else(|| eyre!("Missing `id` for Aws signer"))
                     .into_config_result(|| cwp + "id")?,
-                region: region
+                region: raw
+                    .region
                     .ok_or_else(|| eyre!("Missing `region` for Aws signer"))
                     .into_config_result(region_path)?
                     .parse()
                     .into_config_result(region_path)?,
             }),
-            Node => Ok(Self::Node),
-            Unknown => Err(eyre!("Unknown signer type")).into_config_result(|| cwp + "type"),
+            Some(t) => Err(eyre!("Unknown signer type `{t}`")).into_config_result(|| cwp + "type"),
+            None if raw.key.is_some() => Ok(Self::HexKey {
+                key: raw.key.unwrap().parse().into_config_result(key_path)?,
+            }),
+            None => Ok(Self::Node),
         }
     }
 }
