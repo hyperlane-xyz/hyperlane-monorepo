@@ -142,7 +142,7 @@ export abstract class HyperlaneDeployer<
     config: ConnectionClientConfig,
   ): Promise<void> {
     this.logger(`Initializing connection client on ${local}...`);
-    return this.runIfOwner(local, connectionClient, async () => {
+    await this.runIfOwner(local, connectionClient, async () => {
       // set mailbox if not already set (and configured)
       if (config.mailbox !== (await connectionClient.mailbox())) {
         this.logger(`Set mailbox on (${local})`);
@@ -181,6 +181,7 @@ export abstract class HyperlaneDeployer<
         );
       }
     });
+    this.logger(`Connection client on ${local} initialized...`);
   }
 
   protected async deployContractFromFactory<F extends ethers.ContractFactory>(
@@ -190,9 +191,9 @@ export abstract class HyperlaneDeployer<
     constructorArgs: Parameters<F['deploy']>,
     initializeArgs?: Parameters<Awaited<ReturnType<F['deploy']>>['initialize']>,
   ): Promise<ReturnType<F['deploy']>> {
-    const cache = this.readCache(chain, factory, contractName);
-    if (cache.hit) {
-      return cache.contract;
+    const cachedContract = this.readCache(chain, factory, contractName);
+    if (cachedContract) {
+      return cachedContract;
     }
 
     const signer = this.multiProvider.getSigner(chain);
@@ -246,7 +247,11 @@ export abstract class HyperlaneDeployer<
     proxy: TransparentUpgradeableProxy,
     admin: string,
   ): Promise<void> {
-    if (utils.eqAddress(admin, await proxy.callStatic.admin())) {
+    const actualAdmin = await proxyAdmin(
+      this.multiProvider.getProvider(chain),
+      proxy.address,
+    );
+    if (utils.eqAddress(admin, actualAdmin)) {
       this.logger(`Admin set correctly, skipping admin change`);
       return;
     }
@@ -281,13 +286,14 @@ export abstract class HyperlaneDeployer<
       'initialize',
       initializeArgs,
     );
+    const overrides = this.multiProvider.getTransactionOverrides(chain);
     await this.runIfAdmin(
       chain,
       proxy,
       () =>
         this.multiProvider.handleTx(
           chain,
-          proxy.upgradeToAndCall(implementation.address, initData),
+          proxy.upgradeToAndCall(implementation.address, initData, overrides),
         ),
       (proxyAdmin: ProxyAdmin) =>
         this.multiProvider.handleTx(
@@ -296,6 +302,7 @@ export abstract class HyperlaneDeployer<
             proxy.address,
             implementation.address,
             initData,
+            overrides,
           ),
         ),
     );
@@ -330,22 +337,22 @@ export abstract class HyperlaneDeployer<
     return implementation.attach(proxy.address) as C;
   }
 
-  private writeCache<K extends keyof Factories>(
+  protected writeCache<K extends keyof Factories>(
     chain: ChainName,
     contractName: K,
     address: types.Address,
-  ) {
+  ): void {
     if (!this.cachedAddresses[chain]) {
       this.cachedAddresses[chain] = {};
     }
     this.cachedAddresses[chain][contractName] = address;
   }
 
-  private readCache<F extends ethers.ContractFactory>(
+  protected readCache<F extends ethers.ContractFactory>(
     chain: ChainName,
     factory: F,
     contractName: string,
-  ): { hit: boolean; contract: Awaited<ReturnType<F['deploy']>> } {
+  ): Awaited<ReturnType<F['deploy']>> | undefined {
     const cachedAddress = this.cachedAddresses[chain]?.[contractName];
     const hit = !!cachedAddress;
     const contractAddress = hit ? cachedAddress : ethers.constants.AddressZero;
@@ -358,8 +365,9 @@ export abstract class HyperlaneDeployer<
       this.logger(
         `Recovered ${contractName.toString()} on ${chain} ${cachedAddress}`,
       );
+      return contract;
     }
-    return { hit, contract };
+    return undefined;
   }
 
   /**
@@ -373,13 +381,13 @@ export abstract class HyperlaneDeployer<
     constructorArgs: Parameters<Factories[K]['deploy']>,
     initializeArgs?: Parameters<HyperlaneContracts<Factories>[K]['initialize']>,
   ): Promise<HyperlaneContracts<Factories>[K]> {
-    const cache = this.readCache(
+    const cachedContract = this.readCache(
       chain,
       this.factories[contractName],
       contractName.toString(),
     );
-    if (cache.hit) {
-      return cache.contract;
+    if (cachedContract) {
+      return cachedContract;
     }
 
     // Try to initialize the implementation even though it may not be necessary

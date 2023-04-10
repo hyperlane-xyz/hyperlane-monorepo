@@ -10,7 +10,6 @@ import {
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { RouterConfig } from '../router/types';
 import { ChainMap } from '../types';
-import { objMap, promiseObjAll } from '../utils/objects';
 
 export abstract class HyperlaneRouterDeployer<
   Config extends RouterConfig,
@@ -22,15 +21,11 @@ export abstract class HyperlaneRouterDeployer<
     contractsMap: HyperlaneContractsMap<Factories>,
     configMap: ChainMap<Config>,
   ): Promise<void> {
-    await promiseObjAll(
-      objMap(contractsMap, async (local, contracts) =>
-        super.initConnectionClient(
-          local,
-          this.router(contracts),
-          configMap[local],
-        ),
-      ),
-    );
+    for (const chain of Object.keys(contractsMap)) {
+      const contracts = contractsMap[chain];
+      const config = configMap[chain];
+      await super.initConnectionClient(chain, this.router(contracts), config);
+    }
   }
 
   async enrollRemoteRouters(
@@ -92,13 +87,12 @@ export abstract class HyperlaneRouterDeployer<
     configMap: ChainMap<Config>,
   ): Promise<void> {
     this.logger(`Transferring ownership of ownables...`);
-    await promiseObjAll(
-      objMap(contractsMap, async (chain, contracts) => {
-        const owner = configMap[chain].owner;
-        const ownables = await filterOwnableContracts(contracts);
-        await this.transferOwnershipOfContracts(chain, owner, ownables);
-      }),
-    );
+    for (const chain of Object.keys(contractsMap)) {
+      const contracts = contractsMap[chain];
+      const owner = configMap[chain].owner;
+      const ownables = await filterOwnableContracts(contracts);
+      await this.transferOwnershipOfContracts(chain, owner, ownables);
+    }
   }
 
   async deploy(
