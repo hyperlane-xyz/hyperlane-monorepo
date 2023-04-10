@@ -80,10 +80,11 @@ impl FromRawConf<'_, RawSettings, Option<&HashSet<&str>>> for Settings {
             if let Some(filter) = filter {
                 chains.retain(|k, _| filter.contains(&k.as_str()));
             }
+            let chains_path = cwp.join("chains");
             chains
                 .into_iter()
                 .map(|(k, v)| {
-                    let mut parsed: ChainConf = v.parse_config(&cwp.join(&k))?;
+                    let mut parsed: ChainConf = v.parse_config(&chains_path.join(&k))?;
                     if let Some(default_signer) = &default_signer {
                         parsed.signer.get_or_insert_with(|| default_signer.clone());
                     }

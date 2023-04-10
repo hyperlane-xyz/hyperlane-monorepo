@@ -106,25 +106,29 @@ impl FromRawConf<'_, RawCoreContractAddresses> for CoreContractAddresses {
         let mut err = ConfigParsingError::default();
 
         macro_rules! parse_addr {
-            ($name:ident, $path:literal) => {
+            ($name:ident) => {{
+                let path = || cwp + stringify!($name);
                 raw.$name
-                    .ok_or_else(|| eyre!("Missing core contract address"))
-                    .take_err(&mut err, || cwp + $path)
+                    .ok_or_else(|| {
+                        eyre!(
+                            "Missing {} core contract address",
+                            stringify!($name).replace('_', " ")
+                        )
+                    })
+                    .take_err(&mut err, path)
                     .and_then(|v| {
                         if v.len() <= 42 {
-                            v.parse::<H160>()
-                                .take_err(&mut err, || cwp + $path)
-                                .map(Into::into)
+                            v.parse::<H160>().take_err(&mut err, path).map(Into::into)
                         } else {
-                            v.parse().take_err(&mut err, || cwp + $path)
+                            v.parse().take_err(&mut err, path)
                         }
                     })
-            };
+            }};
         }
 
-        let mb = parse_addr!(mailbox, "mailbox");
-        let igp = parse_addr!(interchain_gas_paymaster, "interchain_gas_paymaster");
-        let va = parse_addr!(validator_announce, "validator_announce");
+        let mb = parse_addr!(mailbox);
+        let igp = parse_addr!(interchain_gas_paymaster);
+        let va = parse_addr!(validator_announce);
 
         err.into_result()?;
         Ok(Self {
