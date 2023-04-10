@@ -15,9 +15,9 @@ export const mainnetConfigs: ChainMap<ChainMetadata> = {
       confirmations: 10,
     },
     transactionOverrides: {
-      //maxFeePerGas: 500 * 10 ** 9, // 500 gwei
-      //maxPriorityFeePerGas: 100 * 10 ** 9, // 100 gwei
-      gasPrice: 250 * 10 ** 9, // 250 gwei
+      maxFeePerGas: 500 * 10 ** 9, // 500 gwei
+      maxPriorityFeePerGas: 100 * 10 ** 9, // 100 gwei
+      // gasPrice: 50 * 10 ** 9, // 50 gwei
     },
   },
   celo: chainMetadata.celo,

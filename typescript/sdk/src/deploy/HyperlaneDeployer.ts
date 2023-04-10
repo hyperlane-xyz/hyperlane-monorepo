@@ -341,7 +341,7 @@ export abstract class HyperlaneDeployer<
     chain: ChainName,
     contractName: K,
     address: types.Address,
-  ) {
+  ): void {
     if (!this.cachedAddresses[chain]) {
       this.cachedAddresses[chain] = {};
     }
