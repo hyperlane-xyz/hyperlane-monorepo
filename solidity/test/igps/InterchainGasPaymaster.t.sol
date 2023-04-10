@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import {Test} from "forge-std/Test.sol";
 import {InterchainGasPaymaster} from "../../contracts/igps/InterchainGasPaymaster.sol";
 import {StorageGasOracle} from "../../contracts/igps/gas-oracles/StorageGasOracle.sol";
-import {IGasOracle} from "../../interfaces/IGasOracle.sol";
+import {IGasOracle} from "../../contracts/interfaces/IGasOracle.sol";
 
 contract InterchainGasPaymasterTest is Test {
     InterchainGasPaymaster igp;
@@ -29,7 +29,8 @@ contract InterchainGasPaymasterTest is Test {
     event BeneficiarySet(address beneficiary);
 
     function setUp() public {
-        igp = new InterchainGasPaymaster(beneficiary);
+        igp = new InterchainGasPaymaster();
+        igp.initialize(address(this), beneficiary);
         oracle = new StorageGasOracle();
         setGasOracle(testDestinationDomain, address(oracle));
     }

@@ -5,8 +5,8 @@ pragma solidity >=0.8.0;
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 // ============ Internal Imports ============
-import {IInterchainSecurityModule} from "../../../interfaces/IInterchainSecurityModule.sol";
-import {IMultisigIsm} from "../../../interfaces/isms/IMultisigIsm.sol";
+import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
+import {IMultisigIsm} from "../../interfaces/isms/IMultisigIsm.sol";
 import {Message} from "../../libs/Message.sol";
 import {MultisigIsmMetadata} from "../../libs/isms/MultisigIsmMetadata.sol";
 import {CheckpointLib} from "../../libs/CheckpointLib.sol";
@@ -20,6 +20,7 @@ import {MerkleLib} from "../../libs/Merkle.sol";
 abstract contract AbstractMultisigIsm is IMultisigIsm {
     // ============ Constants ============
 
+    // solhint-disable-next-line const-name-snakecase
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.MULTISIG);
 
@@ -109,12 +110,12 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
                 MultisigIsmMetadata.signatureAt(_metadata, i)
             );
             // Loop through remaining validators until we find a match
-            for (
-                ;
+            while (
                 _validatorIndex < _validatorCount &&
-                    _signer != _validators[_validatorIndex];
-                ++_validatorIndex
-            ) {}
+                _signer != _validators[_validatorIndex]
+            ) {
+                ++_validatorIndex;
+            }
             // Fail if we never found a match
             require(_validatorIndex < _validatorCount, "!threshold");
             ++_validatorIndex;

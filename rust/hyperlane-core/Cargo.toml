@@ -24,8 +24,8 @@ hex = "0.4.3"
 itertools.workspace = true
 lazy_static = "*"
 num = {version="0", features=["serde"]}
-num-derive = "0.3"
-num-traits = "0.2"
+num-derive.workspace = true
+num-traits.workspace = true
 rocksdb.workspace = true
 serde.workspace = true
 serde_json.workspace = true

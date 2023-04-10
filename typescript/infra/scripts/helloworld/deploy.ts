@@ -1,25 +1,15 @@
 import path from 'path';
 
-import {
-  HelloWorldContracts,
-  HelloWorldDeployer,
-  helloWorldFactories,
-} from '@hyperlane-xyz/helloworld';
-import {
-  ChainMap,
-  HyperlaneCore,
-  buildContracts,
-  serializeContracts,
-} from '@hyperlane-xyz/sdk';
+import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
+import { serializeContractsMap } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
-import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { readJSON, writeJSON } from '../../src/utils/utils';
 import {
   getContext,
-  getCoreEnvironmentConfig,
   getEnvironment,
+  getEnvironmentConfig,
   getEnvironmentDirectory,
   getRouterConfig,
 } from '../utils';
@@ -27,39 +17,31 @@ import {
 async function main() {
   const environment = await getEnvironment();
   const context = await getContext();
-  const coreConfig = getCoreEnvironmentConfig(environment);
+  const coreConfig = getEnvironmentConfig(environment);
   // Always deploy from the hyperlane deployer
   const multiProvider = await coreConfig.getMultiProvider(
     Contexts.Hyperlane,
     KEY_ROLE_ENUM.Deployer,
   );
   const configMap = await getRouterConfig(environment, multiProvider, true);
-  const core = HyperlaneCore.fromEnvironment(
-    deployEnvToSdkEnv[environment],
-    multiProvider,
-  );
-  const deployer = new HelloWorldDeployer(multiProvider, configMap, core);
+  const deployer = new HelloWorldDeployer(multiProvider);
   const dir = path.join(
     getEnvironmentDirectory(environment),
     'helloworld',
     context,
   );
 
-  let previousContracts: ChainMap<HelloWorldContracts> = {};
   let existingVerificationInputs = {};
   try {
     const addresses = readJSON(dir, 'addresses.json');
-    previousContracts = buildContracts(
-      addresses,
-      helloWorldFactories,
-    ) as ChainMap<HelloWorldContracts>;
+    deployer.cacheAddressesMap(addresses);
     existingVerificationInputs = readJSON(dir, 'verification.json');
   } catch (e) {
     console.info(`Could not load previous deployment, file may not exist`);
   }
 
   try {
-    await deployer.deploy(previousContracts);
+    await deployer.deploy(configMap);
   } catch (e) {
     console.error(`Encountered error during deploy`);
     console.error(e);
@@ -68,7 +50,7 @@ async function main() {
   writeJSON(
     dir,
     'addresses.json',
-    serializeContracts(deployer.deployedContracts),
+    serializeContractsMap(deployer.deployedContracts),
   );
   writeJSON(
     dir,

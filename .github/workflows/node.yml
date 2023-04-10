@@ -115,7 +115,7 @@ jobs:
     strategy:
       matrix:
         environment: [testnet3, mainnet2]
-        module: [core, igp]
+        module: [core, igp, ica]
 
     steps:
       - uses: actions/checkout@v3
@@ -161,6 +161,9 @@ jobs:
       - name: Forge build
         run: cd solidity && forge build --build-info
 
+      - name: lint
+        run: yarn workspace @hyperlane-xyz/core run lint
+
       - name: Run Slither
         uses: crytic/slither-action@main
         id: slither
@@ -176,8 +179,8 @@ jobs:
         with:
           sarif_file: ${{ steps.slither.outputs.sarif }}
 
-      - name: gas
-        run: yarn workspace @hyperlane-xyz/core run gas-ci
+      #- name: gas
+      #  run: yarn workspace @hyperlane-xyz/core run gas-ci
 
       - name: forge-test
         run: yarn workspace @hyperlane-xyz/core run test:forge

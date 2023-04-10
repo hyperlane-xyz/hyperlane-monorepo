@@ -3,25 +3,33 @@ import {
   HyperlaneCoreChecker,
   HyperlaneIgp,
   HyperlaneIgpChecker,
+  InterchainAccount,
+  InterchainAccountChecker,
+  InterchainQuery,
+  InterchainQueryChecker,
 } from '@hyperlane-xyz/sdk';
 
 import { deployEnvToSdkEnv } from '../src/config/environment';
-import { HyperlaneCoreGovernor } from '../src/core/govern';
-import { HyperlaneIgpGovernor } from '../src/gas/govern';
 import { HyperlaneAppGovernor } from '../src/govern/HyperlaneAppGovernor';
+import { HyperlaneCoreGovernor } from '../src/govern/HyperlaneCoreGovernor';
+import { HyperlaneIgpGovernor } from '../src/govern/HyperlaneIgpGovernor';
+import { InterchainAccountGovernor } from '../src/govern/InterchainAccountGovernor';
+import { InterchainQueryGovernor } from '../src/govern/InterchainQueryGovernor';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 
 import {
   Modules,
   getArgsWithModuleAndFork,
   getEnvironmentConfig,
+  getRouterConfig,
 } from './utils';
 
 async function check() {
   const { fork, govern, module, environment } = await getArgsWithModuleAndFork()
     .boolean('govern')
+    .default('govern', false)
     .alias('g', 'govern').argv;
-  const config = await getEnvironmentConfig();
+  const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
 
   // must rotate to forked provider before building core contracts
@@ -44,6 +52,16 @@ async function check() {
     const igp = HyperlaneIgp.fromEnvironment(env, multiProvider);
     const checker = new HyperlaneIgpChecker(multiProvider, igp, config.igp);
     governor = new HyperlaneIgpGovernor(checker, config.owners);
+  } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
+    const config = await getRouterConfig(environment, multiProvider);
+    const ica = InterchainAccount.fromEnvironment(env, multiProvider);
+    const checker = new InterchainAccountChecker(multiProvider, ica, config);
+    governor = new InterchainAccountGovernor(checker, config.owners);
+  } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
+    const config = await getRouterConfig(environment, multiProvider);
+    const iqs = InterchainQuery.fromEnvironment(env, multiProvider);
+    const checker = new InterchainQueryChecker(multiProvider, iqs, config);
+    governor = new InterchainQueryGovernor(checker, config.owners);
   } else {
     console.log(`Skipping ${module}, checker or governor unimplemented`);
     return;

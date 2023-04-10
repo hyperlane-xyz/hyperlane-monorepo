@@ -15,7 +15,7 @@ import { sleep } from './src/utils/utils';
 
 const chainSummary = async (core: HyperlaneCore, chain: ChainName) => {
   const coreContracts = core.getContracts(chain);
-  const mailbox = coreContracts.mailbox.contract;
+  const mailbox = coreContracts.mailbox;
   const dispatched = await mailbox.count();
   // TODO: Allow processed messages to be filtered by
   // origin, possibly sender and recipient.
@@ -66,8 +66,8 @@ task('kathy', 'Dispatches random hyperlane messages')
         const local = core.chains()[0];
         const remote: ChainName = randomElement(core.remoteChains(local));
         const remoteId = multiProvider.getDomainId(remote);
-        const mailbox = core.getContracts(local).mailbox.contract;
-        const igp = igps.getContracts(local).interchainGasPaymaster.contract;
+        const mailbox = core.getContracts(local).mailbox;
+        const igp = igps.getContracts(local).interchainGasPaymaster;
         // Send a batch of messages to the destination chain to test
         // the relayer submitting only greedily
         for (let i = 0; i < 10; i++) {

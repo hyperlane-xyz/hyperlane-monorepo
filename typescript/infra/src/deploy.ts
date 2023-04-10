@@ -1,51 +1,97 @@
 import {
+  ChainMap,
   ChainName,
+  HyperlaneAddresses,
+  HyperlaneAgentAddresses,
   HyperlaneDeployer,
-  buildContracts,
-  serializeContracts,
+  MultiProvider,
+  buildAgentConfig,
+  objMap,
+  promiseObjAll,
+  serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
 
+import { getAgentConfigDirectory } from '../scripts/utils';
+
+import { DeployEnvironment, deployEnvToSdkEnv } from './config/environment';
 import {
   readJSONAtPath,
+  writeJSON,
   writeJsonAtPath,
   writeMergedJSONAtPath,
 } from './utils/utils';
 
-export async function deployWithArtifacts(
-  deployer: HyperlaneDeployer<any, any, any>,
-  cache?: {
+export async function writeAgentConfig(
+  addressesPath: string,
+  multiProvider: MultiProvider,
+  environment: DeployEnvironment,
+) {
+  let addresses: ChainMap<HyperlaneAddresses<any>> = {};
+  try {
+    addresses = readJSONAtPath(addressesPath);
+  } catch (e) {
+    console.error('Failed to load cached addresses');
+  }
+  // Write agent config indexing from the deployed or latest block numbers.
+  // For non-net-new deployments, these changes will need to be
+  // reverted manually.
+  const startBlocks = await promiseObjAll(
+    objMap(addresses, (chain, _) =>
+      multiProvider.getProvider(chain).getBlockNumber(),
+    ),
+  );
+  const agentConfig = buildAgentConfig(
+    multiProvider.getKnownChainNames(),
+    multiProvider,
+    addresses as ChainMap<HyperlaneAgentAddresses>,
+    startBlocks,
+  );
+  const sdkEnv = deployEnvToSdkEnv[environment];
+  writeJSON(getAgentConfigDirectory(), `${sdkEnv}_config.json`, agentConfig);
+}
+
+export async function deployWithArtifacts<Config>(
+  configMap: ChainMap<Config>,
+  deployer: HyperlaneDeployer<Config, any>,
+  cache: {
     addresses: string;
     verification: string;
+    read: boolean;
+    write: boolean;
   },
   fork?: ChainName,
+  agentConfig?: {
+    multiProvider: MultiProvider;
+    addresses: string;
+    environment: DeployEnvironment;
+  },
 ) {
-  if (cache) {
-    let addresses = {};
+  if (cache.read) {
+    let addressesMap = {};
     try {
-      addresses = readJSONAtPath(cache.addresses);
+      addressesMap = readJSONAtPath(cache.addresses);
     } catch (e) {
       console.error('Failed to load cached addresses');
     }
 
-    const savedContracts = buildContracts(addresses, deployer.factories);
-    deployer.cacheContracts(savedContracts);
+    deployer.cacheAddressesMap(addressesMap);
   }
 
   try {
     if (fork) {
-      await deployer.deployContracts(fork, deployer.configMap[fork]);
+      await deployer.deployContracts(fork, configMap[fork]);
     } else {
-      await deployer.deploy();
+      await deployer.deploy(configMap);
     }
   } catch (e) {
     console.error('Failed to deploy contracts', e);
   }
 
-  if (cache) {
+  if (cache.write) {
     // cache addresses of deployed contracts
     writeMergedJSONAtPath(
       cache.addresses,
-      serializeContracts(deployer.deployedContracts),
+      serializeContractsMap(deployer.deployedContracts),
     );
 
     let savedVerification = {};
@@ -59,5 +105,12 @@ export async function deployWithArtifacts(
     const inputs =
       deployer.mergeWithExistingVerificationInputs(savedVerification);
     writeJsonAtPath(cache.verification, inputs);
+  }
+  if (agentConfig) {
+    await writeAgentConfig(
+      agentConfig.addresses,
+      agentConfig.multiProvider,
+      agentConfig.environment,
+    );
   }
 }

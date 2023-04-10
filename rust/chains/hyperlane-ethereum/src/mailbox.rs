@@ -21,7 +21,7 @@ use hyperlane_core::{
 };
 
 use crate::contracts::arbitrum_node_interface::ArbitrumNodeInterface;
-use crate::contracts::mailbox::{Mailbox as EthereumMailboxInternal, ProcessCall, MAILBOX_ABI};
+use crate::contracts::i_mailbox::{IMailbox as EthereumMailboxInternal, ProcessCall, IMAILBOX_ABI};
 use crate::trait_builder::BuildableWithProvider;
 use crate::tx::report_tx;
 use crate::EthereumProvider;
@@ -417,7 +417,7 @@ impl HyperlaneAbi for EthereumMailboxAbi {
     const SELECTOR_SIZE_BYTES: usize = 4;
 
     fn fn_map() -> HashMap<Vec<u8>, &'static str> {
-        super::extract_fn_map(&MAILBOX_ABI)
+        super::extract_fn_map(&IMAILBOX_ABI)
     }
 }
 

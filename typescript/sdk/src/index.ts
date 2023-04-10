@@ -29,38 +29,32 @@ export {
   TestChains,
   Testnets,
 } from './consts/chains';
-export {
-  hyperlaneAgentAddresses,
-  HyperlaneContractAddresses,
-  hyperlaneContractAddresses,
-  hyperlaneCoreAddresses,
-  hyperlaneEnvironments,
-} from './consts/environments';
+export { hyperlaneEnvironments } from './consts/environments';
 export { defaultMultisigIsmConfigs } from './consts/multisigIsm';
 export {
-  buildContracts,
+  attachContracts,
+  attachContractsMap,
   connectContracts,
   connectContractsMap,
-  filterAddresses,
+  filterAddressesMap,
   HyperlaneAddresses,
+  HyperlaneAddressesMap,
   HyperlaneContracts,
+  HyperlaneContractsMap,
   HyperlaneFactories,
   serializeContracts,
+  serializeContractsMap,
 } from './contracts';
-export { CoreContracts, coreFactories } from './core/contracts';
+export { CoreFactories, coreFactories } from './core/contracts';
 export {
   AnnotatedDispatch,
   AnnotatedLifecycleEvent,
   HyperlaneLifecyleEvent,
 } from './core/events';
-export {
-  CoreContractsMap,
-  DispatchedMessage,
-  HyperlaneCore,
-} from './core/HyperlaneCore';
+export { DispatchedMessage, HyperlaneCore } from './core/HyperlaneCore';
 export { HyperlaneCoreChecker } from './core/HyperlaneCoreChecker';
 export { HyperlaneCoreDeployer } from './core/HyperlaneCoreDeployer';
-export { TestCoreApp, TestCoreContracts } from './core/TestCoreApp';
+export { TestCoreApp } from './core/TestCoreApp';
 export { TestCoreDeployer } from './core/TestCoreDeployer';
 export {
   CoreConfig,
@@ -71,12 +65,7 @@ export {
   MultisigIsmViolationType,
 } from './core/types';
 export { HyperlaneAppChecker } from './deploy/HyperlaneAppChecker';
-export {
-  HyperlaneDeployer,
-  DeployOptions,
-  DeployerOptions,
-} from './deploy/HyperlaneDeployer';
-export { ProxyViolation } from './deploy/proxy';
+export { DeployerOptions, HyperlaneDeployer } from './deploy/HyperlaneDeployer';
 export {
   CheckerViolation,
   OwnerViolation,
@@ -110,16 +99,14 @@ export {
   OverheadIgpConfig,
 } from './gas/types';
 export { HyperlaneApp } from './HyperlaneApp';
+export { interchainAccountFactories } from './middleware/account/contracts';
+export { InterchainAccount } from './middleware/account/InterchainAccount';
+export { InterchainAccountChecker } from './middleware/account/InterchainAccountChecker';
 export {
+  InterchainAccountConfig,
   InterchainAccountDeployer,
-  interchainAccountFactories,
-  InterchainQueryDeployer,
-  interchainQueryFactories,
-} from './middleware/deploy';
-export {
-  LiquidityLayerContracts,
-  liquidityLayerFactories,
-} from './middleware/liquidity-layer/contracts';
+} from './middleware/account/InterchainAccountDeployer';
+export { liquidityLayerFactories } from './middleware/liquidity-layer/contracts';
 export { LiquidityLayerApp } from './middleware/liquidity-layer/LiquidityLayerApp';
 export {
   BridgeAdapterConfig,
@@ -128,24 +115,20 @@ export {
   LiquidityLayerDeployer,
   PortalAdapterConfig,
 } from './middleware/liquidity-layer/LiquidityLayerRouterDeployer';
+export { interchainQueryFactories } from './middleware/query/contracts';
+export { InterchainQuery } from './middleware/query/InterchainQuery';
+export { InterchainQueryChecker } from './middleware/query/InterchainQueryChecker';
+export {
+  InterchainQueryConfig,
+  InterchainQueryDeployer,
+} from './middleware/query/InterchainQueryDeployer';
 export { MultiProvider, providerBuilder } from './providers/MultiProvider';
 export { RetryJsonRpcProvider, RetryProvider } from './providers/RetryProvider';
-export {
-  ProxiedContract,
-  ProxyAddresses,
-  ProxyKind,
-  TransparentProxyAddresses,
-} from './proxy';
 export { GasRouterDeployer } from './router/GasRouterDeployer';
 export { HyperlaneRouterChecker } from './router/HyperlaneRouterChecker';
 export { HyperlaneRouterDeployer } from './router/HyperlaneRouterDeployer';
 export { GasRouterApp, Router, RouterApp } from './router/RouterApps';
-export {
-  GasRouterConfig,
-  RouterConfig,
-  RouterContracts,
-  RouterFactories,
-} from './router/types';
+export { GasRouterConfig, RouterConfig } from './router/types';
 export {
   createRouterConfigMap,
   deployTestIgpsAndGetRouterConfig,

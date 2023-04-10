@@ -1,25 +1,49 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use derive_new::new;
 use eyre::Context;
 use tokio::sync::RwLock;
 use tracing::{debug, info, instrument, warn};
 
 use hyperlane_base::{
-    CachingMailbox, ChainConf, CheckpointSyncer, CheckpointSyncerConf, CoreMetrics,
-    MultisigCheckpointSyncer,
+    ChainConf, CheckpointSyncer, CheckpointSyncerConf, CoreMetrics, MultisigCheckpointSyncer,
 };
-use hyperlane_core::{
-    HyperlaneChain, HyperlaneMessage, Mailbox, MultisigIsm, ValidatorAnnounce, H160, H256,
-};
+use hyperlane_core::{HyperlaneMessage, MultisigIsm, ValidatorAnnounce, H160, H256};
+use num_derive::FromPrimitive;
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
 
+#[derive(Debug, thiserror::Error)]
+pub enum MetadataBuilderError {
+    #[error("Unknown or invalid module type ({0})")]
+    UnsupportedModuleType(u8),
+}
+
+#[derive(FromPrimitive)]
+pub enum SupportedIsmTypes {
+    // Routing = 1,
+    // Aggregation = 2,
+    LegacyMultisig = 3,
+    // Multisig = 4,
+}
+
+#[async_trait]
+pub trait MetadataBuilder {
+    #[allow(clippy::async_yields_async)]
+    async fn build(
+        &self,
+        ism_address: H256,
+        message: &HyperlaneMessage,
+    ) -> eyre::Result<Option<Vec<u8>>>;
+}
+
 #[derive(Clone, new)]
-pub struct MetadataBuilder {
+pub struct BaseMetadataBuilder {
     chain_setup: ChainConf,
     prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
     validator_announce: Arc<dyn ValidatorAnnounce>,
@@ -27,7 +51,7 @@ pub struct MetadataBuilder {
     metrics: Arc<CoreMetrics>,
 }
 
-impl Debug for MetadataBuilder {
+impl Debug for BaseMetadataBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -37,39 +61,61 @@ impl Debug for MetadataBuilder {
     }
 }
 
-impl MetadataBuilder {
-    #[instrument(err, skip(mailbox))]
-    pub async fn fetch_metadata(
+#[async_trait]
+impl MetadataBuilder for BaseMetadataBuilder {
+    #[instrument(err)]
+    async fn build(
         &self,
+        ism_address: H256,
         message: &HyperlaneMessage,
-        mailbox: CachingMailbox,
     ) -> eyre::Result<Option<Vec<u8>>> {
-        const CTX: &str = "When fetching metadata";
-
-        // The Mailbox's `recipientIsm` function will revert if
-        // the recipient is not a contract. This can pose issues with
-        // our use of the RetryingProvider, which will continuously retry
-        // the eth_call to the `recipientIsm` function.
-        // As a workaround, we avoid the call entirely if the recipient is
-        // not a contract.
-        let provider = mailbox.provider();
-        if !provider
-            .is_contract(&message.recipient)
-            .await
-            .context(CTX)?
-        {
-            info!(
-                recipient=?message.recipient,
-                "Could not fetch metadata: Recipient is not a contract"
-            );
-            return Ok(None);
-        }
-
-        let ism_address = mailbox
-            .recipient_ism(message.recipient)
+        const CTX: &str = "When fetching module type";
+        let ism = self
+            .chain_setup
+            .build_ism(ism_address, &self.metrics)
             .await
             .context(CTX)?;
+        let module_type = ism.module_type().await.context(CTX)?;
+        let supported_type = SupportedIsmTypes::from_u8(module_type)
+            .ok_or(MetadataBuilderError::UnsupportedModuleType(module_type))
+            .context(CTX)?;
+
+        let metadata_builder = match supported_type {
+            SupportedIsmTypes::LegacyMultisig => {
+                LegacyMultisigIsmMetadataBuilder::new(self.clone())
+            }
+        };
+        metadata_builder
+            .build(ism_address, message)
+            .await
+            .context(CTX)
+    }
+}
+
+#[derive(Clone, Debug, new)]
+pub struct LegacyMultisigIsmMetadataBuilder {
+    base: BaseMetadataBuilder,
+}
+
+impl Deref for LegacyMultisigIsmMetadataBuilder {
+    type Target = BaseMetadataBuilder;
+
+    fn deref(&self) -> &Self::Target {
+        &self.base
+    }
+}
+
+#[async_trait]
+impl MetadataBuilder for LegacyMultisigIsmMetadataBuilder {
+    #[instrument(err)]
+    async fn build(
+        &self,
+        ism_address: H256,
+        message: &HyperlaneMessage,
+    ) -> eyre::Result<Option<Vec<u8>>> {
+        const CTX: &str = "When fetching LegacyMultisigIsm metadata";
         let multisig_ism = self
+            .base
             .chain_setup
             .build_multisig_ism(ism_address, &self.metrics)
             .await
@@ -132,7 +178,9 @@ impl MetadataBuilder {
             Ok(None)
         }
     }
+}
 
+impl LegacyMultisigIsmMetadataBuilder {
     async fn build_checkpoint_syncer(
         &self,
         validators: &[H256],

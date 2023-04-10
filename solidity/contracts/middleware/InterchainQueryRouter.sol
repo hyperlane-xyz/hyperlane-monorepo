@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 // ============ Internal Imports ============
 import {CallLib} from "../libs/Call.sol";
 import {Router} from "../Router.sol";
-import {IInterchainQueryRouter} from "../../interfaces/middleware/IInterchainQueryRouter.sol";
+import {IInterchainQueryRouter} from "../interfaces/middleware/IInterchainQueryRouter.sol";
 import {InterchainQueryMessage} from "../libs/middleware/InterchainQueryMessage.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 
@@ -136,7 +136,6 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
             address senderAddress = sender.bytes32ToAddress();
             bytes[] memory rawCalls = InterchainQueryMessage.rawCalls(_message);
             CallLib.multicallto(senderAddress, rawCalls);
-            //
             emit QueryResolved(_origin, senderAddress);
         } else {
             assert(false);

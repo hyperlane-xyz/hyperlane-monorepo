@@ -67,7 +67,7 @@ export class MultiProvider {
   }
 
   /**
-   * Add a chain to the multiprovider
+   * Add a chain to the MultiProvider
    * @throws if chain's name or domain/chain ID collide
    */
   addChain(metadata: ChainMetadata): void {

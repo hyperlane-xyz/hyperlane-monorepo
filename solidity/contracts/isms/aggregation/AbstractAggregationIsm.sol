@@ -5,8 +5,8 @@ pragma solidity >=0.8.0;
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 // ============ Internal Imports ============
-import {IInterchainSecurityModule} from "../../../interfaces/IInterchainSecurityModule.sol";
-import {IAggregationIsm} from "../../../interfaces/IAggregationIsm.sol";
+import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
+import {IAggregationIsm} from "../../interfaces/IAggregationIsm.sol";
 import {AggregationIsmMetadata} from "../../libs/isms/AggregationIsmMetadata.sol";
 
 /**
@@ -17,6 +17,7 @@ import {AggregationIsmMetadata} from "../../libs/isms/AggregationIsmMetadata.sol
 abstract contract AbstractAggregationIsm is IAggregationIsm {
     // ============ Constants ============
 
+    // solhint-disable-next-line const-name-snakecase
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.MULTISIG);
 

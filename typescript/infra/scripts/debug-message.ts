@@ -1,4 +1,4 @@
-import { IMessageRecipient__factory } from '@hyperlane-xyz/helloworld/dist/src/types';
+import { TestRecipient__factory } from '@hyperlane-xyz/core';
 import {
   ChainName,
   DispatchedMessage,
@@ -93,8 +93,7 @@ async function checkMessage(
     return;
   }
 
-  const destinationMailbox =
-    core.getContracts(destinationChain).mailbox.contract;
+  const destinationMailbox = core.getContracts(destinationChain).mailbox;
   const delivered = await destinationMailbox.delivered(messageId);
   if (delivered) {
     console.log('Message has already been processed');
@@ -121,7 +120,7 @@ async function checkMessage(
   }
 
   const destinationProvider = multiProvider.getProvider(destinationChain);
-  const recipient = IMessageRecipient__factory.connect(
+  const recipient = TestRecipient__factory.connect(
     recipientAddress,
     destinationProvider,
   );

@@ -1,48 +1,43 @@
-import {
-  HelloWorldApp,
-  HelloWorldContracts,
-  helloWorldFactories,
-} from '@hyperlane-xyz/helloworld';
+import { HelloWorldApp, helloWorldFactories } from '@hyperlane-xyz/helloworld';
 import {
   AgentConnectionType,
-  ChainMap,
   HyperlaneCore,
   MultiProvider,
-  buildContracts,
+  attachContractsMap,
 } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
-import { CoreEnvironmentConfig } from '../../src/config';
+import { EnvironmentConfig } from '../../src/config';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { HelloWorldConfig } from '../../src/config/helloworld';
 
 export async function getApp(
-  coreConfig: CoreEnvironmentConfig,
+  coreConfig: EnvironmentConfig,
   context: Contexts,
   keyRole: KEY_ROLE_ENUM,
   keyContext: Contexts = context,
   connectionType: AgentConnectionType = AgentConnectionType.Http,
 ) {
-  const helloworldConfig = getHelloWorldConfig(coreConfig, context);
-  const contracts = buildContracts(
-    helloworldConfig.addresses,
-    helloWorldFactories,
-  ) as ChainMap<HelloWorldContracts>;
   const multiProvider: MultiProvider = await coreConfig.getMultiProvider(
     keyContext,
     keyRole,
     connectionType,
   );
+  const helloworldConfig = getHelloWorldConfig(coreConfig, context);
+  const contracts = attachContractsMap(
+    helloworldConfig.addresses,
+    helloWorldFactories,
+  );
   const core = HyperlaneCore.fromEnvironment(
     deployEnvToSdkEnv[coreConfig.environment],
     multiProvider,
-  ) as HyperlaneCore;
+  );
   return new HelloWorldApp(core, contracts, multiProvider);
 }
 
 export function getHelloWorldConfig(
-  coreConfig: CoreEnvironmentConfig,
+  coreConfig: EnvironmentConfig,
   context: Contexts,
 ): HelloWorldConfig {
   const helloWorldConfigs = coreConfig.helloWorld;
