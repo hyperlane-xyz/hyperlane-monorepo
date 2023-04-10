@@ -11,12 +11,11 @@ use serde::Deserialize;
 use url::Url;
 
 use hyperlane_core::{config::*, Address, Balance, ChainCommunicationError, ChainResult, H160};
-pub use retrying::{RetryingProvider, RetryingProviderError};
 
 #[cfg(not(doctest))]
-pub use crate::{
-    fallback::*, interchain_gas::*, interchain_security_module::*, mailbox::*, multisig_ism::*,
-    provider::*, signers::*, trait_builder::*, validator_announce::*,
+pub use self::{
+    interchain_gas::*, interchain_security_module::*, mailbox::*, multisig_ism::*, provider::*,
+    rpc_clients::*, signers::*, trait_builder::*, validator_announce::*,
 };
 
 #[cfg(not(doctest))]
@@ -53,11 +52,8 @@ mod validator_announce;
 #[cfg(not(doctest))]
 mod contracts;
 
-/// Retrying Provider
-mod retrying;
-
-/// Fallback provider
-mod fallback;
+/// Ethers JSONRPC Client implementations
+mod rpc_clients;
 
 mod signers;
 
