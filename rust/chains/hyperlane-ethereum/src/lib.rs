@@ -12,8 +12,8 @@ use hyperlane_core::*;
 
 #[cfg(not(doctest))]
 pub use self::{
-    interchain_gas::*, interchain_security_module::*, mailbox::*, multisig_ism::*,
-    provider::*, rpc_clients::*, signers::*, trait_builder::*, validator_announce::*,
+    interchain_gas::*, interchain_security_module::*, mailbox::*, multisig_ism::*, provider::*,
+    rpc_clients::*, signers::*, trait_builder::*, validator_announce::*,
 };
 
 #[cfg(not(doctest))]
