@@ -136,7 +136,6 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
             address senderAddress = sender.bytes32ToAddress();
             bytes[] memory rawCalls = InterchainQueryMessage.rawCalls(_message);
             CallLib.multicallto(senderAddress, rawCalls);
-            //
             emit QueryResolved(_origin, senderAddress);
         } else {
             assert(false);

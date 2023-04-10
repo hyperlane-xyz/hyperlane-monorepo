@@ -126,6 +126,10 @@ export const formatLegacyMultisigIsmMetadata = (
   );
 };
 
+/**
+ * JS Implementation of solidity/contracts/libs/Message.sol#formatMessage
+ * @returns Hex string of the packed message
+ */
 export const formatMessage = (
   version: number | BigNumber,
   nonce: number | BigNumber,
@@ -134,7 +138,7 @@ export const formatMessage = (
   destinationDomain: Domain,
   recipientAddr: Address,
   body: HexString,
-): string => {
+): HexString => {
   senderAddr = addressToBytes32(senderAddr);
   recipientAddr = addressToBytes32(recipientAddr);
 
@@ -152,7 +156,12 @@ export const formatMessage = (
   );
 };
 
-export function messageId(message: HexString): string {
+/**
+ * Get ID given message bytes
+ * @param message Hex string of the packed message (see formatMessage)
+ * @returns Hex string of message id
+ */
+export function messageId(message: HexString): HexString {
   return ethers.utils.solidityKeccak256(['bytes'], [message]);
 }
 
@@ -332,4 +341,17 @@ export function symmetricDifference<T>(a: Set<T>, b: Set<T>) {
 
 export function setEquality<T>(a: Set<T>, b: Set<T>) {
   return symmetricDifference(a, b).size === 0;
+}
+
+export async function runWithTimeout<T>(
+  timeoutMs: number,
+  callback: () => Promise<T>,
+): Promise<T | void> {
+  const timeout = new Promise<void>((_, reject) =>
+    setTimeout(
+      () => reject(new Error(`Timed out in ${timeoutMs}ms.`)),
+      timeoutMs,
+    ),
+  );
+  return Promise.race([callback(), timeout]);
 }

@@ -8,12 +8,12 @@ import {
 
 import { Contexts } from '../../config/contexts';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
-import { CoreEnvironmentConfig } from '../../src/config';
+import { EnvironmentConfig } from '../../src/config';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { HelloWorldConfig } from '../../src/config/helloworld';
 
 export async function getApp(
-  coreConfig: CoreEnvironmentConfig,
+  coreConfig: EnvironmentConfig,
   context: Contexts,
   keyRole: KEY_ROLE_ENUM,
   keyContext: Contexts = context,
@@ -37,7 +37,7 @@ export async function getApp(
 }
 
 export function getHelloWorldConfig(
-  coreConfig: CoreEnvironmentConfig,
+  coreConfig: EnvironmentConfig,
   context: Contexts,
 ): HelloWorldConfig {
   const helloWorldConfigs = coreConfig.helloWorld;

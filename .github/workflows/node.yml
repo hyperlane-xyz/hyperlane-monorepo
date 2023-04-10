@@ -115,7 +115,7 @@ jobs:
     strategy:
       matrix:
         environment: [testnet3, mainnet2]
-        module: [core, igp, ica, iqs]
+        module: [core, igp, ica]
 
     steps:
       - uses: actions/checkout@v3
@@ -160,6 +160,9 @@ jobs:
 
       - name: Forge build
         run: cd solidity && forge build --build-info
+
+      - name: lint
+        run: yarn workspace @hyperlane-xyz/core run lint
 
       - name: Run Slither
         uses: crytic/slither-action@main

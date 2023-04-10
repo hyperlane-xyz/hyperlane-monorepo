@@ -43,7 +43,7 @@ impl FuelMailbox {
 
 impl HyperlaneContract for FuelMailbox {
     fn address(&self) -> H256 {
-        self.contract.get_contract_id().into_h256()
+        self.contract.contract_id().into_h256()
     }
 }
 

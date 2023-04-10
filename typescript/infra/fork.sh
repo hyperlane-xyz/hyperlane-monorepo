@@ -17,10 +17,10 @@ else
   exit 1
 fi
 
-anvil --fork-url $RPC_URL --block-time 3 --silent &
+anvil --fork-url $RPC_URL --block-time 3 --silent > /dev/null &
 ANVIL_PID=$!
 
-while ! cast bn; do
+while ! cast bn &> /dev/null; do
   sleep 1
 done
 
