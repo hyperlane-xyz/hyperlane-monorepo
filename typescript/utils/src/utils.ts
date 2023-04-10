@@ -355,7 +355,7 @@ export async function runWithTimeout<T>(
         timeoutMs,
       )),
   );
-  const ret = Promise.race([callback(), timeoutProm]);
+  const ret = await Promise.race([callback(), timeoutProm]);
   // @ts-ignore timeout gets set immediately by the promise constructor
   clearTimeout(timeout);
   return ret;
