@@ -76,8 +76,6 @@ pub use base::*;
 pub use chains::{ChainConf, ChainConnectionConf, CoreContractAddresses};
 pub use signers::{RawSignerConf, SignerConf};
 
-use crate::{CoreMetrics, HyperlaneAgentCore};
-
 mod base;
 /// Chain configuration
 pub mod chains;

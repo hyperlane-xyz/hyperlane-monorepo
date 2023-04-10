@@ -82,39 +82,11 @@ pub enum ConnectionConf {
     },
 }
 
-// /// Raw ethereum connection configuration used for better deserialization
-// /// errors.
-// #[derive(Debug, Deserialize)]
-// #[serde(tag = "type", rename_all = "camelCase")]
-// pub enum RawConnectionConf {
-//     /// An HTTP-only quorum.
-//     HttpQuorum {
-//         /// Comma separated list of fully qualified strings to connect to
-//         urls: Option<String>,
-//     },
-//     /// An HTTP-only fallback set.
-//     HttpFallback {
-//         /// Comma separated list of fully qualified strings to connect to in
-// order of priority         urls: Option<String>,
-//     },
-//     /// HTTP connection details
-//     Http {
-//         /// Fully qualified string to connect to
-//         url: Option<String>,
-//     },
-//     /// Websocket connection details
-//     Ws {
-//         /// Fully qualified string to connect to
-//         url: Option<String>,
-//     },
-//     /// Unknown connection type
-//     #[serde(other)]
-//     Unknown,
-// }
-
+/// Ethereum connection configuration
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RawConnectionConf {
+    /// The type of connection to use
     #[serde(rename = "type")]
     connection_type: Option<String>,
     /// A single url to connect to
@@ -135,12 +107,16 @@ pub enum ConnectionConfError {
     /// The urls were not specified
     #[error("Missing `urls` for connection configuration")]
     MissingConnectionUrls,
+    /// The could not be parsed
     #[error("Invalid `url` for connection configuration: `{0}` ({1})")]
     InvalidConnectionUrl(String, url::ParseError),
+    /// One of the urls could not be parsed
     #[error("Invalid `urls` list for connection configuration: `{0}` ({1})")]
     InvalidConnectionUrls(String, url::ParseError),
+    /// The url was empty
     #[error("The `url` value is empty")]
     EmptyUrl,
+    /// The urls were empty
     #[error("The `urls` value is empty")]
     EmptyUrls,
 }

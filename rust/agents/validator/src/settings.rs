@@ -26,7 +26,8 @@ decl_settings!(Validator,
     },
     Raw {
         originchainname: Option<String>,
-        validator: Option<RawSignerConf>,
+        #[serde(default)]
+        validator: RawSignerConf,
         checkpointsyncer: Option<RawCheckpointSyncerConf>,
         reorgperiod: Option<StrOrInt>,
         interval: Option<StrOrInt>,
@@ -43,12 +44,8 @@ impl FromRawConf<'_, RawValidatorSettings> for ValidatorSettings {
 
         let validator = raw
             .validator
-            .ok_or_else(|| eyre!("Missing `validator`"))
-            .take_err(&mut err, || cwp + "validator")
-            .and_then(|r| {
-                r.parse_config(&cwp.join("validator"))
-                    .take_config_err(&mut err)
-            });
+            .parse_config(&cwp.join("validator"))
+            .take_config_err(&mut err);
 
         let checkpoint_syncer = raw
             .checkpointsyncer

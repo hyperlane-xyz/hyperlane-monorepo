@@ -16,14 +16,14 @@ use crate::settings::KMS_CLIENT;
 pub enum SignerConf {
     /// A local hex key
     HexKey {
-        /// Hex string of private key, without 0x prefix
+        /// Private key value
         key: H256,
     },
     /// An AWS signer. Note that AWS credentials must be inserted into the env
     /// separately.
     Aws {
         /// The UUID identifying the AWS KMS Key
-        id: String, // change to no _ so we can set by env
+        id: String,
         /// The AWS region
         region: Region,
     },
@@ -32,17 +32,26 @@ pub enum SignerConf {
     Node,
 }
 
-#[derive(Debug, Deserialize)]
+/// Raw signer types
+#[derive(Debug, Deserialize, Default)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum RawSignerConf {
+    /// A local hex key
     HexKey {
+        /// Hex string of private key
         key: Option<String>,
     },
+    /// An AWS signer. Note that AWS credentials must be inserted into the env separately.
     Aws {
+        /// The UUID identifying the AWS KMS Key
         id: Option<String>,
+        /// The AWS region
         region: Option<String>,
     },
+    /// Assume node will sign on RPC calls
+    #[default]
     Node,
+    /// Unknown signer type was specified
     #[serde(other)]
     Unknown,
 }

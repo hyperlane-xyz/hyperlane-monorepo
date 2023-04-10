@@ -199,6 +199,8 @@ pub struct ChainConf {
     pub index: IndexSettings,
 }
 
+/// A raw chain setup is a domain ID, an address on that chain (where the
+/// mailbox is deployed) and details for connecting to the chain API.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RawChainConf {

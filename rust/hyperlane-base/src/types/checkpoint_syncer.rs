@@ -29,16 +29,23 @@ pub enum CheckpointSyncerConf {
     },
 }
 
+/// Raw checkpoint syncer types
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum RawCheckpointSyncerConf {
+    /// A local checkpoint syncer
     LocalStorage {
+        /// Path
         path: Option<String>,
     },
+    /// A checkpoint syncer on S3
     S3 {
+        /// Bucket name
         bucket: Option<String>,
+        /// S3 Region
         region: Option<String>,
     },
+    /// Unknown checkpoint syncer type was specified
     #[serde(other)]
     Unknown,
 }

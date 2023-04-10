@@ -55,6 +55,7 @@ pub struct Settings {
     pub tracing: TracingConfig,
 }
 
+/// Raw base settings.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RawSettings {
@@ -224,6 +225,7 @@ impl Settings {
         Ok(announce.into())
     }
 
+    /// Try to get the chain configuration for the given domain.
     pub fn chain_setup(&self, domain: &HyperlaneDomain) -> eyre::Result<&ChainConf> {
         self.chain_setup_by_name(domain.name())
     }
@@ -235,6 +237,7 @@ impl Settings {
             .ok_or_else(|| eyre!("No chain setup found for {chain_name}"))
     }
 
+    /// Try to get the domain for a given chain by name.
     pub fn lookup_domain(&self, chain_name: &str) -> eyre::Result<HyperlaneDomain> {
         self.chain_setup_by_name(chain_name)
             .map(|c| c.domain.clone())
@@ -254,7 +257,7 @@ impl Settings {
     fn clone(&self) -> Self {
         Self {
             chains: self.chains.clone(),
-            metrics: self.metrics.clone(),
+            metrics: self.metrics,
             tracing: self.tracing.clone(),
         }
     }
