@@ -1,10 +1,11 @@
-import { Contract } from 'ethers';
 import { keccak256 } from 'ethers/lib/utils';
 
+import { Ownable } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
+import { filterOwnableContracts } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 import { objMap, promiseObjAll } from '../utils/objects';
@@ -120,35 +121,28 @@ export abstract class HyperlaneAppChecker<
     }
   }
 
+  async ownables(chain: ChainName): Promise<{ [key: string]: Ownable }> {
+    const contracts = this.app.getContracts(chain);
+    return filterOwnableContracts(contracts);
+  }
+
   // TODO: Require owner in config if ownables is non-empty
   async checkOwnership(chain: ChainName, owner: types.Address): Promise<void> {
-    const isOwnable = async (contract: Contract): Promise<boolean> => {
-      try {
-        await contract.owner();
-        return true;
-      } catch (_) {
-        return false;
+    const ownableContracts = await this.ownables(chain);
+    for (const [name, contract] of Object.entries(ownableContracts)) {
+      const actual = await contract.owner();
+      if (!utils.eqAddress(actual, owner)) {
+        const violation: OwnerViolation = {
+          chain,
+          name,
+          type: ViolationType.Owner,
+          actual,
+          expected: owner,
+          contract,
+        };
+        this.addViolation(violation);
       }
-    };
-    const contracts = this.app.getContracts(chain);
-    await promiseObjAll(
-      objMap(contracts, async (name, contract) => {
-        if (await isOwnable(contract)) {
-          const actual = await contract.owner();
-          if (!utils.eqAddress(actual, owner)) {
-            const violation: OwnerViolation = {
-              chain,
-              name,
-              type: ViolationType.Owner,
-              actual,
-              expected: owner,
-              contract,
-            };
-            this.addViolation(violation);
-          }
-        }
-      }),
-    );
+    }
   }
 
   expectViolations(violationCounts: Record<string, number>): void {

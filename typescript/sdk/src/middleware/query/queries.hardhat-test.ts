@@ -55,9 +55,9 @@ describe('InterchainQueryRouter', async () => {
   });
 
   beforeEach(async () => {
-    const InterchainQuery = new InterchainQueryDeployer(multiProvider, config);
+    const InterchainQuery = new InterchainQueryDeployer(multiProvider);
 
-    contracts = await InterchainQuery.deploy();
+    contracts = await InterchainQuery.deploy(config);
 
     local = contracts[localChain].interchainQueryRouter;
     remote = contracts[remoteChain].interchainQueryRouter;

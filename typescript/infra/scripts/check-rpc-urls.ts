@@ -9,7 +9,7 @@ import { getArgs, getEnvironmentConfig } from './utils';
 
 async function main() {
   const { environment } = await getArgs().argv;
-  const config = await getEnvironmentConfig();
+  const config = await getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
   const chains = multiProvider.getKnownChainNames();
   const providers: [string, JsonRpcProvider][] = [];

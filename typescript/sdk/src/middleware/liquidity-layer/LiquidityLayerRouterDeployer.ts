@@ -1,19 +1,18 @@
+import { ethers } from 'ethers';
+
 import {
   CircleBridgeAdapter,
-  CircleBridgeAdapter__factory,
   LiquidityLayerRouter,
-  LiquidityLayerRouter__factory,
   PortalAdapter,
-  PortalAdapter__factory,
 } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts, HyperlaneContractsMap } from '../../contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
+import { ProxiedRouterDeployer } from '../../router/ProxiedRouterDeployer';
 import { RouterConfig } from '../../router/types';
 import { ChainMap, ChainName } from '../../types';
 import { objMap } from '../../utils/objects';
-import { MiddlewareRouterDeployer } from '../MiddlewareRouterDeployer';
 
 import { LiquidityLayerFactories, liquidityLayerFactories } from './contracts';
 
@@ -49,26 +48,47 @@ export type BridgeAdapterConfig = {
 
 export type LiquidityLayerConfig = RouterConfig & BridgeAdapterConfig;
 
-export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
+export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
   LiquidityLayerConfig,
   LiquidityLayerFactories,
-  LiquidityLayerRouter__factory
+  'liquidityLayerRouter'
 > {
   readonly routerContractName = 'liquidityLayerRouter';
 
-  constructor(
-    multiProvider: MultiProvider,
-    configMap: ChainMap<LiquidityLayerConfig>,
-    create2salt = 'LiquidityLayerDeployerSalt',
-  ) {
-    super(multiProvider, configMap, liquidityLayerFactories, create2salt);
+  constructor(multiProvider: MultiProvider) {
+    super(multiProvider, liquidityLayerFactories);
+  }
+
+  async constructorArgs(_: string, __: LiquidityLayerConfig): Promise<[]> {
+    return [];
+  }
+
+  async initializeArgs(
+    chain: string,
+    config: LiquidityLayerConfig,
+  ): Promise<
+    [
+      _mailbox: string,
+      _interchainGasPaymaster: string,
+      _interchainSecurityModule: string,
+      _owner: string,
+    ]
+  > {
+    const owner = await this.multiProvider.getSignerAddress(chain);
+    return [
+      config.mailbox,
+      config.interchainGasPaymaster,
+      config.interchainSecurityModule ?? ethers.constants.AddressZero,
+      owner,
+    ];
   }
 
   async enrollRemoteRouters(
     contractsMap: HyperlaneContractsMap<LiquidityLayerFactories>,
+    configMap: ChainMap<LiquidityLayerConfig>,
   ): Promise<void> {
     this.logger(`Enroll LiquidityLayerRouters with each other`);
-    await super.enrollRemoteRouters(contractsMap);
+    await super.enrollRemoteRouters(contractsMap, configMap);
 
     this.logger(`Enroll CircleBridgeAdapters with each other`);
     // Hack to allow use of super.enrollRemoteRouters
@@ -76,6 +96,7 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
       objMap(contractsMap, (_, contracts) => ({
         liquidityLayerRouter: contracts.circleBridgeAdapter,
       })) as unknown as HyperlaneContractsMap<LiquidityLayerFactories>,
+      configMap,
     );
 
     this.logger(`Enroll PortalAdapters with each other`);
@@ -84,6 +105,7 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
       objMap(contractsMap, (_, contracts) => ({
         liquidityLayerRouter: contracts.portalAdapter,
       })) as unknown as HyperlaneContractsMap<LiquidityLayerFactories>,
+      configMap,
     );
   }
 
@@ -128,24 +150,16 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
     owner: string,
     router: LiquidityLayerRouter,
   ): Promise<PortalAdapter> {
-    const initCalldata =
-      PortalAdapter__factory.createInterface().encodeFunctionData(
-        'initialize',
-        [
-          this.multiProvider.getDomainId(chain),
-          owner,
-          adapterConfig.portalBridgeAddress,
-          router.address,
-        ],
-      );
     const portalAdapter = await this.deployContract(
       chain,
       'portalAdapter',
       [],
-      {
-        create2Salt: this.create2salt,
-        initCalldata,
-      },
+      [
+        this.multiProvider.getDomainId(chain),
+        owner,
+        adapterConfig.portalBridgeAddress,
+        router.address,
+      ],
     );
 
     for (const {
@@ -190,24 +204,16 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
     owner: string,
     router: LiquidityLayerRouter,
   ): Promise<CircleBridgeAdapter> {
-    const initCalldata =
-      CircleBridgeAdapter__factory.createInterface().encodeFunctionData(
-        'initialize',
-        [
-          owner,
-          adapterConfig.tokenMessengerAddress,
-          adapterConfig.messageTransmitterAddress,
-          router.address,
-        ],
-      );
     const circleBridgeAdapter = await this.deployContract(
       chain,
       'circleBridgeAdapter',
       [],
-      {
-        create2Salt: this.create2salt,
-        initCalldata,
-      },
+      [
+        owner,
+        adapterConfig.tokenMessengerAddress,
+        adapterConfig.messageTransmitterAddress,
+        router.address,
+      ],
     );
 
     if (

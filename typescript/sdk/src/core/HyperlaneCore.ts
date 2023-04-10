@@ -83,7 +83,30 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     return;
   }
 
+  waitForMessageProcessing(
+    sourceTx: ethers.ContractReceipt,
+  ): Promise<ethers.ContractReceipt[]> {
+    const messages = HyperlaneCore.getDispatchedMessages(sourceTx);
+    return Promise.all(messages.map((msg) => this.waitForProcessReceipt(msg)));
+  }
+
+  async waitForMessageProcessed(
+    sourceTx: ethers.ContractReceipt,
+  ): Promise<void> {
+    const messages = HyperlaneCore.getDispatchedMessages(sourceTx);
+    await Promise.all(
+      messages.map((msg) => this.waitForMessageWasProcessed(msg)),
+    );
+  }
+
+  // Redundant with static method but keeping for backwards compatibility
   getDispatchedMessages(sourceTx: ethers.ContractReceipt): DispatchedMessage[] {
+    return HyperlaneCore.getDispatchedMessages(sourceTx);
+  }
+
+  static getDispatchedMessages(
+    sourceTx: ethers.ContractReceipt,
+  ): DispatchedMessage[] {
     const mailbox = Mailbox__factory.createInterface();
     const dispatchLogs = sourceTx.logs
       .map((log) => {
@@ -103,21 +126,5 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       const id = utils.messageId(message);
       return { id, message, parsed };
     });
-  }
-
-  waitForMessageProcessing(
-    sourceTx: ethers.ContractReceipt,
-  ): Promise<ethers.ContractReceipt[]> {
-    const messages = this.getDispatchedMessages(sourceTx);
-    return Promise.all(messages.map((msg) => this.waitForProcessReceipt(msg)));
-  }
-
-  async waitForMessageProcessed(
-    sourceTx: ethers.ContractReceipt,
-  ): Promise<void> {
-    const messages = this.getDispatchedMessages(sourceTx);
-    await Promise.all(
-      messages.map((msg) => this.waitForMessageWasProcessed(msg)),
-    );
   }
 }

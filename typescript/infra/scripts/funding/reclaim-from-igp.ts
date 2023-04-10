@@ -10,7 +10,7 @@ const RECLAIM_BALANCE_THRESHOLD = BigNumber.from(10).pow(17);
 
 async function main() {
   const environment = await getEnvironment();
-  const environmentConfig = await getEnvironmentConfig();
+  const environmentConfig = await getEnvironmentConfig(environment);
   const multiProvider = await environmentConfig.getMultiProvider();
   const igp = HyperlaneIgp.fromEnvironment(
     deployEnvToSdkEnv[environment],
