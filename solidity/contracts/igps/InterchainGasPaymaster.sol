@@ -50,12 +50,6 @@ contract InterchainGasPaymaster is
         address gasOracle;
     }
 
-    // ============ Constructor ============
-
-    constructor(address _beneficiary) {
-        initialize(msg.sender, _beneficiary); // allows contract to be used without proxying
-    }
-
     // ============ External Functions ============
 
     /**

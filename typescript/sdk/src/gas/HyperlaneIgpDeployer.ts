@@ -3,65 +3,50 @@ import debug from 'debug';
 import {
   InterchainGasPaymaster,
   OverheadIgp,
-  Ownable,
-  Ownable__factory,
   ProxyAdmin,
   StorageGasOracle,
 } from '@hyperlane-xyz/core';
 import { types, utils } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts';
-import { DeployOptions, HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
+import { HyperlaneContracts, filterOwnableContracts } from '../contracts';
+import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, ChainName } from '../types';
-import { objMap } from '../utils/objects';
+import { ChainName } from '../types';
+import { pick } from '../utils/objects';
 
 import { IgpFactories, igpFactories } from './contracts';
-import { OverheadIgpConfig } from './types';
+import { IgpConfig, OverheadIgpConfig } from './types';
 
 export class HyperlaneIgpDeployer extends HyperlaneDeployer<
   OverheadIgpConfig,
   IgpFactories
 > {
-  startingBlockNumbers: ChainMap<number | undefined>;
-
-  constructor(
-    multiProvider: MultiProvider,
-    configMap: ChainMap<OverheadIgpConfig>,
-    factoriesOverride = igpFactories,
-  ) {
-    super(multiProvider, configMap, factoriesOverride, {
+  constructor(multiProvider: MultiProvider) {
+    super(multiProvider, igpFactories, {
       logger: debug('hyperlane:IgpDeployer'),
     });
-    this.startingBlockNumbers = objMap(configMap, () => undefined);
   }
 
   async deployInterchainGasPaymaster(
     chain: ChainName,
     proxyAdmin: ProxyAdmin,
     storageGasOracle: StorageGasOracle,
-    deployOpts?: DeployOptions,
+    config: IgpConfig,
   ): Promise<InterchainGasPaymaster> {
-    const owner = this.configMap[chain].owner;
-    const beneficiary = this.configMap[chain].beneficiary;
+    const owner = config.owner;
+    const beneficiary = config.beneficiary;
     const igp = await this.deployProxiedContract(
       chain,
       'interchainGasPaymaster',
-      [beneficiary],
-      [owner, beneficiary],
       proxyAdmin.address,
-      deployOpts,
+      [],
+      [owner, beneficiary],
     );
-
-    // Set the gas oracles
-    const configChains = Object.keys(this.configMap);
-    const remotes = this.multiProvider
-      .intersect(configChains, false)
-      .multiProvider.getRemoteChains(chain);
 
     const gasOracleConfigsToSet: InterchainGasPaymaster.GasOracleConfigStruct[] =
       [];
 
+    const remotes = Object.keys(config.gasOracleType);
     for (const remote of remotes) {
       const remoteId = this.multiProvider.getDomainId(remote);
       const currentGasOracle = await igp.gasOracles(remoteId);
@@ -84,37 +69,23 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     return igp;
   }
 
-  async deployOverheadInterchainGasPaymaster(
+  async deployOverheadIgp(
     chain: ChainName,
     interchainGasPaymasterAddress: types.Address,
-    deployOpts?: DeployOptions,
+    config: OverheadIgpConfig,
   ): Promise<OverheadIgp> {
-    const deployer = await this.multiProvider.getSignerAddress(chain);
-    // Transfer ownership to the deployer so the destination gas overheads can be set
-    const initCalldata = Ownable__factory.createInterface().encodeFunctionData(
-      'transferOwnership',
-      [deployer],
-    );
     const overheadInterchainGasPaymaster = await this.deployContract(
       chain,
       'defaultIsmInterchainGasPaymaster',
       [interchainGasPaymasterAddress],
-      {
-        ...deployOpts,
-        initCalldata,
-      },
     );
-
-    const configChains = Object.keys(this.configMap);
-    const remotes = this.multiProvider
-      .intersect(configChains, false)
-      .multiProvider.getRemoteChains(chain);
 
     // Only set gas overhead configs if they differ from what's on chain
     const configs: OverheadIgp.DomainConfigStruct[] = [];
+    const remotes = Object.keys(config.overhead);
     for (const remote of remotes) {
       const remoteDomain = this.multiProvider.getDomainId(remote);
-      const gasOverhead = this.configMap[chain].overhead[remote];
+      const gasOverhead = config.overhead[remote];
       const existingOverhead =
         await overheadInterchainGasPaymaster.destinationGasOverhead(
           remoteDomain,
@@ -139,20 +110,14 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     return overheadInterchainGasPaymaster;
   }
 
-  async deployStorageGasOracle(
-    chain: ChainName,
-    deployOpts?: DeployOptions,
-  ): Promise<StorageGasOracle> {
-    return this.deployContract(chain, 'storageGasOracle', [], deployOpts);
+  async deployStorageGasOracle(chain: ChainName): Promise<StorageGasOracle> {
+    return this.deployContract(chain, 'storageGasOracle', []);
   }
 
   async deployContracts(
     chain: ChainName,
     config: OverheadIgpConfig,
   ): Promise<HyperlaneContracts<IgpFactories>> {
-    const provider = this.multiProvider.getProvider(chain);
-    const startingBlockNumber = await provider.getBlockNumber();
-    this.startingBlockNumbers[chain] = startingBlockNumber;
     // NB: To share ProxyAdmins with HyperlaneCore, ensure the ProxyAdmin
     // is loaded into the contract cache.
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
@@ -161,21 +126,31 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       chain,
       proxyAdmin,
       storageGasOracle,
+      config,
     );
-    const overheadInterchainGasPaymaster =
-      await this.deployOverheadInterchainGasPaymaster(
-        chain,
-        interchainGasPaymaster.address,
-      );
-    // Ownership of the Mailbox and the interchainGasPaymaster is transferred upon initialization.
-    const ownables: Ownable[] = [overheadInterchainGasPaymaster];
-    await this.transferOwnershipOfContracts(chain, config.owner, ownables);
-
-    return {
+    const overheadIgp = await this.deployOverheadIgp(
+      chain,
+      interchainGasPaymaster.address,
+      config,
+    );
+    const contracts = {
       proxyAdmin,
       storageGasOracle,
       interchainGasPaymaster,
-      defaultIsmInterchainGasPaymaster: overheadInterchainGasPaymaster,
+      defaultIsmInterchainGasPaymaster: overheadIgp,
     };
+    // Do not transfer ownership of StorageGasOracle, as it should be
+    // owned by a "hot" key so that prices can be updated regularly
+    const ownables = await filterOwnableContracts(contracts);
+    const filteredOwnables = pick(
+      ownables,
+      Object.keys(contracts).filter((name) => name !== 'storageGasOracle'),
+    );
+    await this.transferOwnershipOfContracts(
+      chain,
+      config.owner,
+      filteredOwnables,
+    );
+    return contracts;
   }
 }

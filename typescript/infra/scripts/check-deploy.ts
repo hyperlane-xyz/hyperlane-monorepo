@@ -10,11 +10,11 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { deployEnvToSdkEnv } from '../src/config/environment';
-import { HyperlaneCoreGovernor } from '../src/core/govern';
-import { HyperlaneIgpGovernor } from '../src/gas/govern';
 import { HyperlaneAppGovernor } from '../src/govern/HyperlaneAppGovernor';
-import { InterchainAccountGovernor } from '../src/middleware/account/govern';
-import { InterchainQueryGovernor } from '../src/middleware/query/govern';
+import { HyperlaneCoreGovernor } from '../src/govern/HyperlaneCoreGovernor';
+import { HyperlaneIgpGovernor } from '../src/govern/HyperlaneIgpGovernor';
+import { InterchainAccountGovernor } from '../src/govern/InterchainAccountGovernor';
+import { InterchainQueryGovernor } from '../src/govern/InterchainQueryGovernor';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 
 import {
@@ -29,7 +29,7 @@ async function check() {
     .boolean('govern')
     .default('govern', false)
     .alias('g', 'govern').argv;
-  const config = await getEnvironmentConfig();
+  const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
 
   // must rotate to forked provider before building core contracts

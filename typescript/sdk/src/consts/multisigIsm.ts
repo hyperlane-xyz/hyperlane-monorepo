@@ -90,11 +90,12 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
     ],
   },
   gnosis: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       '0xd0529ec8df08d0d63c0f023786bfa81e4bb51fd6', // abacus
-      '0x829d6ec129bc7187fb1ed161adcf7939fe0c515f', // abacus
-      '0x00009f8935e94bfe52ab3441df3526ab7cc38db1', // abacus
+      '0x8a72ff8571c53c62c7ca02e8c97a443cd5674383', // dsrv
+      '0x4075c2f6bd6d9562067cfe551d49c2bcafa7d692', // everstake
+      '0xa18580444eaeb1c5957e7b66a6bf84b6519f904d', // staked
     ],
   },
   // ----------------- Testnets -----------------

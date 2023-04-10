@@ -6,7 +6,6 @@ import {
   HyperlaneFactories,
   attachContractsMap,
   connectContracts,
-  filterAddressesMap,
   serializeContracts,
 } from './contracts';
 import { MultiProvider } from './providers/MultiProvider';
@@ -34,10 +33,7 @@ export class HyperlaneApp<
   ): { contractsMap: HyperlaneContractsMap<F>; multiProvider: MultiProvider } {
     // Attaches contracts for each chain for which we have a complete set of
     // addresses
-    const contractsMap = attachContractsMap(
-      filterAddressesMap(addressesMap, factories),
-      factories,
-    );
+    const contractsMap = attachContractsMap(addressesMap, factories);
 
     // Filters out providers for chains for which we don't have a complete set
     // of addresses
