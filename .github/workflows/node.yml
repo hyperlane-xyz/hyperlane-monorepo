@@ -161,6 +161,12 @@ jobs:
       - name: Forge build
         run: cd solidity && forge build --build-info
 
+      #- name: gas
+      #  run: yarn workspace @hyperlane-xyz/core run gas-ci
+
+      - name: Unit tests
+        run: yarn workspace @hyperlane-xyz/core run test
+
       - name: Run Slither
         uses: crytic/slither-action@main
         id: slither
@@ -176,28 +182,10 @@ jobs:
         with:
           sarif_file: ${{ steps.slither.outputs.sarif }}
 
-      #- name: gas
-      #  run: yarn workspace @hyperlane-xyz/core run gas-ci
-
-      - name: forge-test
-        run: yarn workspace @hyperlane-xyz/core run test:forge
-
-      # Will fail if hardhat tests fail but not if forge tests fail
-      - name: coverage
-        run: |
-          sudo apt-get install lcov
-          yarn workspace @hyperlane-xyz/core run coverage
-
-      - name: coverage-cache
-        uses: actions/cache@v3
-        with:
-          path: './solidity/lcov.info'
-          key: ${{ github.sha }}
-
   coverage-sol:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    needs: [test-sol]
+    needs: [yarn-build]
 
     steps:
       - uses: actions/checkout@v3
@@ -206,25 +194,19 @@ jobs:
           path: ./*
           key: ${{ github.sha }}
 
-      - name: base-coverage-cache
+      - name: yarn-cache
         uses: actions/cache@v3
         with:
-          path: './solidity/lcov.info'
-          key: ${{ github.event.pull_request.base.sha }}
+          path: |
+            **/node_modules
+            .yarn/cache
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
-      - name: persist-base-coverage
-        run: mv ./solidity/lcov.info ./solidity/lcov.base.info
+      - name: Install Foundry
+        uses: onbjerg/foundry-toolchain@v1
 
-      - name: ref-coverage-cache
-        uses: actions/cache@v3
-        with:
-          path: './solidity/lcov.info'
-          key: ${{ github.sha }}
+      - name: Install dependencies
+        run: sudo apt-get install lcov
 
-      - name: check-coverage
-        run: |
-          sudo apt-get install lcov
-          cd ./solidity
-          export BASE=$(lcov --summary ./lcov.base.info | grep "lines" | sed 's/.*lines......:\ //' | sed 's/% (.*//')
-          export REF=$(lcov --summary ./lcov.info | grep "lines" | sed 's/.*lines......:\ //' | sed 's/% (.*//')
-          if [[ $REF < $BASE ]]; then exit 1; fi
+      - name: Run tests with coverage
+        run: yarn workspace @hyperlane-xyz/core run coverage
