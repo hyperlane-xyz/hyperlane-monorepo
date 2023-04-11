@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 
 import {
+  InterchainAccountRouter,
   Router,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
@@ -41,45 +42,52 @@ export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
   ): Promise<HyperlaneContracts<InterchainAccountFactories>> {
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
 
+    let interchainAccountRouter: InterchainAccountRouter;
     // adapted from HyperlaneDeployer.deployProxiedContract
-    const cached = this.deployedContracts[chain]?.interchainAccountRouter;
-    if (cached) {
-      this.logger('Recovered InterchainAccountRouter');
-      return {
-        proxyAdmin,
-        interchainAccountRouter: cached,
-      };
+    const cachedContract = this.readCache(
+      chain,
+      this.factories['interchainAccountRouter'],
+      'interchainAccountRouter',
+    );
+    if (cachedContract) {
+      interchainAccountRouter = cachedContract;
+    } else {
+      const deployer = await this.multiProvider.getSignerAddress(chain);
+
+      // 1. deploy the proxy first with a dummy implementation (proxy admin contract)
+      const proxy = await this.deployContractFromFactory(
+        chain,
+        new TransparentUpgradeableProxy__factory(),
+        'TransparentUpgradeableProxy',
+        [proxyAdmin.address, deployer, '0x'],
+      );
+
+      // 2. deploy the real InterchainAccountRouter and OwnableMulticall implementation with proxy address
+      const domainId = this.multiProvider.getDomainId(chain);
+      const implementation = await this.deployContract(
+        chain,
+        'interchainAccountRouter',
+        [domainId, proxy.address],
+      );
+
+      // 3. upgrade the proxy to the real implementation and initialize
+      const owner = deployer;
+      await super.upgradeAndInitialize(chain, proxy, implementation, [
+        config.mailbox,
+        config.interchainGasPaymaster,
+        config.interchainSecurityModule ?? ethers.constants.AddressZero,
+        owner,
+      ]);
+      interchainAccountRouter = implementation.attach(proxy.address);
+      this.writeCache(chain, 'interchainAccountRouter', proxy.address);
     }
 
-    const deployer = await this.multiProvider.getSignerAddress(chain);
-
-    // 1. deploy the proxy first with a dummy implementation (proxy admin contract)
-    const proxy = await this.deployContractFromFactory(
-      chain,
-      new TransparentUpgradeableProxy__factory(),
-      'TransparentUpgradeableProxy',
-      [proxyAdmin.address, deployer, '0x'],
+    const proxy = TransparentUpgradeableProxy__factory.connect(
+      interchainAccountRouter.address,
+      this.multiProvider.getSignerOrProvider(chain),
     );
 
-    // 2. deploy the real InterchainAccountRouter and OwnableMulticall implementation with proxy address
-    const domainId = this.multiProvider.getDomainId(chain);
-    const implementation = await this.deployContract(
-      chain,
-      'interchainAccountRouter',
-      [domainId, proxy.address],
-    );
-
-    // 3. upgrade the proxy to the real implementation and initialize
-    const owner = deployer;
-    await super.upgradeAndInitialize(chain, proxy, implementation, [
-      config.mailbox,
-      config.interchainGasPaymaster,
-      config.interchainSecurityModule ?? ethers.constants.AddressZero,
-      owner,
-    ]);
     await super.changeAdmin(chain, proxy, proxyAdmin.address);
-
-    const interchainAccountRouter = implementation.attach(proxy.address);
 
     return {
       proxyAdmin,

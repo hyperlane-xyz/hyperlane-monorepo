@@ -9,12 +9,11 @@ use ethers::abi::FunctionExt;
 use ethers::prelude::{abi, BlockId, BlockNumber, Http, Lazy, Middleware, NameOrAddress, Provider};
 
 use hyperlane_core::*;
-pub use retrying::{RetryingProvider, RetryingProviderError};
 
 #[cfg(not(doctest))]
-pub use crate::{
-    fallback::*, interchain_gas::*, interchain_security_module::*, mailbox::*, multisig_ism::*,
-    provider::*, signers::*, trait_builder::*, validator_announce::*,
+pub use self::{
+    interchain_gas::*, interchain_security_module::*, mailbox::*, multisig_ism::*, provider::*,
+    rpc_clients::*, signers::*, trait_builder::*, validator_announce::*,
 };
 
 #[cfg(not(doctest))]
@@ -51,11 +50,8 @@ mod validator_announce;
 #[cfg(not(doctest))]
 mod contracts;
 
-/// Retrying Provider
-mod retrying;
-
-/// Fallback provider
-mod fallback;
+/// Ethers JSONRPC Client implementations
+mod rpc_clients;
 
 mod signers;
 
