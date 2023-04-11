@@ -21,7 +21,7 @@ contract PortalAdapter is ILiquidityLayerAdapter, Router {
     /// @notice transferId => token address
     mapping(bytes32 => address) public portalTransfersProcessed;
 
-    uint32 localDomain;
+    uint32 public localDomain;
 
     // We could technically use Portal's sequence number here but it doesn't
     // get passed through, so we would have to parse the VAA twice
