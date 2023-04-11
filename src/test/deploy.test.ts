@@ -29,22 +29,21 @@ describe('deploy', async () => {
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
     const coreDeployer = new TestCoreDeployer(multiProvider);
-    const coreContractsMaps = await coreDeployer.deploy();
-    core = new TestCoreApp(coreContractsMaps, multiProvider);
+    core = await coreDeployer.deployApp();
     config = await deployTestIgpsAndGetRouterConfig(
       multiProvider,
       signer.address,
       core.contractsMap,
     );
-    deployer = new HelloWorldDeployer(multiProvider, config, core);
+    deployer = new HelloWorldDeployer(multiProvider);
   });
 
   it('deploys', async () => {
-    contracts = await deployer.deploy();
+    contracts = await deployer.deploy(config);
   });
 
   it('builds app', async () => {
-    contracts = await deployer.deploy();
+    contracts = await deployer.deploy(config);
     app = new HelloWorldApp(core, contracts, multiProvider);
   });
 

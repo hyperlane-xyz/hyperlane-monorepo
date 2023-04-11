@@ -51,8 +51,8 @@ describe('HelloWorld', async () => {
   });
 
   beforeEach(async () => {
-    const helloWorld = new HelloWorldDeployer(multiProvider, config, coreApp);
-    const contracts = await helloWorld.deploy();
+    const helloWorld = new HelloWorldDeployer(multiProvider);
+    const contracts = await helloWorld.deploy(config);
 
     local = contracts[localChain].router;
     remote = contracts[remoteChain].router;

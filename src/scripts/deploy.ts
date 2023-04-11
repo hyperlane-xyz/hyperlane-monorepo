@@ -27,8 +27,8 @@ async function main() {
     igp.contractsMap,
   );
 
-  const deployer = new HelloWorldDeployer(multiProvider, config, core);
-  const chainToContracts = await deployer.deploy();
+  const deployer = new HelloWorldDeployer(multiProvider);
+  const chainToContracts = await deployer.deploy(config);
   const addresses = serializeContractsMap(chainToContracts);
   console.info('===Contract Addresses===');
   console.info(JSON.stringify(addresses));
