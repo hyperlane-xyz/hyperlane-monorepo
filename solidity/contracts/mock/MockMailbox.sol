@@ -86,7 +86,8 @@ contract MockMailbox is Versioned {
         address _recipient = _message.recipient;
         IInterchainSecurityModule _ism = _recipientIsm(_recipient);
         if (address(_ism) != address(0)) {
-            // Do not pass any metadata
+            // Do not pass any metadata because we expect to
+            // be using TestIsms
             require(_ism.verify("", _encode(_message)), "ISM verify failed");
         }
 

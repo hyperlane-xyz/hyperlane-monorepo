@@ -40,7 +40,6 @@ abstract contract AbstractRoutingIsm is IRoutingIsm {
         public
         returns (bool)
     {
-        require(route(_message).verify(_metadata, _message), "!verify");
-        return true;
+        return route(_message).verify(_metadata, _message);
     }
 }

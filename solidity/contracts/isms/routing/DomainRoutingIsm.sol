@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 // ============ External Imports ============
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 // ============ Internal Imports ============
@@ -97,6 +98,7 @@ contract DomainRoutingIsm is AbstractRoutingIsm, OwnableUpgradeable {
      * @param _module The ISM to use to verify messages
      */
     function _set(uint32 _domain, IInterchainSecurityModule _module) internal {
+        require(Address.isContract(address(_module)), "!contract");
         modules[_domain] = _module;
         emit ModuleSet(_domain, _module);
     }
