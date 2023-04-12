@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use tracing::{debug, info, instrument, warn};
 
 use hyperlane_core::{
-    utils::fmt_duration, Indexer, KnownHyperlaneDomain, ListValidity, MailboxIndexer,
+    utils::fmt_sync_time, Indexer, KnownHyperlaneDomain, ListValidity, MailboxIndexer,
     SyncBlockRangeCursor,
 };
 
@@ -135,7 +135,7 @@ where
                     from,
                     to,
                     distance_from_tip = cursor.distance_from_tip(),
-                    estimated_time_to_sync = fmt_duration(eta),
+                    estimated_time_to_sync = fmt_sync_time(eta),
                     message_count = sorted_messages.len(),
                     "Indexed block range"
                 );
@@ -144,7 +144,7 @@ where
                     from,
                     to,
                     distance_from_tip = cursor.distance_from_tip(),
-                    estimated_time_to_sync = fmt_duration(eta),
+                    estimated_time_to_sync = fmt_sync_time(eta),
                     message_count = sorted_messages.len(),
                     "Indexed block range"
                 );

@@ -153,6 +153,16 @@ pub fn fmt_duration(dur: Duration) -> String {
     }
 }
 
+/// Formats the duration in the most appropriate time units and says "synced" if
+/// the duration is 0.
+pub fn fmt_sync_time(dur: Duration) -> String {
+    if dur.as_secs() == 0 {
+        "synced".into()
+    } else {
+        fmt_duration(dur)
+    }
+}
+
 /// An error when parsing a StrOrInt type as an integer value.
 #[derive(Error, Debug)]
 pub enum StrOrIntParseError {

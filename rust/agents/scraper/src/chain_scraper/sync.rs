@@ -11,7 +11,7 @@ use tracing::{debug, info, instrument, trace, warn};
 
 use hyperlane_base::{last_message::validate_message_continuity, RateLimitedSyncBlockRangeCursor};
 use hyperlane_core::{
-    utils::fmt_duration, KnownHyperlaneDomain, ListValidity, MailboxIndexer, SyncBlockRangeCursor,
+    utils::fmt_sync_time, KnownHyperlaneDomain, ListValidity, MailboxIndexer, SyncBlockRangeCursor,
     H256,
 };
 
@@ -134,7 +134,7 @@ impl Syncer {
                     from,
                     to,
                     distance_from_tip = self.sync_cursor.distance_from_tip(),
-                    estimated_time_to_sync = fmt_duration(eta),
+                    estimated_time_to_sync = fmt_sync_time(eta),
                     "Syncing range"
                 );
             } else {
@@ -142,7 +142,7 @@ impl Syncer {
                     from,
                     to,
                     distance_from_tip = self.sync_cursor.distance_from_tip(),
-                    estimated_time_to_sync = fmt_duration(eta),
+                    estimated_time_to_sync = fmt_sync_time(eta),
                     "Syncing range"
                 );
             }
