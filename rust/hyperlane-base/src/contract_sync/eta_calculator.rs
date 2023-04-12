@@ -1,3 +1,4 @@
+use std::cmp;
 use std::time::{Duration, Instant};
 
 use derive_new::new;
@@ -40,7 +41,7 @@ impl SyncerEtaCalculator {
         // effective rate once we have seen a move to prevent it taking a long
         // time to normalize.
         let effective_rate = if let Some(old_rate) = self.effective_rate {
-            let new_coeff = (elapsed / self.time_window).min(0.9);
+            let new_coeff = f64::min(elapsed / self.time_window, 0.9);
             let old_coeff = 1. - new_coeff;
 
             let er = (new_rate * new_coeff) + (old_rate * old_coeff);
