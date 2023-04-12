@@ -5,8 +5,9 @@ use eyre::Result;
 use tokio::time::sleep;
 use tracing::warn;
 
-use crate::contract_sync::eta_calculator::SyncerEtaCalculator;
 use hyperlane_core::{ChainResult, Indexer, SyncBlockRangeCursor};
+
+use crate::contract_sync::eta_calculator::SyncerEtaCalculator;
 
 /// Time window for the moving average used in the eta calculator.
 const ETA_TIME_WINDOW: f64 = 2. * 60.;
@@ -45,9 +46,8 @@ where
     async fn rate_limit(&mut self) -> ChainResult<()> {
         let update_tip = self.last_tip_update.elapsed() >= Duration::from_secs(30);
         if self.from + self.chunk_size < self.tip {
-            // If doing the full chunk wouldn't exceed the already known tip,
-            // we don't necessarily need to fetch the new tip. Sleep a tiny bit
-            // so that we can catch up to the tip relatively quickly.
+            // If doing the full chunk wouldn't exceed the already known tip sleep a tiny
+            // bit so that we can catch up relatively quickly.
             sleep(Duration::from_millis(100)).await;
         } else if !update_tip {
             // We are close to the tip.
