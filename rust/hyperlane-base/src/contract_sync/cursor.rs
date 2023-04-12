@@ -9,7 +9,7 @@ use hyperlane_core::{ChainResult, Indexer, SyncBlockRangeCursor};
 
 use crate::contract_sync::eta_calculator::SyncerEtaCalculator;
 
-/// Time window for the moving average used in the eta calculator.
+/// Time window for the moving average used in the eta calculator in seconds.
 const ETA_TIME_WINDOW: f64 = 2. * 60.;
 
 /// Tool for handling the logic of what the next block range that should be

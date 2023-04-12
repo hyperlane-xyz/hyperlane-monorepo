@@ -1,4 +1,3 @@
-use std::cmp;
 use std::time::{Duration, Instant};
 
 use derive_new::new;
