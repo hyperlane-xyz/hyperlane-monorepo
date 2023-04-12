@@ -8,14 +8,14 @@ import {
 } from '@hyperlane-xyz/core';
 
 import { TestChains } from '../consts/chains';
-import { MultiProvider } from '../providers/MultiProvider';
+import { HyperlaneContracts } from '../contracts';
 import { testCoreConfig } from '../test/testUtils';
 import { ChainMap, ChainName } from '../types';
 
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer';
 import { TestCoreApp } from './TestCoreApp';
-import { coreFactories } from './contracts';
-import { CoreConfig } from './types';
+import { CoreFactories, coreFactories } from './contracts';
+import { MultisigIsmConfig } from './types';
 
 const testCoreFactories = {
   ...coreFactories,
@@ -25,18 +25,13 @@ const testCoreFactories = {
 };
 
 export class TestCoreDeployer extends HyperlaneCoreDeployer {
-  constructor(
-    public readonly multiProvider: MultiProvider,
-    configMap?: ChainMap<CoreConfig>,
-  ) {
-    // Note that the multisig module configs are unused.
-    const configs = configMap ?? testCoreConfig(TestChains);
-
-    super(multiProvider, configs, testCoreFactories);
-  }
+  factories = testCoreFactories;
 
   // deploy a test ISM in place of a multisig ISM
-  async deployLegacyMultisigIsm(chain: ChainName): Promise<LegacyMultisigIsm> {
+  async deployLegacyMultisigIsm(
+    chain: ChainName,
+    _: ChainMap<MultisigIsmConfig>,
+  ): Promise<LegacyMultisigIsm> {
     const testIsm = await this.deployContractFromFactory(
       chain,
       testCoreFactories.testIsm,
@@ -50,6 +45,10 @@ export class TestCoreDeployer extends HyperlaneCoreDeployer {
   // TestIsm is not ownable, so we skip ownership transfer
   async transferOwnershipOfContracts(): Promise<ethers.ContractReceipt[]> {
     return [];
+  }
+
+  async deploy(): Promise<ChainMap<HyperlaneContracts<CoreFactories>>> {
+    return super.deploy(testCoreConfig(TestChains));
   }
 
   async deployApp(): Promise<TestCoreApp> {

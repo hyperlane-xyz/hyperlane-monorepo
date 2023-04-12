@@ -1,5 +1,3 @@
-import { debug } from 'debug';
-
 import { Router } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
@@ -7,54 +5,37 @@ import {
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneFactories,
+  filterOwnableContracts,
 } from '../contracts';
-import {
-  DeployerOptions,
-  HyperlaneDeployer,
-} from '../deploy/HyperlaneDeployer';
-import { MultiProvider } from '../providers/MultiProvider';
+import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { RouterConfig } from '../router/types';
 import { ChainMap } from '../types';
-import { objMap, promiseObjAll } from '../utils/objects';
 
 export abstract class HyperlaneRouterDeployer<
   Config extends RouterConfig,
   Factories extends HyperlaneFactories,
 > extends HyperlaneDeployer<Config, Factories> {
-  constructor(
-    multiProvider: MultiProvider,
-    configMap: ChainMap<Config>,
-    factories: Factories,
-    options?: DeployerOptions,
-  ) {
-    super(multiProvider, configMap, factories, {
-      logger: debug('hyperlane:RouterDeployer'),
-      ...options,
-    });
-  }
-
   abstract router(contracts: HyperlaneContracts<Factories>): Router;
 
   async initConnectionClients(
     contractsMap: HyperlaneContractsMap<Factories>,
+    configMap: ChainMap<Config>,
   ): Promise<void> {
-    await promiseObjAll(
-      objMap(contractsMap, async (local, contracts) =>
-        super.initConnectionClient(
-          local,
-          this.router(contracts),
-          this.configMap[local],
-        ),
-      ),
-    );
+    for (const chain of Object.keys(contractsMap)) {
+      const contracts = contractsMap[chain];
+      const config = configMap[chain];
+      await super.initConnectionClient(chain, this.router(contracts), config);
+    }
   }
 
   async enrollRemoteRouters(
     contractsMap: HyperlaneContractsMap<Factories>,
+    _: ChainMap<Config>,
   ): Promise<void> {
     this.logger(
       `Enrolling deployed routers with each other (if not already)...`,
     );
+
     // Make all routers aware of each other.
     const deployedChains = Object.keys(contractsMap);
     for (const [chain, contracts] of Object.entries(contractsMap)) {
@@ -103,36 +84,25 @@ export abstract class HyperlaneRouterDeployer<
 
   async transferOwnership(
     contractsMap: HyperlaneContractsMap<Factories>,
+    configMap: ChainMap<Config>,
   ): Promise<void> {
-    this.logger(`Transferring ownership of routers...`);
-    await promiseObjAll(
-      objMap(contractsMap, async (chain, contracts) => {
-        const owner = this.configMap[chain].owner;
-        const currentOwner = await this.router(contracts).owner();
-        if (owner != currentOwner) {
-          this.logger(`Transfer ownership of ${chain}'s router to ${owner}`);
-          await super.runIfOwner(chain, this.router(contracts), async () => {
-            await this.multiProvider.handleTx(
-              chain,
-              this.router(contracts).transferOwnership(
-                owner,
-                this.multiProvider.getTransactionOverrides(chain),
-              ),
-            );
-          });
-        }
-      }),
-    );
+    this.logger(`Transferring ownership of ownables...`);
+    for (const chain of Object.keys(contractsMap)) {
+      const contracts = contractsMap[chain];
+      const owner = configMap[chain].owner;
+      const ownables = await filterOwnableContracts(contracts);
+      await this.transferOwnershipOfContracts(chain, owner, ownables);
+    }
   }
 
   async deploy(
-    partialDeployment?: HyperlaneContractsMap<Factories>,
+    configMap: ChainMap<Config>,
   ): Promise<HyperlaneContractsMap<Factories>> {
-    const contractsMap = await super.deploy(partialDeployment);
+    const contractsMap = await super.deploy(configMap);
 
-    await this.enrollRemoteRouters(contractsMap);
-    await this.initConnectionClients(contractsMap);
-    await this.transferOwnership(contractsMap);
+    await this.enrollRemoteRouters(contractsMap, configMap);
+    await this.initConnectionClients(contractsMap, configMap);
+    await this.transferOwnership(contractsMap, configMap);
 
     return contractsMap;
   }

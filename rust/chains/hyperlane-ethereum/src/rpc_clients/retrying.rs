@@ -1,20 +1,14 @@
 use std::{fmt::Debug, str::FromStr, time::Duration};
 
+use crate::rpc_clients::{categorize_client_response, CategorizedResponse};
 use async_trait::async_trait;
-use ethers::prelude::HttpClientError;
 use ethers::providers::{Http, JsonRpcClient, ProviderError};
 use ethers_prometheus::json_rpc_client::PrometheusJsonRpcClient;
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 use tokio::time::sleep;
-use tracing::{debug, error, info, instrument, trace, warn};
-
-const METHODS_TO_NOT_RETRY: &[&str] = &[
-    "eth_estimateGas",
-    "eth_sendTransaction",
-    "eth_sendRawTransaction",
-];
+use tracing::{debug, error, instrument, trace, warn_span};
 
 /// An HTTP Provider with a simple naive exponential backoff built-in
 #[derive(Debug, Clone)]
@@ -63,6 +57,7 @@ enum HandleMethod<R, PE> {
     Accept(R),
     Halt(PE),
     Retry(PE),
+    RateLimitedRetry(PE),
 }
 
 impl<P> RetryingProvider<P>
@@ -95,6 +90,7 @@ where
         let mut last_err;
         let mut i = 1;
         loop {
+            let mut rate_limited = false;
             let backoff_ms = self.base_retry_ms * 2u64.pow(i - 1);
             trace!(params = %serde_json::to_string(&params).unwrap_or_default(), "Dispatching request with params");
             debug!(attempt = i, "Dispatching request");
@@ -114,11 +110,20 @@ where
                 HandleMethod::Retry(e) => {
                     last_err = e;
                 }
+                HandleMethod::RateLimitedRetry(e) => {
+                    last_err = e;
+                    rate_limited = true;
+                }
             }
 
             i += 1;
             if i <= self.max_requests {
-                trace!(backoff_ms, "Retrying provider going to sleep");
+                let backoff_ms = if rate_limited {
+                    backoff_ms.max(20 * 1000) // 20s timeout
+                } else {
+                    backoff_ms
+                };
+                trace!(backoff_ms, rate_limited, "Retrying provider going to sleep");
                 sleep(Duration::from_millis(backoff_ms)).await;
             } else {
                 trace!(
@@ -156,7 +161,8 @@ where
     }
 }
 
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl JsonRpcClient for RetryingProvider<PrometheusJsonRpcClient<Http>> {
     type Error = RetryingProviderError<PrometheusJsonRpcClient<Http>>;
 
@@ -166,27 +172,22 @@ impl JsonRpcClient for RetryingProvider<PrometheusJsonRpcClient<Http>> {
         T: Debug + Serialize + Send + Sync,
         R: DeserializeOwned,
     {
-        self.request_with_retry::<T, R>(method, params, |res, attempt, next_backoff_ms| match res {
-            Ok(res) => HandleMethod::Accept(res),
-            Err(HttpClientError::ReqwestError(e)) => {
-                warn!(next_backoff_ms, retries_remaining = self.max_requests - attempt, error = %e, "ReqwestError in http provider");
-                HandleMethod::Retry(HttpClientError::ReqwestError(e))
-            }
-            Err(HttpClientError::JsonRpcError(e)) => {
-                // We don't want to retry errors that are probably not going to work if we keep
-                // retrying them or that indicate an error in higher-order logic and not
-                // transient provider (connection or other) errors.
-                if METHODS_TO_NOT_RETRY.contains(&method) {
-                    warn!(attempt, next_backoff_ms, error = %e, "JsonRpcError in http provider; not retrying");
-                    HandleMethod::Halt(HttpClientError::JsonRpcError(e))
-                } else {
-                    info!(attempt, next_backoff_ms, error = %e, "JsonRpcError in http provider");
-                    HandleMethod::Retry(HttpClientError::JsonRpcError(e))
-                }
-            }
-            Err(HttpClientError::SerdeJson { err, text }) => {
-                warn!(attempt, next_backoff_ms, error = %err, text = text,  "SerdeJson error in http provider");
-                HandleMethod::Retry(HttpClientError::SerdeJson { err, text })
+        use CategorizedResponse::*;
+        use HandleMethod::*;
+
+        self.request_with_retry::<T, R>(method, params, |res, attempt, next_backoff_ms| {
+            let _span = warn_span!(
+                "request_with_retry",
+                next_backoff_ms,
+                retries_remaining = self.max_requests - attempt
+            )
+            .entered();
+
+            match categorize_client_response(method, res) {
+                IsOk(res) => Accept(res),
+                RetryableErr(e) => Retry(e),
+                RateLimitErr(e) => RateLimitedRetry(e),
+                NonRetryableErr(e) => Halt(e),
             }
         })
         .await

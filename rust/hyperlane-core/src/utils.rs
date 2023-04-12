@@ -1,6 +1,7 @@
 use std::fmt::{Debug, Formatter};
 use std::num::{ParseIntError, TryFromIntError};
 use std::str::FromStr;
+use std::time::Duration;
 
 use serde::Deserialize;
 use sha3::{digest::Update, Digest, Keccak256};
@@ -129,6 +130,37 @@ pub fn fmt_domain(domain: u32) -> String {
     KnownHyperlaneDomain::try_from(domain)
         .map(|d| d.to_string())
         .unwrap_or_else(|_| domain.to_string())
+}
+
+/// Formats the duration in the most appropriate time units.
+pub fn fmt_duration(dur: Duration) -> String {
+    const MIN: f64 = 60.;
+    const HOUR: f64 = MIN * 60.;
+    const DAY: f64 = HOUR * 24.;
+    const YEAR: f64 = DAY * 365.25;
+
+    let sec = dur.as_secs_f64();
+    if sec < 60. {
+        format!("{:.0}s", sec)
+    } else if sec < HOUR {
+        format!("{:.1}m", sec / MIN)
+    } else if sec < DAY {
+        format!("{:.2}h", sec / HOUR)
+    } else if sec < YEAR {
+        format!("{:.2}d", sec / DAY)
+    } else {
+        format!("{:.2}y", sec / YEAR)
+    }
+}
+
+/// Formats the duration in the most appropriate time units and says "synced" if
+/// the duration is 0.
+pub fn fmt_sync_time(dur: Duration) -> String {
+    if dur.as_secs() == 0 {
+        "synced".into()
+    } else {
+        fmt_duration(dur)
+    }
 }
 
 /// An error when parsing a StrOrInt type as an integer value.

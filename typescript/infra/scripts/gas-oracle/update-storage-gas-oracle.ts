@@ -3,7 +3,7 @@ import { ChainName, HyperlaneIgp } from '@hyperlane-xyz/sdk';
 import { RemoteGasData, StorageGasOracleConfig } from '../../src/config';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { RemoteGasDataConfig } from '../../src/config/gas-oracle';
-import { getArgs, getCoreEnvironmentConfig, getEnvironment } from '../utils';
+import { getArgs, getEnvironment, getEnvironmentConfig } from '../utils';
 
 import {
   eqRemoteGasData,
@@ -24,7 +24,7 @@ async function main() {
     .default('dry-run', false).argv;
 
   const environment = await getEnvironment();
-  const coreEnvConfig = getCoreEnvironmentConfig(environment);
+  const coreEnvConfig = getEnvironmentConfig(environment);
   const multiProvider = await coreEnvConfig.getMultiProvider();
 
   const storageGasOracleConfig = coreEnvConfig.storageGasOracleConfig;
