@@ -13,9 +13,12 @@ pub struct HyperlaneErc20 {
     /// The bump seed SPL token mint PDA.
     pub mint_bump: u8,
 
-    // FIXME need to provide these up front?
     /// The address of the mailbox contract.
     pub mailbox: Pubkey,
+    /// The address of the mailbox outbox account.
+    pub mailbox_outbox: Pubkey,
+    /// The mailbox's local domain.
+    pub mailbox_local_domain: u32,
     /// The address of the interchain gas paymaster contract.
     pub interchain_gas_paymaster: Pubkey,
 
@@ -29,11 +32,14 @@ pub struct HyperlaneErc20 {
 }
 
 impl Default for HyperlaneErc20 {
+    // FIXME should probably define another trait rather than use Default for this...
     fn default() -> Self {
         Self {
             erc20_bump: 0,
             mint_bump: 0,
             mailbox: Pubkey::new_from_array([0; 32]),
+            mailbox_outbox: Pubkey::new_from_array([0; 32]),
+            mailbox_local_domain: 0,
             interchain_gas_paymaster: Pubkey::new_from_array([0; 32]),
             total_supply: 0,
             name: Default::default(),

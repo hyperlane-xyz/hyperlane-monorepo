@@ -1522,6 +1522,7 @@ name = "hyperlane-sealevel-token"
 version = "0.1.0"
 dependencies = [
  "borsh",
+ "bs58",
  "hyperlane-core",
  "hyperlane-sealevel-mailbox",
  "num-derive",

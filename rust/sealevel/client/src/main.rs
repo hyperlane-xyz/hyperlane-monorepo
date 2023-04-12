@@ -10,7 +10,7 @@ use hyperlane_sealevel_ism_rubber_stamp::ID as DEFAULT_ISM_PROG_ID;
 use hyperlane_sealevel_mailbox::{
     ID as MAILBOX_PROG_ID,
     spl_noop,
-    hyperlane_core::{message::HyperlaneMessage, types::H256, Encode},
+    hyperlane_core::{message::HyperlaneMessage, types::{H256, U256}, Encode},
     accounts::{InboxAccount, OutboxAccount},
     instruction::{
         InboxProcess, Init as InitMailbox, Instruction as MailboxInstruction, OutboxDispatch,
@@ -25,8 +25,10 @@ use hyperlane_sealevel_token::{
     hyperlane_token_erc20_pda_seeds,
     hyperlane_token_mint_pda_seeds,
     instruction::{
-        Instruction as Erc20Instruction, Init as Erc20Init,
-        TransferFromSender as Erc20TransferFromSender, TransferTo as Erc20TransferTo
+        Instruction as Erc20Instruction, Init as Erc20Init, TokenMessage as Erc20Message,
+        TransferFromRemote as Erc20TransferFromRemote,
+        TransferFromSender as Erc20TransferFromSender, TransferRemote as Erc20TransferRemote,
+        TransferTo as Erc20TransferTo
     },
     spl_associated_token_account::{self, get_associated_token_address_with_program_id},
     spl_token_2022,
@@ -175,6 +177,10 @@ struct TokenCmd {
 enum TokenSubCmd {
     Init(TokenInit),
     Query(TokenQuery),
+    TransferRemote(TokenTransferRemote),
+    TransferFromRemote(TokenTransferFromRemote),
+
+    // FIXME get rid of these?
     TransferFromSender(TokenTransferFromSender),
     TransferTo(TokenTransferTo),
 }
@@ -185,6 +191,8 @@ struct TokenInit {
     program_id: Pubkey,
     #[arg(long, short, default_value_t = MAILBOX_PROG_ID)]
     mailbox: Pubkey,
+    #[arg(long, short = 'd', default_value_t = ECLIPSE_DOMAIN)]
+    mailbox_local_domain: u32,
     #[arg(long, short, default_value_t = INTERCHAIN_GAS_PAYMASTER_PROG_ID)]
     interchain_gas_paymaster: Pubkey,
     #[arg(long, short, default_value_t = u64::MAX)]
@@ -206,6 +214,44 @@ struct TokenQuery {
 }
 
 #[derive(Args)]
+struct TokenTransferRemote {
+    #[arg(long, short, default_value_t = HYPERLANE_ERC20_PROG_ID)]
+    program_id: Pubkey,
+    #[arg(long, short, default_value_t = ("MOON_SPL".to_string()))]
+    name: String,
+    #[arg(long, short, default_value_t = ("$".to_string()))]
+    symbol: String,
+    #[arg(long, short, default_value_t = MAILBOX_PROG_ID)]
+    mailbox: Pubkey,
+    #[arg(long, short = 'd', default_value_t = ECLIPSE_DOMAIN)]
+    mailbox_local_domain: u32,
+    // Note this is the keypair for normal account not the derived associated token account or delegate.
+    sender: String,
+    amount: u64,
+    // #[arg(long, short, default_value_t = ECLIPSE_DOMAIN)]
+    destination_domain: u32,
+    recipient: Pubkey,
+}
+
+// FIXME once check for mailbox inbox calling the token contract, we will need to trigger this
+// through the mailbox as recipient
+#[derive(Args)]
+struct TokenTransferFromRemote {
+    #[arg(long, short, default_value_t = HYPERLANE_ERC20_PROG_ID)]
+    program_id: Pubkey,
+    #[arg(long, short, default_value_t = ("MOON_SPL".to_string()))]
+    name: String,
+    #[arg(long, short, default_value_t = ("$".to_string()))]
+    symbol: String,
+    // #[arg(long, short, default_value_t = ECLIPSE_DOMAIN)]
+    origin_domain: u32,
+    // Note this is normal account not the derived associated token account.
+    recipient: Pubkey,
+    amount: u64,
+}
+
+// FIXME remove?
+#[derive(Args)]
 struct TokenTransferFromSender {
     #[arg(long, short, default_value_t = HYPERLANE_ERC20_PROG_ID)]
     program_id: Pubkey,
@@ -218,6 +264,7 @@ struct TokenTransferFromSender {
     amount: u64,
 }
 
+// FIXME remove?
 #[derive(Args)]
 struct TokenTransferTo {
     #[arg(long, short, default_value_t = HYPERLANE_ERC20_PROG_ID)]
@@ -493,9 +540,15 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 hyperlane_token_mint_pda_seeds!(init.name, init.symbol),
                 &init.program_id,
             );
+            let (mailbox_outbox_account, _mailbox_outbox_bump) = Pubkey::find_program_address(
+                mailbox_outbox_pda_seeds!(init.mailbox_local_domain),
+                &init.mailbox,
+            );
 
             let ixn = Erc20Instruction::Init(Erc20Init {
                 mailbox: init.mailbox,
+                mailbox_outbox: mailbox_outbox_account,
+                mailbox_local_domain: init.mailbox_local_domain,
                 interchain_gas_paymaster: init.interchain_gas_paymaster,
                 total_supply: init.total_supply.into(),
                 name: init.name,
@@ -569,6 +622,136 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 println!("Not yet created?");
             }
         },
+        TokenSubCmd::TransferRemote(xfer) => {
+            is_keypair(&xfer.sender).unwrap();
+            let sender = read_keypair_file(xfer.sender).unwrap();
+
+            let (erc20_account, _erc20_bump) = Pubkey::find_program_address(
+                hyperlane_token_erc20_pda_seeds!(xfer.name, xfer.symbol),
+                &xfer.program_id,
+            );
+            let (mint_account, _mint_bump) = Pubkey::find_program_address(
+                hyperlane_token_mint_pda_seeds!(xfer.name, xfer.symbol),
+                &xfer.program_id,
+            );
+            // FIXME should we use a sender delegate?
+            let sender_associated_token_account = get_associated_token_address_with_program_id(
+                &sender.pubkey(),
+                &mint_account,
+                &spl_token_2022::id(),
+            );
+            let (mailbox_outbox_account, _mailbox_outbox_bump) = Pubkey::find_program_address(
+                mailbox_outbox_pda_seeds!(xfer.mailbox_local_domain),
+                &xfer.mailbox,
+            );
+
+            let ixn = Erc20Instruction::TransferRemote(Erc20TransferRemote {
+                destination: xfer.destination_domain,
+                recipient: H256::from(xfer.recipient.to_bytes()),
+                amount_or_id: xfer.amount.into(),
+            });
+
+            // 1. spl_noop
+            // 2. spl_token_2022
+            // 3. hyperlane_token_erc20
+            // 4. hyperlane_token_mint
+            // FIXME should we use a delegate / does it even matter if it is one?
+            // 5. sender wallet
+            // 6. sender associated token account
+            // 7. mailbox program
+            // 8. mailbox outbox
+            let accounts = vec![
+                AccountMeta::new_readonly(spl_noop::id(), false),
+                AccountMeta::new_readonly(spl_token_2022::id(), false),
+                AccountMeta::new_readonly(erc20_account, false),
+                AccountMeta::new(mint_account, false),
+                AccountMeta::new(sender.pubkey(), true),
+                AccountMeta::new(sender_associated_token_account, false),
+                AccountMeta::new_readonly(xfer.mailbox, false),
+                AccountMeta::new(mailbox_outbox_account, false),
+            ];
+            let xfer_instruction = Instruction {
+                program_id: xfer.program_id,
+                data: ixn.into_instruction_data().unwrap(),
+                accounts,
+            };
+            ctx.instructions.push(xfer_instruction);
+
+            let recent_blockhash = ctx.client.get_latest_blockhash().unwrap();
+            let txn = Transaction::new_signed_with_payer(
+                &ctx.instructions,
+                Some(&ctx.payer.pubkey()),
+                &[&ctx.payer, &sender],
+                recent_blockhash,
+            );
+
+            let signature = ctx
+                .client
+                .send_transaction(&txn)
+                .unwrap();
+            ctx
+                .client
+                .confirm_transaction_with_spinner(&signature, &recent_blockhash, ctx.commitment)
+                .unwrap();
+        },
+        TokenSubCmd::TransferFromRemote(xfer) => {
+            let (erc20_account, _erc20_bump) = Pubkey::find_program_address(
+                hyperlane_token_erc20_pda_seeds!(xfer.name, xfer.symbol),
+                &xfer.program_id,
+            );
+            let (mint_account, _mint_bump) = Pubkey::find_program_address(
+                hyperlane_token_mint_pda_seeds!(xfer.name, xfer.symbol),
+                &xfer.program_id,
+            );
+            let recipient_associated_token_account = get_associated_token_address_with_program_id(
+                &xfer.recipient,
+                &mint_account,
+                &spl_token_2022::id(),
+            );
+
+            let message = Erc20Message::new_erc20(
+                H256::from(xfer.recipient.to_bytes()),
+                U256::from(xfer.amount),
+                vec![],
+            );
+            let ixn = Erc20Instruction::TransferFromRemote(Erc20TransferFromRemote {
+                origin: xfer.origin_domain,
+                message: message.to_vec(),
+            });
+            let accounts = vec![
+                AccountMeta::new_readonly(system_program::id(), false),
+                AccountMeta::new_readonly(spl_noop::id(), false),
+                AccountMeta::new_readonly(spl_token_2022::id(), false),
+                AccountMeta::new_readonly(spl_associated_token_account::id(), false),
+                AccountMeta::new(ctx.payer.pubkey(), true),
+                AccountMeta::new_readonly(erc20_account, false),
+                AccountMeta::new(mint_account, false),
+                AccountMeta::new(xfer.recipient, false),
+                AccountMeta::new(recipient_associated_token_account, false),
+            ];
+            let xfer_instruction = Instruction {
+                program_id: xfer.program_id,
+                data: ixn.into_instruction_data().unwrap(),
+                accounts,
+            };
+            ctx.instructions.push(xfer_instruction);
+
+            let recent_blockhash = ctx.client.get_latest_blockhash().unwrap();
+            let txn = Transaction::new_signed_with_payer(
+                &ctx.instructions,
+                Some(&ctx.payer.pubkey()),
+                &[&ctx.payer],
+                recent_blockhash,
+            );
+
+            let signature = ctx
+                .client
+                .send_transaction(&txn)
+                .unwrap();
+            ctx.client
+                .confirm_transaction_with_spinner(&signature, &recent_blockhash, ctx.commitment)
+                .unwrap();
+        },
         TokenSubCmd::TransferFromSender(xfer) => {
             is_keypair(&xfer.sender).unwrap();
             let sender = read_keypair_file(xfer.sender).unwrap();
@@ -598,11 +781,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
             // 4. sender wallet
             // 4. sender associated token account
             let accounts = vec![
-                // FIXME
-                // AccountMeta::new_readonly(system_program::id(), false),
                 AccountMeta::new_readonly(spl_token_2022::id(), false),
-                // AccountMeta::new_readonly(spl_associated_token_account::id(), false),
-                // AccountMeta::new(ctx.payer.pubkey(), true),
                 AccountMeta::new_readonly(erc20_account, false),
                 AccountMeta::new(mint_account, false),
                 AccountMeta::new(sender.pubkey(), true),

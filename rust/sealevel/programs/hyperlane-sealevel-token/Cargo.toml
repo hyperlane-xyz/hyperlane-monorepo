@@ -7,7 +7,7 @@ edition = "2021"
 no-entrypoint = []
 
 [dependencies]
-# bs58 = "=0.4.0" # FIXME remove
+bs58 = "=0.4.0" # FIXME remove
 hyperlane-core = { path = "../../hyperlane-core" }
 hyperlane-sealevel-mailbox = { path = "../mailbox", features = ["no-entrypoint"] }
 borsh = "0.9"

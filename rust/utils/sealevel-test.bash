@@ -8,7 +8,7 @@ BIN_DIR="${TARGET_DIR}/debug"
 SPL_TOKEN="${HOME}/code/eclipse-labs/eclipse-program-library/target/debug/spl-token"
 CHAIN_ID="13375"
 
-test_mailbox() {
+mailbox_init() {
     set +e
     while ! "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox init; do
         sleep 3
@@ -19,6 +19,10 @@ test_mailbox() {
     done
     set -e
     "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox query
+}
+
+test_mailbox() {
+    mailbox_init
 
     # Send N test messages to the outbox to be validated anmailbox d relayed to the inbox.
     "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox send -l "${CHAIN_ID}" -d "${CHAIN_ID}"
@@ -26,7 +30,7 @@ test_mailbox() {
     "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox send -l "${CHAIN_ID}" -d "${CHAIN_ID}"
 }
 
-test_token() {
+token_init() {
     set +e
     while ! "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" token init; do
         sleep 3
@@ -37,6 +41,54 @@ test_token() {
     done
     set -e
     "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" token query
+}
+
+test_token() {
+    mailbox_init
+    token_init
+
+    local amount=10
+    local -r sender_keypair="${KEYPAIR}"
+    local -r sender="$(solana -ul -k "${sender_keypair}" address)"
+    local -r recipient="${sender}"
+
+    # Load the account with tokens
+    "${BIN_DIR}/hyperlane-sealevel-client" \
+        -k "${KEYPAIR}" \
+        token transfer-to "${sender}" "${amount}"
+
+    sleep 20 # FIXME shouldn't need this sleep but idk why things are broken if the balance is queried
+    # FIXME don't hardcode associated token account
+    local -r ata="HKLeaDnBs4gu2TX7C8T2Z5NnTh6aKyMEp9UZ6kZYizjs"
+    while "${SPL_TOKEN}" -ul display "${ata}" | grep -q 'Balance: 0'; do
+        sleep 3
+    done
+    "${SPL_TOKEN}" -ul display "${ata}"
+
+    # Initiate loopback transfer.
+    "${BIN_DIR}/hyperlane-sealevel-client" \
+        -k "${KEYPAIR}" \
+        token transfer-remote "${sender_keypair}" "${amount}" "${CHAIN_ID}" "${recipient}"
+
+    # Wait for token transfer message to appear in outbox.
+    while "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox query | grep -q 'count: 0'
+    do
+        sleep 3
+    done
+    "${SPL_TOKEN}" -ul display "${ata}"
+    "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox query
+
+    # Wait for token transfer message to appear in inbox.
+    while "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox query | grep -q 'delivered: {}'
+    do
+        sleep 3
+    done
+    "${SPL_TOKEN}" -ul display "${ata}"
+    "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox query
+}
+
+test_token_internals() {
+    token_init
 
     local mint_amount=10
     local -r recipient="$(solana -ul -k "${KEYPAIR}" address)"
@@ -78,6 +130,9 @@ main() {
             ;;
         "token")
             test_token
+            ;;
+        "token-internals")
+            test_token_internals
             ;;
         *)
             echo "mailbox or token?"
