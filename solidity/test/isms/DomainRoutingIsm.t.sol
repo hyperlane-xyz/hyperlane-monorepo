@@ -31,28 +31,23 @@ contract DomainRoutingIsmTest is Test {
         return TestIsm(address(ism.modules(domain))).requiredMetadata();
     }
 
-    function testSet(uint32 domain, IInterchainSecurityModule _ism) public {
+    function testSet(uint32 domain) public {
+        TestIsm _ism = deployTestIsm(domain, bytes32(0));
         vm.expectEmit(true, true, false, true);
         emit ModuleSet(domain, _ism);
         ism.set(domain, _ism);
         assertEq(address(ism.modules(domain)), address(_ism));
     }
 
-    function testSetManyViaFactory(
-        uint8 count,
-        uint32 domain,
-        IInterchainSecurityModule _ism
-    ) public {
-        vm.assume(domain > count && uint160(address(_ism)) > count);
+    function testSetManyViaFactory(uint8 count, uint32 domain) public {
+        vm.assume(domain > count);
         DomainRoutingIsmFactory factory = new DomainRoutingIsmFactory();
         uint32[] memory _domains = new uint32[](count);
         IInterchainSecurityModule[]
             memory _isms = new IInterchainSecurityModule[](count);
         for (uint32 i = 0; i < count; ++i) {
             _domains[i] = domain - i;
-            _isms[i] = IInterchainSecurityModule(
-                address(uint160(address(_ism)) - i)
-            );
+            _isms[i] = deployTestIsm(_domains[i], bytes32(0));
             vm.expectEmit(true, true, false, true);
             emit ModuleSet(_domains[i], _isms[i]);
         }
