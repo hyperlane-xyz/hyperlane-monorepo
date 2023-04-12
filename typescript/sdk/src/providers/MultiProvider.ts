@@ -512,10 +512,10 @@ export class MultiProvider {
     if (!address) {
       const signer = this.tryGetSigner(chainNameOrId);
       if (!signer) return null;
-      return `${baseUrl}/${await signer.getAddress()}`;
+      return `${baseUrl}/address/${await signer.getAddress()}`;
     }
 
-    return `${baseUrl}/${address}`;
+    return `${baseUrl}/address/${address}`;
   }
 
   /**

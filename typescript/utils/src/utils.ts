@@ -342,3 +342,21 @@ export function symmetricDifference<T>(a: Set<T>, b: Set<T>) {
 export function setEquality<T>(a: Set<T>, b: Set<T>) {
   return symmetricDifference(a, b).size === 0;
 }
+
+export async function runWithTimeout<T>(
+  timeoutMs: number,
+  callback: () => Promise<T>,
+): Promise<T | void> {
+  let timeout: NodeJS.Timeout;
+  const timeoutProm = new Promise<void>(
+    (_, reject) =>
+      (timeout = setTimeout(
+        () => reject(new Error(`Timed out in ${timeoutMs}ms.`)),
+        timeoutMs,
+      )),
+  );
+  const ret = await Promise.race([callback(), timeoutProm]);
+  // @ts-ignore timeout gets set immediately by the promise constructor
+  clearTimeout(timeout);
+  return ret;
+}

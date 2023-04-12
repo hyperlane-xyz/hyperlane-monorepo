@@ -102,7 +102,7 @@ impl MetadataBuilder for BaseMetadataBuilder {
 impl BaseMetadataBuilder {
     pub fn clone_with_incremented_depth(&self) -> eyre::Result<BaseMetadataBuilder> {
         let mut cloned = self.clone();
-        cloned.depth = cloned.depth + 1;
+        cloned.depth += 1;
         if cloned.depth > cloned.max_depth {
             Err(MetadataBuilderError::MaxDepthExceeded(cloned.depth).into())
         } else {

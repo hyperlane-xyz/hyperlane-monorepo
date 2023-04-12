@@ -4,8 +4,8 @@ import { Contexts } from '../../config/contexts';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import {
   getContext,
-  getCoreEnvironmentConfig,
   getEnvironment,
+  getEnvironmentConfig,
   getRouterConfig,
 } from '../utils';
 
@@ -13,7 +13,7 @@ import { getApp } from './utils';
 
 async function main() {
   const environment = await getEnvironment();
-  const coreConfig = getCoreEnvironmentConfig(environment);
+  const coreConfig = getEnvironmentConfig(environment);
   const context = await getContext();
   const multiProvider = await coreConfig.getMultiProvider();
   const app = await getApp(

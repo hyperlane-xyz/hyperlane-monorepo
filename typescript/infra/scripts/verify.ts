@@ -7,7 +7,7 @@ import {
 import { fetchGCPSecret } from '../src/utils/gcloud';
 import { execCmd, readFileAtPath, readJSONAtPath } from '../src/utils/utils';
 
-import { assertEnvironment, getArgs, getCoreEnvironmentConfig } from './utils';
+import { assertEnvironment, getArgs, getEnvironmentConfig } from './utils';
 
 // Requires https://github.com/crytic/solc-select to be installed and
 // present in your $PATH. The current solc compiler version should
@@ -26,7 +26,7 @@ async function main() {
     .describe('network', 'optional target network').argv;
 
   const environment = assertEnvironment(argv.e!);
-  const config = getCoreEnvironmentConfig(environment);
+  const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
 
   const verification = readJSONAtPath(argv.artifacts!);

@@ -3,13 +3,13 @@ import { HelmCommand } from '../src/utils/helm';
 
 import {
   assertCorrectKubeContext,
-  getCoreEnvironmentConfig,
   getEnvironment,
+  getEnvironmentConfig,
 } from './utils';
 
 async function main() {
   const environment = await getEnvironment();
-  const config = getCoreEnvironmentConfig(environment);
+  const config = getEnvironmentConfig(environment);
   await assertCorrectKubeContext(config);
   return runPrometheusHelmCommand(
     HelmCommand.InstallOrUpgrade,
