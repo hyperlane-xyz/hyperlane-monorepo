@@ -1,3 +1,5 @@
+use std::time::{Duration, Instant};
+
 use tracing::{debug, info, instrument, warn};
 
 use hyperlane_core::{
@@ -104,6 +106,18 @@ where
         );
         indexed_height.set(start_block as i64);
 
+        let mut last_logged_time: Option<Instant> = None;
+        let mut should_log_checkpoint_info = || {
+            if last_logged_time.is_none()
+                || last_logged_time.unwrap().elapsed() > Duration::from_secs(30)
+            {
+                last_logged_time = Some(Instant::now());
+                true
+            } else {
+                false
+            }
+        };
+
         loop {
             let start_block = cursor.current_position();
             let Ok((from, to, eta)) = cursor.next_range().await else { continue };
@@ -116,14 +130,25 @@ where
                 .map(|(msg, _)| msg)
                 .collect();
 
-            info!(
-                from,
-                to,
-                distance_from_tip = cursor.distance_from_tip(),
-                estimated_time_to_sync = fmt_duration(eta),
-                message_count = sorted_messages.len(),
-                "Indexed block range"
-            );
+            if should_log_checkpoint_info() {
+                info!(
+                    from,
+                    to,
+                    distance_from_tip = cursor.distance_from_tip(),
+                    estimated_time_to_sync = fmt_duration(eta),
+                    message_count = sorted_messages.len(),
+                    "Indexed block range"
+                );
+            } else {
+                debug!(
+                    from,
+                    to,
+                    distance_from_tip = cursor.distance_from_tip(),
+                    estimated_time_to_sync = fmt_duration(eta),
+                    message_count = sorted_messages.len(),
+                    "Indexed block range"
+                );
+            }
 
             // Get the latest known nonce. All messages whose indices are <= this index
             // have been stored in the DB.

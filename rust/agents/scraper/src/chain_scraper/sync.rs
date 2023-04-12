@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::Arc;
+use std::time::Duration;
 
 use eyre::Result;
 use itertools::Itertools;
 use prometheus::{IntCounter, IntGauge, IntGaugeVec};
+use time::Instant;
 use tracing::{debug, info, instrument, trace, warn};
 
 use hyperlane_base::{last_message::validate_message_continuity, RateLimitedSyncBlockRangeCursor};
@@ -112,16 +114,38 @@ impl Syncer {
         info!(from = start_block, "Resuming chain sync");
         self.indexed_height.set(start_block as i64);
 
+        let mut last_logged_time: Option<Instant> = None;
+        let mut should_log_checkpoint_info = || {
+            if last_logged_time.is_none()
+                || last_logged_time.unwrap().elapsed() > Duration::from_secs(30)
+            {
+                last_logged_time = Some(Instant::now());
+                true
+            } else {
+                false
+            }
+        };
+
         loop {
             let start_block = self.sync_cursor.current_position();
             let Ok((from, to, eta)) = self.sync_cursor.next_range().await else { continue };
-            info!(
-                from,
-                to,
-                distance_from_tip = self.sync_cursor.distance_from_tip(),
-                estimated_time_to_sync = fmt_duration(eta),
-                "Syncing range"
-            );
+            if should_log_checkpoint_info() {
+                info!(
+                    from,
+                    to,
+                    distance_from_tip = self.sync_cursor.distance_from_tip(),
+                    estimated_time_to_sync = fmt_duration(eta),
+                    "Syncing range"
+                );
+            } else {
+                debug!(
+                    from,
+                    to,
+                    distance_from_tip = self.sync_cursor.distance_from_tip(),
+                    estimated_time_to_sync = fmt_duration(eta),
+                    "Syncing range"
+                );
+            }
 
             let extracted = self.scrape_range(from, to).await?;
 
