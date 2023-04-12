@@ -142,10 +142,9 @@ impl FromRawConf<'_, RawCoreContractAddresses> for CoreContractAddresses {
 /// Indexing settings
 #[derive(Debug, Default, Clone)]
 pub struct IndexSettings {
-    /// The height at which to start indexing the Outbox contract
+    /// The height at which to start indexing contracts.
     pub from: u32,
-    /// The number of blocks to query at once at which to start indexing the
-    /// Mailbox contract
+    /// The number of blocks to query at once when indexing contracts.
     pub chunk_size: u32,
 }
 
