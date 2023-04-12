@@ -306,8 +306,7 @@ where
             }
             None => base_call,
         };
-        let count = call_with_lag.call().await?;
-        Ok(count)
+        call_with_lag.call().await
     }
 
     #[instrument(err, ret)]
