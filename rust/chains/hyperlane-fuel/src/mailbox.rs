@@ -80,12 +80,12 @@ impl Mailbox for FuelMailbox {
             .map_err(ChainCommunicationError::from_other)
     }
 
-    #[instrument(err, ret, skip(self))]
+    #[instrument(level = "debug", err, ret, skip(self))]
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
         todo!()
     }
 
-    #[instrument(err, ret, skip(self))]
+    #[instrument(level = "debug", err, ret, skip(self))]
     async fn latest_checkpoint(&self, lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
         assert!(
             lag.is_none(),

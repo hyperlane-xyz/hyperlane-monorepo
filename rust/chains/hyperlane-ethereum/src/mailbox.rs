@@ -309,7 +309,7 @@ where
         Ok(count)
     }
 
-    #[instrument(err, ret)]
+    #[instrument(level = "debug", err, ret, skip(self))]
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
         Ok(self.contract.delivered(id.into()).call().await?)
     }
