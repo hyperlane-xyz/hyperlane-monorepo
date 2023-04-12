@@ -43,7 +43,7 @@ impl SyncerEtaCalculator {
             let new_coeff = (elapsed / self.time_window).min(0.9);
             let old_coeff = 1. - new_coeff;
 
-            let er = new_rate * new_coeff + old_rate * old_coeff;
+            let er = (new_rate * new_coeff) + (old_rate * old_coeff);
             self.effective_rate = Some(er);
             er
         } else {
