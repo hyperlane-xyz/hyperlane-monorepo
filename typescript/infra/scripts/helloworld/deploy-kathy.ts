@@ -4,13 +4,15 @@ import {
   assertCorrectKubeContext,
   getContext,
   getContextAgentConfig,
+  getEnvironment,
   getEnvironmentConfig,
 } from '../utils';
 
 import { getHelloWorldConfig } from './utils';
 
 async function main() {
-  const coreConfig = await getEnvironmentConfig();
+  const environment = await getEnvironment();
+  const coreConfig = getEnvironmentConfig(environment);
   const context = await getContext();
 
   await assertCorrectKubeContext(coreConfig);

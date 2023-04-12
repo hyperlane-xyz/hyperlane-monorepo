@@ -7,9 +7,10 @@ import {
 import { types } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
-import { CoreContracts } from '../core/contracts';
+import { HyperlaneContractsMap } from '../contracts';
+import { CoreFactories } from '../core/contracts';
 import { CoreConfig } from '../core/types';
-import { IgpContracts } from '../gas/contracts';
+import { IgpFactories } from '../gas/contracts';
 import {
   CoinGeckoInterface,
   CoinGeckoResponse,
@@ -23,8 +24,8 @@ import { objMap } from '../utils/objects';
 
 export function createRouterConfigMap(
   owner: types.Address,
-  coreContracts: ChainMap<CoreContracts>,
-  igpContracts: ChainMap<IgpContracts>,
+  coreContracts: HyperlaneContractsMap<CoreFactories>,
+  igpContracts: HyperlaneContractsMap<IgpFactories>,
 ): ChainMap<RouterConfig> {
   return objMap(coreContracts, (chain, contracts) => {
     return {
@@ -39,7 +40,7 @@ export function createRouterConfigMap(
 export async function deployTestIgpsAndGetRouterConfig(
   multiProvider: MultiProvider,
   owner: types.Address,
-  coreContracts: ChainMap<CoreContracts>,
+  coreContracts: HyperlaneContractsMap<CoreFactories>,
 ): Promise<ChainMap<RouterConfig>> {
   const igps: ChainMap<TestInterchainGasPaymaster> = {};
   for (const chain of multiProvider.getKnownChainNames()) {
@@ -114,12 +115,12 @@ export class MockCoinGecko implements CoinGeckoInterface {
     return this;
   }
 
-  setTokenPrice(chain: ChainName, price: number) {
+  setTokenPrice(chain: ChainName, price: number): void {
     const id = chainMetadata[chain].gasCurrencyCoinGeckoId || chain;
     this.tokenPrices[id] = price;
   }
 
-  setFail(chain: ChainName, fail: boolean) {
+  setFail(chain: ChainName, fail: boolean): void {
     const id = chainMetadata[chain].gasCurrencyCoinGeckoId || chain;
     this.fail[id] = fail;
   }

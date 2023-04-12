@@ -4,14 +4,14 @@ import { CheckpointStatus, S3Validator } from '../src/agents/aws/validator';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 
 import {
-  getCoreEnvironmentConfig,
   getEnvironment,
+  getEnvironmentConfig,
   getValidatorsByChain,
 } from './utils';
 
 async function main() {
   const environment = await getEnvironment();
-  const config = getCoreEnvironmentConfig(environment);
+  const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
   const core = HyperlaneCore.fromEnvironment(
     deployEnvToSdkEnv[environment],

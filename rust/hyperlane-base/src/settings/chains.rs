@@ -10,7 +10,7 @@ use ethers_prometheus::middleware::{
 use hyperlane_core::{
     utils::StrOrInt, ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol,
     HyperlaneProvider, HyperlaneSigner, InterchainGasPaymaster, InterchainGasPaymasterIndexer,
-    Mailbox, MailboxIndexer, MultisigIsm, ValidatorAnnounce, H256,
+    InterchainSecurityModule, Mailbox, MailboxIndexer, MultisigIsm, ValidatorAnnounce, H256,
 };
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
@@ -131,7 +131,7 @@ pub struct ChainSetup {
 impl ChainSetup {
     /// Get the chain connection config or generate an error
     pub fn connection(&self) -> Result<&ChainConnectionConf> {
-        self.connection.as_ref().ok_or_else(|| eyre!("Missing chain configuration for {}; this includes protocol and connection information", self.name))
+        self.connection.as_ref().ok_or_else(|| eyre!("Missing chain configuration for {}; this includes protocol type and the connection information", self.name))
     }
 
     /// Try to convert the chain settings into an HyperlaneProvider.
@@ -279,6 +279,36 @@ impl ChainSetup {
         .context("Building ValidatorAnnounce")
     }
 
+    /// Try to convert the chain setting into an InterchainSecurityModule contract
+    pub async fn build_ism(
+        &self,
+        address: H256,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn InterchainSecurityModule>> {
+        let ctx = "Building ISM";
+        let locator = ContractLocator {
+            domain: self
+                .domain()
+                .context("Invalid domain for locating contract")
+                .context(ctx)?,
+            address,
+        };
+
+        match &self.connection()? {
+            ChainConnectionConf::Ethereum(conf) => {
+                self.build_ethereum(
+                    conf,
+                    &locator,
+                    metrics,
+                    h_eth::InterchainSecurityModuleBuilder {},
+                )
+                .await
+            }
+
+            ChainConnectionConf::Fuel(_) => todo!(),
+        }
+        .context(ctx)
+    }
     /// Try to convert the chain setting into a Multisig Ism contract
     pub async fn build_multisig_ism(
         &self,

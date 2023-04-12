@@ -16,7 +16,7 @@ import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { startMetricsServer } from '../../src/utils/metrics';
 import { assertChain, diagonalize, sleep } from '../../src/utils/utils';
-import { getArgsWithContext, getCoreEnvironmentConfig } from '../utils';
+import { getArgsWithContext, getEnvironmentConfig } from '../utils';
 
 import { getApp } from './utils';
 
@@ -142,7 +142,7 @@ async function main(): Promise<boolean> {
   startMetricsServer(metricsRegister);
   debug('Starting up', { environment });
 
-  const coreConfig = getCoreEnvironmentConfig(environment);
+  const coreConfig = getEnvironmentConfig(environment);
   const app = await getApp(
     coreConfig,
     context,
@@ -447,7 +447,7 @@ async function messageIsProcessed(
   destination: ChainName,
   message: DispatchedMessage,
 ): Promise<boolean> {
-  const destinationMailbox = core.getContracts(destination).mailbox.contract;
+  const destinationMailbox = core.getContracts(destination).mailbox;
   return destinationMailbox.delivered(message.id);
 }
 

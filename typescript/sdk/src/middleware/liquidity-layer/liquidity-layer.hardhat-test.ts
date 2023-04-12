@@ -116,12 +116,12 @@ describe('LiquidityLayerRouter', async () => {
   });
 
   beforeEach(async () => {
-    const LiquidityLayer = new LiquidityLayerDeployer(multiProvider, config);
-    const contracts = await LiquidityLayer.deploy();
+    const LiquidityLayer = new LiquidityLayerDeployer(multiProvider);
+    const contracts = await LiquidityLayer.deploy(config);
 
     liquidityLayerApp = new LiquidityLayerApp(contracts, multiProvider, config);
 
-    local = liquidityLayerApp.getContracts(localChain).router;
+    local = liquidityLayerApp.getContracts(localChain).liquidityLayerRouter;
   });
 
   it('can transfer tokens via Circle', async () => {

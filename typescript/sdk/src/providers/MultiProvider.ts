@@ -67,7 +67,7 @@ export class MultiProvider {
   }
 
   /**
-   * Add a chain to the multiprovider
+   * Add a chain to the MultiProvider
    * @throws if chain's name or domain/chain ID collide
    */
   addChain(metadata: ChainMetadata): void {
@@ -512,10 +512,10 @@ export class MultiProvider {
     if (!address) {
       const signer = this.tryGetSigner(chainNameOrId);
       if (!signer) return null;
-      return `${baseUrl}/${await signer.getAddress()}`;
+      return `${baseUrl}/address/${await signer.getAddress()}`;
     }
 
-    return `${baseUrl}/${address}`;
+    return `${baseUrl}/address/${address}`;
   }
 
   /**

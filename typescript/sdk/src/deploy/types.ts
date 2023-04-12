@@ -22,6 +22,7 @@ export enum ViolationType {
 export interface OwnerViolation extends CheckerViolation {
   type: ViolationType.Owner;
   contract: Ownable;
+  name: string;
 }
 
 export interface ProxyAdminViolation extends CheckerViolation {

@@ -36,7 +36,7 @@ import {
   assertEnvironment,
   getAgentConfig,
   getArgs,
-  getCoreEnvironmentConfig,
+  getEnvironmentConfig,
 } from '../utils';
 
 type L2Chain =
@@ -210,7 +210,7 @@ async function main() {
 
   const environment = assertEnvironment(argv.e as string);
   constMetricLabels.hyperlane_deployment = environment;
-  const config = getCoreEnvironmentConfig(environment);
+  const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider(
     Contexts.Hyperlane, // Always fund from the hyperlane context
     KEY_ROLE_ENUM.Deployer, // Always fund from the deployer
@@ -512,7 +512,7 @@ class ContextFunder {
       });
       await this.multiProvider.sendTransaction(
         chain,
-        await igp.contract.populateTransaction.claim(),
+        await igp.populateTransaction.claim(),
       );
     } else {
       log('IGP balance does not exceed claim threshold, skipping', {

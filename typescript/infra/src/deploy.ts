@@ -6,10 +6,9 @@ import {
   HyperlaneDeployer,
   MultiProvider,
   buildAgentConfig,
-  buildContracts,
   objMap,
   promiseObjAll,
-  serializeContracts,
+  serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
 
 import { getAgentConfigDirectory } from '../scripts/utils';
@@ -27,7 +26,7 @@ export async function writeAgentConfig(
   multiProvider: MultiProvider,
   environment: DeployEnvironment,
 ) {
-  let addresses: ChainMap<HyperlaneAddresses> = {};
+  let addresses: ChainMap<HyperlaneAddresses<any>> = {};
   try {
     addresses = readJSONAtPath(addressesPath);
   } catch (e) {
@@ -51,8 +50,9 @@ export async function writeAgentConfig(
   writeJSON(getAgentConfigDirectory(), `${sdkEnv}_config.json`, agentConfig);
 }
 
-export async function deployWithArtifacts(
-  deployer: HyperlaneDeployer<any, any, any>,
+export async function deployWithArtifacts<Config>(
+  configMap: ChainMap<Config>,
+  deployer: HyperlaneDeployer<Config, any>,
   cache: {
     addresses: string;
     verification: string;
@@ -67,22 +67,21 @@ export async function deployWithArtifacts(
   },
 ) {
   if (cache.read) {
-    let addresses = {};
+    let addressesMap = {};
     try {
-      addresses = readJSONAtPath(cache.addresses);
+      addressesMap = readJSONAtPath(cache.addresses);
     } catch (e) {
       console.error('Failed to load cached addresses');
     }
 
-    const savedContracts = buildContracts(addresses, deployer.factories);
-    deployer.cacheContracts(savedContracts);
+    deployer.cacheAddressesMap(addressesMap);
   }
 
   try {
     if (fork) {
-      await deployer.deployContracts(fork, deployer.configMap[fork]);
+      await deployer.deployContracts(fork, configMap[fork]);
     } else {
-      await deployer.deploy();
+      await deployer.deploy(configMap);
     }
   } catch (e) {
     console.error('Failed to deploy contracts', e);
@@ -92,7 +91,7 @@ export async function deployWithArtifacts(
     // cache addresses of deployed contracts
     writeMergedJSONAtPath(
       cache.addresses,
-      serializeContracts(deployer.deployedContracts),
+      serializeContractsMap(deployer.deployedContracts),
     );
 
     let savedVerification = {};

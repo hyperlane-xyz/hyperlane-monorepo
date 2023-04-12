@@ -2,8 +2,8 @@
 pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
-import {IValidatorAnnounce} from "../interfaces/IValidatorAnnounce.sol";
-import {IMailbox} from "../interfaces/IMailbox.sol";
+import {IValidatorAnnounce} from "./interfaces/IValidatorAnnounce.sol";
+import {IMailbox} from "./interfaces/IMailbox.sol";
 import {TypeCasts} from "./libs/TypeCasts.sol";
 import {ValidatorAnnouncements} from "./libs/ValidatorAnnouncements.sol";
 // ============ External Imports ============

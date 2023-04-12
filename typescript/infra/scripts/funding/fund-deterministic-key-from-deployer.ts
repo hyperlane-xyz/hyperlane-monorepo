@@ -11,7 +11,7 @@ import {
   getDeterministicKey,
 } from '../../src/funding/deterministic-keys';
 import { assertChain } from '../../src/utils/utils';
-import { getArgs, getCoreEnvironmentConfig, getEnvironment } from '../utils';
+import { getArgs, getEnvironment, getEnvironmentConfig } from '../utils';
 
 async function main() {
   const argv = await getArgs()
@@ -42,7 +42,7 @@ async function main() {
   }
 
   const environment = await getEnvironment();
-  const coreConfig = getCoreEnvironmentConfig(environment);
+  const coreConfig = getEnvironmentConfig(environment);
   const multiProvider = await coreConfig.getMultiProvider(
     Contexts.Hyperlane,
     KEY_ROLE_ENUM.Deployer,

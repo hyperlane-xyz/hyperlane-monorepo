@@ -1,10 +1,13 @@
 import { BigNumber, utils as ethersUtils } from 'ethers';
 
+import { Ownable } from '@hyperlane-xyz/core';
 import { types, utils } from '@hyperlane-xyz/utils';
 
 import { BytecodeHash } from '../consts/bytecode';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
+import { proxyImplementation } from '../deploy/proxy';
 import { ChainName } from '../types';
+import { objFilter } from '../utils/objects';
 
 import { HyperlaneIgp } from './HyperlaneIgp';
 import {
@@ -31,13 +34,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
   async checkDomainOwnership(chain: ChainName): Promise<void> {
     const config = this.configMap[chain];
     if (config.owner) {
-      const contracts = this.app.getContracts(chain);
-      const ownables = [
-        contracts.proxyAdmin,
-        contracts.interchainGasPaymaster.contract,
-        contracts.defaultIsmInterchainGasPaymaster,
-      ];
-      return this.checkOwnership(chain, config.owner, ownables);
+      return this.checkOwnership(chain, config.owner);
     }
   }
 
@@ -49,10 +46,14 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
       contracts.interchainGasPaymaster.address,
       [BytecodeHash.TRANSPARENT_PROXY_BYTECODE_HASH],
     );
+    const implementation = await proxyImplementation(
+      this.multiProvider.getProvider(chain),
+      contracts.interchainGasPaymaster.address,
+    );
     await this.checkBytecode(
       chain,
       'InterchainGasPaymaster implementation',
-      contracts.interchainGasPaymaster.addresses.implementation,
+      implementation,
       [
         BytecodeHash.INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH,
         BytecodeHash.OWNER_INITIALIZABLE_INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH,
@@ -68,23 +69,10 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
         // Remove the address of the wrapped IGP from the bytecode
         bytecode.replaceAll(
           ethersUtils.defaultAbiCoder
-            .encode(
-              ['address'],
-              [contracts.interchainGasPaymaster.addresses.proxy],
-            )
+            .encode(['address'], [contracts.interchainGasPaymaster.address])
             .slice(2),
           '',
         ),
-    );
-  }
-
-  async checkProxiedContracts(chain: ChainName): Promise<void> {
-    const contracts = this.app.getContracts(chain);
-    await this.checkProxiedContract(
-      chain,
-      'InterchainGasPaymaster',
-      contracts.interchainGasPaymaster.addresses,
-      contracts.proxyAdmin.address,
     );
   }
 
@@ -128,7 +116,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
 
   async checkInterchainGasPaymaster(local: ChainName): Promise<void> {
     const coreContracts = this.app.getContracts(local);
-    const igp = coreContracts.interchainGasPaymaster.contract;
+    const igp = coreContracts.interchainGasPaymaster;
 
     // Construct the violation, updating the actual & expected
     // objects as violations are found.
@@ -173,6 +161,14 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
       };
       this.addViolation(violation);
     }
+  }
+
+  // The owner of storageGasOracle is not expected to match the configured owner
+  async ownables(chain: ChainName): Promise<{ [key: string]: Ownable }> {
+    return objFilter(
+      await super.ownables(chain),
+      (name, contract): contract is Ownable => name !== 'storageGasOracle',
+    );
   }
 
   getGasOracleAddress(local: ChainName, remote: ChainName): types.Address {

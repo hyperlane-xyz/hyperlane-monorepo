@@ -3,15 +3,15 @@ pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
 import {HyperlaneConnectionClient} from "./HyperlaneConnectionClient.sol";
-import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
-import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
-import {IMailbox} from "../interfaces/IMailbox.sol";
+import {IInterchainGasPaymaster} from "./interfaces/IInterchainGasPaymaster.sol";
+import {IMessageRecipient} from "./interfaces/IMessageRecipient.sol";
+import {IMailbox} from "./interfaces/IMailbox.sol";
 import {EnumerableMapExtended} from "./libs/EnumerableMapExtended.sol";
 
 abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
     using EnumerableMapExtended for EnumerableMapExtended.UintToBytes32Map;
 
-    string constant NO_ROUTER_ENROLLED_REVERT_MESSAGE =
+    string private constant NO_ROUTER_ENROLLED_REVERT_MESSAGE =
         "No router enrolled for domain. Did you specify the right domain ID?";
 
     // ============ Mutable Storage ============
@@ -71,8 +71,9 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
     // ============ External functions ============
     function domains() external view returns (uint32[] memory) {
         bytes32[] storage rawKeys = _routers.keys();
-        uint32[] memory keys = new uint32[](rawKeys.length);
-        for (uint256 i = 0; i < rawKeys.length; i++) {
+        uint256 length = rawKeys.length;
+        uint32[] memory keys = new uint32[](length);
+        for (uint256 i = 0; i < length; i++) {
             keys[i] = uint32(uint256(rawKeys[i]));
         }
         return keys;
@@ -109,7 +110,8 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
         bytes32[] calldata _addresses
     ) external virtual onlyOwner {
         require(_domains.length == _addresses.length, "!length");
-        for (uint256 i = 0; i < _domains.length; i += 1) {
+        uint256 length = _domains.length;
+        for (uint256 i = 0; i < length; i += 1) {
             _enrollRemoteRouter(_domains[i], _addresses[i]);
         }
     }
@@ -125,7 +127,6 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
         bytes32 _sender,
         bytes calldata _message
     ) external virtual override onlyMailbox onlyRemoteRouter(_origin, _sender) {
-        // TODO: callbacks on success/failure
         _handle(_origin, _sender, _message);
     }
 
