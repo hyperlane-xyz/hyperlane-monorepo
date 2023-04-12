@@ -66,7 +66,11 @@ impl Debug for FuelMailbox {
 #[async_trait]
 impl Mailbox for FuelMailbox {
     #[instrument(level = "debug", err, ret, skip(self))]
-    async fn count(&self) -> ChainResult<u32> {
+    async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
+        assert!(
+            lag.is_none(),
+            "Fuel does not support querying point-in-time"
+        );
         self.contract
             .methods()
             .count()
