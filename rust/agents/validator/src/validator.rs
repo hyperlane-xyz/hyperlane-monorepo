@@ -20,7 +20,6 @@ pub struct Validator {
     core: HyperlaneAgentCore,
     mailbox: Arc<dyn Mailbox>,
     signer: Arc<dyn HyperlaneSigner>,
-    reorg_period: u64,
     interval: Duration,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
 }
@@ -60,7 +59,6 @@ impl BaseAgent for Validator {
             core,
             mailbox,
             signer,
-            reorg_period: settings.reorg_period,
             interval: settings.interval,
             checkpoint_syncer,
         })
@@ -68,9 +66,16 @@ impl BaseAgent for Validator {
 
     #[allow(clippy::async_yields_async)]
     async fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
+        let finality_blocks = self
+            .core
+            .settings
+            .chain_setup(&self.origin_chain)
+            .unwrap()
+            .finality_blocks;
+
         let submit = ValidatorSubmitter::new(
             self.interval,
-            self.reorg_period,
+            finality_blocks as u64,
             self.mailbox.clone(),
             self.signer.clone(),
             self.checkpoint_syncer.clone(),

@@ -425,7 +425,8 @@ impl ChainConf {
         .context("Building ValidatorAnnounce")
     }
 
-    /// Try to convert the chain setting into an InterchainSecurityModule contract
+    /// Try to convert the chain setting into an InterchainSecurityModule
+    /// contract
     pub async fn build_ism(
         &self,
         address: H256,

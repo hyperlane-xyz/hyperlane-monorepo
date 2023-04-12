@@ -19,8 +19,6 @@ decl_settings!(Validator,
         validator: SignerConf,
         /// The checkpoint syncer configuration
         checkpoint_syncer: CheckpointSyncerConf,
-        /// The reorg_period in blocks
-        reorg_period: u64,
         /// How frequently to check for new checkpoints
         interval: Duration,
     },
@@ -32,8 +30,6 @@ decl_settings!(Validator,
         validator: RawSignerConf,
         /// The checkpoint syncer configuration
         checkpointsyncer: Option<RawCheckpointSyncerConf>,
-        /// The reorg_period in blocks
-        reorgperiod: Option<StrOrInt>,
         /// How frequently to check for new checkpoints
         interval: Option<StrOrInt>,
     },
@@ -60,12 +56,6 @@ impl FromRawConf<'_, RawValidatorSettings> for ValidatorSettings {
                 r.parse_config(&cwp.join("checkpointsyncer"))
                     .take_config_err(&mut err)
             });
-
-        let reorg_period = raw
-            .reorgperiod
-            .ok_or_else(|| eyre!("Missing `reorgperiod`"))
-            .take_err(&mut err, || cwp + "reorgperiod")
-            .and_then(|r| r.try_into().take_err(&mut err, || cwp + "reorgperiod"));
 
         let interval = raw
             .interval
@@ -104,7 +94,6 @@ impl FromRawConf<'_, RawValidatorSettings> for ValidatorSettings {
             origin_chain: origin_chain.unwrap(),
             validator: validator.unwrap(),
             checkpoint_syncer: checkpoint_syncer.unwrap(),
-            reorg_period: reorg_period.unwrap(),
             interval: interval.unwrap(),
         })
     }

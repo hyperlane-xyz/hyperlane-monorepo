@@ -12,7 +12,7 @@ use hyperlane_core::{Announcement, HyperlaneDomain, HyperlaneSigner, HyperlaneSi
 
 pub(crate) struct ValidatorSubmitter {
     interval: Duration,
-    reorg_period: Option<NonZeroU64>,
+    finality_blocks: Option<NonZeroU64>,
     signer: Arc<dyn HyperlaneSigner>,
     mailbox: Arc<dyn Mailbox>,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
@@ -22,14 +22,14 @@ pub(crate) struct ValidatorSubmitter {
 impl ValidatorSubmitter {
     pub(crate) fn new(
         interval: Duration,
-        reorg_period: u64,
+        finality_blocks: u64,
         mailbox: Arc<dyn Mailbox>,
         signer: Arc<dyn HyperlaneSigner>,
         checkpoint_syncer: Arc<dyn CheckpointSyncer>,
         metrics: ValidatorSubmitterMetrics,
     ) -> Self {
         Self {
-            reorg_period: NonZeroU64::new(reorg_period),
+            finality_blocks: NonZeroU64::new(finality_blocks),
             interval,
             mailbox,
             signer,
@@ -63,7 +63,7 @@ impl ValidatorSubmitter {
         // rather than just the size.  See
         // https://github.com/hyperlane-network/hyperlane-monorepo/issues/575 for
         // more details.
-        while self.mailbox.count(self.reorg_period).await? == 0 {
+        while self.mailbox.count(self.finality_blocks).await? == 0 {
             info!("Waiting for first message to mailbox");
             sleep(self.interval).await;
         }
@@ -98,7 +98,7 @@ impl ValidatorSubmitter {
         info!(current_index = current_index, "Starting Validator");
         loop {
             // Check the latest checkpoint
-            let latest_checkpoint = self.mailbox.latest_checkpoint(self.reorg_period).await?;
+            let latest_checkpoint = self.mailbox.latest_checkpoint(self.finality_blocks).await?;
 
             self.metrics
                 .latest_checkpoint_observed
