@@ -66,7 +66,7 @@ where
                 Ok(())
             }
             Err(e) => {
-                warn!(error = %e, "Failed to get next block range");
+                warn!(error = %e, "Failed to get next block range because we could not get the current tip");
                 // we are failing to make a basic query, we should wait before retrying.
                 sleep(Duration::from_secs(10)).await;
                 Err(e)
