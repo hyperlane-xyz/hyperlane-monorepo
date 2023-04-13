@@ -87,7 +87,7 @@ impl FromRawConf<'_, RawValidatorSettings> for ValidatorSettings {
             .base
             .parse_config_with_filter::<Settings>(
                 cwp,
-                Some(&[&*origin_chain_name].into_iter().collect()),
+                Some(&[origin_chain_name.as_ref()].into_iter().collect()),
             )
             .take_config_err(&mut err);
 
