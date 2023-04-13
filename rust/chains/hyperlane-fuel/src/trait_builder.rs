@@ -49,20 +49,6 @@ impl FromRawConf<'_, RawConnectionConf> for ConnectionConf {
     }
 }
 
-impl TryFrom<RawConnectionConf> for ConnectionConf {
-    type Error = ConnectionConfError;
-
-    fn try_from(r: RawConnectionConf) -> Result<Self, Self::Error> {
-        use ConnectionConfError::*;
-        match r {
-            RawConnectionConf { url: Some(url) } => Ok(Self {
-                url: url.parse().map_err(|e| InvalidConnectionUrl(url, e))?,
-            }),
-            RawConnectionConf { url: None } => Err(MissingConnectionUrl),
-        }
-    }
-}
-
 #[derive(thiserror::Error, Debug)]
 #[error(transparent)]
 struct FuelNewConnectionError(#[from] anyhow::Error);
