@@ -1,4 +1,3 @@
-import fetch from 'cross-fetch';
 import { ethers } from 'ethers';
 
 import {
@@ -14,6 +13,7 @@ import { Chains } from '../../consts/chains';
 import { HyperlaneContracts } from '../../contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ChainMap, ChainName } from '../../types';
+import { fetchWithTimeout } from '../../utils/fetch';
 
 import { BridgeAdapterConfig } from './LiquidityLayerRouterDeployer';
 import { liquidityLayerFactories } from './contracts';
@@ -77,7 +77,7 @@ export class LiquidityLayerApp extends HyperlaneApp<
       this.getContracts(chain).circleBridgeAdapter!.address,
     );
     url.searchParams.set('topic0', BridgedTokenTopic);
-    const req = await fetch(url);
+    const req = await fetchWithTimeout(url);
     const response = await req.json();
 
     return response.result.map((_: any) => _.transactionHash).flat();
@@ -92,7 +92,7 @@ export class LiquidityLayerApp extends HyperlaneApp<
       this.getContracts(chain).portalAdapter!.address,
     );
     url.searchParams.set('topic0', PortalBridgedTokenTopic);
-    const req = await fetch(url);
+    const req = await fetchWithTimeout(url);
     const response = await req.json();
 
     if (!response.result) {
@@ -205,7 +205,7 @@ export class LiquidityLayerApp extends HyperlaneApp<
       ),
     );
 
-    const vaa = await fetch(
+    const vaa = await fetchWithTimeout(
       `${PORTAL_VAA_SERVICE_TESTNET_BASE_URL}${wormholeOriginDomain}/${emitter}/${message.portalSequence}`,
     ).then((_) => _.json());
 
@@ -254,7 +254,7 @@ export class LiquidityLayerApp extends HyperlaneApp<
     }
 
     const messageHash = ethers.utils.keccak256(message.message);
-    const attestationsB = await fetch(
+    const attestationsB = await fetchWithTimeout(
       `${CIRCLE_ATTESTATIONS_BASE_URL}${messageHash}`,
     );
     const attestations = await attestationsB.json();
