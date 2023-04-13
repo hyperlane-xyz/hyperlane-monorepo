@@ -2,7 +2,7 @@ use std::future::Future;
 use std::time::Duration;
 
 use tokio::time::sleep;
-use tracing::{debug, info, trace};
+use tracing::{debug, trace};
 
 use crate::{
     db::{
@@ -88,7 +88,7 @@ impl HyperlaneDB {
     pub fn store_message(&self, message: &HyperlaneMessage) -> Result<()> {
         let id = message.id();
 
-        info!(msg=?message, "Storing new message in db",);
+        debug!(msg=?message, "Storing new message in db",);
         self.store_message_id(message.nonce, message.destination, id)?;
         self.store_keyed_encodable(MESSAGE, &id, message)?;
         Ok(())
@@ -235,7 +235,7 @@ impl HyperlaneDB {
         let existing_payment = self.retrieve_gas_payment_for_message_id(event.message_id)?;
         let total = existing_payment + event;
 
-        info!(?event, new_total_gas_payment=?total, "Storing gas payment");
+        debug!(?event, new_total_gas_payment=?total, "Storing gas payment");
         self.store_keyed_encodable::<_, InterchainGasPaymentData>(
             GAS_PAYMENT_FOR_MESSAGE_ID,
             &total.message_id,
@@ -250,7 +250,7 @@ impl HyperlaneDB {
         let existing_payment = self.retrieve_gas_expenditure_for_message_id(event.message_id)?;
         let total = existing_payment + event;
 
-        info!(?event, new_total_gas_payment=?total, "Storing gas payment");
+        debug!(?event, new_total_gas_payment=?total, "Storing gas payment");
         self.store_keyed_encodable::<_, U256>(
             GAS_EXPENDITURE_FOR_MESSAGE_ID,
             &total.message_id,

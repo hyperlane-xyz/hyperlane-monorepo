@@ -57,6 +57,37 @@ pub fn fmt_domain(domain: u32) -> String {
         .unwrap_or_else(|_| domain.to_string())
 }
 
+/// Formats the duration in the most appropriate time units.
+pub fn fmt_duration(dur: Duration) -> String {
+    const MIN: f64 = 60.;
+    const HOUR: f64 = MIN * 60.;
+    const DAY: f64 = HOUR * 24.;
+    const YEAR: f64 = DAY * 365.25;
+
+    let sec = dur.as_secs_f64();
+    if sec < 60. {
+        format!("{:.0}s", sec)
+    } else if sec < HOUR {
+        format!("{:.1}m", sec / MIN)
+    } else if sec < DAY {
+        format!("{:.2}h", sec / HOUR)
+    } else if sec < YEAR {
+        format!("{:.2}d", sec / DAY)
+    } else {
+        format!("{:.2}y", sec / YEAR)
+    }
+}
+
+/// Formats the duration in the most appropriate time units and says "synced" if
+/// the duration is 0.
+pub fn fmt_sync_time(dur: Duration) -> String {
+    if dur.as_secs() == 0 {
+        "synced".into()
+    } else {
+        fmt_duration(dur)
+    }
+}
+
 /// Shortcut for many-to-one match statements that get very redundant. Flips the
 /// order such that the thing which is mapped to is listed first.
 ///

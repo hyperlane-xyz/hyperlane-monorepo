@@ -1,16 +1,18 @@
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::Arc;
+use std::time::Duration;
 
 use eyre::Result;
 use itertools::Itertools;
 use prometheus::{IntCounter, IntGauge, IntGaugeVec};
+use time::Instant;
 use tracing::{debug, info, instrument, trace, warn};
 
-use hyperlane_base::last_message::validate_message_continuity;
-use hyperlane_base::RateLimitedSyncBlockRangeCursor;
+use hyperlane_base::{last_message::validate_message_continuity, RateLimitedSyncBlockRangeCursor};
 use hyperlane_core::{
-    KnownHyperlaneDomain, ListValidity, MailboxIndexer, SyncBlockRangeCursor, H256,
+    utils::fmt_sync_time, KnownHyperlaneDomain, ListValidity, MailboxIndexer, SyncBlockRangeCursor,
+    H256,
 };
 
 use crate::chain_scraper::{
@@ -112,15 +114,38 @@ impl Syncer {
         info!(from = start_block, "Resuming chain sync");
         self.indexed_height.set(start_block as i64);
 
+        let mut last_logged_time: Option<Instant> = None;
+        let mut should_log_checkpoint_info = || {
+            if last_logged_time.is_none()
+                || last_logged_time.unwrap().elapsed() > Duration::from_secs(30)
+            {
+                last_logged_time = Some(Instant::now());
+                true
+            } else {
+                false
+            }
+        };
+
         loop {
             let start_block = self.sync_cursor.current_position();
-            let (from, to) = match self.sync_cursor.next_range().await {
-                Ok(range) => range,
-                Err(err) => {
-                    warn!(error = %err, "failed to get next block range");
-                    continue;
-                }
-            };
+            let Ok((from, to, eta)) = self.sync_cursor.next_range().await else { continue };
+            if should_log_checkpoint_info() {
+                info!(
+                    from,
+                    to,
+                    distance_from_tip = self.sync_cursor.distance_from_tip(),
+                    estimated_time_to_sync = fmt_sync_time(eta),
+                    "Syncing range"
+                );
+            } else {
+                debug!(
+                    from,
+                    to,
+                    distance_from_tip = self.sync_cursor.distance_from_tip(),
+                    estimated_time_to_sync = fmt_sync_time(eta),
+                    "Syncing range"
+                );
+            }
 
             let extracted = self.scrape_range(from, to).await?;
 
@@ -183,9 +208,9 @@ impl Syncer {
             .mailbox_indexer
             .fetch_sorted_messages(from, to)
             .await?;
-        trace!(from, to, ?sorted_messages, "Fetched messages");
+        trace!(?sorted_messages, "Fetched messages");
 
-        debug!(from, to, "Fetching deliveries for range");
+        debug!("Fetching deliveries for range");
         let deliveries = self
             .contracts
             .mailbox_indexer
@@ -194,9 +219,9 @@ impl Syncer {
             .into_iter()
             .map(|(message_id, meta)| Delivery { message_id, meta })
             .collect_vec();
-        trace!(from, to, ?deliveries, "Fetched deliveries");
+        trace!(?deliveries, "Fetched deliveries");
 
-        debug!(from, to, "Fetching payments for range");
+        debug!("Fetching payments for range");
         let payments = self
             .contracts
             .igp_indexer
@@ -205,14 +230,12 @@ impl Syncer {
             .into_iter()
             .map(|(payment, meta)| Payment { payment, meta })
             .collect_vec();
-        trace!(from, to, ?payments, "Fetched payments");
+        trace!(?payments, "Fetched payments");
 
         info!(
-            from,
-            to,
             message_count = sorted_messages.len(),
-            deliveries_count = deliveries.len(),
-            payments = payments.len(),
+            delivery_count = deliveries.len(),
+            payment_count = payments.len(),
             "Indexed block range for chain"
         );
 
@@ -226,8 +249,6 @@ impl Syncer {
             .collect::<Vec<_>>();
 
         debug!(
-            from,
-            to,
             message_count = sorted_messages.len(),
             "Filtered any messages already indexed for mailbox"
         );

@@ -1,3 +1,4 @@
 module.exports = {
-  skipFiles: ['test'],
+  skipFiles: ['test', 'mock'],
+  istanbulReporter: ['lcovonly'],
 };
