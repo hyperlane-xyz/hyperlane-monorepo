@@ -228,19 +228,16 @@ impl Settings {
 
     /// Try to get the chain configuration for the given domain.
     pub fn chain_setup(&self, domain: &HyperlaneDomain) -> eyre::Result<&ChainConf> {
-        self.chain_setup_by_name(domain.name())
-    }
-
-    /// Try to get the chain setup for the provided chain name
-    pub fn chain_setup_by_name(&self, chain_name: &str) -> eyre::Result<&ChainConf> {
         self.chains
-            .get(chain_name)
-            .ok_or_else(|| eyre!("No chain setup found for {chain_name}"))
+            .get(domain.name())
+            .ok_or_else(|| eyre!("No chain setup found for {domain}"))
     }
 
     /// Try to get the domain for a given chain by name.
     pub fn lookup_domain(&self, chain_name: &str) -> eyre::Result<HyperlaneDomain> {
-        self.chain_setup_by_name(chain_name)
+        self.chains
+            .get(chain_name)
+            .ok_or_else(|| eyre!("No chain setup found for {chain_name}"))
             .map(|c| c.domain.clone())
     }
 

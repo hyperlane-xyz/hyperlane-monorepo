@@ -151,7 +151,7 @@ impl BaseAgent for Relayer {
             let chain_setup = self
                 .core
                 .settings
-                .chain_setup_by_name(chain.name())
+                .chain_setup(chain)
                 .unwrap_or_else(|_| panic!("No chain setup found for {}", chain.name()))
                 .clone();
 
