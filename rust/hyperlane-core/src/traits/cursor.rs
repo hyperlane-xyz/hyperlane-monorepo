@@ -1,16 +1,28 @@
-use crate::ChainResult;
+use std::time::Duration;
+
 use async_trait::async_trait;
 use auto_impl::auto_impl;
+
+use crate::ChainResult;
 
 /// Tool for handling the logic of what the next block range that should be
 /// queried and may perform rate limiting on `next_range` queries.
 #[async_trait]
 #[auto_impl(Box)]
 pub trait SyncBlockRangeCursor {
-    /// Returns the current `from` position of the scraper. Note that
+    /// Returns the current `from` position of the indexer. Note that
     /// `next_range` may return a `from` value that is lower than this in order
     /// to have some overlap.
     fn current_position(&self) -> u32;
+
+    /// Returns the current `tip` of the blockchain. This is the highest block
+    /// we know of.
+    fn tip(&self) -> u32;
+
+    /// Returns the current distance from the tip of the blockchain.
+    fn distance_from_tip(&self) -> u32 {
+        self.tip().saturating_sub(self.current_position())
+    }
 
     /// Get the next block range `(from, to)` which should be fetched (this
     /// returns an inclusive range such as (0,50), (51,100), ...). This
@@ -25,7 +37,7 @@ pub trait SyncBlockRangeCursor {
     /// This assumes the caller will call next_range again automatically on Err,
     /// but it returns the error to allow for tailored logging or different end
     /// cases.
-    async fn next_range(&mut self) -> ChainResult<(u32, u32)>;
+    async fn next_range(&mut self) -> ChainResult<(u32, u32, Duration)>;
 
     /// If there was an issue when a range of data was fetched, this rolls back
     /// so the next range fetched will be from `start_from`. Note that it is a
