@@ -1,5 +1,8 @@
-use crate::{KnownHyperlaneDomain, H256};
+use std::time::Duration;
+
 use sha3::{digest::Update, Digest, Keccak256};
+
+use crate::{KnownHyperlaneDomain, H256};
 
 /// Strips the '0x' prefix off of hex string so it can be deserialized.
 ///
