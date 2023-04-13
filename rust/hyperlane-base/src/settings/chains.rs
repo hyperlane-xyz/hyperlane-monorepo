@@ -549,7 +549,7 @@ impl ChainConf {
             EthereumMailboxAbi::fn_map_owned(),
         );
         register_contract(
-            "va",
+            "validator_announce",
             self.addresses.validator_announce,
             EthereumValidatorAnnounceAbi::fn_map_owned(),
         );
