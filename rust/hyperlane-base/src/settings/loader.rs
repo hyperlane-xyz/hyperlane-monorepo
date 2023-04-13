@@ -100,13 +100,9 @@ where
                 Err(err.into())
             };
 
-            println!("Err: {:?}", err.as_ref().err().unwrap());
-
             for cfg_path in base_config_sources.iter().chain(config_file_paths.iter()) {
                 err = err.with_context(|| format!("Config loaded: {cfg_path}"));
             }
-
-            println!("Err: {:?}", err.as_ref().err().unwrap());
 
             println!(
                 "Error during deserialization, showing the config for debugging: {}",
