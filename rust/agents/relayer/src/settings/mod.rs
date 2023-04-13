@@ -101,12 +101,12 @@ pub struct GasPaymentEnforcementConf {
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
+#[serde(rename_all = "camelCase")]
 struct RawGasPaymentEnforcementConf {
     #[serde(flatten)]
     policy: Option<RawGasPaymentEnforcementPolicy>,
     #[serde(default)]
-    matching_list: Option<String>,
+    matching_list: Option<MatchingList>,
 }
 
 impl FromRawConf<'_, RawGasPaymentEnforcementConf> for GasPaymentEnforcementConf {
@@ -124,10 +124,6 @@ impl FromRawConf<'_, RawGasPaymentEnforcementConf> for GasPaymentEnforcementConf
 
         let matching_list = raw
             .matching_list
-            .and_then(|v| {
-                serde_json::from_str::<MatchingList>(&v)
-                    .take_err(&mut err, || cwp + "matching_list")
-            })
             .unwrap_or_default();
         err.into_result()?;
         Ok(Self {
