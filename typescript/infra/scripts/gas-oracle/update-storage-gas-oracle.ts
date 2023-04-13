@@ -99,9 +99,11 @@ async function setStorageGasOracleValues(
     if (dryRun) {
       console.log('Running in dry run mode, not sending tx');
     } else {
-      await igp.multiProvider.handleTx(
+      await igp.multiProvider.sendTransaction(
         local,
-        storageGasOracle.setRemoteGasDataConfigs(configsToSet),
+        await storageGasOracle.populateTransaction.setRemoteGasDataConfigs(
+          configsToSet,
+        ),
       );
     }
   }
