@@ -13,7 +13,7 @@ use hyperlane_core::HyperlaneDomain;
 
 decl_settings!(Validator,
     Parsed {
-        // The name of the origin chain
+        /// Chain to validate messages on
         origin_chain: HyperlaneDomain,
         /// The validator attestation signer
         validator: SignerConf,
@@ -25,11 +25,16 @@ decl_settings!(Validator,
         interval: Duration,
     },
     Raw {
+        // Name of the chain to validate message on
         originchainname: Option<String>,
+        /// The validator attestation signer
         #[serde(default)]
         validator: RawSignerConf,
+        /// The checkpoint syncer configuration
         checkpointsyncer: Option<RawCheckpointSyncerConf>,
+        /// The reorg_period in blocks
         reorgperiod: Option<StrOrInt>,
+        /// How frequently to check for new checkpoints
         interval: Option<StrOrInt>,
     },
 );

@@ -139,38 +139,49 @@ impl FromRawConf<'_, RawGasPaymentEnforcementConf> for GasPaymentEnforcementConf
 
 decl_settings!(Relayer,
     Parsed {
-        /// Database path (path on the fs)
+        /// Database path
         db: PathBuf,
-        // The name of the origin chain
+        /// The chain to relay messages from
         origin_chain: HyperlaneDomain,
-        // Comma separated list of destination chains.
+        /// Chains to relay messages to
         destination_chains: Vec<HyperlaneDomain>,
-        /// The gas payment enforcement configuration as JSON. Expects an ordered array of `GasPaymentEnforcementConfig`.
+        /// The gas payment enforcement policies
         gas_payment_enforcement: Vec<GasPaymentEnforcementConf>,
-        /// This is optional. If no whitelist is provided ALL messages will be considered on the
-        /// whitelist.
+        /// Filter for what messages to relay.
         whitelist: MatchingList,
-        /// This is optional. If no blacklist is provided ALL will be considered to not be on
-        /// the blacklist.
+        /// Filter for what messages to block.
         blacklist: MatchingList,
         /// This is optional. If not specified, any amount of gas will be valid, otherwise this
         /// is the max allowed gas in wei to relay a transaction.
         transaction_gas_limit: Option<U256>,
-        /// Comma separated List of domain ids to skip transaction gas for.
+        /// List of domain ids to skip transaction gas for.
         skip_transaction_gas_limit_for: HashSet<u32>,
         /// If true, allows local storage based checkpoint syncers.
-        /// Not intended for production use. Defaults to false.
+        /// Not intended for production use.
         allow_local_checkpoint_syncers: bool,
     },
     Raw {
+        /// Database path (path on the fs)
         db: Option<String>,
+        // The name of the origin chain
         originchainname: Option<String>,
+        // Comma separated list of destination chains.
         destinationchainnames: Option<String>,
+        /// The gas payment enforcement configuration as JSON. Expects an ordered array of `GasPaymentEnforcementConfig`.
         gaspaymentenforcement: Option<String>,
+        /// This is optional. If no whitelist is provided ALL messages will be considered on the
+        /// whitelist.
         whitelist: Option<String>,
+        /// This is optional. If no blacklist is provided ALL will be considered to not be on
+        /// the blacklist.
         blacklist: Option<String>,
+        /// This is optional. If not specified, any amount of gas will be valid, otherwise this
+        /// is the max allowed gas in wei to relay a transaction.
         transactiongaslimit: Option<StrOrInt>,
+        /// Comma separated List of domain ids to skip transaction gas for.
         skiptransactiongaslimitfor: Option<String>,
+        /// If true, allows local storage based checkpoint syncers.
+        /// Not intended for production use. Defaults to false.
         #[serde(default)]
         allowlocalcheckpointsyncers: bool,
     }
