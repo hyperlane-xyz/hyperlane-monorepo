@@ -3,10 +3,11 @@ use std::env;
 use std::error::Error;
 use std::path::PathBuf;
 
-use crate::Settings;
 use config::{Config, Environment, File};
 use eyre::{Context, Result};
 use serde::Deserialize;
+
+use crate::settings::RawSettings;
 
 /// Load a settings object from the config locations.
 /// Further documentation can be found in the `settings` module.
@@ -15,7 +16,7 @@ pub(crate) fn load_settings_object<'de, T, S>(
     ignore_prefixes: &[S],
 ) -> Result<T>
 where
-    T: Deserialize<'de> + AsMut<Settings>,
+    T: Deserialize<'de> + AsMut<RawSettings>,
     S: AsRef<str>,
 {
     // Derive additional prefix from agent name
@@ -88,12 +89,10 @@ where
 
     match Config::try_deserialize::<T>(config_deserializer) {
         Ok(mut cfg) => {
-            cfg.as_mut().post_deserialize();
+            cfg.as_mut();
             Ok(cfg)
         }
         Err(err) => {
-            let err_str = err.to_string();
-
             let mut err = if let Some(source_err) = err.source() {
                 let source = format!("Config error source: {source_err}");
                 Err(err).context(source)
@@ -110,150 +109,7 @@ where
                 formatted_config
             );
 
-            match err_str
-                .contains("missing field")
-                .then(|| err_str.split('`').nth(1))
-                .flatten()
-            {
-                Some("environment") => err = err.context(MISSING_ENV_CTX),
-                Some("name") => err = err.context(MISSING_NAME_CTX),
-                Some("domain") => err = err.context(MISSING_DOMAIN_CTX),
-                Some("addresses") => err = err.context(MISSING_ADDRESSES_CTX),
-                Some("mailbox") => err = err.context(MISSING_MAILBOX_CTX),
-                Some("interchainGasPaymaster") => err = err.context(MISSING_IGP_CTX),
-                Some("validatorAnnounce") => err = err.context(MISSING_VA_CTX),
-                Some("protocol") => err = err.context(MISSING_PROTOCOL_CTX),
-                Some("finalityBlocks") => err = err.context(MISSING_FINALITY_CTX),
-                Some("connection") => err = err.context(MISSING_CONNECTION_CTX),
-                Some("type") => err = err.context(MISSING_TYPE_CTX),
-                Some("urls") => err = err.context(MISSING_URLS_CTX),
-                Some("url") => err = err.context(MISSING_URL_CTX),
-                Some("originchainname") => err = err.context(MISSING_OCN_CTX),
-                Some("destinationchainnames") => err = err.context(MISSING_DTN_CTX),
-                Some("chainstoscrape") => err = err.context(MISSING_CTS_CTX),
-                Some("db") => err = err.context(MISSING_DB_CTX),
-                Some("v") => err = err.context(MISSING_DESTINATION_CHAIN_NAMES_CTX),
-                _ => {}
-            }
-
-            err
+            err.context("Config deserialization error, please check the config reference (https://docs.hyperlane.xyz/docs/operators/agent-configuration/reference)")
         }
     }
 }
-
-/// Some constant strings that we want to compose. `concat!` requires literals
-/// so this provides them.
-macro_rules! str_lits {
-    (bp) => { "Debugging tips, a required configuration value appears to be missing, please ensure: " };
-    (env) => { "an env such as `HYP_BASE_CHAINS_ALFAJORES_CONNECTION_TYPE` means the full `chains.alfajores` object must be valid" };
-}
-
-const MISSING_ENV_CTX: &str = concat!(
-    str_lits!(bp),
-    "(1) the `environment` config value is set and spelled correctly",
-);
-
-const MISSING_NAME_CTX: &str = concat!(
-    str_lits!(bp),
-    "(1) the `chains` config value is set and spelled correctly ",
-    "(2) a connection URL may have been specified for a chain that is not fully configured, e.g. `HYP_BASE_CHAINS_ALFAJORES_CONNECTION_URL` ",
-    "(3) ", str_lits!(env), " ",
-    "(4) all chains are correctly named e.g. `chains.alfajores` being misspelled may lead to `chains.alfajores.name` not being found"
-);
-
-const MISSING_DOMAIN_CTX: &str = concat!(
-    str_lits!(bp),
-    "(1) `chains.<chain_name>.domain` is specified for all chains as a string-typed integer ",
-    "(2) ",
-    str_lits!(env)
-);
-
-const MISSING_ADDRESSES_CTX: &str = concat!(
-    str_lits!(bp),
-    "(1) the `chains.<chain_name>.addresses` object is specified for all chains ",
-    "(2) ",
-    str_lits!(env)
-);
-
-const MISSING_MAILBOX_CTX: &str = concat!(
-    str_lits!(bp),
-    "(1) `chains.<chain_name>.addresses.mailbox` is specified for all chains ",
-    "(2) ",
-    str_lits!(env)
-);
-
-const MISSING_IGP_CTX: &str = concat!(
-    str_lits!(bp),
-    "(1) `chains.<chain_name>.addresses.interchainGasPaymaster` is specified for all chains ",
-    "(2) ",
-    str_lits!(env)
-);
-
-const MISSING_VA_CTX: &str = concat!(
-    str_lits!(bp),
-    "(1) `chains.<chain_name>.addresses.validatorAnnounce` is specified for all chains ",
-    "(2) ",
-    str_lits!(env)
-);
-
-const MISSING_PROTOCOL_CTX: &str = concat!(
-    str_lits!(bp),
-    "(1) `chains.<chain_name>.protocol` is specified for all chains, e.g. `ethereum` or `fuel` ",
-    "(2) ",
-    str_lits!(env)
-);
-
-const MISSING_FINALITY_CTX: &str = concat!(
-    str_lits!(bp),
-    "(1) `chains.<chain_name>.finalityBlocks` is specified for all chains ",
-    "(2) ",
-    str_lits!(env)
-);
-
-const MISSING_CONNECTION_CTX: &str = concat!(
-    str_lits!(bp),
-    "(1) `chains.<chain_name>.connection object is specified for all chains ",
-    "(2) ",
-    str_lits!(env)
-);
-
-const MISSING_TYPE_CTX: &str = concat!(
-    str_lits!(bp),
-    "(1) `chains.<chain_name>.connection.type` is specified for all chains, e.g. `http`, `httpFallback`, or `httpQuorum` ",
-    "(2) ", str_lits!(env)
-);
-
-const MISSING_URLS_CTX: &str = concat!(
-    str_lits!(bp),
-    "(1) `chains.<chain_name>.connection.urls` is specified for the chain ",
-    "(2) `urls` is used for connection type that accept multiple like `httpQuorum` and `httpFallback` and `url` is used for connection types that only accept a single url like `http` "
-);
-
-const MISSING_URL_CTX: &str = concat!(
-    str_lits!(bp),
-    "(1) `chains.<chain_name>.connection.url` is specified for the chain ",
-    "(2) `url` is used for connection types that only accept a single url like `http` and `urls` is used for connection type that accept multiple like `httpQuorum` and `httpFallback`"
-);
-
-const MISSING_OCN_CTX: &str = concat!(
-    str_lits!(bp),
-    "(1) `originchainname` is specified for the relayer or validator, this should be the chain name this agent is running against ",
-    "(2) You likely need to specify `HYP_VALIDATOR_ORIGINCHAINNAME`, ensure you have covered the configuration/environment variables page of the validator guide",
-);
-
-const MISSING_DTN_CTX: &str = concat!(
-    str_lits!(bp),
-    "(1) `destinationchainnames` is specified for the realer, this should be a comma separated list of chain names the relayer can deliver to"
-);
-
-const MISSING_CTS_CTX: &str = concat!(
-    str_lits!(bp),
-    "(1) `chainstoscrape` is specified for the scraper, this should be a comma separated list of chains names the scraper fetches data from"
-);
-
-const MISSING_DB_CTX: &str = concat!(str_lits!(bp), "(1) `db` config string is specified");
-
-const MISSING_DESTINATION_CHAIN_NAMES_CTX: &str = concat!(
-    str_lits!(bp),
-    "(1) `destinationchainnames` is specified as a comma separated list of chains the relayer should deliver messages to"
-);

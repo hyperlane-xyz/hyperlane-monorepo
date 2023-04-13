@@ -43,7 +43,7 @@ pub enum DbError {
         #[source]
         source: rocksdb::Error,
         /// Raw database path provided
-        path: String,
+        path: PathBuf,
         /// Parsed path used
         canonicalized: PathBuf,
     },
@@ -60,19 +60,23 @@ type Result<T> = std::result::Result<T, DbError>;
 impl DB {
     /// Opens db at `db_path` and creates if missing
     #[tracing::instrument(err)]
-    pub fn from_path(db_path: &str) -> Result<DB> {
-        // Canonicalize ensures existence, so we have to do that, then extend
-        let mut path = Path::new(".")
-            .canonicalize()
-            .map_err(|e| DbError::InvalidDbPath(e, db_path.to_owned()))?;
-        path.extend([db_path]);
+    pub fn from_path(db_path: &Path) -> Result<DB> {
+        let path = {
+            let mut path = db_path
+                .parent()
+                .unwrap_or(Path::new("."))
+                .canonicalize()
+                .map_err(|e| DbError::InvalidDbPath(e, db_path.to_string_lossy().into()))?;
+            if let Some(file_name) = db_path.file_name() {
+                path.push(file_name);
+            }
+            path
+        };
 
-        match path.is_dir() {
-            true => info!(
-                "Opening existing db at {path}",
-                path = path.to_str().unwrap()
-            ),
-            false => info!("Creating db at {path}", path = path.to_str().unwrap()),
+        if path.is_dir() {
+            info!(path=%path.to_string_lossy(), "Opening existing db")
+        } else {
+            info!(path=%path.to_string_lossy(), "Creating db")
         }
 
         let mut opts = Options::default();
@@ -81,7 +85,7 @@ impl DB {
         Rocks::open(&opts, &path)
             .map_err(|e| DbError::OpeningError {
                 source: e,
-                path: db_path.to_owned(),
+                path: db_path.into(),
                 canonicalized: path,
             })
             .map(Into::into)

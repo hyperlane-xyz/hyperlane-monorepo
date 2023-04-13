@@ -38,14 +38,14 @@ where
         let message_nonce = self.metrics.message_nonce.clone();
 
         let cursor = {
-            let config_initial_height = self.index_settings.from();
+            let config_initial_height = self.index_settings.from;
             let initial_height = self
                 .db
                 .retrieve_latest_valid_message_range_start_block()
                 .map_or(config_initial_height, |b| b + 1);
             create_cursor(
                 self.indexer.clone(),
-                self.index_settings.chunk_size(),
+                self.index_settings.chunk_size,
                 initial_height,
             )
         };
@@ -448,8 +448,8 @@ mod test {
                 hyperlane_db.clone(),
                 indexer,
                 IndexSettings {
-                    from: Some(0.into()),
-                    chunk: Some(19.into()),
+                    from: 0,
+                    chunk_size: 19,
                 },
                 sync_metrics,
             );
