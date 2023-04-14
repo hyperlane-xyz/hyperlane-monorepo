@@ -109,7 +109,7 @@ where
                 formatted_config
             );
 
-            err.context("Config deserialization error, please check the config reference (https://docs.hyperlane.xyz/docs/operators/agent-configuration/reference)")
+            err.context("Config deserialization error, please check the config reference (https://docs.hyperlane.xyz/docs/operators/agent-configuration/configuration-reference)")
         }
     }
 }
