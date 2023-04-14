@@ -188,10 +188,6 @@ export interface DockerConfig {
   tag: string;
 }
 
-export enum TransactionSubmissionType {
-  Signer = 'signer',
-}
-
 export interface AgentConfig {
   runEnv: DeployEnvironment;
   namespace: string;
