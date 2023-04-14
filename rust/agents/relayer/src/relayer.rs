@@ -11,8 +11,8 @@ use tokio::task::JoinHandle;
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
 use hyperlane_base::{
-    chains::TransactionSubmissionType, run_all, BaseAgent, CachingInterchainGasPaymaster,
-    CachingMailbox, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
+    run_all, BaseAgent, CachingInterchainGasPaymaster, CachingMailbox, ContractSyncMetrics,
+    CoreMetrics, HyperlaneAgentCore,
 };
 use hyperlane_core::U256;
 use hyperlane_core::{db::DB, HyperlaneChain, HyperlaneDomain, ValidatorAnnounce};
@@ -155,7 +155,6 @@ impl BaseAgent for Relayer {
                 .unwrap_or_else(|_| panic!("No chain setup found for {}", chain.name()))
                 .clone();
 
-            let txsubmission = chain_setup.txsubmission;
             let metadata_builder = BaseMetadataBuilder::new(
                 chain_setup,
                 prover_sync.clone(),
@@ -166,7 +165,6 @@ impl BaseAgent for Relayer {
             tasks.push(self.run_destination_mailbox(
                 mailbox.clone(),
                 metadata_builder.clone(),
-                txsubmission,
                 self.gas_payment_enforcer.clone(),
                 receive_channel,
             ));
@@ -244,39 +242,31 @@ impl Relayer {
         &self,
         destination_mailbox: CachingMailbox,
         metadata_builder: BaseMetadataBuilder,
-        tx_submission: TransactionSubmissionType,
         gas_payment_enforcer: Arc<GasPaymentEnforcer>,
         msg_receive: UnboundedReceiver<PendingMessage>,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let origin_mailbox = self.mailboxes.get(&self.origin_chain).unwrap();
         let destination = destination_mailbox.domain();
 
-        let submit_fut = match tx_submission {
-            TransactionSubmissionType::Signer => {
-                let transaction_gas_limit = if self
-                    .skip_transaction_gas_limit_for
-                    .contains(&destination.id())
-                {
-                    None
-                } else {
-                    self.transaction_gas_limit
-                };
-                let serial_submitter = SerialSubmitter::new(
-                    msg_receive,
-                    destination_mailbox.clone(),
-                    metadata_builder,
-                    origin_mailbox.db().clone(),
-                    SerialSubmitterMetrics::new(
-                        &self.core.metrics,
-                        &self.origin_chain,
-                        destination,
-                    ),
-                    gas_payment_enforcer,
-                    transaction_gas_limit,
-                );
-                serial_submitter.spawn()
-            }
+        let transaction_gas_limit = if self
+            .skip_transaction_gas_limit_for
+            .contains(&destination.id())
+        {
+            None
+        } else {
+            self.transaction_gas_limit
         };
+        let serial_submitter = SerialSubmitter::new(
+            msg_receive,
+            destination_mailbox.clone(),
+            metadata_builder,
+            origin_mailbox.db().clone(),
+            SerialSubmitterMetrics::new(&self.core.metrics, &self.origin_chain, destination),
+            gas_payment_enforcer,
+            transaction_gas_limit,
+        );
+
+        let submit_fut = serial_submitter.spawn();
 
         tokio::spawn(async move {
             let res = tokio::try_join!(submit_fut)?;
