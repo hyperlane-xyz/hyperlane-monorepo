@@ -13,7 +13,9 @@ use tracing::{debug, info, instrument, warn};
 use hyperlane_base::{
     ChainConf, CheckpointSyncer, CheckpointSyncerConf, CoreMetrics, MultisigCheckpointSyncer,
 };
-use hyperlane_core::{HyperlaneMessage, MultisigIsm, ValidatorAnnounce, H160, H256};
+use hyperlane_core::{
+    HyperlaneContract, HyperlaneMessage, MultisigIsm, ValidatorAnnounce, H160, H256,
+};
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
@@ -140,10 +142,17 @@ impl MetadataBuilder for LegacyMultisigIsmMetadataBuilder {
             )
             .await.context(CTX)?
         else {
-            info!(
-                ?validators, threshold, highest_known_nonce,
-                "Could not fetch metadata: Unable to reach quorum"
-            );
+            if validators.is_empty() {
+                info!(
+                    ism=%multisig_ism.address(),
+                    "Could not fetch metadata: Unable to reach quorum because no validators are defined"
+                );
+            } else {
+                info!(
+                    ?validators, threshold, highest_known_nonce, ism=%multisig_ism.address(),
+                    "Could not fetch metadata: Unable to reach quorum"
+                );
+            }
             return Ok(None);
         };
 
