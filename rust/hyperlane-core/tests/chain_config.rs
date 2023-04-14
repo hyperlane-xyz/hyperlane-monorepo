@@ -3,6 +3,7 @@ use std::fs::read_to_string;
 use std::path::Path;
 
 use config::{Config, FileFormat};
+use eyre::Context;
 use walkdir::WalkDir;
 
 use hyperlane_base::{RawSettings, Settings};
@@ -77,7 +78,9 @@ fn hyperlane_settings() -> Vec<Settings> {
                 .unwrap_or_else(|e| {
                     panic!("!cfg({}): {:?}: {}", p, e, f);
                 });
-            Settings::from_config(raw, &ConfigPath::default()).unwrap()
+            Settings::from_config(raw, &ConfigPath::default())
+                .context("Config parsing error, please check the config reference (https://docs.hyperlane.xyz/docs/operators/agent-configuration/reference)")
+                .unwrap()
         })
         .collect()
 }
