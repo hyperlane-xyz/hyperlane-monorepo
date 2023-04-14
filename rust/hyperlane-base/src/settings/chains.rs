@@ -68,16 +68,6 @@ impl ChainConnectionConf {
     }
 }
 
-/// Ways in which transactions can be submitted to a blockchain.
-#[derive(Copy, Clone, Debug, Default, Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
-pub enum TransactionSubmissionType {
-    /// Use the configured signer to sign and submit transactions in the
-    /// "default" manner.
-    #[default]
-    Signer,
-}
-
 /// Addresses for mailbox chain contracts
 #[derive(Clone, Debug, Default)]
 pub struct CoreContractAddresses {
@@ -192,8 +182,6 @@ pub struct ChainConf {
     pub addresses: CoreContractAddresses,
     /// The chain connection details
     pub connection: Option<ChainConnectionConf>,
-    /// How transactions to this chain are submitted.
-    pub txsubmission: TransactionSubmissionType,
     /// Configure chain-specific metrics information. This will automatically
     /// add all contract addresses but will not override any set explicitly.
     /// Use `metrics_conf()` to get the metrics.
@@ -214,8 +202,6 @@ pub struct RawChainConf {
     addresses: Option<RawCoreContractAddresses>,
     #[serde(flatten, default)]
     connection: Option<RawChainConnectionConf>,
-    #[serde(default)]
-    txsubmission: Option<String>,
     // TODO: if people actually use the metrics conf we should also add a raw form.
     #[serde(default)]
     metrics_conf: Option<PrometheusMiddlewareConf>,
@@ -274,11 +260,6 @@ impl FromRawConf<'_, RawChainConf> for ChainConf {
             })
             .unwrap_or(0);
 
-        let txsubmission = raw
-            .txsubmission
-            .and_then(|v| serde_json::from_str(&v).take_err(&mut err, || cwp + "txsubmission"))
-            .unwrap_or_default();
-
         let index = raw
             .index
             .and_then(|v| v.parse_config(&cwp.join("index")).take_config_err(&mut err))
@@ -293,7 +274,6 @@ impl FromRawConf<'_, RawChainConf> for ChainConf {
             addresses: addresses.unwrap(),
             signer,
             finality_blocks,
-            txsubmission,
             index,
             metrics_conf,
         })
