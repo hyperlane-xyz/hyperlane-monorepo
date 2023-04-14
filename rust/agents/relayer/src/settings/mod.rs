@@ -122,9 +122,7 @@ impl FromRawConf<'_, RawGasPaymentEnforcementConf> for GasPaymentEnforcementConf
                 r.parse_config(cwp).take_config_err(&mut err)
             });
 
-        let matching_list = raw
-            .matching_list
-            .unwrap_or_default();
+        let matching_list = raw.matching_list.unwrap_or_default();
         err.into_result()?;
         Ok(Self {
             policy: policy.unwrap(),
