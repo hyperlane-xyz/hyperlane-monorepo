@@ -72,8 +72,8 @@ async function deployWarpRoute() {
   multiProvider.setSharedSigner(signer)
 
   console.log('Starting deployments');
-  const deployer = new HypERC20Deployer(multiProvider, tokenConfigs, undefined);
-  await deployer.deploy();
+  const deployer = new HypERC20Deployer(multiProvider);
+  await deployer.deploy(tokenConfigs);
 
   console.log('Deployments successful. Deployed contracts:');
   // @ts-ignore
