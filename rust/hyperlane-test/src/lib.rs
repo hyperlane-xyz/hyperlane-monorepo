@@ -6,6 +6,3 @@
 
 /// Mock contracts
 pub mod mocks;
-
-/// Testing utilities
-pub mod test_utils;

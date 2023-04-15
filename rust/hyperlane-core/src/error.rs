@@ -5,7 +5,6 @@ use std::ops::Deref;
 
 use ethers::prelude::{ContractError, Middleware, ProviderError, SignatureError};
 
-use crate::db::DbError;
 use crate::HyperlaneProviderError;
 use crate::H256;
 
@@ -70,9 +69,6 @@ pub enum ChainCommunicationError {
     /// A transaction was dropped from the mempool
     #[error("Transaction dropped from mempool {0:?}")]
     TransactionDropped(H256),
-    /// DB Error
-    #[error(transparent)]
-    DbError(#[from] DbError),
     /// Any other error; does not implement `From` to prevent
     /// conflicting/absorbing other errors.
     #[error(transparent)]
