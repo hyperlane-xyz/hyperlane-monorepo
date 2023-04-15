@@ -1,10 +1,12 @@
-# Hyperlane Warp Routes
+# Hyperlane Tokens and Warp Routes
 
-This repo contains contracts, deployment, and SDK tooling for Hyperlane Warp Routes. 
+This repo contains contracts and SDK tooling for Hyperlane-connected ERC20 and ERC721 tokens. The contracts herein can be used to create [Hyperlane Warp Routes](https://docs.hyperlane.xyz/docs/deploy/deploy-warp-route) across different chains.
+
+For instructions on deploying Warp Routes, see [the deployment documentation](https://docs.hyperlane.xyz/docs/deploy/deploy-warp-route/deploy-a-warp-route) and the [Hyperlane-Deploy repository](https://github.com/hyperlane-xyz/hyperlane-deploy).
 
 ## Warp Route Architecture
 
-A *warp route* is a collection of [`TokenRouter`](./contracts/libs/TokenRouter.sol) contracts deployed across a set of Hyperlane chains. These contracts leverage the `Router` pattern to implement access control and routing logic for remote token transfers. These contracts send and receive [`Message`](./contracts/libs/Message.sol)s which encode payloads containing a transfer `amount` and `recipient` address.
+A Warp Route is a collection of [`TokenRouter`](./contracts/libs/TokenRouter.sol) contracts deployed across a set of Hyperlane chains. These contracts leverage the `Router` pattern to implement access control and routing logic for remote token transfers. These contracts send and receive [`Messages`](./contracts/libs/Message.sol) which encode payloads containing a transfer `amount` and `recipient` address.
 
 ```mermaid
 %%{ init: {
@@ -53,7 +55,7 @@ Warp routes are unique amongst token bridging solutions because they provide mod
 
 ## Remote Transfer Lifecycle Diagrams
 
-To initiate a remote transfer, users call the `TokenRouter.transferRemote` function with the `destination` chain ID, `recipient` address, and transfer `amount`. 
+To initiate a remote transfer, users call the `TokenRouter.transferRemote` function with the `destination` chain ID, `recipient` address, and transfer `amount`.
 
 ```solidity
 interface TokenRouter {
@@ -116,7 +118,6 @@ graph TB
     HYP_P -- "mint(Bob, amount)" --> Bob
     linkStyle 6 color:green;
 ```
-
 
 ### Transfer Alice's ERC20 `amount` from Ethereum to Bob on Polygon
 
@@ -226,7 +227,6 @@ graph TB
 | [audit-v2-remediation]() | 2023-02-15 | Hyperlane V2 Audit remediation |
 | [main]() | ~ | Bleeding edge |
 
-
 ## Setup for local development
 
 ```sh
@@ -236,7 +236,6 @@ yarn
 # Build source and generate types
 yarn build:dev
 ```
-
 
 ## Unit testing
 
@@ -250,5 +249,4 @@ yarn lint
 
 ## Learn more
 
-For more information, see the [Hyperlane documentation](https://docs.hyperlane.xyz/docs/introduction/readme).
-
+For more information, see the [Hyperlane introduction documentation](https://docs.hyperlane.xyz/docs/introduction/readme) or the [details about Warp Routes](https://docs.hyperlane.xyz/docs/deploy/deploy-warp-route).
