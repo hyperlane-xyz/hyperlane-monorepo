@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use hyperlane_core::accumulator::merkle::Proof;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use std::str::FromStr;
@@ -6,14 +7,14 @@ use std::sync::Arc;
 use std::{collections::HashMap, fmt::Debug};
 
 use derive_new::new;
-use eyre::Context;
+use eyre::{Context, Result};
 use tokio::sync::RwLock;
 use tracing::{debug, instrument, warn};
 
 use hyperlane_base::{
     ChainConf, CheckpointSyncer, CheckpointSyncerConf, CoreMetrics, MultisigCheckpointSyncer,
 };
-use hyperlane_core::{HyperlaneMessage, ValidatorAnnounce, H160, H256};
+use hyperlane_core::{HyperlaneMessage, ValidatorAnnounce, H160, H256, MultisigIsm, MultisigSignedCheckpoint, RoutingIsm};
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
 use crate::msg::metadata::{MultisigIsmMetadataBuilder, RoutingIsmMetadataBuilder};
@@ -46,13 +47,13 @@ pub trait MetadataBuilder: Send + Sync {
 
 #[derive(Clone, new)]
 pub struct BaseMetadataBuilder {
-    pub chain_setup: ChainConf,
-    pub prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
-    pub validator_announce: Arc<dyn ValidatorAnnounce>,
-    pub allow_local_checkpoint_syncers: bool,
-    pub metrics: Arc<CoreMetrics>,
-    pub depth: u32,
-    pub max_depth: u32,
+    chain_setup: ChainConf,
+    prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
+    validator_announce: Arc<dyn ValidatorAnnounce>,
+    allow_local_checkpoint_syncers: bool,
+    metrics: Arc<CoreMetrics>,
+    depth: u32,
+    max_depth: u32,
 }
 
 impl Debug for BaseMetadataBuilder {
@@ -108,6 +109,61 @@ impl BaseMetadataBuilder {
         } else {
             Ok(cloned)
         }
+    }
+
+    pub async fn get_proof(
+        &self,
+        message: &HyperlaneMessage,
+    checkpoint: MultisigSignedCheckpoint) -> Result<Proof> {
+        const CTX: &str = "When fetching message proof";
+        self
+            .prover_sync
+            .read()
+            .await
+            .get_proof(message.nonce, checkpoint.checkpoint.index)
+            .context(CTX)
+    }
+
+    pub async fn fetch_checkpoint(
+        &self,
+        validators: &Vec<H256>,
+        threshold: usize,
+        message: &HyperlaneMessage,
+    ) -> Result<Option<MultisigSignedCheckpoint>> {
+        const CTX: &str = "When fetching checkpoint signatures";
+        let highest_known_nonce = self.prover_sync.read().await.count() - 1;
+        let checkpoint_syncer = self
+            .build_checkpoint_syncer(&validators)
+            .await
+            .context(CTX)?;
+        checkpoint_syncer
+            .fetch_checkpoint_in_range(
+                &validators,
+                threshold.into(),
+                message.nonce,
+                highest_known_nonce,
+            )
+            .await.context(CTX)
+    }
+
+    pub async fn build_routing_ism(
+        &self,
+        address: H256,
+    ) -> Result<Box<dyn RoutingIsm>> {
+        self
+            .chain_setup
+            .build_routing_ism(address, &self.metrics)
+            .await
+    }
+
+    pub async fn build_multisig_ism(
+        &self,
+        address: H256,
+    ) -> Result<Box<dyn MultisigIsm>> {
+        self
+            .chain_setup
+            .build_multisig_ism(address, &self.metrics)
+            .await
     }
 
     pub async fn build_checkpoint_syncer(

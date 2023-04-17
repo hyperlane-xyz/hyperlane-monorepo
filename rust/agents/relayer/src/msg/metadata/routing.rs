@@ -32,8 +32,7 @@ impl MetadataBuilder for RoutingIsmMetadataBuilder {
     ) -> eyre::Result<Option<Vec<u8>>> {
         const CTX: &str = "When fetching RoutingIsm metadata";
         let ism = self
-            .chain_setup
-            .build_routing_ism(ism_address, &self.metrics)
+            .build_routing_ism(ism_address)
             .await
             .context(CTX)?;
         let module = ism.route(message).await.context(CTX)?;
