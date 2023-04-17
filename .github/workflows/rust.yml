@@ -62,6 +62,8 @@ jobs:
             ./rust
       - name: Check
         run: cargo check --all-features --all-targets
+      - name: Check WASM
+        run: cargo check -p hyperlane-core --all-features --target wasm32-unknown-unknown
       - name: Rustfmt
         run: cargo fmt --all -- --check
       - name: Clippy
