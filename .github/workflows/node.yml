@@ -115,11 +115,7 @@ jobs:
     strategy:
       matrix:
         environment: [testnet3, mainnet2]
-<<<<<<< HEAD
-        module: [ism, core, igp]
-=======
-        module: [core, igp, ica]
->>>>>>> asaj/relayer-isms-2
+        module: [ism, core, igp, ica]
 
     steps:
       - uses: actions/checkout@v3

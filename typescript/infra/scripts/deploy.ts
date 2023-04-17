@@ -57,6 +57,7 @@ async function main() {
     config = objMap(envConfig.core, (chain) => true);
     deployer = new HyperlaneIsmFactoryDeployer(multiProvider);
   } else if (module === Modules.CORE) {
+    config = envConfig.core;
     const ismFactory = HyperlaneIsmFactory.fromEnvironment(
       deployEnvToSdkEnv[environment],
       multiProvider,
