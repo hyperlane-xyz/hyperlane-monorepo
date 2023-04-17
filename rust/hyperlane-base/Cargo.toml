@@ -20,6 +20,7 @@ futures-util.workspace = true
 itertools.workspace = true
 mockall = "0.11"
 paste.workspace = true
+pico-args = { workspace = true, features = ["eq-separator", "combined-flags"]}
 prometheus.workspace = true
 rocksdb.workspace = true
 serde.workspace = true
