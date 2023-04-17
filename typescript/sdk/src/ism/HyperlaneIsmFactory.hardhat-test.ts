@@ -89,11 +89,8 @@ describe.only('HyperlaneIsmFactory', async () => {
     const [signer] = await ethers.getSigners();
 
     const multiProvider = MultiProvider.createTestMultiProvider({ signer });
-    const configMap = Object.fromEntries(
-      multiProvider.getKnownChainNames().map((chain) => [chain, true]),
-    );
 
-    const deployer = new HyperlaneIsmFactoryDeployer(multiProvider, configMap);
+    const deployer = new HyperlaneIsmFactoryDeployer(multiProvider);
     const contracts = await deployer.deploy();
     factory = new HyperlaneIsmFactory(contracts, multiProvider);
   });

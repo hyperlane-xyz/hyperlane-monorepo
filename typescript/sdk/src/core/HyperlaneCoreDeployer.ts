@@ -1,14 +1,14 @@
 import debug from 'debug';
 
-import { Mailbox, Ownable, ValidatorAnnounce } from '@hyperlane-xyz/core';
+import { Mailbox, ValidatorAnnounce } from '@hyperlane-xyz/core';
 import { types } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts';
+import { HyperlaneContracts, filterOwnableContracts } from '../contracts';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { HyperlaneIsmFactory, moduleMatches } from '../ism/HyperlaneIsmFactory';
+import { IsmConfig } from '../ism/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
-import { objMap } from '../utils/objects';
 
 import { CoreFactories, coreFactories } from './contracts';
 import { CoreConfig } from './types';
@@ -17,27 +17,25 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   CoreConfig,
   CoreFactories
 > {
-  startingBlockNumbers: ChainMap<number | undefined>;
+  startingBlockNumbers: ChainMap<number | undefined> = {};
 
   constructor(
     multiProvider: MultiProvider,
-    configMap: ChainMap<CoreConfig>,
     readonly ismFactory: HyperlaneIsmFactory,
-    factoriesOverride = coreFactories,
   ) {
-    super(multiProvider, configMap, factoriesOverride, {
+    super(multiProvider, coreFactories, {
       logger: debug('hyperlane:CoreDeployer'),
+      chainTimeoutMs: 1000 * 60 * 10, // 10 minutes
     });
-    this.startingBlockNumbers = objMap(configMap, () => undefined);
   }
 
   async deployMailbox(
     chain: ChainName,
     defaultIsmAddress: types.Address,
     proxyAdmin: types.Address,
+    owner: types.Address,
   ): Promise<Mailbox> {
     const domain = this.multiProvider.getDomainId(chain);
-    const owner = this.configMap[chain].owner;
 
     const mailbox = await this.deployProxiedContract(
       chain,
@@ -61,8 +59,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     return validatorAnnounce;
   }
 
-  async deployIsm(chain: ChainName): Promise<types.Address> {
-    const config = this.configMap[chain].defaultIsm;
+  async deployIsm(chain: ChainName, config: IsmConfig): Promise<types.Address> {
     const cachedMailbox = this.deployedContracts[chain]?.['mailbox'];
     if (cachedMailbox) {
       const module = await cachedMailbox.defaultIsm();
@@ -93,26 +90,32 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       return undefined as any;
     }
 
-    const provider = this.multiProvider.getProvider(chain);
-    const startingBlockNumber = await provider.getBlockNumber();
-    this.startingBlockNumbers[chain] = startingBlockNumber;
+    this.startingBlockNumbers[chain] = await this.multiProvider
+      .getProvider(chain)
+      .getBlockNumber();
 
-    const ism = await this.deployIsm(chain);
+    const ism = await this.deployIsm(chain, config.defaultIsm);
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
 
-    const mailbox = await this.deployMailbox(chain, ism, proxyAdmin.address);
+    const mailbox = await this.deployMailbox(
+      chain,
+      ism,
+      proxyAdmin.address,
+      config.owner,
+    );
     const validatorAnnounce = await this.deployValidatorAnnounce(
       chain,
       mailbox.address,
     );
-    // Ownership of the Mailbox and the interchainGasPaymaster is transferred upon initialization.
-    const ownables: Ownable[] = [proxyAdmin];
-    await this.transferOwnershipOfContracts(chain, config.owner, ownables);
 
-    return {
+    const contracts = {
       validatorAnnounce,
       proxyAdmin,
       mailbox,
     };
+    // Transfer ownership of all ownable contracts
+    const ownables = await filterOwnableContracts(contracts);
+    await this.transferOwnershipOfContracts(chain, config.owner, ownables);
+    return contracts;
   }
 }

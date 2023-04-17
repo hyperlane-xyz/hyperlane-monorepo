@@ -18,7 +18,7 @@ parking_lot = { version = "0.12" }
 maplit = "1.0"
 log = "0.4"
 tokio = { workspace = true, features = ["time", "sync"] }
-static_assertions = "1.1"
+static_assertions.workspace = true
 
 serde = { version = "1.0", features = ["derive"], optional = true }
 serde_json = { version = "1.0", default-features = false }

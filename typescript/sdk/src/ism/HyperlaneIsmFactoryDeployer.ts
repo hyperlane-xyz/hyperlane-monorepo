@@ -1,31 +1,27 @@
 import debug from 'debug';
 
-import { HyperlaneContracts } from '../contracts';
+import { HyperlaneContracts, HyperlaneContractsMap } from '../contracts';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, ChainName } from '../types';
+import { ChainName } from '../types';
 
 import { IsmFactoryFactories, ismFactoryFactories } from './contracts';
 
-export type IsmFactoryConfig = any;
-
 export class HyperlaneIsmFactoryDeployer extends HyperlaneDeployer<
-  IsmFactoryConfig,
+  any,
   IsmFactoryFactories
 > {
-  constructor(
-    multiProvider: MultiProvider,
-    configMap: ChainMap<IsmFactoryConfig>,
-    factoriesOverride = ismFactoryFactories,
-  ) {
-    super(multiProvider, configMap, factoriesOverride, {
+  constructor(multiProvider: MultiProvider) {
+    super(multiProvider, ismFactoryFactories, {
       logger: debug('hyperlane:IsmFactoryDeployer'),
     });
   }
 
+  async deploy(): Promise<HyperlaneContractsMap<IsmFactoryFactories>> {
+    return super.deploy({});
+  }
   async deployContracts(
     chain: ChainName,
-    config: IsmFactoryConfig,
   ): Promise<HyperlaneContracts<IsmFactoryFactories>> {
     const multisigIsmFactory = await this.deployContract(
       chain,

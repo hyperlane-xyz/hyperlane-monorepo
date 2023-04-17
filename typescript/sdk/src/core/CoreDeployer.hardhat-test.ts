@@ -3,23 +3,19 @@ import { expect } from 'chai';
 import { ethers } from 'hardhat';
 import sinon from 'sinon';
 
-import {
-  ChainMap,
-  CoreConfig,
-  CoreFactories,
-  HyperlaneContractsMap,
-  HyperlaneCore,
-  HyperlaneCoreChecker,
-  HyperlaneCoreDeployer,
-  HyperlaneIsmFactory,
-  HyperlaneIsmFactoryDeployer,
-  MultiProvider,
-  objMap,
-  serializeContractsMap,
-} from '@hyperlane-xyz/sdk';
+import { TestChains } from '../consts/chains';
+import { HyperlaneContractsMap } from '../contracts';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
+import { HyperlaneIsmFactoryDeployer } from '../ism/HyperlaneIsmFactoryDeployer';
+import { MultiProvider } from '../providers/MultiProvider';
+import { testCoreConfig } from '../test/testUtils';
+import { ChainMap } from '../types';
 
-import { environment as testConfig } from '../config/environments/test';
-import { writeJSON } from '../src/utils/utils';
+import { HyperlaneCore } from './HyperlaneCore';
+import { HyperlaneCoreChecker } from './HyperlaneCoreChecker';
+import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer';
+import { CoreFactories } from './contracts';
+import { CoreConfig } from './types';
 
 describe('core', async () => {
   let multiProvider: MultiProvider;
@@ -31,50 +27,34 @@ describe('core', async () => {
   before(async () => {
     const [signer] = await ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
-    const ismFactoryDeployer = new HyperlaneIsmFactoryDeployer(
-      multiProvider,
-      testConfig.core,
-    );
+    const ismFactoryDeployer = new HyperlaneIsmFactoryDeployer(multiProvider);
     const ismFactories = await ismFactoryDeployer.deploy();
     ismFactory = new HyperlaneIsmFactory(ismFactories, multiProvider);
   });
 
-  let owners: ChainMap<string>;
-
   beforeEach(async () => {
-    const [_, owner] = await ethers.getSigners();
+    const [signer] = await ethers.getSigners();
     // This is kind of awkward and really these tests shouldn't live here
-    coreConfig = testConfig.core;
-    owners = objMap(testConfig.chainMetadataConfigs, () => owner.address);
+    multiProvider = MultiProvider.createTestMultiProvider({ signer });
+    coreConfig = testCoreConfig(TestChains);
   });
 
   it('deploys', async () => {
-    deployer = new HyperlaneCoreDeployer(multiProvider, coreConfig, ismFactory);
-    contracts = await deployer.deploy();
+    deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
+    contracts = await deployer.deploy(coreConfig);
     core = new HyperlaneCore(contracts, multiProvider);
-  });
-
-  it('writes', async () => {
-    const base = './test/outputs/core';
-    writeJSON(base, 'contracts.json', serializeContractsMap(contracts));
-    writeJSON(base, 'verification.json', deployer.verificationInputs);
-    // deployer.writeRustConfigs(base);
   });
 
   describe('failure modes', async () => {
     beforeEach(async () => {
-      deployer = new HyperlaneCoreDeployer(
-        multiProvider,
-        coreConfig,
-        ismFactory,
-      );
+      deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
       const stub = sinon.stub(deployer, 'deployContracts');
       stub.withArgs('test3', sinon.match.any).rejects();
       // @ts-ignore
       deployer.deployContracts.callThrough();
 
       try {
-        await deployer.deploy();
+        await deployer.deploy(coreConfig);
         // eslint-disable-next-line no-empty
       } catch (e: any) {}
     });
@@ -89,7 +69,7 @@ describe('core', async () => {
 
     it('can be resumed from partial (chain) failure', async () => {
       sinon.restore(); // restore normal deployer behavior and test3 will be deployed
-      const result = await deployer.deploy();
+      const result = await deployer.deploy(coreConfig);
       expect(result).to.have.keys(['test1', 'test2', 'test3']);
       expect(result.test3).to.have.keys(Object.keys(result.test2));
     });
@@ -102,21 +82,27 @@ describe('core', async () => {
       //@ts-ignore operand not optional, ignore for this test
       delete deployer.deployedContracts.test2!.mailbox;
 
-      const result = await deployer.deploy();
+      const result = await deployer.deploy(coreConfig);
       expect(result.test2).to.have.keys(Object.keys(result.test1));
       expect(result.test3).to.have.keys(Object.keys(result.test1));
+    });
+
+    it('times out ', async () => {
+      // @ts-ignore
+      deployer.chainTimeoutMs = 1;
+      try {
+        await deployer.deploy(coreConfig);
+      } catch (e: any) {
+        expect(e.message).to.include('Timed out in 1ms');
+      }
     });
   });
 
   it('checks', async () => {
-    const joinedConfig = objMap(coreConfig, (chain, config) => ({
-      ...config,
-      owner: owners[chain],
-    }));
     const checker = new HyperlaneCoreChecker(
       multiProvider,
       core,
-      joinedConfig,
+      coreConfig,
       ismFactory,
     );
     await checker.check();

@@ -14,12 +14,14 @@ async-trait.workspace = true
 auto_impl = "1.0"
 bytes = { version = "1", features = ["serde"]}
 config.workspace = true
+convert_case = "0.6"
 derive-new.workspace = true
 ethers-providers.workspace = true
 ethers-signers.workspace = true
 ethers.workspace = true
+eyre.workspace = true
 hex = "0.4.3"
-lazy_static = "*"
+itertools.workspace = true
 num = {version="0", features=["serde"]}
 num-derive.workspace = true
 num-traits.workspace = true
@@ -27,8 +29,8 @@ rocksdb.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha3 = "0.10"
-strum = "0.24"
-strum_macros = "0.24"
+strum.workspace = true
+strum_macros.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "macros"] }
 tracing-futures.workspace = true
@@ -36,9 +38,10 @@ tracing.workspace = true
 
 # version determined by ethers-rs
 primitive-types = "*"
+lazy_static = "*"
 
 [dev-dependencies]
-hyperlane-base = { path = "../hyperlane-base" }
+hyperlane-base = { path = "../hyperlane-base"}
 tokio = { workspace = true, features = ["rt", "time"] }
 walkdir = { version = "2" }
 

@@ -5,7 +5,8 @@ use std::marker::PhantomData;
 use serde::de::{Error, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
-use hyperlane_core::{utils::StrOrInt, HyperlaneMessage, H160, H256};
+use hyperlane_core::config::StrOrInt;
+use hyperlane_core::{HyperlaneMessage, H160, H256};
 
 /// Defines a set of patterns for determining if a message should or should not
 /// be relayed. This is useful for determine if a message matches a given set or

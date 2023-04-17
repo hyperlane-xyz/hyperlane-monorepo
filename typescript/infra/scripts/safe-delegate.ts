@@ -9,7 +9,7 @@ import { AllChains } from '@hyperlane-xyz/sdk';
 
 import { getSafeDelegates, getSafeService } from '../src/utils/safe';
 
-import { getCoreEnvironmentConfig, getEnvironment } from './utils';
+import { getEnvironment, getEnvironmentConfig } from './utils';
 
 function getArgs() {
   return yargs(process.argv.slice(2))
@@ -29,7 +29,7 @@ function getArgs() {
 
 async function delegate() {
   const environment = await getEnvironment();
-  const config = getCoreEnvironmentConfig(environment);
+  const config = getEnvironmentConfig(environment);
   const { chain, delegate, safe, action } = await getArgs();
 
   const multiProvider = await config.getMultiProvider();

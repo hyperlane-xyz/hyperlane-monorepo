@@ -62,16 +62,13 @@ impl SqlChainScraper {
         metrics: ContractSyncMetrics,
     ) -> Result<Self> {
         let cursor = Arc::new(
-            db.block_cursor(
-                contracts.mailbox.domain().id(),
-                index_settings.from() as u64,
-            )
-            .await?,
+            db.block_cursor(contracts.mailbox.domain().id(), index_settings.from as u64)
+                .await?,
         );
         Ok(Self {
             db,
             contracts,
-            chunk_size: index_settings.chunk_size(),
+            chunk_size: index_settings.chunk_size,
             metrics,
             cursor,
         })

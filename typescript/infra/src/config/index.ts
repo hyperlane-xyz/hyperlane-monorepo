@@ -1,5 +1,5 @@
 export { AgentConfig } from './agent';
-export { CoreEnvironmentConfig, DeployEnvironment } from './environment';
+export { EnvironmentConfig, DeployEnvironment } from './environment';
 export {
   AllStorageGasOracleConfigs,
   RemoteGasData,

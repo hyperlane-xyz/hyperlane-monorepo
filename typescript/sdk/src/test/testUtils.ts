@@ -122,12 +122,12 @@ export class MockCoinGecko implements CoinGeckoInterface {
     return this;
   }
 
-  setTokenPrice(chain: ChainName, price: number) {
+  setTokenPrice(chain: ChainName, price: number): void {
     const id = chainMetadata[chain].gasCurrencyCoinGeckoId || chain;
     this.tokenPrices[id] = price;
   }
 
-  setFail(chain: ChainName, fail: boolean) {
+  setFail(chain: ChainName, fail: boolean): void {
     const id = chainMetadata[chain].gasCurrencyCoinGeckoId || chain;
     this.fail[id] = fail;
   }

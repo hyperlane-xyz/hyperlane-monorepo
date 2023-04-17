@@ -36,7 +36,7 @@ impl FuelMailbox {
 
         Ok(FuelMailbox {
             contract: FuelMailboxInner::new(address, wallet),
-            domain: locator.domain,
+            domain: locator.domain.clone(),
         })
     }
 }
@@ -66,7 +66,11 @@ impl Debug for FuelMailbox {
 #[async_trait]
 impl Mailbox for FuelMailbox {
     #[instrument(level = "debug", err, ret, skip(self))]
-    async fn count(&self) -> ChainResult<u32> {
+    async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
+        assert!(
+            lag.is_none(),
+            "Fuel does not support querying point-in-time"
+        );
         self.contract
             .methods()
             .count()
@@ -76,12 +80,12 @@ impl Mailbox for FuelMailbox {
             .map_err(ChainCommunicationError::from_other)
     }
 
-    #[instrument(err, ret, skip(self))]
+    #[instrument(level = "debug", err, ret, skip(self))]
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
         todo!()
     }
 
-    #[instrument(err, ret, skip(self))]
+    #[instrument(level = "debug", err, ret, skip(self))]
     async fn latest_checkpoint(&self, lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
         assert!(
             lag.is_none(),

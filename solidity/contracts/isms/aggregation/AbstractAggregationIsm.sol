@@ -17,6 +17,7 @@ import {AggregationIsmMetadata} from "../../libs/isms/AggregationIsmMetadata.sol
 abstract contract AbstractAggregationIsm is IAggregationIsm {
     // ============ Constants ============
 
+    // solhint-disable-next-line const-name-snakecase
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.AGGREGATION);
 

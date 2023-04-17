@@ -1,30 +1,41 @@
-use std::fmt::Debug;
+use std::fmt::{Debug, Formatter};
 use std::time::Duration;
 
 use async_trait::async_trait;
-use ethers::providers::{Http, HttpClientError, JsonRpcClient, ProviderError};
+use ethers::providers::{Http, JsonRpcClient, ProviderError};
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 use tokio::time::sleep;
-use tracing::warn;
+use tracing::{instrument, warn_span};
 
 use ethers_prometheus::json_rpc_client::PrometheusJsonRpcClient;
 
-const METHODS_TO_NOT_TO_FALLBACK_ON: &[&str] = &[
-    "eth_estimateGas",
-    "eth_sendTransaction",
-    "eth_sendRawTransaction",
-];
+use crate::rpc_clients::{categorize_client_response, CategorizedResponse};
 
 /// A provider that bundles multiple providers and attempts to call the first,
 /// then the second, and so on until a response is received.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct FallbackProvider<T>(
     /// Sorted list of providers this provider calls in order of most primary to
     /// most fallback.
     Vec<T>,
 );
+
+impl Debug for FallbackProvider<PrometheusJsonRpcClient<Http>> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "FallbackProvider {{ chain_name: {}, hosts: [{}] }}",
+            self.0.get(0).map(|v| v.chain_name()).unwrap_or("None"),
+            self.0
+                .iter()
+                .map(|v| v.node_host())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    }
+}
 
 impl<T> FallbackProvider<T> {
     /// Convenience method for creating a `FallbackProviderBuilder` with same
@@ -92,11 +103,14 @@ impl From<FallbackError> for ProviderError {
 impl JsonRpcClient for FallbackProvider<PrometheusJsonRpcClient<Http>> {
     type Error = ProviderError;
 
-    async fn request<T: Serialize + Send + Sync, R: DeserializeOwned>(
-        &self,
-        method: &str,
-        params: T,
-    ) -> Result<R, Self::Error> {
+    #[instrument]
+    async fn request<T, R>(&self, method: &str, params: T) -> Result<R, Self::Error>
+    where
+        T: Debug + Serialize + Send + Sync,
+        R: DeserializeOwned,
+    {
+        use CategorizedResponse::*;
+
         let params = serde_json::to_value(params).expect("valid");
 
         let mut errors = vec![];
@@ -111,26 +125,13 @@ impl JsonRpcClient for FallbackProvider<PrometheusJsonRpcClient<Http>> {
                     _ => provider.request(method, &params),
                 };
 
-                match fut.await {
-                    Ok(v) => return Ok(serde_json::from_value(v)?),
-
-                    Err(HttpClientError::ReqwestError(e)) => {
-                        warn!(error=%e, provider_index=%idx, ?provider, method, "ReqwestError in http provider; falling back to the next provider");
-                        errors.push(HttpClientError::ReqwestError(e).into())
-                    }
-                    Err(HttpClientError::SerdeJson { err, text }) => {
-                        warn!(error=%err, text, provider_index=%idx, ?provider, method, "ReqwestError in http provider; falling back to the next provider");
-                        errors.push(HttpClientError::SerdeJson { err, text }.into())
-                    }
-                    Err(HttpClientError::JsonRpcError(e)) => {
-                        if METHODS_TO_NOT_TO_FALLBACK_ON.contains(&method) {
-                            warn!(error = %e, provider_index=%idx, ?provider, method, "JsonRpcError in http provider; not falling back");
-                            return Err(HttpClientError::JsonRpcError(e).into());
-                        } else {
-                            warn!(error = %e, provider_index=%idx, ?provider, method, "JsonRpcError in http provider; falling back to the next provider");
-                            errors.push(HttpClientError::JsonRpcError(e).into())
-                        }
-                    }
+                let resp = fut.await;
+                let _span =
+                    warn_span!("request_with_fallback", provider_index=%idx, ?provider).entered();
+                match categorize_client_response(method, resp) {
+                    IsOk(v) => return Ok(serde_json::from_value(v)?),
+                    RetryableErr(e) | RateLimitErr(e) => errors.push(e.into()),
+                    NonRetryableErr(e) => return Err(e.into()),
                 }
             }
         }

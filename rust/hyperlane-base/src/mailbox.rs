@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use derive_new::new;
-use futures_util::future::select_all;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 use tracing::{info_span, Instrument};
@@ -50,8 +49,6 @@ impl CachingMailbox {
         index_settings: IndexSettings,
         metrics: ContractSyncMetrics,
     ) -> Instrumented<JoinHandle<eyre::Result<()>>> {
-        let span = info_span!("MailboxContractSync", self = %self);
-
         let sync = ContractSync::new(
             self.mailbox.domain().clone(),
             self.db.clone(),
@@ -60,17 +57,8 @@ impl CachingMailbox {
             metrics,
         );
 
-        tokio::spawn(async move {
-            let tasks = vec![sync.sync_dispatched_messages()];
-
-            let (_, _, remaining) = select_all(tasks).await;
-            for task in remaining.into_iter() {
-                cancel_task!(task);
-            }
-
-            Ok(())
-        })
-        .instrument(span)
+        tokio::spawn(async move { sync.sync_dispatched_messages().await })
+            .instrument(info_span!("MailboxContractSync", self = %self))
     }
 }
 
@@ -80,8 +68,8 @@ impl Mailbox for CachingMailbox {
         self.mailbox.domain_hash()
     }
 
-    async fn count(&self) -> ChainResult<u32> {
-        self.mailbox.count().await
+    async fn count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
+        self.mailbox.count(maybe_lag).await
     }
 
     /// Fetch the status of a message

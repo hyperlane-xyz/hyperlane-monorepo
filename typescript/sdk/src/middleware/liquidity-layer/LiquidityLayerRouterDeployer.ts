@@ -1,17 +1,18 @@
+import { ethers } from 'ethers';
+
 import {
   CircleBridgeAdapter,
   LiquidityLayerRouter,
-  LiquidityLayerRouter__factory,
   PortalAdapter,
 } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts, HyperlaneContractsMap } from '../../contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
+import { ProxiedRouterDeployer } from '../../router/ProxiedRouterDeployer';
 import { RouterConfig } from '../../router/types';
 import { ChainMap, ChainName } from '../../types';
 import { objMap } from '../../utils/objects';
-import { MiddlewareRouterDeployer } from '../MiddlewareRouterDeployer';
 
 import { LiquidityLayerFactories, liquidityLayerFactories } from './contracts';
 
@@ -47,25 +48,47 @@ export type BridgeAdapterConfig = {
 
 export type LiquidityLayerConfig = RouterConfig & BridgeAdapterConfig;
 
-export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
+export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
   LiquidityLayerConfig,
   LiquidityLayerFactories,
-  LiquidityLayerRouter__factory
+  'liquidityLayerRouter'
 > {
   readonly routerContractName = 'liquidityLayerRouter';
 
-  constructor(
-    multiProvider: MultiProvider,
-    configMap: ChainMap<LiquidityLayerConfig>,
-  ) {
-    super(multiProvider, configMap, liquidityLayerFactories);
+  constructor(multiProvider: MultiProvider) {
+    super(multiProvider, liquidityLayerFactories);
+  }
+
+  async constructorArgs(_: string, __: LiquidityLayerConfig): Promise<[]> {
+    return [];
+  }
+
+  async initializeArgs(
+    chain: string,
+    config: LiquidityLayerConfig,
+  ): Promise<
+    [
+      _mailbox: string,
+      _interchainGasPaymaster: string,
+      _interchainSecurityModule: string,
+      _owner: string,
+    ]
+  > {
+    const owner = await this.multiProvider.getSignerAddress(chain);
+    return [
+      config.mailbox,
+      config.interchainGasPaymaster,
+      config.interchainSecurityModule ?? ethers.constants.AddressZero,
+      owner,
+    ];
   }
 
   async enrollRemoteRouters(
     contractsMap: HyperlaneContractsMap<LiquidityLayerFactories>,
+    configMap: ChainMap<LiquidityLayerConfig>,
   ): Promise<void> {
     this.logger(`Enroll LiquidityLayerRouters with each other`);
-    await super.enrollRemoteRouters(contractsMap);
+    await super.enrollRemoteRouters(contractsMap, configMap);
 
     this.logger(`Enroll CircleBridgeAdapters with each other`);
     // Hack to allow use of super.enrollRemoteRouters
@@ -73,6 +96,7 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
       objMap(contractsMap, (_, contracts) => ({
         liquidityLayerRouter: contracts.circleBridgeAdapter,
       })) as unknown as HyperlaneContractsMap<LiquidityLayerFactories>,
+      configMap,
     );
 
     this.logger(`Enroll PortalAdapters with each other`);
@@ -81,6 +105,7 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
       objMap(contractsMap, (_, contracts) => ({
         liquidityLayerRouter: contracts.portalAdapter,
       })) as unknown as HyperlaneContractsMap<LiquidityLayerFactories>,
+      configMap,
     );
   }
 

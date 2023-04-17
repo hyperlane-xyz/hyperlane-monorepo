@@ -4,7 +4,6 @@ import { utils } from '@hyperlane-xyz/utils';
 import { Contexts } from '../../config/contexts';
 import { AgentConfig, DeployEnvironment } from '../config';
 import { ChainAgentConfig, CheckpointSyncerType } from '../config/agent';
-import { TransactionSubmissionType } from '../config/agent';
 import { fetchGCPSecret } from '../utils/gcloud';
 import {
   HelmCommand,
@@ -63,9 +62,6 @@ async function helmValuesForChain(
       chains: agentConfig.environmentChainNames.map((envChainName) => ({
         name: envChainName,
         disabled: !agentConfig.contextChainNames.includes(envChainName),
-        txsubmission: {
-          type: TransactionSubmissionType.Signer,
-        },
         connection: baseConnectionConfig,
       })),
       // Only the relayer has the signers on the chains config object

@@ -4,13 +4,13 @@ import { HelmCommand } from '../src/utils/helm';
 import {
   assertCorrectKubeContext,
   getContextAgentConfig,
-  getCoreEnvironmentConfig,
   getEnvironment,
+  getEnvironmentConfig,
 } from './utils';
 
 async function deploy() {
   const environment = await getEnvironment();
-  const config = getCoreEnvironmentConfig(environment);
+  const config = getEnvironmentConfig(environment);
 
   const agentConfig = await getContextAgentConfig(config);
 

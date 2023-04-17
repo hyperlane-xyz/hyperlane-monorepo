@@ -7,11 +7,13 @@ import { HelmCommand } from '../../src/utils/helm';
 import {
   assertCorrectKubeContext,
   getContextAgentConfig,
+  getEnvironment,
   getEnvironmentConfig,
 } from '../utils';
 
 async function main() {
-  const coreConfig = await getEnvironmentConfig();
+  const env = await getEnvironment();
+  const coreConfig = getEnvironmentConfig(env);
 
   await assertCorrectKubeContext(coreConfig);
 
