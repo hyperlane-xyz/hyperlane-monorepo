@@ -76,12 +76,6 @@ export function buildAgentConfig(
       },
       protocol: 'ethereum',
       finalityBlocks: metadata.blocks?.reorgPeriod ?? 1,
-      connection: {
-        // not a valid connection but we want to fill in the HTTP type for
-        // them as a default and leave out the URL
-        type: AgentConnectionType.Http,
-        url: undefined,
-      } as any as AgentConnection,
     };
 
     chainConfig.index = {

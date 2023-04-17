@@ -1,20 +1,21 @@
-use async_trait::async_trait;
-use num_derive::FromPrimitive;
-use num_traits::FromPrimitive;
+use std::collections::HashMap;
 use std::fmt::Debug;
+use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::{collections::HashMap, ops::Deref};
 
+use async_trait::async_trait;
 use derive_new::new;
 use eyre::Context;
 use tokio::sync::RwLock;
 use tracing::{debug, info, instrument, warn};
 
 use hyperlane_base::{
-    ChainSetup, CheckpointSyncer, CheckpointSyncerConf, CoreMetrics, MultisigCheckpointSyncer,
+    ChainConf, CheckpointSyncer, CheckpointSyncerConf, CoreMetrics, MultisigCheckpointSyncer,
 };
 use hyperlane_core::{HyperlaneMessage, MultisigIsm, ValidatorAnnounce, H160, H256};
+use num_derive::FromPrimitive;
+use num_traits::FromPrimitive;
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
 
@@ -44,7 +45,7 @@ pub trait MetadataBuilder {
 
 #[derive(Clone, new)]
 pub struct BaseMetadataBuilder {
-    chain_setup: ChainSetup,
+    chain_setup: ChainConf,
     prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
     validator_announce: Arc<dyn ValidatorAnnounce>,
     allow_local_checkpoint_syncers: bool,

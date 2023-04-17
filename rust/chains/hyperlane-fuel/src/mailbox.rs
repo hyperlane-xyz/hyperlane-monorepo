@@ -36,7 +36,7 @@ impl FuelMailbox {
 
         Ok(FuelMailbox {
             contract: FuelMailboxInner::new(address, wallet),
-            domain: locator.domain,
+            domain: locator.domain.clone(),
         })
     }
 }
