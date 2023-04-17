@@ -27,6 +27,7 @@ use crate::{
             EncodedConfirmedBlock,
             EncodedTransaction,
             EncodedTransactionWithStatusMeta,
+            UiInnerInstructions,
             UiInstruction,
             UiMessage,
             UiParsedInstruction,
@@ -354,6 +355,12 @@ enum SealevelTxn {
 }
 
 #[derive(Debug)]
+enum SealevelTxnIxnLocation {
+    Instruction(usize),
+    InnerInstruction(usize, usize),
+}
+
+#[derive(Debug)]
 struct SealevelTxnWithMeta {
     txn: SealevelTxn,
     meta: UiTransactionStatusMeta,
@@ -407,45 +414,166 @@ impl SealevelTxnWithMeta {
     //     }
     // }
 
-    fn contains_program_at_ixn(&self, program_id: &Pubkey) -> Option<usize> {
+    // FIXME what if there is more than one mailbox instruction in a transaction? As written, this
+    // parsing logic will only find the first. We should really just transform solana's transaction
+    // clusterf*ck into some sane and consistent data structure.
+    fn contains_program_at_ixn(&self, program_id: &Pubkey) -> Option<SealevelTxnIxnLocation> {
+        let inner_ixns: Option<&Vec<UiInnerInstructions>> = self
+            .meta
+            .inner_instructions
+            .as_ref()
+            .into();
         match &self.txn {
-            SealevelTxn::Binary(txn) => txn
-                .message
-                .instructions()
-                .iter()
-                .enumerate()
-                .find_map(|(idx, ixn)| {
-                    (ixn.program_id(txn.message.static_account_keys()) == program_id)
-                        .then_some(idx)
-                }),
-            SealevelTxn::Json(txn) => {
-                match &txn.message {
-                    UiMessage::Parsed(msg) => msg
-                        .instructions
-                        .iter()
-                        .enumerate()
-                        .find_map(|(idx, ixn)| {
-                            let pubkey = Pubkey::from_str(match ixn {
-                                UiInstruction::Compiled(ixn) => {
-                                    &msg.account_keys[ixn.program_id_index as usize].pubkey
-                                },
-                                UiInstruction::Parsed(ixn) => match &ixn {
+            SealevelTxn::Binary(txn) => {
+                let outer_idx = txn
+                    .message
+                    .instructions()
+                    .iter()
+                    .enumerate()
+                    .find_map(|(idx, ixn)| {
+                        (ixn.program_id(txn.message.static_account_keys()) == program_id)
+                            .then_some(idx)
+                    });
+                if outer_idx.is_some() {
+                    return outer_idx.map(SealevelTxnIxnLocation::Instruction);
+                }
+                let inner_ixns = match inner_ixns {
+                    Some(inner_ixns) => inner_ixns,
+                    None => return None,
+                };
+                inner_ixns
+                    .iter()
+                    .flat_map(|inner| {
+                        let outer_idx = inner.index;
+                        inner
+                            .instructions
+                            .iter()
+                            .enumerate()
+                            .map(move |(inner_idx, ixn)| (outer_idx, inner_idx, ixn))
+                    })
+                    .find_map(|(outer_idx, inner_idx, ixn)| {
+                        match ixn {
+                            UiInstruction::Compiled(ixn) => {
+                                let ixn_prog_id = txn
+                                    .message
+                                    .static_account_keys()[ixn.program_id_index as usize];
+                                ixn_prog_id == *program_id
+                            },
+                            UiInstruction::Parsed(ixn) => {
+                                let pubkey = Pubkey::from_str(match &ixn {
                                     UiParsedInstruction::Parsed(ixn) => &ixn.program_id,
                                     UiParsedInstruction::PartiallyDecoded(ixn) => &ixn.program_id,
-                                }
-                            }).expect("Invalid public key in instruction");
-                            (&pubkey == program_id).then_some(idx)
-                        }),
-                    UiMessage::Raw(msg) => msg
-                        .instructions
-                        .iter()
-                        .enumerate()
-                        .find_map(|(idx, ixn)| {
-                            let pubkey =
-                                Pubkey::from_str(&msg.account_keys[ixn.program_id_index as usize])
-                                .expect("Invalid public key in instruction");
-                            (&pubkey == program_id).then_some(idx)
-                        }),
+                                }).expect("Invalid public key in instruction");
+                                pubkey == *program_id
+                            }
+                        }.then_some(SealevelTxnIxnLocation::InnerInstruction(
+                            outer_idx.into(),
+                            inner_idx.into()
+                        ))
+                    })
+            },
+            SealevelTxn::Json(txn) => {
+                match &txn.message {
+                    UiMessage::Parsed(msg) => {
+                        let outer_idx = msg
+                            .instructions
+                            .iter()
+                            .enumerate()
+                            .find_map(|(idx, ixn)| {
+                                let pubkey = Pubkey::from_str(match ixn {
+                                    UiInstruction::Compiled(ixn) => {
+                                        &msg.account_keys[ixn.program_id_index as usize].pubkey
+                                    },
+                                    UiInstruction::Parsed(ixn) => match &ixn {
+                                        UiParsedInstruction::Parsed(ixn) => &ixn.program_id,
+                                        UiParsedInstruction::PartiallyDecoded(ixn) => &ixn.program_id,
+                                    }
+                                }).expect("Invalid public key in instruction");
+                                (&pubkey == program_id).then_some(idx)
+                            });
+                        if outer_idx.is_some() {
+                            return outer_idx.map(SealevelTxnIxnLocation::Instruction);
+                        }
+                        let inner_ixns = match inner_ixns {
+                            Some(inner_ixns) => inner_ixns,
+                            None => return None,
+                        };
+                        inner_ixns
+                            .iter()
+                            .flat_map(|inner| {
+                                let outer_idx = inner.index;
+                                inner
+                                    .instructions
+                                    .iter()
+                                    .enumerate()
+                                    .map(move |(inner_idx, ixn)| (outer_idx, inner_idx, ixn))
+                            })
+                            .find_map(|(outer_idx, inner_idx, ixn)| {
+                                let pubkey = Pubkey::from_str(match ixn {
+                                    UiInstruction::Compiled(ixn) => {
+                                        &msg.account_keys[ixn.program_id_index as usize].pubkey
+                                    },
+                                    UiInstruction::Parsed(ixn) => {
+                                        match &ixn {
+                                            UiParsedInstruction::Parsed(ixn) => &ixn.program_id,
+                                            UiParsedInstruction::PartiallyDecoded(ixn) => &ixn.program_id,
+                                        }
+                                    }
+                                }).expect("Invalid public key in instruction");
+                                (pubkey == *program_id)
+                                    .then_some(SealevelTxnIxnLocation::InnerInstruction(
+                                        outer_idx.into(),
+                                        inner_idx.into()
+                                    ))
+                            })
+                    },
+                    UiMessage::Raw(msg) =>  {
+                        let outer_idx = msg
+                            .instructions
+                            .iter()
+                            .enumerate()
+                            .find_map(|(idx, ixn)| {
+                                let pubkey =
+                                    Pubkey::from_str(&msg.account_keys[ixn.program_id_index as usize])
+                                    .expect("Invalid public key in instruction");
+                                (&pubkey == program_id).then_some(idx)
+                            });
+                        if outer_idx.is_some() {
+                            return outer_idx.map(SealevelTxnIxnLocation::Instruction);
+                        }
+                        let inner_ixns = match inner_ixns {
+                            Some(inner_ixns) => inner_ixns,
+                            None => return None,
+                        };
+                        inner_ixns
+                            .iter()
+                            .flat_map(|inner| {
+                                let outer_idx = inner.index;
+                                inner
+                                    .instructions
+                                    .iter()
+                                    .enumerate()
+                                    .map(move |(inner_idx, ixn)| (outer_idx, inner_idx, ixn))
+                            })
+                            .find_map(|(outer_idx, inner_idx, ixn)| {
+                                let pubkey = Pubkey::from_str(match ixn {
+                                    UiInstruction::Compiled(ixn) => {
+                                        &msg.account_keys[ixn.program_id_index as usize]
+                                    },
+                                    UiInstruction::Parsed(ixn) => {
+                                        match &ixn {
+                                            UiParsedInstruction::Parsed(ixn) => &ixn.program_id,
+                                            UiParsedInstruction::PartiallyDecoded(ixn) => &ixn.program_id,
+                                        }
+                                    }
+                                }).expect("Invalid public key in instruction");
+                                (pubkey == *program_id)
+                                    .then_some(SealevelTxnIxnLocation::InnerInstruction(
+                                        outer_idx.into(),
+                                        inner_idx.into()
+                                    ))
+                            })
+                    },
                 }
             }
         }
@@ -571,11 +699,11 @@ impl SealevelMailboxIndexer {
         for (txn_num, txn) in block.transactions.into_iter().enumerate() {
             let txn_decoded = match SealevelTxnWithMeta::from_encoded(txn) {
                 Ok(Some(txn)) => {
-                    debug!("block={}, txn={} : Found good txn", slot, txn_num);
+                    debug!("block={}, txn={} : Found good txn", slot, txn_num); // FIXME remove?
                     txn
                 },
                 Ok(None) => {
-                    debug!("block={}, txn={} : Found accounts txn, skipping", slot, txn_num);
+                    debug!("block={}, txn={} : Found accounts txn, skipping", slot, txn_num); // FIXME remove?
                     continue
                 },
                 Err(err) => panic!("{}", err),
@@ -590,7 +718,7 @@ impl SealevelMailboxIndexer {
             };
             // FIXME trace! or remove
             error!(
-                "block {} txn {} contains {} at instruction {}!!!!!!!!!!",
+                "block {} txn {} contains {} at instruction {:?}!!!!!!!!!!",
                 slot,
                 txn_num,
                 self.program_id,
@@ -598,12 +726,15 @@ impl SealevelMailboxIndexer {
             );
             error!("block.blockhash={}, txn_decoded={:#?}", block.blockhash, txn_decoded);
 
-            // FIXME uncomment; we should not process anything but the desired mailbox command
-            // if txn_decoded.executed_program() != self.program_id {
-            //     // FIXME trace! or remove
-            //     error!("skipping irrelevant program exec: {}", txn_decoded.executed_program());
-            //     continue;
-            // }
+            // FIXME need to ensure that we only process noop cpi call data originating from the
+            // mailbox program.
+
+            error!("txn_docoded={:#?}", txn_decoded); // FIXME remove
+            let mailbox_ixn_idx = match mailbox_ixn_idx {
+                SealevelTxnIxnLocation::Instruction(top_level) => top_level,
+                // TODO can shortcut right to the inner here...
+                SealevelTxnIxnLocation::InnerInstruction(top_level, _inner) => top_level,
+            };
 
             let spl_noop = Pubkey::from_str("GpiNbGLpyroc8dFKPhK55eQhhvWn3XUaXJFp5fk5aXUs")
                 .unwrap(); // FIXME
