@@ -11,7 +11,7 @@ use tokio::sync::RwLock;
 use tracing::{debug, instrument, warn};
 
 use hyperlane_base::{
-    ChainSetup, CheckpointSyncer, CheckpointSyncerConf, CoreMetrics, MultisigCheckpointSyncer,
+    ChainConf, CheckpointSyncer, CheckpointSyncerConf, CoreMetrics, MultisigCheckpointSyncer,
 };
 use hyperlane_core::{HyperlaneMessage, ValidatorAnnounce, H160, H256};
 
@@ -46,7 +46,7 @@ pub trait MetadataBuilder: Send + Sync {
 
 #[derive(Clone, new)]
 pub struct BaseMetadataBuilder {
-    pub chain_setup: ChainSetup,
+    pub chain_setup: ChainConf,
     pub prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
     pub validator_announce: Arc<dyn ValidatorAnnounce>,
     pub allow_local_checkpoint_syncers: bool,

@@ -21,12 +21,9 @@ pub struct HyperlaneAgentCore {
 
 /// Settings of an agent.
 pub trait NewFromSettings: AsRef<Settings> + Sized {
-    /// The error type returned by new on failures to parse.
-    type Error: Into<Report>;
-
     /// Create a new instance of these settings by reading the configs and env
     /// vars.
-    fn new() -> std::result::Result<Self, Self::Error>;
+    fn new() -> hyperlane_core::config::ConfigResult<Self>;
 }
 
 /// A fundamental agent which does not make any assumptions about the tools
@@ -67,7 +64,7 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
         color_eyre::install()?;
     }
 
-    let settings = A::Settings::new().map_err(|e| e.into())?;
+    let settings = A::Settings::new()?;
     let core_settings: &Settings = settings.as_ref();
 
     let metrics = settings.as_ref().metrics(A::AGENT_NAME)?;
