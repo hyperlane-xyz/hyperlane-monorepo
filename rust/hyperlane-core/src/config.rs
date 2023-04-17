@@ -3,8 +3,6 @@
 //! it but is more forgiving for the deserialization, and then to implement
 //! `FromRawConf` which will allow for better error messages.
 
-// TODO: Remove extension functions we are not using
-
 use std::fmt::{Debug, Display, Formatter};
 use std::num::{ParseIntError, TryFromIntError};
 use std::ops::Add;
@@ -16,6 +14,57 @@ use itertools::Itertools;
 use primitive_types::U256;
 use serde::Deserialize;
 use thiserror::Error;
+
+/// A result type that is used for config parsing and may contain multiple
+/// errors.
+pub type ConfigResult<T> = Result<T, ConfigParsingError>;
+
+/// A trait that allows for constructing `Self` from a raw config type.
+pub trait FromRawConf<'de, T, F = ()>: Sized
+where
+    // technically we don't need this bound but it enforces
+    // the correct usage.
+    T: Debug + Deserialize<'de>,
+    F: Default,
+{
+    /// Construct `Self` from a raw config type.
+    fn from_config(raw: T, cwp: &ConfigPath) -> ConfigResult<Self> {
+        Self::from_config_filtered(raw, cwp, F::default())
+    }
+
+    /// Construct `Self` from a raw config type with a filter to limit what
+    /// config paths are used.
+    fn from_config_filtered(raw: T, cwp: &ConfigPath, filter: F) -> ConfigResult<Self>;
+}
+
+/// A trait that allows for converting a raw config type into a "parsed" type.
+pub trait IntoParsedConf<'de, F: Default>: Debug + Deserialize<'de> {
+    /// Parse the config with a filter to limit what config paths are used.
+    fn parse_config_with_filter<O: FromRawConf<'de, Self, F>>(
+        self,
+        cwp: &ConfigPath,
+        filter: F,
+    ) -> ConfigResult<O>;
+
+    /// Parse the config.
+    fn parse_config<O: FromRawConf<'de, Self, F>>(self, cwp: &ConfigPath) -> ConfigResult<O> {
+        self.parse_config_with_filter(cwp, F::default())
+    }
+}
+
+impl<'de, S, F> IntoParsedConf<'de, F> for S
+where
+    S: Deserialize<'de> + Debug,
+    F: Default,
+{
+    fn parse_config_with_filter<O: FromRawConf<'de, S, F>>(
+        self,
+        cwp: &ConfigPath,
+        filter: F,
+    ) -> ConfigResult<O> {
+        O::from_config_filtered(self, cwp, filter)
+    }
+}
 
 /// Extension trait to better support ConfigResults with non-ConfigParsingError
 /// results.
@@ -71,6 +120,56 @@ impl<T> ConfigResultExt<T> for ConfigResult<T> {
         }
     }
 }
+
+/// A composite error type that allows for compiling multiple errors into a
+/// single result. Use `default()` to create an empty error and then take other
+/// errors using the extension traits or directly push them.
+#[must_use]
+#[derive(Debug, Default)]
+pub struct ConfigParsingError(Vec<(ConfigPath, Report)>);
+
+impl ConfigParsingError {
+    /// Add a new error to the list.
+    pub fn push(&mut self, conf_path: ConfigPath, report: Report) {
+        self.0.push((conf_path, report));
+    }
+
+    /// Merge all the individual errors from two `ConfigParsingErrors`.
+    pub fn merge(&mut self, other: Self) {
+        self.0.extend(other.0);
+    }
+
+    /// Convert this error into a result, returning `Ok(())` if there are no
+    /// errors.
+    pub fn into_result(self) -> ConfigResult<()> {
+        if self.0.is_empty() {
+            Ok(())
+        } else {
+            Err(self)
+        }
+    }
+}
+
+impl FromIterator<ConfigParsingError> for ConfigParsingError {
+    fn from_iter<T: IntoIterator<Item = ConfigParsingError>>(iter: T) -> Self {
+        Self(iter.into_iter().flat_map(|e| e.0).collect())
+    }
+}
+
+impl Display for ConfigParsingError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "ParsingError")?;
+        for (path, report) in &self.0 {
+            writeln!(f, "\n#####\n")?;
+            writeln!(f, "config_path: `{path}`")?;
+            writeln!(f, "env_path: `{}`", path.env_name())?;
+            writeln!(f, "error: {report:?}")?;
+        }
+        Ok(())
+    }
+}
+
+impl std::error::Error for ConfigParsingError {}
 
 /// Path within a config tree.
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
@@ -143,121 +242,6 @@ fn env_casing() {
         "hypBaseTest1Conf",
         "hyp_base_test1_conf".to_case(Case::Camel)
     );
-}
-
-/// A composite error type that allows for compiling multiple errors into a
-/// single result. Use `default()` to create an empty error and then take other
-/// errors using the extension traits or directly push them.
-#[must_use]
-#[derive(Debug, Default)]
-pub struct ConfigParsingError(Vec<(ConfigPath, Report)>);
-
-impl ConfigParsingError {
-    /// Add a new error to the list.
-    pub fn push(&mut self, conf_path: ConfigPath, report: Report) {
-        self.0.push((conf_path, report));
-    }
-
-    /// Merge all the individual errors from two `ConfigParsingErrors`.
-    pub fn merge(&mut self, other: Self) {
-        self.0.extend(other.0);
-    }
-
-    /// Convert this error into a result, returning `Ok(())` if there are no
-    /// errors.
-    pub fn into_result(self) -> ConfigResult<()> {
-        if self.0.is_empty() {
-            Ok(())
-        } else {
-            Err(self)
-        }
-    }
-}
-
-/// A result type that is used for config parsing and may contain multiple
-/// errors.
-pub type ConfigResult<T> = Result<T, ConfigParsingError>;
-
-impl FromIterator<ConfigParsingError> for ConfigParsingError {
-    fn from_iter<T: IntoIterator<Item = ConfigParsingError>>(iter: T) -> Self {
-        Self(iter.into_iter().flat_map(|e| e.0).collect())
-    }
-}
-
-impl Display for ConfigParsingError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "ParsingError")?;
-        for (path, report) in &self.0 {
-            writeln!(f, "\n#####\n")?;
-            writeln!(f, "config_path: `{path}`")?;
-            writeln!(f, "env_path: `{}`", path.env_name())?;
-            writeln!(f, "error: {report:?}")?;
-        }
-        Ok(())
-    }
-}
-
-impl std::error::Error for ConfigParsingError {}
-
-/// A trait that allows for constructing `Self` from a raw config type.
-pub trait FromRawConf<'de, T, F = ()>: Sized
-where
-    // technically we don't need this bound but it enforces
-    // the correct usage.
-    T: Debug + Deserialize<'de>,
-    F: Default,
-{
-    /// Construct `Self` from a raw config type.
-    fn from_config(raw: T, cwp: &ConfigPath) -> ConfigResult<Self> {
-        Self::from_config_filtered(raw, cwp, F::default())
-    }
-
-    /// Construct `Self` from a raw config type with a filter to limit what
-    /// config paths are used.
-    fn from_config_filtered(raw: T, cwp: &ConfigPath, filter: F) -> ConfigResult<Self>;
-}
-
-/// A trait that allows for converting a raw config type into a "parsed" type.
-pub trait IntoParsedConf<'de, F: Default>: Debug + Deserialize<'de> {
-    /// Parse the config with a filter to limit what config paths are used.
-    fn parse_config_with_filter<O: FromRawConf<'de, Self, F>>(
-        self,
-        cwp: &ConfigPath,
-        filter: F,
-    ) -> ConfigResult<O>;
-
-    /// Parse the config.
-    fn parse_config<O: FromRawConf<'de, Self, F>>(self, cwp: &ConfigPath) -> ConfigResult<O> {
-        self.parse_config_with_filter(cwp, F::default())
-    }
-}
-
-impl<'de, S, F> IntoParsedConf<'de, F> for S
-where
-    S: Deserialize<'de> + Debug,
-    F: Default,
-{
-    fn parse_config_with_filter<O: FromRawConf<'de, S, F>>(
-        self,
-        cwp: &ConfigPath,
-        filter: F,
-    ) -> ConfigResult<O> {
-        O::from_config_filtered(self, cwp, filter)
-    }
-}
-
-/// An error when parsing a StrOrInt type as an integer value.
-#[derive(Error, Debug)]
-pub enum StrOrIntParseError {
-    /// The string is not a valid integer
-    #[error("Invalid integer provided as a string: {0}")]
-    StrParse(#[from] ParseIntError),
-    /// The provided integer does not match the type requirements.
-    #[error("Provided number is an invalid integer: {0}")]
-    InvalidInt(#[from] TryFromIntError),
-    /// Some other error occured.
-    #[error("Could not parse integer: {0}")]
-    Other(String),
 }
 
 /// A type which can be used for parsing configs that may be provided as a
@@ -347,4 +331,18 @@ impl TryFrom<&StrOrInt> for U256 {
             })?,
         })
     }
+}
+
+/// An error when parsing a StrOrInt type as an integer value.
+#[derive(Error, Debug)]
+pub enum StrOrIntParseError {
+    /// The string is not a valid integer
+    #[error("Invalid integer provided as a string: {0}")]
+    StrParse(#[from] ParseIntError),
+    /// The provided integer does not match the type requirements.
+    #[error("Provided number is an invalid integer: {0}")]
+    InvalidInt(#[from] TryFromIntError),
+    /// Some other error occured.
+    #[error("Could not parse integer: {0}")]
+    Other(String),
 }
