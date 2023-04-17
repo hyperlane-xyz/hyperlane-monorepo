@@ -16,8 +16,8 @@ bytes = { version = "1", features = ["serde"] }
 convert_case = "0.6"
 derive-new.workspace = true
 ethers-providers.workspace = true
-ethers-signers.workspace = true
-ethers.workspace = true
+ethers-core.workspace = true
+ethers-contract.workspace = true
 eyre.workspace = true
 hex = "0.4.3"
 itertools.workspace = true
@@ -41,5 +41,5 @@ tokio = { workspace = true, features = ["rt", "time"] }
 walkdir = { version = "2" }
 
 [features]
-output = []
+default = []
 test-utils = []

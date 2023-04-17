@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use ethers::prelude::LogMeta as EthersLogMeta;
+use ethers_contract::LogMeta as EthersLogMeta;
 use serde::{Deserialize, Serialize};
 
 use crate::{H256, U256};
