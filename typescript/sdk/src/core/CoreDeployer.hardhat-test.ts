@@ -28,7 +28,7 @@ describe('core', async () => {
     const [signer] = await ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const ismFactoryDeployer = new HyperlaneIsmFactoryDeployer(multiProvider);
-    const ismFactories = await ismFactoryDeployer.deploy();
+    const ismFactories = await ismFactoryDeployer.deploy(TestChains);
     ismFactory = new HyperlaneIsmFactory(ismFactories, multiProvider);
   });
 

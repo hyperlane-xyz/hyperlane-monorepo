@@ -3,12 +3,13 @@ import debug from 'debug';
 import { HyperlaneContracts, HyperlaneContractsMap } from '../contracts';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
-import { ChainName } from '../types';
+import { ChainMap, ChainName } from '../types';
+import { isObject } from '../utils/objects';
 
 import { IsmFactoryFactories, ismFactoryFactories } from './contracts';
 
 export class HyperlaneIsmFactoryDeployer extends HyperlaneDeployer<
-  any,
+  boolean,
   IsmFactoryFactories
 > {
   constructor(multiProvider: MultiProvider) {
@@ -17,9 +18,18 @@ export class HyperlaneIsmFactoryDeployer extends HyperlaneDeployer<
     });
   }
 
-  async deploy(): Promise<HyperlaneContractsMap<IsmFactoryFactories>> {
-    return super.deploy({});
+  async deploy(
+    config: ChainName[] | ChainMap<boolean>,
+  ): Promise<HyperlaneContractsMap<IsmFactoryFactories>> {
+    if (isObject(config)) {
+      return super.deploy(config as ChainMap<boolean>);
+    } else {
+      return super.deploy(
+        Object.fromEntries((config as ChainName[]).map((c) => [c, true])),
+      );
+    }
   }
+
   async deployContracts(
     chain: ChainName,
   ): Promise<HyperlaneContracts<IsmFactoryFactories>> {

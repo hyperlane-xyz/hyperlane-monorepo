@@ -91,7 +91,7 @@ describe.only('HyperlaneIsmFactory', async () => {
     const multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
     const deployer = new HyperlaneIsmFactoryDeployer(multiProvider);
-    const contracts = await deployer.deploy();
+    const contracts = await deployer.deploy([chain]);
     factory = new HyperlaneIsmFactory(contracts, multiProvider);
   });
 

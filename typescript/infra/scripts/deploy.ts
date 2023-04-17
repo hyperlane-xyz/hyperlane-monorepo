@@ -54,6 +54,7 @@ async function main() {
   let config: ChainMap<unknown> = {};
   let deployer: HyperlaneDeployer<any, any>;
   if (module === Modules.ISM_FACTORY) {
+    config = objMap(envConfig.core, (chain) => true);
     deployer = new HyperlaneIsmFactoryDeployer(multiProvider);
   } else if (module === Modules.CORE) {
     const ismFactory = HyperlaneIsmFactory.fromEnvironment(
