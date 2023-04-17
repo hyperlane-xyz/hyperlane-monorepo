@@ -20,23 +20,19 @@ export enum ModuleType {
   MULTISIG,
 }
 
-export type TypedIsmConfig = {
-  type: ModuleType;
-};
-
-export type MultisigIsmConfig = TypedIsmConfig & {
+export type MultisigIsmConfig = {
   type: ModuleType.MULTISIG;
   validators: Array<types.Address>;
   threshold: number;
 };
 
-export type RoutingIsmConfig = TypedIsmConfig & {
+export type RoutingIsmConfig = {
   type: ModuleType.ROUTING;
   owner: types.Address;
   domains: ChainMap<IsmConfig>;
 };
 
-export type AggregationIsmConfig = TypedIsmConfig & {
+export type AggregationIsmConfig = {
   type: ModuleType.AGGREGATION;
   modules: Array<IsmConfig>;
   threshold: number;
