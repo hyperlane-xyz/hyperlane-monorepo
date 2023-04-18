@@ -3,30 +3,10 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 
-import {IAggregationIsm} from "../../contracts/interfaces/IAggregationIsm.sol";
+import {IAggregationIsm} from "../../contracts/interfaces/isms/IAggregationIsm.sol";
 import {StaticAggregationIsmFactory} from "../../contracts/isms/aggregation/StaticAggregationIsmFactory.sol";
 import {AggregationIsmMetadata} from "../../contracts/libs/isms/AggregationIsmMetadata.sol";
-import {MOfNTestUtils} from "./MOfNTestUtils.sol";
-
-contract TestIsm {
-    bytes public requiredMetadata;
-
-    constructor(bytes memory _requiredMetadata) {
-        setRequiredMetadata(_requiredMetadata);
-    }
-
-    function setRequiredMetadata(bytes memory _requiredMetadata) public {
-        requiredMetadata = _requiredMetadata;
-    }
-
-    function verify(bytes calldata _metadata, bytes calldata)
-        external
-        view
-        returns (bool)
-    {
-        return keccak256(_metadata) == keccak256(requiredMetadata);
-    }
-}
+import {TestIsm, MOfNTestUtils} from "./IsmTestUtils.sol";
 
 contract AggregationIsmTest is Test {
     StaticAggregationIsmFactory factory;
