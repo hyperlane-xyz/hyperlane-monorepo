@@ -11,8 +11,6 @@ import {MetaProxy} from "../../libs/MetaProxy.sol";
  * to verify interchain messages.
  */
 contract StaticOptimisticIsm is AbstractOptimisticIsm {
-    address preVerifyIsm;
-
     // ============ Public Functions ============
 
     /**
@@ -43,20 +41,8 @@ contract StaticOptimisticIsm is AbstractOptimisticIsm {
         override
         returns (address)
     {
-        return preVerifyIsm;
-    }
-
-    /**
-     * @notice Sets the ISM that is responsible for verifying _message
-     * @return modules The ISM address
-     */
-    function setPreVerifyIsm(address subIsm)
-        public
-        virtual
-        override
-        returns (address)
-    {
-        preVerifyIsm = subIsm;
-        return preVerifyIsm;
+        (address[] memory _values, uint8 _threshold, address _address) = abi
+            .decode(MetaProxy.metadata(), (address[], uint8, address));
+        return _address;
     }
 }

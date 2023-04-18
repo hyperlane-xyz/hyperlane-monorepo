@@ -29,12 +29,6 @@ interface IOptimisticIsm is IInterchainSecurityModule {
         returns (address);
 
     /**
-     * @notice Sets the ISM that is responsible for verifying _message
-     * @return modules The ISM address
-     */
-    function setPreVerifyIsm(address subIsm) external returns (address);
-
-    /**
      * @notice Requires that the set ISM has verified '_message'
      * @param _metadata ABI encoded module metadata (see OptimisticIsmMetadata.sol)
      * @param _message Formatted Hyperlane message (see Message.sol).

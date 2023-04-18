@@ -49,11 +49,10 @@ contract OptimisticIsmTest is Test {
         randomness = keccak256(abi.encode(randomness));
         TestIsm subIsm = new TestIsm(abi.encode(randomness));
         address ism_addr = address(subIsm);
-        ism.setPreVerifyIsm(ism_addr);
         return ism_addr;
     }
 
-    function addWatchers(
+    function addWatchersAndPreVerifyIsm(
         uint8 m,
         uint8 n,
         bytes32 seed
@@ -65,7 +64,8 @@ contract OptimisticIsmTest is Test {
             keys[i] = key;
             addresses[i] = vm.addr(key);
         }
-        ism = IOptimisticIsm(factory.deploy(addresses, m));
+        TestIsm subIsm = TestIsm(deployIsm(seed));
+        ism = IOptimisticIsm(factory.deploy(addresses, m, address(subIsm)));
         return keys;
     }
 
@@ -96,10 +96,8 @@ contract OptimisticIsmTest is Test {
         uint32 start = 8 * 2; // We store 2 ranges of metadata, preVerifyIsm and Watcher sigs
         bytes memory metametadata;
 
-        bytes32 randomness = seed;
-        randomness = keccak256(abi.encode(randomness));
-
-        TestIsm subIsm = TestIsm(deployIsm(seed));
+        // First, encode preVerifyIsm into metadata
+        TestIsm subIsm = TestIsm(ism.getPreVerifyIsm(""));
         bytes memory requiredMetadata = subIsm.requiredMetadata();
         uint32 end = start + uint32(requiredMetadata.length);
         uint64 offset = (uint64(start) << 32) | uint64(end);
@@ -107,13 +105,11 @@ contract OptimisticIsmTest is Test {
         start = end;
         metametadata = abi.encodePacked(metametadata, requiredMetadata);
 
-        // Encode offsets for the watcher signatures
+        // Then, Encode offsets for the watcher signatures
         end = start + uint32(requiredMetadata.length);
         offset = (uint64(start) << 32) | uint64(end);
         offsets = bytes.concat(offsets, abi.encodePacked(offset));
         bytes memory metadata = abi.encodePacked(offsets, metametadata);
-
-        console.logBytes(metadata);
 
         return metadata;
     }
@@ -125,7 +121,7 @@ contract OptimisticIsmTest is Test {
         bytes memory message
     ) private returns (bytes memory) {
         uint32 domain = mailbox.localDomain();
-        uint256[] memory keys = addWatchers(m, n, seed);
+        uint256[] memory keys = addWatchersAndPreVerifyIsm(m, n, seed);
         uint256[] memory signers = MOfNTestUtils.choose(m, keys, seed);
 
         bytes32 digest = keccak256(message);
