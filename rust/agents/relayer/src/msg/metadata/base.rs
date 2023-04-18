@@ -138,16 +138,11 @@ impl BaseMetadataBuilder {
         const CTX: &str = "When fetching checkpoint signatures";
         let highest_known_nonce = self.prover_sync.read().await.count() - 1;
         let checkpoint_syncer = self
-            .build_checkpoint_syncer(&validators)
+            .build_checkpoint_syncer(validators)
             .await
             .context(CTX)?;
         checkpoint_syncer
-            .fetch_checkpoint_in_range(
-                &validators,
-                threshold.into(),
-                message.nonce,
-                highest_known_nonce,
-            )
+            .fetch_checkpoint_in_range(validators, threshold, message.nonce, highest_known_nonce)
             .await
             .context(CTX)
     }
