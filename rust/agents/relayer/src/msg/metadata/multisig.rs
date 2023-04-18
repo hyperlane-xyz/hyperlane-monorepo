@@ -39,33 +39,17 @@ impl MetadataBuilder for MultisigIsmMetadataBuilder {
         message: &HyperlaneMessage,
     ) -> eyre::Result<Option<Vec<u8>>> {
         const CTX: &str = "When fetching MultisigIsm metadata";
-        let multisig_ism = self
-            .base
-            .chain_setup
-            .build_multisig_ism(ism_address, &self.metrics)
-            .await
-            .context(CTX)?;
+        let multisig_ism = self.build_multisig_ism(ism_address).await.context(CTX)?;
 
         let (validators, threshold) = multisig_ism
             .validators_and_threshold(message)
             .await
             .context(CTX)?;
-        let highest_known_nonce = self.prover_sync.read().await.count() - 1;
-        let checkpoint_syncer = self
-            .build_checkpoint_syncer(&validators)
-            .await
-            .context(CTX)?;
-        let Some(checkpoint) = checkpoint_syncer
-            .fetch_checkpoint_in_range(
-                &validators,
-                threshold.into(),
-                message.nonce,
-                highest_known_nonce,
-            )
+        let Some(checkpoint) = self.fetch_checkpoint(&validators, threshold.into(), message)
             .await.context(CTX)?
         else {
             info!(
-                ?validators, threshold, highest_known_nonce,
+                ?validators, threshold,
                 "Could not fetch metadata: Unable to reach quorum"
             );
             return Ok(None);
@@ -77,10 +61,8 @@ impl MetadataBuilder for MultisigIsmMetadataBuilder {
         debug!(?checkpoint, "Found checkpoint with quorum");
 
         let proof = self
-            .prover_sync
-            .read()
+            .get_proof(message, checkpoint.clone())
             .await
-            .get_proof(message.nonce, checkpoint.checkpoint.index)
             .context(CTX)?;
 
         if checkpoint.checkpoint.root == proof.root() {
@@ -137,20 +119,12 @@ impl MultisigIsmMetadataBuilder {
         let signature_vecs: Vec<Vec<u8>> = order_signatures(validators, &checkpoint.signatures);
         let signature_bytes = signature_vecs.concat();
 
-        let validator_tokens: Vec<Token> = validators
-            .iter()
-            .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
-            .collect();
-        let validator_bytes = ethers::abi::encode(&[Token::FixedArray(validator_tokens)]);
-        if !self.legacy {
-            [
-                root_bytes,
-                index_bytes,
-                mailbox_and_proof_bytes,
-                signature_bytes,
-            ]
-            .concat()
-        } else {
+        if self.legacy {
+            let validator_tokens: Vec<Token> = validators
+                .iter()
+                .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
+                .collect();
+            let validator_bytes = ethers::abi::encode(&[Token::FixedArray(validator_tokens)]);
             [
                 root_bytes,
                 index_bytes,
@@ -158,6 +132,14 @@ impl MultisigIsmMetadataBuilder {
                 Vec::from([threshold]),
                 signature_bytes,
                 validator_bytes,
+            ]
+            .concat()
+        } else {
+            [
+                root_bytes,
+                index_bytes,
+                mailbox_and_proof_bytes,
+                signature_bytes,
             ]
             .concat()
         }

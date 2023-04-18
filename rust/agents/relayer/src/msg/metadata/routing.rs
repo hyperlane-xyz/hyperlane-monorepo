@@ -31,11 +31,7 @@ impl MetadataBuilder for RoutingIsmMetadataBuilder {
         message: &HyperlaneMessage,
     ) -> eyre::Result<Option<Vec<u8>>> {
         const CTX: &str = "When fetching RoutingIsm metadata";
-        let ism = self
-            .chain_setup
-            .build_routing_ism(ism_address, &self.metrics)
-            .await
-            .context(CTX)?;
+        let ism = self.build_routing_ism(ism_address).await.context(CTX)?;
         let module = ism.route(message).await.context(CTX)?;
         self.base.build(module, message).await.context(CTX)
     }

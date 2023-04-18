@@ -17,15 +17,6 @@ use crate::contracts::i_routing_ism::{IRoutingIsm as EthereumRoutingIsmInternal,
 use crate::trait_builder::BuildableWithProvider;
 use crate::EthereumProvider;
 
-impl<M> std::fmt::Display for EthereumRoutingIsmInternal<M>
-where
-    M: Middleware,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
 pub struct RoutingIsmBuilder {}
 
 #[async_trait]
