@@ -43,6 +43,16 @@ contract OptimisticIsmTest is Test {
         mailbox = new TestMailbox(ORIGIN);
     }
 
+    function deployIsm(bytes32 seed) internal returns (address) {
+        bytes32 randomness = seed;
+        address[] memory addresses = new address[](1);
+        randomness = keccak256(abi.encode(randomness));
+        TestIsm subIsm = new TestIsm(abi.encode(randomness));
+        address ism_addr = address(subIsm);
+        ism.setPreVerifyIsm(ism_addr);
+        return ism_addr;
+    }
+
     function addWatchers(
         uint8 m,
         uint8 n,
@@ -57,22 +67,6 @@ contract OptimisticIsmTest is Test {
         }
         ism = IOptimisticIsm(factory.deploy(addresses, m));
         return keys;
-    }
-
-    function deployIsms(
-        uint8 m,
-        uint8 n,
-        bytes32 seed
-    ) internal returns (address[] memory) {
-        bytes32 randomness = seed;
-        address[] memory isms = new address[](n);
-        for (uint256 i = 0; i < n; i++) {
-            randomness = keccak256(abi.encode(randomness));
-            TestIsm subIsm = new TestIsm(abi.encode(randomness));
-            isms[i] = address(subIsm);
-        }
-        ism = IOptimisticIsm(factory.deploy(isms, m));
-        return isms;
     }
 
     function getMessage(
@@ -97,52 +91,7 @@ contract OptimisticIsmTest is Test {
         return message;
     }
 
-    // function getMetadata(uint8 m, bytes32 seed)
-    //     private
-    //     view
-    //     returns (bytes memory)
-    // {
-    //     (address[] memory choices, ) = ism.modulesAndThreshold("");
-    //     address[] memory chosen = MOfNTestUtils.choose(m, choices, seed);
-    //     bytes memory offsets;
-    //     uint32 start = 8 * uint32(choices.length);
-    //     bytes memory metametadata;
-    //     for (uint256 i = 0; i < choices.length; i++) {
-    //         bool included = false;
-    //         for (uint256 j = 0; j < chosen.length; j++) {
-    //             included = included || choices[i] == chosen[j];
-    //         }
-    //         if (included) {
-    //             bytes memory requiredMetadata = TestIsm(choices[i])
-    //                 .requiredMetadata();
-    //             uint32 end = start + uint32(requiredMetadata.length);
-    //             uint64 offset = (uint64(start) << 32) | uint64(end);
-    //             offsets = bytes.concat(offsets, abi.encodePacked(offset));
-    //             start = end;
-    //             metametadata = abi.encodePacked(metametadata, requiredMetadata);
-    //         } else {
-    //             uint64 offset = 0;
-    //             offsets = bytes.concat(offsets, abi.encodePacked(offset));
-    //         }
-    //     }
-    //     return abi.encodePacked(offsets, metametadata);
-    // }
-
-    // function testCheckPreVErify(uint8 n, bytes32 seed) public {
-    //     // Threshold is set to 1 as we only need one ISM to verify
-    //     uint8 m = 1;
-    //     vm.assume(0 < n && n < 10 && seed != 0x0); // NOTE: Was not working with zero address seed. But why?
-    //     deployIsms(m, n, seed);
-
-    //     bytes memory metadata = getMetadata(m, seed);
-    //     assertTrue(ism.verify(metadata, ""));
-    // }
-
-    function getPreVerifyMetadata(bytes32 seed)
-        private
-        view
-        returns (bytes memory)
-    {
+    function getPreVerifyMetadata(bytes32 seed) private returns (bytes memory) {
         bytes memory offsets;
         uint32 start = 8 * 2; // We store 2 ranges of metadata, preVerifyIsm and Watcher sigs
         bytes memory metametadata;
@@ -150,7 +99,8 @@ contract OptimisticIsmTest is Test {
         bytes32 randomness = seed;
         randomness = keccak256(abi.encode(randomness));
 
-        bytes memory requiredMetadata = abi.encode(randomness);
+        TestIsm subIsm = TestIsm(deployIsm(seed));
+        bytes memory requiredMetadata = subIsm.requiredMetadata();
         uint32 end = start + uint32(requiredMetadata.length);
         uint64 offset = (uint64(start) << 32) | uint64(end);
         offsets = abi.encodePacked(offset);
@@ -174,13 +124,13 @@ contract OptimisticIsmTest is Test {
         bytes32 seed,
         bytes memory message
     ) private returns (bytes memory) {
-        bytes memory metadata = getPreVerifyMetadata(seed);
-
         uint32 domain = mailbox.localDomain();
         uint256[] memory keys = addWatchers(m, n, seed);
         uint256[] memory signers = MOfNTestUtils.choose(m, keys, seed);
 
         bytes32 digest = keccak256(message);
+
+        bytes memory metadata = getPreVerifyMetadata(seed);
 
         for (uint256 i = 0; i < signers.length; i++) {
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(signers[i], digest);
@@ -202,5 +152,19 @@ contract OptimisticIsmTest is Test {
         bytes memory metadata = getMetadata(m, n, seed, message);
         vm.expectRevert(bytes("!fraud"));
         ism.verify(metadata, message);
+    }
+
+    function testPreVerify(
+        uint32 destination,
+        bytes32 recipient,
+        bytes calldata body,
+        uint8 m,
+        uint8 n,
+        bytes32 seed
+    ) public {
+        vm.assume(0 < m && m <= n && n < 10);
+        bytes memory message = getMessage(destination, recipient, body);
+        bytes memory metadata = getMetadata(m, n, seed, message);
+        assertTrue(ism.preVerify(metadata, message));
     }
 }

@@ -23,8 +23,23 @@ interface IOptimisticIsm is IInterchainSecurityModule {
      * @param _message Hyperlane formatted interchain message
      * @return modules The ISM address
      */
-    function preVerifyIsm(bytes calldata _message)
+    function getPreVerifyIsm(bytes calldata _message)
         external
         view
         returns (address);
+
+    /**
+     * @notice Sets the ISM that is responsible for verifying _message
+     * @return modules The ISM address
+     */
+    function setPreVerifyIsm(address subIsm) external returns (address);
+
+    /**
+     * @notice Requires that the set ISM has verified '_message'
+     * @param _metadata ABI encoded module metadata (see OptimisticIsmMetadata.sol)
+     * @param _message Formatted Hyperlane message (see Message.sol).
+     */
+    function preVerify(bytes calldata _metadata, bytes calldata _message)
+        external
+        returns (bool);
 }

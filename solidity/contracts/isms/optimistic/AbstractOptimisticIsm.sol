@@ -23,7 +23,7 @@ abstract contract AbstractOptimisticIsm is IOptimisticIsm {
 
     // solhint-disable-next-line const-name-snakecase
     uint8 public constant moduleType =
-        uint8(IInterchainSecurityModule.Types.MULTISIG);
+        uint8(IInterchainSecurityModule.Types.OPTIMISTIC);
 
     // ============ Virtual Functions ============
     // ======= OVERRIDE THESE TO IMPLEMENT =======
@@ -34,7 +34,7 @@ abstract contract AbstractOptimisticIsm is IOptimisticIsm {
      * @param _message Hyperlane formatted interchain message
      * @return modules The ISM address
      */
-    function preVerifyIsm(bytes calldata _message)
+    function getPreVerifyIsm(bytes calldata _message)
         public
         view
         virtual
@@ -62,23 +62,18 @@ abstract contract AbstractOptimisticIsm is IOptimisticIsm {
      * @param _metadata ABI encoded module metadata (see OptimisticIsmMetadata.sol)
      * @param _message Formatted Hyperlane message (see Message.sol).
      */
-    // function preVerify(bytes calldata _metadata, bytes calldata _message)
-    //     public
-    //     view
-    //     returns (bool)
-    // {
-    //     address memory _ism = preVerifyIsm(_message);
-    //     if (!OptimisticIsmMetadata.hasMetadata(_metadata)) continue;
-    //     IInterchainSecurityModule _ism = IInterchainSecurityModule(_ism);
-    //     require(
-    //         _ism.verify(
-    //             AggregationIsmMetadata.metadataAt(_metadata, i),
-    //             _message
-    //         ),
-    //         "!verify"
-    //     );
-    //     return true;
-    // }
+    function preVerify(bytes calldata _metadata, bytes calldata _message)
+        public
+        returns (bool)
+    {
+        address ism = getPreVerifyIsm(_message);
+        IInterchainSecurityModule _ism = IInterchainSecurityModule(ism);
+        require(
+            _ism.verify(OptimisticIsmMetadata.metadataAt(_metadata), _message),
+            "!verify"
+        );
+        return true;
+    }
 
     /**
      * @notice Requires that m-of-n watchers sign '_message'
@@ -94,6 +89,8 @@ abstract contract AbstractOptimisticIsm is IOptimisticIsm {
         require(!_verifyWatcherSignatures(_metadata, _message), "!fraud");
         return true;
     }
+
+    // ============ Private Functions ============
 
     /**
      * @notice Verifies that a quorum of watchers signed
@@ -116,7 +113,6 @@ abstract contract AbstractOptimisticIsm is IOptimisticIsm {
         uint256 _watcherIndex = 0;
         // Assumes that signatures are ordered by validator
         for (uint256 i = 0; i < _threshold; ++i) {
-            console.logBytes(OptimisticIsmMetadata.signatureAt(_metadata, i));
             address _signer = ECDSA.recover(
                 _digest,
                 OptimisticIsmMetadata.signatureAt(_metadata, i)
