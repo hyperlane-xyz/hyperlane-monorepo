@@ -10,6 +10,6 @@ use crate::{ChainResult, HyperlaneContract, HyperlaneMessage, H256};
 #[async_trait]
 #[auto_impl(&, Box, Arc)]
 pub trait RoutingIsm: HyperlaneContract + Send + Sync + Debug {
-    /// Returns the validator and threshold needed to verify message
+    /// Returns the ISM needed to verify message
     async fn route(&self, message: &HyperlaneMessage) -> ChainResult<H256>;
 }

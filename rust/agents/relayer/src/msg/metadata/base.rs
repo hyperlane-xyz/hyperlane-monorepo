@@ -52,6 +52,8 @@ pub struct BaseMetadataBuilder {
     validator_announce: Arc<dyn ValidatorAnnounce>,
     allow_local_checkpoint_syncers: bool,
     metrics: Arc<CoreMetrics>,
+    /// ISMs can be structured recursively. We keep track of the depth
+    /// of the recursion to avoid infinit loops.
     depth: u32,
     max_depth: u32,
 }
