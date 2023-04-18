@@ -2,11 +2,11 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "forge-std/console2.sol";
+import {console} from "forge-std/console.sol";
 
 import {IOptimisticIsm} from "../../contracts/interfaces/isms/IOptimisticIsm.sol";
 import {OptimisticIsmFactory} from "../../contracts/isms/optimistic/OptimisticIsmFactory.sol";
-import {AggregationIsmMetadata} from "../../contracts/libs/isms/AggregationIsmMetadata.sol";
+import {OptimisticIsmMetadata} from "../../contracts/libs/isms/OptimisticIsmMetadata.sol";
 import {MOfNTestUtils} from "./MOfNTestUtils.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
@@ -138,18 +138,49 @@ contract OptimisticIsmTest is Test {
     //     assertTrue(ism.verify(metadata, ""));
     // }
 
+    function getPreVerifyMetadata(bytes32 seed)
+        private
+        view
+        returns (bytes memory)
+    {
+        bytes memory offsets;
+        uint32 start = 8 * 2; // We store 2 ranges of metadata, preVerifyIsm and Watcher sigs
+        bytes memory metametadata;
+
+        bytes32 randomness = seed;
+        randomness = keccak256(abi.encode(randomness));
+
+        bytes memory requiredMetadata = abi.encode(randomness);
+        uint32 end = start + uint32(requiredMetadata.length);
+        uint64 offset = (uint64(start) << 32) | uint64(end);
+        offsets = abi.encodePacked(offset);
+        start = end;
+        metametadata = abi.encodePacked(metametadata, requiredMetadata);
+
+        // Encode offsets for the watcher signatures
+        end = start + uint32(requiredMetadata.length);
+        offset = (uint64(start) << 32) | uint64(end);
+        offsets = bytes.concat(offsets, abi.encodePacked(offset));
+        bytes memory metadata = abi.encodePacked(offsets, metametadata);
+
+        console.logBytes(metadata);
+
+        return metadata;
+    }
+
     function getMetadata(
         uint8 m,
         uint8 n,
         bytes32 seed,
         bytes memory message
     ) private returns (bytes memory) {
+        bytes memory metadata = getPreVerifyMetadata(seed);
+
         uint32 domain = mailbox.localDomain();
         uint256[] memory keys = addWatchers(m, n, seed);
         uint256[] memory signers = MOfNTestUtils.choose(m, keys, seed);
 
         bytes32 digest = keccak256(message);
-        bytes memory metadata; // Initialize the metadata variable
 
         for (uint256 i = 0; i < signers.length; i++) {
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(signers[i], digest);

@@ -6,7 +6,7 @@ import {IInterchainSecurityModule} from "../IInterchainSecurityModule.sol";
 interface IOptimisticIsm is IInterchainSecurityModule {
     /**
      * @notice Returns the set of watchers responsible for checking fraudulent _message
-     * and the number of signatures that must verify
+     * and the number of signatures to verify fraud
      * @dev Can change based on the content of _message
      * @param _message Hyperlane formatted interchain message
      * @return watchers The array of watcher addresses
@@ -16,4 +16,15 @@ interface IOptimisticIsm is IInterchainSecurityModule {
         external
         view
         returns (address[] memory watchers, uint8 threshold);
+
+    /**
+     * @notice Returns the ISM that is responsible for verifying _message
+     * @dev Can change based on the content of _message
+     * @param _message Hyperlane formatted interchain message
+     * @return modules The ISM address
+     */
+    function preVerifyIsm(bytes calldata _message)
+        external
+        view
+        returns (address);
 }

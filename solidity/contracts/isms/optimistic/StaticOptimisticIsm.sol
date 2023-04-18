@@ -29,4 +29,20 @@ contract StaticOptimisticIsm is AbstractOptimisticIsm {
     {
         return abi.decode(MetaProxy.metadata(), (address[], uint8));
     }
+
+    /**
+     * @notice Returns the ISM that is responsible for verifying _message
+     * @dev Can change based on the content of _message
+     * @param _message Hyperlane formatted interchain message
+     * @return modules The ISM address
+     */
+    function preVerifyIsm(bytes calldata _message)
+        public
+        view
+        virtual
+        override
+        returns (address)
+    {
+        return abi.decode(MetaProxy.metadata(), (address));
+    }
 }

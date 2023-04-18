@@ -3,6 +3,7 @@ pragma solidity >=0.8.0;
 
 // ============ External Imports ============
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {console} from "forge-std/console.sol";
 
 // ============ Internal Imports ============
 import {IOptimisticIsm} from "../../interfaces/isms/IOptimisticIsm.sol";
@@ -24,23 +25,59 @@ abstract contract AbstractOptimisticIsm is IOptimisticIsm {
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.MULTISIG);
 
+    // ============ Virtual Functions ============
+    // ======= OVERRIDE THESE TO IMPLEMENT =======
+
+    /**
+     * @notice Returns the ISM that is responsible for verifying _message
+     * @dev Can change based on the content of _message
+     * @param _message Hyperlane formatted interchain message
+     * @return modules The ISM address
+     */
+    function preVerifyIsm(bytes calldata _message)
+        public
+        view
+        virtual
+        override
+        returns (address);
+
+    /**
+     * @notice Returns the set of watchers responsible for checking fraud _message
+     * and the number of signatures required
+     * @dev Can change based on the content of _message
+     * @return watchers The array of validator addresses
+     * @return threshold The number of validator signatures needed
+     */
+    function watchersAndThreshold(bytes calldata)
+        public
+        view
+        virtual
+        override
+        returns (address[] memory, uint8);
+
     // ============ Public Functions ============
 
     /**
-     * @notice Returns the set of ISMs responsible for verifying _message
-     * and the number of ISMs that must verify
-     * @dev Can change based on the content of _message
-     * @return modules The array of ISM addresses
-     * @return threshold The number of ISMs needed to verify
+     * @notice Requires that the chosen ISM has verified '_message'
+     * @param _metadata ABI encoded module metadata (see OptimisticIsmMetadata.sol)
+     * @param _message Formatted Hyperlane message (see Message.sol).
      */
-    // function modulesAndThreshold(bytes calldata)
+    // function preVerify(bytes calldata _metadata, bytes calldata _message)
     //     public
     //     view
-    //     virtual
-    //     override
-    //     returns (address[] memory, uint8)
+    //     returns (bool)
     // {
-    //     return abi.decode(MetaProxy.metadata(), (address[], uint8));
+    //     address memory _ism = preVerifyIsm(_message);
+    //     if (!OptimisticIsmMetadata.hasMetadata(_metadata)) continue;
+    //     IInterchainSecurityModule _ism = IInterchainSecurityModule(_ism);
+    //     require(
+    //         _ism.verify(
+    //             AggregationIsmMetadata.metadataAt(_metadata, i),
+    //             _message
+    //         ),
+    //         "!verify"
+    //     );
+    //     return true;
     // }
 
     /**
@@ -57,20 +94,6 @@ abstract contract AbstractOptimisticIsm is IOptimisticIsm {
         require(!_verifyWatcherSignatures(_metadata, _message), "!fraud");
         return true;
     }
-
-    /**
-     * @notice Returns the set of watchers responsible for checking fraud _message
-     * and the number of signatures required
-     * @dev Can change based on the content of _message
-     * @return watchers The array of validator addresses
-     * @return threshold The number of validator signatures needed
-     */
-    function watchersAndThreshold(bytes calldata)
-        public
-        view
-        virtual
-        override
-        returns (address[] memory, uint8);
 
     /**
      * @notice Verifies that a quorum of watchers signed
@@ -93,6 +116,7 @@ abstract contract AbstractOptimisticIsm is IOptimisticIsm {
         uint256 _watcherIndex = 0;
         // Assumes that signatures are ordered by validator
         for (uint256 i = 0; i < _threshold; ++i) {
+            console.logBytes(OptimisticIsmMetadata.signatureAt(_metadata, i));
             address _signer = ECDSA.recover(
                 _digest,
                 OptimisticIsmMetadata.signatureAt(_metadata, i)
