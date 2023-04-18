@@ -14,7 +14,10 @@ use tracing::{debug, instrument, warn};
 use hyperlane_base::{
     ChainConf, CheckpointSyncer, CheckpointSyncerConf, CoreMetrics, MultisigCheckpointSyncer,
 };
-use hyperlane_core::{HyperlaneMessage, ValidatorAnnounce, H160, H256, MultisigIsm, MultisigSignedCheckpoint, RoutingIsm};
+use hyperlane_core::{
+    HyperlaneMessage, MultisigIsm, MultisigSignedCheckpoint, RoutingIsm, ValidatorAnnounce, H160,
+    H256,
+};
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
 use crate::msg::metadata::{MultisigIsmMetadataBuilder, RoutingIsmMetadataBuilder};
@@ -116,10 +119,10 @@ impl BaseMetadataBuilder {
     pub async fn get_proof(
         &self,
         message: &HyperlaneMessage,
-    checkpoint: MultisigSignedCheckpoint) -> Result<Proof> {
+        checkpoint: MultisigSignedCheckpoint,
+    ) -> Result<Proof> {
         const CTX: &str = "When fetching message proof";
-        self
-            .prover_sync
+        self.prover_sync
             .read()
             .await
             .get_proof(message.nonce, checkpoint.checkpoint.index)
@@ -145,25 +148,18 @@ impl BaseMetadataBuilder {
                 message.nonce,
                 highest_known_nonce,
             )
-            .await.context(CTX)
+            .await
+            .context(CTX)
     }
 
-    pub async fn build_routing_ism(
-        &self,
-        address: H256,
-    ) -> Result<Box<dyn RoutingIsm>> {
-        self
-            .chain_setup
+    pub async fn build_routing_ism(&self, address: H256) -> Result<Box<dyn RoutingIsm>> {
+        self.chain_setup
             .build_routing_ism(address, &self.metrics)
             .await
     }
 
-    pub async fn build_multisig_ism(
-        &self,
-        address: H256,
-    ) -> Result<Box<dyn MultisigIsm>> {
-        self
-            .chain_setup
+    pub async fn build_multisig_ism(&self, address: H256) -> Result<Box<dyn MultisigIsm>> {
+        self.chain_setup
             .build_multisig_ism(address, &self.metrics)
             .await
     }

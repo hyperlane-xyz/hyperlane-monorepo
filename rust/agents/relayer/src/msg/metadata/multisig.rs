@@ -39,10 +39,7 @@ impl MetadataBuilder for MultisigIsmMetadataBuilder {
         message: &HyperlaneMessage,
     ) -> eyre::Result<Option<Vec<u8>>> {
         const CTX: &str = "When fetching MultisigIsm metadata";
-        let multisig_ism = self
-            .build_multisig_ism(ism_address)
-            .await
-            .context(CTX)?;
+        let multisig_ism = self.build_multisig_ism(ism_address).await.context(CTX)?;
 
         let (validators, threshold) = multisig_ism
             .validators_and_threshold(message)
@@ -63,7 +60,8 @@ impl MetadataBuilder for MultisigIsmMetadataBuilder {
         // match the canonical root at the checkpoint's index.
         debug!(?checkpoint, "Found checkpoint with quorum");
 
-        let proof = self.get_proof(message, checkpoint.clone())
+        let proof = self
+            .get_proof(message, checkpoint.clone())
             .await
             .context(CTX)?;
 
@@ -122,10 +120,10 @@ impl MultisigIsmMetadataBuilder {
         let signature_bytes = signature_vecs.concat();
 
         if self.legacy {
-        let validator_tokens: Vec<Token> = validators
-            .iter()
-            .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
-            .collect();
+            let validator_tokens: Vec<Token> = validators
+                .iter()
+                .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
+                .collect();
             let validator_bytes = ethers::abi::encode(&[Token::FixedArray(validator_tokens)]);
             [
                 root_bytes,
