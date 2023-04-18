@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 // ============ Internal Imports ============
-import {OptimisticIsm} from "./OptimisticIsm.sol";
+import {StaticOptimisticIsm} from "./StaticOptimisticIsm.sol";
 import {StaticMOfNAddressSetFactory} from "../../libs/StaticMOfNAddressSetFactory.sol";
 
 contract OptimisticIsmFactory is StaticMOfNAddressSetFactory {
@@ -11,6 +11,6 @@ contract OptimisticIsmFactory is StaticMOfNAddressSetFactory {
         override
         returns (address)
     {
-        return address(new OptimisticIsm());
+        return address(new StaticOptimisticIsm());
     }
 }
