@@ -1,4 +1,4 @@
-import { AgentConfig, CoreEnvironmentConfig } from '../config';
+import { AgentConfig, EnvironmentConfig } from '../config';
 import { LiquidityLayerRelayerConfig } from '../config/middleware';
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { execCmd } from '../utils/utils';
@@ -57,7 +57,7 @@ function getLiquidityLayerRelayerHelmValues(
 }
 
 export function getLiquidityLayerRelayerConfig(
-  coreConfig: CoreEnvironmentConfig,
+  coreConfig: EnvironmentConfig,
 ): LiquidityLayerRelayerConfig {
   const relayerConfig = coreConfig.liquidityLayerRelayerConfig;
   if (!relayerConfig) {

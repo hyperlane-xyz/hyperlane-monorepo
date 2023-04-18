@@ -20,7 +20,7 @@ const TOKEN_EXCHANGE_RATE_MULTIPLIER = ethers.utils.parseUnits(
 // Last updated Mar 9, 2023.
 const gasPrices: ChainMap<BigNumber> = {
   // https://dune.com/hicrypto/BNBChain-Gas
-  bsc: ethers.utils.parseUnits('10', 'gwei'),
+  bsc: ethers.utils.parseUnits('7', 'gwei'),
   // https://snowtrace.io/chart/gasprice
   avalanche: ethers.utils.parseUnits('45', 'gwei'),
   // https://dune.com/sealaunch/Polygon-Gas-Prices
@@ -52,21 +52,21 @@ const gasPrices: ChainMap<BigNumber> = {
 // tokens are what matters. These generally have high beta
 const tokenUsdPrices: ChainMap<BigNumber> = {
   // https://www.coingecko.com/en/coins/bnb
-  bsc: ethers.utils.parseUnits('289.49', TOKEN_EXCHANGE_RATE_DECIMALS),
+  bsc: ethers.utils.parseUnits('330.60', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/avalanche
-  avalanche: ethers.utils.parseUnits('15.49', TOKEN_EXCHANGE_RATE_DECIMALS),
+  avalanche: ethers.utils.parseUnits('18.39', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/polygon
-  polygon: ethers.utils.parseUnits('1.07', TOKEN_EXCHANGE_RATE_DECIMALS),
+  polygon: ethers.utils.parseUnits('1.13', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/celo
-  celo: ethers.utils.parseUnits('0.61', TOKEN_EXCHANGE_RATE_DECIMALS),
+  celo: ethers.utils.parseUnits('0.69', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/ethereum
-  arbitrum: ethers.utils.parseUnits('1535.00', TOKEN_EXCHANGE_RATE_DECIMALS),
+  arbitrum: ethers.utils.parseUnits('1922.00', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/ethereum
-  optimism: ethers.utils.parseUnits('1535.00', TOKEN_EXCHANGE_RATE_DECIMALS),
+  optimism: ethers.utils.parseUnits('1922.00', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/ethereum
-  ethereum: ethers.utils.parseUnits('1535.00', TOKEN_EXCHANGE_RATE_DECIMALS),
+  ethereum: ethers.utils.parseUnits('1922.00', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/moonbeam
-  moonbeam: ethers.utils.parseUnits('0.39', TOKEN_EXCHANGE_RATE_DECIMALS),
+  moonbeam: ethers.utils.parseUnits('0.38', TOKEN_EXCHANGE_RATE_DECIMALS),
   // xDAI
   gnosis: ethers.utils.parseUnits('1.00', TOKEN_EXCHANGE_RATE_DECIMALS),
 };

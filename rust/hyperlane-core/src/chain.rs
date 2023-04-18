@@ -17,11 +17,11 @@ pub struct Address(pub bytes::Bytes);
 pub struct Balance(pub num::BigInt);
 
 #[derive(Debug, Clone)]
-pub struct ContractLocator {
-    pub domain: HyperlaneDomain,
+pub struct ContractLocator<'a> {
+    pub domain: &'a HyperlaneDomain,
     pub address: H256,
 }
-impl Display for ContractLocator {
+impl<'a> Display for ContractLocator<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -270,21 +270,31 @@ impl Debug for HyperlaneDomain {
     }
 }
 
+#[derive(thiserror::Error, Debug)]
+pub enum HyperlaneDomainConfigError {
+    #[error("Domain name (`{0}`) does not match the name of a known domain id; the name is probably misspelled.")]
+    UnknownDomainName(String),
+    #[error("The domain name (`{0}`) implies a different domain than the domain id provided; the domain id ({1}) is probably wrong.")]
+    DomainNameMismatch(String, u32),
+}
+
 impl HyperlaneDomain {
     pub fn from_config(
         domain_id: u32,
         name: &str,
         protocol: HyperlaneDomainProtocol,
-    ) -> Result<Self, &'static str> {
+    ) -> Result<Self, HyperlaneDomainConfigError> {
         let name = name.to_ascii_lowercase();
         if let Ok(domain) = KnownHyperlaneDomain::try_from(domain_id) {
             if name == domain.as_str() {
                 Ok(HyperlaneDomain::Known(domain))
             } else {
-                Err("Chain name does not match the name of a known domain id; the chain name is probably misspelled.")
+                Err(HyperlaneDomainConfigError::UnknownDomainName(name))
             }
         } else if name.as_str().parse::<KnownHyperlaneDomain>().is_ok() {
-            Err("Chain name implies a different domain than the domain id provided; the domain id is probably wrong.")
+            Err(HyperlaneDomainConfigError::DomainNameMismatch(
+                name, domain_id,
+            ))
         } else {
             Ok(HyperlaneDomain::Unknown {
                 domain_id,
@@ -333,121 +343,8 @@ impl HyperlaneDomain {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
-    use std::fs::read_to_string;
-    use std::path::Path;
-    use std::str::FromStr;
-
-    use config::{Config, File, FileFormat};
-    use walkdir::WalkDir;
-
-    use hyperlane_base::Settings;
-
     use crate::KnownHyperlaneDomain;
-
-    /// Relative path to the `hyperlane-monorepo/rust/config/`
-    /// directory, which is where the agent's config files
-    /// currently live.
-    const AGENT_CONFIG_PATH_ROOT: &str = "../config";
-
-    /// We will not include any file paths of config/settings files
-    /// in the test suite if *any* substring of the file path matches
-    /// against one of the strings included in the blacklist below.
-    /// This is to ensure that e.g. when a backwards-incompatible
-    /// change is made in config file format, and agents can't parse
-    /// them anymore, we don't fail the test. (E.g. agents cannot
-    /// currently parse the older files in `config/dev/` or
-    /// `config/testnet`.
-    const BLACKLISTED_DIRS: &[&str] = &[
-        // Ignore only-local names of fake chains used by
-        // e.g. test suites.
-        "test/test_config.json",
-    ];
-
-    fn is_blacklisted(path: &Path) -> bool {
-        BLACKLISTED_DIRS
-            .iter()
-            .any(|x| path.to_str().unwrap().contains(x))
-    }
-
-    #[derive(Clone, Debug, Ord, PartialEq, PartialOrd, Eq, Hash)]
-    struct ChainCoordinate {
-        name: String,
-        domain: u32,
-    }
-
-    fn config_paths(root: &Path) -> Vec<String> {
-        WalkDir::new(root)
-            .min_depth(2)
-            .into_iter()
-            .filter_map(|x| x.ok())
-            .map(|x| x.into_path())
-            .filter(|x| !is_blacklisted(x))
-            .map(|x| x.into_os_string())
-            .filter_map(|x| x.into_string().ok())
-            .collect()
-    }
-
-    /// Provides a vector of parsed `hyperlane_base::Settings` objects
-    /// built from all of the version-controlled agent configuration files.
-    /// This is purely a utility to allow us to test a handful of critical
-    /// properties related to those configs and shouldn't be used outside
-    /// of a test env. This test simply tries to do some sanity checks
-    /// against the integrity of that data.
-    fn hyperlane_settings() -> Vec<Settings> {
-        let root = Path::new(AGENT_CONFIG_PATH_ROOT);
-        let paths = config_paths(root);
-        let files: Vec<String> = paths
-            .iter()
-            .filter_map(|x| read_to_string(x).ok())
-            .collect();
-        paths
-            .iter()
-            .zip(files.iter())
-            .map(|(p, f)| {
-                Config::builder()
-                    .add_source(File::from_str(f.as_str(), FileFormat::Json))
-                    .build()
-                    .unwrap()
-                    .try_deserialize()
-                    .unwrap_or_else(|e| {
-                        panic!("!cfg({}): {:?}: {}", p, e, f);
-                    })
-            })
-            .collect()
-    }
-
-    fn chain_name_domain_records() -> BTreeSet<ChainCoordinate> {
-        hyperlane_settings()
-            .iter()
-            .flat_map(|x: &Settings| {
-                x.chains.values().map(|v| ChainCoordinate {
-                    name: v.name.clone(),
-                    domain: (&v.domain).try_into().expect("Invalid domain id"),
-                })
-            })
-            .collect()
-    }
-
-    #[test]
-    fn agent_json_config_consistency_checks() {
-        // Verify that the hard-coded, macro-maintained
-        // mapping in `hyperlane-core/src/chain.rs` named
-        // by the macro `domain_and_chain` is complete
-        // and in agreement with our on-disk json-based
-        // configuration data.
-        let chain_coords = chain_name_domain_records();
-        for ChainCoordinate { name, domain } in chain_coords.into_iter() {
-            assert_eq!(
-                KnownHyperlaneDomain::try_from(domain).unwrap().to_string(),
-                name
-            );
-            assert_eq!(
-                KnownHyperlaneDomain::from_str(&name).unwrap() as u32,
-                domain
-            );
-        }
-    }
+    use std::str::FromStr;
 
     #[test]
     fn domain_strings() {

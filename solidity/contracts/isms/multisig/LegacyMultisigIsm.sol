@@ -29,6 +29,7 @@ contract LegacyMultisigIsm is IMultisigIsm, Ownable {
 
     // ============ Constants ============
 
+    // solhint-disable-next-line const-name-snakecase
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.LEGACY_MULTISIG);
 
@@ -102,10 +103,12 @@ contract LegacyMultisigIsm is IMultisigIsm, Ownable {
         uint32[] calldata _domains,
         address[][] calldata _validators
     ) external onlyOwner {
-        require(_domains.length == _validators.length, "!length");
-        for (uint256 i = 0; i < _domains.length; i += 1) {
+        uint256 domainsLength = _domains.length;
+        require(domainsLength == _validators.length, "!length");
+        for (uint256 i = 0; i < domainsLength; i += 1) {
             address[] calldata _domainValidators = _validators[i];
-            for (uint256 j = 0; j < _domainValidators.length; j += 1) {
+            uint256 validatorsLength = _domainValidators.length;
+            for (uint256 j = 0; j < validatorsLength; j += 1) {
                 _enrollValidator(_domains[i], _domainValidators[j]);
             }
             _updateCommitment(_domains[i]);
@@ -155,8 +158,9 @@ contract LegacyMultisigIsm is IMultisigIsm, Ownable {
         uint32[] calldata _domains,
         uint8[] calldata _thresholds
     ) external onlyOwner {
-        require(_domains.length == _thresholds.length, "!length");
-        for (uint256 i = 0; i < _domains.length; i += 1) {
+        uint256 length = _domains.length;
+        require(length == _thresholds.length, "!length");
+        for (uint256 i = 0; i < length; i += 1) {
             setThreshold(_domains[i], _thresholds[i]);
         }
     }
@@ -202,7 +206,7 @@ contract LegacyMultisigIsm is IMultisigIsm, Ownable {
      * @param _message Formatted Hyperlane message (see Message.sol).
      */
     function verify(bytes calldata _metadata, bytes calldata _message)
-        public
+        external
         view
         returns (bool)
     {
@@ -340,12 +344,12 @@ contract LegacyMultisigIsm is IMultisigIsm, Ownable {
         for (uint256 i = 0; i < _threshold; ++i) {
             address _signer = ECDSA.recover(_digest, _metadata.signatureAt(i));
             // Loop through remaining validators until we find a match
-            for (
-                ;
+            while (
                 _validatorIndex < _validatorCount &&
-                    _signer != _metadata.validatorAt(_validatorIndex);
-                ++_validatorIndex
-            ) {}
+                _signer != _metadata.validatorAt(_validatorIndex)
+            ) {
+                ++_validatorIndex;
+            }
             // Fail if we never found a match
             require(_validatorIndex < _validatorCount, "!threshold");
             ++_validatorIndex;

@@ -10,9 +10,6 @@
       },
       "protocol": "ethereum",
       "finalityBlocks": 0,
-      "connection": {
-        "type": "http"
-      },
       "index": {
         "from": 16884144
       }
@@ -27,9 +24,6 @@
       },
       "protocol": "ethereum",
       "finalityBlocks": 20,
-      "connection": {
-        "type": "http"
-      },
       "index": {
         "from": 16271503
       }
@@ -44,9 +38,6 @@
       },
       "protocol": "ethereum",
       "finalityBlocks": 3,
-      "connection": {
-        "type": "http"
-      },
       "index": {
         "from": 24145479
       }
@@ -61,9 +52,6 @@
       },
       "protocol": "ethereum",
       "finalityBlocks": 256,
-      "connection": {
-        "type": "http"
-      },
       "index": {
         "from": 37313389
       }
@@ -78,9 +66,6 @@
       },
       "protocol": "ethereum",
       "finalityBlocks": 15,
-      "connection": {
-        "type": "http"
-      },
       "index": {
         "from": 25063295
       }
@@ -95,9 +80,6 @@
       },
       "protocol": "ethereum",
       "finalityBlocks": 0,
-      "connection": {
-        "type": "http"
-      },
       "index": {
         "from": 49073182
       }
@@ -112,9 +94,6 @@
       },
       "protocol": "ethereum",
       "finalityBlocks": 0,
-      "connection": {
-        "type": "http"
-      },
       "index": {
         "from": 55698988
       }
@@ -146,9 +125,6 @@
       },
       "protocol": "ethereum",
       "finalityBlocks": 14,
-      "connection": {
-        "type": "http"
-      },
       "index": {
         "from": 25900000
       }
