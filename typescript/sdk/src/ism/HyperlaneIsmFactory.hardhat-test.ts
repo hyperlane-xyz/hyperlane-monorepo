@@ -1,12 +1,16 @@
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
-import { error, types } from '@hyperlane-xyz/utils';
+import { error } from '@hyperlane-xyz/utils';
 
 import { TestChains } from '../consts/chains';
 import { MultiProvider } from '../providers/MultiProvider';
+import { randomAddress, randomInt } from '../test/testUtils';
 
-import { HyperlaneIsmFactory, moduleMatches } from './HyperlaneIsmFactory';
+import {
+  HyperlaneIsmFactory,
+  moduleMatchesConfig,
+} from './HyperlaneIsmFactory';
 import { HyperlaneIsmFactoryDeployer } from './HyperlaneIsmFactoryDeployer';
 import {
   AggregationIsmConfig,
@@ -16,23 +20,11 @@ import {
   RoutingIsmConfig,
 } from './types';
 
-function randomInt(max: number, min = 0): number {
-  return Math.floor(Math.random() * (max - min)) + min;
-}
-
 function randomModuleType(): ModuleType {
-  const max = ModuleType.MULTISIG + 1;
-  let value = randomInt(max);
-  // We do not return these module types.
+  const modules = Object.values(ModuleType) as ModuleType[];
   const excluded = [ModuleType.UNUSED, ModuleType.LEGACY_MULTISIG];
-  while (excluded.includes(value)) {
-    value = randomInt(max);
-  }
-  return value;
-}
-
-function randomAddress(): types.Address {
-  return ethers.utils.hexlify(ethers.utils.randomBytes(20));
+  const choices = modules.filter((module) => !excluded.includes(module));
+  return choices[randomInt(choices.length)];
 }
 
 const randomMultisigIsmConfig = (m: number, n: number): MultisigIsmConfig => {
@@ -81,7 +73,7 @@ const randomIsmConfig = (depth = 0, maxDepth = 2): IsmConfig => {
   }
 };
 
-describe.only('HyperlaneIsmFactory', async () => {
+describe('HyperlaneIsmFactory', async () => {
   let factory: HyperlaneIsmFactory;
   const chain = 'test1';
 
@@ -98,7 +90,7 @@ describe.only('HyperlaneIsmFactory', async () => {
   it('deploys a simple ism', async () => {
     const config = randomMultisigIsmConfig(3, 5);
     const ism = await factory.deploy(chain, config);
-    const matches = await moduleMatches(
+    const matches = await moduleMatchesConfig(
       chain,
       ism.address,
       config,
@@ -122,7 +114,7 @@ describe.only('HyperlaneIsmFactory', async () => {
       }
 
       try {
-        const matches = await moduleMatches(
+        const matches = await moduleMatchesConfig(
           chain,
           ismAddress,
           config,

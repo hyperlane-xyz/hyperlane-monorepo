@@ -64,6 +64,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     const actualIsm = await mailbox.defaultIsm();
     const config = this.configMap[chain];
     /*
+    TODO: Add this back in once the new ISM factories are adopted
     const matches = await moduleMatches(
       chain,
       actualIsm,

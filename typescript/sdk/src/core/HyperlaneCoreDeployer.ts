@@ -5,7 +5,10 @@ import { types } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts, filterOwnableContracts } from '../contracts';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
-import { HyperlaneIsmFactory, moduleMatches } from '../ism/HyperlaneIsmFactory';
+import {
+  HyperlaneIsmFactory,
+  moduleMatchesConfig,
+} from '../ism/HyperlaneIsmFactory';
 import { IsmConfig } from '../ism/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
@@ -60,10 +63,10 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   }
 
   async deployIsm(chain: ChainName, config: IsmConfig): Promise<types.Address> {
-    const cachedMailbox = this.deployedContracts[chain]?.['mailbox'];
+    const cachedMailbox = this.deployedContracts[chain]?.mailbox;
     if (cachedMailbox) {
       const module = await cachedMailbox.defaultIsm();
-      const matches = await moduleMatches(
+      const matches = await moduleMatchesConfig(
         chain,
         module,
         config,

@@ -23,6 +23,14 @@ import { RouterConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
 import { objMap } from '../utils/objects';
 
+export function randomInt(max: number, min = 0): number {
+  return Math.floor(Math.random() * (max - min)) + min;
+}
+
+export function randomAddress(): types.Address {
+  return ethers.utils.hexlify(ethers.utils.randomBytes(20));
+}
+
 export function createRouterConfigMap(
   owner: types.Address,
   coreContracts: HyperlaneContractsMap<CoreFactories>,
