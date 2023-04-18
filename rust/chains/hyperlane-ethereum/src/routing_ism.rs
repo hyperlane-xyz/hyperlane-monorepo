@@ -10,50 +10,39 @@ use tracing::instrument;
 
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, MultisigIsm, RawHyperlaneMessage, H256,
+    HyperlaneMessage, HyperlaneProvider, RawHyperlaneMessage, RoutingIsm, H256,
 };
 
-use crate::contracts::i_multisig_ism::{
-    IMultisigIsm as EthereumMultisigIsmInternal, IMULTISIGISM_ABI,
-};
+use crate::contracts::i_routing_ism::{IRoutingIsm as EthereumRoutingIsmInternal, IROUTINGISM_ABI};
 use crate::trait_builder::BuildableWithProvider;
 use crate::EthereumProvider;
 
-impl<M> std::fmt::Display for EthereumMultisigIsmInternal<M>
-where
-    M: Middleware,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-pub struct MultisigIsmBuilder {}
+pub struct RoutingIsmBuilder {}
 
 #[async_trait]
-impl BuildableWithProvider for MultisigIsmBuilder {
-    type Output = Box<dyn MultisigIsm>;
+impl BuildableWithProvider for RoutingIsmBuilder {
+    type Output = Box<dyn RoutingIsm>;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
         locator: &ContractLocator,
     ) -> Self::Output {
-        Box::new(EthereumMultisigIsm::new(Arc::new(provider), locator))
+        Box::new(EthereumRoutingIsm::new(Arc::new(provider), locator))
     }
 }
 
-/// A reference to an MultisigIsm contract on some Ethereum chain
+/// A reference to an RoutingIsm contract on some Ethereum chain
 #[derive(Debug)]
-pub struct EthereumMultisigIsm<M>
+pub struct EthereumRoutingIsm<M>
 where
     M: Middleware,
 {
-    contract: Arc<EthereumMultisigIsmInternal<M>>,
+    contract: Arc<EthereumRoutingIsmInternal<M>>,
     domain: HyperlaneDomain,
 }
 
-impl<M> EthereumMultisigIsm<M>
+impl<M> EthereumRoutingIsm<M>
 where
     M: Middleware + 'static,
 {
@@ -61,13 +50,13 @@ where
     /// chain
     pub fn new(provider: Arc<M>, locator: &ContractLocator) -> Self {
         Self {
-            contract: Arc::new(EthereumMultisigIsmInternal::new(locator.address, provider)),
+            contract: Arc::new(EthereumRoutingIsmInternal::new(locator.address, provider)),
             domain: locator.domain.clone(),
         }
     }
 }
 
-impl<M> HyperlaneChain for EthereumMultisigIsm<M>
+impl<M> HyperlaneChain for EthereumRoutingIsm<M>
 where
     M: Middleware + 'static,
 {
@@ -83,7 +72,7 @@ where
     }
 }
 
-impl<M> HyperlaneContract for EthereumMultisigIsm<M>
+impl<M> HyperlaneContract for EthereumRoutingIsm<M>
 where
     M: Middleware + 'static,
 {
@@ -93,31 +82,27 @@ where
 }
 
 #[async_trait]
-impl<M> MultisigIsm for EthereumMultisigIsm<M>
+impl<M> RoutingIsm for EthereumRoutingIsm<M>
 where
     M: Middleware + 'static,
 {
     #[instrument(err, ret)]
-    async fn validators_and_threshold(
-        &self,
-        message: &HyperlaneMessage,
-    ) -> ChainResult<(Vec<H256>, u8)> {
-        let (validator_addresses, threshold) = self
+    async fn route(&self, message: &HyperlaneMessage) -> ChainResult<H256> {
+        let ism = self
             .contract
-            .validators_and_threshold(RawHyperlaneMessage::from(message).to_vec().into())
+            .route(RawHyperlaneMessage::from(message).to_vec().into())
             .call()
             .await?;
-        let validators: Vec<H256> = validator_addresses.iter().map(|&x| H256::from(x)).collect();
-        Ok((validators, threshold))
+        Ok(ism.into())
     }
 }
 
-pub struct EthereumMultisigIsmAbi;
+pub struct EthereumRoutingIsmAbi;
 
-impl HyperlaneAbi for EthereumMultisigIsmAbi {
+impl HyperlaneAbi for EthereumRoutingIsmAbi {
     const SELECTOR_SIZE_BYTES: usize = 4;
 
     fn fn_map() -> HashMap<Vec<u8>, &'static str> {
-        super::extract_fn_map(&IMULTISIGISM_ABI)
+        super::extract_fn_map(&IROUTINGISM_ABI)
     }
 }

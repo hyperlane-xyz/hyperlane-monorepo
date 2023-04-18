@@ -23,7 +23,7 @@ use derive_new::new;
 use hyperlane_core::HyperlaneMessage;
 
 pub mod gas_payment;
-pub mod metadata_builder;
+pub mod metadata;
 pub mod processor;
 pub mod serial_submitter;
 
