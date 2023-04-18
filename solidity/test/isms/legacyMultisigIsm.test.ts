@@ -492,7 +492,7 @@ describe('LegacyMultisigIsm', async () => {
     const MAX_VALIDATOR_COUNT = 10;
     let metadata: string, message: string, recipient: string;
 
-    const gasOverhead: Record<number, Record<number, number>> = {};
+    const gasOverhead: Record<number, Record<number, any>> = {};
 
     before(async () => {
       const recipientF = new LightTestRecipient__factory(signer);
@@ -521,10 +521,10 @@ describe('LegacyMultisigIsm', async () => {
           await multisigIsm.setThreshold(ORIGIN_DOMAIN, threshold);
 
           // The max body is used to estimate an upper bound on gas usage.
-          // const maxBodySize = await mailbox.MAX_MESSAGE_BODY_BYTES();
-          // const maxBody = '0x' + 'AA'.repeat(maxBodySize.toNumber());
+          const maxBodySize = await mailbox.MAX_MESSAGE_BODY_BYTES();
+          const body = '0x' + 'AA'.repeat(maxBodySize.toNumber());
 
-          const body = '0x';
+          // const body = '0x';
 
           ({ message, metadata } = await dispatchMessageAndReturnMetadata(
             mailbox,
@@ -537,28 +537,42 @@ describe('LegacyMultisigIsm', async () => {
             false,
           ));
 
-          const verifyGas = await multisigIsm.estimateGas.verify(
+          const mailboxFactory = new TestMailbox__factory(signer);
+          const destinationMailbox = await mailboxFactory.deploy(
+            DESTINATION_DOMAIN,
+          );
+          await destinationMailbox.initialize(
+            signer.address,
+            multisigIsm.address,
+          );
+          const process = await destinationMailbox.estimateGas.process(
             metadata,
             message,
           );
 
-          // const mailboxFactory = new TestMailbox__factory(signer);
-          // const destinationMailbox = await mailboxFactory.deploy(
-          //   DESTINATION_DOMAIN,
-          // );
-          // await destinationMailbox.initialize(
-          //   signer.address,
-          //   multisigIsm.address,
-          // );
-          // const gas = await destinationMailbox.estimateGas.process(
-          //   metadata,
-          //   message,
-          // );
+          const verify = await multisigIsm.estimateGas.verify(
+            metadata,
+            message,
+          );
+          const merkle = await multisigIsm.estimateGas.verifyMerkleProof(
+            metadata,
+            message,
+          );
+          const signatures =
+            await multisigIsm.estimateGas.verifyValidatorSignatures(
+              metadata,
+              message,
+            );
 
           if (gasOverhead[numValidators] === undefined) {
             gasOverhead[numValidators] = {};
           }
-          gasOverhead[numValidators][threshold] = verifyGas.toNumber();
+          gasOverhead[numValidators][threshold] = {
+            process: process.toNumber(),
+            verify: verify.toNumber(),
+            merkle: merkle.toNumber(),
+            signatures: signatures.toNumber(),
+          };
         });
       }
     }

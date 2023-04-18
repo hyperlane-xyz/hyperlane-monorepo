@@ -206,8 +206,8 @@ contract LegacyMultisigIsm is IMultisigIsm, Ownable {
         view
         returns (bool)
     {
-        require(_verifyMerkleProof(_metadata, _message), "!merkle");
-        require(_verifyValidatorSignatures(_metadata, _message), "!sigs");
+        require(verifyMerkleProof(_metadata, _message), "!merkle");
+        require(verifyValidatorSignatures(_metadata, _message), "!sigs");
         return true;
     }
 
@@ -290,10 +290,10 @@ contract LegacyMultisigIsm is IMultisigIsm, Ownable {
      * @param _metadata ABI encoded module metadata (see LegacyMultisigIsmMetadata.sol)
      * @param _message Formatted Hyperlane message (see Message.sol).
      */
-    function _verifyMerkleProof(
+    function verifyMerkleProof(
         bytes calldata _metadata,
         bytes calldata _message
-    ) internal pure returns (bool) {
+    ) public pure returns (bool) {
         // calculate the expected root based on the proof
         bytes32 _calculatedRoot = MerkleLib.branchRoot(
             _message.id(),
@@ -309,10 +309,10 @@ contract LegacyMultisigIsm is IMultisigIsm, Ownable {
      * @param _metadata ABI encoded module metadata (see LegacyMultisigIsmMetadata.sol)
      * @param _message Formatted Hyperlane message (see Message.sol).
      */
-    function _verifyValidatorSignatures(
+    function verifyValidatorSignatures(
         bytes calldata _metadata,
         bytes calldata _message
-    ) internal view returns (bool) {
+    ) public view returns (bool) {
         uint8 _threshold = _metadata.threshold();
         bytes32 _digest;
         {
