@@ -1,6 +1,5 @@
-import { ethers } from 'ethers';
-
 import {
+  InterchainAccountIsm__factory,
   InterchainAccountRouter,
   Router,
   TransparentUpgradeableProxy__factory,
@@ -54,6 +53,19 @@ export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
     } else {
       const deployer = await this.multiProvider.getSignerAddress(chain);
 
+      if (config.interchainSecurityModule) {
+        throw new Error(
+          'Configuration of ISM address not supported in ICA deployer',
+        );
+      }
+      // 0. Deploy an ISM for the ICA router
+      const ism = await this.deployContractFromFactory(
+        chain,
+        new InterchainAccountIsm__factory(),
+        'InterchainAccountIsm',
+        [config.mailbox],
+      );
+
       // 1. deploy the proxy first with a dummy implementation (proxy admin contract)
       const proxy = await this.deployContractFromFactory(
         chain,
@@ -75,7 +87,7 @@ export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
       await super.upgradeAndInitialize(chain, proxy, implementation, [
         config.mailbox,
         config.interchainGasPaymaster,
-        config.interchainSecurityModule ?? ethers.constants.AddressZero,
+        ism.address,
         owner,
       ]);
       interchainAccountRouter = implementation.attach(proxy.address);
