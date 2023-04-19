@@ -21,7 +21,7 @@ use crate::{
     merkle_tree_builder::MerkleTreeBuilder,
     msg::{
         gas_payment::GasPaymentEnforcer,
-        metadata_builder::BaseMetadataBuilder,
+        metadata::BaseMetadataBuilder,
         processor::{MessageProcessor, MessageProcessorMetrics},
         serial_submitter::{SerialSubmitter, SerialSubmitterMetrics},
         PendingMessage,
@@ -161,6 +161,8 @@ impl BaseAgent for Relayer {
                 self.validator_announce.clone(),
                 self.allow_local_checkpoint_syncers,
                 self.core.metrics.clone(),
+                0,
+                5,
             );
             tasks.push(self.run_destination_mailbox(
                 mailbox.clone(),
