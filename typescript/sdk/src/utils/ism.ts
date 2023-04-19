@@ -1,4 +1,4 @@
-import multisigIsmVerifyCosts from '../consts/multisigIsmVerifyCosts.json';
+import multisigIsmVerifyCosts from '@hyperlane-xyz/core/gas/StaticMultisigIsm.json';
 
 export function multisigIsmVerificationCost(m: number, n: number): number {
   if (

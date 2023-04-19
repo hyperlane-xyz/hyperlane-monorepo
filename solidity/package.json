@@ -32,7 +32,8 @@
   "files": [
     "/dist",
     "/contracts",
-    "/interfaces"
+    "/interfaces",
+    "/gas"
   ],
   "homepage": "https://www.hyperlane.xyz",
   "keywords": [
