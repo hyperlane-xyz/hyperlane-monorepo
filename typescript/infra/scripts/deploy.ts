@@ -6,6 +6,8 @@ import {
   HyperlaneDeployer,
   HyperlaneIgp,
   HyperlaneIgpDeployer,
+  HyperlaneIsmFactory,
+  HyperlaneIsmFactoryDeployer,
   InterchainAccountDeployer,
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
@@ -51,9 +53,16 @@ async function main() {
 
   let config: ChainMap<unknown> = {};
   let deployer: HyperlaneDeployer<any, any>;
-  if (module === Modules.CORE) {
+  if (module === Modules.ISM_FACTORY) {
+    config = objMap(envConfig.core, (chain) => true);
+    deployer = new HyperlaneIsmFactoryDeployer(multiProvider);
+  } else if (module === Modules.CORE) {
     config = envConfig.core;
-    deployer = new HyperlaneCoreDeployer(multiProvider);
+    const ismFactory = HyperlaneIsmFactory.fromEnvironment(
+      deployEnvToSdkEnv[environment],
+      multiProvider,
+    );
+    deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);
