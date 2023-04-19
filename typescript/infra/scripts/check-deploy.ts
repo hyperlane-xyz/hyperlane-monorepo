@@ -59,7 +59,6 @@ async function check() {
     const checker = new HyperlaneIgpChecker(multiProvider, igp, config.igp);
     governor = new HyperlaneIgpGovernor(checker, config.owners);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
-    // TODO: Add ICA ISM addresses to config...
     const config = await getRouterConfig(environment, multiProvider);
     const ica = InterchainAccount.fromEnvironment(env, multiProvider);
     const checker = new InterchainAccountChecker(multiProvider, ica, config);

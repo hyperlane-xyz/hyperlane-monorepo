@@ -105,6 +105,7 @@ export {
   RoutingIsmConfig,
 } from './ism/types';
 export { InterchainAccount } from './middleware/account/InterchainAccount';
+export { InterchainAccountChecker } from './middleware/account/InterchainAccountChecker';
 export {
   InterchainAccountConfig,
   InterchainAccountDeployer,
