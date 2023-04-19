@@ -198,7 +198,7 @@ export abstract class HyperlaneAppGovernor<
         'transferOwnership',
         [violation.expected],
       ),
-      description: `Transfer ownership of ${violation.contract.address} to ${violation.expected}`,
+      description: `Transfer ownership of ${violation.name} at ${violation.contract.address} to ${violation.expected}`,
     });
   }
 }

@@ -1,9 +1,12 @@
+import { ethers } from 'ethers';
+
 import {
   InterchainAccountIsm__factory,
   InterchainAccountRouter,
   Router,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
+import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../../contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
@@ -48,8 +51,26 @@ export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
       this.factories['interchainAccountRouter'],
       'interchainAccountRouter',
     );
+
     if (cachedContract) {
       interchainAccountRouter = cachedContract;
+      // Temporary code to retroactively deploy an InterchainAccountIsm
+      // These addresses should be used to configure the InterchainAccountRouter
+      // ISM.
+      // TODO: Remove
+      if (
+        utils.eqAddress(
+          await interchainAccountRouter.interchainSecurityModule(),
+          ethers.constants.AddressZero,
+        )
+      ) {
+        await this.deployContractFromFactory(
+          chain,
+          new InterchainAccountIsm__factory(),
+          'InterchainAccountIsm',
+          [config.mailbox],
+        );
+      }
     } else {
       const deployer = await this.multiProvider.getSignerAddress(chain);
 

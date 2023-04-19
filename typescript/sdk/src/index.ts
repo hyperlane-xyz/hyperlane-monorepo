@@ -105,16 +105,11 @@ export {
   RoutingIsmConfig,
 } from './ism/types';
 export { InterchainAccount } from './middleware/account/InterchainAccount';
-export { InterchainAccountChecker } from './middleware/account/InterchainAccountChecker';
 export {
   InterchainAccountConfig,
   InterchainAccountDeployer,
 } from './middleware/account/InterchainAccountDeployer';
 export { interchainAccountFactories } from './middleware/account/contracts';
-export {
-  InterchainAccountViolation,
-  InterchainAccountViolationType,
-} from './middleware/account/types';
 export { LiquidityLayerApp } from './middleware/liquidity-layer/LiquidityLayerApp';
 export {
   BridgeAdapterConfig,
@@ -137,7 +132,12 @@ export { GasRouterDeployer } from './router/GasRouterDeployer';
 export { HyperlaneRouterChecker } from './router/HyperlaneRouterChecker';
 export { HyperlaneRouterDeployer } from './router/HyperlaneRouterDeployer';
 export { GasRouterApp, Router, RouterApp } from './router/RouterApps';
-export { GasRouterConfig, RouterConfig } from './router/types';
+export {
+  ConnectionClientViolation,
+  ConnectionClientViolationType,
+  GasRouterConfig,
+  RouterConfig,
+} from './router/types';
 export {
   createRouterConfigMap,
   deployTestIgpsAndGetRouterConfig,
