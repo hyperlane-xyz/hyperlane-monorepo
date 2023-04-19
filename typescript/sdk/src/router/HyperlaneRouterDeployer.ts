@@ -62,7 +62,7 @@ export abstract class HyperlaneRouterDeployer<
 
       // skip if no enrollments are needed
       if (domains.length === 0) {
-        return;
+        continue;
       }
 
       await super.runIfOwner(chain, this.router(contracts), async () => {

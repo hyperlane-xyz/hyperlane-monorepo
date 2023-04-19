@@ -13,6 +13,7 @@ import { storageGasOracleConfig } from './gas-oracle';
 import { helloWorld } from './helloworld';
 import { igp } from './igp';
 import { infrastructure } from './infrastructure';
+import { bridgeAdapterConfigs } from './liquidityLayer';
 import { liquidityLayerRelayerConfig } from './middleware';
 import { owners } from './owners';
 
@@ -39,6 +40,7 @@ export const environment: EnvironmentConfig = {
   helloWorld,
   owners,
   keyFunderConfig,
+  liquidityLayerConfig: bridgeAdapterConfigs,
   liquidityLayerRelayerConfig,
   storageGasOracleConfig,
 };

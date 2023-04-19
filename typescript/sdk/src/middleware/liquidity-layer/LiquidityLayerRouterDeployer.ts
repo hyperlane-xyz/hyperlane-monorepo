@@ -12,7 +12,7 @@ import { MultiProvider } from '../../providers/MultiProvider';
 import { ProxiedRouterDeployer } from '../../router/ProxiedRouterDeployer';
 import { RouterConfig } from '../../router/types';
 import { ChainMap, ChainName } from '../../types';
-import { objMap } from '../../utils/objects';
+import { objFilter, objMap } from '../../utils/objects';
 
 import { LiquidityLayerFactories, liquidityLayerFactories } from './contracts';
 
@@ -93,18 +93,26 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
     this.logger(`Enroll CircleBridgeAdapters with each other`);
     // Hack to allow use of super.enrollRemoteRouters
     await super.enrollRemoteRouters(
-      objMap(contractsMap, (_, contracts) => ({
-        liquidityLayerRouter: contracts.circleBridgeAdapter,
-      })) as unknown as HyperlaneContractsMap<LiquidityLayerFactories>,
+      objMap(
+        // @ts-ignore Not sure how to specify the type guard
+        objFilter(contractsMap, (_, c) => !!c.circleBridgeAdapter),
+        (_, contracts) => ({
+          liquidityLayerRouter: contracts.circleBridgeAdapter,
+        }),
+      ) as unknown as HyperlaneContractsMap<LiquidityLayerFactories>,
       configMap,
     );
 
     this.logger(`Enroll PortalAdapters with each other`);
     // Hack to allow use of super.enrollRemoteRouters
     await super.enrollRemoteRouters(
-      objMap(contractsMap, (_, contracts) => ({
-        liquidityLayerRouter: contracts.portalAdapter,
-      })) as unknown as HyperlaneContractsMap<LiquidityLayerFactories>,
+      objMap(
+        // @ts-ignore Not sure how to specify the type guard
+        objFilter(contractsMap, (_, c) => !!c.portalAdapter),
+        (_, contracts) => ({
+          liquidityLayerRouter: contracts.portalAdapter,
+        }),
+      ) as unknown as HyperlaneContractsMap<LiquidityLayerFactories>,
       configMap,
     );
   }

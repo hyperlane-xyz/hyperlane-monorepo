@@ -2,23 +2,28 @@
   "goerli": {
     "circleBridgeAdapter": "0xfe9d88aA85c5917822C804b949BcEDE832C02ce2",
     "portalAdapter": "0x68D753982e89CC083917863F6dc9738448B91ef9",
-    "router": "0x2abe0860D81FB4242C748132bD69D125D88eaE26"
+    "proxyAdmin": "0x8f919348F9C4619A196Acb5e377f49E5E2C0B569",
+    "liquidityLayerRouter": "0x2abe0860D81FB4242C748132bD69D125D88eaE26"
   },
   "fuji": {
     "circleBridgeAdapter": "0xfe9d88aA85c5917822C804b949BcEDE832C02ce2",
     "portalAdapter": "0x68D753982e89CC083917863F6dc9738448B91ef9",
-    "router": "0x2abe0860D81FB4242C748132bD69D125D88eaE26"
+    "proxyAdmin": "0x13474f85b808034C911B7697dee60B7d8d50ee36",
+    "liquidityLayerRouter": "0x2abe0860D81FB4242C748132bD69D125D88eaE26"
   },
   "mumbai": {
     "portalAdapter": "0x68D753982e89CC083917863F6dc9738448B91ef9",
-    "router": "0x2abe0860D81FB4242C748132bD69D125D88eaE26"
+    "proxyAdmin": "0x96b49e136581f8dfF370aDB3015D48465572a318",
+    "liquidityLayerRouter": "0x2abe0860D81FB4242C748132bD69D125D88eaE26"
   },
   "bsctestnet": {
     "portalAdapter": "0x68D753982e89CC083917863F6dc9738448B91ef9",
-    "router": "0x2abe0860D81FB4242C748132bD69D125D88eaE26"
+    "proxyAdmin": "0xfB149BC17dD3FE858fA64D678bA0c706DEac61eE",
+    "liquidityLayerRouter": "0x2abe0860D81FB4242C748132bD69D125D88eaE26"
   },
   "alfajores": {
     "portalAdapter": "0x68D753982e89CC083917863F6dc9738448B91ef9",
-    "router": "0x2abe0860D81FB4242C748132bD69D125D88eaE26"
+    "liquidityLayerRouter": "0x2abe0860D81FB4242C748132bD69D125D88eaE26",
+    "proxyAdmin": "0x4e4D563e2cBFC35c4BC16003685443Fae2FA702f"
   }
 }
