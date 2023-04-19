@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-floating-promises */
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
+import fs from 'fs';
 import { ethers } from 'hardhat';
 
 import { Validator, types, utils } from '@hyperlane-xyz/utils';
@@ -488,7 +489,7 @@ describe('LegacyMultisigIsm', async () => {
   // Manually unskip to run gas instrumentation.
   // The JSON that's logged can then be copied to `typescript/sdk/src/consts/multisigIsmVerifyCosts.json`,
   // which is ultimately used for configuring the default ISM overhead IGP.
-  describe.only('#verify gas instrumentation for the OverheadISM', () => {
+  describe.skip('#verify gas instrumentation for the OverheadISM', () => {
     const MAX_VALIDATOR_COUNT = 10;
     let metadata: string, message: string, recipient: string;
 
@@ -502,8 +503,10 @@ describe('LegacyMultisigIsm', async () => {
     after(() => {
       // eslint-disable-next-line no-console
       console.log('Instrumented gas overheads:');
+      const json = JSON.stringify(gasOverhead, null, 2);
       // eslint-disable-next-line no-console
-      console.log(JSON.stringify(gasOverhead, null, 2));
+      console.log(json);
+      fs.writeFileSync('gas/LegacyMultisigIsm.json', json);
     });
 
     for (

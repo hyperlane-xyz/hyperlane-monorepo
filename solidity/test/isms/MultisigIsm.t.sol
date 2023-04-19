@@ -114,20 +114,6 @@ contract MultisigIsmTest is Test {
 
         uint8 MAX_VALIDATOR_COUNT = 18;
 
-        // To write:
-        // ```
-        // using stdJson for string;
-        // string memory json = "deploymentArtifact";
-        // Contract contract = new Contract();
-        // json.serialize("contractAddress", address(contract));
-        // json = json.serialize("deploymentTimes", uint(1));
-        // // store the stringified JSON to the 'json' variable we have been using as a key
-        // // as we won't need it any longer
-        // string memory json2 = "finalArtifact";
-        // string memory final = json2.serialize("depArtifact", json);
-        // final.write("<some_path>");
-        // ```
-
         string memory json = "gasInstrumentation";
 
         for (
@@ -176,6 +162,6 @@ contract MultisigIsmTest is Test {
 
         json = json.serialize("MAX_VALIDATOR_COUNT", MAX_VALIDATOR_COUNT);
 
-        json.write("gasInstrumentation.json");
+        json.write("gas/StaticMultisigIsm.json");
     }
 }

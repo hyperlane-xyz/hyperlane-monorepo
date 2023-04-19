@@ -1,0 +1,912 @@
+{
+  "1": {
+    "1": {
+      "merkle": 28142,
+      "signatures": 19002,
+      "verify": 64624
+    },
+    "numValidators": 1
+  },
+  "10": {
+    "1": {
+      "merkle": 29459,
+      "signatures": 21592,
+      "verify": 71189
+    },
+    "10": {
+      "merkle": 30977,
+      "signatures": 64907,
+      "verify": 122912
+    },
+    "2": {
+      "merkle": 29619,
+      "signatures": 27826,
+      "verify": 78579
+    },
+    "3": {
+      "merkle": 29781,
+      "signatures": 32453,
+      "verify": 83702
+    },
+    "4": {
+      "merkle": 29944,
+      "signatures": 37082,
+      "verify": 89197
+    },
+    "5": {
+      "merkle": 30110,
+      "signatures": 41713,
+      "verify": 95066
+    },
+    "6": {
+      "merkle": 30278,
+      "signatures": 46347,
+      "verify": 100623
+    },
+    "7": {
+      "merkle": 30449,
+      "signatures": 50982,
+      "verify": 105868
+    },
+    "8": {
+      "merkle": 30622,
+      "signatures": 55621,
+      "verify": 111859
+    },
+    "9": {
+      "merkle": 30798,
+      "signatures": 60262,
+      "verify": 117542
+    },
+    "numValidators": 10
+  },
+  "11": {
+    "1": {
+      "merkle": 29682,
+      "signatures": 23342,
+      "verify": 75035
+    },
+    "10": {
+      "merkle": 31201,
+      "signatures": 65452,
+      "verify": 126337
+    },
+    "11": {
+      "merkle": 31384,
+      "signatures": 70100,
+      "verify": 132168
+    },
+    "2": {
+      "merkle": 29842,
+      "signatures": 28168,
+      "verify": 81087
+    },
+    "3": {
+      "merkle": 30004,
+      "signatures": 32796,
+      "verify": 86235
+    },
+    "4": {
+      "merkle": 30168,
+      "signatures": 37426,
+      "verify": 91776
+    },
+    "5": {
+      "merkle": 30335,
+      "signatures": 42057,
+      "verify": 97347
+    },
+    "6": {
+      "merkle": 30503,
+      "signatures": 46690,
+      "verify": 103320
+    },
+    "7": {
+      "merkle": 30673,
+      "signatures": 51327,
+      "verify": 108589
+    },
+    "8": {
+      "merkle": 30847,
+      "signatures": 55965,
+      "verify": 114644
+    },
+    "9": {
+      "merkle": 31022,
+      "signatures": 60607,
+      "verify": 120368
+    },
+    "numValidators": 11
+  },
+  "12": {
+    "1": {
+      "merkle": 29942,
+      "signatures": 22717,
+      "verify": 76881
+    },
+    "10": {
+      "merkle": 31463,
+      "signatures": 66037,
+      "verify": 129905
+    },
+    "11": {
+      "merkle": 31646,
+      "signatures": 70683,
+      "verify": 135774
+    },
+    "12": {
+      "merkle": 31831,
+      "signatures": 75333,
+      "verify": 141694
+    },
+    "2": {
+      "merkle": 30103,
+      "signatures": 28549,
+      "verify": 83628
+    },
+    "3": {
+      "merkle": 30265,
+      "signatures": 33177,
+      "verify": 89197
+    },
+    "4": {
+      "merkle": 30431,
+      "signatures": 37806,
+      "verify": 95184
+    },
+    "5": {
+      "merkle": 30597,
+      "signatures": 42438,
+      "verify": 100419
+    },
+    "6": {
+      "merkle": 30766,
+      "signatures": 47475,
+      "verify": 106481
+    },
+    "7": {
+      "merkle": 30937,
+      "signatures": 52111,
+      "verify": 112175
+    },
+    "8": {
+      "merkle": 31109,
+      "signatures": 56751,
+      "verify": 118309
+    },
+    "9": {
+      "merkle": 31286,
+      "signatures": 61392,
+      "verify": 123679
+    },
+    "numValidators": 12
+  },
+  "13": {
+    "1": {
+      "merkle": 30244,
+      "signatures": 23138,
+      "verify": 80585
+    },
+    "10": {
+      "merkle": 31770,
+      "signatures": 66662,
+      "verify": 133561
+    },
+    "11": {
+      "merkle": 31950,
+      "signatures": 71310,
+      "verify": 139928
+    },
+    "12": {
+      "merkle": 32135,
+      "signatures": 75959,
+      "verify": 145906
+    },
+    "13": {
+      "merkle": 32323,
+      "signatures": 80614,
+      "verify": 151956
+    },
+    "2": {
+      "merkle": 30405,
+      "signatures": 29373,
+      "verify": 87799
+    },
+    "3": {
+      "merkle": 30569,
+      "signatures": 34000,
+      "verify": 93432
+    },
+    "4": {
+      "merkle": 30733,
+      "signatures": 38632,
+      "verify": 99094
+    },
+    "5": {
+      "merkle": 30900,
+      "signatures": 43264,
+      "verify": 104786
+    },
+    "6": {
+      "merkle": 31070,
+      "signatures": 47898,
+      "verify": 110511
+    },
+    "7": {
+      "merkle": 31241,
+      "signatures": 52536,
+      "verify": 116272
+    },
+    "8": {
+      "merkle": 31415,
+      "signatures": 57175,
+      "verify": 122073
+    },
+    "9": {
+      "merkle": 31591,
+      "signatures": 61816,
+      "verify": 127913
+    },
+    "numValidators": 13
+  },
+  "14": {
+    "1": {
+      "merkle": 30592,
+      "signatures": 24410,
+      "verify": 84759
+    },
+    "10": {
+      "merkle": 32122,
+      "signatures": 67335,
+      "verify": 138682
+    },
+    "11": {
+      "merkle": 32304,
+      "signatures": 71984,
+      "verify": 144688
+    },
+    "12": {
+      "merkle": 32488,
+      "signatures": 76634,
+      "verify": 150746
+    },
+    "13": {
+      "merkle": 32676,
+      "signatures": 81288,
+      "verify": 156851
+    },
+    "14": {
+      "merkle": 32868,
+      "signatures": 85946,
+      "verify": 163035
+    },
+    "2": {
+      "merkle": 30754,
+      "signatures": 29439,
+      "verify": 90840
+    },
+    "3": {
+      "merkle": 30917,
+      "signatures": 34068,
+      "verify": 96544
+    },
+    "4": {
+      "merkle": 31082,
+      "signatures": 39503,
+      "verify": 103536
+    },
+    "5": {
+      "merkle": 31250,
+      "signatures": 44135,
+      "verify": 108843
+    },
+    "6": {
+      "merkle": 31420,
+      "signatures": 48770,
+      "verify": 114638
+    },
+    "7": {
+      "merkle": 31591,
+      "signatures": 53407,
+      "verify": 120469
+    },
+    "8": {
+      "merkle": 31765,
+      "signatures": 58047,
+      "verify": 126801
+    },
+    "9": {
+      "merkle": 31941,
+      "signatures": 62689,
+      "verify": 132249
+    },
+    "numValidators": 14
+  },
+  "15": {
+    "1": {
+      "merkle": 30992,
+      "signatures": 24729,
+      "verify": 88895
+    },
+    "10": {
+      "merkle": 32523,
+      "signatures": 68059,
+      "verify": 143993
+    },
+    "11": {
+      "merkle": 32705,
+      "signatures": 72705,
+      "verify": 150075
+    },
+    "12": {
+      "merkle": 32889,
+      "signatures": 77356,
+      "verify": 155686
+    },
+    "13": {
+      "merkle": 33078,
+      "signatures": 82009,
+      "verify": 161867
+    },
+    "14": {
+      "merkle": 33268,
+      "signatures": 86667,
+      "verify": 168634
+    },
+    "15": {
+      "merkle": 33461,
+      "signatures": 91327,
+      "verify": 174941
+    },
+    "2": {
+      "merkle": 31154,
+      "signatures": 29959,
+      "verify": 95259
+    },
+    "3": {
+      "merkle": 31319,
+      "signatures": 35191,
+      "verify": 101647
+    },
+    "4": {
+      "merkle": 31484,
+      "signatures": 39823,
+      "verify": 107960
+    },
+    "5": {
+      "merkle": 31652,
+      "signatures": 44455,
+      "verify": 113311
+    },
+    "6": {
+      "merkle": 31821,
+      "signatures": 49092,
+      "verify": 119190
+    },
+    "7": {
+      "merkle": 31993,
+      "signatures": 54131,
+      "verify": 125506
+    },
+    "8": {
+      "merkle": 32168,
+      "signatures": 58771,
+      "verify": 131457
+    },
+    "9": {
+      "merkle": 32345,
+      "signatures": 63413,
+      "verify": 137448
+    },
+    "numValidators": 15
+  },
+  "16": {
+    "1": {
+      "merkle": 31441,
+      "signatures": 27105,
+      "verify": 95563
+    },
+    "10": {
+      "merkle": 32978,
+      "signatures": 68833,
+      "verify": 149953
+    },
+    "11": {
+      "merkle": 33160,
+      "signatures": 73482,
+      "verify": 156136
+    },
+    "12": {
+      "merkle": 33345,
+      "signatures": 78133,
+      "verify": 161807
+    },
+    "13": {
+      "merkle": 33533,
+      "signatures": 82787,
+      "verify": 168087
+    },
+    "14": {
+      "merkle": 33724,
+      "signatures": 87444,
+      "verify": 174991
+    },
+    "15": {
+      "merkle": 33918,
+      "signatures": 92105,
+      "verify": 181388
+    },
+    "16": {
+      "merkle": 34116,
+      "signatures": 96770,
+      "verify": 187855
+    },
+    "2": {
+      "merkle": 31603,
+      "signatures": 31734,
+      "verify": 101416
+    },
+    "3": {
+      "merkle": 31767,
+      "signatures": 36363,
+      "verify": 107297
+    },
+    "4": {
+      "merkle": 31933,
+      "signatures": 40994,
+      "verify": 113745
+    },
+    "5": {
+      "merkle": 32101,
+      "signatures": 45628,
+      "verify": 119145
+    },
+    "6": {
+      "merkle": 32272,
+      "signatures": 50263,
+      "verify": 125118
+    },
+    "7": {
+      "merkle": 32444,
+      "signatures": 54902,
+      "verify": 131674
+    },
+    "8": {
+      "merkle": 32619,
+      "signatures": 59543,
+      "verify": 137174
+    },
+    "9": {
+      "merkle": 32798,
+      "signatures": 64187,
+      "verify": 143262
+    },
+    "numValidators": 16
+  },
+  "17": {
+    "1": {
+      "merkle": 31951,
+      "signatures": 26127,
+      "verify": 99468
+    },
+    "10": {
+      "merkle": 33491,
+      "signatures": 69063,
+      "verify": 156064
+    },
+    "11": {
+      "merkle": 33673,
+      "signatures": 74114,
+      "verify": 162751
+    },
+    "12": {
+      "merkle": 33859,
+      "signatures": 78767,
+      "verify": 168472
+    },
+    "13": {
+      "merkle": 34048,
+      "signatures": 83421,
+      "verify": 174861
+    },
+    "14": {
+      "merkle": 34239,
+      "signatures": 88079,
+      "verify": 181925
+    },
+    "15": {
+      "merkle": 34433,
+      "signatures": 92739,
+      "verify": 188431
+    },
+    "16": {
+      "merkle": 34632,
+      "signatures": 97605,
+      "verify": 195201
+    },
+    "17": {
+      "merkle": 34832,
+      "signatures": 102273,
+      "verify": 201202
+    },
+    "2": {
+      "merkle": 32114,
+      "signatures": 31157,
+      "verify": 105827
+    },
+    "3": {
+      "merkle": 32279,
+      "signatures": 36590,
+      "verify": 112618
+    },
+    "4": {
+      "merkle": 32445,
+      "signatures": 41223,
+      "verify": 119224
+    },
+    "5": {
+      "merkle": 32614,
+      "signatures": 45857,
+      "verify": 124680
+    },
+    "6": {
+      "merkle": 32785,
+      "signatures": 50494,
+      "verify": 130760
+    },
+    "7": {
+      "merkle": 32958,
+      "signatures": 55133,
+      "verify": 137472
+    },
+    "8": {
+      "merkle": 33133,
+      "signatures": 59774,
+      "verify": 143029
+    },
+    "9": {
+      "merkle": 33310,
+      "signatures": 64417,
+      "verify": 149222
+    },
+    "numValidators": 17
+  },
+  "18": {
+    "1": {
+      "merkle": 32522,
+      "signatures": 27220,
+      "verify": 106686
+    },
+    "10": {
+      "merkle": 34066,
+      "signatures": 70562,
+      "verify": 163494
+    },
+    "11": {
+      "merkle": 34249,
+      "signatures": 75210,
+      "verify": 169895
+    },
+    "12": {
+      "merkle": 34434,
+      "signatures": 79864,
+      "verify": 177013
+    },
+    "13": {
+      "merkle": 34622,
+      "signatures": 84518,
+      "verify": 183519
+    },
+    "14": {
+      "merkle": 34814,
+      "signatures": 89177,
+      "verify": 189399
+    },
+    "15": {
+      "merkle": 35008,
+      "signatures": 93837,
+      "verify": 196010
+    },
+    "16": {
+      "merkle": 35205,
+      "signatures": 98501,
+      "verify": 202680
+    },
+    "17": {
+      "merkle": 35405,
+      "signatures": 103167,
+      "verify": 210105
+    },
+    "18": {
+      "merkle": 35610,
+      "signatures": 107837,
+      "verify": 216906
+    },
+    "2": {
+      "merkle": 32685,
+      "signatures": 31849,
+      "verify": 112764
+    },
+    "3": {
+      "merkle": 32851,
+      "signatures": 37684,
+      "verify": 120074
+    },
+    "4": {
+      "merkle": 33017,
+      "signatures": 42317,
+      "verify": 125561
+    },
+    "5": {
+      "merkle": 33187,
+      "signatures": 46952,
+      "verify": 132372
+    },
+    "6": {
+      "merkle": 33357,
+      "signatures": 51991,
+      "verify": 138974
+    },
+    "7": {
+      "merkle": 33531,
+      "signatures": 56629,
+      "verify": 144554
+    },
+    "8": {
+      "merkle": 33707,
+      "signatures": 61272,
+      "verify": 151484
+    },
+    "9": {
+      "merkle": 33885,
+      "signatures": 65916,
+      "verify": 157799
+    },
+    "numValidators": 18
+  },
+  "2": {
+    "1": {
+      "merkle": 28695,
+      "signatures": 19874,
+      "verify": 62817
+    },
+    "2": {
+      "merkle": 28852,
+      "signatures": 24496,
+      "verify": 68084
+    },
+    "numValidators": 2
+  },
+  "3": {
+    "1": {
+      "merkle": 28722,
+      "signatures": 19820,
+      "verify": 62692
+    },
+    "2": {
+      "merkle": 28879,
+      "signatures": 24844,
+      "verify": 68370
+    },
+    "3": {
+      "merkle": 29039,
+      "signatures": 29468,
+      "verify": 73670
+    },
+    "numValidators": 3
+  },
+  "4": {
+    "1": {
+      "merkle": 28762,
+      "signatures": 20582,
+      "verify": 64063
+    },
+    "2": {
+      "merkle": 28920,
+      "signatures": 25205,
+      "verify": 69347
+    },
+    "3": {
+      "merkle": 29080,
+      "signatures": 29828,
+      "verify": 74656
+    },
+    "4": {
+      "merkle": 29241,
+      "signatures": 34455,
+      "verify": 79716
+    },
+    "numValidators": 4
+  },
+  "5": {
+    "1": {
+      "merkle": 28819,
+      "signatures": 20357,
+      "verify": 64331
+    },
+    "2": {
+      "merkle": 28977,
+      "signatures": 25582,
+      "verify": 70234
+    },
+    "3": {
+      "merkle": 29138,
+      "signatures": 30207,
+      "verify": 75557
+    },
+    "4": {
+      "merkle": 29299,
+      "signatures": 34835,
+      "verify": 80625
+    },
+    "5": {
+      "merkle": 29463,
+      "signatures": 39464,
+      "verify": 86289
+    },
+    "numValidators": 5
+  },
+  "6": {
+    "1": {
+      "merkle": 28895,
+      "signatures": 20953,
+      "verify": 65610
+    },
+    "2": {
+      "merkle": 29053,
+      "signatures": 25576,
+      "verify": 70929
+    },
+    "3": {
+      "merkle": 29214,
+      "signatures": 30202,
+      "verify": 76272
+    },
+    "4": {
+      "merkle": 29377,
+      "signatures": 35031,
+      "verify": 81845
+    },
+    "5": {
+      "merkle": 29541,
+      "signatures": 39861,
+      "verify": 87447
+    },
+    "6": {
+      "merkle": 29708,
+      "signatures": 44494,
+      "verify": 92883
+    },
+    "numValidators": 6
+  },
+  "7": {
+    "1": {
+      "merkle": 28995,
+      "signatures": 20569,
+      "verify": 65839
+    },
+    "2": {
+      "merkle": 29153,
+      "signatures": 25595,
+      "verify": 71580
+    },
+    "3": {
+      "merkle": 29314,
+      "signatures": 30221,
+      "verify": 76943
+    },
+    "4": {
+      "merkle": 29476,
+      "signatures": 35653,
+      "verify": 83438
+    },
+    "5": {
+      "merkle": 29641,
+      "signatures": 40283,
+      "verify": 88559
+    },
+    "6": {
+      "merkle": 29808,
+      "signatures": 44914,
+      "verify": 94011
+    },
+    "7": {
+      "merkle": 29977,
+      "signatures": 49549,
+      "verify": 99497
+    },
+    "numValidators": 7
+  },
+  "8": {
+    "1": {
+      "merkle": 29117,
+      "signatures": 22218,
+      "verify": 68932
+    },
+    "2": {
+      "merkle": 29276,
+      "signatures": 26843,
+      "verify": 74299
+    },
+    "3": {
+      "merkle": 29438,
+      "signatures": 31469,
+      "verify": 79691
+    },
+    "4": {
+      "merkle": 29600,
+      "signatures": 36097,
+      "verify": 84800
+    },
+    "5": {
+      "merkle": 29766,
+      "signatures": 40727,
+      "verify": 90562
+    },
+    "6": {
+      "merkle": 29934,
+      "signatures": 45361,
+      "verify": 96050
+    },
+    "7": {
+      "merkle": 30104,
+      "signatures": 49996,
+      "verify": 101262
+    },
+    "8": {
+      "merkle": 30277,
+      "signatures": 54635,
+      "verify": 107149
+    },
+    "numValidators": 8
+  },
+  "9": {
+    "1": {
+      "merkle": 29272,
+      "signatures": 21086,
+      "verify": 69255
+    },
+    "2": {
+      "merkle": 29432,
+      "signatures": 26917,
+      "verify": 75539
+    },
+    "3": {
+      "merkle": 29594,
+      "signatures": 31543,
+      "verify": 81292
+    },
+    "4": {
+      "merkle": 29757,
+      "signatures": 36173,
+      "verify": 86749
+    },
+    "5": {
+      "merkle": 29923,
+      "signatures": 41206,
+      "verify": 92308
+    },
+    "6": {
+      "merkle": 30091,
+      "signatures": 45838,
+      "verify": 97825
+    },
+    "7": {
+      "merkle": 30261,
+      "signatures": 50474,
+      "verify": 103710
+    },
+    "8": {
+      "merkle": 30434,
+      "signatures": 55112,
+      "verify": 108969
+    },
+    "9": {
+      "merkle": 30609,
+      "signatures": 59754,
+      "verify": 114611
+    },
+    "numValidators": 9
+  },
+  "MAX_VALIDATOR_COUNT": 18
+}
