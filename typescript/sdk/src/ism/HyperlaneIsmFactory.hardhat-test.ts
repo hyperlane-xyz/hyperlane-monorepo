@@ -21,9 +21,11 @@ import {
 } from './types';
 
 function randomModuleType(): ModuleType {
-  const modules = Object.values(ModuleType) as ModuleType[];
-  const excluded = [ModuleType.UNUSED, ModuleType.LEGACY_MULTISIG];
-  const choices = modules.filter((module) => !excluded.includes(module));
+  const choices = [
+    ModuleType.AGGREGATION,
+    ModuleType.MULTISIG,
+    ModuleType.ROUTING,
+  ];
   return choices[randomInt(choices.length)];
 }
 
@@ -40,36 +42,31 @@ const randomMultisigIsmConfig = (m: number, n: number): MultisigIsmConfig => {
 const randomIsmConfig = (depth = 0, maxDepth = 2): IsmConfig => {
   const moduleType =
     depth == maxDepth ? ModuleType.MULTISIG : randomModuleType();
-  switch (moduleType) {
-    case ModuleType.MULTISIG: {
-      const n = randomInt(5, 1);
-      return randomMultisigIsmConfig(randomInt(n, 1), n);
-    }
-    case ModuleType.ROUTING: {
-      const config: RoutingIsmConfig = {
-        type: ModuleType.ROUTING,
-        owner: randomAddress(),
-        domains: Object.fromEntries(
-          TestChains.map((c) => [c, randomIsmConfig(depth + 1)]),
-        ),
-      };
-      return config;
-    }
-    case ModuleType.AGGREGATION: {
-      const n = randomInt(5, 1);
-      const modules = new Array<number>(n)
-        .fill(0)
-        .map(() => randomIsmConfig(depth + 1));
-      const config: AggregationIsmConfig = {
-        type: ModuleType.AGGREGATION,
-        threshold: randomInt(n, 1),
-        modules,
-      };
-      return config;
-    }
-    default: {
-      throw new Error(`Unsupported ISM type: ${moduleType}`);
-    }
+  if (moduleType === ModuleType.MULTISIG) {
+    const n = randomInt(5, 1);
+    return randomMultisigIsmConfig(randomInt(n, 1), n);
+  } else if (moduleType === ModuleType.ROUTING) {
+    const config: RoutingIsmConfig = {
+      type: ModuleType.ROUTING,
+      owner: randomAddress(),
+      domains: Object.fromEntries(
+        TestChains.map((c) => [c, randomIsmConfig(depth + 1)]),
+      ),
+    };
+    return config;
+  } else if (moduleType === ModuleType.AGGREGATION) {
+    const n = randomInt(5, 1);
+    const modules = new Array<number>(n)
+      .fill(0)
+      .map(() => randomIsmConfig(depth + 1));
+    const config: AggregationIsmConfig = {
+      type: ModuleType.AGGREGATION,
+      threshold: randomInt(n, 1),
+      modules,
+    };
+    return config;
+  } else {
+    throw new Error(`Unsupported ISM type: ${moduleType}`);
   }
 };
 
