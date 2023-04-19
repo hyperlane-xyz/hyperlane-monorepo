@@ -29,8 +29,8 @@ jobs:
         with:
           submodules: recursive
 
-      - name: remove submodule locks
-        run: git submodule foreach rm yarn.lock
+      - name: remove submodule yarn locks
+        run: git submodule foreach "[ ! -e yarn.lock ] || rm yarn.lock"
 
       - name: setup rust
         uses: actions-rs/toolchain@v1
