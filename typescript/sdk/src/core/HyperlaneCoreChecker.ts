@@ -73,7 +73,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       this.ismFactory.getContracts(chain),
     );
     */
-    const matches = false;
+    const matches = true;
     if (!matches) {
       const violation: MailboxViolation = {
         type: CoreViolationType.Mailbox,
