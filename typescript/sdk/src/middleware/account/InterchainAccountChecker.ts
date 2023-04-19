@@ -17,7 +17,7 @@ export class InterchainAccountChecker extends ProxiedRouterChecker<
     configMap: ChainMap<InterchainAccountConfig>,
   ) {
     super(multiProvider, app, configMap);
-    Object.keys(this.configMap).forEach((chain) => {
+    Object.keys(this.app.contractsMap).forEach((chain) => {
       if (this.configMap[chain].interchainSecurityModule) {
         throw new Error(
           'Configuration of ISM address not supported in ICA checker',
