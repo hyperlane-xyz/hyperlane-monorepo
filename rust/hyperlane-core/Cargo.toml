@@ -25,7 +25,6 @@ itertools.workspace = true
 num = {version="0", features=["serde"]}
 num-derive.workspace = true
 num-traits.workspace = true
-pico-args.workspace = true
 rocksdb.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -47,4 +46,11 @@ tokio = { workspace = true, features = ["rt", "time"] }
 walkdir = { version = "2" }
 
 [features]
+default = ["eq-separator", "combined-flags"]
 output = []
+
+# argument parsing
+eq-separator = []
+combined-flags = []
+#disabled to prevent changing things when using cargo check --all-features as we do not currently support this
+#short-space-opt = []
