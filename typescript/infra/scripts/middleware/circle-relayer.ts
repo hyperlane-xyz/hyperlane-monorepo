@@ -18,6 +18,11 @@ import {
 async function check() {
   const environment = await getEnvironment();
   const config = getEnvironmentConfig(environment);
+
+  if (config.liquidityLayerConfig === undefined) {
+    throw new Error(`No liquidity layer config found for ${environment}`);
+  }
+
   const multiProvider = await config.getMultiProvider();
   const dir = path.join(
     __dirname,
@@ -27,14 +32,18 @@ async function check() {
   );
   const addresses = readJSON(dir, 'addresses.json');
   const contracts = attachContractsMap(addresses, liquidityLayerFactories);
+
   const app = new LiquidityLayerApp(
     contracts,
     multiProvider,
-    bridgeAdapterConfigs,
+    config.liquidityLayerConfig,
   );
 
   while (true) {
-    for (const chain of [Chains.goerli, Chains.fuji]) {
+    for (const chain of Object.keys(
+      // @ts-ignore Can't figure how to make it a type predicate
+      objFilter(config.liquidityLayerConfig, (_, config) => !!config.circle),
+    )) {
       const txHashes = await app.fetchCircleMessageTransactions(chain);
 
       const circleDispatches = (

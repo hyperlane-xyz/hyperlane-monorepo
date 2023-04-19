@@ -181,9 +181,11 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
       this.logger(
         `Set wormhole domain ${wormholeDomain} for hyperlane domain ${hyperlaneDomain}`,
       );
-      await this.multiProvider.handleTx(
-        chain,
-        portalAdapter.addDomain(hyperlaneDomain, wormholeDomain),
+      await this.runIfOwner(chain, portalAdapter, () =>
+        this.multiProvider.handleTx(
+          chain,
+          portalAdapter.addDomain(hyperlaneDomain, wormholeDomain),
+        ),
       );
     }
 
@@ -194,11 +196,13 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
       )
     ) {
       this.logger('Set Portal as LiquidityLayerAdapter on Router');
-      await this.multiProvider.handleTx(
-        chain,
-        router.setLiquidityLayerAdapter(
-          adapterConfig.type,
-          portalAdapter.address,
+      await this.runIfOwner(chain, portalAdapter, () =>
+        this.multiProvider.handleTx(
+          chain,
+          router.setLiquidityLayerAdapter(
+            adapterConfig.type,
+            portalAdapter.address,
+          ),
         ),
       );
     }
@@ -231,9 +235,11 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
       )
     ) {
       this.logger(`Set USDC token contract`);
-      await this.multiProvider.handleTx(
-        chain,
-        circleBridgeAdapter.addToken(adapterConfig.usdcAddress, 'USDC'),
+      await this.runIfOwner(chain, circleBridgeAdapter, () =>
+        this.multiProvider.handleTx(
+          chain,
+          circleBridgeAdapter.addToken(adapterConfig.usdcAddress, 'USDC'),
+        ),
       );
     }
     // Set domain mappings
@@ -250,9 +256,11 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
       this.logger(
         `Set circle domain ${circleDomain} for hyperlane domain ${hyperlaneDomain}`,
       );
-      await this.multiProvider.handleTx(
-        chain,
-        circleBridgeAdapter.addDomain(hyperlaneDomain, circleDomain),
+      await this.runIfOwner(chain, circleBridgeAdapter, () =>
+        this.multiProvider.handleTx(
+          chain,
+          circleBridgeAdapter.addDomain(hyperlaneDomain, circleDomain),
+        ),
       );
     }
 
@@ -263,11 +271,13 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
       )
     ) {
       this.logger('Set Circle as LiquidityLayerAdapter on Router');
-      await this.multiProvider.handleTx(
-        chain,
-        router.setLiquidityLayerAdapter(
-          adapterConfig.type,
-          circleBridgeAdapter.address,
+      await this.runIfOwner(chain, circleBridgeAdapter, () =>
+        this.multiProvider.handleTx(
+          chain,
+          router.setLiquidityLayerAdapter(
+            adapterConfig.type,
+            circleBridgeAdapter.address,
+          ),
         ),
       );
     }
