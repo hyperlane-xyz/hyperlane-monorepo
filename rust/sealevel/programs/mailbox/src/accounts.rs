@@ -24,11 +24,17 @@ impl<T> Data for T where T: BorshDeserialize + BorshSerialize + Default {}
 /// }
 #[derive(Debug, Default)]
 pub struct AccountData<T> {
-    data: T,
+    data: Box<T>,
 }
 
 impl<T> From<T> for AccountData<T> {
     fn from(data: T) -> Self {
+        Self { data: Box::new(data) }
+    }
+}
+
+impl<T> From<Box<T>> for AccountData<T> {
+    fn from(data: Box<T>) -> Self {
         Self { data }
     }
 }
@@ -37,7 +43,7 @@ impl<T> AccountData<T>
 where
     T: Data,
 {
-    pub fn into_inner(self) -> T {
+    pub fn into_inner(self) -> Box<T> {
         self.data
     }
 
@@ -45,9 +51,9 @@ where
         // Account data is zero initialized.
         let initialized = bool::deserialize(buf)?;
         let data = if initialized {
-            T::deserialize(buf)?
+            T::deserialize(buf).map(Box::new)?
         } else {
-            T::default()
+            Box::<T>::default()
         };
         Ok(Self { data })
     }

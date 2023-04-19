@@ -3,7 +3,11 @@
 use hyperlane_core::{Decode, Encode as _, H256};
 use hyperlane_sealevel_mailbox::{
     mailbox_outbox_pda_seeds,
-    instruction::{Instruction as MailboxIxn, OutboxDispatch as MailboxOutboxDispatch},
+    instruction::{
+        Instruction as MailboxIxn,
+        OutboxDispatch as MailboxOutboxDispatch,
+        MailboxRecipientInstruction
+    },
 };
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
@@ -105,13 +109,30 @@ pub fn process_instruction(
     accounts: &[AccountInfo],
     instruction_data: &[u8],
 ) -> ProgramResult {
-    match TokenIxn::from_instruction_data(instruction_data)? {
-        TokenIxn::Init(init) => initialize(program_id, accounts, init),
-        TokenIxn::TransferRemote(xfer) => transfer_remote(program_id, accounts, xfer),
-        TokenIxn::TransferFromRemote(xfer) => transfer_from_remote(program_id, accounts, xfer),
+    let instruction =
+        MailboxRecipientInstruction::<TokenIxn>::from_instruction_data(instruction_data)
+            .map_err(|err| {
+                msg!("{}", err);
+                err
+            })?;
+    match instruction {
+        MailboxRecipientInstruction::MailboxRecipientCpi(recipient_ixn) => transfer_from_remote(
+            program_id,
+            accounts,
+            TransferFromRemote {
+                origin: recipient_ixn.origin,
+                // sender: recipient_ixn.sender,
+                message: recipient_ixn.message,
+            }
+        ),
+        MailboxRecipientInstruction::Custom(token_ixn) => match token_ixn {
+            TokenIxn::Init(init) => initialize(program_id, accounts, init),
+            TokenIxn::TransferRemote(xfer) => transfer_remote(program_id, accounts, xfer),
+            TokenIxn::TransferFromRemote(xfer) => transfer_from_remote(program_id, accounts, xfer),
 
-        TokenIxn::TransferFromSender(xfer) => transfer_from_sender(program_id, accounts, xfer),
-        TokenIxn::TransferTo(xfer) => transfer_to(program_id, accounts, xfer),
+            TokenIxn::TransferFromSender(xfer) => transfer_from_sender(program_id, accounts, xfer),
+            TokenIxn::TransferTo(xfer) => transfer_to(program_id, accounts, xfer),
+        },
     }
     .map_err(|err| {
         msg!("{}", err);
@@ -386,8 +407,8 @@ fn transfer_remote(
     let mailbox_ixn = MailboxIxn::OutboxDispatch(MailboxOutboxDispatch {
         sender: *sender_wallet.key,
         local_domain: erc20.mailbox_local_domain,
-        destination_domain: xfer.destination,
-        recipient: xfer.recipient,
+        destination_domain: xfer.destination_domain,
+        recipient: xfer.destination_program_id,
         message_body: token_xfer_message,
     });
     let mailbox_ixn = Instruction {
@@ -407,7 +428,7 @@ fn transfer_remote(
     )?;
 
     let event = Event::new(EventSentTransferRemote {
-        destination: xfer.destination,
+        destination: xfer.destination_domain,
         recipient: xfer.recipient,
         amount: xfer.amount_or_id,
     });
@@ -477,6 +498,9 @@ fn transfer_from_remote(
     xfer: TransferFromRemote
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
+
+    // FIXME make sure to validate this
+    let _mailbox_auth = next_account_info(accounts_iter)?;
 
     let system_program = next_account_info(accounts_iter)?;
     if system_program.key != &solana_program::system_program::id() {

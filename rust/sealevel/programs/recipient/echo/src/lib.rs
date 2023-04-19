@@ -10,7 +10,7 @@
 
 use std::str::FromStr as _;
 
-use hyperlane_sealevel_mailbox::instruction::RecipientInstruction;
+use hyperlane_sealevel_mailbox::instruction::MailboxRecipientInstruction;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint,
@@ -44,7 +44,7 @@ pub fn process_instruction(
     if accounts_iter.next().is_some() {
         return Err(ProgramError::InvalidArgument);
     }
-    let ixn = RecipientInstruction::from_instruction_data(instruction_data)?;
+    let ixn = MailboxRecipientInstruction::<()>::from_instruction_data(instruction_data)?;
     msg!("hyperlane-sealevel-recipient-echo: {:?}", ixn);
     Ok(())
 }

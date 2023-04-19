@@ -14,7 +14,7 @@ use hyperlane_sealevel_mailbox::{
     accounts::{InboxAccount, OutboxAccount},
     instruction::{
         InboxProcess, Init as InitMailbox, Instruction as MailboxInstruction, OutboxDispatch,
-        VERSION,
+        MailboxRecipientInstruction, VERSION,
     },
     mailbox_authority_pda_seeds, mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds
 };
@@ -230,6 +230,8 @@ struct TokenTransferRemote {
     amount: u64,
     // #[arg(long, short, default_value_t = ECLIPSE_DOMAIN)]
     destination_domain: u32,
+    #[arg(long, short = 't', default_value_t = HYPERLANE_ERC20_PROG_ID)]
+    destination_token_program_id: Pubkey,
     recipient: Pubkey,
 }
 
@@ -545,7 +547,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 &init.mailbox,
             );
 
-            let ixn = Erc20Instruction::Init(Erc20Init {
+            let ixn = MailboxRecipientInstruction::new_custom(Erc20Instruction::Init(Erc20Init {
                 mailbox: init.mailbox,
                 mailbox_outbox: mailbox_outbox_account,
                 mailbox_local_domain: init.mailbox_local_domain,
@@ -553,7 +555,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 total_supply: init.total_supply.into(),
                 name: init.name,
                 symbol: init.symbol,
-            });
+            }));
             let init_instruction = Instruction {
                 program_id: init.program_id,
                 data: ixn.into_instruction_data().unwrap(),
@@ -645,11 +647,14 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 &xfer.mailbox,
             );
 
-            let ixn = Erc20Instruction::TransferRemote(Erc20TransferRemote {
-                destination: xfer.destination_domain,
-                recipient: H256::from(xfer.recipient.to_bytes()),
-                amount_or_id: xfer.amount.into(),
-            });
+            let ixn = MailboxRecipientInstruction::new_custom(Erc20Instruction::TransferRemote(
+                Erc20TransferRemote {
+                    destination_domain: xfer.destination_domain,
+                    destination_program_id: xfer.destination_token_program_id.to_bytes().into(),
+                    recipient: xfer.recipient.to_bytes().into(),
+                    amount_or_id: xfer.amount.into(),
+                }
+            ));
 
             // 1. spl_noop
             // 2. spl_token_2022
@@ -714,10 +719,12 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 U256::from(xfer.amount),
                 vec![],
             );
-            let ixn = Erc20Instruction::TransferFromRemote(Erc20TransferFromRemote {
-                origin: xfer.origin_domain,
-                message: message.to_vec(),
-            });
+            let ixn = MailboxRecipientInstruction::new_custom(Erc20Instruction::TransferFromRemote(
+                Erc20TransferFromRemote {
+                    origin: xfer.origin_domain,
+                    message: message.to_vec(),
+                }
+            ));
             let accounts = vec![
                 AccountMeta::new_readonly(system_program::id(), false),
                 AccountMeta::new_readonly(spl_noop::id(), false),
@@ -771,9 +778,11 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 &spl_token_2022::id(),
             );
 
-            let ixn = Erc20Instruction::TransferFromSender(Erc20TransferFromSender {
-                amount: xfer.amount.into(),
-            });
+            let ixn = MailboxRecipientInstruction::new_custom(Erc20Instruction::TransferFromSender(
+                    Erc20TransferFromSender {
+                    amount: xfer.amount.into(),
+                }
+            ));
             // 1. spl_token_2022
             // 2. hyperlane_token_erc20
             // 3. hyperlane_token_mint
@@ -826,9 +835,11 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 &spl_token_2022::id(),
             );
 
-            let ixn = Erc20Instruction::TransferTo(Erc20TransferTo {
-                amount: xfer.amount.into(),
-            });
+            let ixn = MailboxRecipientInstruction::new_custom(Erc20Instruction::TransferTo(
+                Erc20TransferTo {
+                    amount: xfer.amount.into(),
+                }
+            ));
             let accounts = vec![
                 AccountMeta::new_readonly(system_program::id(), false),
                 AccountMeta::new_readonly(spl_token_2022::id(), false),

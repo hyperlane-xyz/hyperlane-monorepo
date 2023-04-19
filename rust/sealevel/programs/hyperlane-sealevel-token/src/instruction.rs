@@ -51,7 +51,8 @@ pub struct Init {
 /// Transfers `amount_or_id` token to `recipient` on `destination` domain.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub struct TransferRemote {
-    pub destination: u32,
+    pub destination_domain: u32,
+    pub destination_program_id: H256,
     pub recipient: H256,
     pub amount_or_id: U256,
 }

@@ -21,7 +21,7 @@ use crate::{
     error::Error,
     instruction::{
         InboxProcess, InboxSetDefaultModule, Init, Instruction as MailboxIxn, IsmInstruction,
-        OutboxDispatch, OutboxQuery, RecipientInstruction, MAX_MESSAGE_BODY_BYTES, VERSION,
+        OutboxDispatch, OutboxQuery, MailboxRecipientInstruction, MAX_MESSAGE_BODY_BYTES, VERSION,
     },
 };
 
@@ -236,10 +236,6 @@ fn inbox_process(
     }
     inbox.delivered.insert(id);
 
-    let ism_ixn = IsmInstruction {
-        metadata: process.metadata,
-        message: message.body.clone(),
-    };
     if inbox.ism != *next_account_info(accounts_iter)?.key {
         return Err(ProgramError::from(Error::AccountOutOfOrder));
     }
@@ -263,13 +259,7 @@ fn inbox_process(
         ism_accounts.push(info.clone());
         ism_account_metas.push(meta);
     }
-    let verify = Instruction::new_with_borsh(inbox.ism, &ism_ixn, ism_account_metas);
 
-    let recp_ixn = RecipientInstruction {
-        sender: message.sender,
-        origin: message.origin,
-        message: message.body,
-    };
     let recp_prog_id = Pubkey::new_from_array(message.recipient.0);
     if recp_prog_id != *next_account_info(accounts_iter)?.key {
         return Err(ProgramError::from(Error::AccountOutOfOrder));
@@ -280,33 +270,37 @@ fn inbox_process(
         is_signer: true,
         is_writable: false,
     }];
-    for account in [] {
-        // TODO recipient accounts must be provided up front
-        let pubkey = Pubkey::new_from_array(account);
-        let meta = AccountMeta {
-            pubkey,
-            // TODO this should probably be provided up front...
-            is_signer: false,
-            is_writable: false,
-        };
-        let info = next_account_info(accounts_iter)?;
-        if info.key != &pubkey {
-            return Err(ProgramError::from(Error::AccountOutOfOrder));
-        }
-        recp_accounts.push(info.clone());
-        recp_account_metas.push(meta);
+    for account_info in accounts_iter {
+        recp_accounts.push(account_info.clone());
+        recp_account_metas.push(AccountMeta {
+            pubkey: *account_info.key,
+            is_signer: account_info.is_signer,
+            is_writable: account_info.is_writable,
+        });
     }
-    let recieve =
-        Instruction::new_with_borsh(message.recipient.0.into(), &recp_ixn, recp_account_metas);
 
-    if accounts_iter.next().is_some() {
-        return Err(ProgramError::from(Error::ExtraneousAccount));
-    }
     let auth_seeds: &[&[u8]] = mailbox_authority_pda_seeds!(
         inbox.local_domain,
         inbox.auth_bump_seed
     );
+
+    let ism_ixn = IsmInstruction {
+        metadata: process.metadata,
+        message: message.body,
+    };
+    let verify = Instruction::new_with_borsh(inbox.ism, &ism_ixn, ism_account_metas);
     invoke_signed(&verify, &ism_accounts, &[auth_seeds])?;
+
+    let recp_ixn = MailboxRecipientInstruction::<()>::new_mailbox_recipient_cpi(
+        message.sender,
+        message.origin,
+        ism_ixn.message,
+    );
+    let recieve = Instruction::new_with_bytes(
+        message.recipient.0.into(),
+        &recp_ixn.into_instruction_data()?,
+        recp_account_metas
+    );
     invoke_signed(&recieve, &recp_accounts, &[auth_seeds])?;
 
     // FIXME do we need an equivalent of both ProcessId and Process solidity events?
@@ -315,9 +309,9 @@ fn inbox_process(
         accounts: vec![],
         data: format!("Hyperlane inbox: {:?}", id).into_bytes(),
     };
-    msg!("data = {}", bs58::encode(&noop_cpi_log.data).into_string()); // FIXME remove
     invoke_signed(&noop_cpi_log, &[], &[auth_seeds])?;
 
+    // FIXME store before or after recipient cpi? What if fail to write but recipient cpi okay?
     InboxAccount::from(inbox).store(inbox_account, true)?;
     Ok(())
 }
@@ -353,6 +347,10 @@ fn inbox_set_default_ism(
     Ok(())
 }
 
+// Accounts:
+// 1. outbox pda
+// 2. sender
+// 3. spl_noop
 fn outbox_dispatch(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -425,6 +423,7 @@ fn outbox_dispatch(
     msg!("data = {}", bs58::encode(&noop_cpi_log.data).into_string()); // FIXME remove
     invoke_signed(&noop_cpi_log, &[], &[auth_seeds])?;
 
+    // FIXME store before or after noop cpi? What if fail to write but noop cpi okay?
     OutboxAccount::from(outbox).store(outbox_account, true)?;
 
     set_return_data(id.as_ref());

@@ -1,7 +1,10 @@
+#![allow(warnings)]// FIXME remove
+
 use std::{
     collections::HashMap,
     num::NonZeroU64,
     str::FromStr as _,
+    sync::{Arc, Mutex},
 };
 
 use async_trait::async_trait;
@@ -20,6 +23,7 @@ use crate::{
         instruction::{AccountMeta, Instruction},
         pubkey::Pubkey,
         nonblocking_rpc_client::RpcClient,
+        rpc_config::RpcSendTransactionConfig,
         signature::Signature,
         signer::{keypair::{Keypair, read_keypair_file}, Signer as _},
         transaction::{Transaction, VersionedTransaction},
@@ -35,6 +39,8 @@ use crate::{
             UiTransactionStatusMeta,
         },
     },
+    mailbox_message_inspector::{Error as InspectionError, Inspector},
+    mailbox_token_bridge_message_inspector::TokenBridgeInspector,
 };
 
 // FIXME solana uses the first 64 byte signature of a transaction to uniquely identify the
@@ -53,11 +59,19 @@ pub struct SealevelMailbox {
     rpc_client: RpcClient,
     domain: HyperlaneDomain,
     payer: Keypair,
+    // FIXME don't understand why the trait bounds for Mailbox are designed to disallow
+    // Arc<Mutex<dyn Inspector>> or a wrapper around SealevelMailbox that contains
+    // Arc<Mutex<SealevelMailbox>>. Now we have to box an arc mutex... wtf?
+    // FIXME make this a hash map of mailbox recipient to inspector
+    inspector: Box<dyn Inspector + Send + Sync>,
 }
 
 impl SealevelMailbox {
-    /// Create a new fuel mailbox
-    pub fn new(conf: &ConnectionConf, locator: ContractLocator) -> ChainResult<Self> {
+    /// Create a new sealevel mailbox
+    pub fn new(
+        conf: &ConnectionConf,
+        locator: ContractLocator,
+    ) -> ChainResult<Self> {
         let rpc_client = RpcClient::new(conf.url.clone());
 
         // FIXME inject via config
@@ -97,6 +111,17 @@ impl SealevelMailbox {
             &program_id,
         );
 
+        // FIXME inject via config
+        let hyperlane_token_program_id =
+            Pubkey::from_str("3MzUPjP5LEkiHH82nEAe28Xtz9ztuMqWc8UmuKxrpVQH").unwrap();
+        let token_name = "MOON_SPL".to_string();
+        let token_symbol = "$".to_string();
+        let inspector = Box::new(Arc::new(Mutex::new(TokenBridgeInspector::new(
+            hyperlane_token_program_id,
+            token_name,
+            token_symbol,
+        ))));
+
         debug!(
             "domain={}\nmailbox={}\nauthority=({}, {})\ninbox=({}, {})\noutbox=({}, {})",
             domain,
@@ -117,6 +142,7 @@ impl SealevelMailbox {
             rpc_client,
             domain: locator.domain,
             payer,
+            inspector,
         })
     }
 
@@ -276,18 +302,36 @@ impl Mailbox for SealevelMailbox {
         let ixn_data = ixn
             .into_instruction_data()
             .map_err(ChainCommunicationError::from_other)?;
+        let mut accounts = vec![
+            AccountMeta::new(self.inbox.0, false),
+            AccountMeta::new_readonly(self.authority.0, false),
+            AccountMeta::new_readonly(Pubkey::from_str(contract::SPL_NOOP).unwrap(), false),
+            AccountMeta::new_readonly(ism, false),
+            AccountMeta::new_readonly(recipient, false),
+            // Note: we would have to provide ISM accounts accounts here if the contract uses
+            // any additional accounts.
+        ];
+
+        // Inject additional accounts required by recipient instruction.
+        match self.inspector.inspect(&self.payer.pubkey(), message) {
+            Ok(inspection) => {
+                error!("Extending accounts after inner message inspection!"); // FIXME trace or debug
+                accounts.extend(inspection.accounts)
+            },
+            Err(InspectionError::IncorrectProgramId) => {
+                // FIXME looks like the recipient wallet is the prog id?!?!?!?!?!?!
+                error!(
+                    "Inspector ignoring irrelevant program id: {}",
+                    Pubkey::new_from_array(message.recipient.into())
+                );
+            }, // FIXME trace or debug
+            Err(err) => return Err(ChainCommunicationError::from_other(err)),
+        };
+
         let inbox_instruction = Instruction {
             program_id: self.program_id,
             data: ixn_data,
-            accounts: vec![
-                AccountMeta::new(self.inbox.0, false),
-                AccountMeta::new_readonly(self.authority.0, false),
-                AccountMeta::new_readonly(Pubkey::from_str(contract::SPL_NOOP).unwrap(), false),
-                AccountMeta::new_readonly(ism, false),
-                AccountMeta::new_readonly(recipient, false),
-                // Note: we would have to provide ism accounts and recipient accounts here if
-                // they were to use other accounts.
-            ],
+            accounts,
         };
         error!("accounts={:#?}", inbox_instruction.accounts); // FIXME remove
         instructions.push(inbox_instruction);
@@ -305,13 +349,30 @@ impl Mailbox for SealevelMailbox {
 
         let signature = self
             .rpc_client
-            .send_transaction(&txn)
+            // .send_transaction(&txn) // FIXME use this
+            .send_transaction_with_config(
+                &txn,
+                RpcSendTransactionConfig {
+                    skip_preflight: true,
+                    ..Default::default()
+                },
+            )
             .await
+            .map_err(|err| {
+                eprintln!("{:#?}", err); // FIXME remove
+                err
+            })
             .map_err(ChainCommunicationError::from_other)?;
+        error!("signature={}", signature); // FIXME remove
         let executed = self
             .rpc_client
+            // FIXME apparetnly this returns Ok(not_executed) if the txn fails?
             .confirm_transaction_with_commitment(&signature, commitment)
             .await
+            .map_err(|err| {
+                eprintln!("{:#?}", err); // FIXME remove
+                err
+            })
             .map_err(|err| warn!("Failed to confirm inbox process transaction: {}", err))
             .is_ok();
         let txid = signature_to_txn_hash(&signature);
