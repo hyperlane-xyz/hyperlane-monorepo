@@ -16,4 +16,14 @@ interface IMultisigIsm is IInterchainSecurityModule {
         external
         view
         returns (address[] memory validators, uint8 threshold);
+
+    function verifyMerkleProof(
+        bytes calldata _metadata,
+        bytes calldata _message
+    ) external pure returns (bool);
+
+    function verifyValidatorSignatures(
+        bytes calldata _metadata,
+        bytes calldata _message
+    ) external view returns (bool);
 }

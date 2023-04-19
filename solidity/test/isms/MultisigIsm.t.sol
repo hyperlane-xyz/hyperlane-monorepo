@@ -131,18 +131,22 @@ contract MultisigIsmTest is Test {
         string memory json = "gasInstrumentation";
 
         for (
-            uint8 numValidators = 1;
+            uint256 numValidators = 1;
             numValidators <= MAX_VALIDATOR_COUNT;
             numValidators++
         ) {
             string memory json2 = "numValidators";
 
-            for (uint8 threshold = 1; threshold <= numValidators; threshold++) {
+            for (
+                uint256 threshold = 1;
+                threshold <= numValidators;
+                threshold++
+            ) {
                 string memory json3 = "threshold";
 
                 bytes memory metadata = getMetadata(
-                    threshold,
-                    numValidators,
+                    uint8(threshold),
+                    uint8(numValidators),
                     seed
                 );
 
@@ -158,15 +162,19 @@ contract MultisigIsmTest is Test {
                 json3.serialize("merkle", merkle);
 
                 uint256 signatures = gasleft();
-                assertTrue(ism.verifyValidatorSignaturs(metadata, message));
+                assertTrue(ism.verifyValidatorSignatures(metadata, message));
                 signatures = signatures - gasleft();
-                json3.serialize("signatures", signatures);
+                json3 = json3.serialize("signatures", signatures);
 
                 json2.serialize(Strings.toString(threshold), json3);
             }
 
+            json2 = json2.serialize("numValidators", numValidators);
+
             json.serialize(Strings.toString(numValidators), json2);
         }
+
+        json = json.serialize("MAX_VALIDATOR_COUNT", MAX_VALIDATOR_COUNT);
 
         json.write("gasInstrumentation.json");
     }
