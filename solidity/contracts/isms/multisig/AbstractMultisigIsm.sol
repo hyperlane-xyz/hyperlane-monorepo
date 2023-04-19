@@ -54,8 +54,8 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
         view
         returns (bool)
     {
-        require(_verifyMerkleProof(_metadata, _message), "!merkle");
-        require(_verifyValidatorSignatures(_metadata, _message), "!sigs");
+        require(verifyMerkleProof(_metadata, _message), "!merkle");
+        require(verifyValidatorSignatures(_metadata, _message), "!sigs");
         return true;
     }
 
@@ -67,10 +67,10 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
      * @param _metadata ABI encoded module metadata (see MultisigIsmMetadata.sol)
      * @param _message Formatted Hyperlane message (see Message.sol).
      */
-    function _verifyMerkleProof(
+    function verifyMerkleProof(
         bytes calldata _metadata,
         bytes calldata _message
-    ) internal pure returns (bool) {
+    ) public pure returns (bool) {
         // calculate the expected root based on the proof
         bytes32 _calculatedRoot = MerkleLib.branchRoot(
             Message.id(_message),
@@ -86,10 +86,10 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
      * @param _metadata ABI encoded module metadata (see MultisigIsmMetadata.sol)
      * @param _message Formatted Hyperlane message (see Message.sol).
      */
-    function _verifyValidatorSignatures(
+    function verifyValidatorSignatures(
         bytes calldata _metadata,
         bytes calldata _message
-    ) internal view returns (bool) {
+    ) public view returns (bool) {
         (
             address[] memory _validators,
             uint8 _threshold

@@ -3,6 +3,9 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
+import "forge-std/StdJson.sol";
+
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 import {IMultisigIsm} from "../../contracts/interfaces/isms/IMultisigIsm.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
@@ -91,6 +94,8 @@ contract MultisigIsmTest is Test {
         return metadata;
     }
 
+    using stdJson for string;
+
     function testVerify() public {
         // logs do not work with fuzzing ??
         // https://github.com/foundry-rs/foundry/issues/3843
@@ -98,20 +103,42 @@ contract MultisigIsmTest is Test {
         bytes32 seed = keccak256("");
         uint32 destination = ORIGIN + 1;
         bytes32 recipient = keccak256("recipient");
-        bytes memory body = "body";
+
+        uint256 MAX_MESSAGE_BODY_BYTES = 2 * 2**10;
+        bytes memory body = "";
+        for (uint256 i = 0; i < MAX_MESSAGE_BODY_BYTES; i++) {
+            body = abi.encodePacked(body, uint8(0xAA));
+        }
+
         bytes memory message = getMessage(destination, recipient, body);
 
         uint8 MAX_VALIDATOR_COUNT = 18;
+
+        // To write:
+        // ```
+        // using stdJson for string;
+        // string memory json = "deploymentArtifact";
+        // Contract contract = new Contract();
+        // json.serialize("contractAddress", address(contract));
+        // json = json.serialize("deploymentTimes", uint(1));
+        // // store the stringified JSON to the 'json' variable we have been using as a key
+        // // as we won't need it any longer
+        // string memory json2 = "finalArtifact";
+        // string memory final = json2.serialize("depArtifact", json);
+        // final.write("<some_path>");
+        // ```
+
+        string memory json = "gasInstrumentation";
 
         for (
             uint8 numValidators = 1;
             numValidators <= MAX_VALIDATOR_COUNT;
             numValidators++
         ) {
-            emit log_named_uint("numValidators", numValidators);
+            string memory json2 = "numValidators";
 
             for (uint8 threshold = 1; threshold <= numValidators; threshold++) {
-                emit log_named_uint("threshold", threshold);
+                string memory json3 = "threshold";
 
                 bytes memory metadata = getMetadata(
                     threshold,
@@ -120,14 +147,27 @@ contract MultisigIsmTest is Test {
                 );
 
                 // does not correctly account for memory expansion costs
-                uint256 gas = gasleft();
+                uint256 verify = gasleft();
                 assertTrue(ism.verify(metadata, message));
-                gas = gas - gasleft();
+                verify = verify - gasleft();
+                json3.serialize("verify", verify);
 
-                emit log_named_uint("gas", gas);
-                console.log(" ");
+                uint256 merkle = gasleft();
+                assertTrue(ism.verifyMerkleProof(metadata, message));
+                merkle = merkle - gasleft();
+                json3.serialize("merkle", merkle);
+
+                uint256 signatures = gasleft();
+                assertTrue(ism.verifyValidatorSignaturs(metadata, message));
+                signatures = signatures - gasleft();
+                json3.serialize("signatures", signatures);
+
+                json2.serialize(Strings.toString(threshold), json3);
             }
-            console.log(" ");
+
+            json.serialize(Strings.toString(numValidators), json2);
         }
+
+        json.write("gasInstrumentation.json");
     }
 }

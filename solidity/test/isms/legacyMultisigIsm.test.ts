@@ -503,7 +503,7 @@ describe('LegacyMultisigIsm', async () => {
       // eslint-disable-next-line no-console
       console.log('Instrumented gas overheads:');
       // eslint-disable-next-line no-console
-      console.log(JSON.stringify(gasOverhead));
+      console.log(JSON.stringify(gasOverhead, null, 2));
     });
 
     for (
