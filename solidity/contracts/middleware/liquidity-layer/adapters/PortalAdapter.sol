@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
+// ============ Internal Imports ============
 import {Router} from "../../../Router.sol";
-
-import {IPortalTokenBridge} from "../interfaces/portal/IPortalTokenBridge.sol";
-import {ILiquidityLayerAdapter} from "../interfaces/ILiquidityLayerAdapter.sol";
+import {ILiquidityLayerAdapter} from "../../../interfaces/middleware/liquidity-layer/ILiquidityLayerAdapter.sol";
+import {IPortalTokenBridge} from "../../../interfaces/middleware/liquidity-layer/portal/IPortalTokenBridge.sol";
 import {TypeCasts} from "../../../libs/TypeCasts.sol";
 
+// ============ External Imports ============
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract PortalAdapter is ILiquidityLayerAdapter, Router {
     /// @notice The Portal TokenBridge contract.
     IPortalTokenBridge public portalTokenBridge;
 
+    // ============ Public Storage ============
     /// @notice The LiquidityLayerRouter contract.
     address public liquidityLayerRouter;
 

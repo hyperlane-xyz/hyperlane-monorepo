@@ -1,18 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
+// ============ Internal Imports ============
 import {Router} from "../../../Router.sol";
+import {ILiquidityLayerAdapter} from "../../../interfaces/middleware/liquidity-layer/ILiquidityLayerAdapter.sol";
+import {ITokenMessenger} from "../../../interfaces/middleware/liquidity-layer/circle/ITokenMessenger.sol";
+import {ICircleMessageTransmitter} from "../../../interfaces/middleware/liquidity-layer/circle/ICircleMessageTransmitter.sol";
 
-import {ITokenMessenger} from "../interfaces/circle/ITokenMessenger.sol";
-import {ICircleMessageTransmitter} from "../interfaces/circle/ICircleMessageTransmitter.sol";
-import {ILiquidityLayerAdapter} from "../interfaces/ILiquidityLayerAdapter.sol";
-
+// ============ External Imports ============
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router {
+    // ============ Libraries ============
     using SafeERC20 for IERC20;
 
+    // ============ Public Storage ============
     /// @notice The TokenMessenger contract.
     ITokenMessenger public tokenMessenger;
 

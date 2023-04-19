@@ -10,9 +10,9 @@ interface ILiquidityLayerAdapter {
     ) external returns (bytes memory _adapterData);
 
     function receiveTokens(
-        uint32 _originDomain, // Hyperlane domain
+        uint32 _originDomain,
         address _recipientAddress,
         uint256 _amount,
-        bytes calldata _adapterData // The adapter data from the message
+        bytes calldata _adapterData
     ) external returns (address, uint256);
 }
