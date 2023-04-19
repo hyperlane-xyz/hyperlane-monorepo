@@ -5,7 +5,9 @@ import {
   LiquidityLayerApp,
   attachContractsMap,
   liquidityLayerFactories,
+  objFilter,
 } from '@hyperlane-xyz/sdk';
+import { LiquidityLayerConfig } from '@hyperlane-xyz/sdk/dist/middleware/liquidity-layer/LiquidityLayerRouterDeployer';
 
 import { bridgeAdapterConfigs } from '../../config/environments/testnet3/token-bridge';
 import { readJSON, sleep } from '../../src/utils/utils';
@@ -41,8 +43,10 @@ async function check() {
 
   while (true) {
     for (const chain of Object.keys(
-      // @ts-ignore Can't figure how to make it a type predicate
-      objFilter(config.liquidityLayerConfig, (_, config) => !!config.circle),
+      objFilter(
+        config.liquidityLayerConfig,
+        (_, config): config is LiquidityLayerConfig => !!config.circle,
+      ),
     )) {
       const txHashes = await app.fetchCircleMessageTransactions(chain);
 

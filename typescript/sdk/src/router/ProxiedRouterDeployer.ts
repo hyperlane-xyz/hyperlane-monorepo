@@ -1,4 +1,5 @@
 import { Router } from '@hyperlane-xyz/core';
+import { eqAddress } from '@hyperlane-xyz/utils/dist/src/utils';
 
 import { HyperlaneContracts } from '../contracts';
 import { ChainName } from '../types';
@@ -53,7 +54,7 @@ export abstract class ProxiedRouterDeployer<
     await super.runIfOwner(chain, proxyAdmin, async () => {
       this.logger(`Checking ownership of proxy admin to ${config.owner}`);
 
-      if ((await proxyAdmin.owner()) !== config.owner) {
+      if (!eqAddress(await proxyAdmin.owner(), config.owner)) {
         this.logger(`Transferring ownership of proxy admin to ${config.owner}`);
         return this.multiProvider.handleTx(
           chain,

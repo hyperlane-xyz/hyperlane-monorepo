@@ -94,8 +94,11 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
     // Hack to allow use of super.enrollRemoteRouters
     await super.enrollRemoteRouters(
       objMap(
-        // @ts-ignore Not sure how to specify the type guard
-        objFilter(contractsMap, (_, c) => !!c.circleBridgeAdapter),
+        objFilter(
+          contractsMap,
+          (_, c): c is HyperlaneContracts<LiquidityLayerFactories> =>
+            !!c.circleBridgeAdapter,
+        ),
         (_, contracts) => ({
           liquidityLayerRouter: contracts.circleBridgeAdapter,
         }),
@@ -107,8 +110,11 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
     // Hack to allow use of super.enrollRemoteRouters
     await super.enrollRemoteRouters(
       objMap(
-        // @ts-ignore Not sure how to specify the type guard
-        objFilter(contractsMap, (_, c) => !!c.portalAdapter),
+        objFilter(
+          contractsMap,
+          (_, c): c is HyperlaneContracts<LiquidityLayerFactories> =>
+            !!c.portalAdapter,
+        ),
         (_, contracts) => ({
           liquidityLayerRouter: contracts.portalAdapter,
         }),

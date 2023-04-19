@@ -45,8 +45,10 @@ export type EnvironmentConfig = {
   ) => Promise<MultiProvider>;
   helloWorld?: Partial<Record<Contexts, HelloWorldConfig>>;
   keyFunderConfig?: KeyFunderConfig;
-  liquidityLayerConfig?: ChainMap<BridgeAdapterConfig>;
-  liquidityLayerRelayerConfig?: LiquidityLayerRelayerConfig;
+  liquidityLayerConfig?: {
+    bridgeAdapter: ChainMap<BridgeAdapterConfig>;
+    relayer: LiquidityLayerRelayerConfig;
+  };
   storageGasOracleConfig?: AllStorageGasOracleConfigs;
 };
 
