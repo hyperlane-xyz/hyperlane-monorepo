@@ -1,6 +1,7 @@
-use hyperlane_core::config::*;
 use serde::Deserialize;
 use url::Url;
+
+use hyperlane_core::config::*;
 
 /// Ethereum connection configuration
 #[derive(Debug, Clone)]
@@ -70,7 +71,6 @@ impl FromRawConf<'_, RawConnectionConf> for ConnectionConf {
     fn from_config_filtered(
         raw: RawConnectionConf,
         cwp: &ConfigPath,
-        cla: &mut Arguments,
         _filter: (),
     ) -> ConfigResult<Self> {
         use ConnectionConfError::*;
@@ -78,29 +78,25 @@ impl FromRawConf<'_, RawConnectionConf> for ConnectionConf {
         let connection_type = raw.connection_type.as_deref().unwrap_or("http");
 
         let urls = (|| -> ConfigResult<Vec<Url>> {
-            let urls_path = cwp + "urls";
-            let argv = cla.opt_value(&urls_path)?;
-            argv.as_ref()
-                .or(raw.urls.as_ref())
+            raw.urls
+                .as_ref()
                 .ok_or(MissingConnectionUrls)
-                .into_config_result(|| urls_path.clone())?
+                .into_config_result(|| cwp + "urls")?
                 .split(',')
                 .map(|s| s.parse())
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(|e| InvalidConnectionUrls(raw.urls.clone().unwrap(), e))
-                .into_config_result(|| urls_path.clone())
+                .into_config_result(|| cwp + "urls")
         })();
 
         let url = (|| -> ConfigResult<Url> {
-            let url_path = cwp + "url";
-            let argv = cla.opt_value(&url_path)?;
-            argv.as_ref()
-                .or(raw.url.as_ref())
+            raw.url
+                .as_ref()
                 .ok_or(MissingConnectionUrl)
-                .into_config_result(|| url_path.clone())?
+                .into_config_result(|| cwp + "url")?
                 .parse()
                 .map_err(|e| InvalidConnectionUrl(raw.url.clone().unwrap(), e))
-                .into_config_result(|| url_path.clone())
+                .into_config_result(|| cwp + "url")
         })();
 
         macro_rules! make_with_urls {

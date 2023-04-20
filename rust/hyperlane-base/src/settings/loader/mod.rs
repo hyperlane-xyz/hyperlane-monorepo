@@ -3,11 +3,14 @@ use std::env;
 use std::error::Error;
 use std::path::PathBuf;
 
+use crate::settings::loader::arguments::CommandLineArguments;
 use config::{Config, Environment, File};
 use eyre::{Context, Result};
 use serde::Deserialize;
 
 use crate::settings::RawSettings;
+
+mod arguments;
 
 /// Load a settings object from the config locations.
 /// Further documentation can be found in the `settings` module.
@@ -72,10 +75,11 @@ where
                 .separator("_")
                 .source(Some(filtered_env)),
         )
+        .add_source(CommandLineArguments::default().separator("."))
         .build()?;
 
     let formatted_config = {
-        let f = format!("{:#?}", config_deserializer);
+        let f = format!("{config_deserializer:#?}");
         if env::var("ONELINE_BACKTRACES")
             .map(|v| v.to_lowercase())
             .as_deref()
@@ -104,10 +108,7 @@ where
                 err = err.with_context(|| format!("Config loaded: {cfg_path}"));
             }
 
-            println!(
-                "Error during deserialization, showing the config for debugging: {}",
-                formatted_config
-            );
+            println!("Error during deserialization, showing the config for debugging: {formatted_config}");
 
             err.context("Config deserialization error, please check the config reference (https://docs.hyperlane.xyz/docs/operators/agent-configuration/configuration-reference)")
         }

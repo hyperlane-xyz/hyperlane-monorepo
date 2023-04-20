@@ -1,6 +1,7 @@
-use std::ops::Add;
 use std::fmt::{Display, Formatter};
+use std::ops::Add;
 use std::sync::Arc;
+
 use convert_case::{Case, Casing};
 use itertools::Itertools;
 
@@ -70,7 +71,12 @@ impl ConfigPath {
 
     /// Get the expected command line argument name
     pub fn arg_name(&self) -> String {
-        self.json_name()
+        let name = self
+            .0
+            .iter()
+            .map(|s| s.as_str().to_case(Case::Camel))
+            .join(".");
+        format!("--{name}")
     }
 }
 

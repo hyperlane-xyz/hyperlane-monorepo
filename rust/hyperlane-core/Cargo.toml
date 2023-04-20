@@ -46,11 +46,5 @@ tokio = { workspace = true, features = ["rt", "time"] }
 walkdir = { version = "2" }
 
 [features]
-default = ["eq-separator", "combined-flags"]
+default = []
 output = []
-
-# argument parsing
-eq-separator = []
-combined-flags = []
-#disabled to prevent changing things when using cargo check --all-features as we do not currently support this
-#short-space-opt = []

@@ -6,7 +6,6 @@
 use std::fmt::{Debug, Display, Formatter};
 
 use eyre::Report;
-use pico_args::Arguments;
 use serde::Deserialize;
 
 pub use config_path::ConfigPath;
@@ -32,9 +31,8 @@ where
     /// Construct `Self` from a raw config type.
     /// - `raw` is the raw config value
     /// - `cwp` is the current working path
-    /// - `cla` are the command line arguments that can be read as needed
-    fn from_config(raw: T, cwp: &ConfigPath, cla: &mut Arguments) -> ConfigResult<Self> {
-        Self::from_config_filtered(raw, cwp, F::default(), cla)
+    fn from_config(raw: T, cwp: &ConfigPath) -> ConfigResult<Self> {
+        Self::from_config_filtered(raw, cwp, F::default())
     }
 
     /// Construct `Self` from a raw config type with a filter to limit what
@@ -42,12 +40,10 @@ where
     /// - `raw` is the raw config value
     /// - `cwp` is the current working path
     /// - `filter` can define what config paths are parsed
-    /// - `cla` are the command line arguments that can be read as needed
     fn from_config_filtered(
         raw: T,
         cwp: &ConfigPath,
         filter: F,
-        cla: &mut Arguments,
     ) -> ConfigResult<Self>;
 }
 
@@ -58,16 +54,14 @@ pub trait IntoParsedConf<'de, F: Default>: Debug + Deserialize<'de> {
         self,
         cwp: &ConfigPath,
         filter: F,
-        cla: &mut Arguments,
     ) -> ConfigResult<O>;
 
     /// Parse the config.
     fn parse_config<O: FromRawConf<'de, Self, F>>(
         self,
         cwp: &ConfigPath,
-        cla: &mut Arguments,
     ) -> ConfigResult<O> {
-        self.parse_config_with_filter(cwp, F::default(), cla)
+        self.parse_config_with_filter(cwp, F::default())
     }
 }
 
@@ -80,9 +74,8 @@ where
         self,
         cwp: &ConfigPath,
         filter: F,
-        cla: &mut Arguments,
     ) -> ConfigResult<O> {
-        O::from_config_filtered(self, cwp, filter, cla)
+        O::from_config_filtered(self, cwp, filter)
     }
 }
 
@@ -128,6 +121,7 @@ impl Display for ConfigParsingError {
             writeln!(f, "\n#####\n")?;
             writeln!(f, "config_path: `{path}`")?;
             writeln!(f, "env_path: `{}`", path.env_name())?;
+            writeln!(f, "arg_key: `{}`", path.arg_name())?;
             writeln!(f, "error: {report:?}")?;
         }
         Ok(())
