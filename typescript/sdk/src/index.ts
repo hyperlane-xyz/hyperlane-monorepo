@@ -56,14 +56,7 @@ export { HyperlaneCoreChecker } from './core/HyperlaneCoreChecker';
 export { HyperlaneCoreDeployer } from './core/HyperlaneCoreDeployer';
 export { TestCoreApp } from './core/TestCoreApp';
 export { TestCoreDeployer } from './core/TestCoreDeployer';
-export {
-  CoreConfig,
-  CoreViolationType,
-  EnrolledValidatorsViolation,
-  MultisigIsmConfig,
-  MultisigIsmViolation,
-  MultisigIsmViolationType,
-} from './core/types';
+export { CoreConfig, CoreViolationType } from './core/types';
 export { HyperlaneAppChecker } from './deploy/HyperlaneAppChecker';
 export { DeployerOptions, HyperlaneDeployer } from './deploy/HyperlaneDeployer';
 export {
@@ -99,6 +92,18 @@ export {
   OverheadIgpConfig,
 } from './gas/types';
 export { HyperlaneApp } from './HyperlaneApp';
+export {
+  collectValidators,
+  HyperlaneIsmFactory,
+} from './ism/HyperlaneIsmFactory';
+export { HyperlaneIsmFactoryDeployer } from './ism/HyperlaneIsmFactoryDeployer';
+export {
+  AggregationIsmConfig,
+  IsmConfig,
+  ModuleType,
+  MultisigIsmConfig,
+  RoutingIsmConfig,
+} from './ism/types';
 export { interchainAccountFactories } from './middleware/account/contracts';
 export { InterchainAccount } from './middleware/account/InterchainAccount';
 export { InterchainAccountChecker } from './middleware/account/InterchainAccountChecker';

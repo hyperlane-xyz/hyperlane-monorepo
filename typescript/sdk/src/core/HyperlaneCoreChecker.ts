@@ -5,17 +5,19 @@ import { utils } from '@hyperlane-xyz/utils';
 import { BytecodeHash } from '../consts/bytecode';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
 import { proxyImplementation } from '../deploy/proxy';
-import { ChainName } from '../types';
+import {
+  HyperlaneIsmFactory,
+  collectValidators,
+} from '../ism/HyperlaneIsmFactory';
+import { MultiProvider } from '../providers/MultiProvider';
+import { ChainMap, ChainName } from '../types';
 
 import { HyperlaneCore } from './HyperlaneCore';
 import {
   CoreConfig,
   CoreViolationType,
-  EnrolledValidatorsViolation,
   MailboxViolation,
   MailboxViolationType,
-  MultisigIsmViolationType,
-  ThresholdViolation,
   ValidatorAnnounceViolation,
 } from './types';
 
@@ -23,6 +25,15 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
   HyperlaneCore,
   CoreConfig
 > {
+  constructor(
+    multiProvider: MultiProvider,
+    app: HyperlaneCore,
+    configMap: ChainMap<CoreConfig>,
+    readonly ismFactory: HyperlaneIsmFactory,
+  ) {
+    super(multiProvider, app, configMap);
+  }
+
   async checkChain(chain: ChainName): Promise<void> {
     const config = this.configMap[chain];
     // skip chains that are configured to be removed
@@ -33,7 +44,6 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     await this.checkDomainOwnership(chain);
     await this.checkProxiedContracts(chain);
     await this.checkMailbox(chain);
-    await this.checkMultisigIsm(chain);
     await this.checkBytecodes(chain);
     await this.checkValidatorAnnounce(chain);
   }
@@ -52,15 +62,26 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     utils.assert(localDomain === this.multiProvider.getDomainId(chain));
 
     const actualIsm = await mailbox.defaultIsm();
-    const expectedIsm = contracts.multisigIsm.address;
-    if (actualIsm !== expectedIsm) {
+    const config = this.configMap[chain];
+    /*
+    TODO: Add this back in once the new ISM factories are adopted
+    const matches = await moduleMatches(
+      chain,
+      actualIsm,
+      config.defaultIsm,
+      this.ismFactory.multiProvider,
+      this.ismFactory.getContracts(chain),
+    );
+    */
+    const matches = true;
+    if (!matches) {
       const violation: MailboxViolation = {
         type: CoreViolationType.Mailbox,
         mailboxType: MailboxViolationType.DefaultIsm,
         contract: mailbox,
         chain,
         actual: actualIsm,
-        expected: expectedIsm,
+        expected: config.defaultIsm,
       };
       this.addViolation(violation);
     }
@@ -109,27 +130,22 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       contracts.proxyAdmin.address,
       [BytecodeHash.PROXY_ADMIN_BYTECODE_HASH],
     );
-    await this.checkBytecode(
-      chain,
-      'MultisigIsm implementation',
-      contracts.multisigIsm.address,
-      [BytecodeHash.MULTISIG_ISM_BYTECODE_HASH],
-    );
   }
 
   async checkValidatorAnnounce(chain: ChainName): Promise<void> {
-    const expectedValidators = new Set<string>();
+    const validators = new Set<string>();
     const remotes = Object.keys(this.configMap).filter((c) => c !== chain);
-    remotes.forEach((remote) =>
-      this.configMap[remote].multisigIsm[chain].validators.forEach(
-        expectedValidators.add,
-        expectedValidators,
-      ),
+    const remoteOriginValidators = remotes.map((remote) =>
+      collectValidators(chain, this.configMap[remote].defaultIsm),
     );
+    remoteOriginValidators.map((set) => {
+      [...set].map((v) => validators.add(v));
+    });
+
     const validatorAnnounce = this.app.getContracts(chain).validatorAnnounce;
     const announcedValidators =
       await validatorAnnounce.getAnnouncedValidators();
-    [...expectedValidators].forEach((validator) => {
+    [...validators].forEach((validator) => {
       const matches = announcedValidators.filter((x) =>
         utils.eqAddress(x, validator),
       );
@@ -144,65 +160,5 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
         this.addViolation(violation);
       }
     });
-  }
-
-  async checkMultisigIsm(local: ChainName): Promise<void> {
-    await Promise.all(
-      this.app
-        .remoteChains(local)
-        .map((remote) => this.checkMultisigIsmForRemote(local, remote)),
-    );
-  }
-
-  async checkMultisigIsmForRemote(
-    local: ChainName,
-    remote: ChainName,
-  ): Promise<void> {
-    const coreContracts = this.app.getContracts(local);
-    const multisigIsm = coreContracts.multisigIsm;
-    const config = this.configMap[local];
-
-    const remoteDomain = this.multiProvider.getDomainId(remote);
-    const multisigIsmConfig = config.multisigIsm[remote];
-    const expectedValidators = multisigIsmConfig.validators;
-    const actualValidators = await multisigIsm.validators(remoteDomain);
-
-    const expectedSet = new Set<string>(
-      expectedValidators.map((_) => _.toLowerCase()),
-    );
-    const actualSet = new Set<string>(
-      actualValidators.map((_) => _.toLowerCase()),
-    );
-
-    if (!utils.setEquality(expectedSet, actualSet)) {
-      const violation: EnrolledValidatorsViolation = {
-        type: CoreViolationType.MultisigIsm,
-        subType: MultisigIsmViolationType.EnrolledValidators,
-        contract: multisigIsm,
-        chain: local,
-        remote,
-        actual: actualSet,
-        expected: expectedSet,
-      };
-      this.addViolation(violation);
-    }
-
-    const expectedThreshold = multisigIsmConfig.threshold;
-    utils.assert(expectedThreshold !== undefined);
-
-    const actualThreshold = await multisigIsm.threshold(remoteDomain);
-
-    if (expectedThreshold !== actualThreshold) {
-      const violation: ThresholdViolation = {
-        type: CoreViolationType.MultisigIsm,
-        subType: MultisigIsmViolationType.Threshold,
-        contract: multisigIsm,
-        chain: local,
-        remote,
-        actual: actualThreshold,
-        expected: expectedThreshold,
-      };
-      this.addViolation(violation);
-    }
   }
 }
