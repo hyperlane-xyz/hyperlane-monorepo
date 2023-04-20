@@ -2,6 +2,15 @@ use std::ffi::{OsStr, OsString};
 
 use config::{ConfigError, Map, Source, Value, ValueKind};
 
+
+/// A source for loading configuration from command line arguments.
+/// Command line argument keys are case-insensitive, and the following forms are supported:
+///
+/// * `--key=value`
+/// * `--key="value"`
+/// * `--key='value'`
+/// * `--key value`
+/// * `--key` (value is an empty string)
 #[must_use]
 #[derive(Clone, Debug, Default)]
 pub struct CommandLineArguments {
