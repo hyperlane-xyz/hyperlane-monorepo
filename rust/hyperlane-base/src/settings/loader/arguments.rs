@@ -3,7 +3,8 @@ use std::ffi::{OsStr, OsString};
 use config::{ConfigError, Map, Source, Value, ValueKind};
 
 /// A source for loading configuration from command line arguments.
-/// Command line argument keys are case-insensitive, and the following forms are supported:
+/// Command line argument keys are case-insensitive, and the following forms are
+/// supported:
 ///
 /// * `--key=value`
 /// * `--key="value"`
@@ -48,8 +49,12 @@ impl CommandLineArguments {
         self
     }
 
-    pub fn source(mut self, source: Option<Vec<OsString>>) -> Self {
-        self.source = source;
+    pub fn source<I, S>(mut self, source: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        self.source = Some(source.into_iter().map(|s| s.as_ref().to_owned()).collect());
         self
     }
 }
@@ -61,9 +66,9 @@ impl Source for CommandLineArguments {
 
     fn collect(&self) -> Result<Map<String, Value>, ConfigError> {
         let mut m = Map::new();
-        let uri: String = "the environment".into();
+        let uri: String = "program argument".into();
 
-        let separator = self.separator.as_deref().unwrap_or("");
+        let separator = self.separator.as_deref().unwrap_or("-");
 
         let mut args = if let Some(source) = &self.source {
             ArgumentParser::from_vec(source.clone())
@@ -205,7 +210,8 @@ impl ArgumentParser {
                 .transpose()?
                 .unwrap_or("");
 
-            if value.starts_with('-') {
+            if value.is_empty() || value.starts_with('-') {
+                // the next value is another key
                 Ok(Some((key, "".to_owned(), PairKind::SingleArgument, idx)))
             } else {
                 Ok(Some((key, value.to_owned(), PairKind::TwoArguments, idx)))
@@ -271,4 +277,53 @@ pub enum Error {
 enum PairKind {
     SingleArgument,
     TwoArguments,
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    macro_rules! assert_arg {
+        ($config:expr, $key:literal, $value:literal) => {
+            let origin = "program argument".to_owned();
+            assert_eq!(
+                $config.remove($key),
+                Some(Value::new(
+                    Some(&origin),
+                    ValueKind::String($value.to_owned())
+                ))
+            );
+        }
+    }
+
+    const ARGUMENTS: &[&str] = &[
+        "--key-a",
+        "value-a",
+        "--key-b=value-b",
+        "--key-c=\"value c\"",
+        "--key-d='value d'",
+        "--key-e=''",
+        "--key-f",
+        "--key-g=value-g",
+        "--key-h",
+    ];
+
+    #[test]
+    fn default_case() {
+        let mut config = CommandLineArguments::default()
+            .source(ARGUMENTS)
+            .collect()
+            .unwrap();
+
+        assert_arg!(config, "key.a", "value-a");
+        assert_arg!(config, "key.b", "value-b");
+        assert_arg!(config, "key.c", "value c");
+        assert_arg!(config, "key.d", "value d");
+        assert_arg!(config, "key.e", "");
+        assert_arg!(config, "key.f", "");
+        assert_arg!(config, "key.g", "value-g");
+        assert_arg!(config, "key.h", "");
+
+        assert!(config.is_empty());
+    }
 }
