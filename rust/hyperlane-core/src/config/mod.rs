@@ -40,11 +40,7 @@ where
     /// - `raw` is the raw config value
     /// - `cwp` is the current working path
     /// - `filter` can define what config paths are parsed
-    fn from_config_filtered(
-        raw: T,
-        cwp: &ConfigPath,
-        filter: F,
-    ) -> ConfigResult<Self>;
+    fn from_config_filtered(raw: T, cwp: &ConfigPath, filter: F) -> ConfigResult<Self>;
 }
 
 /// A trait that allows for converting a raw config type into a "parsed" type.
@@ -57,10 +53,7 @@ pub trait IntoParsedConf<'de, F: Default>: Debug + Deserialize<'de> {
     ) -> ConfigResult<O>;
 
     /// Parse the config.
-    fn parse_config<O: FromRawConf<'de, Self, F>>(
-        self,
-        cwp: &ConfigPath,
-    ) -> ConfigResult<O> {
+    fn parse_config<O: FromRawConf<'de, Self, F>>(self, cwp: &ConfigPath) -> ConfigResult<O> {
         self.parse_config_with_filter(cwp, F::default())
     }
 }

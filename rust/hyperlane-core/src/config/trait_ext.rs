@@ -1,5 +1,5 @@
-use eyre::Report;
 use crate::config::{ConfigParsingError, ConfigPath, ConfigResult};
+use eyre::Report;
 
 /// Extension trait to better support ConfigResults with non-ConfigParsingError
 /// results.

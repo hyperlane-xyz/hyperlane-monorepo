@@ -1,8 +1,8 @@
-use serde::Deserialize;
 use primitive_types::U256;
+use serde::Deserialize;
 use std::fmt::{Debug, Formatter};
-use thiserror::Error;
 use std::num::{ParseIntError, TryFromIntError};
+use thiserror::Error;
 
 /// A type which can be used for parsing configs that may be provided as a
 /// string or an integer but will ultimately be read as an integer. E.g. where
@@ -69,7 +69,6 @@ macro_rules! convert_to {
 convert_to!(u16);
 convert_to!(u32);
 convert_to!(u64);
-
 
 impl TryFrom<StrOrInt> for U256 {
     type Error = StrOrIntParseError;
