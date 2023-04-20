@@ -81,7 +81,7 @@ export interface RpcPagination {
  */
 export const ChainMetadataSchema = z.object({
   chainId: z.number().positive(),
-  domainId: z.number().optional(),
+  domainId: z.number().positive().optional(),
   name: z.string(),
   displayName: z.string().optional(),
   displayNameShort: z.string().optional(),
@@ -119,8 +119,8 @@ export const ChainMetadataSchema = z.object({
     .optional(),
   blocks: z
     .object({
-      confirmations: z.number().positive(),
-      reorgPeriod: z.number().positive().optional(),
+      confirmations: z.number(),
+      reorgPeriod: z.number().optional(),
       estimateBlockTime: z.number().positive().optional(),
     })
     .optional(),
