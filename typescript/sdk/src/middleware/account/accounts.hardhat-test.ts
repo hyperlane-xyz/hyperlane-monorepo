@@ -38,22 +38,23 @@ describe('InterchainAccounts', async () => {
 
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
-    const coreDeployer = new TestCoreDeployer(multiProvider);
-    const coreContractsMaps = await coreDeployer.deploy();
-    coreApp = new TestCoreApp(coreContractsMaps, multiProvider);
+    coreApp = await new TestCoreDeployer(multiProvider).deployApp();
     config = await deployTestIgpsAndGetRouterConfig(
       multiProvider,
       signer.address,
-      coreContractsMaps,
+      coreApp.contractsMap,
     );
 
-    config.test1.interchainSecurityModule =
-      coreApp.getContracts('test1').multisigIsm.address;
+    /*
+    config.test1.interchainSecurityModule = await coreApp
+      .getContracts('test1')
+      .mailbox.defaultIsm();
+    */
   });
 
   beforeEach(async () => {
-    const deployer = new InterchainAccountDeployer(multiProvider, config);
-    contracts = await deployer.deploy();
+    const deployer = new InterchainAccountDeployer(multiProvider);
+    contracts = await deployer.deploy(config);
     local = contracts[localChain].interchainAccountRouter;
     remote = contracts[remoteChain].interchainAccountRouter;
   });

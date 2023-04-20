@@ -292,11 +292,24 @@ where
     M: Middleware + 'static,
 {
     #[instrument(level = "debug", err, ret, skip(self))]
-    async fn count(&self) -> ChainResult<u32> {
-        Ok(self.contract.count().call().await?)
+    async fn count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
+        let base_call = self.contract.count();
+        let call_with_lag = if let Some(lag) = maybe_lag {
+            let tip = self
+                .provider
+                .get_block_number()
+                .await
+                .map_err(ChainCommunicationError::from_other)?
+                .as_u64();
+            base_call.block(tip.saturating_sub(lag.get()))
+        } else {
+            base_call
+        };
+        let count = call_with_lag.call().await?;
+        Ok(count)
     }
 
-    #[instrument(err, ret)]
+    #[instrument(level = "debug", err, ret, skip(self))]
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
         Ok(self.contract.delivered(id.into()).call().await?)
     }
@@ -445,7 +458,7 @@ mod test {
             provider.clone(),
             &ContractLocator {
                 // An Arbitrum Nitro chain
-                domain: HyperlaneDomain::Known(KnownHyperlaneDomain::ArbitrumGoerli),
+                domain: &HyperlaneDomain::Known(KnownHyperlaneDomain::ArbitrumGoerli),
                 // Address doesn't matter because we're using a MockProvider
                 address: H256::default(),
             },

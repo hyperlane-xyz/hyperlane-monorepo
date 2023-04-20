@@ -1,21 +1,28 @@
 // TODO move to utils package
 
-export function objMapEntries<K extends string, I = any, O = any>(
-  obj: Record<K, I>,
-  func: (k: K, _: I) => O,
-): [K, O][] {
+type MappedObject<M extends Record<any, any>, O> = {
+  [Property in keyof M]: O;
+};
+
+export type ValueOf<T> = T[keyof T];
+
+export function objMapEntries<
+  M extends Record<K, I>,
+  K extends keyof M,
+  O,
+  I = ValueOf<M>,
+>(obj: M, func: (k: K, v: I) => O): [K, O][] {
   return Object.entries<I>(obj).map(([k, v]) => [k as K, func(k as K, v)]);
 }
 
 // Map over the values of the object
-export function objMap<K extends string, I = any, O = any>(
-  obj: Record<K, I>,
-  func: (k: K, _: I) => O,
-) {
-  return Object.fromEntries<O>(objMapEntries<K, I, O>(obj, func)) as Record<
-    K,
-    O
-  >;
+export function objMap<
+  M extends Record<K, I>,
+  K extends keyof M,
+  O,
+  I = ValueOf<M>,
+>(obj: M, func: (k: K, v: I) => O): MappedObject<M, O> {
+  return Object.fromEntries<O>(objMapEntries(obj, func)) as MappedObject<M, O>;
 }
 
 export function objFilter<K extends string, I, O extends I>(
@@ -40,8 +47,11 @@ export function promiseObjAll<K extends string, V>(obj: {
 // Get the subset of the object from key list
 export function pick<K extends string, V = any>(obj: Record<K, V>, keys: K[]) {
   const ret: Partial<Record<K, V>> = {};
+  const objKeys = Object.keys(obj);
   for (const key of keys) {
-    ret[key] = obj[key];
+    if (objKeys.includes(key)) {
+      ret[key] = obj[key];
+    }
   }
   return ret as Record<K, V>;
 }

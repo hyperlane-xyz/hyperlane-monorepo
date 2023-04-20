@@ -3,9 +3,11 @@ pub use deployed::*;
 pub use encode::*;
 pub use indexer::*;
 pub use interchain_gas::*;
+pub use interchain_security_module::*;
 pub use mailbox::*;
 pub use multisig_ism::*;
 pub use provider::*;
+pub use routing_ism::*;
 pub use signing::*;
 pub use validator_announce::*;
 
@@ -14,9 +16,11 @@ mod deployed;
 mod encode;
 mod indexer;
 mod interchain_gas;
+mod interchain_security_module;
 mod mailbox;
 mod multisig_ism;
 mod provider;
+mod routing_ism;
 mod signing;
 mod validator_announce;
 

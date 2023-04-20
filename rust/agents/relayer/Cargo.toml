@@ -19,7 +19,7 @@ prometheus.workspace = true
 reqwest = { workspace = true, features = ["json"]}
 serde.workspace = true
 serde_json.workspace = true
-strum = "0.24"
+strum.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "macros"] }
 tracing-futures.workspace = true
@@ -29,6 +29,8 @@ tracing.workspace = true
 hyperlane-core = { path = "../../hyperlane-core" }
 hyperlane-base = { path = "../../hyperlane-base" }
 hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
+num-derive.workspace = true
+num-traits.workspace = true
 
 [dev-dependencies]
 tokio-test = "0.4"

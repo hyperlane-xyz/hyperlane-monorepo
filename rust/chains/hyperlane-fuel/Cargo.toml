@@ -8,14 +8,16 @@ publish.workspace = true
 version.workspace = true
 
 [dependencies]
-fuels = "0.33"
-hyperlane-core = { path = "../../hyperlane-core" }
-async-trait = { version = "0.1", default-features = false }
-thiserror = "1.0"
-serde = "1.0"
 anyhow = "1.0"
-tracing-futures = "0.2"
-tracing = { version = "0.1", features = ["release_max_level_debug"] }
+async-trait.workspace = true
+fuels.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+tracing-futures.workspace = true
+tracing.workspace = true
+url.workspace = true
+
+hyperlane-core = { path = "../../hyperlane-core" }
 
 [build-dependencies]
 abigen = { path = "../../utils/abigen", features = ["fuels"] }

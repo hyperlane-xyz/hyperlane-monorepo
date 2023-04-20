@@ -36,17 +36,25 @@ ethers-contract = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2
 ethers-providers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-02-10-01" }
 ethers-signers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-02-10-01", features = ["aws"] }
 eyre = "0.6"
+fuels = "0.38"
+fuels-code-gen = "0.38"
 futures = "0.3"
 futures-util = "0.3"
 itertools = "0.10"
+num-derive = "0.3"
+num-traits = "0.2"
 paste = "1.0"
 prometheus = "0.13"
 reqwest = "0.11"
 rocksdb = "0.20"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+static_assertions = "1.1"
+strum = "0.24"
+strum_macros = "0.24"
 thiserror = "1.0"
 tokio = { version = "1" }
 tracing = { version = "0.1", features = ["release_max_level_debug"] }
 tracing-futures = "0.2"
 tracing-subscriber = { version = "0.3", default-features = false }
+url = "2.3"

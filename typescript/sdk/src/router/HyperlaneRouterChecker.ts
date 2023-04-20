@@ -39,9 +39,12 @@ export class HyperlaneRouterChecker<
       'IGP mismatch',
     );
     utils.assert(
-      this.configMap[chain].interchainSecurityModule
-        ? utils.eqAddress(ism, this.configMap[chain].interchainSecurityModule!)
-        : utils.eqAddress(ism, ethers.constants.AddressZero),
+      utils.eqAddress(
+        ism,
+        this.configMap[chain].interchainSecurityModule ??
+          ethers.constants.AddressZero,
+      ),
+      'ISM mismatch',
     );
   }
 

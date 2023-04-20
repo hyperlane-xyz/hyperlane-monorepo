@@ -17,10 +17,19 @@ import {
   CoinGeckoSimpleInterface,
   CoinGeckoSimplePriceParams,
 } from '../gas/token-prices';
+import { ModuleType, MultisigIsmConfig } from '../ism/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { RouterConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
 import { objMap } from '../utils/objects';
+
+export function randomInt(max: number, min = 0): number {
+  return Math.floor(Math.random() * (max - min)) + min;
+}
+
+export function randomAddress(): types.Address {
+  return ethers.utils.hexlify(ethers.utils.randomBytes(20));
+}
 
 export function createRouterConfigMap(
   owner: types.Address,
@@ -62,20 +71,26 @@ const nonZeroAddress = ethers.constants.AddressZero.replace('00', '01');
 
 // dummy config as TestInbox and TestOutbox do not use deployed ISM
 export function testCoreConfig(chains: ChainName[]): ChainMap<CoreConfig> {
-  const multisigIsm = {
+  const multisigIsm: MultisigIsmConfig = {
+    type: ModuleType.MULTISIG,
     validators: [nonZeroAddress],
     threshold: 1,
   };
+
   return Object.fromEntries(
     chains.map((local) => [
       local,
       {
         owner: nonZeroAddress,
-        multisigIsm: Object.fromEntries(
-          chains
-            .filter((c) => c !== local)
-            .map((remote) => [remote, multisigIsm]),
-        ),
+        defaultIsm: {
+          type: ModuleType.ROUTING,
+          owner: nonZeroAddress,
+          domains: Object.fromEntries(
+            chains
+              .filter((c) => c !== local)
+              .map((remote) => [remote, multisigIsm]),
+          ),
+        },
       },
     ]),
   );
@@ -115,12 +130,12 @@ export class MockCoinGecko implements CoinGeckoInterface {
     return this;
   }
 
-  setTokenPrice(chain: ChainName, price: number) {
+  setTokenPrice(chain: ChainName, price: number): void {
     const id = chainMetadata[chain].gasCurrencyCoinGeckoId || chain;
     this.tokenPrices[id] = price;
   }
 
-  setFail(chain: ChainName, fail: boolean) {
+  setFail(chain: ChainName, fail: boolean): void {
     const id = chainMetadata[chain].gasCurrencyCoinGeckoId || chain;
     this.fail[id] = fail;
   }

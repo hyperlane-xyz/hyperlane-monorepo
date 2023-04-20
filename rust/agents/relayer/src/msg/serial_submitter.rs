@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use derive_new::new;
-use eyre::{bail, Result};
+use eyre::{bail, Context, Result};
 use prometheus::{IntCounter, IntGauge};
 use tokio::sync::mpsc::{self, error::TryRecvError};
 use tokio::task::JoinHandle;
@@ -15,7 +15,9 @@ use crate::msg::PendingMessage;
 use hyperlane_base::{CachingMailbox, CoreMetrics};
 use hyperlane_core::{db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, Mailbox, U256};
 
-use super::{gas_payment::GasPaymentEnforcer, metadata_builder::MetadataBuilder};
+use super::{
+    gas_payment::GasPaymentEnforcer, metadata::BaseMetadataBuilder, metadata::MetadataBuilder,
+};
 
 /// SerialSubmitter accepts undelivered messages over a channel from a
 /// MessageProcessor. It is responsible for executing the right strategy to
@@ -80,7 +82,7 @@ pub(crate) struct SerialSubmitter {
     /// Mailbox on the destination chain.
     mailbox: CachingMailbox,
     /// Used to construct the ISM metadata needed to verify a message.
-    metadata_builder: MetadataBuilder,
+    metadata_builder: BaseMetadataBuilder,
     /// Interface to agent rocks DB for e.g. writing delivery status upon
     /// completion.
     db: HyperlaneDB,
@@ -199,8 +201,34 @@ impl SerialSubmitter {
             return Ok(true);
         }
 
+        // The Mailbox's `recipientIsm` function will revert if
+        // the recipient is not a contract. This can pose issues with
+        // our use of the RetryingProvider, which will continuously retry
+        // the eth_call to the `recipientIsm` function.
+        // As a workaround, we avoid the call entirely if the recipient is
+        // not a contract.
+        const CTX: &str = "When fetching ISM";
+        let provider = self.mailbox.provider();
+        if !provider
+            .is_contract(&msg.message.recipient)
+            .await
+            .context(CTX)?
+        {
+            info!(
+                recipient=?msg.message.recipient,
+                "Could not fetch metadata: Recipient is not a contract"
+            );
+            return Ok(false);
+        }
+
+        let ism_address = self
+            .mailbox
+            .recipient_ism(msg.message.recipient)
+            .await
+            .context(CTX)?;
+
         let Some(metadata) = self.metadata_builder
-            .fetch_metadata(&msg.message, self.mailbox.clone())
+            .build(ism_address, &msg.message)
             .await?
         else {
             info!("Could not fetch metadata");

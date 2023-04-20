@@ -13,6 +13,7 @@ import {
   HyperlaneIgp,
   MultiProvider,
   RouterConfig,
+  collectValidators,
   objMap,
   promiseObjAll,
 } from '@hyperlane-xyz/sdk';
@@ -23,7 +24,7 @@ import { getCurrentKubernetesContext } from '../src/agents';
 import { getCloudAgentKey } from '../src/agents/key-utils';
 import { CloudAgentKey } from '../src/agents/keys';
 import { KEY_ROLE_ENUM } from '../src/agents/roles';
-import { CoreEnvironmentConfig, DeployEnvironment } from '../src/config';
+import { DeployEnvironment, EnvironmentConfig } from '../src/config';
 import { fetchProvider } from '../src/config/chain';
 import { EnvironmentNames, deployEnvToSdkEnv } from '../src/config/environment';
 import { assertContext } from '../src/utils/utils';
@@ -37,16 +38,17 @@ export function getArgsWithContext() {
 }
 
 export enum Modules {
+  ISM_FACTORY = 'ism',
   CORE = 'core',
   INTERCHAIN_GAS_PAYMASTER = 'igp',
   INTERCHAIN_ACCOUNTS = 'ica',
   INTERCHAIN_QUERY_SYSTEM = 'iqs',
-  CREATE2_FACTORY = 'create2',
   LIQUIDITY_LAYER = 'll',
   TEST_QUERY_SENDER = 'testquerysender',
   TEST_RECIPIENT = 'testrecipient',
 }
 export const SDK_MODULES = [
+  Modules.ISM_FACTORY,
   Modules.CORE,
   Modules.INTERCHAIN_GAS_PAYMASTER,
   Modules.INTERCHAIN_ACCOUNTS,
@@ -91,16 +93,12 @@ export function assertEnvironment(env: string): DeployEnvironment {
   );
 }
 
-export function getCoreEnvironmentConfig(environment: DeployEnvironment) {
+export function getEnvironmentConfig(environment: DeployEnvironment) {
   return environments[environment];
 }
 
 export async function getEnvironment() {
   return assertEnvironment(await getEnvironmentFromArgs());
-}
-
-export async function getEnvironmentConfig() {
-  return getCoreEnvironmentConfig(await getEnvironment());
 }
 
 export async function getContext(defaultContext?: string): Promise<Contexts> {
@@ -111,23 +109,20 @@ export async function getContext(defaultContext?: string): Promise<Contexts> {
 
 // Gets the agent config for the context that has been specified via yargs.
 export async function getContextAgentConfig(
-  coreEnvironmentConfig?: CoreEnvironmentConfig,
+  EnvironmentConfig?: EnvironmentConfig,
   defaultContext?: string,
 ) {
-  return getAgentConfig(
-    await getContext(defaultContext),
-    coreEnvironmentConfig,
-  );
+  return getAgentConfig(await getContext(defaultContext), EnvironmentConfig);
 }
 
 // Gets the agent config of a specific context.
 export async function getAgentConfig(
   context: Contexts,
-  coreEnvironmentConfig?: CoreEnvironmentConfig,
+  EnvironmentConfig?: EnvironmentConfig,
 ) {
-  const coreConfig = coreEnvironmentConfig
-    ? coreEnvironmentConfig
-    : await getEnvironmentConfig();
+  const coreConfig = EnvironmentConfig
+    ? EnvironmentConfig
+    : getEnvironmentConfig(await getEnvironment());
   const agentConfig = coreConfig.agents[context];
   if (!agentConfig) {
     throw Error(
@@ -223,9 +218,7 @@ export function getKeyRoleAndChainArgs() {
     .number('i');
 }
 
-export async function assertCorrectKubeContext(
-  coreConfig: CoreEnvironmentConfig,
-) {
+export async function assertCorrectKubeContext(coreConfig: EnvironmentConfig) {
   const currentKubeContext = await getCurrentKubernetesContext();
   if (
     !currentKubeContext.endsWith(`${coreConfig.infra.kubernetes.clusterName}`)
@@ -253,7 +246,7 @@ export async function getRouterConfig(
     deployEnvToSdkEnv[environment],
     multiProvider,
   );
-  const owners = getCoreEnvironmentConfig(environment).owners;
+  const owners = getEnvironmentConfig(environment).owners;
   const config: ChainMap<RouterConfig> = {};
   const knownChains = multiProvider.intersect(
     core.chains().concat(igp.chains()),
@@ -275,14 +268,17 @@ export function getValidatorsByChain(
   config: ChainMap<CoreConfig>,
 ): ChainMap<Set<string>> {
   const validators: ChainMap<Set<string>> = {};
-  objMap(config, (local, coreConfig) => {
-    objMap(coreConfig.multisigIsm, (remote, multisigIsmConfig) => {
-      if (!validators[remote]) {
-        validators[remote] = new Set(multisigIsmConfig.validators);
-      } else {
-        multisigIsmConfig.validators.map((v) => validators[remote].add(v));
+  for (const chain of Object.keys(config)) {
+    // Pulls the validators for each chain from a *single* IsmConfig
+    const setsByChain = objMap(config, (local) =>
+      collectValidators(local, config[chain].defaultIsm),
+    );
+    objMap(setsByChain, (chain, set) => {
+      if (!validators[chain]) {
+        validators[chain] = new Set();
       }
+      [...set].map((v) => validators[chain].add(v));
     });
-  });
+  }
   return validators;
 }

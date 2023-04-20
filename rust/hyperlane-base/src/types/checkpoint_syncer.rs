@@ -1,44 +1,93 @@
 use core::str::FromStr;
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 use ethers::types::Address;
-use eyre::{Report, Result};
+use eyre::{eyre, Context, Report, Result};
 use prometheus::{IntGauge, IntGaugeVec};
+use rusoto_core::Region;
+use serde::Deserialize;
 
-use crate::S3Storage;
-use crate::{CheckpointSyncer, LocalStorage, MultisigCheckpointSyncer};
+use hyperlane_core::config::*;
+
+use crate::{CheckpointSyncer, LocalStorage, MultisigCheckpointSyncer, S3Storage};
 
 /// Checkpoint Syncer types
-#[derive(Debug, Clone, serde::Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
+#[derive(Debug, Clone)]
 pub enum CheckpointSyncerConf {
     /// A local checkpoint syncer
     LocalStorage {
         /// Path
-        path: String,
+        path: PathBuf,
     },
     /// A checkpoint syncer on S3
     S3 {
         /// Bucket name
         bucket: String,
         /// S3 Region
-        region: String,
+        region: Region,
     },
 }
 
-/// Error for parsing announced storage locations
-#[derive(Debug, PartialEq, Eq)]
-pub struct ParseStorageLocationError;
+/// Raw checkpoint syncer types
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum RawCheckpointSyncerConf {
+    /// A local checkpoint syncer
+    LocalStorage {
+        /// Path
+        path: Option<String>,
+    },
+    /// A checkpoint syncer on S3
+    S3 {
+        /// Bucket name
+        bucket: Option<String>,
+        /// S3 Region
+        region: Option<String>,
+    },
+    /// Unknown checkpoint syncer type was specified
+    #[serde(other)]
+    Unknown,
+}
+
+impl FromRawConf<'_, RawCheckpointSyncerConf> for CheckpointSyncerConf {
+    fn from_config_filtered(
+        raw: RawCheckpointSyncerConf,
+        cwp: &ConfigPath,
+        _filter: (),
+    ) -> ConfigResult<Self> {
+        match raw {
+            RawCheckpointSyncerConf::LocalStorage { path } => Ok(Self::LocalStorage {
+                path: path
+                    .ok_or_else(|| eyre!("Missing `path` for LocalStorage checkpoint syncer"))
+                    .into_config_result(|| cwp + "path")?
+                    .parse()
+                    .into_config_result(|| cwp + "path")?,
+            }),
+            RawCheckpointSyncerConf::S3 { bucket, region } => Ok(Self::S3 {
+                bucket: bucket
+                    .ok_or_else(|| eyre!("Missing `bucket` for S3 checkpoint syncer"))
+                    .into_config_result(|| cwp + "bucket")?,
+                region: region
+                    .ok_or_else(|| eyre!("Missing `region` for S3 checkpoint syncer"))
+                    .into_config_result(|| cwp + "region")?
+                    .parse()
+                    .into_config_result(|| cwp + "region")?,
+            }),
+            RawCheckpointSyncerConf::Unknown => Err(eyre!("Missing `type` for checkpoint syncer"))
+                .into_config_result(|| cwp + "type"),
+        }
+    }
+}
 
 impl FromStr for CheckpointSyncerConf {
-    type Err = ParseStorageLocationError;
+    type Err = Report;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let [prefix, suffix]: [&str; 2] = s
-            .split("://")
-            .collect::<Vec<_>>()
-            .try_into()
-            .map_err(|_| ParseStorageLocationError)?;
+    fn from_str(s: &str) -> Result<Self> {
+        let [prefix, suffix]: [&str; 2] =
+            s.split("://").collect::<Vec<_>>().try_into().map_err(|_| {
+                eyre!("Error parsing storage location; could not split prefix and suffix ({s})")
+            })?;
 
         match prefix {
             "s3" => {
@@ -46,16 +95,18 @@ impl FromStr for CheckpointSyncerConf {
                     .split('/')
                     .collect::<Vec<_>>()
                     .try_into()
-                    .map_err(|_| ParseStorageLocationError)?;
+                    .map_err(|_| eyre!("Error parsing storage location; could not split bucket and region ({suffix})"))?;
                 Ok(CheckpointSyncerConf::S3 {
                     bucket: bucket.into(),
-                    region: region.into(),
+                    region: region
+                        .parse()
+                        .context("Invalid region when parsing storage location")?,
                 })
             }
             "file" => Ok(CheckpointSyncerConf::LocalStorage {
                 path: suffix.into(),
             }),
-            _ => Err(ParseStorageLocationError),
+            _ => Err(eyre!("Unknown storage location prefix `{prefix}`")),
         }
     }
 }
@@ -72,7 +123,7 @@ impl CheckpointSyncerConf {
             }
             CheckpointSyncerConf::S3 { bucket, region } => Box::new(S3Storage::new(
                 bucket.clone(),
-                region.parse()?,
+                region.clone(),
                 latest_index_gauge,
             )),
         })
@@ -80,8 +131,7 @@ impl CheckpointSyncerConf {
 }
 
 /// Config for a MultisigCheckpointSyncer
-#[derive(Debug, Clone, serde::Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
+#[derive(Debug, Clone)]
 pub struct MultisigCheckpointSyncerConf {
     /// The checkpoint syncer for each valid validator signer address
     checkpointsyncers: HashMap<String, CheckpointSyncerConf>,

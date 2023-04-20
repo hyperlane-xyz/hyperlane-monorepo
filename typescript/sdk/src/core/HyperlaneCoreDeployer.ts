@@ -1,19 +1,17 @@
 import debug from 'debug';
-import { ethers } from 'ethers';
 
-import {
-  LegacyMultisigIsm,
-  Mailbox,
-  Ownable,
-  ValidatorAnnounce,
-} from '@hyperlane-xyz/core';
+import { Mailbox, ValidatorAnnounce } from '@hyperlane-xyz/core';
 import { types } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts';
-import { DeployOptions, HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
+import { HyperlaneContracts, filterOwnableContracts } from '../contracts';
+import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
+import {
+  HyperlaneIsmFactory,
+  moduleMatchesConfig,
+} from '../ism/HyperlaneIsmFactory';
+import { IsmConfig } from '../ism/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
-import { objMap } from '../utils/objects';
 
 import { CoreFactories, coreFactories } from './contracts';
 import { CoreConfig } from './types';
@@ -22,35 +20,32 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   CoreConfig,
   CoreFactories
 > {
-  startingBlockNumbers: ChainMap<number | undefined>;
+  startingBlockNumbers: ChainMap<number | undefined> = {};
 
   constructor(
     multiProvider: MultiProvider,
-    configMap: ChainMap<CoreConfig>,
-    factoriesOverride = coreFactories,
+    readonly ismFactory: HyperlaneIsmFactory,
   ) {
-    super(multiProvider, configMap, factoriesOverride, {
+    super(multiProvider, coreFactories, {
       logger: debug('hyperlane:CoreDeployer'),
+      chainTimeoutMs: 1000 * 60 * 10, // 10 minutes
     });
-    this.startingBlockNumbers = objMap(configMap, () => undefined);
   }
 
   async deployMailbox(
     chain: ChainName,
     defaultIsmAddress: types.Address,
     proxyAdmin: types.Address,
-    deployOpts?: DeployOptions,
+    owner: types.Address,
   ): Promise<Mailbox> {
     const domain = this.multiProvider.getDomainId(chain);
-    const owner = this.configMap[chain].owner;
 
     const mailbox = await this.deployProxiedContract(
       chain,
       'mailbox',
+      proxyAdmin,
       [domain],
       [owner, defaultIsmAddress],
-      proxyAdmin,
-      deployOpts,
     );
     return mailbox;
   }
@@ -58,81 +53,35 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   async deployValidatorAnnounce(
     chain: ChainName,
     mailboxAddress: string,
-    deployOpts?: DeployOptions,
   ): Promise<ValidatorAnnounce> {
     const validatorAnnounce = await this.deployContract(
       chain,
       'validatorAnnounce',
       [mailboxAddress],
-      deployOpts,
     );
     return validatorAnnounce;
   }
 
-  async deployLegacyMultisigIsm(chain: ChainName): Promise<LegacyMultisigIsm> {
-    const multisigIsm = await this.deployContract(chain, 'multisigIsm', []);
-    const remotes = Object.keys(this.configMap[chain].multisigIsm);
-    const overrides = this.multiProvider.getTransactionOverrides(chain);
-
-    await super.runIfOwner(chain, multisigIsm, async () => {
-      // TODO: Remove extraneous validators
-      const remoteDomains = this.multiProvider.getDomainIds(remotes);
-      const actualValidators = await Promise.all(
-        remoteDomains.map((id) => multisigIsm.validators(id)),
+  async deployIsm(chain: ChainName, config: IsmConfig): Promise<types.Address> {
+    const cachedMailbox = this.deployedContracts[chain]?.mailbox;
+    if (cachedMailbox) {
+      const module = await cachedMailbox.defaultIsm();
+      const matches = await moduleMatchesConfig(
+        chain,
+        module,
+        config,
+        this.ismFactory.multiProvider,
+        this.ismFactory.getContracts(chain),
       );
-      const expectedValidators = remotes.map(
-        (remote) => this.configMap[chain].multisigIsm[remote].validators,
-      );
-      const validatorsToEnroll = expectedValidators.map((validators, i) =>
-        validators.filter(
-          (validator) =>
-            !actualValidators[i].includes(ethers.utils.getAddress(validator)),
-        ),
-      );
-      const chainsToEnrollValidators = remotes.filter(
-        (_, i) => validatorsToEnroll[i].length > 0,
-      );
-      if (chainsToEnrollValidators.length > 0) {
-        this.logger(
-          `Enroll ${chainsToEnrollValidators} validators on ${chain}`,
-        );
-        await this.multiProvider.handleTx(
-          chain,
-          multisigIsm.enrollValidators(
-            chainsToEnrollValidators.map((c) =>
-              this.multiProvider.getDomainId(c),
-            ),
-            validatorsToEnroll.filter((validators) => validators.length > 0),
-            overrides,
-          ),
-        );
+      if (!matches) {
+        const ism = await this.ismFactory.deploy(chain, config);
+        return ism.address;
       }
-      const actualThresholds = await Promise.all(
-        remoteDomains.map((id) => multisigIsm.threshold(id)),
-      );
-      const expectedThresholds = remotes.map(
-        (remote) => this.configMap[chain].multisigIsm[remote].threshold,
-      );
-      const chainsToSetThreshold = remotes.filter(
-        (_, i) => actualThresholds[i] !== expectedThresholds[i],
-      );
-      if (chainsToSetThreshold.length > 0) {
-        this.logger(
-          `Set remote (${chainsToSetThreshold}) thresholds on ${chain}`,
-        );
-        await this.multiProvider.handleTx(
-          chain,
-          multisigIsm.setThresholds(
-            chainsToSetThreshold.map((c) => this.multiProvider.getDomainId(c)),
-            chainsToSetThreshold.map(
-              (remote) => this.configMap[chain].multisigIsm[remote].threshold,
-            ),
-            overrides,
-          ),
-        );
-      }
-    });
-    return multisigIsm;
+      return module;
+    } else {
+      const ism = await this.ismFactory.deploy(chain, config);
+      return ism.address;
+    }
   }
 
   async deployContracts(
@@ -144,31 +93,32 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       return undefined as any;
     }
 
-    const provider = this.multiProvider.getProvider(chain);
-    const startingBlockNumber = await provider.getBlockNumber();
-    this.startingBlockNumbers[chain] = startingBlockNumber;
-    const multisigIsm = await this.deployLegacyMultisigIsm(chain);
+    this.startingBlockNumbers[chain] = await this.multiProvider
+      .getProvider(chain)
+      .getBlockNumber();
 
+    const ism = await this.deployIsm(chain, config.defaultIsm);
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
 
     const mailbox = await this.deployMailbox(
       chain,
-      multisigIsm.address,
+      ism,
       proxyAdmin.address,
+      config.owner,
     );
     const validatorAnnounce = await this.deployValidatorAnnounce(
       chain,
       mailbox.address,
     );
-    // Ownership of the Mailbox and the interchainGasPaymaster is transferred upon initialization.
-    const ownables: Ownable[] = [multisigIsm, proxyAdmin];
-    await this.transferOwnershipOfContracts(chain, config.owner, ownables);
 
-    return {
+    const contracts = {
       validatorAnnounce,
       proxyAdmin,
       mailbox,
-      multisigIsm,
     };
+    // Transfer ownership of all ownable contracts
+    const ownables = await filterOwnableContracts(contracts);
+    await this.transferOwnershipOfContracts(chain, config.owner, ownables);
+    return contracts;
   }
 }

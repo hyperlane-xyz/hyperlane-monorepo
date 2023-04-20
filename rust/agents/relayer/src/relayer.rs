@@ -2,8 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use eyre::{ensure, Context, Result};
-use hyperlane_core::U256;
+use eyre::{ensure, Result};
 use tokio::sync::{
     mpsc::{self, UnboundedReceiver, UnboundedSender},
     RwLock,
@@ -12,21 +11,22 @@ use tokio::task::JoinHandle;
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
 use hyperlane_base::{
-    chains::TransactionSubmissionType, run_all, BaseAgent, CachingInterchainGasPaymaster,
-    CachingMailbox, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
+    run_all, BaseAgent, CachingInterchainGasPaymaster, CachingMailbox, ContractSyncMetrics,
+    CoreMetrics, HyperlaneAgentCore,
 };
+use hyperlane_core::U256;
 use hyperlane_core::{db::DB, HyperlaneChain, HyperlaneDomain, ValidatorAnnounce};
 
 use crate::{
     merkle_tree_builder::MerkleTreeBuilder,
     msg::{
         gas_payment::GasPaymentEnforcer,
-        metadata_builder::MetadataBuilder,
+        metadata::BaseMetadataBuilder,
         processor::{MessageProcessor, MessageProcessorMetrics},
         serial_submitter::{SerialSubmitter, SerialSubmitterMetrics},
         PendingMessage,
     },
-    settings::{matching_list::MatchingList, GasPaymentEnforcementConfig, RelayerSettings},
+    settings::{matching_list::MatchingList, RelayerSettings},
 };
 
 /// A relayer agent
@@ -65,51 +65,36 @@ impl BaseAgent for Relayer {
         let core = settings.build_hyperlane_core(metrics.clone());
         let db = DB::from_path(&settings.db)?;
 
-        let destination_chains = settings.destinationchainnames.split(',');
-
-        for destination_chain in destination_chains.clone() {
-            let Some(cfg) = settings.chains.get(destination_chain) else { continue };
+        for dest_chain in &settings.destination_chains {
+            let Ok(cfg) = settings.chain_setup(dest_chain) else { continue };
             ensure!(
                 cfg.signer.is_some(),
-                format!("Destination chain {destination_chain} does not have a configured signer")
+                "Destination chain {dest_chain} does not have a configured signer"
             )
         }
 
         // Use defined remote chains + the origin chain
-        let chain_names: Vec<_> = destination_chains
-            .chain([settings.originchainname.as_str()])
-            .collect();
+        let domains = settings
+            .destination_chains
+            .iter()
+            .chain([&settings.origin_chain])
+            .collect::<Vec<_>>();
 
         let mailboxes = settings
-            .build_all_mailboxes(chain_names.as_slice(), &metrics, db.clone())
+            .build_all_mailboxes(&domains, &metrics, db.clone())
             .await?;
         let interchain_gas_paymasters = settings
-            .build_all_interchain_gas_paymasters(chain_names.as_slice(), &metrics, db)
+            .build_all_interchain_gas_paymasters(&domains, &metrics, db)
             .await?;
         let validator_announce = settings
-            .build_validator_announce(&settings.originchainname, &core.metrics.clone())
+            .build_validator_announce(&settings.origin_chain, &core.metrics.clone())
             .await?;
 
-        let whitelist = Arc::new(parse_matching_list(&settings.whitelist));
-        let blacklist = Arc::new(parse_matching_list(&settings.blacklist));
+        let whitelist = Arc::new(settings.whitelist);
+        let blacklist = Arc::new(settings.blacklist);
+        let skip_transaction_gas_limit_for = settings.skip_transaction_gas_limit_for;
+        let transaction_gas_limit = settings.transaction_gas_limit;
 
-        let skip_transaction_gas_limit_for = settings
-            .skiptransactiongaslimitfor
-            .map(|l| {
-                l.split(',')
-                    .map(|d| {
-                        d.parse()
-                            .expect("Error parsing domain id for transaction gas limit")
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        let transaction_gas_limit = settings
-            .transactiongaslimit
-            .map(|l| l.parse())
-            .transpose()
-            .context("Invalid transaction gas limit")?;
         info!(
             %whitelist,
             %blacklist,
@@ -118,25 +103,14 @@ impl BaseAgent for Relayer {
             "Whitelist configuration"
         );
 
-        let origin_chain = core
-            .settings
-            .chain_setup(&settings.originchainname)
-            .context("Relayer must run on a configured chain")?
-            .domain()?;
-
-        let gas_enforcement_policies =
-            parse_gas_enforcement_policies(&settings.gaspaymentenforcement);
-        info!(?gas_enforcement_policies, "Gas enforcement configuration");
-
+        info!(gas_enforcement_policies=?settings.gas_payment_enforcement, "Gas enforcement configuration");
         let gas_payment_enforcer = Arc::new(GasPaymentEnforcer::new(
-            gas_enforcement_policies,
-            mailboxes.get(&origin_chain).unwrap().db().clone(),
+            settings.gas_payment_enforcement,
+            mailboxes.get(&settings.origin_chain).unwrap().db().clone(),
         ));
 
-        let allow_local_checkpoint_syncers = settings.allowlocalcheckpointsyncers.unwrap_or(false);
-
         Ok(Self {
-            origin_chain,
+            origin_chain: settings.origin_chain,
             core,
             mailboxes,
             validator_announce,
@@ -146,7 +120,7 @@ impl BaseAgent for Relayer {
             blacklist,
             transaction_gas_limit,
             skip_transaction_gas_limit_for,
-            allow_local_checkpoint_syncers,
+            allow_local_checkpoint_syncers: settings.allow_local_checkpoint_syncers,
         })
     }
 
@@ -177,22 +151,22 @@ impl BaseAgent for Relayer {
             let chain_setup = self
                 .core
                 .settings
-                .chain_setup(chain.name())
+                .chain_setup(chain)
                 .unwrap_or_else(|_| panic!("No chain setup found for {}", chain.name()))
                 .clone();
 
-            let txsubmission = chain_setup.txsubmission;
-            let metadata_builder = MetadataBuilder::new(
+            let metadata_builder = BaseMetadataBuilder::new(
                 chain_setup,
                 prover_sync.clone(),
                 self.validator_announce.clone(),
                 self.allow_local_checkpoint_syncers,
                 self.core.metrics.clone(),
+                0,
+                5,
             );
             tasks.push(self.run_destination_mailbox(
                 mailbox.clone(),
                 metadata_builder.clone(),
-                txsubmission,
                 self.gas_payment_enforcer.clone(),
                 receive_channel,
             ));
@@ -269,40 +243,32 @@ impl Relayer {
     fn run_destination_mailbox(
         &self,
         destination_mailbox: CachingMailbox,
-        metadata_builder: MetadataBuilder,
-        tx_submission: TransactionSubmissionType,
+        metadata_builder: BaseMetadataBuilder,
         gas_payment_enforcer: Arc<GasPaymentEnforcer>,
         msg_receive: UnboundedReceiver<PendingMessage>,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let origin_mailbox = self.mailboxes.get(&self.origin_chain).unwrap();
         let destination = destination_mailbox.domain();
 
-        let submit_fut = match tx_submission {
-            TransactionSubmissionType::Signer => {
-                let transaction_gas_limit = if self
-                    .skip_transaction_gas_limit_for
-                    .contains(&destination.id())
-                {
-                    None
-                } else {
-                    self.transaction_gas_limit
-                };
-                let serial_submitter = SerialSubmitter::new(
-                    msg_receive,
-                    destination_mailbox.clone(),
-                    metadata_builder,
-                    origin_mailbox.db().clone(),
-                    SerialSubmitterMetrics::new(
-                        &self.core.metrics,
-                        &self.origin_chain,
-                        destination,
-                    ),
-                    gas_payment_enforcer,
-                    transaction_gas_limit,
-                );
-                serial_submitter.spawn()
-            }
+        let transaction_gas_limit = if self
+            .skip_transaction_gas_limit_for
+            .contains(&destination.id())
+        {
+            None
+        } else {
+            self.transaction_gas_limit
         };
+        let serial_submitter = SerialSubmitter::new(
+            msg_receive,
+            destination_mailbox.clone(),
+            metadata_builder,
+            origin_mailbox.db().clone(),
+            SerialSubmitterMetrics::new(&self.core.metrics, &self.origin_chain, destination),
+            gas_payment_enforcer,
+            transaction_gas_limit,
+        );
+
+        let submit_fut = serial_submitter.spawn();
 
         tokio::spawn(async move {
             let res = tokio::try_join!(submit_fut)?;
@@ -311,18 +277,6 @@ impl Relayer {
         })
         .instrument(info_span!("run mailbox"))
     }
-}
-
-fn parse_matching_list(list: &Option<String>) -> MatchingList {
-    list.as_deref()
-        .map(serde_json::from_str)
-        .transpose()
-        .expect("Invalid matching list received")
-        .unwrap_or_default()
-}
-
-fn parse_gas_enforcement_policies(policies: &str) -> Vec<GasPaymentEnforcementConfig> {
-    serde_json::from_str(policies).expect("Invalid gas payment enforcement configuration received")
 }
 
 #[cfg(test)]

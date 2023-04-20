@@ -10,14 +10,14 @@ import {
 import { bridgeAdapterConfigs } from '../../config/environments/testnet3/token-bridge';
 import { readJSON, sleep } from '../../src/utils/utils';
 import {
-  getCoreEnvironmentConfig,
   getEnvironment,
+  getEnvironmentConfig,
   getEnvironmentDirectory,
 } from '../utils';
 
 async function check() {
   const environment = await getEnvironment();
-  const config = getCoreEnvironmentConfig(environment);
+  const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
   const dir = path.join(
     __dirname,
