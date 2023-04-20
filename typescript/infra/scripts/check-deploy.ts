@@ -59,14 +59,22 @@ async function check() {
     const checker = new HyperlaneIgpChecker(multiProvider, igp, config.igp);
     governor = new HyperlaneIgpGovernor(checker, config.owners);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
-    const config = await getRouterConfig(environment, multiProvider);
+    const routerConfig = await getRouterConfig(environment, multiProvider);
     const ica = InterchainAccount.fromEnvironment(env, multiProvider);
-    const checker = new InterchainAccountChecker(multiProvider, ica, config);
+    const checker = new InterchainAccountChecker(
+      multiProvider,
+      ica,
+      routerConfig,
+    );
     governor = new ProxiedRouterGovernor(checker, config.owners);
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
-    const config = await getRouterConfig(environment, multiProvider);
+    const routerConfig = await getRouterConfig(environment, multiProvider);
     const iqs = InterchainQuery.fromEnvironment(env, multiProvider);
-    const checker = new InterchainQueryChecker(multiProvider, iqs, config);
+    const checker = new InterchainQueryChecker(
+      multiProvider,
+      iqs,
+      routerConfig,
+    );
     governor = new ProxiedRouterGovernor(checker, config.owners);
   } else {
     console.log(`Skipping ${module}, checker or governor unimplemented`);
