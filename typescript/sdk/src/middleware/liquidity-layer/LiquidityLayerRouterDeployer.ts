@@ -129,6 +129,9 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
     chain: ChainName,
     config: LiquidityLayerConfig,
   ): Promise<HyperlaneContracts<LiquidityLayerFactories>> {
+    // This is just the temp owner for contracts, and HyperlaneRouterDeployer#transferOwnership actually sets the configured owner
+    const tempOwner = await this.multiProvider.getSignerAddress(chain);
+
     const routerContracts = await super.deployContracts(chain, config);
 
     const bridgeAdapters: Partial<
@@ -139,7 +142,7 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
       bridgeAdapters.circleBridgeAdapter = await this.deployCircleBridgeAdapter(
         chain,
         config.circle,
-        config.owner,
+        tempOwner,
         routerContracts.liquidityLayerRouter,
       );
     }
@@ -147,7 +150,7 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
       bridgeAdapters.portalAdapter = await this.deployPortalAdapter(
         chain,
         config.portal,
-        config.owner,
+        tempOwner,
         routerContracts.liquidityLayerRouter,
       );
     }

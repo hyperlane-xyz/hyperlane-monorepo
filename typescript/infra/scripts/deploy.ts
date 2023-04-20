@@ -67,10 +67,13 @@ async function main() {
     if (!envConfig.liquidityLayerConfig) {
       throw new Error(`No liquidity layer config for ${environment}`);
     }
-    config = objMap(envConfig.liquidityLayerConfig!, (chain, conf) => ({
-      ...conf,
-      ...routerConfig[chain],
-    }));
+    config = objMap(
+      envConfig.liquidityLayerConfig.bridgeAdapter,
+      (chain, conf) => ({
+        ...conf,
+        ...routerConfig[chain],
+      }),
+    );
     deployer = new LiquidityLayerDeployer(multiProvider);
   } else if (module === Modules.TEST_RECIPIENT) {
     deployer = new TestRecipientDeployer(multiProvider);

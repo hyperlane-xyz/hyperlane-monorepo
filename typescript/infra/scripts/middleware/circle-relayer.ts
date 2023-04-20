@@ -1,7 +1,6 @@
 import path from 'path';
 
 import {
-  Chains,
   LiquidityLayerApp,
   attachContractsMap,
   liquidityLayerFactories,
@@ -9,7 +8,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { LiquidityLayerConfig } from '@hyperlane-xyz/sdk/dist/middleware/liquidity-layer/LiquidityLayerRouterDeployer';
 
-import { bridgeAdapterConfigs } from '../../config/environments/testnet3/token-bridge';
 import { readJSON, sleep } from '../../src/utils/utils';
 import {
   getEnvironment,
@@ -38,13 +36,13 @@ async function check() {
   const app = new LiquidityLayerApp(
     contracts,
     multiProvider,
-    config.liquidityLayerConfig,
+    config.liquidityLayerConfig.bridgeAdapter,
   );
 
   while (true) {
     for (const chain of Object.keys(
       objFilter(
-        config.liquidityLayerConfig,
+        config.liquidityLayerConfig.bridgeAdapter,
         (_, config): config is LiquidityLayerConfig => !!config.circle,
       ),
     )) {
