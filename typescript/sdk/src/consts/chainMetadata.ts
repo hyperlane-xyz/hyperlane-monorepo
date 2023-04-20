@@ -9,6 +9,13 @@ import { chainMetadataToWagmiChain } from '../utils/wagmi';
 
 import { Chains, Mainnets, Testnets } from './chains';
 
+export enum ExplorerFamily {
+  Etherscan = 'etherscan',
+  Blockscout = 'blockscout',
+  Other = 'other',
+}
+export type ExplorerFamilyType = `${ExplorerFamily}`;
+
 /**
  * Collection of useful properties and settings
  * for Hyperlane-supported chains
@@ -41,7 +48,7 @@ export interface ChainMetadata {
     url: string;
     apiUrl?: string;
     apiKey?: string;
-    family?: 'etherscan' | 'blockscout' | 'other';
+    family?: ExplorerFamilyType;
   }>;
   blocks?: {
     /** Number of blocks to wait before considering a transaction confirmed */
@@ -73,7 +80,7 @@ export interface RpcPagination {
  * Keep in sync with ChainMetadata above
  */
 export const ChainMetadataSchema = z.object({
-  chainId: z.number(),
+  chainId: z.number().positive(),
   domainId: z.number().optional(),
   name: z.string(),
   displayName: z.string().optional(),
@@ -82,7 +89,7 @@ export const ChainMetadataSchema = z.object({
     .object({
       name: z.string(),
       symbol: z.string(),
-      decimals: z.number(),
+      decimals: z.number().positive(),
     })
     .optional(),
   publicRpcUrls: z
@@ -92,8 +99,8 @@ export const ChainMetadataSchema = z.object({
         webSocket: z.string().optional(),
         pagination: z
           .object({
-            blocks: z.number(),
-            from: z.number(),
+            maxBlockRange: z.number().positive().optional(),
+            minBlockNumber: z.number().positive().optional(),
           })
           .optional(),
       }),
@@ -106,15 +113,15 @@ export const ChainMetadataSchema = z.object({
         url: z.string().url(),
         apiUrl: z.string().url().optional(),
         apiKey: z.string().optional(),
-        family: z.string().optional(),
+        family: z.nativeEnum(ExplorerFamily).optional(),
       }),
     )
     .optional(),
   blocks: z
     .object({
-      confirmations: z.number(),
-      reorgPeriod: z.number().optional(),
-      estimateBlockTime: z.number().optional(),
+      confirmations: z.number().positive(),
+      reorgPeriod: z.number().positive().optional(),
+      estimateBlockTime: z.number().positive().optional(),
     })
     .optional(),
   transactionOverrides: z.object({}).optional(),
@@ -160,12 +167,12 @@ export const alfajores: ChainMetadata = {
       name: 'CeloScan',
       url: 'https://alfajores.celoscan.io',
       apiUrl: 'https://api-alfajores.celoscan.io/api',
-      family: 'etherscan',
+      family: ExplorerFamily.Etherscan,
     },
     {
       name: 'Blockscout',
       url: 'https://explorer.celo.org/alfajores',
-      family: 'blockscout',
+      family: ExplorerFamily.Blockscout,
     },
   ],
   blocks: {
@@ -187,7 +194,7 @@ export const arbitrum: ChainMetadata = {
       name: 'Arbiscan',
       url: 'https://arbiscan.io',
       apiUrl: 'https://api.arbiscan.io/api',
-      family: 'etherscan',
+      family: ExplorerFamily.Etherscan,
     },
   ],
   blocks: {
@@ -212,7 +219,7 @@ export const arbitrumgoerli: ChainMetadata = {
       name: 'Arbiscan',
       url: 'https://goerli.arbiscan.io',
       apiUrl: 'https://api-goerli.arbiscan.io/api',
-      family: 'etherscan',
+      family: ExplorerFamily.Etherscan,
     },
   ],
   blocks: {
@@ -242,7 +249,7 @@ export const avalanche: ChainMetadata = {
       name: 'SnowTrace',
       url: 'https://snowtrace.io',
       apiUrl: 'https://api.snowtrace.io/api',
-      family: 'etherscan',
+      family: ExplorerFamily.Other,
     },
   ],
   blocks: {
@@ -270,7 +277,7 @@ export const bsc: ChainMetadata = {
       name: 'BscScan',
       url: 'https://bscscan.com',
       apiUrl: 'https://api.bscscan.com/api',
-      family: 'etherscan',
+      family: ExplorerFamily.Etherscan,
     },
   ],
   blocks: {
@@ -293,7 +300,7 @@ export const bsctestnet: ChainMetadata = {
       name: 'BscScan',
       url: 'https://testnet.bscscan.com',
       apiUrl: 'https://api-testnet.bscscan.com/api',
-      family: 'etherscan',
+      family: ExplorerFamily.Etherscan,
     },
   ],
   blocks: {
@@ -315,13 +322,13 @@ export const celo: ChainMetadata = {
       name: 'CeloScan',
       url: 'https://celoscan.io',
       apiUrl: 'https://api.celoscan.io/api',
-      family: 'etherscan',
+      family: ExplorerFamily.Etherscan,
     },
     {
       name: 'Blockscout',
       url: 'https://explorer.celo.org',
       apiUrl: 'https://explorer.celo.org/mainnet/api',
-      family: 'blockscout',
+      family: ExplorerFamily.Blockscout,
     },
   ],
   blocks: {
@@ -347,13 +354,13 @@ export const ethereum: ChainMetadata = {
       name: 'Etherscan',
       url: 'https://etherscan.io',
       apiUrl: 'https://api.etherscan.io/api',
-      family: 'etherscan',
+      family: ExplorerFamily.Etherscan,
     },
     {
       name: 'Blockscout',
       url: 'https://blockscout.com/eth/mainnet',
       apiUrl: 'https://blockscout.com/eth/mainnet/api',
-      family: 'blockscout',
+      family: ExplorerFamily.Blockscout,
     },
   ],
   blocks: {
@@ -380,7 +387,7 @@ export const fuji: ChainMetadata = {
       name: 'SnowTrace',
       url: 'https://testnet.snowtrace.io',
       apiUrl: 'https://api-testnet.snowtrace.io/api',
-      family: 'etherscan',
+      family: ExplorerFamily.Etherscan,
     },
   ],
   blocks: {
@@ -406,7 +413,7 @@ export const goerli: ChainMetadata = {
       name: 'Etherscan',
       url: 'https://goerli.etherscan.io',
       apiUrl: 'https://api-goerli.etherscan.io/api',
-      family: 'etherscan',
+      family: ExplorerFamily.Etherscan,
     },
   ],
   blocks: {
@@ -431,7 +438,7 @@ export const sepolia: ChainMetadata = {
       name: 'Etherscan',
       url: 'https://sepolia.etherscan.io',
       apiUrl: 'https://api-sepolia.etherscan.io/api',
-      family: 'etherscan',
+      family: ExplorerFamily.Etherscan,
     },
   ],
   blocks: {
@@ -458,7 +465,7 @@ export const moonbasealpha: ChainMetadata = {
       name: 'MoonScan',
       url: 'https://moonbase.moonscan.io',
       apiUrl: 'https://api-moonbase.moonscan.io/api',
-      family: 'etherscan',
+      family: ExplorerFamily.Etherscan,
     },
   ],
   blocks: {
@@ -484,7 +491,7 @@ export const moonbeam: ChainMetadata = {
       name: 'MoonScan',
       url: 'https://moonscan.io',
       apiUrl: 'https://api-moonbeam.moonscan.io/api',
-      family: 'etherscan',
+      family: ExplorerFamily.Etherscan,
     },
   ],
   blocks: {
@@ -519,7 +526,7 @@ export const mumbai: ChainMetadata = {
       name: 'PolygonScan',
       url: 'https://mumbai.polygonscan.com',
       apiUrl: 'https://api-testnet.polygonscan.com/api',
-      family: 'etherscan',
+      family: ExplorerFamily.Etherscan,
     },
   ],
   blocks: {
@@ -541,7 +548,7 @@ export const optimism: ChainMetadata = {
       name: 'Etherscan',
       url: 'https://optimistic.etherscan.io',
       apiUrl: 'https://api-optimistic.etherscan.io/api',
-      family: 'etherscan',
+      family: ExplorerFamily.Etherscan,
     },
   ],
   blocks: {
@@ -566,7 +573,7 @@ export const optimismgoerli: ChainMetadata = {
       name: 'Etherscan',
       url: 'https://goerli-optimism.etherscan.io',
       apiUrl: 'https://api-goerli-optimism.etherscan.io/api',
-      family: 'etherscan',
+      family: ExplorerFamily.Etherscan,
     },
   ],
   blocks: {
@@ -598,7 +605,7 @@ export const polygon: ChainMetadata = {
       name: 'PolygonScan',
       url: 'https://polygonscan.com',
       apiUrl: 'https://api.polygonscan.com/api',
-      family: 'etherscan',
+      family: ExplorerFamily.Etherscan,
     },
   ],
   blocks: {
@@ -630,7 +637,7 @@ export const gnosis: ChainMetadata = {
       name: 'GnosisScan',
       url: 'https://gnosisscan.io',
       apiUrl: 'https://api.gnosisscan.io/api',
-      family: 'etherscan',
+      family: ExplorerFamily.Etherscan,
     },
   ],
   blocks: {
