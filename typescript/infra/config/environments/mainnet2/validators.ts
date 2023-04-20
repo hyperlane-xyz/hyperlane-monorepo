@@ -120,7 +120,7 @@ export const validators: ChainValidatorConfigs = {
   },
   moonbeam: {
     interval: 5,
-    reorgPeriod: 0,
+    reorgPeriod: 2,
     validators: [
       {
         address: '0x237243d32d10e3bdbbf8dbcccc98ad44c1c172ea',
