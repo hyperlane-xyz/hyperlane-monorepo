@@ -67,6 +67,11 @@ impl ConfigPath {
             .map(|s| s.to_uppercase())
             .join("_")
     }
+
+    /// Get the expected command line argument name
+    pub fn arg_name(&self) -> String {
+        self.json_name()
+    }
 }
 
 #[test]
