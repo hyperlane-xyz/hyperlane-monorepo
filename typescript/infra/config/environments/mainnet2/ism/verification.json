@@ -1,0 +1,182 @@
+{
+  "celo": [
+    {
+      "name": "MultisigIsmFactory",
+      "address": "0x9bf473968629b8f8cF4ab59Aeb9640b0c93411dd",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "AggregationIsmFactory",
+      "address": "0xc864fa3B662613cA5051f41e157d0a997f9a5A87",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "RoutingIsmFactory",
+      "address": "0x1fdfD1486b8339638C6b92f8a96D698D8182D2b1",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "ethereum": [
+    {
+      "name": "MultisigIsmFactory",
+      "address": "0xfD548D8a8EB8366D802F24e1bC6D1d21dB057EF1",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "AggregationIsmFactory",
+      "address": "0x30B3Ef3e98B1FF72f03f71f68115E18F203Ec794",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "RoutingIsmFactory",
+      "address": "0xBF30B4F328d1F6AC47ecCcF23836F3CbB2422c9f",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "avalanche": [
+    {
+      "name": "MultisigIsmFactory",
+      "address": "0x270d0334bC98a02f7A4e2328B319EDEDcd7a2000",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "AggregationIsmFactory",
+      "address": "0x070d4f61b05eD9e20C9194f29Df073f2110705fc",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "RoutingIsmFactory",
+      "address": "0x0FC1A9DFAca9b6Ba11bC470Bf284Da7c107fDfF2",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "polygon": [
+    {
+      "name": "MultisigIsmFactory",
+      "address": "0xfF4872B62225c1f029a894D4682b250dD5577AC7",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "AggregationIsmFactory",
+      "address": "0x10Add66Db9C837000A43F3601aa9c54c6744F4c8",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "RoutingIsmFactory",
+      "address": "0x0B48a744698ba8dFa514742dFEB6728f52fD66f7",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "bsc": [
+    {
+      "name": "MultisigIsmFactory",
+      "address": "0x4F5db88EEdEBd6a8303ed13491169d4229D9A735",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "AggregationIsmFactory",
+      "address": "0x4084054Fc83af652A1f21EA2FF2a668D796e2514",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "RoutingIsmFactory",
+      "address": "0x85392758524EEE2323Bd3029E77aFc9bA9E60216",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "arbitrum": [
+    {
+      "name": "MultisigIsmFactory",
+      "address": "0x2A87BF6aE678569545B258fA11087C6F57dd9012",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "AggregationIsmFactory",
+      "address": "0x9E3075E067932d744119e583B34d11b144CE1e4A",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "RoutingIsmFactory",
+      "address": "0xcC2fA09fa13857942fae408EcCEc8De307344e99",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "optimism": [
+    {
+      "name": "MultisigIsmFactory",
+      "address": "0x21581dE0CB0Ce91E87b9d5124543C75Fa01ED9CC",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "AggregationIsmFactory",
+      "address": "0xb7d42f065E32eB6fCAac7ef83902c56164328fE2",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "RoutingIsmFactory",
+      "address": "0x4ef980034E631CC0CFb3b065aB793611f1B6511A",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "moonbeam": [
+    {
+      "name": "MultisigIsmFactory",
+      "address": "0xe3DB9EdafBA60629308166B21DE2B4970bF94969",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "AggregationIsmFactory",
+      "address": "0x20E1897CD584C3788A3C24f5e424345a55ADf90C",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "RoutingIsmFactory",
+      "address": "0xB5ec4e94ec47A70C6A38370666F713423816ce4c",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "gnosis": [
+    {
+      "name": "MultisigIsmFactory",
+      "address": "0xb58257cc81E47EC72fD38aE16297048de23163b4",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "AggregationIsmFactory",
+      "address": "0xb4fc9B5fD57499Ef6FfF3995728a55F7A618ef86",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "RoutingIsmFactory",
+      "address": "0xbB22547D1dc681fe925f568f637Ff67aC06c20fc",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ]
+}
