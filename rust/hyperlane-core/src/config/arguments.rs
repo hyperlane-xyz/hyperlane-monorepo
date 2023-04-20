@@ -59,9 +59,13 @@ impl Arguments {
 
     /// Returns the value of an argument matching the given name. `None` if the
     /// argument was not provided.
-    pub fn opt_value(&mut self, path: &ConfigPath) -> ConfigResult<Option<String>> {
+    pub fn opt_value<T>(&mut self, path: &ConfigPath) -> ConfigResult<Option<T>>
+    where 
+        T: FromStr,
+        <T as FromStr>::Err: Display,
+    {
         let arg_name = path.arg_name();
-        self.opt_value_from_str(arg_name.as_str())
+        self.opt_value_from_str::<_, T>(arg_name.as_str())
             .context("When parsing command line argument value")
             .into_config_result(|| path.clone())
     }

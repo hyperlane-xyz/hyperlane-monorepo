@@ -70,6 +70,7 @@ impl FromRawConf<'_, RawConnectionConf> for ConnectionConf {
     fn from_config_filtered(
         raw: RawConnectionConf,
         cwp: &ConfigPath,
+        cla: &mut Arguments,
         _filter: (),
     ) -> ConfigResult<Self> {
         use ConnectionConfError::*;
@@ -77,25 +78,29 @@ impl FromRawConf<'_, RawConnectionConf> for ConnectionConf {
         let connection_type = raw.connection_type.as_deref().unwrap_or("http");
 
         let urls = (|| -> ConfigResult<Vec<Url>> {
-            raw.urls
-                .as_ref()
+            let urls_path = cwp + "urls";
+            let argv = cla.opt_value(&urls_path)?;
+            argv.as_ref()
+                .or(raw.urls.as_ref())
                 .ok_or(MissingConnectionUrls)
-                .into_config_result(|| cwp + "urls")?
+                .into_config_result(|| urls_path.clone())?
                 .split(',')
                 .map(|s| s.parse())
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(|e| InvalidConnectionUrls(raw.urls.clone().unwrap(), e))
-                .into_config_result(|| cwp.join("urls"))
+                .into_config_result(|| urls_path.clone())
         })();
 
         let url = (|| -> ConfigResult<Url> {
-            raw.url
-                .as_ref()
+            let url_path = cwp + "url";
+            let argv = cla.opt_value(&url_path)?;
+            argv.as_ref()
+                .or(raw.url.as_ref())
                 .ok_or(MissingConnectionUrl)
-                .into_config_result(|| cwp + "url")?
+                .into_config_result(|| url_path.clone())?
                 .parse()
                 .map_err(|e| InvalidConnectionUrl(raw.url.clone().unwrap(), e))
-                .into_config_result(|| cwp.join("url"))
+                .into_config_result(|| url_path.clone())
         })();
 
         macro_rules! make_with_urls {
