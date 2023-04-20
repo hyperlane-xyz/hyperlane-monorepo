@@ -23,9 +23,6 @@ pub struct CommandLineArguments {
     /// Ignore empty env values (treat as unset).
     ignore_empty: bool,
 
-    /// Preserve the prefix while parsing
-    keep_prefix: bool,
-
     /// Alternate source for the environment. This can be used when you want to
     /// test your own code using this source, without the need to change the
     /// actual system environment variables.
@@ -41,11 +38,6 @@ impl CommandLineArguments {
 
     pub fn ignore_empty(mut self, ignore: bool) -> Self {
         self.ignore_empty = ignore;
-        self
-    }
-
-    pub fn keep_prefix(mut self, keep: bool) -> Self {
-        self.keep_prefix = keep;
         self
     }
 
@@ -293,17 +285,17 @@ mod test {
                     ValueKind::String($value.to_owned())
                 ))
             );
-        }
+        };
     }
 
     const ARGUMENTS: &[&str] = &[
         "--key-a",
         "value-a",
-        "--key-b=value-b",
+        "--keY-b=value-b",
         "--key-c=\"value c\"",
-        "--key-d='value d'",
+        "--KEY-d='valUE d'",
         "--key-e=''",
-        "--key-f",
+        "--key-F",
         "--key-g=value-g",
         "--key-h",
     ];
@@ -318,11 +310,28 @@ mod test {
         assert_arg!(config, "key.a", "value-a");
         assert_arg!(config, "key.b", "value-b");
         assert_arg!(config, "key.c", "value c");
-        assert_arg!(config, "key.d", "value d");
+        assert_arg!(config, "key.d", "valUE d");
         assert_arg!(config, "key.e", "");
         assert_arg!(config, "key.f", "");
         assert_arg!(config, "key.g", "value-g");
         assert_arg!(config, "key.h", "");
+
+        assert!(config.is_empty());
+    }
+
+    #[test]
+    fn ignore_empty() {
+        let mut config = CommandLineArguments::default()
+            .source(ARGUMENTS)
+            .ignore_empty(true)
+            .collect()
+            .unwrap();
+
+        assert_arg!(config, "key.a", "value-a");
+        assert_arg!(config, "key.b", "value-b");
+        assert_arg!(config, "key.c", "value c");
+        assert_arg!(config, "key.d", "valUE d");
+        assert_arg!(config, "key.g", "value-g");
 
         assert!(config.is_empty());
     }
