@@ -1,4 +1,5 @@
 import { ChainName } from '../../types';
+import { objMerge } from '../../utils/objects';
 
 import mainnet from './mainnet.json';
 import test from './test.json';
@@ -11,3 +12,9 @@ export type HyperlaneEnvironmentChain<E extends HyperlaneEnvironment> = Extract<
   keyof typeof hyperlaneEnvironments[E],
   ChainName
 >;
+
+// Note, this assumes no chain name is repeated across environments
+export const hyperlaneContractAddresses = objMerge(
+  hyperlaneEnvironments.mainnet,
+  hyperlaneEnvironments.testnet,
+);

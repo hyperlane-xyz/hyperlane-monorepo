@@ -168,14 +168,14 @@ async function getPaginatedEvents<T extends TypedEvent>(
 ): Promise<Array<T>> {
   const metadata = multiprovider.getChainMetadata(chain);
   const pagination = metadata.publicRpcUrls[0].pagination;
-  if (!pagination) {
-    throw new Error('Domain need not be paginated');
-  }
+  if (!pagination) throw new Error('Domain need not be paginated');
+  if (!pagination.maxBlockRange) throw new Error('MaxBlockRange required');
+
   // get the first block by params
   // or domain deployment block
   const firstBlock = startBlock
-    ? Math.max(startBlock, pagination.from)
-    : pagination.from;
+    ? Math.max(startBlock, pagination.minBlockNumber || 0)
+    : pagination.minBlockNumber || 0;
   // get the last block by params
   // or current block number
   let lastBlock;
@@ -187,8 +187,12 @@ async function getPaginatedEvents<T extends TypedEvent>(
   }
   // query domain pagination limit at a time, concurrently
   const eventArrayPromises = [];
-  for (let from = firstBlock; from <= lastBlock; from += pagination.blocks) {
-    const nextFrom = from + pagination.blocks;
+  for (
+    let from = firstBlock;
+    from <= lastBlock;
+    from += pagination.maxBlockRange
+  ) {
+    const nextFrom = from + pagination.maxBlockRange;
     const to = Math.min(nextFrom, lastBlock);
     const eventArrayPromise = contract.queryFilter(filter, from, to);
     eventArrayPromises.push(eventArrayPromise);
@@ -212,14 +216,14 @@ async function findFromPaginatedEvents<T extends TypedEvent>(
 ): Promise<Array<T>> {
   const metadata = multiprovider.getChainMetadata(chain);
   const pagination = metadata.publicRpcUrls[0].pagination;
-  if (!pagination) {
-    throw new Error('Domain need not be paginated');
-  }
+  if (!pagination) throw new Error('Domain need not be paginated');
+  if (!pagination.maxBlockRange) throw new Error('MaxBlockRange required');
+
   // get the first block by params
   // or domain deployment block
   const firstBlock = startBlock
-    ? Math.max(startBlock, pagination.from)
-    : pagination.from;
+    ? Math.max(startBlock, pagination.minBlockNumber || 0)
+    : pagination.minBlockNumber || 0;
   // get the last block by params
   // or current block number
   let lastBlock;
@@ -231,8 +235,8 @@ async function findFromPaginatedEvents<T extends TypedEvent>(
   }
   // query domain pagination limit at a time, concurrently
   // eslint-disable-next-line for-direction
-  for (let end = lastBlock; end > firstBlock; end -= pagination.blocks) {
-    const nextEnd = end - pagination.blocks;
+  for (let end = lastBlock; end > firstBlock; end -= pagination.maxBlockRange) {
+    const nextEnd = end - pagination.maxBlockRange;
     const from = Math.max(nextEnd, firstBlock);
     const queriedEvents = await contract.queryFilter(filter, from, end);
     if (queriedEvents.length > 0) {

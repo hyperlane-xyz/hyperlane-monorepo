@@ -23,19 +23,19 @@ import { RetryJsonRpcProvider, RetryOptions } from './RetryProvider';
 
 type Provider = providers.Provider;
 
-export const providerBuilder = (config?: {
+export function providerBuilder(config?: {
   http?: string;
   network?: providers.Networkish;
   retry?: RetryOptions;
-}): providers.JsonRpcProvider => {
-  const baseProvider = new providers.JsonRpcProvider(
+}): providers.JsonRpcProvider {
+  const baseProvider = new providers.StaticJsonRpcProvider(
     config?.http,
     config?.network,
   );
   return config?.retry
     ? new RetryJsonRpcProvider(baseProvider, config.retry)
     : baseProvider;
-};
+}
 
 interface MultiProviderOptions {
   loggerName?: string;
@@ -278,8 +278,6 @@ export class MultiProvider {
   tryGetSigner(chainNameOrId: ChainName | number): Signer | null {
     const chainName = this.tryGetChainName(chainNameOrId);
     if (!chainName) return null;
-
-    // Otherwise check the chain-to-signer map
     const signer = this.signers[chainName];
     if (!signer) return null;
     if (signer.provider) return signer;
@@ -509,13 +507,10 @@ export class MultiProvider {
   ): Promise<string | null> {
     const baseUrl = this.tryGetExplorerUrl(chainNameOrId);
     if (!baseUrl) return null;
-    if (!address) {
-      const signer = this.tryGetSigner(chainNameOrId);
-      if (!signer) return null;
-      return `${baseUrl}/address/${await signer.getAddress()}`;
-    }
-
-    return `${baseUrl}/address/${address}`;
+    if (address) return `${baseUrl}/address/${address}`;
+    const signer = this.tryGetSigner(chainNameOrId);
+    if (!signer) return null;
+    return `${baseUrl}/address/${await signer.getAddress()}`;
   }
 
   /**

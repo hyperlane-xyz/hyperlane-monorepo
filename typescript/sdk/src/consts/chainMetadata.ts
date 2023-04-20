@@ -68,8 +68,10 @@ export interface ChainMetadata {
 }
 
 export interface RpcPagination {
-  blocks: number;
-  from: number;
+  /** Maximum number of blocks to query between (e.g. for fetching logs) */
+  maxBlockRange?: number;
+  /** Lowest block number to start querying from */
+  minBlockNumber?: number;
 }
 
 /**
@@ -236,8 +238,8 @@ export const avalanche: ChainMetadata = {
     {
       http: 'https://api.avax.network/ext/bc/C/rpc',
       pagination: {
-        blocks: 100000,
-        from: 6765067,
+        maxBlockRange: 100000,
+        minBlockNumber: 6765067,
       },
     },
   ],
@@ -373,7 +375,12 @@ export const fuji: ChainMetadata = {
   name: Chains.fuji,
   displayName: 'Fuji',
   nativeToken: avaxToken,
-  publicRpcUrls: [{ http: 'https://api.avax-test.network/ext/bc/C/rpc' }],
+  publicRpcUrls: [
+    {
+      http: 'https://api.avax-test.network/ext/bc/C/rpc',
+      pagination: { maxBlockRange: 2048 },
+    },
+  ],
   blockExplorers: [
     {
       name: 'SnowTrace',
@@ -505,8 +512,8 @@ export const mumbai: ChainMetadata = {
       http: 'https://rpc.ankr.com/polygon_mumbai',
       pagination: {
         // eth_getLogs and eth_newFilter are limited to a 10,000 blocks range
-        blocks: 10000,
-        from: 22900000,
+        maxBlockRange: 10000,
+        minBlockNumber: 22900000,
       },
     },
     {
@@ -586,8 +593,8 @@ export const polygon: ChainMetadata = {
       http: 'https://rpc-mainnet.matic.quiknode.pro',
       pagination: {
         // Needs to be low to avoid RPC timeouts
-        blocks: 10000,
-        from: 19657100,
+        maxBlockRange: 10000,
+        minBlockNumber: 19657100,
       },
     },
     { http: 'https://polygon-rpc.com' },
@@ -619,8 +626,8 @@ export const gnosis: ChainMetadata = {
     {
       http: 'https://rpc.gnosischain.com',
       pagination: {
-        blocks: 10000,
-        from: 25997478,
+        maxBlockRange: 10000,
+        minBlockNumber: 25997478,
       },
     },
   ],
