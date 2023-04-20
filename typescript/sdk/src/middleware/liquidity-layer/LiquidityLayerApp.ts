@@ -4,12 +4,12 @@ import {
   CircleBridgeAdapter__factory,
   ICircleMessageTransmitter__factory,
   ITokenMessenger__factory,
+  Mailbox__factory,
   PortalAdapter__factory,
 } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../../HyperlaneApp';
-import { Chains } from '../../consts/chains';
 import { HyperlaneContracts } from '../../contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ChainMap, ChainName } from '../../types';
@@ -20,8 +20,10 @@ import { liquidityLayerFactories } from './contracts';
 
 const PORTAL_VAA_SERVICE_TESTNET_BASE_URL =
   'https://wormhole-v2-testnet-api.certus.one/v1/signed_vaa/';
-const CIRCLE_ATTESTATIONS_BASE_URL =
+const CIRCLE_ATTESTATIONS_TESTNET_BASE_URL =
   'https://iris-api-sandbox.circle.com/attestations/';
+const CIRCLE_ATTESTATIONS_MAINNET_BASE_URL =
+  'https://iris-api.circle.com/attestations/';
 
 const PORTAL_VAA_SERVICE_SUCCESS_CODE = 5;
 
@@ -29,6 +31,7 @@ const TokenMessengerInterface = ITokenMessenger__factory.createInterface();
 const CircleBridgeAdapterInterface =
   CircleBridgeAdapter__factory.createInterface();
 const PortalAdapterInterface = PortalAdapter__factory.createInterface();
+const MailboxInterface = Mailbox__factory.createInterface();
 
 const BridgedTokenTopic = CircleBridgeAdapterInterface.getEventTopic(
   CircleBridgeAdapterInterface.getEvent('BridgedToken'),
@@ -69,6 +72,7 @@ export class LiquidityLayerApp extends HyperlaneApp<
   }
 
   async fetchCircleMessageTransactions(chain: ChainName): Promise<string[]> {
+    console.log(`Fetch circle messages for ${chain}`);
     const url = new URL(this.multiProvider.getExplorerApiUrl(chain));
     url.searchParams.set('module', 'logs');
     url.searchParams.set('action', 'getLogs');
@@ -131,6 +135,7 @@ export class LiquidityLayerApp extends HyperlaneApp<
     chain: ChainName,
     txHash: string,
   ): Promise<CircleBridgeMessage[]> {
+    console.debug(`Parse Circle messages for chain ${chain} ${txHash}`);
     const provider = this.multiProvider.getProvider(chain);
     const receipt = await provider.getTransactionReceipt(txHash);
     const matchingLogs = receipt.logs
@@ -141,7 +146,11 @@ export class LiquidityLayerApp extends HyperlaneApp<
           try {
             return [CircleBridgeAdapterInterface.parseLog(_)];
           } catch {
-            return [];
+            try {
+              return [MailboxInterface.parseLog(_)];
+            } catch {
+              return [];
+            }
           }
         }
       })
@@ -152,7 +161,11 @@ export class LiquidityLayerApp extends HyperlaneApp<
       .message;
     const nonce = matchingLogs.find((_) => _!.name === 'BridgedToken')!.args
       .nonce;
-    const remoteChain = chain === Chains.fuji ? Chains.goerli : Chains.fuji;
+
+    const destinationDomain = matchingLogs.find((_) => _!.name === 'Dispatch')!
+      .args.destination;
+
+    const remoteChain = this.multiProvider.getChainName(destinationDomain);
     const domain = this.config[chain].circle!.circleDomainMapping.find(
       (_) => _.hyperlaneDomain === this.multiProvider.getDomainId(chain),
     )!.circleDomain;
@@ -253,10 +266,13 @@ export class LiquidityLayerApp extends HyperlaneApp<
       return;
     }
 
+    console.log(`Attempt Circle message delivery`, JSON.stringify(message));
+
     const messageHash = ethers.utils.keccak256(message.message);
-    const attestationsB = await fetchWithTimeout(
-      `${CIRCLE_ATTESTATIONS_BASE_URL}${messageHash}`,
-    );
+    const baseurl = this.multiProvider.getChainMetadata(message.chain).isTestnet
+      ? CIRCLE_ATTESTATIONS_TESTNET_BASE_URL
+      : CIRCLE_ATTESTATIONS_MAINNET_BASE_URL;
+    const attestationsB = await fetchWithTimeout(`${baseurl}${messageHash}`);
     const attestations = await attestationsB.json();
 
     if (attestations.status !== 'complete') {
