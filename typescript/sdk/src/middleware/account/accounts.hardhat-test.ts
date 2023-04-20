@@ -44,6 +44,12 @@ describe('InterchainAccounts', async () => {
       signer.address,
       coreApp.contractsMap,
     );
+
+    /*
+    config.test1.interchainSecurityModule = await coreApp
+      .getContracts('test1')
+      .mailbox.defaultIsm();
+    */
   });
 
   beforeEach(async () => {

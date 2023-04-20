@@ -8,6 +8,7 @@ import {
   InterchainQuery,
   InterchainQueryChecker,
 } from '@hyperlane-xyz/sdk';
+import { HyperlaneIsmFactory } from '@hyperlane-xyz/sdk/dist/ism/HyperlaneIsmFactory';
 
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { HyperlaneAppGovernor } from '../src/govern/HyperlaneAppGovernor';
@@ -46,7 +47,13 @@ async function check() {
   const env = deployEnvToSdkEnv[environment];
   if (module === Modules.CORE) {
     const core = HyperlaneCore.fromEnvironment(env, multiProvider);
-    const checker = new HyperlaneCoreChecker(multiProvider, core, config.core);
+    const ismFactory = HyperlaneIsmFactory.fromEnvironment(env, multiProvider);
+    const checker = new HyperlaneCoreChecker(
+      multiProvider,
+      core,
+      config.core,
+      ismFactory,
+    );
     governor = new HyperlaneCoreGovernor(checker, config.owners);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     const igp = HyperlaneIgp.fromEnvironment(env, multiProvider);

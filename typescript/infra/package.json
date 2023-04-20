@@ -58,6 +58,7 @@
   "scripts": {
     "deploy-core": "ts-node scripts/deploy.ts -e test --context hyperlane -m core",
     "deploy-igp": "ts-node scripts/deploy.ts -e test --context hyperlane -m igp",
+    "deploy-ism": "ts-node scripts/deploy.ts -e test --context hyperlane -m ism",
     "build": "tsc",
     "clean": "rm -rf ./dist ./cache",
     "check": "tsc --noEmit",
