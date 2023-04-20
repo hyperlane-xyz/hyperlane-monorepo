@@ -11,7 +11,6 @@ export {
 export {
   ChainMetadata,
   ChainMetadataSchema,
-  ExplorerFamily,
   RpcPagination,
   chainIdToMetadata,
   chainMetadata,
