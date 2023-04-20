@@ -2,9 +2,10 @@
 pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
-import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
-import {ISpecifiesInterchainSecurityModule, IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
-import {IMailbox} from "../interfaces/IMailbox.sol";
+import {IInterchainGasPaymaster} from "./interfaces/IInterchainGasPaymaster.sol";
+import {IInterchainSecurityModule} from "./interfaces/IInterchainSecurityModule.sol";
+import {IHyperlaneConnectionClient} from "./interfaces/IHyperlaneConnectionClient.sol";
+import {IMailbox} from "./interfaces/IMailbox.sol";
 
 // ============ External Imports ============
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -12,7 +13,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 abstract contract HyperlaneConnectionClient is
     OwnableUpgradeable,
-    ISpecifiesInterchainSecurityModule
+    IHyperlaneConnectionClient
 {
     // ============ Mutable Storage ============
 

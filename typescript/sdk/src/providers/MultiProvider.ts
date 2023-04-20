@@ -8,7 +8,7 @@ import {
   providers,
 } from 'ethers';
 
-import { types } from '@hyperlane-xyz/utils';
+import { types, utils } from '@hyperlane-xyz/utils';
 
 import {
   ChainMetadata,
@@ -57,37 +57,45 @@ export class MultiProvider {
     options: MultiProviderOptions = {},
   ) {
     Object.entries(chainMetadata).forEach(([key, cm]) => {
-      if (!isValidChainMetadata(cm))
-        throw new Error(`Invalid chain metadata for ${cm.chainId}`);
       if (key !== cm.name)
         throw new Error(
           `Chain name mismatch: Key was ${key}, but name is ${cm.name}`,
         );
+      this.addChain(cm);
     });
-
-    this.metadata = chainMetadata;
-    // Ensure no two chains have overlapping names/domainIds/chainIds
-    const chainNames = new Set<string>();
-    const chainIds = new Set<number>();
-    const domainIds = new Set<number>();
-    for (const chain of Object.values(chainMetadata)) {
-      const { name, chainId, domainId } = chain;
-      if (chainNames.has(name))
-        throw new Error(`Duplicate chain name: ${name}`);
-      if (chainIds.has(chainId))
-        throw new Error(`Duplicate chain id: ${chainId}`);
-      if (domainIds.has(chainId))
-        throw new Error(`Overlapping chain/domain id: ${chainId}`);
-      if (domainId && domainIds.has(domainId))
-        throw new Error(`Duplicate domain id: ${domainId}`);
-      if (domainId && chainIds.has(domainId))
-        throw new Error(`Overlapping chain/domain id: ${domainId}`);
-      chainNames.add(name);
-      chainIds.add(chainId);
-      if (domainId) domainIds.add(domainId);
-    }
-
     this.logger = debug(options?.loggerName || 'hyperlane:MultiProvider');
+  }
+
+  /**
+   * Add a chain to the MultiProvider
+   * @throws if chain's name or domain/chain ID collide
+   */
+  addChain(metadata: ChainMetadata): void {
+    if (!isValidChainMetadata(metadata))
+      throw new Error(`Invalid chain metadata for ${metadata.name}`);
+    // Ensure no two chains have overlapping names/domainIds/chainIds
+    for (const chainMetadata of Object.values(this.metadata)) {
+      const { name, chainId, domainId } = chainMetadata;
+      if (name == metadata.name)
+        throw new Error(`Duplicate chain name: ${name}`);
+      // Chain and Domain Ids should be globally unique
+      const idCollision =
+        chainId == metadata.chainId ||
+        domainId == metadata.chainId ||
+        (metadata.domainId &&
+          (chainId == metadata.domainId || domainId === metadata.domainId));
+      if (idCollision)
+        throw new Error(
+          `Chain/Domain id collision: ${name} and ${metadata.name}`,
+        );
+    }
+    this.metadata[metadata.name] = metadata;
+    if (this.useSharedSigner) {
+      const signers = Object.values(this.signers);
+      if (signers.length > 0) {
+        this.setSharedSigner(signers[0]);
+      }
+    }
   }
 
   /**
@@ -414,7 +422,7 @@ export class MultiProvider {
    * Get chain names excluding given chain name
    */
   getRemoteChains(name: ChainName): ChainName[] {
-    return this.getKnownChainNames().filter((n) => n !== name);
+    return utils.exclude(name, this.getKnownChainNames());
   }
 
   /**
@@ -504,10 +512,10 @@ export class MultiProvider {
     if (!address) {
       const signer = this.tryGetSigner(chainNameOrId);
       if (!signer) return null;
-      return `${baseUrl}/${await signer.getAddress()}`;
+      return `${baseUrl}/address/${await signer.getAddress()}`;
     }
 
-    return `${baseUrl}/${address}`;
+    return `${baseUrl}/address/${address}`;
   }
 
   /**
@@ -624,9 +632,10 @@ export class MultiProvider {
    */
   static createTestMultiProvider(
     params: { signer?: Signer; provider?: Provider } = {},
+    chains: ChainName[] = TestChains,
   ): MultiProvider {
     const { signer, provider } = params;
-    const chainMetadata = pick(defaultChainMetadata, TestChains);
+    const chainMetadata = pick(defaultChainMetadata, chains);
     const mp = new MultiProvider(chainMetadata);
     if (signer) {
       mp.setSharedSigner(signer);
@@ -634,7 +643,7 @@ export class MultiProvider {
     const _provider = provider || signer?.provider;
     if (_provider) {
       const providerMap: ChainMap<Provider> = {};
-      TestChains.forEach((t) => (providerMap[t] = _provider));
+      chains.forEach((t) => (providerMap[t] = _provider));
       mp.setProviders(providerMap);
     }
     return mp;

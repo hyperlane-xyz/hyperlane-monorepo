@@ -1,10 +1,6 @@
-use std::fmt::{Debug, Formatter};
-use std::num::{ParseIntError, TryFromIntError};
-use std::str::FromStr;
+use std::time::Duration;
 
-use serde::Deserialize;
 use sha3::{digest::Update, Digest, Keccak256};
-use thiserror::Error;
 
 use crate::{KnownHyperlaneDomain, H256};
 
@@ -45,73 +41,6 @@ pub fn announcement_domain_hash(address: H256, domain: impl Into<u32>) -> H256 {
     )
 }
 
-/// A Hex String of length `N` representing bytes of length `N / 2`
-#[derive(Debug, Clone)]
-pub struct HexString<const N: usize>(String);
-
-/// An hex string parsing error
-#[derive(Error, Debug)]
-pub enum HexStringError {
-    /// String was expected to be of a different length
-    #[error("Expected string of length {expected}, got {actual}")]
-    InvalidStringLength {
-        /// expected string length
-        expected: usize,
-        /// actual string length
-        actual: usize,
-    },
-    /// Provided string was not hex
-    #[error("The provided string is not hex: {0:?}")]
-    NotHex(String),
-}
-
-impl<const N: usize> AsRef<str> for HexString<N> {
-    fn as_ref(&self) -> &str {
-        &self.0
-    }
-}
-
-impl<const N: usize> HexString<N> {
-    /// Instantiate a new HexString from any `AsRef<str>`. Tolerates 0x
-    /// prefixing. A succesful instantiation will create an owned copy of the
-    /// string.
-    pub fn from_string<S: AsRef<str>>(candidate: S) -> Result<Self, HexStringError> {
-        let s = strip_0x_prefix(candidate.as_ref());
-
-        if s.len() != N {
-            return Err(HexStringError::InvalidStringLength {
-                actual: s.len(),
-                expected: N,
-            });
-        }
-
-        // Lazy. Should do the check as a cheaper action
-        #[allow(clippy::question_mark)]
-        if hex::decode(s).is_err() {
-            return Err(HexStringError::NotHex(s.to_owned()));
-        }
-        Ok(Self(s.to_owned()))
-    }
-}
-
-impl<const N: usize> FromStr for HexString<N> {
-    type Err = HexStringError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Self::from_string(s)
-    }
-}
-
-impl<'de, const N: usize> serde::Deserialize<'de> for HexString<N> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        Self::from_string(s).map_err(serde::de::Error::custom)
-    }
-}
-
 /// Pretty print an address based on the domain it is for.
 pub fn fmt_address_for_domain(domain: u32, addr: H256) -> String {
     KnownHyperlaneDomain::try_from(domain)
@@ -131,82 +60,36 @@ pub fn fmt_domain(domain: u32) -> String {
         .unwrap_or_else(|_| domain.to_string())
 }
 
-/// An error when parsing a StrOrInt type as an integer value.
-#[derive(Error, Debug)]
-pub enum StrOrIntParseError {
-    /// The string is not a valid integer
-    #[error("Invalid integer provided as a string: {0}")]
-    StrParse(#[from] ParseIntError),
-    /// The provided integer does not match the type requirements.
-    #[error("Provided number is an invalid integer: {0}")]
-    InvalidInt(#[from] TryFromIntError),
-}
+/// Formats the duration in the most appropriate time units.
+pub fn fmt_duration(dur: Duration) -> String {
+    const MIN: f64 = 60.;
+    const HOUR: f64 = MIN * 60.;
+    const DAY: f64 = HOUR * 24.;
+    const YEAR: f64 = DAY * 365.25;
 
-/// A type which can be used for parsing configs that may be provided as a
-/// string or an integer but will ultimately be read as an integer. E.g. where
-/// `"domain": "42"` and `"domain": 42` should both be considered valid.
-#[derive(Clone, Deserialize)]
-#[serde(untagged)]
-pub enum StrOrInt {
-    /// The parsed type is a string
-    Str(String),
-    /// The parsed type is an integer
-    Int(i64),
-}
-
-impl Debug for StrOrInt {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            StrOrInt::Str(v) => write!(f, "\"{v}\""),
-            StrOrInt::Int(v) => write!(f, "{}", *v),
-        }
+    let sec = dur.as_secs_f64();
+    if sec < 60. {
+        format!("{:.0}s", sec)
+    } else if sec < HOUR {
+        format!("{:.1}m", sec / MIN)
+    } else if sec < DAY {
+        format!("{:.2}h", sec / HOUR)
+    } else if sec < YEAR {
+        format!("{:.2}d", sec / DAY)
+    } else {
+        format!("{:.2}y", sec / YEAR)
     }
 }
 
-impl From<i64> for StrOrInt {
-    fn from(value: i64) -> Self {
-        StrOrInt::Int(value)
+/// Formats the duration in the most appropriate time units and says "synced" if
+/// the duration is 0.
+pub fn fmt_sync_time(dur: Duration) -> String {
+    if dur.as_secs() == 0 {
+        "synced".into()
+    } else {
+        fmt_duration(dur)
     }
 }
-
-impl From<String> for StrOrInt {
-    fn from(value: String) -> Self {
-        StrOrInt::Str(value)
-    }
-}
-
-impl From<&str> for StrOrInt {
-    fn from(value: &str) -> Self {
-        StrOrInt::Str(value.to_owned())
-    }
-}
-
-macro_rules! convert_to {
-    ($t:ty) => {
-        impl TryFrom<StrOrInt> for $t {
-            type Error = StrOrIntParseError;
-
-            fn try_from(v: StrOrInt) -> Result<Self, Self::Error> {
-                (&v).try_into()
-            }
-        }
-
-        impl TryFrom<&StrOrInt> for $t {
-            type Error = StrOrIntParseError;
-
-            fn try_from(v: &StrOrInt) -> Result<Self, Self::Error> {
-                Ok(match v {
-                    StrOrInt::Str(s) => s.parse()?,
-                    StrOrInt::Int(i) => (*i).try_into()?,
-                })
-            }
-        }
-    };
-}
-
-convert_to!(u16);
-convert_to!(u32);
-convert_to!(u64);
 
 /// Shortcut for many-to-one match statements that get very redundant. Flips the
 /// order such that the thing which is mapped to is listed first.

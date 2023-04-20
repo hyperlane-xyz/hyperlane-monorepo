@@ -1,63 +1,35 @@
-import { ethers } from 'ethers';
-
 import {
-  MultisigIsm,
   TestInterchainGasPaymaster__factory,
   TestIsm__factory,
   TestMailbox__factory,
 } from '@hyperlane-xyz/core';
 
+import { TestChains } from '../consts/chains';
+import { HyperlaneContracts } from '../contracts';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../providers/MultiProvider';
+import { testCoreConfig } from '../test/testUtils';
 import { ChainMap, ChainName } from '../types';
 
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer';
 import { TestCoreApp } from './TestCoreApp';
-import { coreFactories } from './contracts';
-import { CoreConfig, GasOracleContractType } from './types';
-
-const nonZeroAddress = ethers.constants.AddressZero.replace('00', '01');
-
-// dummy config as TestInbox and TestOutbox do not use deployed ISM
-const testConfig: CoreConfig = {
-  owner: nonZeroAddress,
-  multisigIsm: {
-    validators: [nonZeroAddress],
-    threshold: 1,
-  },
-  igp: {
-    beneficiary: nonZeroAddress,
-    gasOracles: {
-      test1: GasOracleContractType.StorageGasOracle,
-      test2: GasOracleContractType.StorageGasOracle,
-      test3: GasOracleContractType.StorageGasOracle,
-    },
-  },
-};
+import { CoreFactories, coreFactories } from './contracts';
 
 const testCoreFactories = {
   ...coreFactories,
   mailbox: new TestMailbox__factory(),
-  testIsm: new TestIsm__factory(),
   interchainGasPaymaster: new TestInterchainGasPaymaster__factory(),
+  testIsm: new TestIsm__factory(),
 };
 
 export class TestCoreDeployer extends HyperlaneCoreDeployer {
-  constructor(
-    public readonly multiProvider: MultiProvider,
-    configMap?: ChainMap<CoreConfig>,
-  ) {
-    // Note that the multisig module configs are unused.
-    const configs = configMap ?? {
-      test1: testConfig,
-      test2: testConfig,
-      test3: testConfig,
-    };
-
-    super(multiProvider, configs, testCoreFactories);
+  constructor(public readonly multiProvider: MultiProvider) {
+    const ismFactory = new HyperlaneIsmFactory({}, multiProvider);
+    super(multiProvider, ismFactory);
   }
 
-  // deploy a test ISM in place of a multisig ISM
-  async deployMultisigIsm(chain: ChainName): Promise<MultisigIsm> {
+  // deploy a test ISM instead of a real ISM
+  async deployIsm(chain: ChainName): Promise<string> {
     const testIsm = await this.deployContractFromFactory(
       chain,
       testCoreFactories.testIsm,
@@ -65,12 +37,11 @@ export class TestCoreDeployer extends HyperlaneCoreDeployer {
       [],
     );
     await testIsm.setAccept(true);
-    return testIsm as unknown as MultisigIsm;
+    return testIsm.address;
   }
 
-  // TestIsm is not ownable, so we skip ownership transfer
-  async transferOwnershipOfContracts(): Promise<ethers.ContractReceipt[]> {
-    return [];
+  async deploy(): Promise<ChainMap<HyperlaneContracts<CoreFactories>>> {
+    return super.deploy(testCoreConfig(TestChains));
   }
 
   async deployApp(): Promise<TestCoreApp> {

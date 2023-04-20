@@ -11,11 +11,12 @@ version.workspace = true
 [dependencies]
 Inflector = "0.11"
 ethers = { workspace = true, optional = true }
-fuels = { version = "0.33", optional = true }
-which = {version =  "4.3", optional = true }
+fuels = { workspace = true, optional = true }
+fuels-code-gen = { workspace = true, optional = true }
+which = { version =  "4.3", optional = true }
 
 [features]
 default = []
 ethers = ["dep:ethers"]
 fmt = ["dep:which"]
-fuels = ["dep:fuels", "fmt"]
+fuels = ["dep:fuels", "dep:fuels-code-gen", "fmt"]

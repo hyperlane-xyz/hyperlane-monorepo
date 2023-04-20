@@ -1,3 +1,12 @@
+use hyperlane_core::config::*;
+/// Export this so they don't need to import paste.
+#[doc(hidden)]
+pub use paste;
+use serde::Deserialize;
+use std::fmt::Debug;
+
+use crate::settings::RawSettings;
+
 #[macro_export]
 /// Shortcut for aborting a joinhandle and then awaiting and discarding its
 /// result
@@ -44,12 +53,6 @@ macro_rules! decl_agent {
     };
 }
 
-use crate::Settings;
-/// Export this so they don't need to import paste.
-#[doc(hidden)]
-pub use paste;
-use serde::Deserialize;
-
 #[macro_export]
 /// Declare a new settings block
 ///
@@ -73,22 +76,52 @@ use serde::Deserialize;
 /// ```
 macro_rules! decl_settings {
     (
-        $name:ident {
-            $($(#[$tags:meta])* $prop:ident: $type:ty,)*
-        }
+        $name:ident,
+        Parsed {
+            $($(#[$parsed_tags:meta])* $parsed_prop:ident: $parsed_type:ty,)*
+        },
+        Raw {
+            $($(#[$raw_tags:meta])* $raw_prop:ident: $raw_type:ty,)*
+        }$(,)?
     ) => {
         hyperlane_base::macros::paste::paste! {
-            #[derive(Debug, serde::Deserialize)]
-            #[serde(rename_all = "camelCase")]
-            #[doc = "Settings for `" $name]
+            #[doc = "Settings for `" $name "`"]
+            #[derive(Debug)]
             pub struct [<$name Settings>] {
-                #[serde(flatten)]
-                pub(crate) base: hyperlane_base::Settings,
+                base: hyperlane_base::Settings,
                 $(
-                    $(#[$tags])*
-                    pub(crate) $prop: $type,
+                    $(#[$parsed_tags])*
+                    pub(crate) $parsed_prop: $parsed_type,
                 )*
             }
+
+            #[doc = "Raw settings for `" $name "`"]
+            #[derive(Debug, serde::Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            pub struct [<Raw $name Settings>] {
+                #[serde(flatten, default)]
+                base: hyperlane_base::RawSettings,
+                $(
+                    $(#[$raw_tags])*
+                    $raw_prop: $raw_type,
+                )*
+            }
+
+            impl AsMut<hyperlane_base::RawSettings> for [<Raw $name Settings>] {
+                fn as_mut(&mut self) -> &mut hyperlane_base::RawSettings {
+                    &mut self.base
+                }
+            }
+
+            // ensure the settings struct implements `FromRawConf`
+            const _: fn() = || {
+                fn assert_impl<'de, T>()
+                where
+                    T: ?Sized + hyperlane_core::config::FromRawConf<'de, [<Raw $name Settings>]>
+                {}
+
+                assert_impl::<[<$name Settings>]>();
+            };
 
             impl std::ops::Deref for [<$name Settings>] {
                 type Target = hyperlane_base::Settings;
@@ -110,25 +143,26 @@ macro_rules! decl_settings {
                 }
             }
 
-            impl hyperlane_base::NewFromSettings for [<$name Settings>] {
-                type Error = eyre::Report;
-
+            impl hyperlane_base::NewFromSettings<> for [<$name Settings>] {
                 /// See `load_settings_object` for more information about how settings are loaded.
-                fn new() -> Result<Self, Self::Error> {
-                    hyperlane_base::macros::_new_settings(stringify!($name))
+                fn new() -> hyperlane_core::config::ConfigResult<Self> {
+                    hyperlane_base::macros::_new_settings::<[<Raw $name Settings>], [<$name Settings>]>(stringify!($name))
                 }
             }
         }
-    }
+    };
 }
 
 /// Static logic called by the decl_settings! macro. Do not call directly!
 #[doc(hidden)]
-pub fn _new_settings<'de, T>(name: &str) -> eyre::Result<T>
+pub fn _new_settings<'de, T, R>(name: &str) -> ConfigResult<R>
 where
-    T: Deserialize<'de> + AsMut<Settings>,
+    T: Deserialize<'de> + AsMut<RawSettings> + Debug,
+    R: FromRawConf<'de, T>,
 {
     use crate::settings::loader::load_settings_object;
-
-    load_settings_object::<T, &str>(name, &[])
+    let root_path = ConfigPath::default();
+    let raw =
+        load_settings_object::<T, &str>(name, &[]).into_config_result(|| root_path.clone())?;
+    raw.parse_config(&root_path)
 }

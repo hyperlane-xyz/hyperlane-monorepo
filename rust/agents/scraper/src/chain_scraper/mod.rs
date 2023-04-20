@@ -62,16 +62,13 @@ impl SqlChainScraper {
         metrics: ContractSyncMetrics,
     ) -> Result<Self> {
         let cursor = Arc::new(
-            db.block_cursor(
-                contracts.mailbox.domain().id(),
-                index_settings.from() as u64,
-            )
-            .await?,
+            db.block_cursor(contracts.mailbox.domain().id(), index_settings.from as u64)
+                .await?,
         );
         Ok(Self {
             db,
             contracts,
-            chunk_size: index_settings.chunk_size(),
+            chunk_size: index_settings.chunk_size,
             metrics,
             cursor,
         })
@@ -188,7 +185,6 @@ impl SqlChainScraper {
         let blocks: HashMap<_, _> = self
             .ensure_blocks(block_hash_by_txn_hash.values().copied())
             .await?
-            .into_iter()
             .map(|block| (block.hash, block))
             .collect();
         trace!(?blocks, "Ensured blocks");

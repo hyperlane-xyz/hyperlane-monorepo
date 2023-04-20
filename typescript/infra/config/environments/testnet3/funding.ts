@@ -1,5 +1,6 @@
+import { AgentConnectionType } from '@hyperlane-xyz/sdk';
+
 import { KEY_ROLE_ENUM } from '../../../src/agents/roles';
-import { ConnectionType } from '../../../src/config/agent';
 import { KeyFunderConfig } from '../../../src/config/funding';
 import { Contexts } from '../../contexts';
 
@@ -8,7 +9,7 @@ import { environment } from './chains';
 export const keyFunderConfig: KeyFunderConfig = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: '6e0c44a-20230316-115929',
+    tag: '3ddb0b8-20230327-152012',
   },
   // We're currently using the same deployer key as testnet2.
   // To minimize nonce clobbering we offset the key funder cron
@@ -22,5 +23,5 @@ export const keyFunderConfig: KeyFunderConfig = {
     [Contexts.Hyperlane]: [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy],
     [Contexts.ReleaseCandidate]: [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy],
   },
-  connectionType: ConnectionType.Http,
+  connectionType: AgentConnectionType.Http,
 };

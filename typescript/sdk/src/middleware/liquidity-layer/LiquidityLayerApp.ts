@@ -1,4 +1,3 @@
-import fetch from 'cross-fetch';
 import { ethers } from 'ethers';
 
 import {
@@ -11,11 +10,13 @@ import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../../HyperlaneApp';
 import { Chains } from '../../consts/chains';
+import { HyperlaneContracts } from '../../contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ChainMap, ChainName } from '../../types';
+import { fetchWithTimeout } from '../../utils/fetch';
 
 import { BridgeAdapterConfig } from './LiquidityLayerRouterDeployer';
-import { LiquidityLayerContracts } from './contracts';
+import { liquidityLayerFactories } from './contracts';
 
 const PORTAL_VAA_SERVICE_TESTNET_BASE_URL =
   'https://wormhole-v2-testnet-api.certus.one/v1/signed_vaa/';
@@ -54,9 +55,13 @@ interface PortalBridgeMessage {
   destination: ChainName;
 }
 
-export class LiquidityLayerApp extends HyperlaneApp<LiquidityLayerContracts> {
+export class LiquidityLayerApp extends HyperlaneApp<
+  typeof liquidityLayerFactories
+> {
   constructor(
-    public readonly contractsMap: ChainMap<LiquidityLayerContracts>,
+    public readonly contractsMap: ChainMap<
+      HyperlaneContracts<typeof liquidityLayerFactories>
+    >,
     public readonly multiProvider: MultiProvider,
     public readonly config: ChainMap<BridgeAdapterConfig>,
   ) {
@@ -72,7 +77,7 @@ export class LiquidityLayerApp extends HyperlaneApp<LiquidityLayerContracts> {
       this.getContracts(chain).circleBridgeAdapter!.address,
     );
     url.searchParams.set('topic0', BridgedTokenTopic);
-    const req = await fetch(url);
+    const req = await fetchWithTimeout(url);
     const response = await req.json();
 
     return response.result.map((_: any) => _.transactionHash).flat();
@@ -87,8 +92,12 @@ export class LiquidityLayerApp extends HyperlaneApp<LiquidityLayerContracts> {
       this.getContracts(chain).portalAdapter!.address,
     );
     url.searchParams.set('topic0', PortalBridgedTokenTopic);
-    const req = await fetch(url);
+    const req = await fetchWithTimeout(url);
     const response = await req.json();
+
+    if (!response.result) {
+      throw Error(`Expected result in response: ${response}`);
+    }
 
     return response.result.map((_: any) => _.transactionHash).flat();
   }
@@ -196,7 +205,7 @@ export class LiquidityLayerApp extends HyperlaneApp<LiquidityLayerContracts> {
       ),
     );
 
-    const vaa = await fetch(
+    const vaa = await fetchWithTimeout(
       `${PORTAL_VAA_SERVICE_TESTNET_BASE_URL}${wormholeOriginDomain}/${emitter}/${message.portalSequence}`,
     ).then((_) => _.json());
 
@@ -208,12 +217,24 @@ export class LiquidityLayerApp extends HyperlaneApp<LiquidityLayerContracts> {
     console.debug(
       `Complete portal transfer for nonce ${message.nonce} on ${message.destination}`,
     );
-    await this.multiProvider.handleTx(
-      message.destination,
-      destinationPortalAdapter.completeTransfer(
-        utils.ensure0x(Buffer.from(vaa.vaaBytes, 'base64').toString('hex')),
-      ),
-    );
+
+    try {
+      await this.multiProvider.handleTx(
+        message.destination,
+        destinationPortalAdapter.completeTransfer(
+          utils.ensure0x(Buffer.from(vaa.vaaBytes, 'base64').toString('hex')),
+        ),
+      );
+    } catch (error: any) {
+      if (error?.error?.reason?.includes('no wrapper for this token')) {
+        console.log(
+          'No wrapper for this token, you should register the token at https://wormhole-foundation.github.io/example-token-bridge-ui/#/register',
+        );
+        console.log(message);
+        return;
+      }
+      throw error;
+    }
   }
 
   async attemptCircleAttestationSubmission(
@@ -233,7 +254,7 @@ export class LiquidityLayerApp extends HyperlaneApp<LiquidityLayerContracts> {
     }
 
     const messageHash = ethers.utils.keccak256(message.message);
-    const attestationsB = await fetch(
+    const attestationsB = await fetchWithTimeout(
       `${CIRCLE_ATTESTATIONS_BASE_URL}${messageHash}`,
     );
     const attestations = await attestationsB.json();

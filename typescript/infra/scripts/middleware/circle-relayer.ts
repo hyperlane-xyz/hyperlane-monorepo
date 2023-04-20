@@ -1,25 +1,23 @@
 import path from 'path';
 
 import {
-  ChainMap,
   Chains,
   LiquidityLayerApp,
-  LiquidityLayerContracts,
-  buildContracts,
+  attachContractsMap,
   liquidityLayerFactories,
 } from '@hyperlane-xyz/sdk';
 
 import { bridgeAdapterConfigs } from '../../config/environments/testnet3/token-bridge';
 import { readJSON, sleep } from '../../src/utils/utils';
 import {
-  getCoreEnvironmentConfig,
   getEnvironment,
+  getEnvironmentConfig,
   getEnvironmentDirectory,
 } from '../utils';
 
 async function check() {
   const environment = await getEnvironment();
-  const config = getCoreEnvironmentConfig(environment);
+  const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
   const dir = path.join(
     __dirname,
@@ -28,10 +26,7 @@ async function check() {
     'middleware/liquidity-layer',
   );
   const addresses = readJSON(dir, 'addresses.json');
-  const contracts = buildContracts(
-    addresses,
-    liquidityLayerFactories,
-  ) as ChainMap<LiquidityLayerContracts>;
+  const contracts = attachContractsMap(addresses, liquidityLayerFactories);
   const app = new LiquidityLayerApp(
     contracts,
     multiProvider,

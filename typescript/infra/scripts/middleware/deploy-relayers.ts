@@ -7,18 +7,19 @@ import { HelmCommand } from '../../src/utils/helm';
 import {
   assertCorrectKubeContext,
   getContextAgentConfig,
+  getEnvironment,
   getEnvironmentConfig,
 } from '../utils';
 
 async function main() {
-  const coreConfig = await getEnvironmentConfig();
+  const env = await getEnvironment();
+  const envConfig = getEnvironmentConfig(env);
 
-  await assertCorrectKubeContext(coreConfig);
+  await assertCorrectKubeContext(envConfig);
 
-  const liquidityLayerRelayerConfig =
-    getLiquidityLayerRelayerConfig(coreConfig);
+  const liquidityLayerRelayerConfig = getLiquidityLayerRelayerConfig(envConfig);
   const agentConfig = await getContextAgentConfig(
-    coreConfig,
+    envConfig,
     Contexts.Hyperlane,
   );
 

@@ -1,70 +1,53 @@
-import { Mailbox, MultisigIsm } from '@hyperlane-xyz/core';
+import { BigNumber } from 'ethers';
+
+import { InterchainGasPaymaster, OverheadIgp } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
 import type { CheckerViolation } from '../deploy/types';
-import { ChainName } from '../types';
+import { ChainMap } from '../types';
 
-export type MultisigIsmConfig = {
-  validators: Array<types.Address>;
-  threshold: number;
-};
+export enum GasOracleContractType {
+  StorageGasOracle = 'StorageGasOracle',
+}
 
-export type CoreConfig = {
-  multisigIsm: MultisigIsmConfig;
+export type IgpConfig = {
   owner: types.Address;
-  remove?: boolean;
+  beneficiary: types.Address;
+  gasOracleType: ChainMap<GasOracleContractType>;
 };
 
-export enum CoreViolationType {
-  MultisigIsm = 'MultisigIsm',
-  Mailbox = 'Mailbox',
-  ConnectionManager = 'ConnectionManager',
-  ValidatorAnnounce = 'ValidatorAnnounce',
+export type OverheadIgpConfig = IgpConfig & {
+  overhead: ChainMap<number>;
+};
+
+export enum IgpViolationType {
+  Beneficiary = 'Beneficiary',
+  GasOracles = 'GasOracles',
+  Overhead = 'Overhead',
 }
 
-export enum MultisigIsmViolationType {
-  EnrolledValidators = 'EnrolledValidators',
-  Threshold = 'Threshold',
+export interface IgpViolation extends CheckerViolation {
+  type: 'InterchainGasPaymaster';
+  subType: IgpViolationType;
 }
 
-export enum MailboxViolationType {
-  DefaultIsm = 'DefaultIsm',
-}
-
-export interface MailboxViolation extends CheckerViolation {
-  type: CoreViolationType.Mailbox;
-  contract: Mailbox;
-  mailboxType: MailboxViolationType;
-}
-
-export interface MailboxMultisigIsmViolation extends MailboxViolation {
+export interface IgpBeneficiaryViolation extends IgpViolation {
+  subType: IgpViolationType.Beneficiary;
+  contract: InterchainGasPaymaster;
   actual: types.Address;
   expected: types.Address;
 }
 
-export interface MultisigIsmViolation extends CheckerViolation {
-  type: CoreViolationType.MultisigIsm;
-  contract: MultisigIsm;
-  subType: MultisigIsmViolationType;
-  remote: ChainName;
+export interface IgpGasOraclesViolation extends IgpViolation {
+  subType: IgpViolationType.GasOracles;
+  contract: InterchainGasPaymaster;
+  actual: ChainMap<types.Address>;
+  expected: ChainMap<types.Address>;
 }
 
-export interface EnrolledValidatorsViolation extends MultisigIsmViolation {
-  subType: MultisigIsmViolationType.EnrolledValidators;
-  actual: Set<types.Address>;
-  expected: Set<types.Address>;
-}
-
-export interface ThresholdViolation extends MultisigIsmViolation {
-  subType: MultisigIsmViolationType.Threshold;
-  actual: number;
-  expected: number;
-}
-
-export interface ValidatorAnnounceViolation extends CheckerViolation {
-  type: CoreViolationType.ValidatorAnnounce;
-  chain: ChainName;
-  validator: types.Address;
-  actual: boolean;
-  expected: boolean;
+export interface IgpOverheadViolation extends IgpViolation {
+  subType: IgpViolationType.Overhead;
+  contract: OverheadIgp;
+  actual: ChainMap<BigNumber>;
+  expected: ChainMap<BigNumber>;
 }

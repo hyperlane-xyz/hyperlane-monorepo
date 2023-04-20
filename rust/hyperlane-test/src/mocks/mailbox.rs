@@ -28,7 +28,7 @@ mock! {
             nonce: usize,
         ) -> ChainResult<Option<H256>> {}
 
-        pub fn _count(&self) -> ChainResult<u32> {}
+        pub fn _count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {}
 
         pub fn _latest_checkpoint(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {}
 
@@ -66,8 +66,8 @@ impl std::fmt::Debug for MockMailboxContract {
 
 #[async_trait]
 impl Mailbox for MockMailboxContract {
-    async fn count(&self) -> ChainResult<u32> {
-        self._count()
+    async fn count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
+        self._count(maybe_lag)
     }
 
     async fn latest_checkpoint(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {

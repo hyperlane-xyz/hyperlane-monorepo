@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use eyre::{Context, Result};
 use prometheus::IntGauge;
+use std::path::PathBuf;
 
 use hyperlane_core::{SignedAnnouncement, SignedCheckpoint};
 
@@ -11,29 +12,29 @@ use crate::traits::CheckpointSyncer;
 /// Type for reading/write to LocalStorage
 pub struct LocalStorage {
     /// base path
-    path: String,
+    path: PathBuf,
     latest_index: Option<IntGauge>,
 }
 
 impl LocalStorage {
-    fn checkpoint_file_path(&self, index: u32) -> String {
-        format!("{}/{index}.json", self.path)
+    fn checkpoint_file_path(&self, index: u32) -> PathBuf {
+        self.path.join(format!("{}.json", index))
     }
 
-    fn latest_index_file_path(&self) -> String {
-        format!("{}/index.json", self.path)
+    fn latest_index_file_path(&self) -> PathBuf {
+        self.path.join("index.json")
     }
 
     async fn write_index(&self, index: u32) -> Result<()> {
         let path = self.latest_index_file_path();
         tokio::fs::write(&path, index.to_string())
             .await
-            .with_context(|| format!("Writing index to {path}"))?;
+            .with_context(|| format!("Writing index to {path:?}"))?;
         Ok(())
     }
 
-    fn announcement_file_path(&self) -> String {
-        format!("{}/announcement.json", self.path)
+    fn announcement_file_path(&self) -> PathBuf {
+        self.path.join("announcement.json")
     }
 }
 
@@ -72,7 +73,7 @@ impl CheckpointSyncer for LocalStorage {
         let path = self.checkpoint_file_path(signed_checkpoint.value.index);
         tokio::fs::write(&path, &serialized_checkpoint)
             .await
-            .with_context(|| format!("Writing checkpoint to {path}"))?;
+            .with_context(|| format!("Writing checkpoint to {path:?}"))?;
 
         match self.latest_index().await? {
             Some(current_latest_index) => {
@@ -91,12 +92,11 @@ impl CheckpointSyncer for LocalStorage {
         let path = self.announcement_file_path();
         tokio::fs::write(&path, &serialized_announcement)
             .await
-            .with_context(|| format!("Writing announcement to {path}"))?;
+            .with_context(|| format!("Writing announcement to {path:?}"))?;
         Ok(())
     }
+
     fn announcement_location(&self) -> String {
-        let mut location: String = "file://".to_owned();
-        location.push_str(self.path.as_ref());
-        location
+        format!("file://{}", self.path.to_str().unwrap())
     }
 }

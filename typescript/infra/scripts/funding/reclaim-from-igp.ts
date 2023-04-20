@@ -1,6 +1,6 @@
 import { BigNumber } from 'ethers';
 
-import { HyperlaneCore, objMap, promiseObjAll } from '@hyperlane-xyz/sdk';
+import { HyperlaneIgp, objMap, promiseObjAll } from '@hyperlane-xyz/sdk';
 
 import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { getEnvironment, getEnvironmentConfig } from '../utils';
@@ -10,14 +10,14 @@ const RECLAIM_BALANCE_THRESHOLD = BigNumber.from(10).pow(17);
 
 async function main() {
   const environment = await getEnvironment();
-  const coreConfig = await getEnvironmentConfig();
-  const multiProvider = await coreConfig.getMultiProvider();
-  const core: HyperlaneCore = HyperlaneCore.fromEnvironment(
+  const environmentConfig = await getEnvironmentConfig(environment);
+  const multiProvider = await environmentConfig.getMultiProvider();
+  const igp = HyperlaneIgp.fromEnvironment(
     deployEnvToSdkEnv[environment],
     multiProvider,
   );
 
-  const paymasters = core.map(
+  const paymasters = igp.map(
     (_, contracts) => contracts.interchainGasPaymaster,
   );
 
@@ -38,7 +38,7 @@ async function main() {
       if (balance.lt(RECLAIM_BALANCE_THRESHOLD)) {
         return 'N/A';
       }
-      const tx = await paymaster.contract.claim();
+      const tx = await paymaster.claim();
       return multiProvider.tryGetExplorerTxUrl(chain, tx);
     }),
   );

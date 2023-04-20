@@ -6,10 +6,7 @@ dist/
 coverage/
 coverage.json
 .env
-*lcov.base.info
 *lcov.info
-
 # Foundry
 out
 forge-cache
-lcov.info

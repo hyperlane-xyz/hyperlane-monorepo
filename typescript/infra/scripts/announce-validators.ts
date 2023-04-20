@@ -14,7 +14,7 @@ import { assertContext } from '../src/utils/utils';
 import {
   assertEnvironment,
   getContextAgentConfig,
-  getCoreEnvironmentConfig,
+  getEnvironmentConfig,
 } from './utils';
 
 function getArgs() {
@@ -45,7 +45,7 @@ function getArgs() {
 
 async function main() {
   const { environment, context, chain, location } = await getArgs();
-  const config = getCoreEnvironmentConfig(environment);
+  const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
   // environments union doesn't work well with typescript
   const core = HyperlaneCore.fromEnvironment(

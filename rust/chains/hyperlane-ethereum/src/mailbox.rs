@@ -21,7 +21,7 @@ use hyperlane_core::{
 };
 
 use crate::contracts::arbitrum_node_interface::ArbitrumNodeInterface;
-use crate::contracts::mailbox::{Mailbox as EthereumMailboxInternal, ProcessCall, MAILBOX_ABI};
+use crate::contracts::i_mailbox::{IMailbox as EthereumMailboxInternal, ProcessCall, IMAILBOX_ABI};
 use crate::trait_builder::BuildableWithProvider;
 use crate::tx::report_tx;
 use crate::EthereumProvider;
@@ -292,11 +292,24 @@ where
     M: Middleware + 'static,
 {
     #[instrument(level = "debug", err, ret, skip(self))]
-    async fn count(&self) -> ChainResult<u32> {
-        Ok(self.contract.count().call().await?)
+    async fn count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
+        let base_call = self.contract.count();
+        let call_with_lag = if let Some(lag) = maybe_lag {
+            let tip = self
+                .provider
+                .get_block_number()
+                .await
+                .map_err(ChainCommunicationError::from_other)?
+                .as_u64();
+            base_call.block(tip.saturating_sub(lag.get()))
+        } else {
+            base_call
+        };
+        let count = call_with_lag.call().await?;
+        Ok(count)
     }
 
-    #[instrument(err, ret)]
+    #[instrument(level = "debug", err, ret, skip(self))]
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
         Ok(self.contract.delivered(id.into()).call().await?)
     }
@@ -417,7 +430,7 @@ impl HyperlaneAbi for EthereumMailboxAbi {
     const SELECTOR_SIZE_BYTES: usize = 4;
 
     fn fn_map() -> HashMap<Vec<u8>, &'static str> {
-        super::extract_fn_map(&MAILBOX_ABI)
+        super::extract_fn_map(&IMAILBOX_ABI)
     }
 }
 
@@ -445,7 +458,7 @@ mod test {
             provider.clone(),
             &ContractLocator {
                 // An Arbitrum Nitro chain
-                domain: HyperlaneDomain::Known(KnownHyperlaneDomain::ArbitrumGoerli),
+                domain: &HyperlaneDomain::Known(KnownHyperlaneDomain::ArbitrumGoerli),
                 // Address doesn't matter because we're using a MockProvider
                 address: H256::default(),
             },

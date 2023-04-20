@@ -4,24 +4,14 @@ import { Mailbox, Mailbox__factory } from '@hyperlane-xyz/core';
 import { types, utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
-import { environments } from '../consts/environments';
-import { buildContracts } from '../contracts';
+import {
+  HyperlaneEnvironment,
+  hyperlaneEnvironments,
+} from '../consts/environments';
 import { MultiProvider } from '../providers/MultiProvider';
-import { ConnectionClientConfig } from '../router/types';
-import { ChainMap, ChainName } from '../types';
-import { objMap, pick } from '../utils/objects';
+import { ChainName } from '../types';
 
-import { CoreContracts, coreFactories } from './contracts';
-
-export type CoreEnvironment = keyof typeof environments;
-export type CoreEnvironmentChain<E extends CoreEnvironment> = Extract<
-  keyof typeof environments[E],
-  ChainName
->;
-
-export type CoreContractsMap = {
-  [chain: ChainName]: CoreContracts;
-};
+import { CoreFactories, coreFactories } from './contracts';
 
 export type DispatchedMessage = {
   id: string;
@@ -29,64 +19,24 @@ export type DispatchedMessage = {
   parsed: types.ParsedMessage;
 };
 
-export class HyperlaneCore extends HyperlaneApp<CoreContracts> {
-  constructor(contractsMap: CoreContractsMap, multiProvider: MultiProvider) {
-    super(contractsMap, multiProvider);
-  }
-
-  static fromEnvironment<Env extends CoreEnvironment>(
+export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
+  static fromEnvironment<Env extends HyperlaneEnvironment>(
     env: Env,
     multiProvider: MultiProvider,
   ): HyperlaneCore {
-    const envConfig = environments[env];
-    if (!envConfig) {
-      throw new Error(`No default env config found for ${env}`);
+    const envAddresses = hyperlaneEnvironments[env];
+    if (!envAddresses) {
+      throw new Error(`No addresses found for ${env}`);
     }
-
-    const envChains = Object.keys(envConfig);
-
-    const { intersection, multiProvider: intersectionProvider } =
-      multiProvider.intersect(envChains, true);
-
-    const intersectionConfig = pick(envConfig, intersection);
-    const contractsMap = buildContracts(
-      intersectionConfig,
+    const fromAddressesMap = HyperlaneApp.fromAddressesMap(
+      envAddresses,
       coreFactories,
-    ) as CoreContractsMap;
-
-    return new HyperlaneCore(contractsMap, intersectionProvider);
-  }
-
-  getContracts(chain: ChainName): CoreContracts {
-    return super.getContracts(chain);
-  }
-
-  getConnectionClientConfig(chain: ChainName): ConnectionClientConfig {
-    const contracts = this.getContracts(chain);
-    return {
-      mailbox: contracts.mailbox.address,
-      // TODO allow these to be more easily changed
-      interchainGasPaymaster:
-        contracts.defaultIsmInterchainGasPaymaster.address,
-    };
-  }
-
-  getConnectionClientConfigMap(): ChainMap<ConnectionClientConfig> {
-    return objMap(this.contractsMap, (chain) =>
-      this.getConnectionClientConfig(chain),
+      multiProvider,
     );
-  }
-
-  extendWithConnectionClientConfig<T>(
-    configMap: ChainMap<T>,
-  ): ChainMap<T & ConnectionClientConfig> {
-    const connectionClientConfigMap = this.getConnectionClientConfigMap();
-    return objMap(configMap, (chain, config) => {
-      return {
-        ...config,
-        ...connectionClientConfigMap[chain],
-      };
-    });
+    return new HyperlaneCore(
+      fromAddressesMap.contractsMap,
+      fromAddressesMap.multiProvider,
+    );
   }
 
   protected getDestination(message: DispatchedMessage): {
@@ -96,7 +46,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreContracts> {
     const destinationChain = this.multiProvider.getChainName(
       message.parsed.destination,
     );
-    const mailbox = this.getContracts(destinationChain).mailbox.contract;
+    const mailbox = this.getContracts(destinationChain).mailbox;
     return { destinationChain, mailbox };
   }
 
@@ -133,7 +83,30 @@ export class HyperlaneCore extends HyperlaneApp<CoreContracts> {
     return;
   }
 
+  waitForMessageProcessing(
+    sourceTx: ethers.ContractReceipt,
+  ): Promise<ethers.ContractReceipt[]> {
+    const messages = HyperlaneCore.getDispatchedMessages(sourceTx);
+    return Promise.all(messages.map((msg) => this.waitForProcessReceipt(msg)));
+  }
+
+  async waitForMessageProcessed(
+    sourceTx: ethers.ContractReceipt,
+  ): Promise<void> {
+    const messages = HyperlaneCore.getDispatchedMessages(sourceTx);
+    await Promise.all(
+      messages.map((msg) => this.waitForMessageWasProcessed(msg)),
+    );
+  }
+
+  // Redundant with static method but keeping for backwards compatibility
   getDispatchedMessages(sourceTx: ethers.ContractReceipt): DispatchedMessage[] {
+    return HyperlaneCore.getDispatchedMessages(sourceTx);
+  }
+
+  static getDispatchedMessages(
+    sourceTx: ethers.ContractReceipt,
+  ): DispatchedMessage[] {
     const mailbox = Mailbox__factory.createInterface();
     const dispatchLogs = sourceTx.logs
       .map((log) => {
@@ -153,21 +126,5 @@ export class HyperlaneCore extends HyperlaneApp<CoreContracts> {
       const id = utils.messageId(message);
       return { id, message, parsed };
     });
-  }
-
-  waitForMessageProcessing(
-    sourceTx: ethers.ContractReceipt,
-  ): Promise<ethers.ContractReceipt[]> {
-    const messages = this.getDispatchedMessages(sourceTx);
-    return Promise.all(messages.map((msg) => this.waitForProcessReceipt(msg)));
-  }
-
-  async waitForMessageProcessed(
-    sourceTx: ethers.ContractReceipt,
-  ): Promise<void> {
-    const messages = this.getDispatchedMessages(sourceTx);
-    await Promise.all(
-      messages.map((msg) => this.waitForMessageWasProcessed(msg)),
-    );
   }
 }

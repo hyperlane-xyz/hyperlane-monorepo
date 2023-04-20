@@ -2,8 +2,8 @@
 pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
-import {IGasOracle} from "../../interfaces/IGasOracle.sol";
-import {IInterchainGasPaymaster} from "../../interfaces/IInterchainGasPaymaster.sol";
+import {IGasOracle} from "../interfaces/IGasOracle.sol";
+import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
 // ============ External Imports ============
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
@@ -48,12 +48,6 @@ contract InterchainGasPaymaster is
     struct GasOracleConfig {
         uint32 remoteDomain;
         address gasOracle;
-    }
-
-    // ============ Constructor ============
-
-    constructor(address _beneficiary) {
-        initialize(msg.sender, _beneficiary); // allows contract to be used without proxying
     }
 
     // ============ External Functions ============

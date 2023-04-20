@@ -3,25 +3,27 @@ import { HyperlaneCore, objMap } from '@hyperlane-xyz/sdk';
 import { CheckpointStatus, S3Validator } from '../src/agents/aws/validator';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 
-import { getCoreEnvironmentConfig, getEnvironment } from './utils';
+import {
+  getEnvironment,
+  getEnvironmentConfig,
+  getValidatorsByChain,
+} from './utils';
 
 async function main() {
   const environment = await getEnvironment();
-  const config = getCoreEnvironmentConfig(environment);
+  const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
   const core = HyperlaneCore.fromEnvironment(
     deployEnvToSdkEnv[environment],
     multiProvider,
   );
 
-  objMap(config.core, async (chain, coreConfig) => {
+  objMap(getValidatorsByChain(config.core), async (chain, set) => {
     const validatorAnnounce = core.getContracts(chain).validatorAnnounce;
     const storageLocations =
-      await validatorAnnounce.getAnnouncedStorageLocations(
-        coreConfig.multisigIsm.validators,
-      );
+      await validatorAnnounce.getAnnouncedStorageLocations([...set]);
     const validators = await Promise.all(
-      coreConfig.multisigIsm.validators.map((validator, i) => {
+      [...set].map((validator, i) => {
         // Only use the latest announcement for now
         if (storageLocations[i].length != 1) {
           throw new Error('Only support single announcement');

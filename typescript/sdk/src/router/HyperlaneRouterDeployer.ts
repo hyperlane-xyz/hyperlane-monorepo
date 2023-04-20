@@ -1,62 +1,44 @@
-import { debug } from 'debug';
-
+import { Router } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
 import {
-  DeployerOptions,
-  HyperlaneDeployer,
-} from '../deploy/HyperlaneDeployer';
-import { MultiProvider } from '../providers/MultiProvider';
-import {
-  RouterConfig,
-  RouterContracts,
-  RouterFactories,
-} from '../router/types';
+  HyperlaneContracts,
+  HyperlaneContractsMap,
+  HyperlaneFactories,
+  filterOwnableContracts,
+} from '../contracts';
+import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
+import { RouterConfig } from '../router/types';
 import { ChainMap } from '../types';
-import { objMap, promiseObjAll } from '../utils/objects';
 
 export abstract class HyperlaneRouterDeployer<
   Config extends RouterConfig,
-  Contracts extends RouterContracts,
-  Factories extends RouterFactories,
-> extends HyperlaneDeployer<Config, Contracts, Factories> {
-  constructor(
-    multiProvider: MultiProvider,
-    configMap: ChainMap<Config>,
-    factories: Factories,
-    options?: DeployerOptions,
-  ) {
-    super(multiProvider, configMap, factories, {
-      logger: debug('hyperlane:RouterDeployer'),
-      ...options,
-    });
-  }
+  Factories extends HyperlaneFactories,
+> extends HyperlaneDeployer<Config, Factories> {
+  abstract router(contracts: HyperlaneContracts<Factories>): Router;
 
   async initConnectionClients(
-    contractsMap: ChainMap<Contracts>,
+    contractsMap: HyperlaneContractsMap<Factories>,
+    configMap: ChainMap<Config>,
   ): Promise<void> {
-    await promiseObjAll(
-      objMap(contractsMap, async (local, contracts) =>
-        super.initConnectionClient(
-          local,
-          contracts.router,
-          this.configMap[local],
-        ),
-      ),
-    );
+    for (const chain of Object.keys(contractsMap)) {
+      const contracts = contractsMap[chain];
+      const config = configMap[chain];
+      await super.initConnectionClient(chain, this.router(contracts), config);
+    }
   }
 
   async enrollRemoteRouters(
-    contractsMap: ChainMap<RouterContracts>,
+    contractsMap: HyperlaneContractsMap<Factories>,
+    _: ChainMap<Config>,
   ): Promise<void> {
     this.logger(
       `Enrolling deployed routers with each other (if not already)...`,
     );
+
     // Make all routers aware of each other.
     const deployedChains = Object.keys(contractsMap);
-    for (const [chain, contracts] of Object.entries<RouterContracts>(
-      contractsMap,
-    )) {
+    for (const [chain, contracts] of Object.entries(contractsMap)) {
       // only enroll chains which are deployed
       const deployedRemoteChains = this.multiProvider
         .getRemoteChains(chain)
@@ -65,9 +47,9 @@ export abstract class HyperlaneRouterDeployer<
       const enrollEntries = await Promise.all(
         deployedRemoteChains.map(async (remote) => {
           const remoteDomain = this.multiProvider.getDomainId(remote);
-          const current = await contracts.router.routers(remoteDomain);
+          const current = await this.router(contracts).routers(remoteDomain);
           const expected = utils.addressToBytes32(
-            contractsMap[remote].router.address,
+            this.router(contractsMap[remote]).address,
           );
           return current !== expected ? [remoteDomain, expected] : undefined;
         }),
@@ -83,14 +65,14 @@ export abstract class HyperlaneRouterDeployer<
         return;
       }
 
-      await super.runIfOwner(chain, contracts.router, async () => {
+      await super.runIfOwner(chain, this.router(contracts), async () => {
         const chains = domains.map((id) => this.multiProvider.getChainName(id));
         this.logger(
           `Enrolling remote routers (${chains.join(', ')}) on ${chain}`,
         );
         await this.multiProvider.handleTx(
           chain,
-          contracts.router.enrollRemoteRouters(
+          this.router(contracts).enrollRemoteRouters(
             domains,
             addresses,
             this.multiProvider.getTransactionOverrides(chain),
@@ -100,36 +82,27 @@ export abstract class HyperlaneRouterDeployer<
     }
   }
 
-  async transferOwnership(contractsMap: ChainMap<Contracts>): Promise<void> {
-    this.logger(`Transferring ownership of routers...`);
-    await promiseObjAll(
-      objMap(contractsMap, async (chain, contracts) => {
-        const owner = this.configMap[chain].owner;
-        const currentOwner = await contracts.router.owner();
-        if (owner != currentOwner) {
-          this.logger(`Transfer ownership of ${chain}'s router to ${owner}`);
-          await super.runIfOwner(chain, contracts.router, async () => {
-            await this.multiProvider.handleTx(
-              chain,
-              contracts.router.transferOwnership(
-                owner,
-                this.multiProvider.getTransactionOverrides(chain),
-              ),
-            );
-          });
-        }
-      }),
-    );
+  async transferOwnership(
+    contractsMap: HyperlaneContractsMap<Factories>,
+    configMap: ChainMap<Config>,
+  ): Promise<void> {
+    this.logger(`Transferring ownership of ownables...`);
+    for (const chain of Object.keys(contractsMap)) {
+      const contracts = contractsMap[chain];
+      const owner = configMap[chain].owner;
+      const ownables = await filterOwnableContracts(contracts);
+      await this.transferOwnershipOfContracts(chain, owner, ownables);
+    }
   }
 
   async deploy(
-    partialDeployment?: ChainMap<Contracts>,
-  ): Promise<ChainMap<Contracts>> {
-    const contractsMap = await super.deploy(partialDeployment);
+    configMap: ChainMap<Config>,
+  ): Promise<HyperlaneContractsMap<Factories>> {
+    const contractsMap = await super.deploy(configMap);
 
-    await this.enrollRemoteRouters(contractsMap);
-    await this.initConnectionClients(contractsMap);
-    await this.transferOwnership(contractsMap);
+    await this.enrollRemoteRouters(contractsMap, configMap);
+    await this.initConnectionClients(contractsMap, configMap);
+    await this.transferOwnership(contractsMap, configMap);
 
     return contractsMap;
   }

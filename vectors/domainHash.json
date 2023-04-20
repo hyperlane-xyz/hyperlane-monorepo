@@ -1,14 +1,17 @@
 [
-  {
-    "expectedDomainHash": "0x92521b38de115ee8c0903d7273143fbd0398d573cd2b18b371d9de2998d92f04",
-    "outboxDomain": 1
-  },
-  {
-    "expectedDomainHash": "0xadb88304ca1d74837ba284971887128d4c80acf8c1b95a5702dec546127d393d",
-    "outboxDomain": 2
-  },
-  {
-    "expectedDomainHash": "0x6aac4b69a2ae80ae2017bb8354783e2c138a7f19418e81337caf4d17a88147b1",
-    "outboxDomain": 3
-  }
+    {
+        "domain": 1,
+        "expectedDomainHash": "0xbbca56eb98960a4637eb40486d9a069550dd70d9c185ed138516e8e33cf3d7e7",
+        "mailbox": "0x0000000000000000000000002222222222222222222222222222222222222222"
+    },
+    {
+        "domain": 2,
+        "expectedDomainHash": "0xa6a93d86d397028e41995d521ccbc270e6db2a2fc530dcb7f0135254f30c8424",
+        "mailbox": "0x0000000000000000000000002222222222222222222222222222222222222222"
+    },
+    {
+        "domain": 3,
+        "expectedDomainHash": "0xffb4fbe5142f55e07b5d44b3c7f565c5ef4b016551cbd7c23a92c91621aca06f",
+        "mailbox": "0x0000000000000000000000002222222222222222222222222222222222222222"
+    }
 ]
