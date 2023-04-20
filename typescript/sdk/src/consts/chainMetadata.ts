@@ -488,8 +488,8 @@ export const moonbeam: ChainMetadata = {
     },
   ],
   blocks: {
-    confirmations: 1,
-    reorgPeriod: 1,
+    confirmations: 2,
+    reorgPeriod: 2,
     estimateBlockTime: 12,
   },
   gnosisSafeTransactionServiceUrl:
