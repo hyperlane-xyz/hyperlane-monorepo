@@ -7,6 +7,7 @@ pub use interchain_security_module::*;
 pub use mailbox::*;
 pub use multisig_ism::*;
 pub use provider::*;
+pub use routing_ism::*;
 pub use signing::*;
 pub use validator_announce::*;
 
@@ -19,6 +20,7 @@ mod interchain_security_module;
 mod mailbox;
 mod multisig_ism;
 mod provider;
+mod routing_ism;
 mod signing;
 mod validator_announce;
 

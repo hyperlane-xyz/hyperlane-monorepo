@@ -1,7 +1,4 @@
-import { ethers } from 'ethers';
-
 import {
-  LegacyMultisigIsm,
   TestInterchainGasPaymaster__factory,
   TestIsm__factory,
   TestMailbox__factory,
@@ -9,29 +6,30 @@ import {
 
 import { TestChains } from '../consts/chains';
 import { HyperlaneContracts } from '../contracts';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
+import { MultiProvider } from '../providers/MultiProvider';
 import { testCoreConfig } from '../test/testUtils';
 import { ChainMap, ChainName } from '../types';
 
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer';
 import { TestCoreApp } from './TestCoreApp';
 import { CoreFactories, coreFactories } from './contracts';
-import { MultisigIsmConfig } from './types';
 
 const testCoreFactories = {
   ...coreFactories,
   mailbox: new TestMailbox__factory(),
-  testIsm: new TestIsm__factory(),
   interchainGasPaymaster: new TestInterchainGasPaymaster__factory(),
+  testIsm: new TestIsm__factory(),
 };
 
 export class TestCoreDeployer extends HyperlaneCoreDeployer {
-  factories = testCoreFactories;
+  constructor(public readonly multiProvider: MultiProvider) {
+    const ismFactory = new HyperlaneIsmFactory({}, multiProvider);
+    super(multiProvider, ismFactory);
+  }
 
-  // deploy a test ISM in place of a multisig ISM
-  async deployLegacyMultisigIsm(
-    chain: ChainName,
-    _: ChainMap<MultisigIsmConfig>,
-  ): Promise<LegacyMultisigIsm> {
+  // deploy a test ISM instead of a real ISM
+  async deployIsm(chain: ChainName): Promise<string> {
     const testIsm = await this.deployContractFromFactory(
       chain,
       testCoreFactories.testIsm,
@@ -39,12 +37,7 @@ export class TestCoreDeployer extends HyperlaneCoreDeployer {
       [],
     );
     await testIsm.setAccept(true);
-    return testIsm as unknown as LegacyMultisigIsm;
-  }
-
-  // TestIsm is not ownable, so we skip ownership transfer
-  async transferOwnershipOfContracts(): Promise<ethers.ContractReceipt[]> {
-    return [];
+    return testIsm.address;
   }
 
   async deploy(): Promise<ChainMap<HyperlaneContracts<CoreFactories>>> {
