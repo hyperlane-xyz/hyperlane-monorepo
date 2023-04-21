@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use eyre::eyre;
+use eyre::{eyre, Context};
 
 use hyperlane_base::{
     decl_settings, CheckpointSyncerConf, RawCheckpointSyncerConf, RawSignerConf, Settings,
@@ -91,12 +91,11 @@ impl FromRawConf<'_, RawValidatorSettings> for ValidatorSettings {
             )
             .take_config_err(&mut err);
 
-        let origin_chain = if let Some(base) = &base {
+        let origin_chain = base.as_ref().and_then(|base| {
             base.lookup_domain(&origin_chain_name)
-                .take_err(&mut err, || cwp + "originchainname")
-        } else {
-            None
-        };
+                .context("Missing configuration for the origin chain")
+                .take_err(&mut err, || cwp + "chains" + &origin_chain_name)
+        });
 
         err.into_result()?;
         Ok(Self {

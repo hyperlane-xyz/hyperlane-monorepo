@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use eyre::{ensure, Result};
+use eyre::Result;
 use tokio::sync::{
     mpsc::{self, UnboundedReceiver, UnboundedSender},
     RwLock,
@@ -63,14 +63,6 @@ impl BaseAgent for Relayer {
     {
         let core = settings.build_hyperlane_core(metrics.clone());
         let db = DB::from_path(&settings.db)?;
-
-        for dest_chain in &settings.destination_chains {
-            let Ok(cfg) = settings.chain_setup(dest_chain) else { continue };
-            ensure!(
-                cfg.signer.is_some(),
-                "Destination chain {dest_chain} does not have a configured signer"
-            )
-        }
 
         // Use defined remote chains + the origin chain
         let domains = settings
