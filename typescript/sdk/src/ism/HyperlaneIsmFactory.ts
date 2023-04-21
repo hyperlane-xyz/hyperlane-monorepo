@@ -13,7 +13,7 @@ import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
 } from '../consts/environments';
-import { HyperlaneContracts } from '../contracts';
+import { HyperlaneAddressesMap, HyperlaneContracts } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
@@ -36,8 +36,15 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     if (!envAddresses) {
       throw new Error(`No addresses found for ${env}`);
     }
-    const fromAddressesMap = HyperlaneApp.fromAddressesMap(
-      envAddresses,
+    return HyperlaneIsmFactory.fromAddressesMap(envAddresses, multiProvider);
+  }
+
+  static fromAddressesMap(
+    addressesMap: HyperlaneAddressesMap<any>,
+    multiProvider: MultiProvider,
+  ): HyperlaneIsmFactory {
+    const fromAddressesMap = this.fromAddressesMapHelper(
+      addressesMap,
       ismFactoryFactories,
       multiProvider,
     );

@@ -8,6 +8,7 @@ import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
 } from '../consts/environments';
+import { HyperlaneAddressesMap } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName } from '../types';
 
@@ -28,8 +29,15 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     if (!envAddresses) {
       throw new Error(`No addresses found for ${env}`);
     }
-    const fromAddressesMap = HyperlaneApp.fromAddressesMap(
-      envAddresses,
+    return HyperlaneCore.fromAddressesMap(envAddresses, multiProvider);
+  }
+
+  static fromAddressesMap(
+    addressesMap: HyperlaneAddressesMap<any>,
+    multiProvider: MultiProvider,
+  ): HyperlaneCore {
+    const fromAddressesMap = this.fromAddressesMapHelper(
+      addressesMap,
       coreFactories,
       multiProvider,
     );

@@ -26,11 +26,22 @@ export class HyperlaneApp<
     super(connectedContractsMap);
   }
 
-  static fromAddressesMap<F extends HyperlaneFactories>(
+  getContracts(chain: ChainName): HyperlaneContracts<Factories> {
+    return this.get(chain);
+  }
+
+  getAddresses(chain: ChainName): HyperlaneAddresses<Factories> {
+    return serializeContracts(this.get(chain));
+  }
+
+  static fromAddressesMapHelper<F extends HyperlaneFactories>(
     addressesMap: HyperlaneAddressesMap<any>,
     factories: F,
     multiProvider: MultiProvider,
-  ): { contractsMap: HyperlaneContractsMap<F>; multiProvider: MultiProvider } {
+  ): {
+    contractsMap: HyperlaneContractsMap<F>;
+    multiProvider: MultiProvider;
+  } {
     // Attaches contracts for each chain for which we have a complete set of
     // addresses
     const contractsMap = attachContractsMap(addressesMap, factories);
@@ -46,13 +57,5 @@ export class HyperlaneApp<
       contractsMap: filteredContractsMap,
       multiProvider: intersection.multiProvider,
     };
-  }
-
-  getContracts(chain: ChainName): HyperlaneContracts<Factories> {
-    return this.get(chain);
-  }
-
-  getAddresses(chain: ChainName): HyperlaneAddresses<Factories> {
-    return serializeContracts(this.get(chain));
   }
 }
