@@ -1,22 +1,20 @@
-use async_trait::async_trait;
-use hyperlane_core::accumulator::merkle::Proof;
-use num_derive::FromPrimitive;
-use num_traits::FromPrimitive;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::{collections::HashMap, fmt::Debug};
 
+use async_trait::async_trait;
 use derive_new::new;
 use eyre::{Context, Result};
+use num_derive::FromPrimitive;
+use num_traits::FromPrimitive;
 use tokio::sync::RwLock;
 use tracing::{debug, instrument, warn};
 
 use hyperlane_base::{
     ChainConf, CheckpointSyncer, CheckpointSyncerConf, CoreMetrics, MultisigCheckpointSyncer,
 };
-use hyperlane_core::{HyperlaneContract, HyperlaneMessage, MultisigIsm, MultisigSignedCheckpoint, RoutingIsm, ValidatorAnnounce, H160, H256};
-use num_derive::FromPrimitive;
-use num_traits::FromPrimitive;
+use hyperlane_core::accumulator::merkle::Proof;
+use hyperlane_core::{HyperlaneMessage, MultisigIsm, MultisigSignedCheckpoint, RoutingIsm, ValidatorAnnounce, H160, H256, HyperlaneDomain};
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
 use crate::msg::metadata::{MultisigIsmMetadataBuilder, RoutingIsmMetadataBuilder};
@@ -40,11 +38,8 @@ pub enum SupportedIsmTypes {
 #[async_trait]
 pub trait MetadataBuilder: Send + Sync {
     #[allow(clippy::async_yields_async)]
-    async fn build(
-        &self,
-        ism_address: H256,
-        message: &HyperlaneMessage,
-    ) -> eyre::Result<Option<Vec<u8>>>;
+    async fn build(&self, ism_address: H256, message: &HyperlaneMessage)
+        -> Result<Option<Vec<u8>>>;
 }
 
 #[derive(Clone, new)]
@@ -77,7 +72,7 @@ impl MetadataBuilder for BaseMetadataBuilder {
         &self,
         ism_address: H256,
         message: &HyperlaneMessage,
-    ) -> eyre::Result<Option<Vec<u8>>> {
+    ) -> Result<Option<Vec<u8>>> {
         const CTX: &str = "When fetching module type";
         let ism = self
             .chain_setup
@@ -105,7 +100,11 @@ impl MetadataBuilder for BaseMetadataBuilder {
 }
 
 impl BaseMetadataBuilder {
-    pub fn clone_with_incremented_depth(&self) -> eyre::Result<BaseMetadataBuilder> {
+    pub fn domain(&self) -> &HyperlaneDomain {
+        &self.chain_setup.domain
+    }
+
+    pub fn clone_with_incremented_depth(&self) -> Result<BaseMetadataBuilder> {
         let mut cloned = self.clone();
         cloned.depth += 1;
         if cloned.depth > cloned.max_depth {
@@ -140,26 +139,10 @@ impl BaseMetadataBuilder {
             .build_checkpoint_syncer(validators)
             .await
             .context(CTX)?;
-        if let Some(checkpoint) = checkpoint_syncer
+        checkpoint_syncer
             .fetch_checkpoint_in_range(validators, threshold, message.nonce, highest_known_nonce)
             .await
-            .context(CTX)?
-        {
-            Ok(Some(checkpoint))
-        } else {
-            if validators.is_empty() {
-                info!(
-                    ism=%multisig_ism.address(),
-                    "Could not fetch metadata: Unable to reach quorum because no validators are defined"
-                );
-            } else {
-                info!(
-                    ?validators, threshold, highest_known_nonce, ism=%multisig_ism.address(),
-                    "Could not fetch metadata: Unable to reach quorum"
-                );
-            }
-            Ok(None)
-        }
+            .context(CTX)
     }
 
     pub async fn build_routing_ism(&self, address: H256) -> Result<Box<dyn RoutingIsm>> {
@@ -177,7 +160,7 @@ impl BaseMetadataBuilder {
     pub async fn build_checkpoint_syncer(
         &self,
         validators: &[H256],
-    ) -> eyre::Result<MultisigCheckpointSyncer> {
+    ) -> Result<MultisigCheckpointSyncer> {
         let storage_locations = self
             .validator_announce
             .get_announced_storage_locations(validators)
