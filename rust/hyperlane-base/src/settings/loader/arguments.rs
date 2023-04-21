@@ -107,7 +107,7 @@ impl ArgumentParser {
     /// The executable path **must** be removed.
     ///
     /// This can be used for supporting `--` arguments to forward to another
-    /// program. See `examples/dash_dash.rs` for an example.
+    /// program.
     fn from_vec(args: Vec<OsString>) -> Self {
         ArgumentParser(args)
     }
