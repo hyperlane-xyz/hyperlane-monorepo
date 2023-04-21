@@ -6,9 +6,9 @@ use eyre::Result;
 use tokio::task::JoinHandle;
 use tracing::{info_span, instrument::Instrumented, Instrument};
 
-use hyperlane_core::{db::HyperlaneDB, InterchainGasPaymaster, InterchainGasPaymasterIndexer};
+use hyperlane_core::{InterchainGasPaymaster, InterchainGasPaymasterIndexer};
 
-use crate::{chains::IndexSettings, ContractSync, ContractSyncMetrics};
+use crate::{chains::IndexSettings, db::HyperlaneDB, ContractSync, ContractSyncMetrics};
 
 /// Caching InterchainGasPaymaster type
 #[derive(Debug, Clone, new)]

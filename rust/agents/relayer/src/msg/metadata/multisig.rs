@@ -1,14 +1,14 @@
-use async_trait::async_trait;
-use ethers::abi::Token;
-use hyperlane_core::accumulator::merkle::Proof;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::ops::Deref;
 
+use async_trait::async_trait;
 use derive_new::new;
+use ethers::abi::Token;
 use eyre::Context;
 use tracing::{debug, info, instrument};
 
+use hyperlane_core::accumulator::merkle::Proof;
 use hyperlane_core::{
     HyperlaneMessage, MultisigIsm, MultisigSignedCheckpoint, SignatureWithSigner, H256,
 };
@@ -48,10 +48,18 @@ impl MetadataBuilder for MultisigIsmMetadataBuilder {
         let Some(checkpoint) = self.fetch_checkpoint(&validators, threshold.into(), message)
             .await.context(CTX)?
         else {
-            info!(
-                ?validators, threshold,
-                "Could not fetch metadata: Unable to reach quorum"
-            );
+            if validators.is_empty() {
+                info!(
+                    ism=%multisig_ism.address(),
+                    chain=%self.base.domain().name(),
+                    "Could not fetch metadata: No validator set for chain is configured on the recipient's ISM"
+                );
+            } else {
+                info!(
+                    ?validators, threshold, ism=%multisig_ism.address(),
+                    "Could not fetch metadata: Unable to reach quorum"
+                );
+            }
             return Ok(None);
         };
 

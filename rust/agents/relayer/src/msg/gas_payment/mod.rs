@@ -4,9 +4,10 @@ use async_trait::async_trait;
 use eyre::Result;
 use tracing::{debug, error, trace};
 
+use hyperlane_base::db::HyperlaneDB;
 use hyperlane_core::{
-    db::HyperlaneDB, HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment,
-    TxCostEstimate, TxOutcome, U256,
+    HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment, TxCostEstimate, TxOutcome,
+    U256,
 };
 
 use crate::msg::gas_payment::policies::GasPaymentPolicyOnChainFeeQuoting;
@@ -135,8 +136,8 @@ impl GasPaymentEnforcer {
 mod test {
     use std::str::FromStr;
 
-    use hyperlane_core::{db::HyperlaneDB, HyperlaneMessage, TxCostEstimate, H160, H256, U256};
-    use hyperlane_test::test_utils;
+    use hyperlane_base::db::{test_utils, HyperlaneDB};
+    use hyperlane_core::{HyperlaneMessage, TxCostEstimate, H160, H256, U256};
 
     use crate::settings::{
         matching_list::MatchingList, GasPaymentEnforcementConf, GasPaymentEnforcementPolicy,

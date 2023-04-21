@@ -38,8 +38,8 @@ pub struct TxOutcome {
     // TODO: more? What can be abstracted across all chains?
 }
 
-impl From<ethers::prelude::TransactionReceipt> for TxOutcome {
-    fn from(t: ethers::prelude::TransactionReceipt) -> Self {
+impl From<ethers_core::types::TransactionReceipt> for TxOutcome {
+    fn from(t: ethers_core::types::TransactionReceipt) -> Self {
         Self {
             txid: t.transaction_hash,
             executed: t.status.unwrap().low_u32() == 1,

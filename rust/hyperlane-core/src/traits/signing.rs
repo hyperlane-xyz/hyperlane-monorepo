@@ -2,8 +2,11 @@ use std::fmt::{Debug, Formatter};
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
-use ethers::prelude::{Address, Signature};
-use ethers::utils::hash_message;
+use ethers_core::{
+    types::{Address, Signature},
+    utils::hash_message,
+};
+
 use serde::{
     ser::{SerializeStruct, Serializer},
     Deserialize, Serialize,

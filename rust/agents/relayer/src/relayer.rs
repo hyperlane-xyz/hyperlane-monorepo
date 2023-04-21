@@ -11,11 +11,10 @@ use tokio::task::JoinHandle;
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
 use hyperlane_base::{
-    run_all, BaseAgent, CachingInterchainGasPaymaster, CachingMailbox, ContractSyncMetrics,
+    db::DB, run_all, BaseAgent, CachingInterchainGasPaymaster, CachingMailbox, ContractSyncMetrics,
     CoreMetrics, HyperlaneAgentCore,
 };
-use hyperlane_core::U256;
-use hyperlane_core::{db::DB, HyperlaneChain, HyperlaneDomain, ValidatorAnnounce};
+use hyperlane_core::{HyperlaneChain, HyperlaneDomain, ValidatorAnnounce, U256};
 
 use crate::{
     merkle_tree_builder::MerkleTreeBuilder,

@@ -1,6 +1,8 @@
-use crate::{Decode, Encode};
-use rocksdb::DBIterator;
 use std::marker::PhantomData;
+
+use rocksdb::DBIterator;
+
+use hyperlane_core::{Decode, Encode};
 
 /// An iterator over a prefix that deserializes values
 pub struct PrefixIterator<'a, V> {
