@@ -1,9 +1,11 @@
 use futures_util::Future;
 use rocksdb::Options;
+
 use tempfile::TempDir;
 
-use hyperlane_core::db::DB;
+use crate::db::DB;
 
+/// Create a database from a path.
 pub fn setup_db(db_path: String) -> DB {
     let mut opts = Options::default();
     opts.create_if_missing(true);
@@ -12,6 +14,7 @@ pub fn setup_db(db_path: String) -> DB {
         .into()
 }
 
+/// Create a temporary database for testing purposes.
 pub async fn run_test_db<T, Fut>(test: T)
 where
     T: FnOnce(DB) -> Fut,
@@ -28,7 +31,9 @@ where
 
 #[cfg(test)]
 mod test {
-    use hyperlane_core::{db::HyperlaneDB, HyperlaneMessage, RawHyperlaneMessage, H256};
+    use hyperlane_core::{HyperlaneMessage, RawHyperlaneMessage, H256};
+
+    use crate::db::HyperlaneDB;
 
     use super::*;
 
