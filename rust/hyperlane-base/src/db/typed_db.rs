@@ -1,6 +1,8 @@
-use crate::db::{DbError, DB};
-use crate::{Decode, Encode};
 use derive_new::new;
+
+use hyperlane_core::{Decode, Encode};
+
+use crate::db::{DbError, DB};
 
 type Result<T> = std::result::Result<T, DbError>;
 

@@ -23,6 +23,8 @@ export interface OwnerViolation extends CheckerViolation {
   type: ViolationType.Owner;
   contract: Ownable;
   name: string;
+  actual: string;
+  expected: string;
 }
 
 export interface ProxyAdminViolation extends CheckerViolation {

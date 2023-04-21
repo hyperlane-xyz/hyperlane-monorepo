@@ -3,9 +3,9 @@ use std::fmt::Display;
 use eyre::Result;
 use tracing::{debug, error, instrument};
 
+use hyperlane_base::db::{DbError, HyperlaneDB};
 use hyperlane_core::{
     accumulator::{incremental::IncrementalMerkle, merkle::Proof},
-    db::{DbError, HyperlaneDB},
     ChainCommunicationError, H256,
 };
 

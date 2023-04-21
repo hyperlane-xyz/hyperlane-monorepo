@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use crate::settings::loader::arguments::CommandLineArguments;
 use config::{Config, Environment, File};
-use eyre::{Context, Result};
+use eyre::{bail, Context, Result};
 use serde::Deserialize;
 
 use crate::settings::RawSettings;
@@ -56,12 +56,23 @@ where
 
     // Load a set of additional user specified config files
     let config_file_paths: Vec<String> = env::var("CONFIG_FILES")
-        .map(|s| s.split(',').map(|s| s.to_string()).collect())
+        .map(|s| s.split(',').map(|s| s.to_owned()).collect())
         .unwrap_or_default();
 
-    let builder = config_file_paths.iter().fold(builder, |builder, path| {
-        builder.add_source(File::with_name(path))
-    });
+    for path in &config_file_paths {
+        let p = PathBuf::from(path);
+        if p.is_file() {
+            if p.extension() == Some("json".as_ref()) {
+                builder = builder.add_source(File::from(p));
+            } else {
+                bail!("Provided config path via CONFIG_FILES is of an unsupported type ({p:?})")
+            }
+        } else if !p.exists() {
+            bail!("Provided config path via CONFIG_FILES does not exist ({p:?})")
+        } else {
+            bail!("Provided config path via CONFIG_FILES is not a file ({p:?})")
+        }
+    }
 
     let config_deserializer = builder
         // Use a base configuration env variable prefix

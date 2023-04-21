@@ -17,6 +17,12 @@
       "address": "0x06d237b73a1f353B14475f15012e4309580C5395",
       "constructorArguments": "000000000000000000000000000000000000000000000000000000000000aef3000000000000000000000000db91d575f17d8aaf1afec0eadbd5ac9e5cef4ad0",
       "isProxy": false
+    },
+    {
+      "name": "InterchainAccountIsm",
+      "address": "0x0aA320a1bD450152B4C500613335CeBA4f6073cF",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685",
+      "isProxy": false
     }
   ],
   "fuji": [
@@ -36,6 +42,12 @@
       "name": "InterchainAccountRouter",
       "address": "0x7D7D885ebeb3B46340E9CF9bD0cA847492C16D4a",
       "constructorArguments": "000000000000000000000000000000000000000000000000000000000000a869000000000000000000000000f82b58bf348a6cea6e19413e9de040db1a363128",
+      "isProxy": false
+    },
+    {
+      "name": "InterchainAccountIsm",
+      "address": "0x333C9A8c70Ea4F0498Fb58bEe40DEa40e63a9962",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685",
       "isProxy": false
     }
   ],
@@ -57,6 +69,12 @@
       "address": "0x01E05434f5D5e8B0BA6a0d05AdDeD777Cc1ac8c3",
       "constructorArguments": "00000000000000000000000000000000000000000000000000000000000138810000000000000000000000006a9ced0e13e738517558aa283da0e93e5904d49b",
       "isProxy": false
+    },
+    {
+      "name": "InterchainAccountIsm",
+      "address": "0x40c2d6cA6F5A8857705C128b2c1A5f0Ae20880dc",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685",
+      "isProxy": false
     }
   ],
   "bsctestnet": [
@@ -76,6 +94,12 @@
       "name": "InterchainAccountRouter",
       "address": "0x91B08a1b96d6ac153eB102Bd9Eb9F2D416d449A1",
       "constructorArguments": "0000000000000000000000000000000000000000000000000000000000000061000000000000000000000000951c74d83a85833b53a448caab7397bd3fa6cfb2",
+      "isProxy": false
+    },
+    {
+      "name": "InterchainAccountIsm",
+      "address": "0x9034f60Dec10cFa162369444081685F542d0C24D",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685",
       "isProxy": false
     }
   ],
@@ -97,6 +121,12 @@
       "address": "0xA748586f78dD2a4A90b02aD72ddc014Cc05C19b1",
       "constructorArguments": "0000000000000000000000000000000000000000000000000000000000000005000000000000000000000000cb0ba89f564e31180a101df54b7971206e03ee9b",
       "isProxy": false
+    },
+    {
+      "name": "InterchainAccountIsm",
+      "address": "0x70835F3C2845394842DEA9f40cbe8087b2cE5712",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685",
+      "isProxy": false
     }
   ],
   "moonbasealpha": [
@@ -116,6 +146,12 @@
       "name": "InterchainAccountRouter",
       "address": "0x443f8614728327Ce0cAb864DD463Fe2702b57597",
       "constructorArguments": "0000000000000000000000000000000000000000000000000000000000000507000000000000000000000000209ccdbe13bb913104117b1d6f7801684e98fa1f",
+      "isProxy": false
+    },
+    {
+      "name": "InterchainAccountIsm",
+      "address": "0xD699ff94f3FFd60A3a09bBff96181325B6C73FB8",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685",
       "isProxy": false
     }
   ],
@@ -137,6 +173,12 @@
       "address": "0x860EDf9C38875ad7444BD6e6331866450c9589e4",
       "constructorArguments": "00000000000000000000000000000000000000000000000000000000000001a400000000000000000000000012ebd8cb561c68b587c392e0c5405b9866fd5820",
       "isProxy": false
+    },
+    {
+      "name": "InterchainAccountIsm",
+      "address": "0x82F5a960a4e4Cc0614253e4977bb3BE10344a30C",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685",
+      "isProxy": false
     }
   ],
   "arbitrumgoerli": [
@@ -157,6 +199,12 @@
       "address": "0x759c4Eb4575B651a9f0Fb46653dd7B2F32fD7310",
       "constructorArguments": "0000000000000000000000000000000000000000000000000000000000066eed0000000000000000000000004266d8dd66d8eb3934c8942968d1e54214d072d3",
       "isProxy": false
+    },
+    {
+      "name": "InterchainAccountIsm",
+      "address": "0xA8978fdB093b1C5b892291A36e8527b34B749d6f",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685",
+      "isProxy": false
     }
   ],
   "sepolia": [
@@ -170,6 +218,12 @@
       "name": "InterchainAccountRouter",
       "address": "0xe0B988062A0C6492177d64823Ab95a9c256c2a5F",
       "constructorArguments": "0000000000000000000000000000000000000000000000000000000000aa36a7000000000000000000000000b057fb841027a8554521dccdec3c3474cac99ab5",
+      "isProxy": false
+    },
+    {
+      "name": "InterchainAccountIsm",
+      "address": "0x7483faD0Bc297667664A43A064bA7c9911659f57",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685",
       "isProxy": false
     }
   ]

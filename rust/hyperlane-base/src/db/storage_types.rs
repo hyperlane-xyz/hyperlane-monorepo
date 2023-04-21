@@ -1,6 +1,6 @@
 use std::io::{Read, Write};
 
-use crate::{
+use hyperlane_core::{
     Decode, Encode, HyperlaneProtocolError, InterchainGasExpenditure, InterchainGasPayment, H256,
     U256,
 };
