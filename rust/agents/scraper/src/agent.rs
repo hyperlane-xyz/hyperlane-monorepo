@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use eyre::{eyre, WrapErr};
+use itertools::Itertools;
 use tokio::task::JoinHandle;
 use tracing::{info_span, instrument::Instrumented, trace, Instrument};
 
@@ -67,17 +68,19 @@ impl FromRawConf<'_, RawScraperSettings> for ScraperSettings {
             )
             .take_config_err(&mut err);
 
-        let chains_to_scrape = if let Some(base) = &base {
-            chains_to_scrape
-                .iter()
-                .filter_map(|chain| {
-                    base.lookup_domain(chain)
-                        .take_err(&mut err, || cwp + "chainstoscrape")
-                })
-                .collect()
-        } else {
-            vec![]
-        };
+        let chains_to_scrape = base
+            .as_ref()
+            .map(|base| {
+                chains_to_scrape
+                    .iter()
+                    .filter_map(|chain| {
+                        base.lookup_domain(chain)
+                            .context("Missing configuration for a chain in `chainstoscrape`")
+                            .take_err(&mut err, || cwp + "chains" + chain)
+                    })
+                    .collect_vec()
+            })
+            .unwrap_or_default();
 
         err.into_result()?;
         Ok(Self {
