@@ -9,8 +9,8 @@ use tokio::{
 };
 use tracing::{debug, info_span, instrument, instrument::Instrumented, Instrument};
 
-use hyperlane_base::CoreMetrics;
-use hyperlane_core::{db::HyperlaneDB, HyperlaneDomain, HyperlaneMessage};
+use hyperlane_base::{db::HyperlaneDB, CoreMetrics};
+use hyperlane_core::{HyperlaneDomain, HyperlaneMessage};
 
 use crate::{
     merkle_tree_builder::MerkleTreeBuilder, msg::PendingMessage,

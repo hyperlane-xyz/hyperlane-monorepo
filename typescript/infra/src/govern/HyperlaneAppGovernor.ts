@@ -148,7 +148,7 @@ export abstract class HyperlaneAppGovernor<
     const signer = multiProvider.getSigner(chain);
     const signerAddress = await signer.getAddress();
 
-    const canUseSubmissionType = async (
+    const transactionSucceedsFromSender = async (
       submitterAddress: types.Address,
     ): Promise<boolean> => {
       try {
@@ -158,7 +158,7 @@ export abstract class HyperlaneAppGovernor<
       return false;
     };
 
-    if (await canUseSubmissionType(signerAddress)) {
+    if (await transactionSucceedsFromSender(signerAddress)) {
       return SubmissionType.SIGNER;
     }
 
@@ -179,11 +179,11 @@ export abstract class HyperlaneAppGovernor<
         ),
       );
     }
-
     // 2b. Check if calling from the owner/safeAddress will succeed.
     if (
-      this.canPropose[chain].get(safeAddress) &&
-      (await canUseSubmissionType(safeAddress))
+      (this.canPropose[chain].get(safeAddress) &&
+        (await transactionSucceedsFromSender(safeAddress))) ||
+      chain === 'moonbeam'
     ) {
       return SubmissionType.SAFE;
     }
@@ -198,7 +198,7 @@ export abstract class HyperlaneAppGovernor<
         'transferOwnership',
         [violation.expected],
       ),
-      description: `Transfer ownership of ${violation.contract.address} to ${violation.expected}`,
+      description: `Transfer ownership of ${violation.name} at ${violation.contract.address} to ${violation.expected}`,
     });
   }
 }

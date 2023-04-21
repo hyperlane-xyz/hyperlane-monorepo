@@ -1,12 +1,12 @@
 use derive_new::new;
 
 pub use cursor::*;
-use hyperlane_core::{db::HyperlaneDB, HyperlaneDomain};
+use hyperlane_core::HyperlaneDomain;
 pub use interchain_gas::*;
 pub use mailbox::*;
 pub use metrics::ContractSyncMetrics;
 
-use crate::chains::IndexSettings;
+use crate::{chains::IndexSettings, db::HyperlaneDB};
 
 mod cursor;
 mod eta_calculator;
