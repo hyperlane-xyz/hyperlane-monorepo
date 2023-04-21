@@ -97,15 +97,6 @@ impl FromRawConf<'_, RawValidatorSettings> for ValidatorSettings {
                 .take_err(&mut err, || cwp + "chains" + &origin_chain_name)
         });
 
-        if let (Some(base), Some(origin_chain)) = (&base, &origin_chain) {
-            base.chain_setup(origin_chain)
-                .unwrap()
-                .signer
-                .as_ref()
-                .ok_or_else(|| eyre!("Signer is required for the origin chain"))
-                .take_err(&mut err, || cwp + "chains" + &origin_chain_name + "signer");
-        }
-
         err.into_result()?;
         Ok(Self {
             base: base.unwrap(),
