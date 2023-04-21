@@ -97,9 +97,8 @@ impl FromRawConf<'_, RawValidatorSettings> for ValidatorSettings {
                 .take_err(&mut err, || cwp + "chains" + &origin_chain_name)
         });
 
-        if let Some(base) = &base {
-            base.chains
-                .get(&origin_chain_name)
+        if let (Some(base), Some(origin_chain)) = (&base, &origin_chain) {
+            base.chain_setup(origin_chain)
                 .unwrap()
                 .signer
                 .as_ref()
