@@ -58,7 +58,7 @@ function getFactory<F extends HyperlaneFactories>(
 }
 
 export function filterAddressesMap<F extends HyperlaneFactories>(
-  addressesMap: HyperlaneAddressesMap<F>,
+  addressesMap: HyperlaneAddressesMap<any>,
   factories: F,
 ): HyperlaneAddressesMap<F> {
   const factoryKeys = Object.keys(factories);
@@ -86,7 +86,7 @@ export function attachContracts<F extends HyperlaneFactories>(
 }
 
 export function attachContractsMap<F extends HyperlaneFactories>(
-  addressesMap: HyperlaneAddressesMap<F>,
+  addressesMap: HyperlaneAddressesMap<any>,
   factories: F,
 ): HyperlaneContractsMap<F> {
   const filteredAddressesMap = filterAddressesMap(addressesMap, factories);
