@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use ethers::prelude::{Address, Signature};
+use ethers_core::types::{Address, Signature};
 use serde::{Deserialize, Serialize};
 use sha3::{digest::Update, Digest, Keccak256};
 use std::fmt::{Debug, Formatter};

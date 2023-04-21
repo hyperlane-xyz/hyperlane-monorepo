@@ -264,24 +264,22 @@ mod test {
     use std::time::Duration;
 
     use eyre::eyre;
-    use mockall::predicate::eq;
-    use mockall::*;
-    use tokio::select;
-    use tokio::sync::Mutex;
-    use tokio::time::{interval, sleep, timeout};
-
-    use hyperlane_core::{
-        db::HyperlaneDB, HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, LogMeta, H256,
+    use mockall::{predicate::eq, *};
+    use tokio::{
+        select,
+        sync::Mutex,
+        time::{interval, sleep, timeout},
     };
-    use hyperlane_test::mocks::cursor::MockSyncBlockRangeCursor;
-    use hyperlane_test::mocks::indexer::MockHyperlaneIndexer;
-    use hyperlane_test::test_utils;
 
-    use crate::contract_sync::mailbox::MOCK_CURSOR;
-    use crate::contract_sync::schema::MailboxContractSyncDB;
-    use crate::contract_sync::IndexSettings;
-    use crate::ContractSync;
-    use crate::{ContractSyncMetrics, CoreMetrics};
+    use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, LogMeta, H256};
+    use hyperlane_test::mocks::{cursor::MockSyncBlockRangeCursor, indexer::MockHyperlaneIndexer};
+
+    use crate::{
+        contract_sync::{mailbox::MOCK_CURSOR, schema::MailboxContractSyncDB, IndexSettings},
+        db::test_utils,
+        db::HyperlaneDB,
+        ContractSync, ContractSyncMetrics, CoreMetrics,
+    };
 
     // we need a mutex for our tests because of the static cursor object
     lazy_static! {

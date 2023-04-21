@@ -22,12 +22,11 @@ mod traits;
 pub mod utils;
 
 /// Testing utilities
+#[cfg(any(test, feature = "test-utils"))]
 pub mod test_utils;
 
 pub mod config;
 
-/// DB related utilities
-pub mod db;
 /// Core hyperlane system data structures
 mod types;
 

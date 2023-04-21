@@ -5,17 +5,14 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use derive_new::new;
 use tokio::task::JoinHandle;
-use tracing::instrument::Instrumented;
-use tracing::{info_span, Instrument};
+use tracing::{info_span, instrument::Instrumented, Instrument};
 
-use hyperlane_core::db::HyperlaneDB;
 use hyperlane_core::{
     ChainResult, Checkpoint, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
     HyperlaneProvider, Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256,
 };
 
-use crate::chains::IndexSettings;
-use crate::{ContractSync, ContractSyncMetrics};
+use crate::{chains::IndexSettings, db::HyperlaneDB, ContractSync, ContractSyncMetrics};
 
 /// Caching Mailbox type
 #[derive(Debug, Clone, new)]

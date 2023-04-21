@@ -222,30 +222,38 @@ impl FromRawConf<'_, RawChainConf> for ChainConf {
             .connection
             .and_then(|r| r.parse_config(cwp).take_config_err(&mut err));
 
-        let domain = connection.as_ref().and_then(|c: &ChainConnectionConf| {
-            let protocol = c.protocol();
-            let domain_id = raw
-                .domain
-                .ok_or_else(|| eyre!("Missing `domain` configuration"))
-                .take_err(&mut err, || cwp + "domain")
-                .and_then(|r| {
-                    r.try_into()
-                        .context("Invalid domain id, expected integer")
-                        .take_err(&mut err, || cwp + "domain")
-                });
-            let name = raw
-                .name
-                .as_deref()
-                .ok_or_else(|| eyre!("Missing domain `name` configuration"))
-                .take_err(&mut err, || cwp + "name");
-            HyperlaneDomain::from_config(domain_id?, name?, protocol)
-                .take_err(&mut err, || cwp.clone())
-        });
+        let domain = connection
+            .as_ref()
+            .ok_or_else(|| eyre!("Missing `domain` configuration"))
+            .take_err(&mut err, || cwp + "domain")
+            .and_then(|c: &ChainConnectionConf| {
+                let protocol = c.protocol();
+                let domain_id = raw
+                    .domain
+                    .ok_or_else(|| eyre!("Missing `domain` configuration"))
+                    .take_err(&mut err, || cwp + "domain")
+                    .and_then(|r| {
+                        r.try_into()
+                            .context("Invalid domain id, expected integer")
+                            .take_err(&mut err, || cwp + "domain")
+                    });
+                let name = raw
+                    .name
+                    .as_deref()
+                    .ok_or_else(|| eyre!("Missing domain `name` configuration"))
+                    .take_err(&mut err, || cwp + "name");
+                HyperlaneDomain::from_config(domain_id?, name?, protocol)
+                    .take_err(&mut err, || cwp.clone())
+            });
 
-        let addresses = raw.addresses.and_then(|v| {
-            v.parse_config(&cwp.join("addresses"))
-                .take_config_err(&mut err)
-        });
+        let addresses = raw
+            .addresses
+            .ok_or_else(|| eyre!("Missing `addresses` configuration for core contracts"))
+            .take_err(&mut err, || cwp + "addresses")
+            .and_then(|v| {
+                v.parse_config(&cwp.join("addresses"))
+                    .take_config_err(&mut err)
+            });
 
         let signer = raw.signer.and_then(|v| -> Option<SignerConf> {
             v.parse_config(&cwp.join("signer"))
@@ -426,7 +434,8 @@ impl ChainConf {
         .context("Building ValidatorAnnounce")
     }
 
-    /// Try to convert the chain setting into an InterchainSecurityModule contract
+    /// Try to convert the chain setting into an InterchainSecurityModule
+    /// contract
     pub async fn build_ism(
         &self,
         address: H256,
