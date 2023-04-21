@@ -23,6 +23,14 @@ impl<S: Into<String>> Add<S> for &ConfigPath {
     }
 }
 
+impl<S: Into<String>> Add<S> for ConfigPath {
+    type Output = ConfigPath;
+
+    fn add(self, rhs: S) -> Self::Output {
+        self.join(rhs)
+    }
+}
+
 impl Add<ConfigPath> for &ConfigPath {
     type Output = ConfigPath;
 
