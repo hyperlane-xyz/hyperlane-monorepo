@@ -14,7 +14,10 @@ use hyperlane_base::{
     ChainConf, CheckpointSyncer, CheckpointSyncerConf, CoreMetrics, MultisigCheckpointSyncer,
 };
 use hyperlane_core::accumulator::merkle::Proof;
-use hyperlane_core::{HyperlaneMessage, MultisigIsm, MultisigSignedCheckpoint, RoutingIsm, ValidatorAnnounce, H160, H256, HyperlaneDomain};
+use hyperlane_core::{
+    HyperlaneDomain, HyperlaneMessage, MultisigIsm, MultisigSignedCheckpoint, RoutingIsm,
+    ValidatorAnnounce, H160, H256,
+};
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
 use crate::msg::metadata::{MultisigIsmMetadataBuilder, RoutingIsmMetadataBuilder};
