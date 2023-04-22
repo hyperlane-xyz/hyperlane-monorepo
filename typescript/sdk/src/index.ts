@@ -137,7 +137,12 @@ export { GasRouterDeployer } from './router/GasRouterDeployer';
 export { HyperlaneRouterChecker } from './router/HyperlaneRouterChecker';
 export { HyperlaneRouterDeployer } from './router/HyperlaneRouterDeployer';
 export { GasRouterApp, Router, RouterApp } from './router/RouterApps';
-export { GasRouterConfig, RouterConfig } from './router/types';
+export {
+  ConnectionClientViolation,
+  ConnectionClientViolationType,
+  GasRouterConfig,
+  RouterConfig,
+} from './router/types';
 export {
   createRouterConfigMap,
   deployTestIgpsAndGetRouterConfig,

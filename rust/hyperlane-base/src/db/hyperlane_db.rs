@@ -4,13 +4,14 @@ use std::time::Duration;
 use tokio::time::sleep;
 use tracing::{debug, trace};
 
-use crate::{
-    db::{
-        storage_types::{InterchainGasExpenditureData, InterchainGasPaymentData},
-        DbError, TypedDB, DB,
-    },
+use hyperlane_core::{
     HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment, InterchainGasPaymentMeta,
     LogMeta, H256, U256,
+};
+
+use super::{
+    storage_types::{InterchainGasExpenditureData, InterchainGasPaymentData},
+    DbError, TypedDB, DB,
 };
 
 const MESSAGE_ID: &str = "message_id_";

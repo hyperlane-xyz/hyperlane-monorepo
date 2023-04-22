@@ -1,7 +1,6 @@
+use ethers_core::types::{Signature, SignatureError};
 use std::convert::TryFrom;
 use std::io::{Error, ErrorKind};
-
-use ethers::prelude::{Signature, SignatureError};
 
 use crate::{HyperlaneProtocolError, H256, U256};
 
