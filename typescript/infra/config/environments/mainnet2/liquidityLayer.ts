@@ -1,10 +1,15 @@
 import {
+  AgentConnectionType,
   BridgeAdapterConfig,
   BridgeAdapterType,
   ChainMap,
   Chains,
   chainMetadata,
 } from '@hyperlane-xyz/sdk';
+
+import { LiquidityLayerRelayerConfig } from '../../../src/config/middleware';
+
+import { environment } from './chains';
 
 const circleDomainMapping = [
   { hyperlaneDomain: chainMetadata[Chains.ethereum].chainId, circleDomain: 0 },
@@ -30,4 +35,15 @@ export const bridgeAdapterConfigs: ChainMap<BridgeAdapterConfig> = {
       circleDomainMapping,
     },
   },
+};
+
+export const relayerConfig: LiquidityLayerRelayerConfig = {
+  docker: {
+    repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
+    tag: '59410cd-20230420-091923',
+  },
+  namespace: environment,
+  prometheusPushGateway:
+    'http://prometheus-pushgateway.monitoring.svc.cluster.local:9091',
+  connectionType: AgentConnectionType.Http,
 };
