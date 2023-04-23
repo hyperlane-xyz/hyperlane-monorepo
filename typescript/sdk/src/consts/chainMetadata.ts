@@ -2,6 +2,8 @@ import type { Chain as WagmiChain } from '@wagmi/chains';
 import type { providers } from 'ethers';
 import { z } from 'zod';
 
+import type { types } from '@hyperlane-xyz/utils';
+
 import { RetryOptions } from '../providers/RetryProvider';
 import { ChainName } from '../types';
 import { objMap } from '../utils/objects';
@@ -39,7 +41,7 @@ export interface ChainMetadata {
   publicRpcUrls: Array<{
     http: string;
     webSocket?: string;
-    pagination?: RpcPagination;
+    pagination?: RpcPaginationOptions;
     retry?: RetryOptions;
   }>;
   /** Collection of block explorers */
@@ -59,7 +61,10 @@ export interface ChainMetadata {
     /** Rough estimate of time per block in seconds */
     estimateBlockTime?: number;
   };
+  /** Settings to use when forming transaction requests */
   transactionOverrides?: Partial<providers.TransactionRequest>;
+  /** Address for Ethereum Name Service registry */
+  ensAddress?: types.Address;
   /** The CoinGecko API sometimes expects IDs that do not match ChainNames */
   gasCurrencyCoinGeckoId?: string;
   /** URL of the gnosis safe transaction service */
@@ -68,7 +73,7 @@ export interface ChainMetadata {
   isTestnet?: boolean;
 }
 
-export interface RpcPagination {
+export interface RpcPaginationOptions {
   /** Maximum number of blocks to query between (e.g. for fetching logs) */
   maxBlockRange?: number;
   /** Lowest block number to start querying from */

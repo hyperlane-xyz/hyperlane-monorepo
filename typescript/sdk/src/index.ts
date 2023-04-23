@@ -13,7 +13,7 @@ export {
   ChainMetadataSchema,
   ExplorerFamily,
   ExplorerFamilyType,
-  RpcPagination,
+  RpcPaginationOptions,
   chainIdToMetadata,
   chainMetadata,
   isValidChainMetadata,
