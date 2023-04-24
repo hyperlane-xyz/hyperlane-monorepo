@@ -15,7 +15,8 @@
 //!
 //! ### Configuration
 //!
-//! Agents read settings from the config files and/or env from `config/<env?
+//! Agents read settings from the config files, then from environment, and
+//! finally from program arguments.
 //!
 //! #### N.B.: Environment variable names correspond 1:1 with cfg file's JSON object hierarchy.
 //!
@@ -68,6 +69,8 @@
 //! 4. Configuration env vars with the prefix `HYP_<agent_prefix>`
 //!    intended to be used by a specific agent.
 //!    E.g. `export HYP_RELAYER_ORIGINCHAIN="ethereum"`
+//! 5. Arguments passed to the agent on the command line.
+//!    E.g. `--originChainName ethereum`
 
 use once_cell::sync::OnceCell;
 use rusoto_kms::KmsClient;
