@@ -5,7 +5,8 @@
 - install `rustup`
   - [link here](https://rustup.rs/)
 
-Note: You should be running >= version `1.68.0` of the rustc compiler, you can see that version with this command and should see similar output:
+Note: You should be running >= version `1.68.0` of the rustc compiler, you can see that version with this command and
+should see similar output:
 
 ```
 $ rustup --version
@@ -13,6 +14,71 @@ rustup 1.25.1 (bb60b1e89 2022-07-12)
 info: This is the version for the rustup toolchain manager, not the rustc compiler.
 info: The currently active `rustc` version is `rustc 1.68.0 (2c8cc3432 2023-03-06)`
 ```
+
+### Running Locally
+
+To run the validator, run:
+
+```bash
+cargo run --release --bin validator
+```
+
+Or build and then run the binary directly:
+
+```bash
+cargo build --release --bin validator
+./target/release/validator
+```
+
+To run the relayer, run:
+
+```bash
+cargo run --release --bin relayer
+```
+
+Or build and then run the binary directly:
+
+```bash
+cargo build --release --bin relayer
+./target/release/relayer
+```
+
+#### Automated E2E Test
+
+To perform an automated e2e test of the agents locally, from within the `hyperlane-monorepo/rust` directory, run:
+
+```bash
+cargo run --release --bin run-locally
+```
+
+This will automatically build the agents, start a local node, build and deploy the contracts, and run a relayer and
+validator. By default, this test will run indefinitely, but can be stopped with `ctrl-c`.
+
+### Building Agent Docker Images
+
+There exists a docker build for the agent binaries. These docker images are used for deploying the agents in a
+production environment.
+
+```bash
+cd rust
+./build.sh <image_tag>
+```
+
+### Deploy Procedure
+
+The contract addresses of each deploy can be found in `rust/config`. The latest
+deploy will be at `rust/config/[latest timestamp]` with bridge contracts within
+that same folder under `/bridge/[latest timestamp]`.
+
+The agents are set up to point at one environment at a time.
+
+When agents are deployed to point at a new environment, they cease to point at
+the old ones. We **do not** continue to operate off-chain agents on old contract
+deploys. Contracts not supported by the agents will cease to function (i.e.
+messages will not be relayed between chains).
+
+Off-chain agents are **not** automatically re-deployed when new contract deploys
+are merged. Auto-redeploys will be implemented at some future date.
 
 ### Useful cargo commands
 
@@ -79,19 +145,8 @@ We use the tokio async runtime environment. Please see the docs
 - `chains/hyperlane-ethereum`
   - depends on hyperlane-core (and transitively hyperlane-base)
   - interfaces to the ethereum contracts
+- `chains/hyperlane-fuel`
+  - depends on hyperlane-core
+  - interfaces to the fuel contracts
 - `agents`
   - each of the off-chain agents implemented thus far
-
-### Running Locally
-
-From within the `hyperlane-monorepo/rust` directory, run
-
-```bash
-cargo run -r -p run-locally
-```
-
-or (long-form)
-
-```bash
-cargo run --release --package run-locally
-```
