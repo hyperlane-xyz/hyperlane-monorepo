@@ -69,13 +69,11 @@ impl FromRawConf<'_, RawValidatorSettings> for ValidatorSettings {
 
         let interval = raw
             .interval
-            .ok_or_else(|| eyre!("Missing `interval`"))
-            .take_err(&mut err, || cwp + "interval")
             .and_then(|r| {
                 r.try_into()
                     .map(Duration::from_secs)
                     .take_err(&mut err, || cwp + "interval")
-            });
+            }).unwrap_or(Duration::from_secs(5));
 
         let Some(origin_chain_name) = raw
             .originchainname
