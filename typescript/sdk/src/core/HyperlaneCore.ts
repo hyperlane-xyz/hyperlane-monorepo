@@ -8,7 +8,7 @@ import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
 } from '../consts/environments';
-import { HyperlaneAddressesMap } from '../contracts';
+import { HyperlaneAddressesMap, appFromAddressesMapHelper } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName } from '../types';
 
@@ -36,15 +36,12 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     addressesMap: HyperlaneAddressesMap<any>,
     multiProvider: MultiProvider,
   ): HyperlaneCore {
-    const fromAddressesMap = this.fromAddressesMapHelper(
+    const helper = appFromAddressesMapHelper(
       addressesMap,
       coreFactories,
       multiProvider,
     );
-    return new HyperlaneCore(
-      fromAddressesMap.contractsMap,
-      fromAddressesMap.multiProvider,
-    );
+    return new HyperlaneCore(helper.contractsMap, helper.multiProvider);
   }
 
   protected getDestination(message: DispatchedMessage): {

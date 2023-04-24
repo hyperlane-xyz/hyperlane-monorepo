@@ -4,7 +4,11 @@ import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
 } from '../../consts/environments';
-import { HyperlaneAddressesMap, HyperlaneContracts } from '../../contracts';
+import {
+  HyperlaneAddressesMap,
+  HyperlaneContracts,
+  appFromAddressesMapHelper,
+} from '../../contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterApp } from '../../router/RouterApps';
 
@@ -35,14 +39,11 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     addressesMap: HyperlaneAddressesMap<any>,
     multiProvider: MultiProvider,
   ): InterchainAccount {
-    const fromAddressesMap = this.fromAddressesMapHelper(
+    const helper = appFromAddressesMapHelper(
       addressesMap,
       interchainAccountFactories,
       multiProvider,
     );
-    return new InterchainAccount(
-      fromAddressesMap.contractsMap,
-      fromAddressesMap.multiProvider,
-    );
+    return new InterchainAccount(helper.contractsMap, helper.multiProvider);
   }
 }

@@ -13,7 +13,11 @@ import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
 } from '../consts/environments';
-import { HyperlaneAddressesMap, HyperlaneContracts } from '../contracts';
+import {
+  HyperlaneAddressesMap,
+  HyperlaneContracts,
+  appFromAddressesMapHelper,
+} from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
@@ -43,15 +47,12 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     addressesMap: HyperlaneAddressesMap<any>,
     multiProvider: MultiProvider,
   ): HyperlaneIsmFactory {
-    const fromAddressesMap = this.fromAddressesMapHelper(
+    const helper = appFromAddressesMapHelper(
       addressesMap,
       ismFactoryFactories,
       multiProvider,
     );
-    return new HyperlaneIsmFactory(
-      fromAddressesMap.contractsMap,
-      fromAddressesMap.multiProvider,
-    );
+    return new HyperlaneIsmFactory(helper.contractsMap, helper.multiProvider);
   }
 
   async deploy(chain: ChainName, config: IsmConfig): Promise<DeployedIsm> {

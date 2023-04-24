@@ -8,7 +8,7 @@ import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
 } from '../consts/environments';
-import { HyperlaneAddressesMap } from '../contracts';
+import { HyperlaneAddressesMap, appFromAddressesMapHelper } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName } from '../types';
 
@@ -30,15 +30,12 @@ export class HyperlaneIgp extends HyperlaneApp<IgpFactories> {
     addressesMap: HyperlaneAddressesMap<any>,
     multiProvider: MultiProvider,
   ): HyperlaneIgp {
-    const fromAddressesMap = this.fromAddressesMapHelper(
+    const helper = appFromAddressesMapHelper(
       addressesMap,
       igpFactories,
       multiProvider,
     );
-    return new HyperlaneIgp(
-      fromAddressesMap.contractsMap,
-      fromAddressesMap.multiProvider,
-    );
+    return new HyperlaneIgp(helper.contractsMap, helper.multiProvider);
   }
 
   /**
