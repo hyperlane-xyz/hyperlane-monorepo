@@ -1,5 +1,5 @@
 name: Build and Push Monorepo Image to GCR
-on: 
+on:
   push:
     branches: [main]
     tags:
@@ -10,7 +10,6 @@ on:
       - 'typescript/infra/**'
 concurrency:
   group: build-push-monorepo-${{ github.ref }}
-  cancel-in-progress: true
 jobs:
   check-env:
     runs-on: ubuntu-latest
