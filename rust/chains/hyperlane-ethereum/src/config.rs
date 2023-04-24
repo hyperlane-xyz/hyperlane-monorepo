@@ -1,6 +1,7 @@
-use hyperlane_core::config::*;
 use serde::Deserialize;
 use url::Url;
+
+use hyperlane_core::config::*;
 
 /// Ethereum connection configuration
 #[derive(Debug, Clone)]
@@ -85,7 +86,7 @@ impl FromRawConf<'_, RawConnectionConf> for ConnectionConf {
                 .map(|s| s.parse())
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(|e| InvalidConnectionUrls(raw.urls.clone().unwrap(), e))
-                .into_config_result(|| cwp.join("urls"))
+                .into_config_result(|| cwp + "urls")
         })();
 
         let url = (|| -> ConfigResult<Url> {
@@ -95,7 +96,7 @@ impl FromRawConf<'_, RawConnectionConf> for ConnectionConf {
                 .into_config_result(|| cwp + "url")?
                 .parse()
                 .map_err(|e| InvalidConnectionUrl(raw.url.clone().unwrap(), e))
-                .into_config_result(|| cwp.join("url"))
+                .into_config_result(|| cwp + "url")
         })();
 
         macro_rules! make_with_urls {

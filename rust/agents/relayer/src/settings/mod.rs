@@ -273,24 +273,37 @@ impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
             .parse_config_with_filter::<Settings>(cwp, Some(&chain_filter))
             .take_config_err(&mut err);
 
-        let destination_chains = if let Some(base) = &base {
-            destination_chain_names
-                .iter()
-                .filter_map(|destination| {
-                    base.lookup_domain(destination)
-                        .take_err(&mut err, || cwp + "destinationchainnames")
-                })
-                .collect()
-        } else {
-            vec![]
-        };
+        // validate all destination chains are present and get their HyperlaneDomain.
+        let destination_chains = base
+            .as_ref()
+            .map(|base| {
+                destination_chain_names
+                    .iter()
+                    .filter_map(|destination| {
+                        base.lookup_domain(destination)
+                            .context("Missing configuration for a destination chain")
+                            .take_err(&mut err, || cwp + "chains" + destination)
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
 
-        let origin_chain = if let Some(base) = &base {
+        if let Some(base) = &base {
+            for domain in destination_chains.iter() {
+                base.chain_setup(domain)
+                    .unwrap()
+                    .signer
+                    .as_ref()
+                    .ok_or_else(|| eyre!("Signer is required for destination chains"))
+                    .take_err(&mut err, || cwp + "chains" + domain.name() + "signer");
+            }
+        }
+
+        let origin_chain = base.as_ref().and_then(|base| {
             base.lookup_domain(&origin_chain_name)
-                .take_err(&mut err, || cwp + "originchainname")
-        } else {
-            None
-        };
+                .context("Missing configuration for the origin chain")
+                .take_err(&mut err, || cwp + "chains" + &origin_chain_name)
+        });
 
         err.into_result()?;
         Ok(Self {

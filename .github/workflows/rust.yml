@@ -53,6 +53,7 @@ jobs:
           toolchain: stable
           profile: minimal
           components: rustfmt, clippy
+          target: wasm32-unknown-unknown
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
@@ -66,3 +67,7 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Clippy
         run: cargo clippy -- -D warnings
+      - name: Setup WASM
+        run: rustup target add wasm32-unknown-unknown
+      - name: Check WASM
+        run: cargo check -p hyperlane-core --all-features --target wasm32-unknown-unknown
