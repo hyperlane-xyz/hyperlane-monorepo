@@ -80,7 +80,7 @@ impl IncrementalMerkle {
 
 #[cfg(test)]
 mod test {
-    use ethers::utils::hash_message;
+    use ethers_core::utils::hash_message;
 
     use crate::test_utils;
 

@@ -3,11 +3,14 @@ use std::env;
 use std::error::Error;
 use std::path::PathBuf;
 
+use crate::settings::loader::arguments::CommandLineArguments;
 use config::{Config, Environment, File};
-use eyre::{Context, Result};
+use eyre::{bail, Context, Result};
 use serde::Deserialize;
 
 use crate::settings::RawSettings;
+
+mod arguments;
 
 /// Load a settings object from the config locations.
 /// Further documentation can be found in the `settings` module.
@@ -53,12 +56,23 @@ where
 
     // Load a set of additional user specified config files
     let config_file_paths: Vec<String> = env::var("CONFIG_FILES")
-        .map(|s| s.split(',').map(|s| s.to_string()).collect())
+        .map(|s| s.split(',').map(|s| s.to_owned()).collect())
         .unwrap_or_default();
 
-    let builder = config_file_paths.iter().fold(builder, |builder, path| {
-        builder.add_source(File::with_name(path))
-    });
+    for path in &config_file_paths {
+        let p = PathBuf::from(path);
+        if p.is_file() {
+            if p.extension() == Some("json".as_ref()) {
+                builder = builder.add_source(File::from(p));
+            } else {
+                bail!("Provided config path via CONFIG_FILES is of an unsupported type ({p:?})")
+            }
+        } else if !p.exists() {
+            bail!("Provided config path via CONFIG_FILES does not exist ({p:?})")
+        } else {
+            bail!("Provided config path via CONFIG_FILES is not a file ({p:?})")
+        }
+    }
 
     let config_deserializer = builder
         // Use a base configuration env variable prefix
@@ -72,10 +86,11 @@ where
                 .separator("_")
                 .source(Some(filtered_env)),
         )
+        .add_source(CommandLineArguments::default().separator("."))
         .build()?;
 
     let formatted_config = {
-        let f = format!("{:#?}", config_deserializer);
+        let f = format!("{config_deserializer:#?}");
         if env::var("ONELINE_BACKTRACES")
             .map(|v| v.to_lowercase())
             .as_deref()
@@ -104,10 +119,7 @@ where
                 err = err.with_context(|| format!("Config loaded: {cfg_path}"));
             }
 
-            println!(
-                "Error during deserialization, showing the config for debugging: {}",
-                formatted_config
-            );
+            println!("Error during deserialization, showing the config for debugging: {formatted_config}");
 
             err.context("Config deserialization error, please check the config reference (https://docs.hyperlane.xyz/docs/operators/agent-configuration/configuration-reference)")
         }

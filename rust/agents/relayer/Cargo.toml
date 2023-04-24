@@ -16,7 +16,7 @@ ethers.workspace = true
 eyre.workspace = true
 futures-util.workspace = true
 prometheus.workspace = true
-reqwest = { workspace = true, features = ["json"]}
+reqwest = { workspace = true, features = ["json"] }
 serde.workspace = true
 serde_json.workspace = true
 strum.workspace = true
@@ -35,6 +35,7 @@ num-traits.workspace = true
 [dev-dependencies]
 tokio-test = "0.4"
 hyperlane-test = { path = "../../hyperlane-test" }
+hyperlane-base = { path = "../../hyperlane-base", features = ["test-utils"] }
 
 [features]
 default = ["color-eyre", "oneline-errors"]
