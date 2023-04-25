@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use eyre::{ensure, Result};
+use eyre::Result;
 use tokio::sync::{
     mpsc::{self, UnboundedReceiver, UnboundedSender},
     RwLock,
@@ -11,11 +11,10 @@ use tokio::task::JoinHandle;
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
 use hyperlane_base::{
-    run_all, BaseAgent, CachingInterchainGasPaymaster, CachingMailbox, ContractSyncMetrics,
+    db::DB, run_all, BaseAgent, CachingInterchainGasPaymaster, CachingMailbox, ContractSyncMetrics,
     CoreMetrics, HyperlaneAgentCore,
 };
-use hyperlane_core::U256;
-use hyperlane_core::{db::DB, HyperlaneChain, HyperlaneDomain, ValidatorAnnounce};
+use hyperlane_core::{HyperlaneChain, HyperlaneDomain, ValidatorAnnounce, U256};
 
 use crate::{
     merkle_tree_builder::MerkleTreeBuilder,
@@ -64,14 +63,6 @@ impl BaseAgent for Relayer {
     {
         let core = settings.build_hyperlane_core(metrics.clone());
         let db = DB::from_path(&settings.db)?;
-
-        for dest_chain in &settings.destination_chains {
-            let Ok(cfg) = settings.chain_setup(dest_chain) else { continue };
-            ensure!(
-                cfg.signer.is_some(),
-                "Destination chain {dest_chain} does not have a configured signer"
-            )
-        }
 
         // Use defined remote chains + the origin chain
         let domains = settings

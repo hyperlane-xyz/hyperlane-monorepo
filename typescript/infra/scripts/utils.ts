@@ -13,6 +13,7 @@ import {
   HyperlaneIgp,
   MultiProvider,
   RouterConfig,
+  collectValidators,
   objMap,
   promiseObjAll,
 } from '@hyperlane-xyz/sdk';
@@ -37,6 +38,7 @@ export function getArgsWithContext() {
 }
 
 export enum Modules {
+  ISM_FACTORY = 'ism',
   CORE = 'core',
   INTERCHAIN_GAS_PAYMASTER = 'igp',
   INTERCHAIN_ACCOUNTS = 'ica',
@@ -46,6 +48,7 @@ export enum Modules {
   TEST_RECIPIENT = 'testrecipient',
 }
 export const SDK_MODULES = [
+  Modules.ISM_FACTORY,
   Modules.CORE,
   Modules.INTERCHAIN_GAS_PAYMASTER,
   Modules.INTERCHAIN_ACCOUNTS,
@@ -265,14 +268,17 @@ export function getValidatorsByChain(
   config: ChainMap<CoreConfig>,
 ): ChainMap<Set<string>> {
   const validators: ChainMap<Set<string>> = {};
-  objMap(config, (local, coreConfig) => {
-    objMap(coreConfig.multisigIsm, (remote, multisigIsmConfig) => {
-      if (!validators[remote]) {
-        validators[remote] = new Set(multisigIsmConfig.validators);
-      } else {
-        multisigIsmConfig.validators.map((v) => validators[remote].add(v));
+  for (const chain of Object.keys(config)) {
+    // Pulls the validators for each chain from a *single* IsmConfig
+    const setsByChain = objMap(config, (local) =>
+      collectValidators(local, config[chain].defaultIsm),
+    );
+    objMap(setsByChain, (chain, set) => {
+      if (!validators[chain]) {
+        validators[chain] = new Set();
       }
+      [...set].map((v) => validators[chain].add(v));
     });
-  });
+  }
   return validators;
 }

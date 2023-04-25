@@ -19,7 +19,7 @@ abstract contract AbstractAggregationIsm is IAggregationIsm {
 
     // solhint-disable-next-line const-name-snakecase
     uint8 public constant moduleType =
-        uint8(IInterchainSecurityModule.Types.MULTISIG);
+        uint8(IInterchainSecurityModule.Types.AGGREGATION);
 
     // ============ Virtual Functions ============
     // ======= OVERRIDE THESE TO IMPLEMENT =======

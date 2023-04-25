@@ -115,7 +115,7 @@ jobs:
     strategy:
       matrix:
         environment: [testnet3, mainnet2]
-        module: [core, igp, ica]
+        module: [ism, core, igp, ica]
 
     steps:
       - uses: actions/checkout@v3
