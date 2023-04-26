@@ -6,18 +6,16 @@ pragma solidity >=0.8.0;
  * [   0:  32] Merkle root
  * [  32:  36] Root index
  * [  36:  68] Origin mailbox address
- * [  68:1092] Merkle proof
- * [1092:1093] Threshold
- * [1093:????] Validator signatures, 65 bytes each, length == Threshold
+ * [  68: 69] Threshold
+ * [  69:????] Validator signatures, 65 bytes each, length == Threshold
  * [????:????] Addresses of the entire validator set, left padded to bytes32
  */
 library LegacyMultisigIsmMetadata {
     uint256 private constant MERKLE_ROOT_OFFSET = 0;
     uint256 private constant MERKLE_INDEX_OFFSET = 32;
     uint256 private constant ORIGIN_MAILBOX_OFFSET = 36;
-    uint256 private constant MERKLE_PROOF_OFFSET = 68;
-    uint256 private constant THRESHOLD_OFFSET = 1092;
-    uint256 private constant SIGNATURES_OFFSET = 1093;
+    uint256 private constant THRESHOLD_OFFSET = 68;
+    uint256 private constant SIGNATURES_OFFSET = 69;
     uint256 private constant SIGNATURE_LENGTH = 65;
 
     /**
@@ -51,7 +49,7 @@ library LegacyMultisigIsmMetadata {
         pure
         returns (bytes32)
     {
-        return bytes32(_metadata[ORIGIN_MAILBOX_OFFSET:MERKLE_PROOF_OFFSET]);
+        return bytes32(_metadata[ORIGIN_MAILBOX_OFFSET:THRESHOLD_OFFSET]);
     }
 
     /**
@@ -61,6 +59,7 @@ library LegacyMultisigIsmMetadata {
      * @param _metadata ABI encoded Multisig ISM metadata.
      * @return Merkle proof branch of the message.
      */
+    /*
     function proof(bytes calldata _metadata)
         internal
         pure
@@ -72,6 +71,7 @@ library LegacyMultisigIsmMetadata {
                 (bytes32[32])
             );
     }
+    */
 
     /**
      * @notice Returns the number of required signatures. Verified against

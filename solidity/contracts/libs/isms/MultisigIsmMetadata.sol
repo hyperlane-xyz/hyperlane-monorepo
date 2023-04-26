@@ -6,15 +6,13 @@ pragma solidity >=0.8.0;
  * [   0:  32] Merkle root
  * [  32:  36] Root index
  * [  36:  68] Origin mailbox address
- * [  68:1092] Merkle proof
- * [1092:????] Validator signatures, 65 bytes each, length == Threshold
+ * [68:????] Validator signatures, 65 bytes each, length == Threshold
  */
 library MultisigIsmMetadata {
     uint256 private constant MERKLE_ROOT_OFFSET = 0;
     uint256 private constant MERKLE_INDEX_OFFSET = 32;
     uint256 private constant ORIGIN_MAILBOX_OFFSET = 36;
-    uint256 private constant MERKLE_PROOF_OFFSET = 68;
-    uint256 private constant SIGNATURES_OFFSET = 1092;
+    uint256 private constant SIGNATURES_OFFSET = 68;
     uint256 private constant SIGNATURE_LENGTH = 65;
 
     /**
@@ -48,7 +46,7 @@ library MultisigIsmMetadata {
         pure
         returns (bytes32)
     {
-        return bytes32(_metadata[ORIGIN_MAILBOX_OFFSET:MERKLE_PROOF_OFFSET]);
+        return bytes32(_metadata[ORIGIN_MAILBOX_OFFSET:SIGNATURES_OFFSET]);
     }
 
     /**
@@ -58,6 +56,7 @@ library MultisigIsmMetadata {
      * @param _metadata ABI encoded Multisig ISM metadata.
      * @return Merkle proof branch of the message.
      */
+    /*
     function proof(bytes calldata _metadata)
         internal
         pure
@@ -69,6 +68,7 @@ library MultisigIsmMetadata {
                 (bytes32[32])
             );
     }
+    */
 
     /**
      * @notice Returns the validator ECDSA signature at `_index`.

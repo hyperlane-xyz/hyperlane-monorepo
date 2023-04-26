@@ -7,7 +7,9 @@ import { Validator, types, utils } from '@hyperlane-xyz/utils';
 
 import domainHashTestCases from '../../../vectors/domainHash.json';
 import {
+  DomainRoutingIsm__factory,
   LightTestRecipient__factory,
+  StaticMultisigIsmFactory__factory,
   TestLegacyMultisigIsm,
   TestLegacyMultisigIsm__factory,
   TestMailbox,
@@ -488,7 +490,7 @@ describe('LegacyMultisigIsm', async () => {
   // Manually unskip to run gas instrumentation.
   // The JSON that's logged can then be copied to `typescript/sdk/src/consts/multisigIsmVerifyCosts.json`,
   // which is ultimately used for configuring the default ISM overhead IGP.
-  describe.skip('#verify gas instrumentation for the OverheadISM', () => {
+  describe.only('#verify gas instrumentation for the OverheadISM', () => {
     const MAX_VALIDATOR_COUNT = 18;
     let metadata: string, message: string, recipient: string;
 
@@ -514,6 +516,20 @@ describe('LegacyMultisigIsm', async () => {
       for (let threshold = 1; threshold <= numValidators; threshold++) {
         it(`instrument mailbox.process gas costs with ${threshold} of ${numValidators} multisig`, async () => {
           const adjustedValidators = validators.slice(0, numValidators);
+          const domainRoutingIsmFactory = new DomainRoutingIsm__factory(signer);
+          const routingIsm = await domainRoutingIsmFactory.deploy();
+          await routingIsm['initialize(address)'](signer.address);
+          const multisigIsmFactoryFactory =
+            new StaticMultisigIsmFactory__factory(signer);
+          const multisigIsmFactory = await multisigIsmFactoryFactory.deploy();
+          const validatorAddys = adjustedValidators.map((v) => v.address);
+          await multisigIsmFactory.deploy(validatorAddys, threshold);
+          const multisigIsm = await multisigIsmFactory.getAddress(
+            validatorAddys,
+            threshold,
+          );
+          await routingIsm.set(ORIGIN_DOMAIN, multisigIsm);
+          /*
           // Must be done sequentially so gas estimation is correct
           // and so that signatures are produced in the same order.
           for (const v of adjustedValidators) {
@@ -521,6 +537,7 @@ describe('LegacyMultisigIsm', async () => {
           }
 
           await multisigIsm.setThreshold(ORIGIN_DOMAIN, threshold);
+          */
 
           const maxBodySize = await mailbox.MAX_MESSAGE_BODY_BYTES();
           // The max body is used to estimate an upper bound on gas usage.
@@ -528,7 +545,7 @@ describe('LegacyMultisigIsm', async () => {
 
           ({ message, metadata } = await dispatchMessageAndReturnMetadata(
             mailbox,
-            multisigIsm,
+            routingIsm as unknown as TestLegacyMultisigIsm,
             DESTINATION_DOMAIN,
             recipient,
             maxBody,
@@ -543,7 +560,7 @@ describe('LegacyMultisigIsm', async () => {
           );
           await destinationMailbox.initialize(
             signer.address,
-            multisigIsm.address,
+            routingIsm.address,
           );
           const gas = await destinationMailbox.estimateGas.process(
             metadata,

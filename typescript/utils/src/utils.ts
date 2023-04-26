@@ -101,6 +101,36 @@ export const parseLegacyMultisigIsmMetadata = (
   };
 };
 
+export const formatModifiedMultisigIsmMetadata = (
+  metadata: ParsedLegacyMultisigIsmMetadata,
+): string => {
+  return ethers.utils.solidityPack(
+    ['bytes32', 'uint32', 'bytes32', 'bytes'],
+    [
+      metadata.checkpointRoot,
+      metadata.checkpointIndex,
+      addressToBytes32(metadata.originMailbox),
+      ethers.utils.hexConcat(metadata.signatures),
+    ],
+  );
+};
+
+export const formatModifiedLegacyMultisigIsmMetadata = (
+  metadata: ParsedLegacyMultisigIsmMetadata,
+): string => {
+  return ethers.utils.solidityPack(
+    ['bytes32', 'uint32', 'bytes32', 'uint8', 'bytes', 'address[]'],
+    [
+      metadata.checkpointRoot,
+      metadata.checkpointIndex,
+      addressToBytes32(metadata.originMailbox),
+      metadata.signatures.length,
+      ethers.utils.hexConcat(metadata.signatures),
+      metadata.validators,
+    ],
+  );
+};
+
 export const formatLegacyMultisigIsmMetadata = (
   metadata: ParsedLegacyMultisigIsmMetadata,
 ): string => {

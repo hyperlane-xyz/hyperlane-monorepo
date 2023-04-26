@@ -210,7 +210,7 @@ contract LegacyMultisigIsm is IMultisigIsm, Ownable {
         view
         returns (bool)
     {
-        require(_verifyMerkleProof(_metadata, _message), "!merkle");
+        //require(_verifyMerkleProof(_metadata, _message), "!merkle");
         require(_verifyValidatorSignatures(_metadata, _message), "!sigs");
         return true;
     }
@@ -294,6 +294,7 @@ contract LegacyMultisigIsm is IMultisigIsm, Ownable {
      * @param _metadata ABI encoded module metadata (see LegacyMultisigIsmMetadata.sol)
      * @param _message Formatted Hyperlane message (see Message.sol).
      */
+    /*
     function _verifyMerkleProof(
         bytes calldata _metadata,
         bytes calldata _message
@@ -306,6 +307,7 @@ contract LegacyMultisigIsm is IMultisigIsm, Ownable {
         );
         return _calculatedRoot == _metadata.root();
     }
+    */
 
     /**
      * @notice Verifies that a quorum of the origin domain's validators signed

@@ -54,7 +54,7 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
         view
         returns (bool)
     {
-        require(_verifyMerkleProof(_metadata, _message), "!merkle");
+        //require(_verifyMerkleProof(_metadata, _message), "!merkle");
         require(_verifyValidatorSignatures(_metadata, _message), "!sigs");
         return true;
     }
@@ -67,6 +67,7 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
      * @param _metadata ABI encoded module metadata (see MultisigIsmMetadata.sol)
      * @param _message Formatted Hyperlane message (see Message.sol).
      */
+    /*
     function _verifyMerkleProof(
         bytes calldata _metadata,
         bytes calldata _message
@@ -79,6 +80,7 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
         );
         return _calculatedRoot == MultisigIsmMetadata.root(_metadata);
     }
+    */
 
     /**
      * @notice Verifies that a quorum of the origin domain's validators signed

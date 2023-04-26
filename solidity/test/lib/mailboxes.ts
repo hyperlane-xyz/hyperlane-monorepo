@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 
 import { Validator, types, utils } from '@hyperlane-xyz/utils';
 
-import { LegacyMultisigIsm, TestMailbox } from '../../types';
+import { TestLegacyMultisigIsm, TestMailbox } from '../../types';
 import { DispatchEvent } from '../../types/contracts/Mailbox';
 
 export type MessageAndProof = {
@@ -79,12 +79,12 @@ export async function signCheckpoint(
 
 export async function dispatchMessageAndReturnMetadata(
   mailbox: TestMailbox,
-  multisigIsm: LegacyMultisigIsm,
+  multisigIsm: TestLegacyMultisigIsm,
   destination: number,
   recipient: string,
   messageStr: string,
   orderedValidators: Validator[],
-  threshold?: number,
+  threshold = orderedValidators.length,
   utf8 = true,
 ): Promise<MessageAndMetadata> {
   // Checkpoint indices are 0 indexed, so we pull the count before
@@ -102,16 +102,16 @@ export async function dispatchMessageAndReturnMetadata(
     root,
     index,
     mailbox.address,
-    orderedValidators,
+    orderedValidators.slice(0, threshold),
   );
-  const origin = utils.parseMessage(proofAndMessage.message).origin;
-  const metadata = utils.formatLegacyMultisigIsmMetadata({
+  // const origin = utils.parseMessage(proofAndMessage.message).origin;
+  const metadata = utils.formatModifiedMultisigIsmMetadata({
     checkpointRoot: root,
     checkpointIndex: index,
     originMailbox: mailbox.address,
     proof: proofAndMessage.proof.branch,
     signatures,
-    validators: await multisigIsm.validators(origin),
+    validators: [],
   });
   return { metadata, message: proofAndMessage.message };
 }
