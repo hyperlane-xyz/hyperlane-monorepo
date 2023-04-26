@@ -434,7 +434,7 @@ mod test {
 
             let indexer = Arc::new(mock_indexer);
             let metrics = Arc::new(
-                CoreMetrics::new("contract_sync_test", None, prometheus::Registry::new())
+                CoreMetrics::new("contract_sync_test", 9090, prometheus::Registry::new())
                     .expect("could not make metrics"),
             );
             unsafe { MOCK_CURSOR = Some(mock_cursor) };

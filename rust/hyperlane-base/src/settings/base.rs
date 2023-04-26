@@ -49,7 +49,7 @@ pub struct Settings {
     /// Configuration for contracts on each chain
     pub chains: HashMap<String, ChainConf>,
     /// Port to listen for prometheus scrape requests
-    pub metrics: Option<u16>,
+    pub metrics: u16,
     /// The tracing configuration
     pub tracing: TracingConfig,
 }
@@ -101,9 +101,10 @@ impl FromRawConf<'_, RawSettings, Option<&HashSet<&str>>> for Settings {
             Default::default()
         };
         let tracing = raw.tracing.unwrap_or_default();
-        let metrics: Option<u16> = raw
+        let metrics = raw
             .metrics
-            .and_then(|port| port.try_into().take_err(&mut err, || cwp + "metrics"));
+            .and_then(|port| port.try_into().take_err(&mut err, || cwp + "metrics"))
+            .unwrap_or(9090);
 
         err.into_result()?;
         Ok(Self {

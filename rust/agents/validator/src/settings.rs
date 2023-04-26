@@ -73,7 +73,8 @@ impl FromRawConf<'_, RawValidatorSettings> for ValidatorSettings {
                 r.try_into()
                     .map(Duration::from_secs)
                     .take_err(&mut err, || cwp + "interval")
-            }).unwrap_or(Duration::from_secs(5));
+            })
+            .unwrap_or(Duration::from_secs(5));
 
         let Some(origin_chain_name) = raw
             .originchainname
@@ -102,7 +103,7 @@ impl FromRawConf<'_, RawValidatorSettings> for ValidatorSettings {
             validator: validator.unwrap(),
             checkpoint_syncer: checkpoint_syncer.unwrap(),
             reorg_period: reorg_period.unwrap(),
-            interval: interval.unwrap(),
+            interval,
         })
     }
 }
