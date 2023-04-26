@@ -4,7 +4,12 @@ use hyperlane_core::{Decode as _, H256, HyperlaneMessage, U256};
 use tracing::error;
 
 use crate::mailbox_message_inspector::{Error, Inspection, Inspector};
-use crate::{hyperlane_token_erc20_pda_seeds, hyperlane_token_mint_pda_seeds};
+use crate::{
+    hyperlane_token_pda_seeds,
+    hyperlane_token_erc20_pda_seeds,
+    hyperlane_token_mint_pda_seeds,
+    hyperlane_token_native_collateral_pda_seeds,
+};
 use crate::solana::{
     instruction::AccountMeta,
     pubkey::Pubkey
@@ -17,22 +22,6 @@ mod solana {
 
     use crate::solana::pubkey::Pubkey;
 
-    // spl_noop.so
-    //     GpiNbGLpyroc8dFKPhK55eQhhvWn3XUaXJFp5fk5aXUs
-    // spl_token.so
-    //     GEDyaRBxUxCnA7zU6Uh4KyYnZxQQHUjjdpUzhsK6kZe2
-    // spl_token_2022.so
-    //     4Rns2H5bzBkNX7BQSj52pbuwokA4BLrNN1mo1FvEDAFf
-    // spl_associated_token_account.so
-    //     J7CTyNrJn3vnsJfKkVWFXHyP8Wjj8RU9w1GNfZa1d2hH
-    // hyperlane_sealevel_token.so
-    //     3MzUPjP5LEkiHH82nEAe28Xtz9ztuMqWc8UmuKxrpVQH
-    // hyperlane_sealevel_mailbox.so
-    //     692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1
-    // hyperlane_sealevel_recipient_echo.so
-    //     FZ8hyduJy4GQAfBu9zEiuQtk429Gjc6inwHgEW5MvsEm
-    // hyperlane_sealevel_ism_rubber_stamp.so
-    //     F6dVnLFioQ8hKszqPsmjWPwHn2dJfebgMfztWrzL548V
     lazy_static::lazy_static! {
         pub static ref SYSTEM_PROGRAM_ID: Pubkey =
             Pubkey::from_str("11111111111111111111111111111111").unwrap();
@@ -150,6 +139,48 @@ mod token_contract {
         }};
     }
 
+    #[macro_export]
+    macro_rules! hyperlane_token_pda_seeds {
+        () => {{
+            &[
+                b"hyperlane_token",
+                b"-",
+                b"storage",
+            ]
+        }};
+
+        ($bump_seed:expr) => {{
+            &[
+                b"hyperlane_token",
+                b"-",
+                b"storage",
+                &[$bump_seed],
+            ]
+        }};
+    }
+
+    #[macro_export]
+    macro_rules! hyperlane_token_native_collateral_pda_seeds {
+        () => {{
+            &[
+                b"hyperlane_token",
+                b"-",
+                b"native_token_collateral",
+            ]
+        }};
+
+        ($bump_seed:expr) => {{
+            &[
+                b"hyperlane_token",
+                b"-",
+                b"native_token_collateral",
+                &[$bump_seed],
+            ]
+        }};
+    }
+
+    // FIXME this aint gonna work as is. We need to know the asset being sent since we're not using
+    // separate recipient contracts for each.
     #[derive(Debug)]
     pub struct TokenMessage {
         recipient: H256,
@@ -234,16 +265,27 @@ mod token_contract {
 
 pub struct TokenBridgeInspector {
     program_id: Pubkey,
-    token_name: String,
-    token_symbol: String,
+    native_token_name: String,
+    native_token_symbol: String,
+    // TODO hold a vec/map of erc20 token infos in order to support more than one wrapped token
+    erc20_token_name: String,
+    erc20_token_symbol: String,
 }
 
 impl TokenBridgeInspector {
-    pub fn new(program_id: Pubkey, token_name: String, token_symbol: String) -> Self {
+    pub fn new(
+        program_id: Pubkey,
+        native_token_name: String,
+        native_token_symbol: String,
+        erc20_token_name: String,
+        erc20_token_symbol: String,
+    ) -> Self {
         Self {
             program_id,
-            token_name,
-            token_symbol,
+            native_token_name,
+            native_token_symbol,
+            erc20_token_name,
+            erc20_token_symbol,
         }
     }
 }
@@ -274,96 +316,76 @@ impl Inspector for TokenBridgeInspector {
         payer: &Pubkey,
         message: &HyperlaneMessage
     ) -> Result<Inspection, Error> {
+        // TODO probably should verify that hyperlane message version is correct.
         let mut token_message_reader = std::io::Cursor::new(&message.body);
         let token_message = token_contract::TokenMessage::read_from(&mut token_message_reader)
             .map_err(|_err| Error::InvalidMessageBody)?;
-        let (erc20_account, _erc20_bump) = Pubkey::find_program_address(
-            hyperlane_token_erc20_pda_seeds!(self.token_name, self.token_symbol),
-            &self.program_id,
-        );
-        let (mint_account, _mint_bump) = Pubkey::find_program_address(
-            hyperlane_token_mint_pda_seeds!(self.token_name, self.token_symbol),
-            &self.program_id,
-        );
+        error!("token_message={:#?}", token_message); // FIXME trace or debug
+
         let recipient_wallet_account = Pubkey::new_from_array(token_message.recipient().into());
-        let recipient_associated_token_account =
-            solana::get_associated_token_address_with_program_id(
-                &recipient_wallet_account,
-                &mint_account,
-                &solana::SPL_TOKEN_2022_ID,
-            );
-        // spl_noop.so
-        //     GpiNbGLpyroc8dFKPhK55eQhhvWn3XUaXJFp5fk5aXUs
-        // spl_token.so
-        //     GEDyaRBxUxCnA7zU6Uh4KyYnZxQQHUjjdpUzhsK6kZe2
-        // spl_token_2022.so
-        //     4Rns2H5bzBkNX7BQSj52pbuwokA4BLrNN1mo1FvEDAFf
-        // spl_associated_token_account.so
-        //     J7CTyNrJn3vnsJfKkVWFXHyP8Wjj8RU9w1GNfZa1d2hH
-        // hyperlane_sealevel_token.so
-        //     3MzUPjP5LEkiHH82nEAe28Xtz9ztuMqWc8UmuKxrpVQH
-        // hyperlane_sealevel_mailbox.so
-        //     692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1
-        // hyperlane_sealevel_recipient_echo.so
-        //     FZ8hyduJy4GQAfBu9zEiuQtk429Gjc6inwHgEW5MvsEm
-        // hyperlane_sealevel_ism_rubber_stamp.so
-        //     F6dVnLFioQ8hKszqPsmjWPwHn2dJfebgMfztWrzL548V
-        //
-        // Accounts for token contract transfer_from_remote()
-        //
-        // AccountMeta {
-        //     pubkey: 11111111111111111111111111111111,
-        //     is_signer: false,
-        //     is_writable: false,
-        // },
-        // AccountMeta {
-        //     pubkey: 4Rns2H5bzBkNX7BQSj52pbuwokA4BLrNN1mo1FvEDAFf,
-        //     is_signer: false,
-        //     is_writable: false,
-        // },
-        // AccountMeta {
-        //     pubkey: J7CTyNrJn3vnsJfKkVWFXHyP8Wjj8RU9w1GNfZa1d2hH,
-        //     is_signer: false,
-        //     is_writable: false,
-        // },
-        // AccountMeta {
-        //     pubkey: 6JcBS4S8P8PdL84yoHYd2WpNhTxYFmRChxHMhFwHZULH,
-        //     is_signer: true,
-        //     is_writable: true,
-        // },
-        // AccountMeta {
-        //     pubkey: APd85nrgWTTZdaaZwomzZhDoRdz5w5HETGQ2Vfu29AdA,
-        //     is_signer: false,
-        //     is_writable: false,
-        // },
-        // AccountMeta {
-        //     pubkey: 9mZNZbYS6AKqhc28jWw8pqwyhKK5mRSTNxv2A4ywee4P,
-        //     is_signer: false,
-        //     is_writable: true,
-        // },
-        // AccountMeta {
-        //     pubkey: 6JcBS4S8P8PdL84yoHYd2WpNhTxYFmRChxHMhFwHZULH,
-        //     is_signer: false,
-        //     is_writable: true,
-        // },
-        // AccountMeta {
-        //     pubkey: HKLeaDnBs4gu2TX7C8T2Z5NnTh6aKyMEp9UZ6kZYizjs,
-        //     is_signer: false,
-        //     is_writable: true,
-        // },
+        let (token_account, _token_bump) = Pubkey::find_program_address(
+            hyperlane_token_pda_seeds!(),
+            &self.program_id,
+        );
+
+        // FIXME we need the token message to contain asset name & symbol in order to determine
+        // since solana smart contract program accounts are decoupled from data storage accounts.
+        // let xfer_is_native = false;
+        let xfer_is_native = true;
+        // Accounts:
+        // 1. mailbox_authority (added prior to CPI by mailbox program)
+        // 2. system_program
+        // 3. spl_noop
+        // 4. hyperlane_token storage
+        // 5. recipient wallet address
+        // 6. payer
+        // For wrapped tokens:
+        //     7. spl_token_2022
+        //     8. spl_associated_token_account
+        //     9. hyperlane_token_erc20
+        //     10. hyperlane_token_mint
+        //     11. recipient associated token account
+        // For native token:
+        //     7. native_token_collateral
         let mut accounts = vec![
             AccountMeta::new_readonly(*solana::SYSTEM_PROGRAM_ID, false),
             AccountMeta::new_readonly(*solana::SPL_NOOP_ID, false),
-            AccountMeta::new_readonly(*solana::SPL_TOKEN_2022_ID, false),
-            AccountMeta::new_readonly(*solana::SPL_ASSOCIATED_TOKEN_ACCOUNT_ID, false),
-            AccountMeta::new(*payer, true),
-            AccountMeta::new_readonly(erc20_account, false),
-            AccountMeta::new(mint_account, false),
+            AccountMeta::new(token_account, false),
             AccountMeta::new(recipient_wallet_account, false),
-            AccountMeta::new(recipient_associated_token_account, false),
+            AccountMeta::new(*payer, true),
         ];
-
-        error!("token_message={:#?}", token_message); // FIXME trace or debug
+        if xfer_is_native {
+            let (native_collateral_account, _native_collateral_bump) =
+                Pubkey::find_program_address(
+                    hyperlane_token_native_collateral_pda_seeds!(),
+                    &self.program_id,
+                );
+            accounts.extend([
+                AccountMeta::new(native_collateral_account, false)
+            ]);
+        } else {
+            let (erc20_account, _erc20_bump) = Pubkey::find_program_address(
+                hyperlane_token_erc20_pda_seeds!(self.erc20_token_name, self.erc20_token_symbol),
+                &self.program_id,
+            );
+            let (mint_account, _mint_bump) = Pubkey::find_program_address(
+                hyperlane_token_mint_pda_seeds!(self.erc20_token_name, self.erc20_token_symbol),
+                &self.program_id,
+            );
+            let recipient_associated_token_account =
+                solana::get_associated_token_address_with_program_id(
+                    &recipient_wallet_account,
+                    &mint_account,
+                    &solana::SPL_TOKEN_2022_ID,
+                );
+            accounts.extend([
+                AccountMeta::new_readonly(*solana::SPL_TOKEN_2022_ID, false),
+                AccountMeta::new_readonly(*solana::SPL_ASSOCIATED_TOKEN_ACCOUNT_ID, false),
+                AccountMeta::new_readonly(erc20_account, false),
+                AccountMeta::new(mint_account, false),
+                AccountMeta::new(recipient_associated_token_account, false),
+            ]);
+        }
 
         Ok(Inspection {
             accounts,

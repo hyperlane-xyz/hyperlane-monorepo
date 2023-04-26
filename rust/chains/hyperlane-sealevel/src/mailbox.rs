@@ -1,4 +1,4 @@
-#![allow(warnings)]// FIXME remove
+#![allow(warnings)] // FIXME remove
 
 use std::{
     collections::HashMap,
@@ -62,7 +62,7 @@ pub struct SealevelMailbox {
     // FIXME don't understand why the trait bounds for Mailbox are designed to disallow
     // Arc<Mutex<dyn Inspector>> or a wrapper around SealevelMailbox that contains
     // Arc<Mutex<SealevelMailbox>>. Now we have to box an arc mutex... wtf?
-    // FIXME make this a hash map of mailbox recipient to inspector
+    // TODO make this a hash map of mailbox recipient to inspector(s)
     inspector: Box<dyn Inspector + Send + Sync>,
 }
 
@@ -114,12 +114,16 @@ impl SealevelMailbox {
         // FIXME inject via config
         let hyperlane_token_program_id =
             Pubkey::from_str("3MzUPjP5LEkiHH82nEAe28Xtz9ztuMqWc8UmuKxrpVQH").unwrap();
-        let token_name = "MOON_SPL".to_string();
-        let token_symbol = "$".to_string();
+        let native_token_name = "MOON_SPL".to_string();
+        let native_token_symbol = "$".to_string();
+        let erc20_token_name = "wETH".to_string();
+        let erc20_token_symbol = "$eth".to_string();
         let inspector = Box::new(Arc::new(Mutex::new(TokenBridgeInspector::new(
             hyperlane_token_program_id,
-            token_name,
-            token_symbol,
+            native_token_name,
+            native_token_symbol,
+            erc20_token_name,
+            erc20_token_symbol,
         ))));
 
         debug!(
@@ -146,7 +150,7 @@ impl SealevelMailbox {
         })
     }
 
-    // FIXME do we need these accessors?
+    // TODO do we need these accessors?
     pub fn authority(&self) -> (Pubkey, u8) {
         self.authority
     }
@@ -258,7 +262,9 @@ impl Mailbox for SealevelMailbox {
 
     #[instrument(err, ret, skip(self))]
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
-        let _ = recipient; // FIXME what to do with recipient?
+        // FIXME what to do with recipient? Just lookup in a mapping of recipient contract to ISM
+        // that we pass in via config?
+        let _ = recipient;
 
         let inbox_account = self
             .rpc_client
@@ -315,16 +321,15 @@ impl Mailbox for SealevelMailbox {
         // Inject additional accounts required by recipient instruction.
         match self.inspector.inspect(&self.payer.pubkey(), message) {
             Ok(inspection) => {
-                error!("Extending accounts after inner message inspection!"); // FIXME trace or debug
+                trace!("Extending accounts after inner message inspection!");
                 accounts.extend(inspection.accounts)
             },
             Err(InspectionError::IncorrectProgramId) => {
-                // FIXME looks like the recipient wallet is the prog id?!?!?!?!?!?!
-                error!(
+                trace!(
                     "Inspector ignoring irrelevant program id: {}",
                     Pubkey::new_from_array(message.recipient.into())
                 );
-            }, // FIXME trace or debug
+            },
             Err(err) => return Err(ChainCommunicationError::from_other(err)),
         };
 
@@ -333,7 +338,7 @@ impl Mailbox for SealevelMailbox {
             data: ixn_data,
             accounts,
         };
-        error!("accounts={:#?}", inbox_instruction.accounts); // FIXME remove
+        trace!("accounts={:#?}", inbox_instruction.accounts);
         instructions.push(inbox_instruction);
         let (recent_blockhash, _) = self
             .rpc_client
@@ -349,7 +354,7 @@ impl Mailbox for SealevelMailbox {
 
         let signature = self
             .rpc_client
-            // .send_transaction(&txn) // FIXME use this
+            // .send_transaction(&txn) // TODO just use this. Don't need to skip pre-flight.
             .send_transaction_with_config(
                 &txn,
                 RpcSendTransactionConfig {
@@ -358,23 +363,15 @@ impl Mailbox for SealevelMailbox {
                 },
             )
             .await
-            .map_err(|err| {
-                eprintln!("{:#?}", err); // FIXME remove
-                err
-            })
             .map_err(ChainCommunicationError::from_other)?;
-        error!("signature={}", signature); // FIXME remove
+        debug!("signature={}", signature);
         let executed = self
             .rpc_client
-            // FIXME apparetnly this returns Ok(not_executed) if the txn fails?
             .confirm_transaction_with_commitment(&signature, commitment)
             .await
-            .map_err(|err| {
-                eprintln!("{:#?}", err); // FIXME remove
-                err
-            })
             .map_err(|err| warn!("Failed to confirm inbox process transaction: {}", err))
-            .is_ok();
+            .map(|ctx| ctx.value)
+            .unwrap_or(false);
         let txid = signature_to_txn_hash(&signature);
 
         Ok(TxOutcome {
@@ -397,7 +394,7 @@ impl Mailbox for SealevelMailbox {
     }
 
     fn process_calldata(&self, _message: &HyperlaneMessage, _metadata: &[u8]) -> Vec<u8> {
-        todo!() // FIXME
+        todo!()
     }
 }
 
@@ -446,34 +443,6 @@ impl SealevelTxnWithMeta {
             .ok_or_else(|| ChainCommunicationError::from_other(SealevelTxnError::MissingMetadata))?;
         Ok(Some(Self { txn, meta }))
     }
-
-    // FIXME remove?
-    // fn executed_program(&self) -> Pubkey {
-    //     match self.txn {
-    //         SealevelTxn::Binary(txn) => txn
-    //             .message
-    //             .instructions()[0]
-    //             .program_id(txn.message.static_account_keys())
-    //             .clone(),
-    //         SealevelTxn::Json(txn) => {
-    //             let pubkey = match &txn.message {
-    //                 UiMessage::Parsed(msg) => match &msg.instructions[0] {
-    //                     UiInstruction::Compiled(ixn) => {
-    //                         &msg.account_keys[ixn.program_id_index as usize].pubkey
-    //                     },
-    //                     UiInstruction::Parsed(ixn) => match &ixn {
-    //                         UiParsedInstruction::Parsed(ixn) => &ixn.program_id,
-    //                         UiParsedInstruction::PartiallyDecoded(ixn) => &ixn.program_id,
-    //                     }
-    //                 },
-    //                 UiMessage::Raw(msg) => {
-    //                     &msg.account_keys[msg.instructions[0].program_id_index as usize]
-    //                 },
-    //             };
-    //             Pubkey::from_str(pubkey).expect("Invalid public key in instruction")
-    //         }
-    //     }
-    // }
 
     // FIXME what if there is more than one mailbox instruction in a transaction? As written, this
     // parsing logic will only find the first. We should really just transform solana's transaction
@@ -746,7 +715,6 @@ impl SealevelMailboxIndexer {
         }
     }
 
-    // FIXME need to return Iterator<Item=Result<(...), Error>>
     fn extract_hyperlane_messages(
         &self,
         slot: u64,
@@ -756,7 +724,7 @@ impl SealevelMailboxIndexer {
         // This *should* always hold true but not 100% sure so panic if not.
         assert!(slot == block.parent_slot + 1 || (slot == 0 && block.parent_slot == 0));
 
-        let mut messages = Vec::new(); // FIXME use lazy iterator not vec
+        let mut messages = Vec::new(); // TODO use lazy iterator not vec
         for (txn_num, txn) in block.transactions.into_iter().enumerate() {
             let txn_decoded = match SealevelTxnWithMeta::from_encoded(txn) {
                 Ok(Some(txn)) => {
@@ -860,11 +828,13 @@ impl MailboxIndexer for SealevelMailboxIndexer {
         from: u32,
         to: u32,
     ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
+        // TODO
         // Could use this RPC: https://docs.solana.com/developing/clients/jsonrpc-api#getblockswithlimit
         // BUT... that seems like an inefficient way of getting updates from the mailbox. Why not
         // either poll the mailbox account data directly or subscribe to updates? See
         // https://docs.solana.com/developing/clients/jsonrpc-api#getaccountinfo
         // https://docs.solana.com/developing/clients/jsonrpc-api#accountsubscribe
+        // This would require a change to where we output events however so maybe not worth it.
         let limit = (to - from).try_into().unwrap();
         let slots = self
             .rpc_client
@@ -872,8 +842,8 @@ impl MailboxIndexer for SealevelMailboxIndexer {
             .get_blocks_with_limit_and_commitment(from.into(), limit, CommitmentConfig::finalized())
             .await
             .map_err(ChainCommunicationError::from_other)?;
-        // FIXME should probably check that the returned block numbers are contiguous and that we
-        // have all block numbers that we requested.
+        // FIXME need to check that the returned block numbers are contiguous and that we have all
+        // block numbers that we requested.
 
         let mut messages = Vec::with_capacity(limit);
         for slot in slots.into_iter() {
@@ -883,7 +853,6 @@ impl MailboxIndexer for SealevelMailboxIndexer {
                 .get_block(slot)
                 .await
                 .map_err(ChainCommunicationError::from_other)?;
-            // error!("slot={}, block={:#?}", slot, block); // FIXME remove
             messages.extend(self.extract_hyperlane_messages(slot, block));
         }
         Ok(messages)
@@ -895,20 +864,18 @@ impl MailboxIndexer for SealevelMailboxIndexer {
         _from: u32,
         _to: u32,
     ) -> ChainResult<Vec<(H256, LogMeta)>> {
-        // Simliar to above, could use pub sub or read mailbox accounts directly rather than poll.
-
-        todo!() // FIXME
+        // It doesn't look like this is used by relayer/validator.
+        todo!()
     }
 }
 
 struct SealevelMailboxAbi;
 
-// FIXME figure out how this is used and if we can support it for sealevel
+// TODO figure out how this is used and if we can support it for sealevel.
 impl HyperlaneAbi for SealevelMailboxAbi {
     const SELECTOR_SIZE_BYTES: usize = 8;
 
     fn fn_map() -> HashMap<Vec<u8>, &'static str> {
-        // Can't support this without Fuels exporting it in the generated code
         todo!()
     }
 }

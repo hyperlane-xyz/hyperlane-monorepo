@@ -32,12 +32,16 @@ use spl_token_2022::{
 };
 
 use crate::{
-    accounts::{HyperlaneErc20, HyperlaneErc20Account},
+    accounts::{
+        HyperlaneErc20,
+        HyperlaneErc20Account,
+        HyperlaneToken,
+        HyperlaneTokenAccount,
+    },
     error::Error,
     instruction::{
         Event, EventReceivedTransferRemote, EventSentTransferRemote,
-        Init, Instruction as TokenIxn, TokenMessage, TransferFromRemote, TransferFromSender,
-        TransferRemote, TransferTo,
+        InitErc20, Init, Instruction as TokenIxn, TokenMessage, TransferFromRemote, TransferRemote,
     },
 };
 
@@ -101,7 +105,49 @@ macro_rules! hyperlane_token_mint_pda_seeds {
     }};
 }
 
-pub const DECIMALS: u8 = 0; // FIXME this should be an input?
+// FIXME doesn't need to be a macro if static?
+#[macro_export]
+macro_rules! hyperlane_token_pda_seeds {
+    () => {{
+        &[
+            b"hyperlane_token",
+            b"-",
+            b"storage",
+        ]
+    }};
+
+    ($bump_seed:expr) => {{
+        &[
+            b"hyperlane_token",
+            b"-",
+            b"storage",
+            &[$bump_seed],
+        ]
+    }};
+}
+
+// FIXME doesn't need to be a macro if static?
+#[macro_export]
+macro_rules! hyperlane_token_native_collateral_pda_seeds {
+    () => {{
+        &[
+            b"hyperlane_token",
+            b"-",
+            b"native_token_collateral",
+        ]
+    }};
+
+    ($bump_seed:expr) => {{
+        &[
+            b"hyperlane_token",
+            b"-",
+            b"native_token_collateral",
+            &[$bump_seed],
+        ]
+    }};
+}
+
+pub const DECIMALS: u8 = 0; // FIXME this should be an input
 const MINT_ACCOUNT_SIZE: usize = spl_token_2022::state::Mint::LEN;
 
 pub fn process_instruction(
@@ -127,11 +173,9 @@ pub fn process_instruction(
         ),
         MailboxRecipientInstruction::Custom(token_ixn) => match token_ixn {
             TokenIxn::Init(init) => initialize(program_id, accounts, init),
+            TokenIxn::InitErc20(init) => initialize_erc20(program_id, accounts, init),
             TokenIxn::TransferRemote(xfer) => transfer_remote(program_id, accounts, xfer),
             TokenIxn::TransferFromRemote(xfer) => transfer_from_remote(program_id, accounts, xfer),
-
-            TokenIxn::TransferFromSender(xfer) => transfer_from_sender(program_id, accounts, xfer),
-            TokenIxn::TransferTo(xfer) => transfer_to(program_id, accounts, xfer),
         },
     }
     .map_err(|err| {
@@ -150,11 +194,102 @@ fn token_symbol_is_valid(symbol: &str) -> bool {
 
 // Accounts:
 // 1. system_program
+// 2. token storage
+// 3. native_collateral wallet
+// 4. payer
+fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramResult {
+    // On chain create appears to use realloc which is limited to 1024 byte increments.
+    let token_account_size = 2048;
+
+    if !token_name_is_valid(&init.name) {
+        return Err(ProgramError::InvalidArgument);
+    }
+    if !token_symbol_is_valid(&init.symbol) {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    let accounts_iter = &mut accounts.iter();
+
+    let system_program = next_account_info(accounts_iter)?;
+    if system_program.key != &solana_program::system_program::id() {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    let (token_key, token_bump) = Pubkey::find_program_address(
+        hyperlane_token_pda_seeds!(),
+        program_id,
+    );
+    let token_account = next_account_info(accounts_iter)?;
+    if &token_key != token_account.key {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    let (native_collateral_key, native_collateral_bump) = Pubkey::find_program_address(
+        hyperlane_token_native_collateral_pda_seeds!(),
+        program_id,
+    );
+    let native_collateral_account = next_account_info(accounts_iter)?;
+    if &native_collateral_key != native_collateral_account.key {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    let payer_account = next_account_info(accounts_iter)?;
+
+    if accounts_iter.next().is_some() {
+        return Err(ProgramError::from(Error::ExtraneousAccount));
+    }
+
+    // Create token prog info storage account.
+    invoke_signed(
+        &system_instruction::create_account(
+            payer_account.key,
+            token_account.key,
+            Rent::default().minimum_balance(token_account_size),
+            token_account_size.try_into().unwrap(),
+            program_id,
+        ),
+        &[payer_account.clone(), token_account.clone()],
+        &[hyperlane_token_pda_seeds!(token_bump)],
+    )?;
+
+    // Create native collateral wallet.
+    invoke_signed(
+        &system_instruction::create_account(
+            payer_account.key,
+            native_collateral_account.key,
+            Rent::default().minimum_balance(0),
+            0,
+            program_id,
+        ),
+        &[payer_account.clone(), native_collateral_account.clone()],
+        &[hyperlane_token_native_collateral_pda_seeds!(native_collateral_bump)],
+    )?;
+
+    let token = HyperlaneToken {
+        mailbox: init.mailbox,
+        mailbox_local_domain: init.mailbox_local_domain,
+        bump: token_bump,
+        native_collateral_bump,
+        native_name: init.name,
+        native_symbol: init.symbol,
+    };
+    HyperlaneTokenAccount::from(token).store(token_account, true)?;
+
+    Ok(())
+}
+
+// Accounts:
+// 1. system_program
 // 2. spl_token_2022
 // 3. payer
-// 4. hyperlane_token_erc20
-// 5. hyperlane_token_mint
-fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramResult {
+// 4. hyperlane_token storage
+// 5. hyperlane_token_erc20
+// 6. hyperlane_token_mint
+fn initialize_erc20(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    init: InitErc20
+) -> ProgramResult {
     // On chain create appears to use realloc which is limited to 1024 byte increments.
     let erc20_account_size = 2048;
 
@@ -181,6 +316,18 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
     }
     let payer_account = next_account_info(accounts_iter)?;
 
+    let token_account = next_account_info(accounts_iter)?;
+    let token = HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow_mut()[..])?
+        .into_inner();
+    let token_seeds: &[&[u8]] = hyperlane_token_pda_seeds!(token.bump);
+    let expected_token_key = Pubkey::create_program_address(token_seeds, program_id)?;
+    if token_account.key != &expected_token_key {
+        return Err(ProgramError::InvalidArgument);
+    }
+    if token_account.owner != program_id {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
     let erc20_account = next_account_info(accounts_iter)?;
     let (erc20_key, erc20_bump) = Pubkey::find_program_address(
         hyperlane_token_erc20_pda_seeds!(init.name, init.symbol),
@@ -202,11 +349,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
         return Err(ProgramError::from(Error::ExtraneousAccount));
     }
 
-    let (mailbox_outbox, _mailbox_outbox_bump) = Pubkey::find_program_address(
-        mailbox_outbox_pda_seeds!(init.mailbox_local_domain),
-        &init.mailbox,
-    );
-    if init.mailbox_outbox != mailbox_outbox {
+    if init.name == token.native_name || init.symbol == token.native_symbol {
         return Err(ProgramError::InvalidArgument);
     }
 
@@ -252,50 +395,42 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
         &[hyperlane_token_erc20_pda_seeds!(init.name, init.symbol, mint_bump)],
     )?;
 
-    let erc20 = HyperlaneErc20 {
+    let erc20 = Box::new(HyperlaneErc20 {
         erc20_bump,
         mint_bump,
-        mailbox: init.mailbox,
-        mailbox_outbox: init.mailbox_outbox,
-        mailbox_local_domain: init.mailbox_local_domain,
-        interchain_gas_paymaster: init.interchain_gas_paymaster,
         total_supply,
         name: init.name,
         symbol: init.symbol,
-    };
-    // FIXME what if we fail to store here after the CPI...?
+    });
     HyperlaneErc20Account::from(erc20).store(erc20_account, true)?;
 
     Ok(())
-/*
-    // transfers ownership to `msg.sender`
-    __HyperlaneConnectionClient_initialize(
-        _mailbox,
-        _interchainGasPaymaster
-    );
-
-    // Initialize ERC20 metadata
-    __ERC20_init(_name, _symbol);
-    _mint(msg.sender, _totalSupply);
-*/
 }
 
-// FIXME this is mostly copypasta from transfer_from_sender
 // Accounts:
 // 1. spl_noop
-// 2. spl_token_2022
-// 3. hyperlane_token_erc20
-// 4. hyperlane_token_mint
-// FIXME should we use a delegate / does it even matter if it is one?
+// 2. hyperlane_token storage
+// 3. mailbox program
+// 4. mailbox outbox
 // 5. sender wallet
-// 6. sender associated token account
-// 7. mailbox program
-// 8. mailbox outbox
+// For wrapped tokens:
+//     6. spl_token_2022
+//     7. hyperlane_token_erc20
+//     8. hyperlane_token_mint
+//     9. sender associated token account TODO should we use a delegate / does it even matter if it is one?
+// For native token:
+//     7. system_instruction
+//     8. native_token_collateral
 fn transfer_remote(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     xfer: TransferRemote
 ) -> ProgramResult {
+    let amount: u64 = xfer
+        .amount_or_id
+        .try_into()
+        .map_err(|_| Error::TODO)?;
+
     let accounts_iter = &mut accounts.iter();
 
     let spl_noop = next_account_info(accounts_iter)?;
@@ -303,128 +438,160 @@ fn transfer_remote(
         return Err(ProgramError::InvalidArgument);
     }
 
-    let spl_token_2022 = next_account_info(accounts_iter)?;
-    if spl_token_2022.key != &spl_token_2022::id() || !spl_token_2022.executable {
-        return Err(ProgramError::InvalidArgument);
-    }
-
-    let erc20_account = next_account_info(accounts_iter)?;
-    let erc20 = HyperlaneErc20Account::fetch(&mut &erc20_account.data.borrow_mut()[..])?
+    let token_account = next_account_info(accounts_iter)?;
+    let token = HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow_mut()[..])?
         .into_inner();
-    let erc20_seeds: &[&[u8]] = hyperlane_token_erc20_pda_seeds!(
-        erc20.name,
-        erc20.symbol,
-        erc20.erc20_bump
-    );
-    let expected_erc20_key = Pubkey::create_program_address(erc20_seeds, program_id)?;
-    if erc20_account.key != &expected_erc20_key {
+    let token_seeds: &[&[u8]] = hyperlane_token_pda_seeds!(token.bump);
+    let expected_token_key = Pubkey::create_program_address(token_seeds, program_id)?;
+    if token_account.key != &expected_token_key {
         return Err(ProgramError::InvalidArgument);
     }
-    if erc20_account.owner != program_id {
+    if token_account.owner != program_id {
         return Err(ProgramError::IncorrectProgramId);
-    }
-
-    let mint_account = next_account_info(accounts_iter)?;
-    let mint_seeds: &[&[u8]] = hyperlane_token_mint_pda_seeds!(
-        erc20.name,
-        erc20.symbol,
-        erc20.mint_bump
-    );
-    let expected_mint_key = Pubkey::create_program_address(mint_seeds, program_id)?;
-    if mint_account.key != &expected_mint_key {
-        return Err(ProgramError::InvalidArgument);
-    }
-    if mint_account.owner != &spl_token_2022::id() {
-        return Err(ProgramError::IncorrectProgramId);
-    }
-
-    let sender_wallet = next_account_info(accounts_iter)?;
-    let sender_ata = next_account_info(accounts_iter)?;
-    let expected_sender_associated_token_account = get_associated_token_address_with_program_id(
-        sender_wallet.key,
-        mint_account.key,
-        &spl_token_2022::id(),
-    );
-    if sender_ata.key != &expected_sender_associated_token_account {
-        return Err(ProgramError::InvalidArgument);
     }
 
     let mailbox_info = next_account_info(accounts_iter)?;
-    if mailbox_info.key != &erc20.mailbox {
+    if mailbox_info.key != &token.mailbox {
         return Err(ProgramError::IncorrectProgramId);
     }
-    let mailbox_outbox = next_account_info(accounts_iter)?;
-    if mailbox_outbox.key != &erc20.mailbox_outbox {
-        return Err(ProgramError::IncorrectProgramId);
+    // TODO supposed to use create_program_address() but we would need to pass in bump seed...
+    let mailbox_outbox_account = next_account_info(accounts_iter)?;
+    let (mailbox_outbox, _mailbox_outbox_bump) = Pubkey::find_program_address(
+        mailbox_outbox_pda_seeds!(token.mailbox_local_domain),
+        &token.mailbox,
+    );
+    if mailbox_outbox_account.key != &mailbox_outbox {
+        return Err(ProgramError::InvalidArgument);
     }
 
-    if accounts_iter.next().is_some() {
-        return Err(ProgramError::from(Error::ExtraneousAccount));
+    let sender_wallet = next_account_info(accounts_iter)?;
+
+    let next_account = next_account_info(accounts_iter)?;
+    let xfer_is_native = next_account.key == &solana_program::system_program::id();
+
+    if xfer_is_native {
+        let system_program = next_account;
+        if system_program.key != &solana_program::system_program::id() {
+            return Err(ProgramError::InvalidArgument);
+        }
+
+        let native_collateral_seeds: &[&[u8]] =
+            hyperlane_token_native_collateral_pda_seeds!(token.native_collateral_bump);
+        let expected_native_collateral_key = Pubkey::create_program_address(
+            native_collateral_seeds,
+            program_id
+        )?;
+        let native_collateral_account = next_account_info(accounts_iter)?;
+        if native_collateral_account.key != &expected_native_collateral_key {
+            return Err(ProgramError::InvalidArgument);
+        }
+        if native_collateral_account.owner != program_id {
+            return Err(ProgramError::IncorrectProgramId);
+        }
+
+        if accounts_iter.next().is_some() {
+            return Err(ProgramError::from(Error::ExtraneousAccount));
+        }
+
+        // Hold native tokens that are now "off chain" in custody account.
+        invoke_signed(
+            &system_instruction::transfer(
+                sender_wallet.key,
+                native_collateral_account.key,
+                amount,
+            ),
+            &[sender_wallet.clone(), native_collateral_account.clone()],
+            &[],
+        )?;
+    } else {
+        let spl_token_2022 = next_account;
+        if spl_token_2022.key != &spl_token_2022::id() || !spl_token_2022.executable {
+            return Err(ProgramError::InvalidArgument);
+        }
+
+        let erc20_account = next_account_info(accounts_iter)?;
+        let erc20 = HyperlaneErc20Account::fetch(&mut &erc20_account.data.borrow_mut()[..])?
+            .into_inner();
+        let erc20_seeds: &[&[u8]] = hyperlane_token_erc20_pda_seeds!(
+            erc20.name,
+            erc20.symbol,
+            erc20.erc20_bump
+        );
+        let expected_erc20_key = Pubkey::create_program_address(erc20_seeds, program_id)?;
+        if erc20_account.key != &expected_erc20_key {
+            return Err(ProgramError::InvalidArgument);
+        }
+        if erc20_account.owner != program_id {
+            return Err(ProgramError::IncorrectProgramId);
+        }
+
+        let mint_account = next_account_info(accounts_iter)?;
+        let mint_seeds: &[&[u8]] = hyperlane_token_mint_pda_seeds!(
+            erc20.name,
+            erc20.symbol,
+            erc20.mint_bump
+        );
+        let expected_mint_key = Pubkey::create_program_address(mint_seeds, program_id)?;
+        if mint_account.key != &expected_mint_key {
+            return Err(ProgramError::InvalidArgument);
+        }
+        if mint_account.owner != &spl_token_2022::id() {
+            return Err(ProgramError::IncorrectProgramId);
+        }
+
+        let sender_ata = next_account_info(accounts_iter)?;
+        let expected_sender_associated_token_account = get_associated_token_address_with_program_id(
+            sender_wallet.key,
+            mint_account.key,
+            &spl_token_2022::id(),
+        );
+        if sender_ata.key != &expected_sender_associated_token_account {
+            return Err(ProgramError::InvalidArgument);
+        }
+
+        if accounts_iter.next().is_some() {
+            return Err(ProgramError::from(Error::ExtraneousAccount));
+        }
+
+        let burn_ixn = burn_checked(
+            &spl_token_2022::id(),
+            sender_ata.key,
+            mint_account.key,
+            sender_wallet.key,
+            &[sender_wallet.key],
+            amount,
+            DECIMALS,
+        )?;
+        invoke_signed(
+            &burn_ixn,
+            &[sender_ata.clone(), mint_account.clone(), sender_wallet.clone()],
+            &[mint_seeds],
+        )?;
     }
-
-    let amount: u64 = xfer
-        .amount_or_id
-        .try_into()
-        .map_err(|_| Error::TODO)?;
-
-    // Burns tokens by removing them from an account.  `BurnChecked` does not
-    // support accounts associated with the native mint, use `CloseAccount`
-    // instead.
-    //
-    // This instruction differs from Burn in that the decimals value is checked
-    // by the caller. This may be useful when creating transactions offline or
-    // within a hardware wallet.
-    //
-    // Accounts expected by this instruction:
-    //
-    //   * Single owner/delegate
-    //   0. `[writable]` The account to burn from.
-    //   1. `[writable]` The token mint.
-    //   2. `[signer]` The account's owner/delegate.
-    //
-    //   * Multisignature owner/delegate
-    //   0. `[writable]` The account to burn from.
-    //   1. `[writable]` The token mint.
-    //   2. `[]` The account's multisignature owner/delegate.
-    //   3. ..3+M `[signer]` M signer accounts.
-    let burn_ixn = burn_checked(
-        &spl_token_2022::id(),
-        sender_ata.key,
-        mint_account.key,
-        sender_wallet.key,
-        &[sender_wallet.key],
-        amount,
-        DECIMALS,
-    )?;
-    invoke_signed(
-        &burn_ixn,
-        &[sender_ata.clone(), mint_account.clone(), sender_wallet.clone()],
-        &[mint_seeds],
-    )?;
 
     let token_xfer_message = TokenMessage::new_erc20(xfer.recipient, xfer.amount_or_id, vec![])
         .to_vec();
     let mailbox_ixn = MailboxIxn::OutboxDispatch(MailboxOutboxDispatch {
         sender: *sender_wallet.key,
-        local_domain: erc20.mailbox_local_domain,
+        local_domain: token.mailbox_local_domain,
         destination_domain: xfer.destination_domain,
         recipient: xfer.destination_program_id,
         message_body: token_xfer_message,
     });
     let mailbox_ixn = Instruction {
-        program_id: erc20.mailbox,
+        program_id: token.mailbox,
         data: mailbox_ixn.into_instruction_data().unwrap(),
         accounts: vec![
-            AccountMeta::new(*mailbox_outbox.key, false),
+            AccountMeta::new(*mailbox_outbox_account.key, false),
             AccountMeta::new_readonly(*sender_wallet.key, true),
             AccountMeta::new_readonly(spl_noop::id(), false),
         ],
     };
-    // FIXME implement interchain gas payment via paymaster? dispatch_with_gas()?
+    // TODO implement interchain gas payment via paymaster? dispatch_with_gas()?
     invoke_signed(
         &mailbox_ixn,
-        &[mailbox_outbox.clone(), sender_wallet.clone(), spl_noop.clone()],
-        &[erc20_seeds]
+        &[mailbox_outbox_account.clone(), sender_wallet.clone(), spl_noop.clone()],
+        &[token_seeds]
     )?;
 
     let event = Event::new(EventSentTransferRemote {
@@ -440,66 +607,46 @@ fn transfer_remote(
         accounts: vec![],
         data: event_data,
     };
-    msg!("noop cpi data = {}", event.to_noop_cpi_ixn_data_base58_encoded().unwrap()); // FIXME remove
-    invoke_signed(&noop_cpi_log, &[], &[erc20_seeds])?;
+    invoke_signed(&noop_cpi_log, &[], &[token_seeds])?;
 
     Ok(())
-
-/*
-/// @dev Emitted on `transferRemote` when a transfer message is dispatched.
-/// @param destination The identifier of the destination chain.
-/// @param recipient The address of the recipient on the destination chain.
-/// @param amount The amount of tokens burnt on the origin chain.
-event SentTransferRemote(
-    uint32 indexed destination,
-    bytes32 indexed recipient,
-    uint256 amount
-);
-
-/// @notice Transfers `_amountOrId` token to `_recipient` on `_destination` domain.
-/// @dev Delegates transfer logic to `_transferFromSender` implementation.
-/// @dev Emits `SentTransferRemote` event on the origin chain.
-/// @param _destination The identifier of the destination chain.
-/// @param _recipient The address of the recipient on the destination chain.
-/// @param _amountOrId The amount or identifier of tokens to be sent to the remote recipient.
-/// @return messageId The identifier of the dispatched message.
-function transferRemote(
-    uint32 _destination,
-    bytes32 _recipient,
-    uint256 _amountOrId
-) public payable virtual returns (bytes32 messageId) {
-    bytes memory metadata = _transferFromSender(_amountOrId);
-    messageId = _dispatchWithGas(
-        _destination,
-        Message.format(_recipient, _amountOrId, metadata),
-        msg.value, // interchain gas payment
-        msg.sender // refund address
-    );
-    emit SentTransferRemote(_destination, _recipient, _amountOrId);
-}
-*/
 }
 
-// FIXME this is mostly copypasta from transfer_to
-// FIXME assert mailbox is signer?
 // Accounts:
-// 1. system_program
-// 2. spl_noop
-// 3. spl_token_2022
-// 4. spl_associated_token_account
-// 5. payer
-// 6. hyperlane_token_erc20
-// 7. hyperlane_token_mint
-// 8. recipient wallet address
-// 9. recipient associated token account
+// 1. mailbox_authority
+// 2. system_program
+// 3. spl_noop
+// 4. hyperlane_token storage
+// 5. recipient wallet address
+// 6. payer
+// For wrapped tokens:
+//     7. spl_token_2022
+//     8. spl_associated_token_account
+//     9. hyperlane_token_erc20
+//     10. hyperlane_token_mint
+//     11. recipient associated token account
+// For native token:
+//     7. native_token_collateral wallet
 fn transfer_from_remote(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     xfer: TransferFromRemote
 ) -> ProgramResult {
+    let mut message_reader = std::io::Cursor::new(xfer.message);
+    let message = TokenMessage::read_from(&mut message_reader)
+        .map_err(|_err| ProgramError::from(Error::TODO))?;
+    // FIXME we must account for decimals of the mint not only the raw amount value during
+    // transfer. Wormhole accounts for this with some extra care taken to round/truncate properly -
+    // we should do the same.
+    let amount = message
+        .amount()
+        .try_into()
+        .map_err(|_| Error::TODO)?;
+    // FIXME validate message fields?
+
     let accounts_iter = &mut accounts.iter();
 
-    // FIXME make sure to validate this
+    // FIXME validate mailbox auth pda and require that it's a signer
     let _mailbox_auth = next_account_info(accounts_iter)?;
 
     let system_program = next_account_info(accounts_iter)?;
@@ -510,129 +657,161 @@ fn transfer_from_remote(
     if spl_noop.key != &spl_noop::id() || !spl_noop.executable {
         return Err(ProgramError::InvalidArgument);
     }
-    let spl_token_2022 = next_account_info(accounts_iter)?;
-    if spl_token_2022.key != &spl_token_2022::id() || !spl_token_2022.executable {
-        return Err(ProgramError::InvalidArgument);
-    }
-    let spl_ata = next_account_info(accounts_iter)?;
-    if spl_ata.key != &spl_associated_token_account::id() || !spl_ata.executable {
-        return Err(ProgramError::InvalidArgument);
-    }
-    let payer_account = next_account_info(accounts_iter)?;
 
-    let erc20_account = next_account_info(accounts_iter)?;
-    let erc20 = HyperlaneErc20Account::fetch(&mut &erc20_account.data.borrow_mut()[..])?
+    let token_account = next_account_info(accounts_iter)?;
+    let token = HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow_mut()[..])?
         .into_inner();
-    let erc20_seeds: &[&[u8]] = hyperlane_token_erc20_pda_seeds!(
-        erc20.name,
-        erc20.symbol,
-        erc20.erc20_bump
-    );
-    let expected_erc20_key = Pubkey::create_program_address(erc20_seeds, program_id)?;
-    if erc20_account.key != &expected_erc20_key {
+    let token_seeds: &[&[u8]] = hyperlane_token_pda_seeds!(token.bump);
+    let expected_token_key = Pubkey::create_program_address(token_seeds, program_id)?;
+    if token_account.key != &expected_token_key {
         return Err(ProgramError::InvalidArgument);
     }
-    if erc20_account.owner != program_id {
+    if token_account.owner != program_id {
         return Err(ProgramError::IncorrectProgramId);
     }
-
-    let mint_account = next_account_info(accounts_iter)?;
-    let mint_seeds: &[&[u8]] = hyperlane_token_mint_pda_seeds!(
-        erc20.name,
-        erc20.symbol,
-        erc20.mint_bump
-    );
-    let expected_mint_key = Pubkey::create_program_address(mint_seeds, program_id)?;
-    if mint_account.key != &expected_mint_key {
-        return Err(ProgramError::InvalidArgument);
-    }
-    if mint_account.owner != &spl_token_2022::id() {
-        return Err(ProgramError::IncorrectProgramId);
-    }
-    let mint = Mint::unpack_from_slice(&mint_account.data.borrow())?;
 
     let recipient_wallet = next_account_info(accounts_iter)?;
-    let recipient_ata = next_account_info(accounts_iter)?;
-    let expected_recipient_associated_token_account = get_associated_token_address_with_program_id(
-        recipient_wallet.key,
-        mint_account.key,
-        &spl_token_2022::id(),
-    );
-    if recipient_ata.key != &expected_recipient_associated_token_account {
-        return Err(ProgramError::InvalidArgument);
-    }
-    if accounts_iter.next().is_some() {
-        return Err(ProgramError::from(Error::ExtraneousAccount));
-    }
+    let payer_account = next_account_info(accounts_iter)?;
 
-    let mut message_reader = std::io::Cursor::new(xfer.message);
-    let message = TokenMessage::read_from(&mut message_reader)
-        .map_err(|_err| ProgramError::from(Error::TODO))?;
-    // FIXME validate message fields
+    let native_collateral_seeds: &[&[u8]] =
+        hyperlane_token_native_collateral_pda_seeds!(token.native_collateral_bump);
+    let expected_native_collateral_key = Pubkey::create_program_address(
+        native_collateral_seeds,
+        program_id
+    )?;
 
-    // Create and init (this does both) associated token account if necessary.
-    invoke_signed(
-        &create_associated_token_account_idempotent(
-            payer_account.key,
+    let next_account = next_account_info(accounts_iter)?;
+    let xfer_is_native = next_account.key == &expected_native_collateral_key;
+
+    if xfer_is_native {
+        let native_collateral_account = next_account;
+        if native_collateral_account.owner != program_id {
+            return Err(ProgramError::IncorrectProgramId);
+        }
+
+        if accounts_iter.next().is_some() {
+            return Err(ProgramError::from(Error::ExtraneousAccount));
+        }
+
+        // Note: the system program does not own the collateral PDA and thus cannot transfer
+        // tokens. We must do it manually.
+        **native_collateral_account.try_borrow_mut_lamports()? -= amount;
+        **recipient_wallet.try_borrow_mut_lamports()? += amount;
+    } else {
+        let spl_token_2022 = next_account;
+        if spl_token_2022.key != &spl_token_2022::id() || !spl_token_2022.executable {
+            return Err(ProgramError::InvalidArgument);
+        }
+        let spl_ata = next_account_info(accounts_iter)?;
+        if spl_ata.key != &spl_associated_token_account::id() || !spl_ata.executable {
+            return Err(ProgramError::InvalidArgument);
+        }
+
+        let erc20_account = next_account_info(accounts_iter)?;
+        let erc20 = HyperlaneErc20Account::fetch(&mut &erc20_account.data.borrow_mut()[..])?
+            .into_inner();
+        let erc20_seeds: &[&[u8]] = hyperlane_token_erc20_pda_seeds!(
+            erc20.name,
+            erc20.symbol,
+            erc20.erc20_bump
+        );
+        let expected_erc20_key = Pubkey::create_program_address(erc20_seeds, program_id)?;
+        if erc20_account.key != &expected_erc20_key {
+            return Err(ProgramError::InvalidArgument);
+        }
+        if erc20_account.owner != program_id {
+            return Err(ProgramError::IncorrectProgramId);
+        }
+
+        let mint_account = next_account_info(accounts_iter)?;
+        let mint_seeds: &[&[u8]] = hyperlane_token_mint_pda_seeds!(
+            erc20.name,
+            erc20.symbol,
+            erc20.mint_bump
+        );
+        let expected_mint_key = Pubkey::create_program_address(mint_seeds, program_id)?;
+        if mint_account.key != &expected_mint_key {
+            return Err(ProgramError::InvalidArgument);
+        }
+        if mint_account.owner != &spl_token_2022::id() {
+            return Err(ProgramError::IncorrectProgramId);
+        }
+        let mint = Mint::unpack_from_slice(&mint_account.data.borrow())?;
+
+        let recipient_ata = next_account_info(accounts_iter)?;
+        let expected_recipient_associated_token_account = get_associated_token_address_with_program_id(
             recipient_wallet.key,
             mint_account.key,
             &spl_token_2022::id(),
-        ),
-        &[
-            payer_account.clone(),
-            recipient_ata.clone(),
-            recipient_wallet.clone(),
-            mint_account.clone(),
-            system_program.clone(),
-            spl_token_2022.clone(),
-        ],
-        &[mint_seeds],
-    )?;
+        );
+        if recipient_ata.key != &expected_recipient_associated_token_account {
+            return Err(ProgramError::InvalidArgument);
+        }
+        if accounts_iter.next().is_some() {
+            return Err(ProgramError::from(Error::ExtraneousAccount));
+        }
 
-    let amount = message
-        .amount()
-        .try_into()
-        .map_err(|_| Error::TODO)?;
-    let total = mint.supply
-        .checked_add(amount)
-        .ok_or_else(|| ProgramError::from(Error::TODO))?;
-    if total > erc20.total_supply {
-        return Err(Error::TODO.into());
+        // Create and init (this does both) associated token account if necessary.
+        invoke_signed(
+            &create_associated_token_account_idempotent(
+                payer_account.key,
+                recipient_wallet.key,
+                mint_account.key,
+                &spl_token_2022::id(),
+            ),
+            &[
+                payer_account.clone(),
+                recipient_ata.clone(),
+                recipient_wallet.clone(),
+                mint_account.clone(),
+                system_program.clone(),
+                spl_token_2022.clone(),
+            ],
+            &[mint_seeds],
+        )?;
+
+        let total = mint.supply
+            .checked_add(amount)
+            .ok_or_else(|| ProgramError::from(Error::TODO))?;
+        if total > erc20.total_supply {
+            return Err(Error::TODO.into());
+        }
+
+        // Mints new tokens to an account.  The native mint does not support
+        // minting.
+        //
+        // Accounts expected by this instruction:
+        //
+        //   * Single authority
+        //   0. `[writable]` The mint.
+        //   1. `[writable]` The account to mint tokens to.
+        //   2. `[signer]` The mint's minting authority.
+        //
+        //   * Multisignature authority
+        //   0. `[writable]` The mint.
+        //   1. `[writable]` The account to mint tokens to.
+        //   2. `[]` The mint's multisignature mint-tokens authority.
+        //   3. ..3+M `[signer]` M signer accounts.
+        let mint_ixn = mint_to_checked(
+            &spl_token_2022::id(),
+            mint_account.key,
+            recipient_ata.key,
+            mint_account.key,
+            &[],
+            amount,
+            DECIMALS,
+        )?;
+        invoke_signed(
+            &mint_ixn,
+            &[mint_account.clone(), recipient_ata.clone(), mint_account.clone()],
+            &[hyperlane_token_mint_pda_seeds!(erc20.name, erc20.symbol, erc20.mint_bump)],
+        )?;
     }
-
-    // Mints new tokens to an account.  The native mint does not support
-    // minting.
-    //
-    // Accounts expected by this instruction:
-    //
-    //   * Single authority
-    //   0. `[writable]` The mint.
-    //   1. `[writable]` The account to mint tokens to.
-    //   2. `[signer]` The mint's minting authority.
-    //
-    //   * Multisignature authority
-    //   0. `[writable]` The mint.
-    //   1. `[writable]` The account to mint tokens to.
-    //   2. `[]` The mint's multisignature mint-tokens authority.
-    //   3. ..3+M `[signer]` M signer accounts.
-    let mint_ixn = mint_to_checked(
-        &spl_token_2022::id(),
-        mint_account.key,
-        recipient_ata.key,
-        mint_account.key,
-        &[],
-        amount,
-        DECIMALS,
-    )?;
-    invoke_signed(
-        &mint_ixn,
-        &[mint_account.clone(), recipient_ata.clone(), mint_account.clone()],
-        &[hyperlane_token_mint_pda_seeds!(erc20.name, erc20.symbol, erc20.mint_bump)],
-    )?;
 
     let event = Event::new(EventReceivedTransferRemote {
         origin: xfer.origin,
-        recipient: H256::from(recipient_ata.key.to_bytes()),
+        // Note: assuming recipient not recipient ata is the correct "recipient" to log.
+        recipient: H256::from(recipient_wallet.key.to_bytes()),
         amount: message.amount(),
     });
     let event_data = event
@@ -643,293 +822,7 @@ fn transfer_from_remote(
         accounts: vec![],
         data: event_data,
     };
-    msg!("noop cpi data = {}", event.to_noop_cpi_ixn_data_base58_encoded().unwrap()); // FIXME remove
-    invoke_signed(&noop_cpi_log, &[], &[erc20_seeds])?;
+    invoke_signed(&noop_cpi_log, &[], &[token_seeds])?;
 
     Ok(())
-
-/*
-/// @dev Emitted on `_handle` when a transfer message is processed.
-/// @param origin The identifier of the origin chain.
-/// @param recipient The address of the recipient on the destination chain.
-/// @param amount The amount of tokens minted on the destination chain.
-event ReceivedTransferRemote(
-    uint32 indexed origin,
-    bytes32 indexed recipient,
-    uint256 amount
-);
-
-/// @dev Should transfer `_amountOrId` of tokens from `msg.sender` to this token router.
-/// @dev Called by `transferRemote` before message dispatch.
-/// @dev Optionally returns `metadata` associated with the transfer to be passed in message.
-function _transferFromSender(uint256 _amountOrId)
-    internal
-    virtual
-    returns (bytes memory metadata);
-
-/// @dev Mints tokens to recipient when router receives transfer message.
-/// @dev Emits `ReceivedTransferRemote` event on the destination chain.
-/// @param _origin The identifier of the origin chain.
-/// @param _message The encoded remote transfer message containing the recipient address and amount.
-function _handle(
-    uint32 _origin,
-    bytes32,
-    bytes calldata _message
-) internal override {
-    bytes32 recipient = _message.recipient();
-    uint256 amount = _message.amount();
-    bytes calldata metadata = _message.metadata();
-    _transferTo(recipient.bytes32ToAddress(), amount, metadata);
-    emit ReceivedTransferRemote(_origin, recipient, amount);
-}
-*/
-}
-
-// Accounts:
-// 1. spl_token_2022
-// 2. hyperlane_token_erc20
-// 3. hyperlane_token_mint
-// FIXME should we use a delegate / does it even matter if it is one?
-// 4. sender wallet
-// 5. sender associated token account
-fn transfer_from_sender(
-    program_id: &Pubkey,
-    accounts: &[AccountInfo],
-    xfer: TransferFromSender,
-) -> ProgramResult {
-    let accounts_iter = &mut accounts.iter();
-
-    let spl_token_2022 = next_account_info(accounts_iter)?;
-    if spl_token_2022.key != &spl_token_2022::id() || !spl_token_2022.executable {
-        return Err(ProgramError::InvalidArgument);
-    }
-
-    let erc20_account = next_account_info(accounts_iter)?;
-    let erc20 = HyperlaneErc20Account::fetch(&mut &erc20_account.data.borrow_mut()[..])?
-        .into_inner();
-    let expected_erc20_key = Pubkey::create_program_address(
-        hyperlane_token_erc20_pda_seeds!(erc20.name, erc20.symbol, erc20.erc20_bump),
-        program_id,
-    )?;
-    if erc20_account.key != &expected_erc20_key {
-        return Err(ProgramError::InvalidArgument);
-    }
-    if erc20_account.owner != program_id {
-        return Err(ProgramError::IncorrectProgramId);
-    }
-
-    let mint_account = next_account_info(accounts_iter)?;
-    let expected_mint_key = Pubkey::create_program_address(
-        hyperlane_token_mint_pda_seeds!(erc20.name, erc20.symbol, erc20.mint_bump),
-        program_id,
-    )?;
-    if mint_account.key != &expected_mint_key {
-        return Err(ProgramError::InvalidArgument);
-    }
-    if mint_account.owner != &spl_token_2022::id() {
-        return Err(ProgramError::IncorrectProgramId);
-    }
-
-    let sender_wallet = next_account_info(accounts_iter)?;
-    let sender_ata = next_account_info(accounts_iter)?;
-    let expected_sender_associated_token_account = get_associated_token_address_with_program_id(
-        sender_wallet.key,
-        mint_account.key,
-        &spl_token_2022::id(),
-    );
-    if sender_ata.key != &expected_sender_associated_token_account {
-        return Err(ProgramError::InvalidArgument);
-    }
-
-    if accounts_iter.next().is_some() {
-        return Err(ProgramError::from(Error::ExtraneousAccount));
-    }
-
-    let amount: u64 = xfer
-        .amount
-        .try_into()
-        .map_err(|_| Error::TODO)?;
-
-    // Burns tokens by removing them from an account.  `BurnChecked` does not
-    // support accounts associated with the native mint, use `CloseAccount`
-    // instead.
-    //
-    // This instruction differs from Burn in that the decimals value is checked
-    // by the caller. This may be useful when creating transactions offline or
-    // within a hardware wallet.
-    //
-    // Accounts expected by this instruction:
-    //
-    //   * Single owner/delegate
-    //   0. `[writable]` The account to burn from.
-    //   1. `[writable]` The token mint.
-    //   2. `[signer]` The account's owner/delegate.
-    //
-    //   * Multisignature owner/delegate
-    //   0. `[writable]` The account to burn from.
-    //   1. `[writable]` The token mint.
-    //   2. `[]` The account's multisignature owner/delegate.
-    //   3. ..3+M `[signer]` M signer accounts.
-    let burn_ixn = burn_checked(
-        &spl_token_2022::id(),
-        sender_ata.key,
-        mint_account.key,
-        sender_wallet.key,
-        &[sender_wallet.key],
-        amount,
-        DECIMALS,
-    )?;
-    invoke_signed(
-        &burn_ixn,
-        &[
-            sender_ata.clone(),
-            mint_account.clone(),
-            sender_wallet.clone(),
-        ],
-        &[hyperlane_token_mint_pda_seeds!(erc20.name, erc20.symbol, erc20.mint_bump)],
-    )?;
-
-    Ok(())
-/*
-    _burn(msg.sender, _amount);
-    return bytes(""); // no metadata
-*/
-}
-
-// FIXME assert mailbox is signer?
-// Accounts:
-// 1. system_program
-// 2. spl_token_2022
-// 3. spl_associated_token_account
-// 4. payer
-// 5. hyperlane_token_erc20
-// 6. hyperlane_token_mint
-// 7. recipient wallet address
-// 8. recipient associated token account
-fn transfer_to(
-    program_id: &Pubkey,
-    accounts: &[AccountInfo],
-    xfer: TransferTo,
-) -> ProgramResult {
-    let accounts_iter = &mut accounts.iter();
-
-    let system_program = next_account_info(accounts_iter)?;
-    if system_program.key != &solana_program::system_program::id() {
-        return Err(ProgramError::InvalidArgument);
-    }
-    let spl_token_2022 = next_account_info(accounts_iter)?;
-    if spl_token_2022.key != &spl_token_2022::id() || !spl_token_2022.executable {
-        return Err(ProgramError::InvalidArgument);
-    }
-    let spl_ata = next_account_info(accounts_iter)?;
-    if spl_ata.key != &spl_associated_token_account::id() || !spl_ata.executable {
-        return Err(ProgramError::InvalidArgument);
-    }
-    let payer_account = next_account_info(accounts_iter)?;
-
-    let erc20_account = next_account_info(accounts_iter)?;
-    let erc20 = HyperlaneErc20Account::fetch(&mut &erc20_account.data.borrow_mut()[..])?
-        .into_inner();
-    let expected_erc20_key = Pubkey::create_program_address(
-        hyperlane_token_erc20_pda_seeds!(erc20.name, erc20.symbol, erc20.erc20_bump),
-        program_id,
-    )?;
-    if erc20_account.key != &expected_erc20_key {
-        return Err(ProgramError::InvalidArgument);
-    }
-    if erc20_account.owner != program_id {
-        return Err(ProgramError::IncorrectProgramId);
-    }
-
-    let mint_account = next_account_info(accounts_iter)?;
-    let expected_mint_key = Pubkey::create_program_address(
-        hyperlane_token_mint_pda_seeds!(erc20.name, erc20.symbol, erc20.mint_bump),
-        program_id,
-    )?;
-    if mint_account.key != &expected_mint_key {
-        return Err(ProgramError::InvalidArgument);
-    }
-    if mint_account.owner != &spl_token_2022::id() {
-        return Err(ProgramError::IncorrectProgramId);
-    }
-    let mint = Mint::unpack_from_slice(&mint_account.data.borrow())?;
-
-    let recipient_wallet = next_account_info(accounts_iter)?;
-    let recipient_ata = next_account_info(accounts_iter)?;
-    let expected_recipient_associated_token_account = get_associated_token_address_with_program_id(
-        recipient_wallet.key,
-        mint_account.key,
-        &spl_token_2022::id(),
-    );
-    if recipient_ata.key != &expected_recipient_associated_token_account {
-        return Err(ProgramError::InvalidArgument);
-    }
-    if accounts_iter.next().is_some() {
-        return Err(ProgramError::from(Error::ExtraneousAccount));
-    }
-
-    // Create and init (this does both) associated token account if necessary.
-    invoke_signed(
-        &create_associated_token_account_idempotent(
-            payer_account.key,
-            recipient_wallet.key,
-            mint_account.key,
-            &spl_token_2022::id(),
-        ),
-        &[
-            payer_account.clone(),
-            recipient_ata.clone(),
-            recipient_wallet.clone(),
-            mint_account.clone(),
-            system_program.clone(),
-            spl_token_2022.clone(),
-        ],
-        &[hyperlane_token_mint_pda_seeds!(erc20.name, erc20.symbol, erc20.mint_bump)],
-    )?;
-
-    let amount = xfer
-        .amount
-        .try_into()
-        .map_err(|_| Error::TODO)?;
-    let total = mint.supply
-        .checked_add(amount)
-        .ok_or_else(|| ProgramError::from(Error::TODO))?;
-    if total > erc20.total_supply {
-        return Err(Error::TODO.into());
-    }
-
-    // Mints new tokens to an account.  The native mint does not support
-    // minting.
-    //
-    // Accounts expected by this instruction:
-    //
-    //   * Single authority
-    //   0. `[writable]` The mint.
-    //   1. `[writable]` The account to mint tokens to.
-    //   2. `[signer]` The mint's minting authority.
-    //
-    //   * Multisignature authority
-    //   0. `[writable]` The mint.
-    //   1. `[writable]` The account to mint tokens to.
-    //   2. `[]` The mint's multisignature mint-tokens authority.
-    //   3. ..3+M `[signer]` M signer accounts.
-    let mint_ixn = mint_to_checked(
-        &spl_token_2022::id(),
-        mint_account.key,
-        recipient_ata.key,
-        mint_account.key,
-        &[],
-        amount,
-        DECIMALS,
-    )?;
-    invoke_signed(
-        &mint_ixn,
-        &[mint_account.clone(), recipient_ata.clone(), mint_account.clone()],
-        &[hyperlane_token_mint_pda_seeds!(erc20.name, erc20.symbol, erc20.mint_bump)],
-    )?;
-
-    Ok(())
-/*
-    _mint(_recipient, _amount);
-*/
 }

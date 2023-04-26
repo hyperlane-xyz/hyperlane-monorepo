@@ -1,8 +1,9 @@
-//! Hyperlane bridge contract for Sealevel-compatible (Solana Virtual Machine) chains.
+//! Hyperlane Mailbox contract for Sealevel-compatible (Solana Virtual Machine) chains.
 
-#[deny(warnings)]
-// #[deny(missing_docs)] // FIXME
-#[deny(unsafe_code)]
+#![deny(warnings)]
+// #![deny(missing_docs)] // FIXME
+#![deny(unsafe_code)]
+
 pub mod accounts;
 pub mod error;
 pub mod instruction;

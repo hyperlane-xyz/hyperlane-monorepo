@@ -8,8 +8,6 @@ borsh = "0.9"
 clap = { version = "4", features = ["derive"] }
 hyperlane-sealevel-ism-rubber-stamp = { path = "../programs/ism/rubber-stamp" }
 hyperlane-sealevel-mailbox = { path = "../programs/mailbox" }
-# TODO?
-# hyperlane-sealevel-interchain-gas-paymaster-eclipse = { path = "../programs/interchain-gas-paymaster/eclipse" }
 hyperlane-sealevel-recipient-echo = { path = "../programs/recipient/echo" }
 hyperlane-sealevel-token = { path = "../programs/hyperlane-sealevel-token" }
 lazy_static = "1.4"

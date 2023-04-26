@@ -20,7 +20,7 @@ pub struct SealevelInterchainGasPaymaster {
 }
 
 impl SealevelInterchainGasPaymaster {
-    pub fn new(_conf: &ConnectionConf /*FIXME don't need?*/, locator: ContractLocator) -> Self {
+    pub fn new(_conf: &ConnectionConf /*TODO don't need?*/, locator: ContractLocator) -> Self {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         let domain = locator.domain;
         // let rpc_client = crate::RpcClientWithDebug::new(conf.url.clone());
@@ -49,13 +49,13 @@ impl InterchainGasPaymaster for SealevelInterchainGasPaymaster {}
 /// Struct that retrieves event data for a Sealevel IGP contract
 #[derive(Debug)]
 pub struct SealevelInterchainGasPaymasterIndexer {
-    // program_id: Pubkey, // FIXME don't need?
+    // program_id: Pubkey, // TODO don't need?
     rpc_client: crate::RpcClientWithDebug,
-    // domain: HyperlaneDomain, // FIXME don't need?
+    // domain: HyperlaneDomain, // TODO don't need?
 }
 
 impl SealevelInterchainGasPaymasterIndexer {
-    pub fn new(conf: &ConnectionConf, _locator: ContractLocator /*FIXME don't need?*/) -> Self {
+    pub fn new(conf: &ConnectionConf, _locator: ContractLocator /*TODO don't need?*/) -> Self {
         // let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         // let domain = locator.domain;
         let rpc_client = crate::RpcClientWithDebug::new(conf.url.clone());

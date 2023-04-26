@@ -12,6 +12,8 @@ use solana_program::{
 
 use crate::{error::Error, DEFAULT_ISM, DEFAULT_ISM_ACCOUNTS};
 
+// FIXME should probably define another trait rather than use Default for this as a valid but
+// uninitialized object in rust is a big no no.
 pub trait Data: BorshDeserialize + BorshSerialize + Default {}
 impl<T> Data for T where T: BorshDeserialize + BorshSerialize + Default {}
 

@@ -36,6 +36,10 @@ token_init() {
         sleep 3
     done
 
+    while ! "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" token init-erc20; do
+        sleep 3
+    done
+
     while "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" token query | grep -q 'Not yet created'; do
         sleep 3
     done
@@ -44,73 +48,92 @@ token_init() {
 }
 
 test_token() {
+    local -r is_native_xfer="${1}"
+
     mailbox_init
     token_init
 
-    local amount=10
+    local amount
+    if "${is_native_xfer}"; then
+        amount=10000000000 # lamports
+    else
+        amount=10
+    fi
     local -r sender_keypair="${KEYPAIR}"
     local -r sender="$(solana -ul -k "${sender_keypair}" address)"
-    local -r recipient="${sender}"
-
-    # Load the account with tokens
-    "${BIN_DIR}/hyperlane-sealevel-client" \
-        -k "${KEYPAIR}" \
-        token transfer-to "${sender}" "${amount}"
-
-    sleep 20 # FIXME shouldn't need this sleep but idk why things are broken if the balance is queried
     # FIXME don't hardcode associated token account
-    local -r ata="HKLeaDnBs4gu2TX7C8T2Z5NnTh6aKyMEp9UZ6kZYizjs"
-    while "${SPL_TOKEN}" -ul display "${ata}" | grep -q 'Balance: 0'; do
-        sleep 3
-    done
-    "${SPL_TOKEN}" -ul display "${ata}"
+    local -r sender_ata="BuzmX6KEGVvJpR2k28SRa5epPRm9FWpq3KiHe4XFbcHN"
+    local -r recipient="${sender}"
+    local -r recipient_ata="${sender_ata}"
 
-    # Initiate loopback transfer.
-    "${BIN_DIR}/hyperlane-sealevel-client" \
-        -k "${KEYPAIR}" \
-        token transfer-remote "${sender_keypair}" "${amount}" "${CHAIN_ID}" "${recipient}"
+    if "${is_native_xfer}"; then
+        local -r sender_balance="$(solana -ul balance "${sender}" | cut -d ' ' -f 1)"
+        local -r amount_float="$(python -c "print(${amount} / 1000000000)")"
+        if (( $(bc -l <<< "${sender_balance} < ${amount_float}") )); then
+            echo "Insufficient sender funds"
+            exit 1
+        fi
+
+        echo
+        echo
+        solana -ul balance "${sender}"
+
+        # Initiate loopback transfer.
+        "${BIN_DIR}/hyperlane-sealevel-client" \
+            -k "${KEYPAIR}" \
+            token transfer-remote "${sender_keypair}" "${amount}" "${CHAIN_ID}" "${recipient}" \
+            --name "MOON" --symbol "$"
+    else
+        # Load the sender account with tokens.
+        # TODO: Note that this will not work if the mailbox auth account is required to be a signer
+        # which it should be when the contract is deployed in prod.
+        "${BIN_DIR}/hyperlane-sealevel-client" \
+            -k "${KEYPAIR}" \
+            token transfer-from-remote "${CHAIN_ID}" "${sender}" "${amount}"
+
+        sleep 20 # FIXME shouldn't need this sleep but idk why things are broken if the balance is queried
+        while "${SPL_TOKEN}" -ul display "${sender_ata}" | grep -q 'Balance: 0'; do
+            sleep 3
+        done
+        echo
+        echo
+        "${SPL_TOKEN}" -ul display "${sender_ata}"
+
+        # Initiate loopback transfer.
+        "${BIN_DIR}/hyperlane-sealevel-client" \
+            -k "${KEYPAIR}" \
+            token transfer-remote "${sender_keypair}" "${amount}" "${CHAIN_ID}" "${recipient}"
+    fi
 
     # Wait for token transfer message to appear in outbox.
     while "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox query | grep -q 'count: 0'
     do
         sleep 3
     done
-    "${SPL_TOKEN}" -ul display "${ata}"
+    echo
+    echo
+    if "${is_native_xfer}"; then
+        solana -ul balance "${sender}"
+    else
+        "${SPL_TOKEN}" -ul display "${sender_ata}"
+    fi
     "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox query
+    "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" token query
 
     # Wait for token transfer message to appear in inbox.
     while "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox query | grep -q 'delivered: {}'
     do
         sleep 3
     done
-    "${SPL_TOKEN}" -ul display "${ata}"
+    echo
+    echo
+    if "${is_native_xfer}"; then
+        solana -ul balance "${recipient}"
+    else
+        "${SPL_TOKEN}" -ul display "${recipient_ata}"
+    fi
     "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox query
-}
-
-test_token_internals() {
-    token_init
-
-    local mint_amount=10
-    local -r recipient="$(solana -ul -k "${KEYPAIR}" address)"
-    "${BIN_DIR}/hyperlane-sealevel-client" \
-        -k "${KEYPAIR}" \
-        token transfer-to "${recipient}" "${mint_amount}"
-    sleep 20 # FIXME shouldn't need this sleep but idk why things are broken if the balance is queried
-    # FIXME don't hardcode associated token account
-    local -r ata="HKLeaDnBs4gu2TX7C8T2Z5NnTh6aKyMEp9UZ6kZYizjs"
-    while "${SPL_TOKEN}" -ul display "${ata}" | grep -q 'Balance: 0'; do
-        sleep 3
-    done
-    "${SPL_TOKEN}" -ul display "${ata}"
-
-    local -r burn_amount=5
-    "${BIN_DIR}/hyperlane-sealevel-client" \
-        -k "${KEYPAIR}" \
-        token transfer-from-sender "${KEYPAIR}" "${burn_amount}"
-    while "${SPL_TOKEN}" -ul display "${ata}" | grep -q "Balance: ${mint_amount}"; do
-        sleep 3
-    done
-    "${SPL_TOKEN}" -ul display "${ata}"
+    "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" token query
 }
 
 main() {
@@ -128,14 +151,14 @@ main() {
         "mailbox")
             test_mailbox
             ;;
-        "token")
-            test_token
+        "token-native")
+            test_token true
             ;;
-        "token-internals")
-            test_token_internals
+        "token-wrapped")
+            test_token false
             ;;
         *)
-            echo "mailbox or token?"
+            echo "[mailbox | token-native | token-wrapped]"
             exit 1
             ;;
     esac

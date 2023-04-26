@@ -7,13 +7,10 @@ use solana_program::{program_error::ProgramError, pubkey::Pubkey};
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub enum Instruction {
     Init(Init),
-    // FIXME implement
+    InitErc20(InitErc20),
     TransferRemote(TransferRemote),
-    TransferFromRemote(TransferFromRemote), // aka "handle" in solidity contract. Used as mailbox recipient.
-
-    // FIXME These variants probably shouldn't exist?
-    TransferFromSender(TransferFromSender),
-    TransferTo(TransferTo),
+    // This is "handle" in solidity contract. Used as mailbox recipient.
+    TransferFromRemote(TransferFromRemote),
 }
 
 impl Instruction {
@@ -27,21 +24,24 @@ impl Instruction {
     }
 }
 
-/// Initializes the Hyperlane router, ERC20 metadata, and mints initial supply to deployer.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub struct Init {
     /// The address of the mailbox contract.
     pub mailbox: Pubkey,
-    /// The address of the mailbox outbox account.
-    pub mailbox_outbox: Pubkey, // FIXME just save bump seed instead?
     /// The mailbox's local domain.
     pub mailbox_local_domain: u32,
-    /// The address of the interchain gas paymaster contract.
-    pub interchain_gas_paymaster: Pubkey,
+    /// The name of the token.
+    pub name: String,
+    /// The symbol of the token.
+    pub symbol: String, // FIXME use datatype to enforce character set
+}
+
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+pub struct InitErc20 {
     /// The initial supply of the token.
     pub total_supply: U256,
-    // TODO use datatype to enforce character set? We don't want to allow "-" because it is used
-    // in pda seeds as separator, right?
+    // TODO use datatype to enforce character set. We don't want to allow "-" because it is used
+    // in pda seeds as separator, right? Either that or we should base58 encode or hash the strings.
     /// The name of the token.
     pub name: String,
     /// The symbol of the token.
@@ -61,31 +61,15 @@ pub struct TransferRemote {
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub struct TransferFromRemote {
     pub origin: u32,
-    // pub sender: H256, // FIXME?
     pub message: Vec<u8>,
 }
 
-/// Burns `_amount` of token from `msg.sender` balance.
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
-pub struct TransferFromSender {
-    pub amount: U256,
-    // The sender may not necessarily be the transaction payer so specify separately.
-    // pub sender: Pubkey, // Already in list of accounts for instruction
-}
-
-/// Mints `_amount` of token to `_recipient` balance.
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
-pub struct TransferTo {
-    // pub recipient: Pubkey, // already in list of accounts for instruction
-    pub amount: U256,
-    // pub calldata: Vec<u8>, // no metadata FIXME?
-}
-
-// FIXME move to common lib?
+// FIXME move to common lib
 #[derive(Debug)]
 pub struct TokenMessage {
     recipient: H256,
-    // FIXME we probably don't need to use "or_id" since this smart contract only handles erc20
+    // TODO we probably don't need to use "or_id" since this smart contract only handles erc20
+    // currently.
     amount_or_id: U256,
     metadata: Vec<u8>,
 }
@@ -164,6 +148,7 @@ impl TokenMessage {
     }
 }
 
+// FIXME we should include the asset (name, symbol) that was transferred in this event...
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 pub struct EventSentTransferRemote {
     pub destination: u32,
@@ -173,12 +158,13 @@ pub struct EventSentTransferRemote {
 
 impl EventLabel for EventSentTransferRemote {
     fn event_label() -> &'static str {
-        // FIXME is there a way to add this to a static map at compile time to ensure no
-        // duplicates? probaby with a proc macro?
+        // TODO is there a way to add this to a static map at compile time to ensure no
+        // duplicates within a program? probaby with a proc macro? Maybe it doesn't matter.
         "EventSentTransferRemote"
     }
 }
 
+// FIXME we should include the asset (name, symbol) that was transferred in this event...
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 pub struct EventReceivedTransferRemote {
     pub origin: u32,
@@ -186,13 +172,14 @@ pub struct EventReceivedTransferRemote {
     pub amount: U256, // FIXME where to do the U256-->u64 conversion? contracts or agents?
 }
 
+// TODO a macro_rules! or derive(Event) proc macro could generate this
 impl EventLabel for EventReceivedTransferRemote {
     fn event_label() -> &'static str {
         "EventReceivedTransferRemote"
     }
 }
 
-// FIXME move this to a common lib?
+// FIXME move this to a common lib
 #[derive(Debug)]
 pub struct EventError;
 pub trait EventLabel {
@@ -203,7 +190,6 @@ pub struct Event<D> {
 }
 impl<D> Event<D>
 where
-    // FIXME use borsh or eth abi.encodePacked()?
     D: BorshDeserialize + BorshSerialize + EventLabel + std::fmt::Debug,
 {
     pub fn new(data: D) -> Self {
@@ -214,6 +200,9 @@ where
     pub fn into_inner(self) -> D {
         self.data
     }
+    // TODO is the header really necessary here? The version may be useful for future proofing if
+    // we ever need to change the event structure, e.g., in the case where we support events that
+    // exceed one noop CPIs instruction data size.
     pub fn to_noop_cpi_ixn_data(&self) -> Result<Vec<u8>, EventError> {
         let version = 0;
         let label = <D as EventLabel>::event_label();
