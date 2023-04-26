@@ -11,12 +11,13 @@ use prometheus::{
     Encoder, GaugeVec, HistogramVec, IntCounterVec, IntGaugeVec, Registry,
 };
 use tokio::task::JoinHandle;
+use tracing::warn;
 
-use ethers_prometheus::json_rpc_client::JsonRpcClientMetrics;
-use ethers_prometheus::middleware::MiddlewareMetrics;
+use ethers_prometheus::{json_rpc_client::JsonRpcClientMetrics, middleware::MiddlewareMetrics};
 
-use crate::metrics::json_rpc_client::create_json_rpc_client_metrics;
-use crate::metrics::provider::create_provider_metrics;
+use crate::metrics::{
+    json_rpc_client::create_json_rpc_client_metrics, provider::create_provider_metrics,
+};
 
 /// Macro to prefix a string with the namespace.
 macro_rules! namespaced {
@@ -404,6 +405,7 @@ impl CoreMetrics {
             )
             .try_bind(([0, 0, 0, 0], port))
             .await;
+            warn!("Prometheus server could not be started or exited early");
         })
     }
 
