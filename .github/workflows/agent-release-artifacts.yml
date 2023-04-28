@@ -46,8 +46,10 @@ jobs:
       TARGET: ${{ matrix.TARGET }}
       OS: ${{ matrix.OS }}
     steps:
-      - uses: actions/checkout@v3
-      - run: |
+      - name: checkout
+        uses: actions/checkout@v3
+      - name: ubuntu setup
+        run: |
           sudo apt-get install -qq crossbuild-essential-arm64 crossbuild-essential-armhf
           
           # some additional configuration for cross-compilation on linux
@@ -58,14 +60,16 @@ jobs:
           linker = "aarch64-linux-gnu-gcc"
           EOF
         if: ${{ matrix.OS == 'ubuntu-latest' }}
-      - uses: actions-rs/toolchain@v1
+      - name: setup rust
+        uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           profile: minimal
           target: ${{ matrix.TARGET }}
-      - run: rustup target add $TARGET
-      - run: cargo build --release --target $TARGET --bin relayer --bin validator
-      - uses: actions/upload-artifact@v3
+      - name: build
+        run: cargo build --release --target $TARGET --bin relayer --bin validator
+      - name: upload binaries
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ matrix.TARGET }}
           path: |
