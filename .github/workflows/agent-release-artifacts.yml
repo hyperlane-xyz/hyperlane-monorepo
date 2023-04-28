@@ -29,7 +29,7 @@ jobs:
             OS: ubuntu-latest
 #          - TARGET: x86_64-unknown-linux-musl
 #            OS: ubuntu-latest
-          - TARGET: aarch64-unknown-linux-gnueabihf
+          - TARGET: aarch64-unknown-linux-gnu
             OS: ubuntu-latest
 #          - TARGET: aarch64-unknown-linux-musleabihf
 #            OS: ubuntu-latest
@@ -48,11 +48,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - run: |
-          # dependencies are only needed on ubuntu as that's the only place where
-          # we make cross-compilation
-          if [[ $OS =~ ^ubuntu.*$ ]]; then
-            sudo apt-get install -qq crossbuild-essential-arm64 crossbuild-essential-armhf
-          fi
+          sudo apt-get install -qq crossbuild-essential-arm64 crossbuild-essential-armhf
           
           # some additional configuration for cross-compilation on linux
           cat >>~/.cargo/config <<EOF
@@ -61,11 +57,12 @@ jobs:
           [target.aarch64-unknown-linux-musl]
           linker = "aarch64-linux-gnu-gcc"
           EOF
+        if: ${{ matrix.OS == 'ubuntu-latest' }}
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-          profile: minimal
           target: ${{ matrix.TARGET }}
+          components: cargo, rust-std, rustc
       - run: rustup target add $TARGET
       - run: cargo build --release --target $TARGET --bin relayer --bin validator
       - uses: actions/upload-artifact@v3
