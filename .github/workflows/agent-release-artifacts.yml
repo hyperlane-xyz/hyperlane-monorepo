@@ -61,8 +61,8 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
+          profile: minimal
           target: ${{ matrix.TARGET }}
-          components: cargo, rust-std, rustc
       - run: rustup target add $TARGET
       - run: cargo build --release --target $TARGET --bin relayer --bin validator
       - uses: actions/upload-artifact@v3
