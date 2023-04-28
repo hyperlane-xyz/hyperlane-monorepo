@@ -14,6 +14,9 @@ use super::{
     DbError, TypedDB, DB,
 };
 
+// these keys MUST not be given multiple uses in case multiple agents are
+// started with the same database and domain.
+
 const MESSAGE_ID: &str = "message_id_";
 const MESSAGE: &str = "message_";
 const LATEST_NONCE: &str = "latest_known_nonce_";
