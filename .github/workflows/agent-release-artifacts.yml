@@ -1,8 +1,7 @@
 name: agent-release-artifacts
 
 on:
-  push:
-    branches: [mattie/rust-release-artifacts]
+  pull_request:
   release:
     types: [published]
   # Allows you to run this workflow manually from the Actions tab
