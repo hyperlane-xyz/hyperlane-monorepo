@@ -13,6 +13,8 @@ import { GasConfig, RouterConfig } from '@hyperlane-xyz/sdk/dist/router/types';
 import {
   CollateralConfig,
   ERC20Metadata,
+  ERC20RouterConfig,
+  ERC721RouterConfig,
   HypERC20CollateralConfig,
   HypERC20Config,
   HypERC721CollateralConfig,
@@ -24,11 +26,9 @@ import {
   isErc20Metadata,
   isNativeConfig,
   isSyntheticConfig,
+  isTokenMetadata,
   isUriConfig,
 } from './config';
-import { isTokenMetadata } from './config';
-import { ERC721RouterConfig } from './config';
-import { ERC20RouterConfig } from './config';
 import { HypERC20Factories, HypERC721Factories } from './contracts';
 import {
   ERC20__factory,
@@ -180,6 +180,10 @@ export class HypERC20Deployer extends GasRouterDeployer<
             ...chainMetadata.nativeToken,
             totalSupply: 0,
           };
+        } else {
+          throw new Error(
+            `Warp route config specifies native token but chain metadata for ${chain} does not provide native token details`,
+          );
         }
       } else if (isErc20Metadata(config)) {
         tokenMetadata = config;
