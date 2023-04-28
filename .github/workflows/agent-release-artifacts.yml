@@ -31,7 +31,7 @@ jobs:
 #            OS: ubuntu-latest
           - TARGET: aarch64-unknown-linux-gnu
             OS: ubuntu-latest
-#          - TARGET: aarch64-unknown-linux-musleabihf
+#          - TARGET: aarch64-unknown-linux-musl
 #            OS: ubuntu-latest
           - TARGET: x86_64-apple-darwin
             OS: macos-latest
@@ -66,6 +66,8 @@ jobs:
           toolchain: stable
           profile: minimal
           target: ${{ matrix.TARGET }}
+      - name: setup target
+        run: rustup target add ${{ matrix.TARGET }}
       - name: build
         run: cargo build --release --target $TARGET --bin relayer --bin validator
       - name: upload binaries
