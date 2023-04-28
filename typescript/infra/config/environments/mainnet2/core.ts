@@ -9,8 +9,13 @@ import {
 
 import { chainNames } from './chains';
 import { owners } from './owners';
+import { timelocks } from './timelocks';
 
 export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
+  const ownerOverrides = {
+    proxyAdmin: timelocks[local],
+  };
+
   const defaultIsm: RoutingIsmConfig = {
     type: ModuleType.ROUTING,
     owner,
@@ -23,5 +28,6 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
   return {
     owner,
     defaultIsm,
+    ownerOverrides,
   };
 });

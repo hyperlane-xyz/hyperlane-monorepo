@@ -5,9 +5,12 @@ import type { CheckerViolation } from '../deploy/types';
 import { IsmConfig } from '../ism/types';
 import { ChainName } from '../types';
 
+import { CoreFactories } from './contracts';
+
 export type CoreConfig = {
   defaultIsm: IsmConfig;
   owner: types.Address;
+  ownerOverrides?: Partial<Record<keyof CoreFactories, types.Address>>;
   remove?: boolean;
 };
 

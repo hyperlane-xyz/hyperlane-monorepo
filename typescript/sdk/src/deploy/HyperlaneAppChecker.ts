@@ -126,18 +126,24 @@ export abstract class HyperlaneAppChecker<
     return filterOwnableContracts(contracts);
   }
 
-  // TODO: Require owner in config if ownables is non-empty
-  async checkOwnership(chain: ChainName, owner: types.Address): Promise<void> {
+  async checkOwnership(
+    chain: ChainName,
+    owner: types.Address,
+    ownableOverrides?: Record<string, types.Address>,
+  ): Promise<void> {
     const ownableContracts = await this.ownables(chain);
     for (const [name, contract] of Object.entries(ownableContracts)) {
+      const expectedOwner = ownableOverrides
+        ? ownableOverrides[name] ?? owner
+        : owner;
       const actual = await contract.owner();
-      if (!utils.eqAddress(actual, owner)) {
+      if (!utils.eqAddress(actual, expectedOwner)) {
         const violation: OwnerViolation = {
           chain,
           name,
           type: ViolationType.Owner,
           actual,
-          expected: owner,
+          expected: expectedOwner,
           contract,
         };
         this.addViolation(violation);

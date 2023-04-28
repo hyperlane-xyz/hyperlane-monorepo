@@ -50,9 +50,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
 
   async checkDomainOwnership(chain: ChainName): Promise<void> {
     const config = this.configMap[chain];
-    if (config.owner) {
-      return this.checkOwnership(chain, config.owner);
-    }
+    return this.checkOwnership(chain, config.owner, config.ownerOverrides);
   }
 
   async checkMailbox(chain: ChainName): Promise<void> {
