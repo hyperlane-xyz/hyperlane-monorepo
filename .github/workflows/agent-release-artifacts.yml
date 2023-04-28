@@ -42,9 +42,6 @@ jobs:
 #          - TARGET: x86_64-pc-windows-gnu
 #            OS: windows-latest
     runs-on: ${{ matrix.OS }}
-    env:
-      TARGET: ${{ matrix.TARGET }}
-      OS: ${{ matrix.OS }}
     steps:
       - name: checkout
         uses: actions/checkout@v3
@@ -69,7 +66,7 @@ jobs:
       - name: setup target
         run: rustup target add ${{ matrix.TARGET }}
       - name: build
-        run: cargo build --release --target $TARGET --bin relayer --bin validator
+        run: cargo build --release --target ${{ matrix.TARGET }} --bin relayer --bin validator
       - name: upload binaries
         uses: actions/upload-artifact@v3
         with:
