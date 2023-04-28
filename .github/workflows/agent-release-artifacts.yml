@@ -67,7 +67,7 @@ jobs:
           profile: minimal
           target: ${{ matrix.TARGET }}
       - run: rustup target add $TARGET
-      - run: cargo build --release --target $TARGET --bin relayer --validator
+      - run: cargo build --release --target $TARGET --bin relayer --bin validator
       - uses: actions/upload-artifact@v3
         with:
           name: ${{ matrix.TARGET }}
