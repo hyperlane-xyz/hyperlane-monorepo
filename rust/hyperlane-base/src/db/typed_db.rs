@@ -1,6 +1,4 @@
-use derive_new::new;
-
-use hyperlane_core::{Decode, Encode};
+use hyperlane_core::{Decode, Encode, HyperlaneDomain};
 
 use crate::db::{DbError, DB};
 
@@ -8,10 +6,10 @@ type Result<T> = std::result::Result<T, DbError>;
 
 /// DB handle for storing data tied to a specific type/entity.
 ///
-/// Key structure: ```<type_prefix>_<additional_prefix(es)>_<key>```
-#[derive(Debug, Clone, new)]
+/// Key structure: ```<domain_prefix>_<additional_prefix(es)>_<key>```
+#[derive(Debug, Clone)]
 pub struct TypedDB {
-    entity: String,
+    domain_prefix: Vec<u8>,
     db: DB,
 }
 
@@ -22,12 +20,27 @@ impl AsRef<DB> for TypedDB {
 }
 
 impl TypedDB {
-    fn full_prefix(&self, prefix: impl AsRef<[u8]>) -> Vec<u8> {
-        let mut full_prefix = vec![];
-        full_prefix.extend(self.entity.as_ref() as &[u8]);
-        full_prefix.extend("_".as_bytes());
-        full_prefix.extend(prefix.as_ref());
-        full_prefix
+    /// Create a new TypedDB instance scoped to a given domain.
+    pub fn new(domain: &HyperlaneDomain, db: DB) -> Self {
+        let domain_prefix = domain
+            .name()
+            .as_bytes()
+            .iter()
+            .chain(b"_")
+            .chain(&domain.id().to_be_bytes())
+            .chain(b"_")
+            .copied()
+            .collect();
+        Self { domain_prefix, db }
+    }
+
+    fn full_key(&self, prefix: &[u8], key: &[u8]) -> Vec<u8> {
+        self.domain_prefix
+            .iter()
+            .chain(prefix)
+            .chain(key)
+            .copied()
+            .collect()
     }
 
     /// Store encodable value
@@ -37,8 +50,10 @@ impl TypedDB {
         key: impl AsRef<[u8]>,
         value: &V,
     ) -> Result<()> {
-        self.db
-            .store_encodable(self.full_prefix(prefix), key, value)
+        self.db.store(
+            &self.full_key(prefix.as_ref(), key.as_ref()),
+            &value.to_vec(),
+        )
     }
 
     /// Retrieve decodable value
@@ -47,7 +62,11 @@ impl TypedDB {
         prefix: impl AsRef<[u8]>,
         key: impl AsRef<[u8]>,
     ) -> Result<Option<V>> {
-        self.db.retrieve_decodable(self.full_prefix(prefix), key)
+        self.db
+            .retrieve(&self.full_key(prefix.as_ref(), key.as_ref()))?
+            .map(|v| V::read_from(&mut v.as_slice()))
+            .transpose()
+            .map_err(Into::into)
     }
 
     /// Store encodable kv pair
@@ -57,8 +76,7 @@ impl TypedDB {
         key: &K,
         value: &V,
     ) -> Result<()> {
-        self.db
-            .store_keyed_encodable(self.full_prefix(prefix), key, value)
+        self.store_encodable(prefix, &key.to_vec(), value)
     }
 
     /// Retrieve decodable value given encodable key
@@ -67,7 +85,6 @@ impl TypedDB {
         prefix: impl AsRef<[u8]>,
         key: &K,
     ) -> Result<Option<V>> {
-        self.db
-            .retrieve_keyed_decodable(self.full_prefix(prefix), key)
+        self.retrieve_decodable(prefix, &key.to_vec())
     }
 }

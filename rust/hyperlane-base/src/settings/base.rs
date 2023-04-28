@@ -172,7 +172,7 @@ impl Settings {
             .build_mailbox_indexer(domain, metrics)
             .await
             .with_context(|| format!("Building mailbox indexer for {domain}"))?;
-        let hyperlane_db = HyperlaneDB::new(domain.name(), db);
+        let hyperlane_db = HyperlaneDB::new(domain, db);
         Ok(CachingMailbox::new(
             mailbox.into(),
             hyperlane_db,
@@ -191,7 +191,7 @@ impl Settings {
         let indexer = self
             .build_interchain_gas_paymaster_indexer(domain, metrics)
             .await?;
-        let hyperlane_db = HyperlaneDB::new(domain.name(), db);
+        let hyperlane_db = HyperlaneDB::new(domain, db);
         Ok(CachingInterchainGasPaymaster::new(
             interchain_gas_paymaster.into(),
             hyperlane_db,

@@ -423,7 +423,10 @@ mod test {
                 });
             }
 
-            let hyperlane_db = HyperlaneDB::new("mailbox_1", db);
+            let hyperlane_db = HyperlaneDB::new(
+                &HyperlaneDomain::new_test_domain("handles_missing_rpc_messages"),
+                db,
+            );
 
             // Set the latest valid message range start block
             hyperlane_db
