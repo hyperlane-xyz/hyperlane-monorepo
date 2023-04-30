@@ -48,7 +48,7 @@ export interface ChainMetadata {
   blockExplorers?: Array<{
     name: string;
     url: string;
-    apiUrl?: string;
+    apiUrl: string;
     apiKey?: string;
     family?: ExplorerFamilyType;
   }>;
@@ -116,7 +116,7 @@ export const ChainMetadataSchema = z.object({
       z.object({
         name: z.string(),
         url: z.string().url(),
-        apiUrl: z.string().url().optional(),
+        apiUrl: z.string().url(),
         apiKey: z.string().optional(),
         family: z.nativeEnum(ExplorerFamily).optional(),
       }),
@@ -177,6 +177,7 @@ export const alfajores: ChainMetadata = {
     {
       name: 'Blockscout',
       url: 'https://explorer.celo.org/alfajores',
+      apiUrl: 'https://explorer.celo.org/alfajores/api',
       family: ExplorerFamily.Blockscout,
     },
   ],

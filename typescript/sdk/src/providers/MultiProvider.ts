@@ -43,10 +43,10 @@ interface MultiProviderOptions {
 
 export class MultiProvider {
   public readonly metadata: ChainMap<ChainMetadata> = {};
-  private readonly providers: ChainMap<Provider> = {};
-  private signers: ChainMap<Signer> = {};
-  private useSharedSigner = false; // A single signer to be used for all chains
-  private readonly logger: Debugger;
+  protected readonly providers: ChainMap<Provider> = {};
+  protected signers: ChainMap<Signer> = {};
+  protected useSharedSigner = false; // A single signer to be used for all chains
+  protected readonly logger: Debugger;
 
   /**
    * Create a new MultiProvider with the given chainMetadata,
