@@ -76,8 +76,10 @@ export interface ChainMetadata {
 export interface RpcPaginationOptions {
   /** Maximum number of blocks to query between (e.g. for fetching logs) */
   maxBlockRange?: number;
-  /** Lowest block number to start querying from */
+  /** Absolute lowest block number from which to query */
   minBlockNumber?: number;
+  /** Relative num blocks from latest from which to query */
+  maxBlockAge?: number;
 }
 
 /**
@@ -106,6 +108,7 @@ export const ChainMetadataSchema = z.object({
           .object({
             maxBlockRange: z.number().positive().optional(),
             minBlockNumber: z.number().positive().optional(),
+            maxBlockAge: z.number().positive().optional(),
           })
           .optional(),
       }),
