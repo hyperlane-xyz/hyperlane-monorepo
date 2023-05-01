@@ -55,6 +55,8 @@ export abstract class HyperlaneDeployer<
     this.cachedAddresses = addressesMap;
   }
 
+  async checkConfig(configMap: ChainMap<Config>): Promise<void> {}
+
   abstract deployContracts(
     chain: ChainName,
     config: Config,
@@ -63,6 +65,7 @@ export abstract class HyperlaneDeployer<
   async deploy(
     configMap: ChainMap<Config>,
   ): Promise<HyperlaneContractsMap<Factories>> {
+    await this.checkConfig(configMap);
     const configChains = Object.keys(configMap);
     const targetChains = this.multiProvider.intersect(
       configChains,
