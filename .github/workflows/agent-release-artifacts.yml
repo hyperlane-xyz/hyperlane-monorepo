@@ -76,7 +76,7 @@ jobs:
       - name: upload binaries
         uses: actions/upload-artifact@v3
         with:
-          name: ${{ matrix.TARGET }}-${{ steps.prepare.outputs.tag_sha }}-${{ steps.prepare.outputs.tag_date }}
+          name: ${{ matrix.TARGET }}-${{ needs.prepare.outputs.tag_sha }}-${{ needs.prepare.outputs.tag_date }}
           path: |
             rust/target/${{ matrix.TARGET }}/release/relayer
             rust/target/${{ matrix.TARGET }}/release/scraper
