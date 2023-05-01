@@ -15,10 +15,6 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
 
-defaults:
-  run:
-    working-directory: ./rust
-
 jobs:
   prepare:
     runs-on: ubuntu-latest
@@ -51,6 +47,7 @@ jobs:
         uses: actions/checkout@v3
       - name: ubuntu setup
         if: ${{ matrix.OS == 'ubuntu-latest' }}
+        working-directory: ./rust
         run: |
           sudo apt-get install -qq crossbuild-essential-arm64 crossbuild-essential-armhf
           
@@ -69,6 +66,7 @@ jobs:
           target: ${{ matrix.TARGET }}
       - name: setup target
         run: rustup target add ${{ matrix.TARGET }}
+        working-directory: ./rust
       - name: build
         run: cargo build --release --target ${{ matrix.TARGET }} --bin relayer --bin scraper --bin validator
       - name: make executable
