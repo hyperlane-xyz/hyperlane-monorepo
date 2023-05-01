@@ -149,8 +149,9 @@ contract Mailbox is
 
         // Check that the message hasn't already been delivered.
         bytes32 _id = _message.id();
-        require(delivered[_id] == false, "delivered");
+        uint256 gasBefore = gasleft();
         delivered[_id] = true;
+        require(gasBefore - 20_000 > gasleft(), "delivered");
 
         // Verify the message via the ISM.
         IInterchainSecurityModule _ism = IInterchainSecurityModule(
