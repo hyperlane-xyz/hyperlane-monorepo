@@ -55,8 +55,9 @@ export abstract class HyperlaneDeployer<
     this.cachedAddresses = addressesMap;
   }
 
-  /* eslint-disable no-empty-function */
-  async checkConfig(configMap: ChainMap<Config>): Promise<void> {}
+  async checkConfig(configMap: ChainMap<Config>): Promise<void> {
+    return;
+  }
 
   abstract deployContracts(
     chain: ChainName,
