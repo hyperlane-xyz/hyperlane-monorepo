@@ -15,6 +15,6 @@ export type HyperlaneEnvironmentChain<E extends HyperlaneEnvironment> = Extract<
 
 // Note, this assumes no chain name is repeated across environments
 export const hyperlaneContractAddresses = objMerge(
-  hyperlaneEnvironments.mainnet,
   hyperlaneEnvironments.testnet,
+  hyperlaneEnvironments.mainnet,
 );

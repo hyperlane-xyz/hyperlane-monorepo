@@ -173,9 +173,7 @@ async function getPaginatedEvents<T extends TypedEvent>(
 
   // get the first block by params
   // or domain deployment block
-  const firstBlock = startBlock
-    ? Math.max(startBlock, pagination.minBlockNumber || 0)
-    : pagination.minBlockNumber || 0;
+  const firstBlock = Math.max(startBlock || 0, pagination.minBlockNumber || 0);
   // get the last block by params
   // or current block number
   let lastBlock;
