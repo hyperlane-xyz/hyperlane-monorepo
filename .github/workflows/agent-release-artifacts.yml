@@ -1,7 +1,6 @@
 name: agent-release-artifacts
 
 on:
-  pull_request:
   release:
     types: [published]
   # Allows you to run this workflow manually from the Actions tab
@@ -27,20 +26,12 @@ jobs:
         include:
           - TARGET: x86_64-unknown-linux-gnu
             OS: ubuntu-latest
-#          - TARGET: x86_64-unknown-linux-musl
-#            OS: ubuntu-latest
-#          - TARGET: aarch64-unknown-linux-gnu
-#            OS: ubuntu-latest
-#          - TARGET: aarch64-unknown-linux-musl
-#            OS: ubuntu-latest
           - TARGET: x86_64-apple-darwin
             OS: macos-latest
           - TARGET: aarch64-apple-darwin
             OS: macos-latest
           - TARGET: x86_64-pc-windows-msvc
             OS: windows-latest
-#          - TARGET: x86_64-pc-windows-gnu
-#            OS: windows-latest
     runs-on: ${{ matrix.OS }}
     steps:
       - name: checkout
