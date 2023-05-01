@@ -76,7 +76,7 @@ impl TypedDB {
         key: &K,
         value: &V,
     ) -> Result<()> {
-        self.store_encodable(prefix, &key.to_vec(), value)
+        self.store_encodable(prefix, key.to_vec(), value)
     }
 
     /// Retrieve decodable value given encodable key
@@ -85,6 +85,6 @@ impl TypedDB {
         prefix: impl AsRef<[u8]>,
         key: &K,
     ) -> Result<Option<V>> {
-        self.retrieve_decodable(prefix, &key.to_vec())
+        self.retrieve_decodable(prefix, key.to_vec())
     }
 }

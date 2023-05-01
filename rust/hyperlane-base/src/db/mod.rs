@@ -96,7 +96,7 @@ impl DB {
 
     /// Store a value in the DB
     pub fn store(&self, key: &[u8], value: &[u8]) -> Result<()> {
-        Ok(self.0.put(key, value.to_vec())?)
+        Ok(self.0.put(key, value)?)
     }
 
     /// Retrieve a value from the DB
