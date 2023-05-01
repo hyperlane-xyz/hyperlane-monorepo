@@ -20,7 +20,19 @@ defaults:
     working-directory: ./rust
 
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      tag_date: ${{ steps.taggen.outputs.TAG_DATE }}
+      tag_sha: ${{ steps.taggen.outputs.TAG_SHA }}
+    steps:
+      - name: generate tag data
+        id: taggen
+        run: |
+          echo "TAG_DATE=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
+          echo "TAG_SHA=$(echo '${{ github.sha }}' | cut -b 1-7)" >> $GITHUB_OUTPUT
   build:
+    needs: prepare
     strategy:
       fail-fast: false
       matrix:
@@ -66,7 +78,7 @@ jobs:
       - name: upload binaries
         uses: actions/upload-artifact@v3
         with:
-          name: ${{ matrix.TARGET }}
+          name: ${{ matrix.TARGET }}-${{ steps.prepare.outputs.tag_sha }}-${{ steps.prepare.outputs.tag_date }}
           path: |
             rust/target/${{ matrix.TARGET }}/release/relayer
             rust/target/${{ matrix.TARGET }}/release/scraper
