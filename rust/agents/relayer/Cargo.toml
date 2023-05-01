@@ -15,6 +15,7 @@ ethers-contract.workspace = true
 ethers.workspace = true
 eyre.workspace = true
 futures-util.workspace = true
+itertools.workspace = true
 prometheus.workspace = true
 reqwest = { workspace = true, features = ["json"] }
 serde.workspace = true

@@ -16,8 +16,9 @@
 
 use std::cmp::Ordering;
 use std::fmt::{Debug, Formatter};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
+use async_trait::async_trait;
 use derive_new::new;
 
 use hyperlane_core::HyperlaneMessage;

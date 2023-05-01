@@ -17,6 +17,8 @@ use crate::{
     settings::matching_list::MatchingList,
 };
 
+/// Finds unprocessed messages from an origin and submits then through a channel
+/// for to the appropriate destination.
 #[derive(Debug, new)]
 pub(crate) struct MessageProcessor {
     db: HyperlaneDB,
@@ -146,7 +148,7 @@ impl MessageProcessorMetrics {
     pub fn new(
         metrics: &CoreMetrics,
         origin: &HyperlaneDomain,
-        destinations: Vec<&HyperlaneDomain>,
+        destinations: impl Iterator<Item = &HyperlaneDomain>,
     ) -> Self {
         let mut gauges: HashMap<u32, IntGauge> = HashMap::new();
         for destination in destinations {

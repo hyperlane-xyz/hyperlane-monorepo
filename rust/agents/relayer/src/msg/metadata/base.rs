@@ -54,6 +54,7 @@ pub struct BaseMetadataBuilder {
     metrics: Arc<CoreMetrics>,
     /// ISMs can be structured recursively. We keep track of the depth
     /// of the recursion to avoid infinit loops.
+    #[new(default)]
     depth: u32,
     max_depth: u32,
 }
