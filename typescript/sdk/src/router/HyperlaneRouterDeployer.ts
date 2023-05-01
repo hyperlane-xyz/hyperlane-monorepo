@@ -43,9 +43,9 @@ export abstract class HyperlaneRouterDeployer<
           await igp.quoteGasPayment(this.multiProvider.getDomainId(remote), 1);
         } catch (e) {
           throw new Error(
-            `The specified or default IGP with address ${igp.address} on \
-            ${chain} is not configured to deliver messages to ${remote}, \
-            did you mean to specify a different one?`,
+            `The specified or default IGP with address ${igp.address} on ` +
+              `${chain} is not configured to deliver messages to ${remote}, ` +
+              `did you mean to specify a different one?`,
           );
         }
 
@@ -58,9 +58,9 @@ export abstract class HyperlaneRouterDeployer<
         );
         if (!canVerify) {
           throw new Error(
-            `The specified or default ISM with address ${ism} on ${chain} \
-            cannot verify messages from ${remote}, did you forget to specify \
-            an ISM, or mean to specify a different one?`,
+            `The specified or default ISM with address ${ism} on ${chain} ` +
+              `cannot verify messages from ${remote}, did you forget to ` +
+              `specify an ISM, or mean to specify a different one?`,
           );
         }
       }

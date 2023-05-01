@@ -181,52 +181,57 @@ export async function moduleCanCertainlyVerify(
     moduleAddress,
     provider,
   );
-  const moduleType = await module.moduleType();
-  if (
-    moduleType === ModuleType.MULTISIG ||
-    moduleType === ModuleType.LEGACY_MULTISIG
-  ) {
-    const multisigModule = IMultisigIsm__factory.connect(
-      moduleAddress,
-      provider,
-    );
+  try {
+    const moduleType = await module.moduleType();
+    if (
+      moduleType === ModuleType.MULTISIG ||
+      moduleType === ModuleType.LEGACY_MULTISIG
+    ) {
+      const multisigModule = IMultisigIsm__factory.connect(
+        moduleAddress,
+        provider,
+      );
 
-    const [, threshold] = await multisigModule.validatorsAndThreshold(message);
-    return threshold > 0;
-  } else if (moduleType === ModuleType.ROUTING) {
-    const routingIsm = IRoutingIsm__factory.connect(moduleAddress, provider);
-    const subModule = await routingIsm.route(message);
-    return moduleCanCertainlyVerify(
-      subModule,
-      multiProvider,
-      origin,
-      destination,
-    );
-  } else if (moduleType === ModuleType.AGGREGATION) {
-    const aggregationIsm = IAggregationIsm__factory.connect(
-      moduleAddress,
-      provider,
-    );
-    const [subModules, threshold] = await aggregationIsm.modulesAndThreshold(
-      message,
-    );
-    let verified = 0;
-    for (const subModule of subModules) {
-      const canVerify = await moduleCanCertainlyVerify(
+      const [, threshold] = await multisigModule.validatorsAndThreshold(
+        message,
+      );
+      return threshold > 0;
+    } else if (moduleType === ModuleType.ROUTING) {
+      const routingIsm = IRoutingIsm__factory.connect(moduleAddress, provider);
+      const subModule = await routingIsm.route(message);
+      return moduleCanCertainlyVerify(
         subModule,
         multiProvider,
         origin,
         destination,
       );
-      if (canVerify) {
-        verified += 1;
+    } else if (moduleType === ModuleType.AGGREGATION) {
+      const aggregationIsm = IAggregationIsm__factory.connect(
+        moduleAddress,
+        provider,
+      );
+      const [subModules, threshold] = await aggregationIsm.modulesAndThreshold(
+        message,
+      );
+      let verified = 0;
+      for (const subModule of subModules) {
+        const canVerify = await moduleCanCertainlyVerify(
+          subModule,
+          multiProvider,
+          origin,
+          destination,
+        );
+        if (canVerify) {
+          verified += 1;
+        }
       }
+      return verified >= threshold;
+    } else {
+      throw new Error(`Unsupported module type: ${moduleType}`);
     }
-    return verified >= threshold;
-  } else {
-    throw new Error(`Unsupported module type: ${moduleType}`);
+  } catch (e) {
+    return false;
   }
-  return true;
 }
 
 export async function moduleMatchesConfig(
