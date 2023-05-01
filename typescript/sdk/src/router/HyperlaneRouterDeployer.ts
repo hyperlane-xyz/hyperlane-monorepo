@@ -22,6 +22,9 @@ export abstract class HyperlaneRouterDeployer<
 > extends HyperlaneDeployer<Config, Factories> {
   abstract router(contracts: HyperlaneContracts<Factories>): Router;
 
+  // The ISM check does not appropriately handle ISMs that have sender,
+  // recipient, or body-specific logic. Folks that wish to deploy using
+  // such ISMs *may* need to override checkConfig to disable this check.
   async checkConfig(configMap: ChainMap<Config>): Promise<void> {
     const chains = Object.keys(configMap);
     for (const [chain, config] of Object.entries(configMap)) {
