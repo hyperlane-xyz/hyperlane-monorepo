@@ -187,17 +187,17 @@ pub struct SerialSubmitterMetrics {
 
 impl SerialSubmitterMetrics {
     pub fn new(metrics: &CoreMetrics, destination: &HyperlaneDomain) -> Self {
-        let origin = origin.name();
-        let destination = destination.name();
-        Self {
-            run_queue_length_gauge: metrics.submitter_queue_length().with_label_values(&[
-                origin,
-                destination,
-                "run_queue",
-            ]),
-            txs_processed: metrics
-                .transactions_processed()
-                .with_label_values(&[destination]),
-        }
+        todo!()
+        // let destination = destination.name();
+        // Self {
+        //     run_queue_length_gauge: metrics.submitter_queue_length().with_label_values(&[
+        //         origin,
+        //         destination,
+        //         "run_queue",
+        //     ]),
+        //     txs_processed: metrics
+        //         .transactions_processed()
+        //         .with_label_values(&[destination]),
+        // }
     }
 }

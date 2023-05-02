@@ -12,10 +12,9 @@ use tracing::{debug, info_span, instrument, instrument::Instrumented, Instrument
 use hyperlane_base::{db::HyperlaneDB, CoreMetrics};
 use hyperlane_core::{HyperlaneDomain, HyperlaneMessage};
 
-use crate::{
-    merkle_tree_builder::MerkleTreeBuilder, msg::PendingMessage,
-    settings::matching_list::MatchingList,
-};
+use crate::{merkle_tree_builder::MerkleTreeBuilder, settings::matching_list::MatchingList};
+
+use super::pending_message::*;
 
 /// Finds unprocessed messages from an origin and submits then through a channel
 /// for to the appropriate destination.
@@ -145,10 +144,10 @@ pub struct MessageProcessorMetrics {
 }
 
 impl MessageProcessorMetrics {
-    pub fn new(
+    pub fn new<'a>(
         metrics: &CoreMetrics,
         origin: &HyperlaneDomain,
-        destinations: impl Iterator<Item = &HyperlaneDomain>,
+        destinations: impl Iterator<Item = &'a HyperlaneDomain>,
     ) -> Self {
         let mut gauges: HashMap<u32, IntGauge> = HashMap::new();
         for destination in destinations {

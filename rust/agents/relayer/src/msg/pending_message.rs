@@ -10,7 +10,7 @@ use prometheus::{IntCounter, IntGauge};
 use tracing::{debug, error, info, instrument, warn};
 
 use hyperlane_base::{CachingMailbox, CoreMetrics};
-use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, Mailbox, U256};
+use hyperlane_core::{HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, U256};
 
 use super::{gas_payment::GasPaymentEnforcer, metadata::BaseMetadataBuilder, pending_operation::*};
 
@@ -102,51 +102,10 @@ impl Eq for PendingMessage {}
 
 #[async_trait]
 impl PendingOperation for PendingMessage {
-    async fn submit(&mut self) -> TxRunResult {
-        use TxRunResult::*;
-        // wrap the actual processing with state management to reduce code duplication
-        // since there are multiple branches that return some of these cases.
-        match self.processe().await {
-            Success => {
-                info!(msg=%self.message, "Message processed");
-                self.submitted = true;
-                self.num_retries = 0;
-                self.next_attempt_after = None;
-                self.last_attempted_at = Instant::now();
-                self.record_message_process_success()?;
-                Success
-            }
-            Retry => {
-                info!(msg=%self.message, "Message not processed; will retry");
-                self.num_retries += 1;
-                self.last_attempted_at = Instant::now();
-                self.next_attempt_after = PendingMessage::calculate_msg_backoff(self.num_retries)
-                    .map(|dur| self.last_attempted_at + dur);
-                Retry
-            }
-            Failure => {
-                info!(msg=%self.message, "Message not processed; will not retry");
-                Failure
-            }
-            // We expect this branch to be hit when there is unexpected behavior -
-            // defined behavior like gas estimation failing will not hit this branch.
-            CriticalFailure(error) => {
-                error!(msg=%self.message, ?error, "Error occurred when attempting to process message");
-                CriticalFailure(error)
-            }
-        }
+    async fn prepare(&mut self) -> TxPrepareResult {
+        todo!()
     }
 
-    fn next_attempt_after(&self) -> Option<Instant> {
-        self.next_attempt_after
-    }
-
-    fn submitted(&self) -> bool {
-        self.submitted
-    }
-}
-
-impl PendingMessage {
     /// Returns the message's status. If the message is processed, either by a
     /// transaction in this fn or by a view call to the Mailbox contract
     /// discovering the message has already been processed, Ok(true) is
@@ -154,15 +113,57 @@ impl PendingMessage {
     /// failed gas estimation or an insufficient gas payment, Ok(false) is
     /// returned.
     #[instrument]
-    async fn process(&mut self) -> TxRunResult {
+    async fn submit(&mut self) -> TxRunResult {
+        let on_success = || {
+            info!(msg=%self.message, "Message processed");
+            self.submitted = true;
+            self.num_retries = 0;
+            self.next_attempt_after = None;
+            self.last_attempted_at = Instant::now();
+            self.record_message_process_success()?;
+            TxRunResult::Success
+        };
+        let on_retry = || {
+            info!(msg=%self.message, "Message not processed; will retry");
+            self.num_retries += 1;
+            self.last_attempted_at = Instant::now();
+            self.next_attempt_after = PendingMessage::calculate_msg_backoff(self.num_retries)
+                .map(|dur| self.last_attempted_at + dur);
+            TxRunResult::Retry
+        };
+        macro_rules! tx_try {
+            (critical: $e:expr, $ctx:literal) => {
+                match $e {
+                    Ok(v) => v,
+                    Err(e) => {
+                        error!(error=?e, "Error when {}", $ctx);
+                        return TxRunResult::Critical(e);
+                    }
+                }
+            };
+            ($e:expr, $ctx:literal) => {
+                match $e {
+                    Ok(v) => v,
+                    Err(e) => {
+                        warn!(error=?e, "Error when {}", $ctx);
+                        return on_retry();
+                    }
+                }
+            };
+        }
+
         // If the message has already been processed, e.g. due to another relayer having
         // already processed, then mark it as already-processed, and move on to
         // the next tick.
         //
         // TODO(webbhorn): Make this robust to re-orgs on mailbox.
-        if self.ctx.mailbox.delivered(self.message.id()).await? {
+        let is_already_delivered = tx_try!(
+            self.ctx.mailbox.delivered(self.message.id()).await,
+            "checking message delivery status"
+        );
+        if is_already_delivered {
             debug!("Message already processed");
-            return TxRunResult::Success;
+            return on_success();
         }
 
         // The Mailbox's `recipientIsm` function will revert if
@@ -171,65 +172,58 @@ impl PendingMessage {
         // the eth_call to the `recipientIsm` function.
         // As a workaround, we avoid the call entirely if the recipient is
         // not a contract.
-        const CTX: &str = "When fetching ISM";
-        let provider = self.mailbox.provider();
-        if !provider
-            .is_contract(&self.message.recipient)
-            .await
-            .context(CTX)?
-        {
+        let provider = self.ctx.mailbox.provider();
+        let is_contract = tx_try!(
+            provider.is_contract(&self.message.recipient).await,
+            "checking if message recipient is a contract"
+        );
+        if !is_contract {
             info!(
                 recipient=?self.message.recipient,
                 "Could not fetch metadata: Recipient is not a contract"
             );
-            return TxRunResult::Retry;
+            return on_retry();
         }
 
-        let ism_address = match self
-            .mailbox
-            .recipient_ism(self.message.recipient)
-            .await
-            .context(CTX)
-        {
-            Ok(a) => a,
-            Err(e) => {
-                warn!(error=?e, "Error fetching ISM address");
-                return TxRunResult::Retry;
-            }
-        };
+        let ism_address = tx_try!(
+            self.ctx.mailbox.recipient_ism(self.message.recipient).await,
+            "fetching ISM address"
+        );
 
-        let Some(metadata) = self.metadata_builder
-            .build(ism_address, &self.message)
-            .await?
-        else {
+        let Some(metadata) = tx_try!(
+            self.ctx
+                .metadata_builder
+                .build(ism_address, &self.message)
+                .await,
+            "building metadata"
+        ) else {
             info!("Could not fetch metadata");
-            return TxRunResult::Retry;
+            return on_retry();
         };
 
         // Estimate transaction costs for the process call. If there are issues, it's
         // likely that gas estimation has failed because the message is
         // reverting. This is defined behavior, so we just log the error and
         // move onto the next tick.
-        let tx_cost_estimate = match self
-            .mailbox
-            .process_estimate_costs(&self.message, &metadata)
-            .await
-        {
-            Ok(tx_cost_estimate) => tx_cost_estimate,
-            Err(error) => {
-                info!(?error, "Error estimating process costs");
-                return TxRunResult::Retry;
-            }
-        };
+        let tx_cost_estimate = tx_try!(
+            self.ctx
+                .mailbox
+                .process_estimate_costs(&self.message, &metadata)
+                .await,
+            "estimating costs for process call"
+        );
 
         // If the gas payment requirement hasn't been met, move to the next tick.
-        let Some(gas_limit) = self
-            .gas_payment_enforcer
-            .message_meets_gas_payment_requirement(&self.message, &tx_cost_estimate)
-            .await?
+        let Some(gas_limit) = tx_try!(
+            self.ctx
+                .gas_payment_enforcer
+                .message_meets_gas_payment_requirement(&self.message, &tx_cost_estimate)
+                .await,
+            "checking if message meets gas payment requirement"
+        )
         else {
             info!(?tx_cost_estimate, "Gas payment requirement not met yet");
-            return TxRunResult::Retry;
+            return on_retry();
         };
 
         // Go ahead and attempt processing of message to destination chain.
@@ -243,43 +237,55 @@ impl PendingMessage {
 
         let gas_limit = tx_cost_estimate.gas_limit;
 
-        if let Some(max_limit) = self.transaction_gas_limit {
+        if let Some(max_limit) = self.ctx.transaction_gas_limit {
             if gas_limit > max_limit {
                 info!("Message delivery estimated gas exceeds max gas limit");
-                return TxRunResult::Retry;
+                return on_retry();
             }
         }
 
         // We use the estimated gas limit from the prior call to
         // `process_estimate_costs` to avoid a second gas estimation.
-        let outcome = self
-            .mailbox
-            .process(&self.message, &metadata, Some(gas_limit))
-            .await?;
+        let outcome = tx_try!(
+            self.ctx
+                .mailbox
+                .process(&self.message, &metadata, Some(gas_limit))
+                .await,
+            "processing message"
+        );
 
         // TODO(trevor): Instead of immediately marking as processed, move to a
         //  verification queue, which will wait for finality and indexing by the
         //  mailbox indexer and then mark as processed (or eventually retry if
         //  no confirmation is ever seen).
 
-        self.gas_payment_enforcer
-            .record_tx_outcome(&self.message, outcome)?;
+        tx_try!(critical: self.ctx.gas_payment_enforcer.record_tx_outcome(&self.message, outcome), "recording tx outcome");
         if outcome.executed {
             info!(
                 hash=?outcome.txid,
                 rq_sz=?self.run_queue.len(),
                 "Message successfully processed by transaction"
             );
-            TxRunResult::Success
+            on_success()
         } else {
             info!(
                 hash=?outcome.txid,
                 "Transaction attempting to process transaction reverted"
             );
-            TxRunResult::Retry
+            on_retry()
         }
     }
 
+    fn next_attempt_after(&self) -> Option<Instant> {
+        self.next_attempt_after
+    }
+
+    fn submitted(&self) -> bool {
+        self.submitted
+    }
+}
+
+impl PendingMessage {
     /// Record in HyperlaneDB and various metrics that this process has observed
     /// the successful processing of a message. An `Ok(())` value returned by
     /// this function is the 'commit' point in a message's lifetime for

@@ -25,7 +25,7 @@ use crate::{
         metadata::BaseMetadataBuilder,
         processor::{MessageProcessor, MessageProcessorMetrics},
         serial_submitter::{SerialSubmitter, SerialSubmitterMetrics},
-        PendingMessage,
+        pending_message::PendingMessage,
     },
     settings::{matching_list::MatchingList, RelayerSettings},
 };
