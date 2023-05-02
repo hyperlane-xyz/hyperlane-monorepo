@@ -1,7 +1,6 @@
 name: Agent Release Artifacts
 
 on:
-  pull_request:
   release:
     types: [published]
   # Allows you to run this workflow manually from the Actions tab
