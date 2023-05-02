@@ -34,7 +34,7 @@ impl TypedDB {
         Self { domain_prefix, db }
     }
 
-    fn full_key(&self, prefix: &[u8], key: &[u8]) -> Vec<u8> {
+    fn prefixed_key(&self, prefix: &[u8], key: &[u8]) -> Vec<u8> {
         self.domain_prefix
             .iter()
             .chain(prefix)
@@ -51,7 +51,7 @@ impl TypedDB {
         value: &V,
     ) -> Result<()> {
         self.db.store(
-            &self.full_key(prefix.as_ref(), key.as_ref()),
+            &self.prefixed_key(prefix.as_ref(), key.as_ref()),
             &value.to_vec(),
         )
     }
@@ -63,7 +63,7 @@ impl TypedDB {
         key: impl AsRef<[u8]>,
     ) -> Result<Option<V>> {
         self.db
-            .retrieve(&self.full_key(prefix.as_ref(), key.as_ref()))?
+            .retrieve(&self.prefixed_key(prefix.as_ref(), key.as_ref()))?
             .map(|v| V::read_from(&mut v.as_slice()))
             .transpose()
             .map_err(Into::into)
