@@ -9,7 +9,7 @@ import {
   StaticAggregationIsm__factory,
   StaticMOfNAddressSetFactory,
 } from '@hyperlane-xyz/core';
-import { types, utils } from '@hyperlane-xyz/utils';
+import { logging, types, utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
 import {
@@ -230,6 +230,7 @@ export async function moduleCanCertainlyVerify(
       throw new Error(`Unsupported module type: ${moduleType}`);
     }
   } catch (e) {
+    logging.warn(`Error checking module ${moduleAddress}: ${e}`);
     return false;
   }
 }
