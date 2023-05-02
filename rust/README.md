@@ -66,11 +66,8 @@ cd rust
 
 ### Deploy Procedure
 
-The contract addresses of each deploy can be found in `rust/config`. The latest
-deploy will be at `rust/config/[latest timestamp]` with bridge contracts within
-that same folder under `/bridge/[latest timestamp]`.
-
-The agents are set up to point at one environment at a time.
+The contract addresses of each deploy can be found in `rust/config`. The agents will
+automatically pull in all configs in this directory.
 
 When agents are deployed to point at a new environment, they cease to point at
 the old ones. We **do not** continue to operate off-chain agents on old contract
