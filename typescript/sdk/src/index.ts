@@ -56,11 +56,7 @@ export { HyperlaneCoreDeployer } from './core/HyperlaneCoreDeployer';
 export { TestCoreApp } from './core/TestCoreApp';
 export { TestCoreDeployer } from './core/TestCoreDeployer';
 export { CoreFactories, coreFactories } from './core/contracts';
-export {
-  AnnotatedDispatch,
-  AnnotatedLifecycleEvent,
-  HyperlaneLifecyleEvent,
-} from './core/events';
+export { HyperlaneLifecyleEvent } from './core/events';
 export { CoreConfig, CoreViolationType } from './core/types';
 export { HyperlaneAppChecker } from './deploy/HyperlaneAppChecker';
 export { DeployerOptions, HyperlaneDeployer } from './deploy/HyperlaneDeployer';
@@ -76,12 +72,6 @@ export {
   VerificationInput,
 } from './deploy/verify/types';
 export * as verificationUtils from './deploy/verify/utils';
-export {
-  Annotated,
-  TSContract,
-  getEvents,
-  queryAnnotatedEvents,
-} from './events';
 export { HyperlaneIgp } from './gas/HyperlaneIgp';
 export { HyperlaneIgpChecker } from './gas/HyperlaneIgpChecker';
 export { HyperlaneIgpDeployer } from './gas/HyperlaneIgpDeployer';
