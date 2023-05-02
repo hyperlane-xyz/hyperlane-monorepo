@@ -7,7 +7,7 @@ use eyre::Report;
 /// A pending operation that will be run by the submitter and cause a
 /// transaction to be sent.
 #[async_trait]
-trait PendingOperation {
+pub trait PendingOperation {
     /// Prepare to run this operation. This will be called before every run and
     /// will usually have a very short gap between it and the run call.
     async fn prepare(&mut self) -> TxPrepareResult {
@@ -22,11 +22,33 @@ trait PendingOperation {
     /// or not.
     async fn submit(&mut self) -> TxRunResult;
 
+    async fn validate(&mut self) -> TxValidationResult {
+        // default implementation is basically a no-op
+        if self.ready_to_be_validated() {
+            TxValidationResult::Valid
+        } else if !self.submitted() {
+            TxValidationResult::Invalid
+        } else {
+            TxValidationResult::Retry
+        }
+    }
+
     fn next_attempt_after(&self) -> Option<Instant>;
 
+    fn submitted(&self) -> bool;
+
     fn ready_to_be_processed(&self) -> bool {
-        self.next_attempt_after()
-            .map_or(true, |a| Instant::now() >= a)
+        !self.submitted()
+            && self
+                .next_attempt_after()
+                .map_or(true, |a| Instant::now() >= a)
+    }
+
+    fn ready_to_be_validated(&self) -> bool {
+        self.submitted()
+            && self
+                .next_attempt_after()
+                .map_or(true, |a| Instant::now() >= a)
     }
 }
 
@@ -42,7 +64,7 @@ impl PartialOrd for dyn PendingOperation {
     }
 }
 
-enum TxPrepareResult {
+pub enum TxPrepareResult {
     /// Txn is ready to be submitted
     Ready,
     /// This Txn is not ready to be attempted again yet
@@ -58,13 +80,27 @@ enum TxPrepareResult {
 }
 
 /// The result of running a pending transaction.
-enum TxRunResult {
+pub enum TxRunResult {
     /// Transaction was successfully processed
     Success,
     /// Txn failed/reverted and we should not try again
     Failure,
     /// Txn failed/reverted and we should try again after `next_attempt_after`
     Retry,
+    /// Pass the error up the chain, this is non-recoverable and indicates a
+    /// system failure.
+    CriticalFailure(Report),
+}
+
+pub enum TxValidationResult {
+    /// Transaction was successfully validated as being included in the
+    /// blockchain
+    Valid,
+    /// We can't assess validity yet, check again after `next_attempt_after`
+    Retry,
+    /// Transaction was not included and we should re-attempt preparing and
+    /// submitting it.
+    Invalid,
     /// Pass the error up the chain, this is non-recoverable and indicates a
     /// system failure.
     CriticalFailure(Report),

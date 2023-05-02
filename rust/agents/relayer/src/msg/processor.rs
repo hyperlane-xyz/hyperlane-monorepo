@@ -20,7 +20,7 @@ use crate::{
 /// Finds unprocessed messages from an origin and submits then through a channel
 /// for to the appropriate destination.
 #[derive(Debug, new)]
-pub(crate) struct MessageProcessor {
+pub struct MessageProcessor {
     db: HyperlaneDB,
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,
@@ -139,7 +139,7 @@ impl MessageProcessor {
 }
 
 #[derive(Debug)]
-pub(crate) struct MessageProcessorMetrics {
+pub struct MessageProcessorMetrics {
     max_last_known_message_nonce_gauge: IntGauge,
     last_known_message_nonce_gauges: HashMap<u32, IntGauge>,
 }

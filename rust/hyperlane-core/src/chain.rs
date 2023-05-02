@@ -322,7 +322,10 @@ impl HyperlaneDomain {
     pub fn name(&self) -> &str {
         match self {
             HyperlaneDomain::Known(domain) => domain.as_str(),
-            HyperlaneDomain::Unknown { domain_name: chain_name, .. } => chain_name.as_str(),
+            HyperlaneDomain::Unknown {
+                domain_name: chain_name,
+                ..
+            } => chain_name.as_str(),
         }
     }
 

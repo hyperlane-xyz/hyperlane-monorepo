@@ -22,9 +22,9 @@
 //!   - FallbackProviderSubmitter (Serialized, but if some RPC provider sucks,
 //!   switch everyone to new one)
 
-pub mod gas_payment;
-pub mod metadata;
-pub mod pending_message;
-pub mod pending_operation;
-pub mod processor;
-pub mod serial_submitter;
+pub(crate) mod gas_payment;
+pub(crate) mod metadata;
+pub(crate) mod pending_message;
+pub(crate) mod pending_operation;
+pub(crate) mod processor;
+pub(crate) mod serial_submitter;

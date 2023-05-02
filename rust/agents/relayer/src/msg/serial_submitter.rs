@@ -1,26 +1,19 @@
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use derive_new::new;
-use eyre::{bail, Context, Result};
+use eyre::{bail, Result};
 use prometheus::{IntCounter, IntGauge};
 use tokio::sync::mpsc::{self, error::TryRecvError};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
-use tracing::{debug, error, info, info_span, instrument, instrument::Instrumented, Instrument};
+use tracing::{info_span, instrument, instrument::Instrumented, Instrument};
 
-use hyperlane_base::{db::HyperlaneDB, CachingMailbox, CoreMetrics};
-use hyperlane_core::{HyperlaneChain, HyperlaneDomain, Mailbox, U256};
+use hyperlane_base::{db::HyperlaneDB, CoreMetrics};
+use hyperlane_core::HyperlaneDomain;
 
-use crate::msg::{
-    PendingMessage, PendingOperation, PendingOperationState, TxPrepareResult, TxRunResult,
-};
-
-use super::{
-    gas_payment::GasPaymentEnforcer, metadata::BaseMetadataBuilder, metadata::MetadataBuilder,
-};
+use super::pending_operation::*;
 
 /// SerialSubmitter accepts undelivered messages over a channel from a
 /// MessageProcessor. It is responsible for executing the right strategy to
@@ -75,13 +68,15 @@ use super::{
 /// TODO: Do we also want to await finality_blocks on source chain before
 ///  attempting submission? Does this already happen?
 #[derive(Debug, new)]
-pub(crate) struct SerialSubmitter {
+pub struct SerialSubmitter {
     /// Receiver for new messages to submit.
     rx: mpsc::UnboundedReceiver<Box<dyn PendingOperation>>,
     /// Messages waiting for their turn to be dispatched. The SerialSubmitter
     /// can only dispatch one message at a time, so this queue could grow.
     #[new(default)]
     run_queue: BinaryHeap<Reverse<Box<dyn PendingOperation>>>,
+    #[new(default)]
+    validation_queue: BinaryHeap<Reverse<Box<dyn PendingOperation>>>,
     /// Database for the origin domain
     db: HyperlaneDB,
     /// Metrics for serial submitter.
@@ -142,7 +137,7 @@ impl SerialSubmitter {
         // in the future we could pipeline this so that the next operation is being
         // prepared while the current one is being submitted
         match op.prepare().await {
-            TxPrepareResult::Ready => {},
+            TxPrepareResult::Ready => {}
             TxPrepareResult::NotReady => {
                 self.run_queue.push(Reverse(op));
                 return Ok(());
@@ -185,7 +180,7 @@ impl SerialSubmitter {
 }
 
 #[derive(Debug)]
-pub(crate) struct SerialSubmitterMetrics {
+pub struct SerialSubmitterMetrics {
     run_queue_length_gauge: IntGauge,
     txs_processed: IntCounter,
 }
