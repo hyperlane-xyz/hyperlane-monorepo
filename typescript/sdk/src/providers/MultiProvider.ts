@@ -19,31 +19,46 @@ import { CoreChainName, TestChains } from '../consts/chains';
 import { ChainMap, ChainName } from '../types';
 import { pick } from '../utils/objects';
 
-import { RetryJsonRpcProvider, RetryOptions } from './RetryProvider';
+import { RetryJsonRpcProvider, RetryProviderOptions } from './RetryProvider';
 
 type Provider = providers.Provider;
 
-export function providerBuilder(config?: {
-  http?: string;
-  network?: providers.Networkish;
-  retry?: RetryOptions;
-}): providers.JsonRpcProvider {
-  const baseProvider = new providers.StaticJsonRpcProvider(
-    config?.http,
-    config?.network,
-  );
-  return config?.retry
-    ? new RetryJsonRpcProvider(baseProvider, config.retry)
-    : baseProvider;
+const DEFAULT_RETRY_OPTIONS: RetryProviderOptions = {
+  maxRequests: 3,
+  baseRetryMs: 250,
+};
+
+export function defaultProviderBuilder(
+  rpcUrls: ChainMetadata['publicRpcUrls'],
+  network: providers.Networkish,
+  retryOverride?: RetryProviderOptions,
+): Provider {
+  const createProvider = (r: ChainMetadata['publicRpcUrls'][number]) => {
+    const retry = r.retry || retryOverride;
+    return retry
+      ? new RetryJsonRpcProvider(retry, r.http, network)
+      : new providers.StaticJsonRpcProvider(r.http, network);
+  };
+  if (rpcUrls.length > 1) {
+    return new providers.FallbackProvider(rpcUrls.map(createProvider), 1);
+  } else if (rpcUrls.length === 1) {
+    return createProvider(rpcUrls[0]);
+  } else {
+    throw new Error('No RPC URLs provided');
+  }
 }
+
+export type ProviderBuilderFn = typeof defaultProviderBuilder;
 
 interface MultiProviderOptions {
   loggerName?: string;
+  providerBuilder?: ProviderBuilderFn;
 }
 
 export class MultiProvider {
   public readonly metadata: ChainMap<ChainMetadata> = {};
   protected readonly providers: ChainMap<Provider> = {};
+  protected readonly providerBuilder: ProviderBuilderFn;
   protected signers: ChainMap<Signer> = {};
   protected useSharedSigner = false; // A single signer to be used for all chains
   protected readonly logger: Debugger;
@@ -64,6 +79,7 @@ export class MultiProvider {
       this.addChain(cm);
     });
     this.logger = debug(options?.loggerName || 'hyperlane:MultiProvider');
+    this.providerBuilder = options?.providerBuilder || defaultProviderBuilder;
   }
 
   /**
@@ -207,7 +223,7 @@ export class MultiProvider {
   tryGetProvider(chainNameOrId: ChainName | number): Provider | null {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
     if (!metadata) return null;
-    const { name, chainId: id, publicRpcUrls } = metadata;
+    const { name, chainId, publicRpcUrls } = metadata;
 
     if (this.providers[name]) return this.providers[name];
 
@@ -217,17 +233,11 @@ export class MultiProvider {
         31337,
       );
     } else if (publicRpcUrls.length) {
-      if (publicRpcUrls.length > 1) {
-        this.providers[name] = new providers.FallbackProvider(
-          publicRpcUrls.map((v) => providerBuilder({ ...v, network: id })),
-          1,
-        );
-      } else {
-        this.providers[name] = providerBuilder({
-          ...publicRpcUrls[0],
-          network: id,
-        });
-      }
+      this.providers[name] = this.providerBuilder(
+        publicRpcUrls,
+        chainId,
+        DEFAULT_RETRY_OPTIONS,
+      );
     } else {
       return null;
     }

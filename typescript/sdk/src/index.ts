@@ -131,8 +131,15 @@ export {
   InterchainQueryDeployer,
 } from './middleware/query/InterchainQueryDeployer';
 export { interchainQueryFactories } from './middleware/query/contracts';
-export { MultiProvider, providerBuilder } from './providers/MultiProvider';
-export { RetryJsonRpcProvider, RetryProvider } from './providers/RetryProvider';
+export {
+  MultiProvider,
+  ProviderBuilderFn,
+  defaultProviderBuilder,
+} from './providers/MultiProvider';
+export {
+  RetryJsonRpcProvider,
+  RetryProviderOptions,
+} from './providers/RetryProvider';
 export { GasRouterDeployer } from './router/GasRouterDeployer';
 export { HyperlaneRouterChecker } from './router/HyperlaneRouterChecker';
 export { HyperlaneRouterDeployer } from './router/HyperlaneRouterDeployer';

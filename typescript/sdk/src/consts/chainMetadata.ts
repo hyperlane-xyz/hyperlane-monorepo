@@ -4,7 +4,7 @@ import { z } from 'zod';
 
 import type { types } from '@hyperlane-xyz/utils';
 
-import { RetryOptions } from '../providers/RetryProvider';
+import type { RetryProviderOptions } from '../providers/RetryProvider';
 import { ChainName } from '../types';
 import { objMap } from '../utils/objects';
 import { chainMetadataToWagmiChain } from '../utils/wagmi';
@@ -42,7 +42,7 @@ export interface ChainMetadata {
     http: string;
     webSocket?: string;
     pagination?: RpcPaginationOptions;
-    retry?: RetryOptions;
+    retry?: RetryProviderOptions;
   }>;
   /** Collection of block explorers */
   blockExplorers?: Array<{
@@ -109,6 +109,12 @@ export const ChainMetadataSchema = z.object({
             maxBlockRange: z.number().positive().optional(),
             minBlockNumber: z.number().positive().optional(),
             maxBlockAge: z.number().positive().optional(),
+          })
+          .optional(),
+        retry: z
+          .object({
+            maxRequests: z.number().positive(),
+            baseRetryMs: z.number().positive(),
           })
           .optional(),
       }),
