@@ -8,22 +8,20 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use ethers::abi::AbiEncode;
 use ethers::prelude::Middleware;
-use ethers::types::Eip1559TransactionRequest;
 use ethers_contract::builders::ContractCall;
-use hyperlane_core::{KnownHyperlaneDomain, H160};
 use tracing::instrument;
 
 use hyperlane_core::{
     utils::fmt_bytes, ChainCommunicationError, ChainResult, Checkpoint, ContractLocator,
     HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
     HyperlaneProtocolError, HyperlaneProvider, Indexer, LogMeta, Mailbox, MailboxIndexer,
-    RawHyperlaneMessage, TxCostEstimate, TxOutcome, H256, U256,
+    RawHyperlaneMessage, TxCostEstimate, TxOutcome, H160, H256, U256,
 };
 
 use crate::contracts::arbitrum_node_interface::ArbitrumNodeInterface;
 use crate::contracts::i_mailbox::{IMailbox as EthereumMailboxInternal, ProcessCall, IMAILBOX_ABI};
 use crate::trait_builder::BuildableWithProvider;
-use crate::tx::report_tx;
+use crate::tx::{format_tx, report_tx};
 use crate::EthereumProvider;
 
 /// An amount of gas to add to the estimated gas
@@ -218,46 +216,7 @@ where
             metadata.to_vec().into(),
             RawHyperlaneMessage::from(message).to_vec().into(),
         );
-        let gas_limit = if let Some(gas_limit) = tx_gas_limit {
-            gas_limit
-        } else {
-            tx.estimate_gas()
-                .await?
-                .saturating_add(U256::from(GAS_ESTIMATE_BUFFER))
-        };
-        let Ok((max_fee, max_priority_fee)) = self.provider.estimate_eip1559_fees(None).await else {
-            // Is not EIP 1559 chain
-            return Ok(tx.gas(gas_limit))
-        };
-        let max_priority_fee = if matches!(
-            KnownHyperlaneDomain::try_from(message.destination),
-            Ok(KnownHyperlaneDomain::Polygon)
-        ) {
-            // Polygon needs a max priority fee >= 30 gwei
-            let min_polygon_fee = U256::from(30_000_000_000u64);
-            max_priority_fee.max(min_polygon_fee)
-        } else {
-            max_priority_fee
-        };
-        // Is EIP 1559 chain
-        let mut request = Eip1559TransactionRequest::new();
-        if let Some(from) = tx.tx.from() {
-            request = request.from(*from);
-        }
-        if let Some(to) = tx.tx.to() {
-            request = request.to(to.clone());
-        }
-        if let Some(data) = tx.tx.data() {
-            request = request.data(data.clone());
-        }
-        if let Some(value) = tx.tx.value() {
-            request = request.value(*value);
-        }
-        request = request.max_fee_per_gas(max_fee);
-        request = request.max_priority_fee_per_gas(max_priority_fee);
-        let mut eip_1559_tx = tx.clone();
-        eip_1559_tx.tx = ethers::types::transaction::eip2718::TypedTransaction::Eip1559(request);
-        Ok(eip_1559_tx.gas(gas_limit))
+        format_tx(tx, tx_gas_limit, self.provider.clone(), message.destination).await
     }
 }
 

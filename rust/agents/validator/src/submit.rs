@@ -5,16 +5,20 @@ use std::time::{Duration, Instant};
 use eyre::Result;
 use prometheus::IntGauge;
 use tokio::{task::JoinHandle, time::sleep};
-use tracing::{debug, info, info_span, instrument::Instrumented, Instrument};
+use tracing::{debug, info, info_span, instrument::Instrumented, warn, Instrument};
 
 use hyperlane_base::{CheckpointSyncer, CoreMetrics};
-use hyperlane_core::{Announcement, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox};
+use hyperlane_core::{
+    Announcement, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox, ValidatorAnnounce,
+    H256,
+};
 
 pub(crate) struct ValidatorSubmitter {
     interval: Duration,
     reorg_period: Option<NonZeroU64>,
     signer: Arc<dyn HyperlaneSigner>,
     mailbox: Arc<dyn Mailbox>,
+    validator_announce: Arc<dyn ValidatorAnnounce>,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
     metrics: ValidatorSubmitterMetrics,
 }
@@ -24,6 +28,7 @@ impl ValidatorSubmitter {
         interval: Duration,
         reorg_period: u64,
         mailbox: Arc<dyn Mailbox>,
+        validator_announce: Arc<dyn ValidatorAnnounce>,
         signer: Arc<dyn HyperlaneSigner>,
         checkpoint_syncer: Arc<dyn CheckpointSyncer>,
         metrics: ValidatorSubmitterMetrics,
@@ -32,6 +37,7 @@ impl ValidatorSubmitter {
             reorg_period: NonZeroU64::new(reorg_period),
             interval,
             mailbox,
+            validator_announce,
             signer,
             checkpoint_syncer,
             metrics,
@@ -55,6 +61,42 @@ impl ValidatorSubmitter {
         self.checkpoint_syncer
             .write_announcement(&signed_announcement)
             .await?;
+
+        // Ensure that the validator has announced themselves before we enter
+        // the main validator submit loop. This is to avoid a situation in
+        // which the validator is signing checkpoints but has not announced
+        // their locations, which makes them functionally unusable.
+        let validators: [H256; 1] = [self.signer.eth_address().into()];
+            warn!("Waiting for validator announcement");
+            if let Some(locations) = self
+                .validator_announce
+                .get_announced_storage_locations(&validators)
+                .await?
+                .first()
+            {
+                info!(
+                    locations=?locations,
+                    "Validator announcement found at location",
+                );
+                if locations.is_empty() {
+                    let outcome = self
+                        .validator_announce
+                        .announce(signed_announcement.clone(), None)
+                        .await?;
+                    if outcome.executed {
+                        info!(
+                            hash=?outcome.txid,
+                            "Validator successfully announced"
+                        );
+                    } else {
+                        info!(
+                            hash=?outcome.txid,
+                            "Transaction attempting to announce validator reverted"
+                        );
+                    }
+                }
+            }
+            sleep(self.interval).await;
 
         // Ensure that the mailbox has > 0 messages before we enter the main
         // validator submit loop. This is to avoid an underflow / reverted

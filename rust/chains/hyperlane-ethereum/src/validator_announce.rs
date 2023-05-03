@@ -7,15 +7,18 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use ethers::providers::Middleware;
 
+use ethers_contract::builders::ContractCall;
 use hyperlane_core::{
-    ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneProvider, ValidatorAnnounce, H160, H256,
+    Announcement, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H160, H256, U256,
 };
+use tracing::instrument;
 
 use crate::contracts::i_validator_announce::{
     IValidatorAnnounce as EthereumValidatorAnnounceInternal, IVALIDATORANNOUNCE_ABI,
 };
 use crate::trait_builder::BuildableWithProvider;
+use crate::tx::{format_tx, report_tx};
 use crate::EthereumProvider;
 
 impl<M> std::fmt::Display for EthereumValidatorAnnounceInternal<M>
@@ -50,6 +53,7 @@ where
 {
     contract: Arc<EthereumValidatorAnnounceInternal<M>>,
     domain: HyperlaneDomain,
+    provider: Arc<M>,
 }
 
 impl<M> EthereumValidatorAnnounce<M>
@@ -62,10 +66,27 @@ where
         Self {
             contract: Arc::new(EthereumValidatorAnnounceInternal::new(
                 locator.address,
-                provider,
+                provider.clone(),
             )),
             domain: locator.domain.clone(),
+            provider: provider,
         }
+    }
+
+    /// Returns a ContractCall that processes the provided message.
+    /// If the provided tx_gas_limit is None, gas estimation occurs.
+    async fn announce_contract_call(
+        &self,
+        announcement: SignedType<Announcement>,
+        tx_gas_limit: Option<U256>,
+    ) -> ChainResult<ContractCall<M, bool>> {
+        let serialized_signature: [u8; 65] = announcement.signature.clone().into();
+        let tx = self.contract.announce(
+            announcement.value.validator,
+            announcement.value.storage_location,
+            serialized_signature.into(),
+        );
+        format_tx(tx, tx_gas_limit, self.provider.clone(), self.domain.id()).await
     }
 }
 
@@ -109,6 +130,19 @@ where
             .call()
             .await?;
         Ok(storage_locations)
+    }
+
+    #[instrument(err, ret, skip(self))]
+    async fn announce(
+        &self,
+        announcement: SignedType<Announcement>,
+        tx_gas_limit: Option<U256>,
+    ) -> ChainResult<TxOutcome> {
+        let contract_call = self
+            .announce_contract_call(announcement, tx_gas_limit)
+            .await?;
+        let receipt = report_tx(contract_call).await?;
+        Ok(receipt.into())
     }
 }
 

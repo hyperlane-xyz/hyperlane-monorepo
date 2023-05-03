@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use auto_impl::auto_impl;
 
-use crate::{ChainResult, HyperlaneContract, H256};
+use crate::{Announcement, ChainResult, HyperlaneContract, SignedType, TxOutcome, H256, U256};
 
 /// Interface for the ValidatorAnnounce chain contract. Allows abstraction over
 /// different chains
@@ -15,4 +15,11 @@ pub trait ValidatorAnnounce: HyperlaneContract + Send + Sync + Debug {
         &self,
         validators: &[H256],
     ) -> ChainResult<Vec<Vec<String>>>;
+
+    /// Announce a storage location for a validator
+    async fn announce(
+        &self,
+        announcement: SignedType<Announcement>,
+        tx_gas_limit: Option<U256>,
+    ) -> ChainResult<TxOutcome>;
 }

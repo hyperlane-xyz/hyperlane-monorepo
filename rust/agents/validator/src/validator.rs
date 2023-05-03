@@ -7,7 +7,7 @@ use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 
 use hyperlane_base::{run_all, BaseAgent, CheckpointSyncer, CoreMetrics, HyperlaneAgentCore};
-use hyperlane_core::{HyperlaneDomain, HyperlaneSigner, Mailbox};
+use hyperlane_core::{HyperlaneDomain, HyperlaneSigner, Mailbox, ValidatorAnnounce};
 
 use crate::{
     settings::ValidatorSettings, submit::ValidatorSubmitter, submit::ValidatorSubmitterMetrics,
@@ -19,6 +19,7 @@ pub struct Validator {
     origin_chain: HyperlaneDomain,
     core: HyperlaneAgentCore,
     mailbox: Arc<dyn Mailbox>,
+    validator_announce: Arc<dyn ValidatorAnnounce>,
     signer: Arc<dyn HyperlaneSigner>,
     reorg_period: u64,
     interval: Duration,
@@ -55,10 +56,16 @@ impl BaseAgent for Validator {
             .await?
             .into();
 
+        let validator_announce = settings
+            .build_validator_announce(&settings.origin_chain, &metrics)
+            .await?
+            .into();
+
         Ok(Self {
             origin_chain: settings.origin_chain,
             core,
             mailbox,
+            validator_announce,
             signer,
             reorg_period: settings.reorg_period,
             interval: settings.interval,
@@ -72,6 +79,7 @@ impl BaseAgent for Validator {
             self.interval,
             self.reorg_period,
             self.mailbox.clone(),
+            self.validator_announce.clone(),
             self.signer.clone(),
             self.checkpoint_syncer.clone(),
             ValidatorSubmitterMetrics::new(&self.core.metrics, &self.origin_chain),
