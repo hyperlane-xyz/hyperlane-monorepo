@@ -41,7 +41,7 @@ export const environment: EnvironmentConfig = {
   keyFunderConfig,
   storageGasOracleConfig,
   liquidityLayerConfig: {
-    bridgeAdapter: bridgeAdapterConfigs,
+    bridgeAdapters: bridgeAdapterConfigs,
     relayer: relayerConfig,
   },
 };
