@@ -1,0 +1,82 @@
+name: Agent Release Artifacts
+
+on:
+  release:
+    types: [published]
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+concurrency:
+  group: agent-release-artifacts-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      tag_date: ${{ steps.taggen.outputs.TAG_DATE }}
+      tag_sha: ${{ steps.taggen.outputs.TAG_SHA }}
+    steps:
+      - name: generate tag data
+        id: taggen
+        run: |
+          echo "TAG_DATE=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
+          echo "TAG_SHA=$(echo '${{ github.sha }}' | cut -b 1-7)" >> $GITHUB_OUTPUT
+  build:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - TARGET: x86_64-unknown-linux-gnu
+            OS: ubuntu-latest
+          - TARGET: x86_64-apple-darwin
+            OS: macos-latest
+          - TARGET: aarch64-apple-darwin
+            OS: macos-latest
+          - TARGET: x86_64-pc-windows-msvc
+            OS: windows-latest
+    runs-on: ${{ matrix.OS }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+      - name: ubuntu setup
+        if: ${{ matrix.OS == 'ubuntu-latest' }}
+        run: |
+          sudo apt-get install -qq crossbuild-essential-arm64 crossbuild-essential-armhf
+          
+          # some additional configuration for cross-compilation on linux
+          cat >>~/.cargo/config <<EOF
+          [target.aarch64-unknown-linux-gnu]
+          linker = "aarch64-linux-gnu-gcc"
+          [target.aarch64-unknown-linux-musl]
+          linker = "aarch64-linux-gnu-gcc"
+          EOF
+      - name: setup rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          target: ${{ matrix.TARGET }}
+      - name: setup target
+        run: rustup target add ${{ matrix.TARGET }}
+        working-directory: ./rust
+      - name: build
+        run: cargo build --release --target ${{ matrix.TARGET }} --bin relayer --bin scraper --bin validator
+        working-directory: ./rust
+      - name: make executable
+        if: ${{ matrix.OS == 'ubuntu-latest' || matrix.OS == 'macos-latest' }}
+        run: chmod ug+x,-w relayer scraper validator
+        working-directory: rust/target/${{ matrix.TARGET }}/release
+      - name: upload binaries
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.TARGET }}-${{ needs.prepare.outputs.tag_sha }}-${{ needs.prepare.outputs.tag_date }}
+          path: |
+            rust/target/${{ matrix.TARGET }}/release/relayer
+            rust/target/${{ matrix.TARGET }}/release/scraper
+            rust/target/${{ matrix.TARGET }}/release/validator

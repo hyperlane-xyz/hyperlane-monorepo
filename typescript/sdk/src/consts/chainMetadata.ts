@@ -2,7 +2,9 @@ import type { Chain as WagmiChain } from '@wagmi/chains';
 import type { providers } from 'ethers';
 import { z } from 'zod';
 
-import { RetryOptions } from '../providers/RetryProvider';
+import type { types } from '@hyperlane-xyz/utils';
+
+import type { RetryProviderOptions } from '../providers/RetryProvider';
 import { ChainName } from '../types';
 import { objMap } from '../utils/objects';
 import { chainMetadataToWagmiChain } from '../utils/wagmi';
@@ -14,6 +16,7 @@ export enum ExplorerFamily {
   Blockscout = 'blockscout',
   Other = 'other',
 }
+export type ExplorerFamilyType = `${ExplorerFamily}`;
 
 /**
  * Collection of useful properties and settings
@@ -38,16 +41,16 @@ export interface ChainMetadata {
   publicRpcUrls: Array<{
     http: string;
     webSocket?: string;
-    pagination?: RpcPagination;
-    retry?: RetryOptions;
+    pagination?: RpcPaginationOptions;
+    retry?: RetryProviderOptions;
   }>;
   /** Collection of block explorers */
   blockExplorers?: Array<{
     name: string;
     url: string;
-    apiUrl?: string;
+    apiUrl: string;
     apiKey?: string;
-    family?: ExplorerFamily;
+    family?: ExplorerFamilyType;
   }>;
   blocks?: {
     /** Number of blocks to wait before considering a transaction confirmed */
@@ -58,7 +61,10 @@ export interface ChainMetadata {
     /** Rough estimate of time per block in seconds */
     estimateBlockTime?: number;
   };
+  /** Settings to use when forming transaction requests */
   transactionOverrides?: Partial<providers.TransactionRequest>;
+  /** Address for Ethereum Name Service registry */
+  ensAddress?: types.Address;
   /** The CoinGecko API sometimes expects IDs that do not match ChainNames */
   gasCurrencyCoinGeckoId?: string;
   /** URL of the gnosis safe transaction service */
@@ -67,9 +73,13 @@ export interface ChainMetadata {
   isTestnet?: boolean;
 }
 
-export interface RpcPagination {
-  blocks: number;
-  from: number;
+export interface RpcPaginationOptions {
+  /** Maximum number of blocks to query between (e.g. for fetching logs) */
+  maxBlockRange?: number;
+  /** Absolute lowest block number from which to query */
+  minBlockNumber?: number;
+  /** Relative num blocks from latest from which to query */
+  maxBlockAge?: number;
 }
 
 /**
@@ -77,8 +87,8 @@ export interface RpcPagination {
  * Keep in sync with ChainMetadata above
  */
 export const ChainMetadataSchema = z.object({
-  chainId: z.number(),
-  domainId: z.number().optional(),
+  chainId: z.number().positive(),
+  domainId: z.number().positive().optional(),
   name: z.string(),
   displayName: z.string().optional(),
   displayNameShort: z.string().optional(),
@@ -86,7 +96,7 @@ export const ChainMetadataSchema = z.object({
     .object({
       name: z.string(),
       symbol: z.string(),
-      decimals: z.number(),
+      decimals: z.number().positive(),
     })
     .optional(),
   publicRpcUrls: z
@@ -96,8 +106,15 @@ export const ChainMetadataSchema = z.object({
         webSocket: z.string().optional(),
         pagination: z
           .object({
-            blocks: z.number(),
-            from: z.number(),
+            maxBlockRange: z.number().positive().optional(),
+            minBlockNumber: z.number().positive().optional(),
+            maxBlockAge: z.number().positive().optional(),
+          })
+          .optional(),
+        retry: z
+          .object({
+            maxRequests: z.number().positive(),
+            baseRetryMs: z.number().positive(),
           })
           .optional(),
       }),
@@ -108,9 +125,9 @@ export const ChainMetadataSchema = z.object({
       z.object({
         name: z.string(),
         url: z.string().url(),
-        apiUrl: z.string().url().optional(),
+        apiUrl: z.string().url(),
         apiKey: z.string().optional(),
-        family: z.string().optional(),
+        family: z.nativeEnum(ExplorerFamily).optional(),
       }),
     )
     .optional(),
@@ -118,7 +135,7 @@ export const ChainMetadataSchema = z.object({
     .object({
       confirmations: z.number(),
       reorgPeriod: z.number().optional(),
-      estimateBlockTime: z.number().optional(),
+      estimateBlockTime: z.number().positive().optional(),
     })
     .optional(),
   transactionOverrides: z.object({}).optional(),
@@ -169,6 +186,7 @@ export const alfajores: ChainMetadata = {
     {
       name: 'Blockscout',
       url: 'https://explorer.celo.org/alfajores',
+      apiUrl: 'https://explorer.celo.org/alfajores/api',
       family: ExplorerFamily.Blockscout,
     },
   ],
@@ -236,8 +254,8 @@ export const avalanche: ChainMetadata = {
     {
       http: 'https://api.avax.network/ext/bc/C/rpc',
       pagination: {
-        blocks: 100000,
-        from: 6765067,
+        maxBlockRange: 100000,
+        minBlockNumber: 6765067,
       },
     },
   ],
@@ -373,13 +391,18 @@ export const fuji: ChainMetadata = {
   name: Chains.fuji,
   displayName: 'Fuji',
   nativeToken: avaxToken,
-  publicRpcUrls: [{ http: 'https://api.avax-test.network/ext/bc/C/rpc' }],
+  publicRpcUrls: [
+    {
+      http: 'https://api.avax-test.network/ext/bc/C/rpc',
+      pagination: { maxBlockRange: 2048 },
+    },
+  ],
   blockExplorers: [
     {
       name: 'SnowTrace',
       url: 'https://testnet.snowtrace.io',
       apiUrl: 'https://api-testnet.snowtrace.io/api',
-      family: ExplorerFamily.Other,
+      family: ExplorerFamily.Etherscan,
     },
   ],
   blocks: {
@@ -487,8 +510,8 @@ export const moonbeam: ChainMetadata = {
     },
   ],
   blocks: {
-    confirmations: 1,
-    reorgPeriod: 1,
+    confirmations: 2,
+    reorgPeriod: 2,
     estimateBlockTime: 12,
   },
   gnosisSafeTransactionServiceUrl:
@@ -505,8 +528,8 @@ export const mumbai: ChainMetadata = {
       http: 'https://rpc.ankr.com/polygon_mumbai',
       pagination: {
         // eth_getLogs and eth_newFilter are limited to a 10,000 blocks range
-        blocks: 10000,
-        from: 22900000,
+        maxBlockRange: 10000,
+        minBlockNumber: 22900000,
       },
     },
     {
@@ -586,8 +609,8 @@ export const polygon: ChainMetadata = {
       http: 'https://rpc-mainnet.matic.quiknode.pro',
       pagination: {
         // Needs to be low to avoid RPC timeouts
-        blocks: 10000,
-        from: 19657100,
+        maxBlockRange: 10000,
+        minBlockNumber: 19657100,
       },
     },
     { http: 'https://polygon-rpc.com' },
@@ -619,8 +642,8 @@ export const gnosis: ChainMetadata = {
     {
       http: 'https://rpc.gnosischain.com',
       pagination: {
-        blocks: 10000,
-        from: 25997478,
+        maxBlockRange: 10000,
+        minBlockNumber: 25997478,
       },
     },
   ],

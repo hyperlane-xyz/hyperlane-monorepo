@@ -35,12 +35,14 @@ ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-02-10
 ethers-contract = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-02-10-01", features = ["legacy"] }
 ethers-providers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-02-10-01" }
 ethers-signers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-02-10-01", features = ["aws"] }
+ethers-core = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-02-10-01" }
 eyre = "0.6"
 fuels = "0.38"
 fuels-code-gen = "0.38"
 futures = "0.3"
 futures-util = "0.3"
 itertools = "0.10"
+num = {version = "0.4"}
 num-derive = "0.3"
 num-traits = "0.2"
 paste = "1.0"

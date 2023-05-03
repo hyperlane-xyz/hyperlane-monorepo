@@ -4,7 +4,11 @@ import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
 } from '../../consts/environments';
-import { HyperlaneContracts } from '../../contracts';
+import {
+  HyperlaneAddressesMap,
+  HyperlaneContracts,
+  appFromAddressesMapHelper,
+} from '../../contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterApp } from '../../router/RouterApps';
 
@@ -28,14 +32,18 @@ export class InterchainQuery extends RouterApp<InterchainQueryFactories> {
     if (!envAddresses) {
       throw new Error(`No addresses found for ${env}`);
     }
-    const fromAddressesMap = this.fromAddressesMap(
-      envAddresses,
+    return InterchainQuery.fromAddressesMap(envAddresses, multiProvider);
+  }
+
+  static fromAddressesMap(
+    addressesMap: HyperlaneAddressesMap<any>,
+    multiProvider: MultiProvider,
+  ): InterchainQuery {
+    const helper = appFromAddressesMapHelper(
+      addressesMap,
       interchainQueryFactories,
       multiProvider,
     );
-    return new InterchainQuery(
-      fromAddressesMap.contractsMap,
-      fromAddressesMap.multiProvider,
-    );
+    return new InterchainQuery(helper.contractsMap, helper.multiProvider);
   }
 }

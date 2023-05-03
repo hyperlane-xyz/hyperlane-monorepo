@@ -6,12 +6,11 @@ use eyre::{eyre, Context};
 use serde::Deserialize;
 
 use hyperlane_core::{
-    config::*,
-    db::{HyperlaneDB, DB},
-    HyperlaneChain, HyperlaneDomain, HyperlaneProvider, InterchainGasPaymaster,
+    config::*, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, InterchainGasPaymaster,
     InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm, ValidatorAnnounce, H256,
 };
 
+use crate::db::{HyperlaneDB, DB};
 use crate::{
     settings::{
         chains::{ChainConf, RawChainConf},

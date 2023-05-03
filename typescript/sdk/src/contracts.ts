@@ -58,7 +58,7 @@ function getFactory<F extends HyperlaneFactories>(
 }
 
 export function filterAddressesMap<F extends HyperlaneFactories>(
-  addressesMap: HyperlaneAddressesMap<F>,
+  addressesMap: HyperlaneAddressesMap<any>,
   factories: F,
 ): HyperlaneAddressesMap<F> {
   const factoryKeys = Object.keys(factories);
@@ -86,7 +86,7 @@ export function attachContracts<F extends HyperlaneFactories>(
 }
 
 export function attachContractsMap<F extends HyperlaneFactories>(
-  addressesMap: HyperlaneAddressesMap<F>,
+  addressesMap: HyperlaneAddressesMap<any>,
   factories: F,
 ): HyperlaneContractsMap<F> {
   const filteredAddressesMap = filterAddressesMap(addressesMap, factories);
@@ -130,4 +130,29 @@ export async function filterOwnableContracts(
     contracts,
     (name, contract): contract is Ownable => isOwnableContracts[name],
   );
+}
+
+export function appFromAddressesMapHelper<F extends HyperlaneFactories>(
+  addressesMap: HyperlaneAddressesMap<any>,
+  factories: F,
+  multiProvider: MultiProvider,
+): {
+  contractsMap: HyperlaneContractsMap<F>;
+  multiProvider: MultiProvider;
+} {
+  // Attaches contracts for each chain for which we have a complete set of
+  // addresses
+  const contractsMap = attachContractsMap(addressesMap, factories);
+
+  // Filters out providers for chains for which we don't have a complete set
+  // of addresses
+  const intersection = multiProvider.intersect(Object.keys(contractsMap));
+
+  // Filters out contracts for chains for which we don't have a provider
+  const filteredContractsMap = pick(contractsMap, intersection.intersection);
+
+  return {
+    contractsMap: filteredContractsMap,
+    multiProvider: intersection.multiProvider,
+  };
 }
