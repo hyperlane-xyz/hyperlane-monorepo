@@ -6,7 +6,8 @@
       "domain": "13375",
       "addresses": {
         "mailbox": "692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1",
-        "interchainGasPaymaster": "FixmeFixmeFixmeFixmeFixmeFixmeFixmeFixmeFixm"
+        "interchainGasPaymaster": "FixmeFixmeFixmeFixmeFixmeFixmeFixmeFixmeFixm",
+        "validatorAnnounce": "FixmeFixmeFixmeFixmeFixmeFixmeFixmeFixmeFixm"
       },
       "signer": null,
       "protocol": "sealevel",

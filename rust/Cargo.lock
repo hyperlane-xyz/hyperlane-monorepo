@@ -2959,6 +2959,7 @@ dependencies = [
  "async-trait",
  "backtrace",
  "backtrace-oneline",
+ "bs58",
  "color-eyre",
  "config",
  "derive-new",

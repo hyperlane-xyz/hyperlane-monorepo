@@ -114,10 +114,16 @@ impl FromRawConf<'_, RawCoreContractAddresses> for CoreContractAddresses {
                     })
                     .take_err(&mut err, path)
                     .and_then(|v| {
+                        // TODO this is sketchy
                         if v.len() <= 42 {
                             v.parse::<H160>().take_err(&mut err, path).map(Into::into)
-                        } else {
+                        } else if v.starts_with("0x") {
                             v.parse().take_err(&mut err, path)
+                        } else {
+                            bs58::decode(v)
+                                .into_vec()
+                                .take_err(&mut err, path)
+                                .map(|v| H256::from_slice(&v))
                         }
                     })
             }};
