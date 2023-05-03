@@ -15,7 +15,7 @@ export const hyperlane: HelloWorldConfig = {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
       tag: '25f19b7-20230319-124624',
     },
-    chainsToSkip: ['ethereum', 'arbitrum', 'optimism'],
+    chainsToSkip: [],
     runEnv: environment,
     namespace: environment,
     runConfig: {
