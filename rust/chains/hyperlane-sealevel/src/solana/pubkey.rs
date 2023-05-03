@@ -1,6 +1,8 @@
 //! Solana account addresses.
 
 #![allow(clippy::integer_arithmetic)]
+use crate::solana::hash::hashv;
+use serde_derive::{Deserialize, Serialize};
 use {
     // crate::{decode_error::DecodeError, hash::hashv, wasm_bindgen},
     borsh::{BorshDeserialize, BorshSchema, BorshSerialize},
@@ -13,8 +15,6 @@ use {
     },
     thiserror::Error,
 };
-use crate::solana::hash::hashv;
-use serde_derive::{Deserialize, Serialize};
 
 /// Number of bytes in a pubkey
 pub const PUBKEY_BYTES: usize = 32;
@@ -27,7 +27,7 @@ const MAX_BASE58_LEN: usize = 44;
 
 const PDA_MARKER: &[u8; 21] = b"ProgramDerivedAddress";
 
-#[derive(Error, Debug, Serialize, Clone, PartialEq, Eq, /*FromPrimitive, ToPrimitive*/)]
+#[derive(Error, Debug, Serialize, Clone, PartialEq, Eq /*FromPrimitive, ToPrimitive*/)]
 pub enum PubkeyError {
     /// Length of the seed is too long for address generation
     #[error("Length of the seed is too long for address generation")]
@@ -71,9 +71,9 @@ impl From<u64> for PubkeyError {
 // #[wasm_bindgen]
 #[repr(transparent)]
 #[derive(
-/*
-    AbiExample,
-*/
+    /*
+        AbiExample,
+    */
     BorshDeserialize,
     BorshSchema,
     BorshSerialize,
@@ -86,22 +86,21 @@ impl From<u64> for PubkeyError {
     Ord,
     PartialEq,
     PartialOrd,
-/*
-    Pod,
-*/
+    /*
+        Pod,
+    */
     Serialize,
-/*
-    Zeroable,
-*/
+    /*
+        Zeroable,
+    */
 )]
 pub struct Pubkey(pub(crate) [u8; 32]);
-
 
 /*
 impl crate::sanitize::Sanitize for Pubkey {}
 */
 
-#[derive(Error, Debug, Serialize, Clone, PartialEq, Eq, /*FromPrimitive, ToPrimitive*/)]
+#[derive(Error, Debug, Serialize, Clone, PartialEq, Eq /*FromPrimitive, ToPrimitive*/)]
 pub enum ParsePubkeyError {
     #[error("String is the wrong size")]
     WrongSize,
@@ -177,27 +176,27 @@ impl Pubkey {
         Self(pubkey_array)
     }
 
-/*
-    #[deprecated(since = "1.3.9", note = "Please use 'Pubkey::new_unique' instead")]
-    #[cfg(not(target_os = "solana"))]
-    pub fn new_rand() -> Self {
-        // Consider removing Pubkey::new_rand() entirely in the v1.5 or v1.6 timeframe
-        Pubkey::new(&rand::random::<[u8; 32]>())
-    }
+    /*
+        #[deprecated(since = "1.3.9", note = "Please use 'Pubkey::new_unique' instead")]
+        #[cfg(not(target_os = "solana"))]
+        pub fn new_rand() -> Self {
+            // Consider removing Pubkey::new_rand() entirely in the v1.5 or v1.6 timeframe
+            Pubkey::new(&rand::random::<[u8; 32]>())
+        }
 
-    /// unique Pubkey for tests and benchmarks.
-    pub fn new_unique() -> Self {
-        use crate::atomic_u64::AtomicU64;
-        static I: AtomicU64 = AtomicU64::new(1);
+        /// unique Pubkey for tests and benchmarks.
+        pub fn new_unique() -> Self {
+            use crate::atomic_u64::AtomicU64;
+            static I: AtomicU64 = AtomicU64::new(1);
 
-        let mut b = [0u8; 32];
-        let i = I.fetch_add(1);
-        // use big endian representation to ensure that recent unique pubkeys
-        // are always greater than less recent unique pubkeys
-        b[0..8].copy_from_slice(&i.to_be_bytes());
-        Self::new(&b)
-    }
-*/
+            let mut b = [0u8; 32];
+            let i = I.fetch_add(1);
+            // use big endian representation to ensure that recent unique pubkeys
+            // are always greater than less recent unique pubkeys
+            b[0..8].copy_from_slice(&i.to_be_bytes());
+            Self::new(&b)
+        }
+    */
 
     pub fn create_with_seed(
         base: &Pubkey,
@@ -630,18 +629,18 @@ impl Pubkey {
         bytes_are_curve_point(self)
     }
 
-/*
-    /// Log a `Pubkey` from a program
-    pub fn log(&self) {
-        #[cfg(target_os = "solana")]
-        unsafe {
-            crate::syscalls::sol_log_pubkey(self.as_ref() as *const _ as *const u8)
-        };
+    /*
+        /// Log a `Pubkey` from a program
+        pub fn log(&self) {
+            #[cfg(target_os = "solana")]
+            unsafe {
+                crate::syscalls::sol_log_pubkey(self.as_ref() as *const _ as *const u8)
+            };
 
-        #[cfg(not(target_os = "solana"))]
-        crate::program_stubs::sol_log(&self.to_string());
-    }
-*/
+            #[cfg(not(target_os = "solana"))]
+            crate::program_stubs::sol_log(&self.to_string());
+        }
+    */
 }
 
 impl AsRef<[u8]> for Pubkey {

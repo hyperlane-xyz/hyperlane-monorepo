@@ -9,7 +9,10 @@ impl Provider {
     }
 }
 
-use hyperlane_core::{ChainCommunicationError, ChainResult, config::{FromRawConf, ConfigPath, ConfigResult, ConfigErrResultExt}};
+use hyperlane_core::{
+    config::{ConfigErrResultExt, ConfigPath, ConfigResult, FromRawConf},
+    ChainCommunicationError, ChainResult,
+};
 
 /// Sealevel connection configuration
 #[derive(Debug, Clone)]

@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+use std::str::FromStr as _;
 use {
     crate::solana::{
         // bpf_loader_upgradeable,
@@ -6,8 +8,6 @@ use {
     },
     std::{borrow::Cow, collections::HashSet},
 };
-use serde::{Deserialize, Serialize};
-use std::str::FromStr as _;
 
 /// Combination of a version #0 message and its loaded addresses
 #[derive(Debug, Clone)]
@@ -143,7 +143,6 @@ impl<'a> LoadedMessage<'a> {
         self.account_keys()
             .iter()
             .any(|&key| key == bpf_loader_upgradeable_id)
-
     }
 }
 

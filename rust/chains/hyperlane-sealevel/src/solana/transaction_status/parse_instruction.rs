@@ -1,4 +1,12 @@
+use serde::{Deserialize, Serialize};
+use std::str::FromStr as _;
 use {
+    // solana_account_decoder::parse_token::spl_token_ids,
+    crate::solana::{
+        instruction::CompiledInstruction, message::AccountKeys,
+        pubkey::Pubkey, /*, stake,*/
+                       // system_program,
+    },
     /*
     crate::{
         extract_memos::{spl_memo_id_v1, spl_memo_id_v3},
@@ -12,19 +20,12 @@ use {
     */
     inflector::Inflector,
     serde_json::Value,
-    // solana_account_decoder::parse_token::spl_token_ids,
-    crate::solana::{
-        instruction::CompiledInstruction, message::AccountKeys, pubkey::Pubkey /*, stake,*/
-        // system_program,
-    },
     std::{
         collections::HashMap,
         str::{from_utf8, Utf8Error},
     },
     thiserror::Error,
 };
-use std::str::FromStr as _;
-use serde::{Deserialize, Serialize};
 
 lazy_static::lazy_static! {
     static ref ASSOCIATED_TOKEN_PROGRAM_ID: Pubkey =
@@ -130,11 +131,11 @@ pub fn parse(
         ParsableProgram::SplMemo => {
             unimplemented!()
             // parse_memo(instruction)?
-        },
+        }
         ParsableProgram::SplToken => {
             unimplemented!()
             // serde_json::to_value(parse_token(instruction, account_keys)?)?
-        },
+        }
         ParsableProgram::BpfLoader => {
             unimplemented!()
             // serde_json::to_value(parse_bpf_loader(instruction, account_keys)?)?
@@ -146,15 +147,15 @@ pub fn parse(
         ParsableProgram::Stake => {
             unimplemented!()
             // serde_json::to_value(parse_stake(instruction, account_keys)?)?
-        },
+        }
         ParsableProgram::System => {
             unimplemented!()
             // serde_json::to_value(parse_system(instruction, account_keys)?)?
-        },
+        }
         ParsableProgram::Vote => {
             unimplemented!()
             // serde_json::to_value(parse_vote(instruction, account_keys)?)?
-        },
+        }
     };
     Ok(ParsedInstruction {
         program: format!("{:?}", program_name).to_kebab_case(),

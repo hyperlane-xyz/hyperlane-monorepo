@@ -2,13 +2,12 @@ use std::str::FromStr as _;
 
 use async_trait::async_trait;
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, MultisigIsm,
-    H256, HyperlaneProvider,
+    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, MultisigIsm, H256,
 };
 use tracing::warn;
 
-use crate::{ConnectionConf, solana::pubkey::Pubkey, SealevelProvider};
+use crate::{solana::pubkey::Pubkey, ConnectionConf, SealevelProvider};
 
 /// A reference to a MultisigIsm contract on some Sealevel chain
 #[derive(Debug)]
@@ -54,9 +53,9 @@ impl MultisigIsm for SealevelMultisigIsm {
     ) -> ChainResult<(Vec<H256>, u8)> {
         // FIXME get the validator set from the ISM contract
         warn!("Providing a single hardcoded validator and threshold of 1 for multisig ism");
-        let address = H256::from_str(
-            "0x00000000000000000000000070997970c51812dc3a010c7d01b50e0d17dc79c8"
-        ).map_err(ChainCommunicationError::from_other)?;
+        let address =
+            H256::from_str("0x00000000000000000000000070997970c51812dc3a010c7d01b50e0d17dc79c8")
+                .map_err(ChainCommunicationError::from_other)?;
         Ok((vec![address], 1))
     }
 }

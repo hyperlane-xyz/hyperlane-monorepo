@@ -1,12 +1,12 @@
 //! Implementation defined RPC server errors
+use serde::{Deserialize, Serialize};
 use {
+    crate::solana::clock::Slot,
     crate::solana::rpc_response::RpcSimulateTransactionResult,
     jsonrpc_core::{Error, ErrorCode},
-    crate::solana::clock::Slot,
     // solana_transaction_status::EncodeError,
     thiserror::Error,
 };
-use serde::{Deserialize, Serialize};
 
 // Keep in sync with web3.js/src/errors.ts
 pub const JSON_RPC_SERVER_ERROR_BLOCK_CLEANED_UP: i64 = -32001;
@@ -134,15 +134,15 @@ impl From<RpcCustomError> for Error {
                     num_slots_behind
                 })),
             },
-/*
-            RpcCustomError::TransactionPrecompileVerificationFailure(e) => Self {
-                code: ErrorCode::ServerError(
-                    JSON_RPC_SERVER_ERROR_TRANSACTION_SIGNATURE_VERIFICATION_FAILURE,
-                ),
-                message: format!("Transaction precompile verification failure {:?}", e),
-                data: None,
-            },
-*/
+            /*
+                        RpcCustomError::TransactionPrecompileVerificationFailure(e) => Self {
+                            code: ErrorCode::ServerError(
+                                JSON_RPC_SERVER_ERROR_TRANSACTION_SIGNATURE_VERIFICATION_FAILURE,
+                            ),
+                            message: format!("Transaction precompile verification failure {:?}", e),
+                            data: None,
+                        },
+            */
             RpcCustomError::SlotSkipped { slot } => Self {
                 code: ErrorCode::ServerError(JSON_RPC_SERVER_ERROR_SLOT_SKIPPED),
                 message: format!(

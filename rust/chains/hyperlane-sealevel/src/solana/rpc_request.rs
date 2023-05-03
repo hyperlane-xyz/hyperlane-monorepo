@@ -1,3 +1,4 @@
+use serde_derive::{Deserialize, Serialize};
 use {
     crate::solana::{clock::Slot, pubkey::Pubkey, rpc_response::RpcSimulateTransactionResult},
     serde_json::{json, Value},
@@ -5,7 +6,6 @@ use {
     std::fmt,
     thiserror::Error,
 };
-use serde_derive::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum RpcRequest {

@@ -1,14 +1,17 @@
 use async_trait::async_trait;
 use hyperlane_core::{
-    ChainResult, ChainCommunicationError, ContractLocator, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, H256, Indexer, InterchainGasPaymaster, InterchainGasPaymasterIndexer,
-    InterchainGasPayment, LogMeta, HyperlaneProvider,
+    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster,
+    InterchainGasPaymasterIndexer, InterchainGasPayment, LogMeta, H256,
 };
 use tracing::warn;
 
 use crate::{
-    ConnectionConf,
-    solana::{commitment_config::CommitmentConfig, pubkey::Pubkey /*, nonblocking_rpc_client::RpcClient*/}, SealevelProvider,
+    solana::{
+        commitment_config::CommitmentConfig,
+        pubkey::Pubkey, /*, nonblocking_rpc_client::RpcClient*/
+    },
+    ConnectionConf, SealevelProvider,
 };
 
 /// A reference to an IGP contract on some Sealevel chain

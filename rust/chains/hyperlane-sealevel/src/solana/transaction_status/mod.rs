@@ -1,33 +1,33 @@
 #![allow(clippy::integer_arithmetic)]
 
-pub use /*{crate::extract_memos::extract_and_fmt_memos, */ crate::solana::reward_type::RewardType/*}*/;
+pub use crate::solana::reward_type::RewardType; /*}*/;
+use serde::{Deserialize, Serialize};
 use {
+    crate::solana::account_decoder::parse_token::UiTokenAmount,
     crate::solana::transaction_status::{
         option_serializer::OptionSerializer,
-        parse_accounts::{/*parse_legacy_message_accounts, parse_v0_message_accounts,*/ ParsedAccount},
+        parse_accounts::ParsedAccount,
         parse_instruction::{parse, ParsedInstruction},
     },
-    crate::solana::account_decoder::parse_token::UiTokenAmount,
     crate::solana::{
         clock::{Slot, UnixTimestamp},
         commitment_config::CommitmentConfig,
         instruction::CompiledInstruction,
         message::{
             v0::{self, LoadedAddresses /*, LoadedMessage, MessageAddressTableLookup*/},
-            AccountKeys, /*Message,*/ MessageHeader/*, VersionedMessage,*/
+            AccountKeys, /*Message,*/ MessageHeader, /*, VersionedMessage,*/
         },
         pubkey::Pubkey,
         signature::Signature,
         transaction::{
-            Result as TransactionResult, /*Transaction,*/ TransactionError, TransactionVersion,
-            VersionedTransaction,
+            Result as TransactionResult, /*Transaction,*/ TransactionError,
+            TransactionVersion, VersionedTransaction,
         },
         // transaction_context::TransactionReturnData,
     },
     std::fmt,
     thiserror::Error,
 };
-use serde::{Deserialize, Serialize};
 
 // #[macro_use]
 // extern crate lazy_static;
@@ -1060,12 +1060,12 @@ impl EncodedTransaction {
         let (blob, encoding) = match self {
             Self::Json(_) => {
                 eprintln!("Self::Json"); // FIXME remove
-                return None
-            },
+                return None;
+            }
             Self::Accounts(_) => {
                 eprintln!("Self::Accounts"); // FIXME remove
-                return None
-            },
+                return None;
+            }
             Self::LegacyBinary(blob) => (blob, TransactionBinaryEncoding::Base58),
             Self::Binary(blob, encoding) => (blob, *encoding),
         };

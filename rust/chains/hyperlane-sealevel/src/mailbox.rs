@@ -10,37 +10,35 @@ use std::{
 use async_trait::async_trait;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, Decode as _, Encode as _,
-    HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, Indexer,
-    LogMeta, Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256, HyperlaneProvider,
+    HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
+    HyperlaneProvider, Indexer, LogMeta, Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256,
+    U256,
 };
 use tracing::{debug, error, instrument, trace, warn};
 
 use crate::{
-    /*make_provider,*/ ConnectionConf,
+    mailbox_message_inspector::{Error as InspectionError, Inspector},
+    mailbox_token_bridge_message_inspector::TokenBridgeInspector,
     solana::{
         commitment_config::CommitmentConfig,
         hash::Hash,
         instruction::{AccountMeta, Instruction},
-        pubkey::Pubkey,
         nonblocking_rpc_client::RpcClient,
+        pubkey::Pubkey,
         rpc_config::RpcSendTransactionConfig,
         signature::Signature,
-        signer::{keypair::{Keypair, read_keypair_file}, Signer as _},
+        signer::{
+            keypair::{read_keypair_file, Keypair},
+            Signer as _,
+        },
         transaction::{Transaction, VersionedTransaction},
         transaction_status::{
-            EncodedConfirmedBlock,
-            EncodedTransaction,
-            EncodedTransactionWithStatusMeta,
-            UiInnerInstructions,
-            UiInstruction,
-            UiMessage,
-            UiParsedInstruction,
-            UiTransaction,
+            EncodedConfirmedBlock, EncodedTransaction, EncodedTransactionWithStatusMeta,
+            UiInnerInstructions, UiInstruction, UiMessage, UiParsedInstruction, UiTransaction,
             UiTransactionStatusMeta,
         },
     },
-    mailbox_message_inspector::{Error as InspectionError, Inspector},
-    mailbox_token_bridge_message_inspector::TokenBridgeInspector, SealevelProvider,
+    /*make_provider,*/ ConnectionConf, SealevelProvider,
 };
 
 // FIXME solana uses the first 64 byte signature of a transaction to uniquely identify the
@@ -68,10 +66,7 @@ pub struct SealevelMailbox {
 
 impl SealevelMailbox {
     /// Create a new sealevel mailbox
-    pub fn new(
-        conf: &ConnectionConf,
-        locator: ContractLocator,
-    ) -> ChainResult<Self> {
+    pub fn new(conf: &ConnectionConf, locator: ContractLocator) -> ChainResult<Self> {
         let rpc_client = RpcClient::new(conf.url.to_string());
 
         // FIXME inject via config
@@ -91,23 +86,11 @@ impl SealevelMailbox {
             &program_id,
         );
         let inbox = Pubkey::find_program_address(
-            &[
-                b"hyperlane",
-                b"-",
-                &domain.to_le_bytes(),
-                b"-",
-                b"inbox",
-            ],
+            &[b"hyperlane", b"-", &domain.to_le_bytes(), b"-", b"inbox"],
             &program_id,
         );
         let outbox = Pubkey::find_program_address(
-            &[
-                b"hyperlane",
-                b"-",
-                &domain.to_le_bytes(),
-                b"-",
-                b"outbox",
-            ],
+            &[b"hyperlane", b"-", &domain.to_le_bytes(), b"-", b"outbox"],
             &program_id,
         );
 
@@ -128,14 +111,7 @@ impl SealevelMailbox {
 
         debug!(
             "domain={}\nmailbox={}\nauthority=({}, {})\ninbox=({}, {})\noutbox=({}, {})",
-            domain,
-            program_id,
-            authority.0,
-            authority.1,
-            inbox.0,
-            inbox.1,
-            outbox.0,
-            outbox.1,
+            domain, program_id, authority.0, authority.1, inbox.0, inbox.1, outbox.0, outbox.1,
         );
 
         Ok(SealevelMailbox {
@@ -228,7 +204,10 @@ impl Mailbox for SealevelMailbox {
 
     #[instrument(err, ret, skip(self))]
     async fn latest_checkpoint(&self, lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
-        assert!(lag.is_none(), "Sealevel does not support querying point-in-time");
+        assert!(
+            lag.is_none(),
+            "Sealevel does not support querying point-in-time"
+        );
 
         let outbox_account = self
             .rpc_client
@@ -245,11 +224,11 @@ impl Mailbox for SealevelMailbox {
             .count()
             .try_into()
             .map_err(ChainCommunicationError::from_other)?;
-        let index = count
-            .checked_sub(1)
-            .ok_or_else(|| ChainCommunicationError::from_contract_error_str(
-                "Outbox is empty, cannot compute checkpoint"
-            ))?;
+        let index = count.checked_sub(1).ok_or_else(|| {
+            ChainCommunicationError::from_contract_error_str(
+                "Outbox is empty, cannot compute checkpoint",
+            )
+        })?;
         let checkpoint = Checkpoint {
             mailbox_address: self.program_id.to_bytes().into(),
             mailbox_domain: self.domain.id(),
@@ -261,7 +240,10 @@ impl Mailbox for SealevelMailbox {
 
     #[instrument(err, ret, skip(self))]
     async fn default_ism(&self) -> ChainResult<H256> {
-        Ok(Pubkey::from_str(contract::DEFAULT_ISM).unwrap().to_bytes().into())
+        Ok(Pubkey::from_str(contract::DEFAULT_ISM)
+            .unwrap()
+            .to_bytes()
+            .into())
     }
 
     #[instrument(err, ret, skip(self))]
@@ -327,13 +309,13 @@ impl Mailbox for SealevelMailbox {
             Ok(inspection) => {
                 trace!("Extending accounts after inner message inspection!");
                 accounts.extend(inspection.accounts)
-            },
+            }
             Err(InspectionError::IncorrectProgramId) => {
                 trace!(
                     "Inspector ignoring irrelevant program id: {}",
                     Pubkey::new_from_array(message.recipient.into())
                 );
-            },
+            }
             Err(err) => return Err(ChainCommunicationError::from_other(err)),
         };
 
@@ -442,13 +424,13 @@ impl SealevelTxnWithMeta {
             encoded => encoded
                 .decode()
                 .map(|txn| SealevelTxn::Binary(txn))
-                .ok_or_else(|| ChainCommunicationError::from_other(
-                    SealevelTxnError::DecodeFailure
-                ))?,
+                .ok_or_else(|| {
+                    ChainCommunicationError::from_other(SealevelTxnError::DecodeFailure)
+                })?,
         };
-        let meta = encoded
-            .meta
-            .ok_or_else(|| ChainCommunicationError::from_other(SealevelTxnError::MissingMetadata))?;
+        let meta = encoded.meta.ok_or_else(|| {
+            ChainCommunicationError::from_other(SealevelTxnError::MissingMetadata)
+        })?;
         Ok(Some(Self { txn, meta }))
     }
 
@@ -456,22 +438,19 @@ impl SealevelTxnWithMeta {
     // parsing logic will only find the first. We should really just transform solana's transaction
     // clusterf*ck into some sane and consistent data structure.
     fn contains_program_at_ixn(&self, program_id: &Pubkey) -> Option<SealevelTxnIxnLocation> {
-        let inner_ixns: Option<&Vec<UiInnerInstructions>> = self
-            .meta
-            .inner_instructions
-            .as_ref()
-            .into();
+        let inner_ixns: Option<&Vec<UiInnerInstructions>> =
+            self.meta.inner_instructions.as_ref().into();
         match &self.txn {
             SealevelTxn::Binary(txn) => {
-                let outer_idx = txn
-                    .message
-                    .instructions()
-                    .iter()
-                    .enumerate()
-                    .find_map(|(idx, ixn)| {
-                        (ixn.program_id(txn.message.static_account_keys()) == program_id)
-                            .then_some(idx)
-                    });
+                let outer_idx =
+                    txn.message
+                        .instructions()
+                        .iter()
+                        .enumerate()
+                        .find_map(|(idx, ixn)| {
+                            (ixn.program_id(txn.message.static_account_keys()) == program_id)
+                                .then_some(idx)
+                        });
                 if outer_idx.is_some() {
                     return outer_idx.map(SealevelTxnIxnLocation::Instruction);
                 }
@@ -492,128 +471,122 @@ impl SealevelTxnWithMeta {
                     .find_map(|(outer_idx, inner_idx, ixn)| {
                         match ixn {
                             UiInstruction::Compiled(ixn) => {
-                                let ixn_prog_id = txn
-                                    .message
-                                    .static_account_keys()[ixn.program_id_index as usize];
+                                let ixn_prog_id = txn.message.static_account_keys()
+                                    [ixn.program_id_index as usize];
                                 ixn_prog_id == *program_id
-                            },
+                            }
                             UiInstruction::Parsed(ixn) => {
                                 let pubkey = Pubkey::from_str(match &ixn {
                                     UiParsedInstruction::Parsed(ixn) => &ixn.program_id,
                                     UiParsedInstruction::PartiallyDecoded(ixn) => &ixn.program_id,
-                                }).expect("Invalid public key in instruction");
+                                })
+                                .expect("Invalid public key in instruction");
                                 pubkey == *program_id
                             }
-                        }.then_some(SealevelTxnIxnLocation::InnerInstruction(
-                            outer_idx.into(),
-                            inner_idx.into()
-                        ))
+                        }
+                        .then_some(
+                            SealevelTxnIxnLocation::InnerInstruction(
+                                outer_idx.into(),
+                                inner_idx.into(),
+                            ),
+                        )
                     })
-            },
-            SealevelTxn::Json(txn) => {
-                match &txn.message {
-                    UiMessage::Parsed(msg) => {
-                        let outer_idx = msg
-                            .instructions
-                            .iter()
-                            .enumerate()
-                            .find_map(|(idx, ixn)| {
-                                let pubkey = Pubkey::from_str(match ixn {
-                                    UiInstruction::Compiled(ixn) => {
-                                        &msg.account_keys[ixn.program_id_index as usize].pubkey
-                                    },
-                                    UiInstruction::Parsed(ixn) => match &ixn {
-                                        UiParsedInstruction::Parsed(ixn) => &ixn.program_id,
-                                        UiParsedInstruction::PartiallyDecoded(ixn) => &ixn.program_id,
-                                    }
-                                }).expect("Invalid public key in instruction");
-                                (&pubkey == program_id).then_some(idx)
-                            });
-                        if outer_idx.is_some() {
-                            return outer_idx.map(SealevelTxnIxnLocation::Instruction);
-                        }
-                        let inner_ixns = match inner_ixns {
-                            Some(inner_ixns) => inner_ixns,
-                            None => return None,
-                        };
-                        inner_ixns
-                            .iter()
-                            .flat_map(|inner| {
-                                let outer_idx = inner.index;
-                                inner
-                                    .instructions
-                                    .iter()
-                                    .enumerate()
-                                    .map(move |(inner_idx, ixn)| (outer_idx, inner_idx, ixn))
-                            })
-                            .find_map(|(outer_idx, inner_idx, ixn)| {
-                                let pubkey = Pubkey::from_str(match ixn {
-                                    UiInstruction::Compiled(ixn) => {
-                                        &msg.account_keys[ixn.program_id_index as usize].pubkey
-                                    },
-                                    UiInstruction::Parsed(ixn) => {
-                                        match &ixn {
-                                            UiParsedInstruction::Parsed(ixn) => &ixn.program_id,
-                                            UiParsedInstruction::PartiallyDecoded(ixn) => &ixn.program_id,
-                                        }
-                                    }
-                                }).expect("Invalid public key in instruction");
-                                (pubkey == *program_id)
-                                    .then_some(SealevelTxnIxnLocation::InnerInstruction(
-                                        outer_idx.into(),
-                                        inner_idx.into()
-                                    ))
-                            })
-                    },
-                    UiMessage::Raw(msg) =>  {
-                        let outer_idx = msg
-                            .instructions
-                            .iter()
-                            .enumerate()
-                            .find_map(|(idx, ixn)| {
-                                let pubkey =
-                                    Pubkey::from_str(&msg.account_keys[ixn.program_id_index as usize])
-                                    .expect("Invalid public key in instruction");
-                                (&pubkey == program_id).then_some(idx)
-                            });
-                        if outer_idx.is_some() {
-                            return outer_idx.map(SealevelTxnIxnLocation::Instruction);
-                        }
-                        let inner_ixns = match inner_ixns {
-                            Some(inner_ixns) => inner_ixns,
-                            None => return None,
-                        };
-                        inner_ixns
-                            .iter()
-                            .flat_map(|inner| {
-                                let outer_idx = inner.index;
-                                inner
-                                    .instructions
-                                    .iter()
-                                    .enumerate()
-                                    .map(move |(inner_idx, ixn)| (outer_idx, inner_idx, ixn))
-                            })
-                            .find_map(|(outer_idx, inner_idx, ixn)| {
-                                let pubkey = Pubkey::from_str(match ixn {
-                                    UiInstruction::Compiled(ixn) => {
-                                        &msg.account_keys[ixn.program_id_index as usize]
-                                    },
-                                    UiInstruction::Parsed(ixn) => {
-                                        match &ixn {
-                                            UiParsedInstruction::Parsed(ixn) => &ixn.program_id,
-                                            UiParsedInstruction::PartiallyDecoded(ixn) => &ixn.program_id,
-                                        }
-                                    }
-                                }).expect("Invalid public key in instruction");
-                                (pubkey == *program_id)
-                                    .then_some(SealevelTxnIxnLocation::InnerInstruction(
-                                        outer_idx.into(),
-                                        inner_idx.into()
-                                    ))
-                            })
-                    },
-                }
             }
+            SealevelTxn::Json(txn) => match &txn.message {
+                UiMessage::Parsed(msg) => {
+                    let outer_idx = msg.instructions.iter().enumerate().find_map(|(idx, ixn)| {
+                        let pubkey = Pubkey::from_str(match ixn {
+                            UiInstruction::Compiled(ixn) => {
+                                &msg.account_keys[ixn.program_id_index as usize].pubkey
+                            }
+                            UiInstruction::Parsed(ixn) => match &ixn {
+                                UiParsedInstruction::Parsed(ixn) => &ixn.program_id,
+                                UiParsedInstruction::PartiallyDecoded(ixn) => &ixn.program_id,
+                            },
+                        })
+                        .expect("Invalid public key in instruction");
+                        (&pubkey == program_id).then_some(idx)
+                    });
+                    if outer_idx.is_some() {
+                        return outer_idx.map(SealevelTxnIxnLocation::Instruction);
+                    }
+                    let inner_ixns = match inner_ixns {
+                        Some(inner_ixns) => inner_ixns,
+                        None => return None,
+                    };
+                    inner_ixns
+                        .iter()
+                        .flat_map(|inner| {
+                            let outer_idx = inner.index;
+                            inner
+                                .instructions
+                                .iter()
+                                .enumerate()
+                                .map(move |(inner_idx, ixn)| (outer_idx, inner_idx, ixn))
+                        })
+                        .find_map(|(outer_idx, inner_idx, ixn)| {
+                            let pubkey = Pubkey::from_str(match ixn {
+                                UiInstruction::Compiled(ixn) => {
+                                    &msg.account_keys[ixn.program_id_index as usize].pubkey
+                                }
+                                UiInstruction::Parsed(ixn) => match &ixn {
+                                    UiParsedInstruction::Parsed(ixn) => &ixn.program_id,
+                                    UiParsedInstruction::PartiallyDecoded(ixn) => &ixn.program_id,
+                                },
+                            })
+                            .expect("Invalid public key in instruction");
+                            (pubkey == *program_id).then_some(
+                                SealevelTxnIxnLocation::InnerInstruction(
+                                    outer_idx.into(),
+                                    inner_idx.into(),
+                                ),
+                            )
+                        })
+                }
+                UiMessage::Raw(msg) => {
+                    let outer_idx = msg.instructions.iter().enumerate().find_map(|(idx, ixn)| {
+                        let pubkey =
+                            Pubkey::from_str(&msg.account_keys[ixn.program_id_index as usize])
+                                .expect("Invalid public key in instruction");
+                        (&pubkey == program_id).then_some(idx)
+                    });
+                    if outer_idx.is_some() {
+                        return outer_idx.map(SealevelTxnIxnLocation::Instruction);
+                    }
+                    let inner_ixns = match inner_ixns {
+                        Some(inner_ixns) => inner_ixns,
+                        None => return None,
+                    };
+                    inner_ixns
+                        .iter()
+                        .flat_map(|inner| {
+                            let outer_idx = inner.index;
+                            inner
+                                .instructions
+                                .iter()
+                                .enumerate()
+                                .map(move |(inner_idx, ixn)| (outer_idx, inner_idx, ixn))
+                        })
+                        .find_map(|(outer_idx, inner_idx, ixn)| {
+                            let pubkey = Pubkey::from_str(match ixn {
+                                UiInstruction::Compiled(ixn) => {
+                                    &msg.account_keys[ixn.program_id_index as usize]
+                                }
+                                UiInstruction::Parsed(ixn) => match &ixn {
+                                    UiParsedInstruction::Parsed(ixn) => &ixn.program_id,
+                                    UiParsedInstruction::PartiallyDecoded(ixn) => &ixn.program_id,
+                                },
+                            })
+                            .expect("Invalid public key in instruction");
+                            (pubkey == *program_id).then_some(
+                                SealevelTxnIxnLocation::InnerInstruction(
+                                    outer_idx.into(),
+                                    inner_idx.into(),
+                                ),
+                            )
+                        })
+                }
+            },
         }
     }
 
@@ -625,27 +598,27 @@ impl SealevelTxnWithMeta {
                 .iter()
                 .enumerate()
                 .find_map(|(idx, id)| (id == program_id).then(|| idx)),
-            SealevelTxn::Json(txn) => {
-                match &txn.message {
-                    UiMessage::Parsed(msg) => msg
-                        .account_keys
+            SealevelTxn::Json(txn) => match &txn.message {
+                UiMessage::Parsed(msg) => {
+                    msg.account_keys
                         .iter()
                         .enumerate()
                         .find_map(|(idx, account)| {
                             let id = Pubkey::from_str(&account.pubkey).unwrap();
                             (id == *program_id).then(|| idx)
-                        }),
-                    UiMessage::Raw(msg) => msg
-                        .account_keys
+                        })
+                }
+                UiMessage::Raw(msg) => {
+                    msg.account_keys
                         .iter()
                         .enumerate()
                         .find_map(|(idx, account)| {
                             let pubkey = Pubkey::from_str(account)
                                 .expect("Invalid public key in instruction");
                             (&pubkey == program_id).then_some(idx)
-                        }),
+                        })
                 }
-            }
+            },
         }
     }
 
@@ -659,7 +632,9 @@ impl SealevelTxnWithMeta {
             .iter()
             // FIXME what to do if there are multiple calls to the same inner program?
             .find_map(|inner| (inner.index == base_instruction_index).then(|| &inner.instructions))
-            .ok_or_else(|| ChainCommunicationError::from_other(SealevelTxnError::MissingMetadata))?;
+            .ok_or_else(|| {
+                ChainCommunicationError::from_other(SealevelTxnError::MissingMetadata)
+            })?;
 
         for (idx, ixn) in inner_instructions.iter().enumerate() {
             let (inner_ixn_idx, inner_ixn_data_encoded) = match ixn {
@@ -672,7 +647,7 @@ impl SealevelTxnWithMeta {
                             continue;
                         }
                         (idx, &ixn.data)
-                    },
+                    }
                 },
                 UiInstruction::Compiled(ixn) => {
                     match self.account_key_index_for_program_id(inner_instruction_program_id) {
@@ -681,10 +656,10 @@ impl SealevelTxnWithMeta {
                                 continue;
                             }
                             (idx, &ixn.data)
-                        },
+                        }
                         None => continue,
                     }
-                },
+                }
             };
             return bs58::decode(&inner_ixn_data_encoded)
                 .into_vec()
@@ -726,8 +701,8 @@ impl SealevelMailboxIndexer {
     fn extract_hyperlane_messages(
         &self,
         slot: u64,
-        block: EncodedConfirmedBlock
-    ) -> impl Iterator<Item=(HyperlaneMessage, LogMeta)> {
+        block: EncodedConfirmedBlock,
+    ) -> impl Iterator<Item = (HyperlaneMessage, LogMeta)> {
         trace!("slot={}, block={:#?}", slot, block);
         // This *should* always hold true but not 100% sure so panic if not.
         assert!(slot == block.parent_slot + 1 || (slot == 0 && block.parent_slot == 0));
@@ -738,11 +713,14 @@ impl SealevelMailboxIndexer {
                 Ok(Some(txn)) => {
                     debug!("block={}, txn={} : Found good txn", slot, txn_num); // FIXME remove?
                     txn
-                },
+                }
                 Ok(None) => {
-                    debug!("block={}, txn={} : Found accounts txn, skipping", slot, txn_num); // FIXME remove?
-                    continue
-                },
+                    debug!(
+                        "block={}, txn={} : Found accounts txn, skipping",
+                        slot, txn_num
+                    ); // FIXME remove?
+                    continue;
+                }
                 Err(err) => panic!("{}", err),
             };
             let block_hash: H256 = Hash::from_str(&block.blockhash)
@@ -756,12 +734,12 @@ impl SealevelMailboxIndexer {
             // FIXME trace! or remove
             error!(
                 "block {} txn {} contains {} at instruction {:?}!!!!!!!!!!",
-                slot,
-                txn_num,
-                self.program_id,
-                mailbox_ixn_idx,
+                slot, txn_num, self.program_id, mailbox_ixn_idx,
             );
-            error!("block.blockhash={}, txn_decoded={:#?}", block.blockhash, txn_decoded);
+            error!(
+                "block.blockhash={}, txn_decoded={:#?}",
+                block.blockhash, txn_decoded
+            );
 
             // FIXME need to ensure that we only process noop cpi call data originating from the
             // mailbox program.
@@ -773,8 +751,8 @@ impl SealevelMailboxIndexer {
                 SealevelTxnIxnLocation::InnerInstruction(top_level, _inner) => top_level,
             };
 
-            let spl_noop = Pubkey::from_str("GpiNbGLpyroc8dFKPhK55eQhhvWn3XUaXJFp5fk5aXUs")
-                .unwrap(); // FIXME
+            let spl_noop =
+                Pubkey::from_str("GpiNbGLpyroc8dFKPhK55eQhhvWn3XUaXJFp5fk5aXUs").unwrap(); // FIXME
             let (inner_ixn_idx, ixn_data) = match txn_decoded
                 .inner_instruction_data_for(mailbox_ixn_idx.try_into().unwrap(), &spl_noop)
             {
@@ -893,168 +871,167 @@ impl HyperlaneAbi for SealevelMailboxAbi {
 //-------------------------------------------------------------------------------------------------
 mod contract {
 
-use super::*;
+    use super::*;
 
-use std::collections::HashSet;
+    use std::collections::HashSet;
 
-use borsh::{BorshDeserialize, BorshSerialize};
-use hyperlane_core::accumulator::incremental::IncrementalMerkle as MerkleTree;
+    use borsh::{BorshDeserialize, BorshSerialize};
+    use hyperlane_core::accumulator::incremental::IncrementalMerkle as MerkleTree;
 
-pub static DEFAULT_ISM: &'static str = "6TCwgXydobJUEqabm7e6SL4FMdiFDvp1pmYoL6xXmRJq";
-pub static DEFAULT_ISM_ACCOUNTS: [&'static str; 0] = [];
+    pub static DEFAULT_ISM: &'static str = "6TCwgXydobJUEqabm7e6SL4FMdiFDvp1pmYoL6xXmRJq";
+    pub static DEFAULT_ISM_ACCOUNTS: [&'static str; 0] = [];
 
-pub static SPL_NOOP: &str = "GpiNbGLpyroc8dFKPhK55eQhhvWn3XUaXJFp5fk5aXUs";
+    pub static SPL_NOOP: &str = "GpiNbGLpyroc8dFKPhK55eQhhvWn3XUaXJFp5fk5aXUs";
 
-pub trait Data: BorshDeserialize + BorshSerialize + Default {}
-impl<T> Data for T where T: BorshDeserialize + BorshSerialize + Default {}
+    pub trait Data: BorshDeserialize + BorshSerialize + Default {}
+    impl<T> Data for T where T: BorshDeserialize + BorshSerialize + Default {}
 
-#[derive(Debug, thiserror::Error)]
-pub enum AccountError {
-    #[error(transparent)]
-    Io(std::io::Error),
-}
-
-/// Account data structure wrapper type that handles initialization and (de)serialization.
-///
-/// (De)serialization is done with borsh and the "on-disk" format is as follows:
-/// {
-///     initialized: bool,
-///     data: T,
-/// }
-#[derive(Debug, Default)]
-pub struct AccountData<T> {
-    data: T,
-}
-
-impl<T> From<T> for AccountData<T> {
-    fn from(data: T) -> Self {
-        Self { data }
-    }
-}
-
-impl<T> AccountData<T>
-where
-    T: Data,
-{
-    pub fn into_inner(self) -> T {
-        self.data
+    #[derive(Debug, thiserror::Error)]
+    pub enum AccountError {
+        #[error(transparent)]
+        Io(std::io::Error),
     }
 
-    pub fn fetch(buf: &mut &[u8]) -> Result<Self, AccountError> {
-        // Account data is zero initialized.
-        let initialized = bool::deserialize(buf).map_err(AccountError::Io)?;
-        let data = if initialized {
-            T::deserialize(buf).map_err(AccountError::Io)?
-        } else {
-            T::default()
-        };
-        Ok(Self { data })
+    /// Account data structure wrapper type that handles initialization and (de)serialization.
+    ///
+    /// (De)serialization is done with borsh and the "on-disk" format is as follows:
+    /// {
+    ///     initialized: bool,
+    ///     data: T,
+    /// }
+    #[derive(Debug, Default)]
+    pub struct AccountData<T> {
+        data: T,
     }
-}
 
-pub type InboxAccount = AccountData<Inbox>;
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
-pub struct Inbox {
-    pub local_domain: u32,
-    pub auth_bump_seed: u8,
-    pub inbox_bump_seed: u8,
-    // Note: 10MB account limit is around ~300k entries.
-    pub delivered: HashSet<H256>,
-    pub ism: Pubkey,
-    pub ism_accounts: Vec<Pubkey>,
-}
-impl Default for Inbox {
-    fn default() -> Self {
-        Self {
-            local_domain: 0,
-            auth_bump_seed: 0,
-            inbox_bump_seed: 0,
-            delivered: Default::default(),
-            // TODO can declare_id!() or similar be used for these to compute at compile time?
-            ism: Pubkey::from_str(DEFAULT_ISM).unwrap(),
-            ism_accounts: DEFAULT_ISM_ACCOUNTS
-                .iter()
-                .map(|account| Pubkey::from_str(account).unwrap())
-                .collect(),
+    impl<T> From<T> for AccountData<T> {
+        fn from(data: T) -> Self {
+            Self { data }
         }
     }
-}
 
-pub type OutboxAccount = AccountData<Outbox>;
-#[derive(BorshSerialize, BorshDeserialize, Debug, Default)]
-pub struct Outbox {
-    pub local_domain: u32,
-    pub auth_bump_seed: u8,
-    pub outbox_bump_seed: u8,
-    pub tree: MerkleTree,
-}
+    impl<T> AccountData<T>
+    where
+        T: Data,
+    {
+        pub fn into_inner(self) -> T {
+            self.data
+        }
 
-#[derive(Debug, thiserror::Error)]
-pub enum ProgramError {
-    // #[error("An instruction's data contents was invalid")]
-    // InvalidInstructionData,
-    #[error("IO Error: {0}")]
-    BorshIoError(String),
-}
-
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
-pub enum Instruction {
-    Init(Init),
-    InboxProcess(InboxProcess),
-    InboxSetDefaultModule(InboxSetDefaultModule),
-    OutboxDispatch(OutboxDispatch),
-    OutboxGetCount(OutboxQuery),
-    OutboxGetLatestCheckpoint(OutboxQuery),
-    OutboxGetRoot(OutboxQuery),
-}
-
-impl Instruction {
-    // pub fn from_instruction_data(data: &[u8]) -> Result<Self, ProgramError> {
-    //     Self::try_from_slice(data).map_err(|_| ProgramError::InvalidInstructionData)
-    // }
-
-    pub fn into_instruction_data(self) -> Result<Vec<u8>, ProgramError> {
-        self.try_to_vec()
-            .map_err(|err| ProgramError::BorshIoError(err.to_string()))
+        pub fn fetch(buf: &mut &[u8]) -> Result<Self, AccountError> {
+            // Account data is zero initialized.
+            let initialized = bool::deserialize(buf).map_err(AccountError::Io)?;
+            let data = if initialized {
+                T::deserialize(buf).map_err(AccountError::Io)?
+            } else {
+                T::default()
+            };
+            Ok(Self { data })
+        }
     }
-}
 
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
-pub struct Init {
-    pub local_domain: u32,
-    pub auth_bump_seed: u8,
-    pub inbox_bump_seed: u8,
-    pub outbox_bump_seed: u8,
-}
+    pub type InboxAccount = AccountData<Inbox>;
+    #[derive(BorshSerialize, BorshDeserialize, Debug)]
+    pub struct Inbox {
+        pub local_domain: u32,
+        pub auth_bump_seed: u8,
+        pub inbox_bump_seed: u8,
+        // Note: 10MB account limit is around ~300k entries.
+        pub delivered: HashSet<H256>,
+        pub ism: Pubkey,
+        pub ism_accounts: Vec<Pubkey>,
+    }
+    impl Default for Inbox {
+        fn default() -> Self {
+            Self {
+                local_domain: 0,
+                auth_bump_seed: 0,
+                inbox_bump_seed: 0,
+                delivered: Default::default(),
+                // TODO can declare_id!() or similar be used for these to compute at compile time?
+                ism: Pubkey::from_str(DEFAULT_ISM).unwrap(),
+                ism_accounts: DEFAULT_ISM_ACCOUNTS
+                    .iter()
+                    .map(|account| Pubkey::from_str(account).unwrap())
+                    .collect(),
+            }
+        }
+    }
 
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
-pub struct OutboxDispatch {
-    // The sender may not necessarily be the transaction payer so specify separately.
-    pub sender: Pubkey,
-    pub local_domain: u32,
-    pub destination_domain: u32,
-    pub recipient: H256,
-    pub message_body: Vec<u8>,
-}
+    pub type OutboxAccount = AccountData<Outbox>;
+    #[derive(BorshSerialize, BorshDeserialize, Debug, Default)]
+    pub struct Outbox {
+        pub local_domain: u32,
+        pub auth_bump_seed: u8,
+        pub outbox_bump_seed: u8,
+        pub tree: MerkleTree,
+    }
 
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
-pub struct OutboxQuery {
-    pub local_domain: u32,
-}
+    #[derive(Debug, thiserror::Error)]
+    pub enum ProgramError {
+        // #[error("An instruction's data contents was invalid")]
+        // InvalidInstructionData,
+        #[error("IO Error: {0}")]
+        BorshIoError(String),
+    }
 
-// Note: maximum transaction size is ~1kB, so will need to use accounts for large messages.
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
-pub struct InboxProcess {
-    pub metadata: Vec<u8>, // Encoded Multi-Signature ISM data, or similar.
-    pub message: Vec<u8>,  // Encoded HyperlaneMessage
-}
+    #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+    pub enum Instruction {
+        Init(Init),
+        InboxProcess(InboxProcess),
+        InboxSetDefaultModule(InboxSetDefaultModule),
+        OutboxDispatch(OutboxDispatch),
+        OutboxGetCount(OutboxQuery),
+        OutboxGetLatestCheckpoint(OutboxQuery),
+        OutboxGetRoot(OutboxQuery),
+    }
 
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
-pub struct InboxSetDefaultModule {
-    pub local_domain: u32,
-    pub program_id: Pubkey,
-    pub accounts: Vec<Pubkey>,
-}
+    impl Instruction {
+        // pub fn from_instruction_data(data: &[u8]) -> Result<Self, ProgramError> {
+        //     Self::try_from_slice(data).map_err(|_| ProgramError::InvalidInstructionData)
+        // }
 
+        pub fn into_instruction_data(self) -> Result<Vec<u8>, ProgramError> {
+            self.try_to_vec()
+                .map_err(|err| ProgramError::BorshIoError(err.to_string()))
+        }
+    }
+
+    #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+    pub struct Init {
+        pub local_domain: u32,
+        pub auth_bump_seed: u8,
+        pub inbox_bump_seed: u8,
+        pub outbox_bump_seed: u8,
+    }
+
+    #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+    pub struct OutboxDispatch {
+        // The sender may not necessarily be the transaction payer so specify separately.
+        pub sender: Pubkey,
+        pub local_domain: u32,
+        pub destination_domain: u32,
+        pub recipient: H256,
+        pub message_body: Vec<u8>,
+    }
+
+    #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+    pub struct OutboxQuery {
+        pub local_domain: u32,
+    }
+
+    // Note: maximum transaction size is ~1kB, so will need to use accounts for large messages.
+    #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+    pub struct InboxProcess {
+        pub metadata: Vec<u8>, // Encoded Multi-Signature ISM data, or similar.
+        pub message: Vec<u8>,  // Encoded HyperlaneMessage
+    }
+
+    #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+    pub struct InboxSetDefaultModule {
+        pub local_domain: u32,
+        pub program_id: Pubkey,
+        pub accounts: Vec<Pubkey>,
+    }
 }
 //-------------------------------------------------------------------------------------------------

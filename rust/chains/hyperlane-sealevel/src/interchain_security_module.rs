@@ -1,7 +1,8 @@
 use async_trait::async_trait;
 
 use hyperlane_core::{
-    ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain, H256, ContractLocator, InterchainSecurityModule,
+    ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    InterchainSecurityModule, H256,
 };
 
 use crate::{solana::pubkey::Pubkey, ConnectionConf};
@@ -15,10 +16,7 @@ pub struct SealevelInterchainSecurityModule {
 
 impl SealevelInterchainSecurityModule {
     /// Create a new sealevel InterchainSecurityModule
-    pub fn new(
-        _conf: &ConnectionConf,
-        locator: ContractLocator,
-    ) -> Self {
+    pub fn new(_conf: &ConnectionConf, locator: ContractLocator) -> Self {
         // TODO use helper functions from mailbox contract lib
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         Self {

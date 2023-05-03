@@ -1,6 +1,6 @@
 //! Defines the [`LamportsError`] type.
 
-use {/*crate::instruction::InstructionError,*/ thiserror::Error};
+use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum LamportsError {

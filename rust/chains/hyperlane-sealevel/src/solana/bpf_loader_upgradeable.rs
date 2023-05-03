@@ -27,7 +27,7 @@ use serde::{Deserialize, Serialize};
 // crate::declare_id!("BPFLoaderUpgradeab1e11111111111111111111111");
 
 /// Upgradeable loader account states
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy, /*AbiExample*/)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy /*AbiExample*/)]
 pub enum UpgradeableLoaderState {
     /// Account is not initialized.
     Uninitialized,
@@ -79,43 +79,43 @@ impl UpgradeableLoaderState {
         Self::size_of_programdata_metadata().saturating_add(program_len)
     }
 
-/*
-    /// Length of a Buffer account's data.
-    #[deprecated(since = "1.11.0", note = "Please use `size_of_buffer` instead")]
-    pub fn buffer_len(program_len: usize) -> Result<usize, InstructionError> {
-        Ok(Self::size_of_buffer(program_len))
-    }
+    /*
+        /// Length of a Buffer account's data.
+        #[deprecated(since = "1.11.0", note = "Please use `size_of_buffer` instead")]
+        pub fn buffer_len(program_len: usize) -> Result<usize, InstructionError> {
+            Ok(Self::size_of_buffer(program_len))
+        }
 
-    /// Offset into the Buffer account's data of the program bits.
-    #[deprecated(
-        since = "1.11.0",
-        note = "Please use `size_of_buffer_metadata` instead"
-    )]
-    pub fn buffer_data_offset() -> Result<usize, InstructionError> {
-        Ok(Self::size_of_buffer_metadata())
-    }
+        /// Offset into the Buffer account's data of the program bits.
+        #[deprecated(
+            since = "1.11.0",
+            note = "Please use `size_of_buffer_metadata` instead"
+        )]
+        pub fn buffer_data_offset() -> Result<usize, InstructionError> {
+            Ok(Self::size_of_buffer_metadata())
+        }
 
-    /// Length of a Program account's data.
-    #[deprecated(since = "1.11.0", note = "Please use `size_of_program` instead")]
-    pub fn program_len() -> Result<usize, InstructionError> {
-        Ok(Self::size_of_program())
-    }
+        /// Length of a Program account's data.
+        #[deprecated(since = "1.11.0", note = "Please use `size_of_program` instead")]
+        pub fn program_len() -> Result<usize, InstructionError> {
+            Ok(Self::size_of_program())
+        }
 
-    /// Length of a ProgramData account's data.
-    #[deprecated(since = "1.11.0", note = "Please use `size_of_programdata` instead")]
-    pub fn programdata_len(program_len: usize) -> Result<usize, InstructionError> {
-        Ok(Self::size_of_programdata(program_len))
-    }
+        /// Length of a ProgramData account's data.
+        #[deprecated(since = "1.11.0", note = "Please use `size_of_programdata` instead")]
+        pub fn programdata_len(program_len: usize) -> Result<usize, InstructionError> {
+            Ok(Self::size_of_programdata(program_len))
+        }
 
-    /// Offset into the ProgramData account's data of the program bits.
-    #[deprecated(
-        since = "1.11.0",
-        note = "Please use `size_of_programdata_metadata` instead"
-    )]
-    pub fn programdata_data_offset() -> Result<usize, InstructionError> {
-        Ok(Self::size_of_programdata_metadata())
-    }
-*/
+        /// Offset into the ProgramData account's data of the program bits.
+        #[deprecated(
+            since = "1.11.0",
+            note = "Please use `size_of_programdata_metadata` instead"
+        )]
+        pub fn programdata_data_offset() -> Result<usize, InstructionError> {
+            Ok(Self::size_of_programdata_metadata())
+        }
+    */
 }
 
 /*

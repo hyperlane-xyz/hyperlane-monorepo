@@ -110,7 +110,7 @@ impl ChainCommunicationError {
     /// error
     pub fn from_contract_error<E>(err: E) -> Self
     where
-        E: HyperlaneCustomError
+        E: HyperlaneCustomError,
     {
         Self::ContractError(HyperlaneCustomErrorWrapper(Box::new(err)))
     }
@@ -119,7 +119,7 @@ impl ChainCommunicationError {
     /// error
     pub fn from_contract_error_boxed<E>(err: Box<E>) -> Self
     where
-        E: HyperlaneCustomError
+        E: HyperlaneCustomError,
     {
         Self::ContractError(HyperlaneCustomErrorWrapper(err))
     }

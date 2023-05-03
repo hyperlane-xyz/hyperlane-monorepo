@@ -1,18 +1,13 @@
 #![allow(warnings)] // FIXME remove
 
-use hyperlane_core::{Decode as _, H256, HyperlaneMessage, U256};
+use hyperlane_core::{Decode as _, HyperlaneMessage, H256, U256};
 use tracing::error;
 
 use crate::mailbox_message_inspector::{Error, Inspection, Inspector};
+use crate::solana::{instruction::AccountMeta, pubkey::Pubkey};
 use crate::{
-    hyperlane_token_pda_seeds,
-    hyperlane_token_erc20_pda_seeds,
-    hyperlane_token_mint_pda_seeds,
-    hyperlane_token_native_collateral_pda_seeds,
-};
-use crate::solana::{
-    instruction::AccountMeta,
-    pubkey::Pubkey
+    hyperlane_token_erc20_pda_seeds, hyperlane_token_mint_pda_seeds,
+    hyperlane_token_native_collateral_pda_seeds, hyperlane_token_pda_seeds,
 };
 
 // FIXME import from solana libs once test deployment fixed. Might also need to fix dependency
@@ -81,7 +76,7 @@ mod solana {
 // FIXME Pull in from token contract lib
 mod token_contract {
     use borsh::{BorshDeserialize, BorshSerialize};
-    use hyperlane_core::{Decode, Encode, H256, HyperlaneProtocolError, U256};
+    use hyperlane_core::{Decode, Encode, HyperlaneProtocolError, H256, U256};
 
     #[macro_export]
     macro_rules! hyperlane_token_erc20_pda_seeds {
@@ -142,31 +137,18 @@ mod token_contract {
     #[macro_export]
     macro_rules! hyperlane_token_pda_seeds {
         () => {{
-            &[
-                b"hyperlane_token",
-                b"-",
-                b"storage",
-            ]
+            &[b"hyperlane_token", b"-", b"storage"]
         }};
 
         ($bump_seed:expr) => {{
-            &[
-                b"hyperlane_token",
-                b"-",
-                b"storage",
-                &[$bump_seed],
-            ]
+            &[b"hyperlane_token", b"-", b"storage", &[$bump_seed]]
         }};
     }
 
     #[macro_export]
     macro_rules! hyperlane_token_native_collateral_pda_seeds {
         () => {{
-            &[
-                b"hyperlane_token",
-                b"-",
-                b"native_token_collateral",
-            ]
+            &[b"hyperlane_token", b"-", b"native_token_collateral"]
         }};
 
         ($bump_seed:expr) => {{
@@ -249,7 +231,7 @@ mod token_contract {
             self.recipient
         }
 
-        pub fn amount(&self) ->  U256 {
+        pub fn amount(&self) -> U256 {
             self.amount_or_id
         }
 
@@ -314,7 +296,7 @@ impl Inspector for TokenBridgeInspector {
     fn inspect_impl(
         &self,
         payer: &Pubkey,
-        message: &HyperlaneMessage
+        message: &HyperlaneMessage,
     ) -> Result<Inspection, Error> {
         // TODO probably should verify that hyperlane message version is correct.
         let mut token_message_reader = std::io::Cursor::new(&message.body);
@@ -323,10 +305,8 @@ impl Inspector for TokenBridgeInspector {
         error!("token_message={:#?}", token_message); // FIXME trace or debug
 
         let recipient_wallet_account = Pubkey::new_from_array(token_message.recipient().into());
-        let (token_account, _token_bump) = Pubkey::find_program_address(
-            hyperlane_token_pda_seeds!(),
-            &self.program_id,
-        );
+        let (token_account, _token_bump) =
+            Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &self.program_id);
 
         // FIXME we need the token message to contain asset name & symbol in order to determine
         // since solana smart contract program accounts are decoupled from data storage accounts.
@@ -355,14 +335,11 @@ impl Inspector for TokenBridgeInspector {
             AccountMeta::new(*payer, true),
         ];
         if xfer_is_native {
-            let (native_collateral_account, _native_collateral_bump) =
-                Pubkey::find_program_address(
-                    hyperlane_token_native_collateral_pda_seeds!(),
-                    &self.program_id,
-                );
-            accounts.extend([
-                AccountMeta::new(native_collateral_account, false)
-            ]);
+            let (native_collateral_account, _native_collateral_bump) = Pubkey::find_program_address(
+                hyperlane_token_native_collateral_pda_seeds!(),
+                &self.program_id,
+            );
+            accounts.extend([AccountMeta::new(native_collateral_account, false)]);
         } else {
             let (erc20_account, _erc20_bump) = Pubkey::find_program_address(
                 hyperlane_token_erc20_pda_seeds!(self.erc20_token_name, self.erc20_token_symbol),
@@ -387,8 +364,6 @@ impl Inspector for TokenBridgeInspector {
             ]);
         }
 
-        Ok(Inspection {
-            accounts,
-        })
+        Ok(Inspection { accounts })
     }
 }

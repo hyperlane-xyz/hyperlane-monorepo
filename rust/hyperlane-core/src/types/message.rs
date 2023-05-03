@@ -151,24 +151,24 @@ impl HyperlaneMessage {
         H256::from_slice(Keccak256::new().chain(self.to_vec()).finalize().as_slice())
     }
 
-/* FIXME don't need?
-    /// Formats a hyperlane message as a sealevel vm log "event".
-    pub fn format(&self) -> Result<String, HyperlaneProtocolError> {
-        let mut serialized = vec![];
-        self.write_to(&mut serialized)?;
-        let encoded = bs58::encode(serialized).into_string();
-        Ok(encoded)
-    }
+    /* FIXME don't need?
+        /// Formats a hyperlane message as a sealevel vm log "event".
+        pub fn format(&self) -> Result<String, HyperlaneProtocolError> {
+            let mut serialized = vec![];
+            self.write_to(&mut serialized)?;
+            let encoded = bs58::encode(serialized).into_string();
+            Ok(encoded)
+        }
 
-    /// Parses a hyperlane message from a sealevel vm log "event".
-    pub fn parse(formatted: &[u8]) -> Result<Self, HyperlaneProtocolError> {
-        let decoded = bs58::decode(formatted).into_vec().map_err(|err| {
-            HyperlaneProtocolError::IoError(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                err
-            ))
-        })?;
-        Self::read_from(&mut std::io::Cursor::new(decoded))
-    }
-*/
+        /// Parses a hyperlane message from a sealevel vm log "event".
+        pub fn parse(formatted: &[u8]) -> Result<Self, HyperlaneProtocolError> {
+            let decoded = bs58::decode(formatted).into_vec().map_err(|err| {
+                HyperlaneProtocolError::IoError(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    err
+                ))
+            })?;
+            Self::read_from(&mut std::io::Cursor::new(decoded))
+        }
+    */
 }

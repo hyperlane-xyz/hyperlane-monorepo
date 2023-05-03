@@ -1,14 +1,14 @@
+use serde_derive::{Deserialize, Serialize};
 use {
     // crate::rpc_filter::RpcFilterType,
     crate::solana::account_decoder::{UiAccountEncoding, UiDataSliceConfig},
+    crate::solana::transaction_status::{TransactionDetails, UiTransactionEncoding},
     // solana_sdk::{
     crate::solana::{
         clock::{Epoch, Slot},
         commitment_config::{CommitmentConfig, CommitmentLevel},
     },
-    crate::solana::transaction_status::{TransactionDetails, UiTransactionEncoding},
 };
-use serde_derive::{Deserialize, Serialize};
 
 /*
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

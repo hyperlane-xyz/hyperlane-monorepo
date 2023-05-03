@@ -112,24 +112,24 @@
 // #![cfg(feature = "full")]
 
 use {
+    crate::solana::system_instruction::SystemInstruction,
     crate::solana::{
         hash::Hash,
         instruction::{CompiledInstruction, Instruction},
         message::Message,
         nonce::NONCED_TX_MARKER_IX_INDEX,
-//         precompiles::verify_if_precompile,
+        //         precompiles::verify_if_precompile,
         program_utils::limited_deserialize,
         pubkey::Pubkey,
-//         sanitize::{Sanitize, SanitizeError},
+        //         sanitize::{Sanitize, SanitizeError},
         short_vec,
         signature::{Signature, SignerError},
         signer::signers::Signers,
-//         wasm_bindgen,
+        //         wasm_bindgen,
     },
     serde::{Deserialize, Serialize},
-    crate::solana::{system_instruction::SystemInstruction /*, system_program*/},
-//     solana_sdk::feature_set,
-    std::{result /*, sync::Arc*/},
+    //     solana_sdk::feature_set,
+    std::result,
 };
 
 mod error;
@@ -358,77 +358,77 @@ impl Transaction {
         tx
     }
 
-/*
-    /// Create an unsigned transaction from a list of [`Instruction`]s.
-    ///
-    /// `payer` is the account responsible for paying the cost of executing the
-    /// transaction. It is typically provided, but is optional in some cases.
-    /// See the [`Transaction`] docs for more.
-    ///
-    /// # Examples
-    ///
-    /// This example uses the [`solana_client`] and [`anyhow`] crates.
-    ///
-    /// [`solana_client`]: https://docs.rs/solana-client
-    /// [`anyhow`]: https://docs.rs/anyhow
-    ///
-    /// ```
-    /// # use solana_sdk::example_mocks::solana_client;
-    /// use anyhow::Result;
-    /// use borsh::{BorshSerialize, BorshDeserialize};
-    /// use solana_client::rpc_client::RpcClient;
-    /// use solana_sdk::{
-    ///      instruction::Instruction,
-    ///      message::Message,
-    ///      pubkey::Pubkey,
-    ///      signature::{Keypair, Signer},
-    ///      transaction::Transaction,
-    /// };
-    ///
-    /// // A custom program instruction. This would typically be defined in
-    /// // another crate so it can be shared between the on-chain program and
-    /// // the client.
-    /// #[derive(BorshSerialize, BorshDeserialize)]
-    /// enum BankInstruction {
-    ///     Initialize,
-    ///     Deposit { lamports: u64 },
-    ///     Withdraw { lamports: u64 },
-    /// }
-    ///
-    /// fn send_initialize_tx(
-    ///     client: &RpcClient,
-    ///     program_id: Pubkey,
-    ///     payer: &Keypair
-    /// ) -> Result<()> {
-    ///
-    ///     let bank_instruction = BankInstruction::Initialize;
-    ///
-    ///     let instruction = Instruction::new_with_borsh(
-    ///         program_id,
-    ///         &bank_instruction,
-    ///         vec![],
-    ///     );
-    ///
-    ///     let mut tx = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
-    ///     let blockhash = client.get_latest_blockhash()?;
-    ///     tx.sign(&[payer], blockhash);
-    ///     client.send_and_confirm_transaction(&tx)?;
-    ///
-    ///     Ok(())
-    /// }
-    /// #
-    /// # let client = RpcClient::new(String::new());
-    /// # let program_id = Pubkey::new_unique();
-    /// # let payer = Keypair::new();
-    /// # send_initialize_tx(&client, program_id, &payer)?;
-    /// #
-    /// # Ok::<(), anyhow::Error>(())
-    /// ```
-    pub fn new_with_payer(instructions: &[Instruction], payer: Option<&Pubkey>) -> Self {
-        let message = Message::new(instructions, payer);
-        Self::new_unsigned(message)
-    }
-*/
+    /*
+        /// Create an unsigned transaction from a list of [`Instruction`]s.
+        ///
+        /// `payer` is the account responsible for paying the cost of executing the
+        /// transaction. It is typically provided, but is optional in some cases.
+        /// See the [`Transaction`] docs for more.
+        ///
+        /// # Examples
+        ///
+        /// This example uses the [`solana_client`] and [`anyhow`] crates.
+        ///
+        /// [`solana_client`]: https://docs.rs/solana-client
+        /// [`anyhow`]: https://docs.rs/anyhow
+        ///
+        /// ```
+        /// # use solana_sdk::example_mocks::solana_client;
+        /// use anyhow::Result;
+        /// use borsh::{BorshSerialize, BorshDeserialize};
+        /// use solana_client::rpc_client::RpcClient;
+        /// use solana_sdk::{
+        ///      instruction::Instruction,
+        ///      message::Message,
+        ///      pubkey::Pubkey,
+        ///      signature::{Keypair, Signer},
+        ///      transaction::Transaction,
+        /// };
+        ///
+        /// // A custom program instruction. This would typically be defined in
+        /// // another crate so it can be shared between the on-chain program and
+        /// // the client.
+        /// #[derive(BorshSerialize, BorshDeserialize)]
+        /// enum BankInstruction {
+        ///     Initialize,
+        ///     Deposit { lamports: u64 },
+        ///     Withdraw { lamports: u64 },
+        /// }
+        ///
+        /// fn send_initialize_tx(
+        ///     client: &RpcClient,
+        ///     program_id: Pubkey,
+        ///     payer: &Keypair
+        /// ) -> Result<()> {
+        ///
+        ///     let bank_instruction = BankInstruction::Initialize;
+        ///
+        ///     let instruction = Instruction::new_with_borsh(
+        ///         program_id,
+        ///         &bank_instruction,
+        ///         vec![],
+        ///     );
+        ///
+        ///     let mut tx = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
+        ///     let blockhash = client.get_latest_blockhash()?;
+        ///     tx.sign(&[payer], blockhash);
+        ///     client.send_and_confirm_transaction(&tx)?;
+        ///
+        ///     Ok(())
+        /// }
+        /// #
+        /// # let client = RpcClient::new(String::new());
+        /// # let program_id = Pubkey::new_unique();
+        /// # let payer = Keypair::new();
+        /// # send_initialize_tx(&client, program_id, &payer)?;
+        /// #
+        /// # Ok::<(), anyhow::Error>(())
+        /// ```
+        pub fn new_with_payer(instructions: &[Instruction], payer: Option<&Pubkey>) -> Self {
+            let message = Message::new(instructions, payer);
+            Self::new_unsigned(message)
+        }
+    */
 
     /// Create a fully-signed transaction from a list of [`Instruction`]s.
     ///
@@ -515,114 +515,114 @@ impl Transaction {
         Self::new(signing_keypairs, message, recent_blockhash)
     }
 
-/*
-    /// Create a fully-signed transaction from pre-compiled instructions.
-    ///
-    /// # Arguments
-    ///
-    /// * `from_keypairs` - The keys used to sign the transaction.
-    /// * `keys` - The keys for the transaction.  These are the program state
-    ///    instances or lamport recipient keys.
-    /// * `recent_blockhash` - The PoH hash.
-    /// * `program_ids` - The keys that identify programs used in the `instruction` vector.
-    /// * `instructions` - Instructions that will be executed atomically.
-    ///
-    /// # Panics
-    ///
-    /// Panics when signing fails. See [`Transaction::try_sign`] and for a full
-    /// description of failure conditions.
-    pub fn new_with_compiled_instructions<T: Signers>(
-        from_keypairs: &T,
-        keys: &[Pubkey],
-        recent_blockhash: Hash,
-        program_ids: Vec<Pubkey>,
-        instructions: Vec<CompiledInstruction>,
-    ) -> Self {
-        let mut account_keys = from_keypairs.pubkeys();
-        let from_keypairs_len = account_keys.len();
-        account_keys.extend_from_slice(keys);
-        account_keys.extend(&program_ids);
-        let message = Message::new_with_compiled_instructions(
-            from_keypairs_len as u8,
-            0,
-            program_ids.len() as u8,
-            account_keys,
-            Hash::default(),
-            instructions,
-        );
-        Transaction::new(from_keypairs, message, recent_blockhash)
-    }
+    /*
+        /// Create a fully-signed transaction from pre-compiled instructions.
+        ///
+        /// # Arguments
+        ///
+        /// * `from_keypairs` - The keys used to sign the transaction.
+        /// * `keys` - The keys for the transaction.  These are the program state
+        ///    instances or lamport recipient keys.
+        /// * `recent_blockhash` - The PoH hash.
+        /// * `program_ids` - The keys that identify programs used in the `instruction` vector.
+        /// * `instructions` - Instructions that will be executed atomically.
+        ///
+        /// # Panics
+        ///
+        /// Panics when signing fails. See [`Transaction::try_sign`] and for a full
+        /// description of failure conditions.
+        pub fn new_with_compiled_instructions<T: Signers>(
+            from_keypairs: &T,
+            keys: &[Pubkey],
+            recent_blockhash: Hash,
+            program_ids: Vec<Pubkey>,
+            instructions: Vec<CompiledInstruction>,
+        ) -> Self {
+            let mut account_keys = from_keypairs.pubkeys();
+            let from_keypairs_len = account_keys.len();
+            account_keys.extend_from_slice(keys);
+            account_keys.extend(&program_ids);
+            let message = Message::new_with_compiled_instructions(
+                from_keypairs_len as u8,
+                0,
+                program_ids.len() as u8,
+                account_keys,
+                Hash::default(),
+                instructions,
+            );
+            Transaction::new(from_keypairs, message, recent_blockhash)
+        }
 
-    /// Get the data for an instruction at the given index.
-    ///
-    /// The `instruction_index` corresponds to the [`instructions`] vector of
-    /// the `Transaction`'s [`Message`] value.
-    ///
-    /// [`instructions`]: Message::instructions
-    ///
-    /// # Panics
-    ///
-    /// Panics if `instruction_index` is greater than or equal to the number of
-    /// instructions in the transaction.
-    pub fn data(&self, instruction_index: usize) -> &[u8] {
-        &self.message.instructions[instruction_index].data
-    }
+        /// Get the data for an instruction at the given index.
+        ///
+        /// The `instruction_index` corresponds to the [`instructions`] vector of
+        /// the `Transaction`'s [`Message`] value.
+        ///
+        /// [`instructions`]: Message::instructions
+        ///
+        /// # Panics
+        ///
+        /// Panics if `instruction_index` is greater than or equal to the number of
+        /// instructions in the transaction.
+        pub fn data(&self, instruction_index: usize) -> &[u8] {
+            &self.message.instructions[instruction_index].data
+        }
 
-    fn key_index(&self, instruction_index: usize, accounts_index: usize) -> Option<usize> {
-        self.message
-            .instructions
-            .get(instruction_index)
-            .and_then(|instruction| instruction.accounts.get(accounts_index))
-            .map(|&account_keys_index| account_keys_index as usize)
-    }
+        fn key_index(&self, instruction_index: usize, accounts_index: usize) -> Option<usize> {
+            self.message
+                .instructions
+                .get(instruction_index)
+                .and_then(|instruction| instruction.accounts.get(accounts_index))
+                .map(|&account_keys_index| account_keys_index as usize)
+        }
 
-    /// Get the `Pubkey` of an account required by one of the instructions in
-    /// the transaction.
-    ///
-    /// The `instruction_index` corresponds to the [`instructions`] vector of
-    /// the `Transaction`'s [`Message`] value; and the `account_index` to the
-    /// [`accounts`] vector of the message's [`CompiledInstruction`]s.
-    ///
-    /// [`instructions`]: Message::instructions
-    /// [`accounts`]: CompiledInstruction::accounts
-    /// [`CompiledInstruction`]: CompiledInstruction
-    ///
-    /// Returns `None` if `instruction_index` is greater than or equal to the
-    /// number of instructions in the transaction; or if `accounts_index` is
-    /// greater than or equal to the number of accounts in the instruction.
-    pub fn key(&self, instruction_index: usize, accounts_index: usize) -> Option<&Pubkey> {
-        self.key_index(instruction_index, accounts_index)
-            .and_then(|account_keys_index| self.message.account_keys.get(account_keys_index))
-    }
+        /// Get the `Pubkey` of an account required by one of the instructions in
+        /// the transaction.
+        ///
+        /// The `instruction_index` corresponds to the [`instructions`] vector of
+        /// the `Transaction`'s [`Message`] value; and the `account_index` to the
+        /// [`accounts`] vector of the message's [`CompiledInstruction`]s.
+        ///
+        /// [`instructions`]: Message::instructions
+        /// [`accounts`]: CompiledInstruction::accounts
+        /// [`CompiledInstruction`]: CompiledInstruction
+        ///
+        /// Returns `None` if `instruction_index` is greater than or equal to the
+        /// number of instructions in the transaction; or if `accounts_index` is
+        /// greater than or equal to the number of accounts in the instruction.
+        pub fn key(&self, instruction_index: usize, accounts_index: usize) -> Option<&Pubkey> {
+            self.key_index(instruction_index, accounts_index)
+                .and_then(|account_keys_index| self.message.account_keys.get(account_keys_index))
+        }
 
-    /// Get the `Pubkey` of a signing account required by one of the
-    /// instructions in the transaction.
-    ///
-    /// The transaction does not need to be signed for this function to return a
-    /// signing account's pubkey.
-    ///
-    /// Returns `None` if the indexed account is not required to sign the
-    /// transaction. Returns `None` if the [`signatures`] field does not contain
-    /// enough elements to hold a signature for the indexed account (this should
-    /// only be possible if `Transaction` has been manually constructed).
-    ///
-    /// [`signatures`]: Transaction::signatures
-    ///
-    /// Returns `None` if `instruction_index` is greater than or equal to the
-    /// number of instructions in the transaction; or if `accounts_index` is
-    /// greater than or equal to the number of accounts in the instruction.
-    pub fn signer_key(&self, instruction_index: usize, accounts_index: usize) -> Option<&Pubkey> {
-        match self.key_index(instruction_index, accounts_index) {
-            None => None,
-            Some(signature_index) => {
-                if signature_index >= self.signatures.len() {
-                    return None;
+        /// Get the `Pubkey` of a signing account required by one of the
+        /// instructions in the transaction.
+        ///
+        /// The transaction does not need to be signed for this function to return a
+        /// signing account's pubkey.
+        ///
+        /// Returns `None` if the indexed account is not required to sign the
+        /// transaction. Returns `None` if the [`signatures`] field does not contain
+        /// enough elements to hold a signature for the indexed account (this should
+        /// only be possible if `Transaction` has been manually constructed).
+        ///
+        /// [`signatures`]: Transaction::signatures
+        ///
+        /// Returns `None` if `instruction_index` is greater than or equal to the
+        /// number of instructions in the transaction; or if `accounts_index` is
+        /// greater than or equal to the number of accounts in the instruction.
+        pub fn signer_key(&self, instruction_index: usize, accounts_index: usize) -> Option<&Pubkey> {
+            match self.key_index(instruction_index, accounts_index) {
+                None => None,
+                Some(signature_index) => {
+                    if signature_index >= self.signatures.len() {
+                        return None;
+                    }
+                    self.message.account_keys.get(signature_index)
                 }
-                self.message.account_keys.get(signature_index)
             }
         }
-    }
-*/
+    */
 
     /// Return the message containing all data that should be signed.
     pub fn message(&self) -> &Message {
@@ -717,60 +717,60 @@ impl Transaction {
         }
     }
 
-/*
-    /// Sign the transaction with a subset of required keys.
-    ///
-    /// Unlike [`Transaction::sign`], this method does not require all keypairs
-    /// to be provided, allowing a transaction to be signed in multiple steps.
-    ///
-    /// It is permitted to sign a transaction with the same keypair multiple
-    /// times.
-    ///
-    /// If `recent_blockhash` is different than recorded in the transaction message's
-    /// [`recent_blockhash`] field, then the message's `recent_blockhash` will be updated
-    /// to the provided `recent_blockhash`, and any prior signatures will be cleared.
-    ///
-    /// [`recent_blockhash`]: Message::recent_blockhash
-    ///
-    /// # Panics
-    ///
-    /// Panics when signing fails. Use [`Transaction::try_partial_sign`] to
-    /// handle the error. See the documentation for
-    /// [`Transaction::try_partial_sign`] for a full description of failure
-    /// conditions.
-    pub fn partial_sign<T: Signers>(&mut self, keypairs: &T, recent_blockhash: Hash) {
-        if let Err(e) = self.try_partial_sign(keypairs, recent_blockhash) {
-            panic!("Transaction::partial_sign failed with error {:?}", e);
+    /*
+        /// Sign the transaction with a subset of required keys.
+        ///
+        /// Unlike [`Transaction::sign`], this method does not require all keypairs
+        /// to be provided, allowing a transaction to be signed in multiple steps.
+        ///
+        /// It is permitted to sign a transaction with the same keypair multiple
+        /// times.
+        ///
+        /// If `recent_blockhash` is different than recorded in the transaction message's
+        /// [`recent_blockhash`] field, then the message's `recent_blockhash` will be updated
+        /// to the provided `recent_blockhash`, and any prior signatures will be cleared.
+        ///
+        /// [`recent_blockhash`]: Message::recent_blockhash
+        ///
+        /// # Panics
+        ///
+        /// Panics when signing fails. Use [`Transaction::try_partial_sign`] to
+        /// handle the error. See the documentation for
+        /// [`Transaction::try_partial_sign`] for a full description of failure
+        /// conditions.
+        pub fn partial_sign<T: Signers>(&mut self, keypairs: &T, recent_blockhash: Hash) {
+            if let Err(e) = self.try_partial_sign(keypairs, recent_blockhash) {
+                panic!("Transaction::partial_sign failed with error {:?}", e);
+            }
         }
-    }
 
-    /// Sign the transaction with a subset of required keys.
-    ///
-    /// This places each of the signatures created from `keypairs` in the
-    /// corresponding position, as specified in the `positions` vector, in the
-    /// transactions [`signatures`] field. It does not verify that the signature
-    /// positions are correct.
-    ///
-    /// [`signatures`]: Transaction::signatures
-    ///
-    /// # Panics
-    ///
-    /// Panics if signing fails. Use [`Transaction::try_partial_sign_unchecked`]
-    /// to handle the error.
-    pub fn partial_sign_unchecked<T: Signers>(
-        &mut self,
-        keypairs: &T,
-        positions: Vec<usize>,
-        recent_blockhash: Hash,
-    ) {
-        if let Err(e) = self.try_partial_sign_unchecked(keypairs, positions, recent_blockhash) {
-            panic!(
-                "Transaction::partial_sign_unchecked failed with error {:?}",
-                e
-            );
+        /// Sign the transaction with a subset of required keys.
+        ///
+        /// This places each of the signatures created from `keypairs` in the
+        /// corresponding position, as specified in the `positions` vector, in the
+        /// transactions [`signatures`] field. It does not verify that the signature
+        /// positions are correct.
+        ///
+        /// [`signatures`]: Transaction::signatures
+        ///
+        /// # Panics
+        ///
+        /// Panics if signing fails. Use [`Transaction::try_partial_sign_unchecked`]
+        /// to handle the error.
+        pub fn partial_sign_unchecked<T: Signers>(
+            &mut self,
+            keypairs: &T,
+            positions: Vec<usize>,
+            recent_blockhash: Hash,
+        ) {
+            if let Err(e) = self.try_partial_sign_unchecked(keypairs, positions, recent_blockhash) {
+                panic!(
+                    "Transaction::partial_sign_unchecked failed with error {:?}",
+                    e
+                );
+            }
         }
-    }
-*/
+    */
 
     /// Sign the transaction, returning any errors.
     ///
@@ -964,84 +964,84 @@ impl Transaction {
         Ok(())
     }
 
-/*
-    /// Returns a signature that is not valid for signing this transaction.
-    pub fn get_invalid_signature() -> Signature {
-        Signature::default()
-    }
+    /*
+        /// Returns a signature that is not valid for signing this transaction.
+        pub fn get_invalid_signature() -> Signature {
+            Signature::default()
+        }
 
-    /// Verifies that all signers have signed the message.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`TransactionError::SignatureFailure`] on error.
-    pub fn verify(&self) -> Result<()> {
-        let message_bytes = self.message_data();
-        if !self
-            ._verify_with_results(&message_bytes)
-            .iter()
-            .all(|verify_result| *verify_result)
-        {
-            Err(TransactionError::SignatureFailure)
-        } else {
+        /// Verifies that all signers have signed the message.
+        ///
+        /// # Errors
+        ///
+        /// Returns [`TransactionError::SignatureFailure`] on error.
+        pub fn verify(&self) -> Result<()> {
+            let message_bytes = self.message_data();
+            if !self
+                ._verify_with_results(&message_bytes)
+                .iter()
+                .all(|verify_result| *verify_result)
+            {
+                Err(TransactionError::SignatureFailure)
+            } else {
+                Ok(())
+            }
+        }
+
+        /// Verify the transaction and hash its message.
+        ///
+        /// # Errors
+        ///
+        /// Returns [`TransactionError::SignatureFailure`] on error.
+        pub fn verify_and_hash_message(&self) -> Result<Hash> {
+            let message_bytes = self.message_data();
+            if !self
+                ._verify_with_results(&message_bytes)
+                .iter()
+                .all(|verify_result| *verify_result)
+            {
+                Err(TransactionError::SignatureFailure)
+            } else {
+                Ok(Message::hash_raw_message(&message_bytes))
+            }
+        }
+
+        /// Verifies that all signers have signed the message.
+        ///
+        /// Returns a vector with the length of required signatures, where each
+        /// element is either `true` if that signer has signed, or `false` if not.
+        pub fn verify_with_results(&self) -> Vec<bool> {
+            self._verify_with_results(&self.message_data())
+        }
+
+        pub(crate) fn _verify_with_results(&self, message_bytes: &[u8]) -> Vec<bool> {
+            self.signatures
+                .iter()
+                .zip(&self.message.account_keys)
+                .map(|(signature, pubkey)| signature.verify(pubkey.as_ref(), message_bytes))
+                .collect()
+        }
+
+        /// Verify the precompiled programs in this transaction.
+        pub fn verify_precompiles(&self, feature_set: &Arc<feature_set::FeatureSet>) -> Result<()> {
+            for instruction in &self.message().instructions {
+                // The Transaction may not be sanitized at this point
+                if instruction.program_id_index as usize >= self.message().account_keys.len() {
+                    return Err(TransactionError::AccountNotFound);
+                }
+                let program_id = &self.message().account_keys[instruction.program_id_index as usize];
+
+                verify_if_precompile(
+                    program_id,
+                    instruction,
+                    &self.message().instructions,
+                    feature_set,
+                )
+                .map_err(|_| TransactionError::InvalidAccountIndex)?;
+            }
             Ok(())
         }
-    }
-
-    /// Verify the transaction and hash its message.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`TransactionError::SignatureFailure`] on error.
-    pub fn verify_and_hash_message(&self) -> Result<Hash> {
-        let message_bytes = self.message_data();
-        if !self
-            ._verify_with_results(&message_bytes)
-            .iter()
-            .all(|verify_result| *verify_result)
-        {
-            Err(TransactionError::SignatureFailure)
-        } else {
-            Ok(Message::hash_raw_message(&message_bytes))
-        }
-    }
-
-    /// Verifies that all signers have signed the message.
-    ///
-    /// Returns a vector with the length of required signatures, where each
-    /// element is either `true` if that signer has signed, or `false` if not.
-    pub fn verify_with_results(&self) -> Vec<bool> {
-        self._verify_with_results(&self.message_data())
-    }
-
-    pub(crate) fn _verify_with_results(&self, message_bytes: &[u8]) -> Vec<bool> {
-        self.signatures
-            .iter()
-            .zip(&self.message.account_keys)
-            .map(|(signature, pubkey)| signature.verify(pubkey.as_ref(), message_bytes))
-            .collect()
-    }
-
-    /// Verify the precompiled programs in this transaction.
-    pub fn verify_precompiles(&self, feature_set: &Arc<feature_set::FeatureSet>) -> Result<()> {
-        for instruction in &self.message().instructions {
-            // The Transaction may not be sanitized at this point
-            if instruction.program_id_index as usize >= self.message().account_keys.len() {
-                return Err(TransactionError::AccountNotFound);
-            }
-            let program_id = &self.message().account_keys[instruction.program_id_index as usize];
-
-            verify_if_precompile(
-                program_id,
-                instruction,
-                &self.message().instructions,
-                feature_set,
-            )
-            .map_err(|_| TransactionError::InvalidAccountIndex)?;
-        }
-        Ok(())
-    }
-*/
+    */
 
     /// Get the positions of the pubkeys in `account_keys` associated with signing keypairs.
     ///
@@ -1059,28 +1059,28 @@ impl Transaction {
             .collect())
     }
 
-/*
-    /// Replace all the signatures and pubkeys.
-    pub fn replace_signatures(&mut self, signers: &[(Pubkey, Signature)]) -> Result<()> {
-        let num_required_signatures = self.message.header.num_required_signatures as usize;
-        if signers.len() != num_required_signatures
-            || self.signatures.len() != num_required_signatures
-            || self.message.account_keys.len() < num_required_signatures
-        {
-            return Err(TransactionError::InvalidAccountIndex);
+    /*
+        /// Replace all the signatures and pubkeys.
+        pub fn replace_signatures(&mut self, signers: &[(Pubkey, Signature)]) -> Result<()> {
+            let num_required_signatures = self.message.header.num_required_signatures as usize;
+            if signers.len() != num_required_signatures
+                || self.signatures.len() != num_required_signatures
+                || self.message.account_keys.len() < num_required_signatures
+            {
+                return Err(TransactionError::InvalidAccountIndex);
+            }
+
+            signers
+                .iter()
+                .enumerate()
+                .for_each(|(i, (pubkey, signature))| {
+                    self.signatures[i] = *signature;
+                    self.message.account_keys[i] = *pubkey;
+                });
+
+            self.verify()
         }
-
-        signers
-            .iter()
-            .enumerate()
-            .for_each(|(i, (pubkey, signature))| {
-                self.signatures[i] = *signature;
-                self.message.account_keys[i] = *pubkey;
-            });
-
-        self.verify()
-    }
-*/
+    */
 
     pub fn is_signed(&self) -> bool {
         self.signatures
@@ -1095,7 +1095,6 @@ fn system_program_check_id(id: &Pubkey) -> bool {
 }
 
 pub fn uses_durable_nonce(tx: &Transaction) -> Option<&CompiledInstruction> {
-
     let message = tx.message();
     message
         .instructions

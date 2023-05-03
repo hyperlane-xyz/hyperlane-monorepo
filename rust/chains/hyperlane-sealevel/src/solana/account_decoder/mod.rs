@@ -15,8 +15,11 @@ pub mod parse_token_extension;
 // pub mod parse_vote;
 // pub mod validator_info;
 
+use serde_derive::{Deserialize, Serialize};
 use {
-    crate::solana::account_decoder::parse_account_data::{parse_account_data, AccountAdditionalData, ParsedAccount},
+    crate::solana::account_decoder::parse_account_data::{
+        parse_account_data, AccountAdditionalData, ParsedAccount,
+    },
     // solana_sdk::{
     crate::solana::{
         account::{ReadableAccount, WritableAccount},
@@ -29,7 +32,6 @@ use {
         str::FromStr,
     },
 };
-use serde_derive::{Deserialize, Serialize};
 
 pub type StringAmount = String;
 pub type StringDecimals = String;

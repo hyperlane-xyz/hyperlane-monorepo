@@ -20,7 +20,7 @@ use {
 /// An Account with data that is stored on chain
 #[repr(C)]
 // #[frozen_abi(digest = "HawRVHh7t4d3H3bitWHFt25WhhoDmbJMCfWdESQQoYEy")]
-#[derive(Deserialize, PartialEq, Eq, Clone, Default/*, AbiExample*/)]
+#[derive(Deserialize, PartialEq, Eq, Clone, Default /*, AbiExample*/)]
 #[serde(rename_all = "camelCase")]
 pub struct Account {
     /// lamports in the account
@@ -44,7 +44,7 @@ mod account_serialize {
     };
     #[repr(C)]
     // #[frozen_abi(digest = "HawRVHh7t4d3H3bitWHFt25WhhoDmbJMCfWdESQQoYEy")]
-    #[derive(Serialize/*, AbiExample*/)]
+    #[derive(Serialize /*, AbiExample*/)]
     #[serde(rename_all = "camelCase")]
     struct Account<'a> {
         lamports: u64,

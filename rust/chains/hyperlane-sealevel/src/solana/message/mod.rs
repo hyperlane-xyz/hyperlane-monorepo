@@ -43,11 +43,11 @@ pub mod legacy;
 // #[cfg(not(target_os = "solana"))]
 // #[path = ""]
 // mod non_bpf_modules {
-    mod account_keys;
+mod account_keys;
 //     mod sanitized;
-    mod versions;
+mod versions;
 
-    pub use {account_keys::*, /*sanitized::*,*/ versions::*};
+pub use {account_keys::*, /*sanitized::*,*/ versions::*};
 // }
 
 use compiled_keys::*;
@@ -93,7 +93,7 @@ pub const MESSAGE_HEADER_LENGTH: usize = 3;
 /// access the same read-write accounts are processed sequentially.
 ///
 /// [PoH]: https://docs.solana.com/cluster/synchronization
-#[derive(Serialize, Deserialize, Default, Debug, PartialEq, Eq, Clone, Copy/*, AbiExample*/)]
+#[derive(Serialize, Deserialize, Default, Debug, PartialEq, Eq, Clone, Copy /*, AbiExample*/)]
 #[serde(rename_all = "camelCase")]
 pub struct MessageHeader {
     /// The number of signatures required for this message to be considered

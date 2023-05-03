@@ -14,7 +14,7 @@
 #![allow(clippy::integer_arithmetic)]
 
 use {
-    crate::solana::{pubkey::Pubkey, /*sanitize::Sanitize,*/ short_vec/*, wasm_bindgen*/},
+    crate::solana::{pubkey::Pubkey, /*sanitize::Sanitize,*/ short_vec, /*, wasm_bindgen*/},
     bincode::serialize,
     borsh::BorshSerialize,
     serde::{Deserialize, Serialize},
@@ -31,7 +31,13 @@ use {
 /// dangerous to include error strings from 3rd party crates because they could
 /// change at any time and changes to them are difficult to detect.
 #[derive(
-    Serialize, Deserialize, Debug, Error, PartialEq, Eq, Clone /*, AbiExample, AbiEnumVisitor,*/
+    Serialize,
+    Deserialize,
+    Debug,
+    Error,
+    PartialEq,
+    Eq,
+    Clone, /*, AbiExample, AbiEnumVisitor,*/
 )]
 pub enum InstructionError {
     /// Deprecated! Use CustomError instead!

@@ -3,18 +3,7 @@
 //! The system program ID is defined in [`system_program`].
 
 #[allow(deprecated)]
-use {
-    crate::solana::{
-//         decode_error::DecodeError,
-//         instruction::{AccountMeta, Instruction, InstructionError},
-//         nonce,
-        pubkey::Pubkey,
-//         system_program,
-//         sysvar::{recent_blockhashes, rent},
-    },
-//     num_derive::{FromPrimitive, ToPrimitive},
-//     thiserror::Error,
-};
+use crate::solana::pubkey::Pubkey;
 use serde::{Deserialize, Serialize};
 
 /*

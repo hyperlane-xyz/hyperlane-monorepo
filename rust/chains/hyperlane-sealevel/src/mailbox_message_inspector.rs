@@ -2,10 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use hyperlane_core::HyperlaneMessage;
 
-use crate::solana::{
-    instruction::AccountMeta,
-    pubkey::Pubkey
-};
+use crate::solana::{instruction::AccountMeta, pubkey::Pubkey};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -29,12 +26,13 @@ pub trait Inspector {
         self.inspect_impl(payer, message)
     }
 
-    fn inspect_impl(&self, payer: &Pubkey, message: &HyperlaneMessage) -> Result<Inspection, Error>;
+    fn inspect_impl(&self, payer: &Pubkey, message: &HyperlaneMessage)
+        -> Result<Inspection, Error>;
 }
 
 impl<T> Inspector for Arc<Mutex<T>>
 where
-    T: Inspector
+    T: Inspector,
 {
     fn program_id(&self) -> Pubkey {
         self.lock().unwrap().program_id()
@@ -51,7 +49,7 @@ where
     fn inspect_impl(
         &self,
         payer: &Pubkey,
-        message: &HyperlaneMessage
+        message: &HyperlaneMessage,
     ) -> Result<Inspection, Error> {
         self.lock().unwrap().inspect_impl(payer, message)
     }

@@ -11,6 +11,7 @@
 
 #![allow(clippy::integer_arithmetic)]
 
+use serde::{Deserialize, Serialize};
 use {
     crate::solana::{
         // bpf_loader, bpf_loader_deprecated, bpf_loader_upgradeable,
@@ -24,7 +25,6 @@ use {
     lazy_static::lazy_static,
     std::{convert::TryFrom, str::FromStr},
 };
-use serde::{Deserialize, Serialize};
 
 lazy_static::lazy_static! {
     // Copied keys over since direct references create cyclical dependency.
@@ -346,125 +346,125 @@ impl Message {
         )
     }
 
-/*
-    /// Create a new message for a [nonced transaction].
-    ///
-    /// [nonced transaction]: https://docs.solana.com/implemented-proposals/durable-tx-nonces
-    ///
-    /// In this type of transaction, the blockhash is replaced with a _durable
-    /// transaction nonce_, allowing for extended time to pass between the
-    /// transaction's signing and submission to the blockchain.
-    ///
-    /// # Examples
-    ///
-    /// This example uses the [`solana_sdk`], [`solana_client`] and [`anyhow`] crates.
-    ///
-    /// [`solana_sdk`]: https://docs.rs/solana-sdk
-    /// [`solana_client`]: https://docs.rs/solana-client
-    /// [`anyhow`]: https://docs.rs/anyhow
-    ///
-    /// ```
-    /// # use solana_program::example_mocks::solana_sdk;
-    /// # use solana_program::example_mocks::solana_client;
-    /// use anyhow::Result;
-    /// use borsh::{BorshSerialize, BorshDeserialize};
-    /// use solana_client::rpc_client::RpcClient;
-    /// use solana_sdk::{
-    ///     hash::Hash,
-    ///     instruction::Instruction,
-    ///     message::Message,
-    ///     nonce,
-    ///     pubkey::Pubkey,
-    ///     signature::{Keypair, Signer},
-    ///     system_instruction,
-    ///     transaction::Transaction,
-    /// };
-    ///
-    /// // A custom program instruction. This would typically be defined in
-    /// // another crate so it can be shared between the on-chain program and
-    /// // the client.
-    /// #[derive(BorshSerialize, BorshDeserialize)]
-    /// enum BankInstruction {
-    ///     Initialize,
-    ///     Deposit { lamports: u64 },
-    ///     Withdraw { lamports: u64 },
-    /// }
-    ///
-    /// // Create a nonced transaction for later signing and submission,
-    /// // returning it and the nonce account's pubkey.
-    /// fn create_offline_initialize_tx(
-    ///     client: &RpcClient,
-    ///     program_id: Pubkey,
-    ///     payer: &Keypair
-    /// ) -> Result<(Transaction, Pubkey)> {
-    ///
-    ///     let bank_instruction = BankInstruction::Initialize;
-    ///     let bank_instruction = Instruction::new_with_borsh(
-    ///         program_id,
-    ///         &bank_instruction,
-    ///         vec![],
-    ///     );
-    ///
-    ///     // This will create a nonce account and assign authority to the
-    ///     // payer so they can sign to advance the nonce and withdraw its rent.
-    ///     let nonce_account = make_nonce_account(client, payer)?;
-    ///
-    ///     let mut message = Message::new_with_nonce(
-    ///         vec![bank_instruction],
-    ///         Some(&payer.pubkey()),
-    ///         &nonce_account,
-    ///         &payer.pubkey()
-    ///     );
-    ///
-    ///     // This transaction will need to be signed later, using the blockhash
-    ///     // stored in the nonce account.
-    ///     let tx = Transaction::new_unsigned(message);
-    ///
-    ///     Ok((tx, nonce_account))
-    /// }
-    ///
-    /// fn make_nonce_account(client: &RpcClient, payer: &Keypair)
-    ///     -> Result<Pubkey>
-    /// {
-    ///     let nonce_account_address = Keypair::new();
-    ///     let nonce_account_size = nonce::State::size();
-    ///     let nonce_rent = client.get_minimum_balance_for_rent_exemption(nonce_account_size)?;
-    ///
-    ///     // Assigning the nonce authority to the payer so they can sign for the withdrawal,
-    ///     // and we can throw away the nonce address secret key.
-    ///     let create_nonce_instr = system_instruction::create_nonce_account(
-    ///         &payer.pubkey(),
-    ///         &nonce_account_address.pubkey(),
-    ///         &payer.pubkey(),
-    ///         nonce_rent,
-    ///     );
-    ///
-    ///     let mut nonce_tx = Transaction::new_with_payer(&create_nonce_instr, Some(&payer.pubkey()));
-    ///     let blockhash = client.get_latest_blockhash()?;
-    ///     nonce_tx.sign(&[&payer, &nonce_account_address], blockhash);
-    ///     client.send_and_confirm_transaction(&nonce_tx)?;
-    ///
-    ///     Ok(nonce_account_address.pubkey())
-    /// }
-    /// #
-    /// # let client = RpcClient::new(String::new());
-    /// # let program_id = Pubkey::new_unique();
-    /// # let payer = Keypair::new();
-    /// # create_offline_initialize_tx(&client, program_id, &payer)?;
-    /// # Ok::<(), anyhow::Error>(())
-    /// ```
-    pub fn new_with_nonce(
-        mut instructions: Vec<Instruction>,
-        payer: Option<&Pubkey>,
-        nonce_account_pubkey: &Pubkey,
-        nonce_authority_pubkey: &Pubkey,
-    ) -> Self {
-        let nonce_ix =
-            system_instruction::advance_nonce_account(nonce_account_pubkey, nonce_authority_pubkey);
-        instructions.insert(0, nonce_ix);
-        Self::new(&instructions, payer)
-    }
-*/
+    /*
+        /// Create a new message for a [nonced transaction].
+        ///
+        /// [nonced transaction]: https://docs.solana.com/implemented-proposals/durable-tx-nonces
+        ///
+        /// In this type of transaction, the blockhash is replaced with a _durable
+        /// transaction nonce_, allowing for extended time to pass between the
+        /// transaction's signing and submission to the blockchain.
+        ///
+        /// # Examples
+        ///
+        /// This example uses the [`solana_sdk`], [`solana_client`] and [`anyhow`] crates.
+        ///
+        /// [`solana_sdk`]: https://docs.rs/solana-sdk
+        /// [`solana_client`]: https://docs.rs/solana-client
+        /// [`anyhow`]: https://docs.rs/anyhow
+        ///
+        /// ```
+        /// # use solana_program::example_mocks::solana_sdk;
+        /// # use solana_program::example_mocks::solana_client;
+        /// use anyhow::Result;
+        /// use borsh::{BorshSerialize, BorshDeserialize};
+        /// use solana_client::rpc_client::RpcClient;
+        /// use solana_sdk::{
+        ///     hash::Hash,
+        ///     instruction::Instruction,
+        ///     message::Message,
+        ///     nonce,
+        ///     pubkey::Pubkey,
+        ///     signature::{Keypair, Signer},
+        ///     system_instruction,
+        ///     transaction::Transaction,
+        /// };
+        ///
+        /// // A custom program instruction. This would typically be defined in
+        /// // another crate so it can be shared between the on-chain program and
+        /// // the client.
+        /// #[derive(BorshSerialize, BorshDeserialize)]
+        /// enum BankInstruction {
+        ///     Initialize,
+        ///     Deposit { lamports: u64 },
+        ///     Withdraw { lamports: u64 },
+        /// }
+        ///
+        /// // Create a nonced transaction for later signing and submission,
+        /// // returning it and the nonce account's pubkey.
+        /// fn create_offline_initialize_tx(
+        ///     client: &RpcClient,
+        ///     program_id: Pubkey,
+        ///     payer: &Keypair
+        /// ) -> Result<(Transaction, Pubkey)> {
+        ///
+        ///     let bank_instruction = BankInstruction::Initialize;
+        ///     let bank_instruction = Instruction::new_with_borsh(
+        ///         program_id,
+        ///         &bank_instruction,
+        ///         vec![],
+        ///     );
+        ///
+        ///     // This will create a nonce account and assign authority to the
+        ///     // payer so they can sign to advance the nonce and withdraw its rent.
+        ///     let nonce_account = make_nonce_account(client, payer)?;
+        ///
+        ///     let mut message = Message::new_with_nonce(
+        ///         vec![bank_instruction],
+        ///         Some(&payer.pubkey()),
+        ///         &nonce_account,
+        ///         &payer.pubkey()
+        ///     );
+        ///
+        ///     // This transaction will need to be signed later, using the blockhash
+        ///     // stored in the nonce account.
+        ///     let tx = Transaction::new_unsigned(message);
+        ///
+        ///     Ok((tx, nonce_account))
+        /// }
+        ///
+        /// fn make_nonce_account(client: &RpcClient, payer: &Keypair)
+        ///     -> Result<Pubkey>
+        /// {
+        ///     let nonce_account_address = Keypair::new();
+        ///     let nonce_account_size = nonce::State::size();
+        ///     let nonce_rent = client.get_minimum_balance_for_rent_exemption(nonce_account_size)?;
+        ///
+        ///     // Assigning the nonce authority to the payer so they can sign for the withdrawal,
+        ///     // and we can throw away the nonce address secret key.
+        ///     let create_nonce_instr = system_instruction::create_nonce_account(
+        ///         &payer.pubkey(),
+        ///         &nonce_account_address.pubkey(),
+        ///         &payer.pubkey(),
+        ///         nonce_rent,
+        ///     );
+        ///
+        ///     let mut nonce_tx = Transaction::new_with_payer(&create_nonce_instr, Some(&payer.pubkey()));
+        ///     let blockhash = client.get_latest_blockhash()?;
+        ///     nonce_tx.sign(&[&payer, &nonce_account_address], blockhash);
+        ///     client.send_and_confirm_transaction(&nonce_tx)?;
+        ///
+        ///     Ok(nonce_account_address.pubkey())
+        /// }
+        /// #
+        /// # let client = RpcClient::new(String::new());
+        /// # let program_id = Pubkey::new_unique();
+        /// # let payer = Keypair::new();
+        /// # create_offline_initialize_tx(&client, program_id, &payer)?;
+        /// # Ok::<(), anyhow::Error>(())
+        /// ```
+        pub fn new_with_nonce(
+            mut instructions: Vec<Instruction>,
+            payer: Option<&Pubkey>,
+            nonce_account_pubkey: &Pubkey,
+            nonce_authority_pubkey: &Pubkey,
+        ) -> Self {
+            let nonce_ix =
+                system_instruction::advance_nonce_account(nonce_account_pubkey, nonce_authority_pubkey);
+            instructions.insert(0, nonce_ix);
+            Self::new(&instructions, payer)
+        }
+    */
 
     pub fn new_with_compiled_instructions(
         num_required_signatures: u8,
@@ -500,7 +500,10 @@ impl Message {
         let mut hasher = blake3::Hasher::new();
         hasher.update(b"solana-tx-message-v1");
         hasher.update(message_bytes);
-        Hash(<[u8; crate::solana::hash::HASH_BYTES]>::try_from(hasher.finalize().as_slice()).unwrap())
+        Hash(
+            <[u8; crate::solana::hash::HASH_BYTES]>::try_from(hasher.finalize().as_slice())
+                .unwrap(),
+        )
     }
 
     pub fn compile_instruction(&self, ix: &Instruction) -> CompiledInstruction {
@@ -595,16 +598,16 @@ impl Message {
         (writable_keys, readonly_keys)
     }
 
-/*
-    #[deprecated]
-    pub fn deserialize_instruction(
-        index: usize,
-        data: &[u8],
-    ) -> Result<Instruction, SanitizeError> {
-        #[allow(deprecated)]
-        sysvar::instructions::load_instruction_at(index, data)
-    }
-*/
+    /*
+        #[deprecated]
+        pub fn deserialize_instruction(
+            index: usize,
+            data: &[u8],
+        ) -> Result<Instruction, SanitizeError> {
+            #[allow(deprecated)]
+            sysvar::instructions::load_instruction_at(index, data)
+        }
+    */
 
     pub fn signer_keys(&self) -> Vec<&Pubkey> {
         // Clamp in case we're working on un-`sanitize()`ed input

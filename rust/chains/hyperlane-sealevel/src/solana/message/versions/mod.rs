@@ -32,21 +32,21 @@ pub const MESSAGE_VERSION_PREFIX: u8 = 0x80;
 /// is bit is not set, all bytes are used to encode the legacy `Message`
 /// format.
 // #[frozen_abi(digest = "G4EAiqmGgBprgf5ePYemLJcoFfx4R7rhC1Weo2FVJ7fn")]
-#[derive(Debug, PartialEq, Eq, Clone/*, AbiEnumVisitor, AbiExample*/)]
+#[derive(Debug, PartialEq, Eq, Clone /*, AbiEnumVisitor, AbiExample*/)]
 pub enum VersionedMessage {
     Legacy(LegacyMessage),
     V0(v0::Message),
 }
 
 impl VersionedMessage {
-/*
-    pub fn sanitize(&self, require_static_program_ids: bool) -> Result<(), SanitizeError> {
-        match self {
-            Self::Legacy(message) => message.sanitize(),
-            Self::V0(message) => message.sanitize(require_static_program_ids),
+    /*
+        pub fn sanitize(&self, require_static_program_ids: bool) -> Result<(), SanitizeError> {
+            match self {
+                Self::Legacy(message) => message.sanitize(),
+                Self::V0(message) => message.sanitize(require_static_program_ids),
+            }
         }
-    }
-*/
+    */
 
     pub fn header(&self) -> &MessageHeader {
         match self {
@@ -150,7 +150,10 @@ impl VersionedMessage {
         let mut hasher = blake3::Hasher::new();
         hasher.update(b"solana-tx-message-v1");
         hasher.update(message_bytes);
-        Hash(<[u8; crate::solana::hash::HASH_BYTES]>::try_from(hasher.finalize().as_slice()).unwrap())
+        Hash(
+            <[u8; crate::solana::hash::HASH_BYTES]>::try_from(hasher.finalize().as_slice())
+                .unwrap(),
+        )
     }
 }
 

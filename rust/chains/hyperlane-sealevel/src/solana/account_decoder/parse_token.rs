@@ -1,21 +1,14 @@
+use serde::{Deserialize, Serialize};
 use {
     crate::solana::account_decoder::{
         parse_account_data::{ParsableAccount, ParseAccountError},
-        parse_token_extension::{/*parse_extension,*/ UiExtension},
+        parse_token_extension::UiExtension,
         StringAmount, StringDecimals,
     },
     crate::solana::pubkey::Pubkey,
-    crate::solana::token::program_2022::{ // spl_token_2022::{
-    //     extension::{BaseStateWithExtensions, StateWithExtensions},
-    //     generic_token_account::GenericTokenAccount,
-    //     solana_program::{
-    //         program_option::COption, program_pack::Pack, pubkey::Pubkey as SplTokenPubkey,
-    //     },
-        state::{Account, AccountState /*, Mint, Multisig*/},
-    },
+    crate::solana::token::program_2022::state::{Account, AccountState /*, Mint, Multisig*/},
     std::str::FromStr,
 };
-use serde::{Deserialize, Serialize};
 
 /*
 // A helper function to convert spl_token::id() as spl_sdk::pubkey::Pubkey to

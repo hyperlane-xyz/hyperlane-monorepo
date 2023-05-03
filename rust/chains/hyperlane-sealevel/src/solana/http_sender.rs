@@ -1,5 +1,6 @@
 //! Nonblocking [`RpcSender`] over HTTP.
 
+use serde_derive::{Deserialize, Serialize};
 use {
     crate::solana::{
         client_error::Result,
@@ -24,7 +25,6 @@ use {
     },
     tokio::time::sleep,
 };
-use serde_derive::{Deserialize, Serialize};
 
 pub struct HttpSender {
     client: Arc<reqwest::Client>,

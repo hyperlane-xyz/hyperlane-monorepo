@@ -2,7 +2,8 @@ use eyre::Result;
 use tracing_opentelemetry::OpenTelemetryLayer;
 use tracing_subscriber::{
     filter::{LevelFilter, Targets},
-    prelude::*, EnvFilter,
+    prelude::*,
+    EnvFilter,
 };
 
 pub use span_metrics::TimeSpanLifetime;
@@ -107,7 +108,7 @@ impl TracingConfig {
                 .with(tracing_subscriber::fmt::layer())
                 .with(EnvFilter::from_default_env())
                 .try_init()?;
-                return Ok(());
+            return Ok(());
         }
         subscriber.try_init()?;
 

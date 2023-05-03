@@ -1,7 +1,8 @@
 use async_trait::async_trait;
 
 use hyperlane_core::{
-    ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain, ValidatorAnnounce, H256, ContractLocator,
+    ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    ValidatorAnnounce, H256,
 };
 
 use crate::{solana::pubkey::Pubkey, ConnectionConf};
@@ -15,10 +16,7 @@ pub struct SealevelValidatorAnnounce {
 
 impl SealevelValidatorAnnounce {
     /// Create a new sealevel mailbox
-    pub fn new(
-        _conf: &ConnectionConf,
-        locator: ContractLocator,
-    ) -> Self {
+    pub fn new(_conf: &ConnectionConf, locator: ContractLocator) -> Self {
         // TODO use helper functions from mailbox contract lib
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         Self {
@@ -53,6 +51,9 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
         // TODO: actually get this data from the validator announce contract
         // Hardcoded to match config/sealevel/validator.env's checkpoint directory
         // for test validator 0x70997970c51812dc3a010c7d01b50e0d17dc79c8.
-        Ok(vec![vec!["file:///tmp/test_sealevel_checkpoints_0x70997970c51812dc3a010c7d01b50e0d17dc79c8".into()]])
+        Ok(vec![vec![
+            "file:///tmp/test_sealevel_checkpoints_0x70997970c51812dc3a010c7d01b50e0d17dc79c8"
+                .into(),
+        ]])
     }
 }

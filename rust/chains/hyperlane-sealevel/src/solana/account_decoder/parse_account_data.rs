@@ -1,22 +1,14 @@
+use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 use {
-    crate::solana::account_decoder::{
-        parse_bpf_loader::parse_bpf_upgradeable_loader,
-    //     parse_config::parse_config,
-    //     parse_nonce::parse_nonce,
-    //     parse_stake::parse_stake,
-    //     parse_sysvar::parse_sysvar,
-    //     parse_token::{parse_token, spl_token_2022_id, spl_token_id},
-    //     parse_vote::parse_vote,
-    },
+    crate::solana::account_decoder::parse_bpf_loader::parse_bpf_upgradeable_loader,
+    crate::solana::pubkey::Pubkey,
     inflector::Inflector,
     serde_json::Value,
-    crate::solana::pubkey::Pubkey,
     // solana_sdk::{instruction::InstructionError, pubkey::Pubkey, stake, system_program, sysvar},
     std::collections::HashMap,
     thiserror::Error,
 };
-use serde::{Deserialize, Serialize};
-use std::str::FromStr;
 
 lazy_static::lazy_static! {
     static ref BPF_UPGRADEABLE_LOADER_PROGRAM_ID: Pubkey =
@@ -67,7 +59,6 @@ pub enum ParseAccountError {
 
     // #[error("Instruction error")]
     // InstructionError(#[from] InstructionError),
-
     #[error("Serde json error")]
     SerdeJsonError(#[from] serde_json::error::Error),
 }
@@ -116,11 +107,11 @@ pub fn parse_account_data(
             // This one is validator stake config? don't think we need it...
             unimplemented!()
             // serde_json::to_value(parse_config(data, pubkey)?)?
-        },
+        }
         ParsableAccount::Nonce => {
             unimplemented!()
             // serde_json::to_value(parse_nonce(data)?)?
-        },
+        }
         ParsableAccount::SplToken | ParsableAccount::SplToken2022 => {
             unimplemented!()
             // serde_json::to_value(parse_token(data, additional_data.spl_token_decimals)?)?
@@ -128,15 +119,15 @@ pub fn parse_account_data(
         ParsableAccount::Stake => {
             unimplemented!()
             // serde_json::to_value(parse_stake(data)?)?
-        },
+        }
         ParsableAccount::Sysvar => {
             unimplemented!()
             // serde_json::to_value(parse_sysvar(data, pubkey)?)?
-        },
+        }
         ParsableAccount::Vote => {
             unimplemented!()
             // serde_json::to_value(parse_vote(data)?)?
-        },
+        }
     };
     Ok(ParsedAccount {
         program: format!("{:?}", program_name).to_kebab_case(),

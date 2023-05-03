@@ -3,6 +3,7 @@
 //! [SHA-256]: https://en.wikipedia.org/wiki/SHA-2
 //! [`Hash`]: struct@Hash
 
+use serde_derive::{Deserialize, Serialize};
 use {
     // crate::{sanitize::Sanitize, wasm_bindgen},
     // borsh::{BorshDeserialize, BorshSchema, BorshSerialize},
@@ -10,7 +11,6 @@ use {
     std::{convert::TryFrom, fmt, mem, str::FromStr},
     thiserror::Error,
 };
-use serde_derive::{Deserialize, Serialize};
 
 /// Size of a hash in bytes.
 pub const HASH_BYTES: usize = 32;
@@ -31,11 +31,11 @@ const MAX_BASE58_LEN: usize = 44;
 #[derive(
     Serialize,
     Deserialize,
-/*
-    BorshSerialize,
-    BorshDeserialize,
-    BorshSchema,
-*/
+    /*
+        BorshSerialize,
+        BorshDeserialize,
+        BorshSchema,
+    */
     Clone,
     Copy,
     Default,
@@ -44,9 +44,9 @@ const MAX_BASE58_LEN: usize = 44;
     Ord,
     PartialOrd,
     Hash,
-/*
-    AbiExample,
-*/
+    /*
+        AbiExample,
+    */
 )]
 #[repr(transparent)]
 pub struct Hash(pub(crate) [u8; HASH_BYTES]);
@@ -135,18 +135,18 @@ impl Hash {
         Self(hash_array)
     }
 
-/*
-    /// unique Hash for tests and benchmarks.
-    pub fn new_unique() -> Self {
-        use crate::atomic_u64::AtomicU64;
-        static I: AtomicU64 = AtomicU64::new(1);
+    /*
+        /// unique Hash for tests and benchmarks.
+        pub fn new_unique() -> Self {
+            use crate::atomic_u64::AtomicU64;
+            static I: AtomicU64 = AtomicU64::new(1);
 
-        let mut b = [0u8; HASH_BYTES];
-        let i = I.fetch_add(1);
-        b[0..8].copy_from_slice(&i.to_le_bytes());
-        Self::new(&b)
-    }
-*/
+            let mut b = [0u8; HASH_BYTES];
+            let i = I.fetch_add(1);
+            b[0..8].copy_from_slice(&i.to_le_bytes());
+            Self::new(&b)
+        }
+    */
 
     pub fn to_bytes(self) -> [u8; HASH_BYTES] {
         self.0
@@ -163,21 +163,21 @@ pub fn hashv(vals: &[&[u8]]) -> Hash {
         hasher.hashv(vals);
         hasher.result()
     }
-/*
-    // Call via a system call to perform the calculation
-    #[cfg(target_os = "solana")]
-    {
-        let mut hash_result = [0; HASH_BYTES];
-        unsafe {
-            crate::syscalls::sol_sha256(
-                vals as *const _ as *const u8,
-                vals.len() as u64,
-                &mut hash_result as *mut _ as *mut u8,
-            );
+    /*
+        // Call via a system call to perform the calculation
+        #[cfg(target_os = "solana")]
+        {
+            let mut hash_result = [0; HASH_BYTES];
+            unsafe {
+                crate::syscalls::sol_sha256(
+                    vals as *const _ as *const u8,
+                    vals.len() as u64,
+                    &mut hash_result as *mut _ as *mut u8,
+                );
+            }
+            Hash::new_from_array(hash_result)
         }
-        Hash::new_from_array(hash_result)
-    }
-*/
+    */
 }
 
 /// Return a Sha256 hash for the given data.
@@ -196,12 +196,12 @@ pub fn extend_and_hash(id: &Hash, val: &[u8]) -> Hash {
 mod tests {
     use super::*;
 
-/*
-    #[test]
-    fn test_new_unique() {
-        assert!(Hash::new_unique() != Hash::new_unique());
-    }
-*/
+    /*
+        #[test]
+        fn test_new_unique() {
+            assert!(Hash::new_unique() != Hash::new_unique());
+        }
+    */
 
     #[test]
     fn test_hash_fromstr() {

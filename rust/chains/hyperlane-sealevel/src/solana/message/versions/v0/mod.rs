@@ -31,7 +31,7 @@ mod loaded;
 
 /// Address table lookups describe an on-chain address lookup table to use
 /// for loading more readonly and writable accounts in a single tx.
-#[derive(Serialize, Deserialize, Default, Debug, PartialEq, Eq, Clone/*, AbiExample*/)]
+#[derive(Serialize, Deserialize, Default, Debug, PartialEq, Eq, Clone /*, AbiExample*/)]
 #[serde(rename_all = "camelCase")]
 pub struct MessageAddressTableLookup {
     /// Address lookup table account key
@@ -52,7 +52,7 @@ pub struct MessageAddressTableLookup {
 /// See the [`message`] module documentation for further description.
 ///
 /// [`message`]: crate::message
-#[derive(Serialize, Deserialize, Default, Debug, PartialEq, Eq, Clone/*, AbiExample*/)]
+#[derive(Serialize, Deserialize, Default, Debug, PartialEq, Eq, Clone /*, AbiExample*/)]
 #[serde(rename_all = "camelCase")]
 pub struct Message {
     /// The message header, identifying signed and read-only `account_keys`.
@@ -90,91 +90,91 @@ pub struct Message {
 }
 
 impl Message {
-/*
-    /// Sanitize message fields and compiled instruction indexes
-    pub fn sanitize(&self, reject_dynamic_program_ids: bool) -> Result<(), SanitizeError> {
-        let num_static_account_keys = self.account_keys.len();
-        if usize::from(self.header.num_required_signatures)
-            .saturating_add(usize::from(self.header.num_readonly_unsigned_accounts))
-            > num_static_account_keys
-        {
-            return Err(SanitizeError::IndexOutOfBounds);
-        }
-
-        // there should be at least 1 RW fee-payer account.
-        if self.header.num_readonly_signed_accounts >= self.header.num_required_signatures {
-            return Err(SanitizeError::InvalidValue);
-        }
-
-        let num_dynamic_account_keys = {
-            let mut total_lookup_keys: usize = 0;
-            for lookup in &self.address_table_lookups {
-                let num_lookup_indexes = lookup
-                    .writable_indexes
-                    .len()
-                    .saturating_add(lookup.readonly_indexes.len());
-
-                // each lookup table must be used to load at least one account
-                if num_lookup_indexes == 0 {
-                    return Err(SanitizeError::InvalidValue);
-                }
-
-                total_lookup_keys = total_lookup_keys.saturating_add(num_lookup_indexes);
+    /*
+        /// Sanitize message fields and compiled instruction indexes
+        pub fn sanitize(&self, reject_dynamic_program_ids: bool) -> Result<(), SanitizeError> {
+            let num_static_account_keys = self.account_keys.len();
+            if usize::from(self.header.num_required_signatures)
+                .saturating_add(usize::from(self.header.num_readonly_unsigned_accounts))
+                > num_static_account_keys
+            {
+                return Err(SanitizeError::IndexOutOfBounds);
             }
-            total_lookup_keys
-        };
 
-        // this is redundant with the above sanitization checks which require that:
-        // 1) the header describes at least 1 RW account
-        // 2) the header doesn't describe more account keys than the number of account keys
-        if num_static_account_keys == 0 {
-            return Err(SanitizeError::InvalidValue);
-        }
+            // there should be at least 1 RW fee-payer account.
+            if self.header.num_readonly_signed_accounts >= self.header.num_required_signatures {
+                return Err(SanitizeError::InvalidValue);
+            }
 
-        // the combined number of static and dynamic account keys must be <= 256
-        // since account indices are encoded as `u8`
-        let total_account_keys = num_static_account_keys.saturating_add(num_dynamic_account_keys);
-        if total_account_keys > 256 {
-            return Err(SanitizeError::IndexOutOfBounds);
-        }
+            let num_dynamic_account_keys = {
+                let mut total_lookup_keys: usize = 0;
+                for lookup in &self.address_table_lookups {
+                    let num_lookup_indexes = lookup
+                        .writable_indexes
+                        .len()
+                        .saturating_add(lookup.readonly_indexes.len());
 
-        // `expect` is safe because of earlier check that
-        // `num_static_account_keys` is non-zero
-        let max_account_ix = total_account_keys
-            .checked_sub(1)
-            .expect("message doesn't contain any account keys");
+                    // each lookup table must be used to load at least one account
+                    if num_lookup_indexes == 0 {
+                        return Err(SanitizeError::InvalidValue);
+                    }
 
-        // switch to rejecting program ids loaded from lookup tables so that
-        // static analysis on program instructions can be performed without
-        // loading on-chain data from a bank
-        let max_program_id_ix = if reject_dynamic_program_ids {
+                    total_lookup_keys = total_lookup_keys.saturating_add(num_lookup_indexes);
+                }
+                total_lookup_keys
+            };
+
+            // this is redundant with the above sanitization checks which require that:
+            // 1) the header describes at least 1 RW account
+            // 2) the header doesn't describe more account keys than the number of account keys
+            if num_static_account_keys == 0 {
+                return Err(SanitizeError::InvalidValue);
+            }
+
+            // the combined number of static and dynamic account keys must be <= 256
+            // since account indices are encoded as `u8`
+            let total_account_keys = num_static_account_keys.saturating_add(num_dynamic_account_keys);
+            if total_account_keys > 256 {
+                return Err(SanitizeError::IndexOutOfBounds);
+            }
+
             // `expect` is safe because of earlier check that
             // `num_static_account_keys` is non-zero
-            num_static_account_keys
+            let max_account_ix = total_account_keys
                 .checked_sub(1)
-                .expect("message doesn't contain any static account keys")
-        } else {
-            max_account_ix
-        };
+                .expect("message doesn't contain any account keys");
 
-        for ci in &self.instructions {
-            if usize::from(ci.program_id_index) > max_program_id_ix {
-                return Err(SanitizeError::IndexOutOfBounds);
-            }
-            // A program cannot be a payer.
-            if ci.program_id_index == 0 {
-                return Err(SanitizeError::IndexOutOfBounds);
-            }
-            for ai in &ci.accounts {
-                if usize::from(*ai) > max_account_ix {
+            // switch to rejecting program ids loaded from lookup tables so that
+            // static analysis on program instructions can be performed without
+            // loading on-chain data from a bank
+            let max_program_id_ix = if reject_dynamic_program_ids {
+                // `expect` is safe because of earlier check that
+                // `num_static_account_keys` is non-zero
+                num_static_account_keys
+                    .checked_sub(1)
+                    .expect("message doesn't contain any static account keys")
+            } else {
+                max_account_ix
+            };
+
+            for ci in &self.instructions {
+                if usize::from(ci.program_id_index) > max_program_id_ix {
                     return Err(SanitizeError::IndexOutOfBounds);
                 }
+                // A program cannot be a payer.
+                if ci.program_id_index == 0 {
+                    return Err(SanitizeError::IndexOutOfBounds);
+                }
+                for ai in &ci.accounts {
+                    if usize::from(*ai) > max_account_ix {
+                        return Err(SanitizeError::IndexOutOfBounds);
+                    }
+                }
             }
-        }
 
-        Ok(())
-    }
-*/
+            Ok(())
+        }
+    */
 }
 
 impl Message {
@@ -335,7 +335,7 @@ impl Message {
 
     /// Returns true if any static account key is the bpf upgradeable loader
     fn is_upgradeable_loader_in_static_keys(&self) -> bool {
-        let bpf_loader_upgradeable_id  =
+        let bpf_loader_upgradeable_id =
             Pubkey::from_str("BPFLoaderUpgradeab1e11111111111111111111111").unwrap();
         self.account_keys
             .iter()

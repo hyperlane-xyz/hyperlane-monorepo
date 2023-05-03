@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use {
     crate::solana::account_decoder::parse_token::UiAccountState,
     crate::solana::clock::UnixTimestamp,
@@ -7,7 +8,6 @@ use {
     // },
     crate::solana::pubkey::Pubkey,
 };
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", tag = "extension", content = "state")]

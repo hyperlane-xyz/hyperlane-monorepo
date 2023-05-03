@@ -3,6 +3,7 @@
 
 // legacy module paths
 pub use crate::solana::signer::{keypair::*, /* null_signer::*, presigner::*,*/ *};
+use serde::{Deserialize, Serialize};
 use {
     crate::solana::pubkey::Pubkey,
     generic_array::{typenum::U64, GenericArray},
@@ -14,7 +15,6 @@ use {
     },
     thiserror::Error,
 };
-use serde::{Deserialize, Serialize};
 
 /// Number of bytes in a signature
 pub const SIGNATURE_BYTES: usize = 64;
@@ -23,7 +23,16 @@ const MAX_BASE58_SIGNATURE_LEN: usize = 88;
 
 #[repr(transparent)]
 #[derive(
-    Serialize, Deserialize, Clone, Copy, Default, Eq, PartialEq, Ord, PartialOrd, Hash/*, AbiExample,*/
+    Serialize,
+    Deserialize,
+    Clone,
+    Copy,
+    Default,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash, /*, AbiExample,*/
 )]
 pub struct Signature(GenericArray<u8, U64>);
 
@@ -55,12 +64,12 @@ impl Signature {
 }
 
 pub trait Signable {
-/*
-    fn sign(&mut self, keypair: &Keypair) {
-        let signature = keypair.sign_message(self.signable_data().borrow());
-        self.set_signature(signature);
-    }
-*/
+    /*
+        fn sign(&mut self, keypair: &Keypair) {
+            let signature = keypair.sign_message(self.signable_data().borrow());
+            self.set_signature(signature);
+        }
+    */
     fn verify(&self) -> bool {
         self.get_signature()
             .verify(self.pubkey().as_ref(), self.signable_data().borrow())

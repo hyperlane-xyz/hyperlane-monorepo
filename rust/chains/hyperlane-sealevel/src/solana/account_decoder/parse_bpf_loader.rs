@@ -1,12 +1,12 @@
+use serde::{Deserialize, Serialize};
 use {
     crate::solana::account_decoder::{
         parse_account_data::{ParsableAccount, ParseAccountError},
         UiAccountData, UiAccountEncoding,
     },
-    bincode::{deserialize, serialized_size},
     crate::solana::{bpf_loader_upgradeable::UpgradeableLoaderState, pubkey::Pubkey},
+    bincode::{deserialize, serialized_size},
 };
-use serde::{Deserialize, Serialize};
 
 pub fn parse_bpf_upgradeable_loader(
     data: &[u8],

@@ -8,7 +8,13 @@ use {
 
 /// Reasons a transaction might be rejected.
 #[derive(
-    Error, Serialize, Deserialize, Debug, PartialEq, Eq, Clone /*, AbiExample, AbiEnumVisitor,*/
+    Error,
+    Serialize,
+    Deserialize,
+    Debug,
+    PartialEq,
+    Eq,
+    Clone, /*, AbiExample, AbiEnumVisitor,*/
 )]
 pub enum TransactionError {
     /// An account is already being processed in another transaction in a way
@@ -52,7 +58,6 @@ pub enum TransactionError {
     // /// indicates the instruction index in which the error occurred.
     // #[error("Error processing Instruction {0}: {1}")]
     // InstructionError(u8, InstructionError),
-
     /// Loader call chain is too deep
     #[error("Loader call chain is too deep")]
     CallChainTooDeep,

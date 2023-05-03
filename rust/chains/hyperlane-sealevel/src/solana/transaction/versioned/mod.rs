@@ -66,82 +66,82 @@ impl From<Transaction> for VersionedTransaction {
 }
 
 impl VersionedTransaction {
-/*
-    /// Signs a versioned message and if successful, returns a signed
-    /// transaction.
-    pub fn try_new<T: Signers>(
-        message: VersionedMessage,
-        keypairs: &T,
-    ) -> std::result::Result<Self, SignerError> {
-        let static_account_keys = message.static_account_keys();
-        if static_account_keys.len() < message.header().num_required_signatures as usize {
-            return Err(SignerError::InvalidInput("invalid message".to_string()));
+    /*
+        /// Signs a versioned message and if successful, returns a signed
+        /// transaction.
+        pub fn try_new<T: Signers>(
+            message: VersionedMessage,
+            keypairs: &T,
+        ) -> std::result::Result<Self, SignerError> {
+            let static_account_keys = message.static_account_keys();
+            if static_account_keys.len() < message.header().num_required_signatures as usize {
+                return Err(SignerError::InvalidInput("invalid message".to_string()));
+            }
+
+            let signer_keys = keypairs.try_pubkeys()?;
+            let expected_signer_keys =
+                &static_account_keys[0..message.header().num_required_signatures as usize];
+
+            match signer_keys.len().cmp(&expected_signer_keys.len()) {
+                Ordering::Greater => Err(SignerError::TooManySigners),
+                Ordering::Less => Err(SignerError::NotEnoughSigners),
+                Ordering::Equal => Ok(()),
+            }?;
+
+            let message_data = message.serialize();
+            let signature_indexes: Vec<usize> = expected_signer_keys
+                .iter()
+                .map(|signer_key| {
+                    signer_keys
+                        .iter()
+                        .position(|key| key == signer_key)
+                        .ok_or(SignerError::KeypairPubkeyMismatch)
+                })
+                .collect::<std::result::Result<_, SignerError>>()?;
+
+            let unordered_signatures = keypairs.try_sign_message(&message_data)?;
+            let signatures: Vec<Signature> = signature_indexes
+                .into_iter()
+                .map(|index| {
+                    unordered_signatures
+                        .get(index)
+                        .copied()
+                        .ok_or_else(|| SignerError::InvalidInput("invalid keypairs".to_string()))
+                })
+                .collect::<std::result::Result<_, SignerError>>()?;
+
+            Ok(Self {
+                signatures,
+                message,
+            })
         }
 
-        let signer_keys = keypairs.try_pubkeys()?;
-        let expected_signer_keys =
-            &static_account_keys[0..message.header().num_required_signatures as usize];
-
-        match signer_keys.len().cmp(&expected_signer_keys.len()) {
-            Ordering::Greater => Err(SignerError::TooManySigners),
-            Ordering::Less => Err(SignerError::NotEnoughSigners),
-            Ordering::Equal => Ok(()),
-        }?;
-
-        let message_data = message.serialize();
-        let signature_indexes: Vec<usize> = expected_signer_keys
-            .iter()
-            .map(|signer_key| {
-                signer_keys
-                    .iter()
-                    .position(|key| key == signer_key)
-                    .ok_or(SignerError::KeypairPubkeyMismatch)
-            })
-            .collect::<std::result::Result<_, SignerError>>()?;
-
-        let unordered_signatures = keypairs.try_sign_message(&message_data)?;
-        let signatures: Vec<Signature> = signature_indexes
-            .into_iter()
-            .map(|index| {
-                unordered_signatures
-                    .get(index)
-                    .copied()
-                    .ok_or_else(|| SignerError::InvalidInput("invalid keypairs".to_string()))
-            })
-            .collect::<std::result::Result<_, SignerError>>()?;
-
-        Ok(Self {
-            signatures,
-            message,
-        })
-    }
-
-    pub fn sanitize(
-        &self,
-        require_static_program_ids: bool,
-    ) -> std::result::Result<(), SanitizeError> {
-        self.message.sanitize(require_static_program_ids)?;
-        self.sanitize_signatures()?;
-        Ok(())
-    }
-
-    pub(crate) fn sanitize_signatures(&self) -> std::result::Result<(), SanitizeError> {
-        let num_required_signatures = usize::from(self.message.header().num_required_signatures);
-        match num_required_signatures.cmp(&self.signatures.len()) {
-            Ordering::Greater => Err(SanitizeError::IndexOutOfBounds),
-            Ordering::Less => Err(SanitizeError::InvalidValue),
-            Ordering::Equal => Ok(()),
-        }?;
-
-        // Signatures are verified before message keys are loaded so all signers
-        // must correspond to static account keys.
-        if self.signatures.len() > self.message.static_account_keys().len() {
-            return Err(SanitizeError::IndexOutOfBounds);
+        pub fn sanitize(
+            &self,
+            require_static_program_ids: bool,
+        ) -> std::result::Result<(), SanitizeError> {
+            self.message.sanitize(require_static_program_ids)?;
+            self.sanitize_signatures()?;
+            Ok(())
         }
 
-        Ok(())
-    }
-*/
+        pub(crate) fn sanitize_signatures(&self) -> std::result::Result<(), SanitizeError> {
+            let num_required_signatures = usize::from(self.message.header().num_required_signatures);
+            match num_required_signatures.cmp(&self.signatures.len()) {
+                Ordering::Greater => Err(SanitizeError::IndexOutOfBounds),
+                Ordering::Less => Err(SanitizeError::InvalidValue),
+                Ordering::Equal => Ok(()),
+            }?;
+
+            // Signatures are verified before message keys are loaded so all signers
+            // must correspond to static account keys.
+            if self.signatures.len() > self.message.static_account_keys().len() {
+                return Err(SanitizeError::IndexOutOfBounds);
+            }
+
+            Ok(())
+        }
+    */
 
     /// Returns the version of the transaction
     pub fn version(&self) -> TransactionVersion {
@@ -190,36 +190,36 @@ impl VersionedTransaction {
             .collect()
     }
 
-/*
-    /// Returns true if transaction begins with a valid advance nonce
-    /// instruction. Since dynamically loaded addresses can't have write locks
-    /// demoted without loading addresses, this shouldn't be used in the
-    /// runtime.
-    pub fn uses_durable_nonce(&self) -> bool {
-        let message = &self.message;
-        message
-            .instructions()
-            .get(NONCED_TX_MARKER_IX_INDEX as usize)
-            .filter(|instruction| {
-                // Is system program
-                matches!(
-                    message.static_account_keys().get(instruction.program_id_index as usize),
-                    Some(program_id) if system_program::check_id(program_id)
-                )
-                // Is a nonce advance instruction
-                && matches!(
-                    limited_deserialize(&instruction.data),
-                    Ok(SystemInstruction::AdvanceNonceAccount)
-                )
-                // Nonce account is writable
-                && matches!(
-                    instruction.accounts.first(),
-                    Some(index) if message.is_maybe_writable(*index as usize)
-                )
-            })
-            .is_some()
-    }
-*/
+    /*
+        /// Returns true if transaction begins with a valid advance nonce
+        /// instruction. Since dynamically loaded addresses can't have write locks
+        /// demoted without loading addresses, this shouldn't be used in the
+        /// runtime.
+        pub fn uses_durable_nonce(&self) -> bool {
+            let message = &self.message;
+            message
+                .instructions()
+                .get(NONCED_TX_MARKER_IX_INDEX as usize)
+                .filter(|instruction| {
+                    // Is system program
+                    matches!(
+                        message.static_account_keys().get(instruction.program_id_index as usize),
+                        Some(program_id) if system_program::check_id(program_id)
+                    )
+                    // Is a nonce advance instruction
+                    && matches!(
+                        limited_deserialize(&instruction.data),
+                        Ok(SystemInstruction::AdvanceNonceAccount)
+                    )
+                    // Nonce account is writable
+                    && matches!(
+                        instruction.accounts.first(),
+                        Some(index) if message.is_maybe_writable(*index as usize)
+                    )
+                })
+                .is_some()
+        }
+    */
 }
 
 /*
