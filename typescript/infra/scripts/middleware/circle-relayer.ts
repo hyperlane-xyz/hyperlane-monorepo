@@ -36,13 +36,13 @@ async function check() {
   const app = new LiquidityLayerApp(
     contracts,
     multiProvider,
-    config.liquidityLayerConfig.bridgeAdapter,
+    config.liquidityLayerConfig.bridgeAdapters,
   );
 
   while (true) {
     for (const chain of Object.keys(
       objFilter(
-        config.liquidityLayerConfig.bridgeAdapter,
+        config.liquidityLayerConfig.bridgeAdapters,
         (_, config): config is LiquidityLayerConfig => !!config.circle,
       ),
     )) {

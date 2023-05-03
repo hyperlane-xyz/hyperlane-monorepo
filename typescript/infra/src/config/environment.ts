@@ -46,7 +46,7 @@ export type EnvironmentConfig = {
   helloWorld?: Partial<Record<Contexts, HelloWorldConfig>>;
   keyFunderConfig?: KeyFunderConfig;
   liquidityLayerConfig?: {
-    bridgeAdapter: ChainMap<BridgeAdapterConfig>;
+    bridgeAdapters: ChainMap<BridgeAdapterConfig>;
     relayer: LiquidityLayerRelayerConfig;
   };
   storageGasOracleConfig?: AllStorageGasOracleConfigs;

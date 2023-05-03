@@ -77,7 +77,7 @@ async function main() {
       throw new Error(`No liquidity layer config for ${environment}`);
     }
     config = objMap(
-      envConfig.liquidityLayerConfig.bridgeAdapter,
+      envConfig.liquidityLayerConfig.bridgeAdapters,
       (chain, conf) => ({
         ...conf,
         ...routerConfig[chain],
