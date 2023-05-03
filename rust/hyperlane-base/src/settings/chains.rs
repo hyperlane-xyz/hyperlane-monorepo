@@ -461,7 +461,11 @@ impl ChainConf {
             }
 
             ChainConnectionConf::Fuel(_) => todo!(),
-            ChainConnectionConf::Sealevel(_) => todo!(),
+            ChainConnectionConf::Sealevel(conf) => {
+                let va =
+                    Box::new(h_sealevel::SealevelValidatorAnnounce::new(conf, locator));
+                Ok(va as Box<dyn ValidatorAnnounce>)
+            },
         }
         .context("Building ValidatorAnnounce")
     }
@@ -488,7 +492,11 @@ impl ChainConf {
             }
 
             ChainConnectionConf::Fuel(_) => todo!(),
-            ChainConnectionConf::Sealevel(_) => todo!(),
+            ChainConnectionConf::Sealevel(conf) => {
+                let ism =
+                    Box::new(h_sealevel::SealevelInterchainSecurityModule::new(conf, locator));
+                Ok(ism as Box<dyn InterchainSecurityModule>)
+            },
         }
         .context(ctx)
     }

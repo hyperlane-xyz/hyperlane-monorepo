@@ -103,6 +103,13 @@ impl MultisigIsmMetadataBuilder {
         checkpoint: &MultisigSignedCheckpoint,
         proof: &Proof,
     ) -> Vec<u8> {
+        // TODO: remove - this is a temporary workaround to get Sealevel deliveries
+        // working. There's a max tx size that the metadata will hit, and for testing
+        // we're just using a noop ISM.
+        if checkpoint.checkpoint.mailbox_domain == 13375 {
+            return vec![];
+        }
+
         assert_eq!(threshold as usize, checkpoint.signatures.len());
         let root_bytes = checkpoint.checkpoint.root.to_fixed_bytes().into();
         let index_bytes = checkpoint.checkpoint.index.to_be_bytes().into();

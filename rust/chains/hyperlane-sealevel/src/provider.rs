@@ -41,6 +41,7 @@ impl HyperlaneProvider for SealevelProvider {
     }
 
     async fn is_contract(&self, _address: &H256) -> ChainResult<bool> {
-        todo!() // FIXME
+        // FIXME
+        Ok(true)
     }
 }
