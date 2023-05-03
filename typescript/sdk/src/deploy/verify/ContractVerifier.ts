@@ -141,27 +141,47 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
     }
   }
 
-  async verifyContract(
+  async verifyProxy(chain: ChainName, input: ContractVerificationInput) {
+    if (input.isProxy) {
+      try {
+        const proxyGuid = await this.submitForm(
+          chain,
+          ExplorerApiActions.MARK_PROXY,
+          {
+            address: input.address,
+          },
+        );
+
+        const addressUrl = await this.multiProvider.tryGetExplorerAddressUrl(
+          chain,
+          input.address,
+        );
+
+        // poll for verified proxy status
+        if (proxyGuid) {
+          await this.submitForm(chain, ExplorerApiActions.CHECK_PROXY_STATUS, {
+            guid: proxyGuid,
+          });
+          this.logger(
+            `Successfully verified proxy ${addressUrl}#readProxyContract`,
+          );
+        }
+      } catch (error) {
+        console.error(
+          `Verification of proxy at ${input.address} failed on ${chain}`,
+        );
+        throw error;
+      }
+    }
+  }
+
+  async verifyImplementation(
     chain: ChainName,
     input: ContractVerificationInput,
-  ): Promise<void> {
-    if (input.address === ethers.constants.AddressZero) {
-      return;
-    }
-
-    if (Array.isArray(input.constructorArguments)) {
-      this.logger('Constructor arguments in legacy format, skipping');
-      return;
-    }
-
-    if (await this.isAlreadyVerified(chain, input)) {
-      this.logger(`Contract ${input.name} already verified on ${chain}`);
-      // There is a rate limit of 5 requests per second
-      await sleep(200);
-      return;
-    }
-
-    this.logger(`Verifying ${input.name} at ${input.address} on ${chain}`);
+  ) {
+    this.logger(
+      `Verifying ${input.name} implementation at ${input.address} on ${chain}`,
+    );
 
     const data = {
       sourceCode: this.flattenedSource,
@@ -195,32 +215,29 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
         throw error;
       }
     }
+  }
 
-    // mark as proxy (if applicable)
-    if (input.isProxy) {
-      try {
-        const proxyGuid = await this.submitForm(
-          chain,
-          ExplorerApiActions.MARK_PROXY,
-          {
-            address: input.address,
-          },
-        );
-        // poll for verified proxy status
-        if (proxyGuid) {
-          await this.submitForm(chain, ExplorerApiActions.CHECK_PROXY_STATUS, {
-            guid: proxyGuid,
-          });
-          this.logger(
-            `Successfully verified proxy ${addressUrl}#readProxyContract`,
-          );
-        }
-      } catch (error) {
-        console.error(
-          `Verification of proxy at ${input.address} failed on ${chain}`,
-        );
-        throw error;
-      }
+  async verifyContract(
+    chain: ChainName,
+    input: ContractVerificationInput,
+  ): Promise<void> {
+    if (input.address === ethers.constants.AddressZero) {
+      return;
     }
+
+    if (Array.isArray(input.constructorArguments)) {
+      this.logger('Constructor arguments in legacy format, skipping');
+      return;
+    }
+
+    if (await this.isAlreadyVerified(chain, input)) {
+      this.logger(`Contract ${input.name} already verified on ${chain}`);
+      // There is a rate limit of 5 requests per second
+      await sleep(200);
+      return;
+    } else {
+      await this.verifyImplementation(chain, input);
+    }
+    await this.verifyProxy(chain, input);
   }
 }
