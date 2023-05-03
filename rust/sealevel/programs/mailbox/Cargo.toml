@@ -19,7 +19,7 @@ bs58 = "=0.4.0" # FIXME remove
 [dependencies.spl-noop]
 version = "=0.1.3"
 features = ["no-entrypoint"]
-path = "/Users/steven/code/eclipse-labs/eclipse-program-library/account-compression/programs/noop"
+path = "/Users/trevor/eclipse-program-library/account-compression/programs/noop"
 
 [dev-dependencies]
 base64 = "0.13"

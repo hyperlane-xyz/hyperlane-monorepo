@@ -5,8 +5,9 @@ KEYPAIR="${HOME}/.config/eclipse/id.json"
 TARGET_DIR="${SCRIPT_DIR}/../sealevel/target"
 DEPLOY_DIR="${TARGET_DIR}/deploy"
 BIN_DIR="${TARGET_DIR}/debug"
-SPL_TOKEN="${HOME}/code/eclipse-labs/eclipse-program-library/target/debug/spl-token"
+SPL_TOKEN="${HOME}/eclipse-program-library/target/debug/spl-token"
 CHAIN_ID="13375"
+alias solana="${HOME}/solar-eclipse/target/debug/solana"
 
 mailbox_init() {
     set +e

@@ -7023,19 +7023,19 @@ dependencies = [
 [[patch.unused]]
 name = "solana-account-decoder"
 version = "1.14.13"
-source = "git+https://github.com/Eclipse-Laboratories-Inc/solar-eclipse?branch=steven/hyperlane-fix-deps#3e1aeade0e61b1a353422c98fc0f57c1a9d354d4"
+source = "git+https://github.com/Eclipse-Laboratories-Inc/solar-eclipse?branch=steven/hyperlane-fix-deps#213d74111b0fc00ec96a3c4931c3fee0e53e686c"
 
 [[patch.unused]]
 name = "solana-client"
 version = "1.14.13"
-source = "git+https://github.com/Eclipse-Laboratories-Inc/solar-eclipse?branch=steven/hyperlane-fix-deps#3e1aeade0e61b1a353422c98fc0f57c1a9d354d4"
+source = "git+https://github.com/Eclipse-Laboratories-Inc/solar-eclipse?branch=steven/hyperlane-fix-deps#213d74111b0fc00ec96a3c4931c3fee0e53e686c"
 
 [[patch.unused]]
 name = "solana-program"
 version = "1.14.13"
-source = "git+https://github.com/Eclipse-Laboratories-Inc/solar-eclipse?branch=steven/hyperlane-fix-deps#3e1aeade0e61b1a353422c98fc0f57c1a9d354d4"
+source = "git+https://github.com/Eclipse-Laboratories-Inc/solar-eclipse?branch=steven/hyperlane-fix-deps#213d74111b0fc00ec96a3c4931c3fee0e53e686c"
 
 [[patch.unused]]
 name = "solana-sdk"
 version = "1.14.13"
-source = "git+https://github.com/Eclipse-Laboratories-Inc/solar-eclipse?branch=steven/hyperlane-fix-deps#3e1aeade0e61b1a353422c98fc0f57c1a9d354d4"
+source = "git+https://github.com/Eclipse-Laboratories-Inc/solar-eclipse?branch=steven/hyperlane-fix-deps#213d74111b0fc00ec96a3c4931c3fee0e53e686c"

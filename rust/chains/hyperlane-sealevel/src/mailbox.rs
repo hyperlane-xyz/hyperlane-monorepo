@@ -75,7 +75,7 @@ impl SealevelMailbox {
         let rpc_client = RpcClient::new(conf.url.clone());
 
         // FIXME inject via config
-        let payer = read_keypair_file("/Users/steven/.config/eclipse/id.json").unwrap();
+        let payer = read_keypair_file("/Users/trevor/.config/eclipse/id.json").unwrap();
 
         // TODO use helper functions from mailbox contract lib
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
