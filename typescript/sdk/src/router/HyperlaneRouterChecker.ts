@@ -7,7 +7,11 @@ import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
 import { ChainName } from '../types';
 
 import { RouterApp } from './RouterApps';
-import { RouterConfig } from './types';
+import {
+  ConnectionClientViolation,
+  ConnectionClientViolationType,
+  RouterConfig,
+} from './types';
 
 export class HyperlaneRouterChecker<
   Factories extends HyperlaneFactories,
@@ -27,24 +31,37 @@ export class HyperlaneRouterChecker<
 
   async checkHyperlaneConnectionClient(chain: ChainName): Promise<void> {
     const router = this.app.router(this.app.getContracts(chain));
-    const mailbox = await router.mailbox();
-    const igp = await router.interchainGasPaymaster();
-    const ism = await router.interchainSecurityModule();
-    utils.assert(
-      utils.eqAddress(mailbox, this.configMap[chain].mailbox),
-      'Mailbox mismatch',
+
+    const checkConnectionClientProperty = async (
+      property: keyof RouterConfig,
+      violationType: ConnectionClientViolationType,
+    ) => {
+      const actual = await router[property]();
+      const expected =
+        this.configMap[chain][property] ?? ethers.constants.AddressZero;
+      if (!utils.eqAddress(actual, expected)) {
+        const violation: ConnectionClientViolation = {
+          chain,
+          type: violationType,
+          contract: router,
+          actual,
+          expected,
+        };
+        this.addViolation(violation);
+      }
+    };
+
+    await checkConnectionClientProperty(
+      'mailbox',
+      ConnectionClientViolationType.Mailbox,
     );
-    utils.assert(
-      utils.eqAddress(igp, this.configMap[chain].interchainGasPaymaster),
-      'IGP mismatch',
+    await checkConnectionClientProperty(
+      'interchainGasPaymaster',
+      ConnectionClientViolationType.InterchainGasPaymaster,
     );
-    utils.assert(
-      utils.eqAddress(
-        ism,
-        this.configMap[chain].interchainSecurityModule ??
-          ethers.constants.AddressZero,
-      ),
-      'ISM mismatch',
+    await checkConnectionClientProperty(
+      'interchainSecurityModule',
+      ConnectionClientViolationType.InterchainSecurityModule,
     );
   }
 

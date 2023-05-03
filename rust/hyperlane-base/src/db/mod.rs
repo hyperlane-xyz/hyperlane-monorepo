@@ -1,13 +1,12 @@
 use std::path::PathBuf;
 use std::{io, path::Path, sync::Arc};
 
+use hyperlane_core::{Decode, Encode, HyperlaneProtocolError};
 use rocksdb::{DBIterator, Options, DB as Rocks};
 use tracing::info;
 
 pub use hyperlane_db::*;
 pub use typed_db::*;
-
-use crate::{Decode, Encode, HyperlaneProtocolError};
 
 /// Shared functionality surrounding use of rocksdb
 pub mod iterator;
@@ -19,6 +18,10 @@ mod typed_db;
 
 /// Internal-use storage types.
 mod storage_types;
+
+/// Database test utilities.
+#[cfg(any(test, feature = "test-utils"))]
+pub mod test_utils;
 
 #[derive(Debug, Clone)]
 /// A KV Store

@@ -5,6 +5,8 @@ import sinon from 'sinon';
 
 import { TestChains } from '../consts/chains';
 import { HyperlaneContractsMap } from '../contracts';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
+import { HyperlaneIsmFactoryDeployer } from '../ism/HyperlaneIsmFactoryDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
 import { testCoreConfig } from '../test/testUtils';
 import { ChainMap } from '../types';
@@ -21,6 +23,14 @@ describe('core', async () => {
   let core: HyperlaneCore;
   let contracts: HyperlaneContractsMap<CoreFactories>;
   let coreConfig: ChainMap<CoreConfig>;
+  let ismFactory: HyperlaneIsmFactory;
+  before(async () => {
+    const [signer] = await ethers.getSigners();
+    multiProvider = MultiProvider.createTestMultiProvider({ signer });
+    const ismFactoryDeployer = new HyperlaneIsmFactoryDeployer(multiProvider);
+    const ismFactories = await ismFactoryDeployer.deploy(TestChains);
+    ismFactory = new HyperlaneIsmFactory(ismFactories, multiProvider);
+  });
 
   beforeEach(async () => {
     const [signer] = await ethers.getSigners();
@@ -30,14 +40,14 @@ describe('core', async () => {
   });
 
   it('deploys', async () => {
-    deployer = new HyperlaneCoreDeployer(multiProvider);
+    deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
     contracts = await deployer.deploy(coreConfig);
     core = new HyperlaneCore(contracts, multiProvider);
   });
 
   describe('failure modes', async () => {
     beforeEach(async () => {
-      deployer = new HyperlaneCoreDeployer(multiProvider);
+      deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
       const stub = sinon.stub(deployer, 'deployContracts');
       stub.withArgs('test3', sinon.match.any).rejects();
       // @ts-ignore
@@ -89,7 +99,12 @@ describe('core', async () => {
   });
 
   it('checks', async () => {
-    const checker = new HyperlaneCoreChecker(multiProvider, core, coreConfig);
+    const checker = new HyperlaneCoreChecker(
+      multiProvider,
+      core,
+      coreConfig,
+      ismFactory,
+    );
     await checker.check();
   });
 });
