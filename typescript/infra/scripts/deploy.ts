@@ -14,7 +14,6 @@ import {
   objMap,
 } from '@hyperlane-xyz/sdk';
 
-import { bridgeAdapterConfigs } from '../config/environments/test/liquidityLayer';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { deployWithArtifacts } from '../src/deploy';
 import { TestQuerySenderDeployer } from '../src/testcontracts/testquerysender';
@@ -73,12 +72,17 @@ async function main() {
     config = await getRouterConfig(environment, multiProvider);
     deployer = new InterchainQueryDeployer(multiProvider);
   } else if (module === Modules.LIQUIDITY_LAYER) {
-    deployer = new LiquidityLayerDeployer(multiProvider);
     const routerConfig = await getRouterConfig(environment, multiProvider);
-    config = objMap(bridgeAdapterConfigs, (chain, conf) => ({
-      ...conf,
-      ...routerConfig[chain],
-    }));
+    if (!envConfig.liquidityLayerConfig) {
+      throw new Error(`No liquidity layer config for ${environment}`);
+    }
+    config = objMap(
+      envConfig.liquidityLayerConfig.bridgeAdapters,
+      (chain, conf) => ({
+        ...conf,
+        ...routerConfig[chain],
+      }),
+    );
     deployer = new LiquidityLayerDeployer(multiProvider);
   } else if (module === Modules.TEST_RECIPIENT) {
     deployer = new TestRecipientDeployer(multiProvider);
