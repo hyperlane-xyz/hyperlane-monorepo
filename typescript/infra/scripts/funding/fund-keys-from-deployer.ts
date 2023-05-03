@@ -104,7 +104,7 @@ const desiredBalancePerChain: ChainMap<string> = {
   polygon: '2',
   mumbai: '0.8',
   optimism: '0.15',
-  arbitrum: '0.1',
+  arbitrum: '0.15',
   bsc: '0.05',
   bsctestnet: '1',
   goerli: '0.5',
