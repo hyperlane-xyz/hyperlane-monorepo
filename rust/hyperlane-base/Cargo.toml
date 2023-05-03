@@ -60,11 +60,10 @@ rusoto_core = "*"
 rusoto_kms = "*"
 rusoto_s3 = "*"
 
-lazy_static = "1.4"
+lazy_static = { workspace = true }
 once_cell = "1.16"
 
-# TODO make this a workspace dep
-bs58 = "0.4.0"
+bs58 = { workspace = true }
 
 [dev-dependencies]
 color-eyre = "0.6"

@@ -34,7 +34,10 @@ publish = false
 version = "0.1.0"
 
 [workspace.dependencies]
+anyhow = "1.0"
 async-trait = { version = "0.1" }
+borsh = "0.9"
+bs58 = "0.4.0"
 color-eyre = { version = "0.6" }
 config = "~0.13.3"
 derive-new = "0.5"
@@ -48,7 +51,9 @@ fuels = "0.38"
 fuels-code-gen = "0.38"
 futures = "0.3"
 futures-util = "0.3"
+Inflector = "0.11.4"
 itertools = "0.10"
+lazy_static = "1.4"
 num = {version = "0.4"}
 num-derive = "0.3"
 num-traits = "0.2"
@@ -69,32 +74,32 @@ tracing-subscriber = { version = "0.3", default-features = false }
 url = "2.3"
 
 # FIXME zstd version conflict
-[patch.crates-io.solana-client]
-version = "=1.14.13"
-git = "https://github.com/Eclipse-Laboratories-Inc/solar-eclipse"
-branch = "steven/hyperlane-fix-deps"
-[patch.crates-io.solana-account-decoder]
-version = "=1.14.13"
-git = "https://github.com/Eclipse-Laboratories-Inc/solar-eclipse"
-branch = "steven/hyperlane-fix-deps"
-[patch.crates-io.solana-sdk]
-version = "=1.14.13"
-git = "https://github.com/Eclipse-Laboratories-Inc/solar-eclipse"
-branch = "steven/hyperlane-fix-deps"
-[patch.crates-io.solana-program]
-version = "=1.14.13"
-git = "https://github.com/Eclipse-Laboratories-Inc/solar-eclipse"
-branch = "steven/hyperlane-fix-deps"
+# [patch.crates-io.solana-client]
+# version = "=1.14.13"
+# git = "https://github.com/Eclipse-Laboratories-Inc/solar-eclipse"
+# branch = "steven/hyperlane-fix-deps"
+# [patch.crates-io.solana-account-decoder]
+# version = "=1.14.13"
+# git = "https://github.com/Eclipse-Laboratories-Inc/solar-eclipse"
+# branch = "steven/hyperlane-fix-deps"
+# [patch.crates-io.solana-sdk]
+# version = "=1.14.13"
+# git = "https://github.com/Eclipse-Laboratories-Inc/solar-eclipse"
+# branch = "steven/hyperlane-fix-deps"
+# [patch.crates-io.solana-program]
+# version = "=1.14.13"
+# git = "https://github.com/Eclipse-Laboratories-Inc/solar-eclipse"
+# branch = "steven/hyperlane-fix-deps"
 
 # FIXME zeroize version conflict
 # [patch.crates-io.ed25519-dalek]
 # version = "=1.0.1"
 # git = "https://github.com/Eclipse-Laboratories-Inc/ed25519-dalek"
 # branch = "steven/fix-deps"
-[patch.crates-io.curve25519-dalek]
-version = "=3.2.1"
-git = "https://github.com/Eclipse-Laboratories-Inc/curve25519-dalek"
-branch = "steven/fix-deps"
+# [patch.crates-io.curve25519-dalek]
+# version = "=3.2.1"
+# git = "https://github.com/Eclipse-Laboratories-Inc/curve25519-dalek"
+# branch = "steven/fix-deps"
 
 # FIXME patch primitive types to pull in borsh support. Unfortunately crates in parity-common refer
 # to one another with local paths so patching one requires patching most of them.
@@ -103,29 +108,29 @@ branch = "steven/fix-deps"
 branch = "steven/primitive-types-impl-borsh-uint-version-fix"
 git = "ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common"
 
-# "fixed-hash 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)"
-[patch.crates-io.fixed-hash]
-branch = "steven/primitive-types-impl-borsh-uint-version-fix"
-git = "ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common"
+# # "fixed-hash 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)"
+# [patch.crates-io.fixed-hash]
+# branch = "steven/primitive-types-impl-borsh-uint-version-fix"
+# git = "ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common"
 
-# "impl-codec 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)"
-[patch.crates-io.impl-codec]
-branch = "steven/primitive-types-impl-borsh-uint-version-fix"
-git = "ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common"
+# # "impl-codec 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)"
+# [patch.crates-io.impl-codec]
+# branch = "steven/primitive-types-impl-borsh-uint-version-fix"
+# git = "ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common"
 
 # "impl-rlp 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)"
-[patch.crates-io.impl-rlp]
-branch = "steven/primitive-types-impl-borsh-uint-version-fix"
-git = "ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common"
+# [patch.crates-io.impl-rlp]
+# branch = "steven/primitive-types-impl-borsh-uint-version-fix"
+# git = "ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common"
 
-# "impl-serde 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)"
-[patch.crates-io.impl-serde]
-branch = "steven/primitive-types-impl-borsh-uint-version-fix"
-git = "ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common"
+# # "impl-serde 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)"
+# [patch.crates-io.impl-serde]
+# branch = "steven/primitive-types-impl-borsh-uint-version-fix"
+# git = "ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common"
 
-[patch.crates-io.rlp-derive]
-branch = "steven/primitive-types-impl-borsh-uint-version-fix"
-git = "ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common"
+# [patch.crates-io.rlp-derive]
+# branch = "steven/primitive-types-impl-borsh-uint-version-fix"
+# git = "ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common"
 
 [patch.crates-io.rlp]
 branch = "steven/primitive-types-impl-borsh-uint-version-fix"

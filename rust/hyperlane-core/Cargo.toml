@@ -12,8 +12,8 @@ version.workspace = true
 [dependencies]
 async-trait.workspace = true
 auto_impl = "1.0"
-borsh = "0.9"
-bs58 = "0.4.0"
+borsh = { workspace = true }
+bs58 = { workspace = true }
 config.workspace = true
 bytes = { version = "1", features = ["serde"] }
 convert_case = "0.6"
@@ -33,8 +33,7 @@ sha3 = "0.10"
 strum.workspace = true
 thiserror.workspace = true
 
-# version determined by ethers-rs
-lazy_static = "*"
+lazy_static = { workspace = true }
 primitive-types = { version = "*", features = ["impl-borsh", "impl-serde"] }
 
 [dev-dependencies]

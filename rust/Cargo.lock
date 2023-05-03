@@ -1705,10 +1705,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c22d4b5885b6aa2fe5e8b9329fb8d232bf739e434e6b87347c63bdd00c120f60"
 dependencies = [
  "crunchy",
- "fixed-hash",
- "impl-codec",
- "impl-rlp",
- "impl-serde",
+ "fixed-hash 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "impl-codec 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "impl-rlp 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "impl-serde 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "scale-info",
  "tiny-keccak",
 ]
@@ -1720,10 +1720,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "02d215cbf040552efcbe99a38372fe80ab9d00268e20012b79fcd0f073edd8ee"
 dependencies = [
  "ethbloom",
- "fixed-hash",
- "impl-codec",
- "impl-rlp",
- "impl-serde",
+ "fixed-hash 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "impl-codec 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "impl-rlp 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "impl-serde 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "primitive-types",
  "scale-info",
  "uint",
@@ -2013,6 +2013,18 @@ checksum = "d013fc25338cc558c5c2cfbad646908fb23591e2404481826742b651c9af7160"
 dependencies = [
  "rand_core 0.6.4",
  "subtle",
+]
+
+[[package]]
+name = "fixed-hash"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "835c052cb0c08c1acf6ffd71c022172e18723949c8282f2b9f27efbc51e64534"
+dependencies = [
+ "byteorder",
+ "rand 0.8.5",
+ "rustc-hex",
+ "static_assertions",
 ]
 
 [[package]]
@@ -3178,6 +3190,15 @@ dependencies = [
 [[package]]
 name = "impl-codec"
 version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba6a270039626615617f3f36d15fc827041df3b78c439da2cadfa47455a77f2f"
+dependencies = [
+ "parity-scale-codec",
+]
+
+[[package]]
+name = "impl-codec"
+version = "0.6.0"
 source = "git+ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix#05ef0bec2de0fed8c5306dcb4fa28e81efde0638"
 dependencies = [
  "parity-scale-codec",
@@ -3186,9 +3207,27 @@ dependencies = [
 [[package]]
 name = "impl-rlp"
 version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f28220f89297a075ddc7245cd538076ee98b01f2a9c23a53a4f1105d5a322808"
+dependencies = [
+ "rlp",
+]
+
+[[package]]
+name = "impl-rlp"
+version = "0.3.0"
 source = "git+ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix#05ef0bec2de0fed8c5306dcb4fa28e81efde0638"
 dependencies = [
  "rlp",
+]
+
+[[package]]
+name = "impl-serde"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ebc88fc67028ae3db0c853baa36269d398d5f45b6982f95549ff5def78c935cd"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
@@ -4336,11 +4375,11 @@ name = "primitive-types"
 version = "0.12.1"
 source = "git+ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix#05ef0bec2de0fed8c5306dcb4fa28e81efde0638"
 dependencies = [
- "fixed-hash",
+ "fixed-hash 0.8.0 (git+ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix)",
  "impl-borsh",
- "impl-codec",
- "impl-rlp",
- "impl-serde",
+ "impl-codec 0.6.0 (git+ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix)",
+ "impl-rlp 0.3.0 (git+ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix)",
+ "impl-serde 0.4.0 (git+ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix)",
  "scale-info",
  "uint",
 ]
@@ -4764,7 +4803,8 @@ dependencies = [
 [[package]]
 name = "rlp-derive"
 version = "0.1.0"
-source = "git+ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix#05ef0bec2de0fed8c5306dcb4fa28e81efde0638"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e33d7b2abe0c340d8797fe2907d3f20d3b5ea5908683618bfe80df7f621f672a"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7089,23 +7129,3 @@ dependencies = [
  "libc",
  "pkg-config",
 ]
-
-[[patch.unused]]
-name = "solana-account-decoder"
-version = "1.14.13"
-source = "git+https://github.com/Eclipse-Laboratories-Inc/solar-eclipse?branch=steven/hyperlane-fix-deps#213d74111b0fc00ec96a3c4931c3fee0e53e686c"
-
-[[patch.unused]]
-name = "solana-client"
-version = "1.14.13"
-source = "git+https://github.com/Eclipse-Laboratories-Inc/solar-eclipse?branch=steven/hyperlane-fix-deps#213d74111b0fc00ec96a3c4931c3fee0e53e686c"
-
-[[patch.unused]]
-name = "solana-program"
-version = "1.14.13"
-source = "git+https://github.com/Eclipse-Laboratories-Inc/solar-eclipse?branch=steven/hyperlane-fix-deps#213d74111b0fc00ec96a3c4931c3fee0e53e686c"
-
-[[patch.unused]]
-name = "solana-sdk"
-version = "1.14.13"
-source = "git+https://github.com/Eclipse-Laboratories-Inc/solar-eclipse?branch=steven/hyperlane-fix-deps#213d74111b0fc00ec96a3c4931c3fee0e53e686c"

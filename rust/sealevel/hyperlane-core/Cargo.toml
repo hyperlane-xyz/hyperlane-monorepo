@@ -9,7 +9,7 @@ lazy_static = "1.4"
 # TODO Use upstream primitive_types
 primitive-types = { branch = "steven/primitive-types-impl-borsh", features = ["impl-borsh", "impl-serde"], git = "ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common" }
 sha3 = "0.10.0"
-thiserror = "1.0"
+thiserror = { workspace = true }
 serde = { versions = "1.0", features = ["derive"] }
 strum = { version = "0.24", features = ["derive"] }
 strum_macros = "0.24"

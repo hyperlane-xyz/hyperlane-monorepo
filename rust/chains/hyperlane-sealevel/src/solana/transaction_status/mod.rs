@@ -1,6 +1,6 @@
 #![allow(clippy::integer_arithmetic)]
 
-pub use crate::solana::reward_type::RewardType; /*}*/;
+pub use crate::solana::reward_type::RewardType;
 use serde::{Deserialize, Serialize};
 use {
     crate::solana::account_decoder::parse_token::UiTokenAmount,

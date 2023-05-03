@@ -9,7 +9,7 @@ version.workspace = true
 
 
 [dependencies]
-Inflector = "0.11"
+Inflector = { workspace = true }
 ethers = { workspace = true, optional = true }
 fuels = { workspace = true, optional = true }
 fuels-code-gen = { workspace = true, optional = true }
