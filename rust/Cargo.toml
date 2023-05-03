@@ -21,6 +21,9 @@ members = [
     "utils/hex",
     "utils/run-locally",
 ]
+# FIXME dependency conflicts between solana and hyperlane
+exclude = [ "sealevel" ]
+# exclude = [ "sealevel/hyperlane-core" ]
 
 [workspace.package]
 documentation = "https://docs.hyperlane.xyz"
@@ -64,9 +67,6 @@ tracing = { version = "0.1", features = ["release_max_level_debug"] }
 tracing-futures = "0.2"
 tracing-subscriber = { version = "0.3", default-features = false }
 url = "2.3"
-# FIXME dependency conflicts between solana and hyperlane
-exclude = [ "sealevel" ]
-# exclude = [ "sealevel/hyperlane-core" ]
 
 # FIXME zstd version conflict
 [patch.crates-io.solana-client]

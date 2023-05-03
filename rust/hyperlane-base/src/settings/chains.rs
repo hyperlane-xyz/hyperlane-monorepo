@@ -341,7 +341,7 @@ impl ChainConf {
                     .map(|m| Box::new(m) as Box<dyn Mailbox>)
                     .map_err(Into::into)
             }
-            ChainConf::Sealevel(conf) => {
+            ChainConnectionConf::Sealevel(conf) => {
                 h_sealevel::SealevelMailbox::new(conf, locator)
                     .map(|m| Box::new(m) as Box<dyn Mailbox>)
                     .map_err(Into::into)
@@ -530,6 +530,7 @@ impl ChainConf {
             }
 
             ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(_) => todo!(),
         }
         .context(ctx)
     }

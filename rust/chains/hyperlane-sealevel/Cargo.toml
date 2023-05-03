@@ -37,7 +37,9 @@ serde_derive = "1.0"
 serde_json = "1.0"
 sha2 = "0.10.0"
 tokio = { version = "1", features = ["full"] }
-zstd = "0.10.2+zstd.1.5.2"
+url = { workspace = true }
+# zstd = "0.10.2+zstd.1.5.2"
+zstd = "*"
 # tokio-stream = "0.1.9"
 # tokio-tungstenite = { version = "0.17.1", features = ["rustls-tls-webpki-roots"] }
 [dependencies.curve25519-dalek]

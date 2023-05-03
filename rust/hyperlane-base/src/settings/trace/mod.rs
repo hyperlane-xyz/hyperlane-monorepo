@@ -2,7 +2,7 @@ use eyre::Result;
 use tracing_opentelemetry::OpenTelemetryLayer;
 use tracing_subscriber::{
     filter::{LevelFilter, Targets},
-    prelude::*,
+    prelude::*, EnvFilter,
 };
 
 pub use span_metrics::TimeSpanLifetime;

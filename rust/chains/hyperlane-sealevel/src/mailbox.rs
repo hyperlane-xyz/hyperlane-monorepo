@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, Decode as _, Encode as _,
     HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, Indexer,
-    LogMeta, Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256,
+    LogMeta, Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256, HyperlaneProvider,
 };
 use tracing::{debug, error, instrument, trace, warn};
 
@@ -40,7 +40,7 @@ use crate::{
         },
     },
     mailbox_message_inspector::{Error as InspectionError, Inspector},
-    mailbox_token_bridge_message_inspector::TokenBridgeInspector,
+    mailbox_token_bridge_message_inspector::TokenBridgeInspector, SealevelProvider,
 };
 
 // FIXME solana uses the first 64 byte signature of a transaction to uniquely identify the
@@ -72,7 +72,7 @@ impl SealevelMailbox {
         conf: &ConnectionConf,
         locator: ContractLocator,
     ) -> ChainResult<Self> {
-        let rpc_client = RpcClient::new(conf.url.clone());
+        let rpc_client = RpcClient::new(conf.url.to_string());
 
         // FIXME inject via config
         let payer = read_keypair_file("/Users/trevor/.config/eclipse/id.json").unwrap();
@@ -144,7 +144,7 @@ impl SealevelMailbox {
             inbox,
             outbox,
             rpc_client,
-            domain: locator.domain,
+            domain: locator.domain.clone(),
             payer,
             inspector,
         })
@@ -172,6 +172,10 @@ impl HyperlaneChain for SealevelMailbox {
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
     }
+
+    fn provider(&self) -> Box<dyn HyperlaneProvider> {
+        Box::new(SealevelProvider::new(self.domain.clone()))
+    }
 }
 
 impl std::fmt::Debug for SealevelMailbox {
@@ -185,7 +189,7 @@ impl std::fmt::Debug for SealevelMailbox {
 #[async_trait]
 impl Mailbox for SealevelMailbox {
     #[instrument(err, ret, skip(self))]
-    async fn count(&self) -> ChainResult<u32> {
+    async fn count(&self, _maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
         // TODO don't duplicate this code, write generic helper function
         let outbox_account = self
             .rpc_client
@@ -377,6 +381,9 @@ impl Mailbox for SealevelMailbox {
         Ok(TxOutcome {
             txid,
             executed,
+            // TODO use correct data
+            gas_price: U256::zero(),
+            gas_used: U256::zero(),
         })
     }
 
@@ -390,6 +397,7 @@ impl Mailbox for SealevelMailbox {
         Ok(TxCostEstimate {
             gas_limit: U256::zero(),
             gas_price: U256::zero(),
+            l2_gas_limit: None,
         })
     }
 
@@ -707,7 +715,7 @@ impl SealevelMailboxIndexer {
     pub fn new(conf: &ConnectionConf, locator: ContractLocator) -> Self {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         // let domain = locator.domain;
-        let rpc_client = crate::RpcClientWithDebug::new(conf.url.clone());
+        let rpc_client = crate::RpcClientWithDebug::new(conf.url.to_string());
         Self {
             program_id,
             rpc_client,

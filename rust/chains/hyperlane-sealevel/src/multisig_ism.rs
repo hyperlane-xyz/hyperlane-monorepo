@@ -2,13 +2,13 @@ use std::str::FromStr as _;
 
 use async_trait::async_trait;
 use hyperlane_core::{
-    accumulator::merkle::Proof, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, MultisigIsm, MultisigSignedCheckpoint,
-    H256,
+    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain,
+    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, MultisigIsm,
+    H256, HyperlaneProvider,
 };
 use tracing::warn;
 
-use crate::{ConnectionConf, solana::pubkey::Pubkey};
+use crate::{ConnectionConf, solana::pubkey::Pubkey, SealevelProvider};
 
 /// A reference to a MultisigIsm contract on some Sealevel chain
 #[derive(Debug)]
@@ -21,11 +21,10 @@ impl SealevelMultisigIsm {
     pub fn new(_conf: &ConnectionConf, locator: ContractLocator) -> Self {
         // let rpc_client = RpcClient::new(conf.url.clone());
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
-        let domain = locator.domain;
 
         Self {
             program_id,
-            domain,
+            domain: locator.domain.clone(),
         }
     }
 }
@@ -39,6 +38,10 @@ impl HyperlaneContract for SealevelMultisigIsm {
 impl HyperlaneChain for SealevelMultisigIsm {
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
+    }
+
+    fn provider(&self) -> Box<dyn HyperlaneProvider> {
+        Box::new(SealevelProvider::new(self.domain.clone()))
     }
 }
 
@@ -55,18 +58,5 @@ impl MultisigIsm for SealevelMultisigIsm {
             "0x00000000000000000000000070997970c51812dc3a010c7d01b50e0d17dc79c8"
         ).map_err(ChainCommunicationError::from_other)?;
         Ok((vec![address], 1))
-    }
-
-    /// Returns the metadata needed by the contract's verify function
-    fn format_metadata(
-        &self,
-        _validators: &[H256],
-        _threshold: u8,
-        _checkpoint: &MultisigSignedCheckpoint,
-        _proof: &Proof,
-    ) -> Vec<u8> {
-        // FIXME do something real
-        warn!("Providing no formatted metadata for multisig ism");
-        vec![]
     }
 }

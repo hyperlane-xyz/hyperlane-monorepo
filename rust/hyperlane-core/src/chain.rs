@@ -177,6 +177,7 @@ impl HyperlaneDomainProtocol {
         match self {
             Ethereum => format!("{:?}", H160::from(addr)),
             Fuel => format!("{:?}", addr),
+            Sealevel => format!("{:?}", addr),
         }
     }
 }

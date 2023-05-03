@@ -2,13 +2,13 @@ use async_trait::async_trait;
 use hyperlane_core::{
     ChainResult, ChainCommunicationError, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, H256, Indexer, InterchainGasPaymaster, InterchainGasPaymasterIndexer,
-    InterchainGasPaymentWithMeta,
+    InterchainGasPayment, LogMeta, HyperlaneProvider,
 };
 use tracing::warn;
 
 use crate::{
     ConnectionConf,
-    solana::{commitment_config::CommitmentConfig, pubkey::Pubkey /*, nonblocking_rpc_client::RpcClient*/},
+    solana::{commitment_config::CommitmentConfig, pubkey::Pubkey /*, nonblocking_rpc_client::RpcClient*/}, SealevelProvider,
 };
 
 /// A reference to an IGP contract on some Sealevel chain
@@ -22,12 +22,11 @@ pub struct SealevelInterchainGasPaymaster {
 impl SealevelInterchainGasPaymaster {
     pub fn new(_conf: &ConnectionConf /*TODO don't need?*/, locator: ContractLocator) -> Self {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
-        let domain = locator.domain;
         // let rpc_client = crate::RpcClientWithDebug::new(conf.url.clone());
         Self {
             program_id,
             // rpc_client,
-            domain,
+            domain: locator.domain.clone(),
         }
     }
 }
@@ -41,6 +40,10 @@ impl HyperlaneContract for SealevelInterchainGasPaymaster {
 impl HyperlaneChain for SealevelInterchainGasPaymaster {
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
+    }
+
+    fn provider(&self) -> Box<dyn HyperlaneProvider> {
+        Box::new(SealevelProvider::new(self.domain.clone()))
     }
 }
 
@@ -58,7 +61,7 @@ impl SealevelInterchainGasPaymasterIndexer {
     pub fn new(conf: &ConnectionConf, _locator: ContractLocator /*TODO don't need?*/) -> Self {
         // let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         // let domain = locator.domain;
-        let rpc_client = crate::RpcClientWithDebug::new(conf.url.clone());
+        let rpc_client = crate::RpcClientWithDebug::new(conf.url.to_string());
         Self {
             // program_id,
             rpc_client,
@@ -89,7 +92,7 @@ impl InterchainGasPaymasterIndexer for SealevelInterchainGasPaymasterIndexer {
         &self,
         _from_block: u32,
         _to_block: u32,
-    ) -> ChainResult<Vec<InterchainGasPaymentWithMeta>> {
+    ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
         // FIXME not quite sure what the implemenation here is supposed to be yet given that we
         // selected None for gas payment enforment policy in the config?
         warn!("Reporting no gas payments");
