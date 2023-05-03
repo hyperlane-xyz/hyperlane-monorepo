@@ -141,7 +141,10 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
     }
   }
 
-  async verifyProxy(chain: ChainName, input: ContractVerificationInput) {
+  async verifyProxy(
+    chain: ChainName,
+    input: ContractVerificationInput,
+  ): Promise<void> {
     if (input.isProxy) {
       try {
         const proxyGuid = await this.submitForm(
@@ -178,7 +181,7 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
   async verifyImplementation(
     chain: ChainName,
     input: ContractVerificationInput,
-  ) {
+  ): Promise<void> {
     this.logger(
       `Verifying ${input.name} implementation at ${input.address} on ${chain}`,
     );
