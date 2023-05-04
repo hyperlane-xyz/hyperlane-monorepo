@@ -1,10 +1,10 @@
-import { FallbackProviderConfig } from '@ethersproject/providers';
-import { ethers } from 'ethers';
+import { providers } from 'ethers';
 
 import {
   AgentConnectionType,
   ChainName,
-  providerBuilder,
+  RetryJsonRpcProvider,
+  RetryProviderOptions,
 } from '@hyperlane-xyz/sdk';
 
 import { getSecretRpcEndpoint } from '../agents';
@@ -16,27 +16,37 @@ export const defaultRetry = {
   baseRetryMs: 50,
 };
 
+function buildProvider(config?: {
+  url?: string;
+  network?: providers.Networkish;
+  retry?: RetryProviderOptions;
+}): providers.JsonRpcProvider {
+  return config?.retry
+    ? new RetryJsonRpcProvider(config.retry, config?.url, config?.network)
+    : new providers.StaticJsonRpcProvider(config?.url, config?.network);
+}
+
 export async function fetchProvider(
   environment: DeployEnvironment,
   chainName: ChainName,
   connectionType: AgentConnectionType = AgentConnectionType.Http,
-): Promise<ethers.providers.Provider> {
+): Promise<providers.Provider> {
   const single = connectionType === AgentConnectionType.Http;
   const rpcData = await getSecretRpcEndpoint(environment, chainName, !single);
   switch (connectionType) {
     case AgentConnectionType.Http: {
-      return providerBuilder({ http: rpcData, retry: defaultRetry });
+      return buildProvider({ url: rpcData, retry: defaultRetry });
     }
     case AgentConnectionType.HttpQuorum: {
-      return new ethers.providers.FallbackProvider(
-        (rpcData as string[]).map((url) => providerBuilder({ http: url })), // disable retry for quorum
+      return new providers.FallbackProvider(
+        (rpcData as string[]).map((url) => buildProvider({ url })), // disable retry for quorum
       );
     }
     case AgentConnectionType.HttpFallback: {
-      return new ethers.providers.FallbackProvider(
+      return new providers.FallbackProvider(
         (rpcData as string[]).map((url, index) => {
-          const fallbackProviderConfig: FallbackProviderConfig = {
-            provider: providerBuilder({ http: url, retry: defaultRetry }),
+          const fallbackProviderConfig: providers.FallbackProviderConfig = {
+            provider: buildProvider({ url, retry: defaultRetry }),
             // Priority is used by the FallbackProvider to determine
             // how to order providers using ascending ordering.
             // When not specified, all providers have the same priority
