@@ -100,10 +100,10 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
         } else {
             signedRoot = MerkleLib.branchRoot(
                 Message.id(_message),
-                MultisigIsmMetadata.proof(_metadata),
+                MultisigIsmMetadata.merkleProof(_metadata),
                 Message.nonce(_message)
             );
-            signedMessageId = MultisigIsmMetadata.id(_metadata);
+            signedMessageId = MultisigIsmMetadata.signedMessageId(_metadata);
         }
 
         return
