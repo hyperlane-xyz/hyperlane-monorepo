@@ -17,6 +17,7 @@
   "scripts": {
     "build": "yarn workspaces foreach --verbose --parallel --topological run build",
     "clean": "yarn workspaces foreach --verbose --parallel run clean",
+    "sync-submodules": "./scripts/sync-submodules.sh",
     "postinstall": "husky install",
     "prettier": "yarn workspaces foreach --verbose --parallel run prettier",
     "lint-ts": "eslint . --ext .ts",
