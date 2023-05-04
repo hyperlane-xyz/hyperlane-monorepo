@@ -6,16 +6,18 @@ pragma solidity >=0.8.0;
  * [   0:  32] Merkle root
  * [  32:  36] Root index
  * [  36:  68] Origin mailbox address
- * [  68:1092] Merkle proof
- * [1092:????] Validator signatures, 65 bytes each, length == Threshold
+ * [  68:  90] Message ID (leaf at root index in merkle tree)
+ * [  90:????] Validator signatures, 65 bytes each, length == Threshold
+ * [????:????] (Optional) Merkle proof
  */
 library MultisigIsmMetadata {
     uint256 private constant MERKLE_ROOT_OFFSET = 0;
     uint256 private constant MERKLE_INDEX_OFFSET = 32;
     uint256 private constant ORIGIN_MAILBOX_OFFSET = 36;
-    uint256 private constant MERKLE_PROOF_OFFSET = 68;
-    uint256 private constant SIGNATURES_OFFSET = 1092;
+    uint256 private constant MESSAGE_ID_OFFSET = 68;
+    uint256 private constant SIGNATURES_OFFSET = 90;
     uint256 private constant SIGNATURE_LENGTH = 65;
+    uint256 private constant PROOF_LENGTH = 32 * 32;
 
     /**
      * @notice Returns the merkle root of the signed checkpoint.
@@ -48,7 +50,27 @@ library MultisigIsmMetadata {
         pure
         returns (bytes32)
     {
-        return bytes32(_metadata[ORIGIN_MAILBOX_OFFSET:MERKLE_PROOF_OFFSET]);
+        return bytes32(_metadata[ORIGIN_MAILBOX_OFFSET:MESSAGE_ID_OFFSET]);
+    }
+
+    function messageId(bytes calldata _metadata)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return bytes32(_metadata[MESSAGE_ID_OFFSET:SIGNATURES_OFFSET]);
+    }
+
+    function proofOffset(uint256 threshold) private pure returns (uint256) {
+        return SIGNATURES_OFFSET + (threshold * SIGNATURE_LENGTH);
+    }
+
+    function hasProof(bytes calldata _metadata, uint256 threshold)
+        internal
+        pure
+        returns (bool)
+    {
+        return _metadata.length > proofOffset(threshold);
     }
 
     /**
@@ -56,18 +78,15 @@ library MultisigIsmMetadata {
      * @dev This appears to be more gas efficient than returning a calldata
      * slice and using that.
      * @param _metadata ABI encoded Multisig ISM metadata.
+     * @param _threshold Used to determine offset from signatures.
      * @return Merkle proof branch of the message.
      */
-    function proof(bytes calldata _metadata)
+    function proof(bytes calldata _metadata, uint256 _threshold)
         internal
         pure
         returns (bytes32[32] memory)
     {
-        return
-            abi.decode(
-                _metadata[MERKLE_PROOF_OFFSET:SIGNATURES_OFFSET],
-                (bytes32[32])
-            );
+        return abi.decode(_metadata[proofOffset(_threshold):], (bytes32[32]));
     }
 
     /**

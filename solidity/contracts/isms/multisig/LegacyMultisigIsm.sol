@@ -12,7 +12,7 @@ import {Message} from "../../libs/Message.sol";
 import {IMultisigIsm} from "../../interfaces/isms/IMultisigIsm.sol";
 import {LegacyMultisigIsmMetadata} from "../../libs/isms/LegacyMultisigIsmMetadata.sol";
 import {MerkleLib} from "../../libs/Merkle.sol";
-import {CheckpointLib} from "../../libs/CheckpointLib.sol";
+import {LegacyCheckpointLib} from "../../libs/LegacyCheckpointLib.sol";
 
 /**
  * @title MultisigIsm
@@ -331,7 +331,7 @@ contract LegacyMultisigIsm is IMultisigIsm, Ownable {
             // non-zero computed commitment, and this check will fail
             // as the commitment in storage will be zero.
             require(_commitment == commitment[_origin], "!commitment");
-            _digest = CheckpointLib.digest(
+            _digest = LegacyCheckpointLib.digest(
                 _origin,
                 LegacyMultisigIsmMetadata.originMailbox(_metadata),
                 LegacyMultisigIsmMetadata.root(_metadata),

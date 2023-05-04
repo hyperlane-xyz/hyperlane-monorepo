@@ -4,7 +4,7 @@ pragma solidity >=0.8.0;
 // ============ External Imports ============
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
-library CheckpointLib {
+library LegacyCheckpointLib {
     /**
      * @notice Returns the digest validators are expected to sign when signing checkpoints.
      * @param _origin The origin domain of the checkpoint.
@@ -15,8 +15,7 @@ library CheckpointLib {
         uint32 _origin,
         bytes32 _originMailbox,
         bytes32 _checkpointRoot,
-        uint32 _checkpointIndex,
-        bytes32 _messageId
+        uint32 _checkpointIndex
     ) internal pure returns (bytes32) {
         bytes32 _domainHash = domainHash(_origin, _originMailbox);
         return
@@ -25,8 +24,7 @@ library CheckpointLib {
                     abi.encodePacked(
                         _domainHash,
                         _checkpointRoot,
-                        _checkpointIndex,
-                        _messageId
+                        _checkpointIndex
                     )
                 )
             );
