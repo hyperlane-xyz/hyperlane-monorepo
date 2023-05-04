@@ -148,7 +148,9 @@ export abstract class HyperlaneDeployer<
     connectionClient: HyperlaneConnectionClient,
     config: ConnectionClientConfig,
   ): Promise<void> {
-    this.logger(`Initializing connection client on ${local}...`);
+    this.logger(
+      `Initializing connection client (if not already) on ${local}...`,
+    );
     await this.runIfOwner(local, connectionClient, async () => {
       // set mailbox if not already set (and configured)
       if (config.mailbox !== (await connectionClient.mailbox())) {
