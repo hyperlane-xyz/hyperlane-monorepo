@@ -54,53 +54,6 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
         view
         returns (bool)
     {
-        return verifyValidatorSignatures(_metadata, _message);
-    }
-
-    function computeDigest(bytes calldata _metadata, bytes calldata _message)
-        public
-        pure
-        returns (bytes32 digest)
-    {
-        bytes32 root;
-        bytes32 signedMessageId;
-
-        if (
-            MultisigIsmMetadata.merkleType(_metadata) ==
-            MultisigIsmMetadata.MerkleType.ROOT
-        ) {
-            signedMessageId = Message.id(_message);
-            root = MultisigIsmMetadata.root(_metadata);
-        } else {
-            bytes32[32] memory proof;
-            (signedMessageId, proof) = MultisigIsmMetadata.idAndProof(
-                _metadata
-            );
-            root = MerkleLib.branchRoot(
-                signedMessageId,
-                proof,
-                Message.nonce(_message)
-            );
-        }
-
-        digest = CheckpointLib.digest(
-            Message.origin(_message),
-            MultisigIsmMetadata.originMailbox(_metadata),
-            root,
-            MultisigIsmMetadata.index(_metadata),
-            signedMessageId
-        );
-    }
-
-    /**
-     * @notice Verifies that a quorum of the origin domain's validators signed
-     * the provided checkpoint.
-     * @param _metadata ABI encoded module metadata (see MultisigIsmMetadata.sol)
-     */
-    function verifyValidatorSignatures(
-        bytes calldata _metadata,
-        bytes calldata _message
-    ) public view returns (bool) {
         bytes32 _digest = computeDigest(_metadata, _message);
         (
             address[] memory _validators,
@@ -128,5 +81,37 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
             ++_validatorIndex;
         }
         return true;
+    }
+
+    function computeDigest(bytes calldata _metadata, bytes calldata _message)
+        internal
+        pure
+        returns (bytes32 digest)
+    {
+        bytes32 signedRoot;
+        bytes32 signedMessageId;
+
+        if (
+            MultisigIsmMetadata.suffixType(_metadata) ==
+            MultisigIsmMetadata.SuffixType.ROOT
+        ) {
+            signedRoot = MultisigIsmMetadata.root(_metadata);
+            signedMessageId = Message.id(_message);
+        } else {
+            signedRoot = MerkleLib.branchRoot(
+                Message.id(_message),
+                MultisigIsmMetadata.proof(_metadata),
+                Message.nonce(_message)
+            );
+            signedMessageId = MultisigIsmMetadata.id(_metadata);
+        }
+
+        digest = CheckpointLib.digest(
+            Message.origin(_message),
+            MultisigIsmMetadata.originMailbox(_metadata),
+            signedRoot,
+            MultisigIsmMetadata.index(_metadata),
+            signedMessageId
+        );
     }
 }

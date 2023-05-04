@@ -3,26 +3,42 @@ pragma solidity >=0.8.0;
 
 /**
  * Format of metadata:
- * [   0:   4] Root index
- * [   4:  36] Origin mailbox address
- * [  36:  37] Merkle type
- * [  36:  VS] Validator signatures (where VS = 36 + Threshold * 65 bytes)
+ * [   0:   1] Suffix type
+ * [   1:   5] Root index
+ * [   5:  37] Origin mailbox address
+ * [  37:  VS] Validator signatures (where VS := 37 + Threshold * 65 bytes)
+ * [  VS:????] Suffix
  *
- * [  VS:????] Merkle root
+ * Format of suffix:
+ * [   -32:   0] Merkle root
  *                OR
- * [  VS:????] (Message ID, Merkle proof)
+ * [-1056:  -32] Merkle proof
+ * [  -32:    0] Message ID
  */
 library MultisigIsmMetadata {
-    uint8 private constant MERKLE_INDEX_OFFSET = 0;
-    uint8 private constant ORIGIN_MAILBOX_OFFSET = 4;
-    uint8 private constant MERKLE_TYPE_OFFSET = 36;
+    uint8 private constant SUFFIX_TYPE_OFFSET = 0;
+    uint8 private constant MERKLE_INDEX_OFFSET = 1;
+    uint8 private constant ORIGIN_MAILBOX_OFFSET = 5;
     uint8 private constant SIGNATURES_OFFSET = 37;
     uint8 private constant SIGNATURE_LENGTH = 65;
-    uint16 private constant PROOF_LENGTH = 32 * 32;
 
-    enum MerkleType {
+    uint8 private constant SUFFIX_ROOT_OFFSET = 32;
+
+    uint16 private constant PROOF_LENGTH = 32 * 32;
+    uint8 private constant SUFFIX_ID_OFFSET = 32;
+    uint16 private constant SUFFIX_PROOF_OFFSET = 32 + PROOF_LENGTH;
+
+    enum SuffixType {
         ROOT,
         ID_AND_PROOF
+    }
+
+    function suffixType(bytes calldata _metadata)
+        internal
+        pure
+        returns (SuffixType)
+    {
+        return SuffixType(uint8(_metadata[SUFFIX_TYPE_OFFSET]));
     }
 
     /**
@@ -53,14 +69,6 @@ library MultisigIsmMetadata {
             );
     }
 
-    function merkleType(bytes calldata _metadata)
-        internal
-        pure
-        returns (MerkleType)
-    {
-        return MerkleType(uint8(_metadata[MERKLE_TYPE_OFFSET]));
-    }
-
     /**
      * @notice Returns the validator ECDSA signature at `_index`.
      * @dev Assumes signatures are sorted by validator
@@ -80,26 +88,41 @@ library MultisigIsmMetadata {
         return _metadata[_start:_end];
     }
 
+    function suffix(
+        bytes calldata _metadata,
+        uint256 offset,
+        uint256 size
+    ) private pure returns (bytes calldata) {
+        uint256 _start = _metadata.length - offset;
+        uint256 _end = _start + size;
+        return _metadata[_start:_end];
+    }
+
     /**
      * @notice Returns the merkle root of the signed checkpoint.
      * @param _metadata ABI encoded Multisig ISM metadata.
      * @return Merkle root of the signed checkpoint
      */
     function root(bytes calldata _metadata) internal pure returns (bytes32) {
-        assert(merkleType(_metadata) == MerkleType.ROOT);
-        return bytes32(_metadata[_metadata.length - 32:]);
+        assert(suffixType(_metadata) == SuffixType.ROOT);
+        return bytes32(suffix(_metadata, SUFFIX_ROOT_OFFSET, 32));
     }
 
-    function idAndProof(bytes calldata _metadata)
+    function id(bytes calldata _metadata) internal pure returns (bytes32) {
+        assert(suffixType(_metadata) == SuffixType.ID_AND_PROOF);
+        return bytes32(suffix(_metadata, SUFFIX_ID_OFFSET, 32));
+    }
+
+    function proof(bytes calldata _metadata)
         internal
         pure
-        returns (bytes32, bytes32[32] memory)
+        returns (bytes32[32] memory)
     {
-        assert(merkleType(_metadata) == MerkleType.ID_AND_PROOF);
+        assert(suffixType(_metadata) == SuffixType.ID_AND_PROOF);
         return
             abi.decode(
-                _metadata[_metadata.length - (PROOF_LENGTH + 32):],
-                (bytes32, bytes32[32])
+                suffix(_metadata, SUFFIX_PROOF_OFFSET, PROOF_LENGTH),
+                (bytes32[32])
             );
     }
 }
