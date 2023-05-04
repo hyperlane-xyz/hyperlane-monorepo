@@ -19,12 +19,14 @@ use hyperlane_core::{
 pub struct ConnectionConf {
     /// Fully qualified string to connect to
     pub url: Url,
+    pub keypair_path: String,
 }
 
 /// Raw Sealevel connection configuration used for better deserialization errors.
 #[derive(Debug, serde::Deserialize)]
 pub struct RawConnectionConf {
     url: Option<String>,
+    keypairpath: Option<String>,
 }
 
 /// An error type when parsing a connection configuration.
@@ -36,6 +38,10 @@ pub enum ConnectionConfError {
     /// Invalid `url` for connection configuration
     #[error("Invalid `url` for connection configuration: `{0}` ({1})")]
     InvalidConnectionUrl(String, url::ParseError),
+
+    /// Missing `keypair_path` for connection configuration
+    #[error("Missing `url` for connection configuration")]
+    MissingKeypairPath,
 }
 
 impl FromRawConf<'_, RawConnectionConf> for ConnectionConf {
@@ -46,15 +52,22 @@ impl FromRawConf<'_, RawConnectionConf> for ConnectionConf {
     ) -> ConfigResult<Self> {
         use ConnectionConfError::*;
         match raw {
-            RawConnectionConf { url: Some(url) } => Ok(Self {
+            RawConnectionConf {
+                url: Some(url),
+                keypairpath: Some(keypair_path),
+            } => Ok(Self {
                 url: url
                     .parse()
                     .map_err(|e| InvalidConnectionUrl(url, e))
                     .into_config_result(|| cwp.join("url"))?,
+                keypair_path,
             }),
-            RawConnectionConf { url: None } => {
+            RawConnectionConf { url: None, .. } => {
                 Err(MissingConnectionUrl).into_config_result(|| cwp.join("url"))
             }
+            RawConnectionConf {
+                keypairpath: None, ..
+            } => Err(MissingKeypairPath).into_config_result(|| cwp.join("keypairpath")),
         }
     }
 }
