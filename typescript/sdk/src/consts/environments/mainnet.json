@@ -9,7 +9,11 @@
     "multisigIsm": "0x9bDE63104EE030d9De419EEd6bA7D14b86D6fE3f",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
     "interchainQueryRouter": "0x234b19282985882d6d6fd54dEBa272271f4eb784",
-    "interchainAccountRouter": "0xB193eBf06faD5D66492BB41DBbCd202640aE83fF"
+    "interchainAccountRouter": "0xB193eBf06faD5D66492BB41DBbCd202640aE83fF",
+    "interchainAccountIsm": "0x5e8ee6840caa4f367aff1FF28aA36D5B1b836d35",
+    "multisigIsmFactory": "0x9bf473968629b8f8cF4ab59Aeb9640b0c93411dd",
+    "aggregationIsmFactory": "0xc864fa3B662613cA5051f41e157d0a997f9a5A87",
+    "routingIsmFactory": "0x1fdfD1486b8339638C6b92f8a96D698D8182D2b1"
   },
   "ethereum": {
     "storageGasOracle": "0xc9a103990A8dB11b4f627bc5CD1D0c2685484Ec5",
@@ -21,7 +25,11 @@
     "multisigIsm": "0xec48E52D960E54a179f70907bF28b105813877ee",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
     "interchainQueryRouter": "0x234b19282985882d6d6fd54dEBa272271f4eb784",
-    "interchainAccountRouter": "0x5fD075C2157567F7F80e6cB20dDd75F40905bd87"
+    "interchainAccountRouter": "0x5fD075C2157567F7F80e6cB20dDd75F40905bd87",
+    "interchainAccountIsm": "0x943303Ad7D2B87BB363E0BACC901486337d9B316",
+    "multisigIsmFactory": "0xfD548D8a8EB8366D802F24e1bC6D1d21dB057EF1",
+    "aggregationIsmFactory": "0x30B3Ef3e98B1FF72f03f71f68115E18F203Ec794",
+    "routingIsmFactory": "0xBF30B4F328d1F6AC47ecCcF23836F3CbB2422c9f"
   },
   "avalanche": {
     "storageGasOracle": "0x175821F30AdCAA4bbB72Ce98eF76C2E0De2C3f21",
@@ -33,7 +41,11 @@
     "multisigIsm": "0xeE80ab5B563cB3825133f29502bA34eD3707cb8C",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
     "interchainQueryRouter": "0x234b19282985882d6d6fd54dEBa272271f4eb784",
-    "interchainAccountRouter": "0x77c509140A45B4B85E1A28f8c21AaEB3Ca8788B3"
+    "interchainAccountRouter": "0x77c509140A45B4B85E1A28f8c21AaEB3Ca8788B3",
+    "interchainAccountIsm": "0x88C01B64dCe0032796a1967E2b3447B397c6c7AC",
+    "multisigIsmFactory": "0x270d0334bC98a02f7A4e2328B319EDEDcd7a2000",
+    "aggregationIsmFactory": "0x070d4f61b05eD9e20C9194f29Df073f2110705fc",
+    "routingIsmFactory": "0x0FC1A9DFAca9b6Ba11bC470Bf284Da7c107fDfF2"
   },
   "polygon": {
     "storageGasOracle": "0xA3a24EC5670F1F416AB9fD554FcE2f226AE9D7eB",
@@ -45,7 +57,11 @@
     "multisigIsm": "0x61A80297e77FC5395bd6Ff60EEacf7CD4f18d4a4",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
     "interchainQueryRouter": "0x234b19282985882d6d6fd54dEBa272271f4eb784",
-    "interchainAccountRouter": "0x4a4D878c41C7F71eCff182F526b7691aDC6e4150"
+    "interchainAccountRouter": "0x4a4D878c41C7F71eCff182F526b7691aDC6e4150",
+    "interchainAccountIsm": "0xCd8ACf2254641bD3Eaa32C1B8D36f0983de8C0E6",
+    "multisigIsmFactory": "0xfF4872B62225c1f029a894D4682b250dD5577AC7",
+    "aggregationIsmFactory": "0x10Add66Db9C837000A43F3601aa9c54c6744F4c8",
+    "routingIsmFactory": "0x0B48a744698ba8dFa514742dFEB6728f52fD66f7"
   },
   "bsc": {
     "storageGasOracle": "0x91d23D603d60445411C06e6443d81395593B7940",
@@ -57,7 +73,11 @@
     "multisigIsm": "0x3a579C0bd04FC4C98A8D70EEABD9094e7be4B26D",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
     "interchainQueryRouter": "0x234b19282985882d6d6fd54dEBa272271f4eb784",
-    "interchainAccountRouter": "0xF9A4e3BA5e532906c241310f6832d2Ee8D1c5609"
+    "interchainAccountRouter": "0xF9A4e3BA5e532906c241310f6832d2Ee8D1c5609",
+    "interchainAccountIsm": "0x1d3Bdf44887744007C7C62c85924c445C9e825DE",
+    "multisigIsmFactory": "0x4F5db88EEdEBd6a8303ed13491169d4229D9A735",
+    "aggregationIsmFactory": "0x4084054Fc83af652A1f21EA2FF2a668D796e2514",
+    "routingIsmFactory": "0x85392758524EEE2323Bd3029E77aFc9bA9E60216"
   },
   "arbitrum": {
     "storageGasOracle": "0xD3805207b65d99C075ceA938Fa7c0587026a5DF5",
@@ -69,7 +89,11 @@
     "multisigIsm": "0x32B92bd3e5045B67FDD8dbb7A58D25980836d04C",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
     "interchainQueryRouter": "0x234b19282985882d6d6fd54dEBa272271f4eb784",
-    "interchainAccountRouter": "0xAC2BE81884C66E6c05B80C05C907B54C74eA2C49"
+    "interchainAccountRouter": "0xAC2BE81884C66E6c05B80C05C907B54C74eA2C49",
+    "interchainAccountIsm": "0xC1d10a99C382Dd224d7F513C7e0f74D7689071f4",
+    "multisigIsmFactory": "0x2A87BF6aE678569545B258fA11087C6F57dd9012",
+    "aggregationIsmFactory": "0x9E3075E067932d744119e583B34d11b144CE1e4A",
+    "routingIsmFactory": "0xcC2fA09fa13857942fae408EcCEc8De307344e99"
   },
   "optimism": {
     "storageGasOracle": "0x27e88AeB8EA4B159d81df06355Ea3d20bEB1de38",
@@ -81,7 +105,11 @@
     "multisigIsm": "0xAab1D11E2063Bae5EB01fa946cA8d2FDe3db05D5",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
     "interchainQueryRouter": "0x234b19282985882d6d6fd54dEBa272271f4eb784",
-    "interchainAccountRouter": "0x652e2F475Af7b1154817E09f5408f9011037492a"
+    "interchainAccountRouter": "0x652e2F475Af7b1154817E09f5408f9011037492a",
+    "interchainAccountIsm": "0x3de63b62BeF9Da290F51f856cA9F3dB4225EDc05",
+    "multisigIsmFactory": "0x21581dE0CB0Ce91E87b9d5124543C75Fa01ED9CC",
+    "aggregationIsmFactory": "0xb7d42f065E32eB6fCAac7ef83902c56164328fE2",
+    "routingIsmFactory": "0x4ef980034E631CC0CFb3b065aB793611f1B6511A"
   },
   "moonbeam": {
     "storageGasOracle": "0x448b7ADB0dA36d41AA2AfDc9d63b97541A7b3819",
@@ -93,7 +121,11 @@
     "multisigIsm": "0xf3b1F415740A26568C45b1c771A737E31C198F09",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
     "interchainQueryRouter": "0x234b19282985882d6d6fd54dEBa272271f4eb784",
-    "interchainAccountRouter": "0x5b6311e0417CfD3Fb10318108897E63777CFE8D7"
+    "interchainAccountRouter": "0x5b6311e0417CfD3Fb10318108897E63777CFE8D7",
+    "interchainAccountIsm": "0x88d346eEc75b6D22428bbaB569b6eBB0bE183c4F",
+    "multisigIsmFactory": "0xe3DB9EdafBA60629308166B21DE2B4970bF94969",
+    "aggregationIsmFactory": "0x20E1897CD584C3788A3C24f5e424345a55ADf90C",
+    "routingIsmFactory": "0xB5ec4e94ec47A70C6A38370666F713423816ce4c"
   },
   "gnosis": {
     "storageGasOracle": "0x5E01d8F34b629E3f92d69546bbc4142A7Adee7e9",
@@ -103,7 +135,13 @@
     "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
     "defaultIsmInterchainGasPaymaster": "0x56f52c0A1ddcD557285f7CBc782D3d83096CE1Cc",
     "multisigIsm": "0xC343A7054838FE9F249D7E3Ec1Fa6f1D108694b8",
+    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
-    "interchainAccountRouter": "0x32e77b20bf0cf034eB80ea9DD02De881016B01B3"
+    "interchainQueryRouter": "0x234b19282985882d6d6fd54dEBa272271f4eb784",
+    "interchainAccountRouter": "0x32e77b20bf0cf034eB80ea9DD02De881016B01B3",
+    "interchainAccountIsm": "0x8AB7A6FaC052518A39628497735C855a2Beb515B",
+    "multisigIsmFactory": "0xb58257cc81E47EC72fD38aE16297048de23163b4",
+    "aggregationIsmFactory": "0xb4fc9B5fD57499Ef6FfF3995728a55F7A618ef86",
+    "routingIsmFactory": "0xbB22547D1dc681fe925f568f637Ff67aC06c20fc"
   }
 }

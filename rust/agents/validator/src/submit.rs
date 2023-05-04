@@ -63,7 +63,7 @@ impl ValidatorSubmitter {
         // rather than just the size.  See
         // https://github.com/hyperlane-network/hyperlane-monorepo/issues/575 for
         // more details.
-        while self.mailbox.count().await? == 0 {
+        while self.mailbox.count(self.reorg_period).await? == 0 {
             info!("Waiting for first message to mailbox");
             sleep(self.interval).await;
         }

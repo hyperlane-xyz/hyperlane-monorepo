@@ -4,14 +4,15 @@ use async_trait::async_trait;
 use eyre::Result;
 use tracing::{debug, error, trace};
 
+use hyperlane_base::db::HyperlaneDB;
 use hyperlane_core::{
-    db::HyperlaneDB, HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment,
-    TxCostEstimate, TxOutcome, U256,
+    HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment, TxCostEstimate, TxOutcome,
+    U256,
 };
 
 use crate::msg::gas_payment::policies::GasPaymentPolicyOnChainFeeQuoting;
 use crate::settings::{
-    matching_list::MatchingList, GasPaymentEnforcementConfig, GasPaymentEnforcementPolicy,
+    matching_list::MatchingList, GasPaymentEnforcementConf, GasPaymentEnforcementPolicy,
 };
 
 use self::policies::{GasPaymentPolicyMinimum, GasPaymentPolicyNone};
@@ -44,7 +45,7 @@ pub struct GasPaymentEnforcer {
 
 impl GasPaymentEnforcer {
     pub fn new(
-        policy_configs: impl IntoIterator<Item = GasPaymentEnforcementConfig>,
+        policy_configs: impl IntoIterator<Item = GasPaymentEnforcementConf>,
         db: HyperlaneDB,
     ) -> Self {
         let policies = policy_configs
@@ -55,19 +56,10 @@ impl GasPaymentEnforcer {
                     GasPaymentEnforcementPolicy::Minimum { payment } => {
                         Box::new(GasPaymentPolicyMinimum::new(payment))
                     }
-                    GasPaymentEnforcementPolicy::OnChainFeeQuoting { gasfraction } => {
-                        let gasfraction = gasfraction.replace(' ', "");
-                        let v: Vec<&str> = gasfraction.split('/').collect();
-                        assert_eq!(
-                            v.len(),
-                            2,
-                            r#"Could not parse gas fraction; expected "`numerator / denominator`""#
-                        );
-                        Box::new(GasPaymentPolicyOnChainFeeQuoting::new(
-                            v[0].parse::<u64>().expect("Invalid integer"),
-                            v[1].parse::<u64>().expect("Invalid integer"),
-                        ))
-                    }
+                    GasPaymentEnforcementPolicy::OnChainFeeQuoting {
+                        gas_fraction_numerator: n,
+                        gas_fraction_denominator: d,
+                    } => Box::new(GasPaymentPolicyOnChainFeeQuoting::new(n, d)),
                 };
                 (p, cfg.matching_list)
             })
@@ -144,11 +136,11 @@ impl GasPaymentEnforcer {
 mod test {
     use std::str::FromStr;
 
-    use hyperlane_core::{db::HyperlaneDB, HyperlaneMessage, TxCostEstimate, H160, H256, U256};
-    use hyperlane_test::test_utils;
+    use hyperlane_base::db::{test_utils, HyperlaneDB};
+    use hyperlane_core::{HyperlaneMessage, TxCostEstimate, H160, H256, U256};
 
     use crate::settings::{
-        matching_list::MatchingList, GasPaymentEnforcementConfig, GasPaymentEnforcementPolicy,
+        matching_list::MatchingList, GasPaymentEnforcementConf, GasPaymentEnforcementPolicy,
     };
 
     use super::GasPaymentEnforcer;
@@ -160,7 +152,7 @@ mod test {
 
             let enforcer = GasPaymentEnforcer::new(
                 // Require a payment
-                vec![GasPaymentEnforcementConfig {
+                vec![GasPaymentEnforcementConf {
                     policy: GasPaymentEnforcementPolicy::Minimum {
                         payment: U256::one(),
                     },
@@ -193,7 +185,7 @@ mod test {
             let matching_list = serde_json::from_str(r#"[{"originDomain": 234}]"#).unwrap();
             let enforcer = GasPaymentEnforcer::new(
                 // Require a payment
-                vec![GasPaymentEnforcementConfig {
+                vec![GasPaymentEnforcementConf {
                     policy: GasPaymentEnforcementPolicy::None,
                     matching_list,
                 }],
@@ -227,12 +219,12 @@ mod test {
 
             let enforcer = GasPaymentEnforcer::new(
                 vec![
-                    GasPaymentEnforcementConfig {
+                    GasPaymentEnforcementConf {
                         // No payment for special cases
                         policy: GasPaymentEnforcementPolicy::None,
                         matching_list,
                     },
-                    GasPaymentEnforcementConfig {
+                    GasPaymentEnforcementConf {
                         // All other messages must pass a minimum
                         policy: GasPaymentEnforcementPolicy::Minimum {
                             payment: U256::one(),

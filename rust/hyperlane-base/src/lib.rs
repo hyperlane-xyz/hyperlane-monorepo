@@ -40,5 +40,8 @@ pub use traits::*;
 mod types;
 pub use types::*;
 
+/// Hyperlane database utils
+pub mod db;
+
 #[cfg(feature = "oneline-eyre")]
 pub mod oneline_eyre;

@@ -23,10 +23,11 @@ thiserror.workspace = true
 tokio.workspace = true
 tracing-futures.workspace = true
 tracing.workspace = true
-url = "2.3"
+url.workspace = true
 
 hyperlane-core = { path = "../../hyperlane-core" }
 ethers-prometheus = { path = "../../ethers-prometheus", features = ["serde"] }
 
 [build-dependencies]
 abigen = { path = "../../utils/abigen", features = ["ethers"] }
+hyperlane-core = { path = "../../hyperlane-core", features = ["test-utils"] }

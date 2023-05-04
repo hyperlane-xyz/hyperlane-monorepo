@@ -6,13 +6,14 @@ import {
   HyperlaneDeployer,
   HyperlaneIgp,
   HyperlaneIgpDeployer,
+  HyperlaneIsmFactory,
+  HyperlaneIsmFactoryDeployer,
   InterchainAccountDeployer,
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
   objMap,
 } from '@hyperlane-xyz/sdk';
 
-import { bridgeAdapterConfigs } from '../config/environments/test/liquidityLayer';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { deployWithArtifacts } from '../src/deploy';
 import { TestQuerySenderDeployer } from '../src/testcontracts/testquerysender';
@@ -51,9 +52,16 @@ async function main() {
 
   let config: ChainMap<unknown> = {};
   let deployer: HyperlaneDeployer<any, any>;
-  if (module === Modules.CORE) {
+  if (module === Modules.ISM_FACTORY) {
+    config = objMap(envConfig.core, (chain) => true);
+    deployer = new HyperlaneIsmFactoryDeployer(multiProvider);
+  } else if (module === Modules.CORE) {
     config = envConfig.core;
-    deployer = new HyperlaneCoreDeployer(multiProvider);
+    const ismFactory = HyperlaneIsmFactory.fromEnvironment(
+      deployEnvToSdkEnv[environment],
+      multiProvider,
+    );
+    deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);
@@ -64,12 +72,17 @@ async function main() {
     config = await getRouterConfig(environment, multiProvider);
     deployer = new InterchainQueryDeployer(multiProvider);
   } else if (module === Modules.LIQUIDITY_LAYER) {
-    deployer = new LiquidityLayerDeployer(multiProvider);
     const routerConfig = await getRouterConfig(environment, multiProvider);
-    config = objMap(bridgeAdapterConfigs, (chain, conf) => ({
-      ...conf,
-      ...routerConfig[chain],
-    }));
+    if (!envConfig.liquidityLayerConfig) {
+      throw new Error(`No liquidity layer config for ${environment}`);
+    }
+    config = objMap(
+      envConfig.liquidityLayerConfig.bridgeAdapters,
+      (chain, conf) => ({
+        ...conf,
+        ...routerConfig[chain],
+      }),
+    );
     deployer = new LiquidityLayerDeployer(multiProvider);
   } else if (module === Modules.TEST_RECIPIENT) {
     deployer = new TestRecipientDeployer(multiProvider);

@@ -7,6 +7,7 @@ pub use interchain_security_module::*;
 pub use mailbox::*;
 pub use multisig_ism::*;
 pub use provider::*;
+pub use routing_ism::*;
 pub use signing::*;
 pub use validator_announce::*;
 
@@ -19,6 +20,7 @@ mod interchain_security_module;
 mod mailbox;
 mod multisig_ism;
 mod provider;
+mod routing_ism;
 mod signing;
 mod validator_announce;
 
@@ -36,8 +38,8 @@ pub struct TxOutcome {
     // TODO: more? What can be abstracted across all chains?
 }
 
-impl From<ethers::prelude::TransactionReceipt> for TxOutcome {
-    fn from(t: ethers::prelude::TransactionReceipt) -> Self {
+impl From<ethers_core::types::TransactionReceipt> for TxOutcome {
+    fn from(t: ethers_core::types::TransactionReceipt) -> Self {
         Self {
             txid: t.transaction_hash,
             executed: t.status.unwrap().low_u32() == 1,

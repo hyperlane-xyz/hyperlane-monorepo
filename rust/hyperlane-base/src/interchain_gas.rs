@@ -3,13 +3,12 @@ use std::sync::Arc;
 
 use derive_new::new;
 use eyre::Result;
-use futures_util::future::select_all;
 use tokio::task::JoinHandle;
 use tracing::{info_span, instrument::Instrumented, Instrument};
 
-use hyperlane_core::{db::HyperlaneDB, InterchainGasPaymaster, InterchainGasPaymasterIndexer};
+use hyperlane_core::{InterchainGasPaymaster, InterchainGasPaymasterIndexer};
 
-use crate::{chains::IndexSettings, ContractSync, ContractSyncMetrics};
+use crate::{chains::IndexSettings, db::HyperlaneDB, ContractSync, ContractSyncMetrics};
 
 /// Caching InterchainGasPaymaster type
 #[derive(Debug, Clone, new)]
@@ -43,8 +42,6 @@ impl CachingInterchainGasPaymaster {
         index_settings: IndexSettings,
         metrics: ContractSyncMetrics,
     ) -> Instrumented<JoinHandle<Result<()>>> {
-        let span = info_span!("InterchainGasPaymasterContractSync", self = %self);
-
         let sync = ContractSync::new(
             self.paymaster.domain().clone(),
             self.db.clone(),
@@ -53,16 +50,7 @@ impl CachingInterchainGasPaymaster {
             metrics,
         );
 
-        tokio::spawn(async move {
-            let tasks = vec![sync.sync_gas_payments()];
-
-            let (_, _, remaining) = select_all(tasks).await;
-            for task in remaining.into_iter() {
-                cancel_task!(task);
-            }
-
-            Ok(())
-        })
-        .instrument(span)
+        tokio::spawn(async move { sync.sync_gas_payments().await })
+            .instrument(info_span!("InterchainGasPaymasterContractSync", self = %self))
     }
 }

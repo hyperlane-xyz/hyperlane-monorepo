@@ -1,17 +1,15 @@
-// TODO: Reapply tip buffer
-// TODO: Reapply metrics
-
 use derive_new::new;
 
 pub use cursor::*;
-use hyperlane_core::{db::HyperlaneDB, HyperlaneDomain};
+use hyperlane_core::HyperlaneDomain;
 pub use interchain_gas::*;
 pub use mailbox::*;
 pub use metrics::ContractSyncMetrics;
 
-use crate::chains::IndexSettings;
+use crate::{chains::IndexSettings, db::HyperlaneDB};
 
 mod cursor;
+mod eta_calculator;
 mod interchain_gas;
 /// Tools for working with message continuity.
 pub mod last_message;
@@ -24,7 +22,7 @@ mod schema;
 /// `indexer` and fills the agent's db with this data. A CachingMailbox
 /// will use a contract sync to spawn syncing tasks to keep the db up-to-date.
 #[derive(Debug, new)]
-pub struct ContractSync<I> {
+pub(crate) struct ContractSync<I> {
     domain: HyperlaneDomain,
     db: HyperlaneDB,
     indexer: I,

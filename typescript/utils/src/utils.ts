@@ -213,7 +213,8 @@ export async function retryAsync<T>(
   let saveError;
   for (let i = 0; i < attempts; i++) {
     try {
-      return runner();
+      const result = await runner();
+      return result;
     } catch (error) {
       saveError = error;
       await sleep(baseRetryMs * 2 ** i);
@@ -347,11 +348,16 @@ export async function runWithTimeout<T>(
   timeoutMs: number,
   callback: () => Promise<T>,
 ): Promise<T | void> {
-  const timeout = new Promise<void>((_, reject) =>
-    setTimeout(
-      () => reject(new Error(`Timed out in ${timeoutMs}ms.`)),
-      timeoutMs,
-    ),
+  let timeout: NodeJS.Timeout;
+  const timeoutProm = new Promise<void>(
+    (_, reject) =>
+      (timeout = setTimeout(
+        () => reject(new Error(`Timed out in ${timeoutMs}ms.`)),
+        timeoutMs,
+      )),
   );
-  return Promise.race([callback(), timeout]);
+  const ret = await Promise.race([callback(), timeoutProm]);
+  // @ts-ignore timeout gets set immediately by the promise constructor
+  clearTimeout(timeout);
+  return ret;
 }

@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use eyre::{eyre, WrapErr};
+use itertools::Itertools;
 use tokio::task::JoinHandle;
 use tracing::{info_span, instrument::Instrumented, trace, Instrument};
 
@@ -10,6 +11,8 @@ use hyperlane_base::{
     decl_settings, run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
     Settings,
 };
+use hyperlane_core::config::*;
+use hyperlane_core::HyperlaneDomain;
 
 use crate::chain_scraper::{Contracts, SqlChainScraper};
 use crate::db::ScraperDb;
@@ -24,12 +27,69 @@ pub struct Scraper {
     scrapers: HashMap<u32, SqlChainScraper>,
 }
 
-decl_settings!(Scraper {
-    /// Database connection string
-    db: String,
-    /// Comma separated list of chains to scrape
-    chainstoscrape: String,
-});
+decl_settings!(Scraper,
+    Parsed {
+        db: String,
+        chains_to_scrape: Vec<HyperlaneDomain>,
+    },
+    Raw {
+        /// Database connection string
+        db: Option<String>,
+        /// Comma separated list of chains to scrape
+        chainstoscrape: Option<String>,
+    }
+);
+
+impl FromRawConf<'_, RawScraperSettings> for ScraperSettings {
+    fn from_config_filtered(
+        raw: RawScraperSettings,
+        cwp: &ConfigPath,
+        _filter: (),
+    ) -> ConfigResult<Self> {
+        let mut err = ConfigParsingError::default();
+
+        let db = raw
+            .db
+            .ok_or_else(|| eyre!("Missing `db` connection string"))
+            .take_err(&mut err, || cwp + "db");
+
+        let Some(chains_to_scrape) = raw
+            .chainstoscrape
+            .ok_or_else(|| eyre!("Missing `chainstoscrape` list"))
+            .take_err(&mut err, || cwp + "chainstoscrape")
+            .map(|s| s.split(',').map(str::to_owned).collect::<Vec<_>>())
+        else { return Err(err) };
+
+        let base = raw
+            .base
+            .parse_config_with_filter::<Settings>(
+                cwp,
+                Some(&chains_to_scrape.iter().map(String::as_str).collect()),
+            )
+            .take_config_err(&mut err);
+
+        let chains_to_scrape = base
+            .as_ref()
+            .map(|base| {
+                chains_to_scrape
+                    .iter()
+                    .filter_map(|chain| {
+                        base.lookup_domain(chain)
+                            .context("Missing configuration for a chain in `chainstoscrape`")
+                            .take_err(&mut err, || cwp + "chains" + chain)
+                    })
+                    .collect_vec()
+            })
+            .unwrap_or_default();
+
+        err.into_result()?;
+        Ok(Self {
+            base: base.unwrap(),
+            db: db.unwrap(),
+            chains_to_scrape,
+        })
+    }
+}
 
 #[async_trait]
 impl BaseAgent for Scraper {
@@ -49,18 +109,14 @@ impl BaseAgent for Scraper {
         let contract_sync_metrics = ContractSyncMetrics::new(metrics.clone());
         let mut scrapers: HashMap<u32, SqlChainScraper> = HashMap::new();
 
-        let chains_to_scrape = settings.chainstoscrape.split(',');
-        for chain_name in chains_to_scrape {
-            let chain_setup = settings
-                .chains
-                .get(chain_name)
-                .ok_or_else(|| eyre!("No configuration for chain {chain_name}"))?;
-            let ctx = || format!("Loading chain {chain_name}");
-            let local = Self::load_chain(&settings, chain_name, &metrics)
+        for domain in settings.chains_to_scrape.iter() {
+            let chain_setup = settings.chain_setup(domain).expect("Missing chain config");
+            let ctx = || format!("Loading chain {domain}");
+            let local = Self::load_chain(&settings, domain, &metrics)
                 .await
                 .with_context(ctx)?;
             {
-                trace!(chain_name = chain_name, "Created mailbox and indexer");
+                trace!(%domain, "Created mailbox and indexer");
                 let scraper = SqlChainScraper::new(
                     db.clone(),
                     local,
@@ -68,10 +124,7 @@ impl BaseAgent for Scraper {
                     contract_sync_metrics.clone(),
                 )
                 .await?;
-                let domain = (&chain_setup.domain)
-                    .try_into()
-                    .context("Invalid domain id")?;
-                scrapers.insert(domain, scraper);
+                scrapers.insert(domain.id(), scraper);
             }
         }
 
@@ -98,15 +151,15 @@ impl BaseAgent for Scraper {
 impl Scraper {
     async fn load_chain(
         config: &Settings,
-        chain_name: &str,
+        domain: &HyperlaneDomain,
         metrics: &Arc<CoreMetrics>,
     ) -> eyre::Result<Contracts> {
         macro_rules! b {
             ($builder:ident) => {
                 config
-                    .$builder(chain_name, metrics)
+                    .$builder(domain, metrics)
                     .await
-                    .with_context(|| format!("Loading chain {chain_name}"))?
+                    .with_context(|| format!("Loading chain {domain}"))?
                     .into()
             };
         }

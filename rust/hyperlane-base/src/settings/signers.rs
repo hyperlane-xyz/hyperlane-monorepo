@@ -1,40 +1,83 @@
 use async_trait::async_trait;
-use ethers::prelude::AwsSigner;
-use eyre::{bail, Report};
+use ethers::prelude::{AwsSigner, LocalWallet};
+use eyre::{bail, eyre, Context, Report};
 use rusoto_core::credential::EnvironmentProvider;
-use rusoto_core::HttpClient;
+use rusoto_core::{HttpClient, Region};
 use rusoto_kms::KmsClient;
+use serde::Deserialize;
 use tracing::instrument;
 
-use hyperlane_core::utils::HexString;
+use hyperlane_core::{config::*, H256};
 
 use crate::settings::KMS_CLIENT;
 
-/// Ethereum signer types
-#[derive(Debug, Clone, serde::Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
+/// Signer types
+#[derive(Default, Debug, Clone)]
 pub enum SignerConf {
     /// A local hex key
     HexKey {
-        /// Hex string of private key, without 0x prefix
-        key: HexString<64>,
+        /// Private key value
+        key: H256,
     },
     /// An AWS signer. Note that AWS credentials must be inserted into the env
     /// separately.
     Aws {
         /// The UUID identifying the AWS KMS Key
-        id: String, // change to no _ so we can set by env
+        id: String,
         /// The AWS region
-        region: String,
+        region: Region,
     },
-    #[serde(other)]
     /// Assume node will sign on RPC calls
+    #[default]
     Node,
 }
 
-impl Default for SignerConf {
-    fn default() -> Self {
-        Self::Node
+/// Raw signer types
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct RawSignerConf {
+    #[serde(rename = "type")]
+    signer_type: Option<String>,
+    key: Option<String>,
+    id: Option<String>,
+    region: Option<String>,
+}
+
+impl FromRawConf<'_, RawSignerConf> for SignerConf {
+    fn from_config_filtered(
+        raw: RawSignerConf,
+        cwp: &ConfigPath,
+        _filter: (),
+    ) -> ConfigResult<Self> {
+        let key_path = || cwp + "key";
+        let region_path = || cwp + "region";
+        match raw.signer_type.as_deref() {
+            Some("hexKey") => Ok(Self::HexKey {
+                key: raw
+                    .key
+                    .ok_or_else(|| eyre!("Missing `key` for HexKey signer"))
+                    .into_config_result(key_path)?
+                    .parse()
+                    .into_config_result(key_path)?,
+            }),
+            Some("aws") => Ok(Self::Aws {
+                id: raw
+                    .id
+                    .ok_or_else(|| eyre!("Missing `id` for Aws signer"))
+                    .into_config_result(|| cwp + "id")?,
+                region: raw
+                    .region
+                    .ok_or_else(|| eyre!("Missing `region` for Aws signer"))
+                    .into_config_result(region_path)?
+                    .parse()
+                    .into_config_result(region_path)?,
+            }),
+            Some(t) => Err(eyre!("Unknown signer type `{t}`")).into_config_result(|| cwp + "type"),
+            None if raw.key.is_some() => Ok(Self::HexKey {
+                key: raw.key.unwrap().parse().into_config_result(key_path)?,
+            }),
+            None => Ok(Self::Node),
+        }
     }
 }
 
@@ -56,7 +99,12 @@ pub trait BuildableWithSignerConf: Sized {
 impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
         Ok(match conf {
-            SignerConf::HexKey { key } => hyperlane_ethereum::Signers::Local(key.as_ref().parse()?),
+            SignerConf::HexKey { key } => hyperlane_ethereum::Signers::Local(LocalWallet::from(
+                ethers::core::k256::ecdsa::SigningKey::from(
+                    ethers::core::k256::SecretKey::from_be_bytes(key.as_bytes())
+                        .context("Invalid ethereum signer key")?,
+                ),
+            )),
             SignerConf::Aws { id, region } => {
                 let client = KMS_CLIENT.get_or_init(|| {
                     KmsClient::new_with_client(
@@ -64,7 +112,7 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
                             EnvironmentProvider::default(),
                             HttpClient::new().unwrap(),
                         ),
-                        region.parse().expect("invalid region"),
+                        region.clone(),
                     )
                 });
 
@@ -81,7 +129,8 @@ impl BuildableWithSignerConf for fuels::prelude::WalletUnlocked {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
         Ok(match conf {
             SignerConf::HexKey { key } => {
-                let key = key.as_ref().parse()?;
+                let key = fuels::signers::fuel_crypto::SecretKey::try_from(key.as_bytes())
+                    .context("Invalid fuel signer key")?;
                 fuels::prelude::WalletUnlocked::new_from_private_key(key, None)
             }
             SignerConf::Aws { .. } => bail!("Aws signer is not supported by fuel"),

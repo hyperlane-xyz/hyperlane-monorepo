@@ -6,7 +6,7 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 // ============ Internal Imports ============
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
-import {IAggregationIsm} from "../../interfaces/IAggregationIsm.sol";
+import {IAggregationIsm} from "../../interfaces/isms/IAggregationIsm.sol";
 import {AggregationIsmMetadata} from "../../libs/isms/AggregationIsmMetadata.sol";
 
 /**
@@ -19,7 +19,7 @@ abstract contract AbstractAggregationIsm is IAggregationIsm {
 
     // solhint-disable-next-line const-name-snakecase
     uint8 public constant moduleType =
-        uint8(IInterchainSecurityModule.Types.MULTISIG);
+        uint8(IInterchainSecurityModule.Types.AGGREGATION);
 
     // ============ Virtual Functions ============
     // ======= OVERRIDE THESE TO IMPLEMENT =======
