@@ -30,7 +30,7 @@ library MultisigIsmMetadata {
 
     enum SuffixType {
         ROOT,
-        ID_AND_PROOF
+        PROOF_AND_ID
     }
 
     function suffixType(bytes calldata _metadata)
@@ -109,7 +109,7 @@ library MultisigIsmMetadata {
     }
 
     function id(bytes calldata _metadata) internal pure returns (bytes32) {
-        assert(suffixType(_metadata) == SuffixType.ID_AND_PROOF);
+        assert(suffixType(_metadata) == SuffixType.PROOF_AND_ID);
         return bytes32(suffix(_metadata, SUFFIX_ID_OFFSET, 32));
     }
 
@@ -118,7 +118,7 @@ library MultisigIsmMetadata {
         pure
         returns (bytes32[32] memory)
     {
-        assert(suffixType(_metadata) == SuffixType.ID_AND_PROOF);
+        assert(suffixType(_metadata) == SuffixType.PROOF_AND_ID);
         return
             abi.decode(
                 suffix(_metadata, SUFFIX_PROOF_OFFSET, PROOF_LENGTH),

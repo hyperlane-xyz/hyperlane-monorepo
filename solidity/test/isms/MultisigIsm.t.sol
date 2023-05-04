@@ -115,4 +115,21 @@ contract MultisigIsmTest is Test {
         bytes memory metadata = getMetadata(m, n, seed, message);
         assertTrue(ism.verify(metadata, message));
     }
+
+    function testFailVerify(
+        uint32 destination,
+        bytes32 recipient,
+        bytes calldata body,
+        uint8 m,
+        uint8 n,
+        bytes32 seed
+    ) public {
+        vm.assume(0 < m && m <= n && n < 10);
+        bytes memory message = getMessage(destination, recipient, body);
+        bytes memory metadata = getMetadata(m, n, seed, message);
+
+        // changing single bit in message ID or root should fail signature verification
+        metadata[metadata.length - 1] = ~metadata[metadata.length - 1];
+        ism.verify(metadata, message);
+    }
 }
