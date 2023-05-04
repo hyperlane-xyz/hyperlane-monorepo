@@ -19,7 +19,8 @@ bs58 = "=0.4.0" # FIXME remove
 [dependencies.spl-noop]
 version = "=0.1.3"
 features = ["no-entrypoint"]
-path = "/Users/trevor/eclipse-program-library/account-compression/programs/noop"
+git = "https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library"
+branch = "steven/eclipse-1.14.13"
 
 [dev-dependencies]
 base64 = "0.13"

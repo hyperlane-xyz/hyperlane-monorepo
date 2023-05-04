@@ -1528,10 +1528,10 @@ dependencies = [
  "num-derive",
  "num-traits",
  "solana-program",
- "spl-associated-token-account 1.1.2",
+ "spl-associated-token-account 1.1.2 (git+https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library?branch=steven/eclipse-1.14.13)",
  "spl-noop",
- "spl-token 3.5.0",
- "spl-token-2022 0.5.0",
+ "spl-token 3.5.0 (git+https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library?branch=steven/eclipse-1.14.13)",
+ "spl-token-2022 0.5.0 (git+https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library?branch=steven/eclipse-1.14.13)",
  "thiserror",
 ]
 
@@ -3557,20 +3557,6 @@ dependencies = [
 [[package]]
 name = "spl-associated-token-account"
 version = "1.1.2"
-dependencies = [
- "assert_matches",
- "borsh",
- "num-derive",
- "num-traits",
- "solana-program",
- "spl-token 3.5.0",
- "spl-token-2022 0.5.0",
- "thiserror",
-]
-
-[[package]]
-name = "spl-associated-token-account"
-version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fbc000f0fdf1f12f99d77d398137c1751345b18c88258ce0f99b7872cf6c9bd6"
 dependencies = [
@@ -3585,10 +3571,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "spl-memo"
-version = "3.0.1"
+name = "spl-associated-token-account"
+version = "1.1.2"
+source = "git+https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library?branch=steven/eclipse-1.14.13#b76028cd0285f2b2f5585c8bb34c5d253e662e83"
 dependencies = [
+ "assert_matches",
+ "borsh",
+ "num-derive",
+ "num-traits",
  "solana-program",
+ "spl-token 3.5.0 (git+https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library?branch=steven/eclipse-1.14.13)",
+ "spl-token-2022 0.5.0 (git+https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library?branch=steven/eclipse-1.14.13)",
+ "thiserror",
 ]
 
 [[package]]
@@ -3601,23 +3595,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "spl-noop"
-version = "0.1.3"
+name = "spl-memo"
+version = "3.0.1"
+source = "git+https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library?branch=steven/eclipse-1.14.13#b76028cd0285f2b2f5585c8bb34c5d253e662e83"
 dependencies = [
  "solana-program",
 ]
 
 [[package]]
-name = "spl-token"
-version = "3.5.0"
+name = "spl-noop"
+version = "0.1.3"
+source = "git+https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library?branch=steven/eclipse-1.14.13#b76028cd0285f2b2f5585c8bb34c5d253e662e83"
 dependencies = [
- "arrayref",
- "bytemuck",
- "num-derive",
- "num-traits",
- "num_enum",
  "solana-program",
- "thiserror",
 ]
 
 [[package]]
@@ -3636,8 +3626,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "spl-token-2022"
-version = "0.5.0"
+name = "spl-token"
+version = "3.5.0"
+source = "git+https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library?branch=steven/eclipse-1.14.13#b76028cd0285f2b2f5585c8bb34c5d253e662e83"
 dependencies = [
  "arrayref",
  "bytemuck",
@@ -3645,9 +3636,6 @@ dependencies = [
  "num-traits",
  "num_enum",
  "solana-program",
- "solana-zk-token-sdk",
- "spl-memo 3.0.1",
- "spl-token 3.5.0",
  "thiserror",
 ]
 
@@ -3666,6 +3654,23 @@ dependencies = [
  "solana-zk-token-sdk",
  "spl-memo 3.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "spl-token 3.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "thiserror",
+]
+
+[[package]]
+name = "spl-token-2022"
+version = "0.5.0"
+source = "git+https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library?branch=steven/eclipse-1.14.13#b76028cd0285f2b2f5585c8bb34c5d253e662e83"
+dependencies = [
+ "arrayref",
+ "bytemuck",
+ "num-derive",
+ "num-traits",
+ "num_enum",
+ "solana-program",
+ "solana-zk-token-sdk",
+ "spl-memo 3.0.1 (git+https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library?branch=steven/eclipse-1.14.13)",
+ "spl-token 3.5.0 (git+https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library?branch=steven/eclipse-1.14.13)",
  "thiserror",
 ]
 
