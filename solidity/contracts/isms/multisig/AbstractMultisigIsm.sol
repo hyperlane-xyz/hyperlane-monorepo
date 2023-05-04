@@ -86,7 +86,7 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
     function computeDigest(bytes calldata _metadata, bytes calldata _message)
         internal
         pure
-        returns (bytes32 digest)
+        returns (bytes32)
     {
         bytes32 signedRoot;
         bytes32 signedMessageId;
@@ -106,12 +106,13 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
             signedMessageId = MultisigIsmMetadata.id(_metadata);
         }
 
-        digest = CheckpointLib.digest(
-            Message.origin(_message),
-            MultisigIsmMetadata.originMailbox(_metadata),
-            signedRoot,
-            MultisigIsmMetadata.index(_metadata),
-            signedMessageId
-        );
+        return
+            CheckpointLib.digest(
+                Message.origin(_message),
+                MultisigIsmMetadata.originMailbox(_metadata),
+                signedRoot,
+                MultisigIsmMetadata.index(_metadata),
+                signedMessageId
+            );
     }
 }
