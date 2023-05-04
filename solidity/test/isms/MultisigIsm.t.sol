@@ -12,6 +12,8 @@ import {Message} from "../../contracts/libs/Message.sol";
 import {MOfNTestUtils} from "./IsmTestUtils.sol";
 
 contract MultisigIsmTest is Test {
+    using Message for bytes;
+
     uint32 constant ORIGIN = 11;
     StaticMultisigIsmFactory factory;
     IMultisigIsm ism;
@@ -63,7 +65,8 @@ contract MultisigIsmTest is Test {
     function getMetadata(
         uint8 m,
         uint8 n,
-        bytes32 seed
+        bytes32 seed,
+        bytes memory message
     ) private returns (bytes memory) {
         uint32 domain = mailbox.localDomain();
         uint256[] memory keys = addValidators(m, n, seed);
@@ -71,22 +74,26 @@ contract MultisigIsmTest is Test {
         bytes32 mailboxAsBytes32 = TypeCasts.addressToBytes32(address(mailbox));
         bytes32 checkpointRoot = mailbox.root();
         uint32 checkpointIndex = uint32(mailbox.count() - 1);
+        bytes32 messageId = message.id();
         bytes memory metadata = abi.encodePacked(
             checkpointRoot,
             checkpointIndex,
             mailboxAsBytes32,
-            mailbox.proof()
+            messageId
         );
+        console.log(metadata.length);
         bytes32 digest = CheckpointLib.digest(
             domain,
             mailboxAsBytes32,
             checkpointRoot,
-            checkpointIndex
+            checkpointIndex,
+            messageId
         );
-        for (uint256 i = 0; i < signers.length; i++) {
+        for (uint256 i = 0; i < m; i++) {
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(signers[i], digest);
             metadata = abi.encodePacked(metadata, r, s, v);
         }
+        metadata = abi.encodePacked(metadata, mailbox.proof());
         return metadata;
     }
 
@@ -100,7 +107,7 @@ contract MultisigIsmTest is Test {
     ) public {
         vm.assume(0 < m && m <= n && n < 10);
         bytes memory message = getMessage(destination, recipient, body);
-        bytes memory metadata = getMetadata(m, n, seed);
+        bytes memory metadata = getMetadata(m, n, seed, message);
         assertTrue(ism.verify(metadata, message));
     }
 }

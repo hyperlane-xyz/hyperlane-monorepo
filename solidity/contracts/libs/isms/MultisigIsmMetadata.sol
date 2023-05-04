@@ -6,8 +6,8 @@ pragma solidity >=0.8.0;
  * [   0:  32] Merkle root
  * [  32:  36] Root index
  * [  36:  68] Origin mailbox address
- * [  68:  90] Message ID (leaf at root index in merkle tree)
- * [  90:????] Validator signatures, 65 bytes each, length == Threshold
+ * [  68:  100] Message ID (leaf at root index in merkle tree)
+ * [  100:????] Validator signatures, 65 bytes each, length == Threshold
  * [????:????] (Optional) Merkle proof
  */
 library MultisigIsmMetadata {
@@ -15,7 +15,7 @@ library MultisigIsmMetadata {
     uint256 private constant MERKLE_INDEX_OFFSET = 32;
     uint256 private constant ORIGIN_MAILBOX_OFFSET = 36;
     uint256 private constant MESSAGE_ID_OFFSET = 68;
-    uint256 private constant SIGNATURES_OFFSET = 90;
+    uint256 private constant SIGNATURES_OFFSET = 100;
     uint256 private constant SIGNATURE_LENGTH = 65;
     uint256 private constant PROOF_LENGTH = 32 * 32;
 
