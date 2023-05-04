@@ -207,14 +207,14 @@ impl BaseMetadataBuilder {
                 }
             }
             if checkpoint_syncers.get(&validator.into()).is_none() {
-                if validator_storage_locations.len() > 0 {
+                if validator_storage_locations.is_empty() {
+                    warn!(?validator, "Validator has not announced any storage locations; see https://docs.hyperlane.xyz/docs/operators/validators/announcing-your-validator");
+                } else {
                     warn!(
                         ?validator,
                         ?validator_storage_locations,
                         "No valid checkpoint syncer configs for validator"
                     );
-                } else {
-                    warn!(?validator, "Validator has not announced any storage locations; see https://docs.hyperlane.xyz/docs/operators/validators/announcing-your-validator");
                 }
             }
         }
