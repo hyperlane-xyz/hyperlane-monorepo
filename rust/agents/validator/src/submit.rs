@@ -5,12 +5,12 @@ use std::time::{Duration, Instant};
 use eyre::Result;
 use prometheus::IntGauge;
 use tokio::{task::JoinHandle, time::sleep};
-use tracing::{debug, info, info_span, instrument::Instrumented, warn, Instrument};
+use tracing::{error, debug, info, info_span, instrument::Instrumented, warn, Instrument};
 
 use hyperlane_base::{CheckpointSyncer, CoreMetrics};
 use hyperlane_core::{
     Announcement, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox, ValidatorAnnounce,
-    H256,
+    H256, U256,
 };
 
 pub(crate) struct ValidatorSubmitter {
@@ -57,7 +57,7 @@ impl ValidatorSubmitter {
             mailbox_domain: self.mailbox.domain().id(),
             storage_location: self.checkpoint_syncer.announcement_location(),
         };
-        let signed_announcement = self.signer.sign(announcement).await?;
+        let signed_announcement = self.signer.sign(announcement.clone()).await?;
         self.checkpoint_syncer
             .write_announcement(&signed_announcement)
             .await?;
@@ -67,29 +67,32 @@ impl ValidatorSubmitter {
         // which the validator is signing checkpoints but has not announced
         // their locations, which makes them functionally unusable.
         let validators: [H256; 1] = [self.signer.eth_address().into()];
-            warn!("Waiting for validator announcement");
+        loop {
+            warn!("Checking for validator announcement");
             if let Some(locations) = self
                 .validator_announce
                 .get_announced_storage_locations(&validators)
                 .await?
                 .first()
             {
-                info!(
-                    locations=?locations,
-                    "Validator announcement found at location",
-                );
-                if locations.is_empty() {
+                if locations.contains(&self.checkpoint_syncer.announcement_location()) {
+                    info!("Validator has announced signature storage location");
+                    break;
+                }
+                info!("Validator has not announced signature storage location");
+                let balance_delta = self.validator_announce.announce_tokens_needed(signed_announcement.clone()).await?;
+                if balance_delta.cmp(&U256::zero()) == std::cmp::Ordering::Greater {
+                    warn!(
+                        "Please send {} tokens to the validator address {} to announce",
+                        balance_delta, announcement.validator,
+                    );
+                } else {
                     let outcome = self
                         .validator_announce
                         .announce(signed_announcement.clone(), None)
                         .await?;
-                    if outcome.executed {
-                        info!(
-                            hash=?outcome.txid,
-                            "Validator successfully announced"
-                        );
-                    } else {
-                        info!(
+                    if !outcome.executed {
+                        error!(
                             hash=?outcome.txid,
                             "Transaction attempting to announce validator reverted"
                         );
@@ -97,6 +100,7 @@ impl ValidatorSubmitter {
                 }
             }
             sleep(self.interval).await;
+        }
 
         // Ensure that the mailbox has > 0 messages before we enter the main
         // validator submit loop. This is to avoid an underflow / reverted

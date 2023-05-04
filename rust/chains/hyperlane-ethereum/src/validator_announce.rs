@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use ethers::providers::Middleware;
+use ethers::providers::{Middleware, ProviderError};
 
 use ethers_contract::builders::ContractCall;
 use hyperlane_core::{
@@ -130,6 +130,27 @@ where
             .call()
             .await?;
         Ok(storage_locations)
+    }
+
+    #[instrument(err, ret, skip(self))]
+    async fn announce_tokens_needed(
+        &self,
+        announcement: SignedType<Announcement>
+    ) -> ChainResult<U256> {
+        let contract_call = self
+            .announce_contract_call(announcement.clone(), None)
+            .await?;
+        let validator = announcement.value.validator;
+        if let Ok(balance) = self.provider.get_balance(validator, None).await {
+            if let Some(cost) = contract_call.tx.max_cost() {
+                let difference = cost.saturating_sub(balance);
+                return Ok(difference);
+            } else {
+                return Err(ProviderError::CustomError("Unable to get announce max cost".into()).into());
+            }
+        } else {
+            return Err(ProviderError::CustomError("Unable to query balance".into()).into());
+        }
     }
 
     #[instrument(err, ret, skip(self))]

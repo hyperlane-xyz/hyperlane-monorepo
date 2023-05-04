@@ -22,4 +22,11 @@ pub trait ValidatorAnnounce: HyperlaneContract + Send + Sync + Debug {
         announcement: SignedType<Announcement>,
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome>;
+
+    /// Returns the number of additional tokens needed to pay for the announce
+    /// transaction.
+    async fn announce_tokens_needed(
+        &self,
+        announcement: SignedType<Announcement>
+    ) -> ChainResult<U256>;
 }
