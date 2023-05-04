@@ -108,12 +108,16 @@ library MultisigIsmMetadata {
         return bytes32(suffix(_metadata, SUFFIX_ROOT_OFFSET, 32));
     }
 
-    function id(bytes calldata _metadata) internal pure returns (bytes32) {
+    function signedMessageId(bytes calldata _metadata)
+        internal
+        pure
+        returns (bytes32)
+    {
         assert(suffixType(_metadata) == SuffixType.PROOF_AND_ID);
         return bytes32(suffix(_metadata, SUFFIX_ID_OFFSET, 32));
     }
 
-    function proof(bytes calldata _metadata)
+    function merkleProof(bytes calldata _metadata)
         internal
         pure
         returns (bytes32[32] memory)
