@@ -6,6 +6,7 @@ import "forge-std/Test.sol";
 import {IMultisigIsm} from "../../contracts/interfaces/isms/IMultisigIsm.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 import {StaticMultisigIsmFactory} from "../../contracts/isms/multisig/StaticMultisigIsmFactory.sol";
+import {MultisigIsmMetadata} from "../../contracts/libs/isms/MultisigIsmMetadata.sol";
 import {CheckpointLib} from "../../contracts/libs/CheckpointLib.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {Message} from "../../contracts/libs/Message.sol";
@@ -75,13 +76,6 @@ contract MultisigIsmTest is Test {
         bytes32 checkpointRoot = mailbox.root();
         uint32 checkpointIndex = uint32(mailbox.count() - 1);
         bytes32 messageId = message.id();
-        bytes memory metadata = abi.encodePacked(
-            checkpointRoot,
-            checkpointIndex,
-            mailboxAsBytes32,
-            messageId
-        );
-        console.log(metadata.length);
         bytes32 digest = CheckpointLib.digest(
             domain,
             mailboxAsBytes32,
@@ -89,11 +83,22 @@ contract MultisigIsmTest is Test {
             checkpointIndex,
             messageId
         );
+        MultisigIsmMetadata.MerkleType merkleType = MultisigIsmMetadata
+            .MerkleType(uint8(uint256(seed) % 2));
+        bytes memory metadata = abi.encodePacked(
+            checkpointIndex,
+            mailboxAsBytes32,
+            merkleType
+        );
         for (uint256 i = 0; i < m; i++) {
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(signers[i], digest);
             metadata = abi.encodePacked(metadata, r, s, v);
         }
-        metadata = abi.encodePacked(metadata, mailbox.proof());
+        if (merkleType == MultisigIsmMetadata.MerkleType.ROOT) {
+            metadata = abi.encodePacked(metadata, checkpointRoot);
+        } else {
+            metadata = abi.encodePacked(metadata, messageId, mailbox.proof());
+        }
         return metadata;
     }
 
