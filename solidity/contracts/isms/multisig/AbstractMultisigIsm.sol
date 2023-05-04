@@ -54,8 +54,26 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
         view
         returns (bool)
     {
-        require(_verifyMerkleProof(_metadata, _message), "!merkle");
-        require(_verifyValidatorSignatures(_metadata, _message), "!sigs");
+        (
+            address[] memory _validators,
+            uint8 _threshold
+        ) = validatorsAndThreshold(_message);
+        require(_threshold > 0, "No MultisigISM threshold present for message");
+        require(
+            _verifyValidatorSignatures(
+                _metadata,
+                _message,
+                _validators,
+                _threshold
+            ),
+            "!sigs"
+        );
+        if (MultisigIsmMetadata.hasProof(_metadata, _threshold)) {
+            require(
+                _verifyMerkleProof(_metadata, _message, _threshold),
+                "!merkle"
+            );
+        }
         return true;
     }
 
@@ -69,12 +87,13 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
      */
     function _verifyMerkleProof(
         bytes calldata _metadata,
-        bytes calldata _message
+        bytes calldata _message,
+        uint8 _threshold
     ) internal pure returns (bool) {
         // calculate the expected root based on the proof
         bytes32 _calculatedRoot = MerkleLib.branchRoot(
             Message.id(_message),
-            MultisigIsmMetadata.proof(_metadata),
+            MultisigIsmMetadata.proof(_metadata, _threshold),
             Message.nonce(_message)
         );
         return _calculatedRoot == MultisigIsmMetadata.root(_metadata);
@@ -88,18 +107,16 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
      */
     function _verifyValidatorSignatures(
         bytes calldata _metadata,
-        bytes calldata _message
-    ) internal view returns (bool) {
-        (
-            address[] memory _validators,
-            uint8 _threshold
-        ) = validatorsAndThreshold(_message);
-        require(_threshold > 0, "No MultisigISM threshold present for message");
+        bytes calldata _message,
+        address[] memory _validators,
+        uint8 _threshold
+    ) internal pure returns (bool) {
         bytes32 _digest = CheckpointLib.digest(
             Message.origin(_message),
             MultisigIsmMetadata.originMailbox(_metadata),
             MultisigIsmMetadata.root(_metadata),
-            MultisigIsmMetadata.index(_metadata)
+            MultisigIsmMetadata.index(_metadata),
+            MultisigIsmMetadata.messageId(_metadata)
         );
         uint256 _validatorCount = _validators.length;
         uint256 _validatorIndex = 0;
