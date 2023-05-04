@@ -83,21 +83,21 @@ contract MultisigIsmTest is Test {
             checkpointIndex,
             messageId
         );
-        MultisigIsmMetadata.MerkleType merkleType = MultisigIsmMetadata
-            .MerkleType(uint8(uint256(seed) % 2));
+        MultisigIsmMetadata.SuffixType suffixType = MultisigIsmMetadata
+            .SuffixType(uint8(uint256(seed) % 2));
         bytes memory metadata = abi.encodePacked(
+            suffixType,
             checkpointIndex,
-            mailboxAsBytes32,
-            merkleType
+            mailboxAsBytes32
         );
         for (uint256 i = 0; i < m; i++) {
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(signers[i], digest);
             metadata = abi.encodePacked(metadata, r, s, v);
         }
-        if (merkleType == MultisigIsmMetadata.MerkleType.ROOT) {
+        if (suffixType == MultisigIsmMetadata.SuffixType.ROOT) {
             metadata = abi.encodePacked(metadata, checkpointRoot);
         } else {
-            metadata = abi.encodePacked(metadata, messageId, mailbox.proof());
+            metadata = abi.encodePacked(metadata, mailbox.proof(), messageId);
         }
         return metadata;
     }
