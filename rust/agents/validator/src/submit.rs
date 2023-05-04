@@ -68,7 +68,7 @@ impl ValidatorSubmitter {
         // their locations, which makes them functionally unusable.
         let validators: [H256; 1] = [self.signer.eth_address().into()];
         loop {
-            warn!("Checking for validator announcement");
+            info!("Checking for validator announcement");
             if let Some(locations) = self
                 .validator_announce
                 .get_announced_storage_locations(&validators)
