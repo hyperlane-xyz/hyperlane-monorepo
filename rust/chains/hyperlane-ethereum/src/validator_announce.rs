@@ -134,7 +134,7 @@ where
 
     async fn announce_tokens_needed(
         &self,
-        announcement: SignedType<Announcement>
+        announcement: SignedType<Announcement>,
     ) -> ChainResult<U256> {
         let contract_call = self
             .announce_contract_call(announcement.clone(), None)
@@ -145,7 +145,9 @@ where
                 let difference = cost.saturating_sub(balance);
                 return Ok(difference);
             } else {
-                return Err(ProviderError::CustomError("Unable to get announce max cost".into()).into());
+                return Err(
+                    ProviderError::CustomError("Unable to get announce max cost".into()).into(),
+                );
             }
         } else {
             return Err(ProviderError::CustomError("Unable to query balance".into()).into());

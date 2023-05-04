@@ -27,6 +27,6 @@ pub trait ValidatorAnnounce: HyperlaneContract + Send + Sync + Debug {
     /// transaction.
     async fn announce_tokens_needed(
         &self,
-        announcement: SignedType<Announcement>
+        announcement: SignedType<Announcement>,
     ) -> ChainResult<U256>;
 }

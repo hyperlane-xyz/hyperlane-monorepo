@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use eyre::Result;
 use prometheus::IntGauge;
 use tokio::{task::JoinHandle, time::sleep};
-use tracing::{error, debug, info, info_span, instrument::Instrumented, warn, Instrument};
+use tracing::{debug, error, info, info_span, instrument::Instrumented, warn, Instrument};
 
 use hyperlane_base::{CheckpointSyncer, CoreMetrics};
 use hyperlane_core::{
@@ -80,7 +80,10 @@ impl ValidatorSubmitter {
                     break;
                 }
                 info!("Validator has not announced signature storage location");
-                let balance_delta = self.validator_announce.announce_tokens_needed(signed_announcement.clone()).await?;
+                let balance_delta = self
+                    .validator_announce
+                    .announce_tokens_needed(signed_announcement.clone())
+                    .await?;
                 if balance_delta.cmp(&U256::zero()) == std::cmp::Ordering::Greater {
                     warn!(
                         "Please send {} tokens to the validator address {} to announce",

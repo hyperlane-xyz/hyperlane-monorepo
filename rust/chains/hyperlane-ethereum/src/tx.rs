@@ -64,7 +64,7 @@ where
     }
 }
 
-/// Populates the gas limit and price for a transaction 
+/// Populates the gas limit and price for a transaction
 pub(crate) async fn fill_tx_gas_params<M, D>(
     tx: ContractCall<M, D>,
     tx_gas_limit: Option<U256>,
