@@ -69,7 +69,7 @@ where
                 provider.clone(),
             )),
             domain: locator.domain.clone(),
-            provider: provider,
+            provider,
         }
     }
 
@@ -80,7 +80,7 @@ where
         announcement: SignedType<Announcement>,
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<ContractCall<M, bool>> {
-        let serialized_signature: [u8; 65] = announcement.signature.clone().into();
+        let serialized_signature: [u8; 65] = announcement.signature.into();
         let tx = self.contract.announce(
             announcement.value.validator,
             announcement.value.storage_location,
