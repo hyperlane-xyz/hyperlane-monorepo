@@ -54,70 +54,60 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
         view
         returns (bool)
     {
-        (
-            address[] memory _validators,
-            uint8 _threshold
-        ) = validatorsAndThreshold(_message);
-        require(_threshold > 0, "No MultisigISM threshold present for message");
-        require(
-            _verifyValidatorSignatures(
-                _metadata,
-                _message,
-                _validators,
-                _threshold
-            ),
-            "!sigs"
-        );
-        if (MultisigIsmMetadata.hasProof(_metadata, _threshold)) {
-            require(
-                _verifyMerkleProof(_metadata, _message, _threshold),
-                "!merkle"
-            );
-        }
-        return true;
+        return verifyValidatorSignatures(_metadata, _message);
     }
 
-    // ============ Internal Functions ============
+    function computeDigest(bytes calldata _metadata, bytes calldata _message)
+        public
+        pure
+        returns (bytes32 digest)
+    {
+        bytes32 root;
+        bytes32 signedMessageId;
 
-    /**
-     * @notice Verifies the merkle proof of `_message` against the provided
-     * checkpoint.
-     * @param _metadata ABI encoded module metadata (see MultisigIsmMetadata.sol)
-     * @param _message Formatted Hyperlane message (see Message.sol).
-     */
-    function _verifyMerkleProof(
-        bytes calldata _metadata,
-        bytes calldata _message,
-        uint8 _threshold
-    ) internal pure returns (bool) {
-        // calculate the expected root based on the proof
-        bytes32 _calculatedRoot = MerkleLib.branchRoot(
-            Message.id(_message),
-            MultisigIsmMetadata.proof(_metadata, _threshold),
-            Message.nonce(_message)
+        if (
+            MultisigIsmMetadata.merkleType(_metadata) ==
+            MultisigIsmMetadata.MerkleType.ROOT
+        ) {
+            signedMessageId = Message.id(_message);
+            root = MultisigIsmMetadata.root(_metadata);
+        } else {
+            bytes32[32] memory proof;
+            (signedMessageId, proof) = MultisigIsmMetadata.idAndProof(
+                _metadata
+            );
+            root = MerkleLib.branchRoot(
+                signedMessageId,
+                proof,
+                Message.nonce(_message)
+            );
+        }
+
+        digest = CheckpointLib.digest(
+            Message.origin(_message),
+            MultisigIsmMetadata.originMailbox(_metadata),
+            root,
+            MultisigIsmMetadata.index(_metadata),
+            signedMessageId
         );
-        return _calculatedRoot == MultisigIsmMetadata.root(_metadata);
     }
 
     /**
      * @notice Verifies that a quorum of the origin domain's validators signed
      * the provided checkpoint.
      * @param _metadata ABI encoded module metadata (see MultisigIsmMetadata.sol)
-     * @param _message Formatted Hyperlane message (see Message.sol).
      */
-    function _verifyValidatorSignatures(
+    function verifyValidatorSignatures(
         bytes calldata _metadata,
-        bytes calldata _message,
-        address[] memory _validators,
-        uint8 _threshold
-    ) internal pure returns (bool) {
-        bytes32 _digest = CheckpointLib.digest(
-            Message.origin(_message),
-            MultisigIsmMetadata.originMailbox(_metadata),
-            MultisigIsmMetadata.root(_metadata),
-            MultisigIsmMetadata.index(_metadata),
-            MultisigIsmMetadata.messageId(_metadata)
-        );
+        bytes calldata _message
+    ) public view returns (bool) {
+        bytes32 _digest = computeDigest(_metadata, _message);
+        (
+            address[] memory _validators,
+            uint8 _threshold
+        ) = validatorsAndThreshold(_message);
+        require(_threshold > 0, "No MultisigISM threshold present for message");
+
         uint256 _validatorCount = _validators.length;
         uint256 _validatorIndex = 0;
         // Assumes that signatures are ordered by validator
