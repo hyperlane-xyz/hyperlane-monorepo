@@ -84,7 +84,7 @@ export class LiquidityLayerApp extends HyperlaneApp<
     const req = await fetchWithTimeout(url);
     const response = await req.json();
 
-    return response.result.map((_: any) => _.transactionHash).flat();
+    return response.result.map((tx: any) => tx.transactionHash).flat();
   }
 
   async fetchPortalBridgeTransactions(chain: ChainName): Promise<string[]> {
@@ -103,7 +103,7 @@ export class LiquidityLayerApp extends HyperlaneApp<
       throw Error(`Expected result in response: ${response}`);
     }
 
-    return response.result.map((_: any) => _.transactionHash).flat();
+    return response.result.map((tx: any) => tx.transactionHash).flat();
   }
 
   async parsePortalMessages(
@@ -113,9 +113,9 @@ export class LiquidityLayerApp extends HyperlaneApp<
     const provider = this.multiProvider.getProvider(chain);
     const receipt = await provider.getTransactionReceipt(txHash);
     const matchingLogs = receipt.logs
-      .map((_) => {
+      .map((log) => {
         try {
-          return [PortalAdapterInterface.parseLog(_)];
+          return [PortalAdapterInterface.parseLog(log)];
         } catch {
           return [];
         }
@@ -123,7 +123,7 @@ export class LiquidityLayerApp extends HyperlaneApp<
       .flat();
     if (matchingLogs.length == 0) return [];
 
-    const event = matchingLogs.find((_) => _!.name === 'BridgedToken')!;
+    const event = matchingLogs.find((log) => log!.name === 'BridgedToken')!;
     const portalSequence = event.args.portalSequence.toNumber();
     const nonce = event.args.nonce.toNumber();
     const destination = this.multiProvider.getChainName(event.args.destination);
@@ -139,15 +139,15 @@ export class LiquidityLayerApp extends HyperlaneApp<
     const provider = this.multiProvider.getProvider(chain);
     const receipt = await provider.getTransactionReceipt(txHash);
     const matchingLogs = receipt.logs
-      .map((_) => {
+      .map((log) => {
         try {
-          return [TokenMessengerInterface.parseLog(_)];
+          return [TokenMessengerInterface.parseLog(log)];
         } catch {
           try {
-            return [CircleBridgeAdapterInterface.parseLog(_)];
+            return [CircleBridgeAdapterInterface.parseLog(log)];
           } catch {
             try {
-              return [MailboxInterface.parseLog(_)];
+              return [MailboxInterface.parseLog(log)];
             } catch {
               return [];
             }
@@ -157,17 +157,19 @@ export class LiquidityLayerApp extends HyperlaneApp<
       .flat();
 
     if (matchingLogs.length == 0) return [];
-    const message = matchingLogs.find((_) => _!.name === 'MessageSent')!.args
-      .message;
-    const nonce = matchingLogs.find((_) => _!.name === 'BridgedToken')!.args
+    const message = matchingLogs.find((log) => log!.name === 'MessageSent')!
+      .args.message;
+    const nonce = matchingLogs.find((log) => log!.name === 'BridgedToken')!.args
       .nonce;
 
-    const destinationDomain = matchingLogs.find((_) => _!.name === 'Dispatch')!
-      .args.destination;
+    const destinationDomain = matchingLogs.find(
+      (log) => log!.name === 'Dispatch',
+    )!.args.destination;
 
     const remoteChain = this.multiProvider.getChainName(destinationDomain);
     const domain = this.config[chain].circle!.circleDomainMapping.find(
-      (_) => _.hyperlaneDomain === this.multiProvider.getDomainId(chain),
+      (mapping) =>
+        mapping.hyperlaneDomain === this.multiProvider.getDomainId(chain),
     )!.circleDomain;
     return [
       {
@@ -209,8 +211,9 @@ export class LiquidityLayerApp extends HyperlaneApp<
     const wormholeOriginDomain = this.config[
       message.destination
     ].portal!.wormholeDomainMapping.find(
-      (_) =>
-        _.hyperlaneDomain === this.multiProvider.getDomainId(message.origin),
+      (mapping) =>
+        mapping.hyperlaneDomain ===
+        this.multiProvider.getDomainId(message.origin),
     )?.wormholeDomain;
     const emitter = utils.strip0x(
       utils.addressToBytes32(
@@ -220,7 +223,7 @@ export class LiquidityLayerApp extends HyperlaneApp<
 
     const vaa = await fetchWithTimeout(
       `${PORTAL_VAA_SERVICE_TESTNET_BASE_URL}${wormholeOriginDomain}/${emitter}/${message.portalSequence}`,
-    ).then((_) => _.json());
+    ).then((response) => response.json());
 
     if (vaa.code && vaa.code === PORTAL_VAA_SERVICE_SUCCESS_CODE) {
       console.log(`VAA not yet found for nonce ${message.nonce}`);
