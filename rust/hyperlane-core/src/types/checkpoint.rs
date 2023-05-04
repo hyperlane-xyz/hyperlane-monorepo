@@ -20,6 +20,13 @@ pub struct Checkpoint {
     pub index: u32,
 }
 
+// TODO: use rust to dedupe these?
+#[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct CheckpointWithMessageId {
+    pub checkpoint: Checkpoint,
+    pub message_id: H256
+}
+
 impl Debug for Checkpoint {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -29,6 +36,17 @@ impl Debug for Checkpoint {
             fmt_domain(self.mailbox_domain),
             self.root,
             self.index
+        )
+    }
+}
+
+impl Debug for CheckpointWithMessageId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "CheckpointWithMessageId {{ checkpoint: {:?}, message_id: {:?} }}",
+            self.checkpoint,
+            self.message_id
         )
     }
 }
@@ -51,6 +69,25 @@ impl Signable for Checkpoint {
     }
 }
 
+#[async_trait]
+impl Signable for CheckpointWithMessageId {
+    /// A hash of the checkpoint contents.
+    /// The EIP-191 compliant version of this hash is signed by validators.
+    fn signing_hash(&self) -> H256 {
+        // sign:
+        // domain_hash(mailbox_address, mailbox_domain) || root || index (as u32) || message_id
+        H256::from_slice(
+            Keccak256::new()
+                .chain(domain_hash(self.checkpoint.mailbox_address, self.checkpoint.mailbox_domain))
+                .chain(self.checkpoint.root)
+                .chain(self.checkpoint.index.to_be_bytes())
+                .chain(self.message_id)
+                .finalize()
+                .as_slice(),
+        )
+    }
+}
+
 /// A checkpoint that has been signed.
 pub type SignedCheckpoint = SignedType<Checkpoint>;
 
@@ -61,6 +98,18 @@ pub struct SignedCheckpointWithSigner {
     pub signer: Address,
     /// The signed checkpoint
     pub signed_checkpoint: SignedCheckpoint,
+}
+
+/// A (checkpoint, message ID) tuple that has been signed.
+pub type SignedCheckpointWithMessageId = SignedType<CheckpointWithMessageId>;
+
+/// An individual signed (checkpoint, message ID) tuple with the recovered signer
+#[derive(Clone, Debug)]
+pub struct SignedCheckpointWithMessageIdWithSigner {
+    /// The recovered signer
+    pub signer: Address,
+    /// The signed checkpoint
+    pub signed_checkpoint: SignedCheckpointWithMessageId,
 }
 
 /// A signature and its signer.
@@ -81,11 +130,31 @@ pub struct MultisigSignedCheckpoint {
     pub signatures: Vec<SignatureWithSigner>,
 }
 
+/// A (checkpoint, message ID) tuple and multiple signatures
+#[derive(Clone)]
+pub struct MultisigSignedCheckpointWithMessageId {
+    /// The (checkpoint, message ID) tuple
+    pub checkpoint: CheckpointWithMessageId,
+    /// Signatures over the checkpoint with message ID. No ordering guarantees.
+    pub signatures: Vec<SignatureWithSigner>,
+}
+
 impl Debug for MultisigSignedCheckpoint {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "MultisigSignedCheckpoint {{ checkpoint: {:?}, signature_count: {} }}",
+            self.checkpoint,
+            self.signatures.len()
+        )
+    }
+}
+
+impl Debug for MultisigSignedCheckpointWithMessageId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "MultisigSignedCheckpointWithMessageId {{ checkpoint: {:?}, signature_count: {} }}",
             self.checkpoint,
             self.signatures.len()
         )
@@ -131,6 +200,40 @@ impl TryFrom<&Vec<SignedCheckpointWithSigner>> for MultisigSignedCheckpoint {
             .collect();
 
         Ok(MultisigSignedCheckpoint {
+            checkpoint,
+            signatures,
+        })
+    }
+}
+
+impl TryFrom<&Vec<SignedCheckpointWithMessageIdWithSigner>> for MultisigSignedCheckpointWithMessageId {
+    type Error = MultisigSignedCheckpointError;
+
+    /// Given multiple signed checkpoints with their signer, creates a
+    /// MultisigSignedCheckpoint
+    fn try_from(signed_checkpoints: &Vec<SignedCheckpointWithMessageIdWithSigner>) -> Result<Self, Self::Error> {
+        if signed_checkpoints.is_empty() {
+            return Err(MultisigSignedCheckpointError::EmptySignatures());
+        }
+        // Get the first checkpoint and ensure all other signed checkpoints are for
+        // the same checkpoint
+        let checkpoint = signed_checkpoints[0].signed_checkpoint.value;
+        if !signed_checkpoints
+            .iter()
+            .all(|c| checkpoint == c.signed_checkpoint.value)
+        {
+            return Err(MultisigSignedCheckpointError::InconsistentCheckpoints());
+        }
+
+        let signatures = signed_checkpoints
+            .iter()
+            .map(|c| SignatureWithSigner {
+                signature: c.signed_checkpoint.signature,
+                signer: c.signer,
+            })
+            .collect();
+
+        Ok(MultisigSignedCheckpointWithMessageId {
             checkpoint,
             signatures,
         })
