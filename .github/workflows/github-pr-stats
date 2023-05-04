@@ -1,0 +1,9 @@
+name: github-pr-stats
+run-name: gihub-pr-stats
+on: [workflow_dispatch]
+jobs:
+  stats:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run pull request stats
+        uses: flowwer-dev/pull-request-stats@master
