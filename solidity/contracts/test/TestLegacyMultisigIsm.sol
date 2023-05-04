@@ -3,7 +3,7 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {LegacyMultisigIsm} from "../isms/multisig/LegacyMultisigIsm.sol";
-import {CheckpointLib} from "../libs/CheckpointLib.sol";
+import {LegacyCheckpointLib} from "../libs/LegacyCheckpointLib.sol";
 
 contract TestLegacyMultisigIsm is LegacyMultisigIsm {
     function getDomainHash(uint32 _origin, bytes32 _originMailbox)
@@ -11,6 +11,6 @@ contract TestLegacyMultisigIsm is LegacyMultisigIsm {
         pure
         returns (bytes32)
     {
-        return CheckpointLib.domainHash(_origin, _originMailbox);
+        return LegacyCheckpointLib.domainHash(_origin, _originMailbox);
     }
 }
