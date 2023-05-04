@@ -1,13 +1,63 @@
 #!/usr/bin/env bash
 
-SCRIPT_DIR="$(realpath "$(dirname "${BASH_SOURCE[0]}")")"
-KEYPAIR="${HOME}/.config/eclipse/id.json"
+if [ -z $SOLAR_ECLIPSE_DIR ]; then
+    echo '$SOLAR_ECLIPSE_DIR must be set'
+fi
+
+if [ -z $ECLIPSE_PROGRAM_LIBRARY_DIR ]; then
+    echo '$ECLIPSE_PROGRAM_LIBRARY_DIR must be set'
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+TEST_KEYS_DIR="${SCRIPT_DIR}/../config/sealevel/test-keys"
+KEYPAIR="${TEST_KEYS_DIR}/test_deployer-keypair.json"
 TARGET_DIR="${SCRIPT_DIR}/../sealevel/target"
 DEPLOY_DIR="${TARGET_DIR}/deploy"
 BIN_DIR="${TARGET_DIR}/debug"
-SPL_TOKEN="${HOME}/eclipse-program-library/target/debug/spl-token"
+SPL_TOKEN="${ECLIPSE_PROGRAM_LIBRARY_DIR}/target/debug/spl-token"
 CHAIN_ID="13375"
-alias solana="${HOME}/solar-eclipse/target/debug/solana"
+
+# Ensure that the solar-eclipse `solana` binary is used
+alias solana="${SOLAR_ECLIPSE_DIR}/target/debug/solana"
+
+# first arg = path to .so file
+# second arg = path to directory to build program in if the .so file doesn't exist
+build_and_copy_program() {
+    if [ ! -e $1 ]; then
+        # .so file doesn't exist, build it
+        pushd "${2}"
+        cargo build-sbf --arch sbf
+        popd
+    fi
+
+    # essentially cp, but -u won't copy if the source is older than the destination.
+    # used as a workaround to prevent copying to the same destination as the source
+    rsync -u $1 $DEPLOY_DIR
+}
+
+build_programs() {
+    # token programs
+    build_and_copy_program "${ECLIPSE_PROGRAM_LIBRARY_DIR}/target/deploy/spl_token.so" "${ECLIPSE_PROGRAM_LIBRARY_DIR}/token/program"
+    build_and_copy_program "${ECLIPSE_PROGRAM_LIBRARY_DIR}/target/deploy/spl_token_2022.so" "${ECLIPSE_PROGRAM_LIBRARY_DIR}/token/program-2020"
+    build_and_copy_program "${ECLIPSE_PROGRAM_LIBRARY_DIR}/target/deploy/spl_associated_token_account.so" "${ECLIPSE_PROGRAM_LIBRARY_DIR}/associated-token-account/program"
+
+    # noop
+    build_and_copy_program "${ECLIPSE_PROGRAM_LIBRARY_DIR}/account-compression/target/deploy/spl_noop.so" "${ECLIPSE_PROGRAM_LIBRARY_DIR}/account-compression/programs/noop"
+
+    # hyperlane sealevel programs
+    build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_mailbox.so" "${TARGET_DIR}/../programs/mailbox"
+    build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_ism_rubber_stamp.so" "${TARGET_DIR}/../programs/ism"
+    build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_token.so" "${TARGET_DIR}/../programs/hyperlane-sealevel-token"
+    build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_recipient_echo.so" "${TARGET_DIR}/../programs/recipient"
+}
+
+build_spl_token_cli() {
+    if [ ! -e $SPL_TOKEN ]; then
+        pushd "${ECLIPSE_PROGRAM_LIBRARY_DIR}/token/cli"
+        cargo build
+        popd
+    fi
+}
 
 mailbox_init() {
     set +e
@@ -138,6 +188,13 @@ test_token() {
 }
 
 main() {
+    # build all the required sealevel programs
+    build_programs
+    # build the SPL token CLI
+    build_spl_token_cli
+    # copy the keys into the deploy dir
+    cp ${TEST_KEYS_DIR}/*.json ${TARGET_DIR}/deploy/
+
     solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/spl_noop.so"
     solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/spl_token.so"
     solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/spl_token_2022.so"

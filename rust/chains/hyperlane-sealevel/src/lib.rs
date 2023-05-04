@@ -16,9 +16,7 @@ pub use validator_announce::*;
 /// Copy pasted code from solana as a stop-gap solution until dependency conflicts are resolved.
 pub mod solana;
 use solana::nonblocking_rpc_client::RpcClient;
-// use solana_client::non_blocking_rpc_client::RpcClient;
 
-// mod conversions; // FIXME needed?
 mod interchain_gas;
 mod interchain_security_module;
 mod mailbox;
@@ -28,12 +26,6 @@ mod multisig_ism;
 mod provider;
 mod trait_builder;
 mod validator_announce;
-
-// FIXME needed?
-// /// Safe default imports of commonly used traits/types.
-// pub mod prelude {
-//     pub use crate::conversions::*;
-// }
 
 pub(crate) struct RpcClientWithDebug(RpcClient);
 
