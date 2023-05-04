@@ -21,7 +21,7 @@ use hyperlane_core::{
 use crate::contracts::arbitrum_node_interface::ArbitrumNodeInterface;
 use crate::contracts::i_mailbox::{IMailbox as EthereumMailboxInternal, ProcessCall, IMAILBOX_ABI};
 use crate::trait_builder::BuildableWithProvider;
-use crate::tx::{format_tx, report_tx};
+use crate::tx::{fill_tx_gas_params, report_tx};
 use crate::EthereumProvider;
 
 /// An amount of gas to add to the estimated gas
@@ -216,7 +216,7 @@ where
             metadata.to_vec().into(),
             RawHyperlaneMessage::from(message).to_vec().into(),
         );
-        format_tx(tx, tx_gas_limit, self.provider.clone(), message.destination).await
+        fill_tx_gas_params(tx, tx_gas_limit, self.provider.clone(), message.destination).await
     }
 }
 

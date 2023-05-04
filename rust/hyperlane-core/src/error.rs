@@ -122,7 +122,4 @@ pub enum HyperlaneProtocolError {
     /// Expected a gas limit and none was provided
     #[error("A gas limit was expected for `process` contract call")]
     ProcessGasLimitRequired,
-    /// Expected a max cost and none was provided
-    #[error("A max cost was expected for typed transaction")]
-    TypedTransactionMaxCostRequired,
 }

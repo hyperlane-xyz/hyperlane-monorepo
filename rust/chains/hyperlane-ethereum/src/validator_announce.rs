@@ -18,7 +18,7 @@ use crate::contracts::i_validator_announce::{
     IValidatorAnnounce as EthereumValidatorAnnounceInternal, IVALIDATORANNOUNCE_ABI,
 };
 use crate::trait_builder::BuildableWithProvider;
-use crate::tx::{format_tx, report_tx};
+use crate::tx::{fill_tx_gas_params, report_tx};
 use crate::EthereumProvider;
 
 impl<M> std::fmt::Display for EthereumValidatorAnnounceInternal<M>
@@ -86,7 +86,7 @@ where
             announcement.value.storage_location,
             serialized_signature.into(),
         );
-        format_tx(tx, tx_gas_limit, self.provider.clone(), self.domain.id()).await
+        fill_tx_gas_params(tx, tx_gas_limit, self.provider.clone(), self.domain.id()).await
     }
 }
 
@@ -132,7 +132,6 @@ where
         Ok(storage_locations)
     }
 
-    #[instrument(err, ret, skip(self))]
     async fn announce_tokens_needed(
         &self,
         announcement: SignedType<Announcement>

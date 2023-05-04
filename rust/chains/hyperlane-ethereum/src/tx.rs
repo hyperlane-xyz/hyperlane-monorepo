@@ -33,9 +33,8 @@ where
         .cloned()
         .unwrap_or_else(|| NameOrAddress::Address(Default::default()));
 
-    info!(?to, %data, gas=?tx.tx.gas(), "Dispatching transaction");
+    info!(?to, %data, "Dispatching transaction");
     // We can set the gas higher here!
-    // TODO: Okay, it seems like this is where things go wrong:
     let dispatch_fut = tx.send();
     let dispatched = dispatch_fut.await?;
 
@@ -65,8 +64,8 @@ where
     }
 }
 
-/// Dispatches a transaction, logs the tx id, and returns the result
-pub(crate) async fn format_tx<M, D>(
+/// Populates the gas limit and price for a transaction 
+pub(crate) async fn fill_tx_gas_params<M, D>(
     tx: ContractCall<M, D>,
     tx_gas_limit: Option<U256>,
     provider: Arc<M>,
@@ -79,12 +78,10 @@ where
     let gas_limit = if let Some(gas_limit) = tx_gas_limit {
         gas_limit
     } else {
-        info!("Estimating gas limit");
         tx.estimate_gas()
             .await?
             .saturating_add(U256::from(GAS_ESTIMATE_BUFFER))
     };
-    info!("Estimated gas limit");
     let Ok((max_fee, max_priority_fee)) = provider.estimate_eip1559_fees(None).await else {
         // Is not EIP 1559 chain
         return Ok(tx.gas(gas_limit))
