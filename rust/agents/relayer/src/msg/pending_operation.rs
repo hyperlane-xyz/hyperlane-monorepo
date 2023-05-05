@@ -149,7 +149,9 @@ macro_rules! make_tx_try {
                                     Err(e) => {
                                         error!(error=?e, concat!("Error when ", $ctx));
                                         return $critical_failure(
-                                            Err(e).context(concat!("When ", $ctx)).unwrap_err()
+                                            Err::<(), _>(e)
+                                                .context(concat!("When ", $ctx))
+                                                .unwrap_err()
                                         );
                                     }
                                 }

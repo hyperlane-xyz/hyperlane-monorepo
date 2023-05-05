@@ -193,6 +193,7 @@ impl BaseAgent for Relayer {
                     },
                     Arc::new(MessageCtx {
                         destination_mailbox: mailboxes[destination].clone(),
+                        origin_db: HyperlaneDB::new(origin, db.clone()),
                         metadata_builder,
                         gas_payment_enforcer: gas_payment_enforcers[origin].clone(),
                         transaction_gas_limit,

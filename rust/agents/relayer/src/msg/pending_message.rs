@@ -8,6 +8,7 @@ use eyre::{Context, Result};
 use prometheus::{IntCounter, IntGauge};
 use tracing::{debug, error, info, instrument, warn};
 
+use hyperlane_base::db::HyperlaneDB;
 use hyperlane_base::{CachingMailbox, CoreMetrics};
 use hyperlane_core::{HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, U256};
 
@@ -22,6 +23,8 @@ use super::{
 pub struct MessageCtx {
     /// Mailbox on the destination chain.
     pub destination_mailbox: CachingMailbox,
+    /// Origin chain database to verify gas payments.
+    pub origin_db: HyperlaneDB,
     /// Used to construct the ISM metadata needed to verify a message from the
     /// origin.
     pub metadata_builder: BaseMetadataBuilder,
@@ -112,7 +115,7 @@ impl PendingOperation for PendingMessage {
             debug!("Message already processed");
             info!("Message processed");
             self.submitted = true;
-            tx_try!(critical: self.ctx.db.mark_nonce_as_processed(self.message.nonce), "recording message as processed");
+            tx_try!(critical: self.ctx.origin_db.mark_nonce_as_processed(self.message.nonce), "recording message as processed");
             return TxPrepareResult::DoNotRetry;
         }
 
@@ -271,7 +274,9 @@ impl PendingMessage {
     /// re-attempt processing for this message again, even after the relayer
     /// restarts.
     fn record_message_process_success(&mut self) -> Result<()> {
-        self.ctx.db.mark_nonce_as_processed(self.message.nonce)?;
+        self.ctx
+            .origin_db
+            .mark_nonce_as_processed(self.message.nonce)?;
         self.ctx.metrics.max_submitted_nonce =
             std::cmp::max(self.ctx.metrics.max_submitted_nonce, self.message.nonce);
         self.ctx
