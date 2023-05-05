@@ -79,6 +79,12 @@ impl BaseAgent for Validator {
             ValidatorSubmitterMetrics::new(&self.core.metrics, &self.origin_chain),
         );
 
+        // TODO: fetch latest branch from Mailbox storage using eth_getStorateAt
+        // | Name          | Type                               | Slot | Offset | Bytes | Contract                      |
+        // | tree          | struct MerkleLib.Tree              | 152  | 0      | 1056  | contracts/Mailbox.sol:Mailbox |
+
+        // TODO: initialize copy of incremental merkle tree
+
         // TODO: configure?
         let from_nonce = self.mailbox.mailbox().count(None).await.unwrap_or(0);
         self.mailbox.db().update_latest_nonce(from_nonce).unwrap();
