@@ -3,42 +3,34 @@ pragma solidity >=0.8.0;
 
 /**
  * Format of metadata:
- * [   0:   1] Suffix type
- * [   1:   5] Root index
- * [   5:  37] Origin mailbox address
- * [  37:  VS] Validator signatures (where VS := 37 + Threshold * 65 bytes)
+ * [   0:   4] Root index
+ * [   4:  36] Origin mailbox address
+ * [  36:  VS] Validator signatures (where VS := 36 + Threshold * 65 bytes)
  * [  VS:????] Suffix
  *
  * Format of suffix:
- * [   -32:   0] Merkle root
- *                OR
- * [-1056:  -32] Merkle proof
- * [  -32:    0] Message ID
+ * [  -33:  -1] Merkle root
+ * [   -1:   0] SuffixType.ROOT
+ *                  OR
+ * [-1056: -33] Merkle proof
+ * [  -33:  -1] Message ID
+ * [   -1:   0] SuffixType.PROOF_AND_ID
  */
 library MultisigIsmMetadata {
-    uint8 private constant SUFFIX_TYPE_OFFSET = 0;
-    uint8 private constant MERKLE_INDEX_OFFSET = 1;
-    uint8 private constant ORIGIN_MAILBOX_OFFSET = 5;
-    uint8 private constant SIGNATURES_OFFSET = 37;
+    uint8 private constant MERKLE_INDEX_OFFSET = 0;
+    uint8 private constant ORIGIN_MAILBOX_OFFSET = 4;
+    uint8 private constant SIGNATURES_OFFSET = 36;
     uint8 private constant SIGNATURE_LENGTH = 65;
 
-    uint8 private constant SUFFIX_ROOT_OFFSET = 32;
+    uint8 private constant SUFFIX_TYPE_OFFSET = 0;
+    uint8 private constant SUFFIX_ROOT_OFFSET = 1;
 
-    uint16 private constant PROOF_LENGTH = 32 * 32;
-    uint8 private constant SUFFIX_ID_OFFSET = 32;
-    uint16 private constant SUFFIX_PROOF_OFFSET = 32 + PROOF_LENGTH;
+    uint8 private constant SUFFIX_ID_OFFSET = 1;
+    uint8 private constant SUFFIX_PROOF_OFFSET = 33;
 
     enum SuffixType {
         ROOT,
         PROOF_AND_ID
-    }
-
-    function suffixType(bytes calldata _metadata)
-        internal
-        pure
-        returns (SuffixType)
-    {
-        return SuffixType(uint8(_metadata[SUFFIX_TYPE_OFFSET]));
     }
 
     /**
@@ -93,9 +85,18 @@ library MultisigIsmMetadata {
         uint256 offset,
         uint256 size
     ) private pure returns (bytes calldata) {
-        uint256 _start = _metadata.length - offset;
-        uint256 _end = _start + size;
+        uint256 _end = _metadata.length - offset;
+        uint256 _start = _end - size;
         return _metadata[_start:_end];
+    }
+
+    function suffixType(bytes calldata _metadata)
+        internal
+        pure
+        returns (SuffixType)
+    {
+        return
+            SuffixType(uint8(bytes1(suffix(_metadata, SUFFIX_TYPE_OFFSET, 1))));
     }
 
     /**
@@ -125,7 +126,7 @@ library MultisigIsmMetadata {
         assert(suffixType(_metadata) == SuffixType.PROOF_AND_ID);
         return
             abi.decode(
-                suffix(_metadata, SUFFIX_PROOF_OFFSET, PROOF_LENGTH),
+                suffix(_metadata, SUFFIX_PROOF_OFFSET, 32 * 32),
                 (bytes32[32])
             );
     }
