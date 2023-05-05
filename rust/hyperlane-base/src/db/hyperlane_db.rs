@@ -54,11 +54,11 @@ impl AsRef<DB> for HyperlaneDB {
 
 impl HyperlaneDB {
     /// Instantiated new `HyperlaneDB`
-    pub fn new(domain: HyperlaneDomain, db: DB) -> Self {
-        let typed_db = TypedDB::new(&domain, db);
-        Self(domain, typed_db)
+    pub fn new(domain: &HyperlaneDomain, db: DB) -> Self {
+        Self(domain.clone(), TypedDB::new(domain, db))
     }
 
+    /// Get the domain this database is scoped to
     pub fn domain(&self) -> &HyperlaneDomain {
         &self.0
     }

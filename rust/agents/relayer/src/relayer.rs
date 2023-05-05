@@ -1,41 +1,54 @@
-use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
+use std::fmt::{Debug, Formatter};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use async_trait::async_trait;
 use eyre::Result;
-use itertools::Itertools;
-use tokio::sync::{
-    mpsc::{self, UnboundedReceiver, UnboundedSender},
-    RwLock,
+use tokio::{
+    sync::{
+        mpsc::{self, UnboundedReceiver},
+        RwLock,
+    },
+    task::JoinHandle,
 };
-use tokio::task::JoinHandle;
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
-use hyperlane_base::db::HyperlaneDB;
 use hyperlane_base::{
-    db::DB, run_all, BaseAgent, CachingInterchainGasPaymaster, CachingMailbox, ContractSyncMetrics,
+    db::{HyperlaneDB, DB},
+    run_all, BaseAgent, CachingInterchainGasPaymaster, CachingMailbox, ContractSyncMetrics,
     CoreMetrics, HyperlaneAgentCore,
 };
-use hyperlane_core::{HyperlaneChain, HyperlaneDomain, ValidatorAnnounce, U256};
+use hyperlane_core::{HyperlaneDomain, ValidatorAnnounce, U256};
 
 use crate::{
     merkle_tree_builder::MerkleTreeBuilder,
     msg::{
         gas_payment::GasPaymentEnforcer,
         metadata::BaseMetadataBuilder,
-        pending_message::PendingMessage,
+        pending_message::MessageCtx,
+        pending_operation::DynPendingOperation,
         processor::{MessageProcessor, MessageProcessorMetrics},
         serial_submitter::{SerialSubmitter, SerialSubmitterMetrics},
     },
     settings::{matching_list::MatchingList, RelayerSettings},
 };
 
+#[derive(Debug, Hash, PartialEq, Eq)]
+struct ContextKey {
+    origin: HyperlaneDomain,
+    destination: HyperlaneDomain,
+}
+
 /// A relayer agent
-#[derive(Debug)]
 pub struct Relayer {
     origin_chains: HashSet<HyperlaneDomain>,
     destination_chains: HashSet<HyperlaneDomain>,
     core: HyperlaneAgentCore,
+    /// Context data for each (origin, destination) chain pair a message can be
+    /// sent between
+    msg_ctxs: HashMap<ContextKey, Arc<MessageCtx>>,
     /// The base database not scoped to a specific domain
     db: DB,
     // TODO: use u32 instead of domain?
@@ -48,11 +61,28 @@ pub struct Relayer {
     validator_announces: HashMap<HyperlaneDomain, Arc<dyn ValidatorAnnounce>>,
     /// Gas payment enforcer for each origin chain
     gas_payment_enforcers: HashMap<HyperlaneDomain, Arc<GasPaymentEnforcer>>,
+    prover_syncs: HashMap<HyperlaneDomain, Arc<RwLock<MerkleTreeBuilder>>>,
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,
     transaction_gas_limit: Option<U256>,
     skip_transaction_gas_limit_for: HashSet<u32>,
     allow_local_checkpoint_syncers: bool,
+}
+
+impl Debug for Relayer {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Relayer {{ origin_chains: {:?}, destination_chains: {:?}, whitelist: {:?}, blacklist: {:?}, transaction_gas_limit: {:?}, skip_transaction_gas_limit_for: {:?}, allow_local_checkpoint_syncers: {:?} }}",
+            self.origin_chains,
+            self.destination_chains,
+            self.whitelist,
+            self.blacklist,
+            self.transaction_gas_limit,
+            self.skip_transaction_gas_limit_for,
+            self.allow_local_checkpoint_syncers
+        )
+    }
 }
 
 impl AsRef<HyperlaneAgentCore> for Relayer {
@@ -105,10 +135,23 @@ impl BaseAgent for Relayer {
             "Whitelist configuration"
         );
 
+        // provers by origin chain
+        let prover_syncs = settings
+            .origin_chains
+            .iter()
+            .map(|origin| {
+                let db = HyperlaneDB::new(origin, db.clone());
+                (
+                    origin.clone(),
+                    Arc::new(RwLock::new(MerkleTreeBuilder::new(db))),
+                )
+            })
+            .collect::<HashMap<_, _>>();
+
         info!(gas_enforcement_policies=?settings.gas_payment_enforcement, "Gas enforcement configuration");
         // need one of these per origin chain due to the database scoping even though
         // the config itself is the same
-        let gas_payment_enforcers = settings
+        let gas_payment_enforcers: HashMap<_, _> = settings
             .origin_chains
             .iter()
             .map(|domain| {
@@ -122,15 +165,53 @@ impl BaseAgent for Relayer {
             })
             .collect();
 
+        let mut msg_ctxs = HashMap::new();
+        for destination in &settings.destination_chains {
+            let destination_chain_setup = core.settings.chain_setup(destination).unwrap().clone();
+
+            let transaction_gas_limit: Option<U256> =
+                if skip_transaction_gas_limit_for.contains(&destination.id()) {
+                    None
+                } else {
+                    transaction_gas_limit
+                };
+
+            for origin in &settings.origin_chains {
+                let metadata_builder = BaseMetadataBuilder::new(
+                    destination_chain_setup.clone(),
+                    prover_syncs[origin].clone(),
+                    validator_announces[origin].clone(),
+                    settings.allow_local_checkpoint_syncers,
+                    core.metrics.clone(),
+                    5,
+                );
+
+                msg_ctxs.insert(
+                    ContextKey {
+                        origin: origin.clone(),
+                        destination: destination.clone(),
+                    },
+                    Arc::new(MessageCtx {
+                        destination_mailbox: mailboxes[destination].clone(),
+                        metadata_builder,
+                        gas_payment_enforcer: gas_payment_enforcers[origin].clone(),
+                        transaction_gas_limit,
+                    }),
+                );
+            }
+        }
+
         Ok(Self {
             origin_chains: settings.origin_chains,
             destination_chains: settings.destination_chains,
             db,
+            msg_ctxs,
             core,
             mailboxes,
             validator_announces,
             interchain_gas_paymasters,
             gas_payment_enforcers,
+            prover_syncs,
             whitelist,
             blacklist,
             transaction_gas_limit,
@@ -143,59 +224,14 @@ impl BaseAgent for Relayer {
     async fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
         let mut tasks = vec![];
 
-        // provers by origin chain
-        let provers_sync = self
-            .origin_chains
-            .iter()
-            .map(|origin| {
-                let db = HyperlaneDB::new(origin, self.db.clone());
-                (
-                    origin.clone(),
-                    Arc::new(RwLock::new(MerkleTreeBuilder::new(db))),
-                )
-            })
-            .collect::<HashMap<_, _>>();
-
         // send channels by destination chain
-        let mut send_channels: HashMap<u32, UnboundedSender<PendingMessage>> =
-            HashMap::with_capacity(self.destination_chains.len());
+        let mut send_channels = HashMap::with_capacity(self.destination_chains.len());
         for destination in &self.destination_chains {
-            let (send_channel, receive_channel): (
-                UnboundedSender<PendingMessage>,
-                UnboundedReceiver<PendingMessage>,
-            ) = mpsc::unbounded_channel();
-            send_channels.insert(destination.id(), send_channel);
+            let (send_channel, receive_channel) =
+                mpsc::unbounded_channel::<Box<DynPendingOperation>>();
+            send_channels.insert(destination.clone(), send_channel);
 
-            let chain_setup = self
-                .core
-                .settings
-                .chain_setup(destination)
-                .unwrap_or_else(|_| panic!("No chain setup found for {}", destination.name()))
-                .clone();
-
-            let metadata_builders = self
-                .origin_chains
-                .iter()
-                .map(|origin| {
-                    (
-                        origin.clone(),
-                        BaseMetadataBuilder::new(
-                            chain_setup,
-                            provers_sync[origin].clone(),
-                            self.validator_announces[origin].clone(),
-                            self.allow_local_checkpoint_syncers,
-                            self.core.metrics.clone(),
-                            5,
-                        ),
-                    )
-                })
-                .collect();
-
-            tasks.push(self.run_destination_mailbox(
-                self.mailboxes[destination].clone(),
-                metadata_builders,
-                receive_channel,
-            ));
+            tasks.push(self.run_destination_submitter(destination, receive_channel));
         }
 
         let sync_metrics = ContractSyncMetrics::new(self.core.metrics.clone());
@@ -216,7 +252,7 @@ impl BaseAgent for Relayer {
                 self.whitelist.clone(),
                 self.blacklist.clone(),
                 metrics,
-                provers_sync[origin].clone(),
+                self.prover_syncs[origin].clone(),
                 send_channels.clone(),
             );
 
@@ -266,49 +302,26 @@ impl Relayer {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[tracing::instrument(fields(destination=%destination_mailbox.domain()))]
-    fn run_destination_mailbox(
+    #[tracing::instrument(skip(self, receiver))]
+    fn run_destination_submitter(
         &self,
-        destination_mailbox: CachingMailbox,
-        // by origin
-        metadata_builders: HashMap<HyperlaneDomain, BaseMetadataBuilder>,
-        msg_receive: UnboundedReceiver<PendingMessage>,
+        destination: &HyperlaneDomain,
+        receiver: UnboundedReceiver<Box<DynPendingOperation>>,
     ) -> Instrumented<JoinHandle<Result<()>>> {
-        let origin_mailbox = self.mailboxes.get(&self.origin_chain).unwrap();
-        let destination = destination_mailbox.domain();
-
-        let transaction_gas_limit = if self
-            .skip_transaction_gas_limit_for
-            .contains(&destination.id())
-        {
-            None
-        } else {
-            self.transaction_gas_limit
-        };
-        // TODO: Create a new layer to split this up such that there is a
-        //  MessageSubmitter which then sends to a SerialTxnSubmitter that just blindly
-        //  tries to send transactions. A good approach for this might be to create a Trait for
-        //  "ProducesTxn" which can then be called by the SerialTxnSubmitter. This would allow
-        //  for txns from other sources down the road.
-        //  Alternatively extend the SerialSubmitter to accept transactions from different domains.
         let serial_submitter = SerialSubmitter::new(
-            msg_receive,
-            destination_mailbox.clone(),
-            metadata_builder,
-            origin_mailbox.db().clone(),
-            SerialSubmitterMetrics::new(&self.core.metrics, &self.origin_chain, destination),
-            gas_payment_enforcer,
-            transaction_gas_limit,
+            destination.clone(),
+            receiver,
+            SerialSubmitterMetrics::new(&self.core.metrics, destination),
         );
 
         let submit_fut = serial_submitter.spawn();
 
         tokio::spawn(async move {
             let res = tokio::try_join!(submit_fut)?;
-            info!(?res, "try_join finished for mailbox");
+            info!(?res, "try_join finished for submitter");
             Ok(())
         })
-        .instrument(info_span!("run mailbox"))
+        .instrument(info_span!("run submitter"))
     }
 }
 

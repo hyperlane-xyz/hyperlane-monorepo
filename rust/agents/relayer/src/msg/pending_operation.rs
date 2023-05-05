@@ -91,7 +91,6 @@ impl Ord for DynPendingOperation {
     }
 }
 
-
 pub enum TxPrepareResult {
     /// Txn is ready to be submitted
     Ready,
