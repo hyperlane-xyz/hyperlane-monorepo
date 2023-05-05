@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -75,27 +74,6 @@ impl Debug for PendingMessage {
             .unwrap_or(0);
         write!(f, "PendingMessage {{ num_retires: {}, since_last_attempt_s: {last_attempt}, next_attempt_after_s: {next_attempt}, message: {:?} }}",
                self.num_retries, self.message)
-    }
-}
-
-/// Sort by their next allowed attempt time and if no allowed time is set, then
-/// put it in front of those with a time (they have been tried before) and break
-/// ties between ones that have not been tried with the nonce.
-impl Ord for PendingMessage {
-    fn cmp(&self, other: &Self) -> Ordering {
-        use Ordering::*;
-        match (&self.next_attempt_after, &other.next_attempt_after) {
-            (Some(s), Some(o)) => s.cmp(o),
-            (Some(_), None) => Greater,
-            (None, Some(_)) => Less,
-            (None, None) => self.message.nonce.cmp(&other.message.nonce),
-        }
-    }
-}
-
-impl PartialOrd for PendingMessage {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
     }
 }
 

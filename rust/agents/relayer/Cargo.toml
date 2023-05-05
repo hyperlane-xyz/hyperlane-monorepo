@@ -11,6 +11,7 @@ version.workspace = true
 async-trait.workspace = true
 config.workspace = true
 derive-new.workspace = true
+enum_dispatch.workspace = true
 ethers-contract.workspace = true
 ethers.workspace = true
 eyre.workspace = true

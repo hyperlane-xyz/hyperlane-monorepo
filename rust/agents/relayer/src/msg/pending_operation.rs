@@ -2,11 +2,16 @@ use std::cmp::Ordering;
 use std::time::Instant;
 
 use async_trait::async_trait;
+use enum_dispatch::enum_dispatch;
 use eyre::Report;
+
+#[allow(unused_imports)] // required for enum_dispatch
+use super::pending_message::PendingMessage;
 
 /// A pending operation that will be run by the submitter and cause a
 /// transaction to be sent.
 #[async_trait]
+#[enum_dispatch]
 pub trait PendingOperation {
     /// Prepare to run this operation. This will be called before every run and
     /// will usually have a very short gap between it and the run call.
@@ -52,17 +57,40 @@ pub trait PendingOperation {
     }
 }
 
-impl PartialEq for dyn PendingOperation {
-    fn eq(&self, other: &Self) -> bool {
-        todo!()
+/// A "dynamic" pending operation implementation which knows about the
+/// different sub types and can properly implement PartialEq and
+/// PartialOrd for them.
+#[enum_dispatch(PendingOperation)]
+#[derive(Debug, PartialEq, Eq)]
+pub enum DynPendingOperation {
+    PendingMessage,
+}
+
+impl PartialOrd for DynPendingOperation {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
-impl PartialOrd for dyn PendingOperation {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        todo!()
+/// Sort by their next allowed attempt time and if no allowed time is set,
+/// then put it in front of those with a time (they have been tried
+/// before) and break ties between ones that have not been tried with
+/// the nonce.
+impl Ord for DynPendingOperation {
+    fn cmp(&self, other: &Self) -> Ordering {
+        use DynPendingOperation::*;
+        use Ordering::*;
+        match (self.next_attempt_after(), other.next_attempt_after()) {
+            (Some(a), Some(b)) => a.cmp(&b),
+            (Some(_), None) => Greater,
+            (None, Some(_)) => Less,
+            (None, None) => match (self, other) {
+                (PendingMessage(a), PendingMessage(b)) => a.message.nonce.cmp(&b.message.nonce),
+            },
+        }
     }
 }
+
 
 pub enum TxPrepareResult {
     /// Txn is ready to be submitted
