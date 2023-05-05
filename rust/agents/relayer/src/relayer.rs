@@ -194,7 +194,7 @@ impl Relayer {
             self.as_ref().settings.chains[self.origin_chain.name()]
                 .index
                 .clone(),
-            sync_metrics,
+            sync_metrics
         );
         sync
     }

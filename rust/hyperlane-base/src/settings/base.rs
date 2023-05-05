@@ -157,7 +157,7 @@ impl Settings {
     }
 
     /// Try to get a CachingMailbox
-    async fn build_caching_mailbox(
+    pub async fn build_caching_mailbox(
         &self,
         domain: &HyperlaneDomain,
         db: DB,

@@ -6,7 +6,7 @@ use eyre::Result;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 
-use hyperlane_base::{run_all, BaseAgent, CheckpointSyncer, CoreMetrics, HyperlaneAgentCore};
+use hyperlane_base::{run_all, BaseAgent, CheckpointSyncer, CoreMetrics, HyperlaneAgentCore, db::DB, CachingMailbox, ContractSyncMetrics};
 use hyperlane_core::{HyperlaneDomain, HyperlaneSigner, Mailbox};
 
 use crate::{
@@ -18,7 +18,7 @@ use crate::{
 pub struct Validator {
     origin_chain: HyperlaneDomain,
     core: HyperlaneAgentCore,
-    mailbox: Arc<dyn Mailbox>,
+    mailbox: CachingMailbox,
     signer: Arc<dyn HyperlaneSigner>,
     reorg_period: u64,
     interval: Duration,
@@ -41,6 +41,8 @@ impl BaseAgent for Validator {
     where
         Self: Sized,
     {
+        let db = DB::from_path(&settings.db)?;
+
         let signer = settings
             .validator
             // Intentionally using hyperlane_ethereum for the validator's signer
@@ -50,8 +52,8 @@ impl BaseAgent for Validator {
         let core = settings.build_hyperlane_core(metrics.clone());
         let checkpoint_syncer = settings.checkpoint_syncer.build(None)?.into();
 
-        let mailbox = settings
-            .build_mailbox(&settings.origin_chain, &metrics)
+        let mailbox: CachingMailbox = settings
+            .build_caching_mailbox(&settings.origin_chain, db, &metrics)
             .await?
             .into();
 
@@ -77,7 +79,18 @@ impl BaseAgent for Validator {
             ValidatorSubmitterMetrics::new(&self.core.metrics, &self.origin_chain),
         );
 
-        run_all(vec![submit.spawn()])
+        // TODO: configure?
+        let from_nonce = self.mailbox.mailbox().count(None).await.unwrap_or(0);
+        self.mailbox.db().update_latest_nonce(from_nonce).unwrap();
+
+        let mailbox_sync = self.mailbox.sync(
+            self.as_ref().settings.chains[self.origin_chain.name()]
+                .index
+                .clone(),
+            ContractSyncMetrics::new(self.core.metrics.clone())
+        );
+
+        run_all(vec![mailbox_sync, submit.spawn()])
     }
 }
 

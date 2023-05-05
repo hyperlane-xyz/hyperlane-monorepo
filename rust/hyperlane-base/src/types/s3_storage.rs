@@ -13,7 +13,7 @@ use rusoto_core::{
 use rusoto_s3::{GetObjectError, GetObjectRequest, PutObjectRequest, S3Client, S3};
 use tokio::time::timeout;
 
-use hyperlane_core::{SignedAnnouncement, SignedCheckpoint};
+use hyperlane_core::{SignedAnnouncement, SignedCheckpoint, SignedCheckpointWithMessageId};
 
 use crate::CheckpointSyncer;
 
@@ -123,6 +123,10 @@ impl S3Storage {
         format!("checkpoint_{}.json", index)
     }
 
+    fn checkpoint_with_id_key(index: u32) -> String {
+        format!("checkpoint_{}_with_id.json", index)
+    }
+
     fn index_key() -> String {
         "checkpoint_latest_index.json".to_owned()
     }
@@ -159,6 +163,14 @@ impl CheckpointSyncer for S3Storage {
             .map_err(Into::into)
     }
 
+    async fn fetch_checkpoint_with_message_id(&self, index: u32) -> Result<Option<SignedCheckpointWithMessageId>> {
+        self.anonymously_read_from_bucket(S3Storage::checkpoint_with_id_key(index))
+            .await?
+            .map(|data| serde_json::from_slice(&data))
+            .transpose()
+            .map_err(Into::into)
+    }
+
     async fn write_checkpoint(&self, signed_checkpoint: &SignedCheckpoint) -> Result<()> {
         let serialized_checkpoint = serde_json::to_string_pretty(signed_checkpoint)?;
         self.write_to_bucket(
@@ -175,17 +187,30 @@ impl CheckpointSyncer for S3Storage {
         Ok(())
     }
 
+    async fn write_checkpoint_with_message_id(&self, signed_checkpoint: &SignedCheckpointWithMessageId) -> Result<()> {
+        let serialized_checkpoint = serde_json::to_string_pretty(signed_checkpoint)?;
+        self.write_to_bucket(
+            S3Storage::checkpoint_with_id_key(signed_checkpoint.value.checkpoint.index),
+            &serialized_checkpoint,
+        )
+        .await?;
+
+        // self.write_to_bucket(
+        //     S3Storage::index_key(),
+        //     &signed_checkpoint.value.checkpoint.index.to_string(),
+        // )
+        // .await?;
+        Ok(())
+    }
+
     async fn write_announcement(&self, signed_announcement: &SignedAnnouncement) -> Result<()> {
         let serialized_announcement = serde_json::to_string_pretty(signed_announcement)?;
         self.write_to_bucket(S3Storage::announcement_key(), &serialized_announcement)
             .await?;
         Ok(())
     }
+
     fn announcement_location(&self) -> String {
-        let mut location: String = "s3://".to_owned();
-        location.push_str(self.bucket.as_ref());
-        location.push('/');
-        location.push_str(self.region.name());
-        location
+        format!("s3://{}/{}", self.bucket, self.region.name())
     }
 }

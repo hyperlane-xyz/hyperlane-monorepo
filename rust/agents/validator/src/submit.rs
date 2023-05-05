@@ -7,14 +7,14 @@ use prometheus::IntGauge;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, info, info_span, instrument::Instrumented, Instrument};
 
-use hyperlane_base::{CheckpointSyncer, CoreMetrics};
-use hyperlane_core::{Announcement, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox};
+use hyperlane_base::{CheckpointSyncer, CoreMetrics, CachingMailbox};
+use hyperlane_core::{Announcement, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox, CheckpointWithMessageId};
 
 pub(crate) struct ValidatorSubmitter {
     interval: Duration,
     reorg_period: Option<NonZeroU64>,
     signer: Arc<dyn HyperlaneSigner>,
-    mailbox: Arc<dyn Mailbox>,
+    mailbox: CachingMailbox,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
     metrics: ValidatorSubmitterMetrics,
 }
@@ -23,7 +23,7 @@ impl ValidatorSubmitter {
     pub(crate) fn new(
         interval: Duration,
         reorg_period: u64,
-        mailbox: Arc<dyn Mailbox>,
+        mailbox: CachingMailbox,
         signer: Arc<dyn HyperlaneSigner>,
         checkpoint_syncer: Arc<dyn CheckpointSyncer>,
         metrics: ValidatorSubmitterMetrics,
@@ -47,8 +47,8 @@ impl ValidatorSubmitter {
         // Sign and post the validator announcement
         let announcement = Announcement {
             validator: self.signer.eth_address(),
-            mailbox_address: self.mailbox.address(),
-            mailbox_domain: self.mailbox.domain().id(),
+            mailbox_address: self.mailbox.mailbox().address(),
+            mailbox_domain: self.mailbox.mailbox().domain().id(),
             storage_location: self.checkpoint_syncer.announcement_location(),
         };
         let signed_announcement = self.signer.sign(announcement).await?;
@@ -128,6 +128,22 @@ impl ValidatorSubmitter {
                 .map(|i| i < latest_checkpoint.index)
                 .unwrap_or(true)
             {
+                for index in current_index.unwrap_or(latest_checkpoint.index)..=latest_checkpoint.index {
+
+                    // TODO: unwraps?
+                    let message_id = self.mailbox.db().message_id_by_nonce(index).unwrap().unwrap();
+
+                    let signed_checkpoint_with_message_id = self.signer.sign(CheckpointWithMessageId {
+                        message_id,
+                        checkpoint: latest_checkpoint
+                    }).await?;
+
+                    info!(signed_checkpoint = ?signed_checkpoint_with_message_id, signer=?self.signer, "Signed checkpoint with message id");
+                    self.checkpoint_syncer
+                        .write_checkpoint_with_message_id(&signed_checkpoint_with_message_id)
+                        .await?;
+                }
+
                 let signed_checkpoint = self.signer.sign(latest_checkpoint).await?;
 
                 info!(signed_checkpoint = ?signed_checkpoint, signer=?self.signer, "Signed new latest checkpoint");

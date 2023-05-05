@@ -452,7 +452,7 @@ mod test {
                 sync_metrics,
             );
 
-            let sync_task = contract_sync.sync_dispatched_messages();
+            let sync_task = contract_sync.sync_dispatched_messages(None);
             let test_pass_fut = timeout(Duration::from_secs(5), async move {
                 let mut interval = interval(Duration::from_millis(20));
                 loop {

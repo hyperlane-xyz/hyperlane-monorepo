@@ -1,5 +1,6 @@
 //! Configuration
 
+use std::path::PathBuf;
 use std::time::Duration;
 
 use eyre::{eyre, Context};
@@ -13,6 +14,8 @@ use hyperlane_core::HyperlaneDomain;
 
 decl_settings!(Validator,
     Parsed {
+        /// Database path
+        db: PathBuf,
         /// Chain to validate messages on
         origin_chain: HyperlaneDomain,
         /// The validator attestation signer
@@ -25,6 +28,8 @@ decl_settings!(Validator,
         interval: Duration,
     },
     Raw {
+        /// Database path (path on the fs)
+        db: Option<String>,
         // Name of the chain to validate message on
         originchainname: Option<String>,
         /// The validator attestation signer
@@ -83,6 +88,16 @@ impl FromRawConf<'_, RawValidatorSettings> for ValidatorSettings {
             .take_err(&mut err, || cwp + "originchainname")
         else { return Err(err) };
 
+        let db = raw
+            .db
+            .and_then(|r| r.parse().take_err(&mut err, || cwp + "db"))
+            .unwrap_or_else(|| {
+                std::env::current_dir().unwrap().join(format!(
+                    "validator_db_{}",
+                    origin_chain_name
+                ))
+            });
+
         let base = raw
             .base
             .parse_config_with_filter::<Settings>(
@@ -100,6 +115,7 @@ impl FromRawConf<'_, RawValidatorSettings> for ValidatorSettings {
         err.into_result()?;
         Ok(Self {
             base: base.unwrap(),
+            db,
             origin_chain: origin_chain.unwrap(),
             validator: validator.unwrap(),
             checkpoint_syncer: checkpoint_syncer.unwrap(),
