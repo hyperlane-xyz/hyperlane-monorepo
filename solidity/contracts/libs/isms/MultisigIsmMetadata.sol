@@ -3,13 +3,13 @@ pragma solidity >=0.8.0;
 
 /**
  * Format of metadata:
- * [   0:   4] Root index
- * [   4:  36] Origin mailbox address
- * [  36:  VS] Validator signatures (where VS := 36 + Threshold * 65 bytes)
+ * [   0:  32] Origin mailbox address
+ * [  32:  VS] Validator signatures (where VS := 36 + Threshold * 65 bytes)
  * [  VS:????] Suffix
  *
  * Format of suffix:
- * [  -33:  -1] Merkle root
+ * [  -38:  -5] Merkle root
+ * [   -5:  -1] Root index
  * [   -1:   0] SuffixType.ROOT
  *                  OR
  * [-1056: -33] Merkle proof
@@ -17,33 +17,21 @@ pragma solidity >=0.8.0;
  * [   -1:   0] SuffixType.PROOF_AND_ID
  */
 library MultisigIsmMetadata {
-    uint8 private constant MERKLE_INDEX_OFFSET = 0;
-    uint8 private constant ORIGIN_MAILBOX_OFFSET = 4;
-    uint8 private constant SIGNATURES_OFFSET = 36;
+    uint8 private constant ORIGIN_MAILBOX_OFFSET = 0;
+    uint8 private constant SIGNATURES_OFFSET = 32;
     uint8 private constant SIGNATURE_LENGTH = 65;
 
-    uint8 private constant SUFFIX_TYPE_OFFSET = 0;
-    uint8 private constant SUFFIX_ROOT_OFFSET = 1;
-
-    uint8 private constant SUFFIX_ID_OFFSET = 1;
-    uint8 private constant SUFFIX_PROOF_OFFSET = 33;
-
     enum SuffixType {
-        ROOT,
+        ROOT_AND_INDEX,
         PROOF_AND_ID
     }
 
-    /**
-     * @notice Returns the index of the signed checkpoint.
-     * @param _metadata ABI encoded Multisig ISM metadata.
-     * @return Index of the signed checkpoint
-     */
-    function index(bytes calldata _metadata) internal pure returns (uint32) {
-        return
-            uint32(
-                bytes4(_metadata[MERKLE_INDEX_OFFSET:MERKLE_INDEX_OFFSET + 4])
-            );
-    }
+    uint8 private constant SUFFIX_TYPE_OFFSET = 0;
+    uint8 private constant SUFFIX_INDEX_OFFSET = 1;
+    uint8 private constant SUFFIX_ROOT_OFFSET = 5;
+
+    uint8 private constant SUFFIX_ID_OFFSET = 1;
+    uint8 private constant SUFFIX_PROOF_OFFSET = 33;
 
     /**
      * @notice Returns the origin mailbox of the signed checkpoint as bytes32.
@@ -100,12 +88,22 @@ library MultisigIsmMetadata {
     }
 
     /**
+     * @notice Returns the index of the signed checkpoint.
+     * @param _metadata ABI encoded Multisig ISM metadata.
+     * @return Index of the signed checkpoint
+     */
+    function index(bytes calldata _metadata) internal pure returns (uint32) {
+        assert(suffixType(_metadata) == SuffixType.ROOT_AND_INDEX);
+        return uint32(bytes4(suffix(_metadata, SUFFIX_INDEX_OFFSET, 4)));
+    }
+
+    /**
      * @notice Returns the merkle root of the signed checkpoint.
      * @param _metadata ABI encoded Multisig ISM metadata.
      * @return Merkle root of the signed checkpoint
      */
     function root(bytes calldata _metadata) internal pure returns (bytes32) {
-        assert(suffixType(_metadata) == SuffixType.ROOT);
+        assert(suffixType(_metadata) == SuffixType.ROOT_AND_INDEX);
         return bytes32(suffix(_metadata, SUFFIX_ROOT_OFFSET, 32));
     }
 
