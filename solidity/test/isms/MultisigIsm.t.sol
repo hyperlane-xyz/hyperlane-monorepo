@@ -86,7 +86,6 @@ contract MultisigIsmTest is Test {
         MultisigIsmMetadata.SuffixType suffixType = MultisigIsmMetadata
             .SuffixType(uint8(uint256(seed) % 2));
         bytes memory metadata = abi.encodePacked(
-            suffixType,
             checkpointIndex,
             mailboxAsBytes32
         );
@@ -95,9 +94,14 @@ contract MultisigIsmTest is Test {
             metadata = abi.encodePacked(metadata, r, s, v);
         }
         if (suffixType == MultisigIsmMetadata.SuffixType.ROOT) {
-            metadata = abi.encodePacked(metadata, checkpointRoot);
+            metadata = abi.encodePacked(metadata, checkpointRoot, suffixType);
         } else {
-            metadata = abi.encodePacked(metadata, mailbox.proof(), messageId);
+            metadata = abi.encodePacked(
+                metadata,
+                mailbox.proof(),
+                messageId,
+                suffixType
+            );
         }
         return metadata;
     }
@@ -129,7 +133,7 @@ contract MultisigIsmTest is Test {
         bytes memory metadata = getMetadata(m, n, seed, message);
 
         // changing single bit in message ID or root should fail signature verification
-        metadata[metadata.length - 1] = ~metadata[metadata.length - 1];
+        metadata[metadata.length - 2] = ~metadata[metadata.length - 2];
         ism.verify(metadata, message);
     }
 }
