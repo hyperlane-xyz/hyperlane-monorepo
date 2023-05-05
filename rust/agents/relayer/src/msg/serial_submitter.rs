@@ -147,7 +147,7 @@ impl SerialSubmitter {
                 self.run_queue.push(Reverse(op));
                 return Ok(());
             }
-            TxPrepareResult::Failure => {
+            TxPrepareResult::DoNotRetry => {
                 self.metrics.txs_failed.inc();
                 return Ok(());
             }
@@ -159,7 +159,7 @@ impl SerialSubmitter {
 
         match op.submit().await {
             TxRunResult::Success => self.metrics.txs_processed.inc(),
-            TxRunResult::Failure => self.metrics.txs_failed.inc(),
+            TxRunResult::DoNotRetry => self.metrics.txs_failed.inc(),
             TxRunResult::Retry => {
                 self.metrics.txs_failed.inc();
                 self.run_queue.push(Reverse(op));

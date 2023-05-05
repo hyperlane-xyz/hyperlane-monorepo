@@ -69,8 +69,9 @@ pub enum TxPrepareResult {
     Ready,
     /// This Txn is not ready to be attempted again yet
     NotReady,
-    /// Txn preparation failed and we should not try again
-    Failure,
+    /// Txn preparation failed and we should not try again or it has already
+    /// been processed.
+    DoNotRetry,
     /// A retry-able error occurred and we should retry after
     /// `next_attempt_after`
     Retry,
@@ -84,7 +85,7 @@ pub enum TxRunResult {
     /// Transaction was successfully processed
     Success,
     /// Txn failed/reverted and we should not try again
-    Failure,
+    DoNotRetry,
     /// Txn failed/reverted and we should try again after `next_attempt_after`
     Retry,
     /// Pass the error up the chain, this is non-recoverable and indicates a
@@ -105,3 +106,36 @@ pub enum TxValidationResult {
     /// system failure.
     CriticalFailure(Report),
 }
+
+/// create a `tx_try!` macro for the `on_retry` handler and the correct
+/// `CriticalFailure` enum type.
+macro_rules! make_tx_try {
+    ($on_retry:expr, $critical_failure:path) => {
+                        /// Handle a result and either return early with retry or a critical failure on
+                        /// error.
+                        macro_rules! tx_try {
+                            (critical: $e:expr, $ctx:literal) => {
+                                match $e {
+                                    Ok(v) => v,
+                                    Err(e) => {
+                                        error!(error=?e, concat!("Error when ", $ctx));
+                                        return $critical_failure(
+                                            Err(e).context(concat!("When ", $ctx)).unwrap_err()
+                                        );
+                                    }
+                                }
+                            };
+                            ($e:expr, $ctx:literal) => {
+                                match $e {
+                                    Ok(v) => v,
+                                    Err(e) => {
+                                        warn!(error=?e, concat!("Error when ", $ctx));
+                                        return $on_retry();
+                                    }
+                                }
+                            };
+                        }
+    };
+}
+
+pub(super) use make_tx_try;

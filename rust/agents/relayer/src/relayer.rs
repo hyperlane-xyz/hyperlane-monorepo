@@ -23,9 +23,9 @@ use crate::{
     msg::{
         gas_payment::GasPaymentEnforcer,
         metadata::BaseMetadataBuilder,
+        pending_message::PendingMessage,
         processor::{MessageProcessor, MessageProcessorMetrics},
         serial_submitter::{SerialSubmitter, SerialSubmitterMetrics},
-        pending_message::PendingMessage,
     },
     settings::{matching_list::MatchingList, RelayerSettings},
 };
