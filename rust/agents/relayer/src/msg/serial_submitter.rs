@@ -10,7 +10,7 @@ use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tracing::{info_span, instrument, instrument::Instrumented, Instrument};
 
-use hyperlane_base::{db::HyperlaneDB, CoreMetrics};
+use hyperlane_base::CoreMetrics;
 use hyperlane_core::HyperlaneDomain;
 
 use super::pending_operation::*;
@@ -64,45 +64,47 @@ use super::pending_operation::*;
 /// eligible for submission, we should be working on it within reason. This
 /// must be balanced with the cost of making RPCs that will almost certainly
 /// fail and potentially block new messages from being sent immediately.
-///
-/// TODO: Do we also want to await finality_blocks on source chain before
-///  attempting submission? Does this already happen?
 #[derive(Debug, new)]
 pub struct SerialSubmitter {
+    /// Domain this submitter delivers to.
+    domain: HyperlaneDomain,
     /// Receiver for new messages to submit.
-    rx: mpsc::UnboundedReceiver<Box<dyn PendingOperation>>,
+    rx: mpsc::UnboundedReceiver<Box<DynPendingOperation>>,
     /// Messages waiting for their turn to be dispatched. The SerialSubmitter
     /// can only dispatch one message at a time, so this queue could grow.
     #[new(default)]
-    run_queue: BinaryHeap<Reverse<Box<dyn PendingOperation>>>,
+    run_queue: BinaryHeap<Reverse<Box<DynPendingOperation>>>,
     #[new(default)]
-    validation_queue: BinaryHeap<Reverse<Box<dyn PendingOperation>>>,
-    /// Database for the origin domain
-    db: HyperlaneDB,
+    validation_queue: BinaryHeap<Reverse<Box<DynPendingOperation>>>,
     /// Metrics for serial submitter.
     metrics: SerialSubmitterMetrics,
 }
 
 impl SerialSubmitter {
+    pub fn domain(&self) -> &HyperlaneDomain {
+        &self.domain
+    }
+
     pub fn spawn(mut self) -> Instrumented<JoinHandle<Result<()>>> {
         tokio::spawn(async move { self.work_loop().await })
             .instrument(info_span!("serial submitter work loop"))
     }
 
-    #[instrument(skip_all, fields(mbx=%self.mailbox.domain()))]
+    #[instrument(skip_all, fields(domain=%self.domain))]
     async fn work_loop(&mut self) -> Result<()> {
         loop {
-            self.tick().await?;
+            self.tick_read().await?;
+            self.update_metrics();
+            self.tick_process().await?;
+            self.update_metrics();
+            self.tick_validate().await?;
+            self.update_metrics();
             sleep(Duration::from_millis(200)).await;
         }
     }
 
-    /// Tick represents a single round of scheduling wherein we will process
-    /// each queue and await at most one message submission. It is extracted
-    /// from the main loop to allow for testing the state of the scheduler
-    /// at particular points without having to worry about concurrent
-    /// access.
-    async fn tick(&mut self) -> Result<()> {
+    /// Fetch any new operations from the channel.
+    async fn tick_read(&mut self) -> Result<()> {
         // Pull any messages sent by processor over channel.
         loop {
             match self.rx.try_recv() {
@@ -117,17 +119,11 @@ impl SerialSubmitter {
                 }
             }
         }
+        Ok(())
+    }
 
-        // TODO: Scan verification queue, dropping messages that have been
-        // confirmed processed by the mailbox indexer observing it. For any
-        // still-unverified messages that have been in the verification queue
-        // for > threshold_time, move them back to the wait queue for further
-        // processing.
-
-        self.metrics
-            .run_queue_length_gauge
-            .set(self.run_queue.len() as i64);
-
+    /// Process pending operations.
+    async fn tick_process(&mut self) -> Result<()> {
         // Pick the next message to try processing.
         let mut op = match self.run_queue.pop() {
             Some(op) => op.0,
@@ -137,7 +133,9 @@ impl SerialSubmitter {
         // in the future we could pipeline this so that the next operation is being
         // prepared while the current one is being submitted
         match op.prepare().await {
-            TxPrepareResult::Ready => {}
+            TxPrepareResult::Ready => {
+                self.metrics.txs_prepared.inc();
+            }
             TxPrepareResult::NotReady => {
                 self.run_queue.push(Reverse(op));
                 return Ok(());
@@ -148,24 +146,26 @@ impl SerialSubmitter {
                 return Ok(());
             }
             TxPrepareResult::DoNotRetry => {
-                self.metrics.txs_failed.inc();
+                // not strictly an error, could have already been processed
+                self.metrics.txs_prepared.inc();
                 return Ok(());
             }
             TxPrepareResult::CriticalFailure(e) => {
-                self.metrics.txs_failed.inc();
                 return Err(e);
             }
         };
 
         match op.submit().await {
-            TxRunResult::Success => self.metrics.txs_processed.inc(),
+            TxRunResult::Success => {
+                self.metrics.txs_processed.inc();
+                self.validation_queue.push(Reverse(op));
+            }
             TxRunResult::DoNotRetry => self.metrics.txs_failed.inc(),
             TxRunResult::Retry => {
                 self.metrics.txs_failed.inc();
                 self.run_queue.push(Reverse(op));
             }
             TxRunResult::CriticalFailure(e) => {
-                self.metrics.txs_failed.inc();
                 return Err(e);
             }
         }
@@ -173,9 +173,39 @@ impl SerialSubmitter {
         Ok(())
     }
 
-    fn record_message_process_success(&mut self) -> Result<()> {
-        self.metrics.txs_processed.inc();
+    /// Validate submitted operations.
+    async fn tick_validate(&mut self) -> Result<()> {
+        while let Some(Reverse(mut op)) = self.validation_queue.pop() {
+            let res: TxValidationResult = op.validate().await;
+            match res {
+                TxValidationResult::Valid => {
+                    self.metrics.txs_validated.inc();
+                }
+                TxValidationResult::NotReady => {
+                    self.validation_queue.push(Reverse(op));
+                    break;
+                }
+                TxValidationResult::Retry => {
+                    self.validation_queue.push(Reverse(op));
+                }
+                TxValidationResult::Invalid => {
+                    // needs to be re-run
+                    self.run_queue.push(Reverse(op));
+                }
+                TxValidationResult::CriticalFailure(e) => return Err(e),
+            }
+        }
+
         Ok(())
+    }
+
+    fn update_metrics(&self) {
+        self.metrics
+            .run_queue_length_gauge
+            .set(self.run_queue.len() as i64);
+        self.metrics
+            .validation_queue_length_gauge
+            .set(self.validation_queue.len() as i64);
     }
 }
 
@@ -190,7 +220,8 @@ impl SerialSubmitterMetrics {
         todo!()
         // let destination = destination.name();
         // Self {
-        //     run_queue_length_gauge: metrics.submitter_queue_length().with_label_values(&[
+        //     run_queue_length_gauge:
+        // metrics.submitter_queue_length().with_label_values(&[
         //         origin,
         //         destination,
         //         "run_queue",

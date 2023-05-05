@@ -30,32 +30,37 @@ type Result<T> = std::result::Result<T, DbError>;
 
 /// DB handle for storing data tied to a specific Mailbox.
 #[derive(Debug, Clone)]
-pub struct HyperlaneDB(TypedDB);
+pub struct HyperlaneDB(HyperlaneDomain, TypedDB);
 
 impl std::ops::Deref for HyperlaneDB {
     type Target = TypedDB;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.1
     }
 }
 
 impl AsRef<TypedDB> for HyperlaneDB {
     fn as_ref(&self) -> &TypedDB {
-        &self.0
+        &self.1
     }
 }
 
 impl AsRef<DB> for HyperlaneDB {
     fn as_ref(&self) -> &DB {
-        self.0.as_ref()
+        self.1.as_ref()
     }
 }
 
 impl HyperlaneDB {
     /// Instantiated new `HyperlaneDB`
-    pub fn new(domain: &HyperlaneDomain, db: DB) -> Self {
-        Self(TypedDB::new(domain, db))
+    pub fn new(domain: HyperlaneDomain, db: DB) -> Self {
+        let typed_db = TypedDB::new(&domain, db);
+        Self(domain, typed_db)
+    }
+
+    pub fn domain(&self) -> &HyperlaneDomain {
+        &self.0
     }
 
     /// Store list of messages

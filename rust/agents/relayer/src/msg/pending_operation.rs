@@ -125,6 +125,8 @@ pub enum TxValidationResult {
     /// Transaction was successfully validated as being included in the
     /// blockchain
     Valid,
+    /// This Txn is not ready to be validated yet
+    NotReady,
     /// We can't assess validity yet, check again after `next_attempt_after`
     Retry,
     /// Transaction was not included and we should re-attempt preparing and
