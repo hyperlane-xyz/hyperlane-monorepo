@@ -140,32 +140,32 @@ pub enum TxValidationResult {
 /// `CriticalFailure` enum type.
 macro_rules! make_tx_try {
     ($on_retry:expr, $critical_failure:path) => {
-                        /// Handle a result and either return early with retry or a critical failure on
-                        /// error.
-                        macro_rules! tx_try {
-                            (critical: $e:expr, $ctx:literal) => {
-                                match $e {
-                                    Ok(v) => v,
-                                    Err(e) => {
-                                        error!(error=?e, concat!("Error when ", $ctx));
-                                        return $critical_failure(
-                                            Err::<(), _>(e)
-                                                .context(concat!("When ", $ctx))
-                                                .unwrap_err()
-                                        );
-                                    }
+        /// Handle a result and either return early with retry or a critical failure on
+        /// error.
+        macro_rules! tx_try {
+                                    (critical: $e:expr, $ctx:literal) => {
+                                        match $e {
+                                            Ok(v) => v,
+                                            Err(e) => {
+                                                error!(error=?e, concat!("Error when ", $ctx));
+                                                return $critical_failure(
+                                                    Err::<(), _>(e)
+                                                        .context(concat!("When ", $ctx))
+                                                        .unwrap_err()
+                                                );
+                                            }
+                                        }
+                                    };
+                                    ($e:expr, $ctx:literal) => {
+                                        match $e {
+                                            Ok(v) => v,
+                                            Err(e) => {
+                                                warn!(error=?e, concat!("Error when ", $ctx));
+                                                return $on_retry();
+                                            }
+                                        }
+                                    };
                                 }
-                            };
-                            ($e:expr, $ctx:literal) => {
-                                match $e {
-                                    Ok(v) => v,
-                                    Err(e) => {
-                                        warn!(error=?e, concat!("Error when ", $ctx));
-                                        return $on_retry();
-                                    }
-                                }
-                            };
-                        }
     };
 }
 
