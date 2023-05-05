@@ -11,6 +11,10 @@ library CheckpointLib {
      * @notice Returns the digest validators are expected to sign when signing checkpoints.
      * @param _origin The origin domain of the checkpoint.
      * @param _originMailbox The address of the origin mailbox as bytes32.
+     * @param _checkpointRoot The root of the checkpoint.
+     * @param _checkpointIndex The index of the checkpoint.
+     * @param _messageId The message ID of the checkpoint.
+     * @dev Message ID must match leaf content of checkpoint root at index.
      * @return The digest of the checkpoint.
      */
     function digest(

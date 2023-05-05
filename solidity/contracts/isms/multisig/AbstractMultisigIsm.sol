@@ -95,18 +95,18 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
 
         if (
             MultisigIsmMetadata.suffixType(_metadata) ==
-            MultisigIsmMetadata.SuffixType.ROOT_AND_INDEX
+            MultisigIsmMetadata.SuffixType.ROOT
         ) {
-            index = MultisigIsmMetadata.index(_metadata);
             root = MultisigIsmMetadata.root(_metadata);
+            index = Message.nonce(_message);
             messageId = Message.id(_message);
         } else {
-            index = Message.nonce(_message);
             root = MerkleLib.branchRoot(
                 Message.id(_message),
                 MultisigIsmMetadata.merkleProof(_metadata),
                 index
             );
+            index = MultisigIsmMetadata.index(_metadata);
             messageId = MultisigIsmMetadata.signedMessageId(_metadata);
         }
 
