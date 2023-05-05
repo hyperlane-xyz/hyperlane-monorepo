@@ -90,18 +90,15 @@ contract MultisigIsmTest is Test {
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(signers[i], digest);
             metadata = abi.encodePacked(metadata, r, s, v);
         }
-        if (suffixType == MultisigIsmMetadata.SuffixType.ROOT_AND_INDEX) {
-            metadata = abi.encodePacked(
-                metadata,
-                checkpointRoot,
-                checkpointIndex,
-                suffixType
-            );
+        if (suffixType == MultisigIsmMetadata.SuffixType.ROOT) {
+            metadata = abi.encodePacked(metadata, checkpointRoot, suffixType);
         } else {
+            // PROOF_ID_INDEX
             metadata = abi.encodePacked(
                 metadata,
                 mailbox.proof(),
                 messageId,
+                checkpointIndex,
                 suffixType
             );
         }
