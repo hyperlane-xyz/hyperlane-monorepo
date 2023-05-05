@@ -15,26 +15,24 @@ use hyperlane_core::HyperlaneDomain;
 
 use super::pending_operation::*;
 
-/// SerialSubmitter accepts undelivered messages over a channel from a
-/// MessageProcessor. It is responsible for executing the right strategy to
-/// deliver those messages to the destination chain. It is designed to be used
-/// in a scenario allowing only one simultaneously in-flight submission, a
-/// consequence imposed by strictly ordered nonces at the target chain combined
-/// with a hesitancy to speculatively batch > 1 messages with a sequence of
-/// nonces, which entails harder to manage error recovery, could lead to head of
-/// line blocking, etc.
+/// SerialSubmitter accepts operations over a channel. It is responsible for
+/// executing the right strategy to deliver those messages to the destination
+/// chain. It is designed to be used in a scenario allowing only one
+/// simultaneously in-flight submission, a consequence imposed by strictly
+/// ordered nonces at the target chain combined with a hesitancy to
+/// speculatively batch > 1 messages with a sequence of nonces, which entails
+/// harder to manage error recovery, could lead to head of line blocking, etc.
 ///
 /// The single transaction execution slot is (likely) a bottlenecked resource
 /// under steady state traffic, so the SerialSubmitter implemented in this file
-/// carefully schedules work items (pending messages) onto the constrained
+/// carefully schedules work items onto the constrained
 /// resource (transaction execution slot) according to a policy that
-/// incorporates both user-visible metrics (like distribution of message
-/// delivery latency and delivery order), as well as message delivery
-/// eligibility (e.g. due to (non-)existence of source chain gas payments).
+/// incorporates both user-visible metrics and message operation readiness
+/// checks.
 ///
-/// Messages which failed delivery due to a retriable error are also retained
-/// within the SerialSubmitter, and will eventually be retried according to our
-/// prioritization rule.
+/// Operations which failed processing due to a retriable error are also
+/// retained within the SerialSubmitter, and will eventually be retried
+/// according to our prioritization rule.
 ///
 /// Finally, the SerialSubmitter ensures that message delivery is robust to
 /// destination chain reorgs prior to committing delivery status to
@@ -49,15 +47,15 @@ use super::pending_operation::*;
 /// 1. Progress for well-behaved applications should not be inhibited by
 /// delivery of messages for which we have evidence of possible issues
 /// (i.e., that we have already tried and failed to deliver them, and have
-/// retained them for retry). So we should attempt delivery of fresh
-/// messages (num_retries=0) before ones that have been failing for a
+/// retained them for retry). So we should attempt processing operations
+/// (num_retries=0) before ones that have been failing for a
 /// while (num_retries>0)
 ///
-/// 2. Messages should be delivered in-order, i.e. if msg_a was sent on source
-/// chain prior to msg_b, and they're both destined for the same destination
-/// chain and are otherwise eligible, we should try to deliver msg_a before
-/// msg_b, all else equal. This is because we expect applications may prefer
-/// this even if they do not strictly rely on it for correctness.
+/// 2. Operations should be executed in in-order, i.e. if op_a was sent on
+/// source chain prior to op_b, and they're both destined for the same
+/// destination chain and are otherwise eligible, we should try to deliver op_a
+/// before op_b, all else equal. This is because we expect applications may
+/// prefer this even if they do not strictly rely on it for correctness.
 ///
 /// 3. Be [work-conserving](https://en.wikipedia.org/wiki/Work-conserving_scheduler) w.r.t.
 /// the single execution slot, i.e. so long as there is at least one message
