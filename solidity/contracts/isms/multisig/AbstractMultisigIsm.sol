@@ -88,31 +88,35 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
         pure
         returns (bytes32)
     {
-        bytes32 signedRoot;
-        bytes32 signedMessageId;
+        // signed checkpoint properties
+        bytes32 root;
+        uint32 index;
+        bytes32 messageId;
 
         if (
             MultisigIsmMetadata.suffixType(_metadata) ==
-            MultisigIsmMetadata.SuffixType.ROOT
+            MultisigIsmMetadata.SuffixType.ROOT_AND_INDEX
         ) {
-            signedRoot = MultisigIsmMetadata.root(_metadata);
-            signedMessageId = Message.id(_message);
+            index = MultisigIsmMetadata.index(_metadata);
+            root = MultisigIsmMetadata.root(_metadata);
+            messageId = Message.id(_message);
         } else {
-            signedRoot = MerkleLib.branchRoot(
+            index = Message.nonce(_message);
+            root = MerkleLib.branchRoot(
                 Message.id(_message),
                 MultisigIsmMetadata.merkleProof(_metadata),
-                Message.nonce(_message)
+                index
             );
-            signedMessageId = MultisigIsmMetadata.signedMessageId(_metadata);
+            messageId = MultisigIsmMetadata.signedMessageId(_metadata);
         }
 
         return
             CheckpointLib.digest(
                 Message.origin(_message),
                 MultisigIsmMetadata.originMailbox(_metadata),
-                signedRoot,
-                MultisigIsmMetadata.index(_metadata),
-                signedMessageId
+                root,
+                index,
+                messageId
             );
     }
 }

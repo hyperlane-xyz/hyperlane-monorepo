@@ -85,16 +85,18 @@ contract MultisigIsmTest is Test {
         );
         MultisigIsmMetadata.SuffixType suffixType = MultisigIsmMetadata
             .SuffixType(uint8(uint256(seed) % 2));
-        bytes memory metadata = abi.encodePacked(
-            checkpointIndex,
-            mailboxAsBytes32
-        );
+        bytes memory metadata = abi.encodePacked(mailboxAsBytes32);
         for (uint256 i = 0; i < m; i++) {
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(signers[i], digest);
             metadata = abi.encodePacked(metadata, r, s, v);
         }
-        if (suffixType == MultisigIsmMetadata.SuffixType.ROOT) {
-            metadata = abi.encodePacked(metadata, checkpointRoot, suffixType);
+        if (suffixType == MultisigIsmMetadata.SuffixType.ROOT_AND_INDEX) {
+            metadata = abi.encodePacked(
+                metadata,
+                checkpointRoot,
+                checkpointIndex,
+                suffixType
+            );
         } else {
             metadata = abi.encodePacked(
                 metadata,
