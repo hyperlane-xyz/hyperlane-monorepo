@@ -35,10 +35,10 @@ use crate::{
     settings::{matching_list::MatchingList, RelayerSettings},
 };
 
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Hash, PartialEq, Eq, Copy, Clone)]
 struct ContextKey {
-    origin: HyperlaneDomain,
-    destination: HyperlaneDomain,
+    origin: u32,
+    destination: u32,
 }
 
 /// A relayer agent
@@ -188,8 +188,8 @@ impl BaseAgent for Relayer {
 
                 msg_ctxs.insert(
                     ContextKey {
-                        origin: origin.clone(),
-                        destination: destination.clone(),
+                        origin: origin.id(),
+                        destination: destination.id(),
                     },
                     Arc::new(MessageCtx {
                         destination_mailbox: mailboxes[destination].clone(),
@@ -229,7 +229,7 @@ impl BaseAgent for Relayer {
         for destination in &self.destination_chains {
             let (send_channel, receive_channel) =
                 mpsc::unbounded_channel::<Box<DynPendingOperation>>();
-            send_channels.insert(destination.clone(), send_channel);
+            send_channels.insert(destination.id(), send_channel);
 
             tasks.push(self.run_destination_submitter(destination, receive_channel));
         }
@@ -247,6 +247,20 @@ impl BaseAgent for Relayer {
                 origin,
                 self.destination_chains.iter(),
             );
+            let destination_ctxs = self
+                .destination_chains
+                .iter()
+                .map(|destination| {
+                    (
+                        destination.id(),
+                        self.msg_ctxs[&ContextKey {
+                            origin: origin.id(),
+                            destination: destination.id(),
+                        }]
+                            .clone(),
+                    )
+                })
+                .collect();
             let message_processor = MessageProcessor::new(
                 self.mailboxes[origin].db().clone(),
                 self.whitelist.clone(),
@@ -254,6 +268,7 @@ impl BaseAgent for Relayer {
                 metrics,
                 self.prover_syncs[origin].clone(),
                 send_channels.clone(),
+                destination_ctxs,
             );
 
             tasks.push(self.run_message_processor(message_processor));
