@@ -8,7 +8,8 @@ interface IInterchainSecurityModule {
         AGGREGATION,
         LEGACY_MULTISIG,
         MULTISIG,
-        WORMHOLE
+        WORMHOLE,
+        NATIVE
     }
 
     /**
