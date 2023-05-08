@@ -87,11 +87,27 @@ export interface RpcPaginationOptions {
  * Keep in sync with ChainMetadata above
  */
 export const ChainMetadataSchema = z.object({
-  chainId: z.number().positive(),
-  domainId: z.number().positive().optional(),
-  name: z.string(),
-  displayName: z.string().optional(),
-  displayNameShort: z.string().optional(),
+  chainId: z.number().positive().describe(`The chainId of the chain.`),
+  domainId: z
+    .number()
+    .positive()
+    .optional()
+    .describe(
+      'The domainId of the chain, should generally default to `chainId`. Consumer of `ChainMetadata` should use this value if present, but otherwise fallback to `chainId`.',
+    ),
+  name: z
+    .string()
+    .describe(
+      `The string identifier of the chain, used as the key in dictornaries.`,
+    ),
+  displayName: z
+    .string()
+    .optional()
+    .describe(`Human-readable name of the chain.`),
+  displayNameShort: z
+    .string()
+    .optional()
+    .describe(`Shorter human-readable name of the chain.`),
   nativeToken: z
     .object({
       name: z.string(),
@@ -99,24 +115,43 @@ export const ChainMetadataSchema = z.object({
       decimals: z.number().positive(),
     })
     .optional(),
-  publicRpcUrls: z
+  rpcUrls: z
     .array(
       z.object({
-        http: z.string().url(),
-        webSocket: z.string().optional(),
+        http: z.string().url().describe(`The HTTP RPC endpoint URL.`),
+        webSocket: z
+          .string()
+          .optional()
+          .describe(`The WebSocket RPC endpoint URL.`),
         pagination: z
           .object({
-            maxBlockRange: z.number().positive().optional(),
+            maxBlockRange: z
+              .number()
+              .positive()
+              .optional()
+              .describe(
+                'The maximum number of blocks that this RPC supports getting logs for.',
+              ),
             minBlockNumber: z.number().positive().optional(),
             maxBlockAge: z.number().positive().optional(),
           })
-          .optional(),
+          .optional()
+          .describe(`Pagination options for the RPC endpoint.`),
         retry: z
           .object({
-            maxRequests: z.number().positive(),
-            baseRetryMs: z.number().positive(),
+            maxRequests: z
+              .number()
+              .positive()
+              .describe(
+                'The maximum number of requests to make before giving up.',
+              ),
+            baseRetryMs: z
+              .number()
+              .positive()
+              .describe('The base retry time in milliseconds.'),
           })
-          .optional(),
+          .optional()
+          .describe('Retry options for the RPC endpoint.'),
       }),
     )
     .nonempty(),
@@ -130,18 +165,76 @@ export const ChainMetadataSchema = z.object({
         family: z.nativeEnum(ExplorerFamily).optional(),
       }),
     )
-    .optional(),
+    .optional()
+    .describe(`Block explorers for the chain.`),
   blocks: z
     .object({
-      confirmations: z.number(),
-      reorgPeriod: z.number().optional(),
-      estimateBlockTime: z.number().positive().optional(),
+      confirmations: z
+        .number()
+        .describe(
+          `Number of blocks to wait before considering a transaction confirmed.`,
+        ),
+      reorgPeriod: z
+        .number()
+        .optional()
+        .describe(
+          'Number of blocks before a transaction has a near-zero chance of reverting.',
+        ),
+      estimateBlockTime: z
+        .number()
+        .positive()
+        .optional()
+        .describe('Rough estimate of time per block in seconds.'),
     })
-    .optional(),
+    .optional()
+    .describe(`Block settings for the chain/deployment.`),
   transactionOverrides: z.object({}).optional(),
   gasCurrencyCoinGeckoId: z.string().optional(),
   gnosisSafeTransactionServiceUrl: z.string().optional(),
   isTestnet: z.boolean().optional(),
+});
+
+export const HyperlaneDeploymentArtifacts = z.object({
+  mailbox: z.string().describe(`The mailbox address for the chain.`),
+  interchainGasPaymaster: z
+    .string()
+    .describe(`The interchain gas paymaster address for the chain.`),
+  validatorAnnounce: z
+    .string()
+    .describe(`The validator announce address for the chain.`),
+
+  index: z.object({
+    from: z
+      .number()
+      .default(1999)
+      .describe('The starting block from which to index events.'),
+    chunk: z
+      .number()
+      .default(1000)
+      .describe('The number of blocks to index per chunk.'),
+  }),
+});
+
+export const AgentChainMetadataSchema = ChainMetadataSchema.extend(
+  HyperlaneDeploymentArtifacts.shape,
+).extend({
+  protocol: z
+    .enum(['ethereum', 'fuel'])
+    .default('ethereum')
+    .describe('The VM type of the chain, defaults to "ethereum" for EVM'),
+
+  rpcConsensusType: z
+    .enum(['fallback', 'quorum'])
+    .default('fallback')
+    .describe(
+      'The consensus type to use when multiple RPCs are configured. `fallback` will use the first RPC that returns a result, `quorum` will require a majority of RPCs to return the same result. Different consumers may choose to default to different values here, i.e. validators may want to default to `quorum` while relayers may want to default to `fallback`.',
+    ),
+  overrideRpcUrls: z
+    .string()
+    .optional()
+    .describe(
+      `This is a hacky way to allow for a comma-separated list of RPC URLs to be specified without a complex "path" in the agent configuration scheme. Agents should check for the existence of this field first and use that in conjunction with 'rpcConsensusType' if it exists, otherwise fall back to 'rpcUrls'.`,
+    ),
 });
 
 /**
