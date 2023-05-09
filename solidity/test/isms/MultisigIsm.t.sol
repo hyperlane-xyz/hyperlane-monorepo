@@ -124,8 +124,9 @@ abstract contract AbstractMultisigIsmTest is Test {
         bytes memory metadata = getMetadata(m, n, seed, message);
 
         // changing single bit in metadata should fail signature verification
-        metadata[metadata.length - 1] = ~metadata[metadata.length - 1];
-        ism.verify(metadata, message);
+        uint256 index = uint256(seed) % metadata.length;
+        metadata[index] = ~metadata[index];
+        assertFalse(ism.verify(metadata, message));
     }
 }
 
