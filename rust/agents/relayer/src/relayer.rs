@@ -50,7 +50,6 @@ pub struct Relayer {
     /// Context data for each (origin, destination) chain pair a message can be
     /// sent between
     msg_ctxs: HashMap<ContextKey, Arc<MessageCtx>>,
-    // TODO: use u32 instead of domain?
     /// Mailboxes for all chains (technically only need caching mailbox for
     /// origin chains)
     mailboxes: HashMap<HyperlaneDomain, CachingMailbox>,
