@@ -4,6 +4,9 @@ pragma solidity >=0.8.0;
 // ============ External Imports ============
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
+// ============ Internal Imports ============
+import {CheckpointLib} from "./CheckpointLib.sol";
+
 library LegacyCheckpointLib {
     /**
      * @notice Returns the digest validators are expected to sign when signing checkpoints.
@@ -42,13 +45,6 @@ library LegacyCheckpointLib {
         pure
         returns (bytes32)
     {
-        // Including the origin mailbox address in the signature allows the slashing
-        // protocol to enroll multiple mailboxes. Otherwise, a valid signature for
-        // mailbox A would be indistinguishable from a fraudulent signature for mailbox
-        // B.
-        // The slashing protocol should slash if validators sign attestations for
-        // anything other than a whitelisted mailbox.
-        return
-            keccak256(abi.encodePacked(_origin, _originMailbox, "HYPERLANE"));
+        return CheckpointLib.domainHash(_origin, _originMailbox);
     }
 }

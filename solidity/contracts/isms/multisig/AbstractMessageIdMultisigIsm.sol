@@ -31,7 +31,7 @@ abstract contract AbstractMessageIdMultisigIsm is AbstractMultisigIsm {
                 MessageIdMultisigIsmMetadata.originMailbox(_metadata),
                 MessageIdMultisigIsmMetadata.root(_metadata),
                 Message.nonce(_message),
-                Message.id(_metadata)
+                Message.id(_message)
             );
     }
 

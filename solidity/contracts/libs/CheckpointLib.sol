@@ -50,6 +50,13 @@ library CheckpointLib {
         pure
         returns (bytes32)
     {
-        return LegacyCheckpointLib.domainHash(_origin, _originMailbox);
+        // Including the origin mailbox address in the signature allows the slashing
+        // protocol to enroll multiple mailboxes. Otherwise, a valid signature for
+        // mailbox A would be indistinguishable from a fraudulent signature for mailbox
+        // B.
+        // The slashing protocol should slash if validators sign attestations for
+        // anything other than a whitelisted mailbox.
+        return
+            keccak256(abi.encodePacked(_origin, _originMailbox, "HYPERLANE"));
     }
 }

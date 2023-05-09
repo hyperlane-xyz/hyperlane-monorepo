@@ -10,13 +10,13 @@ import {TypeCasts} from "./TypeCasts.sol";
 library Message {
     using TypeCasts for bytes32;
 
-    uint256 private constant VERSION_OFFSET = 0;
-    uint256 private constant NONCE_OFFSET = 1;
-    uint256 private constant ORIGIN_OFFSET = 5;
-    uint256 private constant SENDER_OFFSET = 9;
-    uint256 private constant DESTINATION_OFFSET = 41;
-    uint256 private constant RECIPIENT_OFFSET = 45;
-    uint256 private constant BODY_OFFSET = 77;
+    uint8 private constant VERSION_OFFSET = 0;
+    uint8 private constant NONCE_OFFSET = 1;
+    uint8 private constant ORIGIN_OFFSET = 5;
+    uint8 private constant SENDER_OFFSET = 9;
+    uint8 private constant DESTINATION_OFFSET = 41;
+    uint8 private constant RECIPIENT_OFFSET = 45;
+    uint8 private constant BODY_OFFSET = 77;
 
     /**
      * @notice Returns formatted (packed) Hyperlane message with provided fields
