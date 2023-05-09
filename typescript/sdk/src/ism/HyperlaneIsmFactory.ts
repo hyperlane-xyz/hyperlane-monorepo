@@ -2,11 +2,14 @@ import { ethers } from 'ethers';
 
 import {
   DomainRoutingIsm__factory,
+  IAggregationIsm__factory,
   IInterchainSecurityModule__factory,
+  IMultisigIsm__factory,
+  IRoutingIsm__factory,
   StaticAggregationIsm__factory,
   StaticMOfNAddressSetFactory,
 } from '@hyperlane-xyz/core';
-import { types, utils } from '@hyperlane-xyz/utils';
+import { logging, types, utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
 import {
@@ -150,6 +153,85 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
       await factory.deploy(sorted, threshold);
     }
     return address;
+  }
+}
+
+// Note that this function may return false negatives, but should
+// not return false positives.
+// This can happen if, for example, the module has sender, recipient, or
+// body specific logic, as the sample message used when querying the ISM
+// sets all of these to zero.
+export async function moduleCanCertainlyVerify(
+  moduleAddress: types.Address,
+  multiProvider: MultiProvider,
+  origin: ChainName,
+  destination: ChainName,
+): Promise<boolean> {
+  const message = utils.formatMessage(
+    0,
+    0,
+    multiProvider.getDomainId(origin),
+    ethers.constants.AddressZero,
+    multiProvider.getDomainId(destination),
+    ethers.constants.AddressZero,
+    '0x',
+  );
+  const provider = multiProvider.getSignerOrProvider(destination);
+  const module = IInterchainSecurityModule__factory.connect(
+    moduleAddress,
+    provider,
+  );
+  try {
+    const moduleType = await module.moduleType();
+    if (
+      moduleType === ModuleType.MULTISIG ||
+      moduleType === ModuleType.LEGACY_MULTISIG
+    ) {
+      const multisigModule = IMultisigIsm__factory.connect(
+        moduleAddress,
+        provider,
+      );
+
+      const [, threshold] = await multisigModule.validatorsAndThreshold(
+        message,
+      );
+      return threshold > 0;
+    } else if (moduleType === ModuleType.ROUTING) {
+      const routingIsm = IRoutingIsm__factory.connect(moduleAddress, provider);
+      const subModule = await routingIsm.route(message);
+      return moduleCanCertainlyVerify(
+        subModule,
+        multiProvider,
+        origin,
+        destination,
+      );
+    } else if (moduleType === ModuleType.AGGREGATION) {
+      const aggregationIsm = IAggregationIsm__factory.connect(
+        moduleAddress,
+        provider,
+      );
+      const [subModules, threshold] = await aggregationIsm.modulesAndThreshold(
+        message,
+      );
+      let verified = 0;
+      for (const subModule of subModules) {
+        const canVerify = await moduleCanCertainlyVerify(
+          subModule,
+          multiProvider,
+          origin,
+          destination,
+        );
+        if (canVerify) {
+          verified += 1;
+        }
+      }
+      return verified >= threshold;
+    } else {
+      throw new Error(`Unsupported module type: ${moduleType}`);
+    }
+  } catch (e) {
+    logging.warn(`Error checking module ${moduleAddress}: ${e}`);
+    return false;
   }
 }
 

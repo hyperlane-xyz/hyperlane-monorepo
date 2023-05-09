@@ -1,4 +1,8 @@
-import { Router } from '@hyperlane-xyz/core';
+import {
+  IInterchainGasPaymaster__factory,
+  Mailbox__factory,
+  Router,
+} from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
 import {
@@ -8,6 +12,7 @@ import {
   filterOwnableContracts,
 } from '../contracts';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
+import { moduleCanCertainlyVerify } from '../ism/HyperlaneIsmFactory';
 import { RouterConfig } from '../router/types';
 import { ChainMap } from '../types';
 
@@ -16,6 +21,54 @@ export abstract class HyperlaneRouterDeployer<
   Factories extends HyperlaneFactories,
 > extends HyperlaneDeployer<Config, Factories> {
   abstract router(contracts: HyperlaneContracts<Factories>): Router;
+
+  // The ISM check does not appropriately handle ISMs that have sender,
+  // recipient, or body-specific logic. Folks that wish to deploy using
+  // such ISMs *may* need to override checkConfig to disable this check.
+  async checkConfig(configMap: ChainMap<Config>): Promise<void> {
+    const chains = Object.keys(configMap);
+    for (const [chain, config] of Object.entries(configMap)) {
+      const signerOrProvider = this.multiProvider.getSignerOrProvider(chain);
+      const igp = IInterchainGasPaymaster__factory.connect(
+        config.interchainGasPaymaster,
+        signerOrProvider,
+      );
+      const mailbox = Mailbox__factory.connect(
+        config.mailbox,
+        signerOrProvider,
+      );
+      const ism =
+        config.interchainSecurityModule ?? (await mailbox.defaultIsm());
+      const remotes = chains.filter((c) => c !== chain);
+      for (const remote of remotes) {
+        // Try to confirm that the IGP supports delivery to all remotes
+        try {
+          await igp.quoteGasPayment(this.multiProvider.getDomainId(remote), 1);
+        } catch (e) {
+          throw new Error(
+            `The specified or default IGP with address ${igp.address} on ` +
+              `${chain} is not configured to deliver messages to ${remote}, ` +
+              `did you mean to specify a different one?`,
+          );
+        }
+
+        // Try to confirm that the specified or default ISM can verify messages to all remotes
+        const canVerify = await moduleCanCertainlyVerify(
+          ism,
+          this.multiProvider,
+          chain,
+          remote,
+        );
+        if (!canVerify) {
+          throw new Error(
+            `The specified or default ISM with address ${ism} on ${chain} ` +
+              `cannot verify messages from ${remote}, did you forget to ` +
+              `specify an ISM, or mean to specify a different one?`,
+          );
+        }
+      }
+    }
+  }
 
   async initConnectionClients(
     contractsMap: HyperlaneContractsMap<Factories>,
@@ -62,7 +115,7 @@ export abstract class HyperlaneRouterDeployer<
 
       // skip if no enrollments are needed
       if (domains.length === 0) {
-        return;
+        continue;
       }
 
       await super.runIfOwner(chain, this.router(contracts), async () => {

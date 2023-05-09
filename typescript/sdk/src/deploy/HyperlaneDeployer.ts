@@ -55,6 +55,10 @@ export abstract class HyperlaneDeployer<
     this.cachedAddresses = addressesMap;
   }
 
+  async checkConfig(configMap: ChainMap<Config>): Promise<void> {
+    return;
+  }
+
   abstract deployContracts(
     chain: ChainName,
     config: Config,
@@ -63,6 +67,7 @@ export abstract class HyperlaneDeployer<
   async deploy(
     configMap: ChainMap<Config>,
   ): Promise<HyperlaneContractsMap<Factories>> {
+    await this.checkConfig(configMap);
     const configChains = Object.keys(configMap);
     const targetChains = this.multiProvider.intersect(
       configChains,
@@ -143,7 +148,9 @@ export abstract class HyperlaneDeployer<
     connectionClient: HyperlaneConnectionClient,
     config: ConnectionClientConfig,
   ): Promise<void> {
-    this.logger(`Initializing connection client on ${local}...`);
+    this.logger(
+      `Initializing connection client (if not already) on ${local}...`,
+    );
     await this.runIfOwner(local, connectionClient, async () => {
       // set mailbox if not already set (and configured)
       if (config.mailbox !== (await connectionClient.mailbox())) {
