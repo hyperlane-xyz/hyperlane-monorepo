@@ -226,19 +226,19 @@ impl SerialSubmitterMetrics {
                 .with_label_values(&[destination, "validation_queue"]),
             txs_prepared: metrics
                 .transactions_processed_count()
-                .with_label_values(&[destination, "prepared"]),
+                .with_label_values(&["prepared", destination]),
             txs_submitted: metrics
                 .transactions_processed_count()
-                .with_label_values(&[destination, "submitted"]),
+                .with_label_values(&["submitted", destination]),
             txs_validated: metrics
                 .transactions_processed_count()
-                .with_label_values(&[destination, "validated"]),
+                .with_label_values(&["validated", destination]),
             txs_invalidated: metrics
                 .transactions_processed_count()
-                .with_label_values(&[destination, "invalidated"]),
+                .with_label_values(&["invalidated", destination]),
             txs_failed: metrics
                 .transactions_processed_count()
-                .with_label_values(&[destination, "failed"]),
+                .with_label_values(&["failed", destination]),
         }
     }
 }

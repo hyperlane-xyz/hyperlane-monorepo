@@ -146,7 +146,7 @@ impl CoreMetrics {
                 "Number of transactions processed",
                 const_labels_ref
             ),
-            &["remote"],
+            &["phase", "chain"],
             registry
         )?;
 
@@ -332,8 +332,8 @@ impl CoreMetrics {
     /// Tracks the number of messages to go through each stage.
     ///
     /// Labels:
-    /// - `chain`: Chain the transaction was submitted to.
     /// - `phase`: Phase of the transaction submission process.
+    /// - `chain`: Chain the transaction was submitted to.
     ///
     /// The following phases have been implemented:
     /// - `prepared`: When the transaction has been prepared for submission.

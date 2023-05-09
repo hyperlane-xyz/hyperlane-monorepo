@@ -334,7 +334,6 @@ impl MessageSubmissionMetrics {
                 destination,
             ]),
             messages_processed: metrics.messages_processed_count().with_label_values(&[
-                "message_processed",
                 origin,
                 destination,
             ]),
