@@ -480,7 +480,7 @@ class ContextFunder {
       const bridgeAmount = await this.getFundingAmount(
         chain,
         funderAddress,
-        desiredBalanceEther.mul(10),
+        desiredBalanceEther.mul(5),
       );
       if (bridgeAmount.gt(0)) {
         await this.bridgeToL2(chain as L2Chain, funderAddress, bridgeAmount);
