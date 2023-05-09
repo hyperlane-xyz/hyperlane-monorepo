@@ -3,7 +3,6 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {AbstractMultisigIsm} from "./AbstractMultisigIsm.sol";
-import {MultisigIsmMetadata} from "../../libs/isms/MultisigIsmMetadata.sol";
 import {MetaProxy} from "../../libs/MetaProxy.sol";
 
 /**
@@ -11,7 +10,7 @@ import {MetaProxy} from "../../libs/MetaProxy.sol";
  * @notice Manages per-domain m-of-n Validator sets that are used
  * to verify interchain messages.
  */
-contract StaticMultisigIsm is AbstractMultisigIsm {
+abstract contract AbstractStaticMultisigIsm is AbstractMultisigIsm {
     // ============ Public Functions ============
 
     /**

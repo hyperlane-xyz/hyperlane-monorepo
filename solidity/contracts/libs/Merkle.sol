@@ -124,13 +124,14 @@ library MerkleLib {
      **/
     function branchRoot(
         bytes32 _item,
-        bytes32[TREE_DEPTH] memory _branch,
+        bytes32[TREE_DEPTH] memory _branch, // cheaper than calldata indexing
         uint256 _index
     ) internal pure returns (bytes32 _current) {
         _current = _item;
 
         for (uint256 i = 0; i < TREE_DEPTH; i++) {
             uint256 _ithBit = (_index >> i) & 0x01;
+            // cheaper than calldata indexing _branch[i*32:(i+1)*32];
             bytes32 _next = _branch[i];
             if (_ithBit == 1) {
                 _current = keccak256(abi.encodePacked(_next, _current));

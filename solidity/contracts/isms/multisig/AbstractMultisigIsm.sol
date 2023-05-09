@@ -8,8 +8,6 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {IMultisigIsm} from "../../interfaces/isms/IMultisigIsm.sol";
 import {Message} from "../../libs/Message.sol";
-import {MultisigIsmMetadata} from "../../libs/isms/MultisigIsmMetadata.sol";
-import {CheckpointLib} from "../../libs/CheckpointLib.sol";
 import {MerkleLib} from "../../libs/Merkle.sol";
 
 /**
@@ -18,12 +16,6 @@ import {MerkleLib} from "../../libs/Merkle.sol";
  * interchain messages.
  */
 abstract contract AbstractMultisigIsm is IMultisigIsm {
-    // ============ Constants ============
-
-    // solhint-disable-next-line const-name-snakecase
-    uint8 public constant moduleType =
-        uint8(IInterchainSecurityModule.Types.MULTISIG);
-
     // ============ Virtual Functions ============
     // ======= OVERRIDE THESE TO IMPLEMENT =======
 
@@ -41,6 +33,18 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
         virtual
         returns (address[] memory, uint8);
 
+    function digest(bytes calldata _metadata, bytes calldata _message)
+        internal
+        view
+        virtual
+        returns (bytes32);
+
+    function signatureAt(bytes calldata _metadata, uint256 _index)
+        internal
+        pure
+        virtual
+        returns (bytes memory signature);
+
     // ============ Public Functions ============
 
     /**
@@ -54,7 +58,7 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
         view
         returns (bool)
     {
-        bytes32 _digest = computeDigest(_metadata, _message);
+        bytes32 _digest = digest(_metadata, _message);
         (
             address[] memory _validators,
             uint8 _threshold
@@ -65,10 +69,7 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
         uint256 _validatorIndex = 0;
         // Assumes that signatures are ordered by validator
         for (uint256 i = 0; i < _threshold; ++i) {
-            address _signer = ECDSA.recover(
-                _digest,
-                MultisigIsmMetadata.signatureAt(_metadata, i)
-            );
+            address _signer = ECDSA.recover(_digest, signatureAt(_metadata, i));
             // Loop through remaining validators until we find a match
             while (
                 _validatorIndex < _validatorCount &&
@@ -81,42 +82,5 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
             ++_validatorIndex;
         }
         return true;
-    }
-
-    function computeDigest(bytes calldata _metadata, bytes calldata _message)
-        internal
-        pure
-        returns (bytes32)
-    {
-        // signed checkpoint properties
-        bytes32 root;
-        uint32 index;
-        bytes32 messageId;
-
-        if (
-            MultisigIsmMetadata.suffixType(_metadata) ==
-            MultisigIsmMetadata.SuffixType.ROOT
-        ) {
-            root = MultisigIsmMetadata.root(_metadata);
-            index = Message.nonce(_message);
-            messageId = Message.id(_message);
-        } else {
-            root = MerkleLib.branchRoot(
-                Message.id(_message),
-                MultisigIsmMetadata.merkleProof(_metadata),
-                index
-            );
-            index = MultisigIsmMetadata.index(_metadata);
-            messageId = MultisigIsmMetadata.signedMessageId(_metadata);
-        }
-
-        return
-            CheckpointLib.digest(
-                Message.origin(_message),
-                MultisigIsmMetadata.originMailbox(_metadata),
-                root,
-                index,
-                messageId
-            );
     }
 }

@@ -7,7 +7,8 @@ interface IInterchainSecurityModule {
         ROUTING,
         AGGREGATION,
         LEGACY_MULTISIG,
-        MULTISIG
+        MERKLE_ROOT_MULTISIG,
+        MESSAGE_ID_MULTISIG
     }
 
     /**
