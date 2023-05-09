@@ -34,6 +34,7 @@ pub struct MessageCtx {
     /// Hard limit on transaction gas when submitting a transaction to the
     /// destination.
     pub transaction_gas_limit: Option<U256>,
+    pub metrics: MessageSubmissionMetrics,
 }
 
 /// A message that the submitter can and should try to submit.
@@ -93,13 +94,7 @@ impl Eq for PendingMessage {}
 impl PendingOperation for PendingMessage {
     #[instrument]
     async fn prepare(&mut self) -> TxPrepareResult {
-        let on_retry = || {
-            info!("Message not prepared; will retry");
-            self.inc_attmpets();
-            TxPrepareResult::Retry
-        };
-
-        make_tx_try!(on_retry, TxPrepareResult::CriticalFailure);
+        make_tx_try!(|| self.on_prepare_retry(), TxPrepareResult::CriticalFailure);
 
         // If the message has already been processed, e.g. due to another relayer having
         // already processed, then mark it as already-processed, and move on to
@@ -135,7 +130,7 @@ impl PendingOperation for PendingMessage {
                 recipient=?self.message.recipient,
                 "Could not fetch metadata: Recipient is not a contract"
             );
-            return on_retry();
+            return self.on_prepare_retry();
         }
 
         let ism_address = tx_try!(
@@ -154,7 +149,7 @@ impl PendingOperation for PendingMessage {
             "building metadata"
         ) else {
             info!("Could not fetch metadata");
-            return on_retry();
+            return self.on_prepare_retry();
         };
 
         // Estimate transaction costs for the process call. If there are issues, it's
@@ -179,7 +174,7 @@ impl PendingOperation for PendingMessage {
         )
             else {
                 info!(?tx_cost_estimate, "Gas payment requirement not met yet");
-                return on_retry();
+                return self.on_prepare_retry();
             };
 
         // Go ahead and attempt processing of message to destination chain.
@@ -196,7 +191,7 @@ impl PendingOperation for PendingMessage {
         if let Some(max_limit) = self.ctx.transaction_gas_limit {
             if gas_limit > max_limit {
                 info!("Message delivery estimated gas exceeds max gas limit");
-                return on_retry();
+                return self.on_prepare_retry();
             }
         }
 
@@ -215,16 +210,11 @@ impl PendingOperation for PendingMessage {
     /// returned.
     #[instrument]
     async fn submit(&mut self) -> TxRunResult {
-        let on_retry = || {
-            info!("Message not processed; will retry");
-            self.inc_attmpets();
-            TxRunResult::Retry
-        };
+        make_tx_try!(|| self.on_submit_retry(), TxRunResult::CriticalFailure);
 
-        make_tx_try!(on_retry, TxRunResult::CriticalFailure);
-
-        let ref state = self
+        let state = self
             .state
+            .as_ref()
             .expect("Pending message must be prepared before it can be submitted");
 
         // We use the estimated gas limit from the prior call to
@@ -252,7 +242,7 @@ impl PendingOperation for PendingMessage {
                 hash=?outcome.txid,
                 "Transaction attempting to process transaction reverted"
             );
-            on_retry()
+            self.on_submit_retry()
         }
     }
 
@@ -266,6 +256,18 @@ impl PendingOperation for PendingMessage {
 }
 
 impl PendingMessage {
+    fn on_prepare_retry(&mut self) -> TxPrepareResult {
+        info!("Message not prepared; will retry");
+        self.inc_attmpets();
+        TxPrepareResult::Retry
+    }
+
+    fn on_submit_retry(&mut self) -> TxRunResult {
+        info!("Message not processed; will retry");
+        self.inc_attmpets();
+        TxRunResult::Retry
+    }
+
     /// Record in HyperlaneDB and various metrics that this process has observed
     /// the successful processing of a message. An `Ok(())` value returned by
     /// this function is the 'commit' point in a message's lifetime for
@@ -277,13 +279,8 @@ impl PendingMessage {
         self.ctx
             .origin_db
             .mark_nonce_as_processed(self.message.nonce)?;
-        self.ctx.metrics.max_submitted_nonce =
-            std::cmp::max(self.ctx.metrics.max_submitted_nonce, self.message.nonce);
-        self.ctx
-            .metrics
-            .processed_gauge
-            .set(self.ctx.metrics.max_submitted_nonce as i64);
-        self.ctx.metrics.messages_processed_count.inc();
+        self.ctx.metrics.update_nonce(&self.message);
+        self.ctx.metrics.messages_processed.inc();
         Ok(())
     }
 
@@ -318,13 +315,8 @@ impl PendingMessage {
 
 #[derive(Debug)]
 pub struct MessageSubmissionMetrics {
-    processed_gauge: IntGauge,
-    processed_count: IntCounter,
-    processed_prepare_time: IntCounter,
-    processed_submission_time: IntCounter,
-
-    /// Private state used to update actual metrics each tick.
-    max_submitted_nonce: u32,
+    last_known_nonce: IntGauge,
+    messages_processed: IntCounter,
 }
 
 impl MessageSubmissionMetrics {
@@ -336,17 +328,24 @@ impl MessageSubmissionMetrics {
         let origin = origin.name();
         let destination = destination.name();
         Self {
-            run_queue_length_gauge: metrics.submitter_queue_length().with_label_values(&[
-                origin,
-                destination,
-                "run_queue",
-            ]),
-            processed_gauge: metrics.last_known_message_nonce().with_label_values(&[
+            last_known_nonce: metrics.last_known_message_nonce().with_label_values(&[
                 "message_processed",
                 origin,
                 destination,
             ]),
-            max_submitted_nonce: 0,
+            messages_processed: metrics.messages_processed_count().with_label_values(&[
+                "message_processed",
+                origin,
+                destination,
+            ]),
         }
+    }
+
+    fn update_nonce(&self, msg: &HyperlaneMessage) {
+        // this is technically a race condition between `.get` and `.set` but worst case
+        // the gauge should get corrected on the next update and is not an issue
+        // with a ST runtime
+        self.last_known_nonce
+            .set(std::cmp::max(self.last_known_nonce.get(), msg.nonce as i64));
     }
 }

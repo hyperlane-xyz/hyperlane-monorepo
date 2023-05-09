@@ -79,10 +79,6 @@ pub struct SerialSubmitter {
 }
 
 impl SerialSubmitter {
-    pub fn domain(&self) -> &HyperlaneDomain {
-        &self.domain
-    }
-
     pub fn spawn(mut self) -> Instrumented<JoinHandle<Result<()>>> {
         tokio::spawn(async move { self.work_loop().await })
             .instrument(info_span!("serial submitter work loop"))
@@ -148,24 +144,22 @@ impl SerialSubmitter {
                 self.metrics.txs_prepared.inc();
                 return Ok(());
             }
-            TxPrepareResult::CriticalFailure(e) => {
-                return Err(e);
-            }
+            TxPrepareResult::CriticalFailure(e) => return Err(e),
         };
 
         match op.submit().await {
             TxRunResult::Success => {
-                self.metrics.txs_processed.inc();
+                self.metrics.txs_submitted.inc();
                 self.validation_queue.push(Reverse(op));
             }
-            TxRunResult::DoNotRetry => self.metrics.txs_failed.inc(),
+            TxRunResult::DoNotRetry => {
+                self.metrics.txs_submitted.inc();
+            }
             TxRunResult::Retry => {
                 self.metrics.txs_failed.inc();
                 self.run_queue.push(Reverse(op));
             }
-            TxRunResult::CriticalFailure(e) => {
-                return Err(e);
-            }
+            TxRunResult::CriticalFailure(e) => return Err(e),
         }
 
         Ok(())
@@ -188,6 +182,7 @@ impl SerialSubmitter {
                 }
                 TxValidationResult::Invalid => {
                     // needs to be re-run
+                    self.metrics.txs_invalidated.inc();
                     self.run_queue.push(Reverse(op));
                 }
                 TxValidationResult::CriticalFailure(e) => return Err(e),
@@ -199,34 +194,51 @@ impl SerialSubmitter {
 
     fn update_metrics(&self) {
         self.metrics
-            .run_queue_length_gauge
+            .run_queue_length
             .set(self.run_queue.len() as i64);
         self.metrics
-            .validation_queue_length_gauge
+            .validation_queue_length
             .set(self.validation_queue.len() as i64);
     }
 }
 
 #[derive(Debug)]
 pub struct SerialSubmitterMetrics {
-    run_queue_length_gauge: IntGauge,
-    txs_processed: IntCounter,
+    run_queue_length: IntGauge,
+    validation_queue_length: IntGauge,
+
+    txs_prepared: IntCounter,
+    txs_submitted: IntCounter,
+    txs_validated: IntCounter,
+    txs_invalidated: IntCounter,
+    txs_failed: IntCounter,
 }
 
 impl SerialSubmitterMetrics {
     pub fn new(metrics: &CoreMetrics, destination: &HyperlaneDomain) -> Self {
-        todo!()
-        // let destination = destination.name();
-        // Self {
-        //     run_queue_length_gauge:
-        // metrics.submitter_queue_length().with_label_values(&[
-        //         origin,
-        //         destination,
-        //         "run_queue",
-        //     ]),
-        //     txs_processed: metrics
-        //         .transactions_processed()
-        //         .with_label_values(&[destination]),
-        // }
+        let destination = destination.name();
+        Self {
+            run_queue_length: metrics
+                .submitter_queue_length()
+                .with_label_values(&[destination, "run_queue"]),
+            validation_queue_length: metrics
+                .submitter_queue_length()
+                .with_label_values(&[destination, "validation_queue"]),
+            txs_prepared: metrics
+                .transactions_processed_count()
+                .with_label_values(&[destination, "prepared"]),
+            txs_submitted: metrics
+                .transactions_processed_count()
+                .with_label_values(&[destination, "submitted"]),
+            txs_validated: metrics
+                .transactions_processed_count()
+                .with_label_values(&[destination, "validated"]),
+            txs_invalidated: metrics
+                .transactions_processed_count()
+                .with_label_values(&[destination, "invalidated"]),
+            txs_failed: metrics
+                .transactions_processed_count()
+                .with_label_values(&[destination, "failed"]),
+        }
     }
 }

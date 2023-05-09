@@ -41,6 +41,7 @@ pub struct CoreMetrics {
     validator_checkpoint_index: IntGaugeVec,
     submitter_queue_length: IntGaugeVec,
 
+    transactions_processed_count: IntCounterVec,
     messages_processed_count: IntCounterVec,
 
     latest_checkpoint: IntGaugeVec,
@@ -125,7 +126,7 @@ impl CoreMetrics {
                 "Submitter queue length",
                 const_labels_ref
             ),
-            &["origin", "remote", "queue_name"],
+            &["remote", "queue_name"],
             registry
         )?;
 
@@ -136,6 +137,16 @@ impl CoreMetrics {
                 const_labels_ref
             ),
             &["phase", "chain"],
+            registry
+        )?;
+
+        let transactions_processed_count = register_int_counter_vec_with_registry!(
+            opts!(
+                namespaced!("transactions_processed_count"),
+                "Number of transactions processed",
+                const_labels_ref
+            ),
+            &["remote"],
             registry
         )?;
 
@@ -163,6 +174,7 @@ impl CoreMetrics {
 
             submitter_queue_length,
 
+            transactions_processed_count,
             messages_processed_count,
 
             latest_checkpoint,
@@ -308,11 +320,35 @@ impl CoreMetrics {
     /// Measure of the queue lengths in Submitter instances
     ///
     /// Labels:
-    /// - `origin`: Origin chain the queue is for.
     /// - `remote`: Remote chain the queue is for.
     /// - `queue_name`: Which queue the message is in.
     pub fn submitter_queue_length(&self) -> IntGaugeVec {
         self.submitter_queue_length.clone()
+    }
+
+    /// The number of transactions successfully submitted by this process during
+    /// its lifetime.
+    ///
+    /// Tracks the number of messages to go through each stage.
+    ///
+    /// Labels:
+    /// - `chain`: Chain the transaction was submitted to.
+    /// - `phase`: Phase of the transaction submission process.
+    ///
+    /// The following phases have been implemented:
+    /// - `prepared`: When the transaction has been prepared for submission.
+    ///   This is a pipelining step that happens before submission and may need
+    ///   to be re-done.
+    /// - `submitted`: When the transaction has been submitted to the chain but
+    ///   is not yet certain to be included after a re-org.
+    /// - `validated`: When the transaction has been validated to have made it
+    ///   into the chain after the re-org window has passed.
+    /// - `invalidated`: When the transactions has been invalidated and must be
+    ///   reprocessed.
+    /// - `failed`: When some part of the pipeline failed. The operation may
+    ///   still be retried later.
+    pub fn transactions_processed_count(&self) -> IntCounterVec {
+        self.transactions_processed_count.clone()
     }
 
     /// The number of messages successfully submitted by this process during its

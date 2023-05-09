@@ -91,6 +91,7 @@ impl Ord for DynPendingOperation {
     }
 }
 
+#[allow(dead_code)] // Inner types are for present _and_ future use so allow unused variants.
 pub enum TxPrepareResult {
     /// Txn is ready to be submitted
     Ready,
@@ -108,6 +109,7 @@ pub enum TxPrepareResult {
 }
 
 /// The result of running a pending transaction.
+#[allow(dead_code)] // Inner types are for present _and_ future use so allow unused variants.
 pub enum TxRunResult {
     /// Transaction was successfully processed
     Success,
@@ -120,6 +122,7 @@ pub enum TxRunResult {
     CriticalFailure(Report),
 }
 
+#[allow(dead_code)] // Inner types are for present _and_ future use so allow unused variants.
 pub enum TxValidationResult {
     /// Transaction was successfully validated as being included in the
     /// blockchain

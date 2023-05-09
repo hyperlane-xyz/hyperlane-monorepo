@@ -161,12 +161,13 @@ impl Settings {
         domains: impl Iterator<Item = &HyperlaneDomain>,
         metrics: &CoreMetrics,
     ) -> Result<HashMap<HyperlaneDomain, Arc<dyn ValidatorAnnounce>>> {
-        try_join_all(domains.map(|d| {
-            self.build_validator_announce(d, metrics)
-                .map_ok(|m| (m.domain().clone(), m))
-        }))
-        .await
-        .map(|vec| vec.into_iter().collect())
+        Ok(
+            try_join_all(domains.map(|d| self.build_validator_announce(d, metrics)))
+                .await?
+                .into_iter()
+                .map(|va| (va.domain().clone(), va))
+                .collect(),
+        )
     }
 
     /// Try to get a CachingMailbox

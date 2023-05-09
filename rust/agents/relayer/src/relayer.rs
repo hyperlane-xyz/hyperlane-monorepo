@@ -20,8 +20,9 @@ use hyperlane_base::{
     run_all, BaseAgent, CachingInterchainGasPaymaster, CachingMailbox, ContractSyncMetrics,
     CoreMetrics, HyperlaneAgentCore,
 };
-use hyperlane_core::{HyperlaneDomain, ValidatorAnnounce, U256};
+use hyperlane_core::{HyperlaneDomain, U256};
 
+use crate::msg::pending_message::MessageSubmissionMetrics;
 use crate::{
     merkle_tree_builder::MerkleTreeBuilder,
     msg::{
@@ -49,18 +50,12 @@ pub struct Relayer {
     /// Context data for each (origin, destination) chain pair a message can be
     /// sent between
     msg_ctxs: HashMap<ContextKey, Arc<MessageCtx>>,
-    /// The base database not scoped to a specific domain
-    db: DB,
     // TODO: use u32 instead of domain?
     /// Mailboxes for all chains (technically only need caching mailbox for
     /// origin chains)
     mailboxes: HashMap<HyperlaneDomain, CachingMailbox>,
     /// Interchain gas paymaster for each origin chain
     interchain_gas_paymasters: HashMap<HyperlaneDomain, CachingInterchainGasPaymaster>,
-    /// Validator announce for each origin chain
-    validator_announces: HashMap<HyperlaneDomain, Arc<dyn ValidatorAnnounce>>,
-    /// Gas payment enforcer for each origin chain
-    gas_payment_enforcers: HashMap<HyperlaneDomain, Arc<GasPaymentEnforcer>>,
     prover_syncs: HashMap<HyperlaneDomain, Arc<RwLock<MerkleTreeBuilder>>>,
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,
@@ -116,10 +111,14 @@ impl BaseAgent for Relayer {
             .build_all_mailboxes(domains.into_iter(), &metrics, db.clone())
             .await?;
         let interchain_gas_paymasters = settings
-            .build_all_interchain_gas_paymasters(settings.origin_chains.iter(), &metrics, db)
+            .build_all_interchain_gas_paymasters(
+                settings.origin_chains.iter(),
+                &metrics,
+                db.clone(),
+            )
             .await?;
         let validator_announces = settings
-            .build_all_validator_announces(settings.origin_chains.iter(), &core.metrics.clone())
+            .build_all_validator_announces(settings.origin_chains.iter(), &metrics)
             .await?;
 
         let whitelist = Arc::new(settings.whitelist);
@@ -197,6 +196,7 @@ impl BaseAgent for Relayer {
                         metadata_builder,
                         gas_payment_enforcer: gas_payment_enforcers[origin].clone(),
                         transaction_gas_limit,
+                        metrics: MessageSubmissionMetrics::new(&metrics, origin, destination),
                     }),
                 );
             }
@@ -205,13 +205,10 @@ impl BaseAgent for Relayer {
         Ok(Self {
             origin_chains: settings.origin_chains,
             destination_chains: settings.destination_chains,
-            db,
             msg_ctxs,
             core,
             mailboxes,
-            validator_announces,
             interchain_gas_paymasters,
-            gas_payment_enforcers,
             prover_syncs,
             whitelist,
             blacklist,
@@ -236,9 +233,9 @@ impl BaseAgent for Relayer {
         }
 
         let sync_metrics = ContractSyncMetrics::new(self.core.metrics.clone());
-        for origin in self.origin_chains {
-            tasks.push(self.run_origin_mailbox_sync(&origin, sync_metrics.clone()));
-            tasks.push(self.run_interchain_gas_paymaster_sync(&origin, sync_metrics.clone()));
+        for origin in &self.origin_chains {
+            tasks.push(self.run_origin_mailbox_sync(origin, sync_metrics.clone()));
+            tasks.push(self.run_interchain_gas_paymaster_sync(origin, sync_metrics.clone()));
         }
 
         // each message process attempts to send messages from a chain
