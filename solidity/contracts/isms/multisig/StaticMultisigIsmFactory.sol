@@ -1,16 +1,41 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 // ============ Internal Imports ============
-import {StaticMultisigIsm} from "./StaticMultisigIsm.sol";
+import {AbstractMultisigIsm} from "./AbstractMultisigIsm.sol";
+import {AbstractMerkleRootMultisigIsm} from "./AbstractMerkleRootMultisigIsm.sol";
+import {AbstractMessageIdMultisigIsm} from "./AbstractMessageIdMultisigIsm.sol";
+import {MetaProxy} from "../../libs/MetaProxy.sol";
 import {StaticMOfNAddressSetFactory} from "../../libs/StaticMOfNAddressSetFactory.sol";
 
-contract StaticMultisigIsmFactory is StaticMOfNAddressSetFactory {
-    function _deployImplementation()
-        internal
-        virtual
+abstract contract AbstractMetaProxyMultisigIsm is AbstractMultisigIsm {
+    function validatorsAndThreshold(bytes calldata)
+        public
+        pure
         override
-        returns (address)
+        returns (address[] memory, uint8)
     {
-        return address(new StaticMultisigIsm());
+        return abi.decode(MetaProxy.metadata(), (address[], uint8));
+    }
+}
+
+contract StaticMerkleRootMultisigIsm is
+    AbstractMerkleRootMultisigIsm,
+    AbstractMetaProxyMultisigIsm
+{}
+
+contract StaticMerkleRootMultisigIsmFactory is StaticMOfNAddressSetFactory {
+    function _deployImplementation() internal override returns (address) {
+        return address(new StaticMerkleRootMultisigIsm());
+    }
+}
+
+contract StaticMessageIdMultisigIsm is
+    AbstractMessageIdMultisigIsm,
+    AbstractMetaProxyMultisigIsm
+{}
+
+contract StaticMessageIdMultisigIsmFactory is StaticMOfNAddressSetFactory {
+    function _deployImplementation() internal override returns (address) {
+        return address(new StaticMessageIdMultisigIsm());
     }
 }
