@@ -1,0 +1,12 @@
+{
+  "ethereum": {
+    "proxyAdmin": "0x75EE15Ee1B4A75Fa3e2fDF5DF3253c25599cc659",
+    "liquidityLayerRouter": "0x9954A0d5C9ac7e4a3687f9B08c0FF272f9d0dc71",
+    "circleBridgeAdapter": "0xf7Cb9e767247144D89bcf36614D56C33FD4Db562"
+  },
+  "avalanche": {
+    "proxyAdmin": "0xd7CF8c05fd81b8cA7CfF8E6C49B08a9D63265c9B",
+    "liquidityLayerRouter": "0xEff8C988b9F9f606059c436F5C1Cc431571C8B03",
+    "circleBridgeAdapter": "0x0BFf79f395A73817df1d3c80D78bb3C57Fbbc2Ed"
+  }
+}

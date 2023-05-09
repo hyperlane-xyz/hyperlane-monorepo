@@ -1,5 +1,6 @@
 import {
   AgentConnectionType,
+  BridgeAdapterConfig,
   ChainMap,
   ChainMetadata,
   ChainName,
@@ -44,7 +45,10 @@ export type EnvironmentConfig = {
   ) => Promise<MultiProvider>;
   helloWorld?: Partial<Record<Contexts, HelloWorldConfig>>;
   keyFunderConfig?: KeyFunderConfig;
-  liquidityLayerRelayerConfig?: LiquidityLayerRelayerConfig;
+  liquidityLayerConfig?: {
+    bridgeAdapters: ChainMap<BridgeAdapterConfig>;
+    relayer: LiquidityLayerRelayerConfig;
+  };
   storageGasOracleConfig?: AllStorageGasOracleConfigs;
 };
 

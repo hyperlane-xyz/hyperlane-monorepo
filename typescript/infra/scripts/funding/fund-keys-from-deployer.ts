@@ -100,11 +100,11 @@ const desiredBalancePerChain: ChainMap<string> = {
   alfajores: '1',
   avalanche: '0.3',
   fuji: '1',
-  ethereum: '0.4',
+  ethereum: '0.5',
   polygon: '2',
   mumbai: '0.8',
-  optimism: '0.15',
-  arbitrum: '0.1',
+  optimism: '0.5',
+  arbitrum: '0.5',
   bsc: '0.05',
   bsctestnet: '1',
   goerli: '0.5',
@@ -480,7 +480,7 @@ class ContextFunder {
       const bridgeAmount = await this.getFundingAmount(
         chain,
         funderAddress,
-        desiredBalanceEther.mul(10),
+        desiredBalanceEther.mul(5),
       );
       if (bridgeAmount.gt(0)) {
         await this.bridgeToL2(chain as L2Chain, funderAddress, bridgeAmount);
