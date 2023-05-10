@@ -216,3 +216,61 @@ jobs:
 
       - name: Run tests with coverage
         run: yarn workspace @hyperlane-xyz/core run coverage
+
+  check-foundry-diff:
+    if: github.event_name == 'pull_request'
+    strategy:
+      fail-fast: true
+
+    name: Check foundry diff
+    runs-on: ubuntu-latest
+    needs: [yarn-install]
+    steps:
+      - uses: actions/checkout@v3.3.0
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: yarn-cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            **/node_modules
+            .yarn/cache
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Build and diff
+        id: diff
+        run: |
+          cd solidity
+          git checkout main
+          forge snapshot --snap ${{ github.sha }}
+          git checkout ${{ github.head_ref }}
+          result="$(forge snapshot --diff ${{ github.sha }})"
+          echo $result
+          result="${result//$'\033[31m'/' '}"
+          result="${result//$'\033[32m'/' '}"
+          result="${result//$'\033[33m'/' '}"
+          result="${result//$'\033[1;33m'/' '}"
+          result="${result//$'\033[34m'/' '}"
+          result="${result//$'\033[1;36m'/' '}"
+          result="${result//$'\033[1;37m'/' '}"
+          result="${result//$'\033[0m'/' '}"
+          echo "result<<EOF" >> $GITHUB_OUTPUT
+          echo "$result" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      - name: Comment diff
+        uses: marocchino/sticky-pull-request-comment@v2.5.0
+        if: steps.diff.outputs.result != ''
+        with:
+          header: Diff
+          message: |
+            ### Difference between build result of base branch and PR
+            ```
+            ${{ steps.diff.outputs.result }}
+            ```
