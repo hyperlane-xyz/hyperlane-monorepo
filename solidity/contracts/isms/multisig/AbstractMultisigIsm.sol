@@ -33,12 +33,24 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
         virtual
         returns (address[] memory, uint8);
 
+    /**
+     * @notice Returns the digest to be used for signature verification.
+     * @param _metadata ABI encoded module metadata
+     * @param _message Formatted Hyperlane message (see Message.sol).
+     * @return digest The digest to be signed by validators
+     */
     function digest(bytes calldata _metadata, bytes calldata _message)
         internal
         view
         virtual
         returns (bytes32);
 
+    /**
+     * @notice Returns the signature at a given index from the metadata.
+     * @param _metadata ABI encoded module metadata
+     * @param _index The index of the signature to return
+     * @return signature Packed encoding of signature (65 bytes)
+     */
     function signatureAt(bytes calldata _metadata, uint256 _index)
         internal
         pure
@@ -50,7 +62,7 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
     /**
      * @notice Requires that m-of-n validators verify a merkle root,
      * and verifies a merkle proof of `_message` against that root.
-     * @param _metadata ABI encoded module metadata (see MultisigIsmMetadata.sol)
+     * @param _metadata ABI encoded module metadata
      * @param _message Formatted Hyperlane message (see Message.sol).
      */
     function verify(bytes calldata _metadata, bytes calldata _message)
