@@ -32,7 +32,7 @@ use nix::{
     sys::signal::{self, Signal},
     unistd::Pid,
 };
-use tempfile::tempdir;
+use tempfile::{tempdir};
 
 static RUNNING: AtomicBool = AtomicBool::new(true);
 
@@ -139,7 +139,7 @@ fn main() -> ExitCode {
         .collect::<Vec<_>>();
     let kathy_log = concat_path(&log_dir, "kathy.stdout.log");
 
-    let checkpoints_dir = tempdir().unwrap();
+    let checkpoints_dirs = (0..3).map(|_| tempdir().unwrap()).collect::<Vec<_>>();
     let rocks_db_dir = tempdir().unwrap();
     let relayer_db = concat_path(&rocks_db_dir, "relayer");
 
@@ -186,14 +186,21 @@ fn main() -> ExitCode {
             "HYP_VALIDATOR_REORGPERIOD" => "0",
             "HYP_VALIDATOR_INTERVAL" => "5",
             "HYP_VALIDATOR_CHECKPOINTSYNCER_TYPE" => "localStorage",
-            "HYP_VALIDATOR_CHECKPOINTSYNCER_PATH" => checkpoints_dir.path().to_str().unwrap(),
+            "HYP_VALIDATOR_CHECKPOINTSYNCER_PATH" => checkpoints_dirs[i].path().to_str().unwrap(),
         }
     }).collect();
 
     if !log_all {
         println!("Logs in {}", log_dir.display());
     }
-    println!("Signed checkpoints in {}", checkpoints_dir.path().display());
+    println!(
+        "Signed checkpoints in {}",
+        checkpoints_dirs
+            .iter()
+            .map(|d| d.path().display().to_string())
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
     println!("Relayer DB in {}", relayer_db.display());
 
     println!("Building typescript...");
@@ -360,11 +367,11 @@ fn main() -> ExitCode {
     );
 
     // Register the validator announcement
-    for i in 1..=3 {
-        let chain = format!("test{}", i);
+    for i in 0..3 {
+        let chain = format!("test{}", 1 + i);
         println!("Announcing validator for {chain}...");
         let mut announce = Command::new("yarn");
-        let location = format!("file://{}", checkpoints_dir.path().to_str().unwrap());
+        let location = format!("file://{}", checkpoints_dirs[i].path().to_str().unwrap());
         announce.arg("ts-node");
         announce.args([
             "scripts/announce-validators.ts",
