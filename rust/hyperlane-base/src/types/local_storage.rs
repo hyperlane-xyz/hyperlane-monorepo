@@ -1,14 +1,14 @@
+use std::path::PathBuf;
+
 use async_trait::async_trait;
-use derive_new::new;
 use eyre::{Context, Result};
 use prometheus::IntGauge;
-use std::path::PathBuf;
 
 use hyperlane_core::{SignedAnnouncement, SignedCheckpoint};
 
 use crate::traits::CheckpointSyncer;
 
-#[derive(Debug, Clone, new)]
+#[derive(Debug, Clone)]
 /// Type for reading/write to LocalStorage
 pub struct LocalStorage {
     /// base path
@@ -17,6 +17,19 @@ pub struct LocalStorage {
 }
 
 impl LocalStorage {
+    /// Create a new LocalStorage checkpoint syncer instance.
+    pub fn new(path: PathBuf, latest_index: Option<IntGauge>) -> Result<Self> {
+        if !path.exists() {
+            std::fs::create_dir_all(&path).with_context(|| {
+                format!(
+                    "Failed to create local checkpoint syncer storage directory at {:?}",
+                    path
+                )
+            })?;
+        }
+        Ok(Self { path, latest_index })
+    }
+
     fn checkpoint_file_path(&self, index: u32) -> PathBuf {
         self.path.join(format!("{}.json", index))
     }

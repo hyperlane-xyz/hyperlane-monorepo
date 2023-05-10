@@ -245,12 +245,7 @@ impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
         let db = raw
             .db
             .and_then(|r| r.parse().take_err(&mut err, || cwp + "db"))
-            .unwrap_or_else(|| {
-                std::env::current_dir().unwrap().join(format!(
-                    "relayer_db_{}",
-                    origin_chain_name.as_deref().unwrap_or("")
-                ))
-            });
+            .unwrap_or_else(|| std::env::current_dir().unwrap().join("hyperlane_db"));
 
         let destination_chain_names = raw
             .destinationchainnames

@@ -11,12 +11,13 @@ use prometheus::{
     Encoder, GaugeVec, HistogramVec, IntCounterVec, IntGaugeVec, Registry,
 };
 use tokio::task::JoinHandle;
+use tracing::warn;
 
-use ethers_prometheus::json_rpc_client::JsonRpcClientMetrics;
-use ethers_prometheus::middleware::MiddlewareMetrics;
+use ethers_prometheus::{json_rpc_client::JsonRpcClientMetrics, middleware::MiddlewareMetrics};
 
-use crate::metrics::json_rpc_client::create_json_rpc_client_metrics;
-use crate::metrics::provider::create_provider_metrics;
+use crate::metrics::{
+    json_rpc_client::create_json_rpc_client_metrics, provider::create_provider_metrics,
+};
 
 /// Macro to prefix a string with the namespace.
 macro_rules! namespaced {
@@ -30,7 +31,7 @@ pub struct CoreMetrics {
     /// Metrics registry for adding new metrics and gathering reports
     registry: Registry,
     const_labels: HashMap<String, String>,
-    listen_port: Option<u16>,
+    listen_port: u16,
     agent_name: String,
 
     span_durations: CounterVec,
@@ -56,14 +57,9 @@ impl CoreMetrics {
     /// Track metrics for a particular agent name.
     ///
     /// - `for_agent` name of the agent these metrics are tracking.
-    /// - `listen_port` port to start the HTTP server on. If None the server
-    ///   will not be started.
+    /// - `listen_port` port to start the HTTP server on.
     /// - `registry` prometheus registry to attach the metrics to
-    pub fn new(
-        for_agent: &str,
-        listen_port: Option<u16>,
-        registry: Registry,
-    ) -> prometheus::Result<Self> {
+    pub fn new(for_agent: &str, listen_port: u16, registry: Registry) -> prometheus::Result<Self> {
         let const_labels: HashMap<String, String> = labels! {
             namespaced!("baselib_version") => env!("CARGO_PKG_VERSION").into(),
             "agent".into() => for_agent.into(),
@@ -384,36 +380,33 @@ impl CoreMetrics {
     /// scrape me!
     pub fn run_http_server(self: Arc<Self>) -> JoinHandle<()> {
         use warp::Filter;
-        if let Some(port) = self.listen_port {
-            tracing::info!(port, "starting prometheus server on 0.0.0.0:{port}");
-            tokio::spawn(async move {
-                warp::serve(
-                    warp::path!("metrics")
-                        .map(move || {
-                            warp::reply::with_header(
-                                self.gather().expect("failed to encode metrics"),
-                                "Content-Type",
-                                // OpenMetrics specs demands "application/openmetrics-text;
-                                // version=1.0.0; charset=utf-8"
-                                // but the prometheus scraper itself doesn't seem to care?
-                                // try text/plain to make web browsers happy.
-                                "text/plain; charset=utf-8",
-                            )
-                        })
-                        .or(warp::any().map(|| {
-                            warp::reply::with_status(
-                                "go look at /metrics",
-                                warp::http::StatusCode::NOT_FOUND,
-                            )
-                        })),
-                )
-                .run(([0, 0, 0, 0], port))
-                .await;
-            })
-        } else {
-            tracing::info!("not starting prometheus server");
-            tokio::spawn(std::future::ready(()))
-        }
+        let port = self.listen_port;
+        tracing::info!(port, "starting prometheus server on 0.0.0.0");
+        tokio::spawn(async move {
+            warp::serve(
+                warp::path!("metrics")
+                    .map(move || {
+                        warp::reply::with_header(
+                            self.gather().expect("failed to encode metrics"),
+                            "Content-Type",
+                            // OpenMetrics specs demands "application/openmetrics-text;
+                            // version=1.0.0; charset=utf-8"
+                            // but the prometheus scraper itself doesn't seem to care?
+                            // try text/plain to make web browsers happy.
+                            "text/plain; charset=utf-8",
+                        )
+                    })
+                    .or(warp::any().map(|| {
+                        warp::reply::with_status(
+                            "go look at /metrics",
+                            warp::http::StatusCode::NOT_FOUND,
+                        )
+                    })),
+            )
+            .try_bind(([0, 0, 0, 0], port))
+            .await;
+            warn!("Prometheus server could not be started or exited early");
+        })
     }
 
     /// Get the name of this agent, e.g. "relayer"

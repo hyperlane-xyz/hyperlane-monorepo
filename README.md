@@ -36,38 +36,7 @@ If you are using [VSCode](https://code.visualstudio.com/), you can launch the [m
 
 ### Rust
 
-- install [`rustup`](https://rustup.rs)
-- see `rust/README.md`
-
-### Running Agents Locally
-
-See [this guide](rust/running-locally.md) for how to run the agents locally and perform a full end-to-end test.
-
-#### Building Agent Images
-
-There exists a docker build for the agent binaries. These docker images are used for deploying the agents in a production environment.
-
-```bash
-cd rust
-./build.sh <image_tag>
-./release.sh <image_tag>
-```
-
-#### Deploy Procedure
-
-The contract addresses of each deploy can be found in `rust/config`. The latest
-deploy will be at `rust/config/[latest timestamp]` with bridge contracts within
-that same folder under `/bridge/[latest timestamp]`.
-
-The agents are set up to point at one environment at a time.
-
-When agents are deployed to point at a new environment, they cease to point at
-the old ones. We **do not** continue to operate off-chain agents on old contract
-deploys. Contracts not supported by the agents will cease to function (i.e.
-messages will not be relayed between chains).
-
-Off-chain agents are **not** automatically re-deployed when new contract deploys
-are merged. Auto-redeploys will be implemented at some future date.
+See [`rust/README.md`](rust/README.md)
 
 ### Publishing JS/TS Packages
 

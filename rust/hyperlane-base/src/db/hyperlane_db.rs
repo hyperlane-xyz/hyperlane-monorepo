@@ -5,14 +5,17 @@ use tokio::time::sleep;
 use tracing::{debug, trace};
 
 use hyperlane_core::{
-    HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment, InterchainGasPaymentMeta,
-    LogMeta, H256, U256,
+    HyperlaneDomain, HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment,
+    InterchainGasPaymentMeta, LogMeta, H256, U256,
 };
 
 use super::{
     storage_types::{InterchainGasExpenditureData, InterchainGasPaymentData},
     DbError, TypedDB, DB,
 };
+
+// these keys MUST not be given multiple uses in case multiple agents are
+// started with the same database and domain.
 
 const MESSAGE_ID: &str = "message_id_";
 const MESSAGE: &str = "message_";
@@ -26,8 +29,6 @@ const GAS_EXPENDITURE_FOR_MESSAGE_ID: &str = "gas_expenditure_for_message_id_";
 type Result<T> = std::result::Result<T, DbError>;
 
 /// DB handle for storing data tied to a specific Mailbox.
-///
-/// Key structure: ```<entity>_<additional_prefix(es)>_<key>```
 #[derive(Debug, Clone)]
 pub struct HyperlaneDB(TypedDB);
 
@@ -53,8 +54,8 @@ impl AsRef<DB> for HyperlaneDB {
 
 impl HyperlaneDB {
     /// Instantiated new `HyperlaneDB`
-    pub fn new(entity: impl AsRef<str>, db: DB) -> Self {
-        Self(TypedDB::new(entity.as_ref().to_owned(), db))
+    pub fn new(domain: &HyperlaneDomain, db: DB) -> Self {
+        Self(TypedDB::new(domain, db))
     }
 
     /// Store list of messages

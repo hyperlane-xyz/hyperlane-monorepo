@@ -57,13 +57,29 @@ impl FromRawConf<'_, RawCheckpointSyncerConf> for CheckpointSyncerConf {
         _filter: (),
     ) -> ConfigResult<Self> {
         match raw {
-            RawCheckpointSyncerConf::LocalStorage { path } => Ok(Self::LocalStorage {
-                path: path
+            RawCheckpointSyncerConf::LocalStorage { path } => {
+                let path: PathBuf = path
                     .ok_or_else(|| eyre!("Missing `path` for LocalStorage checkpoint syncer"))
                     .into_config_result(|| cwp + "path")?
                     .parse()
-                    .into_config_result(|| cwp + "path")?,
-            }),
+                    .into_config_result(|| cwp + "path")?;
+                if !path.exists() {
+                    std::fs::create_dir_all(&path)
+                        .with_context(|| {
+                            format!(
+                                "Failed to create local checkpoint syncer storage directory at {:?}",
+                                path
+                            )
+                        })
+                        .into_config_result(|| cwp + "path")?;
+                } else if !path.is_dir() {
+                    Err(eyre!(
+                        "LocalStorage checkpoint syncer path is not a directory"
+                    ))
+                    .into_config_result(|| cwp + "path")?;
+                }
+                Ok(Self::LocalStorage { path })
+            }
             RawCheckpointSyncerConf::S3 { bucket, region } => Ok(Self::S3 {
                 bucket: bucket
                     .ok_or_else(|| eyre!("Missing `bucket` for S3 checkpoint syncer"))
@@ -119,7 +135,7 @@ impl CheckpointSyncerConf {
     ) -> Result<Box<dyn CheckpointSyncer>, Report> {
         Ok(match self {
             CheckpointSyncerConf::LocalStorage { path } => {
-                Box::new(LocalStorage::new(path.clone(), latest_index_gauge))
+                Box::new(LocalStorage::new(path.clone(), latest_index_gauge)?)
             }
             CheckpointSyncerConf::S3 { bucket, region } => Box::new(S3Storage::new(
                 bucket.clone(),
