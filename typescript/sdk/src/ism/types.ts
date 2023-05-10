@@ -1,14 +1,16 @@
 import {
   DomainRoutingIsm,
   StaticAggregationIsm,
-  StaticMultisigIsm,
+  StaticMerkleRootMultisigIsm,
+  StaticMessageIdMultisigIsm,
 } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
 import { ChainMap } from '../types';
 
 export type DeployedIsm =
-  | StaticMultisigIsm
+  | StaticMessageIdMultisigIsm
+  | StaticMerkleRootMultisigIsm
   | StaticAggregationIsm
   | DomainRoutingIsm;
 
@@ -17,11 +19,12 @@ export enum ModuleType {
   ROUTING,
   AGGREGATION,
   LEGACY_MULTISIG,
-  MULTISIG,
+  MERKLE_ROOT_MULTISIG,
+  MESSAGE_ID_MULTISIG,
 }
 
 export type MultisigIsmConfig = {
-  type: ModuleType.MULTISIG;
+  type: ModuleType.MERKLE_ROOT_MULTISIG | ModuleType.MESSAGE_ID_MULTISIG;
   validators: Array<types.Address>;
   threshold: number;
 };

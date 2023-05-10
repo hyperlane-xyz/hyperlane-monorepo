@@ -59,7 +59,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
   }
 
   async deploy(chain: ChainName, config: IsmConfig): Promise<DeployedIsm> {
-    if (config.type === ModuleType.MULTISIG) {
+    if (config.type === ModuleType.MERKLE_ROOT_MULTISIG) {
       return this.deployMultisigIsm(chain, config);
     } else if (config.type === ModuleType.ROUTING) {
       return this.deployRoutingIsm(chain, config);
@@ -184,7 +184,7 @@ export async function moduleCanCertainlyVerify(
   try {
     const moduleType = await module.moduleType();
     if (
-      moduleType === ModuleType.MULTISIG ||
+      moduleType === ModuleType.MERKLE_ROOT_MULTISIG ||
       moduleType === ModuleType.LEGACY_MULTISIG
     ) {
       const multisigModule = IMultisigIsm__factory.connect(
@@ -251,7 +251,7 @@ export async function moduleMatchesConfig(
   if (actualType !== config.type) return false;
   let matches = true;
   switch (config.type) {
-    case ModuleType.MULTISIG: {
+    case ModuleType.MERKLE_ROOT_MULTISIG: {
       // A MultisigIsm matches if validators and threshold match the config
       const expectedAddress = await contracts.multisigIsmFactory.getAddress(
         config.validators.sort(),
@@ -338,7 +338,7 @@ export function collectValidators(
   config: IsmConfig,
 ): Set<string> {
   let validators: string[] = [];
-  if (config.type === ModuleType.MULTISIG) {
+  if (config.type === ModuleType.MERKLE_ROOT_MULTISIG) {
     validators = config.validators;
   } else if (config.type === ModuleType.ROUTING) {
     if (Object.keys(config.domains).includes(origin)) {

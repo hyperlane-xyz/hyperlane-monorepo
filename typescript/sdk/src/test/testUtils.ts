@@ -72,7 +72,7 @@ const nonZeroAddress = ethers.constants.AddressZero.replace('00', '01');
 // dummy config as TestInbox and TestOutbox do not use deployed ISM
 export function testCoreConfig(chains: ChainName[]): ChainMap<CoreConfig> {
   const multisigIsm: MultisigIsmConfig = {
-    type: ModuleType.MULTISIG,
+    type: ModuleType.MERKLE_ROOT_MULTISIG,
     validators: [nonZeroAddress],
     threshold: 1,
   };

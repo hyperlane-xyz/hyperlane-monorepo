@@ -23,7 +23,8 @@ import {
 function randomModuleType(): ModuleType {
   const choices = [
     ModuleType.AGGREGATION,
-    ModuleType.MULTISIG,
+    ModuleType.MERKLE_ROOT_MULTISIG,
+    ModuleType.MESSAGE_ID_MULTISIG,
     ModuleType.ROUTING,
   ];
   return choices[randomInt(choices.length)];
@@ -33,7 +34,7 @@ const randomMultisigIsmConfig = (m: number, n: number): MultisigIsmConfig => {
   const emptyArray = new Array<number>(n).fill(0);
   const validators = emptyArray.map(() => randomAddress());
   return {
-    type: ModuleType.MULTISIG,
+    type: ModuleType.MERKLE_ROOT_MULTISIG,
     validators,
     threshold: m,
   };
@@ -41,8 +42,8 @@ const randomMultisigIsmConfig = (m: number, n: number): MultisigIsmConfig => {
 
 const randomIsmConfig = (depth = 0, maxDepth = 2): IsmConfig => {
   const moduleType =
-    depth == maxDepth ? ModuleType.MULTISIG : randomModuleType();
-  if (moduleType === ModuleType.MULTISIG) {
+    depth == maxDepth ? ModuleType.MERKLE_ROOT_MULTISIG : randomModuleType();
+  if (moduleType === ModuleType.MERKLE_ROOT_MULTISIG) {
     const n = randomInt(5, 1);
     return randomMultisigIsmConfig(randomInt(n, 1), n);
   } else if (moduleType === ModuleType.ROUTING) {
