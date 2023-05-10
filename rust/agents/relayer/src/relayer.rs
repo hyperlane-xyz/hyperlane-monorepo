@@ -304,13 +304,14 @@ impl Relayer {
         &self,
         message_processor: MessageProcessor,
     ) -> Instrumented<JoinHandle<Result<()>>> {
+        let span = info_span!("MessageProcessor", ?message_processor);
         let process_fut = message_processor.spawn();
         tokio::spawn(async move {
             let res = tokio::try_join!(process_fut)?;
             info!(?res, "try_join finished for message processor");
             Ok(())
         })
-        .instrument(info_span!("run message processor"))
+        .instrument(span)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -325,7 +326,7 @@ impl Relayer {
             receiver,
             SerialSubmitterMetrics::new(&self.core.metrics, destination),
         );
-
+        let span = info_span!("SerialSubmitter", destination=%destination);
         let submit_fut = serial_submitter.spawn();
 
         tokio::spawn(async move {
@@ -333,7 +334,7 @@ impl Relayer {
             info!(?res, "try_join finished for submitter");
             Ok(())
         })
-        .instrument(info_span!("run submitter"))
+        .instrument(span)
     }
 }
 

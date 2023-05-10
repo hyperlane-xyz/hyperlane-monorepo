@@ -18,12 +18,6 @@ pub struct CachingInterchainGasPaymaster {
     indexer: Arc<dyn InterchainGasPaymasterIndexer>,
 }
 
-impl std::fmt::Display for CachingInterchainGasPaymaster {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
 impl CachingInterchainGasPaymaster {
     /// Return handle on paymaster object
     pub fn paymaster(&self) -> &Arc<dyn InterchainGasPaymaster> {
@@ -51,6 +45,6 @@ impl CachingInterchainGasPaymaster {
         );
 
         tokio::spawn(async move { sync.sync_gas_payments().await })
-            .instrument(info_span!("InterchainGasPaymasterContractSync", self = %self))
+            .instrument(info_span!("InterchainGasPaymasterContractSync", self=%self.paymaster.domain()))
     }
 }
