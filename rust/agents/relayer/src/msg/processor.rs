@@ -8,7 +8,7 @@ use tokio::{
     sync::{mpsc::UnboundedSender, RwLock},
     task::JoinHandle,
 };
-use tracing::{debug, info_span, instrument, instrument::Instrumented, Instrument};
+use tracing::{debug, info_span, instrument, instrument::Instrumented, trace, Instrument};
 
 use hyperlane_base::{db::HyperlaneDB, CoreMetrics};
 use hyperlane_core::{HyperlaneDomain, HyperlaneMessage};
@@ -97,15 +97,11 @@ impl MessageProcessor {
                 {
                     return Ok(Some(message));
                 } else {
-                    debug!(
-                    nonce=?self.message_nonce,
-                    "Message already marked as processed in DB");
+                    debug!(nonce=?self.message_nonce, "Message already marked as processed in DB");
                     self.message_nonce += 1;
                 }
             } else {
-                debug!(
-                nonce=?self.message_nonce,
-                "No message found in DB for nonce");
+                trace!(nonce=?self.message_nonce, "No message found in DB for nonce");
                 return Ok(None);
             }
         }
