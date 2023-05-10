@@ -98,16 +98,16 @@ export const ChainMetadataSchema = z.object({
   name: z
     .string()
     .describe(
-      `The string identifier of the chain, used as the key in dictornaries.`,
+      'The string identifier of the chain, used as the key in dictionaries.',
     ),
   displayName: z
     .string()
     .optional()
-    .describe(`Human-readable name of the chain.`),
+    .describe('Human-readable name of the chain.'),
   displayNameShort: z
     .string()
     .optional()
-    .describe(`Shorter human-readable name of the chain.`),
+    .describe('Shorter human-readable name of the chain.'),
   nativeToken: z
     .object({
       name: z.string(),
@@ -118,11 +118,14 @@ export const ChainMetadataSchema = z.object({
   rpcUrls: z
     .array(
       z.object({
-        http: z.string().url().describe(`The HTTP RPC endpoint URL.`),
+        http: z
+          .string()
+          .url()
+          .describe('The HTTP RPC endpoint URL. Use https whenever possible.'),
         webSocket: z
           .string()
           .optional()
-          .describe(`The WebSocket RPC endpoint URL.`),
+          .describe('The WebSocket RPC endpoint URL.'),
         pagination: z
           .object({
             maxBlockRange: z
@@ -132,11 +135,21 @@ export const ChainMetadataSchema = z.object({
               .describe(
                 'The maximum number of blocks that this RPC supports getting logs for.',
               ),
-            minBlockNumber: z.number().positive().optional(),
-            maxBlockAge: z.number().positive().optional(),
+            minBlockNumber: z
+              .number()
+              .positive()
+              .optional()
+              .describe('The minimum block number that this RPC supports.'),
+            maxBlockAge: z
+              .number()
+              .positive()
+              .optional()
+              .describe(
+                'The maximum number of blocks that this RPC supports getting logs for.',
+              ),
           })
           .optional()
-          .describe(`Pagination options for the RPC endpoint.`),
+          .describe('Pagination options for the RPC endpoint.'),
         retry: z
           .object({
             maxRequests: z
@@ -166,13 +179,13 @@ export const ChainMetadataSchema = z.object({
       }),
     )
     .optional()
-    .describe(`Block explorers for the chain.`),
+    .describe('Block explorers for the chain.'),
   blocks: z
     .object({
       confirmations: z
         .number()
         .describe(
-          `Number of blocks to wait before considering a transaction confirmed.`,
+          'Number of blocks to wait before considering a transaction confirmed.',
         ),
       reorgPeriod: z
         .number()
@@ -187,7 +200,7 @@ export const ChainMetadataSchema = z.object({
         .describe('Rough estimate of time per block in seconds.'),
     })
     .optional()
-    .describe(`Block settings for the chain/deployment.`),
+    .describe('Block settings for the chain/deployment.'),
   transactionOverrides: z.object({}).optional(),
   gasCurrencyCoinGeckoId: z.string().optional(),
   gnosisSafeTransactionServiceUrl: z.string().optional(),
@@ -202,17 +215,6 @@ export const HyperlaneDeploymentArtifacts = z.object({
   validatorAnnounce: z
     .string()
     .describe(`The validator announce address for the chain.`),
-
-  index: z.object({
-    from: z
-      .number()
-      .default(1999)
-      .describe('The starting block from which to index events.'),
-    chunk: z
-      .number()
-      .default(1000)
-      .describe('The number of blocks to index per chunk.'),
-  }),
 });
 
 export const AgentChainMetadataSchema = ChainMetadataSchema.extend(
@@ -235,6 +237,17 @@ export const AgentChainMetadataSchema = ChainMetadataSchema.extend(
     .describe(
       `This is a hacky way to allow for a comma-separated list of RPC URLs to be specified without a complex "path" in the agent configuration scheme. Agents should check for the existence of this field first and use that in conjunction with 'rpcConsensusType' if it exists, otherwise fall back to 'rpcUrls'.`,
     ),
+
+  index: z.object({
+    from: z
+      .number()
+      .default(1999)
+      .describe('The starting block from which to index events.'),
+    chunk: z
+      .number()
+      .default(1000)
+      .describe('The number of blocks to index per chunk.'),
+  }),
 });
 
 /**
