@@ -49,7 +49,7 @@ pub struct Settings {
     /// Configuration for contracts on each chain
     pub chains: HashMap<String, ChainConf>,
     /// Port to listen for prometheus scrape requests
-    pub metrics: Option<u16>,
+    pub metrics_port: u16,
     /// The tracing configuration
     pub tracing: TracingConfig,
 }
@@ -101,14 +101,15 @@ impl FromRawConf<'_, RawSettings, Option<&HashSet<&str>>> for Settings {
             Default::default()
         };
         let tracing = raw.tracing.unwrap_or_default();
-        let metrics: Option<u16> = raw
+        let metrics = raw
             .metrics
-            .and_then(|port| port.try_into().take_err(&mut err, || cwp + "metrics"));
+            .and_then(|port| port.try_into().take_err(&mut err, || cwp + "metrics"))
+            .unwrap_or(9090);
 
         err.into_result()?;
         Ok(Self {
             chains,
-            metrics,
+            metrics_port: metrics,
             tracing,
         })
     }
@@ -171,7 +172,7 @@ impl Settings {
             .build_mailbox_indexer(domain, metrics)
             .await
             .with_context(|| format!("Building mailbox indexer for {domain}"))?;
-        let hyperlane_db = HyperlaneDB::new(domain.name(), db);
+        let hyperlane_db = HyperlaneDB::new(domain, db);
         Ok(CachingMailbox::new(
             mailbox.into(),
             hyperlane_db,
@@ -190,7 +191,7 @@ impl Settings {
         let indexer = self
             .build_interchain_gas_paymaster_indexer(domain, metrics)
             .await?;
-        let hyperlane_db = HyperlaneDB::new(domain.name(), db);
+        let hyperlane_db = HyperlaneDB::new(domain, db);
         Ok(CachingInterchainGasPaymaster::new(
             interchain_gas_paymaster.into(),
             hyperlane_db,
@@ -244,7 +245,7 @@ impl Settings {
     pub fn metrics(&self, name: &str) -> eyre::Result<Arc<CoreMetrics>> {
         Ok(Arc::new(CoreMetrics::new(
             name,
-            self.metrics,
+            self.metrics_port,
             prometheus::Registry::new(),
         )?))
     }
@@ -254,7 +255,7 @@ impl Settings {
     fn clone(&self) -> Self {
         Self {
             chains: self.chains.clone(),
-            metrics: self.metrics,
+            metrics_port: self.metrics_port,
             tracing: self.tracing.clone(),
         }
     }

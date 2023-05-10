@@ -138,6 +138,18 @@ impl HyperlaneDomain {
     }
 }
 
+#[cfg(any(test, feature = "test-utils"))]
+impl HyperlaneDomain {
+    pub fn new_test_domain(name: &str) -> Self {
+        Self::Unknown {
+            domain_id: 0,
+            chain_name: name.to_owned(),
+            domain_type: HyperlaneDomainType::LocalTestChain,
+            domain_protocol: HyperlaneDomainProtocol::Ethereum,
+        }
+    }
+}
+
 /// Types of Hyperlane domains.
 #[derive(
     FromPrimitive, EnumString, IntoStaticStr, strum::Display, Copy, Clone, Eq, PartialEq, Debug,

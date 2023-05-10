@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 use std::{io, path::Path, sync::Arc};
 
-use hyperlane_core::{Decode, Encode, HyperlaneProtocolError};
-use rocksdb::{DBIterator, Options, DB as Rocks};
+use hyperlane_core::HyperlaneProtocolError;
+use rocksdb::{Options, DB as Rocks};
 use tracing::info;
 
 pub use hyperlane_db::*;
@@ -95,83 +95,12 @@ impl DB {
     }
 
     /// Store a value in the DB
-    fn _store(&self, key: impl AsRef<[u8]>, value: impl AsRef<[u8]>) -> Result<()> {
+    pub fn store(&self, key: &[u8], value: &[u8]) -> Result<()> {
         Ok(self.0.put(key, value)?)
     }
 
     /// Retrieve a value from the DB
-    fn _retrieve(&self, key: impl AsRef<[u8]>) -> Result<Option<Vec<u8>>> {
+    pub fn retrieve(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
         Ok(self.0.get(key)?)
-    }
-
-    /// Prefix a key and store in the DB
-    fn prefix_store(
-        &self,
-        prefix: impl AsRef<[u8]>,
-        key: impl AsRef<[u8]>,
-        value: impl AsRef<[u8]>,
-    ) -> Result<()> {
-        let mut buf = vec![];
-        buf.extend(prefix.as_ref());
-        buf.extend(key.as_ref());
-        self._store(buf, value)
-    }
-
-    /// Prefix the key and retrieve
-    fn prefix_retrieve(
-        &self,
-        prefix: impl AsRef<[u8]>,
-        key: impl AsRef<[u8]>,
-    ) -> Result<Option<Vec<u8>>> {
-        let mut buf = vec![];
-        buf.extend(prefix.as_ref());
-        buf.extend(key.as_ref());
-        self._retrieve(buf)
-    }
-
-    /// Store any encodeable
-    pub fn store_encodable<V: Encode>(
-        &self,
-        prefix: impl AsRef<[u8]>,
-        key: impl AsRef<[u8]>,
-        value: &V,
-    ) -> Result<()> {
-        self.prefix_store(prefix, key, value.to_vec())
-    }
-
-    /// Retrieve and attempt to decode
-    pub fn retrieve_decodable<V: Decode>(
-        &self,
-        prefix: impl AsRef<[u8]>,
-        key: impl AsRef<[u8]>,
-    ) -> Result<Option<V>> {
-        Ok(self
-            .prefix_retrieve(prefix, key)?
-            .map(|val| V::read_from(&mut val.as_slice()))
-            .transpose()?)
-    }
-
-    /// Store any encodeable
-    pub fn store_keyed_encodable<K: Encode, V: Encode>(
-        &self,
-        prefix: impl AsRef<[u8]>,
-        key: &K,
-        value: &V,
-    ) -> Result<()> {
-        self.store_encodable(prefix, key.to_vec(), value)
-    }
-
-    /// Retrieve any decodable
-    pub fn retrieve_keyed_decodable<K: Encode, V: Decode>(
-        &self,
-        prefix: impl AsRef<[u8]>,
-        key: &K,
-    ) -> Result<Option<V>> {
-        self.retrieve_decodable(prefix, key.to_vec())
-    }
-
-    /// Get prefix db iterator for `prefix`
-    pub fn prefix_iterator(&self, prefix: impl AsRef<[u8]>) -> DBIterator {
-        self.0.prefix_iterator(prefix)
     }
 }
