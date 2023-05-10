@@ -1,15 +1,21 @@
-//! Run this from the hyperlane-monorepo/rust directory using `cargo run -r -p run-locally`.
+//! Run this from the hyperlane-monorepo/rust directory using `cargo run -r -p
+//! run-locally`.
 //!
 //! Environment arguments:
-//! - `E2E_CI_MODE`: true/false, enables CI mode which will automatically wait for kathy to finish
+//! - `E2E_CI_MODE`: true/false, enables CI mode which will automatically wait
+//!   for kathy to finish
 //! running and for the queues to empty. Defaults to false.
-//! - `E2E_CI_TIMEOUT_SEC`: How long (in seconds) to allow the main loop to run the test for. This
-//! does not include the initial setup time. If this timeout is reached before the end conditions
-//! are met, the test is a failure. Defaults to 10 min.
-//! - `E2E_KATHY_ROUNDS`: Number of rounds to run kathy for. Defaults to 4 if CI mode is enabled.
-//! - `E2E_LOG_ALL`: Log all output instead of writing to log files. Defaults to true if CI mode,
+//! - `E2E_CI_TIMEOUT_SEC`: How long (in seconds) to allow the main loop to run
+//!   the test for. This
+//! does not include the initial setup time. If this timeout is reached before
+//! the end conditions are met, the test is a failure. Defaults to 10 min.
+//! - `E2E_KATHY_ROUNDS`: Number of rounds to run kathy for. Defaults to 4 if CI
+//!   mode is enabled.
+//! - `E2E_LOG_ALL`: Log all output instead of writing to log files. Defaults to
+//!   true if CI mode,
 //! else false.
 
+use std::collections::HashMap;
 use std::{
     env,
     fs::{self, File},
@@ -31,8 +37,8 @@ use tempfile::tempdir;
 
 static RUNNING: AtomicBool = AtomicBool::new(true);
 
-/// Struct to hold stuff we want to cleanup whenever we exit. Just using for cleanup purposes at
-/// this time.
+/// Struct to hold stuff we want to cleanup whenever we exit. Just using for
+/// cleanup purposes at this time.
 #[derive(Default)]
 struct State {
     kathy: Option<Child>,
@@ -419,8 +425,8 @@ fn main() -> ExitCode {
                 return ExitCode::from(1);
             }
         } else if kathy_done {
-            // when not in CI mode, run until kathy finishes, which should only happen if a number
-            // of rounds is specified.
+            // when not in CI mode, run until kathy finishes, which should only happen if a
+            // number of rounds is specified.
             break;
         }
         sleep(Duration::from_secs(1));
@@ -444,7 +450,8 @@ fn retry_queues_empty() -> bool {
     lengths.into_iter().all(|n| n == 0)
 }
 
-/// Read from a process output and add a string to the front before writing it to stdout.
+/// Read from a process output and add a string to the front before writing it
+/// to stdout.
 fn prefix_log(output: impl Read, name: &'static str) {
     let mut reader = BufReader::new(output).lines();
     loop {
@@ -468,35 +475,49 @@ fn prefix_log(output: impl Read, name: &'static str) {
 
 /// Assert invariants for state upon successful test termination.
 fn assert_termination_invariants(num_expected_messages_processed: u32) {
-    // The value of `hyperlane_last_known_message_nonce{phase=message_processed}` should refer
-    // to the maximum nonce value we ever successfully delivered. Since deliveries can happen
-    // out-of-index-order, we separately track a counter of the number of successfully delivered
-    // messages. At the end of this test, they should both hold the same value.
-    let msg_processed_max_index: Vec<_> = ureq::get("http://127.0.0.1:9092/metrics")
+    // The value of `hyperlane_last_known_message_nonce{phase=message_processed}`
+    // should refer to the maximum nonce value we ever successfully delivered.
+    // Since deliveries can happen out-of-index-order, we separately track a
+    // counter of the number of successfully delivered messages. At the end of
+    // this test, they should both hold the same value.
+
+    let metrics = ureq::get("http://127.0.0.1:9092/metrics")
         .call()
         .unwrap()
         .into_string()
-        .unwrap()
+        .unwrap();
+    let last_known_message_nonces: Vec<_> = metrics
         .lines()
-        .filter(|l| l.contains(r#"phase="message_processed""#))
         .filter(|l| l.starts_with("hyperlane_last_known_message_nonce"))
-        .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
+        .filter(|l| l.contains(r#"phase="message_processed""#))
         .collect();
-    assert!(
-        !msg_processed_max_index.is_empty(),
-        "Could not find message_processed phase metric"
-    );
-    // The max index is one less than the number delivered messages, since it is an index into the
-    // mailbox merkle tree leafs. Since the metric is parameterized by mailbox, and the test
-    // non-deterministically selects the destination mailbox between test2 and test3 for the highest
-    // message, we take the max over the metric vector.
+
+    let mut delivered_by_origin = HashMap::new();
+    for origin in ["test1", "test2", "test3"] {
+        let max = last_known_message_nonces
+            .iter()
+            .filter(|l| l.contains(&format!(r#"origin="{origin}""#)))
+            .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
+            .max()
+            .map(|v| {
+                // The max index is one less than the number delivered messages, since it is an
+                // index into the mailbox merkle tree leafs. Since the metric is
+                // parameterized by mailbox, and the test non-deterministically selects the
+                // destination mailbox between test2 and test3 for the highest message, we
+                // take the max over the metric vector.
+                v + 1
+            })
+            .unwrap_or(0);
+        delivered_by_origin.insert(origin, max);
+    }
+
     assert_eq!(
-        msg_processed_max_index.into_iter().max().unwrap(),
-        num_expected_messages_processed - 1
+        delivered_by_origin.values().sum::<u32>(),
+        num_expected_messages_processed
     );
 
-    // Also ensure the counter is as expected (total number of messages), summed across all
-    // mailboxes.
+    // Also ensure the counter is as expected (total number of messages), summed
+    // across all mailboxes.
     let msg_processed_count: Vec<_> = ureq::get("http://127.0.0.1:9092/metrics")
         .call()
         .unwrap()
@@ -532,8 +553,8 @@ fn assert_termination_invariants(num_expected_messages_processed: u32) {
     );
 }
 
-/// Basically `tail -f file | grep <FILTER>` but also has to write to the file (writes to file all
-/// lines, not just what passes the filter).
+/// Basically `tail -f file | grep <FILTER>` but also has to write to the file
+/// (writes to file all lines, not just what passes the filter).
 fn inspect_and_write_to_file(output: impl Read, log: impl AsRef<Path>, filter_array: &[&str]) {
     let mut writer = BufWriter::new(append_to(log));
     let mut reader = BufReader::new(output).lines();
