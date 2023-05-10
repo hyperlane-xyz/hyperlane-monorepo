@@ -184,6 +184,10 @@ contract Mailbox is
         return uint32(tree.count);
     }
 
+    function merkleTree() public view returns (MerkleLib.Tree memory) {
+        return tree;
+    }
+
     /**
      * @notice Returns a checkpoint representing the current merkle tree.
      * @return root The root of the Mailbox's merkle tree.

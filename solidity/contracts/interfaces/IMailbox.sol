@@ -2,6 +2,7 @@
 pragma solidity >=0.8.0;
 
 import {IInterchainSecurityModule} from "./IInterchainSecurityModule.sol";
+import {MerkleLib} from "../libs/Merkle.sol";
 
 interface IMailbox {
     // ============ Events ============
@@ -61,6 +62,8 @@ interface IMailbox {
     function count() external view returns (uint32);
 
     function root() external view returns (bytes32);
+
+    function merkleTree() external view returns (MerkleLib.Tree memory);
 
     function latestCheckpoint() external view returns (bytes32, uint32);
 
