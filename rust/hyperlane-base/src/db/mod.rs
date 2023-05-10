@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::{io, path::Path, sync::Arc};
 
 use hyperlane_core::HyperlaneProtocolError;
-use rocksdb::{DBIterator, Options, DB as Rocks};
+use rocksdb::{Options, DB as Rocks};
 use tracing::info;
 
 pub use hyperlane_db::*;
@@ -102,10 +102,5 @@ impl DB {
     /// Retrieve a value from the DB
     pub fn retrieve(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
         Ok(self.0.get(key)?)
-    }
-
-    /// Get prefix db iterator for `prefix`
-    pub fn prefix_iterator(&self, prefix: &[u8]) -> DBIterator {
-        self.0.prefix_iterator(prefix)
     }
 }

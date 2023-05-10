@@ -50,7 +50,7 @@ pub struct Settings {
     /// Configuration for contracts on each chain
     pub chains: HashMap<String, ChainConf>,
     /// Port to listen for prometheus scrape requests
-    pub metrics: u16,
+    pub metrics_port: u16,
     /// The tracing configuration
     pub tracing: TracingConfig,
 }
@@ -110,7 +110,7 @@ impl FromRawConf<'_, RawSettings, Option<&HashSet<&str>>> for Settings {
         err.into_result()?;
         Ok(Self {
             chains,
-            metrics,
+            metrics_port: metrics,
             tracing,
         })
     }
@@ -258,7 +258,7 @@ impl Settings {
     pub fn metrics(&self, name: &str) -> eyre::Result<Arc<CoreMetrics>> {
         Ok(Arc::new(CoreMetrics::new(
             name,
-            self.metrics,
+            self.metrics_port,
             prometheus::Registry::new(),
         )?))
     }
@@ -268,7 +268,7 @@ impl Settings {
     fn clone(&self) -> Self {
         Self {
             chains: self.chains.clone(),
-            metrics: self.metrics,
+            metrics_port: self.metrics_port,
             tracing: self.tracing.clone(),
         }
     }
