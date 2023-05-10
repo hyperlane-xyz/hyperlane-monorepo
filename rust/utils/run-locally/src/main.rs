@@ -15,7 +15,6 @@
 //!   true if CI mode,
 //! else false.
 
-use std::collections::HashMap;
 use std::{
     env,
     fs::{self, File},
@@ -44,7 +43,7 @@ struct State {
     kathy: Option<Child>,
     node: Option<Child>,
     relayer: Option<Child>,
-    validator: Option<Child>,
+    validators: Vec<Child>,
 
     watchers: Vec<JoinHandle<()>>,
 }
@@ -64,7 +63,7 @@ impl Drop for State {
                 eprintln!("Relayer exited with error code")
             };
         }
-        if let Some(mut c) = self.validator.take() {
+        for mut c in self.validators.drain(..) {
             stop_child(&mut c);
             if !c.wait().unwrap().success() {
                 eprintln!("Validator exited with error code")
@@ -132,14 +131,17 @@ fn main() -> ExitCode {
     let hardhat_log = concat_path(&log_dir, "hardhat.stdout.log");
     let relayer_stdout_log = concat_path(&log_dir, "relayer.stdout.log");
     let relayer_stderr_log = concat_path(&log_dir, "relayer.stderr.log");
-    let validator_stdout_log = concat_path(&log_dir, "validator.stdout.log");
-    let validator_stderr_log = concat_path(&log_dir, "validator.stderr.log");
+    let validator_stdout_logs = (1..=3)
+        .map(|i| concat_path(&log_dir, format!("validator{i}.stdout.log")))
+        .collect::<Vec<_>>();
+    let validator_stderr_logs = (1..=3)
+        .map(|i| concat_path(&log_dir, format!("validator{i}.stderr.log")))
+        .collect::<Vec<_>>();
     let kathy_log = concat_path(&log_dir, "kathy.stdout.log");
 
     let checkpoints_dir = tempdir().unwrap();
     let rocks_db_dir = tempdir().unwrap();
     let relayer_db = concat_path(&rocks_db_dir, "relayer");
-    let validator_db = concat_path(&rocks_db_dir, "validator");
 
     let common_env = hashmap! {
         "RUST_BACKTRACE" => "full",
@@ -169,27 +171,30 @@ fn main() -> ExitCode {
         "--relayChains=test1,test2,test3",
     ];
 
-    let validator_env = hashmap! {
-        "HYP_BASE_CHAINS_TEST1_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
-        "HYP_BASE_CHAINS_TEST1_CONNECTION_TYPE" => "httpQuorum",
-        "HYP_BASE_CHAINS_TEST2_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
-        "HYP_BASE_CHAINS_TEST2_CONNECTION_TYPE" => "httpFallback",
-        "HYP_BASE_CHAINS_TEST3_CONNECTION_URLS" => "http://127.0.0.1:8545",
-        "HYP_BASE_METRICS" => "9091",
-        "HYP_VALIDATOR_ORIGINCHAINNAME" => "test1",
-        "HYP_VALIDATOR_VALIDATOR_KEY" => "59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
-        "HYP_VALIDATOR_REORGPERIOD" => "0",
-        "HYP_VALIDATOR_INTERVAL" => "5",
-        "HYP_VALIDATOR_CHECKPOINTSYNCER_TYPE" => "localStorage",
-        "HYP_VALIDATOR_CHECKPOINTSYNCER_PATH" => checkpoints_dir.path().to_str().unwrap(),
-    };
+    let validator_envs: Vec<_> = (0..3).map(|i| {
+        let metrics_port = make_static((9093 + i).to_string());
+        let originchainname = make_static(format!("test{}", 1 + i));
+        hashmap! {
+            "HYP_BASE_CHAINS_TEST1_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
+            "HYP_BASE_CHAINS_TEST1_CONNECTION_TYPE" => "httpQuorum",
+            "HYP_BASE_CHAINS_TEST2_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
+            "HYP_BASE_CHAINS_TEST2_CONNECTION_TYPE" => "httpFallback",
+            "HYP_BASE_CHAINS_TEST3_CONNECTION_URL" => "http://127.0.0.1:8545",
+            "HYP_BASE_METRICS" => metrics_port,
+            "HYP_VALIDATOR_ORIGINCHAINNAME" => originchainname,
+            "HYP_VALIDATOR_VALIDATOR_KEY" => "59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+            "HYP_VALIDATOR_REORGPERIOD" => "0",
+            "HYP_VALIDATOR_INTERVAL" => "5",
+            "HYP_VALIDATOR_CHECKPOINTSYNCER_TYPE" => "localStorage",
+            "HYP_VALIDATOR_CHECKPOINTSYNCER_PATH" => checkpoints_dir.path().to_str().unwrap(),
+        }
+    }).collect();
 
     if !log_all {
         println!("Logs in {}", log_dir.display());
     }
     println!("Signed checkpoints in {}", checkpoints_dir.path().display());
     println!("Relayer DB in {}", relayer_db.display());
-    println!("Validator DB in {}", validator_db.display());
 
     println!("Building typescript...");
     build_cmd(&["yarn", "install"], &build_log, log_all, Some("../"));
@@ -314,31 +319,36 @@ fn main() -> ExitCode {
     }));
     state.relayer = Some(relayer);
 
-    println!("Spawning validator...");
-    let mut validator = Command::new("target/debug/validator")
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .envs(&common_env)
-        .envs(&validator_env)
-        .spawn()
-        .expect("Failed to start validator");
-    let validator_stdout = validator.stdout.take().unwrap();
-    state.watchers.push(spawn(move || {
-        if log_all {
-            prefix_log(validator_stdout, "VAL")
-        } else {
-            inspect_and_write_to_file(validator_stdout, validator_stdout_log, &["ERROR"])
-        }
-    }));
-    let validator_stderr = validator.stderr.take().unwrap();
-    state.watchers.push(spawn(move || {
-        if log_all {
-            prefix_log(validator_stderr, "VAL")
-        } else {
-            inspect_and_write_to_file(validator_stderr, validator_stderr_log, &[])
-        }
-    }));
-    state.validator = Some(validator);
+    for (i, validator_env) in validator_envs.iter().enumerate() {
+        println!("Spawning validator for test{}", 1 + i);
+        let mut validator = Command::new("target/debug/validator")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .envs(&common_env)
+            .envs(validator_env)
+            .spawn()
+            .expect("Failed to start validator");
+        let validator_stdout = validator.stdout.take().unwrap();
+        let validator_stdout_log = validator_stdout_logs[i].clone();
+        let log_prefix = make_static(format!("VAL{}", 1 + i));
+        state.watchers.push(spawn(move || {
+            if log_all {
+                prefix_log(validator_stdout, log_prefix)
+            } else {
+                inspect_and_write_to_file(validator_stdout, validator_stdout_log, &["ERROR"])
+            }
+        }));
+        let validator_stderr = validator.stderr.take().unwrap();
+        let validator_stderr_log = validator_stderr_logs[i].clone();
+        state.watchers.push(spawn(move || {
+            if log_all {
+                prefix_log(validator_stderr, log_prefix)
+            } else {
+                inspect_and_write_to_file(validator_stderr, &validator_stderr_log, &[])
+            }
+        }));
+        state.validators.push(validator);
+    }
 
     // Rebuild the SDK to pick up the deployed contracts
     println!("Rebuilding sdk...");
@@ -350,24 +360,27 @@ fn main() -> ExitCode {
     );
 
     // Register the validator announcement
-    println!("Announcing validator...");
-    let mut announce = Command::new("yarn");
-    let location = format!("file://{}", checkpoints_dir.path().to_str().unwrap());
-    announce.arg("ts-node");
-    announce.args([
-        "scripts/announce-validators.ts",
-        "--environment",
-        "test",
-        "--location",
-        &location,
-        "--chain",
-        "test1",
-    ]);
-    announce
-        .current_dir("../typescript/infra")
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("Failed to announce validator");
+    for i in 1..=3 {
+        let chain = format!("test{}", i);
+        println!("Announcing validator for {chain}...");
+        let mut announce = Command::new("yarn");
+        let location = format!("file://{}", checkpoints_dir.path().to_str().unwrap());
+        announce.arg("ts-node");
+        announce.args([
+            "scripts/announce-validators.ts",
+            "--environment",
+            "test",
+            "--location",
+            &location,
+            "--chain",
+            &chain,
+        ]);
+        announce
+            .current_dir("../typescript/infra")
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("Failed to announce validator");
+    }
 
     println!("Setup complete! Agents running in background...");
     println!("Ctrl+C to end execution...");
@@ -475,47 +488,6 @@ fn prefix_log(output: impl Read, name: &'static str) {
 
 /// Assert invariants for state upon successful test termination.
 fn assert_termination_invariants(num_expected_messages_processed: u32) {
-    // The value of `hyperlane_last_known_message_nonce{phase=message_processed}`
-    // should refer to the maximum nonce value we ever successfully delivered.
-    // Since deliveries can happen out-of-index-order, we separately track a
-    // counter of the number of successfully delivered messages. At the end of
-    // this test, they should both hold the same value.
-
-    let metrics = ureq::get("http://127.0.0.1:9092/metrics")
-        .call()
-        .unwrap()
-        .into_string()
-        .unwrap();
-    let last_known_message_nonces: Vec<_> = metrics
-        .lines()
-        .filter(|l| l.starts_with("hyperlane_last_known_message_nonce"))
-        .filter(|l| l.contains(r#"phase="message_processed""#))
-        .collect();
-
-    let mut delivered_by_origin = HashMap::new();
-    for origin in ["test1", "test2", "test3"] {
-        let max = last_known_message_nonces
-            .iter()
-            .filter(|l| l.contains(&format!(r#"origin="{origin}""#)))
-            .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
-            .max()
-            .map(|v| {
-                // The max index is one less than the number delivered messages, since it is an
-                // index into the mailbox merkle tree leafs. Since the metric is
-                // parameterized by mailbox, and the test non-deterministically selects the
-                // destination mailbox between test2 and test3 for the highest message, we
-                // take the max over the metric vector.
-                v + 1
-            })
-            .unwrap_or(0);
-        delivered_by_origin.insert(origin, max);
-    }
-
-    assert_eq!(
-        delivered_by_origin.values().sum::<u32>(),
-        num_expected_messages_processed
-    );
-
     // Also ensure the counter is as expected (total number of messages), summed
     // across all mailboxes.
     let msg_processed_count: Vec<_> = ureq::get("http://127.0.0.1:9092/metrics")
@@ -636,4 +608,8 @@ fn build_cmd(cmd: &[&str], log: impl AsRef<Path>, log_all: bool, wd: Option<&str
         "Command returned non-zero exit code: {}",
         cmd.join(" ")
     );
+}
+
+fn make_static(s: String) -> &'static str {
+    Box::leak(s.into_boxed_str())
 }

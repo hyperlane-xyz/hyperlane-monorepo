@@ -63,7 +63,7 @@ task('kathy', 'Dispatches random hyperlane messages')
       let rounds = Number.parseInt(taskArgs.rounds) || 0;
       const run_forever = rounds === 0;
       while (run_forever || rounds-- > 0) {
-        const local = core.chains()[0];
+        const local = core.chains()[rounds % core.chains().length];
         const remote: ChainName = randomElement(core.remoteChains(local));
         const remoteId = multiProvider.getDomainId(remote);
         const mailbox = core.getContracts(local).mailbox;
