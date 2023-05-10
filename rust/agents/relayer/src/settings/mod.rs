@@ -158,11 +158,13 @@ decl_settings!(Relayer,
     Raw {
         /// Database path (path on the fs)
         db: Option<String>,
+        // Comma separated list of chains to relay between.
+        relaychains: Option<String>,
         // Comma separated list of origin chains.
-        originchainnames: Option<String>,
-        #[deprecated(note = "Use `destinationchainnames` instead")]
+        #[deprecated(note = "Use `relaychains` instead")]
         originchainname: Option<String>,
         // Comma separated list of destination chains.
+        #[deprecated(note = "Use `relaychains` instead")]
         destinationchainnames: Option<String>,
         /// The gas payment enforcement configuration as JSON. Expects an ordered array of `GasPaymentEnforcementConfig`.
         gaspaymentenforcement: Option<String>,
@@ -240,30 +242,80 @@ impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
             })
             .unwrap_or_default();
 
-        let origin_chain_names = raw
-            .originchainnames
-            .or_else(|| {
-                warn!(
-                    path = (cwp + "originchainname").json_name(),
-                    "`originchainname` is deprecated, use `originchainnames` instead"
+        let mut origin_chain_names = {
+            #[allow(deprecated)]
+            raw.originchainname
+        }
+        .map(|s| s.split(',').map(str::to_owned).collect::<Vec<_>>());
+
+        if origin_chain_names.is_some() {
+            warn!(
+                path = (cwp + "originchainname").json_name(),
+                "`originchainname` is deprecated, use `relaychains` instead"
+            );
+        }
+
+        let mut destination_chain_names = {
+            #[allow(deprecated)]
+            raw.destinationchainnames
+        }
+        .map(|r| r.split(',').map(str::to_owned).collect::<Vec<_>>());
+
+        if destination_chain_names.is_some() {
+            warn!(
+                path = (cwp + "destinationchainnames").json_name(),
+                "`destinationchainnames` is deprecated, use `relaychains` instead"
+            );
+        }
+
+        if let Some(relay_chain_names) = raw
+            .relaychains
+            .map(|r| r.split(',').map(str::to_owned).collect::<Vec<_>>())
+        {
+            if origin_chain_names.is_some() {
+                err.push(
+                    cwp + "originchainname",
+                    eyre!("Cannot use `relaychains` and `originchainname` at the same time"),
                 );
-                #[allow(deprecated)]
-                raw.originchainname
-            })
-            .ok_or_else(|| eyre!("Missing `originchainnames`"))
-            .take_err(&mut err, || cwp + "originchainnames")
-            .map(|s| s.split(',').map(str::to_owned).collect::<Vec<_>>());
+            }
+            if destination_chain_names.is_some() {
+                err.push(
+                    cwp + "destinationchainnames",
+                    eyre!("Cannot use `relaychains` and `destinationchainnames` at the same time"),
+                );
+            }
+
+            if relay_chain_names.len() < 2 {
+                err.push(
+                    cwp + "relaychains",
+                    eyre!(
+                        "The relayer must be configured with at least two chains to relay between"
+                    ),
+                )
+            }
+            origin_chain_names = Some(relay_chain_names.clone());
+            destination_chain_names = Some(relay_chain_names);
+        } else if origin_chain_names.is_none() && destination_chain_names.is_none() {
+            err.push(
+                cwp + "relaychains",
+                eyre!("The relayer must be configured with at least two chains to relay between"),
+            );
+        } else if origin_chain_names.is_none() {
+            err.push(
+                cwp + "originchainname",
+                eyre!("The relayer must be configured with an origin chain (alternatively use `relaychains`)"),
+            );
+        } else if destination_chain_names.is_none() {
+            err.push(
+                cwp + "destinationchainnames",
+                eyre!("The relayer must be configured with at least one destination chain (alternatively use `relaychains`)"),
+            );
+        }
 
         let db = raw
             .db
             .and_then(|r| r.parse().take_err(&mut err, || cwp + "db"))
             .unwrap_or_else(|| std::env::current_dir().unwrap().join("hyperlane_db"));
-
-        let destination_chain_names = raw
-            .destinationchainnames
-            .ok_or_else(|| eyre!("Missing `destinationchainnames`"))
-            .take_err(&mut err, || cwp + "destinationchainnames")
-            .map(|r| r.split(',').map(str::to_owned).collect::<Vec<_>>());
 
         let (Some(origin_chain_names), Some(destination_chain_names)) =
             (origin_chain_names, destination_chain_names)
