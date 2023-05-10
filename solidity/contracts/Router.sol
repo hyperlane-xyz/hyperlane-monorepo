@@ -17,7 +17,7 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
     // ============ Mutable Storage ============
     EnumerableMapExtended.UintToBytes32Map internal _routers;
     uint256[49] private __GAP; // gap for upgrade safety
-
+    uint256[49] public Testing;
     // ============ Events ============
 
     /**
