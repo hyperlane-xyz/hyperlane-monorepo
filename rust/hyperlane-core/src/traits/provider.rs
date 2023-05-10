@@ -24,6 +24,8 @@ pub trait HyperlaneProvider: HyperlaneChain + Send + Sync + Debug {
 
     /// Returns whether a contract exists at the provided address
     async fn is_contract(&self, address: &H256) -> ChainResult<bool>;
+
+    async fn get_storage_at(&self, address: H256, location: H256) -> ChainResult<H256>;
 }
 
 /// Errors when querying for provider information.

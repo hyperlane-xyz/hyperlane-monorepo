@@ -3,6 +3,7 @@ use ethers_core::types::{Address, Signature};
 use serde::{Deserialize, Serialize};
 use sha3::{digest::Update, Digest, Keccak256};
 use std::fmt::{Debug, Formatter};
+use std::ops::Deref;
 
 use crate::utils::{fmt_address_for_domain, fmt_domain};
 use crate::{utils::domain_hash, Signable, SignedType, H256};
@@ -18,26 +19,67 @@ pub struct Checkpoint {
     pub root: H256,
     /// The index of the checkpoint
     pub index: u32,
-    /// The hash of the message
-    pub message_id: H256
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct CheckpointWithMessageId {
+    /// 
+    pub checkpoint: Checkpoint,
+    /// hash of message emitted from mailbox checkpoint.index 
+    pub message_id: H256,
+}
+
+impl Deref for CheckpointWithMessageId {
+    type Target = Checkpoint;
+
+    fn deref(&self) -> &Self::Target {
+        &self.checkpoint
+    }
 }
 
 impl Debug for Checkpoint {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Checkpoint {{ mailbox_address: {}, mailbox_domain: {}, root: {:?}, index: {}, message_id: {:?} }}",
+            "Checkpoint {{ mailbox_address: {}, mailbox_domain: {}, root: {:?}, index: {} }}",
             fmt_address_for_domain(self.mailbox_domain, self.mailbox_address),
             fmt_domain(self.mailbox_domain),
             self.root,
-            self.index,
-            self.message_id
+            self.index
+        )
+    }
+}
+
+impl Debug for CheckpointWithMessageId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "CheckpointWithMessageId {{ checkpoint: {:?}, message_id: {:?} }}",
+            self.checkpoint, self.message_id
         )
     }
 }
 
 #[async_trait]
 impl Signable for Checkpoint {
+    /// A hash of the checkpoint contents.
+    /// The EIP-191 compliant version of this hash is signed by validators.
+    fn signing_hash(&self) -> H256 {
+        // sign:
+        // domain_hash(mailbox_address, mailbox_domain) || root || index (as u32) || message_id
+        H256::from_slice(
+            Keccak256::new()
+                .chain(domain_hash(self.mailbox_address, self.mailbox_domain))
+                .chain(self.root)
+                .chain(self.index.to_be_bytes())
+                .finalize()
+                .as_slice(),
+        )
+    }
+}
+
+#[async_trait]
+impl Signable for CheckpointWithMessageId {
     /// A hash of the checkpoint contents.
     /// The EIP-191 compliant version of this hash is signed by validators.
     fn signing_hash(&self) -> H256 {
@@ -57,6 +99,8 @@ impl Signable for Checkpoint {
 
 /// A checkpoint that has been signed.
 pub type SignedCheckpoint = SignedType<Checkpoint>;
+/// A (checkpoint, messageId) tuple that has been signed.
+pub type SignedCheckpointWithMessageId = SignedType<CheckpointWithMessageId>;
 
 /// An individual signed checkpoint with the recovered signer
 #[derive(Clone, Debug)]

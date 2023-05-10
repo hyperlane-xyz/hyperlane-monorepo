@@ -11,6 +11,13 @@ pub struct IncrementalMerkle {
     count: usize,
 }
 
+impl IncrementalMerkle {
+    /// Build from components.
+    pub fn new(branch: [H256; TREE_DEPTH], count: usize) -> Self {
+        IncrementalMerkle { branch, count }
+    }
+}
+
 impl Default for IncrementalMerkle {
     fn default() -> Self {
         let mut branch: [H256; TREE_DEPTH] = Default::default();
@@ -59,6 +66,11 @@ impl IncrementalMerkle {
     /// Get the number of items in the tree
     pub fn count(&self) -> usize {
         self.count
+    }
+
+    /// Get the index
+    pub fn index(&self) -> u32 {
+        self.count as u32 - 1
     }
 
     /// Get the leading-edge branch.

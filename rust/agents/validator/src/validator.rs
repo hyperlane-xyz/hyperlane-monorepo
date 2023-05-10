@@ -6,7 +6,10 @@ use eyre::Result;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 
-use hyperlane_base::{run_all, BaseAgent, CheckpointSyncer, CoreMetrics, HyperlaneAgentCore, db::DB, CachingMailbox, ContractSyncMetrics};
+use hyperlane_base::{
+    db::DB, run_all, BaseAgent, CachingMailbox, CheckpointSyncer, ContractSyncMetrics, CoreMetrics,
+    HyperlaneAgentCore
+};
 use hyperlane_core::{HyperlaneDomain, HyperlaneSigner, Mailbox};
 
 use crate::{
@@ -70,33 +73,28 @@ impl BaseAgent for Validator {
 
     #[allow(clippy::async_yields_async)]
     async fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
+        let tree = self.mailbox.tree().await.unwrap();
+
         let submit = ValidatorSubmitter::new(
             self.interval,
             self.reorg_period,
             self.mailbox.clone(),
+            tree,
             self.signer.clone(),
             self.checkpoint_syncer.clone(),
             ValidatorSubmitterMetrics::new(&self.core.metrics, &self.origin_chain),
         );
 
-        // TODO: fetch latest branch from Mailbox storage using eth_getStorateAt
-        // | Name          | Type                               | Slot | Offset | Bytes | Contract                      |
-        // | tree          | struct MerkleLib.Tree              | 152  | 0      | 1056  | contracts/Mailbox.sol:Mailbox |
-
-        // TODO: initialize copy of incremental merkle tree
-
-        // TODO: configure?
-        let from_nonce = self.mailbox.mailbox().count(None).await.unwrap_or(0);
-        self.mailbox.db().update_latest_nonce(from_nonce).unwrap();
-
-        let mailbox_sync = self.mailbox.sync(
+        // sync messages from current tree index
+        self.mailbox.db().update_latest_nonce(tree.index()).unwrap();
+        let sync = self.mailbox.sync(
             self.as_ref().settings.chains[self.origin_chain.name()]
                 .index
                 .clone(),
             ContractSyncMetrics::new(self.core.metrics.clone())
         );
 
-        run_all(vec![mailbox_sync, submit.spawn()])
+        run_all(vec![sync, submit.spawn()])
     }
 }
 

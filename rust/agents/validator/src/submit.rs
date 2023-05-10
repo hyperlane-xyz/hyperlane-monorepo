@@ -3,18 +3,20 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use eyre::Result;
+use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use prometheus::IntGauge;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, info, info_span, instrument::Instrumented, Instrument};
 
 use hyperlane_base::{CheckpointSyncer, CoreMetrics, CachingMailbox};
-use hyperlane_core::{Announcement, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox, CheckpointWithMessageId};
+use hyperlane_core::{Announcement, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox, Checkpoint, CheckpointWithMessageId};
 
 pub(crate) struct ValidatorSubmitter {
     interval: Duration,
     reorg_period: Option<NonZeroU64>,
     signer: Arc<dyn HyperlaneSigner>,
     mailbox: CachingMailbox,
+    tree: IncrementalMerkle,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
     metrics: ValidatorSubmitterMetrics,
 }
@@ -24,6 +26,7 @@ impl ValidatorSubmitter {
         interval: Duration,
         reorg_period: u64,
         mailbox: CachingMailbox,
+        tree: IncrementalMerkle,
         signer: Arc<dyn HyperlaneSigner>,
         checkpoint_syncer: Arc<dyn CheckpointSyncer>,
         metrics: ValidatorSubmitterMetrics,
@@ -32,6 +35,7 @@ impl ValidatorSubmitter {
             reorg_period: NonZeroU64::new(reorg_period),
             interval,
             mailbox,
+            tree,
             signer,
             checkpoint_syncer,
             metrics,
@@ -43,7 +47,7 @@ impl ValidatorSubmitter {
         tokio::spawn(async move { self.main_task().await }).instrument(span)
     }
 
-    async fn main_task(self) -> Result<()> {
+    async fn main_task(mut self) -> Result<()> {
         // Sign and post the validator announcement
         let announcement = Announcement {
             validator: self.signer.eth_address(),
@@ -128,22 +132,6 @@ impl ValidatorSubmitter {
                 .map(|i| i < latest_checkpoint.index)
                 .unwrap_or(true)
             {
-                for index in current_index.unwrap_or(latest_checkpoint.index)..=latest_checkpoint.index {
-
-                    // TODO: unwraps?
-                    let message_id = self.mailbox.db().message_id_by_nonce(index).unwrap().unwrap();
-
-                    let signed_checkpoint_with_message_id = self.signer.sign(CheckpointWithMessageId {
-                        message_id,
-                        checkpoint: latest_checkpoint
-                    }).await?;
-
-                    info!(signed_checkpoint = ?signed_checkpoint_with_message_id, signer=?self.signer, "Signed checkpoint with message id");
-                    self.checkpoint_syncer
-                        .write_checkpoint_with_message_id(&signed_checkpoint_with_message_id)
-                        .await?;
-                }
-
                 let signed_checkpoint = self.signer.sign(latest_checkpoint).await?;
 
                 info!(signed_checkpoint = ?signed_checkpoint, signer=?self.signer, "Signed new latest checkpoint");
@@ -155,6 +143,28 @@ impl ValidatorSubmitter {
                 self.metrics
                     .latest_checkpoint_processed
                     .set(signed_checkpoint.value.index as i64);
+            }
+
+            // Ingest messages through latest checkpoint and produce signatures on each (checkpoint, messageId) tuple
+            while self.tree.index() <= latest_checkpoint.index {
+                if let Some(message_id) = self.mailbox.db().message_id_by_nonce(self.tree.index())? {
+                    self.tree.ingest(message_id);
+    
+                    let checkpoint = CheckpointWithMessageId {
+                        checkpoint: Checkpoint {
+                            index: self.tree.index(),
+                            root: self.tree.root(),
+                            mailbox_address: self.mailbox.mailbox().address(),
+                            mailbox_domain: self.mailbox.mailbox().domain().id(),
+                        },
+                        message_id,
+                    };
+    
+                    let signed_checkpoint = self.signer.sign(checkpoint).await?;
+    
+                    info!(signed_checkpoint = ?signed_checkpoint, signer=?self.signer, "Signed (checkpoint, messageId) for checkpoint index {}", checkpoint.index);
+                    self.checkpoint_syncer.write_checkpoint_with_message_id(&signed_checkpoint).await?;
+                }
             }
 
             sleep(self.interval).await;

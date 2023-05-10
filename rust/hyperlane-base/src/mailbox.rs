@@ -9,7 +9,7 @@ use tracing::{info_span, instrument::Instrumented, Instrument};
 
 use hyperlane_core::{
     ChainResult, Checkpoint, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProvider, Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256,
+    HyperlaneProvider, Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256, accumulator::incremental::IncrementalMerkle,
 };
 
 use crate::{chains::IndexSettings, db::HyperlaneDB, ContractSync, ContractSyncMetrics};
@@ -67,6 +67,10 @@ impl Mailbox for CachingMailbox {
 
     async fn count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
         self.mailbox.count(maybe_lag).await
+    }
+
+    async fn tree(&self) -> ChainResult<IncrementalMerkle> {
+        self.mailbox.tree().await
     }
 
     /// Fetch the status of a message

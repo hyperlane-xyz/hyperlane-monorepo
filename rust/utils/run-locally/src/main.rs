@@ -187,10 +187,10 @@ fn main() -> ExitCode {
     println!("Relayer DB in {}", relayer_db.display());
     println!("Validator DB in {}", validator_db.display());
 
-    println!("Building typescript...");
-    build_cmd(&["yarn", "install"], &build_log, log_all, Some("../"));
-    build_cmd(&["yarn", "clean"], &build_log, log_all, Some("../"));
-    build_cmd(&["yarn", "build"], &build_log, log_all, Some("../"));
+    // println!("Building typescript...");
+    // build_cmd(&["yarn", "install"], &build_log, log_all, Some("../"));
+    // build_cmd(&["yarn", "clean"], &build_log, log_all, Some("../"));
+    // build_cmd(&["yarn", "build"], &build_log, log_all, Some("../"));
 
     println!("Building relayer...");
     build_cmd(
@@ -209,10 +209,8 @@ fn main() -> ExitCode {
     );
 
     let mut state = State::default();
-    println!("Launching hardhat...");
-    let mut node = Command::new("yarn");
-    node.args(["hardhat", "node"])
-        .current_dir("../typescript/infra");
+    println!("Launching anvil...");
+    let mut node = Command::new("anvil");
     if log_all {
         // TODO: should we log this? It seems way too verbose to be useful
         // node.stdout(Stdio::piped());

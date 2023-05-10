@@ -187,6 +187,31 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "merkleTree",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "bytes32[32]",
+            "name": "branch",
+            "type": "bytes32[32]"
+          },
+          {
+            "internalType": "uint256",
+            "name": "count",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct MerkleLib.Tree",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "bytes",

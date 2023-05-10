@@ -8,8 +8,10 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use ethers::abi::AbiEncode;
 use ethers::prelude::Middleware;
-use ethers::types::Eip1559TransactionRequest;
+use ethers::types::{BlockId, Eip1559TransactionRequest};
 use ethers_contract::builders::ContractCall;
+use hyperlane_core::accumulator::incremental::IncrementalMerkle;
+use hyperlane_core::accumulator::TREE_DEPTH;
 use hyperlane_core::{KnownHyperlaneDomain, H160};
 use tracing::instrument;
 
@@ -28,6 +30,8 @@ use crate::EthereumProvider;
 
 /// An amount of gas to add to the estimated gas
 const GAS_ESTIMATE_BUFFER: u32 = 50000;
+
+const MERKLE_TREE_CONTRACT_SLOT: u32 = 152;
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
 where
@@ -335,7 +339,69 @@ where
             mailbox_domain: self.domain.id(),
             root: root.into(),
             index,
+            // message_id,
         })
+    }
+
+    #[instrument(level = "debug", err, ret, skip(self))]
+    async fn tree(&self) -> ChainResult<IncrementalMerkle> {
+        // TODO: migrate to single contract view call once mailbox is upgraded
+        // let tree = self.contract.merkleTree().call().await;
+
+        let block_number: BlockId = self
+            .provider
+            .get_block_number()
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .into();
+
+        let mut branch = [H256::zero(); TREE_DEPTH];
+
+        for index in 0..TREE_DEPTH {
+            let slot = U256::from(MERKLE_TREE_CONTRACT_SLOT) + index;
+            let mut location = [0u8; 32];
+            slot.to_big_endian(&mut location);
+
+            let result = self
+                .provider
+                .get_storage_at(self.contract.address(), location.into(), Some(block_number))
+                .await
+                .map_err(ChainCommunicationError::from_other);
+
+            match result {
+                Ok(value) => {
+                    branch[index] = value;
+                }
+                Err(e) => {
+                    return Err(e);
+                }
+            }
+        }
+
+        let count: usize = self
+            .contract
+            .count()
+            .block(block_number)
+            .call()
+            .await
+            .unwrap()
+            .try_into()
+            .unwrap();
+
+        let root: H256 = self
+            .contract
+            .root()
+            .block(block_number)
+            .call()
+            .await
+            .unwrap()
+            .into();
+
+        let tree = IncrementalMerkle::new(branch, count);
+
+        assert_eq!(tree.root(), root);
+
+        return Ok(tree);
     }
 
     #[instrument(err, ret, skip(self))]
@@ -448,6 +514,20 @@ mod test {
     };
 
     use crate::{mailbox::GAS_ESTIMATE_BUFFER, EthereumMailbox};
+
+    async fn test_tree() {
+        let provider = Arc::new(Provider::new(mock_provider.clone()));
+
+        let mailbox = EthereumMailbox::new(
+            provider.clone(),
+            &ContractLocator {
+                // An Arbitrum Nitro chain
+                domain: &HyperlaneDomain::Known(KnownHyperlaneDomain::ArbitrumGoerli),
+                // Address doesn't matter because we're using a MockProvider
+                address: H256::default(),
+            },
+        );
+    }
 
     #[tokio::test]
     async fn test_process_estimate_costs_sets_l2_gas_limit_for_arbitrum() {

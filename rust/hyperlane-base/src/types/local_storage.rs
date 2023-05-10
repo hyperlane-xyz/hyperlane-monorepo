@@ -103,19 +103,10 @@ impl CheckpointSyncer for LocalStorage {
 
     async fn write_checkpoint_with_message_id(&self, signed_checkpoint: &SignedCheckpointWithMessageId) -> Result<()> {
         let serialized_checkpoint = serde_json::to_string_pretty(signed_checkpoint)?;
-        let path = self.checkpoint_with_message_id_file_path(signed_checkpoint.value.checkpoint.index);
+        let path = self.checkpoint_with_message_id_file_path(signed_checkpoint.value.index);
         tokio::fs::write(&path, &serialized_checkpoint)
             .await
-            .with_context(|| format!("Writing checkpoint with ID to {path:?}"))?;
-
-        // match self.latest_index().await? {
-        //     Some(current_latest_index) => {
-        //         if current_latest_index < signed_checkpoint.value.checkpoint.index {
-        //             self.write_index(signed_checkpoint.value.checkpoint.index).await?
-        //         }
-        //     }
-        //     None => self.write_index(signed_checkpoint.value.checkpoint.index).await?,
-        // }
+            .with_context(|| format!("Writing (checkpoint, messageId) to {path:?}"))?;
 
         Ok(())
     }

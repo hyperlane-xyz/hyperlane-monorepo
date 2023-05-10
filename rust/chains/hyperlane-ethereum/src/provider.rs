@@ -50,6 +50,16 @@ where
     M: Middleware + 'static,
 {
     #[instrument(err, skip(self))]
+    async fn get_storage_at(&self, address: H256, location: H256) -> ChainResult<H256> {
+        let storage = self
+            .provider
+            .get_storage_at(H160::from(address), location, None)
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+        Ok(storage)
+    }
+
+    #[instrument(err, skip(self))]
     async fn get_block_by_hash(&self, hash: &H256) -> ChainResult<BlockInfo> {
         let block = get_with_retry_on_none(hash, |h| self.provider.get_block(*h)).await?;
         Ok(BlockInfo {
