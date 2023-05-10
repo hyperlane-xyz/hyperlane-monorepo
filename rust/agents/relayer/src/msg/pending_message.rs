@@ -92,6 +92,10 @@ impl Eq for PendingMessage {}
 // TODO: implement the validation step to ensure the message was not reorged out
 #[async_trait]
 impl PendingOperation for PendingMessage {
+    fn domain(&self) -> &HyperlaneDomain {
+        self.ctx.destination_mailbox.domain()
+    }
+
     #[instrument]
     async fn prepare(&mut self) -> TxPrepareResult {
         make_tx_try!(|| self.on_prepare_retry(), TxPrepareResult::CriticalFailure);

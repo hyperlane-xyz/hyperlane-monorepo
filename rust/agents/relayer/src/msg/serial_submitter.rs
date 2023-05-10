@@ -124,6 +124,10 @@ impl SerialSubmitter {
             None => return Ok(()),
         };
 
+        // make sure things are getting wired up correctly; if this works in testing it should also
+        // be valid in production.
+        debug_assert_eq!(*op.domain(), self.domain);
+
         // in the future we could pipeline this so that the next operation is being
         // prepared while the current one is being submitted
         match op.prepare().await {

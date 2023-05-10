@@ -4,6 +4,7 @@ use std::time::Instant;
 use async_trait::async_trait;
 use enum_dispatch::enum_dispatch;
 use eyre::Report;
+use hyperlane_core::HyperlaneDomain;
 
 #[allow(unused_imports)] // required for enum_dispatch
 use super::pending_message::PendingMessage;
@@ -13,6 +14,9 @@ use super::pending_message::PendingMessage;
 #[async_trait]
 #[enum_dispatch]
 pub trait PendingOperation {
+    /// The domain this operation will take place on.
+    fn domain(&self) -> &HyperlaneDomain;
+
     /// Prepare to run this operation. This will be called before every run and
     /// will usually have a very short gap between it and the run call.
     async fn prepare(&mut self) -> TxPrepareResult {
