@@ -6,6 +6,7 @@ use std::{
 
 use async_trait::async_trait;
 use eyre::Result;
+use tokio::sync::mpsc::UnboundedSender;
 use tokio::{
     sync::{
         mpsc::{self, UnboundedReceiver},
@@ -239,36 +240,7 @@ impl BaseAgent for Relayer {
 
         // each message process attempts to send messages from a chain
         for origin in &self.origin_chains {
-            let metrics = MessageProcessorMetrics::new(
-                &self.core.metrics,
-                origin,
-                self.destination_chains.iter(),
-            );
-            let destination_ctxs = self
-                .destination_chains
-                .iter()
-                .map(|destination| {
-                    (
-                        destination.id(),
-                        self.msg_ctxs[&ContextKey {
-                            origin: origin.id(),
-                            destination: destination.id(),
-                        }]
-                            .clone(),
-                    )
-                })
-                .collect();
-            let message_processor = MessageProcessor::new(
-                self.mailboxes[origin].db().clone(),
-                self.whitelist.clone(),
-                self.blacklist.clone(),
-                metrics,
-                self.prover_syncs[origin].clone(),
-                send_channels.clone(),
-                destination_ctxs,
-            );
-
-            tasks.push(self.run_message_processor(message_processor));
+            tasks.push(self.run_message_processor(origin, send_channels.clone()));
         }
 
         run_all(tasks)
@@ -302,9 +274,40 @@ impl Relayer {
 
     fn run_message_processor(
         &self,
-        message_processor: MessageProcessor,
+        origin: &HyperlaneDomain,
+        send_channels: HashMap<u32, UnboundedSender<Box<DynPendingOperation>>>,
     ) -> Instrumented<JoinHandle<Result<()>>> {
-        let span = info_span!("MessageProcessor", ?message_processor);
+        let metrics = MessageProcessorMetrics::new(
+            &self.core.metrics,
+            origin,
+            self.destination_chains.iter(),
+        );
+        let destination_ctxs = self
+            .destination_chains
+            .iter()
+            .filter(|&destination| destination != origin)
+            .map(|destination| {
+                (
+                    destination.id(),
+                    self.msg_ctxs[&ContextKey {
+                        origin: origin.id(),
+                        destination: destination.id(),
+                    }]
+                        .clone(),
+                )
+            })
+            .collect();
+        let message_processor = MessageProcessor::new(
+            self.mailboxes[origin].db().clone(),
+            self.whitelist.clone(),
+            self.blacklist.clone(),
+            metrics,
+            self.prover_syncs[origin].clone(),
+            send_channels,
+            destination_ctxs,
+        );
+
+        let span = info_span!("MessageProcessor", origin=%message_processor.domain());
         let process_fut = message_processor.spawn();
         tokio::spawn(async move {
             let res = tokio::try_join!(process_fut)?;

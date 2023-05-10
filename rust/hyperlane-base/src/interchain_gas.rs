@@ -44,7 +44,8 @@ impl CachingInterchainGasPaymaster {
             metrics,
         );
 
-        tokio::spawn(async move { sync.sync_gas_payments().await })
-            .instrument(info_span!("InterchainGasPaymasterContractSync", self=%self.paymaster.domain()))
+        tokio::spawn(async move { sync.sync_gas_payments().await }).instrument(
+            info_span!("InterchainGasPaymasterContractSync", self=%self.paymaster.domain()),
+        )
     }
 }

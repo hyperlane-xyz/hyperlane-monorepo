@@ -50,6 +50,11 @@ impl Debug for MessageProcessor {
 }
 
 impl MessageProcessor {
+    /// The domain this processor is getting messages from.
+    pub fn domain(&self) -> &HyperlaneDomain {
+        self.db.domain()
+    }
+
     pub fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("MessageProcessor");
         tokio::spawn(async move { self.main_loop().await }).instrument(span)

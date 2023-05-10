@@ -147,12 +147,10 @@ fn main() -> ExitCode {
         "HYP_BASE_CHAINS_TEST2_CONNECTION_TYPE" => "httpQuorum",
         "HYP_BASE_CHAINS_TEST3_CONNECTION_URL" => "http://127.0.0.1:8545",
         "HYP_BASE_METRICS" => "9092",
-        "HYP_ORIGINCHAINNAME" => "INVALIDCHAIN",
         "HYP_BASE_DB" => relayer_db.to_str().unwrap(),
         "HYP_BASE_CHAINS_TEST1_SIGNER_KEY" => "8166f546bab6da521a8369cab06c5d2b9e46670292d85c875ee9ec20e84ffb61",
         "HYP_BASE_CHAINS_TEST2_SIGNER_KEY" => "f214f2b2cd398c806f84e317254e0f0b801d0643303237d97a22a48e01628897",
-        "HYP_RELAYER_ORIGINCHAINNAME" => "test1",
-        "HYP_RELAYER_DESTINATIONCHAINNAMES" => "test2,test3",
+        "HYP_BASE_RELAYCHAINS" => "invalidchain,otherinvalid",
         "HYP_RELAYER_WHITELIST" => r#"[{"senderAddress": "*", "destinationDomain": [13372, 13373], "recipientAddress": "*"}]"#,
         "HYP_RELAYER_ALLOWLOCALCHECKPOINTSYNCERS" => "true",
     };
@@ -162,7 +160,7 @@ fn main() -> ExitCode {
         "--chains.test1.connection.urls=\"http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545\"",
         // default is used for TEST3
         "--defaultSigner.key", "701b615bbdfb9de65240bc28bd21bbc0d996645a3dd57e7b12bc2bdf6f192c82",
-        "--originChainName=test1",
+        "--relayChains=test1,test2,test3",
     ];
 
     let validator_env = hashmap! {
