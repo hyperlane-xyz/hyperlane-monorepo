@@ -1,0 +1,52 @@
+name: Foundry diff check
+
+on:
+  pull_request:
+    paths:
+      - 'solidity/**'
+
+env:
+  FOUNDRY_PROFILE: ci
+
+jobs:
+  check:
+    strategy:
+      fail-fast: true
+
+    name: Foundry project
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3.3.0
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Build and diff
+        id: diff
+        run: |
+          cd solidity
+          git checkout master
+          forge snapshot --snap ${{ github.sha }}
+          git checkout ${{ github.head_ref }}
+          result="$(forge snapshot --diff ${{ github.sha }})"
+          echo $result
+          result="${result//$'\033[32m'/' '}"
+          result="${result//$'\033[0m'/' '}"
+          echo "result<<EOF" >> $GITHUB_OUTPUT
+          echo "$result" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      - name: Comment diff
+        uses: marocchino/sticky-pull-request-comment@v2.5.0
+        if: steps.diff.outputs.result != ''
+        with:
+          header: Diff
+          message: |
+            ### Difference between build result of base branch and PR
+            ```
+            ${{ steps.diff.outputs.result }}
+            ```
