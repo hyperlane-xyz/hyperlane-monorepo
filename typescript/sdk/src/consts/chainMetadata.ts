@@ -145,7 +145,7 @@ export const ChainMetadataSchema = z.object({
               .positive()
               .optional()
               .describe(
-                'The maximum number of blocks that this RPC supports getting logs for.',
+                'Maximum difference from the latest block for which the RPC can query data',
               ),
           })
           .optional()
