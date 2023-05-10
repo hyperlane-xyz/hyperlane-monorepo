@@ -20,6 +20,9 @@ abstract contract AbstractMerkleRootMultisigIsm is AbstractMultisigIsm {
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.MERKLE_ROOT_MULTISIG);
 
+    /**
+     * @inheritdoc AbstractMultisigIsm
+     */
     function digest(bytes calldata _metadata, bytes calldata _message)
         internal
         pure
@@ -41,6 +44,9 @@ abstract contract AbstractMerkleRootMultisigIsm is AbstractMultisigIsm {
             );
     }
 
+    /**
+     * @inheritdoc AbstractMultisigIsm
+     */
     function signatureAt(bytes calldata _metadata, uint256 _index)
         internal
         pure

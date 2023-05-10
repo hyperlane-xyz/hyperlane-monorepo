@@ -19,6 +19,9 @@ abstract contract AbstractMessageIdMultisigIsm is AbstractMultisigIsm {
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.MESSAGE_ID_MULTISIG);
 
+    /**
+     * @inheritdoc AbstractMultisigIsm
+     */
     function digest(bytes calldata _metadata, bytes calldata _message)
         internal
         pure
@@ -35,6 +38,9 @@ abstract contract AbstractMessageIdMultisigIsm is AbstractMultisigIsm {
             );
     }
 
+    /**
+     * @inheritdoc AbstractMultisigIsm
+     */
     function signatureAt(bytes calldata _metadata, uint256 _index)
         internal
         pure
