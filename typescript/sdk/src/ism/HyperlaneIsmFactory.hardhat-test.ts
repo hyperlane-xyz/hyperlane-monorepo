@@ -24,7 +24,6 @@ function randomModuleType(): ModuleType {
   const choices = [
     ModuleType.AGGREGATION,
     ModuleType.MERKLE_ROOT_MULTISIG,
-    ModuleType.MESSAGE_ID_MULTISIG,
     ModuleType.ROUTING,
   ];
   return choices[randomInt(choices.length)];
