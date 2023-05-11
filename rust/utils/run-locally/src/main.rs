@@ -152,6 +152,8 @@ fn main() -> ExitCode {
     let relayer_env = hashmap! {
         "HYP_BASE_CHAINS_TEST1_CONNECTION_TYPE" => "httpFallback",
         "HYP_BASE_CHAINS_TEST2_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
+        // by setting this as a quorum provider we will cause nonce errors when delivering to test2
+        // because the message will be sent to the node 3 times.
         "HYP_BASE_CHAINS_TEST2_CONNECTION_TYPE" => "httpQuorum",
         "HYP_BASE_CHAINS_TEST3_CONNECTION_URL" => "http://127.0.0.1:8545",
         "HYP_BASE_METRICS" => "9092",
