@@ -49,7 +49,7 @@ impl ValidatorSubmitter {
         tokio::spawn(async move { self.main_task().await }).instrument(span)
     }
 
-    async fn main_task(self) -> Result<()> {
+    async fn announce_task(&self) -> Result<()> {
         // Sign and post the validator announcement
         let announcement = Announcement {
             validator: self.signer.eth_address(),
@@ -105,6 +105,11 @@ impl ValidatorSubmitter {
             }
             sleep(self.interval).await;
         }
+        Ok(())
+    }
+
+    async fn main_task(self) -> Result<()> {
+        self.announce_task().await?;
 
         // Ensure that the mailbox has > 0 messages before we enter the main
         // validator submit loop. This is to avoid an underflow / reverted

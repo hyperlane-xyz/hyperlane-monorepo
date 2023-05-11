@@ -112,7 +112,7 @@ where
     }
     request = request.max_fee_per_gas(max_fee);
     request = request.max_priority_fee_per_gas(max_priority_fee);
-    let mut eip_1559_tx = tx.clone();
+    let mut eip_1559_tx = tx;
     eip_1559_tx.tx = ethers::types::transaction::eip2718::TypedTransaction::Eip1559(request);
     Ok(eip_1559_tx.gas(gas_limit))
 }

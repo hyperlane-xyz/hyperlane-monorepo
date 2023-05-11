@@ -279,6 +279,15 @@ fn main() -> ExitCode {
         .status()
         .expect("Failed to run prettier from top level dir");
 
+    // Rebuild the SDK to pick up the deployed contracts
+    println!("Rebuilding sdk...");
+    build_cmd(
+        &["yarn", "build"],
+        &build_log,
+        log_all,
+        Some("../typescript/sdk"),
+    );
+
     println!("Spawning relayer...");
     let mut relayer = Command::new("target/debug/relayer")
         .stdout(Stdio::piped())
