@@ -142,15 +142,12 @@ where
         let validator = announcement.value.validator;
         if let Ok(balance) = self.provider.get_balance(validator, None).await {
             if let Some(cost) = contract_call.tx.max_cost() {
-                let difference = cost.saturating_sub(balance);
-                return Ok(difference);
+                Ok(cost.saturating_sub(balance))
             } else {
-                return Err(
-                    ProviderError::CustomError("Unable to get announce max cost".into()).into(),
-                );
+                Err(ProviderError::CustomError("Unable to get announce max cost".into()).into())
             }
         } else {
-            return Err(ProviderError::CustomError("Unable to query balance".into()).into());
+            Err(ProviderError::CustomError("Unable to query balance".into()).into())
         }
     }
 
