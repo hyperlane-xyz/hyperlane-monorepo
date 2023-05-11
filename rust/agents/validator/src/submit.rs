@@ -86,8 +86,9 @@ impl ValidatorSubmitter {
                     .await?;
                 if balance_delta > U256::zero() {
                     warn!(
-                        "Please send {} tokens to the validator address {} to announce",
-                        balance_delta, announcement.validator,
+                        tokens_needed=%balance_delta,
+                        validator_address=?announcement.validator,
+                        "Please send tokens to the validator address to announce",
                     );
                 } else {
                     let outcome = self
