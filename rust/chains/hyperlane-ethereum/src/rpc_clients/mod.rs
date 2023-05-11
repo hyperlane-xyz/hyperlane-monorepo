@@ -19,7 +19,7 @@ enum CategorizedResponse<R> {
 
 const METHODS_TO_NOT_RETRY: &[&str] = &["eth_estimateGas"];
 const METHOD_TO_NOT_RETRY_WHEN_NOT_SUPPORTED: &[&str] = &["eth_feeHistory"];
-const METHODS_TO_NOT_RETRY_ON_REVERT: &[&str] = &["eth_call"];
+const METHODS_TO_NOT_RETRY_ON_REVERT: &[&str] = &["eth_call", "eth_sendTransaction", "eth_sendRawTransaction"];
 const METHODS_TO_NOT_RETRY_ON_NONCE_ERROR: &[&str] =
     &["eth_sendRawTransaction", "eth_sendTransaction"];
 const METHODS_TO_NOT_RETRY_ON_ALREADY_KNOWN: &[&str] =
