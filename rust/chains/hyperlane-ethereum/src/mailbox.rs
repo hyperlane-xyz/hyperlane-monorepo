@@ -24,9 +24,6 @@ use crate::trait_builder::BuildableWithProvider;
 use crate::tx::{fill_tx_gas_params, report_tx};
 use crate::EthereumProvider;
 
-/// An amount of gas to add to the estimated gas
-const GAS_ESTIMATE_BUFFER: u32 = 50000;
-
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
 where
     M: Middleware,
@@ -406,7 +403,10 @@ mod test {
         TxCostEstimate, H160, H256, U256,
     };
 
-    use crate::{mailbox::GAS_ESTIMATE_BUFFER, EthereumMailbox};
+    use crate::EthereumMailbox;
+
+    /// An amount of gas to add to the estimated gas
+    const GAS_ESTIMATE_BUFFER: u32 = 50000;
 
     #[tokio::test]
     async fn test_process_estimate_costs_sets_l2_gas_limit_for_arbitrum() {

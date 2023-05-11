@@ -58,8 +58,7 @@ impl BaseAgent for Validator {
 
         let validator_announce = settings
             .build_validator_announce(&settings.origin_chain, &metrics)
-            .await?
-            .into();
+            .await?;
 
         Ok(Self {
             origin_chain: settings.origin_chain,
