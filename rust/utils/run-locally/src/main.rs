@@ -64,27 +64,15 @@ impl Drop for State {
         println!("Signaling children to stop...");
         if let Some(mut c) = self.kathy.take() {
             stop_child(&mut c);
-            if !c.wait().unwrap().success() {
-                eprintln!("Kathy exited with error code")
-            };
         }
         if let Some(mut c) = self.relayer.take() {
             stop_child(&mut c);
-            if !c.wait().unwrap().success() {
-                eprintln!("Relayer exited with error code")
-            };
         }
         for mut c in self.validators.drain(..) {
             stop_child(&mut c);
-            if !c.wait().unwrap().success() {
-                eprintln!("Validator exited with error code")
-            };
         }
         if let Some(mut c) = self.node.take() {
             stop_child(&mut c);
-            if !c.wait().unwrap().success() {
-                eprintln!("Node exited with error code")
-            };
         }
         println!("Joining watchers...");
         RUNNING.store(false, Ordering::Relaxed);
