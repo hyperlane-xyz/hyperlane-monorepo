@@ -30,7 +30,7 @@ pub struct MessageContext {
     pub metadata_builder: BaseMetadataBuilder,
     /// Used to determine if messages from the origin have made sufficient gas
     /// payments.
-    pub gas_payment_enforcer: Arc<GasPaymentEnforcer>,
+    pub origin_gas_payment_enforcer: Arc<GasPaymentEnforcer>,
     /// Hard limit on transaction gas when submitting a transaction to the
     /// destination.
     pub transaction_gas_limit: Option<U256>,
@@ -171,7 +171,7 @@ impl PendingOperation for PendingMessage {
         // If the gas payment requirement hasn't been met, move to the next tick.
         let Some(gas_limit) = tx_try!(
             self.ctx
-                .gas_payment_enforcer
+                .origin_gas_payment_enforcer
                 .message_meets_gas_payment_requirement(&self.message, &tx_cost_estimate)
                 .await,
             "checking if message meets gas payment requirement"
@@ -231,7 +231,7 @@ impl PendingOperation for PendingMessage {
             "processing message"
         );
 
-        tx_try!(critical: self.ctx.gas_payment_enforcer.record_tx_outcome(&self.message, outcome), "recording tx outcome");
+        tx_try!(critical: self.ctx.origin_gas_payment_enforcer.record_tx_outcome(&self.message, outcome), "recording tx outcome");
         if outcome.executed {
             info!(
                 hash=?outcome.txid,
