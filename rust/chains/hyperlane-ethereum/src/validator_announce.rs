@@ -136,10 +136,10 @@ where
         &self,
         announcement: SignedType<Announcement>,
     ) -> ChainResult<U256> {
-        let contract_call = self
-            .announce_contract_call(announcement.clone(), None)
-            .await?;
         let validator = announcement.value.validator;
+        let contract_call = self
+            .announce_contract_call(announcement, None)
+            .await?;
         if let Ok(balance) = self.provider.get_balance(validator, None).await {
             if let Some(cost) = contract_call.tx.max_cost() {
                 Ok(cost.saturating_sub(balance))
