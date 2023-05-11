@@ -84,7 +84,7 @@ impl ValidatorSubmitter {
                     .validator_announce
                     .announce_tokens_needed(signed_announcement.clone())
                     .await?;
-                if balance_delta.cmp(&U256::zero()) == std::cmp::Ordering::Greater {
+                if balance_delta > U256::zero() {
                     warn!(
                         "Please send {} tokens to the validator address {} to announce",
                         balance_delta, announcement.validator,
