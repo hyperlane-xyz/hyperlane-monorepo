@@ -31,7 +31,7 @@ pub struct MessageProcessor {
     /// submissions) to
     send_channels: HashMap<u32, UnboundedSender<Box<DynPendingOperation>>>,
     /// Needed context to send a message for each destination chain
-    destination_ctxs: HashMap<u32, Arc<MessageCtx>>,
+    destination_ctxs: HashMap<u32, Arc<MessageContext>>,
     #[new(default)]
     message_nonce: u32,
 }

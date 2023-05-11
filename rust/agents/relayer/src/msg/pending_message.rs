@@ -20,7 +20,7 @@ use super::{
 
 /// The message context contains the links needed to submit a message. Each
 /// instance is for a unique origin -> destination pairing.
-pub struct MessageCtx {
+pub struct MessageContext {
     /// Mailbox on the destination chain.
     pub destination_mailbox: CachingMailbox,
     /// Origin chain database to verify gas payments.
@@ -41,7 +41,7 @@ pub struct MessageCtx {
 #[derive(new)]
 pub struct PendingMessage {
     pub message: HyperlaneMessage,
-    ctx: Arc<MessageCtx>,
+    ctx: Arc<MessageContext>,
     #[new(default)]
     submitted: bool,
     #[new(default)]

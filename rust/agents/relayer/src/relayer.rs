@@ -29,7 +29,7 @@ use crate::{
     msg::{
         gas_payment::GasPaymentEnforcer,
         metadata::BaseMetadataBuilder,
-        pending_message::MessageCtx,
+        pending_message::MessageContext,
         pending_operation::DynPendingOperation,
         processor::{MessageProcessor, MessageProcessorMetrics},
         serial_submitter::{SerialSubmitter, SerialSubmitterMetrics},
@@ -50,7 +50,7 @@ pub struct Relayer {
     core: HyperlaneAgentCore,
     /// Context data for each (origin, destination) chain pair a message can be
     /// sent between
-    msg_ctxs: HashMap<ContextKey, Arc<MessageCtx>>,
+    msg_ctxs: HashMap<ContextKey, Arc<MessageContext>>,
     /// Mailboxes for all chains (technically only need caching mailbox for
     /// origin chains)
     mailboxes: HashMap<HyperlaneDomain, CachingMailbox>,
@@ -190,7 +190,7 @@ impl BaseAgent for Relayer {
                         origin: origin.id(),
                         destination: destination.id(),
                     },
-                    Arc::new(MessageCtx {
+                    Arc::new(MessageContext {
                         destination_mailbox: mailboxes[destination].clone(),
                         origin_db: HyperlaneDB::new(origin, db.clone()),
                         metadata_builder,
