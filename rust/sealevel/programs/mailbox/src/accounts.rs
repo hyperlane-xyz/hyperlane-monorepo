@@ -49,15 +49,20 @@ where
         self.data
     }
 
-    pub fn fetch(buf: &mut &[u8]) -> Result<Self, ProgramError> {
+    // TODO: better name here?
+    pub fn fetch_data(buf: &mut &[u8]) -> Result<Option<Box<T>>, ProgramError> {
         // Account data is zero initialized.
         let initialized = bool::deserialize(buf)?;
         let data = if initialized {
-            T::deserialize(buf).map(Box::new)?
+            Some(T::deserialize(buf).map(Box::new)?)
         } else {
-            Box::<T>::default()
+            None
         };
-        Ok(Self { data })
+        Ok(data)
+    }
+
+    pub fn fetch(buf: &mut &[u8]) -> Result<Self, ProgramError> {
+        Ok(Self::from(Self::fetch_data(buf)?.unwrap_or_else(|| Box::<T>::default())))
     }
 
     // Optimisically write then realloc on failure.

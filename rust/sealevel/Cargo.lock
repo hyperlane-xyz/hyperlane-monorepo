@@ -1484,6 +1484,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-ism-multisig-ism-message-id"
+version = "0.1.0"
+dependencies = [
+ "borsh",
+ "hyperlane-core",
+ "hyperlane-sealevel-mailbox",
+ "num-derive",
+ "num-traits",
+ "solana-program",
+ "thiserror",
+]
+
+[[package]]
 name = "hyperlane-sealevel-ism-rubber-stamp"
 version = "0.1.0"
 dependencies = [
