@@ -305,6 +305,15 @@ fn main() -> ExitCode {
         .status()
         .expect("Failed to run prettier from top level dir");
 
+    // Rebuild the SDK to pick up the deployed contracts
+    println!("Rebuilding sdk...");
+    build_cmd(
+        &["yarn", "build"],
+        &build_log,
+        log_all,
+        Some("../typescript/sdk"),
+    );
+
     println!("Spawning relayer...");
     let mut relayer = Command::new("target/debug/relayer")
         .stdout(Stdio::piped())
@@ -365,38 +374,6 @@ fn main() -> ExitCode {
             }
         }));
         state.validators.push(validator);
-    }
-
-    // Rebuild the SDK to pick up the deployed contracts
-    println!("Rebuilding sdk...");
-    build_cmd(
-        &["yarn", "build"],
-        &build_log,
-        log_all,
-        Some("../typescript/sdk"),
-    );
-
-    // Register the validator announcement
-    for i in 0..3 {
-        let chain = format!("test{}", 1 + i);
-        println!("Announcing validator for {chain}...");
-        let mut announce = Command::new("yarn");
-        let location = format!("file://{}", checkpoints_dirs[i].path().to_str().unwrap());
-        announce.arg("ts-node");
-        announce.args([
-            "scripts/announce-validators.ts",
-            "--environment",
-            "test",
-            "--location",
-            &location,
-            "--chain",
-            &chain,
-        ]);
-        announce
-            .current_dir("../typescript/infra")
-            .stdout(Stdio::piped())
-            .spawn()
-            .expect("Failed to announce validator");
     }
 
     println!("Setup complete! Agents running in background...");
