@@ -53,7 +53,7 @@ pub struct BaseMetadataBuilder {
     allow_local_checkpoint_syncers: bool,
     metrics: Arc<CoreMetrics>,
     /// ISMs can be structured recursively. We keep track of the depth
-    /// of the recursion to avoid infinit loops.
+    /// of the recursion to avoid infinite loops.
     #[new(default)]
     depth: u32,
     max_depth: u32,
