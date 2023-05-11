@@ -83,7 +83,9 @@ impl Debug for PendingMessage {
 
 impl PartialEq for PendingMessage {
     fn eq(&self, other: &Self) -> bool {
-        self.num_retries == other.num_retries && self.message.nonce == other.message.nonce
+        self.num_retries == other.num_retries
+            && self.message.nonce == other.message.nonce
+            && self.message.origin == other.message.origin
     }
 }
 
