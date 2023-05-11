@@ -17,28 +17,28 @@ pub trait PendingOperation {
     /// The domain this operation will take place on.
     fn domain(&self) -> &HyperlaneDomain;
 
-    /// Prepare to run this operation. This will be called before every run and
-    /// will usually have a very short gap between it and the run call.
-    async fn prepare(&mut self) -> TxPrepareResult {
+    /// Prepare to submit this operation. This will be called before every submission and
+    /// will usually have a very short gap between it and the submit call.
+    async fn prepare(&mut self) -> PrepareResult {
         if self.ready_to_be_processed() {
-            TxPrepareResult::Ready
+            PrepareResult::Ready
         } else {
-            TxPrepareResult::NotReady
+            PrepareResult::NotReady
         }
     }
 
     /// Submit this operation to the blockchain and report if it was successful
     /// or not.
-    async fn submit(&mut self) -> TxRunResult;
+    async fn submit(&mut self) -> SubmitResult;
 
-    async fn validate(&mut self) -> TxValidationResult {
+    async fn validate(&mut self) -> ValidationResult {
         // default implementation is basically a no-op
         if self.ready_to_be_validated() {
-            TxValidationResult::Valid
+            ValidationResult::Valid
         } else if !self.submitted() {
-            TxValidationResult::Invalid
+            ValidationResult::Invalid
         } else {
-            TxValidationResult::Retry
+            ValidationResult::Retry
         }
     }
 
@@ -96,7 +96,7 @@ impl Ord for DynPendingOperation {
 }
 
 #[allow(dead_code)] // Inner types are for present _and_ future use so allow unused variants.
-pub enum TxPrepareResult {
+pub enum PrepareResult {
     /// Txn is ready to be submitted
     Ready,
     /// This Txn is not ready to be attempted again yet
@@ -114,7 +114,7 @@ pub enum TxPrepareResult {
 
 /// The result of running a pending transaction.
 #[allow(dead_code)] // Inner types are for present _and_ future use so allow unused variants.
-pub enum TxRunResult {
+pub enum SubmitResult {
     /// Transaction was successfully processed
     Success,
     /// Txn failed/reverted and we should not try again
@@ -127,7 +127,7 @@ pub enum TxRunResult {
 }
 
 #[allow(dead_code)] // Inner types are for present _and_ future use so allow unused variants.
-pub enum TxValidationResult {
+pub enum ValidationResult {
     /// Transaction was successfully validated as being included in the
     /// blockchain
     Valid,

@@ -131,39 +131,39 @@ impl SerialSubmitter {
         // in the future we could pipeline this so that the next operation is being
         // prepared while the current one is being submitted
         match op.prepare().await {
-            TxPrepareResult::Ready => {
+            PrepareResult::Ready => {
                 self.metrics.txs_prepared.inc();
             }
-            TxPrepareResult::NotReady => {
+            PrepareResult::NotReady => {
                 self.run_queue.push(Reverse(op));
                 return Ok(());
             }
-            TxPrepareResult::Retry => {
+            PrepareResult::Retry => {
                 self.metrics.txs_failed.inc();
                 self.run_queue.push(Reverse(op));
                 return Ok(());
             }
-            TxPrepareResult::DoNotRetry => {
+            PrepareResult::DoNotRetry => {
                 // not strictly an error, could have already been processed
                 self.metrics.txs_prepared.inc();
                 return Ok(());
             }
-            TxPrepareResult::CriticalFailure(e) => return Err(e),
+            PrepareResult::CriticalFailure(e) => return Err(e),
         };
 
         match op.submit().await {
-            TxRunResult::Success => {
+            SubmitResult::Success => {
                 self.metrics.txs_submitted.inc();
                 self.validation_queue.push(Reverse(op));
             }
-            TxRunResult::DoNotRetry => {
+            SubmitResult::DoNotRetry => {
                 self.metrics.txs_submitted.inc();
             }
-            TxRunResult::Retry => {
+            SubmitResult::Retry => {
                 self.metrics.txs_failed.inc();
                 self.run_queue.push(Reverse(op));
             }
-            TxRunResult::CriticalFailure(e) => return Err(e),
+            SubmitResult::CriticalFailure(e) => return Err(e),
         }
 
         Ok(())
@@ -172,24 +172,24 @@ impl SerialSubmitter {
     /// Validate submitted operations.
     async fn tick_validate(&mut self) -> Result<()> {
         while let Some(Reverse(mut op)) = self.validation_queue.pop() {
-            let res: TxValidationResult = op.validate().await;
+            let res: ValidationResult = op.validate().await;
             match res {
-                TxValidationResult::Valid => {
+                ValidationResult::Valid => {
                     self.metrics.txs_validated.inc();
                 }
-                TxValidationResult::NotReady => {
+                ValidationResult::NotReady => {
                     self.validation_queue.push(Reverse(op));
                     break;
                 }
-                TxValidationResult::Retry => {
+                ValidationResult::Retry => {
                     self.validation_queue.push(Reverse(op));
                 }
-                TxValidationResult::Invalid => {
+                ValidationResult::Invalid => {
                     // needs to be re-run
                     self.metrics.txs_invalidated.inc();
                     self.run_queue.push(Reverse(op));
                 }
-                TxValidationResult::CriticalFailure(e) => return Err(e),
+                ValidationResult::CriticalFailure(e) => return Err(e),
             }
         }
 

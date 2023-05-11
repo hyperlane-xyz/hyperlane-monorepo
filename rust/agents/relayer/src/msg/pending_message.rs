@@ -99,8 +99,8 @@ impl PendingOperation for PendingMessage {
     }
 
     #[instrument]
-    async fn prepare(&mut self) -> TxPrepareResult {
-        make_tx_try!(|| self.on_prepare_retry(), TxPrepareResult::CriticalFailure);
+    async fn prepare(&mut self) -> PrepareResult {
+        make_tx_try!(|| self.on_prepare_retry(), PrepareResult::CriticalFailure);
 
         // If the message has already been processed, e.g. due to another relayer having
         // already processed, then mark it as already-processed, and move on to
@@ -117,7 +117,7 @@ impl PendingOperation for PendingMessage {
             info!("Message processed");
             self.submitted = true;
             tx_try!(critical: self.ctx.origin_db.mark_nonce_as_processed(self.message.nonce), "recording message as processed");
-            return TxPrepareResult::DoNotRetry;
+            return PrepareResult::DoNotRetry;
         }
 
         // The Mailbox's `recipientIsm` function will revert if
@@ -205,7 +205,7 @@ impl PendingOperation for PendingMessage {
             metadata,
             gas_limit,
         }));
-        TxPrepareResult::Ready
+        PrepareResult::Ready
     }
 
     /// Returns the message's status. If the message is processed, either by a
@@ -215,8 +215,8 @@ impl PendingOperation for PendingMessage {
     /// failed gas estimation or an insufficient gas payment, Ok(false) is
     /// returned.
     #[instrument]
-    async fn submit(&mut self) -> TxRunResult {
-        make_tx_try!(|| self.on_submit_retry(), TxRunResult::CriticalFailure);
+    async fn submit(&mut self) -> SubmitResult {
+        make_tx_try!(|| self.on_submit_retry(), SubmitResult::CriticalFailure);
 
         let state = self
             .submission_data
@@ -242,7 +242,7 @@ impl PendingOperation for PendingMessage {
             self.submitted = true;
             self.reset_attempts();
             tx_try!(critical: self.record_message_process_success(), "recording message process success");
-            TxRunResult::Success
+            SubmitResult::Success
         } else {
             info!(
                 hash=?outcome.txid,
@@ -262,16 +262,16 @@ impl PendingOperation for PendingMessage {
 }
 
 impl PendingMessage {
-    fn on_prepare_retry(&mut self) -> TxPrepareResult {
+    fn on_prepare_retry(&mut self) -> PrepareResult {
         info!("Message not prepared; will retry");
         self.inc_attmpets();
-        TxPrepareResult::Retry
+        PrepareResult::Retry
     }
 
-    fn on_submit_retry(&mut self) -> TxRunResult {
+    fn on_submit_retry(&mut self) -> SubmitResult {
         info!("Message not processed; will retry");
         self.inc_attmpets();
-        TxRunResult::Retry
+        SubmitResult::Retry
     }
 
     /// Record in HyperlaneDB and various metrics that this process has observed
