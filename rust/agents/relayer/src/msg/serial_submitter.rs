@@ -159,7 +159,7 @@ async fn prepare_task(
         match op.prepare().await {
             PendingOperationResult::Success => {
                 debug!(?op, "Operation prepared");
-                metrics.txs_prepared.inc();
+                metrics.ops_prepared.inc();
                 // this send will pause this task if the submitter is not ready to accept yet
                 tx_submit.send(op).await?;
             }
@@ -169,12 +169,12 @@ async fn prepare_task(
                 sleep(Duration::from_millis(200)).await;
             }
             PendingOperationResult::Reprepare => {
-                metrics.txs_failed.inc();
+                metrics.ops_failed.inc();
                 prepare_queue.lock().await.push(Reverse(op));
             }
             PendingOperationResult::Drop => {
                 // not strictly an error, could have already been processed
-                metrics.txs_prepared.inc();
+                metrics.ops_prepared.inc();
             }
             PendingOperationResult::CriticalFailure(e) => {
                 return Err(e);
@@ -195,18 +195,18 @@ async fn submit_task(
         match op.submit().await {
             PendingOperationResult::Success => {
                 debug!(?op, "Operation submitted");
-                metrics.txs_submitted.inc();
+                metrics.ops_submitted.inc();
                 confirm_queue.lock().await.push(Reverse(op));
             }
             PendingOperationResult::NotReady => {
                 panic!("Pending operation was prepared and therefore must be ready")
             }
             PendingOperationResult::Reprepare => {
-                metrics.txs_failed.inc();
+                metrics.ops_failed.inc();
                 prepare_queue.lock().await.push(Reverse(op));
             }
             PendingOperationResult::Drop => {
-                metrics.txs_submitted.inc();
+                metrics.ops_submitted.inc();
             }
             PendingOperationResult::CriticalFailure(e) => return Err(e),
         }
@@ -236,7 +236,7 @@ async fn confirm_task(
         match op.confirm().await {
             PendingOperationResult::Success => {
                 debug!(?op, "Operation confirmed");
-                metrics.txs_confirmed.inc();
+                metrics.ops_confirmed.inc();
             }
             PendingOperationResult::NotReady => {
                 // none of the operations are ready yet, so wait for a little bit
@@ -244,11 +244,11 @@ async fn confirm_task(
                 sleep(Duration::from_secs(5)).await;
             }
             PendingOperationResult::Reprepare => {
-                metrics.txs_reorged.inc();
+                metrics.ops_reorged.inc();
                 prepare_queue.lock().await.push(Reverse(op));
             }
             PendingOperationResult::Drop => {
-                metrics.txs_confirmed.inc();
+                metrics.ops_confirmed.inc();
             }
             PendingOperationResult::CriticalFailure(e) => return Err(e),
         }
@@ -260,11 +260,11 @@ pub struct SerialSubmitterMetrics {
     prepare_queue_length: IntGauge,
     confirm_queue_length: IntGauge,
 
-    txs_prepared: IntCounter,
-    txs_submitted: IntCounter,
-    txs_confirmed: IntCounter,
-    txs_reorged: IntCounter,
-    txs_failed: IntCounter,
+    ops_prepared: IntCounter,
+    ops_submitted: IntCounter,
+    ops_confirmed: IntCounter,
+    ops_reorged: IntCounter,
+    ops_failed: IntCounter,
 }
 
 impl SerialSubmitterMetrics {
@@ -277,20 +277,20 @@ impl SerialSubmitterMetrics {
             confirm_queue_length: metrics
                 .submitter_queue_length()
                 .with_label_values(&[destination, "confirm_queue"]),
-            txs_prepared: metrics
-                .transactions_processed_count()
+            ops_prepared: metrics
+                .operations_processed_count()
                 .with_label_values(&["prepared", destination]),
-            txs_submitted: metrics
-                .transactions_processed_count()
+            ops_submitted: metrics
+                .operations_processed_count()
                 .with_label_values(&["submitted", destination]),
-            txs_confirmed: metrics
-                .transactions_processed_count()
+            ops_confirmed: metrics
+                .operations_processed_count()
                 .with_label_values(&["confirmed", destination]),
-            txs_reorged: metrics
-                .transactions_processed_count()
+            ops_reorged: metrics
+                .operations_processed_count()
                 .with_label_values(&["reorged", destination]),
-            txs_failed: metrics
-                .transactions_processed_count()
+            ops_failed: metrics
+                .operations_processed_count()
                 .with_label_values(&["failed", destination]),
         }
     }
