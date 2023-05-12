@@ -196,6 +196,9 @@ fn set_validators_and_threshold(
     accounts: &[AccountInfo],
     config: Domained<ValidatorsAndThreshold>,
 ) -> ProgramResult {
+    // Validate the provided validators and threshold.
+    config.data.validate()?;
+
     let accounts_iter = &mut accounts.iter();
 
     // Account 0: The owner of this program.

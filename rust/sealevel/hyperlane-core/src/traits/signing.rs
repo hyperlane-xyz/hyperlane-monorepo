@@ -19,12 +19,10 @@ pub trait Signable<H: Hasher>: Sized {
     }
 }
 
-/// Hash a message according to [EIP-191] (version `0x01`).
+/// Creates a message payload according to [EIP-191] (version `0x01`).
 ///
 /// The final message is a UTF-8 string, encoded as follows:
 /// `"\x19Ethereum Signed Message:\n" + message.length + message`
-///
-/// This message is then hashed using [Keccak-256](keccak256).
 ///
 /// [EIP-191]: https://eips.ethereum.org/EIPS/eip-191
 fn eip_191_message_payload<T: AsRef<[u8]>>(message: T) -> Vec<u8> {

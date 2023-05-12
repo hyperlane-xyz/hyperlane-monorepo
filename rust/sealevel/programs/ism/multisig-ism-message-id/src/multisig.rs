@@ -7,12 +7,22 @@ use solana_program::{
 
 use crate::error::Error;
 
+/// An ECDSA signature with a recovery ID.
+/// Signature recovery functions expect a 64 byte serialized r & s value and a 1 byte recovery ID
+/// that is either 0 or 1.
+/// This type is used to deserialize a 65 byte signature & allow easy recovery of the Ethereum
+/// address signer.
+#[derive(Debug, Eq, PartialEq)]
 pub struct EcdsaSignature {
     pub serialized_rs: [u8; 64],
     pub recovery_id: u8,
 }
 
 impl EcdsaSignature {
+    /// Deserializes a 65 byte signature into an EcdsaSignature.
+    /// The recovery ID, i.e. the `v` value, must be 0, 1, 27, or 28.
+    /// If it is 27 or 28, it's normalized to 0 or 1, which is what's required
+    /// by the secp256k1_recover function.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, ProgramError> {
         if bytes.len() != 65 {
             return Err(ProgramError::InvalidArgument);
@@ -36,22 +46,31 @@ impl EcdsaSignature {
             recovery_id,
         })
     }
-}
 
-fn secp256k1_recover_ethereum_address(
-    hash: &[u8],
-    recovery_id: u8,
-    signature: &[u8],
-) -> Result<H160, Secp256k1RecoverError> {
-    let public_key = secp256k1_recover(hash, recovery_id, signature)?;
+    /// Serializes the signature into a 65 byte array.
+    #[allow(dead_code)]
+    pub fn as_bytes(&self) -> [u8; 65] {
+        let mut bytes = [0u8; 65];
+        bytes[..64].copy_from_slice(&self.serialized_rs[..]);
+        bytes[64] = self.recovery_id;
+        bytes
+    }
 
-    let public_key_hash = {
-        let mut hasher = keccak::Hasher::default();
-        hasher.hash(&public_key.to_bytes()[..]);
-        &hasher.result().to_bytes()[12..]
-    };
+    /// Recovers the Ethereum address of the signer of the signed message hash.
+    pub fn secp256k1_recover_ethereum_address(
+        &self,
+        hash: &[u8],
+    ) -> Result<H160, Secp256k1RecoverError> {
+        let public_key = secp256k1_recover(hash, self.recovery_id, self.serialized_rs.as_slice())?;
 
-    Ok(H160::from_slice(public_key_hash))
+        let public_key_hash = {
+            let mut hasher = keccak::Hasher::default();
+            hasher.hash(&public_key.to_bytes()[..]);
+            &hasher.result().to_bytes()[12..]
+        };
+
+        Ok(H160::from_slice(public_key_hash))
+    }
 }
 
 pub struct MultisigIsm<T: Signable<KeccakHasher>> {
@@ -61,6 +80,7 @@ pub struct MultisigIsm<T: Signable<KeccakHasher>> {
     threshold: u8,
 }
 
+#[derive(Debug, Eq, PartialEq)]
 pub enum MultisigIsmError {
     InvalidSignature,
     ThresholdNotMet,
@@ -99,13 +119,9 @@ impl<T: Signable<KeccakHasher>> MultisigIsm<T> {
 
         // Assumes that signatures are ordered by validator
         for i in 0..self.threshold {
-            let signature = &self.signatures[i as usize];
-            let signer = secp256k1_recover_ethereum_address(
-                signed_digest_bytes,
-                signature.recovery_id,
-                signature.serialized_rs.as_slice(),
-            )
-            .map_err(|_| MultisigIsmError::InvalidSignature)?;
+            let signer = self.signatures[i as usize]
+                .secp256k1_recover_ethereum_address(signed_digest_bytes)
+                .map_err(|_| MultisigIsmError::InvalidSignature)?;
 
             while validator_index < validator_count && signer != self.validators[validator_index] {
                 validator_index += 1;
@@ -129,5 +145,180 @@ impl Hasher for KeccakHasher {
     fn hash(mut self, payload: &[u8]) -> [u8; 32] {
         self.0.hash(payload);
         self.0.result().to_bytes()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    use std::str::FromStr;
+
+    use hyperlane_core::H256;
+
+    #[test]
+    fn test_decode_ecdsa_signature() {
+        // Various recovery ids. (encoded, decoded - Some is valid, None means err is expected)
+        let valid_recovery_ids = vec![
+            // Valid ones
+            (0, Some(0)),
+            (1, Some(1)),
+            (27, Some(0)),
+            (28, Some(1)),
+            // Invalid ones
+            (2, None),
+            (3, None),
+            (26, None),
+            (29, None),
+        ];
+
+        for (encoded_recovery_id, decoded_recovery_id) in valid_recovery_ids {
+            let mut rs = [0u8; 64];
+            rs[..32].copy_from_slice(&H256::random()[..]);
+            rs[32..].copy_from_slice(&H256::random()[..]);
+
+            let mut bytes = [0u8; 65];
+            bytes[..64].copy_from_slice(&rs[..]);
+            bytes[64] = encoded_recovery_id;
+
+            let signature_result = EcdsaSignature::from_bytes(&bytes);
+
+            match decoded_recovery_id {
+                Some(decoded_recovery_id) => {
+                    let signature = signature_result.unwrap();
+                    assert_eq!(
+                        signature,
+                        EcdsaSignature {
+                            serialized_rs: rs.into(),
+                            recovery_id: decoded_recovery_id,
+                        }
+                    );
+                }
+                None => {
+                    assert!(signature_result.is_err());
+                    assert!(
+                        signature_result.unwrap_err() == Error::InvalidSignatureRecoveryId.into()
+                    );
+                }
+            }
+        }
+    }
+
+    struct TestSignedPayload();
+
+    impl Signable<KeccakHasher> for TestSignedPayload {
+        fn signing_hash(&self) -> H256 {
+            H256::from_str("0xf00000000000000000000000000000000000000000000000000000000000000f")
+                .unwrap()
+        }
+    }
+
+    #[test]
+    fn test_secp256k1_recover_ethereum_address() {
+        // A test signature from this Ethereum address:
+        //   Address: 0xfdB65576568b99A8a00a292577b8fc51abB115bD
+        //   Private Key: 0x87368bfca2e509afbb87838a64a68bc34b8f7962a0496d12df6200e3401be691
+        // The signature was generated using ethers-js:
+        //   wallet = new ethers.Wallet('0x87368bfca2e509afbb87838a64a68bc34b8f7962a0496d12df6200e3401be691')
+        //   await wallet.signMessage(ethers.utils.arrayify('0xf00000000000000000000000000000000000000000000000000000000000000f'))
+
+        let signature = EcdsaSignature::from_bytes(
+            &hex::decode("4e561dcd350b7a271c7247843f7731a8a9810037c13784f5b3a9616788ca536976c5ff70b1865c4568e273a375851a5304dc7a1ac54f0783f3dde38d345313a91c").unwrap()[..]
+        ).unwrap();
+
+        let signed_hash = TestSignedPayload().eth_signed_message_hash();
+
+        let recovered_signer = signature
+            .secp256k1_recover_ethereum_address(signed_hash.as_bytes())
+            .unwrap();
+        assert_eq!(
+            recovered_signer,
+            H160::from_str("0xfdB65576568b99A8a00a292577b8fc51abB115bD").unwrap()
+        );
+    }
+
+    #[test]
+    fn test_multisig_ism_verify_success() {
+        // A test signature from this Ethereum address:
+        //   Address: 0xfdB65576568b99A8a00a292577b8fc51abB115bD
+        //   Private Key: 0x87368bfca2e509afbb87838a64a68bc34b8f7962a0496d12df6200e3401be691
+        // The signature was generated using ethers-js:
+        //   wallet = new ethers.Wallet('0x87368bfca2e509afbb87838a64a68bc34b8f7962a0496d12df6200e3401be691')
+        //   await wallet.signMessage(ethers.utils.arrayify('0xf00000000000000000000000000000000000000000000000000000000000000f'))
+
+        let validator_0 = H160::from_str("0xfdB65576568b99A8a00a292577b8fc51abB115bD").unwrap();
+        let signature_0 = EcdsaSignature::from_bytes(
+            &hex::decode("4e561dcd350b7a271c7247843f7731a8a9810037c13784f5b3a9616788ca536976c5ff70b1865c4568e273a375851a5304dc7a1ac54f0783f3dde38d345313a91c").unwrap()[..]
+        ).unwrap();
+
+        // Address: 0x5090cEd8BC5A7D3c2FbE2b2702eE4a8e7b227181
+        // Private Key: 0xe2dc693322e2b96b4405cb635cb3fb8aa35f65cca9c9171d54dd6f6dfe23dd14
+
+        let validator_1 = H160::from_str("0x5090cEd8BC5A7D3c2FbE2b2702eE4a8e7b227181").unwrap();
+        let signature_1 = EcdsaSignature::from_bytes(
+            &hex::decode("9d510e0d988e44cf05a4e29d7b1ecec6e3277a8be137164f89d6cf52325190f058101ef9aa57d118f9452a38c156efbdb1b69d4022ac2c35370c433ca5b61aeb1c").unwrap()[..]
+        ).unwrap();
+
+        let multisig_ism = MultisigIsm::new(
+            TestSignedPayload(),
+            vec![signature_0, signature_1],
+            vec![validator_0, validator_1],
+            2,
+        );
+
+        let result = multisig_ism.verify();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_multisig_ism_verify_threshold_not_met() {
+        let validator_0 = H160::from_str("0xfdB65576568b99A8a00a292577b8fc51abB115bD").unwrap();
+        let signature_0 = EcdsaSignature::from_bytes(
+            &hex::decode("4e561dcd350b7a271c7247843f7731a8a9810037c13784f5b3a9616788ca536976c5ff70b1865c4568e273a375851a5304dc7a1ac54f0783f3dde38d345313a91c").unwrap()[..]
+        ).unwrap();
+
+        let validator_1 = H160::from_str("0x5090cEd8BC5A7D3c2FbE2b2702eE4a8e7b227181").unwrap();
+        // This signature corresponds to validator_0
+        let signature_1 = EcdsaSignature::from_bytes(
+            &hex::decode("4e561dcd350b7a271c7247843f7731a8a9810037c13784f5b3a9616788ca536976c5ff70b1865c4568e273a375851a5304dc7a1ac54f0783f3dde38d345313a91c").unwrap()[..]
+        ).unwrap();
+
+        let multisig_ism = MultisigIsm::new(
+            TestSignedPayload(),
+            vec![signature_0, signature_1],
+            vec![validator_0, validator_1],
+            2,
+        );
+
+        assert_eq!(
+            multisig_ism.verify().unwrap_err(),
+            MultisigIsmError::ThresholdNotMet
+        );
+    }
+
+    #[test]
+    fn test_multisig_ism_validators_out_of_order() {
+        let validator_0 = H160::from_str("0xfdB65576568b99A8a00a292577b8fc51abB115bD").unwrap();
+        let signature_0 = EcdsaSignature::from_bytes(
+            &hex::decode("4e561dcd350b7a271c7247843f7731a8a9810037c13784f5b3a9616788ca536976c5ff70b1865c4568e273a375851a5304dc7a1ac54f0783f3dde38d345313a91c").unwrap()[..]
+        ).unwrap();
+
+        let validator_1 = H160::from_str("0x5090cEd8BC5A7D3c2FbE2b2702eE4a8e7b227181").unwrap();
+        let signature_1 = EcdsaSignature::from_bytes(
+            &hex::decode("9d510e0d988e44cf05a4e29d7b1ecec6e3277a8be137164f89d6cf52325190f058101ef9aa57d118f9452a38c156efbdb1b69d4022ac2c35370c433ca5b61aeb1c").unwrap()[..]
+        ).unwrap();
+
+        let multisig_ism = MultisigIsm::new(
+            TestSignedPayload(),
+            // Sigs out of order
+            vec![signature_1, signature_0],
+            vec![validator_0, validator_1],
+            2,
+        );
+
+        assert_eq!(
+            multisig_ism.verify().unwrap_err(),
+            MultisigIsmError::ThresholdNotMet
+        );
     }
 }

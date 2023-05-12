@@ -1488,6 +1488,7 @@ name = "hyperlane-sealevel-ism-multisig-ism-message-id"
 version = "0.1.0"
 dependencies = [
  "borsh",
+ "hex",
  "hyperlane-core",
  "hyperlane-sealevel-mailbox",
  "num-derive",

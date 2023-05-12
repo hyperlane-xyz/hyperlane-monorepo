@@ -15,5 +15,8 @@ hyperlane-core = { path = "../../../hyperlane-core" }
 hyperlane-sealevel-mailbox = { path = "../../mailbox", features = ["no-entrypoint"] }
 thiserror = "1.0"
 
+[dev-dependencies]
+hex = "0.4.3"
+
 [lib]
 crate-type = ["cdylib", "lib"]

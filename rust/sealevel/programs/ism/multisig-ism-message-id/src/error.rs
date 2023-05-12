@@ -19,6 +19,8 @@ pub enum Error {
     InvalidSignature = 6,
     #[error("Threshold not met")]
     ThresholdNotMet = 7,
+    #[error("Invalid validators and threshold")]
+    InvalidValidatorsAndThreshold = 8,
 }
 
 impl From<Error> for ProgramError {
