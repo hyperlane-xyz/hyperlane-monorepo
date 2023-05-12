@@ -44,6 +44,8 @@ impl CachingMailbox {
     pub fn sync(
         &self,
         index_settings: IndexSettings,
+        start_block: u32,
+        start_nonce: Option<u32>,
         metrics: ContractSyncMetrics,
     ) -> Instrumented<JoinHandle<eyre::Result<()>>> {
         let sync = ContractSync::new(
@@ -53,8 +55,7 @@ impl CachingMailbox {
             index_settings,
             metrics,
         );
-
-        tokio::spawn(async move { sync.sync_dispatched_messages().await })
+        tokio::spawn(async move { sync.sync_dispatched_messages(start_block, start_nonce).await })
             .instrument(info_span!("MailboxContractSync", self = %self))
     }
 }

@@ -18,8 +18,8 @@ use super::{
 // started with the same database and domain.
 
 const MESSAGE_ID: &str = "message_id_";
+const MESSAGE_META: &str = "message_meta_";
 const MESSAGE: &str = "message_";
-const LATEST_NONCE: &str = "latest_known_nonce_";
 const LATEST_NONCE_FOR_DESTINATION: &str = "latest_known_nonce_for_destination_";
 const NONCE_PROCESSED: &str = "nonce_processed_";
 const GAS_PAYMENT_FOR_MESSAGE_ID: &str = "gas_payment_for_message_id_v2_";
@@ -59,83 +59,36 @@ impl HyperlaneDB {
     }
 
     /// Store list of messages
-    pub fn store_messages(&self, messages: &[HyperlaneMessage]) -> Result<u32> {
-        let mut latest_nonce: u32 = 0;
-        for message in messages {
-            self.store_latest_message(message)?;
-
-            latest_nonce = message.nonce;
+    pub fn store_synced_messages(&self, messages: &[(HyperlaneMessage, LogMeta)]) -> Result<()> {
+        for (message, meta) in messages {
+            self.store_message(message, meta)?;
         }
-
-        Ok(latest_nonce)
-    }
-
-    /// Store a raw committed message building off of the latest nonce
-    pub fn store_latest_message(&self, message: &HyperlaneMessage) -> Result<()> {
-        // If this message is not building off the latest nonce, log it.
-        if let Some(nonce) = self.retrieve_latest_nonce()? {
-            if nonce != message.nonce - 1 {
-                debug!(msg=%message, "Attempted to store message not building off latest nonce")
-            }
-        }
-
-        self.store_message(message)
+        Ok(())
     }
 
     /// Store a raw committed message
     ///
     /// Keys --> Values:
     /// - `nonce` --> `id`
+    /// - `nonce` --> `meta`
     /// - `id` --> `message`
-    pub fn store_message(&self, message: &HyperlaneMessage) -> Result<()> {
+    fn store_message(&self, message: &HyperlaneMessage, meta: &LogMeta) -> Result<()> {
         let id = message.id();
 
         debug!(msg=?message, "Storing new message in db",);
-        self.store_message_id(message.nonce, message.destination, id)?;
+        
+        // - `id` --> `message`
         self.store_keyed_encodable(MESSAGE, &id, message)?;
+        // - `nonce` --> `id`
+        self.store_keyed_encodable(MESSAGE_ID, &message.nonce, &id)?;
+        // - `nonce` --> `meta`
+        self.store_keyed_encodable(MESSAGE_META, &message.nonce, &meta)?;
         Ok(())
     }
 
-    /// Store the latest known nonce
-    ///
-    /// Key --> value: `LATEST_NONCE` --> `nonce`
-    pub fn update_latest_nonce(&self, nonce: u32) -> Result<()> {
-        if let Ok(Some(n)) = self.retrieve_latest_nonce() {
-            if nonce <= n {
-                return Ok(());
-            }
-        }
-        self.store_encodable("", LATEST_NONCE, &nonce)
-    }
-
-    /// Retrieve the highest known nonce
-    pub fn retrieve_latest_nonce(&self) -> Result<Option<u32>> {
-        self.retrieve_decodable("", LATEST_NONCE)
-    }
-
-    /// Store the latest known nonce for a destination
-    ///
-    /// Key --> value: `destination` --> `nonce`
-    pub fn update_latest_nonce_for_destination(&self, destination: u32, nonce: u32) -> Result<()> {
-        if let Ok(Some(n)) = self.retrieve_latest_nonce_for_destination(destination) {
-            if nonce <= n {
-                return Ok(());
-            }
-        }
-        self.store_keyed_encodable(LATEST_NONCE_FOR_DESTINATION, &destination, &nonce)
-    }
-
-    /// Retrieve the highest known nonce for a destination
-    pub fn retrieve_latest_nonce_for_destination(&self, destination: u32) -> Result<Option<u32>> {
-        self.retrieve_keyed_decodable(LATEST_NONCE_FOR_DESTINATION, &destination)
-    }
-
-    /// Store the message id keyed by nonce
-    fn store_message_id(&self, nonce: u32, destination: u32, id: H256) -> Result<()> {
-        debug!(nonce, ?id, "storing leaf hash keyed by index");
-        self.store_keyed_encodable(MESSAGE_ID, &nonce, &id)?;
-        self.update_latest_nonce(nonce)?;
-        self.update_latest_nonce_for_destination(destination, nonce)
+    /// Retrieve LogMeta by message nonce
+    pub fn meta_by_nonce(&self, nonce: u32) -> Result<Option<LogMeta>> {
+        self.retrieve_keyed_decodable(MESSAGE_META, &nonce)
     }
 
     /// Retrieve a message by its id

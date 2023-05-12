@@ -24,6 +24,7 @@ mock! {
         pub fn _get_finalized_block_number(&self) -> ChainResult<u32> {}
         pub fn _fetch_sorted_messages(&self, from: u32, to: u32) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {}
         pub fn _fetch_delivered_messages(&self, from: u32, to: u32) -> ChainResult<Vec<(H256, LogMeta)>> {}
+        pub fn _fetch_count_at_tip(&self) -> ChainResult<(u32, u32)> {}
     }
 }
 
@@ -56,5 +57,11 @@ impl MailboxIndexer for MockHyperlaneIndexer {
         to: u32,
     ) -> ChainResult<Vec<(H256, LogMeta)>> {
         self._fetch_delivered_messages(from, to)
+    }
+
+    async fn fetch_count_at_tip(
+        &self
+    ) -> ChainResult<(u32, u32)> {
+        self._fetch_count_at_tip()
     }
 }

@@ -32,16 +32,3 @@ mod types;
 
 mod chain;
 mod error;
-
-/// Enum for validity of a list of messages
-#[derive(Debug)]
-pub enum ListValidity {
-    /// Empty list
-    Empty,
-    /// Valid list
-    Valid,
-    /// Invalid list. Does not build upon the correct prior element.
-    InvalidContinuation,
-    /// Invalid list. Contains gaps, but builds upon the correct prior element.
-    ContainsGaps,
-}

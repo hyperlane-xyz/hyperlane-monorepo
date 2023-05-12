@@ -4,7 +4,7 @@
 //! checkpoints/messages emitted within a certain block range by calling out to
 //! a chain-specific library and provider (e.g. ethers::provider).
 
-use std::fmt::Debug;
+use std::{fmt::Debug};
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
@@ -38,6 +38,9 @@ pub trait MailboxIndexer: Indexer {
         from: u32,
         to: u32,
     ) -> ChainResult<Vec<(H256, LogMeta)>>;
+
+    /// Fetch the number of messages in the mailbox and the latest finalized block number
+    async fn fetch_count_at_tip(&self) -> ChainResult<(u32, u32)>;
 }
 
 /// Interface for InterchainGasPaymaster contract indexer.

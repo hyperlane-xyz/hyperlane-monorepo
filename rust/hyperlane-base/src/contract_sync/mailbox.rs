@@ -1,16 +1,20 @@
-use std::time::{Duration, Instant};
+use std::time::{Duration};
 
-use tracing::{debug, info, instrument, warn};
+use tracing::{instrument};
 
 use hyperlane_core::{
-    utils::fmt_sync_time, Indexer, KnownHyperlaneDomain, ListValidity, MailboxIndexer,
+    Indexer, MailboxIndexer,
     SyncBlockRangeCursor,
 };
+use tokio::time::sleep;
 
 use crate::{
-    contract_sync::{last_message::validate_message_continuity, schema::MailboxContractSyncDB},
-    ContractSync,
+    ContractSync, MessageSyncBlockRangeCursor,
 };
+
+// Okay, a Mailbox sync process takes a block number and a nonce, and it's
+// expected to find every message that was sent after that block number and
+// nonce.
 
 const MESSAGES_LABEL: &str = "messages";
 
@@ -20,7 +24,8 @@ where
 {
     /// Sync dispatched messages
     #[instrument(name = "MessageContractSync", skip(self))]
-    pub(crate) async fn sync_dispatched_messages(&self) -> eyre::Result<()> {
+    pub(crate) async fn sync_dispatched_messages(&self, start_block: u32, start_nonce: Option<u32>) -> eyre::Result<()> {
+        /*
         let chain_name = self.domain.as_ref();
         let indexed_height = self
             .metrics
@@ -36,19 +41,7 @@ where
             .with_label_values(&[MESSAGES_LABEL, chain_name]);
 
         let message_nonce = self.metrics.message_nonce.clone();
-
-        let cursor = {
-            let config_initial_height = self.index_settings.from;
-            let initial_height = self
-                .db
-                .retrieve_latest_valid_message_range_start_block()
-                .map_or(config_initial_height, |b| b + 1);
-            create_cursor(
-                self.indexer.clone(),
-                self.index_settings.chunk_size,
-                initial_height,
-            )
-        };
+        */
 
         // Indexes messages by fetching messages in ranges of blocks.
         // We've observed occasional flakiness with providers where some events in
@@ -56,7 +49,7 @@ where
         //
         // 1. The provider is just flaky and sometimes misses events :(
         //
-        // 2. For outbox chains with low finality times, it's possible that when
+        // 2. For chains with low finality times, it's possible that when
         // we query the RPC provider for the latest finalized block number,
         // we're returned a block number T. However when we attempt to index a range
         // where the `to` block is T, the `eth_getLogs` RPC is load balanced by the
@@ -97,7 +90,8 @@ where
         // Note this means we only handle this case upon observing messages in some
         // range [C,D] that indicate a previously indexed range may have
         // missed some messages.
-        let mut cursor = cursor.await?;
+
+        /*
         let start_block = cursor.current_position();
         let mut last_valid_range_start_block = start_block;
         info!(
@@ -105,7 +99,6 @@ where
             "Resuming indexer from latest valid message range start block"
         );
         indexed_height.set(start_block as i64);
-
         let mut last_logged_time: Option<Instant> = None;
         let mut should_log_checkpoint_info = || {
             if last_logged_time.is_none()
@@ -117,121 +110,33 @@ where
                 false
             }
         };
+        */
 
+        let mut cursor = MessageSyncBlockRangeCursor::new(self.indexer.clone(), self.db.clone(), self.index_settings.chunk_size, start_block, start_nonce).await?;
         loop {
-            let start_block = cursor.current_position();
-            let Ok((from, to, eta)) = cursor.next_range().await else { continue };
-
-            let mut sorted_messages: Vec<_> = self
-                .indexer
-                .fetch_sorted_messages(from, to)
-                .await?
-                .into_iter()
-                .map(|(msg, _)| msg)
-                .collect();
-
-            if should_log_checkpoint_info() {
-                info!(
-                    from,
-                    to,
-                    distance_from_tip = cursor.distance_from_tip(),
-                    estimated_time_to_sync = fmt_sync_time(eta),
-                    message_count = sorted_messages.len(),
-                    "Indexed block range"
-                );
+            let Ok(range) = cursor.next_range().await else { continue };
+            if range.is_none() {
+                // TODO: Define the sleep time from interval flag
+                sleep(Duration::from_secs(5)).await;
             } else {
-                debug!(
-                    from,
-                    to,
-                    distance_from_tip = cursor.distance_from_tip(),
-                    estimated_time_to_sync = fmt_sync_time(eta),
-                    message_count = sorted_messages.len(),
-                    "Indexed block range"
-                );
+                let (from, to, eta) = range.unwrap();
+                let sorted_messages = self
+                    .indexer
+                    .fetch_sorted_messages(from, to)
+                    .await?;
+
+                // TODO: Can we efficiently skip messages that we know have already been
+                // inserted?
+                // TODO: Also write the block numbers...
+                self.db.store_synced_messages(&sorted_messages)?;
+                
+                // If we found messages, but did *not* find the message we were looking for,
+                // we need to backtrack.
+                let desired_nonce = cursor.next_nonce();
+                if !sorted_messages.is_empty() && sorted_messages.first().map(|m| m.0.nonce) != Some(desired_nonce) {
+                    cursor.backtrack(start_block)?;
+                }
             }
-
-            // Get the latest known nonce. All messages whose indices are <= this index
-            // have been stored in the DB.
-            let last_nonce = self.db.retrieve_latest_nonce()?;
-
-            // Filter out any messages that have already been successfully indexed and
-            // stored. This is necessary if we're re-indexing blocks in hope of
-            // finding missing messages.
-            if let Some(min_nonce) = last_nonce {
-                sorted_messages.retain(|m| m.nonce > min_nonce);
-            }
-
-            debug!(
-                from,
-                to,
-                message_count = sorted_messages.len(),
-                "Filtered any messages already indexed"
-            );
-
-            // Ensure the sorted messages are a valid continuation of last_nonce
-            match validate_message_continuity(
-                last_nonce,
-                &sorted_messages.iter().collect::<Vec<_>>(),
-            ) {
-                ListValidity::Valid => {
-                    // Store messages
-                    let max_nonce_of_batch = self.db.store_messages(&sorted_messages)?;
-
-                    // Report amount of messages stored into db
-                    stored_messages.inc_by(sorted_messages.len() as u64);
-
-                    // Report latest nonce to gauge by dst
-                    for msg in sorted_messages.iter() {
-                        let dst = KnownHyperlaneDomain::try_from(msg.destination)
-                            .map(|d| d.as_str())
-                            .unwrap_or("unknown");
-                        message_nonce
-                            .with_label_values(&["dispatch", chain_name, dst])
-                            .set(max_nonce_of_batch as i64);
-                    }
-
-                    // Update the latest valid start block.
-                    self.db.store_latest_valid_message_range_start_block(from)?;
-                    last_valid_range_start_block = from;
-
-                    // Move forward to the next height
-                    indexed_height.set(to as i64);
-                }
-                // The index of the first message in sorted_messages is not the
-                // `last_nonce+1`.
-                ListValidity::InvalidContinuation => {
-                    missed_messages.inc();
-
-                    warn!(
-                        last_nonce = ?last_nonce,
-                        start_block = from,
-                        end_block = to,
-                        last_valid_range_start_block,
-                        "Found invalid continuation in range. Re-indexing from the start block of the last successful range.",
-                    );
-
-                    cursor.backtrack(last_valid_range_start_block);
-                    indexed_height.set(last_valid_range_start_block as i64);
-                }
-                ListValidity::ContainsGaps => {
-                    missed_messages.inc();
-                    cursor.backtrack(start_block);
-
-                    warn!(
-                        last_nonce = ?last_nonce,
-                        start_block = from,
-                        end_block = to,
-                        "Found gaps in the messages in range, re-indexing the same range.",
-                    );
-                }
-                ListValidity::Empty => {
-                    // Continue if no messages found.
-                    // We don't update last_valid_range_start_block because we cannot extrapolate
-                    // if the range was correctly indexed if there are no messages to observe their
-                    // indices.
-                    indexed_height.set(to as i64);
-                }
-            };
         }
     }
 }

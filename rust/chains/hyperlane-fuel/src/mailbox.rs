@@ -170,6 +170,12 @@ impl MailboxIndexer for FuelMailboxIndexer {
     ) -> ChainResult<Vec<(H256, LogMeta)>> {
         todo!()
     }
+
+    async fn fetch_count_at_tip(
+        &self,
+    ) -> ChainResult<(u32, u32)> {
+        todo!()
+    }
 }
 
 struct FuelMailboxAbi;

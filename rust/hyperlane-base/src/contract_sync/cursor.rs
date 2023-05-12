@@ -1,16 +1,113 @@
-use std::time::{Duration, Instant};
+use std::{time::{Duration, Instant}};
 
 use async_trait::async_trait;
 use eyre::Result;
 use tokio::time::sleep;
-use tracing::warn;
+use tracing::{warn, error};
 
-use hyperlane_core::{ChainResult, Indexer, SyncBlockRangeCursor};
+use hyperlane_core::{ChainResult, Indexer, SyncBlockRangeCursor, MailboxIndexer};
 
-use crate::contract_sync::eta_calculator::SyncerEtaCalculator;
+use crate::{contract_sync::eta_calculator::SyncerEtaCalculator, db::HyperlaneDB};
 
 /// Time window for the moving average used in the eta calculator in seconds.
 const ETA_TIME_WINDOW: f64 = 2. * 60.;
+
+pub struct MessageSyncBlockRangeCursor<I> {
+    indexer: I,
+    db: HyperlaneDB,
+    /// The size of the largest block range that should be returned by the cursor.
+    chunk_size: u32,
+    /// All blocks before this are considered "synced"
+    from_block: u32,
+    /// The latest message nonce that the cursor can consider "synced".
+    /// None if the cursor should assume no messages have been synced.
+    pub message_nonce: Option<u32>,
+}
+
+impl<I> MessageSyncBlockRangeCursor <I>
+where
+    I: MailboxIndexer,
+{
+    /// Construct a new contract sync helper.
+    pub async fn new(indexer: I, db: HyperlaneDB, chunk_size: u32, from_block: u32, message_nonce: Option<u32>) -> Result<Self> {
+        Ok(Self {
+            indexer,
+            db,
+            chunk_size,
+            from_block,
+            message_nonce
+        })
+    }
+
+    pub fn next_nonce(&self) -> u32 {
+        self.message_nonce.map(|nonce| nonce + 1).unwrap_or(0)
+    }
+
+    pub fn meta_by_nonce(&self, nonce: u32) -> Option<LogMeta> {
+        if let Ok(Some(meta)) = self.db.meta_by_nonce(nonce) {
+            Some(meta)
+        } else {
+            None
+        }
+    }
+}
+
+#[async_trait]
+impl<I: MailboxIndexer> SyncBlockRangeCursor for MessageSyncBlockRangeCursor<I> {
+    fn current_position(&self) -> u32 {
+        self.from_block
+    }
+
+    async fn next_range(&mut self) -> ChainResult<Option<(u32, u32, Duration)>> {
+        // First, check if any new messages have been inserted into the DB,
+        // and update the latest synced nonce accordingly.
+        loop {
+            let next_nonce = self.next_nonce();
+                if let Some(meta) = self.meta_by_nonce(next_nonce) {
+                    self.message_nonce = Some(next_nonce);
+                    // TODO: Why is block number u64 but we're using u32 here?
+                    self.from_block = meta.block_number.into(); 
+                } else {
+                    break;
+                }
+        }
+
+        // Maybe just have the mailbox return the count and tip at the same time?
+        let (mailbox_count, tip) = self.indexer.fetch_count_at_tip().await?;
+        let cursor_count = self.next_nonce();
+
+        if cursor_count == mailbox_count {
+            // We are synced up to the latest nonce so we don't need to index anything.
+            // We update our latest block number accordingly.
+            self.from_block = tip;
+            Ok(None)
+        } else if cursor_count < mailbox_count {
+            // The cursor is behind the mailbox, so we need to index some blocks.
+            // We attempt to index a range of blocks that is as large as possible.
+            let from = self.from_block;
+            let to = u32::min(tip, from + self.chunk_size);
+            self.from_block = to + 1;
+            Ok(Some((from, to, Duration::from_secs(0))))
+        } else {
+            error!("Cursor is ahead of mailbox, this should never happen.");
+            // TODO: This is not okay...
+            Ok(None)
+        }
+    }
+
+    fn backtrack(&mut self, from_block: u32) -> ChainResult<()> {
+        if let Some(nonce) = self.message_nonce {
+            if let Some(meta) = self.meta_by_nonce(nonce) {
+                self.from_block = meta.block_number.into(); 
+            } else {
+                self.from_block = from_block;
+            }
+        } else {
+            self.from_block = from_block;
+        } 
+        Ok(())
+    }
+}
 
 /// Tool for handling the logic of what the next block range that should be
 /// queried is and also handling rate limiting. Rate limiting is automatically
@@ -81,11 +178,7 @@ impl<I: Indexer> SyncBlockRangeCursor for RateLimitedSyncBlockRangeCursor<I> {
         self.from
     }
 
-    fn tip(&self) -> u32 {
-        self.tip
-    }
-
-    async fn next_range(&mut self) -> ChainResult<(u32, u32, Duration)> {
+    async fn next_range(&mut self) -> ChainResult<Option<(u32, u32, Duration)>> {
         self.rate_limit().await?;
         let to = u32::min(self.tip, self.from + self.chunk_size);
         let from = to.saturating_sub(self.chunk_size);
@@ -95,10 +188,11 @@ impl<I: Indexer> SyncBlockRangeCursor for RateLimitedSyncBlockRangeCursor<I> {
         } else {
             Duration::from_secs(0)
         };
-        Ok((from, to, eta))
+        Ok(Some((from, to, eta)))
     }
 
-    fn backtrack(&mut self, start_from: u32) {
+    fn backtrack(&mut self, start_from: u32) -> ChainResult<()> {
         self.from = u32::min(start_from, self.from);
+        Ok(())
     }
 }

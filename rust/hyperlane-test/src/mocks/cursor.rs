@@ -10,13 +10,11 @@ use hyperlane_core::{ChainResult, SyncBlockRangeCursor};
 
 mock! {
     pub SyncBlockRangeCursor {
-        pub fn _next_range(&mut self) -> impl Future<Output=ChainResult<(u32, u32, Duration)>> + Send {}
+        pub fn _next_range(&mut self) -> impl Future<Output=ChainResult<Option<(u32, u32, Duration)>>> + Send {}
 
         pub fn _current_position(&self) -> u32 {}
 
-        pub fn _tip(&self) -> u32 {}
-
-        pub fn _backtrack(&mut self, start_from: u32) {}
+        pub fn _backtrack(&mut self, from_block: u32) -> ChainResult<()> {}
     }
 }
 
@@ -26,15 +24,11 @@ impl SyncBlockRangeCursor for MockSyncBlockRangeCursor {
         self._current_position()
     }
 
-    fn tip(&self) -> u32 {
-        self._tip()
-    }
-
-    async fn next_range(&mut self) -> ChainResult<(u32, u32, Duration)> {
+    async fn next_range(&mut self) -> ChainResult<Option<(u32, u32, Duration)>> {
         self._next_range().await
     }
 
-    fn backtrack(&mut self, start_from: u32) {
-        self._backtrack(start_from)
+    fn backtrack(&mut self, from_block: u32) -> ChainResult<()> {
+        self._backtrack(from_block)
     }
 }

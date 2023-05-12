@@ -143,6 +143,17 @@ where
             .map(|(event, meta)| (H256::from(event.message_id), meta.into()))
             .collect())
     }
+
+    #[instrument(err, skip(self))]
+    async fn fetch_count_at_tip(
+        &self
+    ) -> ChainResult<(u32, u32)> {
+        let tip = self.get_finalized_block_number().await?;
+        let base_call = self.contract.count();
+        let call_at_tip = base_call.block(u64::from(tip));
+        let count = call_at_tip.call().await?;
+        Ok((count, tip))
+    }
 }
 
 pub struct MailboxBuilder {}
