@@ -44,7 +44,7 @@ where
     /// Wait based on how close we are to the tip and update the tip,
     /// i.e. the highest block we may scrape.
     async fn rate_limit(&mut self) -> ChainResult<()> {
-        let update_tip = self.last_tip_update.elapsed() >= Duration::from_secs(30);
+        let update_tip = self.last_tip_update.elapsed() >= Duration::from_secs(5);
         if self.from + self.chunk_size < self.tip {
             // If doing the full chunk wouldn't exceed the already known tip sleep a tiny
             // bit so that we can catch up relatively quickly.

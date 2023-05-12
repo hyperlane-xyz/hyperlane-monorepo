@@ -70,6 +70,7 @@ impl IncrementalMerkle {
 
     /// Get the index
     pub fn index(&self) -> u32 {
+        assert!(self.count > 0, "index is invalid when tree is empty");
         self.count as u32 - 1
     }
 
