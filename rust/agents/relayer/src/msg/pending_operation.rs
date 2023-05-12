@@ -11,14 +11,32 @@ use super::pending_message::PendingMessage;
 
 /// A pending operation that will be run by the submitter and cause a
 /// transaction to be sent.
+///
+/// There are three stages to the lifecycle of a pending operation:
+///
+/// 1) Prepare: This is called before every submission and will usually have a
+/// very short gap between it and the submit call. It can be used to validate it
+/// is ready to be submitted and it can also prepare any data that will be
+/// needed for the submission. This way, the preparation can be done while
+/// another transaction is being submitted.
+///
+/// 2) Submit: This is called to submit the operation to the destination
+/// blockchain and report if it was successful or not. This is usually the act
+/// of submitting a transaction. Ideally this step only sends the transaction
+/// and waits for it to be included.
+///
+/// 3) Validate: This is called after the operation has been submitted and is
+/// responsible for checking if the operation has reached a point at which we
+/// consider it safe from reorgs.
 #[async_trait]
 #[enum_dispatch]
 pub trait PendingOperation {
     /// The domain this operation will take place on.
     fn domain(&self) -> &HyperlaneDomain;
 
-    /// Prepare to submit this operation. This will be called before every submission and
-    /// will usually have a very short gap between it and the submit call.
+    /// Prepare to submit this operation. This will be called before every
+    /// submission and will usually have a very short gap between it and the
+    /// submit call.
     async fn prepare(&mut self) -> PrepareResult {
         if self.ready_to_be_processed() {
             PrepareResult::Ready
