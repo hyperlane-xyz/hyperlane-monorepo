@@ -38,7 +38,9 @@ impl TryFrom<Vec<u8>> for MultisigIsmMessageIdMetadata {
         let mut validator_signatures = Vec::with_capacity(signature_count);
         for i in 0..signature_count {
             let signature_offset = SIGNATURES_OFFSET + (i * SIGNATURE_LENGTH);
-            let signature = EcdsaSignature::from_bytes(&bytes[signature_offset..signature_offset + SIGNATURE_LENGTH])?;
+            let signature = EcdsaSignature::from_bytes(
+                &bytes[signature_offset..signature_offset + SIGNATURE_LENGTH],
+            )?;
             validator_signatures.push(signature);
         }
 

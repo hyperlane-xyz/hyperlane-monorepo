@@ -1,7 +1,7 @@
-use hyperlane_core::{H160, Signable, Hasher};
+use hyperlane_core::{Hasher, Signable, H160};
 use solana_program::{
-    program_error::ProgramError,
     keccak,
+    program_error::ProgramError,
     secp256k1_recover::{secp256k1_recover, Secp256k1RecoverError},
 };
 
@@ -104,7 +104,8 @@ impl<T: Signable<KeccakHasher>> MultisigIsm<T> {
                 signed_digest_bytes,
                 signature.recovery_id,
                 signature.serialized_rs.as_slice(),
-            ).map_err(|_| MultisigIsmError::InvalidSignature)?;
+            )
+            .map_err(|_| MultisigIsmError::InvalidSignature)?;
 
             while validator_index < validator_count && signer != self.validators[validator_index] {
                 validator_index += 1;
