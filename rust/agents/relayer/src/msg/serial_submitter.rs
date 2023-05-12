@@ -4,14 +4,16 @@ use std::time::Duration;
 
 use derive_new::new;
 use eyre::{bail, Result};
-use futures_util::future::{join3, try_join3};
+use futures_util::future::try_join4;
 use prometheus::{IntCounter, IntGauge};
-use tokio::sync::mpsc::{self, error::TryRecvError};
+use tokio::sync::mpsc::{self};
+use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
+use tokio::try_join;
 use tracing::{info_span, instrument, instrument::Instrumented, Instrument};
 
-use hyperlane_base::{run_all, CoreMetrics};
+use hyperlane_base::CoreMetrics;
 use hyperlane_core::HyperlaneDomain;
 
 use super::pending_operation::*;
@@ -73,32 +75,34 @@ pub struct SerialSubmitter {
     metrics: SerialSubmitterMetrics,
 }
 
-// TODO: should we just use mutexes on the queues?
+// TODO: Replace tasks with just functions
+#[derive(new)]
+struct ReceiveTask<'a> {
+    domain: HyperlaneDomain,
+    /// Receiver for new messages to submit.
+    rx: mpsc::UnboundedReceiver<Box<DynPendingOperation>>,
+    prepare_queue: &'a Mutex<BinaryHeap<Reverse<Box<DynPendingOperation>>>>,
+}
 
 #[derive(new)]
 struct PrepareTask<'a> {
-    /// Receiver for new messages to submit.
-    rx: mpsc::UnboundedReceiver<Box<DynPendingOperation>>,
     tx_submit: mpsc::Sender<Box<DynPendingOperation>>,
-    #[new(default)]
-    queue: BinaryHeap<Reverse<Box<DynPendingOperation>>>,
+    prepare_queue: &'a Mutex<BinaryHeap<Reverse<Box<DynPendingOperation>>>>,
     metrics: &'a SerialSubmitterMetrics,
 }
 
 #[derive(new)]
 struct SubmitTask<'a> {
-    rx: mpsc::Receiver<Box<DynPendingOperation>>,
-    tx_prepare: mpsc::Sender<Box<DynPendingOperation>>,
-    tx_confirm: mpsc::UnboundedSender<Box<DynPendingOperation>>,
+    rx_submit: mpsc::Receiver<Box<DynPendingOperation>>,
+    prepare_queue: &'a Mutex<BinaryHeap<Reverse<Box<DynPendingOperation>>>>,
+    confirm_queue: &'a Mutex<BinaryHeap<Reverse<Box<DynPendingOperation>>>>,
     metrics: &'a SerialSubmitterMetrics,
 }
 
 #[derive(new)]
 struct ConfirmTask<'a> {
-    rx: mpsc::UnboundedReceiver<Box<DynPendingOperation>>,
-    tx_prepare: mpsc::Sender<Box<DynPendingOperation>>,
-    #[new(default)]
-    queue: BinaryHeap<Reverse<Box<DynPendingOperation>>>,
+    prepare_queue: &'a Mutex<BinaryHeap<Reverse<Box<DynPendingOperation>>>>,
+    confirm_queue: &'a Mutex<BinaryHeap<Reverse<Box<DynPendingOperation>>>>,
     metrics: &'a SerialSubmitterMetrics,
 }
 
@@ -114,212 +118,144 @@ impl SerialSubmitter {
             metrics,
             rx: rx_prepare,
         } = self;
-        let tx_prepare = rx_prepare.sender();
+        let prepare_queue = Default::default();
+        let confirm_queue = Default::default();
 
         let (tx_submit, rx_submit) = mpsc::channel(1);
-        let (tx_confirm, rx_confirm) = mpsc::unbounded_channel();
 
-        try_join3(
-            PrepareTask::new(rx_prepare, tx_submit, &metrics).run(),
-            SubmitTask::new(rx_submit, tx_confirm, &metrics).run(),
-            ConfirmTask::new(rx_confirm, &metrics).run(),
-        )
-        .await
-        .map(|_| ())
+        try_join!(
+            ReceiveTask::new(domain, rx_prepare, &prepare_queue).run(),
+            PrepareTask::new(tx_submit, &prepare_queue, &metrics).run(),
+            SubmitTask::new(rx_submit, &prepare_queue, &confirm_queue, &metrics).run(),
+            ConfirmTask::new(&prepare_queue, &confirm_queue, &metrics).run(),
+        )?;
+
+        Ok(())
     }
+}
 
-    // #[instrument(skip_all, fields(domain=%self.domain))]
-    // async fn work_loop(&mut self) -> Result<()> {
-    //     loop {
-    //         self.tick_read().await?;
-    //         self.update_metrics();
-    //         self.tick_process().await?;
-    //         self.update_metrics();
-    //         self.tick_confirm().await?;
-    //         self.update_metrics();
-    //         sleep(Duration::from_millis(200)).await;
-    //     }
-    // }
-    //
-    // /// Fetch any new operations from the channel.
-    // async fn tick_read(&mut self) -> Result<()> {
-    //     // Pull any messages sent by processor over channel.
-    //     loop {
-    //         match self.rx.try_recv() {
-    //             Ok(msg) => {
-    //                 self.run_queue.push(Reverse(msg));
-    //             }
-    //             Err(TryRecvError::Empty) => {
-    //                 break;
-    //             }
-    //             Err(_) => {
-    //                 bail!("Disconnected rcvq or fatal err");
-    //             }
-    //         }
-    //     }
-    //     Ok(())
-    // }
-    //
-    // /// Process pending operations.
-    // async fn tick_process(&mut self) -> Result<()> {
-    //     // Pick the next message to try processing.
-    //     let mut op = match self.run_queue.pop() {
-    //         Some(op) => op.0,
-    //         None => return Ok(()),
-    //     };
-    //
-    //     // make sure things are getting wired up correctly; if this works in
-    // testing it     // should also be valid in production.
-    //     debug_assert_eq!(*op.domain(), self.domain);
-    //
-    //     // in the future we could pipeline this so that the next operation is
-    // being     // prepared while the current one is being submitted
-    //     match op.prepare().await {
-    //         PendingOperationResult::Success => {
-    //             self.metrics.txs_prepared.inc();
-    //         }
-    //         PendingOperationResult::NotReady => {
-    //             self.run_queue.push(Reverse(op));
-    //             return Ok(());
-    //         }
-    //         PendingOperationResult::Reprepare => {
-    //             self.metrics.txs_failed.inc();
-    //             self.run_queue.push(Reverse(op));
-    //             return Ok(());
-    //         }
-    //         PendingOperationResult::Drop => {
-    //             // not strictly an error, could have already been processed
-    //             self.metrics.txs_prepared.inc();
-    //             return Ok(());
-    //         }
-    //         PendingOperationResult::CriticalFailure(e) => {
-    //             return Err(e);
-    //         }
-    //     }
-    //
-    //     match op.submit().await {
-    //         PendingOperationResult::Success => {
-    //             self.metrics.txs_submitted.inc();
-    //             self.confirm_queue.push(Reverse(op));
-    //         }
-    //         PendingOperationResult::NotReady => {
-    //             self.run_queue.push(Reverse(op));
-    //         }
-    //         PendingOperationResult::Reprepare => {
-    //             self.metrics.txs_failed.inc();
-    //             self.run_queue.push(Reverse(op));
-    //         }
-    //         PendingOperationResult::Drop => {
-    //             self.metrics.txs_submitted.inc();
-    //         }
-    //         PendingOperationResult::CriticalFailure(e) => return Err(e),
-    //     }
-    //
-    //     Ok(())
-    // }
-    //
-    // /// Confirm submitted operations.
-    // async fn tick_confirm(&mut self) -> Result<()> {
-    //     while let Some(Reverse(mut op)) = self.confirm_queue.pop() {
-    //         match op.confirm().await {
-    //             PendingOperationResult::Success => {
-    //                 self.metrics.txs_confirmed.inc();
-    //             }
-    //             PendingOperationResult::NotReady => {
-    //                 self.confirm_queue.push(Reverse(op));
-    //                 break;
-    //             }
-    //             PendingOperationResult::Reprepare => {
-    //                 self.metrics.txs_reorged.inc();
-    //                 self.run_queue.push(Reverse(op));
-    //             }
-    //             PendingOperationResult::Drop => {
-    //                 self.metrics.txs_confirmed.inc();
-    //             }
-    //             PendingOperationResult::CriticalFailure(e) => return Err(e),
-    //         }
-    //     }
-    //
-    //     Ok(())
-    // }
-    //
-    // fn update_metrics(&self) {
-    //     self.metrics
-    //         .run_queue_length
-    //         .set(self.run_queue.len() as i64);
-    //     self.metrics
-    //         .confirm_queue_length
-    //         .set(self.confirm_queue.len() as i64);
-    // }
+impl<'a> ReceiveTask<'a> {
+    #[instrument(skip(self), name = "SerialSubmitter::ReceiveTask")]
+    async fn run(mut self) -> Result<()> {
+        // Pull any messages sent to this submitter
+        while let Some(op) = self.rx.recv().await {
+            // make sure things are getting wired up correctly; if this works in testing it
+            // should also be valid in production.
+            debug_assert_eq!(*op.domain(), self.domain);
+            self.prepare_queue.lock().await.push(Reverse(op));
+        }
+        bail!("Submitter receive channel was closed")
+    }
 }
 
 impl<'a> PrepareTask<'a> {
-    async fn run(mut self) -> Result<()> {
+    #[instrument(skip(self), name = "SerialSubmitter::PrepareTask")]
+    async fn run(self) -> Result<()> {
         loop {
-            // Pull any messages sent to this submitter
-            loop {
-                match self.rx.try_recv() {
-                    Ok(msg) => self.queue.push(Reverse(msg)),
-                    Err(TryRecvError::Empty) => break,
-                    Err(_) => bail!("Disconnected rcv or fatal err"),
+            // Pick the next message to try preparing.
+            let next = {
+                let mut queue = self.prepare_queue.lock().await;
+                self.metrics.prepare_queue_length.set(queue.len() as i64);
+                queue.pop()
+            };
+            let Some(Reverse(mut op)) = next else {
+                sleep(Duration::from_millis(200)).await;
+                continue;
+            };
+
+            match op.prepare().await {
+                PendingOperationResult::Success => {
+                    self.metrics.txs_prepared.inc();
+                    // this send will pause this task if the submitter is not ready to accept yet
+                    self.tx_submit.send(op).await?;
+                }
+                PendingOperationResult::NotReady => {
+                    // none of the operations are ready yet, so wait for a little bit
+                    self.prepare_queue.lock().await.push(Reverse(op));
+                    sleep(Duration::from_millis(200)).await;
+                }
+                PendingOperationResult::Reprepare => {
+                    self.metrics.txs_failed.inc();
+                    self.prepare_queue.lock().await.push(Reverse(op));
+                }
+                PendingOperationResult::Drop => {
+                    // not strictly an error, could have already been processed
+                    self.metrics.txs_prepared.inc();
+                }
+                PendingOperationResult::CriticalFailure(e) => {
+                    return Err(e);
                 }
             }
-
-                // Pick the next message to try processing.
-                let mut op = match self.run_queue.pop() {
-                    Some(op) => op.0,
-                    None => return Ok(()),
-                };
-
-                // make sure things are getting wired up correctly; if this works in testing it
-                // should also be valid in production.
-                debug_assert_eq!(*op.domain(), self.domain);
-
-                // in the future we could pipeline this so that the next operation is being
-                // prepared while the current one is being submitted
-                match op.prepare().await {
-                    PendingOperationResult::Success => {
-                        self.metrics.txs_prepared.inc();
-                    }
-                    PendingOperationResult::NotReady => {
-                        self.run_queue.push(Reverse(op));
-                        return Ok(());
-                    }
-                    PendingOperationResult::Reprepare => {
-                        self.metrics.txs_failed.inc();
-                        self.run_queue.push(Reverse(op));
-                        return Ok(());
-                    }
-                    PendingOperationResult::Drop => {
-                        // not strictly an error, could have already been processed
-                        self.metrics.txs_prepared.inc();
-                        return Ok(());
-                    }
-                    PendingOperationResult::CriticalFailure(e) => {
-                        return Err(e);
-                    }
-                }
-
-            sleep(Duration::from_millis(200)).await;
         }
     }
 }
 
 impl<'a> SubmitTask<'a> {
-    async fn run(self) -> Result<()> {
-        todo!()
+    #[instrument(skip(self), name = "SerialSubmitter::SubmitTask")]
+    async fn run(mut self) -> Result<()> {
+        while let Some(mut op) = self.rx_submit.recv().await {
+            match op.submit().await {
+                PendingOperationResult::Success => {
+                    self.metrics.txs_submitted.inc();
+                    self.confirm_queue.lock().await.push(Reverse(op));
+                }
+                PendingOperationResult::NotReady => {
+                    panic!("Pending operation was prepared and therefore must be ready")
+                }
+                PendingOperationResult::Reprepare => {
+                    self.metrics.txs_failed.inc();
+                    self.prepare_queue.lock().await.push(Reverse(op));
+                }
+                PendingOperationResult::Drop => {
+                    self.metrics.txs_submitted.inc();
+                }
+                PendingOperationResult::CriticalFailure(e) => return Err(e),
+            }
+        }
+        bail!("Internal submitter channel was closed");
     }
 }
 
 impl<'a> ConfirmTask<'a> {
+    #[instrument(skip(self), name = "SerialSubmitter::ConfirmTask")]
     async fn run(self) -> Result<()> {
-        todo!()
+        loop {
+            // Pick the next message to try confirming.
+            let next = {
+                let mut queue = self.confirm_queue.lock().await;
+                self.metrics.confirm_queue_length.set(queue.len() as i64);
+                queue.pop()
+            };
+            let Some(Reverse(mut op)) = next else {
+                sleep(Duration::from_millis(1000)).await;
+                continue;
+            };
+
+            match op.confirm().await {
+                PendingOperationResult::Success => {
+                    self.metrics.txs_confirmed.inc();
+                }
+                PendingOperationResult::NotReady => {
+                    // none of the operations are ready yet, so wait for a little bit
+                    self.confirm_queue.lock().await.push(Reverse(op));
+                    sleep(Duration::from_millis(1000)).await;
+                }
+                PendingOperationResult::Reprepare => {
+                    self.metrics.txs_reorged.inc();
+                    self.prepare_queue.lock().await.push(Reverse(op));
+                }
+                PendingOperationResult::Drop => {
+                    self.metrics.txs_confirmed.inc();
+                }
+                PendingOperationResult::CriticalFailure(e) => return Err(e),
+            }
+        }
     }
 }
 
 #[derive(Debug)]
 pub struct SerialSubmitterMetrics {
-    run_queue_length: IntGauge,
+    prepare_queue_length: IntGauge,
     confirm_queue_length: IntGauge,
 
     txs_prepared: IntCounter,
@@ -333,9 +269,9 @@ impl SerialSubmitterMetrics {
     pub fn new(metrics: &CoreMetrics, destination: &HyperlaneDomain) -> Self {
         let destination = destination.name();
         Self {
-            run_queue_length: metrics
+            prepare_queue_length: metrics
                 .submitter_queue_length()
-                .with_label_values(&[destination, "run_queue"]),
+                .with_label_values(&[destination, "prepare_queue"]),
             confirm_queue_length: metrics
                 .submitter_queue_length()
                 .with_label_values(&[destination, "confirm_queue"]),
