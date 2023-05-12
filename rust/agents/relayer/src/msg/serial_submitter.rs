@@ -143,7 +143,7 @@ impl SerialSubmitter {
                 self.run_queue.push(Reverse(op));
                 return Ok(());
             }
-            PrepareResult::DoNotRetry => {
+            PrepareResult::Drop => {
                 // not strictly an error, could have already been processed
                 self.metrics.txs_prepared.inc();
                 return Ok(());
@@ -156,7 +156,7 @@ impl SerialSubmitter {
                 self.metrics.txs_submitted.inc();
                 self.validation_queue.push(Reverse(op));
             }
-            SubmitResult::DoNotRetry => {
+            SubmitResult::Drop => {
                 self.metrics.txs_submitted.inc();
             }
             SubmitResult::Retry => {

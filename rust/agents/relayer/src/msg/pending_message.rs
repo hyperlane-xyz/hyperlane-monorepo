@@ -117,7 +117,7 @@ impl PendingOperation for PendingMessage {
             info!("Message processed");
             self.submitted = true;
             tx_try!(critical: self.ctx.origin_db.mark_nonce_as_processed(self.message.nonce), "recording message as processed");
-            return PrepareResult::DoNotRetry;
+            return PrepareResult::Drop;
         }
 
         // The Mailbox's `recipientIsm` function will revert if

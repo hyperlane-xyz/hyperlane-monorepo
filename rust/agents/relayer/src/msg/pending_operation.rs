@@ -103,7 +103,7 @@ pub enum PrepareResult {
     NotReady,
     /// Txn preparation failed and we should not try again or it has already
     /// been processed.
-    DoNotRetry,
+    Drop,
     /// A retry-able error occurred and we should retry after
     /// `next_attempt_after`
     Retry,
@@ -118,7 +118,7 @@ pub enum SubmitResult {
     /// Transaction was successfully processed
     Success,
     /// Txn failed/reverted and we should not try again
-    DoNotRetry,
+    Drop,
     /// Txn failed/reverted and we should try again after `next_attempt_after`
     Retry,
     /// Pass the error up the chain, this is non-recoverable and indicates a
