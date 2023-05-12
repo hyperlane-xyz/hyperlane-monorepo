@@ -4,6 +4,7 @@ use std::time::Instant;
 use async_trait::async_trait;
 use enum_dispatch::enum_dispatch;
 use eyre::Report;
+
 use hyperlane_core::HyperlaneDomain;
 
 #[allow(unused_imports)] // required for enum_dispatch
@@ -37,20 +38,17 @@ pub trait PendingOperation {
     /// Prepare to submit this operation. This will be called before every
     /// submission and will usually have a very short gap between it and the
     /// submit call.
-    async fn prepare(&mut self) -> PrepareResult {
-        if self.ready_to_be_processed() {
-            PrepareResult::Ready
-        } else {
-            PrepareResult::NotReady
-        }
-    }
+    async fn prepare(&mut self) -> PrepareResult;
 
     /// Submit this operation to the blockchain and report if it was successful
     /// or not.
     async fn submit(&mut self) -> SubmitResult;
 
+    /// Validate this operation. This will be called after the operation has
+    /// been submitted and is responsible for checking if the operation has
+    /// reached a point at which we consider it safe from reorgs.
     async fn validate(&mut self) -> ValidationResult {
-        // default implementation is basically a no-op
+        // Default implementation is basically a no-op.
         if self.ready_to_be_validated() {
             ValidationResult::Valid
         } else if !self.submitted() {
