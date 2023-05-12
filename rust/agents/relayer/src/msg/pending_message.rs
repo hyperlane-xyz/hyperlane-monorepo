@@ -6,10 +6,9 @@ use async_trait::async_trait;
 use derive_new::new;
 use eyre::{Context, Result};
 use prometheus::{IntCounter, IntGauge};
-use tracing::{debug, error, info, instrument, warn};
+use tracing::{debug, error, info, instrument, trace, warn};
 
-use hyperlane_base::db::HyperlaneDB;
-use hyperlane_base::{CachingMailbox, CoreMetrics};
+use hyperlane_base::{db::HyperlaneDB, CachingMailbox, CoreMetrics};
 use hyperlane_core::{HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, U256};
 
 use super::{
@@ -17,6 +16,8 @@ use super::{
     metadata::{BaseMetadataBuilder, MetadataBuilder},
     pending_operation::*,
 };
+
+const CONFIRM_DELAY_S: u64 = 60 * 10;
 
 /// The message context contains the links needed to submit a message. Each
 /// instance is for a unique origin -> destination pairing.
@@ -99,13 +100,18 @@ impl PendingOperation for PendingMessage {
     }
 
     #[instrument]
-    async fn prepare(&mut self) -> PrepareResult {
-        make_tx_try!(|| self.on_prepare_retry(), PrepareResult::CriticalFailure);
+    async fn prepare(&mut self) -> PendingOperationResult {
+        make_op_try!(|| self.on_retry());
+
+        if self.is_ready() {
+            trace!("Message is not ready to be submitted yet");
+            return PendingOperationResult::NotReady;
+        }
 
         // If the message has already been processed, e.g. due to another relayer having
         // already processed, then mark it as already-processed, and move on to
         // the next tick.
-        let is_already_delivered = tx_try!(
+        let is_already_delivered = op_try!(
             self.ctx
                 .destination_mailbox
                 .delivered(self.message.id())
@@ -116,8 +122,8 @@ impl PendingOperation for PendingMessage {
             debug!("Message already processed");
             info!("Message processed");
             self.submitted = true;
-            tx_try!(critical: self.ctx.origin_db.mark_nonce_as_processed(self.message.nonce), "recording message as processed");
-            return PrepareResult::Drop;
+            op_try!(critical: self.ctx.origin_db.mark_nonce_as_processed(self.message.nonce), "recording message as processed");
+            return PendingOperationResult::Drop;
         }
 
         // The Mailbox's `recipientIsm` function will revert if
@@ -127,7 +133,7 @@ impl PendingOperation for PendingMessage {
         // As a workaround, we avoid the call entirely if the recipient is
         // not a contract.
         let provider = self.ctx.destination_mailbox.provider();
-        let is_contract = tx_try!(
+        let is_contract = op_try!(
             provider.is_contract(&self.message.recipient).await,
             "checking if message recipient is a contract"
         );
@@ -136,10 +142,10 @@ impl PendingOperation for PendingMessage {
                 recipient=?self.message.recipient,
                 "Could not fetch metadata: Recipient is not a contract"
             );
-            return self.on_prepare_retry();
+            return self.on_retry();
         }
 
-        let ism_address = tx_try!(
+        let ism_address = op_try!(
             self.ctx
                 .destination_mailbox
                 .recipient_ism(self.message.recipient)
@@ -147,7 +153,7 @@ impl PendingOperation for PendingMessage {
             "fetching ISM address"
         );
 
-        let Some(metadata) = tx_try!(
+        let Some(metadata) = op_try!(
             self.ctx
                 .metadata_builder
                 .build(ism_address, &self.message)
@@ -155,14 +161,14 @@ impl PendingOperation for PendingMessage {
             "building metadata"
         ) else {
             info!("Could not fetch metadata");
-            return self.on_prepare_retry();
+            return self.on_retry();
         };
 
         // Estimate transaction costs for the process call. If there are issues, it's
         // likely that gas estimation has failed because the message is
         // reverting. This is defined behavior, so we just log the error and
         // move onto the next tick.
-        let tx_cost_estimate = tx_try!(
+        let tx_cost_estimate = op_try!(
             self.ctx
                 .destination_mailbox
                 .process_estimate_costs(&self.message, &metadata)
@@ -171,7 +177,7 @@ impl PendingOperation for PendingMessage {
         );
 
         // If the gas payment requirement hasn't been met, move to the next tick.
-        let Some(gas_limit) = tx_try!(
+        let Some(gas_limit) = op_try!(
             self.ctx
                 .origin_gas_payment_enforcer
                 .message_meets_gas_payment_requirement(&self.message, &tx_cost_estimate)
@@ -180,7 +186,7 @@ impl PendingOperation for PendingMessage {
         )
             else {
                 info!(?tx_cost_estimate, "Gas payment requirement not met yet");
-                return self.on_prepare_retry();
+                return self.on_retry();
             };
 
         // Go ahead and attempt processing of message to destination chain.
@@ -197,7 +203,7 @@ impl PendingOperation for PendingMessage {
         if let Some(max_limit) = self.ctx.transaction_gas_limit {
             if gas_limit > max_limit {
                 info!("Message delivery estimated gas exceeds max gas limit");
-                return self.on_prepare_retry();
+                return self.on_retry();
             }
         }
 
@@ -205,7 +211,7 @@ impl PendingOperation for PendingMessage {
             metadata,
             gas_limit,
         }));
-        PrepareResult::Ready
+        PendingOperationResult::Success
     }
 
     /// Returns the message's status. If the message is processed, either by a
@@ -215,8 +221,8 @@ impl PendingOperation for PendingMessage {
     /// failed gas estimation or an insufficient gas payment, Ok(false) is
     /// returned.
     #[instrument]
-    async fn submit(&mut self) -> SubmitResult {
-        make_tx_try!(|| self.on_submit_retry(), SubmitResult::CriticalFailure);
+    async fn submit(&mut self) -> PendingOperationResult {
+        make_op_try!(|| self.on_retry());
 
         let state = self
             .submission_data
@@ -225,7 +231,7 @@ impl PendingOperation for PendingMessage {
 
         // We use the estimated gas limit from the prior call to
         // `process_estimate_costs` to avoid a second gas estimation.
-        let outcome = tx_try!(
+        let outcome = op_try!(
             self.ctx
                 .destination_mailbox
                 .process(&self.message, &state.metadata, Some(state.gas_limit))
@@ -233,7 +239,7 @@ impl PendingOperation for PendingMessage {
             "processing message"
         );
 
-        tx_try!(critical: self.ctx.origin_gas_payment_enforcer.record_tx_outcome(&self.message, outcome), "recording tx outcome");
+        op_try!(critical: self.ctx.origin_gas_payment_enforcer.record_tx_outcome(&self.message, outcome), "recording tx outcome");
         if outcome.executed {
             info!(
                 hash=?outcome.txid,
@@ -241,22 +247,39 @@ impl PendingOperation for PendingMessage {
             );
             self.submitted = true;
             self.reset_attempts();
-            tx_try!(critical: self.record_message_process_success(), "recording message process success");
-            SubmitResult::Success
+            self.next_attempt_after = Some(Instant::now() + Duration::from_secs(CONFIRM_DELAY_S));
+            op_try!(critical: self.record_message_process_success(), "recording message process success");
+            PendingOperationResult::Success
         } else {
             info!(
                 hash=?outcome.txid,
                 "Transaction attempting to process transaction reverted"
             );
-            self.on_submit_retry()
+            self.on_retry()
         }
     }
 
-    async fn confirm(&mut self) -> ConfirmResult {
-        if self.submitted {
-            ConfirmResult::Confirmed
-        } else {
-            ConfirmResult::Reorged
+    async fn confirm(&mut self) -> PendingOperationResult {
+        if !self.submitted {
+            return PendingOperationResult::Reprepare;
+        }
+        if !self.is_ready() {
+            return PendingOperationResult::NotReady;
+        }
+        match self
+            .ctx
+            .destination_mailbox
+            .delivered(self.message.id())
+            .await
+        {
+            Ok(true) => PendingOperationResult::Success,
+            Ok(false) => PendingOperationResult::Reprepare,
+            Err(e) => {
+                // Provider error; just try again later
+                warn!(?e, "Error confirming message");
+                self.inc_attmpets();
+                PendingOperationResult::NotReady
+            }
         }
     }
 
@@ -270,16 +293,15 @@ impl PendingOperation for PendingMessage {
 }
 
 impl PendingMessage {
-    fn on_prepare_retry(&mut self) -> PrepareResult {
-        info!("Message not prepared; will retry");
+    fn on_retry(&mut self) -> PendingOperationResult {
         self.inc_attmpets();
-        PrepareResult::Retry
+        PendingOperationResult::Reprepare
     }
 
-    fn on_submit_retry(&mut self) -> SubmitResult {
-        info!("Message not processed; will retry");
-        self.inc_attmpets();
-        SubmitResult::Retry
+    fn is_ready(&self) -> bool {
+        self.next_attempt_after
+            .map(|a| a > Instant::now())
+            .unwrap_or(true)
     }
 
     /// Record in HyperlaneDB and various metrics that this process has observed

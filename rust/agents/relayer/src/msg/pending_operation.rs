@@ -38,16 +38,16 @@ pub trait PendingOperation {
     /// Prepare to submit this operation. This will be called before every
     /// submission and will usually have a very short gap between it and the
     /// submit call.
-    async fn prepare(&mut self) -> PrepareResult;
+    async fn prepare(&mut self) -> PendingOperationResult;
 
     /// Submit this operation to the blockchain and report if it was successful
     /// or not.
-    async fn submit(&mut self) -> SubmitResult;
+    async fn submit(&mut self) -> PendingOperationResult;
 
     /// This will be called after the operation has been submitted and is
     /// responsible for checking if the operation has reached a point at
     /// which we consider it safe from reorgs.
-    async fn confirm(&mut self) -> ConfirmResult;
+    async fn confirm(&mut self) -> PendingOperationResult;
 
     fn next_attempt_after(&self) -> Option<Instant>;
 
@@ -88,67 +88,32 @@ impl Ord for DynPendingOperation {
     }
 }
 
-#[allow(dead_code)] // Inner types are for present _and_ future use so allow unused variants.
-pub enum PrepareResult {
-    /// Txn is ready to be submitted
-    Ready,
-    /// This Txn is not ready to be attempted again yet
-    NotReady,
-    /// Txn preparation failed and we should not try again or it has already
-    /// been processed.
-    Drop,
-    /// A retry-able error occurred and we should retry after
-    /// `next_attempt_after`
-    Retry,
-    /// Pass the error up the chain, this is non-recoverable and indicates a
-    /// system failure.
-    CriticalFailure(Report),
-}
-
-/// The result of running a pending transaction.
-#[allow(dead_code)] // Inner types are for present _and_ future use so allow unused variants.
-pub enum SubmitResult {
-    /// Transaction was successfully processed
+pub enum PendingOperationResult {
+    /// Promote to the next step
     Success,
-    /// Txn failed/reverted and we should not try again
-    Drop,
-    /// Txn failed/reverted and we should try again after `next_attempt_after`
-    Retry,
-    /// Pass the error up the chain, this is non-recoverable and indicates a
-    /// system failure.
-    CriticalFailure(Report),
-}
-
-#[allow(dead_code)] // Inner types are for present _and_ future use so allow unused variants.
-pub enum ConfirmResult {
-    /// Transaction was successfully confirmed as being included in the
-    /// blockchain
-    Confirmed,
-    /// This Txn is not ready to be confirmed yet
+    /// This operation is not ready to be attempted again yet
     NotReady,
-    /// We can't assess yet, check again after `next_attempt_after`
-    Retry,
-    /// Transaction was not included and we should re-attempt preparing and
-    /// submitting it.
-    Reorged,
+    /// Operation needs to be started from scratch again
+    Reprepare,
+    /// Do not attempt to run the operation again, forget about it
+    Drop,
     /// Pass the error up the chain, this is non-recoverable and indicates a
     /// system failure.
     CriticalFailure(Report),
 }
 
-/// create a `tx_try!` macro for the `on_retry` handler and the correct
-/// `CriticalFailure` enum type.
-macro_rules! make_tx_try {
-    ($on_retry:expr, $critical_failure:path) => {
+/// create a `op_try!` macro for the `on_retry` handler.
+macro_rules! make_op_try {
+    ($on_retry:expr) => {
         /// Handle a result and either return early with retry or a critical failure on
         /// error.
-        macro_rules! tx_try {
+        macro_rules! op_try {
                                     (critical: $e:expr, $ctx:literal) => {
                                         match $e {
                                             Ok(v) => v,
                                             Err(e) => {
                                                 error!(error=?e, concat!("Error when ", $ctx));
-                                                return $critical_failure(
+                                                return PendingOperationResult::CriticalFailure(
                                                     Err::<(), _>(e)
                                                         .context(concat!("When ", $ctx))
                                                         .unwrap_err()
@@ -169,4 +134,4 @@ macro_rules! make_tx_try {
     };
 }
 
-pub(super) use make_tx_try;
+pub(super) use make_op_try;

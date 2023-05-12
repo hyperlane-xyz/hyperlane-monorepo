@@ -68,6 +68,7 @@ pub struct SerialSubmitter {
     domain: HyperlaneDomain,
     /// Receiver for new messages to submit.
     rx: mpsc::UnboundedReceiver<Box<DynPendingOperation>>,
+    // TODO: pipeline with another queue?
     /// Messages waiting for their turn to be dispatched. The SerialSubmitter
     /// can only dispatch one message at a time, so this queue could grow.
     #[new(default)]
@@ -131,39 +132,44 @@ impl SerialSubmitter {
         // in the future we could pipeline this so that the next operation is being
         // prepared while the current one is being submitted
         match op.prepare().await {
-            PrepareResult::Ready => {
+            PendingOperationResult::Success => {
                 self.metrics.txs_prepared.inc();
             }
-            PrepareResult::NotReady => {
+            PendingOperationResult::NotReady => {
                 self.run_queue.push(Reverse(op));
                 return Ok(());
             }
-            PrepareResult::Retry => {
+            PendingOperationResult::Reprepare => {
                 self.metrics.txs_failed.inc();
                 self.run_queue.push(Reverse(op));
                 return Ok(());
             }
-            PrepareResult::Drop => {
+            PendingOperationResult::Drop => {
                 // not strictly an error, could have already been processed
                 self.metrics.txs_prepared.inc();
                 return Ok(());
             }
-            PrepareResult::CriticalFailure(e) => return Err(e),
-        };
+            PendingOperationResult::CriticalFailure(e) => {
+                return Err(e);
+            }
+        }
 
         match op.submit().await {
-            SubmitResult::Success => {
+            PendingOperationResult::Success => {
                 self.metrics.txs_submitted.inc();
                 self.confirm_queue.push(Reverse(op));
             }
-            SubmitResult::Drop => {
-                self.metrics.txs_submitted.inc();
+            PendingOperationResult::NotReady => {
+                self.run_queue.push(Reverse(op));
             }
-            SubmitResult::Retry => {
+            PendingOperationResult::Reprepare => {
                 self.metrics.txs_failed.inc();
                 self.run_queue.push(Reverse(op));
             }
-            SubmitResult::CriticalFailure(e) => return Err(e),
+            PendingOperationResult::Drop => {
+                self.metrics.txs_submitted.inc();
+            }
+            PendingOperationResult::CriticalFailure(e) => return Err(e),
         }
 
         Ok(())
@@ -172,24 +178,22 @@ impl SerialSubmitter {
     /// Confirm submitted operations.
     async fn tick_confirm(&mut self) -> Result<()> {
         while let Some(Reverse(mut op)) = self.confirm_queue.pop() {
-            let res: ConfirmResult = op.confirm().await;
-            match res {
-                ConfirmResult::Confirmed => {
+            match op.confirm().await {
+                PendingOperationResult::Success => {
                     self.metrics.txs_confirmed.inc();
                 }
-                ConfirmResult::NotReady => {
+                PendingOperationResult::NotReady => {
                     self.confirm_queue.push(Reverse(op));
                     break;
                 }
-                ConfirmResult::Retry => {
-                    self.confirm_queue.push(Reverse(op));
-                }
-                ConfirmResult::Reorged => {
-                    // needs to be re-run
+                PendingOperationResult::Reprepare => {
                     self.metrics.txs_reorged.inc();
                     self.run_queue.push(Reverse(op));
                 }
-                ConfirmResult::CriticalFailure(e) => return Err(e),
+                PendingOperationResult::Drop => {
+                    self.metrics.txs_confirmed.inc();
+                }
+                PendingOperationResult::CriticalFailure(e) => return Err(e),
             }
         }
 
