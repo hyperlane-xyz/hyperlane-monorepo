@@ -28,8 +28,6 @@ tracing-futures.workspace = true
 tracing-subscriber.workspace = true
 tracing.workspace = true
 
-parking_lot = {version = "*", features = ["deadlock_detection"]}
-
 hyperlane-core = { path = "../../hyperlane-core" }
 hyperlane-base = { path = "../../hyperlane-base" }
 hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
