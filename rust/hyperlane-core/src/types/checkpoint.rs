@@ -21,6 +21,7 @@ pub struct Checkpoint {
     pub index: u32,
 }
 
+/// A Hyperlane (checkpoint, messageId) tuple
 #[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct CheckpointWithMessageId {
     /// 
@@ -109,6 +110,15 @@ pub struct SignedCheckpointWithSigner {
     pub signer: Address,
     /// The signed checkpoint
     pub signed_checkpoint: SignedCheckpoint,
+}
+
+/// An individual signed checkpoint with the recovered signer
+#[derive(Clone, Debug)]
+pub struct SignedCheckpointWithMessageIdWithSigner {
+    /// The recovered signer
+    pub signer: Address,
+    /// The signed checkpoint
+    pub signed_checkpoint: SignedCheckpointWithMessageId,
 }
 
 /// A signature and its signer.

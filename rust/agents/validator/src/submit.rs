@@ -1,22 +1,25 @@
+use std::assert_eq;
 use std::num::NonZeroU64;
 use std::sync::Arc;
+use std::thread::current;
 use std::time::{Duration, Instant};
 
 use eyre::Result;
-use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use prometheus::IntGauge;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, info, info_span, instrument::Instrumented, Instrument};
 
-use hyperlane_base::{CheckpointSyncer, CoreMetrics, CachingMailbox};
-use hyperlane_core::{Announcement, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox, Checkpoint, CheckpointWithMessageId};
+use hyperlane_base::{CachingMailbox, CheckpointSyncer, CoreMetrics};
+use hyperlane_core::{
+    Announcement, Checkpoint, CheckpointWithMessageId, HyperlaneDomain, HyperlaneSigner,
+    HyperlaneSignerExt, Mailbox,
+};
 
 pub(crate) struct ValidatorSubmitter {
     interval: Duration,
     reorg_period: Option<NonZeroU64>,
     signer: Arc<dyn HyperlaneSigner>,
     mailbox: CachingMailbox,
-    tree: IncrementalMerkle,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
     metrics: ValidatorSubmitterMetrics,
 }
@@ -26,7 +29,6 @@ impl ValidatorSubmitter {
         interval: Duration,
         reorg_period: u64,
         mailbox: CachingMailbox,
-        tree: IncrementalMerkle,
         signer: Arc<dyn HyperlaneSigner>,
         checkpoint_syncer: Arc<dyn CheckpointSyncer>,
         metrics: ValidatorSubmitterMetrics,
@@ -35,7 +37,6 @@ impl ValidatorSubmitter {
             reorg_period: NonZeroU64::new(reorg_period),
             interval,
             mailbox,
-            tree,
             signer,
             checkpoint_syncer,
             metrics,
@@ -47,7 +48,7 @@ impl ValidatorSubmitter {
         tokio::spawn(async move { self.main_task().await }).instrument(span)
     }
 
-    async fn main_task(mut self) -> Result<()> {
+    async fn main_task(self) -> Result<()> {
         // Sign and post the validator announcement
         let announcement = Announcement {
             validator: self.signer.eth_address(),
@@ -71,6 +72,11 @@ impl ValidatorSubmitter {
             info!("Waiting for first message to mailbox");
             sleep(self.interval).await;
         }
+
+        // TODO: figure out how to start tree 
+        // initialize local copy of incremental merkle tree
+        let mut tree = self.mailbox.tree().await?;
+        debug!(index = tree.index(), "Initialized tree");
 
         // current_index will be None if the validator cannot find
         // a previously signed checkpoint
@@ -128,10 +134,7 @@ impl ValidatorSubmitter {
             // signed checkpoint, and we should sign the latest checkpoint.
             // This ensures that we still sign even if the latest checkpoint
             // has index 0.
-            if current_index
-                .map(|i| i < latest_checkpoint.index)
-                .unwrap_or(true)
-            {
+            if current_index.is_none() || current_index.unwrap() < latest_checkpoint.index {
                 let signed_checkpoint = self.signer.sign(latest_checkpoint).await?;
 
                 info!(signed_checkpoint = ?signed_checkpoint, signer=?self.signer, "Signed new latest checkpoint");
@@ -145,26 +148,48 @@ impl ValidatorSubmitter {
                     .set(signed_checkpoint.value.index as i64);
             }
 
-            // Ingest messages through latest checkpoint and produce signatures on each (checkpoint, messageId) tuple
-            while self.tree.index() <= latest_checkpoint.index {
-                if let Some(message_id) = self.mailbox.db().message_id_by_nonce(self.tree.index())? {
-                    self.tree.ingest(message_id);
-    
-                    let checkpoint = CheckpointWithMessageId {
+            while tree.index() < latest_checkpoint.index {
+                let nonce_to_sign = tree.index() + 1;
+                if let Some(message_id) = self.mailbox.db().message_id_by_nonce(nonce_to_sign)? {
+                    debug!(message_id=?message_id, nonce=?nonce_to_sign, "Ingest message ID to tree");
+                    tree.ingest(message_id);
+                    assert_eq!(tree.index(), nonce_to_sign);
+
+                    let checkpoint_with_id = CheckpointWithMessageId {
                         checkpoint: Checkpoint {
-                            index: self.tree.index(),
-                            root: self.tree.root(),
+                            index: nonce_to_sign,
+                            root: tree.root(),
                             mailbox_address: self.mailbox.mailbox().address(),
                             mailbox_domain: self.mailbox.mailbox().domain().id(),
                         },
                         message_id,
                     };
-    
-                    let signed_checkpoint = self.signer.sign(checkpoint).await?;
-    
-                    info!(signed_checkpoint = ?signed_checkpoint, signer=?self.signer, "Signed (checkpoint, messageId) for checkpoint index {}", checkpoint.index);
-                    self.checkpoint_syncer.write_checkpoint_with_message_id(&signed_checkpoint).await?;
+
+                    let signed_checkpoint = self.signer.sign(checkpoint_with_id).await?;
+
+                    info!(signed_checkpoint = ?signed_checkpoint, signer=?self.signer, "Signed (checkpoint, messageId) for checkpoint index {}", checkpoint_with_id.index);
+                    self.checkpoint_syncer
+                        .write_checkpoint_with_message_id(&signed_checkpoint)
+                        .await?;
+                } else {
+                    debug!(
+                    nonce=?nonce_to_sign,
+                    "No message found in DB for nonce");
+                    break;
                 }
+            }
+
+            if tree.index() == latest_checkpoint.index {
+                assert_eq!(
+                    tree.root(),
+                    latest_checkpoint.root,
+                    "Local tree root should match latest checkpoint root"
+                );
+                debug!(
+                    index = tree.index(),
+                    latest_index = latest_checkpoint.index,
+                    "Tree is up to date"
+                );
             }
 
             sleep(self.interval).await;

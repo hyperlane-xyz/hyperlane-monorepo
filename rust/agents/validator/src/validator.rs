@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, num::NonZeroU64};
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -73,20 +73,21 @@ impl BaseAgent for Validator {
 
     #[allow(clippy::async_yields_async)]
     async fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
-        let tree = self.mailbox.tree().await.unwrap();
-
         let submit = ValidatorSubmitter::new(
             self.interval,
             self.reorg_period,
             self.mailbox.clone(),
-            tree,
             self.signer.clone(),
             self.checkpoint_syncer.clone(),
             ValidatorSubmitterMetrics::new(&self.core.metrics, &self.origin_chain),
         );
 
-        // sync messages from current tree index
-        self.mailbox.db().update_latest_nonce(tree.index()).unwrap();
+        // TODO: start syncing from tip - self.reorg_period
+        if let Ok(count) = self.mailbox.count(None).await {
+            if count > 0 {
+                self.mailbox.db().update_latest_nonce(count - 1).unwrap();
+            }
+        }
         let sync = self.mailbox.sync(
             self.as_ref().settings.chains[self.origin_chain.name()]
                 .index
