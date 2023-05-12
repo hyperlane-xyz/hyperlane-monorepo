@@ -252,6 +252,14 @@ impl PendingOperation for PendingMessage {
         }
     }
 
+    async fn validate(&mut self) -> ValidationResult {
+        if self.submitted {
+            ValidationResult::Valid
+        } else {
+            ValidationResult::Invalid
+        }
+    }
+
     fn next_attempt_after(&self) -> Option<Instant> {
         self.next_attempt_after
     }

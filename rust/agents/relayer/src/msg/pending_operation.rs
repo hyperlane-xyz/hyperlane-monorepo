@@ -47,34 +47,11 @@ pub trait PendingOperation {
     /// Validate this operation. This will be called after the operation has
     /// been submitted and is responsible for checking if the operation has
     /// reached a point at which we consider it safe from reorgs.
-    async fn validate(&mut self) -> ValidationResult {
-        // Default implementation is basically a no-op.
-        if self.ready_to_be_validated() {
-            ValidationResult::Valid
-        } else if !self.submitted() {
-            ValidationResult::Invalid
-        } else {
-            ValidationResult::Retry
-        }
-    }
+    async fn validate(&mut self) -> ValidationResult;
 
     fn next_attempt_after(&self) -> Option<Instant>;
 
     fn submitted(&self) -> bool;
-
-    fn ready_to_be_processed(&self) -> bool {
-        !self.submitted()
-            && self
-                .next_attempt_after()
-                .map_or(true, |a| Instant::now() >= a)
-    }
-
-    fn ready_to_be_validated(&self) -> bool {
-        self.submitted()
-            && self
-                .next_attempt_after()
-                .map_or(true, |a| Instant::now() >= a)
-    }
 }
 
 /// A "dynamic" pending operation implementation which knows about the
