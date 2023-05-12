@@ -1,68 +1,68 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+import "forge-std/console.sol";
+
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {IOptimismMessageHook} from "../../interfaces/hooks/IOptimismMessageHook.sol";
 import {Message} from "../../libs/Message.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 
-contract OptimismIsm is IInterchainSecurityModule {
-    mapping(bytes32 => bytes32) public receivedEmitters;
+import {ICrossDomainMessenger} from "@eth-optimism/contracts/libraries/bridge/ICrossDomainMessenger.sol";
 
-    modifier onlyHook() {
+contract OptimismIsm is IInterchainSecurityModule {
+    mapping(bytes32 => bool) public receivedEmitters;
+
+    event ReceivedMessage(bytes32 indexed messageId, address indexed emitter);
+
+    modifier onlyOwner() {
         require(
-            msg.sender == address(hook),
-            "OptimismIsm: caller is not the hook"
+            msg.sender == address(l2Messenger),
+            "OptimismIsm: caller is not the native Optimism messenger"
         );
         _;
     }
 
+    ICrossDomainMessenger public l2Messenger;
     IOptimismMessageHook public hook;
 
     // solhint-disable-next-line const-name-snakecase
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.NATIVE);
 
-    function setHook(IOptimismMessageHook _hook) external {
+    function setOptimismMessenger(ICrossDomainMessenger _l2Messenger) external {
+        l2Messenger = _l2Messenger;
+    }
+
+    function setOptimismHook(IOptimismMessageHook _hook) external {
         hook = _hook;
     }
 
-    function receiveFromHook(bytes32 _messageId, address _caller)
+    function receiveFromHook(bytes32 _messageId, address _emitter)
         external
-        onlyHook
+        onlyOwner
     {
-        receivedEmitters[_messageId] = TypeCasts.addressToBytes32(_caller);
+        require(_emitter == address(hook), "OptimismIsm: invalid emitter");
+
+        receivedEmitters[_messageId] = true;
     }
 
-    function emitterAndPayload(bytes calldata _message)
-        public
-        view
-        virtual
-        returns (bytes32, bytes memory)
-    {
-        // TODO: fix
-        bytes32 _emitter = bytes32(0);
-        bytes32 _id = Message.id(_message);
-        bytes memory _payload = abi.encodePacked(_emitter, _id);
+    function verify(
+        bytes calldata, /*_metadata*/
+        bytes calldata _message
+    ) external returns (bool) {
+        bytes32 messageId = keccak256(_message);
 
-        // uint32 _origin = 1;
+        // (, address l1Hook) = abi.decode(_metadata, (bytes32, address));
 
-        // TODO: fix
-        return (bytes32(0), _payload);
-    }
-
-    function verify(bytes calldata _metadata, bytes calldata _message)
-        external
-        returns (bool)
-    {
-        (bytes32 emitter, ) = emitterAndPayload(_message);
-
-        bytes32 msgId = abi.decode(_metadata, (bytes32));
+        // require(l1Hook != address(0), "OptimismIsm: invalid l1Hook");
 
         require(
-            receivedEmitters[msgId] == emitter,
-            "OptimismIsm: incorrect emitter"
+            receivedEmitters[messageId],
+            "OptimismIsm: message not received"
         );
+
+        receivedEmitters[messageId] = true;
 
         return true;
     }

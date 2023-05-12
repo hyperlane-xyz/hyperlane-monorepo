@@ -1,25 +1,34 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+import "forge-std/console.sol";
+
 // ============ Internal Imports ============
 import {IOptimismMessageHook} from "../interfaces/hooks/IOptimismMessageHook.sol";
 import {OptimismIsm} from "../isms/native/OptimismIsm.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 
 // ============ External Imports ============
-import {IL1CrossDomainMessenger} from "@eth-optimism/contracts/l1/messaging/IL1CrossDomainMessenger.sol";
+import {ICrossDomainMessenger} from "@eth-optimism/contracts/libraries/bridge/ICrossDomainMessenger.sol";
 
-contract OptimismHook is IOptimismMessageHook {
+contract OptimismMessageHook is IOptimismMessageHook {
     uint32 public constant OPTIMISM_DOMAIN_ID = 10;
 
-    IL1CrossDomainMessenger public opMessenger;
+    ICrossDomainMessenger public opMessenger;
     OptimismIsm public opISM;
 
-    uint32 gasLimit;
+    uint32 internal constant GAS_LIMIT = 1_920_000;
 
-    constructor(IL1CrossDomainMessenger _opMessenger, uint32 _gasLimit) {
+    constructor(ICrossDomainMessenger _opMessenger) {
         opMessenger = _opMessenger;
-        gasLimit = _gasLimit;
+    }
+
+    function setOptimismISM(address _opISM) external {
+        require(
+            address(opISM) == address(0),
+            "OptimismHook: opISM already set"
+        );
+        opISM = OptimismIsm(_opISM);
     }
 
     function postDispatch(uint32 destination, bytes32 messageId)
@@ -34,12 +43,12 @@ contract OptimismHook is IOptimismMessageHook {
 
         bytes memory _payload = abi.encodeCall(
             OptimismIsm.receiveFromHook,
-            (messageId, msg.sender)
+            (messageId, address(this))
         );
 
-        opMessenger.sendMessage(address(0x0), _payload, gasLimit);
+        opMessenger.sendMessage(address(opISM), _payload, GAS_LIMIT);
 
-        // emit OptimismMessagePublished(payload, nonce, sequence);
+        emit OptimismMessagePublished(address(opISM), address(this), messageId);
 
         // TODO: fix
         return gasleft();

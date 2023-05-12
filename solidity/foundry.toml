@@ -5,9 +5,13 @@ libs = ['node_modules', 'lib']
 test = 'test'
 cache_path  = 'forge-cache'
 allow_paths = ["../node_modules"]
-solc = '0.8.17'
+solc = '0.8.15'
 optimizer = true
 optimizer_runs = 999_999
 
 [profile.ci]
 verbosity = 4
+
+[rpc_endpoints]
+mainnet = "${MAINNET_RPC_URL}"
+optimism = "${OPTIMISM_RPC_URL}"

@@ -9,13 +9,13 @@ interface IOptimismMessageHook is IMessageHook {
     /**
      * @notice Emitted when a message is published throug the native Optimism bridges
      * @dev Used by the relayer to aid in finding VAA
-     * @param payload The wormhole message payload
-     * @param nonce The wormhole nonce associated with the message
-     * @param sequence The wormhole sequence associated with the message
+     * @param target The wormhole message payload
+     * @param sender The wormhole nonce associated with the message
+     * @param messageId The wormhole sequence associated with the message
      */
     event OptimismMessagePublished(
-        bytes32 indexed payload,
-        uint32 nonce,
-        uint64 sequence
+        address indexed target,
+        address indexed sender,
+        bytes32 indexed messageId
     );
 }
