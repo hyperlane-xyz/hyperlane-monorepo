@@ -9,10 +9,10 @@ pub enum Instruction {
     IsmVerify(IsmVerify),
     /// Gets the type of ISM
     IsmType,
-    /// Input: domain ID, validators, & threshold to set.
-    SetValidatorsAndThreshold(Domained<ValidatorsAndThreshold>),
     /// Input: domain ID to query.
     GetValidatorsAndThreshold(u32),
+    /// Input: domain ID, validators, & threshold to set.
+    SetValidatorsAndThreshold(Domained<ValidatorsAndThreshold>),
 }
 
 impl TryFrom<&[u8]> for Instruction {
