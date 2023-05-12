@@ -244,44 +244,7 @@ jobs:
         with:
           version: nightly
 
-      - name: Setup upterm session
-        uses: lhotari/action-upterm@v1
-
-      - name: Build and diff
-        id: diff
-        run: |
-          cd solidity
-          # Print a list of .sol files to a file called "list.txt"
-
-          git checkout main
-          forge build
-          find ./out -type f -name "*.json" ! -path "./out/build-info*" -exec basename {} .json \; > list.txt
-
-          # Read the contract name in "list.txt" and loop over each contract name
-          while read contract
-          do
-            forge inspect "$contract" storage  --pretty >> main
-          done < list.txt
-          rm list.txt
-
-          git checkout ${{ github.head_ref }}
-          forge build
-          find ./out -type f -name "*.json" ! -path "./out/build-info*" -exec basename {} .json \; > list.txt
-          while read contract
-          do
-            forge inspect "$contract" storage  --pretty >> ${{ github.head_ref }}
-          done < list.txt
-          result="$(diff -u main head)" || if [ $? = 2 ]; then exit 1; fi
-          echo "result<<EOF" >> $GITHUB_OUTPUT
-          echo "$result" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-      - name: Comment diff
-        uses: marocchino/sticky-pull-request-comment@v2.5.0
-        if: steps.diff.outputs.result != ''
+      - name: Check storage layout
+        uses: Rubilmax/foundry-storage-check@v3.4
         with:
-          header: Diff
-          message: |
-            ### Change
-            ```diff
-            ${{ steps.diff.outputs.result }}
-            ```
+          contract: solidity/contracts/Mailbox.sol:Mailbox
