@@ -46,6 +46,7 @@ impl ValidatorSubmitter {
 
     pub(crate) fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("ValidatorSubmitter");
+        // TODO: spawn legacy checkpoint submitter in parallel
         tokio::spawn(async move { self.checkpoint_submitter().await }).instrument(span)
     }
 
@@ -66,7 +67,9 @@ impl ValidatorSubmitter {
         let mut tree = self.mailbox.tree().await?;
 
         loop {
-            while let Some(message_id) = self.mailbox.db().message_id_by_nonce(tree.count() as u32)? {
+            while let Some(message_id) =
+                self.mailbox.db().message_id_by_nonce(tree.count() as u32)?
+            {
                 debug!(message_id=?message_id, "Ingest message ID to tree");
                 tree.ingest(message_id);
 
@@ -91,7 +94,11 @@ impl ValidatorSubmitter {
                 let latest_checkpoint = self.mailbox.latest_checkpoint(None).await?;
                 if latest_checkpoint.index == tree.index() {
                     debug!(count = tree.count(), "Tree up to date");
-                    assert_eq!(tree.root(), latest_checkpoint.root, "Local root does not match latest checkpoint root");
+                    assert_eq!(
+                        tree.root(),
+                        latest_checkpoint.root,
+                        "Local root does not match latest checkpoint root"
+                    );
                 }
             }
 
