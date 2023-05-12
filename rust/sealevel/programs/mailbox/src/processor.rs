@@ -21,6 +21,7 @@ use crate::{
     error::Error,
     instruction::{
         InboxProcess, InboxSetDefaultModule, Init, Instruction as MailboxIxn, IsmInstruction,
+        IsmVerify,
         OutboxDispatch, OutboxQuery, MailboxRecipientInstruction, MAX_MESSAGE_BODY_BYTES, VERSION,
     },
 };
@@ -284,17 +285,17 @@ fn inbox_process(
         inbox.auth_bump_seed
     );
 
-    let ism_ixn = IsmInstruction {
+    let ism_ixn = IsmInstruction::Verify(IsmVerify {
         metadata: process.metadata,
-        message: message.body,
-    };
+        message: message.body.clone(),
+    });
     let verify = Instruction::new_with_borsh(inbox.ism, &ism_ixn, ism_account_metas);
     invoke_signed(&verify, &ism_accounts, &[auth_seeds])?;
 
     let recp_ixn = MailboxRecipientInstruction::<()>::new_mailbox_recipient_cpi(
         message.sender,
         message.origin,
-        ism_ixn.message,
+        message.body,
     );
     let recieve = Instruction::new_with_bytes(
         message.recipient.0.into(),

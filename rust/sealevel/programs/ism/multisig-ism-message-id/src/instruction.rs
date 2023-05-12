@@ -1,9 +1,14 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H160;
 use solana_program::{program_error::ProgramError};
+use hyperlane_sealevel_mailbox::instruction::IsmVerify;
 
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub enum Instruction {
+    /// Verifies a message.
+    IsmVerify(IsmVerify),
+    /// Gets the type of ISM
+    IsmType,
     /// Input: domain ID, validators, & threshold to set.
     SetValidatorsAndThreshold(Domained<ValidatorsAndThreshold>),
     /// Input: domain ID to query.

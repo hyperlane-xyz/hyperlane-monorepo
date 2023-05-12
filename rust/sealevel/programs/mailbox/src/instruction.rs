@@ -69,12 +69,17 @@ pub struct InboxSetDefaultModule {
     pub accounts: Vec<Pubkey>,
 }
 
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq)]
+pub enum IsmInstruction {
+    Verify(IsmVerify),
+}
+
 /// Instruction data format for an Interchain Security Module (ISM).
 ///
 /// An ISM validates whether or not to accept a message. If the message should be rejected, the
 /// program will return an error and execution of the calling program will stop.
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
-pub struct IsmInstruction {
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq)]
+pub struct IsmVerify {
     /// Arbitrary data consumed by the ISM. Typically validator signatures, etc.
     pub metadata: Vec<u8>,
     /// The message to accept or reject.

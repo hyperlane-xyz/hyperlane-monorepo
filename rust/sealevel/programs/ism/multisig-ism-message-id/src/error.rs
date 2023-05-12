@@ -13,6 +13,12 @@ pub enum Error {
     ProgramIdNotOwner = 3,
     #[error("Account not initialized")]
     AccountNotInitialized = 4,
+    #[error("Invalid signature recovery ID")]
+    InvalidSignatureRecoveryId = 5,
+    #[error("Invalid signature")]
+    InvalidSignature = 6,
+    #[error("Threshold not met")]
+    ThresholdNotMet = 7,
 }
 
 impl From<Error> for ProgramError {

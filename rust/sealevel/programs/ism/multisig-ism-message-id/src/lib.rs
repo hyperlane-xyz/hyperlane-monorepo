@@ -9,6 +9,8 @@ mod accounts;
 mod error;
 mod instruction;
 
+use hyperlane_core::{H160, H256, Signable, Hasher, Checkpoint, HyperlaneMessage, Decode};
+
 // use hyperlane_sealevel_mailbox::instruction::IsmInstruction;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
@@ -17,11 +19,12 @@ use solana_program::{
     // msg,
     program_error::ProgramError,
     pubkey::Pubkey,
+    keccak,
     system_instruction,
     program::{invoke_signed, set_return_data},
+    secp256k1_recover::{secp256k1_recover, Secp256k1RecoverError},
     sysvar::rent::Rent,
 };
-
 
 use crate::{
     accounts::{
@@ -62,6 +65,16 @@ pub fn process_instruction(
     instruction_data: &[u8],
 ) -> ProgramResult {
     match Instruction::try_from(instruction_data)? {
+        Instruction::IsmVerify(ism_verify) => verify(
+            program_id,
+            accounts,
+            ism_verify.metadata,
+            ism_verify.message,
+        ),
+        Instruction::IsmType => {
+            // TODO
+            Ok(())
+        },
         Instruction::SetValidatorsAndThreshold(config) => set_validators_and_threshold(program_id, accounts, config),
         Instruction::GetValidatorsAndThreshold(domain) => get_validators_and_threshold(program_id, accounts, domain),
         // _ => {
@@ -223,4 +236,206 @@ fn validators_and_threshold(
     }
 
     Ok(domain_data.validators_and_threshold)
+}
+
+fn verify(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    metadata_bytes: Vec<u8>,
+    message_bytes: Vec<u8>,
+) -> ProgramResult {
+    let metadata = MultisigIsmMessageIdMetadata::try_from(metadata_bytes)?;
+    let message = HyperlaneMessage::read_from(&mut &message_bytes[..]).map_err(|_| ProgramError::InvalidArgument)?;
+
+    let validators_and_threshold = validators_and_threshold(
+        program_id,
+        accounts,
+        message.origin,
+    )?;
+
+    let multisig_ism = MultisigIsm::new(
+        Checkpoint {
+            mailbox_address: metadata.origin_mailbox,
+            mailbox_domain: message.origin,
+            root: metadata.merkle_root,
+            index: message.nonce,
+            message_id: message.id(),
+        },
+        metadata.validator_signatures,
+        validators_and_threshold.validators,
+        validators_and_threshold.threshold,
+    );
+
+    multisig_ism.verify().map_err(|err| Into::<Error>::into(err).into())
+}
+
+struct EcdsaSignature {
+    serialized_rs: [u8; 64],
+    recovery_id: u8,
+}
+
+impl EcdsaSignature {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, ProgramError> {
+        if bytes.len() != 65 {
+            return Err(ProgramError::InvalidArgument);
+        }
+
+        let mut serialized_rs = [0u8; 64];
+        serialized_rs.copy_from_slice(&bytes[..64]);
+
+        let mut recovery_id = bytes[64];
+        if recovery_id == 27 || recovery_id == 28 {
+            recovery_id -= 27;
+        }
+
+        // Recovery ID must be 0 or 1
+        if recovery_id > 1 {
+            return Err(Error::InvalidSignatureRecoveryId.into());
+        }
+
+        Ok(Self {
+            serialized_rs,
+            recovery_id,
+        })
+    }
+}
+
+fn secp256k1_recover_ethereum_address(
+    hash: &[u8],
+    recovery_id: u8,
+    signature: &[u8],
+) -> Result<H160, Secp256k1RecoverError> {
+    let public_key = secp256k1_recover(hash, recovery_id, signature)?;
+
+    let public_key_hash = {
+        let mut hasher = keccak::Hasher::default();
+        hasher.hash(&public_key.to_bytes()[..]);
+        &hasher.result().to_bytes()[12..]
+    };
+
+    Ok(H160::from_slice(public_key_hash))
+}
+
+struct MultisigIsm<T: Signable<KeccakHasher>> {
+    signed_data: T,
+    signatures: Vec<EcdsaSignature>,
+    validators: Vec<H160>,
+    threshold: u8,
+}
+
+enum MultisigIsmError {
+    InvalidSignature,
+    ThresholdNotMet,
+}
+
+impl Into<Error> for MultisigIsmError {
+    fn into(self) -> Error {
+        match self {
+            MultisigIsmError::InvalidSignature => Error::InvalidSignature,
+            MultisigIsmError::ThresholdNotMet => Error::ThresholdNotMet,
+        }
+    }
+}
+
+impl<T: Signable<KeccakHasher>> MultisigIsm<T> {
+    fn new(
+        signed_data: T,
+        signatures: Vec<EcdsaSignature>,
+        validators: Vec<H160>,
+        threshold: u8,
+    ) -> Self {
+        Self {
+            signed_data,
+            signatures,
+            validators,
+            threshold,
+        }
+    }
+
+    fn verify(&self) -> Result<(), MultisigIsmError> {
+        let signed_digest = self.signed_data.eth_signed_message_hash();
+        let signed_digest_bytes = signed_digest.as_bytes();
+
+        let validator_count = self.validators.len();
+        let mut validator_index = 0;
+
+        // Assumes that signatures are ordered by validator
+        for i in 0..self.threshold {
+            let signature = &self.signatures[i as usize];
+            let signer = secp256k1_recover_ethereum_address(
+                signed_digest_bytes,
+                signature.recovery_id,
+                signature.serialized_rs.as_slice(),
+            ).map_err(|_| MultisigIsmError::InvalidSignature)?;
+
+            while validator_index < validator_count && signer != self.validators[validator_index] {
+                validator_index += 1;
+            }
+
+            if validator_index >= validator_count {
+                return Err(MultisigIsmError::ThresholdNotMet);
+            }
+
+            validator_index += 1;
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Default)]
+struct KeccakHasher(keccak::Hasher);
+
+impl Hasher for KeccakHasher {
+    fn hash(mut self, payload: &[u8]) -> [u8; 32] {
+        self.0.hash(payload);
+        self.0.result().to_bytes()
+    }
+}
+
+struct MultisigIsmMessageIdMetadata {
+    origin_mailbox: H256,
+    merkle_root: H256,
+    validator_signatures: Vec<EcdsaSignature>,
+}
+
+const ORIGIN_MAILBOX_OFFSET: usize = 0;
+const MERKLE_ROOT_OFFSET: usize = 32;
+const SIGNATURES_OFFSET: usize = 64;
+const SIGNATURE_LENGTH: usize = 65;
+
+impl TryFrom<Vec<u8>> for MultisigIsmMessageIdMetadata {
+    type Error = ProgramError;
+
+    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
+        let bytes_len = bytes.len();
+        // Require the bytes to be at least big enough to include a single signature.
+        if bytes_len < SIGNATURES_OFFSET + SIGNATURE_LENGTH {
+            return Err(ProgramError::InvalidArgument);
+        }
+
+        let origin_mailbox = H256::from_slice(&bytes[ORIGIN_MAILBOX_OFFSET..MERKLE_ROOT_OFFSET]);
+        let merkle_root = H256::from_slice(&bytes[MERKLE_ROOT_OFFSET..SIGNATURES_OFFSET]);
+
+        let signature_bytes_len = bytes_len - SIGNATURES_OFFSET;
+        // Require the signature bytes to be a multiple of the signature length.
+        // We don't need to check if signature_bytes_len is 0 because this is checked
+        // above.
+        if signature_bytes_len % SIGNATURE_LENGTH != 0 {
+            return Err(ProgramError::InvalidArgument);
+        }
+        let signature_count = signature_bytes_len / SIGNATURE_LENGTH;
+        let mut validator_signatures = Vec::with_capacity(signature_count);
+        for i in 0..signature_count {
+            let signature_offset = SIGNATURES_OFFSET + (i * SIGNATURE_LENGTH);
+            let signature = EcdsaSignature::from_bytes(&bytes[signature_offset..signature_offset + SIGNATURE_LENGTH])?;
+            validator_signatures.push(signature);
+        }
+
+        Ok(Self {
+            origin_mailbox,
+            merkle_root,
+            validator_signatures,
+        })
+    }
 }
