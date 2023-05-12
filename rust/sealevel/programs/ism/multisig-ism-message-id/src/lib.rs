@@ -11,7 +11,7 @@ mod instruction;
 mod metadata;
 mod multisig;
 
-use hyperlane_core::{Checkpoint, Decode, HyperlaneMessage};
+use hyperlane_core::{Checkpoint, Decode, HyperlaneMessage, IsmType};
 
 // use hyperlane_sealevel_mailbox::instruction::IsmInstruction;
 use solana_program::{
@@ -35,6 +35,8 @@ use crate::{
 };
 
 use borsh::BorshSerialize;
+
+const ISM_TYPE: IsmType = IsmType::MessageIdMultisig;
 
 // FIXME Read these in at compile time? And don't use harcoded test keys.
 // TODO this needs changing
@@ -80,7 +82,11 @@ pub fn process_instruction(
             ism_verify.message,
         ),
         Instruction::IsmType => {
-            // TODO
+            set_return_data(
+                &ISM_TYPE
+                    .try_to_vec()
+                    .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
+            );
             Ok(())
         }
         Instruction::GetValidatorsAndThreshold(domain) => {
@@ -89,10 +95,94 @@ pub fn process_instruction(
         Instruction::SetValidatorsAndThreshold(config) => {
             set_validators_and_threshold(program_id, accounts, config)
         }
-        // _ => {
-        //     Ok(())
-        // }
     }
+}
+
+/// Verifies a message has been signed by at least the configured threshold of the
+/// configured validators for the message's origin domain.
+///
+/// Accounts:
+/// 0. `[]` The PDA relating to the message's origin domain.
+fn verify(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    metadata_bytes: Vec<u8>,
+    message_bytes: Vec<u8>,
+) -> ProgramResult {
+    let metadata = MultisigIsmMessageIdMetadata::try_from(metadata_bytes)?;
+    let message = HyperlaneMessage::read_from(&mut &message_bytes[..])
+        .map_err(|_| ProgramError::InvalidArgument)?;
+
+    let validators_and_threshold = validators_and_threshold(program_id, accounts, message.origin)?;
+
+    let multisig_ism = MultisigIsm::new(
+        Checkpoint {
+            mailbox_address: metadata.origin_mailbox,
+            mailbox_domain: message.origin,
+            root: metadata.merkle_root,
+            index: message.nonce,
+            message_id: message.id(),
+        },
+        metadata.validator_signatures,
+        validators_and_threshold.validators,
+        validators_and_threshold.threshold,
+    );
+
+    multisig_ism
+        .verify()
+        .map_err(|err| Into::<Error>::into(err).into())
+}
+
+/// Gets the validators and threshold for a given domain, and returns it as return data.
+/// Intended to be used by instructions querying the validators and threshold.
+///
+/// Accounts:
+/// 0. `[]` The PDA relating to the provided domain.
+fn get_validators_and_threshold(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    domain: u32,
+) -> ProgramResult {
+    let validators_and_threshold = validators_and_threshold(program_id, accounts, domain)?;
+    set_return_data(
+        &validators_and_threshold
+            .try_to_vec()
+            .map_err(|err| ProgramError::BorshIoError(err.to_string()))?,
+    );
+    Ok(())
+}
+
+/// Gets the validators and threshold for a given domain.
+///
+/// Accounts:
+/// 0. `[]` The PDA relating to the provided domain.
+fn validators_and_threshold(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    domain: u32,
+) -> Result<ValidatorsAndThreshold, ProgramError> {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: The PDA relating to the provided domain.
+    let domain_pda_account = next_account_info(accounts_iter)?;
+    if *domain_pda_account.owner != id() {
+        return Err(Error::ProgramIdNotOwner.into());
+    }
+
+    let domain_data =
+        DomainDataAccount::fetch_data(&mut &domain_pda_account.data.borrow_mut()[..])?
+            .ok_or(Error::AccountNotInitialized)?;
+
+    let domain_pda_key = Pubkey::create_program_address(
+        validators_and_threshold_pda_seeds!(domain, domain_data.bump_seed),
+        program_id,
+    )?;
+    // This check validates that the provided domain_pda_account is valid
+    if *domain_pda_account.key != domain_pda_key {
+        return Err(Error::AccountOutOfOrder.into());
+    }
+
+    Ok(domain_data.validators_and_threshold)
 }
 
 /// Set the validators and threshold for a given domain.
@@ -100,8 +190,7 @@ pub fn process_instruction(
 /// Accounts:
 /// 0. `[signer]` The owner of this program and payer of the domain PDA.
 /// 1. `[executable]` This program.
-/// 2. `[executable]` The system program.
-/// 3. `[writable]` The PDA relating to the provided domain.
+/// 2. `[writable]` The PDA relating to the provided domain.
 fn set_validators_and_threshold(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -110,6 +199,7 @@ fn set_validators_and_threshold(
     let accounts_iter = &mut accounts.iter();
 
     // Account 0: The owner of this program.
+    // This is verified as correct further below.
     let owner_account = next_account_info(accounts_iter)?;
     if !owner_account.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
@@ -125,16 +215,8 @@ fn set_validators_and_threshold(
         return Err(Error::AccountNotOwner.into());
     }
 
-    // Account 2: System program.
-    let system_program = next_account_info(accounts_iter)?;
-    if system_program.key != &solana_program::system_program::ID {
-        return Err(ProgramError::InvalidArgument);
-    }
-
-    // Account 3: The PDA relating to the provided domain.
+    // Account 2: The PDA relating to the provided domain.
     let domain_pda_account = next_account_info(accounts_iter)?;
-
-    let domain_pda_size: usize = 1024;
 
     let domain_data =
         DomainDataAccount::fetch_data(&mut &domain_pda_account.data.borrow_mut()[..])?;
@@ -160,6 +242,11 @@ fn set_validators_and_threshold(
         }
         None => {
             // Create the domain PDA account if it doesn't exist.
+
+            // This is the initial size - because reallocations are allowed
+            // in the `store` call further below, it's possible that the
+            // size will be increased.
+            let domain_pda_size: usize = 1024;
 
             // First find the key and bump seed for the domain PDA, and ensure
             // it matches the provided account.
@@ -199,81 +286,4 @@ fn set_validators_and_threshold(
     .store(domain_pda_account, true)?;
 
     Ok(())
-}
-
-fn get_validators_and_threshold(
-    program_id: &Pubkey,
-    accounts: &[AccountInfo],
-    domain: u32,
-) -> ProgramResult {
-    let validators_and_threshold = validators_and_threshold(program_id, accounts, domain)?;
-    set_return_data(
-        &validators_and_threshold
-            .try_to_vec()
-            .map_err(|err| ProgramError::BorshIoError(err.to_string()))?,
-    );
-    Ok(())
-}
-
-/// Set the validators and threshold for a given domain.
-///
-/// Accounts:
-/// 0. `[]` The PDA relating to the provided domain.
-fn validators_and_threshold(
-    program_id: &Pubkey,
-    accounts: &[AccountInfo],
-    domain: u32,
-) -> Result<ValidatorsAndThreshold, ProgramError> {
-    let accounts_iter = &mut accounts.iter();
-
-    // Account 0: The PDA relating to the provided domain.
-    let domain_pda_account = next_account_info(accounts_iter)?;
-    if *domain_pda_account.owner != id() {
-        return Err(Error::ProgramIdNotOwner.into());
-    }
-
-    let domain_data =
-        DomainDataAccount::fetch_data(&mut &domain_pda_account.data.borrow_mut()[..])?
-            .ok_or(Error::AccountNotInitialized)?;
-
-    let domain_pda_key = Pubkey::create_program_address(
-        validators_and_threshold_pda_seeds!(domain, domain_data.bump_seed),
-        program_id,
-    )?;
-    // This check validates that the provided domain_pda_account is valid
-    if *domain_pda_account.key != domain_pda_key {
-        return Err(Error::AccountOutOfOrder.into());
-    }
-
-    Ok(domain_data.validators_and_threshold)
-}
-
-fn verify(
-    program_id: &Pubkey,
-    accounts: &[AccountInfo],
-    metadata_bytes: Vec<u8>,
-    message_bytes: Vec<u8>,
-) -> ProgramResult {
-    let metadata = MultisigIsmMessageIdMetadata::try_from(metadata_bytes)?;
-    let message = HyperlaneMessage::read_from(&mut &message_bytes[..])
-        .map_err(|_| ProgramError::InvalidArgument)?;
-
-    let validators_and_threshold = validators_and_threshold(program_id, accounts, message.origin)?;
-
-    let multisig_ism = MultisigIsm::new(
-        Checkpoint {
-            mailbox_address: metadata.origin_mailbox,
-            mailbox_domain: message.origin,
-            root: metadata.merkle_root,
-            index: message.nonce,
-            message_id: message.id(),
-        },
-        metadata.validator_signatures,
-        validators_and_threshold.validators,
-        validators_and_threshold.threshold,
-    );
-
-    multisig_ism
-        .verify()
-        .map_err(|err| Into::<Error>::into(err).into())
 }
