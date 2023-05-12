@@ -79,10 +79,19 @@ impl Ord for DynPendingOperation {
         use Ordering::*;
         match (self.next_attempt_after(), other.next_attempt_after()) {
             (Some(a), Some(b)) => a.cmp(&b),
-            (Some(_), None) => Greater,
+            // No time means it should come before
             (None, Some(_)) => Less,
+            (Some(_), None) => Greater,
             (None, None) => match (self, other) {
-                (PendingMessage(a), PendingMessage(b)) => a.message.nonce.cmp(&b.message.nonce),
+                (PendingMessage(a), PendingMessage(b)) => {
+                    if a.message.origin == b.message.origin {
+                        // Should execute in order of nonce for the same origin
+                        a.message.nonce.cmp(&b.message.nonce)
+                    } else {
+                        // There is no priority between these messages, so arbitrarily use the id
+                        a.message.id().cmp(&b.message.id())
+                    }
+                }
             },
         }
     }
