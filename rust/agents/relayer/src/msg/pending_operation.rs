@@ -16,7 +16,7 @@ use super::pending_message::PendingMessage;
 /// There are three stages to the lifecycle of a pending operation:
 ///
 /// 1) Prepare: This is called before every submission and will usually have a
-/// very short gap between it and the submit call. It can be used to validate it
+/// very short gap between it and the submit call. It can be used to confirm it
 /// is ready to be submitted and it can also prepare any data that will be
 /// needed for the submission. This way, the preparation can be done while
 /// another transaction is being submitted.
@@ -26,7 +26,7 @@ use super::pending_message::PendingMessage;
 /// of submitting a transaction. Ideally this step only sends the transaction
 /// and waits for it to be included.
 ///
-/// 3) Validate: This is called after the operation has been submitted and is
+/// 3) Confirm: This is called after the operation has been submitted and is
 /// responsible for checking if the operation has reached a point at which we
 /// consider it safe from reorgs.
 #[async_trait]
@@ -44,10 +44,10 @@ pub trait PendingOperation {
     /// or not.
     async fn submit(&mut self) -> SubmitResult;
 
-    /// Validate this operation. This will be called after the operation has
-    /// been submitted and is responsible for checking if the operation has
-    /// reached a point at which we consider it safe from reorgs.
-    async fn validate(&mut self) -> ValidationResult;
+    /// This will be called after the operation has been submitted and is
+    /// responsible for checking if the operation has reached a point at
+    /// which we consider it safe from reorgs.
+    async fn confirm(&mut self) -> ConfirmResult;
 
     fn next_attempt_after(&self) -> Option<Instant>;
 
@@ -120,17 +120,17 @@ pub enum SubmitResult {
 }
 
 #[allow(dead_code)] // Inner types are for present _and_ future use so allow unused variants.
-pub enum ValidationResult {
-    /// Transaction was successfully validated as being included in the
+pub enum ConfirmResult {
+    /// Transaction was successfully confirmed as being included in the
     /// blockchain
-    Valid,
-    /// This Txn is not ready to be validated yet
+    Confirmed,
+    /// This Txn is not ready to be confirmed yet
     NotReady,
-    /// We can't assess validity yet, check again after `next_attempt_after`
+    /// We can't assess yet, check again after `next_attempt_after`
     Retry,
     /// Transaction was not included and we should re-attempt preparing and
     /// submitting it.
-    Invalid,
+    Reorged,
     /// Pass the error up the chain, this is non-recoverable and indicates a
     /// system failure.
     CriticalFailure(Report),

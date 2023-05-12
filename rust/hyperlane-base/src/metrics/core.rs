@@ -341,9 +341,9 @@ impl CoreMetrics {
     ///   to be re-done.
     /// - `submitted`: When the transaction has been submitted to the chain but
     ///   is not yet certain to be included after a re-org.
-    /// - `validated`: When the transaction has been validated to have made it
-    ///   into the chain after the re-org window has passed.
-    /// - `invalidated`: When the transactions has been invalidated and must be
+    /// - `confirmed`: When the transaction has been confirmed to have made it
+    ///   into the chain after the reorg window has passed.
+    /// - `reorged`: When the transaction was not included and needs to be
     ///   reprocessed.
     /// - `failed`: When some part of the pipeline failed. The operation may
     ///   still be retried later.

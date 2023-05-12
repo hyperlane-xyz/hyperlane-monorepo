@@ -73,7 +73,7 @@ pub struct SerialSubmitter {
     #[new(default)]
     run_queue: BinaryHeap<Reverse<Box<DynPendingOperation>>>,
     #[new(default)]
-    validation_queue: BinaryHeap<Reverse<Box<DynPendingOperation>>>,
+    confirm_queue: BinaryHeap<Reverse<Box<DynPendingOperation>>>,
     /// Metrics for serial submitter.
     metrics: SerialSubmitterMetrics,
 }
@@ -91,7 +91,7 @@ impl SerialSubmitter {
             self.update_metrics();
             self.tick_process().await?;
             self.update_metrics();
-            self.tick_validate().await?;
+            self.tick_confirm().await?;
             self.update_metrics();
             sleep(Duration::from_millis(200)).await;
         }
@@ -154,7 +154,7 @@ impl SerialSubmitter {
         match op.submit().await {
             SubmitResult::Success => {
                 self.metrics.txs_submitted.inc();
-                self.validation_queue.push(Reverse(op));
+                self.confirm_queue.push(Reverse(op));
             }
             SubmitResult::Drop => {
                 self.metrics.txs_submitted.inc();
@@ -169,27 +169,27 @@ impl SerialSubmitter {
         Ok(())
     }
 
-    /// Validate submitted operations.
-    async fn tick_validate(&mut self) -> Result<()> {
-        while let Some(Reverse(mut op)) = self.validation_queue.pop() {
-            let res: ValidationResult = op.validate().await;
+    /// Confirm submitted operations.
+    async fn tick_confirm(&mut self) -> Result<()> {
+        while let Some(Reverse(mut op)) = self.confirm_queue.pop() {
+            let res: ConfirmResult = op.confirm().await;
             match res {
-                ValidationResult::Valid => {
-                    self.metrics.txs_validated.inc();
+                ConfirmResult::Confirmed => {
+                    self.metrics.txs_confirmed.inc();
                 }
-                ValidationResult::NotReady => {
-                    self.validation_queue.push(Reverse(op));
+                ConfirmResult::NotReady => {
+                    self.confirm_queue.push(Reverse(op));
                     break;
                 }
-                ValidationResult::Retry => {
-                    self.validation_queue.push(Reverse(op));
+                ConfirmResult::Retry => {
+                    self.confirm_queue.push(Reverse(op));
                 }
-                ValidationResult::Invalid => {
+                ConfirmResult::Reorged => {
                     // needs to be re-run
-                    self.metrics.txs_invalidated.inc();
+                    self.metrics.txs_reorged.inc();
                     self.run_queue.push(Reverse(op));
                 }
-                ValidationResult::CriticalFailure(e) => return Err(e),
+                ConfirmResult::CriticalFailure(e) => return Err(e),
             }
         }
 
@@ -201,20 +201,20 @@ impl SerialSubmitter {
             .run_queue_length
             .set(self.run_queue.len() as i64);
         self.metrics
-            .validation_queue_length
-            .set(self.validation_queue.len() as i64);
+            .confirm_queue_length
+            .set(self.confirm_queue.len() as i64);
     }
 }
 
 #[derive(Debug)]
 pub struct SerialSubmitterMetrics {
     run_queue_length: IntGauge,
-    validation_queue_length: IntGauge,
+    confirm_queue_length: IntGauge,
 
     txs_prepared: IntCounter,
     txs_submitted: IntCounter,
-    txs_validated: IntCounter,
-    txs_invalidated: IntCounter,
+    txs_confirmed: IntCounter,
+    txs_reorged: IntCounter,
     txs_failed: IntCounter,
 }
 
@@ -225,21 +225,21 @@ impl SerialSubmitterMetrics {
             run_queue_length: metrics
                 .submitter_queue_length()
                 .with_label_values(&[destination, "run_queue"]),
-            validation_queue_length: metrics
+            confirm_queue_length: metrics
                 .submitter_queue_length()
-                .with_label_values(&[destination, "validation_queue"]),
+                .with_label_values(&[destination, "confirm_queue"]),
             txs_prepared: metrics
                 .transactions_processed_count()
                 .with_label_values(&["prepared", destination]),
             txs_submitted: metrics
                 .transactions_processed_count()
                 .with_label_values(&["submitted", destination]),
-            txs_validated: metrics
+            txs_confirmed: metrics
                 .transactions_processed_count()
-                .with_label_values(&["validated", destination]),
-            txs_invalidated: metrics
+                .with_label_values(&["confirmed", destination]),
+            txs_reorged: metrics
                 .transactions_processed_count()
-                .with_label_values(&["invalidated", destination]),
+                .with_label_values(&["reorged", destination]),
             txs_failed: metrics
                 .transactions_processed_count()
                 .with_label_values(&["failed", destination]),

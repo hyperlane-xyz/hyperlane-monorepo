@@ -252,11 +252,11 @@ impl PendingOperation for PendingMessage {
         }
     }
 
-    async fn validate(&mut self) -> ValidationResult {
+    async fn confirm(&mut self) -> ConfirmResult {
         if self.submitted {
-            ValidationResult::Valid
+            ConfirmResult::Confirmed
         } else {
-            ValidationResult::Invalid
+            ConfirmResult::Reorged
         }
     }
 
