@@ -8,11 +8,13 @@ use eyre::{bail, Result};
 use futures_util::future::try_join_all;
 use prometheus::{IntCounter, IntGauge};
 use tokio::spawn;
-use tokio::sync::mpsc::{self};
-use tokio::sync::Mutex;
+use tokio::sync::{
+    mpsc::{self},
+    Mutex,
+};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
-use tracing::{info_span, instrument, instrument::Instrumented, Instrument};
+use tracing::{debug, info_span, instrument, instrument::Instrumented, trace, Instrument};
 
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::HyperlaneDomain;
@@ -112,7 +114,7 @@ impl SerialSubmitter {
         ];
 
         for i in try_join_all(tasks).await? {
-            i?;
+            i?
         }
         Ok(())
     }
@@ -126,6 +128,7 @@ async fn receive_task(
 ) -> Result<()> {
     // Pull any messages sent to this submitter
     while let Some(op) = rx.recv().await {
+        trace!(?op, "Received new operation");
         // make sure things are getting wired up correctly; if this works in testing it
         // should also be valid in production.
         debug_assert_eq!(*op.domain(), domain);
@@ -151,9 +154,11 @@ async fn prepare_task(
             sleep(Duration::from_millis(200)).await;
             continue;
         };
+        trace!(?op, "Preparing operation");
 
         match op.prepare().await {
             PendingOperationResult::Success => {
+                debug!(?op, "Operation prepared");
                 metrics.txs_prepared.inc();
                 // this send will pause this task if the submitter is not ready to accept yet
                 tx_submit.send(op).await?;
@@ -186,8 +191,10 @@ async fn submit_task(
     metrics: SerialSubmitterMetrics,
 ) -> Result<()> {
     while let Some(mut op) = rx_submit.recv().await {
+        trace!(?op, "Submitting operation");
         match op.submit().await {
             PendingOperationResult::Success => {
+                debug!(?op, "Operation submitted");
                 metrics.txs_submitted.inc();
                 confirm_queue.lock().await.push(Reverse(op));
             }
@@ -221,18 +228,20 @@ async fn confirm_task(
             queue.pop()
         };
         let Some(Reverse(mut op)) = next else {
-            sleep(Duration::from_millis(1000)).await;
+            sleep(Duration::from_secs(60)).await;
             continue;
         };
+        trace!(?op, "Confirming operation");
 
         match op.confirm().await {
             PendingOperationResult::Success => {
+                debug!(?op, "Operation confirmed");
                 metrics.txs_confirmed.inc();
             }
             PendingOperationResult::NotReady => {
                 // none of the operations are ready yet, so wait for a little bit
                 confirm_queue.lock().await.push(Reverse(op));
-                sleep(Duration::from_millis(1000)).await;
+                sleep(Duration::from_secs(5)).await;
             }
             PendingOperationResult::Reprepare => {
                 metrics.txs_reorged.inc();

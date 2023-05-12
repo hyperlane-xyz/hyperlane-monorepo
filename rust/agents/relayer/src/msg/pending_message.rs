@@ -63,7 +63,6 @@ struct SubmissionData {
 
 impl Debug for PendingMessage {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        // TODO: Update this to include the state?
         // intentionally leaves out ctx
         let now = Instant::now();
         let last_attempt = now.duration_since(self.last_attempted_at).as_secs();
@@ -92,7 +91,6 @@ impl PartialEq for PendingMessage {
 
 impl Eq for PendingMessage {}
 
-// TODO: implement the validation step to ensure the message was not reorged out
 #[async_trait]
 impl PendingOperation for PendingMessage {
     fn domain(&self) -> &HyperlaneDomain {
@@ -103,7 +101,7 @@ impl PendingOperation for PendingMessage {
     async fn prepare(&mut self) -> PendingOperationResult {
         make_op_try!(|| self.on_retry());
 
-        if self.is_ready() {
+        if !self.is_ready() {
             trace!("Message is not ready to be submitted yet");
             return PendingOperationResult::NotReady;
         }
@@ -191,12 +189,6 @@ impl PendingOperation for PendingMessage {
 
         // Go ahead and attempt processing of message to destination chain.
         debug!(?gas_limit, "Ready to process message");
-
-        // TODO: consider differentiating types of processing errors, and pushing to the
-        //  front of the run queue for intermittent types of errors that can
-        //  occur even if a message's processing isn't reverting, e.g. timeouts
-        //  or txs being dropped from the mempool. To avoid consistently retrying
-        //  only these messages, the number of retries could be considered.
 
         let gas_limit = tx_cost_estimate.gas_limit;
 
@@ -300,7 +292,7 @@ impl PendingMessage {
 
     fn is_ready(&self) -> bool {
         self.next_attempt_after
-            .map(|a| a > Instant::now())
+            .map(|a| Instant::now() >= a)
             .unwrap_or(true)
     }
 

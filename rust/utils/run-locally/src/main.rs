@@ -380,10 +380,8 @@ fn main() -> ExitCode {
         }
         if ci_mode {
             // for CI we have to look for the end condition.
-            if kathy_done && retry_queues_empty() {
-                assert_termination_invariants(
-                    kathy_rounds.unwrap() as u32 * kathy_messages_per_round,
-                );
+            let num_messages_expected = kathy_rounds.unwrap() as u32 * kathy_messages_per_round;
+            if kathy_done && termination_invariants_met(num_messages_expected) {
                 // end condition reached successfully
                 println!("Kathy completed successfully and the retry queues are empty");
                 break;
@@ -403,8 +401,9 @@ fn main() -> ExitCode {
     ExitCode::from(0)
 }
 
-/// Use the metrics to check if the relayer queues are empty.
-fn retry_queues_empty() -> bool {
+/// Use the metrics to check if the relayer queues are empty and the expected
+/// number of messages have been sent.
+fn termination_invariants_met(num_expected_messages_processed: u32) -> bool {
     let lengths: Vec<_> = ureq::get("http://127.0.0.1:9092/metrics")
         .call()
         .unwrap()
@@ -412,10 +411,52 @@ fn retry_queues_empty() -> bool {
         .unwrap()
         .lines()
         .filter(|l| l.starts_with("hyperlane_submitter_queue_length"))
+        .filter(|l| !l.contains("queue_name=\"confirm_queue\""))
         .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
         .collect();
     assert!(!lengths.is_empty(), "Could not find queue length metric");
-    lengths.into_iter().all(|n| n == 0)
+    if lengths.into_iter().any(|n| n != 0) {
+        println!("Relayer queues not empty");
+        return false;
+    };
+
+    // Also ensure the counter is as expected (total number of messages), summed
+    // across all mailboxes.
+    let msg_processed_count: Vec<_> = ureq::get("http://127.0.0.1:9092/metrics")
+        .call()
+        .unwrap()
+        .into_string()
+        .unwrap()
+        .lines()
+        .filter(|l| l.starts_with("hyperlane_messages_processed_count"))
+        .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
+        .collect();
+    assert!(
+        !msg_processed_count.is_empty(),
+        "Could not find message_processed phase metric"
+    );
+    if msg_processed_count.into_iter().sum::<u32>() < num_expected_messages_processed {
+        println!("Not all messages have been processed");
+        return false;
+    }
+
+    let gas_payment_events_count = ureq::get("http://127.0.0.1:9092/metrics")
+        .call()
+        .unwrap()
+        .into_string()
+        .unwrap()
+        .lines()
+        .filter(|l| l.starts_with("hyperlane_contract_sync_stored_events"))
+        .filter(|l| l.contains(r#"data_type="gas_payments""#))
+        .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
+        .sum::<u32>();
+
+    if gas_payment_events_count < num_expected_messages_processed {
+        println!("Missing gas payment events");
+        false
+    } else {
+        true
+    }
 }
 
 /// Read from a process output and add a string to the front before writing it
@@ -439,44 +480,6 @@ fn prefix_log(output: impl Read, name: &'static str) {
             break;
         }
     }
-}
-
-/// Assert invariants for state upon successful test termination.
-fn assert_termination_invariants(num_expected_messages_processed: u32) {
-    // Also ensure the counter is as expected (total number of messages), summed
-    // across all mailboxes.
-    let msg_processed_count: Vec<_> = ureq::get("http://127.0.0.1:9092/metrics")
-        .call()
-        .unwrap()
-        .into_string()
-        .unwrap()
-        .lines()
-        .filter(|l| l.starts_with("hyperlane_messages_processed_count"))
-        .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
-        .collect();
-    assert!(
-        !msg_processed_count.is_empty(),
-        "Could not find message_processed phase metric"
-    );
-    assert_eq!(
-        num_expected_messages_processed,
-        msg_processed_count.into_iter().sum::<u32>()
-    );
-
-    let gas_payment_events_count = ureq::get("http://127.0.0.1:9092/metrics")
-        .call()
-        .unwrap()
-        .into_string()
-        .unwrap()
-        .lines()
-        .filter(|l| l.starts_with("hyperlane_contract_sync_stored_events"))
-        .filter(|l| l.contains(r#"data_type="gas_payments""#))
-        .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
-        .sum::<u32>();
-    assert!(
-        gas_payment_events_count >= num_expected_messages_processed,
-        "Synced gas payment event count is less than the number of messages"
-    );
 }
 
 /// Basically `tail -f file | grep <FILTER>` but also has to write to the file
