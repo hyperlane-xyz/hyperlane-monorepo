@@ -416,7 +416,7 @@ fn termination_invariants_met(num_expected_messages_processed: u32) -> bool {
         .collect();
     assert!(!lengths.is_empty(), "Could not find queue length metric");
     if lengths.into_iter().any(|n| n != 0) {
-        println!("Relayer queues not empty");
+        println!("<E2E> Relayer queues not empty");
         return false;
     };
 
@@ -436,7 +436,7 @@ fn termination_invariants_met(num_expected_messages_processed: u32) -> bool {
         "Could not find message_processed phase metric"
     );
     if msg_processed_count.into_iter().sum::<u32>() < num_expected_messages_processed {
-        println!("Not all messages have been processed");
+        println!("<E2E> Not all messages have been processed");
         return false;
     }
 
@@ -452,7 +452,7 @@ fn termination_invariants_met(num_expected_messages_processed: u32) -> bool {
         .sum::<u32>();
 
     if gas_payment_events_count < num_expected_messages_processed {
-        println!("Missing gas payment events");
+        println!("<E2E> Missing gas payment events");
         false
     } else {
         true
