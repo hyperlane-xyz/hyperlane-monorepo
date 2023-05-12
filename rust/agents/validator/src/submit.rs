@@ -84,7 +84,7 @@ impl ValidatorSubmitter {
                 };
 
                 let signed_checkpoint = self.signer.sign(checkpoint_with_id).await?;
-                info!(signed_checkpoint = ?signed_checkpoint, signer=?self.signer, "Signed (checkpoint, messageId) for checkpoint index {}", checkpoint_with_id.index);
+                info!(signed_checkpoint = ?signed_checkpoint, signer=?self.signer, "Signed checkpoint");
                 self.checkpoint_syncer
                     .write_checkpoint_with_message_id(&signed_checkpoint)
                     .await?;
