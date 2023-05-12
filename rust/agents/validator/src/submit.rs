@@ -91,7 +91,7 @@ impl ValidatorSubmitter {
                 let latest_checkpoint = self.mailbox.latest_checkpoint(None).await?;
                 if latest_checkpoint.index == tree.index() {
                     debug!(count = tree.count(), "Tree up to date");
-                    assert_eq!(tree.root(), latest_checkpoint.root);
+                    assert_eq!(tree.root(), latest_checkpoint.root, "Local root does not match latest checkpoint root");
                 }
             }
 
