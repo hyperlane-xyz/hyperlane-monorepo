@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import "forge-std/console.sol";
-
 // ============ Internal Imports ============
 import {IOptimismMessageHook} from "../interfaces/hooks/IOptimismMessageHook.sol";
 import {OptimismIsm} from "../isms/native/OptimismIsm.sol";
@@ -12,7 +10,7 @@ import {TypeCasts} from "../libs/TypeCasts.sol";
 import {ICrossDomainMessenger} from "@eth-optimism/contracts/libraries/bridge/ICrossDomainMessenger.sol";
 
 contract OptimismMessageHook is IOptimismMessageHook {
-    uint32 public constant OPTIMISM_DOMAIN_ID = 10;
+    uint32 public constant OPTIMISM_DOMAIN = 10;
 
     ICrossDomainMessenger public opMessenger;
     OptimismIsm public opISM;
@@ -37,8 +35,12 @@ contract OptimismMessageHook is IOptimismMessageHook {
         returns (uint256)
     {
         require(
-            destination == OPTIMISM_DOMAIN_ID,
+            destination == OPTIMISM_DOMAIN,
             "OptimismHook: destination must be Optimism"
+        );
+        require(
+            address(opISM) != address(0),
+            "OptimismHook: OptimismIsm not set"
         );
 
         bytes memory _payload = abi.encodeCall(

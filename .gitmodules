@@ -9,3 +9,6 @@
 [submodule "solidity/lib/forge-std"]
 	path = solidity/lib/forge-std
 	url = https://github.com/foundry-rs/forge-std
+[submodule "solidity/lib/solmate"]
+	path = solidity/lib/solmate
+	url = https://github.com/transmissions11/solmate

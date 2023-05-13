@@ -2737,6 +2737,19 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@eth-optimism/contracts-bedrock@npm:^0.13.1":
+  version: 0.13.2
+  resolution: "@eth-optimism/contracts-bedrock@npm:0.13.2"
+  dependencies:
+    "@eth-optimism/core-utils": ^0.12.0
+    "@openzeppelin/contracts": 4.7.3
+    "@openzeppelin/contracts-upgradeable": 4.7.3
+    ethers: ^5.7.0
+    hardhat: ^2.9.6
+  checksum: 0c973dcd81aee3774f5d3863e757509c4cc5ec29e2f30e436f96689a3628fe6083dda6fcc718121a7c9ecb7c643700ee70ce3f5f5438fb12e4c3f6bc102b2859
+  languageName: node
+  linkType: hard
+
 "@eth-optimism/contracts@npm:0.5.39":
   version: 0.5.39
   resolution: "@eth-optimism/contracts@npm:0.5.39"
@@ -2747,6 +2760,19 @@ __metadata:
   peerDependencies:
     ethers: ^5
   checksum: 69499cf8b9c5792b8cc6de73cc35b5b27865907cb0d4ef06cc0153380f4ed4832a03d26b0084c2d239aac520041f37a089c95188b670b4f00851cd19e4a65379
+  languageName: node
+  linkType: hard
+
+"@eth-optimism/contracts@npm:^0.5.39":
+  version: 0.5.40
+  resolution: "@eth-optimism/contracts@npm:0.5.40"
+  dependencies:
+    "@eth-optimism/core-utils": 0.12.0
+    "@ethersproject/abstract-provider": ^5.7.0
+    "@ethersproject/abstract-signer": ^5.7.0
+  peerDependencies:
+    ethers: ^5
+  checksum: 11dde466c90b886efe8b5fd123fa5893187a4ff84839213d417f90ae4e45bf00b2f62d56e4ebe23ba5dd7ec33beed22c4c41e206add35fce0db073fe2dbae6ba
   languageName: node
   linkType: hard
 
@@ -4024,6 +4050,8 @@ __metadata:
     "@aws-sdk/client-iam": ^3.74.0
     "@aws-sdk/client-kms": 3.48.0
     "@aws-sdk/client-s3": ^3.74.0
+    "@eth-optimism/contracts": ^0.5.39
+    "@eth-optimism/contracts-bedrock": ^0.13.1
     "@eth-optimism/sdk": ^1.7.0
     "@ethersproject/experimental": ^5.7.0
     "@ethersproject/hardware-wallets": ^5.7.0

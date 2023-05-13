@@ -14,6 +14,7 @@ pragma solidity ^0.8.13;
 @@@@@@@@@       @@@@@@@@*/
 
 import "forge-std/Test.sol";
+import "forge-std/console.sol";
 
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {Mailbox} from "../../contracts/Mailbox.sol";
@@ -25,8 +26,11 @@ import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
 import {Lib_CrossDomainUtils} from "@eth-optimism/contracts/libraries/bridge/Lib_CrossDomainUtils.sol";
 import {AddressAliasHelper} from "@eth-optimism/contracts/standards/AddressAliasHelper.sol";
 import {ICrossDomainMessenger} from "@eth-optimism/contracts/libraries/bridge/ICrossDomainMessenger.sol";
-import {L2CrossDomainMessenger} from "@eth-optimism/contracts/L2/messaging/L2CrossDomainMessenger.sol";
 import {ICanonicalTransactionChain} from "@eth-optimism/contracts/l1/rollup/ICanonicalTransactionChain.sol";
+import {L2CrossDomainMessenger} from "@eth-optimism/contracts/L2/messaging/L2CrossDomainMessenger.sol";
+import {Predeploys} from "@eth-optimism/contracts-bedrock/contracts/libraries/Predeploys.sol";
+
+import {Bytes32AddressLib} from "solmate/src/utils/Bytes32AddressLib.sol";
 
 contract OptimismIsmTest is Test {
     uint256 public mainnetFork;
@@ -41,11 +45,11 @@ contract OptimismIsmTest is Test {
         0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1;
     address public constant L1_CANNONICAL_CHAIN =
         0x5E4e65926BA27467555EB562121fac00D24E9dD2;
-    address public constant L2_MESSENGER_ADDRESS =
-        0x4200000000000000000000000000000000000007;
 
     uint8 public constant VERSION = 0;
     uint256 public constant DEFAULT_GAS_LIMIT = 1_920_000;
+
+    address public alice = address(0x1);
 
     ICrossDomainMessenger public opNativeMessenger;
     OptimismIsm public opISM;
@@ -73,12 +77,18 @@ contract OptimismIsmTest is Test {
 
     event RelayedMessage(bytes32 indexed msgHash);
 
+    event ReceivedMessage(bytes32 indexed messageId, address indexed emitter);
+
     function setUp() public {
         mainnetFork = vm.createFork(vm.rpcUrl("mainnet"));
         optimismFork = vm.createFork(vm.rpcUrl("optimism"));
 
         testRecipient = new TestRecipient();
     }
+
+    ///////////////////////////////////////////////////////////////////
+    ///                            SETUP                            ///
+    ///////////////////////////////////////////////////////////////////
 
     function deployEthMailbox() public {
         vm.selectFork(mainnetFork);
@@ -101,8 +111,6 @@ contract OptimismIsmTest is Test {
         vm.selectFork(optimismFork);
 
         opMailbox = new Mailbox(OPTIMISM_DOMAIN);
-
-        opISM = new OptimismIsm();
         opMailbox.initialize(address(this), address(opISM));
 
         vm.makePersistent(address(opMailbox));
@@ -111,9 +119,8 @@ contract OptimismIsmTest is Test {
     function deployOptimsimIsm() public {
         vm.selectFork(optimismFork);
 
-        opISM = new OptimismIsm();
-        opISM.setOptimismMessenger(
-            L2CrossDomainMessenger(L2_MESSENGER_ADDRESS)
+        opISM = new OptimismIsm(
+            L2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER)
         );
 
         vm.makePersistent(address(opISM));
@@ -123,22 +130,25 @@ contract OptimismIsmTest is Test {
         deployOptimsimIsm();
         deployEthMailbox();
         deployOpMailbox();
+
+        vm.selectFork(optimismFork);
+        opISM.setOptimismHook(opHook);
     }
 
+    ///////////////////////////////////////////////////////////////////
+    ///                         FORK TESTS                          ///
+    ///////////////////////////////////////////////////////////////////
+
+    /* ============ hook.postDispatch ============ */
+
     function testDispatch() public {
-        deployOptimsimIsm();
-        deployEthMailbox();
+        deployAll();
 
         vm.selectFork(mainnetFork);
 
-        bytes memory encodedMessage = abi.encodePacked(
-            VERSION,
-            uint32(0),
-            MAINNET_DOMAIN,
-            TypeCasts.addressToBytes32(address(this)),
-            OPTIMISM_DOMAIN,
-            TypeCasts.addressToBytes32(address(testRecipient)),
-            testMessage
+        bytes memory encodedMessage = _encodeTestMessage(
+            0,
+            address(testRecipient)
         );
         bytes32 messageId = keccak256(encodedMessage);
 
@@ -173,6 +183,46 @@ contract OptimismIsmTest is Test {
         );
     }
 
+    function testDispatch_ChainIDNotSupported() public {
+        deployAll();
+
+        vm.selectFork(mainnetFork);
+
+        vm.expectRevert("OptimismHook: destination must be Optimism");
+
+        ethMailbox.dispatch(
+            11,
+            TypeCasts.addressToBytes32(address(testRecipient)),
+            testMessage
+        );
+    }
+
+    function testDispatch_ISMNotSet() public {
+        deployOptimsimIsm();
+
+        vm.selectFork(mainnetFork);
+
+        ism = new TestMultisigIsm();
+
+        opNativeMessenger = ICrossDomainMessenger(L1_MESSENGER_ADDRESS);
+        opHook = new OptimismMessageHook(opNativeMessenger);
+
+        ethMailbox = new Mailbox(MAINNET_DOMAIN);
+        ethMailbox.initialize(address(this), address(ism));
+        ethMailbox.setHook(address(opHook));
+
+        vm.makePersistent(address(ethMailbox));
+
+        vm.expectRevert("OptimismHook: OptimismIsm not set");
+        ethMailbox.dispatch(
+            10,
+            TypeCasts.addressToBytes32(address(testRecipient)),
+            testMessage
+        );
+    }
+
+    /* ============ ISM.receiveFromHook ============ */
+
     function testReceiveFromHook() public {
         deployAll();
 
@@ -180,7 +230,7 @@ contract OptimismIsmTest is Test {
         assertEq(vm.activeFork(), optimismFork);
 
         L2CrossDomainMessenger l2Bridge = L2CrossDomainMessenger(
-            L2_MESSENGER_ADDRESS
+            Predeploys.L2_CROSS_DOMAIN_MESSENGER
         );
 
         bytes32 _messageId = keccak256(
@@ -205,10 +255,17 @@ contract OptimismIsmTest is Test {
             AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS)
         );
 
-        // vm.expectEmit(true, false, false, false, L2_MESSENGER_ADDRESS);
-        emit RelayedMessage(keccak256(xDomainCalldata));
+        vm.expectEmit(true, true, false, false, address(opISM));
+        emit ReceivedMessage(_messageId, address(ethMailbox));
 
-        console.log("from test sender: ", l2Bridge.xDomainMessageSender());
+        vm.expectEmit(
+            true,
+            false,
+            false,
+            false,
+            Predeploys.L2_CROSS_DOMAIN_MESSENGER
+        );
+        emit RelayedMessage(keccak256(xDomainCalldata));
 
         l2Bridge.relayMessage(
             address(opISM),
@@ -222,7 +279,38 @@ contract OptimismIsmTest is Test {
         vm.stopPrank();
     }
 
-    function testWrongChain() public {}
+    function testReceiveFromHook_NotAuthorized() public {
+        deployAll();
+
+        vm.selectFork(optimismFork);
+
+        bytes memory encodedMessage = _encodeTestMessage(
+            0,
+            address(testRecipient)
+        );
+        bytes32 _messageId = keccak256(encodedMessage);
+
+        // needs to be called by the cannonical messenger on Optimism
+        vm.expectRevert("OptimismIsm: caller is not the messenger");
+        opISM.receiveFromHook(_messageId, address(opHook));
+
+        L2CrossDomainMessenger l2Bridge = L2CrossDomainMessenger(
+            Predeploys.L2_CROSS_DOMAIN_MESSENGER
+        );
+
+        // set the xDomainMessageSender storage slot as alice
+        bytes32 key = bytes32(uint256(4));
+        bytes32 value = TypeCasts.addressToBytes32(alice);
+        vm.store(address(l2Bridge), key, value);
+
+        vm.startPrank(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+
+        // needs to be called by the authorized hook contract on Ethereum
+        vm.expectRevert("OptimismIsm: caller is not the owner");
+        opISM.receiveFromHook(_messageId, address(opHook));
+    }
+
+    /* ============ ISM.verify ============ */
 
     function testVerify() public {
         deployAll();
@@ -230,12 +318,14 @@ contract OptimismIsmTest is Test {
         vm.selectFork(optimismFork);
 
         L2CrossDomainMessenger l2Bridge = L2CrossDomainMessenger(
-            L2_MESSENGER_ADDRESS
+            Predeploys.L2_CROSS_DOMAIN_MESSENGER
         );
 
-        bytes32 _messageId = keccak256(
-            _encodeTestMessage(0, address(testRecipient))
+        bytes memory encodedMessage = _encodeTestMessage(
+            0,
+            address(testRecipient)
         );
+        bytes32 _messageId = keccak256(encodedMessage);
 
         bytes memory encodedHookData = abi.encodeCall(
             OptimismIsm.receiveFromHook,
@@ -244,18 +334,55 @@ contract OptimismIsmTest is Test {
         uint256 nextNonce = l2Bridge.messageNonce() + 1;
 
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
-        // l2Bridge.relayMessage(
-        //     address(opISM),
-        //     address(opHook),
-        //     encodedHookData,
-        //     nextNonce
-        // );
-        // assertEq(opISM.receivedEmitters(_messageId), TypeCasts.addressToBytes32(address(opHook)));
+        l2Bridge.relayMessage(
+            address(opISM),
+            address(opHook),
+            encodedHookData,
+            nextNonce
+        );
 
-        // bytes memory metadata = abi.encode(_messageId, address(opHook));
-        // bool verified = opISM.verify(metadata, _encodeTestMessage(0, address(testRecipient)));
-        // assertTrue(verified);
+        bool verified = opISM.verify(new bytes(0), encodedMessage);
+        assertTrue(verified);
+
+        bool verifiedTwice = opISM.verify(new bytes(0), encodedMessage);
+        assertFalse(verifiedTwice);
     }
+
+    function testVerify_InvalidMessage() public {
+        deployAll();
+
+        vm.selectFork(optimismFork);
+
+        L2CrossDomainMessenger l2Bridge = L2CrossDomainMessenger(
+            Predeploys.L2_CROSS_DOMAIN_MESSENGER
+        );
+
+        bytes memory encodedMessage = _encodeTestMessage(
+            0,
+            address(testRecipient)
+        );
+        bytes32 _messageId = keccak256(encodedMessage);
+
+        bytes memory encodedHookData = abi.encodeCall(
+            OptimismIsm.receiveFromHook,
+            (_messageId, address(opHook))
+        );
+        uint256 nextNonce = l2Bridge.messageNonce() + 1;
+
+        vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
+        l2Bridge.relayMessage(
+            address(opISM),
+            address(opHook),
+            encodedHookData,
+            nextNonce
+        );
+
+        bytes memory invalidMessage = _encodeTestMessage(0, address(this));
+        bool verified = opISM.verify(new bytes(0), invalidMessage);
+        assertFalse(verified);
+    }
+
+    /* ============ helper functions ============ */
 
     function _encodeTestMessage(uint32 _msgCount, address _receipient)
         internal
@@ -272,10 +399,4 @@ contract OptimismIsmTest is Test {
             testMessage
         );
     }
-
-    // set hook contract for the mailbox
-
-    // postDispatch
-
-    // check for correct message on the other chain
 }
