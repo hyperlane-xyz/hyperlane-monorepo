@@ -3950,11 +3950,33 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/helloworld@1.3.4, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
+"@hyperlane-xyz/core@npm:1.3.3":
+  version: 1.3.3
+  resolution: "@hyperlane-xyz/core@npm:1.3.3"
+  dependencies:
+    "@hyperlane-xyz/utils": 1.3.3
+    "@openzeppelin/contracts": ^4.8.0
+    "@openzeppelin/contracts-upgradeable": ^4.8.0
+  checksum: d21ede2e49e1152c518c7c89ff1c19811ae3eb78aaacf02dd7db028cbcc436b25bc39c77e2c93d7a08790dd32f5f9f921de4e0e0fccf0a1c8b8a7285cab18e01
+  languageName: node
+  linkType: hard
+
+"@hyperlane-xyz/helloworld@npm:1.3.4":
+  version: 1.3.4
+  resolution: "@hyperlane-xyz/helloworld@npm:1.3.4"
+  dependencies:
+    "@hyperlane-xyz/sdk": 1.3.4
+    "@openzeppelin/contracts-upgradeable": ^4.8.0
+    ethers: ^5.7.2
+  checksum: f915dfef6d8ba9b67a0d2095463ef67af9501cc222a84ba34e36fe650a9cbd335314cf6e9322bb45c34ec905d121c3f748bb0edc51a1d7c8f68363531c308758
+  languageName: node
+  linkType: hard
+
+"@hyperlane-xyz/helloworld@workspace:typescript/helloworld":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
-    "@hyperlane-xyz/sdk": 1.3.4
+    "@hyperlane-xyz/sdk": 1.3.3
     "@nomiclabs/hardhat-ethers": ^2.2.1
     "@nomiclabs/hardhat-waffle": ^2.0.3
     "@openzeppelin/contracts-upgradeable": ^4.8.0
@@ -3986,9 +4008,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/hyperlane-token@workspace:typescript/token"
   dependencies:
-    "@hyperlane-xyz/core": 1.3.4
-    "@hyperlane-xyz/sdk": 1.3.4
-    "@hyperlane-xyz/utils": 1.3.4
+    "@hyperlane-xyz/core": 1.3.3
+    "@hyperlane-xyz/sdk": 1.3.3
+    "@hyperlane-xyz/utils": 1.3.3
     "@nomiclabs/hardhat-ethers": ^2.2.1
     "@nomiclabs/hardhat-waffle": ^2.0.3
     "@openzeppelin/contracts-upgradeable": ^4.8.0
@@ -4106,6 +4128,24 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@hyperlane-xyz/sdk@npm:1.3.3":
+  version: 1.3.3
+  resolution: "@hyperlane-xyz/sdk@npm:1.3.3"
+  dependencies:
+    "@hyperlane-xyz/core": 1.3.3
+    "@hyperlane-xyz/utils": 1.3.3
+    "@types/coingecko-api": ^1.0.10
+    "@types/debug": ^4.1.7
+    "@wagmi/chains": ^0.2.6
+    coingecko-api: ^1.0.10
+    cross-fetch: ^3.1.5
+    debug: ^4.3.4
+    ethers: ^5.7.2
+    zod: ^3.21.2
+  checksum: c54f9fc6b6ae93f00651d345591cf2945b8a3516b15b6f7a649b210abc1ed3c0725bbc80a0d2d5240cbe988bb21b10f7bb1f0c13348d3d3e2c4c1e2fe856c093
+  languageName: node
+  linkType: hard
+
 "@hyperlane-xyz/utils@1.3.4, @hyperlane-xyz/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/utils@workspace:typescript/utils"
@@ -4116,6 +4156,15 @@ __metadata:
     typescript: ^4.7.2
   languageName: unknown
   linkType: soft
+
+"@hyperlane-xyz/utils@npm:1.3.3":
+  version: 1.3.3
+  resolution: "@hyperlane-xyz/utils@npm:1.3.3"
+  dependencies:
+    ethers: ^5.7.2
+  checksum: 1141ff5f8c7559f8727c63782b37cf0f9444942e3f48059fad7dde533b160137a15bcfcc9f590ae3ee56faf33b1da4f7c99f8d32134792acd94c41fc235f19c1
+  languageName: node
+  linkType: hard
 
 "@jridgewell/gen-mapping@npm:^0.3.0":
   version: 0.3.1

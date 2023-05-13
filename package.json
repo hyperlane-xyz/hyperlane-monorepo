@@ -16,8 +16,9 @@
   "private": true,
   "scripts": {
     "build": "yarn workspaces foreach --verbose --parallel --topological run build",
-    "build:e2e": "yarn workspaces foreach --verbose --parallel --exclude @hyperlane-xyz/hyperlane-token --exclude @hyperlane-xyz/helloworld --topological run build",
+    "build:e2e": "yarn workspaces foreach --verbose --parallel --exclude @hyperlane-xyz/monorepo --exclude @hyperlane-xyz/hyperlane-token --exclude @hyperlane-xyz/helloworld --topological run build",
     "clean": "yarn workspaces foreach --verbose --parallel run clean",
+    "clean:e2e": "yarn workspaces foreach --verbose --parallel --exclude @hyperlane-xyz/monorepo --exclude @hyperlane-xyz/hyperlane-token --exclude @hyperlane-xyz/helloworld --topological run clean",
     "sync-submodules": "./scripts/sync-submodules.sh",
     "postinstall": "husky install",
     "prettier": "yarn workspaces foreach --verbose --parallel run prettier",
