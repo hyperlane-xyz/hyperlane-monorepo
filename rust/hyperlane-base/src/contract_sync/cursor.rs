@@ -13,7 +13,9 @@ use crate::{contract_sync::eta_calculator::SyncerEtaCalculator, db::HyperlaneDB}
 const ETA_TIME_WINDOW: f64 = 2. * 60.;
 
 pub struct MessageSyncBlockRangeCursor<I> {
+    /// The MailboxIndexer that this cursor is associated with.
     indexer: I,
+    /// The HyperlaneDB that this cursor is associated with.
     db: HyperlaneDB,
     /// The size of the largest block range that should be returned by the cursor.
     chunk_size: u32,
@@ -21,7 +23,7 @@ pub struct MessageSyncBlockRangeCursor<I> {
     from_block: u32,
     /// The latest message nonce that the cursor can consider "synced".
     /// None if the cursor should assume no messages have been synced.
-    pub message_nonce: Option<u32>,
+    message_nonce: Option<u32>,
 }
 
 impl<I> MessageSyncBlockRangeCursor <I>
@@ -39,13 +41,14 @@ where
         })
     }
 
+    /// Returns the next message nonce that should be indexed
     pub fn next_nonce(&self) -> u32 {
         self.message_nonce.map(|nonce| nonce + 1).unwrap_or(0)
     }
 
-    pub fn meta_by_nonce(&self, nonce: u32) -> Option<LogMeta> {
-        if let Ok(Some(meta)) = self.db.meta_by_nonce(nonce) {
-            Some(meta)
+    fn dispatched_block_number_by_nonce(&self, nonce: u32) -> Option<u32> {
+        if let Ok(Some(block_number)) = self.db.dispatched_block_number_by_nonce(nonce) {
+            Some(u32::try_from(block_number).unwrap())
         } else {
             None
         }
@@ -58,15 +61,19 @@ impl<I: MailboxIndexer> SyncBlockRangeCursor for MessageSyncBlockRangeCursor<I> 
         self.from_block
     }
 
+    // TODO: We don't need this, right?
+    fn tip(&self) -> u32 {
+        0
+    }
+
     async fn next_range(&mut self) -> ChainResult<Option<(u32, u32, Duration)>> {
         // First, check if any new messages have been inserted into the DB,
         // and update the latest synced nonce accordingly.
         loop {
             let next_nonce = self.next_nonce();
-                if let Some(meta) = self.meta_by_nonce(next_nonce) {
+                if let Some(block_number) = self.dispatched_block_number_by_nonce(next_nonce) {
                     self.message_nonce = Some(next_nonce);
-                    // TODO: Why is block number u64 but we're using u32 here?
-                    self.from_block = meta.block_number.into(); 
+                    self.from_block = block_number; 
                 } else {
                     break;
                 }
@@ -97,8 +104,8 @@ impl<I: MailboxIndexer> SyncBlockRangeCursor for MessageSyncBlockRangeCursor<I> 
 
     fn backtrack(&mut self, from_block: u32) -> ChainResult<()> {
         if let Some(nonce) = self.message_nonce {
-            if let Some(meta) = self.meta_by_nonce(nonce) {
-                self.from_block = meta.block_number.into(); 
+            if let Some(block_number) = self.dispatched_block_number_by_nonce(nonce) {
+                self.from_block = block_number; 
             } else {
                 self.from_block = from_block;
             }
@@ -176,6 +183,10 @@ where
 impl<I: Indexer> SyncBlockRangeCursor for RateLimitedSyncBlockRangeCursor<I> {
     fn current_position(&self) -> u32 {
         self.from
+    }
+
+    fn tip(&self) -> u32 {
+        self.tip
     }
 
     async fn next_range(&mut self) -> ChainResult<Option<(u32, u32, Duration)>> {

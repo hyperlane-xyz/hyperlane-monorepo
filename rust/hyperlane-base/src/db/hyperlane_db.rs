@@ -18,7 +18,7 @@ use super::{
 // started with the same database and domain.
 
 const MESSAGE_ID: &str = "message_id_";
-const MESSAGE_META: &str = "message_meta_";
+const MESSAGE_DISPATCHED_BLOCK_NUMBER: &str = "message_dispatched_block_number_";
 const MESSAGE: &str = "message_";
 const LATEST_NONCE_FOR_DESTINATION: &str = "latest_known_nonce_for_destination_";
 const NONCE_PROCESSED: &str = "nonce_processed_";
@@ -59,9 +59,13 @@ impl HyperlaneDB {
     }
 
     /// Store list of messages
-    pub fn store_synced_messages(&self, messages: &[(HyperlaneMessage, LogMeta)]) -> Result<()> {
+    pub fn store_dispatched_messages(&self, messages: &[(HyperlaneMessage, LogMeta)]) -> Result<()> {
         for (message, meta) in messages {
-            self.store_message(message, meta)?;
+            if let Ok(Some(message_id)) = self.message_id_by_nonce(message.nonce) {
+                debug!(msg=?message, "Message already stored in db");
+            } else {
+                self.store_message(message, meta.block_number)?;
+            }
         }
         Ok(())
     }
@@ -70,9 +74,9 @@ impl HyperlaneDB {
     ///
     /// Keys --> Values:
     /// - `nonce` --> `id`
-    /// - `nonce` --> `meta`
     /// - `id` --> `message`
-    fn store_message(&self, message: &HyperlaneMessage, meta: &LogMeta) -> Result<()> {
+    /// - `nonce` --> `dispatched block number`
+    fn store_message(&self, message: &HyperlaneMessage, dispatched_block_number: u64) -> Result<()> {
         let id = message.id();
 
         debug!(msg=?message, "Storing new message in db",);
@@ -81,14 +85,14 @@ impl HyperlaneDB {
         self.store_keyed_encodable(MESSAGE, &id, message)?;
         // - `nonce` --> `id`
         self.store_keyed_encodable(MESSAGE_ID, &message.nonce, &id)?;
-        // - `nonce` --> `meta`
-        self.store_keyed_encodable(MESSAGE_META, &message.nonce, &meta)?;
+        // - `nonce` --> `dispatched block number`
+        self.store_keyed_encodable(MESSAGE_DISPATCHED_BLOCK_NUMBER, &message.nonce, &dispatched_block_number)?;
         Ok(())
     }
 
-    /// Retrieve LogMeta by message nonce
-    pub fn meta_by_nonce(&self, nonce: u32) -> Result<Option<LogMeta>> {
-        self.retrieve_keyed_decodable(MESSAGE_META, &nonce)
+    /// Retrieve dispatched block number by message nonce
+    pub fn dispatched_block_number_by_nonce(&self, nonce: u32) -> Result<Option<u64>> {
+        self.retrieve_keyed_decodable(MESSAGE_DISPATCHED_BLOCK_NUMBER, &nonce)
     }
 
     /// Retrieve a message by its id

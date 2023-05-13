@@ -127,8 +127,7 @@ where
 
                 // TODO: Can we efficiently skip messages that we know have already been
                 // inserted?
-                // TODO: Also write the block numbers...
-                self.db.store_synced_messages(&sorted_messages)?;
+                self.db.store_dispatched_messages(&sorted_messages)?;
                 
                 // If we found messages, but did *not* find the message we were looking for,
                 // we need to backtrack.

@@ -11,6 +11,8 @@ use crate::{chains::IndexSettings, db::HyperlaneDB};
 mod cursor;
 mod eta_calculator;
 mod interchain_gas;
+/// Tools for working with message continuity.
+pub mod last_message;
 mod mailbox;
 mod metrics;
 mod schema;

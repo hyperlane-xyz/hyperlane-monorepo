@@ -14,18 +14,24 @@ mock! {
 
         pub fn _current_position(&self) -> u32 {}
 
+        pub fn _tip(&self) -> u32 {}
+
         pub fn _backtrack(&mut self, from_block: u32) -> ChainResult<()> {}
     }
 }
 
 #[async_trait]
 impl SyncBlockRangeCursor for MockSyncBlockRangeCursor {
+    async fn next_range(&mut self) -> ChainResult<Option<(u32, u32, Duration)>> {
+        self._next_range().await
+    }
+
     fn current_position(&self) -> u32 {
         self._current_position()
     }
 
-    async fn next_range(&mut self) -> ChainResult<Option<(u32, u32, Duration)>> {
-        self._next_range().await
+    fn tip(&self) -> u32 {
+        self._tip()
     }
 
     fn backtrack(&mut self, from_block: u32) -> ChainResult<()> {

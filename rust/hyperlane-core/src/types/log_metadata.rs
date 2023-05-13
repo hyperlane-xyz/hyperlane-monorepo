@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 use ethers_contract::LogMeta as EthersLogMeta;
 use serde::{Deserialize, Serialize};
 
-use crate::{Decode, Encode, HyperlaneProtocolError, H256, U256};
+use crate::{H256, U256};
 
 /// A close clone of the Ethereum `LogMeta`, this is designed to be a more
 /// generic metadata that we can use for other blockchains later. Some changes
@@ -68,60 +68,5 @@ impl PartialOrd for LogMeta {
 impl Ord for LogMeta {
     fn cmp(&self, other: &Self) -> Ordering {
         self.partial_cmp(other).unwrap()
-    }
-}
-
-const LOG_META_LEN: usize = 32 + 8 + 32 + 32 + 8 + 32;
-
-impl Encode for LogMeta {
-    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
-    where
-        W: std::io::Write,
-    {
-        writer.write_all(self.address.as_ref())?;
-        writer.write_all(&self.block_number.to_be_bytes())?;
-        writer.write_all(self.block_hash.as_ref())?;
-        writer.write_all(self.transaction_hash.as_ref())?;
-        writer.write_all(&self.transaction_index.to_be_bytes())?;
-        writer.write_all(&self.log_index.to_be_bytes())?;
-        Ok(LOG_META_LEN)
-    }
-}
-
-impl Decode for LogMeta {
-    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
-    where
-        R: std::io::Read,
-    {
-        let mut version = [0u8; 1];
-        reader.read_exact(&mut version)?;
-
-        let mut nonce = [0u8; 4];
-        reader.read_exact(&mut nonce)?;
-
-        let mut origin = [0u8; 4];
-        reader.read_exact(&mut origin)?;
-
-        let mut sender = H256::zero();
-        reader.read_exact(sender.as_mut())?;
-
-        let mut destination = [0u8; 4];
-        reader.read_exact(&mut destination)?;
-
-        let mut recipient = H256::zero();
-        reader.read_exact(recipient.as_mut())?;
-
-        let mut body = vec![];
-        reader.read_to_end(&mut body)?;
-
-        Ok(Self {
-            version: u8::from_be_bytes(version),
-            nonce: u32::from_be_bytes(nonce),
-            origin: u32::from_be_bytes(origin),
-            sender,
-            destination: u32::from_be_bytes(destination),
-            recipient,
-            body,
-        })
     }
 }

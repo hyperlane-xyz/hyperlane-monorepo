@@ -19,13 +19,12 @@ pub trait SyncBlockRangeCursor {
 
     /// Returns the current `tip` of the blockchain. This is the highest block
     /// we know of.
-    // fn tip(&self) -> u32;
+    fn tip(&self) -> u32;
 
     /// Returns the current distance from the tip of the blockchain.
-    /*
     fn distance_from_tip(&self) -> u32 {
         self.tip().saturating_sub(self.current_position())
-    } */
+    }
 
     /// Get the next block range `(from, to)` which should be fetched (this
     /// returns an inclusive range such as (0,50), (51,100), ...). This

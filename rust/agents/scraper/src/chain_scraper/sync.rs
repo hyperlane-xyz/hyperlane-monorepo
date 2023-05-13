@@ -126,9 +126,11 @@ impl Syncer {
             }
         };
 
+        // Okay, what do we want to do here?
+        // For now, let's separate out dispatched message syncing from the rest.
         loop {
             let start_block = self.sync_cursor.current_position();
-            let Ok((from, to, eta)) = self.sync_cursor.next_range().await else { continue };
+            let Ok(Some((from, to, eta))) = self.sync_cursor.next_range().await else { continue };
             if should_log_checkpoint_info() {
                 info!(
                     from,
@@ -180,13 +182,13 @@ impl Syncer {
                         "Found invalid continuation in range. Re-indexing from the start block of the last successful range."
                     );
                     self.sync_cursor
-                        .backtrack(self.last_valid_range_start_block);
+                        .backtrack(self.last_valid_range_start_block)?;
                     self.indexed_height
                         .set(self.last_valid_range_start_block as i64);
                 }
                 ListValidity::ContainsGaps => {
                     self.missed_messages.inc();
-                    self.sync_cursor.backtrack(start_block);
+                    self.sync_cursor.backtrack(start_block)?;
                     warn!(
                         last_nonce = self.last_nonce,
                         start_block = from,

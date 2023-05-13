@@ -190,11 +190,11 @@ impl Relayer {
         sync_metrics: ContractSyncMetrics,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let mailbox = self.mailboxes.get(&self.origin_chain).unwrap();
-        let index_settings = self.as_ref().settings.chains[self.origin_chain.name()].index;
+        let index_settings = self.as_ref().settings.chains[self.origin_chain.name()].index.clone();
         // We want to sync from the very beginning.
         let sync = mailbox.sync(
             index_settings.clone(),
-            index_settings.from,
+            index_settings.clone().from,
             None,
             sync_metrics,
         );
