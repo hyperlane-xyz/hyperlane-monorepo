@@ -5,11 +5,12 @@ use tracing::{instrument, info, debug, warn};
 use hyperlane_core::{
     Indexer, MailboxIndexer,
     SyncBlockRangeCursor,
+    MessageSyncCursor
 };
 use tokio::time::sleep;
 
 use crate::{
-    ContractSync, MessageSyncBlockRangeCursor,
+    ContractSync,
 };
 
 // Okay, a Mailbox sync process takes a block number and a nonce, and it's
@@ -23,8 +24,8 @@ where
     I: MailboxIndexer + Clone + 'static,
 {
     /// Sync dispatched messages
-    #[instrument(name = "MessageContractSync", skip(self))]
-    pub(crate) async fn sync_dispatched_messages(&self, start_block: u32, start_nonce: Option<u32>) -> eyre::Result<()> {
+    #[instrument(name = "MessageContractSync", skip(self, cursor))]
+    pub(crate) async fn sync_dispatched_messages(&self, mut cursor: Box<dyn MessageSyncCursor>) -> eyre::Result<()> {
         let chain_name = self.domain.as_ref();
         let stored_messages = self
             .metrics
@@ -65,13 +66,11 @@ where
         // the next message that we were looking for.
 
         info!(
-            start_block,
-            start_nonce,
+            next_nonce = cursor.next_nonce(),
             "Starting message indexer"
         );
 
-        let mut cursor = MessageSyncBlockRangeCursor::new(self.indexer.clone(), self.db.clone(), self.index_settings.chunk_size, start_block, start_nonce).await?;
-        loop {
+        while cursor.fast_forward() {
             let Ok(range) = cursor.next_range().await else { continue };
             if range.is_none() {
                 // TODO: Define the sleep time from interval flag
@@ -80,7 +79,7 @@ where
                 let (from, to, _) = range.unwrap();
                 let next_nonce = cursor.next_nonce();
                 
-                debug!(
+                info!(
                     from, to,
                     next_nonce,
                     "Looking for for message(s) in block range"
@@ -100,18 +99,23 @@ where
                 stored_messages.inc_by(stored as u64);
                 
                 // If we found messages, but did *not* find the message we were looking for,
-                // we need to backtrack to the block at which we found the last contiguous message.
+                // we need to rewind to the block at which we found the last message.
                 if !sorted_messages.is_empty() && !sorted_messages.iter().any(|m| m.0.nonce == next_nonce) {
-                    let backtrack_block = cursor.backtrack(start_block)?;
+                    let rewind_block = cursor.rewind()?;
                     warn!(
                         from, to,
                         next_nonce,
                         messages=?sorted_messages.iter().map(|m| m.0.clone()),
-                        backtrack_block,
-                        "Expected next message not found in range, backtracked"
+                        rewind_block,
+                        "Expected next message not found in range, rewound"
                     );
                 }
             }
+        }
+        // TODO: It seems like the relayer shuts down if the task finishes..
+        loop {
+            // TODO: Define the sleep time from interval flag
+            sleep(Duration::from_secs(500)).await;
         }
     }
 }

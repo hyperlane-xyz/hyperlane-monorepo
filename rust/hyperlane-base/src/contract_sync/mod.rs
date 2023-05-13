@@ -21,7 +21,7 @@ mod schema;
 /// Extracts chain-specific data (emitted checkpoints, messages, etc) from an
 /// `indexer` and fills the agent's db with this data. A CachingMailbox
 /// will use a contract sync to spawn syncing tasks to keep the db up-to-date.
-#[derive(Debug, new)]
+#[derive(Debug, new, Clone)]
 pub(crate) struct ContractSync<I> {
     domain: HyperlaneDomain,
     db: HyperlaneDB,

@@ -1,51 +1,51 @@
 use std::{time::{Duration, Instant}};
 
 use async_trait::async_trait;
+use derive_new::new;
 use eyre::Result;
 use tokio::time::sleep;
-use tracing::{warn, error};
+use tracing::{warn, error, info};
 
-use hyperlane_core::{ChainResult, Indexer, SyncBlockRangeCursor, MailboxIndexer};
+use hyperlane_core::{ChainResult, Indexer, SyncBlockRangeCursor, MessageSyncCursor, MailboxIndexer};
 
 use crate::{contract_sync::eta_calculator::SyncerEtaCalculator, db::HyperlaneDB};
 
 /// Time window for the moving average used in the eta calculator in seconds.
 const ETA_TIME_WINDOW: f64 = 2. * 60.;
 
-pub struct MessageSyncBlockRangeCursor<I> {
+// Forward pass starting at zero:
+//   synced nonce = none
+//   next nonce = mailbox.count()
+// Backward pass starting at zero:
+//   synced nonce = mailbox.count()
+//   next nonce = None
+// Forward pass starting at non-zero:
+//   synced nonce = mailbox.count() - 1
+//   next nonce = mailbox.count()
+// Backward pass starting at non-zero:
+//   synced nonce = mailbox.count()
+//   next nonce = mailbox.count() - 1
+
+#[derive(new, Debug, Clone)]
+pub struct MessageSyncCursorData<I> {
     /// The MailboxIndexer that this cursor is associated with.
     indexer: I,
     /// The HyperlaneDB that this cursor is associated with.
     db: HyperlaneDB,
     /// The size of the largest block range that should be returned by the cursor.
     chunk_size: u32,
-    /// All blocks before this are considered "synced"
-    from_block: u32,
-    /// The latest message nonce that the cursor can consider "synced".
-    /// None if the cursor should assume no messages have been synced.
-    message_nonce: Option<u32>,
+    /// The starting block for the cursor
+    start_block: u32,
+    /// The next block that should be indexed.
+    next_block: u32,
+    /// The next nonce that the cursor is looking for.
+    next_nonce: u32,
 }
 
-impl<I> MessageSyncBlockRangeCursor <I>
+impl<I> MessageSyncCursorData<I>
 where
     I: MailboxIndexer,
 {
-    /// Construct a new contract sync helper.
-    pub async fn new(indexer: I, db: HyperlaneDB, chunk_size: u32, from_block: u32, message_nonce: Option<u32>) -> Result<Self> {
-        Ok(Self {
-            indexer,
-            db,
-            chunk_size,
-            from_block,
-            message_nonce
-        })
-    }
-
-    /// Returns the next message nonce that should be indexed
-    pub fn next_nonce(&self) -> u32 {
-        self.message_nonce.map(|nonce| nonce + 1).unwrap_or(0)
-    }
-
     fn dispatched_block_number_by_nonce(&self, nonce: u32) -> Option<u32> {
         if let Ok(Some(block_number)) = self.db.dispatched_block_number_by_nonce(nonce) {
             Some(u32::try_from(block_number).unwrap())
@@ -53,47 +53,70 @@ where
             None
         }
     }
+
+    /// If the previous block has been synced, rewind to the block number
+    /// at which it was dispatched.
+    /// Otherwise, rewind all the way back to the start block.
+    fn rewind_to_nonce(&mut self, nonce: u32) -> ChainResult<u32> {
+        if let Some(block_number) = self.dispatched_block_number_by_nonce(nonce) {
+            self.next_block = block_number; 
+        } else {
+            self.next_block = self.start_block;
+        }
+        Ok(self.next_block)
+    }
+}
+
+
+
+
+#[derive(new, Debug, Clone)]
+pub struct ForwardMessageSyncCursor<I> {
+    cursor: MessageSyncCursorData<I>,
 }
 
 #[async_trait]
-impl<I: MailboxIndexer> SyncBlockRangeCursor for MessageSyncBlockRangeCursor<I> {
-    fn current_position(&self) -> u32 {
-        self.from_block
+impl<I> MessageSyncCursor for ForwardMessageSyncCursor<I>
+where
+    I: MailboxIndexer + 'static,
+{
+
+    /// Check if any new messages have been inserted into the DB,
+    /// and update the cursor accordingly.
+    fn fast_forward(&mut self) -> bool {
+        loop {
+            if let Some(block_number) = self.cursor.dispatched_block_number_by_nonce(self.cursor.next_nonce) {
+                self.cursor.next_nonce += 1;
+                self.cursor.next_block = block_number; 
+            } else {
+                break;
+            }
+        }
+        true
     }
 
-    // TODO: We don't need this, right?
-    fn tip(&self) -> u32 {
-        0
+    fn next_nonce(&self) -> u32 {
+        self.cursor.next_nonce
     }
 
     async fn next_range(&mut self) -> ChainResult<Option<(u32, u32, Duration)>> {
-        // First, check if any new messages have been inserted into the DB,
-        // and update the latest synced nonce accordingly.
-        loop {
-            let next_nonce = self.next_nonce();
-                if let Some(block_number) = self.dispatched_block_number_by_nonce(next_nonce) {
-                    self.message_nonce = Some(next_nonce);
-                    self.from_block = block_number; 
-                } else {
-                    break;
-                }
-        }
+        info!(nonce = self.cursor.next_nonce, block = self.cursor.next_block, "forward range");
+        self.fast_forward();
 
-        // Maybe just have the mailbox return the count and tip at the same time?
-        let (mailbox_count, tip) = self.indexer.fetch_count_at_tip().await?;
+        let (mailbox_count, tip) = self.cursor.indexer.fetch_count_at_tip().await?;
         let cursor_count = self.next_nonce();
 
         if cursor_count == mailbox_count {
             // We are synced up to the latest nonce so we don't need to index anything.
-            // We update our latest block number accordingly.
-            self.from_block = tip;
+            // We update our next block number accordingly.
+            self.cursor.next_block = tip;
             Ok(None)
         } else if cursor_count < mailbox_count {
             // The cursor is behind the mailbox, so we need to index some blocks.
             // We attempt to index a range of blocks that is as large as possible.
-            let from = self.from_block;
-            let to = u32::min(tip, from + self.chunk_size);
-            self.from_block = to + 1;
+            let from = self.cursor.next_block;
+            let to = u32::min(tip, from + self.cursor.chunk_size);
+            self.cursor.next_block = to + 1;
             Ok(Some((from, to, Duration::from_secs(0))))
         } else {
             error!("Cursor is ahead of mailbox, this should never happen.");
@@ -102,21 +125,65 @@ impl<I: MailboxIndexer> SyncBlockRangeCursor for MessageSyncBlockRangeCursor<I> 
         }
     }
 
-    fn backtrack(&mut self, from_block: u32) -> ChainResult<u32> {
-        // If we have a known indexed message, backtrack to the block that message
-        // was dispatched in.
-        // If not, backtrack all the way to the provided from_block.
-        if let Some(nonce) = self.message_nonce {
-            if let Some(block_number) = self.dispatched_block_number_by_nonce(nonce) {
-                self.from_block = block_number; 
-            } else {
-                self.from_block = from_block;
-            }
-        } else {
-            self.from_block = from_block;
-        } 
-        Ok(self.from_block)
+    /// If the previous block has been synced, rewind to the block number
+    /// at which it was dispatched.
+    /// Otherwise, rewind all the way back to the start block.
+    fn rewind(&mut self) -> ChainResult<u32> {
+        let prev_nonce = self.next_nonce().saturating_sub(1);
+        self.cursor.rewind_to_nonce(prev_nonce)
     }
+
+}
+
+#[derive(new, Debug, Clone)]
+pub struct BackwardMessageSyncCursor<I> {
+    cursor: MessageSyncCursorData<I>,
+}
+
+#[async_trait]
+impl<I> MessageSyncCursor for BackwardMessageSyncCursor<I>
+where
+    I: MailboxIndexer + 'static,
+{
+    /// Check if any new messages have been inserted into the DB,
+    /// and update the cursor accordingly.
+    fn fast_forward(&mut self) -> bool {
+        loop {
+            if let Some(block_number) = self.cursor.dispatched_block_number_by_nonce(self.cursor.next_nonce) {
+                self.cursor.next_block = block_number; 
+                // If we hit nonce zero, we are done fast forwarding.
+                if self.cursor.next_nonce == 0 {
+                   return false;
+                }
+                self.cursor.next_nonce = self.cursor.next_nonce.saturating_sub(1);
+            } else {
+                return true;
+            }
+        }
+    }
+
+    fn next_nonce(&self) -> u32 {
+        self.cursor.next_nonce
+    }
+
+    async fn next_range(&mut self) -> ChainResult<Option<(u32, u32, Duration)>> {
+        info!(nonce = self.cursor.next_nonce, block = self.cursor.next_block, "backward range");
+        self.fast_forward();
+        // Just keep going backwards.
+        let to = self.cursor.next_block;
+        let from = to.saturating_sub(self.cursor.chunk_size);
+        self.cursor.next_block = from.saturating_sub(1);
+        Ok(Some((from, to, Duration::from_secs(0))))
+    }
+
+    /// If the previous block has been synced, rewind to the block number
+    /// at which it was dispatched.
+    /// Otherwise, rewind all the way back to the start block.
+    fn rewind(&mut self) -> ChainResult<u32> {
+        let prev_nonce = self.next_nonce().saturating_add(1);
+        self.cursor.rewind_to_nonce(prev_nonce)
+    }
+
 }
 
 /// Tool for handling the logic of what the next block range that should be

@@ -1,9 +1,19 @@
 use std::{time::Duration};
+use std::fmt::Debug;
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
 
 use crate::ChainResult;
+
+#[async_trait]
+#[auto_impl(Box)]
+pub trait MessageSyncCursor: Debug + Send + Sync + 'static {
+    async fn next_range(&mut self) -> ChainResult<Option<(u32, u32, Duration)>>;
+    fn next_nonce(&self) -> u32;
+    fn rewind(&mut self) -> ChainResult<u32>;
+    fn fast_forward(&mut self) -> bool;
+}
 
 // TODO: Can we delete some of these methods?
 /// Tool for handling the logic of what the next block range that should be

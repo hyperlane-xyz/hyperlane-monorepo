@@ -2,7 +2,7 @@ use std::future::Future;
 use std::time::Duration;
 
 use tokio::time::sleep;
-use tracing::{debug, trace};
+use tracing::{debug, trace, info};
 
 use hyperlane_core::{
     HyperlaneDomain, HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment,
@@ -63,9 +63,10 @@ impl HyperlaneDB {
         // TODO: Is it more efficient to check if the message is already inserted?
         for (message, meta) in messages {
             if let Ok(Some(_)) = self.message_id_by_nonce(message.nonce) {
-                debug!(msg=?message, "Message already stored in db");
+                info!(msg=?message, "Message already stored in db");
             } else {
                 self.store_message(message, meta.block_number)?;
+                info!(msg=?message, "Stored message in db");
                 stored += 1;
             }
         }

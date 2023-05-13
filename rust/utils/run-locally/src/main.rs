@@ -288,6 +288,33 @@ fn main() -> ExitCode {
         Some("../typescript/sdk"),
     );
 
+    // Run one round of kathy before the agents come up
+    println!("Spawning Kathy to send Hyperlane message traffic...");
+    let mut kathy = Command::new("yarn");
+    kathy.arg("kathy");
+    kathy.args(["--rounds", "1"]);
+    let mut kathy = kathy
+        .current_dir("../typescript/infra")
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("Failed to start kathy");
+    let kathy_stdout = kathy.stdout.take().unwrap();
+    state.watchers.push(spawn(move || {
+        prefix_log(kathy_stdout, "KTY")
+    }));
+    loop {
+        match kathy.try_wait().unwrap() {
+            Some(s) if s.success() => {
+                println!("Done sending first round of Kathy messages...");
+                break;
+            }
+            Some(_) => {
+                return ExitCode::from(1);
+            }
+            None => {}
+        }
+    }
+
     println!("Spawning relayer...");
     let mut relayer = Command::new("target/debug/relayer")
         .stdout(Stdio::piped())
@@ -364,7 +391,7 @@ fn main() -> ExitCode {
         if log_all {
             prefix_log(kathy_stdout, "KTY")
         } else {
-            inspect_and_write_to_file(kathy_stdout, kathy_log, &["send"])
+            inspect_and_write_to_file(kathy_stdout, kathy_log.clone(), &["send"])
         }
     }));
     state.kathy = Some(kathy);
@@ -390,7 +417,7 @@ fn main() -> ExitCode {
             // for CI we have to look for the end condition.
             if kathy_done && retry_queues_empty() {
                 assert_termination_invariants(
-                    kathy_rounds.unwrap() as u32 * kathy_messages_per_round,
+                    (kathy_rounds.unwrap() as u32 + 1) * kathy_messages_per_round,
                 );
                 // end condition reached successfully
                 println!("Kathy completed successfully and the retry queues are empty");
