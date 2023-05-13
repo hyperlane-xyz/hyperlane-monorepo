@@ -1,31 +1,25 @@
-use std::{time::{Duration, Instant}};
+use std::{
+    cmp::Ordering,
+    time::{Duration, Instant},
+};
 
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
 use tokio::time::sleep;
-use tracing::{warn, error, info};
+use tracing::{error, info, warn};
 
-use hyperlane_core::{ChainResult, Indexer, SyncBlockRangeCursor, MessageSyncCursor, MailboxIndexer};
+use hyperlane_core::{
+    ChainResult, Indexer, MailboxIndexer, MessageSyncCursor, SyncBlockRangeCursor,
+};
 
 use crate::{contract_sync::eta_calculator::SyncerEtaCalculator, db::HyperlaneDB};
 
 /// Time window for the moving average used in the eta calculator in seconds.
 const ETA_TIME_WINDOW: f64 = 2. * 60.;
 
-// Forward pass starting at zero:
-//   synced nonce = none
-//   next nonce = mailbox.count()
-// Backward pass starting at zero:
-//   synced nonce = mailbox.count()
-//   next nonce = None
-// Forward pass starting at non-zero:
-//   synced nonce = mailbox.count() - 1
-//   next nonce = mailbox.count()
-// Backward pass starting at non-zero:
-//   synced nonce = mailbox.count()
-//   next nonce = mailbox.count() - 1
-
+/// A struct that holds the data needed for forwards and backwards
+/// message sync cursors.
 #[derive(new, Debug, Clone)]
 pub struct MessageSyncCursorData<I> {
     /// The MailboxIndexer that this cursor is associated with.
@@ -59,7 +53,7 @@ where
     /// Otherwise, rewind all the way back to the start block.
     fn rewind_to_nonce(&mut self, nonce: u32) -> ChainResult<u32> {
         if let Some(block_number) = self.dispatched_block_number_by_nonce(nonce) {
-            self.next_block = block_number; 
+            self.next_block = block_number;
         } else {
             self.next_block = self.start_block;
         }
@@ -67,9 +61,7 @@ where
     }
 }
 
-
-
-
+/// A MessageSyncCursor that syncs forwards in perpetuity.
 #[derive(new, Debug, Clone)]
 pub struct ForwardMessageSyncCursor<I> {
     cursor: MessageSyncCursorData<I>,
@@ -80,17 +72,15 @@ impl<I> MessageSyncCursor for ForwardMessageSyncCursor<I>
 where
     I: MailboxIndexer + 'static,
 {
-
     /// Check if any new messages have been inserted into the DB,
     /// and update the cursor accordingly.
     fn fast_forward(&mut self) -> bool {
-        loop {
-            if let Some(block_number) = self.cursor.dispatched_block_number_by_nonce(self.cursor.next_nonce) {
-                self.cursor.next_nonce += 1;
-                self.cursor.next_block = block_number; 
-            } else {
-                break;
-            }
+        while let Some(block_number) = self
+            .cursor
+            .dispatched_block_number_by_nonce(self.cursor.next_nonce)
+        {
+            self.cursor.next_nonce += 1;
+            self.cursor.next_block = block_number;
         }
         true
     }
@@ -100,28 +90,36 @@ where
     }
 
     async fn next_range(&mut self) -> ChainResult<Option<(u32, u32, Duration)>> {
-        info!(nonce = self.cursor.next_nonce, block = self.cursor.next_block, "forward range");
+        info!(
+            nonce = self.cursor.next_nonce,
+            block = self.cursor.next_block,
+            "forward range"
+        );
         self.fast_forward();
 
         let (mailbox_count, tip) = self.cursor.indexer.fetch_count_at_tip().await?;
         let cursor_count = self.next_nonce();
-
-        if cursor_count == mailbox_count {
-            // We are synced up to the latest nonce so we don't need to index anything.
-            // We update our next block number accordingly.
-            self.cursor.next_block = tip;
-            Ok(None)
-        } else if cursor_count < mailbox_count {
-            // The cursor is behind the mailbox, so we need to index some blocks.
-            // We attempt to index a range of blocks that is as large as possible.
-            let from = self.cursor.next_block;
-            let to = u32::min(tip, from + self.cursor.chunk_size);
-            self.cursor.next_block = to + 1;
-            Ok(Some((from, to, Duration::from_secs(0))))
-        } else {
-            error!("Cursor is ahead of mailbox, this should never happen.");
-            // TODO: This is not okay...
-            Ok(None)
+        let cmp = cursor_count.cmp(&mailbox_count);
+        match cmp {
+            Ordering::Equal => {
+                // We are synced up to the latest nonce so we don't need to index anything.
+                // We update our next block number accordingly.
+                self.cursor.next_block = tip;
+                Ok(None)
+            }
+            Ordering::Less => {
+                // The cursor is behind the mailbox, so we need to index some blocks.
+                // We attempt to index a range of blocks that is as large as possible.
+                let from = self.cursor.next_block;
+                let to = u32::min(tip, from + self.cursor.chunk_size);
+                self.cursor.next_block = to + 1;
+                Ok(Some((from, to, Duration::from_secs(0))))
+            }
+            Ordering::Greater => {
+                error!("Cursor is ahead of mailbox, this should never happen.");
+                // TODO: This is not okay...
+                Ok(None)
+            }
         }
     }
 
@@ -132,9 +130,9 @@ where
         let prev_nonce = self.next_nonce().saturating_sub(1);
         self.cursor.rewind_to_nonce(prev_nonce)
     }
-
 }
 
+/// A MessageSyncCursor that syncs backwards to nonce zero.
 #[derive(new, Debug, Clone)]
 pub struct BackwardMessageSyncCursor<I> {
     cursor: MessageSyncCursorData<I>,
@@ -149,11 +147,14 @@ where
     /// and update the cursor accordingly.
     fn fast_forward(&mut self) -> bool {
         loop {
-            if let Some(block_number) = self.cursor.dispatched_block_number_by_nonce(self.cursor.next_nonce) {
-                self.cursor.next_block = block_number; 
+            if let Some(block_number) = self
+                .cursor
+                .dispatched_block_number_by_nonce(self.cursor.next_nonce)
+            {
+                self.cursor.next_block = block_number;
                 // If we hit nonce zero, we are done fast forwarding.
                 if self.cursor.next_nonce == 0 {
-                   return false;
+                    return false;
                 }
                 self.cursor.next_nonce = self.cursor.next_nonce.saturating_sub(1);
             } else {
@@ -167,7 +168,11 @@ where
     }
 
     async fn next_range(&mut self) -> ChainResult<Option<(u32, u32, Duration)>> {
-        info!(nonce = self.cursor.next_nonce, block = self.cursor.next_block, "backward range");
+        info!(
+            nonce = self.cursor.next_nonce,
+            block = self.cursor.next_block,
+            "backward range"
+        );
         self.fast_forward();
         // Just keep going backwards.
         let to = self.cursor.next_block;
@@ -183,7 +188,6 @@ where
         let prev_nonce = self.next_nonce().saturating_add(1);
         self.cursor.rewind_to_nonce(prev_nonce)
     }
-
 }
 
 /// Tool for handling the logic of what the next block range that should be

@@ -171,9 +171,7 @@ impl MailboxIndexer for FuelMailboxIndexer {
         todo!()
     }
 
-    async fn fetch_count_at_tip(
-        &self,
-    ) -> ChainResult<(u32, u32)> {
+    async fn fetch_count_at_tip(&self) -> ChainResult<(u32, u32)> {
         todo!()
     }
 }

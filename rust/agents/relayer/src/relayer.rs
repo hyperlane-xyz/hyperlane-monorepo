@@ -14,7 +14,7 @@ use hyperlane_base::{
     db::DB, run_all, BaseAgent, CachingInterchainGasPaymaster, CachingMailbox, ContractSyncMetrics,
     CoreMetrics, HyperlaneAgentCore,
 };
-use hyperlane_core::{HyperlaneChain, HyperlaneDomain, ValidatorAnnounce, U256, ChainResult};
+use hyperlane_core::{ChainResult, HyperlaneChain, HyperlaneDomain, ValidatorAnnounce, U256};
 
 use crate::{
     merkle_tree_builder::MerkleTreeBuilder,
@@ -164,7 +164,10 @@ impl BaseAgent for Relayer {
         }
 
         let sync_metrics = ContractSyncMetrics::new(self.core.metrics.clone());
-        let sync_tasks = self.run_origin_mailbox_sync(sync_metrics.clone()).await.unwrap();
+        let sync_tasks = self
+            .run_origin_mailbox_sync(sync_metrics.clone())
+            .await
+            .unwrap();
         for task in sync_tasks {
             tasks.push(task);
         }
@@ -193,11 +196,10 @@ impl Relayer {
         sync_metrics: ContractSyncMetrics,
     ) -> ChainResult<Vec<Instrumented<JoinHandle<eyre::Result<()>>>>> {
         let mailbox = self.mailboxes.get(&self.origin_chain).unwrap();
-        let index_settings = self.as_ref().settings.chains[self.origin_chain.name()].index.clone();
-        mailbox.sync(
-            index_settings,
-            sync_metrics,
-        ).await
+        let index_settings = self.as_ref().settings.chains[self.origin_chain.name()]
+            .index
+            .clone();
+        mailbox.sync(index_settings, sync_metrics).await
     }
 
     fn run_interchain_gas_paymaster_sync(

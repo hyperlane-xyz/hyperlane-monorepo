@@ -1,17 +1,25 @@
-use std::{time::Duration};
 use std::fmt::Debug;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
 
 use crate::ChainResult;
 
+/// Handles the logic of what the next block range that should be
+/// queried when syncing dispatched messages.
 #[async_trait]
 #[auto_impl(Box)]
 pub trait MessageSyncCursor: Debug + Send + Sync + 'static {
+    /// The next block range that should be queried, or None if no range should
+    /// be queried.
     async fn next_range(&mut self) -> ChainResult<Option<(u32, u32, Duration)>>;
+    /// The next message nonce that the cursor is expecting.
     fn next_nonce(&self) -> u32;
+    /// Rewinds the cursor to an earlier block if the message with the next
+    /// nonce appears to have been dropped.
     fn rewind(&mut self) -> ChainResult<u32>;
+    /// Fast forwards the cursor to the next message nonce and block.
     fn fast_forward(&mut self) -> bool;
 }
 
@@ -21,7 +29,6 @@ pub trait MessageSyncCursor: Debug + Send + Sync + 'static {
 #[async_trait]
 #[auto_impl(Box)]
 pub trait SyncBlockRangeCursor {
-
     /// Returns the current `from` position of the indexer. Note that
     /// `next_range` may return a `from` value that is lower than this in order
     /// to have some overlap.

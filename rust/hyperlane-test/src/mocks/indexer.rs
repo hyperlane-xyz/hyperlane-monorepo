@@ -59,9 +59,7 @@ impl MailboxIndexer for MockHyperlaneIndexer {
         self._fetch_delivered_messages(from, to)
     }
 
-    async fn fetch_count_at_tip(
-        &self
-    ) -> ChainResult<(u32, u32)> {
+    async fn fetch_count_at_tip(&self) -> ChainResult<(u32, u32)> {
         self._fetch_count_at_tip()
     }
 }

@@ -2,7 +2,7 @@ use std::future::Future;
 use std::time::Duration;
 
 use tokio::time::sleep;
-use tracing::{debug, trace, info};
+use tracing::{debug, info, trace};
 
 use hyperlane_core::{
     HyperlaneDomain, HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment,
@@ -58,7 +58,10 @@ impl HyperlaneDB {
     }
 
     /// Store list of messages
-    pub fn store_dispatched_messages(&self, messages: &[(HyperlaneMessage, LogMeta)]) -> Result<u32> {
+    pub fn store_dispatched_messages(
+        &self,
+        messages: &[(HyperlaneMessage, LogMeta)],
+    ) -> Result<u32> {
         let mut stored = 0;
         // TODO: Is it more efficient to check if the message is already inserted?
         for (message, meta) in messages {
@@ -79,17 +82,25 @@ impl HyperlaneDB {
     /// - `nonce` --> `id`
     /// - `id` --> `message`
     /// - `nonce` --> `dispatched block number`
-    fn store_message(&self, message: &HyperlaneMessage, dispatched_block_number: u64) -> Result<()> {
+    fn store_message(
+        &self,
+        message: &HyperlaneMessage,
+        dispatched_block_number: u64,
+    ) -> Result<()> {
         let id = message.id();
 
         debug!(msg=?message, "Storing new message in db",);
-        
+
         // - `id` --> `message`
         self.store_keyed_encodable(MESSAGE, &id, message)?;
         // - `nonce` --> `id`
         self.store_keyed_encodable(MESSAGE_ID, &message.nonce, &id)?;
         // - `nonce` --> `dispatched block number`
-        self.store_keyed_encodable(MESSAGE_DISPATCHED_BLOCK_NUMBER, &message.nonce, &dispatched_block_number)?;
+        self.store_keyed_encodable(
+            MESSAGE_DISPATCHED_BLOCK_NUMBER,
+            &message.nonce,
+            &dispatched_block_number,
+        )?;
         Ok(())
     }
 

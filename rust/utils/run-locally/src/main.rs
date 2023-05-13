@@ -299,9 +299,9 @@ fn main() -> ExitCode {
         .spawn()
         .expect("Failed to start kathy");
     let kathy_stdout = kathy.stdout.take().unwrap();
-    state.watchers.push(spawn(move || {
-        prefix_log(kathy_stdout, "KTY")
-    }));
+    state
+        .watchers
+        .push(spawn(move || prefix_log(kathy_stdout, "KTY")));
     loop {
         match kathy.try_wait().unwrap() {
             Some(s) if s.success() => {
@@ -391,7 +391,7 @@ fn main() -> ExitCode {
         if log_all {
             prefix_log(kathy_stdout, "KTY")
         } else {
-            inspect_and_write_to_file(kathy_stdout, kathy_log.clone(), &["send"])
+            inspect_and_write_to_file(kathy_stdout, kathy_log, &["send"])
         }
     }));
     state.kathy = Some(kathy);

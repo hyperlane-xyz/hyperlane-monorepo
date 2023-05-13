@@ -9,10 +9,13 @@ use tracing::{info_span, instrument::Instrumented, Instrument};
 
 use hyperlane_core::{
     ChainResult, Checkpoint, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProvider, Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256, MessageSyncCursor,
+    HyperlaneProvider, Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256,
 };
 
-use crate::{chains::IndexSettings, db::HyperlaneDB, ContractSync, ContractSyncMetrics, ForwardMessageSyncCursor, MessageSyncCursorData, BackwardMessageSyncCursor};
+use crate::{
+    chains::IndexSettings, db::HyperlaneDB, BackwardMessageSyncCursor, ContractSync,
+    ContractSyncMetrics, ForwardMessageSyncCursor, MessageSyncCursorData,
+};
 
 /// Caching Mailbox type
 #[derive(Debug, Clone, new)]
@@ -39,7 +42,6 @@ impl CachingMailbox {
         &self.db
     }
 
-
     /// Spawn two tasks that syncs the CachingMailbox's db with the on-chain event
     /// data. One goes forward from the current tip indefinitely, the other goes backwards from
     /// the current tip until the message with nonce 0 has been synced.
@@ -47,9 +49,9 @@ impl CachingMailbox {
         &self,
         index_settings: IndexSettings,
         metrics: ContractSyncMetrics,
-) -> ChainResult<Vec<Instrumented<JoinHandle<eyre::Result<()>>>>> {
+    ) -> ChainResult<Vec<Instrumented<JoinHandle<eyre::Result<()>>>>> {
         let (count, tip) = self.indexer.fetch_count_at_tip().await?;
-        let task_count = if count > 0 { 2 } else { 1 }; 
+        let task_count = if count > 0 { 2 } else { 1 };
         let mut tasks = Vec::with_capacity(task_count);
         if count > 0 {
             // TODO: Can I share/clone these syncs?
@@ -62,14 +64,23 @@ impl CachingMailbox {
             );
             // TODO: Forward and backward data are nearly identical, can I break
             // next_nonce out so that they can be shared?
-            let backward_data = MessageSyncCursorData::new(self.indexer.clone(), self.db.clone(), index_settings.chunk_size, tip, tip, count.saturating_sub(1));
+            let backward_data = MessageSyncCursorData::new(
+                self.indexer.clone(),
+                self.db.clone(),
+                index_settings.chunk_size,
+                tip,
+                tip,
+                count.saturating_sub(1),
+            );
             let backward_cursor = Box::new(BackwardMessageSyncCursor::new(backward_data));
             tasks.push(
-                tokio::spawn(async move { 
-                    backward_sync.sync_dispatched_messages(backward_cursor).await
+                tokio::spawn(async move {
+                    backward_sync
+                        .sync_dispatched_messages(backward_cursor)
+                        .await
                 })
-                    .instrument(info_span!("MailboxContractSync", self = %self)));
-
+                .instrument(info_span!("MailboxContractSync", self = %self)),
+            );
         }
         let forward_sync = ContractSync::new(
             self.mailbox.domain().clone(),
@@ -78,11 +89,21 @@ impl CachingMailbox {
             index_settings.clone(),
             metrics,
         );
-        let forward_data = MessageSyncCursorData::new(self.indexer.clone(), self.db.clone(), index_settings.chunk_size, tip, tip, count);
+        let forward_data = MessageSyncCursorData::new(
+            self.indexer.clone(),
+            self.db.clone(),
+            index_settings.chunk_size,
+            tip,
+            tip,
+            count,
+        );
         let forward_cursor = Box::new(ForwardMessageSyncCursor::new(forward_data));
         tasks.push(
-            tokio::spawn(async move { forward_sync.sync_dispatched_messages(forward_cursor).await })
-                .instrument(info_span!("MailboxContractSync", self = %self)));
+            tokio::spawn(
+                async move { forward_sync.sync_dispatched_messages(forward_cursor).await },
+            )
+            .instrument(info_span!("MailboxContractSync", self = %self)),
+        );
         Ok(tasks)
     }
 }

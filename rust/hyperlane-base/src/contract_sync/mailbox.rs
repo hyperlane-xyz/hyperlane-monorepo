@@ -1,17 +1,11 @@
-use std::time::{Duration};
+use std::time::Duration;
 
-use tracing::{instrument, info, debug, warn};
+use tracing::{debug, info, instrument, warn};
 
-use hyperlane_core::{
-    Indexer, MailboxIndexer,
-    SyncBlockRangeCursor,
-    MessageSyncCursor
-};
+use hyperlane_core::{MailboxIndexer, MessageSyncCursor};
 use tokio::time::sleep;
 
-use crate::{
-    ContractSync,
-};
+use crate::ContractSync;
 
 // Okay, a Mailbox sync process takes a block number and a nonce, and it's
 // expected to find every message that was sent after that block number and
@@ -25,7 +19,10 @@ where
 {
     /// Sync dispatched messages
     #[instrument(name = "MessageContractSync", skip(self, cursor))]
-    pub(crate) async fn sync_dispatched_messages(&self, mut cursor: Box<dyn MessageSyncCursor>) -> eyre::Result<()> {
+    pub(crate) async fn sync_dispatched_messages(
+        &self,
+        mut cursor: Box<dyn MessageSyncCursor>,
+    ) -> eyre::Result<()> {
         let chain_name = self.domain.as_ref();
         let stored_messages = self
             .metrics
@@ -65,10 +62,7 @@ where
         // looking at the nonce of each message and ensuring that we've indexed
         // the next message that we were looking for.
 
-        info!(
-            next_nonce = cursor.next_nonce(),
-            "Starting message indexer"
-        );
+        info!(next_nonce = cursor.next_nonce(), "Starting message indexer");
 
         while cursor.fast_forward() {
             let Ok(range) = cursor.next_range().await else { continue };
@@ -78,29 +72,28 @@ where
             } else {
                 let (from, to, _) = range.unwrap();
                 let next_nonce = cursor.next_nonce();
-                
-                info!(
-                    from, to,
-                    next_nonce,
-                    "Looking for for message(s) in block range"
+
+                debug!(
+                    from,
+                    to, next_nonce, "Looking for for message(s) in block range"
                 );
                 // TODO: These don't need to be sorted.
-                let sorted_messages = self
-                    .indexer
-                    .fetch_sorted_messages(from, to)
-                    .await?;
+                let sorted_messages = self.indexer.fetch_sorted_messages(from, to).await?;
                 info!(
-                    from, to,
+                    from,
+                    to,
                     num_messages = sorted_messages.len(),
                     "Found message(s) in block range"
                 );
 
                 let stored = self.db.store_dispatched_messages(&sorted_messages)?;
                 stored_messages.inc_by(stored as u64);
-                
+
                 // If we found messages, but did *not* find the message we were looking for,
                 // we need to rewind to the block at which we found the last message.
-                if !sorted_messages.is_empty() && !sorted_messages.iter().any(|m| m.0.nonce == next_nonce) {
+                if !sorted_messages.is_empty()
+                    && !sorted_messages.iter().any(|m| m.0.nonce == next_nonce)
+                {
                     let rewind_block = cursor.rewind()?;
                     warn!(
                         from, to,
@@ -117,28 +110,6 @@ where
             // TODO: Define the sleep time from interval flag
             sleep(Duration::from_secs(500)).await;
         }
-    }
-}
-
-#[cfg(test)]
-static mut MOCK_CURSOR: Option<hyperlane_test::mocks::cursor::MockSyncBlockRangeCursor> = None;
-
-/// Create a new cursor. In test mode we should use the mock cursor created by
-/// the test.
-#[cfg_attr(test, allow(unused_variables))]
-async fn create_cursor<I: Indexer>(
-    indexer: I,
-    chunk_size: u32,
-    initial_height: u32,
-) -> eyre::Result<impl SyncBlockRangeCursor> {
-    #[cfg(not(test))]
-    {
-        crate::RateLimitedSyncBlockRangeCursor::new(indexer, chunk_size, initial_height).await
-    }
-    #[cfg(test)]
-    {
-        let cursor = unsafe { MOCK_CURSOR.take() };
-        Ok(cursor.expect("Mock cursor was not set before it was used"))
     }
 }
 

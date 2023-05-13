@@ -1,5 +1,5 @@
+use std::time::Duration;
 use tracing::{debug, info, instrument};
-use std::time::{Duration};
 
 use hyperlane_core::{utils::fmt_sync_time, InterchainGasPaymasterIndexer, SyncBlockRangeCursor};
 use tokio::time::sleep;
