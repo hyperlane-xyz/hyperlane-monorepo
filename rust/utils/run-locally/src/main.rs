@@ -6,7 +6,7 @@
 //! - `E2E_CI_TIMEOUT_SEC`: How long (in seconds) to allow the main loop to run the test for. This
 //! does not include the initial setup time. If this timeout is reached before the end conditions
 //! are met, the test is a failure. Defaults to 10 min.
-//! - `E2E_KATHY_ROUNDS`: Number of rounds to run kathy for. Defaults to 4 if CI mode is enabled.
+//! - `E2E_KATHY_MESSAGES`: Number of kathy messages to dispatch. Defaults to 10 if CI mode is enabled.
 //! - `E2E_LOG_ALL`: Log all output instead of writing to log files. Defaults to true if CI mode,
 //! else false.
 
@@ -94,20 +94,16 @@ fn main() -> ExitCode {
         .map(|k| k.parse::<u64>().unwrap())
         .unwrap_or(60 * 10);
 
-    let kathy_rounds = {
-        let r = env::var("E2E_KATHY_ROUNDS")
+    let kathy_messages = {
+        let r = env::var("E2E_KATHY_MESSAGES")
             .ok()
             .map(|r| r.parse::<u64>().unwrap());
         if ci_mode && r.is_none() {
-            Some(4)
+            Some(10)
         } else {
             r
         }
     };
-
-    // NOTE: This is defined within the Kathy script and could potentially drift.
-    // TODO: Plumb via environment variable or something.
-    let kathy_messages_per_round = 10;
 
     let log_all = env::var("E2E_LOG_ALL")
         .map(|k| k.parse::<bool>().unwrap())
@@ -132,8 +128,10 @@ fn main() -> ExitCode {
 
     let checkpoints_dir = tempdir().unwrap();
     let rocks_db_dir = tempdir().unwrap();
+    let anvil_db_dir = tempdir().unwrap();
     let relayer_db = concat_path(&rocks_db_dir, "relayer");
     let validator_db = concat_path(&rocks_db_dir, "validator");
+    let anvil_db = concat_path(&anvil_db_dir, "anvil");
 
     let common_env = hashmap! {
         "RUST_BACKTRACE" => "full",
@@ -149,8 +147,8 @@ fn main() -> ExitCode {
         "HYP_BASE_METRICS" => "9092",
         "HYP_ORIGINCHAINNAME" => "INVALIDCHAIN",
         "HYP_BASE_DB" => relayer_db.to_str().unwrap(),
-        "HYP_BASE_CHAINS_TEST1_SIGNER_KEY" => "8166f546bab6da521a8369cab06c5d2b9e46670292d85c875ee9ec20e84ffb61",
-        "HYP_BASE_CHAINS_TEST2_SIGNER_KEY" => "f214f2b2cd398c806f84e317254e0f0b801d0643303237d97a22a48e01628897",
+        "HYP_BASE_CHAINS_TEST1_SIGNER_KEY" => "4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356",
+        "HYP_BASE_CHAINS_TEST2_SIGNER_KEY" => "dbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97",
         "HYP_RELAYER_ORIGINCHAINNAME" => "test1",
         "HYP_RELAYER_DESTINATIONCHAINNAMES" => "test2,test3",
         "HYP_RELAYER_WHITELIST" => r#"[{"senderAddress": "*", "destinationDomain": [13372, 13373], "recipientAddress": "*"}]"#,
@@ -161,7 +159,7 @@ fn main() -> ExitCode {
     let relayer_args = [
         "--chains.test1.connection.urls=\"http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545\"",
         // default is used for TEST3
-        "--defaultSigner.key", "701b615bbdfb9de65240bc28bd21bbc0d996645a3dd57e7b12bc2bdf6f192c82",
+        "--defaultSigner.key", "2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6",
         "--originChainName=test1",
     ];
 
@@ -186,6 +184,7 @@ fn main() -> ExitCode {
     println!("Signed checkpoints in {}", checkpoints_dir.path().display());
     println!("Relayer DB in {}", relayer_db.display());
     println!("Validator DB in {}", validator_db.display());
+    println!("Anvil DB in {}", anvil_db.display());
 
     println!("Building typescript...");
     build_cmd(&["yarn", "install"], &build_log, log_all, Some("../"));
@@ -209,27 +208,14 @@ fn main() -> ExitCode {
     );
 
     let mut state = State::default();
-    println!("Launching hardhat...");
-    let mut node = Command::new("yarn");
-    node.args(["hardhat", "node"])
-        .current_dir("../typescript/infra");
-    if log_all {
-        // TODO: should we log this? It seems way too verbose to be useful
-        // node.stdout(Stdio::piped());
-        node.stdout(Stdio::null());
-    } else {
-        node.stdout(append_to(hardhat_log));
-    }
-    let node = node.spawn().expect("Failed to start node");
-    // if log_all {
-    //     let output = node.stdout.take().unwrap();
-    //     state
-    //         .watchers
-    //         .push(spawn(move || prefix_log(output, "ETH")))
-    // }
-    state.node = Some(node);
 
-    sleep(Duration::from_secs(10));
+    println!("Launching anvil...");
+    let mut node = Command::new("anvil");
+    node.args(["--state", anvil_db.to_str().unwrap()]);
+    node.stdout(Stdio::null());
+    let node = node.spawn().expect("Failed to start node");
+
+    sleep(Duration::from_secs(1));
 
     println!("Deploying hyperlane ism contracts...");
     let status = Command::new("yarn")
@@ -271,7 +257,7 @@ fn main() -> ExitCode {
         .success();
     assert!(status, "Failed to deploy igp contracts");
 
-    // Follow-up 'yarn hardhat node' invocation with 'yarn prettier' to fixup
+    // Follow-up contract deployment with 'yarn prettier' to fixup
     // formatting on any autogenerated json config files to avoid any diff creation.
     Command::new("yarn")
         .args(["prettier"])
@@ -288,11 +274,65 @@ fn main() -> ExitCode {
         Some("../typescript/sdk"),
     );
 
-    // Run one round of kathy before the agents come up
+    println!("Killing anvil...");
+    let mut kill = Command::new("kill")
+    .args(["-s", "INT", &node.id().to_string()])
+    .spawn().unwrap();
+    kill.wait().unwrap();
+    println!("Launching anvil...");
+    let mut node = Command::new("anvil");
+    node.args(["--state", anvil_db.to_str().unwrap(), "--block-time", "1"]);
+    if log_all {
+        // TODO: should we log this? It seems way too verbose to be useful
+        // node.stdout(Stdio::piped());
+        node.stdout(Stdio::null());
+    } else {
+        node.stdout(append_to(hardhat_log));
+    }
+    let node = node.spawn().expect("Failed to start node");
+    // if log_all {
+    //     let output = node.stdout.take().unwrap();
+    //     state
+    //         .watchers
+    //         .push(spawn(move || prefix_log(output, "ETH")))
+    // }
+    state.node = Some(node);
+
+    sleep(Duration::from_secs(1));
+    
+    println!("Spawning validator...");
+    let mut validator = Command::new("target/debug/validator")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .envs(&common_env)
+        .envs(&validator_env)
+        .spawn()
+        .expect("Failed to start validator");
+    let validator_stdout = validator.stdout.take().unwrap();
+    state.watchers.push(spawn(move || {
+        if log_all {
+            prefix_log(validator_stdout, "VAL")
+        } else {
+            inspect_and_write_to_file(validator_stdout, validator_stdout_log, &["ERROR"])
+        }
+    }));
+    let validator_stderr = validator.stderr.take().unwrap();
+    state.watchers.push(spawn(move || {
+        if log_all {
+            prefix_log(validator_stderr, "VAL")
+        } else {
+            inspect_and_write_to_file(validator_stderr, validator_stderr_log, &[])
+        }
+    }));
+    state.validator = Some(validator);
+
+    // Run one round of kathy before the relayer comeSigned checkpoints s up
     println!("Spawning Kathy to send Hyperlane message traffic...");
     let mut kathy = Command::new("yarn");
     kathy.arg("kathy");
-    kathy.args(["--rounds", "1"]);
+    if let Some(r) = kathy_messages {
+        kathy.args(["--messages", &r.to_string(), "--timeout", "1000"]);
+    }
     let mut kathy = kathy
         .current_dir("../typescript/infra")
         .stdout(Stdio::piped())
@@ -346,40 +386,14 @@ fn main() -> ExitCode {
     }));
     state.relayer = Some(relayer);
 
-    println!("Spawning validator...");
-    let mut validator = Command::new("target/debug/validator")
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .envs(&common_env)
-        .envs(&validator_env)
-        .spawn()
-        .expect("Failed to start validator");
-    let validator_stdout = validator.stdout.take().unwrap();
-    state.watchers.push(spawn(move || {
-        if log_all {
-            prefix_log(validator_stdout, "VAL")
-        } else {
-            inspect_and_write_to_file(validator_stdout, validator_stdout_log, &["ERROR"])
-        }
-    }));
-    let validator_stderr = validator.stderr.take().unwrap();
-    state.watchers.push(spawn(move || {
-        if log_all {
-            prefix_log(validator_stderr, "VAL")
-        } else {
-            inspect_and_write_to_file(validator_stderr, validator_stderr_log, &[])
-        }
-    }));
-    state.validator = Some(validator);
-
     println!("Setup complete! Agents running in background...");
     println!("Ctrl+C to end execution...");
 
     println!("Spawning Kathy to send Hyperlane message traffic...");
     let mut kathy = Command::new("yarn");
     kathy.arg("kathy");
-    if let Some(r) = kathy_rounds {
-        kathy.args(["--rounds", &r.to_string()]);
+    if let Some(r) = kathy_messages {
+        kathy.args(["--messages", &r.to_string(), "--timeout", "1000"]);
     }
     let mut kathy = kathy
         .current_dir("../typescript/infra")
@@ -417,7 +431,7 @@ fn main() -> ExitCode {
             // for CI we have to look for the end condition.
             if kathy_done && retry_queues_empty() {
                 assert_termination_invariants(
-                    (kathy_rounds.unwrap() as u32 + 1) * kathy_messages_per_round,
+                    kathy_messages.unwrap() as u32* 2,
                 );
                 // end condition reached successfully
                 println!("Kathy completed successfully and the retry queues are empty");
