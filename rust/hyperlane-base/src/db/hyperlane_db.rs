@@ -20,7 +20,6 @@ use super::{
 const MESSAGE_ID: &str = "message_id_";
 const MESSAGE_DISPATCHED_BLOCK_NUMBER: &str = "message_dispatched_block_number_";
 const MESSAGE: &str = "message_";
-const LATEST_NONCE_FOR_DESTINATION: &str = "latest_known_nonce_for_destination_";
 const NONCE_PROCESSED: &str = "nonce_processed_";
 const GAS_PAYMENT_FOR_MESSAGE_ID: &str = "gas_payment_for_message_id_v2_";
 const GAS_PAYMENT_META_PROCESSED: &str = "gas_payment_meta_processed_v2_";
@@ -59,15 +58,18 @@ impl HyperlaneDB {
     }
 
     /// Store list of messages
-    pub fn store_dispatched_messages(&self, messages: &[(HyperlaneMessage, LogMeta)]) -> Result<()> {
+    pub fn store_dispatched_messages(&self, messages: &[(HyperlaneMessage, LogMeta)]) -> Result<u32> {
+        let mut stored = 0;
+        // TODO: Is it more efficient to check if the message is already inserted?
         for (message, meta) in messages {
-            if let Ok(Some(message_id)) = self.message_id_by_nonce(message.nonce) {
+            if let Ok(Some(_)) = self.message_id_by_nonce(message.nonce) {
                 debug!(msg=?message, "Message already stored in db");
             } else {
                 self.store_message(message, meta.block_number)?;
+                stored += 1;
             }
         }
-        Ok(())
+        Ok(stored)
     }
 
     /// Store a raw committed message

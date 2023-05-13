@@ -102,7 +102,10 @@ impl<I: MailboxIndexer> SyncBlockRangeCursor for MessageSyncBlockRangeCursor<I> 
         }
     }
 
-    fn backtrack(&mut self, from_block: u32) -> ChainResult<()> {
+    fn backtrack(&mut self, from_block: u32) -> ChainResult<u32> {
+        // If we have a known indexed message, backtrack to the block that message
+        // was dispatched in.
+        // If not, backtrack all the way to the provided from_block.
         if let Some(nonce) = self.message_nonce {
             if let Some(block_number) = self.dispatched_block_number_by_nonce(nonce) {
                 self.from_block = block_number; 
@@ -112,7 +115,7 @@ impl<I: MailboxIndexer> SyncBlockRangeCursor for MessageSyncBlockRangeCursor<I> 
         } else {
             self.from_block = from_block;
         } 
-        Ok(())
+        Ok(self.from_block)
     }
 }
 
@@ -202,8 +205,8 @@ impl<I: Indexer> SyncBlockRangeCursor for RateLimitedSyncBlockRangeCursor<I> {
         Ok(Some((from, to, eta)))
     }
 
-    fn backtrack(&mut self, start_from: u32) -> ChainResult<()> {
+    fn backtrack(&mut self, start_from: u32) -> ChainResult<u32> {
         self.from = u32::min(start_from, self.from);
-        Ok(())
+        Ok(self.from)
     }
 }

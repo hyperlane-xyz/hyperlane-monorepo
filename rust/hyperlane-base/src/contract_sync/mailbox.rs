@@ -1,6 +1,6 @@
 use std::time::{Duration};
 
-use tracing::{instrument};
+use tracing::{instrument, info, debug, warn};
 
 use hyperlane_core::{
     Indexer, MailboxIndexer,
@@ -25,15 +25,15 @@ where
     /// Sync dispatched messages
     #[instrument(name = "MessageContractSync", skip(self))]
     pub(crate) async fn sync_dispatched_messages(&self, start_block: u32, start_nonce: Option<u32>) -> eyre::Result<()> {
-        /*
         let chain_name = self.domain.as_ref();
-        let indexed_height = self
-            .metrics
-            .indexed_height
-            .with_label_values(&[MESSAGES_LABEL, chain_name]);
         let stored_messages = self
             .metrics
             .stored_events
+            .with_label_values(&[MESSAGES_LABEL, chain_name]);
+        /*
+        let indexed_height = self
+            .metrics
+            .indexed_height
             .with_label_values(&[MESSAGES_LABEL, chain_name]);
         let missed_messages = self
             .metrics
@@ -91,26 +91,11 @@ where
         // range [C,D] that indicate a previously indexed range may have
         // missed some messages.
 
-        /*
-        let start_block = cursor.current_position();
-        let mut last_valid_range_start_block = start_block;
         info!(
-            from = start_block,
-            "Resuming indexer from latest valid message range start block"
+            start_block,
+            start_nonce,
+            "Starting message indexer"
         );
-        indexed_height.set(start_block as i64);
-        let mut last_logged_time: Option<Instant> = None;
-        let mut should_log_checkpoint_info = || {
-            if last_logged_time.is_none()
-                || last_logged_time.unwrap().elapsed() > Duration::from_secs(30)
-            {
-                last_logged_time = Some(Instant::now());
-                true
-            } else {
-                false
-            }
-        };
-        */
 
         let mut cursor = MessageSyncBlockRangeCursor::new(self.indexer.clone(), self.db.clone(), self.index_settings.chunk_size, start_block, start_nonce).await?;
         loop {
@@ -119,21 +104,39 @@ where
                 // TODO: Define the sleep time from interval flag
                 sleep(Duration::from_secs(5)).await;
             } else {
-                let (from, to, eta) = range.unwrap();
+                let (from, to, _) = range.unwrap();
+                let next_nonce = cursor.next_nonce();
+                
+                debug!(
+                    from, to,
+                    next_nonce,
+                    "Looking for for message(s) in block range"
+                );
+                // TODO: These don't need to be sorted.
                 let sorted_messages = self
                     .indexer
                     .fetch_sorted_messages(from, to)
                     .await?;
+                info!(
+                    from, to,
+                    num_messages = sorted_messages.len(),
+                    "Found message(s) in block range"
+                );
 
-                // TODO: Can we efficiently skip messages that we know have already been
-                // inserted?
-                self.db.store_dispatched_messages(&sorted_messages)?;
+                let stored = self.db.store_dispatched_messages(&sorted_messages)?;
+                stored_messages.inc_by(stored as u64);
                 
                 // If we found messages, but did *not* find the message we were looking for,
                 // we need to backtrack.
-                let desired_nonce = cursor.next_nonce();
-                if !sorted_messages.is_empty() && sorted_messages.first().map(|m| m.0.nonce) != Some(desired_nonce) {
-                    cursor.backtrack(start_block)?;
+                if !sorted_messages.is_empty() && !sorted_messages.iter().any(|m| m.0.nonce == next_nonce) {
+                    let backtrack_block = cursor.backtrack(start_block)?;
+                    warn!(
+                        from, to,
+                        next_nonce,
+                        messages=?sorted_messages.iter().map(|m| m.0.clone()),
+                        backtrack_block,
+                        "Expected next message not found in range, backtracked"
+                    );
                 }
             }
         }

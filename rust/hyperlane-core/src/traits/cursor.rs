@@ -44,5 +44,5 @@ pub trait SyncBlockRangeCursor {
     /// If there was an issue when a range of data was fetched, this rolls back
     /// so the next range fetched will be from `start_from`. Note that it is a
     /// no-op if a later block value is specified.
-    fn backtrack(&mut self, from_block: u32) -> ChainResult<()>;
+    fn backtrack(&mut self, from_block: u32) -> ChainResult<u32>;
 }

@@ -16,7 +16,7 @@ mock! {
 
         pub fn _tip(&self) -> u32 {}
 
-        pub fn _backtrack(&mut self, from_block: u32) -> ChainResult<()> {}
+        pub fn _backtrack(&mut self, from_block: u32) -> ChainResult<u32> {}
     }
 }
 
@@ -34,7 +34,7 @@ impl SyncBlockRangeCursor for MockSyncBlockRangeCursor {
         self._tip()
     }
 
-    fn backtrack(&mut self, from_block: u32) -> ChainResult<()> {
+    fn backtrack(&mut self, from_block: u32) -> ChainResult<u32> {
         self._backtrack(from_block)
     }
 }
