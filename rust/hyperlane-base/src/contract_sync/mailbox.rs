@@ -61,35 +61,8 @@ where
         // we've only *actually* indexed up to block T'.
         //
         // It's easy to determine if a provider has skipped any message events by
-        // looking at the indices of each message and ensuring that we've indexed a
-        // valid continuation of messages.
-        //
-        // There are two classes of invalid continuations:
-        //
-        // 1. The latest previously indexed message index is M that was found in a
-        // previously indexed block range. A new block range [A,B] is indexed, returning
-        // a list of messages. The lowest message index in that list is `M + 1`,
-        // but there are some missing messages indices in the list. This is
-        // likely a flaky provider, and we can simply re-index the range [A,B]
-        // hoping that the provider will soon return a correct list.
-        //
-        // 2. The latest previously indexed message index is M that was found in a
-        // previously indexed block range, [A,B]. A new block range [C,D] is
-        // indexed, returning a list of    messages. However, the lowest message
-        // index in that list is M' where M' > M + 1. This missing messages
-        // could be anywhere in the range [A,D]:
-        //    * It's possible there was an issue when the prior block range [A,B] was
-        //      indexed, where the provider didn't provide some messages with indices >
-        //      M that it should have.
-        //    * It's possible that the range [B,C] that was presumed to be empty when it
-        //      was indexed actually wasn't.
-        //    * And it's possible that this was just a flaky gap, where there are
-        //      messages in the [C,D] range that weren't returned for some reason.
-        //
-        // We can handle this by re-indexing starting from block A.
-        // Note this means we only handle this case upon observing messages in some
-        // range [C,D] that indicate a previously indexed range may have
-        // missed some messages.
+        // looking at the nonce of each message and ensuring that we've indexed
+        // the next message that we were looking for.
 
         info!(
             start_block,
@@ -127,7 +100,7 @@ where
                 stored_messages.inc_by(stored as u64);
                 
                 // If we found messages, but did *not* find the message we were looking for,
-                // we need to backtrack.
+                // we need to backtrack to the block at which we found the last contiguous message.
                 if !sorted_messages.is_empty() && !sorted_messages.iter().any(|m| m.0.nonce == next_nonce) {
                     let backtrack_block = cursor.backtrack(start_block)?;
                     warn!(
