@@ -9,11 +9,11 @@ use tracing::{info_span, instrument::Instrumented, Instrument};
 
 use hyperlane_core::{
     ChainResult, Checkpoint, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProvider, Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256,
+    HyperlaneProvider, Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256, HyperlaneDB,
 };
 
 use crate::{
-    chains::IndexSettings, db::HyperlaneRocksDB, BackwardMessageSyncCursor, ContractSync,
+    chains::IndexSettings, BackwardMessageSyncCursor, ContractSync,
     ContractSyncMetrics, ForwardMessageSyncCursor, MessageSyncCursorData,
 };
 
@@ -21,7 +21,7 @@ use crate::{
 #[derive(Debug, Clone, new)]
 pub struct CachingMailbox {
     mailbox: Arc<dyn Mailbox>,
-    db: HyperlaneRocksDB,
+    db: Arc<dyn HyperlaneDB>,
     indexer: Arc<dyn MailboxIndexer>,
 }
 
@@ -37,8 +37,8 @@ impl CachingMailbox {
         &self.mailbox
     }
 
-    /// Return handle on HyperlaneRocksDB
-    pub fn db(&self) -> &HyperlaneRocksDB {
+    /// Return handle on HyperlaneDB
+    pub fn db(&self) -> &Arc<dyn HyperlaneDB> {
         &self.db
     }
 

@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use eyre::Result;
+use hyperlane_base::db::HyperlaneRocksDB;
 use tokio::sync::{
     mpsc::{self, UnboundedReceiver, UnboundedSender},
     RwLock,
@@ -42,6 +43,7 @@ pub struct Relayer {
     transaction_gas_limit: Option<U256>,
     skip_transaction_gas_limit_for: HashSet<u32>,
     allow_local_checkpoint_syncers: bool,
+    origin_db: HyperlaneRocksDB,
 }
 
 impl AsRef<HyperlaneAgentCore> for Relayer {
@@ -63,6 +65,7 @@ impl BaseAgent for Relayer {
     {
         let core = settings.build_hyperlane_core(metrics.clone());
         let db = DB::from_path(&settings.db)?;
+        let origin_db = HyperlaneRocksDB::new(&settings.origin_chain, db.clone());
 
         // Use defined remote chains + the origin chain
         let domains = settings
@@ -97,7 +100,7 @@ impl BaseAgent for Relayer {
         info!(gas_enforcement_policies=?settings.gas_payment_enforcement, "Gas enforcement configuration");
         let gas_payment_enforcer = Arc::new(GasPaymentEnforcer::new(
             settings.gas_payment_enforcement,
-            mailboxes.get(&settings.origin_chain).unwrap().db().clone(),
+            origin_db.clone(),
         ));
 
         Ok(Self {
@@ -112,6 +115,7 @@ impl BaseAgent for Relayer {
             transaction_gas_limit,
             skip_transaction_gas_limit_for,
             allow_local_checkpoint_syncers: settings.allow_local_checkpoint_syncers,
+            origin_db,
         })
     }
 
@@ -122,7 +126,7 @@ impl BaseAgent for Relayer {
         let mut tasks = Vec::with_capacity(num_mailboxes + 2);
 
         let prover_sync = Arc::new(RwLock::new(MerkleTreeBuilder::new(
-            self.mailboxes.get(&self.origin_chain).unwrap().db().clone(),
+            self.origin_db.clone(),
         )));
         let mut send_channels: HashMap<u32, UnboundedSender<PendingMessage>> = HashMap::new();
         let destinations = self
@@ -175,7 +179,7 @@ impl BaseAgent for Relayer {
         let metrics =
             MessageProcessorMetrics::new(&self.core.metrics, &self.origin_chain, destinations);
         let message_processor = MessageProcessor::new(
-            self.mailboxes.get(&self.origin_chain).unwrap().db().clone(),
+            self.origin_db.clone(),
             self.whitelist.clone(),
             self.blacklist.clone(),
             metrics,
@@ -241,7 +245,6 @@ impl Relayer {
         gas_payment_enforcer: Arc<GasPaymentEnforcer>,
         msg_receive: UnboundedReceiver<PendingMessage>,
     ) -> Instrumented<JoinHandle<Result<()>>> {
-        let origin_mailbox = self.mailboxes.get(&self.origin_chain).unwrap();
         let destination = destination_mailbox.domain();
 
         let transaction_gas_limit = if self
@@ -256,7 +259,7 @@ impl Relayer {
             msg_receive,
             destination_mailbox.clone(),
             metadata_builder,
-            origin_mailbox.db().clone(),
+            self.origin_db.clone(),
             SerialSubmitterMetrics::new(&self.core.metrics, &self.origin_chain, destination),
             gas_payment_enforcer,
             transaction_gas_limit,

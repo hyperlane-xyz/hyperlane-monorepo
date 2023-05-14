@@ -1,6 +1,6 @@
 use std::{
     cmp::Ordering,
-    time::{Duration, Instant},
+    time::{Duration, Instant}, sync::Arc,
 };
 
 use async_trait::async_trait;
@@ -10,10 +10,10 @@ use tokio::time::sleep;
 use tracing::{error, info, warn};
 
 use hyperlane_core::{
-    ChainResult, Indexer, MailboxIndexer, MessageSyncCursor, SyncBlockRangeCursor,
+    ChainResult, Indexer, MailboxIndexer, MessageSyncCursor, SyncBlockRangeCursor, HyperlaneDB,
 };
 
-use crate::{contract_sync::eta_calculator::SyncerEtaCalculator, db::HyperlaneRocksDB};
+use crate::{contract_sync::eta_calculator::SyncerEtaCalculator};
 
 /// Time window for the moving average used in the eta calculator in seconds.
 const ETA_TIME_WINDOW: f64 = 2. * 60.;
@@ -24,8 +24,8 @@ const ETA_TIME_WINDOW: f64 = 2. * 60.;
 pub struct MessageSyncCursorData<I> {
     /// The MailboxIndexer that this cursor is associated with.
     indexer: I,
-    /// The HyperlaneRocksDB that this cursor is associated with.
-    db: HyperlaneRocksDB,
+    /// The HyperlaneDB that this cursor is associated with.
+    db: Arc<dyn HyperlaneDB>,
     /// The size of the largest block range that should be returned by the cursor.
     chunk_size: u32,
     /// The starting block for the cursor
@@ -40,8 +40,8 @@ impl<I> MessageSyncCursorData<I>
 where
     I: MailboxIndexer,
 {
-    fn dispatched_block_number_by_nonce(&self, nonce: u32) -> Option<u32> {
-        if let Ok(Some(block_number)) = self.db.dispatched_block_number_by_nonce(nonce) {
+    fn retrieve_dispatched_block_number(&self, nonce: u32) -> Option<u32> {
+        if let Ok(Some(block_number)) = self.db.retrieve_dispatched_block_number(nonce) {
             Some(u32::try_from(block_number).unwrap())
         } else {
             None
@@ -52,7 +52,7 @@ where
     /// at which it was dispatched.
     /// Otherwise, rewind all the way back to the start block.
     fn rewind_to_nonce(&mut self, nonce: u32) -> ChainResult<u32> {
-        if let Some(block_number) = self.dispatched_block_number_by_nonce(nonce) {
+        if let Some(block_number) = self.retrieve_dispatched_block_number(nonce) {
             self.next_block = block_number;
         } else {
             self.next_block = self.start_block;
@@ -77,7 +77,7 @@ where
     fn fast_forward(&mut self) -> bool {
         while let Some(block_number) = self
             .cursor
-            .dispatched_block_number_by_nonce(self.cursor.next_nonce)
+            .retrieve_dispatched_block_number(self.cursor.next_nonce)
         {
             self.cursor.next_nonce += 1;
             self.cursor.next_block = block_number;
@@ -149,7 +149,7 @@ where
         loop {
             if let Some(block_number) = self
                 .cursor
-                .dispatched_block_number_by_nonce(self.cursor.next_nonce)
+                .retrieve_dispatched_block_number(self.cursor.next_nonce)
             {
                 self.cursor.next_block = block_number;
                 // If we hit nonce zero, we are done fast forwarding.

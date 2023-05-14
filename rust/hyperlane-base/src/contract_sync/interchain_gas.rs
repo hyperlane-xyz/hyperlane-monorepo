@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{time::Duration, error::Error};
 use tracing::{debug, info, instrument};
 
 use hyperlane_core::{utils::fmt_sync_time, InterchainGasPaymasterIndexer, SyncBlockRangeCursor};
@@ -6,7 +6,7 @@ use tokio::time::sleep;
 
 use crate::{
     contract_sync::{
-        cursor::RateLimitedSyncBlockRangeCursor, schema::InterchainGasPaymasterContractSyncDB,
+        cursor::RateLimitedSyncBlockRangeCursor,
     },
     ContractSync,
 };
@@ -30,16 +30,20 @@ where
             .stored_events
             .with_label_values(&[GAS_PAYMENTS_LABEL, chain_name]);
 
+        // TODO: Don't start from the very beginning
         let cursor = {
             let config_initial_height = self.index_settings.from;
+            /*
             let initial_height = self
                 .db
                 .retrieve_latest_indexed_gas_payment_block()
                 .map_or(config_initial_height, |b| b + 1);
+            */
+
             RateLimitedSyncBlockRangeCursor::new(
                 self.indexer.clone(),
                 self.index_settings.chunk_size,
-                initial_height,
+                config_initial_height,
             )
         };
 
@@ -68,19 +72,11 @@ where
                     "Indexed block range"
                 );
 
-                let mut new_payments_processed: u64 = 0;
-                for (payment, meta) in gas_payments.iter() {
-                    // Attempt to process the gas payment, incrementing new_payments_processed
-                    // if it was processed for the first time.
-                    if self.db.process_gas_payment(*payment, meta)? {
-                        new_payments_processed += 1;
-                    }
-                }
+                let new_payments_processed = self.db.store_gas_payments(&gas_payments)?;
+                stored_messages.inc_by(new_payments_processed.into());
 
-                stored_messages.inc_by(new_payments_processed);
-
-                self.db.store_latest_indexed_gas_payment_block(from)?;
-                indexed_height.set(to as i64);
+                //self.db.store_latest_indexed_gas_payment_block(from)?;
+                // indexed_height.set(to as i64);
             }
         }
     }

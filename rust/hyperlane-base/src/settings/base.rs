@@ -123,6 +123,7 @@ impl Settings {
             settings: self.clone(),
         }
     }
+
     /// Try to get a map of chain name -> mailbox contract
     pub async fn build_all_mailboxes(
         &self,
@@ -175,7 +176,7 @@ impl Settings {
         let hyperlane_db = HyperlaneRocksDB::new(domain, db);
         Ok(CachingMailbox::new(
             mailbox.into(),
-            hyperlane_db,
+            Arc::new(hyperlane_db),
             indexer.into(),
         ))
     }
@@ -194,7 +195,7 @@ impl Settings {
         let hyperlane_db = HyperlaneRocksDB::new(domain, db);
         Ok(CachingInterchainGasPaymaster::new(
             interchain_gas_paymaster.into(),
-            hyperlane_db,
+            Arc::new(hyperlane_db),
             indexer.into(),
         ))
     }

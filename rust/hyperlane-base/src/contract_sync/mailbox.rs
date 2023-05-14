@@ -1,8 +1,8 @@
-use std::time::Duration;
+use std::{time::Duration, error::Error};
 
 use tracing::{debug, info, instrument, warn};
 
-use hyperlane_core::{MailboxIndexer, MessageSyncCursor};
+use hyperlane_core::{MailboxIndexer, MessageSyncCursor, HyperlaneDB};
 use tokio::time::sleep;
 
 use crate::ContractSync;
