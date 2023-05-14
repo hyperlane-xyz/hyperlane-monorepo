@@ -12,11 +12,11 @@ use tracing::{debug, info, instrument, trace, warn};
 use hyperlane_base::{last_message::validate_message_continuity, RateLimitedSyncBlockRangeCursor};
 use hyperlane_core::{
     utils::fmt_sync_time, KnownHyperlaneDomain, ListValidity, MailboxIndexer, SyncBlockRangeCursor,
-    H256,
+    H256, HyperlaneDB, HyperlaneMessage, LogMeta, InterchainGasPayment,
 };
 
 use crate::chain_scraper::{
-    Delivery, HyperlaneMessageWithMeta, Payment, SqlChainScraper, TxnWithId,
+    HyperlaneMessageWithMeta, SqlChainScraper, TxnWithId,
 };
 
 /// Workhorse of synchronization. This consumes a `SqlChainScraper` which has
@@ -157,7 +157,7 @@ impl Syncer {
                 &extracted
                     .sorted_messages
                     .iter()
-                    .map(|r| &r.message)
+                    .map(|r| &r.0)
                     .collect::<Vec<_>>(),
             );
             match validation {
@@ -218,10 +218,7 @@ impl Syncer {
             .contracts
             .mailbox_indexer
             .fetch_delivered_messages(from, to)
-            .await?
-            .into_iter()
-            .map(|(message_id, meta)| Delivery { message_id, meta })
-            .collect_vec();
+            .await?;
         trace!(?deliveries, "Fetched deliveries");
 
         debug!("Fetching payments for range");
@@ -229,10 +226,7 @@ impl Syncer {
             .contracts
             .igp_indexer
             .fetch_gas_payments(from, to)
-            .await?
-            .into_iter()
-            .map(|(payment, meta)| Payment { payment, meta })
-            .collect_vec();
+            .await?;
         trace!(?payments, "Fetched payments");
 
         info!(
@@ -244,10 +238,9 @@ impl Syncer {
 
         let sorted_messages = sorted_messages
             .into_iter()
-            .map(|(message, meta)| HyperlaneMessageWithMeta { message, meta })
             .filter(|m| {
                 self.last_nonce
-                    .map_or(true, |last_nonce| m.message.nonce > last_nonce)
+                    .map_or(true, |last_nonce| m.0.nonce > last_nonce)
             })
             .collect::<Vec<_>>();
 
@@ -280,35 +273,23 @@ impl Syncer {
             payments,
         } = extracted;
 
-        let txns: HashMap<H256, TxnWithId> = self
-            .ensure_blocks_and_txns(
-                sorted_messages
-                    .iter()
-                    .map(|r| &r.meta)
-                    .chain(deliveries.iter().map(|d| &d.meta))
-                    .chain(payments.iter().map(|p| &p.meta)),
-            )
-            .await?
-            .map(|t| (t.hash, t))
-            .collect();
-
         if !deliveries.is_empty() {
-            self.store_deliveries(&deliveries, &txns).await?;
+            self.store_delivered_messages(&deliveries).await?;
             self.stored_deliveries.inc_by(deliveries.len() as u64);
         }
 
         if !payments.is_empty() {
-            self.store_payments(&payments, &txns).await?;
+            self.store_gas_payments(&payments).await?;
             self.stored_payments.inc_by(payments.len() as u64);
         }
 
         if !sorted_messages.is_empty() {
-            let max_nonce_of_batch = self.store_messages(&sorted_messages, &txns).await?;
+            let max_nonce_of_batch = self.store_dispatched_messages(&sorted_messages).await?;
             self.stored_messages.inc_by(sorted_messages.len() as u64);
 
             for m in sorted_messages.iter() {
-                let nonce = m.message.nonce;
-                let dst = KnownHyperlaneDomain::try_from(m.message.destination)
+                let nonce = m.0.nonce;
+                let dst = KnownHyperlaneDomain::try_from(m.0.destination)
                     .map(Into::into)
                     .unwrap_or("unknown");
                 self.message_nonce
@@ -323,7 +304,7 @@ impl Syncer {
 }
 
 struct ExtractedData {
-    sorted_messages: Vec<HyperlaneMessageWithMeta>,
-    deliveries: Vec<Delivery>,
-    payments: Vec<Payment>,
+    sorted_messages: Vec<(HyperlaneMessage, LogMeta)>,
+    deliveries: Vec<(H256, LogMeta)>,
+    payments: Vec<(InterchainGasPayment, LogMeta)>,
 }

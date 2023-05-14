@@ -61,6 +61,33 @@ impl ScraperDb {
         Ok(last_nonce)
     }
 
+    /// Get the highest message nonce that is stored in the database.
+    #[instrument(skip(self))]
+    pub async fn retrieve_dispatched_tx_id(
+        &self,
+        origin_domain: u32,
+        origin_mailbox: &H256,
+        nonce: u32,
+    ) -> Result<Option<i64>> {
+        #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
+        enum QueryAs {
+            Nonce,
+        }
+
+        // TODO: Is this correct?
+        let tx_id = message::Entity::find()
+            .filter(message::Column::Origin.eq(origin_domain))
+            .filter(message::Column::OriginMailbox.eq(address_to_bytes(origin_mailbox)))
+            .filter(message::Column::Nonce.eq(nonce))
+            .order_by_desc(message::Column::Nonce)
+            .select_only()
+            .column_as(message::Column::OriginTxId, QueryAs::Nonce)
+            .into_values::<i64, QueryAs>()
+            .one(&self.0)
+            .await?;
+        Ok(tx_id)
+    }
+
     /// Store deliveries from a mailbox into the database (or update an existing
     /// one).
     #[instrument(skip_all)]
