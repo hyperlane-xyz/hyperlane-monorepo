@@ -1,6 +1,7 @@
 use std::future::Future;
 use std::time::Duration;
 
+use async_trait::async_trait;
 use tokio::time::sleep;
 use tracing::{debug, info, trace};
 use eyre::{eyre, Result};
@@ -239,9 +240,10 @@ impl HyperlaneRocksDB {
     }
 }
 
+#[async_trait]
 impl HyperlaneDB for HyperlaneRocksDB {
     /// Store a list of dispatched messages and their associated metadata.
-    fn store_dispatched_messages(
+    async fn store_dispatched_messages(
         &self,
         messages: &[(HyperlaneMessage, LogMeta)],
     ) -> Result<u32> {
@@ -260,7 +262,7 @@ impl HyperlaneDB for HyperlaneRocksDB {
     }
 
     /// Store a list of delivered messages and their associated metadata.
-    fn store_delivered_messages(
+    async fn store_delivered_messages(
         &self,
         deliveries: &[(H256, LogMeta)],
     ) -> Result<u32> {
@@ -268,7 +270,7 @@ impl HyperlaneDB for HyperlaneRocksDB {
     }
 
     /// Store a list of interchain gas payments and their associated metadata.
-    fn store_gas_payments(
+    async fn store_gas_payments(
         &self,
         payments: &[(InterchainGasPayment, LogMeta)],
     ) -> Result<u32> {
@@ -282,7 +284,7 @@ impl HyperlaneDB for HyperlaneRocksDB {
     }
 
     /// Retrieve dispatched block number by message nonce
-    fn retrieve_dispatched_block_number(&self,nonce:u32) -> Result<Option<u64>> {
+    async fn retrieve_dispatched_block_number(&self,nonce:u32) -> Result<Option<u64>> {
         let number= self.retrieve_keyed_decodable(MESSAGE_DISPATCHED_BLOCK_NUMBER, &nonce)?;
         Ok(number)
     }

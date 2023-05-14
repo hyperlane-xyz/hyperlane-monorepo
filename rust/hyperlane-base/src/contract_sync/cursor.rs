@@ -40,8 +40,8 @@ impl<I> MessageSyncCursorData<I>
 where
     I: MailboxIndexer,
 {
-    fn retrieve_dispatched_block_number(&self, nonce: u32) -> Option<u32> {
-        if let Ok(Some(block_number)) = self.db.retrieve_dispatched_block_number(nonce) {
+    async fn retrieve_dispatched_block_number(&self, nonce: u32) -> Option<u32> {
+        if let Ok(Some(block_number)) = self.db.retrieve_dispatched_block_number(nonce).await {
             Some(u32::try_from(block_number).unwrap())
         } else {
             None
@@ -51,8 +51,8 @@ where
     /// If the previous block has been synced, rewind to the block number
     /// at which it was dispatched.
     /// Otherwise, rewind all the way back to the start block.
-    fn rewind_to_nonce(&mut self, nonce: u32) -> ChainResult<u32> {
-        if let Some(block_number) = self.retrieve_dispatched_block_number(nonce) {
+    async fn rewind_to_nonce(&mut self, nonce: u32) -> ChainResult<u32> {
+        if let Some(block_number) = self.retrieve_dispatched_block_number(nonce).await {
             self.next_block = block_number;
         } else {
             self.next_block = self.start_block;
@@ -74,10 +74,10 @@ where
 {
     /// Check if any new messages have been inserted into the DB,
     /// and update the cursor accordingly.
-    fn fast_forward(&mut self) -> bool {
+    async fn fast_forward(&mut self) -> bool {
         while let Some(block_number) = self
             .cursor
-            .retrieve_dispatched_block_number(self.cursor.next_nonce)
+            .retrieve_dispatched_block_number(self.cursor.next_nonce).await
         {
             self.cursor.next_nonce += 1;
             self.cursor.next_block = block_number;
@@ -126,9 +126,9 @@ where
     /// If the previous block has been synced, rewind to the block number
     /// at which it was dispatched.
     /// Otherwise, rewind all the way back to the start block.
-    fn rewind(&mut self) -> ChainResult<u32> {
+    async fn rewind(&mut self) -> ChainResult<u32> {
         let prev_nonce = self.next_nonce().saturating_sub(1);
-        self.cursor.rewind_to_nonce(prev_nonce)
+        self.cursor.rewind_to_nonce(prev_nonce).await
     }
 }
 
@@ -145,11 +145,11 @@ where
 {
     /// Check if any new messages have been inserted into the DB,
     /// and update the cursor accordingly.
-    fn fast_forward(&mut self) -> bool {
+    async fn fast_forward(&mut self) -> bool {
         loop {
             if let Some(block_number) = self
                 .cursor
-                .retrieve_dispatched_block_number(self.cursor.next_nonce)
+                .retrieve_dispatched_block_number(self.cursor.next_nonce).await
             {
                 self.cursor.next_block = block_number;
                 // If we hit nonce zero, we are done fast forwarding.
@@ -184,9 +184,9 @@ where
     /// If the previous block has been synced, rewind to the block number
     /// at which it was dispatched.
     /// Otherwise, rewind all the way back to the start block.
-    fn rewind(&mut self) -> ChainResult<u32> {
+    async fn rewind(&mut self) -> ChainResult<u32> {
         let prev_nonce = self.next_nonce().saturating_add(1);
-        self.cursor.rewind_to_nonce(prev_nonce)
+        self.cursor.rewind_to_nonce(prev_nonce).await
     }
 }
 

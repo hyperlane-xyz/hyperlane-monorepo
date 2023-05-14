@@ -72,7 +72,7 @@ where
                     "Indexed block range"
                 );
 
-                let new_payments_processed = self.db.store_gas_payments(&gas_payments)?;
+                let new_payments_processed = self.db.store_gas_payments(&gas_payments).await?;
                 stored_messages.inc_by(new_payments_processed.into());
 
                 //self.db.store_latest_indexed_gas_payment_block(from)?;

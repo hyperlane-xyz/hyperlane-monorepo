@@ -64,7 +64,7 @@ where
 
         info!(next_nonce = cursor.next_nonce(), "Starting message indexer");
 
-        while cursor.fast_forward() {
+        while cursor.fast_forward().await {
             let Ok(range) = cursor.next_range().await else { continue };
             if range.is_none() {
                 // TODO: Define the sleep time from interval flag
@@ -86,7 +86,7 @@ where
                     "Found message(s) in block range"
                 );
 
-                let stored = self.db.store_dispatched_messages(&sorted_messages)?;
+                let stored = self.db.store_dispatched_messages(&sorted_messages).await?;
                 stored_messages.inc_by(stored as u64);
 
                 // If we found messages, but did *not* find the message we were looking for,
@@ -94,7 +94,7 @@ where
                 if !sorted_messages.is_empty()
                     && !sorted_messages.iter().any(|m| m.0.nonce == next_nonce)
                 {
-                    let rewind_block = cursor.rewind()?;
+                    let rewind_block = cursor.rewind().await?;
                     warn!(
                         from, to,
                         next_nonce,

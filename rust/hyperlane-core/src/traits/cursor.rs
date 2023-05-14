@@ -18,9 +18,9 @@ pub trait MessageSyncCursor: Debug + Send + Sync + 'static {
     fn next_nonce(&self) -> u32;
     /// Rewinds the cursor to an earlier block if the message with the next
     /// nonce appears to have been dropped.
-    fn rewind(&mut self) -> ChainResult<u32>;
+    async fn rewind(&mut self) -> ChainResult<u32>;
     /// Fast forwards the cursor to the next message nonce and block.
-    fn fast_forward(&mut self) -> bool;
+    async fn fast_forward(&mut self) -> bool;
 }
 
 // TODO: Can we delete some of these methods?
