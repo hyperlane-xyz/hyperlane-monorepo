@@ -9,7 +9,7 @@ use tokio::{
 };
 use tracing::{debug, info_span, instrument, instrument::Instrumented, Instrument};
 
-use hyperlane_base::{db::HyperlaneDB, CoreMetrics};
+use hyperlane_base::{db::HyperlaneRocksDB, CoreMetrics};
 use hyperlane_core::{HyperlaneDomain, HyperlaneMessage};
 
 use crate::{
@@ -19,7 +19,7 @@ use crate::{
 
 #[derive(Debug, new)]
 pub(crate) struct MessageProcessor {
-    db: HyperlaneDB,
+    db: HyperlaneRocksDB,
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,
     metrics: MessageProcessorMetrics,
@@ -37,7 +37,7 @@ impl MessageProcessor {
 
     #[instrument(ret, err, skip(self), level = "info")]
     async fn main_loop(mut self) -> Result<()> {
-        // Forever, scan HyperlaneDB looking for new messages to send. When criteria are
+        // Forever, scan HyperlaneRocksDB looking for new messages to send. When criteria are
         // satisfied or the message is disqualified, push the message onto
         // self.tx_msg and then continue the scan at the next highest
         // nonce.

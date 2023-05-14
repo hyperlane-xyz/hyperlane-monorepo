@@ -8,7 +8,7 @@ use crate::{HyperlaneMessage, InterchainGasPayment, LogMeta, H256};
 /// Interface for a HyperlaneDb. 
 #[async_trait]
 #[auto_impl(&, Box, Arc)]
-pub trait HyperlaneDb<E>: Send + Sync + Debug {
+pub trait HyperlaneDB<E>: Send + Sync + Debug {
     /// Store a list of dispatched messages and their associated metadata.
     fn store_dispatched_messages(
         &self,

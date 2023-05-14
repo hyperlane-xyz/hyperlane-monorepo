@@ -13,7 +13,7 @@ use hyperlane_core::{
     ChainResult, Indexer, MailboxIndexer, MessageSyncCursor, SyncBlockRangeCursor,
 };
 
-use crate::{contract_sync::eta_calculator::SyncerEtaCalculator, db::HyperlaneDB};
+use crate::{contract_sync::eta_calculator::SyncerEtaCalculator, db::HyperlaneRocksDB};
 
 /// Time window for the moving average used in the eta calculator in seconds.
 const ETA_TIME_WINDOW: f64 = 2. * 60.;
@@ -24,8 +24,8 @@ const ETA_TIME_WINDOW: f64 = 2. * 60.;
 pub struct MessageSyncCursorData<I> {
     /// The MailboxIndexer that this cursor is associated with.
     indexer: I,
-    /// The HyperlaneDB that this cursor is associated with.
-    db: HyperlaneDB,
+    /// The HyperlaneRocksDB that this cursor is associated with.
+    db: HyperlaneRocksDB,
     /// The size of the largest block range that should be returned by the cursor.
     chunk_size: u32,
     /// The starting block for the cursor

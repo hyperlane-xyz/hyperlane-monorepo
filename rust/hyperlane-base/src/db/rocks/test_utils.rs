@@ -32,14 +32,14 @@ where
 mod test {
     use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, RawHyperlaneMessage, H256};
 
-    use crate::db::HyperlaneDB;
+    use crate::db::HyperlaneRocksDB;
 
     use super::*;
 
     #[tokio::test]
     async fn db_stores_and_retrieves_messages() {
         run_test_db(|db| async move {
-            let db = HyperlaneDB::new(
+            let db = HyperlaneRocksDB::new(
                 &HyperlaneDomain::new_test_domain("db_stores_and_retrieves_messages"),
                 db,
             );

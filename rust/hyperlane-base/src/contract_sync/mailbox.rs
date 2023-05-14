@@ -132,7 +132,7 @@ mod test {
     use crate::{
         contract_sync::{mailbox::MOCK_CURSOR, schema::MailboxContractSyncDB, IndexSettings},
         db::test_utils,
-        db::HyperlaneDB,
+        db::HyperlaneRocksDB,
         ContractSync, ContractSyncMetrics, CoreMetrics,
     };
 
@@ -278,7 +278,7 @@ mod test {
                 });
             }
 
-            let hyperlane_db = HyperlaneDB::new(
+            let hyperlane_db = HyperlaneRocksDB::new(
                 &HyperlaneDomain::new_test_domain("handles_missing_rpc_messages"),
                 db,
             );

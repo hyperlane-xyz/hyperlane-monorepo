@@ -6,7 +6,7 @@ pub use interchain_gas::*;
 pub use mailbox::*;
 pub use metrics::ContractSyncMetrics;
 
-use crate::{chains::IndexSettings, db::HyperlaneDB};
+use crate::{chains::IndexSettings, db::HyperlaneRocksDB};
 
 mod cursor;
 mod eta_calculator;
@@ -24,7 +24,7 @@ mod schema;
 #[derive(Debug, new, Clone)]
 pub(crate) struct ContractSync<I> {
     domain: HyperlaneDomain,
-    db: HyperlaneDB,
+    db: HyperlaneRocksDB,
     indexer: I,
     index_settings: IndexSettings,
     metrics: ContractSyncMetrics,

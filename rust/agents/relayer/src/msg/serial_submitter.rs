@@ -11,7 +11,7 @@ use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tracing::{debug, error, info, info_span, instrument, instrument::Instrumented, Instrument};
 
-use hyperlane_base::{db::HyperlaneDB, CachingMailbox, CoreMetrics};
+use hyperlane_base::{db::HyperlaneRocksDB, CachingMailbox, CoreMetrics};
 use hyperlane_core::{HyperlaneChain, HyperlaneDomain, Mailbox, U256};
 
 use crate::msg::PendingMessage;
@@ -43,7 +43,7 @@ use super::{
 ///
 /// Finally, the SerialSubmitter ensures that message delivery is robust to
 /// destination chain reorgs prior to committing delivery status to
-/// HyperlaneDB.
+/// HyperlaneRocksDB.
 ///
 ///
 /// Objectives
@@ -86,7 +86,7 @@ pub(crate) struct SerialSubmitter {
     metadata_builder: BaseMetadataBuilder,
     /// Interface to agent rocks DB for e.g. writing delivery status upon
     /// completion.
-    db: HyperlaneDB,
+    db: HyperlaneRocksDB,
     /// Metrics for serial submitter.
     metrics: SerialSubmitterMetrics,
     /// Used to determine if messages have made sufficient gas payments.
@@ -310,11 +310,11 @@ impl SerialSubmitter {
         }
     }
 
-    /// Record in HyperlaneDB and various metrics that this process has observed
+    /// Record in HyperlaneRocksDB and various metrics that this process has observed
     /// the successful processing of a message. An `Ok(())` value returned by
     /// this function is the 'commit' point in a message's lifetime for
     /// final processing -- after this function has been seen to
-    /// `return Ok(())`, then without a wiped HyperlaneDB, we will never
+    /// `return Ok(())`, then without a wiped HyperlaneRocksDB, we will never
     /// re-attempt processing for this message again, even after the relayer
     /// restarts.
     fn record_message_process_success(&mut self, msg: &PendingMessage) -> Result<()> {

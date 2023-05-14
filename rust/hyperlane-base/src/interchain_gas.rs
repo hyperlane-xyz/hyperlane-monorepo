@@ -8,13 +8,13 @@ use tracing::{info_span, instrument::Instrumented, Instrument};
 
 use hyperlane_core::{InterchainGasPaymaster, InterchainGasPaymasterIndexer};
 
-use crate::{chains::IndexSettings, db::HyperlaneDB, ContractSync, ContractSyncMetrics};
+use crate::{chains::IndexSettings, db::HyperlaneRocksDB, ContractSync, ContractSyncMetrics};
 
 /// Caching InterchainGasPaymaster type
 #[derive(Debug, Clone, new)]
 pub struct CachingInterchainGasPaymaster {
     paymaster: Arc<dyn InterchainGasPaymaster>,
-    db: HyperlaneDB,
+    db: HyperlaneRocksDB,
     indexer: Arc<dyn InterchainGasPaymasterIndexer>,
 }
 
@@ -30,8 +30,8 @@ impl CachingInterchainGasPaymaster {
         &self.paymaster
     }
 
-    /// Return handle on HyperlaneDB
-    pub fn db(&self) -> &HyperlaneDB {
+    /// Return handle on HyperlaneRocksDB
+    pub fn db(&self) -> &HyperlaneRocksDB {
         &self.db
     }
 

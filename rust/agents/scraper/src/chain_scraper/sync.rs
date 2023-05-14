@@ -128,7 +128,7 @@ impl Syncer {
 
         // Okay, what do we want to do here?
         // For now, let's separate out dispatched message syncing from the rest.
-        // TODO: Do smart syncing. Tricky bit is that the other cursor relies on a HyperlaneDB, which we don't have here.
+        // TODO: Do smart syncing. Tricky bit is that the other cursor relies on a HyperlaneRocksDB, which we don't have here.
         loop {
             let start_block = self.sync_cursor.current_position();
             let Ok(Some((from, to, eta))) = self.sync_cursor.next_range().await else { continue };

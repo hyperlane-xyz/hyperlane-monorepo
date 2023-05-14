@@ -12,7 +12,7 @@ pub struct ContractSyncMetrics {
     /// - `chain`: Chain the indexer is collecting data from.
     pub indexed_height: IntGaugeVec,
 
-    /// Events stored into HyperlaneDB (label values differentiate checkpoints vs.
+    /// Events stored into HyperlaneRocksDB (label values differentiate checkpoints vs.
     /// messages)
     ///
     /// Labels:

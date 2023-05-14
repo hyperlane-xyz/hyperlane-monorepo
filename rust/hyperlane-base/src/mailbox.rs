@@ -13,7 +13,7 @@ use hyperlane_core::{
 };
 
 use crate::{
-    chains::IndexSettings, db::HyperlaneDB, BackwardMessageSyncCursor, ContractSync,
+    chains::IndexSettings, db::HyperlaneRocksDB, BackwardMessageSyncCursor, ContractSync,
     ContractSyncMetrics, ForwardMessageSyncCursor, MessageSyncCursorData,
 };
 
@@ -21,7 +21,7 @@ use crate::{
 #[derive(Debug, Clone, new)]
 pub struct CachingMailbox {
     mailbox: Arc<dyn Mailbox>,
-    db: HyperlaneDB,
+    db: HyperlaneRocksDB,
     indexer: Arc<dyn MailboxIndexer>,
 }
 
@@ -37,8 +37,8 @@ impl CachingMailbox {
         &self.mailbox
     }
 
-    /// Return handle on HyperlaneDB
-    pub fn db(&self) -> &HyperlaneDB {
+    /// Return handle on HyperlaneRocksDB
+    pub fn db(&self) -> &HyperlaneRocksDB {
         &self.db
     }
 
