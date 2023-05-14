@@ -18,6 +18,7 @@ import "forge-std/console.sol";
 
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {Mailbox} from "../../contracts/Mailbox.sol";
+import {Message} from "../../contracts/libs/Message.sol";
 import {TestMultisigIsm} from "../../contracts/test/TestMultisigIsm.sol";
 import {OptimismIsm} from "../../contracts/isms/native/OptimismIsm.sol";
 import {OptimismMessageHook} from "../../contracts/hooks/OptimismMessageHook.sol";
@@ -96,13 +97,12 @@ contract OptimismIsmTest is Test {
         ism = new TestMultisigIsm();
 
         opNativeMessenger = ICrossDomainMessenger(L1_MESSENGER_ADDRESS);
-        opHook = new OptimismMessageHook(opNativeMessenger);
+        opHook = new OptimismMessageHook(OPTIMISM_DOMAIN, opNativeMessenger);
 
         opHook.setOptimismISM(address(opISM));
 
         ethMailbox = new Mailbox(MAINNET_DOMAIN);
         ethMailbox.initialize(address(this), address(ism));
-        ethMailbox.setHook(address(opHook));
 
         vm.makePersistent(address(ethMailbox));
     }
@@ -154,11 +154,17 @@ contract OptimismIsmTest is Test {
 
         bytes memory encodedHookData = abi.encodeCall(
             OptimismIsm.receiveFromHook,
-            (messageId, address(opHook))
+            (messageId, address(this))
         );
 
         uint40 nonce = ICanonicalTransactionChain(L1_CANNONICAL_CHAIN)
             .getQueueLength();
+
+        ethMailbox.dispatch(
+            OPTIMISM_DOMAIN,
+            TypeCasts.addressToBytes32(address(testRecipient)),
+            testMessage
+        );
 
         vm.expectEmit(true, true, true, true, L1_MESSENGER_ADDRESS);
         emit SentMessage(
@@ -170,17 +176,9 @@ contract OptimismIsmTest is Test {
         );
 
         vm.expectEmit(true, true, true, true, address(opHook));
-        emit OptimismMessagePublished(
-            address(opISM),
-            address(opHook),
-            messageId
-        );
+        emit OptimismMessagePublished(address(opISM), address(this), messageId);
 
-        ethMailbox.dispatch(
-            OPTIMISM_DOMAIN,
-            TypeCasts.addressToBytes32(address(testRecipient)),
-            testMessage
-        );
+        opHook.postDispatch(OPTIMISM_DOMAIN, messageId);
     }
 
     function testDispatch_ChainIDNotSupported() public {
@@ -188,13 +186,17 @@ contract OptimismIsmTest is Test {
 
         vm.selectFork(mainnetFork);
 
-        vm.expectRevert("OptimismHook: destination must be Optimism");
-
         ethMailbox.dispatch(
             11,
             TypeCasts.addressToBytes32(address(testRecipient)),
             testMessage
         );
+        bytes32 messageId = Message.id(
+            _encodeTestMessage(0, address(testRecipient))
+        );
+
+        vm.expectRevert("OptimismHook: invalid destination domain");
+        opHook.postDispatch(11, messageId);
     }
 
     function testDispatch_ISMNotSet() public {
@@ -205,20 +207,16 @@ contract OptimismIsmTest is Test {
         ism = new TestMultisigIsm();
 
         opNativeMessenger = ICrossDomainMessenger(L1_MESSENGER_ADDRESS);
-        opHook = new OptimismMessageHook(opNativeMessenger);
+        opHook = new OptimismMessageHook(OPTIMISM_DOMAIN, opNativeMessenger);
 
         ethMailbox = new Mailbox(MAINNET_DOMAIN);
         ethMailbox.initialize(address(this), address(ism));
-        ethMailbox.setHook(address(opHook));
 
         vm.makePersistent(address(ethMailbox));
 
         vm.expectRevert("OptimismHook: OptimismIsm not set");
-        ethMailbox.dispatch(
-            10,
-            TypeCasts.addressToBytes32(address(testRecipient)),
-            testMessage
-        );
+
+        opHook.postDispatch(OPTIMISM_DOMAIN, bytes32(0));
     }
 
     /* ============ ISM.receiveFromHook ============ */
@@ -239,7 +237,7 @@ contract OptimismIsmTest is Test {
 
         bytes memory encodedHookData = abi.encodeCall(
             OptimismIsm.receiveFromHook,
-            (_messageId, address(ethMailbox))
+            (_messageId, address(this))
         );
         uint256 nextNonce = l2Bridge.messageNonce() + 1;
 
@@ -256,7 +254,7 @@ contract OptimismIsmTest is Test {
         );
 
         vm.expectEmit(true, true, false, false, address(opISM));
-        emit ReceivedMessage(_messageId, address(ethMailbox));
+        emit ReceivedMessage(_messageId, address(this));
 
         vm.expectEmit(
             true,
@@ -274,7 +272,7 @@ contract OptimismIsmTest is Test {
             nextNonce
         );
 
-        assertEq(opISM.receivedEmitters(_messageId), true);
+        assertEq(opISM.receivedEmitters(_messageId, address(this)), true);
 
         vm.stopPrank();
     }
@@ -329,7 +327,7 @@ contract OptimismIsmTest is Test {
 
         bytes memory encodedHookData = abi.encodeCall(
             OptimismIsm.receiveFromHook,
-            (_messageId, address(opHook))
+            (_messageId, address(this))
         );
         uint256 nextNonce = l2Bridge.messageNonce() + 1;
 
@@ -344,11 +342,11 @@ contract OptimismIsmTest is Test {
         bool verified = opISM.verify(new bytes(0), encodedMessage);
         assertTrue(verified);
 
-        bool verifiedTwice = opISM.verify(new bytes(0), encodedMessage);
-        assertFalse(verifiedTwice);
+        // bool verifiedTwice = opISM.verify(new bytes(0), encodedMessage);
+        // assertFalse(verifiedTwice);
     }
 
-    function testVerify_InvalidMessage() public {
+    function testVerify_InvalidMessage_Hyperlane() public {
         deployAll();
 
         vm.selectFork(optimismFork);
@@ -365,7 +363,7 @@ contract OptimismIsmTest is Test {
 
         bytes memory encodedHookData = abi.encodeCall(
             OptimismIsm.receiveFromHook,
-            (_messageId, address(opHook))
+            (_messageId, address(this))
         );
         uint256 nextNonce = l2Bridge.messageNonce() + 1;
 
@@ -379,6 +377,73 @@ contract OptimismIsmTest is Test {
 
         bytes memory invalidMessage = _encodeTestMessage(0, address(this));
         bool verified = opISM.verify(new bytes(0), invalidMessage);
+        assertFalse(verified);
+    }
+
+    function testVerify_InvalidMessageID_Optimism() public {
+        deployAll();
+
+        vm.selectFork(optimismFork);
+
+        L2CrossDomainMessenger l2Bridge = L2CrossDomainMessenger(
+            Predeploys.L2_CROSS_DOMAIN_MESSENGER
+        );
+
+        bytes memory encodedMessage = _encodeTestMessage(
+            0,
+            address(testRecipient)
+        );
+        bytes memory invalidMessage = _encodeTestMessage(0, address(this));
+        bytes32 _messageId = Message.id(invalidMessage);
+
+        bytes memory encodedHookData = abi.encodeCall(
+            OptimismIsm.receiveFromHook,
+            (_messageId, address(this))
+        );
+        uint256 nextNonce = l2Bridge.messageNonce() + 1;
+
+        vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
+        l2Bridge.relayMessage(
+            address(opISM),
+            address(opHook),
+            encodedHookData,
+            nextNonce
+        );
+
+        bool verified = opISM.verify(new bytes(0), encodedMessage);
+        assertFalse(verified);
+    }
+
+    function testVerify_InvalidSender() public {
+        deployAll();
+
+        vm.selectFork(optimismFork);
+
+        L2CrossDomainMessenger l2Bridge = L2CrossDomainMessenger(
+            Predeploys.L2_CROSS_DOMAIN_MESSENGER
+        );
+
+        bytes memory encodedMessage = _encodeTestMessage(
+            0,
+            address(testRecipient)
+        );
+        bytes32 _messageId = Message.id(encodedMessage);
+
+        bytes memory encodedHookData = abi.encodeCall(
+            OptimismIsm.receiveFromHook,
+            (_messageId, alice)
+        );
+        uint256 nextNonce = l2Bridge.messageNonce() + 1;
+
+        vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
+        l2Bridge.relayMessage(
+            address(opISM),
+            address(opHook),
+            encodedHookData,
+            nextNonce
+        );
+
+        bool verified = opISM.verify(new bytes(0), encodedMessage);
         assertFalse(verified);
     }
 

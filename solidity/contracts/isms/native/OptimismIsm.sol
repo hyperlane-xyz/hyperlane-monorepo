@@ -9,55 +9,17 @@ import {Message} from "../../libs/Message.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 
 import {ICrossDomainMessenger} from "@eth-optimism/contracts/libraries/bridge/ICrossDomainMessenger.sol";
-import {CrossDomainOwnable3} from "@eth-optimism/contracts-bedrock/contracts/L2/CrossDomainOwnable3.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract OptimismIsm is IInterchainSecurityModule, CrossDomainOwnable3 {
-    mapping(bytes32 => bool) public receivedEmitters;
+contract OptimismIsm is IInterchainSecurityModule, Ownable {
+    mapping(bytes32 => mapping(address => bool)) public receivedEmitters;
 
     event ReceivedMessage(bytes32 indexed messageId, address indexed emitter);
 
-    constructor(ICrossDomainMessenger _l2Messenger) {
-        l2Messenger = _l2Messenger;
-    }
-
-    ICrossDomainMessenger public l2Messenger;
-    IOptimismMessageHook public hook;
-
-    // solhint-disable-next-line const-name-snakecase
-    uint8 public constant moduleType =
-        uint8(IInterchainSecurityModule.Types.NATIVE);
-
-    function setOptimismHook(IOptimismMessageHook _hook) external {
-        hook = _hook;
-    }
-
-    function receiveFromHook(bytes32 _messageId, address _emitter)
-        external
-    // onlyOwner
-    {
-        _isAuthorized(hook);
-        // require(_emitter != address(0), "OptimismIsm: invalid emitter");
-
-        receivedEmitters[_messageId] = true;
-
-        emit ReceivedMessage(_messageId, _emitter);
-    }
-
-    function verify(
-        bytes calldata, /*_metadata*/
-        bytes calldata _message
-    ) external returns (bool messageVerified) {
-        bytes32 messageId = keccak256(_message);
-        messageVerified = receivedEmitters[messageId];
-
-        if (messageVerified) receivedEmitters[messageId] = false;
-    }
-
     /**
      * @notice Check if sender is authorized to message `receiveFromHook`.
-     * @param _hook Address of the hook on the Ethereum chain
      */
-    function _isAuthorized(IOptimismMessageHook _hook) internal view {
+    modifier isAuthorized() {
         ICrossDomainMessenger _l2Messenger = l2Messenger;
 
         require(
@@ -66,8 +28,46 @@ contract OptimismIsm is IInterchainSecurityModule, CrossDomainOwnable3 {
         );
 
         require(
-            _l2Messenger.xDomainMessageSender() == address(_hook),
+            _l2Messenger.xDomainMessageSender() == address(hook),
             "OptimismIsm: caller is not the owner"
         );
+
+        _;
+    }
+
+    constructor(ICrossDomainMessenger _l2Messenger) {
+        l2Messenger = _l2Messenger;
+    }
+
+    ICrossDomainMessenger public immutable l2Messenger;
+    IOptimismMessageHook public hook;
+
+    // solhint-disable-next-line const-name-snakecase
+    uint8 public constant moduleType =
+        uint8(IInterchainSecurityModule.Types.OPTIMISM);
+
+    function setOptimismHook(IOptimismMessageHook _hook) external onlyOwner {
+        hook = _hook;
+    }
+
+    function receiveFromHook(bytes32 _messageId, address _emitter)
+        external
+        isAuthorized
+    {
+        require(_emitter != address(0), "OptimismIsm: invalid emitter");
+
+        receivedEmitters[_messageId][_emitter] = true;
+
+        emit ReceivedMessage(_messageId, _emitter);
+    }
+
+    function verify(
+        bytes calldata, /*_metadata*/
+        bytes calldata _message
+    ) external view returns (bool messageVerified) {
+        bytes32 _messageId = Message.id(_message);
+        address _messageSender = Message.senderAddress(_message);
+
+        messageVerified = receivedEmitters[_messageId][_messageSender];
     }
 }

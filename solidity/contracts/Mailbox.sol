@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import "forge-std/console.sol";
-
 // ============ Internal Imports ============
 import {Versioned} from "./upgrade/Versioned.sol";
 import {MerkleLib} from "./libs/Merkle.sol";
@@ -11,7 +9,6 @@ import {TypeCasts} from "./libs/TypeCasts.sol";
 import {IMessageRecipient} from "./interfaces/IMessageRecipient.sol";
 import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "./interfaces/IInterchainSecurityModule.sol";
 import {IMailbox} from "./interfaces/IMailbox.sol";
-import {IMessageHook} from "./interfaces/hooks/IMessageHook.sol";
 import {PausableReentrancyGuardUpgradeable} from "./PausableReentrancyGuard.sol";
 
 // ============ External Imports ============
@@ -44,8 +41,6 @@ contract Mailbox is
     IInterchainSecurityModule public defaultIsm;
     // An incremental merkle tree used to store outbound message IDs.
     MerkleLib.Tree public tree;
-    // Hook if any post dispatch action is required
-    IMessageHook public hook;
     // Mapping of message ID to whether or not that message has been delivered.
     mapping(bytes32 => bool) public delivered;
 
@@ -101,14 +96,6 @@ contract Mailbox is
     }
 
     /**
-     * @notice Sets the hook if required for the specific ISM
-     * @param _hook The new hook contract
-     */
-    function setHook(address _hook) external onlyOwner {
-        hook = IMessageHook(_hook);
-    }
-
-    /**
      * @notice Dispatches a message to the destination domain & recipient.
      * @param _destinationDomain Domain of destination chain
      * @param _recipientAddress Address of recipient on destination chain as bytes32
@@ -135,9 +122,6 @@ contract Mailbox is
         // Insert the message ID into the merkle tree.
         bytes32 _id = _message.id();
         tree.insert(_id);
-
-        // Call the message hook.
-        hook.postDispatch(_destinationDomain, _id);
 
         emit Dispatch(
             msg.sender,
