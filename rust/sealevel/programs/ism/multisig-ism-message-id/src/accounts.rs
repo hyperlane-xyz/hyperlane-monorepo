@@ -19,4 +19,8 @@ pub struct AuthorityData {
     pub owner_authority: Pubkey,
 }
 
+impl AuthorityData {
+    pub const SIZE: usize = 1 + 32;
+}
+
 pub type AuthorityAccount = AccountData<AuthorityData>;

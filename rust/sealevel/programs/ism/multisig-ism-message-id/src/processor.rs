@@ -102,7 +102,61 @@ pub fn process_instruction(
         Instruction::SetOwnerAuthority(new_owner) => {
             set_owner_authority(program_id, accounts, new_owner)
         }
+        Instruction::Initialize => initialize(program_id, accounts),
     }
+}
+
+/// Initializes the program, creating the authority PDA account.
+///
+/// Accounts:
+/// 0. `[signer]` The owner authority and payer of the authority PDA.
+/// 1. `[writable]` The authority PDA account.
+fn initialize(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: The new owner of this program and payer of the authority PDA.
+    let owner_authority_account = next_account_info(accounts_iter)?;
+    if !owner_authority_account.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+
+    // Account 1: The authority PDA account.
+    let authority_pda_account = next_account_info(accounts_iter)?;
+    let (authority_pda_key, authority_pda_bump_seed) =
+        Pubkey::find_program_address(authority_pda_seeds!(), program_id);
+    if *authority_pda_account.key != authority_pda_key {
+        return Err(Error::AccountOutOfOrder.into());
+    }
+
+    // Ensure the authority PDA account isn't already initialized.
+    if AuthorityAccount::fetch_data(&mut &authority_pda_account.data.borrow_mut()[..])?.is_some() {
+        return Err(Error::AlreadyInitialized.into());
+    }
+
+    // Create the authority PDA account.
+    invoke_signed(
+        &system_instruction::create_account(
+            owner_authority_account.key,
+            authority_pda_account.key,
+            Rent::default().minimum_balance(AuthorityData::SIZE),
+            AuthorityData::SIZE as u64,
+            program_id,
+        ),
+        &[
+            owner_authority_account.clone(),
+            authority_pda_account.clone(),
+        ],
+        &[authority_pda_seeds!(authority_pda_bump_seed)],
+    )?;
+
+    // Store the authority data.
+    AuthorityAccount::from(AuthorityData {
+        bump_seed: authority_pda_bump_seed,
+        owner_authority: *owner_authority_account.key,
+    })
+    .store(authority_pda_account, false)?;
+
+    Ok(())
 }
 
 /// Verifies a message has been signed by at least the configured threshold of the
@@ -369,7 +423,7 @@ fn set_owner_authority(
         bump_seed: authority_data.bump_seed,
         owner_authority: new_owner,
     })
-    .store(authority_pda_account, true)?;
+    .store(authority_pda_account, false)?;
 
     Ok(())
 }

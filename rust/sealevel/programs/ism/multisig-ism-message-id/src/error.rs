@@ -21,6 +21,8 @@ pub enum Error {
     ThresholdNotMet = 7,
     #[error("Invalid validators and threshold")]
     InvalidValidatorsAndThreshold = 8,
+    #[error("Already initialized")]
+    AlreadyInitialized = 9,
 }
 
 impl From<Error> for ProgramError {

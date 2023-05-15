@@ -13,6 +13,8 @@ pub enum Instruction {
     IsmVerify(IsmVerify),
     /// Gets the type of ISM
     IsmType,
+    /// Initializes the program.
+    Initialize,
     /// Input: domain ID to query.
     GetValidatorsAndThreshold(u32),
     /// Input: domain ID, validators, & threshold to set.
