@@ -14,6 +14,9 @@ import {MerkleLib} from "../../libs/Merkle.sol";
  * @title MultisigIsm
  * @notice Manages per-domain m-of-n Validator sets that are used to verify
  * interchain messages.
+ * @dev See ./AbstractMerkleRootMultisigIsm.sol and ./AbstractMessageIdMultisigIsm.sol
+ * for concrete implementations of `digest` and `signatureAt`.
+ * @dev See ./StaticMultisigIsmFactory.sol for concrete factory implementations.
  */
 abstract contract AbstractMultisigIsm is IMultisigIsm {
     // ============ Virtual Functions ============
