@@ -20,7 +20,7 @@ pub enum ModuleType {
     /// Legacy ISM (validators in calldata, set commitment in storage)
     LegacyMultisig,
     /// Merkle Proof ISM (batching and censorship resistance)
-    MerkleMultisig,
+    MerkleRootMultisig,
     /// Message ID ISM (cheapest multisig with no batching)
     MessageIdMultisig
 }
@@ -30,6 +30,7 @@ pub enum ModuleType {
 #[async_trait]
 #[auto_impl(&, Box, Arc)]
 pub trait InterchainSecurityModule: HyperlaneContract + Send + Sync + Debug {
-    /// Returns the validator and threshold needed to verify message
+    /// Returns the module type of the ISM compliant with the corresponding 
+    /// metadata offchain fetching and onchain formatting standard.
     async fn module_type(&self) -> ChainResult<ModuleType>;
 }

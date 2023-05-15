@@ -86,7 +86,7 @@ impl MultisigIsmMetadataBuilder {
                 MetadataToken::Signatures,
                 MetadataToken::Validators,
             ],
-            ModuleType::MerkleMultisig => vec![
+            ModuleType::MerkleRootMultisig => vec![
                 MetadataToken::CheckpointMailbox,
                 MetadataToken::CheckpointIndex,
                 MetadataToken::MessageId,
@@ -142,7 +142,7 @@ impl MetadataBuilder for MultisigIsmMetadataBuilder {
                 checkpoint = quorum_checkpoint.checkpoint;
                 signatures = quorum_checkpoint.signatures;
             },
-            ModuleType::MerkleMultisig | ModuleType::MessageIdMultisig => {
+            ModuleType::MerkleRootMultisig | ModuleType::MessageIdMultisig => {
                 let Some(quorum_checkpoint) = self.fetch_checkpoint_with_message_id(&validators, threshold.into(), message)
                     .await.context(CTX)?
                 else {

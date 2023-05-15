@@ -77,7 +77,7 @@ impl MetadataBuilder for BaseMetadataBuilder {
 
         let metadata_builder: Box<dyn MetadataBuilder> = match module_type {
             ModuleType::LegacyMultisig
-            | ModuleType::MerkleMultisig
+            | ModuleType::MerkleRootMultisig
             | ModuleType::MessageIdMultisig => {
                 Box::new(MultisigIsmMetadataBuilder::new(base, module_type))
             }
