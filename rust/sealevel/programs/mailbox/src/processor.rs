@@ -21,7 +21,7 @@ use crate::{
     error::Error,
     instruction::{
         InboxProcess, InboxSetDefaultModule, Init, Instruction as MailboxIxn, IsmInstruction,
-        OutboxDispatch, OutboxQuery, MailboxRecipientInstruction, MAX_MESSAGE_BODY_BYTES, VERSION,
+        MailboxRecipientInstruction, OutboxDispatch, OutboxQuery, MAX_MESSAGE_BODY_BYTES, VERSION,
     },
 };
 
