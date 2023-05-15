@@ -1,6 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 
 use hyperlane_sealevel_mailbox::accounts::AccountData;
+use solana_program::pubkey::Pubkey;
 
 use crate::instruction::ValidatorsAndThreshold;
 
@@ -11,3 +12,11 @@ pub struct DomainData {
 }
 
 pub type DomainDataAccount = AccountData<DomainData>;
+
+#[derive(BorshSerialize, BorshDeserialize, Debug, Default, PartialEq)]
+pub struct AuthorityData {
+    pub bump_seed: u8,
+    pub owner_authority: Pubkey,
+}
+
+pub type AuthorityAccount = AccountData<AuthorityData>;

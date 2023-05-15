@@ -1,7 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H160;
 use hyperlane_sealevel_mailbox::instruction::IsmVerify;
-use solana_program::program_error::ProgramError;
+use solana_program::{program_error::ProgramError, pubkey::Pubkey};
 
 use std::collections::HashSet;
 
@@ -17,6 +17,10 @@ pub enum Instruction {
     GetValidatorsAndThreshold(u32),
     /// Input: domain ID, validators, & threshold to set.
     SetValidatorsAndThreshold(Domained<ValidatorsAndThreshold>),
+    /// Gets the authority data, i.e. the owner.
+    GetOwnerAuthority(),
+    /// Sets the owner in the authority data.
+    SetOwnerAuthority(Pubkey),
 }
 
 impl TryFrom<&[u8]> for Instruction {

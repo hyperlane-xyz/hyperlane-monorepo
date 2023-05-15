@@ -14,7 +14,7 @@ use solana_program::{
 };
 
 use crate::{
-    accounts::{DomainData, DomainDataAccount},
+    accounts::{AuthorityAccount, AuthorityData, DomainData, DomainDataAccount},
     error::Error,
     instruction::{Domained, Instruction, ValidatorsAndThreshold},
     metadata::MultisigIsmMessageIdMetadata,
@@ -31,6 +31,22 @@ solana_program::declare_id!("F6dVnLFioQ8hKszqPsmjWPwHn2dJfebgMfztWrzL548V");
 
 #[cfg(not(feature = "no-entrypoint"))]
 entrypoint!(process_instruction);
+
+#[macro_export]
+macro_rules! authority_pda_seeds {
+    () => {{
+        &[b"multisig_ism_message_id", b"-", b"authority"]
+    }};
+
+    ($bump_seed:expr) => {{
+        &[
+            b"multisig_ism_message_id",
+            b"-",
+            b"authority",
+            &[$bump_seed],
+        ]
+    }};
+}
 
 #[macro_export]
 macro_rules! domain_data_pda_seeds {
@@ -81,6 +97,10 @@ pub fn process_instruction(
         }
         Instruction::SetValidatorsAndThreshold(config) => {
             set_validators_and_threshold(program_id, accounts, config)
+        }
+        Instruction::GetOwnerAuthority() => get_owner_authority(program_id, accounts),
+        Instruction::SetOwnerAuthority(new_owner) => {
+            set_owner_authority(program_id, accounts, new_owner)
         }
     }
 }
@@ -175,8 +195,8 @@ fn validators_and_threshold(
 /// Set the validators and threshold for a given domain.
 ///
 /// Accounts:
-/// 0. `[signer]` The owner of this program and payer of the domain PDA.
-/// 1. `[executable]` This program.
+/// 0. `[signer]` The owner authority and payer of the domain PDA.
+/// 1. `[]` The Authority PDA account.
 /// 2. `[writable]` The PDA relating to the provided domain.
 fn set_validators_and_threshold(
     program_id: &Pubkey,
@@ -190,18 +210,16 @@ fn set_validators_and_threshold(
 
     // Account 0: The owner of this program.
     // This is verified as correct further below.
-    let owner_account = next_account_info(accounts_iter)?;
-    if !owner_account.is_signer {
+    let owner_authority_account = next_account_info(accounts_iter)?;
+    if !owner_authority_account.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
     }
 
-    // Account 1: This program.
-    let self_account = next_account_info(accounts_iter)?;
-    if *self_account.key != id() || !self_account.executable {
-        return Err(ProgramError::IncorrectProgramId);
-    }
+    // Account 1: The Authority PDA account.
+    let authority_pda_account = next_account_info(accounts_iter)?;
+    let authority_data = authority_data(program_id, authority_pda_account)?;
     // Ensure the owner account is the owner of this program.
-    if owner_account.key != self_account.owner {
+    if *owner_authority_account.key != authority_data.owner_authority {
         return Err(Error::AccountNotOwner.into());
     }
 
@@ -240,10 +258,8 @@ fn set_validators_and_threshold(
 
             // First find the key and bump seed for the domain PDA, and ensure
             // it matches the provided account.
-            let (domain_pda_key, domain_pda_bump) = Pubkey::find_program_address(
-                domain_data_pda_seeds!(config.domain),
-                program_id,
-            );
+            let (domain_pda_key, domain_pda_bump) =
+                Pubkey::find_program_address(domain_data_pda_seeds!(config.domain), program_id);
             if *domain_pda_account.key != domain_pda_key {
                 return Err(Error::AccountOutOfOrder.into());
             }
@@ -251,17 +267,14 @@ fn set_validators_and_threshold(
             // Create the domain PDA account.
             invoke_signed(
                 &system_instruction::create_account(
-                    owner_account.key,
+                    owner_authority_account.key,
                     domain_pda_account.key,
                     Rent::default().minimum_balance(domain_pda_size),
                     domain_pda_size as u64,
                     program_id,
                 ),
-                &[owner_account.clone(), domain_pda_account.clone()],
-                &[domain_data_pda_seeds!(
-                    config.domain,
-                    domain_pda_bump
-                )],
+                &[owner_authority_account.clone(), domain_pda_account.clone()],
+                &[domain_data_pda_seeds!(config.domain, domain_pda_bump)],
             )?;
 
             domain_pda_bump
@@ -278,15 +291,95 @@ fn set_validators_and_threshold(
     Ok(())
 }
 
+/// Gets the owner authority of this program, and returns it as return data.
+/// Intended to be used by instructions querying the owner authority.
+///
+/// Accounts:
+/// 0. `[]` The Authority PDA account.
+fn get_owner_authority(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: The Authority PDA account.
+    let authority_pda_account = next_account_info(accounts_iter)?;
+
+    let authority_data = authority_data(program_id, authority_pda_account)?;
+
+    set_return_data(
+        &authority_data
+            .owner_authority
+            .try_to_vec()
+            .map_err(|err| ProgramError::BorshIoError(err.to_string()))?,
+    );
+    Ok(())
+}
+
+/// Gets the authority data of this program.
+fn authority_data(
+    program_id: &Pubkey,
+    authority_pda_account: &AccountInfo,
+) -> Result<AuthorityData, ProgramError> {
+    let authority_data =
+        AuthorityAccount::fetch_data(&mut &authority_pda_account.data.borrow_mut()[..])?
+            .ok_or(Error::AccountNotInitialized)?;
+    // Confirm the key of the authority_pda_account is the correct PDA
+    // using the stored bump seed.
+    let authority_pda_key =
+        Pubkey::create_program_address(authority_pda_seeds!(authority_data.bump_seed), program_id)?;
+    // This check validates that the provided authority_pda_account is valid
+    if *authority_pda_account.key != authority_pda_key {
+        return Err(Error::AccountOutOfOrder.into());
+    }
+    // Extra sanity check that the owner of the PDA account is this program
+    if *authority_pda_account.owner != id() {
+        return Err(Error::ProgramIdNotOwner.into());
+    }
+
+    Ok(*authority_data)
+}
+
+/// Sets a new owner authority.
+///
+/// Accounts:
+/// 0. `[signer]` The current owner authority.
+/// 1. `[]` The Authority PDA account.
+fn set_owner_authority(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    new_owner: Pubkey,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: The current owner authority.
+    let owner_authority_account = next_account_info(accounts_iter)?;
+    if !owner_authority_account.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+
+    // Account 1: The Authority PDA account.
+    let authority_pda_account = next_account_info(accounts_iter)?;
+    let authority_data = authority_data(program_id, authority_pda_account)?;
+
+    // Ensure the passed in owner authority is really the current owner authority.
+    if *owner_authority_account.key != authority_data.owner_authority {
+        return Err(Error::AccountNotOwner.into());
+    }
+
+    // Store the new owner authority.
+    AuthorityAccount::from(AuthorityData {
+        bump_seed: authority_data.bump_seed,
+        owner_authority: new_owner,
+    })
+    .store(authority_pda_account, true)?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
 
-    use solana_program::stake_history::Epoch;
     use hyperlane_core::H160;
-
-    use std::borrow::BorrowMut;
-
+    use solana_program::stake_history::Epoch;
 
     #[test]
     fn set_validators_and_threshold_already_initialized() {
@@ -294,10 +387,8 @@ mod test {
 
         let domain = 1234u32;
 
-        let (domain_pda_key, domain_pda_bump_seed) = Pubkey::find_program_address(
-            domain_data_pda_seeds!(domain),
-            &program_id,
-        );
+        let (domain_pda_key, domain_pda_bump_seed) =
+            Pubkey::find_program_address(domain_data_pda_seeds!(domain), &program_id);
 
         let mut domain_account_lamports = 0;
         let mut domain_account_data = vec![0_u8; 2048];
@@ -311,14 +402,14 @@ mod test {
             false,
             Epoch::default(),
         );
-        let init_data = DomainData {
+        let init_domain_data = DomainData {
             bump_seed: domain_pda_bump_seed,
             validators_and_threshold: ValidatorsAndThreshold {
                 validators: vec![H160::random()],
                 threshold: 1,
             },
         };
-        DomainDataAccount::from(init_data)
+        DomainDataAccount::from(init_domain_data)
             .store(&domain_pda_account, false)
             .unwrap();
 
@@ -337,18 +428,28 @@ mod test {
             Epoch::default(),
         );
 
-        let mut program_lamports = 0;
-        let mut program_data = vec![];
-        let program_account = AccountInfo::new(
+        let (authority_pda_key, authority_pda_bump_seed) =
+            Pubkey::find_program_address(authority_pda_seeds!(), &program_id);
+
+        let mut authority_account_lamports = 0;
+        let mut authority_account_data = vec![0u8; 1024];
+        let authority_pda_account = AccountInfo::new(
+            &authority_pda_key,
+            false,
+            true,
+            &mut authority_account_lamports,
+            &mut authority_account_data,
             &program_id,
             false,
-            false,
-            &mut program_lamports,
-            &mut program_data,
-            &owner_key,
-            true,
             Epoch::default(),
         );
+        let init_authority_data = AuthorityData {
+            bump_seed: authority_pda_bump_seed,
+            owner_authority: owner_key,
+        };
+        AuthorityAccount::from(init_authority_data)
+            .store(&authority_pda_account, false)
+            .unwrap();
 
         let config = Domained {
             domain,
@@ -358,15 +459,20 @@ mod test {
             },
         };
 
-        let accounts = vec![owner_account, program_account, domain_pda_account];
+        let accounts = vec![owner_account, authority_pda_account, domain_pda_account];
 
-        set_validators_and_threshold(&program_id, &accounts, config.clone())
-            .unwrap();
+        set_validators_and_threshold(&program_id, &accounts, config.clone()).unwrap();
 
-        let domain_data = DomainDataAccount::fetch_data(&mut &accounts[2].try_borrow_data().unwrap()[..]).unwrap().unwrap();
-        assert_eq!(domain_data, Box::new(DomainData {
-            bump_seed: domain_pda_bump_seed,
-            validators_and_threshold: config.data,
-        }));
+        let domain_data =
+            DomainDataAccount::fetch_data(&mut &accounts[2].try_borrow_data().unwrap()[..])
+                .unwrap()
+                .unwrap();
+        assert_eq!(
+            domain_data,
+            Box::new(DomainData {
+                bump_seed: domain_pda_bump_seed,
+                validators_and_threshold: config.data,
+            })
+        );
     }
 }
