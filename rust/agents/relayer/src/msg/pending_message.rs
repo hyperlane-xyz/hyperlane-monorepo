@@ -299,7 +299,7 @@ impl PendingOperation for PendingMessage {
 
 impl PendingMessage {
     fn on_retry(&mut self) -> PendingOperationResult {
-        self.inc_attmpets();
+        self.inc_attempts();
         PendingOperationResult::Reprepare
     }
 
@@ -331,7 +331,7 @@ impl PendingMessage {
         self.last_attempted_at = Instant::now();
     }
 
-    fn inc_attmpets(&mut self) {
+    fn inc_attempts(&mut self) {
         self.num_retries += 1;
         self.last_attempted_at = Instant::now();
         self.next_attempt_after = PendingMessage::calculate_msg_backoff(self.num_retries)
