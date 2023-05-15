@@ -215,6 +215,10 @@ impl PendingOperation for PendingMessage {
     async fn submit(&mut self) -> PendingOperationResult {
         make_op_try!(|| self.on_reprepare());
 
+        // skip checking `is_ready` here because the definition of ready is it having
+        // been prepared successfully and we don't want to introduce any delay into the
+        // submission process.
+
         let state = self
             .submission_data
             .take()
@@ -257,7 +261,10 @@ impl PendingOperation for PendingMessage {
             PendingOperationResult::NotReady
         });
 
-        debug_assert!(self.submitted, "Confirm called before message was submitted");
+        debug_assert!(
+            self.submitted,
+            "Confirm called before message was submitted"
+        );
 
         if !self.is_ready() {
             return PendingOperationResult::NotReady;
