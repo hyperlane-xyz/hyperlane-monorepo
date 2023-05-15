@@ -21,8 +21,8 @@ use crate::{
     error::Error,
     instruction::{
         InboxProcess, InboxSetDefaultModule, Init, Instruction as MailboxIxn, IsmInstruction,
-        IsmVerify,
-        OutboxDispatch, OutboxQuery, MailboxRecipientInstruction, MAX_MESSAGE_BODY_BYTES, VERSION,
+        IsmVerify, MailboxRecipientInstruction, OutboxDispatch, OutboxQuery,
+        MAX_MESSAGE_BODY_BYTES, VERSION,
     },
 };
 
@@ -32,33 +32,72 @@ entrypoint!(process_instruction);
 #[macro_export]
 macro_rules! mailbox_authority_pda_seeds {
     ($local_domain:expr) => {{
-        &[b"hyperlane", b"-", &$local_domain.to_le_bytes(), b"-", b"authority"]
+        &[
+            b"hyperlane",
+            b"-",
+            &$local_domain.to_le_bytes(),
+            b"-",
+            b"authority",
+        ]
     }};
 
     ($local_domain:expr, $bump_seed:expr) => {{
-        &[b"hyperlane", b"-", &$local_domain.to_le_bytes(), b"-", b"authority", &[$bump_seed]]
+        &[
+            b"hyperlane",
+            b"-",
+            &$local_domain.to_le_bytes(),
+            b"-",
+            b"authority",
+            &[$bump_seed],
+        ]
     }};
 }
 
 #[macro_export]
 macro_rules! mailbox_inbox_pda_seeds {
     ($local_domain:expr) => {{
-        &[b"hyperlane", b"-", &$local_domain.to_le_bytes(), b"-", b"inbox"]
+        &[
+            b"hyperlane",
+            b"-",
+            &$local_domain.to_le_bytes(),
+            b"-",
+            b"inbox",
+        ]
     }};
 
     ($local_domain:expr, $bump_seed:expr) => {{
-        &[b"hyperlane", b"-", &$local_domain.to_le_bytes(), b"-", b"inbox", &[$bump_seed]]
+        &[
+            b"hyperlane",
+            b"-",
+            &$local_domain.to_le_bytes(),
+            b"-",
+            b"inbox",
+            &[$bump_seed],
+        ]
     }};
 }
 
 #[macro_export]
 macro_rules! mailbox_outbox_pda_seeds {
     ($local_domain:expr) => {{
-        &[b"hyperlane", b"-", &$local_domain.to_le_bytes(), b"-", b"outbox"]
+        &[
+            b"hyperlane",
+            b"-",
+            &$local_domain.to_le_bytes(),
+            b"-",
+            b"outbox",
+        ]
     }};
 
     ($local_domain:expr, $bump_seed:expr) => {{
-        &[b"hyperlane", b"-", &$local_domain.to_le_bytes(), b"-", b"outbox", &[$bump_seed]]
+        &[
+            b"hyperlane",
+            b"-",
+            &$local_domain.to_le_bytes(),
+            b"-",
+            b"outbox",
+            &[$bump_seed],
+        ]
     }};
 }
 
@@ -97,10 +136,8 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
     let payer_account = next_account_info(accounts_iter)?;
 
     let auth_account = next_account_info(accounts_iter)?;
-    let (auth_key, auth_bump) = Pubkey::find_program_address(
-        mailbox_authority_pda_seeds!(init.local_domain),
-        program_id,
-    );
+    let (auth_key, auth_bump) =
+        Pubkey::find_program_address(mailbox_authority_pda_seeds!(init.local_domain), program_id);
     if &auth_key != auth_account.key {
         return Err(ProgramError::InvalidArgument);
     }
@@ -112,18 +149,13 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
             0,
             program_id,
         ),
-        &[
-            payer_account.clone(),
-            auth_account.clone(),
-        ],
+        &[payer_account.clone(), auth_account.clone()],
         &[mailbox_authority_pda_seeds!(init.local_domain, auth_bump)],
     )?;
 
     let inbox_account = next_account_info(accounts_iter)?;
-    let (inbox_key, inbox_bump) = Pubkey::find_program_address(
-        mailbox_inbox_pda_seeds!(init.local_domain),
-        program_id,
-    );
+    let (inbox_key, inbox_bump) =
+        Pubkey::find_program_address(mailbox_inbox_pda_seeds!(init.local_domain), program_id);
     if &inbox_key != inbox_account.key {
         return Err(ProgramError::InvalidArgument);
     }
@@ -135,18 +167,13 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
             mailbox_size,
             program_id,
         ),
-        &[
-            payer_account.clone(),
-            inbox_account.clone(),
-        ],
+        &[payer_account.clone(), inbox_account.clone()],
         &[mailbox_inbox_pda_seeds!(init.local_domain, inbox_bump)],
     )?;
 
     let outbox_account = next_account_info(accounts_iter)?;
-    let (outbox_key, outbox_bump) = Pubkey::find_program_address(
-        mailbox_outbox_pda_seeds!(init.local_domain),
-        program_id,
-    );
+    let (outbox_key, outbox_bump) =
+        Pubkey::find_program_address(mailbox_outbox_pda_seeds!(init.local_domain), program_id);
     if &outbox_key != outbox_account.key {
         return Err(ProgramError::InvalidArgument);
     }
@@ -158,10 +185,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
             mailbox_size,
             program_id,
         ),
-        &[
-            payer_account.clone(),
-            outbox_account.clone(),
-        ],
+        &[payer_account.clone(), outbox_account.clone()],
         &[mailbox_outbox_pda_seeds!(init.local_domain, outbox_bump)],
     )?;
 
@@ -280,10 +304,8 @@ fn inbox_process(
         });
     }
 
-    let auth_seeds: &[&[u8]] = mailbox_authority_pda_seeds!(
-        inbox.local_domain,
-        inbox.auth_bump_seed
-    );
+    let auth_seeds: &[&[u8]] =
+        mailbox_authority_pda_seeds!(inbox.local_domain, inbox.auth_bump_seed);
 
     let ism_ixn = IsmInstruction::Verify(IsmVerify {
         metadata: process.metadata,
@@ -300,7 +322,7 @@ fn inbox_process(
     let recieve = Instruction::new_with_bytes(
         message.recipient.0.into(),
         &recp_ixn.into_instruction_data()?,
-        recp_account_metas
+        recp_account_metas,
     );
     invoke_signed(&recieve, &recp_accounts, &[auth_seeds])?;
 
@@ -417,10 +439,8 @@ fn outbox_dispatch(
         accounts: vec![],
         data: formatted,
     };
-    let auth_seeds: &[&[u8]] = mailbox_authority_pda_seeds!(
-        outbox.local_domain,
-        outbox.auth_bump_seed
-    );
+    let auth_seeds: &[&[u8]] =
+        mailbox_authority_pda_seeds!(outbox.local_domain, outbox.auth_bump_seed);
     msg!("data = {}", bs58::encode(&noop_cpi_log.data).into_string()); // FIXME remove
     invoke_signed(&noop_cpi_log, &[], &[auth_seeds])?;
 
@@ -534,6 +554,8 @@ fn outbox_get_root(
 #[cfg(test)]
 mod test {
     use super::*;
+
+    use std::str::FromStr;
 
     use hyperlane_core::{accumulator::incremental::IncrementalMerkle as MerkleTree, Encode};
     use itertools::Itertools as _;
@@ -764,18 +786,57 @@ mod test {
             .store(&outbox_account, false)
             .unwrap();
 
-        let message = OutboxDispatch {
-            sender: Pubkey::new_from_array([6; 32]),
-            local_domain: u32::MAX,
-            destination_domain: u32::MAX,
+        let sender = Pubkey::new_from_array([6; 32]);
+        let hyperlane_message = HyperlaneMessage {
+            version: VERSION,
+            nonce: 0,
+            origin: u32::MAX,
+            sender: H256(sender.to_bytes()),
+            destination: u32::MAX,
             recipient: H256([9; 32]),
-            message_body: "Hello, World!".bytes().collect(),
+            body: "Hello, World!".bytes().collect(),
         };
-        let instruction_data = MailboxIxn::OutboxDispatch(message)
+        let dispatch = OutboxDispatch {
+            sender: sender.clone(),
+            local_domain: hyperlane_message.origin,
+            destination_domain: hyperlane_message.destination,
+            recipient: hyperlane_message.recipient,
+            message_body: hyperlane_message.body.clone(),
+        };
+        let instruction_data = MailboxIxn::OutboxDispatch(dispatch)
             .into_instruction_data()
             .unwrap();
 
-        let accounts = vec![outbox_account];
+        let system_program_id = solana_program::system_program::id();
+
+        let mut sender_account_lamports = 0;
+        let mut sender_account_data = vec![];
+        let sender_account = AccountInfo::new(
+            &sender,
+            true,
+            false,
+            &mut sender_account_lamports,
+            &mut sender_account_data,
+            &system_program_id,
+            false,
+            Epoch::default(),
+        );
+
+        let mut spl_noop_lamports = 0;
+        let mut spl_noop_data = vec![];
+        let spl_noop_id = spl_noop::id();
+        let spl_noop_account = AccountInfo::new(
+            &spl_noop_id,
+            false,
+            false,
+            &mut spl_noop_lamports,
+            &mut spl_noop_data,
+            &system_program_id,
+            true,
+            Epoch::default(),
+        );
+
+        let accounts = vec![outbox_account, sender_account, spl_noop_account];
         let outbox = OutboxAccount::fetch(&mut &accounts[0].data.borrow_mut()[..])
             .unwrap()
             .into_inner();
@@ -783,12 +844,21 @@ mod test {
         assert_eq!(outbox.tree.root(), MerkleTree::default().root());
 
         process_instruction(&mailbox_program_id, &accounts, &instruction_data).unwrap();
+
+        let mut formatted = vec![];
+        hyperlane_message.write_to(&mut formatted).unwrap();
+
         testing_logger::validate(|logs| {
-            assert_eq!(logs.len(), 1);
+            assert_eq!(logs.len(), 2);
             assert_eq!(logs[0].level, log::Level::Info);
             assert_eq!(
                 logs[0].body,
-                "Hyperlane outbox: KBTLbtJtuLbxrn6hwiZ2SfQbdTYBxs8uAaHzTudgjtMZV4f9cHyEjvbPV3sXn9ftPHZJCzNy9pJZ9SLJmarEgq1wZV9Dsm4PcDyqGCCdryDCvKQTDKhyUfgtRn"
+                format!("data = {}", bs58::encode(&formatted).into_string()),
+            );
+            assert_eq!(logs[1].level, log::Level::Info);
+            assert_eq!(
+                logs[1].body,
+                "SyscallStubs: sol_invoke_signed() not available"
             );
         });
         let outbox = OutboxAccount::fetch(&mut &accounts[0].data.borrow_mut()[..])
@@ -797,7 +867,8 @@ mod test {
         assert_eq!(outbox.tree.count(), 1);
         assert_eq!(
             outbox.tree.root(),
-            H256::from_str("0x6589cdd914158e71aa9beb14d1a42298918f2b3321f9f3bcd7aef06ede255145")
+            // TODO confirm this is accurate
+            H256::from_str("0xeb8a682022a127228200c65404f0be85f8d5827712f112d7b92928cdbdbcc073")
                 .unwrap()
         );
     }

@@ -4,11 +4,7 @@ use std::{collections::HashSet, str::FromStr as _};
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{accumulator::incremental::IncrementalMerkle as MerkleTree, H256};
-use solana_program::{
-    account_info::AccountInfo,
-    program_error::ProgramError,
-    pubkey::Pubkey,
-};
+use solana_program::{account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey};
 
 use crate::{error::Error, DEFAULT_ISM, DEFAULT_ISM_ACCOUNTS};
 
@@ -31,7 +27,9 @@ pub struct AccountData<T> {
 
 impl<T> From<T> for AccountData<T> {
     fn from(data: T) -> Self {
-        Self { data: Box::new(data) }
+        Self {
+            data: Box::new(data),
+        }
     }
 }
 
@@ -62,7 +60,9 @@ where
     }
 
     pub fn fetch(buf: &mut &[u8]) -> Result<Self, ProgramError> {
-        Ok(Self::from(Self::fetch_data(buf)?.unwrap_or_else(|| Box::<T>::default())))
+        Ok(Self::from(
+            Self::fetch_data(buf)?.unwrap_or_else(|| Box::<T>::default()),
+        ))
     }
 
     // Optimisically write then realloc on failure.
@@ -81,7 +81,17 @@ where
             let mut guard = account.try_borrow_mut_data()?;
             let data = &mut *guard;
             let data_len = data.len();
-            match true.serialize(data).and_then(|_| self.data.serialize(data)) {
+
+            // Create a new slice so that this new slice
+            // is updated to point to the unwritten data during serialization.
+            // Otherwise, if the account `data` is used directly, `data` will be
+            // the account data itself will be updated to point to unwritten data!
+            let mut writable_data: &mut [u8] = &mut data[..];
+
+            match true
+                .serialize(&mut writable_data)
+                .and_then(|_| self.data.serialize(&mut writable_data))
+            {
                 Ok(_) => break,
                 Err(err) => match err.kind() {
                     std::io::ErrorKind::WriteZero => {
