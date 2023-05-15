@@ -92,10 +92,21 @@ impl ValidatorSubmitter {
                 self.checkpoint_syncer
                     .write_checkpoint_with_message_id(&signed_checkpoint)
                     .await?;
+
+                self.metrics
+                    .latest_checkpoint_processed
+                    .set(signed_checkpoint.value.index as i64);
             }
 
+            // validate local tree against latest checkpoint
             if tree.count() > 0 {
+                // do not lag view call for latest checkpoint available to validate against
                 let latest_checkpoint = self.mailbox.latest_checkpoint(None).await?;
+
+                self.metrics
+                    .latest_checkpoint_observed
+                    .set(latest_checkpoint.index as i64);
+
                 if latest_checkpoint.index == tree.index() {
                     debug!(count = tree.count(), "Tree up to date");
                     assert_eq!(
@@ -129,7 +140,7 @@ impl ValidatorSubmitter {
 
         if let Some(current_index) = current_index {
             self.metrics
-                .latest_checkpoint_processed
+                .latest_legacy_checkpoint_processed
                 .set(current_index as i64);
         }
 
@@ -156,7 +167,7 @@ impl ValidatorSubmitter {
             let latest_checkpoint = self.mailbox.latest_checkpoint(self.reorg_period).await?;
 
             self.metrics
-                .latest_checkpoint_observed
+                .latest_legacy_checkpoint_observed
                 .set(latest_checkpoint.index as i64);
 
             // Occasional info to make it clear to a validator operator whether things are
@@ -192,7 +203,7 @@ impl ValidatorSubmitter {
                     .write_checkpoint(&signed_checkpoint)
                     .await?;
                 self.metrics
-                    .latest_checkpoint_processed
+                    .latest_legacy_checkpoint_processed
                     .set(signed_checkpoint.value.index as i64);
             }
 
@@ -205,12 +216,20 @@ impl ValidatorSubmitter {
 pub(crate) struct ValidatorSubmitterMetrics {
     latest_checkpoint_observed: IntGauge,
     latest_checkpoint_processed: IntGauge,
+    latest_legacy_checkpoint_observed: IntGauge,
+    latest_legacy_checkpoint_processed: IntGauge,
 }
 
 impl ValidatorSubmitterMetrics {
     pub fn new(metrics: &CoreMetrics, mailbox_chain: &HyperlaneDomain) -> Self {
         let chain_name = mailbox_chain.name();
         Self {
+            latest_legacy_checkpoint_observed: metrics
+                .latest_checkpoint()
+                .with_label_values(&["legacy_validator_observed", chain_name]),
+            latest_legacy_checkpoint_processed: metrics
+                .latest_checkpoint()
+                .with_label_values(&["legacy_validator_processed", chain_name]),
             latest_checkpoint_observed: metrics
                 .latest_checkpoint()
                 .with_label_values(&["validator_observed", chain_name]),
