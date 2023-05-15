@@ -4,22 +4,21 @@ pragma solidity >=0.8.0;
 import "forge-std/console.sol";
 
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
-import {IOptimismMessageHook} from "../../interfaces/hooks/IOptimismMessageHook.sol";
+import {IArbitrumMessageHook} from "../../interfaces/hooks/IArbitrumMessageHook.sol";
 import {Message} from "../../libs/Message.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 
-import {ICrossDomainMessenger} from "@eth-optimism/contracts/libraries/bridge/ICrossDomainMessenger.sol";
+import {AddressAliasHelper} from "@arbitrum/nitro-contracts/src/libraries/AddressAliasHelper.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract OptimismISM is IInterchainSecurityModule, Ownable {
+contract ArbitrumISM is IInterchainSecurityModule, Ownable {
     mapping(bytes32 => mapping(address => bool)) public receivedEmitters;
 
-    ICrossDomainMessenger public immutable l2Messenger;
-    IOptimismMessageHook public l1Hook;
+    IArbitrumMessageHook public l1Hook;
 
     // solhint-disable-next-line const-name-snakecase
     uint8 public constant moduleType =
-        uint8(IInterchainSecurityModule.Types.OPTIMISM);
+        uint8(IInterchainSecurityModule.Types.ARBITRUM);
 
     event ReceivedMessage(bytes32 indexed messageId, address indexed emitter);
 
@@ -27,26 +26,17 @@ contract OptimismISM is IInterchainSecurityModule, Ownable {
      * @notice Check if sender is authorized to message `receiveFromHook`.
      */
     modifier isAuthorized() {
-        ICrossDomainMessenger _l2Messenger = l2Messenger;
-
         require(
-            msg.sender == address(_l2Messenger),
-            "OptimismISM: caller is not the messenger"
-        );
-
-        require(
-            _l2Messenger.xDomainMessageSender() == address(l1Hook),
-            "OptimismISM: caller is not the owner"
+            msg.sender == AddressAliasHelper.applyL1ToL2Alias(address(l1Hook)),
+            "ArbitrumISM: caller is not the owner"
         );
 
         _;
     }
 
-    constructor(ICrossDomainMessenger _l2Messenger) {
-        l2Messenger = _l2Messenger;
-    }
+    constructor() {}
 
-    function setOptimismHook(IOptimismMessageHook _hook) external onlyOwner {
+    function setArbitrumHook(IArbitrumMessageHook _hook) external onlyOwner {
         l1Hook = _hook;
     }
 
@@ -54,7 +44,7 @@ contract OptimismISM is IInterchainSecurityModule, Ownable {
         external
         isAuthorized
     {
-        require(_emitter != address(0), "OptimismISM: invalid emitter");
+        require(_emitter != address(0), "ArbitrumISM: invalid emitter");
 
         receivedEmitters[_messageId][_emitter] = true;
 

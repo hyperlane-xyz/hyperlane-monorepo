@@ -20,7 +20,7 @@ import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {Mailbox} from "../../contracts/Mailbox.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {TestMultisigIsm} from "../../contracts/test/TestMultisigIsm.sol";
-import {OptimismIsm} from "../../contracts/isms/native/OptimismIsm.sol";
+import {OptimismISM} from "../../contracts/isms/native/OptimismISM.sol";
 import {OptimismMessageHook} from "../../contracts/hooks/OptimismMessageHook.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
 
@@ -33,7 +33,7 @@ import {Predeploys} from "@eth-optimism/contracts-bedrock/contracts/libraries/Pr
 
 import {Bytes32AddressLib} from "solmate/src/utils/Bytes32AddressLib.sol";
 
-contract OptimismIsmTest is Test {
+contract OptimismISMTest is Test {
     uint256 public mainnetFork;
     uint256 public optimismFork;
 
@@ -53,7 +53,7 @@ contract OptimismIsmTest is Test {
     address public alice = address(0x1);
 
     ICrossDomainMessenger public opNativeMessenger;
-    OptimismIsm public opISM;
+    OptimismISM public opISM;
     OptimismMessageHook public opHook;
 
     TestRecipient public testRecipient;
@@ -119,7 +119,7 @@ contract OptimismIsmTest is Test {
     function deployOptimsimIsm() public {
         vm.selectFork(optimismFork);
 
-        opISM = new OptimismIsm(
+        opISM = new OptimismISM(
             L2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER)
         );
 
@@ -153,7 +153,7 @@ contract OptimismIsmTest is Test {
         bytes32 messageId = keccak256(encodedMessage);
 
         bytes memory encodedHookData = abi.encodeCall(
-            OptimismIsm.receiveFromHook,
+            OptimismISM.receiveFromHook,
             (messageId, address(this))
         );
 
@@ -214,7 +214,7 @@ contract OptimismIsmTest is Test {
 
         vm.makePersistent(address(ethMailbox));
 
-        vm.expectRevert("OptimismHook: OptimismIsm not set");
+        vm.expectRevert("OptimismHook: OptimismISM not set");
 
         opHook.postDispatch(OPTIMISM_DOMAIN, bytes32(0));
     }
@@ -236,7 +236,7 @@ contract OptimismIsmTest is Test {
         );
 
         bytes memory encodedHookData = abi.encodeCall(
-            OptimismIsm.receiveFromHook,
+            OptimismISM.receiveFromHook,
             (_messageId, address(this))
         );
         uint256 nextNonce = l2Bridge.messageNonce() + 1;
@@ -289,7 +289,7 @@ contract OptimismIsmTest is Test {
         bytes32 _messageId = keccak256(encodedMessage);
 
         // needs to be called by the cannonical messenger on Optimism
-        vm.expectRevert("OptimismIsm: caller is not the messenger");
+        vm.expectRevert("OptimismISM: caller is not the messenger");
         opISM.receiveFromHook(_messageId, address(opHook));
 
         L2CrossDomainMessenger l2Bridge = L2CrossDomainMessenger(
@@ -304,7 +304,7 @@ contract OptimismIsmTest is Test {
         vm.startPrank(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
 
         // needs to be called by the authorized hook contract on Ethereum
-        vm.expectRevert("OptimismIsm: caller is not the owner");
+        vm.expectRevert("OptimismISM: caller is not the owner");
         opISM.receiveFromHook(_messageId, address(opHook));
     }
 
@@ -326,7 +326,7 @@ contract OptimismIsmTest is Test {
         bytes32 _messageId = keccak256(encodedMessage);
 
         bytes memory encodedHookData = abi.encodeCall(
-            OptimismIsm.receiveFromHook,
+            OptimismISM.receiveFromHook,
             (_messageId, address(this))
         );
         uint256 nextNonce = l2Bridge.messageNonce() + 1;
@@ -362,7 +362,7 @@ contract OptimismIsmTest is Test {
         bytes32 _messageId = keccak256(encodedMessage);
 
         bytes memory encodedHookData = abi.encodeCall(
-            OptimismIsm.receiveFromHook,
+            OptimismISM.receiveFromHook,
             (_messageId, address(this))
         );
         uint256 nextNonce = l2Bridge.messageNonce() + 1;
@@ -397,7 +397,7 @@ contract OptimismIsmTest is Test {
         bytes32 _messageId = Message.id(invalidMessage);
 
         bytes memory encodedHookData = abi.encodeCall(
-            OptimismIsm.receiveFromHook,
+            OptimismISM.receiveFromHook,
             (_messageId, address(this))
         );
         uint256 nextNonce = l2Bridge.messageNonce() + 1;
@@ -430,7 +430,7 @@ contract OptimismIsmTest is Test {
         bytes32 _messageId = Message.id(encodedMessage);
 
         bytes memory encodedHookData = abi.encodeCall(
-            OptimismIsm.receiveFromHook,
+            OptimismISM.receiveFromHook,
             (_messageId, alice)
         );
         uint256 nextNonce = l2Bridge.messageNonce() + 1;
