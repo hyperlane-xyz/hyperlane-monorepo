@@ -375,20 +375,11 @@ where
             let mut location = [0u8; 32];
             slot.to_big_endian(&mut location);
 
-            let result = self
+            branch[index] = self
                 .provider
                 .get_storage_at(self.contract.address(), location.into(), Some(block_number))
                 .await
-                .map_err(ChainCommunicationError::from_other);
-
-            match result {
-                Ok(value) => {
-                    branch[index] = value;
-                }
-                Err(e) => {
-                    return Err(e);
-                }
-            }
+                .map_err(ChainCommunicationError::from_other)?;
         }
 
         let count: usize = self
