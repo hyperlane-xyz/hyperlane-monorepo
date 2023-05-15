@@ -223,7 +223,7 @@ impl PendingOperation for PendingMessage {
 
         let state = self
             .submission_data
-            .as_ref()
+            .take()
             .expect("Pending message must be prepared before it can be submitted");
 
         // We use the estimated gas limit from the prior call to
