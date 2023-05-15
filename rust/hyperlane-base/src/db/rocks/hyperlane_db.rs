@@ -2,13 +2,13 @@ use std::future::Future;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use eyre::{eyre, Result};
 use tokio::time::sleep;
 use tracing::{debug, info, trace};
-use eyre::{eyre, Result};
 
 use hyperlane_core::{
-    HyperlaneDomain, HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment,
-    InterchainGasPaymentMeta, LogMeta, H256, U256, HyperlaneDB,
+    HyperlaneDB, HyperlaneDomain, HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment,
+    InterchainGasPaymentMeta, LogMeta, H256, U256,
 };
 
 use super::{
@@ -175,7 +175,10 @@ impl HyperlaneRocksDB {
 
     /// Get whether a gas payment, identified by its metadata, has been
     /// processed already
-    fn retrieve_gas_payment_meta_processed(&self, meta: &InterchainGasPaymentMeta) -> DbResult<bool> {
+    fn retrieve_gas_payment_meta_processed(
+        &self,
+        meta: &InterchainGasPaymentMeta,
+    ) -> DbResult<bool> {
         Ok(self
             .retrieve_keyed_decodable(GAS_PAYMENT_META_PROCESSED, meta)?
             .unwrap_or(false))
@@ -197,7 +200,10 @@ impl HyperlaneRocksDB {
     }
 
     /// Update the total gas spent for a message
-    fn update_gas_expenditure_for_message_id(&self, event: InterchainGasExpenditure) -> DbResult<()> {
+    fn update_gas_expenditure_for_message_id(
+        &self,
+        event: InterchainGasExpenditure,
+    ) -> DbResult<()> {
         let existing_payment = self.retrieve_gas_expenditure_for_message_id(event.message_id)?;
         let total = existing_payment + event;
 
@@ -262,10 +268,7 @@ impl HyperlaneDB for HyperlaneRocksDB {
     }
 
     /// Store a list of delivered messages and their associated metadata.
-    async fn store_delivered_messages(
-        &self,
-        deliveries: &[(H256, LogMeta)],
-    ) -> Result<u32> {
+    async fn store_delivered_messages(&self, deliveries: &[(H256, LogMeta)]) -> Result<u32> {
         todo!();
     }
 
@@ -277,16 +280,15 @@ impl HyperlaneDB for HyperlaneRocksDB {
         let mut new = 0;
         for (payment, meta) in payments {
             if self.process_gas_payment(*payment, meta)? {
-                new += 1 ;
+                new += 1;
             }
         }
         Ok(new)
     }
 
     /// Retrieve dispatched block number by message nonce
-    async fn retrieve_dispatched_block_number(&self,nonce:u32) -> Result<Option<u64>> {
-        let number= self.retrieve_keyed_decodable(MESSAGE_DISPATCHED_BLOCK_NUMBER, &nonce)?;
+    async fn retrieve_dispatched_block_number(&self, nonce: u32) -> Result<Option<u64>> {
+        let number = self.retrieve_keyed_decodable(MESSAGE_DISPATCHED_BLOCK_NUMBER, &nonce)?;
         Ok(number)
     }
-
 }

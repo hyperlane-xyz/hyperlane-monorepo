@@ -19,7 +19,7 @@ use crate::{
 
 #[derive(Debug, new)]
 pub(crate) struct MessageProcessor {
-    db: HyperlaneRocksDB,
+    db: Arc<HyperlaneRocksDB>,
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,
     metrics: MessageProcessorMetrics,

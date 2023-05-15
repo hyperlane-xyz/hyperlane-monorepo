@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use eyre::Result;
@@ -40,13 +41,13 @@ pub struct GasPaymentEnforcer {
     /// policy or another. If a message matches multiple policies'
     /// whitelists, then whichever is first in the list will be used.
     policies: Vec<(Box<dyn GasPaymentPolicy>, MatchingList)>,
-    db: HyperlaneRocksDB,
+    db: Arc<HyperlaneRocksDB>,
 }
 
 impl GasPaymentEnforcer {
     pub fn new(
         policy_configs: impl IntoIterator<Item = GasPaymentEnforcementConf>,
-        db: HyperlaneRocksDB,
+        db: Arc<HyperlaneRocksDB>,
     ) -> Self {
         let policies = policy_configs
             .into_iter()

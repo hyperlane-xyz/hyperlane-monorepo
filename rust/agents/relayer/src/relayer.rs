@@ -4,6 +4,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_base::db::HyperlaneRocksDB;
+use hyperlane_base::SyncType;
 use tokio::sync::{
     mpsc::{self, UnboundedReceiver, UnboundedSender},
     RwLock,
@@ -15,7 +16,10 @@ use hyperlane_base::{
     db::DB, run_all, BaseAgent, CachingInterchainGasPaymaster, CachingMailbox, ContractSyncMetrics,
     CoreMetrics, HyperlaneAgentCore,
 };
-use hyperlane_core::{ChainResult, HyperlaneChain, HyperlaneDomain, ValidatorAnnounce, U256};
+use hyperlane_core::{
+    ChainResult, HyperlaneChain, HyperlaneDomain, InterchainGasPaymaster, Mailbox,
+    ValidatorAnnounce, U256,
+};
 
 use crate::{
     merkle_tree_builder::MerkleTreeBuilder,
@@ -34,16 +38,17 @@ use crate::{
 pub struct Relayer {
     origin_chain: HyperlaneDomain,
     core: HyperlaneAgentCore,
-    mailboxes: HashMap<HyperlaneDomain, CachingMailbox>,
-    validator_announce: Arc<dyn ValidatorAnnounce>,
-    interchain_gas_paymasters: HashMap<HyperlaneDomain, CachingInterchainGasPaymaster>,
+    origin_mailbox: CachingMailbox,
+    origin_interchain_gas_paymaster: CachingInterchainGasPaymaster,
+    origin_validator_announce: Arc<dyn ValidatorAnnounce>,
+    destination_mailboxes: HashMap<HyperlaneDomain, Arc<dyn Mailbox>>,
     gas_payment_enforcer: Arc<GasPaymentEnforcer>,
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,
     transaction_gas_limit: Option<U256>,
     skip_transaction_gas_limit_for: HashSet<u32>,
     allow_local_checkpoint_syncers: bool,
-    origin_db: HyperlaneRocksDB,
+    origin_db: Arc<HyperlaneRocksDB>,
 }
 
 impl AsRef<HyperlaneAgentCore> for Relayer {
@@ -65,7 +70,7 @@ impl BaseAgent for Relayer {
     {
         let core = settings.build_hyperlane_core(metrics.clone());
         let db = DB::from_path(&settings.db)?;
-        let origin_db = HyperlaneRocksDB::new(&settings.origin_chain, db.clone());
+        let origin_db = Arc::new(HyperlaneRocksDB::new(&settings.origin_chain, db.clone()));
 
         // Use defined remote chains + the origin chain
         let domains = settings
@@ -73,16 +78,26 @@ impl BaseAgent for Relayer {
             .iter()
             .chain([&settings.origin_chain])
             .collect::<Vec<_>>();
+        let destinations = domains
+            .into_iter()
+            .filter(|c| **c != settings.origin_chain)
+            .collect::<Vec<&HyperlaneDomain>>();
 
-        let mailboxes = settings
-            .build_all_mailboxes(&domains, &metrics, db.clone())
+        // TODO: Really each of these should take a different DB...
+        let origin_mailbox = settings
+            .build_caching_mailbox(&settings.origin_chain, &metrics, origin_db.clone())
             .await?;
-        let interchain_gas_paymasters = settings
-            .build_all_interchain_gas_paymasters(&domains, &metrics, db)
+        let origin_interchain_gas_paymaster = settings
+            .build_caching_interchain_gas_paymaster(
+                &settings.origin_chain,
+                &metrics,
+                origin_db.clone(),
+            )
             .await?;
-        let validator_announce = settings
-            .build_validator_announce(&settings.origin_chain, &core.metrics.clone())
+        let origin_validator_announce = settings
+            .build_validator_announce(&settings.origin_chain, &metrics)
             .await?;
+        let destination_mailboxes = settings.build_mailboxes(&destinations, &metrics).await?;
 
         let whitelist = Arc::new(settings.whitelist);
         let blacklist = Arc::new(settings.blacklist);
@@ -106,9 +121,10 @@ impl BaseAgent for Relayer {
         Ok(Self {
             origin_chain: settings.origin_chain,
             core,
-            mailboxes,
-            validator_announce,
-            interchain_gas_paymasters,
+            origin_mailbox,
+            origin_interchain_gas_paymaster,
+            origin_validator_announce,
+            destination_mailboxes,
             gas_payment_enforcer,
             whitelist,
             blacklist,
@@ -121,26 +137,41 @@ impl BaseAgent for Relayer {
 
     #[allow(clippy::async_yields_async)]
     async fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
-        let num_mailboxes = self.mailboxes.len();
-
-        let mut tasks = Vec::with_capacity(num_mailboxes + 2);
-
-        let prover_sync = Arc::new(RwLock::new(MerkleTreeBuilder::new(
-            self.origin_db.clone(),
-        )));
-        let mut send_channels: HashMap<u32, UnboundedSender<PendingMessage>> = HashMap::new();
+        let sync_metrics = ContractSyncMetrics::new(self.core.metrics.clone());
+        let mailbox_sync_tasks = self
+            .run_origin_mailbox_sync(sync_metrics.clone())
+            .await
+            .unwrap();
+        let igp_sync_tasks = self
+            .run_interchain_gas_paymaster_sync(sync_metrics)
+            .await
+            .unwrap();
+        // One task for the message processor
+        // One task for each destination chain mailbox
+        // One or two tasks to sync the origin chain mailbox
+        // One or two tasks to sync the origin chain IGP
         let destinations = self
-            .mailboxes
+            .destination_mailboxes
             .keys()
-            .filter(|c| **c != self.origin_chain)
             .collect::<Vec<&HyperlaneDomain>>();
+        let num_tasks = destinations.len() + mailbox_sync_tasks.len() + igp_sync_tasks.len() + 1;
+        let mut tasks = Vec::with_capacity(num_tasks);
+        for task in mailbox_sync_tasks {
+            tasks.push(task);
+        }
+        for task in igp_sync_tasks {
+            tasks.push(task);
+        }
+
+        let prover_sync = Arc::new(RwLock::new(MerkleTreeBuilder::new(self.origin_db.clone())));
+        let mut send_channels: HashMap<u32, UnboundedSender<PendingMessage>> = HashMap::new();
 
         for chain in &destinations {
             let (send_channel, receive_channel): (
                 UnboundedSender<PendingMessage>,
                 UnboundedReceiver<PendingMessage>,
             ) = mpsc::unbounded_channel();
-            let mailbox: &CachingMailbox = self.mailboxes.get(chain).unwrap();
+            let mailbox = self.destination_mailboxes.get(chain).unwrap();
             send_channels.insert(mailbox.domain().id(), send_channel);
 
             let chain_setup = self
@@ -153,7 +184,7 @@ impl BaseAgent for Relayer {
             let metadata_builder = BaseMetadataBuilder::new(
                 chain_setup,
                 prover_sync.clone(),
-                self.validator_announce.clone(),
+                self.origin_validator_announce.clone(),
                 self.allow_local_checkpoint_syncers,
                 self.core.metrics.clone(),
                 0,
@@ -165,15 +196,6 @@ impl BaseAgent for Relayer {
                 self.gas_payment_enforcer.clone(),
                 receive_channel,
             ));
-        }
-
-        let sync_metrics = ContractSyncMetrics::new(self.core.metrics.clone());
-        let sync_tasks = self
-            .run_origin_mailbox_sync(sync_metrics.clone())
-            .await
-            .unwrap();
-        for task in sync_tasks {
-            tasks.push(task);
         }
 
         let metrics =
@@ -188,8 +210,6 @@ impl BaseAgent for Relayer {
         );
         tasks.push(self.run_message_processor(message_processor));
 
-        tasks.push(self.run_interchain_gas_paymaster_sync(sync_metrics));
-
         run_all(tasks)
     }
 }
@@ -198,29 +218,28 @@ impl Relayer {
     async fn run_origin_mailbox_sync(
         &self,
         sync_metrics: ContractSyncMetrics,
-    ) -> ChainResult<Vec<Instrumented<JoinHandle<eyre::Result<()>>>>> {
-        let mailbox = self.mailboxes.get(&self.origin_chain).unwrap();
+    ) -> eyre::Result<Vec<Instrumented<JoinHandle<eyre::Result<()>>>>> {
         let index_settings = self.as_ref().settings.chains[self.origin_chain.name()]
             .index
             .clone();
-        mailbox.sync(index_settings, sync_metrics).await
+        self.origin_mailbox
+            .sync_dispatched_messages(index_settings, SyncType::MiddleOut, sync_metrics)
+            .await
     }
 
-    fn run_interchain_gas_paymaster_sync(
+    async fn run_interchain_gas_paymaster_sync(
         &self,
         sync_metrics: ContractSyncMetrics,
-    ) -> Instrumented<JoinHandle<Result<()>>> {
-        let paymaster = self
-            .interchain_gas_paymasters
-            .get(&self.origin_chain)
-            .unwrap();
-        let sync = paymaster.sync(
-            self.as_ref().settings.chains[self.origin_chain.name()]
-                .index
-                .clone(),
-            sync_metrics,
-        );
-        sync
+    ) -> eyre::Result<Vec<Instrumented<JoinHandle<eyre::Result<()>>>>> {
+        self.origin_interchain_gas_paymaster
+            .sync_gas_payments(
+                self.as_ref().settings.chains[self.origin_chain.name()]
+                    .index
+                    .clone(),
+                SyncType::Forward,
+                sync_metrics,
+            )
+            .await
     }
 
     fn run_message_processor(
@@ -240,7 +259,7 @@ impl Relayer {
     #[tracing::instrument(fields(destination=%destination_mailbox.domain()))]
     fn run_destination_mailbox(
         &self,
-        destination_mailbox: CachingMailbox,
+        destination_mailbox: Arc<dyn Mailbox>,
         metadata_builder: BaseMetadataBuilder,
         gas_payment_enforcer: Arc<GasPaymentEnforcer>,
         msg_receive: UnboundedReceiver<PendingMessage>,

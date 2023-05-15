@@ -6,11 +6,11 @@ use eyre::{eyre, Context};
 use serde::Deserialize;
 
 use hyperlane_core::{
-    config::*, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, InterchainGasPaymaster,
-    InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm, ValidatorAnnounce, H256,
+    config::*, HyperlaneChain, HyperlaneDB, HyperlaneDomain, HyperlaneProvider,
+    InterchainGasPaymaster, InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm,
+    ValidatorAnnounce, H256,
 };
 
-use crate::db::{HyperlaneRocksDB, DB};
 use crate::{
     settings::{
         chains::{ChainConf, RawChainConf},
@@ -125,45 +125,39 @@ impl Settings {
     }
 
     /// Try to get a map of chain name -> mailbox contract
-    pub async fn build_all_mailboxes(
+    pub async fn build_mailboxes(
         &self,
         domains: &[&HyperlaneDomain],
         metrics: &CoreMetrics,
-        db: DB,
-    ) -> eyre::Result<HashMap<HyperlaneDomain, CachingMailbox>> {
+    ) -> eyre::Result<HashMap<HyperlaneDomain, Arc<dyn Mailbox>>> {
         let mut result = HashMap::new();
         for &domain in domains {
-            let mailbox = self
-                .build_caching_mailbox(domain, db.clone(), metrics)
-                .await?;
-            result.insert(mailbox.domain().clone(), mailbox);
+            let mailbox = self.build_mailbox(domain, metrics).await?;
+            result.insert(mailbox.domain().clone(), mailbox.into());
         }
         Ok(result)
     }
 
     /// Try to get a map of chain name -> interchain gas paymaster contract
-    pub async fn build_all_interchain_gas_paymasters(
+    pub async fn build_interchain_gas_paymasters(
         &self,
         domains: &[&HyperlaneDomain],
         metrics: &CoreMetrics,
-        db: DB,
-    ) -> eyre::Result<HashMap<HyperlaneDomain, CachingInterchainGasPaymaster>> {
+    ) -> eyre::Result<HashMap<HyperlaneDomain, Arc<dyn InterchainGasPaymaster>>> {
         let mut result = HashMap::new();
         for &domain in domains {
-            let igp = self
-                .build_caching_interchain_gas_paymaster(domain, db.clone(), metrics)
-                .await?;
-            result.insert(igp.paymaster().domain().clone(), igp);
+            let igp = self.build_interchain_gas_paymaster(domain, metrics).await?;
+            result.insert(igp.domain().clone(), igp.into());
         }
         Ok(result)
     }
 
     /// Try to get a CachingMailbox
-    async fn build_caching_mailbox(
+    pub async fn build_caching_mailbox(
         &self,
         domain: &HyperlaneDomain,
-        db: DB,
         metrics: &CoreMetrics,
+        db: Arc<dyn HyperlaneDB>,
     ) -> eyre::Result<CachingMailbox> {
         let mailbox = self
             .build_mailbox(domain, metrics)
@@ -173,29 +167,23 @@ impl Settings {
             .build_mailbox_indexer(domain, metrics)
             .await
             .with_context(|| format!("Building mailbox indexer for {domain}"))?;
-        let hyperlane_db = HyperlaneRocksDB::new(domain, db);
-        Ok(CachingMailbox::new(
-            mailbox.into(),
-            Arc::new(hyperlane_db),
-            indexer.into(),
-        ))
+        Ok(CachingMailbox::new(mailbox.into(), db, indexer.into()))
     }
 
     /// Try to get a CachingInterchainGasPaymaster
-    async fn build_caching_interchain_gas_paymaster(
+    pub async fn build_caching_interchain_gas_paymaster(
         &self,
         domain: &HyperlaneDomain,
-        db: DB,
         metrics: &CoreMetrics,
+        db: Arc<dyn HyperlaneDB>,
     ) -> eyre::Result<CachingInterchainGasPaymaster> {
         let interchain_gas_paymaster = self.build_interchain_gas_paymaster(domain, metrics).await?;
         let indexer = self
             .build_interchain_gas_paymaster_indexer(domain, metrics)
             .await?;
-        let hyperlane_db = HyperlaneRocksDB::new(domain, db);
         Ok(CachingInterchainGasPaymaster::new(
             interchain_gas_paymaster.into(),
-            Arc::new(hyperlane_db),
+            db,
             indexer.into(),
         ))
     }

@@ -278,8 +278,9 @@ fn main() -> ExitCode {
 
     println!("Killing anvil...");
     let mut kill = Command::new("kill")
-    .args(["-s", "INT", &node.id().to_string()])
-    .spawn().unwrap();
+        .args(["-s", "INT", &node.id().to_string()])
+        .spawn()
+        .unwrap();
     kill.wait().unwrap();
     println!("Launching anvil...");
     let mut node = Command::new("anvil");
@@ -301,7 +302,7 @@ fn main() -> ExitCode {
     state.node = Some(node);
 
     sleep(Duration::from_secs(1));
-    
+
     println!("Spawning validator...");
     let mut validator = Command::new("target/debug/validator")
         .stdout(Stdio::piped())
@@ -432,9 +433,7 @@ fn main() -> ExitCode {
         if ci_mode {
             // for CI we have to look for the end condition.
             if kathy_done && retry_queues_empty() {
-                assert_termination_invariants(
-                    kathy_messages.unwrap() as u32* 2,
-                );
+                assert_termination_invariants(kathy_messages.unwrap() as u32 * 2);
                 // end condition reached successfully
                 println!("Kathy completed successfully and the retry queues are empty");
                 break;

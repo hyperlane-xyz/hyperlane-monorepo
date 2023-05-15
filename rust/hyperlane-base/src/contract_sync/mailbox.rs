@@ -1,45 +1,30 @@
-use std::{time::Duration, error::Error};
+use std::{error::Error, time::Duration};
 
 use tracing::{debug, info, instrument, warn};
 
-use hyperlane_core::{MailboxIndexer, MessageSyncCursor, HyperlaneDB};
+use hyperlane_core::{HyperlaneDB, MailboxIndexer, MessageSyncCursor, SyncBlockRangeCursor};
 use tokio::time::sleep;
 
 use crate::ContractSync;
 
-// Okay, a Mailbox sync process takes a block number and a nonce, and it's
-// expected to find every message that was sent after that block number and
-// nonce.
-
-const MESSAGES_LABEL: &str = "messages";
+const DISPATCHED_MESSAGES_LABEL: &str = "dispatched_messages";
+const DELIVERED_MESSAGES_LABEL: &str = "delivered_messages";
 
 impl<I> ContractSync<I>
 where
     I: MailboxIndexer + Clone + 'static,
 {
     /// Sync dispatched messages
-    #[instrument(name = "MessageContractSync", skip(self, cursor))]
+    #[instrument(name = "DispatchedMessageSync", skip(self, cursor))]
     pub(crate) async fn sync_dispatched_messages(
         &self,
         mut cursor: Box<dyn MessageSyncCursor>,
     ) -> eyre::Result<()> {
         let chain_name = self.domain.as_ref();
-        let stored_messages = self
+        let stored_dispatched_messages = self
             .metrics
             .stored_events
-            .with_label_values(&[MESSAGES_LABEL, chain_name]);
-        /*
-        let indexed_height = self
-            .metrics
-            .indexed_height
-            .with_label_values(&[MESSAGES_LABEL, chain_name]);
-        let missed_messages = self
-            .metrics
-            .missed_events
-            .with_label_values(&[MESSAGES_LABEL, chain_name]);
-
-        let message_nonce = self.metrics.message_nonce.clone();
-        */
+            .with_label_values(&[DISPATCHED_MESSAGES_LABEL, chain_name]);
 
         // Indexes messages by fetching messages in ranges of blocks.
         // We've observed occasional flakiness with providers where some events in
@@ -75,7 +60,7 @@ where
 
                 debug!(
                     from,
-                    to, next_nonce, "Looking for for message(s) in block range"
+                    to, next_nonce, "Looking for for dispatched message(s) in block range"
                 );
                 // TODO: These don't need to be sorted.
                 let sorted_messages = self.indexer.fetch_sorted_messages(from, to).await?;
@@ -83,11 +68,11 @@ where
                     from,
                     to,
                     num_messages = sorted_messages.len(),
-                    "Found message(s) in block range"
+                    "Found dispatched message(s) in block range"
                 );
 
                 let stored = self.db.store_dispatched_messages(&sorted_messages).await?;
-                stored_messages.inc_by(stored as u64);
+                stored_dispatched_messages.inc_by(stored as u64);
 
                 // If we found messages, but did *not* find the message we were looking for,
                 // we need to rewind to the block at which we found the last message.
@@ -100,7 +85,7 @@ where
                         next_nonce,
                         messages=?sorted_messages.iter().map(|m| m.0.clone()),
                         rewind_block,
-                        "Expected next message not found in range, rewound"
+                        "Expected next dispatched message not found in range, rewound"
                     );
                 }
             }
@@ -109,6 +94,47 @@ where
         loop {
             // TODO: Define the sleep time from interval flag
             sleep(Duration::from_secs(500)).await;
+        }
+    }
+
+    /// Sync delivered messages
+    #[instrument(name = "DeliveredMessageSync", skip(self, cursor))]
+    pub(crate) async fn sync_delivered_messages(
+        &self,
+        mut cursor: Box<dyn SyncBlockRangeCursor>,
+    ) -> eyre::Result<()> {
+        let chain_name = self.domain.as_ref();
+        let stored_delivered_messages = self
+            .metrics
+            .stored_events
+            .with_label_values(&[DELIVERED_MESSAGES_LABEL, chain_name]);
+
+        loop {
+            let Ok(range) = cursor.next_range().await else { continue };
+            if range.is_none() {
+                // TODO: Define the sleep time from interval flag
+                sleep(Duration::from_secs(5)).await;
+            } else {
+                let (from, to, _) = range.unwrap();
+                debug!(
+                    from,
+                    to, "Looking for for delivered message(s) in block range"
+                );
+
+                let deliveries = self.indexer.fetch_delivered_messages(from, to).await?;
+
+                info!(
+                    from,
+                    to,
+                    num_deliveries = deliveries.len(),
+                    "Found delivered message(s) in block range"
+                );
+
+                // Store deliveries
+                let stored = self.db.store_delivered_messages(&deliveries).await?;
+                // Report amount of deliveries stored into db
+                stored_delivered_messages.inc_by(stored as u64);
+            }
         }
     }
 }

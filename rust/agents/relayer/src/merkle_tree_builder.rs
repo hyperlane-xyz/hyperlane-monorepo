@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display, sync::Arc};
 
 use eyre::Result;
 use tracing::{debug, error, instrument};
@@ -14,7 +14,7 @@ use crate::prover::{Prover, ProverError};
 /// Struct to sync prover.
 #[derive(Debug)]
 pub struct MerkleTreeBuilder {
-    db: HyperlaneRocksDB,
+    db: Arc<HyperlaneRocksDB>,
     prover: Prover,
     incremental: IncrementalMerkle,
 }
@@ -68,7 +68,7 @@ pub enum MerkleTreeBuilderError {
 }
 
 impl MerkleTreeBuilder {
-    pub fn new(db: HyperlaneRocksDB) -> Self {
+    pub fn new(db: Arc<HyperlaneRocksDB>) -> Self {
         let prover = Prover::default();
         let incremental = IncrementalMerkle::default();
         Self {

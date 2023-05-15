@@ -6,26 +6,27 @@ use std::future::Future;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use ethers::prelude::rand::seq::index;
 use eyre::{eyre, Result};
 use futures::TryFutureExt;
+use hyperlane_base::{run_all, CachingInterchainGasPaymaster, CachingMailbox, SyncType};
 use itertools::Itertools;
-use tracing::trace;
+use tokio::task::JoinHandle;
+use tracing::instrument::Instrumented;
+use tracing::{info_span, trace};
 
 use hyperlane_base::{chains::IndexSettings, ContractSyncMetrics};
 use hyperlane_core::{
-    BlockInfo, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
+    BlockInfo, HyperlaneChain, HyperlaneContract, HyperlaneDB, HyperlaneDomain, HyperlaneMessage,
     HyperlaneProvider, InterchainGasPaymasterIndexer, InterchainGasPayment, LogMeta, Mailbox,
-    MailboxIndexer, H256, HyperlaneDB,
+    MailboxIndexer, H256,
 };
 
 use crate::db::StorablePayment;
 use crate::{
-    chain_scraper::sync::Syncer,
     date_time,
     db::{BasicBlock, BlockCursor, ScraperDb, StorableDelivery, StorableMessage, StorableTxn},
 };
-
-mod sync;
 
 /// Maximum number of records to query at a time. This came about because when a
 /// lot of messages are sent in a short period of time we were ending up with a
@@ -36,63 +37,55 @@ const CHUNK_SIZE: usize = 50;
 /// Local chain components like the mailbox.
 #[derive(Debug, Clone)]
 pub struct Contracts {
-    pub mailbox: Arc<dyn Mailbox>,
-    pub mailbox_indexer: Arc<dyn MailboxIndexer>,
-    pub igp_indexer: Arc<dyn InterchainGasPaymasterIndexer>,
+    pub mailbox: CachingMailbox,
+    pub igp: CachingInterchainGasPaymaster,
     pub provider: Arc<dyn HyperlaneProvider>,
 }
 
+// TODO: Will probably need to take contracts out of this, since SqlChainScraper is the HyperlaneDB implementation that will be used by the caching contracts.
 /// A chain scraper is comprised of all the information and contract/provider
 /// connections needed to scrape the contracts on a single blockchain.
 #[derive(Clone, Debug)]
-pub struct SqlChainScraper {
+pub struct HyperlaneSqlDb {
+    mailbox_address: H256,
+    igp_address: H256,
+    domain: HyperlaneDomain,
     db: ScraperDb,
-    /// Contracts on this chain representing this chain (e.g. mailbox)
-    contracts: Contracts,
-    chunk_size: u32,
+    provider: Arc<dyn HyperlaneProvider>,
+    index_settings: IndexSettings,
     metrics: ContractSyncMetrics,
     cursor: Arc<BlockCursor>,
 }
 
 #[allow(unused)]
-impl SqlChainScraper {
+impl HyperlaneSqlDb {
     pub async fn new(
         db: ScraperDb,
-        contracts: Contracts,
+        mailbox_address: H256,
+        igp_address: H256,
+        domain: HyperlaneDomain,
+        provider: Arc<dyn HyperlaneProvider>,
         index_settings: &IndexSettings,
         metrics: ContractSyncMetrics,
     ) -> Result<Self> {
         let cursor = Arc::new(
-            db.block_cursor(contracts.mailbox.domain().id(), index_settings.from as u64)
+            db.block_cursor(domain.id(), index_settings.from as u64)
                 .await?,
         );
         Ok(Self {
             db,
-            contracts,
-            chunk_size: index_settings.chunk_size,
+            domain,
+            provider,
+            mailbox_address,
+            igp_address,
+            index_settings: index_settings.clone(),
             metrics,
             cursor,
         })
     }
 
     pub fn domain(&self) -> &HyperlaneDomain {
-        self.contracts.mailbox.domain()
-    }
-
-    /// Sync contract data and other blockchain with the current chain state.
-    /// This will create a long-running task that should be spawned.
-    pub fn sync(self) -> impl Future<Output = Result<()>> + Send + 'static {
-        let chain = self.contracts.mailbox.domain().name().to_owned();
-        Syncer::new(self)
-            .and_then(|syncer| syncer.run())
-            .and_then(|()| async move { panic!("Sync task for {chain} stopped!") })
-    }
-
-    /// Fetch the highest message nonce we have seen for the local domain.
-    async fn last_message_nonce(&self) -> Result<Option<u32>> {
-        self.db
-            .last_message_nonce(self.domain().id(), &self.contracts.mailbox.address())
-            .await
+        &self.domain
     }
 
     /// Takes a list of txn and block hashes and ensure they are all in the
@@ -169,7 +162,7 @@ impl SqlChainScraper {
         let mut txns_to_insert: Vec<StorableTxn> = Vec::with_capacity(CHUNK_SIZE);
         for mut chunk in as_chunks::<(&H256, &mut (Option<i64>, i64))>(txns_to_fetch, CHUNK_SIZE) {
             for (hash, (_, block_id)) in chunk.iter() {
-                let info = self.contracts.provider.get_txn_by_hash(hash).await?;
+                let info = self.provider.get_txn_by_hash(hash).await?;
                 txns_to_insert.push(StorableTxn {
                     info,
                     block_id: *block_id,
@@ -236,7 +229,7 @@ impl SqlChainScraper {
         for chunk in as_chunks(blocks_to_fetch, CHUNK_SIZE) {
             debug_assert!(!chunk.is_empty());
             for (hash, block_info) in chunk {
-                let info = self.contracts.provider.get_block_by_hash(hash).await?;
+                let info = self.provider.get_block_by_hash(hash).await?;
                 let basic_info_ref = block_info.insert(BasicBlock {
                     id: -1,
                     hash: *hash,
@@ -277,7 +270,7 @@ impl SqlChainScraper {
 }
 
 #[async_trait]
-impl HyperlaneDB for SqlChainScraper {
+impl HyperlaneDB for HyperlaneSqlDb {
     /// Store messages from the origin mailbox into the database.
     ///
     /// Returns the highest message nonce which was provided to this
@@ -288,11 +281,7 @@ impl HyperlaneDB for SqlChainScraper {
     ) -> Result<u32> {
         debug_assert!(!messages.is_empty());
         let txns: HashMap<H256, TxnWithId> = self
-            .ensure_blocks_and_txns(
-                messages
-                    .iter()
-                    .map(|r| &r.1)
-            )
+            .ensure_blocks_and_txns(messages.iter().map(|r| &r.1))
             .await?
             .map(|t| (t.hash, t))
             .collect();
@@ -304,7 +293,7 @@ impl HyperlaneDB for SqlChainScraper {
             .ok_or_else(|| eyre!("Received empty list"))?;
         self.db
             .store_messages(
-                &self.contracts.mailbox.address(),
+                &self.mailbox_address,
                 messages.iter().map(|m| {
                     let txn = txns.get(&m.1.transaction_hash).unwrap();
                     StorableMessage {
@@ -320,36 +309,32 @@ impl HyperlaneDB for SqlChainScraper {
     }
 
     // TODO: Return a sensible int
-    async fn store_delivered_messages(
-        &self,
-        deliveries: &[(H256, LogMeta)],
-    ) -> Result<u32> {
+    async fn store_delivered_messages(&self, deliveries: &[(H256, LogMeta)]) -> Result<u32> {
         if deliveries.is_empty() {
             return Ok(0);
         }
         let txns: HashMap<H256, TxnWithId> = self
-            .ensure_blocks_and_txns(
-                deliveries
-                    .iter()
-                    .map(|r| &r.1)
-            )
+            .ensure_blocks_and_txns(deliveries.iter().map(|r| &r.1))
             .await?
             .map(|t| (t.hash, t))
             .collect();
 
-        let storable = deliveries.iter().map(|(message_id, meta)| { 
-            let txn_id = txns.get(&meta.transaction_hash).unwrap().id;
-            StorableDelivery {
-                message_id: message_id.clone(),
-                meta: meta,
-                txn_id,
-            }
-        }).collect_vec();
+        let storable = deliveries
+            .iter()
+            .map(|(message_id, meta)| {
+                let txn_id = txns.get(&meta.transaction_hash).unwrap().id;
+                StorableDelivery {
+                    message_id: message_id.clone(),
+                    meta: meta,
+                    txn_id,
+                }
+            })
+            .collect_vec();
 
         self.db
             .store_deliveries(
                 self.domain().id(),
-                self.contracts.mailbox.address(),
+                self.mailbox_address,
                 storable.into_iter(),
             )
             .await?;
@@ -367,33 +352,36 @@ impl HyperlaneDB for SqlChainScraper {
         }
 
         let txns: HashMap<H256, TxnWithId> = self
-            .ensure_blocks_and_txns(
-                payments
-                    .iter()
-                    .map(|r| &r.1)
-            )
+            .ensure_blocks_and_txns(payments.iter().map(|r| &r.1))
             .await?
             .map(|t| (t.hash, t))
             .collect();
 
-        let storable = payments.iter().map(|(payment, meta)| { 
-            let txn_id = txns.get(&meta.transaction_hash).unwrap().id;
-            StorablePayment {
-                payment: payment,
-                meta: meta,
-                txn_id,
-            }
-        }).collect_vec();
+        let storable = payments
+            .iter()
+            .map(|(payment, meta)| {
+                let txn_id = txns.get(&meta.transaction_hash).unwrap().id;
+                StorablePayment {
+                    payment: payment,
+                    meta: meta,
+                    txn_id,
+                }
+            })
+            .collect_vec();
 
-        self.db.store_payments(self.domain().id(), storable.into_iter()).await?;
+        self.db
+            .store_payments(self.domain().id(), storable.into_iter())
+            .await?;
         Ok(0)
     }
 
     /// Retrieves the block number at which the message with the provided nonce
     /// was dispatched.
     async fn retrieve_dispatched_block_number(&self, nonce: u32) -> Result<Option<u64>> {
-        let domain = self.contracts.mailbox.domain();
-        let tx_id = self.db.retrieve_dispatched_tx_id(domain.id(), &self.contracts.mailbox.address(), nonce).await?;
+        let tx_id = self
+            .db
+            .retrieve_dispatched_tx_id(self.domain().id(), &self.mailbox_address, nonce)
+            .await?;
         match tx_id {
             Some(tx_id) => {
                 let block_id = self.db.retrieve_block_id(tx_id).await?;
@@ -402,10 +390,10 @@ impl HyperlaneDB for SqlChainScraper {
                         let block_number = self.db.retrieve_block_number(block_id).await?;
                         Ok(block_number)
                     }
-                    None => Ok(None)
+                    None => Ok(None),
                 }
             }
-            None => Ok(None) 
+            None => Ok(None),
         }
     }
 }

@@ -6,9 +6,12 @@ use eyre::Result;
 use tokio::task::JoinHandle;
 use tracing::{info_span, instrument::Instrumented, Instrument};
 
-use hyperlane_core::{InterchainGasPaymaster, InterchainGasPaymasterIndexer, HyperlaneDB};
+use hyperlane_core::{HyperlaneDB, InterchainGasPaymaster, InterchainGasPaymasterIndexer};
 
-use crate::{chains::IndexSettings, ContractSync, ContractSyncMetrics};
+use crate::{
+    chains::IndexSettings, ContractSync, ContractSyncMetrics, RateLimitedSyncBlockRangeCursor,
+    SyncType,
+};
 
 /// Caching InterchainGasPaymaster type
 #[derive(Debug, Clone, new)]
@@ -37,20 +40,39 @@ impl CachingInterchainGasPaymaster {
 
     /// Spawn a task that syncs the CachingInterchainGasPaymaster's db with the
     /// on-chain event data
-    pub fn sync(
+    pub async fn sync_gas_payments(
         &self,
         index_settings: IndexSettings,
+        sync_type: SyncType,
         metrics: ContractSyncMetrics,
-    ) -> Instrumented<JoinHandle<Result<()>>> {
+    ) -> eyre::Result<Vec<Instrumented<JoinHandle<eyre::Result<()>>>>> {
         let sync = ContractSync::new(
             self.paymaster.domain().clone(),
             self.db.clone(),
             self.indexer.clone(),
-            index_settings,
+            index_settings.clone(),
             metrics,
         );
-
-        tokio::spawn(async move { sync.sync_gas_payments().await })
-            .instrument(info_span!("InterchainGasPaymasterContractSync", self = %self))
+        match sync_type {
+            SyncType::Forward => {
+                let forward_cursor = Box::new(
+                    RateLimitedSyncBlockRangeCursor::new(
+                        self.indexer.clone(),
+                        index_settings.chunk_size,
+                        index_settings.from,
+                    )
+                    .await?,
+                );
+                Ok(vec![tokio::spawn(async move {
+                    sync.sync_gas_payments(forward_cursor).await
+                })
+                .instrument(
+                    info_span!("InterchainGasPaymasterContractSync", self = %self),
+                )])
+            }
+            SyncType::MiddleOut => {
+                panic!("not yet implemented");
+            }
+        }
     }
 }

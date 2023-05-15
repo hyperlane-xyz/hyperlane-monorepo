@@ -1,6 +1,7 @@
 use std::{
     cmp::Ordering,
-    time::{Duration, Instant}, sync::Arc,
+    sync::Arc,
+    time::{Duration, Instant},
 };
 
 use async_trait::async_trait;
@@ -10,24 +11,19 @@ use tokio::time::sleep;
 use tracing::{error, info, warn};
 
 use hyperlane_core::{
-    ChainResult, Indexer, MailboxIndexer, MessageSyncCursor, SyncBlockRangeCursor, HyperlaneDB,
+    ChainResult, HyperlaneDB, Indexer, MailboxIndexer, MessageSyncCursor, SyncBlockRangeCursor,
 };
 
-use crate::{contract_sync::eta_calculator::SyncerEtaCalculator};
+use crate::{contract_sync::eta_calculator::SyncerEtaCalculator, ContractSync};
 
 /// Time window for the moving average used in the eta calculator in seconds.
 const ETA_TIME_WINDOW: f64 = 2. * 60.;
 
 /// A struct that holds the data needed for forwards and backwards
 /// message sync cursors.
-#[derive(new, Debug, Clone)]
-pub struct MessageSyncCursorData<I> {
-    /// The MailboxIndexer that this cursor is associated with.
-    indexer: I,
-    /// The HyperlaneDB that this cursor is associated with.
-    db: Arc<dyn HyperlaneDB>,
-    /// The size of the largest block range that should be returned by the cursor.
-    chunk_size: u32,
+#[derive(Debug, new, Clone)]
+pub(crate) struct MessageSyncCursorData<I> {
+    contract_sync: ContractSync<I>,
     /// The starting block for the cursor
     start_block: u32,
     /// The next block that should be indexed.
@@ -41,7 +37,12 @@ where
     I: MailboxIndexer,
 {
     async fn retrieve_dispatched_block_number(&self, nonce: u32) -> Option<u32> {
-        if let Ok(Some(block_number)) = self.db.retrieve_dispatched_block_number(nonce).await {
+        if let Ok(Some(block_number)) = self
+            .contract_sync
+            .db
+            .retrieve_dispatched_block_number(nonce)
+            .await
+        {
             Some(u32::try_from(block_number).unwrap())
         } else {
             None
@@ -63,7 +64,7 @@ where
 
 /// A MessageSyncCursor that syncs forwards in perpetuity.
 #[derive(new, Debug, Clone)]
-pub struct ForwardMessageSyncCursor<I> {
+pub(crate) struct ForwardMessageSyncCursor<I> {
     cursor: MessageSyncCursorData<I>,
 }
 
@@ -77,7 +78,8 @@ where
     async fn fast_forward(&mut self) -> bool {
         while let Some(block_number) = self
             .cursor
-            .retrieve_dispatched_block_number(self.cursor.next_nonce).await
+            .retrieve_dispatched_block_number(self.cursor.next_nonce)
+            .await
         {
             self.cursor.next_nonce += 1;
             self.cursor.next_block = block_number;
@@ -95,9 +97,13 @@ where
             block = self.cursor.next_block,
             "forward range"
         );
-        self.fast_forward();
 
-        let (mailbox_count, tip) = self.cursor.indexer.fetch_count_at_tip().await?;
+        let (mailbox_count, tip) = self
+            .cursor
+            .contract_sync
+            .indexer
+            .fetch_count_at_tip()
+            .await?;
         let cursor_count = self.next_nonce();
         let cmp = cursor_count.cmp(&mailbox_count);
         match cmp {
@@ -111,7 +117,10 @@ where
                 // The cursor is behind the mailbox, so we need to index some blocks.
                 // We attempt to index a range of blocks that is as large as possible.
                 let from = self.cursor.next_block;
-                let to = u32::min(tip, from + self.cursor.chunk_size);
+                let to = u32::min(
+                    tip,
+                    from + self.cursor.contract_sync.index_settings.chunk_size,
+                );
                 self.cursor.next_block = to + 1;
                 Ok(Some((from, to, Duration::from_secs(0))))
             }
@@ -134,7 +143,7 @@ where
 
 /// A MessageSyncCursor that syncs backwards to nonce zero.
 #[derive(new, Debug, Clone)]
-pub struct BackwardMessageSyncCursor<I> {
+pub(crate) struct BackwardMessageSyncCursor<I> {
     cursor: MessageSyncCursorData<I>,
 }
 
@@ -149,7 +158,8 @@ where
         loop {
             if let Some(block_number) = self
                 .cursor
-                .retrieve_dispatched_block_number(self.cursor.next_nonce).await
+                .retrieve_dispatched_block_number(self.cursor.next_nonce)
+                .await
             {
                 self.cursor.next_block = block_number;
                 // If we hit nonce zero, we are done fast forwarding.
@@ -173,10 +183,10 @@ where
             block = self.cursor.next_block,
             "backward range"
         );
-        self.fast_forward();
+
         // Just keep going backwards.
         let to = self.cursor.next_block;
-        let from = to.saturating_sub(self.cursor.chunk_size);
+        let from = to.saturating_sub(self.cursor.contract_sync.index_settings.chunk_size);
         self.cursor.next_block = from.saturating_sub(1);
         Ok(Some((from, to, Duration::from_secs(0))))
     }
@@ -204,7 +214,7 @@ pub struct RateLimitedSyncBlockRangeCursor<I> {
 
 impl<I> RateLimitedSyncBlockRangeCursor<I>
 where
-    I: Indexer,
+    I: Indexer + 'static,
 {
     /// Construct a new contract sync helper.
     pub async fn new(indexer: I, chunk_size: u32, initial_height: u32) -> Result<Self> {
@@ -254,7 +264,10 @@ where
 }
 
 #[async_trait]
-impl<I: Indexer> SyncBlockRangeCursor for RateLimitedSyncBlockRangeCursor<I> {
+impl<I: Indexer> SyncBlockRangeCursor for RateLimitedSyncBlockRangeCursor<I>
+where
+    I: Indexer + 'static,
+{
     fn current_position(&self) -> u32 {
         self.from
     }

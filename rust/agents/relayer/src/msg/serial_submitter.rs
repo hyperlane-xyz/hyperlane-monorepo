@@ -81,12 +81,12 @@ pub(crate) struct SerialSubmitter {
     #[new(default)]
     run_queue: BinaryHeap<Reverse<PendingMessage>>,
     /// Mailbox on the destination chain.
-    mailbox: CachingMailbox,
+    mailbox: Arc<dyn Mailbox>,
     /// Used to construct the ISM metadata needed to verify a message.
     metadata_builder: BaseMetadataBuilder,
     /// Interface to agent rocks DB for e.g. writing delivery status upon
     /// completion.
-    db: HyperlaneRocksDB,
+    db: Arc<HyperlaneRocksDB>,
     /// Metrics for serial submitter.
     metrics: SerialSubmitterMetrics,
     /// Used to determine if messages have made sufficient gas payments.

@@ -8,13 +8,14 @@ use tokio::task::JoinHandle;
 use tracing::{info_span, instrument::Instrumented, Instrument};
 
 use hyperlane_core::{
-    ChainResult, Checkpoint, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProvider, Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256, HyperlaneDB,
+    ChainResult, Checkpoint, HyperlaneChain, HyperlaneContract, HyperlaneDB, HyperlaneDomain,
+    HyperlaneMessage, HyperlaneProvider, Mailbox, MailboxIndexer, MessageSyncCursor,
+    SyncBlockRangeCursor, TxCostEstimate, TxOutcome, H256, U256,
 };
 
 use crate::{
-    chains::IndexSettings, BackwardMessageSyncCursor, ContractSync,
-    ContractSyncMetrics, ForwardMessageSyncCursor, MessageSyncCursorData,
+    chains::IndexSettings, BackwardMessageSyncCursor, ContractSync, ContractSyncMetrics,
+    ForwardMessageSyncCursor, MessageSyncCursorData, RateLimitedSyncBlockRangeCursor,
 };
 
 /// Caching Mailbox type
@@ -31,6 +32,11 @@ impl std::fmt::Display for CachingMailbox {
     }
 }
 
+pub enum SyncType {
+    Forward,
+    MiddleOut,
+}
+
 impl CachingMailbox {
     /// Return handle on mailbox object
     pub fn mailbox(&self) -> &Arc<dyn Mailbox> {
@@ -45,66 +51,101 @@ impl CachingMailbox {
     /// Spawn two tasks that syncs the CachingMailbox's db with the on-chain event
     /// data. One goes forward from the current tip indefinitely, the other goes backwards from
     /// the current tip until the message with nonce 0 has been synced.
-    pub async fn sync(
+    pub async fn sync_dispatched_messages(
         &self,
         index_settings: IndexSettings,
+        sync_type: SyncType,
         metrics: ContractSyncMetrics,
-    ) -> ChainResult<Vec<Instrumented<JoinHandle<eyre::Result<()>>>>> {
-        let (count, tip) = self.indexer.fetch_count_at_tip().await?;
-        let task_count = if count > 0 { 2 } else { 1 };
-        let mut tasks = Vec::with_capacity(task_count);
-        if count > 0 {
-            // TODO: Can I share/clone these syncs?
-            let backward_sync = ContractSync::new(
-                self.mailbox.domain().clone(),
-                self.db.clone(),
-                self.indexer.clone(),
-                index_settings.clone(),
-                metrics.clone(),
-            );
-            // TODO: Forward and backward data are nearly identical, can I break
-            // next_nonce out so that they can be shared?
-            let backward_data = MessageSyncCursorData::new(
-                self.indexer.clone(),
-                self.db.clone(),
-                index_settings.chunk_size,
-                tip,
-                tip,
-                count.saturating_sub(1),
-            );
-            let backward_cursor = Box::new(BackwardMessageSyncCursor::new(backward_data));
-            tasks.push(
-                tokio::spawn(async move {
-                    backward_sync
-                        .sync_dispatched_messages(backward_cursor)
-                        .await
-                })
-                .instrument(info_span!("MailboxContractSync", self = %self)),
-            );
-        }
-        let forward_sync = ContractSync::new(
+    ) -> eyre::Result<Vec<Instrumented<JoinHandle<eyre::Result<()>>>>> {
+        let sync = ContractSync::new(
             self.mailbox.domain().clone(),
             self.db.clone(),
             self.indexer.clone(),
             index_settings.clone(),
-            metrics,
+            metrics.clone(),
         );
-        let forward_data = MessageSyncCursorData::new(
-            self.indexer.clone(),
-            self.db.clone(),
-            index_settings.chunk_size,
-            tip,
-            tip,
-            count,
-        );
-        let forward_cursor = Box::new(ForwardMessageSyncCursor::new(forward_data));
-        tasks.push(
-            tokio::spawn(
-                async move { forward_sync.sync_dispatched_messages(forward_cursor).await },
-            )
-            .instrument(info_span!("MailboxContractSync", self = %self)),
-        );
+        // TODO: Clean up this mess
+        let tasks = match sync_type {
+            SyncType::Forward => {
+                let forward_data = MessageSyncCursorData::new(
+                    sync.clone(),
+                    index_settings.from,
+                    index_settings.from,
+                    0,
+                );
+                let forward_cursor = Box::new(ForwardMessageSyncCursor::new(forward_data));
+                vec![tokio::spawn(
+                    async move { sync.sync_dispatched_messages(forward_cursor).await },
+                )
+                .instrument(info_span!("MailboxContractSync", self = %self))]
+            }
+            SyncType::MiddleOut => {
+                let (count, tip) = self.indexer.fetch_count_at_tip().await.unwrap();
+                let forward_data = MessageSyncCursorData::new(sync.clone(), tip, tip, count);
+                let forward_cursor = Box::new(ForwardMessageSyncCursor::new(forward_data));
+                if count > 0 {
+                    let backward_data =
+                        MessageSyncCursorData::new(sync.clone(), tip, tip, count.saturating_sub(1));
+                    let backward_cursor = Box::new(BackwardMessageSyncCursor::new(backward_data));
+                    let backward_sync = sync.clone();
+                    vec![
+                        tokio::spawn(
+                            async move { sync.sync_dispatched_messages(forward_cursor).await },
+                        )
+                        .instrument(info_span!("MailboxContractSync", self = %self)),
+                        tokio::spawn(async move {
+                            backward_sync
+                                .sync_dispatched_messages(backward_cursor)
+                                .await
+                        })
+                        .instrument(info_span!("MailboxContractSync", self = %self)),
+                    ]
+                } else {
+                    vec![tokio::spawn(async move {
+                        sync.sync_dispatched_messages(forward_cursor).await
+                    })
+                    .instrument(info_span!("MailboxContractSync", self = %self))]
+                }
+            }
+        };
         Ok(tasks)
+    }
+
+    /// Spawn a task that syncs the CachingMailbox's db with the on-chain event
+    /// data. Currently only supports SyncType::Forward.
+    pub async fn sync_delivered_messages(
+        &self,
+        index_settings: IndexSettings,
+        sync_type: SyncType,
+        metrics: ContractSyncMetrics,
+    ) -> eyre::Result<Vec<Instrumented<JoinHandle<eyre::Result<()>>>>> {
+        let sync = ContractSync::new(
+            self.mailbox.domain().clone(),
+            self.db.clone(),
+            self.indexer.clone(),
+            index_settings.clone(),
+            metrics.clone(),
+        );
+        // TODO: We shouldn't start at index_settings.from every time!
+        match sync_type {
+            SyncType::Forward => {
+                let forward_cursor = Box::new(
+                    RateLimitedSyncBlockRangeCursor::new(
+                        self.indexer.clone(),
+                        index_settings.chunk_size,
+                        index_settings.from,
+                    )
+                    .await?,
+                );
+                return Ok(vec![tokio::spawn(async move {
+                    sync.sync_delivered_messages(forward_cursor).await
+                })
+                .instrument(info_span!("MailboxContractSync", self = %self))]);
+            }
+            SyncType::MiddleOut => {
+                panic!("not yet implemented");
+            }
+        };
     }
 }
 

@@ -28,7 +28,7 @@ pub trait MessageSyncCursor: Debug + Send + Sync + 'static {
 /// queried and may perform rate limiting on `next_range` queries.
 #[async_trait]
 #[auto_impl(Box)]
-pub trait SyncBlockRangeCursor {
+pub trait SyncBlockRangeCursor: Send + 'static {
     /// Returns the current `from` position of the indexer. Note that
     /// `next_range` may return a `from` value that is lower than this in order
     /// to have some overlap.

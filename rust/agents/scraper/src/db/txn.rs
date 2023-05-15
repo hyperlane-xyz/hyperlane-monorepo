@@ -19,7 +19,6 @@ pub struct StorableTxn {
 }
 
 impl ScraperDb {
-
     pub async fn retrieve_block_id(&self, tx_id: i64) -> Result<Option<i64>> {
         #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
         enum QueryAs {

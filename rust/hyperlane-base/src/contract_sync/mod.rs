@@ -3,18 +3,16 @@ use std::sync::Arc;
 use derive_new::new;
 
 pub use cursor::*;
-use hyperlane_core::{HyperlaneDomain, HyperlaneDB};
+use hyperlane_core::{HyperlaneDB, HyperlaneDomain};
 pub use interchain_gas::*;
 pub use mailbox::*;
 pub use metrics::ContractSyncMetrics;
 
-use crate::{chains::IndexSettings};
+use crate::chains::IndexSettings;
 
 mod cursor;
 mod eta_calculator;
 mod interchain_gas;
-/// Tools for working with message continuity.
-pub mod last_message;
 mod mailbox;
 mod metrics;
 

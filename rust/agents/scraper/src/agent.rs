@@ -3,6 +3,10 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use eyre::{eyre, WrapErr};
+use hyperlane_base::CachingInterchainGasPaymaster;
+use hyperlane_base::CachingMailbox;
+use hyperlane_base::SyncType;
+use hyperlane_base::chains::IndexSettings;
 use itertools::Itertools;
 use tokio::task::JoinHandle;
 use tracing::{info_span, instrument::Instrumented, trace, Instrument};
@@ -14,7 +18,7 @@ use hyperlane_base::{
 use hyperlane_core::config::*;
 use hyperlane_core::HyperlaneDomain;
 
-use crate::chain_scraper::{Contracts, SqlChainScraper};
+use crate::chain_scraper::{Contracts, HyperlaneSqlDb};
 use crate::db::ScraperDb;
 
 /// A message explorer scraper agent
@@ -22,9 +26,15 @@ use crate::db::ScraperDb;
 #[allow(unused)]
 pub struct Scraper {
     core: HyperlaneAgentCore,
-    db: ScraperDb,
-    /// A map of scrapers by domain.
-    scrapers: HashMap<u32, SqlChainScraper>,
+    contract_sync_metrics: ContractSyncMetrics,
+    scrapers: HashMap<u32, ChainScraper>,
+}
+
+#[derive(Debug)]
+struct ChainScraper {
+    index_settings: IndexSettings,
+    mailbox: CachingMailbox,
+    interchain_gas_paymaster: CachingInterchainGasPaymaster,
 }
 
 decl_settings!(Scraper,
@@ -107,69 +117,67 @@ impl BaseAgent for Scraper {
         let core = settings.build_hyperlane_core(metrics.clone());
 
         let contract_sync_metrics = ContractSyncMetrics::new(metrics.clone());
-        let mut scrapers: HashMap<u32, SqlChainScraper> = HashMap::new();
+        // TODO: Key by domain
+        let mut scrapers: HashMap<u32, ChainScraper> = HashMap::new();
 
         for domain in settings.chains_to_scrape.iter() {
             let chain_setup = settings.chain_setup(domain).expect("Missing chain config");
-            let ctx = || format!("Loading chain {domain}");
-            let local = Self::load_chain(&settings, domain, &metrics)
-                .await
-                .with_context(ctx)?;
-            {
-                trace!(%domain, "Created mailbox and indexer");
-                let scraper = SqlChainScraper::new(
-                    db.clone(),
-                    local,
-                    &chain_setup.index,
-                    contract_sync_metrics.clone(),
-                )
-                .await?;
-                scrapers.insert(domain.id(), scraper);
-            }
+            let db = Arc::new(HyperlaneSqlDb::new(
+                db.clone(),
+                chain_setup.addresses.mailbox,
+                chain_setup.addresses.interchain_gas_paymaster,
+                domain.clone(),
+                // TODO: This is probably wrong..
+                settings.build_provider(domain, &*metrics.clone()).await?.into(),
+                &chain_setup.index.clone(),
+                contract_sync_metrics.clone(),
+            )
+            .await?);
+            let mailbox = settings.build_caching_mailbox(domain, &*metrics.clone(), db.clone()).await?;
+            let interchain_gas_paymaster = settings.build_caching_interchain_gas_paymaster(domain, &*metrics.clone(), db.clone()).await?;
+            let index_settings = chain_setup.index.clone();
+            scrapers.insert(domain.id(), ChainScraper { mailbox, interchain_gas_paymaster, index_settings});
         }
 
-        trace!(domain_count = scrapers.len(), "Creating scraper");
+        trace!(domain_count = scrapers.len(), "Created scrapers");
 
-        Ok(Self { core, db, scrapers })
+        Ok(Self { core, contract_sync_metrics, scrapers})
     }
 
     #[allow(clippy::async_yields_async)]
     async fn run(&self) -> Instrumented<JoinHandle<eyre::Result<()>>> {
-        let tasks = self
-            .scrapers
-            .iter()
-            .map(|(name, scraper)| {
-                let span = info_span!("ChainContractSync", %name, chain=%scraper.domain());
-                tokio::spawn(scraper.clone().sync()).instrument(span)
-            })
-            .collect();
-
+        let mut tasks = Vec::with_capacity(self.scrapers.len());
+        for domain in self.scrapers.keys() {
+            tasks.push(self.scrape(domain).await);
+        }
         run_all(tasks)
     }
 }
 
 impl Scraper {
-    async fn load_chain(
-        config: &Settings,
-        domain: &HyperlaneDomain,
-        metrics: &Arc<CoreMetrics>,
-    ) -> eyre::Result<Contracts> {
-        macro_rules! b {
-            ($builder:ident) => {
-                config
-                    .$builder(domain, metrics)
-                    .await
-                    .with_context(|| format!("Loading chain {domain}"))?
-                    .into()
-            };
-        }
-        Ok(Contracts {
-            provider: b!(build_provider),
-            mailbox: b!(build_mailbox),
-            mailbox_indexer: b!(build_mailbox_indexer),
-            igp_indexer: b!(build_interchain_gas_paymaster_indexer),
-        })
-    }
+   /// Sync contract data and other blockchain with the current chain state.
+   /// This will create a long-running task that should be spawned.
+   async fn scrape(&self, domain: &u32) -> Instrumented<JoinHandle<eyre::Result<()>>> {
+       //let span = info_span!("ChainContractSync", %name, chain=%scraper.domain());
+       let scraper = self.scrapers.get(&domain).unwrap();
+       let index_settings = scraper.index_settings.clone();
+       let sync_dispatched_messages_tasks = scraper.mailbox.sync_dispatched_messages(index_settings.clone(), SyncType::Forward, self.contract_sync_metrics.clone()).await.unwrap();
+       let sync_delivered_messages_task = scraper.mailbox.sync_delivered_messages(index_settings.clone(), SyncType::Forward, self.contract_sync_metrics.clone()).await.unwrap();
+       let sync_gas_payments_task = scraper.interchain_gas_paymaster.sync_gas_payments(index_settings.clone(), SyncType::Forward, self.contract_sync_metrics.clone()).await.unwrap();
+
+       let mut tasks = Vec::with_capacity(sync_dispatched_messages_tasks.len() + sync_delivered_messages_task.len() + sync_gas_payments_task.len());
+
+       for task in sync_dispatched_messages_tasks {
+           tasks.push(task);
+       }
+       for task in sync_delivered_messages_task {
+           tasks.push(task);
+       }
+       for task in sync_gas_payments_task {
+           tasks.push(task);
+       }
+       run_all(tasks)
+   }
 }
 
 impl AsRef<HyperlaneAgentCore> for Scraper {
