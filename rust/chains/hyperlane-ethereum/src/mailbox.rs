@@ -31,6 +31,7 @@ use crate::EthereumProvider;
 /// An amount of gas to add to the estimated gas
 const GAS_ESTIMATE_BUFFER: u32 = 50000;
 
+/// derived from $ forge inspect Mailbox storage --pretty
 const MERKLE_TREE_CONTRACT_SLOT: u32 = 152;
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
