@@ -95,6 +95,10 @@ impl SerialSubmitter {
         let prepare_queue: OpQueue = Default::default();
         let confirm_queue: OpQueue = Default::default();
 
+        // This is a channel because we want to only have a small number of messages
+        // sitting ready to go at a time and this acts as a synchronization tool
+        // to slow down the preparation of messages when the submitter gets
+        // behind.
         let (tx_submit, rx_submit) = mpsc::channel(1);
 
         let tasks = [
