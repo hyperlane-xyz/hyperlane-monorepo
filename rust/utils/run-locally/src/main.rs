@@ -34,11 +34,13 @@ use nix::{
 };
 use tempfile::tempdir;
 
+/// These private keys are from hardhat/anvil's testing accounts.
 const RELAYER_KEYS: &[&str] = &[
     "8166f546bab6da521a8369cab06c5d2b9e46670292d85c875ee9ec20e84ffb61",
     "f214f2b2cd398c806f84e317254e0f0b801d0643303237d97a22a48e01628897",
     "701b615bbdfb9de65240bc28bd21bbc0d996645a3dd57e7b12bc2bdf6f192c82",
 ];
+/// These private keys are from hardhat/anvil's testing accounts.
 const VALIDATOR_KEYS: &[&str] = &[
     "59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
     "5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a",
@@ -214,7 +216,16 @@ fn main() -> ExitCode {
         spawn(move || {
             println!("Building rust...");
             build_cmd(
-                &["cargo", "build", "--features", "test-utils", "--bin", "relayer", "--bin", "validator"],
+                &[
+                    "cargo",
+                    "build",
+                    "--features",
+                    "test-utils",
+                    "--bin",
+                    "relayer",
+                    "--bin",
+                    "validator",
+                ],
                 None,
             );
         })
