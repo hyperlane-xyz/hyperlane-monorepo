@@ -28,14 +28,14 @@ impl TryFrom<&[u8]> for Instruction {
 }
 
 /// Holds data relating to a specific domain.
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Clone)]
 pub struct Domained<T> {
     pub domain: u32,
     pub data: T,
 }
 
 /// A configuration of a validator set and threshold.
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Default)]
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Default, Clone)]
 pub struct ValidatorsAndThreshold {
     pub validators: Vec<H160>,
     pub threshold: u8,

@@ -33,24 +33,24 @@ solana_program::declare_id!("F6dVnLFioQ8hKszqPsmjWPwHn2dJfebgMfztWrzL548V");
 entrypoint!(process_instruction);
 
 #[macro_export]
-macro_rules! validators_and_threshold_pda_seeds {
+macro_rules! domain_data_pda_seeds {
     ($domain:expr) => {{
         &[
-            b"hyperlane_multisig_ism_message_id",
+            b"multisig_ism_message_id",
             b"-",
             &$domain.to_le_bytes(),
             b"-",
-            b"validators_and_threshold",
+            b"domain_data",
         ]
     }};
 
     ($domain:expr, $bump_seed:expr) => {{
         &[
-            b"hyperlane_multisig_ism_message_id",
+            b"multisig_ism_message_id",
             b"-",
             &$domain.to_le_bytes(),
             b"-",
-            b"validators_and_threshold",
+            b"domain_data",
             &[$bump_seed],
         ]
     }};
@@ -161,7 +161,7 @@ fn validators_and_threshold(
             .ok_or(Error::AccountNotInitialized)?;
 
     let domain_pda_key = Pubkey::create_program_address(
-        validators_and_threshold_pda_seeds!(domain, domain_data.bump_seed),
+        domain_data_pda_seeds!(domain, domain_data.bump_seed),
         program_id,
     )?;
     // This check validates that the provided domain_pda_account is valid
@@ -211,12 +211,14 @@ fn set_validators_and_threshold(
     let domain_data =
         DomainDataAccount::fetch_data(&mut &domain_pda_account.data.borrow_mut()[..])?;
 
+    println!("domain_data {:?} domain_pda_account {:?}", domain_data, domain_pda_account);
+
     let bump_seed = match domain_data {
         Some(domain_data) => {
             // The PDA account exists already, we need to confirm the key of the domain_pda_account
             // is the PDA with the stored bump seed.
             let domain_pda_key = Pubkey::create_program_address(
-                validators_and_threshold_pda_seeds!(config.domain, domain_data.bump_seed),
+                domain_data_pda_seeds!(config.domain, domain_data.bump_seed),
                 program_id,
             )?;
             // This check validates that the provided domain_pda_account is valid
@@ -241,7 +243,7 @@ fn set_validators_and_threshold(
             // First find the key and bump seed for the domain PDA, and ensure
             // it matches the provided account.
             let (domain_pda_key, domain_pda_bump) = Pubkey::find_program_address(
-                validators_and_threshold_pda_seeds!(config.domain),
+                domain_data_pda_seeds!(config.domain),
                 program_id,
             );
             if *domain_pda_account.key != domain_pda_key {
@@ -258,7 +260,7 @@ fn set_validators_and_threshold(
                     program_id,
                 ),
                 &[owner_account.clone(), domain_pda_account.clone()],
-                &[validators_and_threshold_pda_seeds!(
+                &[domain_data_pda_seeds!(
                     config.domain,
                     domain_pda_bump
                 )],
@@ -276,4 +278,132 @@ fn set_validators_and_threshold(
     .store(domain_pda_account, true)?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    use solana_program::stake_history::Epoch;
+    use hyperlane_core::H160;
+
+    use std::borrow::BorrowMut;
+
+
+    #[test]
+    fn set_validators_and_threshold_already_initialized() {
+        let program_id = id();
+
+        let domain = 1234u32;
+
+        let (domain_pda_key, domain_pda_bump_seed) = Pubkey::find_program_address(
+            domain_data_pda_seeds!(domain),
+            &program_id,
+        );
+
+        let mut domain_account_lamports = 0;
+        let mut domain_account_data = vec![0_u8; 2048];
+        let domain_pda_account = AccountInfo::new(
+            // Public key of the account
+            &domain_pda_key,
+            // Was the transaction signed by this account's public key?
+            false,
+            // Is the account writable?
+            true,
+            // The lamports in the account. Modifiable by programs.
+            &mut domain_account_lamports,
+            // The data held in this account. Modifiable by programs.
+            &mut domain_account_data,
+            // Program that owns this account.
+            &program_id,
+            // This account's data contains a loaded program (and is now read-only).
+            false,
+            // The epoch at which this account will next owe rent.
+            Epoch::default(),
+        );
+        {
+            let init_data = DomainData {
+                bump_seed: domain_pda_bump_seed,
+                validators_and_threshold: ValidatorsAndThreshold {
+                    validators: vec![H160::random()],
+                    threshold: 1,
+                },
+            };
+            DomainDataAccount::from(init_data)
+                .store(&domain_pda_account, false)
+                .unwrap();
+        }
+
+        println!("yooo {:?} {:?}", domain_pda_account, domain_pda_account.data);
+
+        let owner_key = Pubkey::new_unique();
+        let mut owner_account_lamports = 0;
+        let mut owner_account_data = vec![];
+        let system_program_id = solana_program::system_program::id();
+        let owner_account = AccountInfo::new(
+            // Public key of the account
+            &owner_key,
+            // Was the transaction signed by this account's public key?
+            true,
+            // Is the account writable?
+            false,
+            // The lamports in the account. Modifiable by programs.
+            &mut owner_account_lamports,
+            // The data held in this account. Modifiable by programs.
+            &mut owner_account_data,
+            // Program that owns this account.
+            &system_program_id,
+            // This account's data contains a loaded program (and is now read-only).
+            false,
+            // The epoch at which this account will next owe rent.
+            Epoch::default(),
+        );
+
+        let mut program_lamports = 0;
+        let mut program_data = vec![];
+        let program_account = AccountInfo::new(
+            // Public key of the account
+            &program_id,
+            // Was the transaction signed by this account's public key?
+            false,
+            // Is the account writable?
+            false,
+            // The lamports in the account. Modifiable by programs.
+            &mut program_lamports,
+            // The data held in this account. Modifiable by programs.
+            &mut program_data,
+            // Owner of this account.
+            &owner_key,
+            // This account's data contains a loaded program (and is now read-only).
+            true,
+            // The epoch at which this account will next owe rent.
+            Epoch::default(),
+        );
+
+        println!("domain_account_data before {:?}", domain_pda_account.data.borrow());
+
+        let config = Domained {
+            domain,
+            data: ValidatorsAndThreshold {
+                validators: vec![H160::random(), H160::random()],
+                threshold: 2,
+            },
+        };
+
+        let accounts = vec![owner_account, program_account, domain_pda_account];
+
+        // set_validators_and_threshold(&program_id, &[owner_account, program_account, domain_pda_account.clone()], config.clone())
+        //     .unwrap();
+        set_validators_and_threshold(&program_id, &accounts, config.clone())
+            .unwrap();
+
+        // println!("domain_account_data after {:?}", domain_account_data);
+        println!("domain_pda_account.data after {:?}", accounts[2].data.borrow());
+// &mut &accounts[0].data.borrow_mut()[..]
+        let domain_data = DomainDataAccount::fetch_data(&mut &accounts[2].data.borrow_mut()[..]).unwrap().unwrap();
+        assert_eq!(domain_data, Box::new(DomainData {
+            bump_seed: domain_pda_bump_seed,
+            validators_and_threshold: config.data,
+        }));
+    }
 }
