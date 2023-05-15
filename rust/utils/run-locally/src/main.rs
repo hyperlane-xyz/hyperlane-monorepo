@@ -41,6 +41,7 @@ const RELAYER_KEYS: &[&str] = &[
     "701b615bbdfb9de65240bc28bd21bbc0d996645a3dd57e7b12bc2bdf6f192c82",
 ];
 /// These private keys are from hardhat/anvil's testing accounts.
+/// These must be consistent with the ISM config for the test.
 const VALIDATOR_KEYS: &[&str] = &[
     "59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
     "5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a",

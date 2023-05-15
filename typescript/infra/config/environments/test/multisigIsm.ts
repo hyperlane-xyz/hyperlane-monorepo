@@ -1,5 +1,6 @@
 import { ChainMap, ModuleType, MultisigIsmConfig } from '@hyperlane-xyz/sdk';
 
+// the ISM addresses here must line up with the e2e test's validator addresses
 export const multisigIsm: ChainMap<MultisigIsmConfig> = {
   // Validators are hardhat accounts 1-3
   test1: {
