@@ -17,6 +17,7 @@ import {CheckpointLib} from "../../libs/CheckpointLib.sol";
 abstract contract AbstractMessageIdMultisigIsm is AbstractMultisigIsm {
     // ============ Constants ============
 
+    // solhint-disable-next-line const-name-snakecase
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.MESSAGE_ID_MULTISIG);
 
