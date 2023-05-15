@@ -26,10 +26,13 @@ abstract contract AbstractMetaProxyMultisigIsm is AbstractMultisigIsm {
     }
 }
 
+// solhint-disable-next-line no-empty-blocks
 contract StaticMerkleRootMultisigIsm is
     AbstractMerkleRootMultisigIsm,
     AbstractMetaProxyMultisigIsm
-{}
+{
+
+}
 
 contract StaticMerkleRootMultisigIsmFactory is StaticMOfNAddressSetFactory {
     function _deployImplementation() internal override returns (address) {
@@ -37,10 +40,13 @@ contract StaticMerkleRootMultisigIsmFactory is StaticMOfNAddressSetFactory {
     }
 }
 
+// solhint-disable-next-line no-empty-blocks
 contract StaticMessageIdMultisigIsm is
     AbstractMessageIdMultisigIsm,
     AbstractMetaProxyMultisigIsm
-{}
+{
+
+}
 
 contract StaticMessageIdMultisigIsmFactory is StaticMOfNAddressSetFactory {
     function _deployImplementation() internal override returns (address) {
