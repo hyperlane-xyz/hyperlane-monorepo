@@ -10,9 +10,9 @@ import {MerkleLib} from "../../libs/Merkle.sol";
 import {CheckpointLib} from "../../libs/CheckpointLib.sol";
 
 /**
- * @title MultisigIsm
+ * @title MerkleRootMultisigIsm
  * @notice Manages per-domain m-of-n Validator sets that are used to verify
- * interchain messages.
+ * a quorum of signatures on some root J and merkle proof of message I in J.
  */
 abstract contract AbstractMerkleRootMultisigIsm is AbstractMultisigIsm {
     // ============ Constants ============
@@ -29,18 +29,20 @@ abstract contract AbstractMerkleRootMultisigIsm is AbstractMultisigIsm {
         override
         returns (bytes32)
     {
-        bytes32 root = MerkleLib.branchRoot(
+        // We verify a merkle proof of (messageId, index) I to compute root J
+        bytes32 _root = MerkleLib.branchRoot(
             Message.id(_message),
             MerkleRootMultisigIsmMetadata.proof(_metadata),
             Message.nonce(_message)
         );
+        // We provide (messageId, index) J in metadata for digest derivation
         return
             CheckpointLib.digest(
                 Message.origin(_message),
                 MerkleRootMultisigIsmMetadata.originMailbox(_metadata),
-                root,
+                _root,
                 MerkleRootMultisigIsmMetadata.index(_metadata),
-                MerkleRootMultisigIsmMetadata.signedMessageId(_metadata)
+                MerkleRootMultisigIsmMetadata.messageId(_metadata)
             );
     }
 

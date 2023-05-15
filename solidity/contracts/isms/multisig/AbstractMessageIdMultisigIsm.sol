@@ -11,7 +11,7 @@ import {CheckpointLib} from "../../libs/CheckpointLib.sol";
 /**
  * @title MultisigIsm
  * @notice Manages per-domain m-of-n Validator sets that are used to verify
- * interchain messages.
+ * a quorum of signatures on message ID at index I.
  */
 abstract contract AbstractMessageIdMultisigIsm is AbstractMultisigIsm {
     // ============ Constants ============
@@ -46,7 +46,7 @@ abstract contract AbstractMessageIdMultisigIsm is AbstractMultisigIsm {
         pure
         virtual
         override
-        returns (bytes memory signature)
+        returns (bytes memory)
     {
         return MessageIdMultisigIsmMetadata.signatureAt(_metadata, _index);
     }

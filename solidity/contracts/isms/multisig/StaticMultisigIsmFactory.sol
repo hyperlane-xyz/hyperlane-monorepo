@@ -7,7 +7,15 @@ import {AbstractMessageIdMultisigIsm} from "./AbstractMessageIdMultisigIsm.sol";
 import {MetaProxy} from "../../libs/MetaProxy.sol";
 import {StaticMOfNAddressSetFactory} from "../../libs/StaticMOfNAddressSetFactory.sol";
 
+/**
+ * @title AbstractMetaProxyMultisigIsm
+ * @notice Manages per-domain m-of-n Validator sets that are used
+ * to verify interchain messages.
+ */
 abstract contract AbstractMetaProxyMultisigIsm is AbstractMultisigIsm {
+    /**
+     * @inheritdoc AbstractMultisigIsm
+     */
     function validatorsAndThreshold(bytes calldata)
         public
         pure

@@ -4,8 +4,8 @@ pragma solidity >=0.8.0;
 /**
  * Format of metadata:
  * [   0:  32] Origin mailbox address
- * [  32:  64] Merkle root
- * [  64:????] Validator signatures (length := threshold)
+ * [  32:  64] Signed checkpoint root
+ * [  64:????] Validator signatures (length := threshold * 65)
  */
 library MessageIdMultisigIsmMetadata {
     uint8 private constant ORIGIN_MAILBOX_OFFSET = 0;
