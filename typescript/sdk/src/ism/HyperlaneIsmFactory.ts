@@ -72,7 +72,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
 
   private async deployMultisigIsm(chain: ChainName, config: MultisigIsmConfig) {
     const signer = this.multiProvider.getSigner(chain);
-    const multisigIsmFactory = this.getContracts(chain).multisigIsmFactory;
+    const multisigIsmFactory =
+      config.type === ModuleType.MERKLE_ROOT_MULTISIG
+        ? this.getContracts(chain).merkleRootMultisigIsmFactory
+        : this.getContracts(chain).messageIdMultisigIsmFactory;
     const address = await this.deployMOfNFactory(
       chain,
       multisigIsmFactory,
@@ -253,10 +256,21 @@ export async function moduleMatchesConfig(
   switch (config.type) {
     case ModuleType.MERKLE_ROOT_MULTISIG: {
       // A MultisigIsm matches if validators and threshold match the config
-      const expectedAddress = await contracts.multisigIsmFactory.getAddress(
-        config.validators.sort(),
-        config.threshold,
-      );
+      const expectedAddress =
+        await contracts.merkleRootMultisigIsmFactory.getAddress(
+          config.validators.sort(),
+          config.threshold,
+        );
+      matches = utils.eqAddress(expectedAddress, module.address);
+      break;
+    }
+    case ModuleType.MESSAGE_ID_MULTISIG: {
+      // A MultisigIsm matches if validators and threshold match the config
+      const expectedAddress =
+        await contracts.messageIdMultisigIsmFactory.getAddress(
+          config.validators.sort(),
+          config.threshold,
+        );
       matches = utils.eqAddress(expectedAddress, module.address);
       break;
     }
