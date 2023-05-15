@@ -14,7 +14,7 @@ use hyperlane_base::{
 use hyperlane_core::accumulator::merkle::Proof;
 use hyperlane_core::{
     HyperlaneDomain, HyperlaneMessage, ModuleType, MultisigIsm, MultisigSignedCheckpoint,
-    RoutingIsm, ValidatorAnnounce, H160, H256, Checkpoint,
+    RoutingIsm, ValidatorAnnounce, H160, H256, Checkpoint, MultisigSignedCheckpointWithMessageId,
 };
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
@@ -133,6 +133,23 @@ impl BaseMetadataBuilder {
             .context(CTX)?;
         checkpoint_syncer
             .fetch_checkpoint_in_range(validators, threshold, message.nonce, highest_known_nonce)
+            .await
+            .context(CTX)
+    }
+
+    pub async fn fetch_checkpoint_with_message_id(
+        &self,
+        validators: &Vec<H256>,
+        threshold: usize,
+        message: &HyperlaneMessage,
+    ) -> Result<Option<MultisigSignedCheckpointWithMessageId>> {
+        const CTX: &str = "When fetching (checkpoint, message ID) signatures";
+        let checkpoint_syncer = self
+            .build_checkpoint_syncer(validators)
+            .await
+            .context(CTX)?;
+        checkpoint_syncer
+            .fetch_checkpoint_with_message_id(message.nonce, validators, threshold)
             .await
             .context(CTX)
     }

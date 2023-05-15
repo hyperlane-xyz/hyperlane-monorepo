@@ -29,9 +29,9 @@ impl Deref for MultisigIsmMetadataBuilder {
 }
 
 enum MetadataToken {
-    MerkleRoot,
-    MerkleIndex,
-    OriginMailbox,
+    CheckpointRoot,
+    CheckpointIndex,
+    CheckpointMailbox,
     MessageId,
     MerkleProof,
     Threshold,
@@ -51,9 +51,9 @@ impl MultisigIsmMetadataBuilder {
         threshold: u8,
     ) -> Vec<u8> {
         match token {
-            MetadataToken::MerkleRoot => checkpoint.root.to_fixed_bytes().into(),
-            MetadataToken::MerkleIndex => checkpoint.index.to_be_bytes().into(),
-            MetadataToken::OriginMailbox => checkpoint.mailbox_address.to_fixed_bytes().into(),
+            MetadataToken::CheckpointRoot => checkpoint.root.to_fixed_bytes().into(),
+            MetadataToken::CheckpointIndex => checkpoint.index.to_be_bytes().into(),
+            MetadataToken::CheckpointMailbox => checkpoint.mailbox_address.to_fixed_bytes().into(),
             MetadataToken::MessageId => message.id().to_fixed_bytes().into(),
             MetadataToken::Threshold => Vec::from([threshold]),
             MetadataToken::MerkleProof => {
@@ -78,24 +78,24 @@ impl MultisigIsmMetadataBuilder {
     fn token_layout(&self) -> Vec<MetadataToken> {
         match self.variant {
             ModuleType::LegacyMultisig => vec![
-                MetadataToken::MerkleRoot,
-                MetadataToken::MerkleIndex,
-                MetadataToken::OriginMailbox,
+                MetadataToken::CheckpointRoot,
+                MetadataToken::CheckpointIndex,
+                MetadataToken::CheckpointMailbox,
                 MetadataToken::MerkleProof,
                 MetadataToken::Threshold,
                 MetadataToken::Signatures,
                 MetadataToken::Validators,
             ],
             ModuleType::MerkleMultisig => vec![
-                MetadataToken::OriginMailbox,
-                MetadataToken::MerkleIndex,
+                MetadataToken::CheckpointMailbox,
+                MetadataToken::CheckpointIndex,
                 MetadataToken::MessageId,
                 MetadataToken::MerkleProof,
                 MetadataToken::Signatures,
             ],
             ModuleType::MessageIdMultisig => vec![
-                MetadataToken::OriginMailbox,
-                MetadataToken::MerkleRoot,
+                MetadataToken::CheckpointMailbox,
+                MetadataToken::CheckpointRoot,
                 MetadataToken::Signatures,
             ],
             _ => todo!(),
@@ -126,16 +126,37 @@ impl MetadataBuilder for MultisigIsmMetadataBuilder {
             );
         }
 
-        // TODO: switch on self.variant for checkpoint type
-        let Some(checkpoint) = self.fetch_checkpoint(&validators, threshold.into(), message)
-            .await.context(CTX)?
-        else {
-            info!(
-                ?validators, threshold, ism=%multisig_ism.address(),
-                "Could not fetch metadata: Unable to reach quorum"
-            );
-            return Ok(None);
-        };
+        let checkpoint: Checkpoint;
+        let signatures: Vec<SignatureWithSigner>;
+        match self.variant {
+            ModuleType::LegacyMultisig => {
+                let Some(quorum_checkpoint) = self.fetch_checkpoint(&validators, threshold.into(), message)
+                    .await.context(CTX)?
+                else {
+                    info!(
+                        ?validators, threshold, ism=%multisig_ism.address(),
+                        "Could not fetch metadata: Unable to reach quorum"
+                    );
+                    return Ok(None);
+                };
+                checkpoint = quorum_checkpoint.checkpoint;
+                signatures = quorum_checkpoint.signatures;
+            },
+            ModuleType::MerkleMultisig | ModuleType::MessageIdMultisig => {
+                let Some(quorum_checkpoint) = self.fetch_checkpoint_with_message_id(&validators, threshold.into(), message)
+                    .await.context(CTX)?
+                else {
+                    info!(
+                        ?validators, threshold, ism=%multisig_ism.address(),
+                        "Could not fetch metadata: Unable to reach quorum"
+                    );
+                    return Ok(None);
+                };
+                checkpoint = quorum_checkpoint.checkpoint.checkpoint;
+                signatures = quorum_checkpoint.signatures;
+            },
+            _ => todo!()
+        }
 
         // At this point we have a signed checkpoint with a quorum of validator
         // signatures. But it may be a fraudulent checkpoint that doesn't
@@ -143,11 +164,11 @@ impl MetadataBuilder for MultisigIsmMetadataBuilder {
         debug!(?checkpoint, "Found checkpoint with quorum");
 
         let proof = self
-            .get_proof(message, checkpoint.checkpoint)
+            .get_proof(message, checkpoint)
             .await
             .context(CTX)?;
 
-        if checkpoint.checkpoint.root != proof.root() {
+        if checkpoint.root != proof.root() {
             info!(
                 ?checkpoint,
                 canonical_root = ?proof.root(),
@@ -170,10 +191,10 @@ impl MetadataBuilder for MultisigIsmMetadataBuilder {
                 self.build_token(
                     token,
                     &message,
-                    &checkpoint.checkpoint,
+                    &checkpoint,
                     &proof,
                     &validators,
-                    &checkpoint.signatures,
+                    &signatures,
                     threshold,
                 )
             }).collect();
