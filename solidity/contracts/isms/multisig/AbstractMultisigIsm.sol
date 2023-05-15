@@ -55,7 +55,7 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
         internal
         pure
         virtual
-        returns (bytes memory signature);
+        returns (bytes memory);
 
     // ============ Public Functions ============
 
