@@ -17,6 +17,12 @@ use super::{
     pending_operation::*,
 };
 
+/// Wait 5 seconds between retries in test mode
+#[cfg(any(test, feature = "test-utils"))]
+const CONFIRM_DELAY_S: u64 = 5;
+
+/// Wait 10 min between retries in production.
+#[cfg(not(any(test, feature = "test-utils")))]
 const CONFIRM_DELAY_S: u64 = 60 * 10;
 
 /// The message context contains the links needed to submit a message. Each
@@ -240,38 +246,46 @@ impl PendingOperation for PendingMessage {
             self.submitted = true;
             self.reset_attempts();
             self.next_attempt_after = Some(Instant::now() + Duration::from_secs(CONFIRM_DELAY_S));
-            op_try!(critical: self.record_message_process_success(), "recording message process success");
             PendingOperationResult::Success
         } else {
             info!(
                 hash=?outcome.txid,
-                "Transaction attempting to process transaction reverted"
+                "Transaction attempting to process message reverted"
             );
             self.on_retry()
         }
     }
 
     async fn confirm(&mut self) -> PendingOperationResult {
+        make_op_try!(|| {
+            // Provider error; just try again later
+            // Note: this means that we are using `NotReady` for a retryable error case
+            self.inc_attmpets();
+            PendingOperationResult::NotReady
+        });
+
         if !self.submitted {
             return PendingOperationResult::Reprepare;
         }
         if !self.is_ready() {
             return PendingOperationResult::NotReady;
         }
-        match self
-            .ctx
-            .destination_mailbox
-            .delivered(self.message.id())
-            .await
-        {
-            Ok(true) => PendingOperationResult::Success,
-            Ok(false) => PendingOperationResult::Reprepare,
-            Err(e) => {
-                // Provider error; just try again later
-                warn!(?e, "Error confirming message");
-                self.inc_attmpets();
-                PendingOperationResult::NotReady
-            }
+
+        let is_delivered = op_try!(
+            self.ctx
+                .destination_mailbox
+                .delivered(self.message.id())
+                .await,
+            "Confirming message delivery"
+        );
+        if is_delivered {
+            op_try!(
+                critical: self.record_message_process_success(),
+                "recording message process success"
+            );
+            PendingOperationResult::Success
+        } else {
+            PendingOperationResult::Reprepare
         }
     }
 

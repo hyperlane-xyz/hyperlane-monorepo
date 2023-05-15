@@ -43,3 +43,4 @@ hyperlane-base = { path = "../../hyperlane-base", features = ["test-utils"] }
 default = ["color-eyre", "oneline-errors"]
 oneline-errors = ["hyperlane-base/oneline-errors"]
 color-eyre = ["hyperlane-base/color-eyre"]
+test-utils = ["hyperlane-base/test-utils"]

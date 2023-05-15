@@ -214,7 +214,7 @@ fn main() -> ExitCode {
         spawn(move || {
             println!("Building rust...");
             build_cmd(
-                &["cargo", "build", "--bin", "relayer", "--bin", "validator"],
+                &["cargo", "build", "--features", "test-utils", "--bin", "relayer", "--bin", "validator"],
                 None,
             );
         })
@@ -395,7 +395,7 @@ fn main() -> ExitCode {
             // number of rounds is specified.
             break;
         }
-        sleep(Duration::from_secs(1));
+        sleep(Duration::from_secs(5));
     }
 
     ExitCode::from(0)
