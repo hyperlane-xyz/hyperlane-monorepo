@@ -105,7 +105,7 @@ impl PendingOperation for PendingMessage {
 
     #[instrument]
     async fn prepare(&mut self) -> PendingOperationResult {
-        make_op_try!(|| self.on_retry());
+        make_op_try!(|| self.on_reprepare());
 
         if !self.is_ready() {
             trace!("Message is not ready to be submitted yet");
@@ -164,7 +164,7 @@ impl PendingOperation for PendingMessage {
             "building metadata"
         ) else {
             info!("Could not fetch metadata");
-            return self.on_retry();
+            return self.on_reprepare();
         };
 
         // Estimate transaction costs for the process call. If there are issues, it's
@@ -189,7 +189,7 @@ impl PendingOperation for PendingMessage {
         )
             else {
                 info!(?tx_cost_estimate, "Gas payment requirement not met yet");
-                return self.on_retry();
+                return self.on_reprepare();
             };
 
         // Go ahead and attempt processing of message to destination chain.
@@ -200,7 +200,7 @@ impl PendingOperation for PendingMessage {
         if let Some(max_limit) = self.ctx.transaction_gas_limit {
             if gas_limit > max_limit {
                 info!("Message delivery estimated gas exceeds max gas limit");
-                return self.on_retry();
+                return self.on_reprepare();
             }
         }
 
@@ -213,7 +213,7 @@ impl PendingOperation for PendingMessage {
 
     #[instrument]
     async fn submit(&mut self) -> PendingOperationResult {
-        make_op_try!(|| self.on_retry());
+        make_op_try!(|| self.on_reprepare());
 
         let state = self
             .submission_data
@@ -245,7 +245,7 @@ impl PendingOperation for PendingMessage {
                 hash=?outcome.txid,
                 "Transaction attempting to process message reverted"
             );
-            self.on_retry()
+            self.on_reprepare()
         }
     }
 
@@ -294,7 +294,7 @@ impl PendingOperation for PendingMessage {
 }
 
 impl PendingMessage {
-    fn on_retry(&mut self) -> PendingOperationResult {
+    fn on_reprepare(&mut self) -> PendingOperationResult {
         self.inc_attempts();
         PendingOperationResult::Reprepare
     }
