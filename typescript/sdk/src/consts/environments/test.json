@@ -1,38 +1,44 @@
 {
   "test1": {
-    "storageGasOracle": "0xf5059a5D33d5853360D16C683c16e67980206f36",
-    "validatorAnnounce": "0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE",
-    "proxyAdmin": "0x851356ae760d987E095750cCeb3bC6014560891C",
-    "mailbox": "0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1",
-    "interchainGasPaymaster": "0x70e0bA845a1A0F2DA3359C97E0285013525FFC49",
-    "defaultIsmInterchainGasPaymaster": "0x99bbA657f2BbC93c02D617f8bA121cB8Fc104Acf",
+    "storageGasOracle": "0x70e0bA845a1A0F2DA3359C97E0285013525FFC49",
+    "validatorAnnounce": "0xc6e7DF5E7b4f2A278906862b61205850344D4e7d",
+    "proxyAdmin": "0x998abeb3E57409262aE5b751f60747921B33613E",
+    "mailbox": "0x3Aa5ebB10DC797CAC828524e59A333d0A371443c",
+    "interchainGasPaymaster": "0x0E801D84Fa97b50751Dbf25036d067dCf18858bF",
+    "defaultIsmInterchainGasPaymaster": "0x9d4454B023096f34B160D6B654540c56A1F81688",
     "multisigIsm": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
     "multisigIsmFactory": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-    "aggregationIsmFactory": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
-    "routingIsmFactory": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0"
+    "aggregationIsmFactory": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+    "routingIsmFactory": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
+    "merkleRootMultisigIsmFactory": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    "messageIdMultisigIsmFactory": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"
   },
   "test2": {
-    "storageGasOracle": "0x9d4454B023096f34B160D6B654540c56A1F81688",
-    "validatorAnnounce": "0x7a2088a1bFc9d81c55368AE168C2C02570cB814F",
-    "proxyAdmin": "0x8f86403A4DE0BB5791fa46B8e795C547942fE4Cf",
-    "mailbox": "0x4A679253410272dd5232B3Ff7cF5dbB88f295319",
-    "interchainGasPaymaster": "0x809d550fca64d94Bd9F66E60752A544199cfAC3D",
-    "defaultIsmInterchainGasPaymaster": "0x1291Be112d480055DaFd8a610b7d1e203891C274",
+    "storageGasOracle": "0x809d550fca64d94Bd9F66E60752A544199cfAC3D",
+    "validatorAnnounce": "0x67d269191c92Caf3cD7723F116c85e6E9bf55933",
+    "proxyAdmin": "0x36C02dA8a0983159322a80FFE9F24b1acfF8B570",
+    "mailbox": "0xc5a5C42992dECbae36851359345FE25997F5C42d",
+    "interchainGasPaymaster": "0x5f3f1dBD7B74C6B46e8c44f98792A1dAf8d69154",
+    "defaultIsmInterchainGasPaymaster": "0xCD8a1C3ba11CF5ECfa6267617243239504a98d90",
     "multisigIsm": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
     "multisigIsmFactory": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
-    "aggregationIsmFactory": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
-    "routingIsmFactory": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707"
+    "aggregationIsmFactory": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
+    "routingIsmFactory": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
+    "merkleRootMultisigIsmFactory": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
+    "messageIdMultisigIsmFactory": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707"
   },
   "test3": {
-    "storageGasOracle": "0xCD8a1C3ba11CF5ECfa6267617243239504a98d90",
-    "validatorAnnounce": "0x1613beB3B2C4f22Ee086B2b38C1476A3cE7f78E8",
-    "proxyAdmin": "0xb7278A61aa25c888815aFC32Ad3cC52fF24fE575",
-    "mailbox": "0xa82fF9aFd8f496c3d6ac40E2a0F282E47488CFc9",
-    "interchainGasPaymaster": "0x7969c5eD335650692Bc04293B07F5BF2e7A673C0",
-    "defaultIsmInterchainGasPaymaster": "0xc351628EB244ec633d5f21fBD6621e1a683B1181",
+    "storageGasOracle": "0x7969c5eD335650692Bc04293B07F5BF2e7A673C0",
+    "validatorAnnounce": "0x95401dc811bb5740090279Ba06cfA8fcF6113778",
+    "proxyAdmin": "0x2bdCC0de6bE1f7D2ee689a0342D76F52E8EFABa3",
+    "mailbox": "0xf5059a5D33d5853360D16C683c16e67980206f36",
+    "interchainGasPaymaster": "0xFD471836031dc5108809D173A067e8486B9047A3",
+    "defaultIsmInterchainGasPaymaster": "0x1429859428C0aBc9C2C47C8Ee9FBaf82cFA0F20f",
     "multisigIsm": "0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1",
     "multisigIsmFactory": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
-    "aggregationIsmFactory": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
-    "routingIsmFactory": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6"
+    "aggregationIsmFactory": "0x610178dA211FEF7D417bC0e6FeD39F05609AD788",
+    "routingIsmFactory": "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e",
+    "merkleRootMultisigIsmFactory": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
+    "messageIdMultisigIsmFactory": "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318"
   }
 }
