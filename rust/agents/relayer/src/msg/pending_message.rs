@@ -222,7 +222,7 @@ impl PendingOperation for PendingMessage {
 
         // We use the estimated gas limit from the prior call to
         // `process_estimate_costs` to avoid a second gas estimation.
-        let outcome = op_try!(
+        let tx_outcome = op_try!(
             self.ctx
                 .destination_mailbox
                 .process(&self.message, &state.metadata, Some(state.gas_limit))
@@ -230,10 +230,10 @@ impl PendingOperation for PendingMessage {
             "processing message"
         );
 
-        op_try!(critical: self.ctx.origin_gas_payment_enforcer.record_tx_outcome(&self.message, outcome), "recording tx outcome");
-        if outcome.executed {
+        op_try!(critical: self.ctx.origin_gas_payment_enforcer.record_tx_outcome(&self.message, tx_outcome), "recording tx outcome");
+        if tx_outcome.executed {
             info!(
-                hash=?outcome.txid,
+                hash=?tx_outcome.txid,
                 "Message successfully processed by transaction"
             );
             self.submitted = true;
@@ -242,7 +242,7 @@ impl PendingOperation for PendingMessage {
             PendingOperationResult::Success
         } else {
             info!(
-                hash=?outcome.txid,
+                hash=?tx_outcome.txid,
                 "Transaction attempting to process message reverted"
             );
             self.on_reprepare()
