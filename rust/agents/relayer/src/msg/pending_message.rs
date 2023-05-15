@@ -259,7 +259,7 @@ impl PendingOperation for PendingMessage {
         make_op_try!(|| {
             // Provider error; just try again later
             // Note: this means that we are using `NotReady` for a retryable error case
-            self.inc_attmpets();
+            self.inc_attempts();
             PendingOperationResult::NotReady
         });
 
@@ -284,6 +284,8 @@ impl PendingOperation for PendingMessage {
             );
             PendingOperationResult::Success
         } else {
+            self.submitted = false;
+            self.reset_attempts();
             PendingOperationResult::Reprepare
         }
     }
