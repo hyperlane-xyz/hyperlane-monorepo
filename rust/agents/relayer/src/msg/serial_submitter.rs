@@ -184,7 +184,9 @@ async fn prepare_task(
                 metrics.ops_failed.inc();
                 prepare_queue.lock().await.push(Reverse(op));
             }
-            PendingOperationResult::Drop => {}
+            PendingOperationResult::Drop => {
+                metrics.ops_dropped.inc();
+            }
             PendingOperationResult::CriticalFailure(e) => {
                 return Err(e);
             }
@@ -214,7 +216,9 @@ async fn submit_task(
                 metrics.ops_failed.inc();
                 prepare_queue.lock().await.push(Reverse(op));
             }
-            PendingOperationResult::Drop => {}
+            PendingOperationResult::Drop => {
+                metrics.ops_dropped.inc();
+            }
             PendingOperationResult::CriticalFailure(e) => return Err(e),
         }
     }
@@ -254,7 +258,9 @@ async fn confirm_task(
                 metrics.ops_reorged.inc();
                 prepare_queue.lock().await.push(Reverse(op));
             }
-            PendingOperationResult::Drop => {}
+            PendingOperationResult::Drop => {
+                metrics.ops_dropped.inc();
+            }
             PendingOperationResult::CriticalFailure(e) => return Err(e),
         }
     }
@@ -270,6 +276,7 @@ pub struct SerialSubmitterMetrics {
     ops_confirmed: IntCounter,
     ops_reorged: IntCounter,
     ops_failed: IntCounter,
+    ops_dropped: IntCounter,
 }
 
 impl SerialSubmitterMetrics {
@@ -297,6 +304,9 @@ impl SerialSubmitterMetrics {
             ops_failed: metrics
                 .operations_processed_count()
                 .with_label_values(&["failed", destination]),
+            ops_dropped: metrics
+                .operations_processed_count()
+                .with_label_values(&["dropped", destination]),
         }
     }
 }

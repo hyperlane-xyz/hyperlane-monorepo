@@ -336,17 +336,19 @@ impl CoreMetrics {
     /// - `chain`: Chain the operation was submitted to.
     ///
     /// The following phases have been implemented:
-    /// - `prepared`: When the operation has been prepared for submission.
-    ///   This is a pipelining step that happens before submission and may need
-    ///   to be re-done.
-    /// - `submitted`: When the operation has been submitted to the chain but
-    ///   is not yet certain to be included after a re-org.
+    /// - `prepared`: When the operation has been prepared for submission. This
+    ///   is a pipelining step that happens before submission and may need to be
+    ///   re-done.
+    /// - `submitted`: When the operation has been submitted to the chain but is
+    ///   not yet certain to be included after a re-org.
     /// - `confirmed`: When the operation has been confirmed to have made it
     ///   into the chain after the reorg window has passed.
     /// - `reorged`: When the operation was not included and needs to be
     ///   reprocessed.
     /// - `failed`: When some part of the pipeline failed. The operation may
     ///   still be retried later.
+    /// - `dropped`: When the operation was dropped from the pipeline. This may
+    ///   or may not be because of an error.
     pub fn operations_processed_count(&self) -> IntCounterVec {
         self.operations_processed_count.clone()
     }
