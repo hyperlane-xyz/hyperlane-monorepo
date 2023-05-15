@@ -1,4 +1,5 @@
-use std::collections::HashMap;
+use core::panic;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::ops::Deref;
 use std::todo;
@@ -10,6 +11,8 @@ use ethers::abi::Token;
 use eyre::Context;
 use hyperlane_core::accumulator::merkle::Proof;
 use hyperlane_core::{Checkpoint, HyperlaneMessage, ModuleType, SignatureWithSigner, H256};
+use num_derive::FromPrimitive;
+use strum::Display;
 use tracing::{debug, info, instrument};
 
 use super::{BaseMetadataBuilder, MetadataBuilder};
@@ -28,6 +31,7 @@ impl Deref for MultisigIsmMetadataBuilder {
     }
 }
 
+#[derive(Debug, Display, PartialEq, Eq, Clone)]
 enum MetadataToken {
     CheckpointRoot,
     CheckpointIndex,
@@ -39,22 +43,54 @@ enum MetadataToken {
     Validators,
 }
 
+const LEGACY_TOKEN_LAYOUT: [MetadataToken; 7] = [
+    MetadataToken::CheckpointRoot,
+    MetadataToken::CheckpointIndex,
+    MetadataToken::CheckpointMailbox,
+    MetadataToken::MerkleProof,
+    MetadataToken::Threshold,
+    MetadataToken::Signatures,
+    MetadataToken::Validators,
+];
+
+const MERKLE_ROOT_TOKEN_LAYOUT: [MetadataToken; 5] = [
+    MetadataToken::CheckpointMailbox,
+    MetadataToken::CheckpointIndex,
+    MetadataToken::MessageId,
+    MetadataToken::MerkleProof,
+    MetadataToken::Signatures,
+];
+
+const MESSAGE_ID_TOKEN_LAYOUT: [MetadataToken; 3] = [
+    MetadataToken::CheckpointMailbox,
+    MetadataToken::CheckpointRoot,
+    MetadataToken::Signatures,
+];
+
 impl MultisigIsmMetadataBuilder {
-    fn build_token(
+    fn token_layout(&self) -> Vec<MetadataToken> {
+        match self.variant {
+            ModuleType::LegacyMultisig => LEGACY_TOKEN_LAYOUT.to_vec(),
+            ModuleType::MerkleRootMultisig => MERKLE_ROOT_TOKEN_LAYOUT.to_vec(),
+            ModuleType::MessageIdMultisig => MESSAGE_ID_TOKEN_LAYOUT.to_vec(),
+            _ => panic!("Unsupported multisig variant: {:?}", self.variant),
+        }
+    }
+
+    fn format_metadata(
         &self,
-        token: &MetadataToken,
-        message: &HyperlaneMessage,
+        message_id: &H256,
         checkpoint: &Checkpoint,
         proof: &Proof,
         validators: &[H256],
         signatures: &[SignatureWithSigner],
         threshold: u8,
     ) -> Vec<u8> {
-        match token {
+        let build_token = |token: &MetadataToken| match token {
             MetadataToken::CheckpointRoot => checkpoint.root.to_fixed_bytes().into(),
             MetadataToken::CheckpointIndex => checkpoint.index.to_be_bytes().into(),
             MetadataToken::CheckpointMailbox => checkpoint.mailbox_address.to_fixed_bytes().into(),
-            MetadataToken::MessageId => message.id().to_fixed_bytes().into(),
+            MetadataToken::MessageId => message_id.to_fixed_bytes().into(),
             MetadataToken::Threshold => Vec::from([threshold]),
             MetadataToken::MerkleProof => {
                 let proof_tokens: Vec<Token> = proof
@@ -72,34 +108,11 @@ impl MultisigIsmMetadataBuilder {
                 return ethers::abi::encode(&[Token::FixedArray(validator_tokens)]);
             }
             MetadataToken::Signatures => order_signatures(validators, signatures).concat(),
-        }
-    }
+        };
 
-    fn token_layout(&self) -> Vec<MetadataToken> {
-        match self.variant {
-            ModuleType::LegacyMultisig => vec![
-                MetadataToken::CheckpointRoot,
-                MetadataToken::CheckpointIndex,
-                MetadataToken::CheckpointMailbox,
-                MetadataToken::MerkleProof,
-                MetadataToken::Threshold,
-                MetadataToken::Signatures,
-                MetadataToken::Validators,
-            ],
-            ModuleType::MerkleRootMultisig => vec![
-                MetadataToken::CheckpointMailbox,
-                MetadataToken::CheckpointIndex,
-                MetadataToken::MessageId,
-                MetadataToken::MerkleProof,
-                MetadataToken::Signatures,
-            ],
-            ModuleType::MessageIdMultisig => vec![
-                MetadataToken::CheckpointMailbox,
-                MetadataToken::CheckpointRoot,
-                MetadataToken::Signatures,
-            ],
-            _ => todo!(),
-        }
+        let layout = self.token_layout();
+        let token_bytes: Vec<Vec<u8>> = layout.iter().map(build_token).collect();
+        return token_bytes.concat();
     }
 }
 
@@ -127,6 +140,7 @@ impl MetadataBuilder for MultisigIsmMetadataBuilder {
         }
 
         let checkpoint: Checkpoint;
+        let message_id: H256;
         let signatures: Vec<SignatureWithSigner>;
         match self.variant {
             ModuleType::LegacyMultisig => {
@@ -141,7 +155,8 @@ impl MetadataBuilder for MultisigIsmMetadataBuilder {
                 };
                 checkpoint = quorum_checkpoint.checkpoint;
                 signatures = quorum_checkpoint.signatures;
-            },
+                message_id = message.id();
+            }
             ModuleType::MerkleRootMultisig | ModuleType::MessageIdMultisig => {
                 let Some(quorum_checkpoint) = self.fetch_checkpoint_with_message_id(&validators, threshold.into(), message)
                     .await.context(CTX)?
@@ -153,9 +168,14 @@ impl MetadataBuilder for MultisigIsmMetadataBuilder {
                     return Ok(None);
                 };
                 checkpoint = quorum_checkpoint.checkpoint.checkpoint;
+                message_id = if self.variant == ModuleType::MessageIdMultisig {
+                    message.id()
+                } else {
+                    quorum_checkpoint.checkpoint.message_id
+                };
                 signatures = quorum_checkpoint.signatures;
-            },
-            _ => todo!()
+            }
+            _ => panic!("Unsupported multisig variant: {:?}", self.variant),
         }
 
         // At this point we have a signed checkpoint with a quorum of validator
@@ -163,10 +183,7 @@ impl MetadataBuilder for MultisigIsmMetadataBuilder {
         // match the canonical root at the checkpoint's index.
         debug!(?checkpoint, "Found checkpoint with quorum");
 
-        let proof = self
-            .get_proof(message, checkpoint)
-            .await
-            .context(CTX)?;
+        let proof = self.get_proof(message, checkpoint).await.context(CTX)?;
 
         if checkpoint.root != proof.root() {
             info!(
@@ -185,21 +202,14 @@ impl MetadataBuilder for MultisigIsmMetadataBuilder {
             "Fetched metadata"
         );
 
-        let token_bytes: Vec<Vec<u8>> = self.token_layout()
-            .iter()
-            .map(|token| {
-                self.build_token(
-                    token,
-                    &message,
-                    &checkpoint,
-                    &proof,
-                    &validators,
-                    &signatures,
-                    threshold,
-                )
-            }).collect();
-
-        return Ok(Some(token_bytes.concat()));
+        return Ok(Some(self.format_metadata(
+            &message_id,
+            &checkpoint,
+            &proof,
+            &validators,
+            &signatures,
+            threshold,
+        )));
     }
 }
 
