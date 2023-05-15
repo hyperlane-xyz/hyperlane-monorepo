@@ -257,9 +257,8 @@ impl PendingOperation for PendingMessage {
             PendingOperationResult::NotReady
         });
 
-        if !self.submitted {
-            return PendingOperationResult::Reprepare;
-        }
+        debug_assert!(self.submitted, "Confirm called before message was submitted");
+
         if !self.is_ready() {
             return PendingOperationResult::NotReady;
         }
