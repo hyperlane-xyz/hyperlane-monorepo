@@ -1,10 +1,10 @@
-use std::{error::Error, time::Duration};
+use std::time::Duration;
 use tracing::{debug, info, instrument};
 
-use hyperlane_core::{utils::fmt_sync_time, InterchainGasPaymasterIndexer, SyncBlockRangeCursor};
+use hyperlane_core::{InterchainGasPaymasterIndexer, SyncBlockRangeCursor};
 use tokio::time::sleep;
 
-use crate::{contract_sync::cursor::RateLimitedSyncBlockRangeCursor, ContractSync};
+use crate::ContractSync;
 
 const GAS_PAYMENTS_LABEL: &str = "gas_payments";
 

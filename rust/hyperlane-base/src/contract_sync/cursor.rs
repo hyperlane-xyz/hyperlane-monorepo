@@ -1,6 +1,5 @@
 use std::{
     cmp::Ordering,
-    sync::Arc,
     time::{Duration, Instant},
 };
 

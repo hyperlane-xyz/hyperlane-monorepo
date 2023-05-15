@@ -2,7 +2,7 @@ use std::future::Future;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use eyre::{eyre, Result};
+use eyre::Result;
 use tokio::time::sleep;
 use tracing::{debug, info, trace};
 
@@ -268,7 +268,7 @@ impl HyperlaneDB for HyperlaneRocksDB {
     }
 
     /// Store a list of delivered messages and their associated metadata.
-    async fn store_delivered_messages(&self, deliveries: &[(H256, LogMeta)]) -> Result<u32> {
+    async fn store_delivered_messages(&self, _deliveries: &[(H256, LogMeta)]) -> Result<u32> {
         todo!();
     }
 

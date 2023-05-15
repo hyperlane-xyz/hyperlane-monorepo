@@ -2,7 +2,6 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use derive_new::new;
-use eyre::Result;
 use tokio::task::JoinHandle;
 use tracing::{info_span, instrument::Instrumented, Instrument};
 

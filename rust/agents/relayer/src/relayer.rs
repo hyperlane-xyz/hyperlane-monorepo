@@ -16,10 +16,7 @@ use hyperlane_base::{
     db::DB, run_all, BaseAgent, CachingInterchainGasPaymaster, CachingMailbox, ContractSyncMetrics,
     CoreMetrics, HyperlaneAgentCore,
 };
-use hyperlane_core::{
-    ChainResult, HyperlaneChain, HyperlaneDomain, InterchainGasPaymaster, Mailbox,
-    ValidatorAnnounce, U256,
-};
+use hyperlane_core::{HyperlaneChain, HyperlaneDomain, Mailbox, ValidatorAnnounce, U256};
 
 use crate::{
     merkle_tree_builder::MerkleTreeBuilder,

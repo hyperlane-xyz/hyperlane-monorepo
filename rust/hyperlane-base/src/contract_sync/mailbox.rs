@@ -1,4 +1,4 @@
-use std::{error::Error, time::Duration};
+use std::time::Duration;
 
 use tracing::{debug, info, instrument, warn};
 

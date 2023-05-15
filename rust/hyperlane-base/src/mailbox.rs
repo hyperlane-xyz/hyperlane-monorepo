@@ -9,8 +9,8 @@ use tracing::{info_span, instrument::Instrumented, Instrument};
 
 use hyperlane_core::{
     ChainResult, Checkpoint, HyperlaneChain, HyperlaneContract, HyperlaneDB, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, Mailbox, MailboxIndexer, MessageSyncCursor,
-    SyncBlockRangeCursor, TxCostEstimate, TxOutcome, H256, U256,
+    HyperlaneMessage, HyperlaneProvider, Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256,
+    U256,
 };
 
 use crate::{
@@ -32,8 +32,11 @@ impl std::fmt::Display for CachingMailbox {
     }
 }
 
+/// The strategy used to sync events
 pub enum SyncType {
+    /// Forward from some predefined point, indefinitely
     Forward,
+    /// Forward and backwards from some predefined point
     MiddleOut,
 }
 

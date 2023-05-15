@@ -11,7 +11,7 @@ use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tracing::{debug, error, info, info_span, instrument, instrument::Instrumented, Instrument};
 
-use hyperlane_base::{db::HyperlaneRocksDB, CachingMailbox, CoreMetrics};
+use hyperlane_base::{db::HyperlaneRocksDB, CoreMetrics};
 use hyperlane_core::{HyperlaneChain, HyperlaneDomain, Mailbox, U256};
 
 use crate::msg::PendingMessage;

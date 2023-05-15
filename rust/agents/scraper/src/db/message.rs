@@ -136,7 +136,7 @@ impl ScraperDb {
     /// Store messages from a mailbox into the database (or update an existing
     /// one).
     #[instrument(skip_all)]
-    pub async fn store_messages(
+    pub async fn store_dispatched_messages(
         &self,
         origin_mailbox: &H256,
         messages: impl Iterator<Item = StorableMessage<'_>>,

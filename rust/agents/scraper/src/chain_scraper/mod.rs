@@ -2,24 +2,18 @@
 //! keeping things updated.
 
 use std::collections::HashMap;
-use std::future::Future;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use ethers::prelude::rand::seq::index;
 use eyre::{eyre, Result};
-use futures::TryFutureExt;
-use hyperlane_base::{run_all, CachingInterchainGasPaymaster, CachingMailbox, SyncType};
+use hyperlane_base::{CachingInterchainGasPaymaster, CachingMailbox};
 use itertools::Itertools;
-use tokio::task::JoinHandle;
-use tracing::instrument::Instrumented;
-use tracing::{info_span, trace};
+use tracing::trace;
 
-use hyperlane_base::{chains::IndexSettings, ContractSyncMetrics};
+use hyperlane_base::chains::IndexSettings;
 use hyperlane_core::{
-    BlockInfo, HyperlaneChain, HyperlaneContract, HyperlaneDB, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProvider, InterchainGasPaymasterIndexer, InterchainGasPayment, LogMeta, Mailbox,
-    MailboxIndexer, H256,
+    BlockInfo, HyperlaneDB, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
+    InterchainGasPayment, LogMeta, H256,
 };
 
 use crate::db::StorablePayment;
@@ -48,12 +42,9 @@ pub struct Contracts {
 #[derive(Clone, Debug)]
 pub struct HyperlaneSqlDb {
     mailbox_address: H256,
-    igp_address: H256,
     domain: HyperlaneDomain,
     db: ScraperDb,
     provider: Arc<dyn HyperlaneProvider>,
-    index_settings: IndexSettings,
-    metrics: ContractSyncMetrics,
     cursor: Arc<BlockCursor>,
 }
 
@@ -62,11 +53,9 @@ impl HyperlaneSqlDb {
     pub async fn new(
         db: ScraperDb,
         mailbox_address: H256,
-        igp_address: H256,
         domain: HyperlaneDomain,
         provider: Arc<dyn HyperlaneProvider>,
         index_settings: &IndexSettings,
-        metrics: ContractSyncMetrics,
     ) -> Result<Self> {
         let cursor = Arc::new(
             db.block_cursor(domain.id(), index_settings.from as u64)
@@ -77,9 +66,6 @@ impl HyperlaneSqlDb {
             domain,
             provider,
             mailbox_address,
-            igp_address,
-            index_settings: index_settings.clone(),
-            metrics,
             cursor,
         })
     }
@@ -292,7 +278,7 @@ impl HyperlaneDB for HyperlaneSqlDb {
             .max()
             .ok_or_else(|| eyre!("Received empty list"))?;
         self.db
-            .store_messages(
+            .store_dispatched_messages(
                 &self.mailbox_address,
                 messages.iter().map(|m| {
                     let txn = txns.get(&m.1.transaction_hash).unwrap();
