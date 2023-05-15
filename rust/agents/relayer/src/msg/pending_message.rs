@@ -211,12 +211,6 @@ impl PendingOperation for PendingMessage {
         PendingOperationResult::Success
     }
 
-    /// Returns the message's status. If the message is processed, either by a
-    /// transaction in this fn or by a view call to the Mailbox contract
-    /// discovering the message has already been processed, Ok(true) is
-    /// returned. If this message is unable to be processed, either due to
-    /// failed gas estimation or an insufficient gas payment, Ok(false) is
-    /// returned.
     #[instrument]
     async fn submit(&mut self) -> PendingOperationResult {
         make_op_try!(|| self.on_retry());
