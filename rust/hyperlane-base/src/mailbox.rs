@@ -69,8 +69,8 @@ impl Mailbox for CachingMailbox {
         self.mailbox.count(maybe_lag).await
     }
 
-    async fn tree(&self) -> ChainResult<IncrementalMerkle> {
-        self.mailbox.tree().await
+    async fn tree(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
+        self.mailbox.tree(maybe_lag).await
     }
 
     /// Fetch the status of a message

@@ -70,7 +70,7 @@ impl Mailbox for MockMailboxContract {
         self._count(maybe_lag)
     }
 
-    async fn tree(&self) -> ChainResult<IncrementalMerkle> {
+    async fn tree(&self, _: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
         todo!()
     }
 

@@ -8,7 +8,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use ethers::abi::AbiEncode;
 use ethers::prelude::Middleware;
-use ethers::types::{BlockId, Eip1559TransactionRequest};
+use ethers::types::Eip1559TransactionRequest;
 use ethers_contract::builders::ContractCall;
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use hyperlane_core::accumulator::TREE_DEPTH;
@@ -323,7 +323,7 @@ where
         let base_call = self.contract.latest_checkpoint();
         let call_with_lag = match maybe_lag {
             Some(lag) => {
-                let tip = self
+                let tip: u64 = self
                     .provider
                     .get_block_number()
                     .await
@@ -344,16 +344,28 @@ where
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
-    async fn tree(&self) -> ChainResult<IncrementalMerkle> {
-        // TODO: migrate to single contract view call once mailbox is upgraded
-        // let tree = self.contract.merkleTree().call().await;
+    async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
+        let lag = if let Some(lag) = lag { lag.get() } else { 0 }.into();
 
-        let block_number: BlockId = self
+        let block_number = self
             .provider
             .get_block_number()
             .await
             .map_err(ChainCommunicationError::from_other)?
+            .saturating_sub(lag)
             .into();
+
+        let expected_root = self
+            .contract
+            .root()
+            .block(block_number)
+            .call()
+            .await
+            .unwrap()
+            .into();
+
+        // TODO: migrate to single contract view call once mailbox is upgraded
+        // let tree = self.contract.merkleTree().call().await;
 
         let mut branch = [H256::zero(); TREE_DEPTH];
 
@@ -388,18 +400,9 @@ where
             .try_into()
             .unwrap();
 
-        let root: H256 = self
-            .contract
-            .root()
-            .block(block_number)
-            .call()
-            .await
-            .unwrap()
-            .into();
-
         let tree = IncrementalMerkle::new(branch, count);
 
-        assert_eq!(tree.root(), root);
+        assert_eq!(tree.root(), expected_root);
 
         return Ok(tree);
     }

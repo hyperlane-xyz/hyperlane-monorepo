@@ -20,7 +20,10 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
     }
 
     /// Return the incremental merkle tree in storage
-    async fn tree(&self) -> ChainResult<IncrementalMerkle>;
+    ///
+    /// - `lag` is how far behind the current block to query, if not specified
+    ///   it will query at the latest block.
+    async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle>;
 
     /// Gets the current leaf count of the merkle tree
     ///

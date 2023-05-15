@@ -1,4 +1,4 @@
-use std::{sync::Arc, num::NonZeroU64};
+use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -95,7 +95,7 @@ impl BaseAgent for Validator {
             ContractSyncMetrics::new(self.core.metrics.clone())
         );
 
-        run_all(vec![sync, submit.spawn()])
+        run_all(vec![sync, submit.clone().spawn(), submit.spawn_legacy()])
     }
 }
 

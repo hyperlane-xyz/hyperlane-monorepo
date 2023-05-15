@@ -1,21 +1,20 @@
 use std::assert_eq;
 use std::num::NonZeroU64;
 use std::sync::Arc;
-use std::thread::current;
 use std::time::{Duration, Instant};
 
 use eyre::Result;
-use futures_util::stream::select_all;
 use prometheus::IntGauge;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, info, info_span, instrument::Instrumented, Instrument};
 
-use hyperlane_base::{run_all, CachingMailbox, CheckpointSyncer, CoreMetrics};
+use hyperlane_base::{CachingMailbox, CheckpointSyncer, CoreMetrics};
 use hyperlane_core::{
     Announcement, Checkpoint, CheckpointWithMessageId, HyperlaneDomain, HyperlaneSigner,
     HyperlaneSignerExt, Mailbox,
 };
 
+#[derive(Clone)]
 pub(crate) struct ValidatorSubmitter {
     interval: Duration,
     reorg_period: Option<NonZeroU64>,
@@ -46,8 +45,12 @@ impl ValidatorSubmitter {
 
     pub(crate) fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("ValidatorSubmitter");
-        // TODO: spawn legacy checkpoint submitter in parallel
         tokio::spawn(async move { self.checkpoint_submitter().await }).instrument(span)
+    }
+
+    pub(crate) fn spawn_legacy(self) -> Instrumented<JoinHandle<Result<()>>> {
+        let span = info_span!("LegacyValidatorSubmitter");
+        tokio::spawn(async move { self.legacy_checkpoint_submitter().await }).instrument(span)
     }
 
     async fn checkpoint_submitter(self) -> Result<()> {
@@ -64,7 +67,7 @@ impl ValidatorSubmitter {
             .await?;
 
         // initialize local copy of incremental merkle tree
-        let mut tree = self.mailbox.tree().await?;
+        let mut tree = self.mailbox.tree(self.reorg_period).await?;
 
         loop {
             while let Some(message_id) =
@@ -194,6 +197,7 @@ impl ValidatorSubmitter {
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct ValidatorSubmitterMetrics {
     latest_checkpoint_observed: IntGauge,
     latest_checkpoint_processed: IntGauge,

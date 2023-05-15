@@ -83,7 +83,7 @@ impl Mailbox for FuelMailbox {
 
 
     #[instrument(level = "debug", err, ret, skip(self))]
-    async fn tree(&self) -> ChainResult<IncrementalMerkle> {
+    async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
         todo!()
     }
 
