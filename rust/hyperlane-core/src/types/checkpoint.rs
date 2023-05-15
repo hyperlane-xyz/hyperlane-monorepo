@@ -117,6 +117,26 @@ pub struct MultisigSignedCheckpointWithMessageId {
     pub signatures: Vec<SignatureWithSigner>,
 }
 
+/// A checkpoint and multiple signatures
+#[derive(Clone)]
+pub struct MultisigSignedCheckpointWithMessageId {
+    /// The checkpoint
+    pub checkpoint: CheckpointWithMessageId,
+    /// Signatures over the checkpoint. No ordering guarantees.
+    pub signatures: Vec<SignatureWithSigner>,
+}
+
+impl Debug for MultisigSignedCheckpointWithMessageId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "MultisigSignedCheckpoint {{ checkpoint: {:?}, signature_count: {} }}",
+            self.checkpoint,
+            self.signatures.len()
+        )
+    }
+}
+
 /// Error types for MultisigSignedCheckpoint
 #[derive(Debug, thiserror::Error)]
 pub enum MultisigSignedCheckpointError {
@@ -156,6 +176,40 @@ impl TryFrom<&Vec<SignedCheckpointWithSigner>> for MultisigSignedCheckpoint {
             .collect();
 
         Ok(MultisigSignedCheckpoint {
+            checkpoint,
+            signatures,
+        })
+    }
+}
+
+impl TryFrom<&Vec<SignedCheckpointWithMessageIdWithSigner>> for MultisigSignedCheckpointWithMessageId {
+    type Error = MultisigSignedCheckpointError;
+
+    /// Given multiple signed checkpoints with their signer, creates a
+    /// MultisigSignedCheckpoint
+    fn try_from(signed_checkpoints: &Vec<SignedCheckpointWithMessageIdWithSigner>) -> Result<Self, Self::Error> {
+        if signed_checkpoints.is_empty() {
+            return Err(MultisigSignedCheckpointError::EmptySignatures());
+        }
+        // Get the first checkpoint and ensure all other signed checkpoints are for
+        // the same checkpoint
+        let checkpoint = signed_checkpoints[0].signed_checkpoint.value;
+        if !signed_checkpoints
+            .iter()
+            .all(|c| checkpoint == c.signed_checkpoint.value)
+        {
+            return Err(MultisigSignedCheckpointError::InconsistentCheckpoints());
+        }
+
+        let signatures = signed_checkpoints
+            .iter()
+            .map(|c| SignatureWithSigner {
+                signature: c.signed_checkpoint.signature,
+                signer: c.signer,
+            })
+            .collect();
+
+        Ok(MultisigSignedCheckpointWithMessageId {
             checkpoint,
             signatures,
         })

@@ -5,8 +5,6 @@ use std::{collections::HashMap, fmt::Debug};
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::{Context, Result};
-use num_derive::FromPrimitive;
-use num_traits::FromPrimitive;
 use tokio::sync::RwLock;
 use tracing::{debug, instrument, warn};
 
@@ -15,8 +13,8 @@ use hyperlane_base::{
 };
 use hyperlane_core::accumulator::merkle::Proof;
 use hyperlane_core::{
-    HyperlaneDomain, HyperlaneMessage, MultisigIsm, MultisigSignedCheckpoint, RoutingIsm,
-    ValidatorAnnounce, H160, H256,
+    HyperlaneDomain, HyperlaneMessage, ModuleType, MultisigIsm, MultisigSignedCheckpoint,
+    RoutingIsm, ValidatorAnnounce, H160, H256, Checkpoint,
 };
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
@@ -25,17 +23,9 @@ use crate::msg::metadata::{MultisigIsmMetadataBuilder, RoutingIsmMetadataBuilder
 #[derive(Debug, thiserror::Error)]
 pub enum MetadataBuilderError {
     #[error("Unknown or invalid module type ({0})")]
-    UnsupportedModuleType(u8),
+    UnsupportedModuleType(ModuleType),
     #[error("Exceeded max depth when building metadata ({0})")]
     MaxDepthExceeded(u32),
-}
-
-#[derive(FromPrimitive, Clone, Debug)]
-pub enum SupportedIsmTypes {
-    Routing = 1,
-    // Aggregation = 2,
-    LegacyMultisig = 3,
-    Multisig = 4,
 }
 
 #[async_trait]
@@ -83,17 +73,16 @@ impl MetadataBuilder for BaseMetadataBuilder {
             .await
             .context(CTX)?;
         let module_type = ism.module_type().await.context(CTX)?;
-        let supported_type = SupportedIsmTypes::from_u8(module_type)
-            .ok_or(MetadataBuilderError::UnsupportedModuleType(module_type))
-            .context(CTX)?;
         let base = self.clone_with_incremented_depth()?;
 
-        let metadata_builder: Box<dyn MetadataBuilder> = match supported_type {
-            SupportedIsmTypes::Multisig => Box::new(MultisigIsmMetadataBuilder::new(base, false)),
-            SupportedIsmTypes::LegacyMultisig => {
-                Box::new(MultisigIsmMetadataBuilder::new(base, true))
+        let metadata_builder: Box<dyn MetadataBuilder> = match module_type {
+            ModuleType::LegacyMultisig
+            | ModuleType::MerkleMultisig
+            | ModuleType::MessageIdMultisig => {
+                Box::new(MultisigIsmMetadataBuilder::new(base, module_type))
             }
-            SupportedIsmTypes::Routing => Box::new(RoutingIsmMetadataBuilder::new(base)),
+            ModuleType::Routing => Box::new(RoutingIsmMetadataBuilder::new(base)),
+            _ => return Err(MetadataBuilderError::UnsupportedModuleType(module_type).into()),
         };
         metadata_builder
             .build(ism_address, message)
@@ -120,13 +109,13 @@ impl BaseMetadataBuilder {
     pub async fn get_proof(
         &self,
         message: &HyperlaneMessage,
-        checkpoint: MultisigSignedCheckpoint,
+        checkpoint: Checkpoint,
     ) -> Result<Proof> {
         const CTX: &str = "When fetching message proof";
         self.prover_sync
             .read()
             .await
-            .get_proof(message.nonce, checkpoint.checkpoint.index)
+            .get_proof(message.nonce, checkpoint.index)
             .context(CTX)
     }
 

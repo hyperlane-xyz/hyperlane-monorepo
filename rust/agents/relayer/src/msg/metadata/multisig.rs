@@ -1,25 +1,23 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::ops::Deref;
+use std::todo;
 
 use async_trait::async_trait;
 use derive_new::new;
 use ethers::abi::Token;
+
 use eyre::Context;
+use hyperlane_core::accumulator::merkle::Proof;
+use hyperlane_core::{Checkpoint, HyperlaneMessage, ModuleType, SignatureWithSigner, H256};
 use tracing::{debug, info, instrument};
 
-use hyperlane_core::accumulator::merkle::Proof;
-use hyperlane_core::{
-    HyperlaneMessage, MultisigIsm, MultisigSignedCheckpoint, SignatureWithSigner, H256,
-};
-
-use super::base::MetadataBuilder;
-use super::BaseMetadataBuilder;
+use super::{BaseMetadataBuilder, MetadataBuilder};
 
 #[derive(Clone, Debug, new)]
 pub struct MultisigIsmMetadataBuilder {
     base: BaseMetadataBuilder,
-    legacy: bool,
+    variant: ModuleType,
 }
 
 impl Deref for MultisigIsmMetadataBuilder {
@@ -27,6 +25,81 @@ impl Deref for MultisigIsmMetadataBuilder {
 
     fn deref(&self) -> &Self::Target {
         &self.base
+    }
+}
+
+enum MetadataToken {
+    MerkleRoot,
+    MerkleIndex,
+    OriginMailbox,
+    MessageId,
+    MerkleProof,
+    Threshold,
+    Signatures,
+    Validators,
+}
+
+impl MultisigIsmMetadataBuilder {
+    fn build_token(
+        &self,
+        token: &MetadataToken,
+        message: &HyperlaneMessage,
+        checkpoint: &Checkpoint,
+        proof: &Proof,
+        validators: &[H256],
+        signatures: &[SignatureWithSigner],
+        threshold: u8,
+    ) -> Vec<u8> {
+        match token {
+            MetadataToken::MerkleRoot => checkpoint.root.to_fixed_bytes().into(),
+            MetadataToken::MerkleIndex => checkpoint.index.to_be_bytes().into(),
+            MetadataToken::OriginMailbox => checkpoint.mailbox_address.to_fixed_bytes().into(),
+            MetadataToken::MessageId => message.id().to_fixed_bytes().into(),
+            MetadataToken::Threshold => Vec::from([threshold]),
+            MetadataToken::MerkleProof => {
+                let proof_tokens: Vec<Token> = proof
+                    .path
+                    .iter()
+                    .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
+                    .collect();
+                return ethers::abi::encode(&proof_tokens);
+            }
+            MetadataToken::Validators => {
+                let validator_tokens: Vec<Token> = validators
+                    .iter()
+                    .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
+                    .collect();
+                return ethers::abi::encode(&[Token::FixedArray(validator_tokens)]);
+            }
+            MetadataToken::Signatures => order_signatures(validators, signatures).concat(),
+        }
+    }
+
+    fn token_layout(&self) -> Vec<MetadataToken> {
+        match self.variant {
+            ModuleType::LegacyMultisig => vec![
+                MetadataToken::MerkleRoot,
+                MetadataToken::MerkleIndex,
+                MetadataToken::OriginMailbox,
+                MetadataToken::MerkleProof,
+                MetadataToken::Threshold,
+                MetadataToken::Signatures,
+                MetadataToken::Validators,
+            ],
+            ModuleType::MerkleMultisig => vec![
+                MetadataToken::OriginMailbox,
+                MetadataToken::MerkleIndex,
+                MetadataToken::MessageId,
+                MetadataToken::MerkleProof,
+                MetadataToken::Signatures,
+            ],
+            ModuleType::MessageIdMultisig => vec![
+                MetadataToken::OriginMailbox,
+                MetadataToken::MerkleRoot,
+                MetadataToken::Signatures,
+            ],
+            _ => todo!(),
+        }
     }
 }
 
@@ -45,21 +118,22 @@ impl MetadataBuilder for MultisigIsmMetadataBuilder {
             .validators_and_threshold(message)
             .await
             .context(CTX)?;
+        if validators.is_empty() {
+            info!(
+                ism=%multisig_ism.address(),
+                chain=%self.base.domain().name(),
+                "Could not fetch metadata: No validator set for chain is configured on the recipient's ISM"
+            );
+        }
+
+        // TODO: switch on self.variant for checkpoint type
         let Some(checkpoint) = self.fetch_checkpoint(&validators, threshold.into(), message)
             .await.context(CTX)?
         else {
-            if validators.is_empty() {
-                info!(
-                    ism=%multisig_ism.address(),
-                    chain=%self.base.domain().name(),
-                    "Could not fetch metadata: No validator set for chain is configured on the recipient's ISM"
-                );
-            } else {
-                info!(
-                    ?validators, threshold, ism=%multisig_ism.address(),
-                    "Could not fetch metadata: Unable to reach quorum"
-                );
-            }
+            info!(
+                ?validators, threshold, ism=%multisig_ism.address(),
+                "Could not fetch metadata: Unable to reach quorum"
+            );
             return Ok(None);
         };
 
@@ -69,88 +143,42 @@ impl MetadataBuilder for MultisigIsmMetadataBuilder {
         debug!(?checkpoint, "Found checkpoint with quorum");
 
         let proof = self
-            .get_proof(message, checkpoint.clone())
+            .get_proof(message, checkpoint.checkpoint)
             .await
             .context(CTX)?;
 
-        if checkpoint.checkpoint.root == proof.root() {
-            debug!(
-                ?validators,
-                threshold,
-                ?checkpoint,
-                ?proof,
-                "Fetched metadata"
-            );
-            let metadata = self.format_metadata(&validators, threshold, &checkpoint, &proof);
-            Ok(Some(metadata))
-        } else {
+        if checkpoint.checkpoint.root != proof.root() {
             info!(
                 ?checkpoint,
                 canonical_root = ?proof.root(),
                 "Could not fetch metadata: Signed checkpoint does not match canonical root"
             );
-            Ok(None)
+            return Ok(None);
         }
-    }
-}
 
-impl MultisigIsmMetadataBuilder {
-    /// Returns the metadata needed by the contract's verify function
-    fn format_metadata(
-        &self,
-        validators: &[H256],
-        threshold: u8,
-        checkpoint: &MultisigSignedCheckpoint,
-        proof: &Proof,
-    ) -> Vec<u8> {
-        assert_eq!(threshold as usize, checkpoint.signatures.len());
-        let root_bytes = checkpoint.checkpoint.root.to_fixed_bytes().into();
-        let index_bytes = checkpoint.checkpoint.index.to_be_bytes().into();
-        let proof_tokens: Vec<Token> = proof
-            .path
+        debug!(
+            ?validators,
+            threshold,
+            ?checkpoint,
+            ?proof,
+            "Fetched metadata"
+        );
+
+        let token_bytes: Vec<Vec<u8>> = self.token_layout()
             .iter()
-            .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
-            .collect();
-        let mailbox_and_proof_bytes = ethers::abi::encode(&[
-            Token::FixedBytes(
-                checkpoint
-                    .checkpoint
-                    .mailbox_address
-                    .to_fixed_bytes()
-                    .into(),
-            ),
-            Token::FixedArray(proof_tokens),
-        ]);
+            .map(|token| {
+                self.build_token(
+                    token,
+                    &message,
+                    &checkpoint.checkpoint,
+                    &proof,
+                    &validators,
+                    &checkpoint.signatures,
+                    threshold,
+                )
+            }).collect();
 
-        // The ethers encoder likes to zero-pad non word-aligned byte arrays.
-        // Thus, we pack the signatures, which are not word-aligned, ourselves.
-        let signature_vecs: Vec<Vec<u8>> = order_signatures(validators, &checkpoint.signatures);
-        let signature_bytes = signature_vecs.concat();
-
-        if self.legacy {
-            let validator_tokens: Vec<Token> = validators
-                .iter()
-                .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
-                .collect();
-            let validator_bytes = ethers::abi::encode(&[Token::FixedArray(validator_tokens)]);
-            [
-                root_bytes,
-                index_bytes,
-                mailbox_and_proof_bytes,
-                Vec::from([threshold]),
-                signature_bytes,
-                validator_bytes,
-            ]
-            .concat()
-        } else {
-            [
-                root_bytes,
-                index_bytes,
-                mailbox_and_proof_bytes,
-                signature_bytes,
-            ]
-            .concat()
-        }
+        return Ok(Some(token_bytes.concat()));
     }
 }
 

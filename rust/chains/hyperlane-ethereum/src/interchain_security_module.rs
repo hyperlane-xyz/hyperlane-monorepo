@@ -8,9 +8,10 @@ use async_trait::async_trait;
 use ethers::providers::Middleware;
 use tracing::instrument;
 
+use num_traits::cast::FromPrimitive;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneProvider, InterchainSecurityModule, H256,
+    HyperlaneProvider, InterchainSecurityModule, H256, ModuleType
 };
 
 use crate::contracts::i_interchain_security_module::{
@@ -96,9 +97,9 @@ where
     M: Middleware + 'static,
 {
     #[instrument(err, ret)]
-    async fn module_type(&self) -> ChainResult<u8> {
+    async fn module_type(&self) -> ChainResult<ModuleType> {
         let module_type = self.contract.module_type().call().await?;
-        Ok(module_type)
+        Ok(ModuleType::from_u8(module_type).unwrap_or_default())
     }
 }
 
