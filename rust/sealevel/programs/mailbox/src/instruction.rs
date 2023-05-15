@@ -120,7 +120,7 @@ const MAILBOX_RECIPIENT_INSTRUCTION_VERSION: u8 = 1;
 
 impl<T> MailboxRecipientInstruction<T>
 where
-    T: BorshDeserialize + BorshSerialize + std::fmt::Debug
+    T: BorshDeserialize + BorshSerialize + std::fmt::Debug,
 {
     pub fn new_mailbox_recipient_cpi(sender: H256, origin: u32, message: Vec<u8>) -> Self {
         Self::MailboxRecipientCpi(RecipientInstruction {
@@ -136,11 +136,10 @@ where
 
     // FIXME should we just manually impl Borsh here?
     pub fn from_instruction_data(mut data: &[u8]) -> Result<Self, ProgramError> {
-        let header = MailboxRecipientInstructionHeader::deserialize(&mut data)
-            .map_err(|_| {
-                solana_program::msg!("ERROR: {}:{}", file!(), line!()); // FIXME remove
-                ProgramError::InvalidInstructionData
-            })?;
+        let header = MailboxRecipientInstructionHeader::deserialize(&mut data).map_err(|_| {
+            solana_program::msg!("ERROR: {}:{}", file!(), line!()); // FIXME remove
+            ProgramError::InvalidInstructionData
+        })?;
         if header.magic_number != MAILBOX_RECIPIENT_INSTRUCTION_SENTINEL {
             solana_program::msg!("ERROR: {}:{}", file!(), line!()); // FIXME remove
             return Err(ProgramError::InvalidInstructionData)?;
@@ -151,11 +150,11 @@ where
         }
         match header.instruction_kind {
             MailboxRecipientInstructionKind::MailboxRecipientCpi => {
-                RecipientInstruction::try_from_slice(data)
-                    .map(Self::MailboxRecipientCpi)
-            },
+                RecipientInstruction::try_from_slice(data).map(Self::MailboxRecipientCpi)
+            }
             MailboxRecipientInstructionKind::Custom => T::try_from_slice(data).map(Self::Custom),
-        }.map_err(|_| {
+        }
+        .map_err(|_| {
             solana_program::msg!("ERROR: {}:{}", file!(), line!()); // FIXME remove
             ProgramError::InvalidInstructionData
         })
@@ -169,7 +168,7 @@ where
             instruction_kind: match self {
                 Self::MailboxRecipientCpi(_) => {
                     MailboxRecipientInstructionKind::MailboxRecipientCpi
-                },
+                }
                 Self::Custom(_) => MailboxRecipientInstructionKind::Custom,
             },
         };
@@ -179,7 +178,8 @@ where
         let inner_data = match self {
             Self::MailboxRecipientCpi(ixn) => ixn.try_to_vec(),
             Self::Custom(ixn) => ixn.try_to_vec(),
-        }.map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+        }
+        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
         data.extend(inner_data);
         Ok(data)
     }
