@@ -157,6 +157,7 @@ async fn prepare_task(
             queue.pop()
         };
         let Some(Reverse(mut op)) = next else {
+            // queue is empty so give some time before checking again to prevent burning CPU
             sleep(Duration::from_millis(200)).await;
             continue;
         };
@@ -183,10 +184,7 @@ async fn prepare_task(
                 metrics.ops_failed.inc();
                 prepare_queue.lock().await.push(Reverse(op));
             }
-            PendingOperationResult::Drop => {
-                // not strictly an error, could have already been processed
-                metrics.ops_prepared.inc();
-            }
+            PendingOperationResult::Drop => {}
             PendingOperationResult::CriticalFailure(e) => {
                 return Err(e);
             }
@@ -216,9 +214,7 @@ async fn submit_task(
                 metrics.ops_failed.inc();
                 prepare_queue.lock().await.push(Reverse(op));
             }
-            PendingOperationResult::Drop => {
-                metrics.ops_submitted.inc();
-            }
+            PendingOperationResult::Drop => {}
             PendingOperationResult::CriticalFailure(e) => return Err(e),
         }
     }
@@ -239,7 +235,7 @@ async fn confirm_task(
             queue.pop()
         };
         let Some(Reverse(mut op)) = next else {
-            sleep(Duration::from_secs(60)).await;
+            sleep(Duration::from_secs(5)).await;
             continue;
         };
         trace!(?op, "Confirming operation");
@@ -258,9 +254,7 @@ async fn confirm_task(
                 metrics.ops_reorged.inc();
                 prepare_queue.lock().await.push(Reverse(op));
             }
-            PendingOperationResult::Drop => {
-                metrics.ops_confirmed.inc();
-            }
+            PendingOperationResult::Drop => {}
             PendingOperationResult::CriticalFailure(e) => return Err(e),
         }
     }
