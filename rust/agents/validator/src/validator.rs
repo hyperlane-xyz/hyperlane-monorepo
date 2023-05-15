@@ -55,10 +55,9 @@ impl BaseAgent for Validator {
         let core = settings.build_hyperlane_core(metrics.clone());
         let checkpoint_syncer = settings.checkpoint_syncer.build(None)?.into();
 
-        let mailbox: CachingMailbox = settings
+        let mailbox = settings
             .build_caching_mailbox(&settings.origin_chain, db, &metrics)
-            .await?
-            .into();
+            .await?;
 
         Ok(Self {
             origin_chain: settings.origin_chain,

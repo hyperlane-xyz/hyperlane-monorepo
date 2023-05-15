@@ -344,6 +344,7 @@ where
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
+    #[allow(clippy::needless_range_loop)]
     async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
         let lag = if let Some(lag) = lag { lag.get() } else { 0 }.into();
 
