@@ -178,7 +178,10 @@ impl ValidatorSubmitter {
             // signed checkpoint, and we should sign the latest checkpoint.
             // This ensures that we still sign even if the latest checkpoint
             // has index 0.
-            if current_index.is_none() || current_index.unwrap() < latest_checkpoint.index {
+            if current_index
+                .map(|i| i < latest_checkpoint.index)
+                .unwrap_or(true)
+            {
                 let signed_checkpoint = self.signer.sign(latest_checkpoint).await?;
 
                 info!(signed_checkpoint = ?signed_checkpoint, signer=?self.signer, "Signed new latest checkpoint");

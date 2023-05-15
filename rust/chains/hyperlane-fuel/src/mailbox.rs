@@ -110,8 +110,7 @@ impl Mailbox for FuelMailbox {
             mailbox_address: self.address(),
             mailbox_domain: self.domain.id(),
             root: root.into_h256(),
-            index,
-            // message_id
+            index
         })
     }
 

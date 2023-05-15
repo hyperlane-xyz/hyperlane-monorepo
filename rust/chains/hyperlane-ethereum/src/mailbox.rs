@@ -324,7 +324,7 @@ where
         let base_call = self.contract.latest_checkpoint();
         let call_with_lag = match maybe_lag {
             Some(lag) => {
-                let tip: u64 = self
+                let tip = self
                     .provider
                     .get_block_number()
                     .await
@@ -339,8 +339,7 @@ where
             mailbox_address: self.address(),
             mailbox_domain: self.domain.id(),
             root: root.into(),
-            index,
-            // message_id,
+            index
         })
     }
 
