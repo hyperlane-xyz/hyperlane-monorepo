@@ -8,7 +8,7 @@ use tracing::instrument::Instrumented;
 
 use hyperlane_base::{
     db::DB, run_all, BaseAgent, CachingMailbox, CheckpointSyncer, ContractSyncMetrics, CoreMetrics,
-    HyperlaneAgentCore
+    HyperlaneAgentCore,
 };
 use hyperlane_core::{HyperlaneDomain, HyperlaneSigner, Mailbox};
 
@@ -92,7 +92,7 @@ impl BaseAgent for Validator {
             self.as_ref().settings.chains[self.origin_chain.name()]
                 .index
                 .clone(),
-            ContractSyncMetrics::new(self.core.metrics.clone())
+            ContractSyncMetrics::new(self.core.metrics.clone()),
         );
 
         run_all(vec![sync, submit.clone().spawn(), submit.spawn_legacy()])

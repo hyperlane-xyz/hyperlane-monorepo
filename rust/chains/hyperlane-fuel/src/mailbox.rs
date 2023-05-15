@@ -81,7 +81,6 @@ impl Mailbox for FuelMailbox {
             .map_err(ChainCommunicationError::from_other)
     }
 
-
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
         todo!()

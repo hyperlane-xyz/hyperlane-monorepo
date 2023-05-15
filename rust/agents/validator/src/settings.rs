@@ -92,10 +92,9 @@ impl FromRawConf<'_, RawValidatorSettings> for ValidatorSettings {
             .db
             .and_then(|r| r.parse().take_err(&mut err, || cwp + "db"))
             .unwrap_or_else(|| {
-                std::env::current_dir().unwrap().join(format!(
-                    "validator_db_{}",
-                    origin_chain_name
-                ))
+                std::env::current_dir()
+                    .unwrap()
+                    .join(format!("validator_db_{}", origin_chain_name))
             });
 
         let base = raw

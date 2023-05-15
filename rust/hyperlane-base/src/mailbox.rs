@@ -8,8 +8,9 @@ use tokio::task::JoinHandle;
 use tracing::{info_span, instrument::Instrumented, Instrument};
 
 use hyperlane_core::{
-    ChainResult, Checkpoint, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProvider, Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256, accumulator::incremental::IncrementalMerkle,
+    accumulator::incremental::IncrementalMerkle, ChainResult, Checkpoint, HyperlaneChain,
+    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox,
+    MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256,
 };
 
 use crate::{chains::IndexSettings, db::HyperlaneDB, ContractSync, ContractSyncMetrics};

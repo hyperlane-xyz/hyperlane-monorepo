@@ -5,7 +5,7 @@ use std::num::NonZeroU64;
 use async_trait::async_trait;
 use mockall::*;
 
-use hyperlane_core::{*, accumulator::incremental::IncrementalMerkle};
+use hyperlane_core::{accumulator::incremental::IncrementalMerkle, *};
 
 mock! {
     pub MailboxContract {

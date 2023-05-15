@@ -163,7 +163,10 @@ impl CheckpointSyncer for S3Storage {
             .map_err(Into::into)
     }
 
-    async fn fetch_checkpoint_with_message_id(&self, index: u32) -> Result<Option<SignedCheckpointWithMessageId>> {
+    async fn fetch_checkpoint_with_message_id(
+        &self,
+        index: u32,
+    ) -> Result<Option<SignedCheckpointWithMessageId>> {
         self.anonymously_read_from_bucket(S3Storage::checkpoint_with_id_key(index))
             .await?
             .map(|data| serde_json::from_slice(&data))
@@ -187,7 +190,10 @@ impl CheckpointSyncer for S3Storage {
         Ok(())
     }
 
-    async fn write_checkpoint_with_message_id(&self, signed_checkpoint: &SignedCheckpointWithMessageId) -> Result<()> {
+    async fn write_checkpoint_with_message_id(
+        &self,
+        signed_checkpoint: &SignedCheckpointWithMessageId,
+    ) -> Result<()> {
         let serialized_checkpoint = serde_json::to_string_pretty(signed_checkpoint)?;
         self.write_to_bucket(
             S3Storage::checkpoint_with_id_key(signed_checkpoint.value.index),

@@ -24,9 +24,9 @@ pub struct Checkpoint {
 /// A Hyperlane (checkpoint, messageId) tuple
 #[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct CheckpointWithMessageId {
-    /// 
+    ///
     pub checkpoint: Checkpoint,
-    /// hash of message emitted from mailbox checkpoint.index 
+    /// hash of message emitted from mailbox checkpoint.index
     pub message_id: H256,
 }
 

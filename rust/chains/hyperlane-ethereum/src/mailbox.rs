@@ -518,20 +518,6 @@ mod test {
 
     use crate::{mailbox::GAS_ESTIMATE_BUFFER, EthereumMailbox};
 
-    async fn test_tree() {
-        let provider = Arc::new(Provider::new(mock_provider.clone()));
-
-        let mailbox = EthereumMailbox::new(
-            provider.clone(),
-            &ContractLocator {
-                // An Arbitrum Nitro chain
-                domain: &HyperlaneDomain::Known(KnownHyperlaneDomain::ArbitrumGoerli),
-                // Address doesn't matter because we're using a MockProvider
-                address: H256::default(),
-            },
-        );
-    }
-
     #[tokio::test]
     async fn test_process_estimate_costs_sets_l2_gas_limit_for_arbitrum() {
         let mock_provider = Arc::new(MockProvider::new());
