@@ -70,6 +70,7 @@ impl ValidatorSubmitter {
         let mut tree = self.mailbox.tree(self.reorg_period).await?;
 
         loop {
+            // poll DB for message IDs to ingest
             while let Some(message_id) =
                 self.mailbox.db().message_id_by_nonce(tree.count() as u32)?
             {

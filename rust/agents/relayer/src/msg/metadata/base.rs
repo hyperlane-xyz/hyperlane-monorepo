@@ -142,7 +142,6 @@ impl BaseMetadataBuilder {
             .build_checkpoint_syncer(validators)
             .await
             .context(CTX)?;
-        // TODO: fetch checkpoint at index := message.nonce
         checkpoint_syncer
             .fetch_checkpoint_in_range(validators, threshold, message.nonce, highest_known_nonce)
             .await
