@@ -145,7 +145,7 @@ impl PendingOperation for PendingMessage {
                 recipient=?self.message.recipient,
                 "Could not fetch metadata: Recipient is not a contract"
             );
-            return self.on_retry();
+            return PendingOperationResult::Drop;
         }
 
         let ism_address = op_try!(
