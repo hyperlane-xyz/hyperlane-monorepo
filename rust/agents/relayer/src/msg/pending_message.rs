@@ -17,13 +17,13 @@ use super::{
     pending_operation::*,
 };
 
-/// Wait 5 seconds between retries in test mode
-#[cfg(any(test, feature = "test-utils"))]
-const CONFIRM_DELAY_S: u64 = 5;
-
-/// Wait 10 min between retries in production.
-#[cfg(not(any(test, feature = "test-utils")))]
-const CONFIRM_DELAY_S: u64 = 60 * 10;
+const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
+    // Wait 5 seconds between retries in test mode
+    Duration::from_secs(5)
+} else {
+    // Wait 10 min between retries in production.
+    Duration::from_secs(60 * 10)
+};
 
 /// The message context contains the links needed to submit a message. Each
 /// instance is for a unique origin -> destination pairing.
@@ -123,11 +123,10 @@ impl PendingOperation for PendingMessage {
             "checking message delivery status"
         );
         if is_already_delivered {
-            debug!("Message already processed");
-            info!("Message processed");
+            debug!("Message has already been delivered, adding to confirmation queue.");
             self.submitted = true;
-            op_try!(critical: self.ctx.origin_db.mark_nonce_as_processed(self.message.nonce), "recording message as processed");
-            return PendingOperationResult::Drop;
+            self.next_attempt_after = Some(Instant::now() + CONFIRM_DELAY);
+            return PendingOperationResult::Success;
         }
 
         // The Mailbox's `recipientIsm` function will revert if
@@ -245,7 +244,7 @@ impl PendingOperation for PendingMessage {
             );
             self.submitted = true;
             self.reset_attempts();
-            self.next_attempt_after = Some(Instant::now() + Duration::from_secs(CONFIRM_DELAY_S));
+            self.next_attempt_after = Some(Instant::now() + CONFIRM_DELAY);
             PendingOperationResult::Success
         } else {
             info!(

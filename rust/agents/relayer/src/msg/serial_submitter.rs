@@ -100,8 +100,9 @@ impl SerialSubmitter {
         let tasks = [
             spawn(receive_task(domain, rx_prepare, prepare_queue.clone())),
             spawn(prepare_task(
-                tx_submit,
                 prepare_queue.clone(),
+                tx_submit,
+                confirm_queue.clone(),
                 metrics.clone(),
             )),
             spawn(submit_task(
@@ -139,8 +140,9 @@ async fn receive_task(
 
 #[instrument(skip_all)]
 async fn prepare_task(
-    tx_submit: mpsc::Sender<Box<DynPendingOperation>>,
     prepare_queue: OpQueue,
+    tx_submit: mpsc::Sender<Box<DynPendingOperation>>,
+    confirm_queue: OpQueue,
     metrics: SerialSubmitterMetrics,
 ) -> Result<()> {
     loop {
@@ -160,8 +162,13 @@ async fn prepare_task(
             PendingOperationResult::Success => {
                 debug!(?op, "Operation prepared");
                 metrics.ops_prepared.inc();
-                // this send will pause this task if the submitter is not ready to accept yet
-                tx_submit.send(op).await?;
+                if op.submitted() {
+                    // we discovered it has been submitted, so we should confirm it later
+                    confirm_queue.lock().await.push(Reverse(op));
+                } else {
+                    // this send will pause this task if the submitter is not ready to accept yet
+                    tx_submit.send(op).await?;
+                }
             }
             PendingOperationResult::NotReady => {
                 // none of the operations are ready yet, so wait for a little bit

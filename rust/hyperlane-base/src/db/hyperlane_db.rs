@@ -183,9 +183,10 @@ impl HyperlaneDB {
     }
 
     /// Retrieve nonce processed status
-    pub fn retrieve_message_processed(&self, nonce: u32) -> Result<Option<bool>> {
-        let value: Option<bool> = self.retrieve_keyed_decodable(NONCE_PROCESSED, &nonce)?;
-        Ok(value)
+    pub fn retrieve_message_processed(&self, nonce: u32) -> Result<bool> {
+        Ok(self
+            .retrieve_keyed_decodable(NONCE_PROCESSED, &nonce)?
+            .unwrap_or(false))
     }
 
     /// If the provided gas payment, identified by its metadata, has not been

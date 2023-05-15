@@ -90,11 +90,7 @@ impl MessageProcessor {
                 }
 
                 // If this message has already been processed, on to the next one.
-                if self
-                    .db
-                    .retrieve_message_processed(self.message_nonce)?
-                    .is_none()
-                {
+                if !self.db.retrieve_message_processed(self.message_nonce)? {
                     return Ok(Some(message));
                 } else {
                     debug!(nonce=?self.message_nonce, "Message already marked as processed in DB");
