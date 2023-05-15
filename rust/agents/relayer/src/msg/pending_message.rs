@@ -278,9 +278,8 @@ impl PendingOperation for PendingMessage {
             );
             PendingOperationResult::Success
         } else {
-            self.submitted = false;
             self.reset_attempts();
-            PendingOperationResult::Reprepare
+            self.on_reprepare()
         }
     }
 
@@ -296,6 +295,7 @@ impl PendingOperation for PendingMessage {
 impl PendingMessage {
     fn on_reprepare(&mut self) -> PendingOperationResult {
         self.inc_attempts();
+        self.submitted = false;
         PendingOperationResult::Reprepare
     }
 
