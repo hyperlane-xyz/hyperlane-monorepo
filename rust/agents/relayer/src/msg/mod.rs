@@ -3,14 +3,17 @@
 //! delivery.
 //!
 //! A submitter uses some strategy to try to execute the pending operations.
-//! Pending operations have two steps for execution, a `prepare` step and a
-//! `submit` step. The `prepare` step is used to do any read-only blockchain
+//! Pending operations have three steps for execution, `prepare`, `submit`, and
+//! `confirm` The `prepare` step is used to do any read-only blockchain
 //! calls that are needed to determine if the operation is ready to be submitted
 //! and to get the data required to actually submit it. The `submit` step is
-//! used to actually submit the transaction to the blockchain.
+//! used to actually submit the transaction to the blockchain. The `confirm`
+//! step is used to validate the transaction survived the reorg window.
 //!
 //! Creating this separation between `prepare` and `submit` enables preparing
-//! one operation while waiting for another to be submitted.
+//! one operation while waiting for another to be submitted; and then `confirm`
+//! allows us to re-run the operation if it succeeded but did not actually end
+//! up getting included.
 //!
 //! Right now there is one strategy: serial.
 //!
