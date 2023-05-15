@@ -211,6 +211,15 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
 // TODO add more strict checks on permissions for all accounts that are passed in, e.g., bail if
 // we expected an account to be read only but it is writable. Could build this into the AccountData
 // struct impl and provide more fetch methods.
+
+/// Accounts:
+/// 0.    [writable] Inbox PDA
+/// 1.    [writable] Authority PDA
+/// 2.    [executable] SPL noop
+/// 3.    [executable] ISM
+/// 4..N. [??] ISM accounts, if present
+/// N+1.  [executable] Recipient program
+/// N+2.. [??] Recipient accounts
 fn inbox_process(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -711,7 +720,30 @@ mod test {
         };
         let mut encoded_metadata = vec![];
         metadata.write_to(&mut encoded_metadata).unwrap();
-        let accounts = [inbox_account, auth_account, ism_account, recp_account];
+
+        let system_program_id = solana_program::system_program::id();
+
+        let mut spl_noop_lamports = 0;
+        let mut spl_noop_data = vec![];
+        let spl_noop_id = spl_noop::id();
+        let spl_noop_account = AccountInfo::new(
+            &spl_noop_id,
+            false,
+            false,
+            &mut spl_noop_lamports,
+            &mut spl_noop_data,
+            &system_program_id,
+            true,
+            Epoch::default(),
+        );
+
+        let accounts = [
+            inbox_account,
+            auth_account,
+            spl_noop_account,
+            ism_account,
+            recp_account,
+        ];
         let inbox_process = InboxProcess {
             metadata: encoded_metadata,
             message: encoded_message,
@@ -741,17 +773,14 @@ mod test {
             assert_eq!(logs[2].level, log::Level::Info);
             assert_eq!(
                 logs[2].body,
-                "Hyperlane inbox: 0x4cd9e947a4cd81f0c32bc2c167648185ff0c389e8a881cdd362707c956f31103"
+                "SyscallStubs: sol_invoke_signed() not available"
             );
         });
         let inbox = InboxAccount::fetch(&mut &accounts[0].data.borrow_mut()[..])
             .unwrap()
             .into_inner();
         assert_eq!(inbox.delivered.len(), 1);
-        assert!(inbox.delivered.contains(
-            &H256::from_str("0x4cd9e947a4cd81f0c32bc2c167648185ff0c389e8a881cdd362707c956f31103")
-                .unwrap()
-        ));
+        assert!(inbox.delivered.contains(&message.id(),));
     }
 
     #[test]
