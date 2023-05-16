@@ -19,10 +19,10 @@ pub enum Instruction {
     GetValidatorsAndThreshold(u32),
     /// Input: domain ID, validators, & threshold to set.
     SetValidatorsAndThreshold(Domained<ValidatorsAndThreshold>),
-    /// Gets the authority data, i.e. the owner.
-    GetOwnerAuthority(),
-    /// Sets the owner in the authority data.
-    SetOwnerAuthority(Pubkey),
+    /// Gets the owner from the access control data.
+    GetOwner(),
+    /// Sets the owner in the access control data.
+    SetOwner(Pubkey),
 }
 
 impl TryFrom<&[u8]> for Instruction {

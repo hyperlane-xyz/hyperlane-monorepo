@@ -14,7 +14,7 @@ use solana_program::{
 };
 
 use crate::{
-    accounts::{AuthorityAccount, AuthorityData, DomainData, DomainDataAccount},
+    accounts::{AccessControlAccount, AccessControlData, DomainData, DomainDataAccount},
     error::Error,
     instruction::{Domained, Instruction, ValidatorsAndThreshold},
     metadata::MultisigIsmMessageIdMetadata,
@@ -34,16 +34,16 @@ solana_program::declare_id!("F6dVnLFioQ8hKszqPsmjWPwHn2dJfebgMfztWrzL548V");
 entrypoint!(process_instruction);
 
 #[macro_export]
-macro_rules! authority_pda_seeds {
+macro_rules! access_control_pda_seeds {
     () => {{
-        &[b"multisig_ism_message_id", b"-", b"authority"]
+        &[b"multisig_ism_message_id", b"-", b"access_control"]
     }};
 
     ($bump_seed:expr) => {{
         &[
             b"multisig_ism_message_id",
             b"-",
-            b"authority",
+            b"access_control",
             &[$bump_seed],
         ]
     }};
@@ -99,63 +99,60 @@ pub fn process_instruction(
         Instruction::SetValidatorsAndThreshold(config) => {
             set_validators_and_threshold(program_id, accounts, config)
         }
-        Instruction::GetOwnerAuthority() => get_owner_authority(program_id, accounts),
-        Instruction::SetOwnerAuthority(new_owner) => {
-            set_owner_authority(program_id, accounts, new_owner)
-        }
+        Instruction::GetOwner() => get_owner(program_id, accounts),
+        Instruction::SetOwner(new_owner) => set_owner(program_id, accounts, new_owner),
         Instruction::Initialize => initialize(program_id, accounts),
     }
 }
 
-/// Initializes the program, creating the authority PDA account.
+/// Initializes the program, creating the access control PDA account.
 ///
 /// Accounts:
-/// 0. `[signer]` The owner authority and payer of the authority PDA.
-/// 1. `[writable]` The authority PDA account.
+/// 0. `[signer]` The new owner and payer of the access control PDA.
+/// 1. `[writable]` The access control PDA account.
 fn initialize(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
-    // Account 0: The new owner of this program and payer of the authority PDA.
-    let owner_authority_account = next_account_info(accounts_iter)?;
-    if !owner_authority_account.is_signer {
+    // Account 0: The new owner of this program and payer of the access control PDA.
+    let owner_account = next_account_info(accounts_iter)?;
+    if !owner_account.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
     }
 
-    // Account 1: The authority PDA account.
-    let authority_pda_account = next_account_info(accounts_iter)?;
-    let (authority_pda_key, authority_pda_bump_seed) =
-        Pubkey::find_program_address(authority_pda_seeds!(), program_id);
-    if *authority_pda_account.key != authority_pda_key {
+    // Account 1: The access control PDA account.
+    let access_control_pda_account = next_account_info(accounts_iter)?;
+    let (access_control_pda_key, access_control_pda_bump_seed) =
+        Pubkey::find_program_address(access_control_pda_seeds!(), program_id);
+    if *access_control_pda_account.key != access_control_pda_key {
         return Err(Error::AccountOutOfOrder.into());
     }
 
-    // Ensure the authority PDA account isn't already initialized.
-    if AuthorityAccount::fetch_data(&mut &authority_pda_account.data.borrow_mut()[..])?.is_some() {
+    // Ensure the access control PDA account isn't already initialized.
+    if AccessControlAccount::fetch_data(&mut &access_control_pda_account.data.borrow_mut()[..])?
+        .is_some()
+    {
         return Err(Error::AlreadyInitialized.into());
     }
 
-    // Create the authority PDA account.
+    // Create the access control PDA account.
     invoke_signed(
         &system_instruction::create_account(
-            owner_authority_account.key,
-            authority_pda_account.key,
-            Rent::default().minimum_balance(AuthorityData::SIZE),
-            AuthorityData::SIZE as u64,
+            owner_account.key,
+            access_control_pda_account.key,
+            Rent::default().minimum_balance(AccessControlData::SIZE),
+            AccessControlData::SIZE as u64,
             program_id,
         ),
-        &[
-            owner_authority_account.clone(),
-            authority_pda_account.clone(),
-        ],
-        &[authority_pda_seeds!(authority_pda_bump_seed)],
+        &[owner_account.clone(), access_control_pda_account.clone()],
+        &[access_control_pda_seeds!(access_control_pda_bump_seed)],
     )?;
 
-    // Store the authority data.
-    AuthorityAccount::from(AuthorityData {
-        bump_seed: authority_pda_bump_seed,
-        owner_authority: *owner_authority_account.key,
+    // Store the access control data.
+    AccessControlAccount::from(AccessControlData {
+        bump_seed: access_control_pda_bump_seed,
+        owner: *owner_account.key,
     })
-    .store(authority_pda_account, false)?;
+    .store(access_control_pda_account, false)?;
 
     Ok(())
 }
@@ -250,8 +247,8 @@ fn validators_and_threshold(
 /// Set the validators and threshold for a given domain.
 ///
 /// Accounts:
-/// 0. `[signer]` The owner authority and payer of the domain PDA.
-/// 1. `[]` The Authority PDA account.
+/// 0. `[signer]` The access control owner and payer of the domain PDA.
+/// 1. `[]` The access control PDA account.
 /// 2. `[writable]` The PDA relating to the provided domain.
 fn set_validators_and_threshold(
     program_id: &Pubkey,
@@ -265,18 +262,13 @@ fn set_validators_and_threshold(
 
     // Account 0: The owner of this program.
     // This is verified as correct further below.
-    let owner_authority_account = next_account_info(accounts_iter)?;
-    if !owner_authority_account.is_signer {
-        return Err(ProgramError::MissingRequiredSignature);
-    }
+    let owner_account = next_account_info(accounts_iter)?;
 
-    // Account 1: The Authority PDA account.
-    let authority_pda_account = next_account_info(accounts_iter)?;
-    let authority_data = authority_data(program_id, authority_pda_account)?;
+    // Account 1: The access control PDA account.
+    let access_control_pda_account = next_account_info(accounts_iter)?;
+    let access_control_data = access_control_data(program_id, access_control_pda_account)?;
     // Ensure the owner account is the owner of this program.
-    if *owner_authority_account.key != authority_data.owner_authority {
-        return Err(Error::AccountNotOwner.into());
-    }
+    access_control_data.ensure_owner_signer(owner_account)?;
 
     // Account 2: The PDA relating to the provided domain.
     let domain_pda_account = next_account_info(accounts_iter)?;
@@ -322,13 +314,13 @@ fn set_validators_and_threshold(
             // Create the domain PDA account.
             invoke_signed(
                 &system_instruction::create_account(
-                    owner_authority_account.key,
+                    owner_account.key,
                     domain_pda_account.key,
                     Rent::default().minimum_balance(domain_pda_size),
                     domain_pda_size as u64,
                     program_id,
                 ),
-                &[owner_authority_account.clone(), domain_pda_account.clone()],
+                &[owner_account.clone(), domain_pda_account.clone()],
                 &[domain_data_pda_seeds!(config.domain, domain_pda_bump)],
             )?;
 
@@ -346,85 +338,83 @@ fn set_validators_and_threshold(
     Ok(())
 }
 
-/// Gets the owner authority of this program, and returns it as return data.
-/// Intended to be used by instructions querying the owner authority.
+/// Gets the owner of this program from the access control account, and returns it as return data.
+/// Intended to be used by instructions querying the owner.
 ///
 /// Accounts:
-/// 0. `[]` The Authority PDA account.
-fn get_owner_authority(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+/// 0. `[]` The access control PDA account.
+fn get_owner(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
-    // Account 0: The Authority PDA account.
-    let authority_pda_account = next_account_info(accounts_iter)?;
+    // Account 0: The access control PDA account.
+    let access_control_pda_account = next_account_info(accounts_iter)?;
 
-    let authority_data = authority_data(program_id, authority_pda_account)?;
+    let access_control_data = access_control_data(program_id, access_control_pda_account)?;
 
     set_return_data(
-        &authority_data
-            .owner_authority
+        &access_control_data
+            .owner
             .try_to_vec()
             .map_err(|err| ProgramError::BorshIoError(err.to_string()))?,
     );
     Ok(())
 }
 
-/// Gets the authority data of this program.
-fn authority_data(
+/// Gets the access control data of this program.
+fn access_control_data(
     program_id: &Pubkey,
-    authority_pda_account: &AccountInfo,
-) -> Result<AuthorityData, ProgramError> {
-    let authority_data =
-        AuthorityAccount::fetch_data(&mut &authority_pda_account.data.borrow_mut()[..])?
+    access_control_pda_account: &AccountInfo,
+) -> Result<AccessControlData, ProgramError> {
+    let access_control_data =
+        AccessControlAccount::fetch_data(&mut &access_control_pda_account.data.borrow_mut()[..])?
             .ok_or(Error::AccountNotInitialized)?;
-    // Confirm the key of the authority_pda_account is the correct PDA
+    // Confirm the key of the access_control_pda_account is the correct PDA
     // using the stored bump seed.
-    let authority_pda_key =
-        Pubkey::create_program_address(authority_pda_seeds!(authority_data.bump_seed), program_id)?;
-    // This check validates that the provided authority_pda_account is valid
-    if *authority_pda_account.key != authority_pda_key {
+    let access_control_pda_key = Pubkey::create_program_address(
+        access_control_pda_seeds!(access_control_data.bump_seed),
+        program_id,
+    )?;
+    // This check validates that the provided access_control_pda_account is valid
+    if *access_control_pda_account.key != access_control_pda_key {
         return Err(Error::AccountOutOfOrder.into());
     }
     // Extra sanity check that the owner of the PDA account is this program
-    if *authority_pda_account.owner != id() {
+    if *access_control_pda_account.owner != id() {
         return Err(Error::ProgramIdNotOwner.into());
     }
 
-    Ok(*authority_data)
+    Ok(*access_control_data)
 }
 
-/// Sets a new owner authority.
+/// Sets a new access control owner.
 ///
 /// Accounts:
-/// 0. `[signer]` The current owner authority.
-/// 1. `[]` The Authority PDA account.
-fn set_owner_authority(
-    program_id: &Pubkey,
-    accounts: &[AccountInfo],
-    new_owner: Pubkey,
-) -> ProgramResult {
+/// 0. `[signer]` The current access control owner.
+/// 1. `[]` The access control PDA account.
+fn set_owner(program_id: &Pubkey, accounts: &[AccountInfo], new_owner: Pubkey) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
-    // Account 0: The current owner authority.
-    let owner_authority_account = next_account_info(accounts_iter)?;
-    if !owner_authority_account.is_signer {
-        return Err(ProgramError::MissingRequiredSignature);
-    }
+    // Account 0: The current access control owner.
+    // This is verified as correct further below.
+    let owner_account = next_account_info(accounts_iter)?;
 
-    // Account 1: The Authority PDA account.
-    let authority_pda_account = next_account_info(accounts_iter)?;
-    let authority_data = authority_data(program_id, authority_pda_account)?;
+    // Account 1: The access control PDA account.
+    let access_control_pda_account = next_account_info(accounts_iter)?;
+    let access_control_data = access_control_data(program_id, access_control_pda_account)?;
+    // Ensure the owner account is really the owner of this program.
+    access_control_data.ensure_owner_signer(owner_account)?;
 
-    // Ensure the passed in owner authority is really the current owner authority.
-    if *owner_authority_account.key != authority_data.owner_authority {
+    // Ensure the passed in access control owner is really the current owner.
+    if *owner_account.key != access_control_data.owner {
         return Err(Error::AccountNotOwner.into());
     }
 
-    // Store the new owner authority.
-    AuthorityAccount::from(AuthorityData {
-        bump_seed: authority_data.bump_seed,
-        owner_authority: new_owner,
+    // Store the new access control owner.
+    AccessControlAccount::from(AccessControlData {
+        bump_seed: access_control_data.bump_seed,
+        owner: new_owner,
     })
-    .store(authority_pda_account, false)?;
+    .store(access_control_pda_account, false)?;
 
     Ok(())
 }
@@ -483,27 +473,27 @@ mod test {
             Epoch::default(),
         );
 
-        let (authority_pda_key, authority_pda_bump_seed) =
-            Pubkey::find_program_address(authority_pda_seeds!(), &program_id);
+        let (access_control_pda_key, access_control_pda_bump_seed) =
+            Pubkey::find_program_address(access_control_pda_seeds!(), &program_id);
 
-        let mut authority_account_lamports = 0;
-        let mut authority_account_data = vec![0u8; 1024];
-        let authority_pda_account = AccountInfo::new(
-            &authority_pda_key,
+        let mut access_control_account_lamports = 0;
+        let mut access_control_account_data = vec![0u8; 1024];
+        let access_control_pda_account = AccountInfo::new(
+            &access_control_pda_key,
             false,
             true,
-            &mut authority_account_lamports,
-            &mut authority_account_data,
+            &mut access_control_account_lamports,
+            &mut access_control_account_data,
             &program_id,
             false,
             Epoch::default(),
         );
-        let init_authority_data = AuthorityData {
-            bump_seed: authority_pda_bump_seed,
-            owner_authority: owner_key,
+        let init_access_control_data = AccessControlData {
+            bump_seed: access_control_pda_bump_seed,
+            owner: owner_key,
         };
-        AuthorityAccount::from(init_authority_data)
-            .store(&authority_pda_account, false)
+        AccessControlAccount::from(init_access_control_data)
+            .store(&access_control_pda_account, false)
             .unwrap();
 
         let config = Domained {
@@ -514,7 +504,11 @@ mod test {
             },
         };
 
-        let accounts = vec![owner_account, authority_pda_account, domain_pda_account];
+        let accounts = vec![
+            owner_account,
+            access_control_pda_account,
+            domain_pda_account,
+        ];
 
         set_validators_and_threshold(&program_id, &accounts, config.clone()).unwrap();
 
