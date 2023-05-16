@@ -13,6 +13,8 @@ use solana_program::{
     sysvar::rent::Rent,
 };
 
+use hyperlane_sealevel_mailbox::accounts::SizedData;
+
 use crate::{
     accounts::{AccessControlAccount, AccessControlData, DomainData, DomainDataAccount},
     error::Error,
@@ -99,7 +101,7 @@ pub fn process_instruction(
         Instruction::SetValidatorsAndThreshold(config) => {
             set_validators_and_threshold(program_id, accounts, config)
         }
-        Instruction::GetOwner() => get_owner(program_id, accounts),
+        Instruction::GetOwner => get_owner(program_id, accounts),
         Instruction::SetOwner(new_owner) => set_owner(program_id, accounts, new_owner),
         Instruction::Initialize => initialize(program_id, accounts),
     }
@@ -110,6 +112,7 @@ pub fn process_instruction(
 /// Accounts:
 /// 0. `[signer]` The new owner and payer of the access control PDA.
 /// 1. `[writable]` The access control PDA account.
+/// 2. `[executable]` The system program account.
 fn initialize(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
@@ -128,19 +131,24 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     }
 
     // Ensure the access control PDA account isn't already initialized.
-    if AccessControlAccount::fetch_data(&mut &access_control_pda_account.data.borrow_mut()[..])?
-        .is_some()
-    {
+    if let Ok(Some(_)) = AccessControlAccount::fetch_data(&mut &access_control_pda_account.data.borrow_mut()[..]) {
         return Err(Error::AlreadyInitialized.into());
     }
 
+    // Account 2: The system program account.
+    let system_program_account = next_account_info(accounts_iter)?;
+    if !solana_program::system_program::check_id(system_program_account.key) {
+        return Err(Error::AccountOutOfOrder.into());
+    }
+
     // Create the access control PDA account.
+    let access_control_account_data_size = AccessControlAccount::size();
     invoke_signed(
         &system_instruction::create_account(
             owner_account.key,
             access_control_pda_account.key,
-            Rent::default().minimum_balance(AccessControlData::SIZE),
-            AccessControlData::SIZE as u64,
+            Rent::default().minimum_balance(access_control_account_data_size),
+            access_control_account_data_size as u64,
             program_id,
         ),
         &[owner_account.clone(), access_control_pda_account.clone()],

@@ -1,6 +1,9 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 
-use hyperlane_sealevel_mailbox::accounts::AccountData;
+use hyperlane_sealevel_mailbox::accounts::{
+    AccountData,
+    SizedData,
+};
 use solana_program::{account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey};
 
 use crate::{error::Error, instruction::ValidatorsAndThreshold};
@@ -19,9 +22,14 @@ pub struct AccessControlData {
     pub owner: Pubkey,
 }
 
-impl AccessControlData {
-    pub const SIZE: usize = 1 + 32;
+impl SizedData for AccessControlData {
+    fn size() -> usize {
+        // 1 byte bump seed + 32 byte owner pubkey
+        1 + 32
+    }
+}
 
+impl AccessControlData {
     pub fn ensure_owner_signer(&self, maybe_owner: &AccountInfo) -> Result<(), ProgramError> {
         if !maybe_owner.is_signer {
             return Err(ProgramError::MissingRequiredSignature);

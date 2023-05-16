@@ -20,7 +20,7 @@ pub enum Instruction {
     /// Input: domain ID, validators, & threshold to set.
     SetValidatorsAndThreshold(Domained<ValidatorsAndThreshold>),
     /// Gets the owner from the access control data.
-    GetOwner(),
+    GetOwner,
     /// Sets the owner in the access control data.
     SetOwner(Pubkey),
 }
