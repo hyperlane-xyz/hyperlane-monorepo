@@ -18,10 +18,10 @@ use super::{
 };
 
 const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
-    // Wait 5 seconds between retries in test mode
+    // Wait 5 seconds after submitting the message before confirming in test mode
     Duration::from_secs(5)
 } else {
-    // Wait 10 min between retries in production.
+    // Wait 10 min after submitting the message before confirming in test mode
     Duration::from_secs(60 * 10)
 };
 
