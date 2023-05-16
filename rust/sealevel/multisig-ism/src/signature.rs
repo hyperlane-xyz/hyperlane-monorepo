@@ -1,4 +1,4 @@
-use hyperlane_core::H160;
+use hyperlane_core::{Encode, H160};
 use solana_program::{
     keccak,
     secp256k1_recover::{secp256k1_recover, Secp256k1RecoverError},
@@ -48,7 +48,7 @@ impl EcdsaSignature {
 
     /// Serializes the signature into a 65 byte array.
     #[allow(dead_code)]
-    pub fn as_bytes(&self) -> [u8; 65] {
+    pub fn as_fixed_bytes(&self) -> [u8; 65] {
         let mut bytes = [0u8; 65];
         bytes[..64].copy_from_slice(&self.serialized_rs[..]);
         bytes[64] = self.recovery_id;

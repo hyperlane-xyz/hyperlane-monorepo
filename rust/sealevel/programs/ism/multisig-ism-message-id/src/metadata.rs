@@ -1,4 +1,4 @@
-use hyperlane_core::H256;
+use hyperlane_core::{Encode, H256};
 use multisig_ism::signature::EcdsaSignature;
 
 use crate::error::Error;
@@ -60,6 +60,21 @@ impl TryFrom<Vec<u8>> for MultisigIsmMessageIdMetadata {
     }
 }
 
+impl Encode for MultisigIsmMessageIdMetadata {
+    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
+    where
+        W: std::io::Write,
+    {
+        let mut bytes_written = 0;
+        bytes_written += writer.write(self.origin_mailbox.as_ref())?;
+        bytes_written += writer.write(self.merkle_root.as_ref())?;
+        for signature in &self.validator_signatures {
+            bytes_written += writer.write(&signature.as_fixed_bytes()[..])?;
+        }
+        Ok(bytes_written)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -85,7 +100,7 @@ mod test {
         let mut metadata_bytes = origin_mailbox.as_bytes().to_vec();
         metadata_bytes.extend_from_slice(merkle_root.as_bytes());
         for signature in &validator_signatures {
-            metadata_bytes.extend_from_slice(&signature.as_bytes()[..]);
+            metadata_bytes.extend_from_slice(&signature.as_fixed_bytes()[..]);
         }
 
         let metadata = MultisigIsmMessageIdMetadata::try_from(metadata_bytes).unwrap();

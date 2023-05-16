@@ -87,7 +87,7 @@ mod test {
         let signed_hash = TestSignedPayload().eth_signed_message_hash();
 
         let recovered_signer = signature
-            .secp256k1_recover_ethereum_address(signed_hash.as_bytes())
+            .secp256k1_recover_ethereum_address(signed_hash.as_fixed_bytes())
             .unwrap();
         assert_eq!(
             recovered_signer,

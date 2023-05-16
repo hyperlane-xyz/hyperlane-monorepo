@@ -10,8 +10,9 @@ pub use primitive_types::{H256, U256, H160};
 
 #[derive(BorshDeserialize, BorshSerialize)]
 pub enum IsmType {
+    None = 0,
     Routing = 1,
-    // Aggregation = 2,
+    Aggregation = 2,
     LegacyMultisig = 3,
     MerkleRootMultisig = 4,
     MessageIdMultisig = 5,

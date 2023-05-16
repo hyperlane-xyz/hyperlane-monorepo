@@ -72,6 +72,7 @@ pub struct InboxSetDefaultModule {
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq)]
 pub enum IsmInstruction {
     Verify(IsmVerify),
+    Type,
 }
 
 /// Instruction data format for an Interchain Security Module (ISM).

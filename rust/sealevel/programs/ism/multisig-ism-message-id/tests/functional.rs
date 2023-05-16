@@ -7,7 +7,7 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
-use hyperlane_core::H160;
+use hyperlane_core::{IsmType, H160};
 use hyperlane_sealevel_ism_multisig_ism_message_id::{
     access_control_pda_seeds,
     accounts::{AccessControlAccount, AccessControlData, DomainData, DomainDataAccount},
@@ -16,10 +16,12 @@ use hyperlane_sealevel_ism_multisig_ism_message_id::{
     instruction::{Domained, Instruction as MultisigIsmInstruction, ValidatorsAndThreshold},
     processor::process_instruction,
 };
+use hyperlane_sealevel_mailbox::instruction::IsmInstruction;
 use solana_program_test::*;
 use solana_sdk::{
     hash::Hash,
     instruction::InstructionError,
+    message::Message,
     signature::Signer,
     signer::keypair::Keypair,
     transaction::{Transaction, TransactionError},
@@ -265,4 +267,35 @@ async fn test_set_validators_and_threshold_creates_pda_account() {
             validators_and_threshold,
         }),
     );
+}
+
+#[tokio::test]
+async fn test_ism_type() {
+    let program_id = hyperlane_sealevel_ism_multisig_ism_message_id::id();
+    let (mut banks_client, payer, recent_blockhash) = ProgramTest::new(
+        "hyperlane_sealevel_ism_multisig_ism",
+        program_id,
+        processor!(process_instruction),
+    )
+    .start()
+    .await;
+
+    let type_bytes = banks_client
+        .simulate_transaction(Transaction::new_unsigned(Message::new_with_blockhash(
+            &[Instruction::new_with_borsh(
+                program_id,
+                &IsmInstruction::Type,
+                vec![],
+            )],
+            Some(&payer.pubkey()),
+            &recent_blockhash,
+        )))
+        .await
+        .unwrap()
+        .simulation_details
+        .unwrap()
+        .return_data
+        .unwrap()
+        .data;
+    assert_eq!(type_bytes[0] as u32, IsmType::MessageIdMultisig as u32);
 }

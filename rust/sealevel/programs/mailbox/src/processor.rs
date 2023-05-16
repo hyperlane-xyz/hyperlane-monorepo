@@ -227,7 +227,7 @@ fn inbox_process(
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
-    let message = HyperlaneMessage::read_from(&mut std::io::Cursor::new(process.message))
+    let message = HyperlaneMessage::read_from(&mut std::io::Cursor::new(&process.message))
         .map_err(|_| ProgramError::from(Error::MalformattedHyperlaneMessage))?;
     if message.version != VERSION {
         return Err(ProgramError::from(Error::UnsupportedMessageVersion));
@@ -318,7 +318,7 @@ fn inbox_process(
 
     let ism_ixn = IsmInstruction::Verify(IsmVerify {
         metadata: process.metadata,
-        message: message.body.clone(),
+        message: process.message,
     });
     let verify = Instruction::new_with_borsh(inbox.ism, &ism_ixn, ism_account_metas);
     invoke_signed(&verify, &ism_accounts, &[auth_seeds])?;
