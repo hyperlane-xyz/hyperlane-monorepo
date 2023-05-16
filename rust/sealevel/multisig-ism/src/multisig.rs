@@ -1,25 +1,15 @@
-use hyperlane_core::{Hasher, Signable, H160};
-use solana_program::keccak;
+use hyperlane_core::{Signable, H160};
 
 use crate::{error::MultisigIsmError, signature::EcdsaSignature};
 
-pub struct MultisigIsm<T: Signable<KeccakHasher>> {
+pub struct MultisigIsm<T: Signable> {
     signed_data: T,
     signatures: Vec<EcdsaSignature>,
     validators: Vec<H160>,
     threshold: u8,
 }
 
-// impl Into<Error> for MultisigIsmError {
-//     fn into(self) -> Error {
-//         match self {
-//             MultisigIsmError::InvalidSignature => Error::InvalidSignature,
-//             MultisigIsmError::ThresholdNotMet => Error::ThresholdNotMet,
-//         }
-//     }
-// }
-
-impl<T: Signable<KeccakHasher>> MultisigIsm<T> {
+impl<T: Signable> MultisigIsm<T> {
     pub fn new(
         signed_data: T,
         signatures: Vec<EcdsaSignature>,
@@ -62,16 +52,6 @@ impl<T: Signable<KeccakHasher>> MultisigIsm<T> {
     }
 }
 
-#[derive(Default)]
-pub struct KeccakHasher(keccak::Hasher);
-
-impl Hasher for KeccakHasher {
-    fn hash(mut self, payload: &[u8]) -> [u8; 32] {
-        self.0.hash(payload);
-        self.0.result().to_bytes()
-    }
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -84,7 +64,7 @@ mod test {
 
     struct TestSignedPayload();
 
-    impl Signable<KeccakHasher> for TestSignedPayload {
+    impl Signable for TestSignedPayload {
         fn signing_hash(&self) -> H256 {
             H256::from_str("0xf00000000000000000000000000000000000000000000000000000000000000f")
                 .unwrap()

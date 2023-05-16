@@ -1,6 +1,8 @@
+use sha3::digest::Update;
+use sha3::{Digest, Keccak256};
+
 use crate::{
     H256,
-    Hasher,
     Signable,
 };
 
@@ -17,7 +19,7 @@ pub struct Checkpoint {
     pub message_id: H256,
 }
 
-impl<H: Hasher> Signable<H> for Checkpoint {
+impl Signable for Checkpoint {
     fn signing_hash(&self) -> H256 {
         let mut bytes = [0u8; 76];
         bytes[0..32].copy_from_slice(&self.mailbox_address[..]);
@@ -25,6 +27,7 @@ impl<H: Hasher> Signable<H> for Checkpoint {
         bytes[8..40].copy_from_slice(&self.root[..]);
         bytes[40..44].copy_from_slice(&self.index.to_be_bytes());
         bytes[44..76].copy_from_slice(&self.message_id[..]);
-        H::default().hash(&bytes).into()
+
+        H256::from_slice(Keccak256::new().chain(&bytes).finalize().as_slice())
     }
 }

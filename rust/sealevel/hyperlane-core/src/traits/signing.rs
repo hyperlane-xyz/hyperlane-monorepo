@@ -1,21 +1,15 @@
 use crate::types::H256;
+use sha3::digest::Update;
+use sha3::{Digest, Keccak256};
 
-pub trait Hasher: Default {
-    fn hash(self, payload: &[u8]) -> [u8; 32];
-}
-
-pub trait Signable<H: Hasher>: Sized {
+pub trait Signable: Sized {
     /// A hash of the contents.
     /// The EIP-191 compliant version of this hash is signed by validators.
     fn signing_hash(&self) -> H256;
 
     /// EIP-191 compliant hash of the signing hash.
     fn eth_signed_message_hash(&self) -> H256 {
-        H256::from(
-            H::default().hash(
-                &eip_191_message_payload(self.signing_hash())[..]
-            )
-        )
+        H256::from_slice(Keccak256::new().chain(&eip_191_message_payload(self.signing_hash())).finalize().as_slice())
     }
 }
 
