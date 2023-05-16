@@ -315,32 +315,30 @@ impl<T> RateLimitedContractSyncCursor<T> {
     /// Wait based on how close we are to the tip and update the tip,
     /// i.e. the highest block we may scrape.
     async fn rate_limit(&mut self) -> ChainResult<()> {
-        let update_tip = self.last_tip_update.elapsed() >= Duration::from_secs(30);
         if self.from + self.chunk_size < self.tip {
             // If doing the full chunk wouldn't exceed the already known tip sleep a tiny
             // bit so that we can catch up relatively quickly.
             sleep(Duration::from_millis(100)).await;
-        } else if !update_tip {
-            // We are close to the tip.
-            // Sleep a little longer because we have caught up.
-            sleep(Duration::from_secs(10)).await;
-        }
-
-        if !update_tip {
-            return Ok(());
-        }
-        match self.indexer.get_finalized_block_number().await {
-            Ok(tip) => {
-                // we retrieved a new tip value, go ahead and update.
-                self.last_tip_update = Instant::now();
-                self.tip = tip;
-                Ok(())
+            Ok(())
+        } else {
+            // We are within one chunk size of the known tip.
+            // If it's been fewer than 30s since the last tip update, sleep for a bit until we're ready to fetch the next tip.
+            if let Some(sleep_time) = Duration::from_secs(30).checked_sub(self.last_tip_update.elapsed()) {
+                sleep(sleep_time).await;
             }
-            Err(e) => {
-                warn!(error = %e, "Failed to get next block range because we could not get the current tip");
-                // we are failing to make a basic query, we should wait before retrying.
-                sleep(Duration::from_secs(10)).await;
-                Err(e)
+            match self.indexer.get_finalized_block_number().await {
+                Ok(tip) => {
+                    // we retrieved a new tip value, go ahead and update.
+                    self.last_tip_update = Instant::now();
+                    self.tip = tip;
+                    return Ok(())
+                }
+                Err(e) => {
+                    warn!(error = %e, "Failed to get next block range because we could not get the current tip");
+                    // we are failing to make a basic query, we should wait before retrying.
+                    sleep(Duration::from_secs(10)).await;
+                    return Err(e)
+                }
             }
         }
     }
