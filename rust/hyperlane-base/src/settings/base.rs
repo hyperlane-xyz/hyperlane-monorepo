@@ -153,8 +153,7 @@ impl Settings {
         Ok(result)
     }
 
-    /// Okay, this builds a ContractSync with a
-    /// Try to get a CachingMailbox
+    /// Try to get a ContractSync for dispatched messages
     pub async fn build_message_sync(
         &self,
         domain: &HyperlaneDomain,
@@ -180,7 +179,41 @@ impl Settings {
         Ok(Box::new(sync))
     }
 
-    /// Try to get a CachingInterchainGasPaymaster
+    /// Try to get a ContractSync for delivered messages
+    pub async fn build_delivery_sync(
+        &self,
+        domain: &HyperlaneDomain,
+        metrics: &CoreMetrics,
+        sync_metrics: &ContractSyncMetrics,
+        db: Arc<dyn HyperlaneDB<H256>>,
+    ) -> eyre::Result<
+        Box<
+            ContractSync<
+                H256,
+                Arc<dyn HyperlaneDB<H256>>,
+                Arc<dyn Indexer<H256>>,
+            >,
+        >,
+    > {
+        let setup = self.chain_setup(domain)?;
+        let indexer: Box<dyn Indexer<H256>> = setup
+            .build_delivery_indexer(metrics.clone())
+            .await?;
+        let sync: ContractSync<
+            H256,
+            Arc<dyn HyperlaneDB<H256>>,
+            Arc<dyn Indexer<H256>>,
+        > = ContractSync::new(
+            domain.clone(),
+            db.clone(),
+            indexer.into(),
+            sync_metrics.clone(),
+        );
+
+        Ok(Box::new(sync))
+    }
+
+    /// Try to get a ContractSync for gas payments
     pub async fn build_interchain_gas_payment_sync(
         &self,
         domain: &HyperlaneDomain,

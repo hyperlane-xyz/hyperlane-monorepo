@@ -339,12 +339,12 @@ impl ChainConf {
         .context(ctx)
     }
 
-    /// Try to convert the chain settings into a mailbox indexer
+    /// Try to convert the chain settings into a message indexer
     pub async fn build_message_indexer(
         &self,
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn MessageIndexer>> {
-        let ctx = "Building mailbox indexer";
+        let ctx = "Building delivery indexer";
         let locator = self.locator(self.addresses.mailbox);
 
         match &self.connection()? {
@@ -353,7 +353,7 @@ impl ChainConf {
                     conf,
                     &locator,
                     metrics,
-                    h_eth::MailboxIndexerBuilder {
+                    h_eth::MessageIndexerBuilder {
                         finality_blocks: self.finality_blocks,
                     },
                 )
@@ -365,6 +365,33 @@ impl ChainConf {
         .context(ctx)
     }
 
+    /// Try to convert the chain settings into a IGP indexer
+    pub async fn build_delivery_indexer(
+        &self,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn Indexer<H256>>> {
+        let ctx = "Building delivery indexer";
+        let locator = self.locator(self.addresses.mailbox);
+
+        match &self.connection()? {
+            ChainConnectionConf::Ethereum(conf) => {
+                self.build_ethereum(
+                    conf,
+                    &locator,
+                    metrics,
+                    h_eth::DeliveryIndexerBuilder {
+                        finality_blocks: self.finality_blocks,
+                    },
+                )
+                .await
+            }
+
+            ChainConnectionConf::Fuel(_) => todo!(),
+        }
+        .context(ctx)
+    }
+
+    /// Try to convert the chain settings into a ValidatorAnnounce
     /// Try to convert the chain setting into an interchain gas paymaster
     /// contract
     pub async fn build_interchain_gas_paymaster(

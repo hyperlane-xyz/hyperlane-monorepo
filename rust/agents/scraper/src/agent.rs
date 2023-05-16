@@ -196,6 +196,24 @@ impl Scraper {
             })
             .instrument(info_span!("ContractSync")),
         );
+        let delivery_sync = self
+            .as_ref()
+            .settings
+            .build_delivery_sync(
+                &domain,
+                &self.metrics.clone(),
+                &self.contract_sync_metrics.clone(),
+                db.clone(),
+            )
+            .await
+            .unwrap();
+        let delivery_cursor = delivery_sync
+            .rate_limited_cursor(index_settings.clone())
+            .await;
+        tasks.push(
+            tokio::spawn(async move { delivery_sync.sync("message_delivery", delivery_cursor).await })
+                .instrument(info_span!("ContractSync")),
+        );
         let payment_sync = self
             .as_ref()
             .settings

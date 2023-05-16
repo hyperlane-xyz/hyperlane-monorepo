@@ -33,13 +33,34 @@ where
     }
 }
 
-pub struct MailboxIndexerBuilder {
+pub struct MessageIndexerBuilder {
     pub finality_blocks: u32,
 }
 
 #[async_trait]
-impl BuildableWithProvider for MailboxIndexerBuilder {
+impl BuildableWithProvider for MessageIndexerBuilder {
     type Output = Box<dyn MessageIndexer>;
+
+    async fn build_with_provider<M: Middleware + 'static>(
+        &self,
+        provider: M,
+        locator: &ContractLocator,
+    ) -> Self::Output {
+        Box::new(EthereumMailboxIndexer::new(
+            Arc::new(provider),
+            locator,
+            self.finality_blocks,
+        ))
+    }
+}
+
+pub struct DeliveryIndexerBuilder {
+    pub finality_blocks: u32,
+}
+
+#[async_trait]
+impl BuildableWithProvider for DeliveryIndexerBuilder {
+    type Output = Box<dyn Indexer<H256>>;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
