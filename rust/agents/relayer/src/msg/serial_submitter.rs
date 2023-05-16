@@ -102,19 +102,21 @@ impl SerialSubmitter {
         let (tx_submit, rx_submit) = mpsc::channel(1);
 
         let tasks = [
-            spawn(receive_task(domain, rx_prepare, prepare_queue.clone())),
+            spawn(receive_task(domain.clone(), rx_prepare, prepare_queue.clone())),
             spawn(prepare_task(
+                domain.clone(),
                 prepare_queue.clone(),
                 tx_submit,
                 metrics.clone(),
             )),
             spawn(submit_task(
+                domain.clone(),
                 rx_submit,
                 prepare_queue.clone(),
                 confirm_queue.clone(),
                 metrics.clone(),
             )),
-            spawn(confirm_task(prepare_queue, confirm_queue, metrics)),
+            spawn(confirm_task(domain.clone(), prepare_queue, confirm_queue, metrics)),
         ];
 
         for i in try_join_all(tasks).await? {
@@ -143,6 +145,7 @@ async fn receive_task(
 
 #[instrument(skip_all)]
 async fn prepare_task(
+    domain: HyperlaneDomain,
     prepare_queue: OpQueue,
     tx_submit: mpsc::Sender<Box<DynPendingOperation>>,
     metrics: SerialSubmitterMetrics,
@@ -160,6 +163,7 @@ async fn prepare_task(
             continue;
         };
         trace!(?op, "Preparing operation");
+        debug_assert_eq!(*op.domain(), domain);
 
         match op.prepare().await {
             PendingOperationResult::Success => {
@@ -189,6 +193,7 @@ async fn prepare_task(
 
 #[instrument(skip_all)]
 async fn submit_task(
+    domain: HyperlaneDomain,
     mut rx_submit: mpsc::Receiver<Box<DynPendingOperation>>,
     prepare_queue: OpQueue,
     confirm_queue: OpQueue,
@@ -196,6 +201,8 @@ async fn submit_task(
 ) -> Result<()> {
     while let Some(mut op) = rx_submit.recv().await {
         trace!(?op, "Submitting operation");
+        debug_assert_eq!(*op.domain(), domain);
+
         match op.submit().await {
             PendingOperationResult::Success => {
                 debug!(?op, "Operation submitted");
@@ -220,6 +227,7 @@ async fn submit_task(
 
 #[instrument(skip_all)]
 async fn confirm_task(
+    domain: HyperlaneDomain,
     prepare_queue: OpQueue,
     confirm_queue: OpQueue,
     metrics: SerialSubmitterMetrics,
@@ -236,6 +244,7 @@ async fn confirm_task(
             continue;
         };
         trace!(?op, "Confirming operation");
+        debug_assert_eq!(*op.domain(), domain);
 
         match op.confirm().await {
             PendingOperationResult::Success => {
