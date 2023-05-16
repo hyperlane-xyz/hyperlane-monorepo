@@ -6,15 +6,19 @@ use solana_program::{
 use solana_program_test::*;
 use solana_sdk::{signature::{Signer}, transaction::{Transaction, TransactionError}, signer::keypair::Keypair, hash::Hash, instruction::InstructionError};
 use hyperlane_sealevel_ism_multisig_ism_message_id::{
-    instruction::Instruction as MultisigIsmInstruction,
+    instruction::{Instruction as MultisigIsmInstruction, Domained, ValidatorsAndThreshold},
     processor::process_instruction,
     access_control_pda_seeds,
+    domain_data_pda_seeds,
     error::Error as MultisigIsmError,
     accounts::{
         AccessControlAccount,
         AccessControlData,
+        DomainDataAccount,
+        DomainData,
     },
 };
+use hyperlane_core::H160;
 
 async fn new_funded_keypair(banks_client: &mut BanksClient, payer: &Keypair, lamports: u64) -> Keypair {
     let keypair = Keypair::new();
@@ -139,4 +143,106 @@ async fn test_initialize_errors_if_called_twice() {
     } else {
         panic!("expected TransactionError");
     }
+}
+
+#[tokio::test]
+async fn test_set_validators_and_threshold_creates_pda_account() {
+    let program_id = hyperlane_sealevel_ism_multisig_ism_message_id::id();
+    let (mut banks_client, payer, recent_blockhash) = ProgramTest::new(
+        "hyperlane_sealevel_ism_multisig_ism",
+        program_id,
+        processor!(process_instruction),
+    )
+    .start()
+    .await;
+
+    let (access_control_pda_key, _) = initialize(
+        program_id.clone(),
+        &mut banks_client,
+        &payer,
+        recent_blockhash.clone(),
+    ).await.unwrap();
+
+    let domain: u32 = 1234;
+
+    let (domain_data_pda_key, domain_data_pda_bump_seed) = Pubkey::find_program_address(
+        domain_data_pda_seeds!(domain),
+        &program_id,
+    );
+
+    let validators_and_threshold = ValidatorsAndThreshold {
+        validators: vec![H160::random(), H160::random(), H160::random()],
+        threshold: 2,
+    };
+
+    let mut transaction = Transaction::new_with_payer(
+        &[Instruction::new_with_borsh(
+            program_id,
+            &MultisigIsmInstruction::SetValidatorsAndThreshold(Domained {
+                domain,
+                data: validators_and_threshold.clone(),
+            }),
+            vec![
+                AccountMeta::new_readonly(payer.pubkey(), true),
+                AccountMeta::new_readonly(access_control_pda_key, false),
+                AccountMeta::new(domain_data_pda_key, false),
+                AccountMeta::new_readonly(solana_program::system_program::id(), false),
+            ],
+        )],
+        Some(&payer.pubkey()),
+    );
+    transaction.sign(&[&payer], recent_blockhash);
+    banks_client.process_transaction(transaction).await.unwrap();
+
+    let domain_data_account_data = banks_client.get_account(
+        domain_data_pda_key,
+    ).await.unwrap().unwrap().data;
+    let domain_data = DomainDataAccount::fetch_data(&mut &domain_data_account_data[..]).unwrap().unwrap();
+    assert_eq!(
+        domain_data,
+        Box::new(DomainData {
+            bump_seed: domain_data_pda_bump_seed,
+            validators_and_threshold,
+        }),
+    );
+
+    // And now for good measure, try to set the validators and threshold again after the domain data
+    // PDA has been created. By not passing in the system program, we can be sure that
+    // the create_account path certainly doesn't get hit
+    
+    // Change it up
+    let validators_and_threshold = ValidatorsAndThreshold {
+        validators: vec![H160::random(), H160::random(), H160::random()],
+        threshold: 1,
+    };
+
+    let mut transaction = Transaction::new_with_payer(
+        &[Instruction::new_with_borsh(
+            program_id,
+            &MultisigIsmInstruction::SetValidatorsAndThreshold(Domained {
+                domain,
+                data: validators_and_threshold.clone(),
+            }),
+            vec![
+                AccountMeta::new_readonly(payer.pubkey(), true),
+                AccountMeta::new_readonly(access_control_pda_key, false),
+                AccountMeta::new(domain_data_pda_key, false),
+            ],
+        )],
+        Some(&payer.pubkey()),
+    );
+    transaction.sign(&[&payer], recent_blockhash);
+    banks_client.process_transaction(transaction).await.unwrap();
+
+    let domain_data_account_data = banks_client.get_account(
+        domain_data_pda_key,
+    ).await.unwrap().unwrap().data;
+    let domain_data = DomainDataAccount::fetch_data(&mut &domain_data_account_data[..]).unwrap().unwrap();
+    assert_eq!(
+        domain_data,
+        Box::new(DomainData {
+            bump_seed: domain_data_pda_bump_seed,
+            validators_and_threshold,
+        }),
+    );
 }

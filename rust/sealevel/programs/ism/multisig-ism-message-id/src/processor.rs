@@ -258,6 +258,7 @@ fn validators_and_threshold(
 /// 0. `[signer]` The access control owner and payer of the domain PDA.
 /// 1. `[]` The access control PDA account.
 /// 2. `[writable]` The PDA relating to the provided domain.
+/// 3. `[executable]` OPTIONAL - The system program account. Required if creating the domain PDA.
 fn set_validators_and_threshold(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -282,10 +283,10 @@ fn set_validators_and_threshold(
     let domain_pda_account = next_account_info(accounts_iter)?;
 
     let domain_data =
-        DomainDataAccount::fetch_data(&mut &domain_pda_account.data.borrow_mut()[..])?;
+        DomainDataAccount::fetch_data(&mut &domain_pda_account.data.borrow_mut()[..]);
 
     let bump_seed = match domain_data {
-        Some(domain_data) => {
+        Ok(Some(domain_data)) => {
             // The PDA account exists already, we need to confirm the key of the domain_pda_account
             // is the PDA with the stored bump seed.
             let domain_pda_key = Pubkey::create_program_address(
@@ -302,8 +303,8 @@ fn set_validators_and_threshold(
             }
 
             domain_data.bump_seed
-        }
-        None => {
+        }  
+        Ok(None) | Err(_) => {
             // Create the domain PDA account if it doesn't exist.
 
             // This is the initial size - because reallocations are allowed
@@ -316,6 +317,12 @@ fn set_validators_and_threshold(
             let (domain_pda_key, domain_pda_bump) =
                 Pubkey::find_program_address(domain_data_pda_seeds!(config.domain), program_id);
             if *domain_pda_account.key != domain_pda_key {
+                return Err(Error::AccountOutOfOrder.into());
+            }
+
+            // Account 3: The system program account.
+            let system_program_account = next_account_info(accounts_iter)?;
+            if !solana_program::system_program::check_id(system_program_account.key) {
                 return Err(Error::AccountOutOfOrder.into());
             }
 
@@ -369,6 +376,7 @@ fn get_owner(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
 }
 
 /// Gets the access control data of this program.
+/// Returns an Err if the provided account isn't the access control PDA.
 fn access_control_data(
     program_id: &Pubkey,
     access_control_pda_account: &AccountInfo,
@@ -411,11 +419,6 @@ fn set_owner(program_id: &Pubkey, accounts: &[AccountInfo], new_owner: Pubkey) -
     let access_control_data = access_control_data(program_id, access_control_pda_account)?;
     // Ensure the owner account is really the owner of this program.
     access_control_data.ensure_owner_signer(owner_account)?;
-
-    // Ensure the passed in access control owner is really the current owner.
-    if *owner_account.key != access_control_data.owner {
-        return Err(Error::AccountNotOwner.into());
-    }
 
     // Store the new access control owner.
     AccessControlAccount::from(AccessControlData {
