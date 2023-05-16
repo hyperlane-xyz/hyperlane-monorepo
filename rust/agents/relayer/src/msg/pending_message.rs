@@ -215,6 +215,11 @@ impl PendingOperation for PendingMessage {
     async fn submit(&mut self) -> PendingOperationResult {
         make_op_try!(|| self.on_reprepare());
 
+        if self.submitted {
+            // this message has already been submitted, possibly not by us
+            return PendingOperationResult::Success;
+        }
+
         // skip checking `is_ready` here because the definition of ready is it having
         // been prepared successfully and we don't want to introduce any delay into the
         // submission process.
