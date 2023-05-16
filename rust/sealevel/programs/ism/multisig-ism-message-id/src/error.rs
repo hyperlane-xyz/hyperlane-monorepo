@@ -2,6 +2,8 @@
 
 use solana_program::program_error::ProgramError;
 
+use multisig_ism::error::MultisigIsmError;
+
 #[derive(Copy, Clone, Debug, Eq, thiserror::Error, num_derive::FromPrimitive, PartialEq)]
 #[repr(u32)]
 pub enum Error {
@@ -23,6 +25,17 @@ pub enum Error {
     InvalidValidatorsAndThreshold = 8,
     #[error("Already initialized")]
     AlreadyInitialized = 9,
+    #[error("Invalid metadata")]
+    InvalidMetadata = 10,
+}
+
+impl Into<Error> for MultisigIsmError {
+    fn into(self) -> Error {
+        match self {
+            MultisigIsmError::InvalidSignature => Error::InvalidSignature,
+            MultisigIsmError::ThresholdNotMet => Error::ThresholdNotMet,
+        }
+    }
 }
 
 impl From<Error> for ProgramError {

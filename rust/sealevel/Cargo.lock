@@ -1491,6 +1491,7 @@ dependencies = [
  "hex",
  "hyperlane-core",
  "hyperlane-sealevel-mailbox",
+ "multisig-ism",
  "num-derive",
  "num-traits",
  "solana-program",
@@ -1908,6 +1909,19 @@ dependencies = [
  "log",
  "wasi 0.11.0+wasi-snapshot-preview1",
  "windows-sys 0.42.0",
+]
+
+[[package]]
+name = "multisig-ism"
+version = "0.1.0"
+dependencies = [
+ "borsh",
+ "hex",
+ "hyperlane-core",
+ "num-derive",
+ "num-traits",
+ "solana-program",
+ "thiserror",
 ]
 
 [[package]]

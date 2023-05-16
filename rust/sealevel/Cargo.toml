@@ -2,6 +2,7 @@
 members = [
     "hyperlane-core",
     "client",
+    "multisig-ism",
     "programs/mailbox",
     "programs/recipient/echo",
     "programs/ism/rubber-stamp",

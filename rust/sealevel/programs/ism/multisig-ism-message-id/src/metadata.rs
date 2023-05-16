@@ -1,8 +1,9 @@
 use hyperlane_core::H256;
-use solana_program::program_error::ProgramError;
+use multisig_ism::signature::EcdsaSignature;
 
-use crate::multisig::EcdsaSignature;
+use crate::error::Error;
 
+#[derive(Debug)]
 pub struct MultisigIsmMessageIdMetadata {
     pub origin_mailbox: H256,
     pub merkle_root: H256,
@@ -21,13 +22,13 @@ const SIGNATURE_LENGTH: usize = 65;
 /// Note that the validator signatures being the length of the threshold is
 /// not enforced here and should be enforced by the caller.
 impl TryFrom<Vec<u8>> for MultisigIsmMessageIdMetadata {
-    type Error = ProgramError;
+    type Error = Error;
 
     fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
         let bytes_len = bytes.len();
         // Require the bytes to be at least big enough to include a single signature.
         if bytes_len < SIGNATURES_OFFSET + SIGNATURE_LENGTH {
-            return Err(ProgramError::InvalidArgument);
+            return Err(Error::InvalidMetadata);
         }
 
         let origin_mailbox = H256::from_slice(&bytes[ORIGIN_MAILBOX_OFFSET..MERKLE_ROOT_OFFSET]);
@@ -38,7 +39,7 @@ impl TryFrom<Vec<u8>> for MultisigIsmMessageIdMetadata {
         // We don't need to check if signature_bytes_len is 0 because this is checked
         // above.
         if signature_bytes_len % SIGNATURE_LENGTH != 0 {
-            return Err(ProgramError::InvalidArgument);
+            return Err(Error::InvalidMetadata);
         }
         let signature_count = signature_bytes_len / SIGNATURE_LENGTH;
         let mut validator_signatures = Vec::with_capacity(signature_count);
@@ -46,7 +47,8 @@ impl TryFrom<Vec<u8>> for MultisigIsmMessageIdMetadata {
             let signature_offset = SIGNATURES_OFFSET + (i * SIGNATURE_LENGTH);
             let signature = EcdsaSignature::from_bytes(
                 &bytes[signature_offset..signature_offset + SIGNATURE_LENGTH],
-            )?;
+            )
+            .map_err(|_| Error::InvalidMetadata)?;
             validator_signatures.push(signature);
         }
 
@@ -104,8 +106,7 @@ mod test {
             .collect::<Vec<u8>>();
 
         let result = MultisigIsmMessageIdMetadata::try_from(metadata_bytes);
-        assert!(result.is_err());
-        assert!(result.err().unwrap() == ProgramError::InvalidArgument);
+        assert!(result.unwrap_err() == Error::InvalidMetadata);
     }
 
     #[test]
@@ -118,7 +119,6 @@ mod test {
         metadata_bytes.extend_from_slice(&[1u8; 64]);
 
         let result = MultisigIsmMessageIdMetadata::try_from(metadata_bytes);
-        assert!(result.is_err());
-        assert!(result.err().unwrap() == ProgramError::InvalidArgument);
+        assert!(result.unwrap_err() == Error::InvalidMetadata);
     }
 }

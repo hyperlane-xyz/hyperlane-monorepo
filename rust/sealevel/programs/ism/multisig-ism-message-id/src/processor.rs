@@ -18,8 +18,9 @@ use crate::{
     error::Error,
     instruction::{Domained, Instruction, ValidatorsAndThreshold},
     metadata::MultisigIsmMessageIdMetadata,
-    multisig::MultisigIsm,
 };
+
+use multisig_ism::multisig::MultisigIsm;
 
 use borsh::BorshSerialize;
 

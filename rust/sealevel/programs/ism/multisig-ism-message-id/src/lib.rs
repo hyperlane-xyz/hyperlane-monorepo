@@ -9,7 +9,6 @@ mod accounts;
 mod error;
 mod instruction;
 mod metadata;
-mod multisig;
 mod processor;
 
 // FIXME Read these in at compile time? And don't use harcoded test keys.
