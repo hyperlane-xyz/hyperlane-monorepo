@@ -9,7 +9,12 @@ pub trait Signable: Sized {
 
     /// EIP-191 compliant hash of the signing hash.
     fn eth_signed_message_hash(&self) -> H256 {
-        H256::from_slice(Keccak256::new().chain(&eip_191_message_payload(self.signing_hash())).finalize().as_slice())
+        H256::from_slice(
+            Keccak256::new()
+                .chain(&eip_191_message_payload(self.signing_hash()))
+                .finalize()
+                .as_slice(),
+        )
     }
 }
 

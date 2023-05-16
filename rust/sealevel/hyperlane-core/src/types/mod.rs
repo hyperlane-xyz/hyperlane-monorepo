@@ -6,7 +6,7 @@ pub use checkpoint::*;
 pub mod message;
 pub use message::*;
 
-pub use primitive_types::{H256, U256, H160};
+pub use primitive_types::{H160, H256, U256};
 
 #[derive(BorshDeserialize, BorshSerialize)]
 pub enum IsmType {

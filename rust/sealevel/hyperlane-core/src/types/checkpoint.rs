@@ -1,10 +1,7 @@
 use sha3::digest::Update;
 use sha3::{Digest, Keccak256};
 
-use crate::{
-    H256,
-    Signable,
-};
+use crate::{Signable, H256};
 
 pub struct Checkpoint {
     /// The mailbox address
