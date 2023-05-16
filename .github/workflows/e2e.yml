@@ -32,9 +32,6 @@ jobs:
       - name: remove submodule locks
         run: git submodule foreach rm yarn.lock
 
-      - name: Install Foundry
-        uses: onbjerg/foundry-toolchain@v1
-
       - name: setup rust
         uses: actions-rs/toolchain@v1
         with:
