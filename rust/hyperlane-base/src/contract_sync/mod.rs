@@ -38,6 +38,7 @@ where
     D: HyperlaneDB<T> + 'static,
     I: Indexer<T> + Clone + 'static,
 {
+    /// Should this be moved to RateLimitedContractSyncCursor::new?
     /// Returns a new cursor to be used for syncing events from the indexer based on time
     pub async fn rate_limited_cursor(
         &self,
@@ -105,5 +106,21 @@ impl ContractSync<HyperlaneMessage, Arc<dyn HyperlaneMessageDB>, Arc<dyn Message
             0,
         );
         Box::new(ForwardMessageSyncCursor::new(forward_data))
+    }
+
+    /// Returns a new cursor to be used for syncing dispatched messages from the indexer
+    pub async fn forward_backward_message_sync_cursor(
+        &self,
+        index_settings: IndexSettings,
+    ) -> Box<dyn ContractSyncCursor<HyperlaneMessage>> {
+        Box::new(
+            ForwardBackwardMessageSyncCursor::new(
+                self.indexer.clone(),
+                self.db.clone(),
+                index_settings.chunk_size,
+            )
+            .await
+            .unwrap(),
+        )
     }
 }

@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
 use tokio::time::sleep;
-use tracing::{info, warn};
+use tracing::warn;
 
 use hyperlane_core::{
     ChainResult, ContractSyncCursor, HyperlaneMessage, HyperlaneMessageDB, Indexer, LogMeta,
@@ -80,7 +80,7 @@ pub(crate) struct ForwardMessageSyncCursor(MessageSyncCursor);
 impl ForwardMessageSyncCursor {
     /// Check if any new messages have been inserted into the DB,
     /// and update the cursor accordingly.
-    async fn fast_forward(&mut self) -> bool {
+    async fn fast_forward(&mut self) {
         while let Some(block_number) = self
             .0
             .retrieve_dispatched_block_number(self.0.next_nonce)
@@ -89,7 +89,33 @@ impl ForwardMessageSyncCursor {
             self.0.next_nonce += 1;
             self.0.next_block = block_number;
         }
-        true
+    }
+
+    async fn get_next_range(&mut self) -> ChainResult<Option<(u32, u32, Duration)>> {
+        self.fast_forward().await;
+        let (mailbox_count, tip) = self.0.indexer.fetch_count_at_tip().await?;
+        let cursor_count = self.0.next_nonce;
+
+        let cmp = cursor_count.cmp(&mailbox_count);
+        match cmp {
+            Ordering::Equal => {
+                // We are synced up to the latest nonce so we don't need to index anything.
+                // We update our next block number accordingly.
+                self.0.next_block = tip;
+                return Ok(None);
+            }
+            Ordering::Less => {
+                // The cursor is behind the mailbox, so we need to index some blocks.
+                // We attempt to index a range of blocks that is as large as possible.
+                let from = self.0.next_block;
+                let to = u32::min(tip, from + self.0.chunk_size);
+                self.0.next_block = to + 1;
+                return Ok(Some((from, to, Duration::from_secs(0))));
+            }
+            Ordering::Greater => {
+                panic!("Cursor is ahead of mailbox, this should never happen.");
+            }
+        }
     }
 }
 
@@ -97,38 +123,14 @@ impl ForwardMessageSyncCursor {
 impl ContractSyncCursor<HyperlaneMessage> for ForwardMessageSyncCursor {
     async fn next_range(&mut self) -> ChainResult<(u32, u32, Duration)> {
         loop {
-            self.fast_forward().await;
-
-            let (mailbox_count, tip) = self.0.indexer.fetch_count_at_tip().await?;
-            let cursor_count = self.0.next_nonce;
-            let cmp = cursor_count.cmp(&mailbox_count);
-            info!(
-                nonce = self.0.next_nonce,
-                block = self.0.next_block,
-                mailbox_count,
-                cursor_count,
-                tip,
-                "forward range"
-            );
-            match cmp {
-                Ordering::Equal => {
-                    // We are synced up to the latest nonce so we don't need to index anything.
-                    // We update our next block number accordingly.
-                    self.0.next_block = tip;
+            let range = self.get_next_range().await?;
+            match range {
+                Some(range) => {
+                    return Ok(range);
+                }
+                None => {
                     // TODO: Define the sleep time from interval flag
                     sleep(Duration::from_secs(5)).await;
-                    continue;
-                }
-                Ordering::Less => {
-                    // The cursor is behind the mailbox, so we need to index some blocks.
-                    // We attempt to index a range of blocks that is as large as possible.
-                    let from = self.0.next_block;
-                    let to = u32::min(tip, from + self.0.chunk_size);
-                    self.0.next_block = to + 1;
-                    return Ok((from, to, Duration::from_secs(0)));
-                }
-                Ordering::Greater => {
-                    panic!("Cursor is ahead of mailbox, this should never happen.");
                 }
             }
         }
@@ -145,55 +147,44 @@ impl ContractSyncCursor<HyperlaneMessage> for ForwardMessageSyncCursor {
 
 /// A MessageSyncCursor that syncs backwards to nonce zero.
 #[derive(new)]
-pub(crate) struct BackwardMessageSyncCursor(MessageSyncCursor);
+pub(crate) struct BackwardMessageSyncCursor {
+    cursor: MessageSyncCursor,
+    synced: bool,
+}
 
 impl BackwardMessageSyncCursor {
     /// Check if any new messages have been inserted into the DB,
     /// and update the cursor accordingly.
-    async fn rewind(&mut self) -> bool {
-        loop {
+    async fn rewind(&mut self) {
+        while !self.synced {
             if let Some(block_number) = self
-                .0
-                .retrieve_dispatched_block_number(self.0.next_nonce)
+                .cursor
+                .retrieve_dispatched_block_number(self.cursor.next_nonce)
                 .await
             {
-                self.0.next_block = block_number;
-                // If we hit nonce zero, we are done fast forwarding.
-                if self.0.next_nonce == 0 {
-                    return false;
+                self.cursor.next_block = block_number;
+                // If we found nonce zero, we are done rewinding.
+                if self.cursor.next_nonce == 0 {
+                    self.synced = true;
+                    break;
                 }
-                self.0.next_nonce = self.0.next_nonce.saturating_sub(1);
+                self.cursor.next_nonce = self.cursor.next_nonce.saturating_sub(1);
             } else {
-                return true;
+                break;
             }
         }
     }
-}
 
-#[async_trait]
-impl ContractSyncCursor<HyperlaneMessage> for BackwardMessageSyncCursor {
-    async fn next_range(&mut self) -> ChainResult<(u32, u32, Duration)> {
-        loop {
-            let syncing = self.rewind().await;
-            if !syncing {
-                break;
-            }
-
-            info!(
-                nonce = self.0.next_nonce,
-                block = self.0.next_block,
-                "backward range"
-            );
-
+    async fn get_next_range(&mut self) -> Option<(u32, u32, Duration)> {
+        self.rewind().await;
+        if self.synced {
+            return None;
+        } else {
             // Just keep going backwards.
-            let to = self.0.next_block;
-            let from = to.saturating_sub(self.0.chunk_size);
-            self.0.next_block = from.saturating_sub(1);
-            return Ok((from, to, Duration::from_secs(0)));
-        }
-        loop {
-            // TODO: Define the sleep time from interval flag
-            sleep(Duration::from_secs(1000)).await;
+            let to = self.cursor.next_block;
+            let from = to.saturating_sub(self.cursor.chunk_size);
+            self.cursor.next_block = from.saturating_sub(1);
+            Some((from, to, Duration::from_secs(0)))
         }
     }
 
@@ -201,8 +192,92 @@ impl ContractSyncCursor<HyperlaneMessage> for BackwardMessageSyncCursor {
     /// at which it was dispatched.
     /// Otherwise, rewind all the way back to the start block.
     async fn update(&mut self, logs: Vec<(HyperlaneMessage, LogMeta)>) -> eyre::Result<()> {
-        let prev_nonce = self.0.next_nonce.saturating_add(1);
-        self.0.update(logs, prev_nonce).await
+        let prev_nonce = self.cursor.next_nonce.saturating_add(1);
+        self.cursor.update(logs, prev_nonce).await
+    }
+}
+
+enum SyncDirection {
+    Forward,
+    Backward,
+}
+
+/// A MessageSyncCursor that syncs forwards in perpetuity.
+pub(crate) struct ForwardBackwardMessageSyncCursor {
+    forward: ForwardMessageSyncCursor,
+    backward: BackwardMessageSyncCursor,
+    direction: SyncDirection,
+}
+
+impl ForwardBackwardMessageSyncCursor {
+    /// Construct a new contract sync helper.
+    pub async fn new(
+        indexer: Arc<dyn MessageIndexer>,
+        db: Arc<dyn HyperlaneMessageDB>,
+        chunk_size: u32,
+    ) -> Result<Self> {
+        let (count, tip) = indexer.fetch_count_at_tip().await?;
+        let forward_cursor = ForwardMessageSyncCursor::new(MessageSyncCursor::new(
+            indexer.clone(),
+            db.clone(),
+            chunk_size,
+            tip,
+            tip,
+            count,
+        ));
+
+        let backward_cursor = BackwardMessageSyncCursor::new(
+            MessageSyncCursor::new(
+                indexer.clone(),
+                db.clone(),
+                chunk_size,
+                tip,
+                tip,
+                count.saturating_sub(1),
+            ),
+            false,
+        );
+
+        Ok(Self {
+            forward: forward_cursor,
+            backward: backward_cursor,
+            direction: SyncDirection::Forward,
+        })
+    }
+}
+
+#[async_trait]
+impl ContractSyncCursor<HyperlaneMessage> for ForwardBackwardMessageSyncCursor {
+    async fn next_range(&mut self) -> ChainResult<(u32, u32, Duration)> {
+        loop {
+            let forward_range = self.forward.get_next_range().await?;
+            match forward_range {
+                Some(range) => {
+                    self.direction = SyncDirection::Forward;
+                    return Ok(range);
+                }
+                None => {
+                    let backward_range = self.backward.get_next_range().await;
+                    match backward_range {
+                        Some(range) => {
+                            self.direction = SyncDirection::Backward;
+                            return Ok(range);
+                        }
+                        None => {
+                            // TODO: Define the sleep time from interval flag
+                            sleep(Duration::from_secs(5)).await;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    async fn update(&mut self, logs: Vec<(HyperlaneMessage, LogMeta)>) -> eyre::Result<()> {
+        match self.direction {
+            SyncDirection::Forward => self.forward.update(logs).await,
+            SyncDirection::Backward => self.backward.update(logs).await,
+        }
     }
 }
 

@@ -220,7 +220,7 @@ impl Relayer {
             .clone();
         let cursor = self
             .origin_mailbox_sync
-            .forward_message_sync_cursor(index_settings)
+            .forward_backward_message_sync_cursor(index_settings)
             .await;
         let sync = self.origin_mailbox_sync.clone();
         tokio::spawn(async move { sync.sync("dispatched_messages", cursor).await })

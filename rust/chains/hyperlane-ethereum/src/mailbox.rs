@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use ethers::abi::AbiEncode;
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
-use tracing::{info, instrument};
+use tracing::instrument;
 
 use hyperlane_core::{
     utils::fmt_bytes, ChainCommunicationError, ChainResult, Checkpoint, ContractLocator,
@@ -88,12 +88,8 @@ impl<M> Indexer<HyperlaneMessage> for EthereumMailboxIndexer<M>
 where
     M: Middleware + 'static,
 {
-    #[instrument(level = "info", err, ret, skip(self))]
+    #[instrument(level = "debug", err, ret, skip(self))]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        info!(
-            finality = self.finality_blocks,
-            "Getting finalized block number"
-        );
         Ok(self
             .provider
             .get_block_number()

@@ -4,7 +4,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use eyre::Result;
 use tokio::time::sleep;
-use tracing::{debug, info, trace};
+use tracing::{debug, trace};
 
 use hyperlane_core::{
     HyperlaneDB, HyperlaneDomain, HyperlaneMessage, HyperlaneMessageDB, InterchainGasExpenditure,
@@ -254,10 +254,10 @@ impl HyperlaneDB<HyperlaneMessage> for HyperlaneRocksDB {
         // TODO: Is it more efficient to check if the message is already inserted?
         for (message, meta) in messages {
             if let Ok(Some(_)) = self.message_id_by_nonce(message.nonce) {
-                info!(msg=?message, "Message already stored in db");
+                trace!(msg=?message, "Message already stored in db");
             } else {
                 self.store_message(message, meta.block_number)?;
-                info!(msg=?message, "Stored message in db");
+                trace!(msg=?message, "Stored message in db");
                 stored += 1;
             }
         }
