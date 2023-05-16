@@ -102,7 +102,11 @@ impl SerialSubmitter {
         let (tx_submit, rx_submit) = mpsc::channel(1);
 
         let tasks = [
-            spawn(receive_task(domain.clone(), rx_prepare, prepare_queue.clone())),
+            spawn(receive_task(
+                domain.clone(),
+                rx_prepare,
+                prepare_queue.clone(),
+            )),
             spawn(prepare_task(
                 domain.clone(),
                 prepare_queue.clone(),
@@ -116,7 +120,12 @@ impl SerialSubmitter {
                 confirm_queue.clone(),
                 metrics.clone(),
             )),
-            spawn(confirm_task(domain.clone(), prepare_queue, confirm_queue, metrics)),
+            spawn(confirm_task(
+                domain.clone(),
+                prepare_queue,
+                confirm_queue,
+                metrics,
+            )),
         ];
 
         for i in try_join_all(tasks).await? {
