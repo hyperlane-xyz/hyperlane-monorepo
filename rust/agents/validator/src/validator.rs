@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use std::time::Duration;
+use std::{num::NonZeroU64, sync::Arc};
 
 use async_trait::async_trait;
 use eyre::Result;
@@ -81,11 +81,14 @@ impl BaseAgent for Validator {
             ValidatorSubmitterMetrics::new(&self.core.metrics, &self.origin_chain),
         );
 
-        // TODO: start syncing from tip - self.reorg_period
-        if let Ok(count) = self.mailbox.count(None).await {
-            if count > 0 {
-                self.mailbox.db().update_latest_nonce(count - 1).unwrap();
-            }
+        // hack to start indexing messages forward from the latest nonce
+        let count = self
+            .mailbox
+            .count(NonZeroU64::new(self.reorg_period))
+            .await
+            .unwrap_or(0);
+        if count > 0 {
+            self.mailbox.db().update_latest_nonce(count - 1).unwrap();
         }
         let sync = self.mailbox.sync(
             self.as_ref().settings.chains[self.origin_chain.name()]
@@ -94,7 +97,7 @@ impl BaseAgent for Validator {
             ContractSyncMetrics::new(self.core.metrics.clone()),
         );
 
-        run_all(vec![sync, submit.clone().spawn(), submit.spawn_legacy()])
+        run_all(vec![sync, submit.clone().spawn_legacy(), submit.spawn()])
     }
 }
 

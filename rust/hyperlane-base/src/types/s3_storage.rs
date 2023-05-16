@@ -120,11 +120,11 @@ impl S3Storage {
     }
 
     fn checkpoint_key(index: u32) -> String {
-        format!("checkpoint_{}.json", index)
+        format!("checkpoint_{index}.json")
     }
 
     fn checkpoint_with_id_key(index: u32) -> String {
-        format!("checkpoint_{}_with_id.json", index)
+        format!("checkpoint_{index}_with_id.json")
     }
 
     fn index_key() -> String {

@@ -6,12 +6,12 @@ use std::time::{Duration, Instant};
 use eyre::Result;
 use prometheus::IntGauge;
 use tokio::{task::JoinHandle, time::sleep};
-use tracing::{debug, info, info_span, instrument::Instrumented, Instrument};
+use tracing::{trace, debug, info, info_span, instrument::Instrumented, Instrument};
 
 use hyperlane_base::{CachingMailbox, CheckpointSyncer, CoreMetrics};
 use hyperlane_core::{
     Announcement, Checkpoint, CheckpointWithMessageId, HyperlaneDomain, HyperlaneSigner,
-    HyperlaneSignerExt, Mailbox,
+    HyperlaneSignerExt, Mailbox, HyperlaneContract, HyperlaneChain,
 };
 
 #[derive(Clone)]
@@ -57,8 +57,8 @@ impl ValidatorSubmitter {
         // Sign and post the validator announcement
         let announcement = Announcement {
             validator: self.signer.eth_address(),
-            mailbox_address: self.mailbox.mailbox().address(),
-            mailbox_domain: self.mailbox.mailbox().domain().id(),
+            mailbox_address: self.mailbox.address(),
+            mailbox_domain: self.mailbox.domain().into(),
             storage_location: self.checkpoint_syncer.announcement_location(),
         };
         let signed_announcement = self.signer.sign(announcement).await?;
@@ -81,14 +81,14 @@ impl ValidatorSubmitter {
                     checkpoint: Checkpoint {
                         index: tree.index(),
                         root: tree.root(),
-                        mailbox_address: self.mailbox.mailbox().address(),
-                        mailbox_domain: self.mailbox.mailbox().domain().id(),
+                        mailbox_address: self.mailbox.address(),
+                        mailbox_domain: self.mailbox.domain().into(),
                     },
                     message_id,
                 };
 
                 let signed_checkpoint = self.signer.sign(checkpoint_with_id).await?;
-                info!(signed_checkpoint = ?signed_checkpoint, signer=?self.signer, "Signed checkpoint");
+                info!(?signed_checkpoint, signer=?self.signer, "Signed checkpoint");
                 self.checkpoint_syncer
                     .write_checkpoint_with_message_id(&signed_checkpoint)
                     .await?;
@@ -108,7 +108,7 @@ impl ValidatorSubmitter {
                     .set(latest_checkpoint.index as i64);
 
                 if latest_checkpoint.index == tree.index() {
-                    debug!(count = tree.count(), "Tree up to date");
+                    trace!(count = tree.count(), "Tree up to date");
                     assert_eq!(
                         tree.root(),
                         latest_checkpoint.root,

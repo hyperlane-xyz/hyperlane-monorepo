@@ -28,6 +28,8 @@ mock! {
             nonce: usize,
         ) -> ChainResult<Option<H256>> {}
 
+        pub fn _tree(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {}
+
         pub fn _count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {}
 
         pub fn _latest_checkpoint(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {}
@@ -70,8 +72,8 @@ impl Mailbox for MockMailboxContract {
         self._count(maybe_lag)
     }
 
-    async fn tree(&self, _: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
-        todo!()
+    async fn tree(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
+        self._tree(maybe_lag)
     }
 
     async fn latest_checkpoint(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {

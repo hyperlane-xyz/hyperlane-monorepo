@@ -2,14 +2,13 @@ use async_trait::async_trait;
 use ethers_core::types::{Address, Signature};
 use serde::{Deserialize, Serialize};
 use sha3::{digest::Update, Digest, Keccak256};
-use std::fmt::{Debug, Formatter};
-use std::ops::Deref;
+use std::fmt::Debug;
+use derive_more::Deref;
 
-use crate::utils::{fmt_address_for_domain, fmt_domain};
 use crate::{utils::domain_hash, Signable, SignedType, H256};
 
 /// An Hyperlane checkpoint
-#[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize, Debug)]
 pub struct Checkpoint {
     /// The mailbox address
     pub mailbox_address: H256,
@@ -22,44 +21,15 @@ pub struct Checkpoint {
 }
 
 /// A Hyperlane (checkpoint, messageId) tuple
-#[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize, Debug, Deref)]
 pub struct CheckpointWithMessageId {
-    ///
+    /// existing Hyperlane checkpoint struct
+    #[deref]
     pub checkpoint: Checkpoint,
     /// hash of message emitted from mailbox checkpoint.index
     pub message_id: H256,
 }
 
-impl Deref for CheckpointWithMessageId {
-    type Target = Checkpoint;
-
-    fn deref(&self) -> &Self::Target {
-        &self.checkpoint
-    }
-}
-
-impl Debug for Checkpoint {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Checkpoint {{ mailbox_address: {}, mailbox_domain: {}, root: {:?}, index: {} }}",
-            fmt_address_for_domain(self.mailbox_domain, self.mailbox_address),
-            fmt_domain(self.mailbox_domain),
-            self.root,
-            self.index
-        )
-    }
-}
-
-impl Debug for CheckpointWithMessageId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "CheckpointWithMessageId {{ checkpoint: {:?}, message_id: {:?} }}",
-            self.checkpoint, self.message_id
-        )
-    }
-}
 
 #[async_trait]
 impl Signable for Checkpoint {
@@ -131,7 +101,7 @@ pub struct SignatureWithSigner {
 }
 
 /// A checkpoint and multiple signatures
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MultisigSignedCheckpoint {
     /// The checkpoint
     pub checkpoint: Checkpoint,
@@ -139,15 +109,14 @@ pub struct MultisigSignedCheckpoint {
     pub signatures: Vec<SignatureWithSigner>,
 }
 
-impl Debug for MultisigSignedCheckpoint {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "MultisigSignedCheckpoint {{ checkpoint: {:?}, signature_count: {} }}",
-            self.checkpoint,
-            self.signatures.len()
-        )
-    }
+
+/// A checkpoint and multiple signatures
+#[derive(Clone, Debug)]
+pub struct MultisigSignedCheckpointWithMessageId {
+    /// The checkpoint
+    pub checkpoint: CheckpointWithMessageId,
+    /// Signatures over the checkpoint. No ordering guarantees.
+    pub signatures: Vec<SignatureWithSigner>,
 }
 
 /// Error types for MultisigSignedCheckpoint

@@ -31,7 +31,7 @@ use crate::EthereumProvider;
 /// An amount of gas to add to the estimated gas
 const GAS_ESTIMATE_BUFFER: u32 = 50000;
 
-/// derived from $ forge inspect Mailbox storage --pretty
+/// derived from `forge inspect Mailbox storage --pretty`
 const MERKLE_TREE_CONTRACT_SLOT: u32 = 152;
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
@@ -339,16 +339,18 @@ where
             mailbox_address: self.address(),
             mailbox_domain: self.domain.id(),
             root: root.into(),
-            index
+            index,
         })
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
     #[allow(clippy::needless_range_loop)]
     async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
-        let lag = if let Some(lag) = lag { lag.get() } else { 0 }.into();
+        let lag = lag.map(|v| v.get()).unwrap_or(0).into();
 
-        let block_number = self
+        // use consistent block for all storage slot or view calls to prevent
+        // race conditions where tree contents change between calls
+        let fixed_block_number = self
             .provider
             .get_block_number()
             .await
@@ -359,14 +361,14 @@ where
         let expected_root = self
             .contract
             .root()
-            .block(block_number)
+            .block(fixed_block_number)
             .call()
-            .await
-            .unwrap()
+            .await?
             .into();
 
         // TODO: migrate to single contract view call once mailbox is upgraded
-        // let tree = self.contract.merkleTree().call().await;
+        // see https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/2250
+        // let branch = self.contract.branch().block(block_number).call().await;
 
         let mut branch = [H256::zero(); TREE_DEPTH];
 
@@ -377,23 +379,26 @@ where
 
             branch[index] = self
                 .provider
-                .get_storage_at(self.contract.address(), location.into(), Some(block_number))
+                .get_storage_at(
+                    self.contract.address(),
+                    location.into(),
+                    Some(fixed_block_number),
+                )
                 .await
                 .map_err(ChainCommunicationError::from_other)?;
         }
 
-        let count: usize = self
+        let count = self
             .contract
             .count()
-            .block(block_number)
+            .block(fixed_block_number)
             .call()
-            .await
-            .unwrap()
-            .try_into()
-            .unwrap();
+            .await? as usize;
 
         let tree = IncrementalMerkle::new(branch, count);
 
+        // validate tree built from storage slot lookups matches expected
+        // result from root() view call at consistent block
         assert_eq!(tree.root(), expected_root);
 
         return Ok(tree);
