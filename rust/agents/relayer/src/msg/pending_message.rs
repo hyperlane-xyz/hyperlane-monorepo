@@ -21,7 +21,7 @@ const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
     // Wait 5 seconds after submitting the message before confirming in test mode
     Duration::from_secs(5)
 } else {
-    // Wait 10 min after submitting the message before confirming in test mode
+    // Wait 10 min after submitting the message before confirming in normal/production mode
     Duration::from_secs(60 * 10)
 };
 
