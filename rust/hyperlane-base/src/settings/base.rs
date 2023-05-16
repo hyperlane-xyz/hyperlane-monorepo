@@ -87,7 +87,7 @@ impl FromRawConf<'_, RawSettings, Option<&HashSet<&str>>> for Settings {
                     if let Some(default_signer) = &default_signer {
                         parsed.signer.get_or_insert_with(|| default_signer.clone());
                     }
-                    Ok((k, parsed))
+                    Ok((k.to_ascii_lowercase(), parsed))
                 })
                 .filter_map(|res| match res {
                     Ok((k, v)) => Some((k, v)),
@@ -236,7 +236,7 @@ impl Settings {
     /// Try to get the domain for a given chain by name.
     pub fn lookup_domain(&self, chain_name: &str) -> eyre::Result<HyperlaneDomain> {
         self.chains
-            .get(chain_name)
+            .get(&chain_name.to_ascii_lowercase())
             .ok_or_else(|| eyre!("No chain setup found for {chain_name}"))
             .map(|c| c.domain.clone())
     }
