@@ -130,11 +130,7 @@ impl PendingOperation for PendingMessage {
         }
 
         // The Mailbox's `recipientIsm` function will revert if
-        // the recipient is not a contract. This can pose issues with
-        // our use of the RetryingProvider, which will continuously retry
-        // the eth_call to the `recipientIsm` function.
-        // As a workaround, we avoid the call entirely if the recipient is
-        // not a contract.
+        // the recipient is not a contract.
         let provider = self.ctx.destination_mailbox.provider();
         let is_contract = op_try!(
             provider.is_contract(&self.message.recipient).await,
