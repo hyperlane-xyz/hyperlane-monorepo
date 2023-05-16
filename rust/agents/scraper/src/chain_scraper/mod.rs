@@ -11,8 +11,8 @@ use tracing::trace;
 
 use hyperlane_base::chains::IndexSettings;
 use hyperlane_core::{
-    BlockInfo, HyperlaneDB, HyperlaneDomain, HyperlaneMessage, HyperlaneMessageDB,
-    HyperlaneProvider, InterchainGasPayment, LogMeta, H256,
+    BlockInfo, HyperlaneDB, HyperlaneDomain, HyperlaneHighWatermarkDB, HyperlaneMessage,
+    HyperlaneMessageDB, HyperlaneProvider, InterchainGasPayment, LogMeta, H256,
 };
 
 use crate::db::StorablePayment;
@@ -375,6 +375,21 @@ impl HyperlaneMessageDB for HyperlaneSqlDb {
             }
             None => Ok(None),
         }
+    }
+}
+
+#[async_trait]
+impl<T> HyperlaneHighWatermarkDB<T> for HyperlaneSqlDb
+where
+    HyperlaneSqlDb: HyperlaneDB<T>,
+{
+    /// Gets the block number high watermark
+    async fn retrieve_high_watermark(&self) -> Result<Option<u32>> {
+        Ok(Some(self.cursor.height().await.try_into()?))
+    }
+    /// Stores the block number high watermark
+    async fn store_high_watermark(&self, block_number: u32) -> Result<()> {
+        Ok(self.cursor.update(block_number.into()).await)
     }
 }
 

@@ -186,29 +186,17 @@ impl Settings {
         metrics: &CoreMetrics,
         sync_metrics: &ContractSyncMetrics,
         db: Arc<dyn HyperlaneDB<H256>>,
-    ) -> eyre::Result<
-        Box<
-            ContractSync<
-                H256,
-                Arc<dyn HyperlaneDB<H256>>,
-                Arc<dyn Indexer<H256>>,
-            >,
-        >,
-    > {
+    ) -> eyre::Result<Box<ContractSync<H256, Arc<dyn HyperlaneDB<H256>>, Arc<dyn Indexer<H256>>>>>
+    {
         let setup = self.chain_setup(domain)?;
-        let indexer: Box<dyn Indexer<H256>> = setup
-            .build_delivery_indexer(metrics.clone())
-            .await?;
-        let sync: ContractSync<
-            H256,
-            Arc<dyn HyperlaneDB<H256>>,
-            Arc<dyn Indexer<H256>>,
-        > = ContractSync::new(
-            domain.clone(),
-            db.clone(),
-            indexer.into(),
-            sync_metrics.clone(),
-        );
+        let indexer: Box<dyn Indexer<H256>> = setup.build_delivery_indexer(metrics.clone()).await?;
+        let sync: ContractSync<H256, Arc<dyn HyperlaneDB<H256>>, Arc<dyn Indexer<H256>>> =
+            ContractSync::new(
+                domain.clone(),
+                db.clone(),
+                indexer.into(),
+                sync_metrics.clone(),
+            );
 
         Ok(Box::new(sync))
     }

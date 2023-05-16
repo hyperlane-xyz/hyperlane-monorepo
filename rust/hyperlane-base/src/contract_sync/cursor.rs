@@ -323,7 +323,9 @@ impl<T> RateLimitedContractSyncCursor<T> {
         } else {
             // We are within one chunk size of the known tip.
             // If it's been fewer than 30s since the last tip update, sleep for a bit until we're ready to fetch the next tip.
-            if let Some(sleep_time) = Duration::from_secs(30).checked_sub(self.last_tip_update.elapsed()) {
+            if let Some(sleep_time) =
+                Duration::from_secs(30).checked_sub(self.last_tip_update.elapsed())
+            {
                 sleep(sleep_time).await;
             }
             match self.indexer.get_finalized_block_number().await {
@@ -331,13 +333,13 @@ impl<T> RateLimitedContractSyncCursor<T> {
                     // we retrieved a new tip value, go ahead and update.
                     self.last_tip_update = Instant::now();
                     self.tip = tip;
-                    return Ok(())
+                    return Ok(());
                 }
                 Err(e) => {
                     warn!(error = %e, "Failed to get next block range because we could not get the current tip");
                     // we are failing to make a basic query, we should wait before retrying.
                     sleep(Duration::from_secs(10)).await;
-                    return Err(e)
+                    return Err(e);
                 }
             }
         }

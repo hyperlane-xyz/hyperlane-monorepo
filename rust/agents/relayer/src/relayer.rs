@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use eyre::Result;
+use hyperlane_base::chains::IndexSettings;
 use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_base::{ContractSync, ContractSyncMetrics};
 use tokio::sync::{
@@ -14,8 +15,9 @@ use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
 use hyperlane_base::{db::DB, run_all, BaseAgent, CoreMetrics, HyperlaneAgentCore};
 use hyperlane_core::{
-    HyperlaneChain, HyperlaneDB, HyperlaneDomain, HyperlaneMessage, HyperlaneMessageDB, Indexer,
-    InterchainGasPayment, Mailbox, MessageIndexer, ValidatorAnnounce, U256,
+    HyperlaneChain, HyperlaneDB, HyperlaneDomain, HyperlaneHighWatermarkDB, HyperlaneMessage,
+    HyperlaneMessageDB, Indexer, InterchainGasPayment, Mailbox, MessageIndexer, ValidatorAnnounce,
+    U256,
 };
 
 use crate::{
@@ -230,13 +232,14 @@ impl Relayer {
     async fn run_interchain_gas_paymaster_sync(
         &self,
     ) -> Instrumented<JoinHandle<eyre::Result<()>>> {
-        // TODO: We can modify the index settings here to pull the latest synced block number from the
-        // rocks DB.
-        // But how do we update it? I guess we need a function on HyperlaneDB to do that as well?
-        // Similarly we need to do the same for the latest block number for deliveries...
-        let index_settings = self.as_ref().settings.chains[self.origin_chain.name()]
+        let default_index_settings = self.as_ref().settings.chains[self.origin_chain.name()]
             .index
             .clone();
+        let watermark = <Arc<HyperlaneRocksDB> as HyperlaneHighWatermarkDB<InterchainGasPayment>>::retrieve_high_watermark::<'_, '_>(&self.origin_db).await.unwrap();
+        let index_settings = IndexSettings {
+            from: watermark.unwrap_or(default_index_settings.from.into()),
+            chunk_size: default_index_settings.chunk_size,
+        };
         let cursor = self
             .origin_interchain_gas_paymaster_sync
             .rate_limited_cursor(index_settings)

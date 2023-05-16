@@ -24,3 +24,13 @@ pub trait HyperlaneMessageDB:
     /// Gets the block number at which a known message was dispatched.
     async fn retrieve_dispatched_block_number(&self, nonce: u32) -> Result<Option<u64>>;
 }
+
+/// Extension of HyperlaneDB trait that supports a high watermark for the highest indexed block number.
+#[async_trait]
+#[auto_impl(&, Box, Arc)]
+pub trait HyperlaneHighWatermarkDB<T>: HyperlaneDB<T> + Sync + Send + Debug + 'static {
+    /// Gets the block number high watermark
+    async fn retrieve_high_watermark(&self) -> Result<Option<u32>>;
+    /// Stores the block number high watermark
+    async fn store_high_watermark(&self, block_number: u32) -> Result<()>;
+}

@@ -7,8 +7,8 @@ use tokio::time::sleep;
 use tracing::{debug, trace};
 
 use hyperlane_core::{
-    HyperlaneDB, HyperlaneDomain, HyperlaneMessage, HyperlaneMessageDB, InterchainGasExpenditure,
-    InterchainGasPayment, InterchainGasPaymentMeta, LogMeta, H256, U256,
+    HyperlaneDB, HyperlaneDomain, HyperlaneHighWatermarkDB, HyperlaneMessage, HyperlaneMessageDB,
+    InterchainGasExpenditure, InterchainGasPayment, InterchainGasPaymentMeta, LogMeta, H256, U256,
 };
 
 use super::{
@@ -26,6 +26,7 @@ const NONCE_PROCESSED: &str = "nonce_processed_";
 const GAS_PAYMENT_FOR_MESSAGE_ID: &str = "gas_payment_for_message_id_v2_";
 const GAS_PAYMENT_META_PROCESSED: &str = "gas_payment_meta_processed_v2_";
 const GAS_EXPENDITURE_FOR_MESSAGE_ID: &str = "gas_expenditure_for_message_id_";
+const LATEST_INDEXED_GAS_PAYMENT_BLOCK: &str = "latest_indexed_gas_payment_block";
 
 type DbResult<T> = std::result::Result<T, DbError>;
 
@@ -293,5 +294,22 @@ impl HyperlaneMessageDB for HyperlaneRocksDB {
     async fn retrieve_dispatched_block_number(&self, nonce: u32) -> Result<Option<u64>> {
         let number = self.retrieve_keyed_decodable(MESSAGE_DISPATCHED_BLOCK_NUMBER, &nonce)?;
         Ok(number)
+    }
+}
+
+#[async_trait]
+impl<T> HyperlaneHighWatermarkDB<T> for HyperlaneRocksDB
+where
+    HyperlaneRocksDB: HyperlaneDB<T>,
+{
+    /// Gets the block number high watermark
+    async fn retrieve_high_watermark(&self) -> Result<Option<u32>> {
+        let watermark = self.retrieve_decodable("", LATEST_INDEXED_GAS_PAYMENT_BLOCK)?;
+        Ok(watermark)
+    }
+    /// Stores the block number high watermark
+    async fn store_high_watermark(&self, block_number: u32) -> Result<()> {
+        let result = self.store_encodable("", LATEST_INDEXED_GAS_PAYMENT_BLOCK, &block_number)?;
+        Ok(result)
     }
 }

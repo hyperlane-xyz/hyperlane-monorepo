@@ -13,8 +13,8 @@ use hyperlane_base::{
     decl_settings, run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
     Settings,
 };
-use hyperlane_core::config::*;
 use hyperlane_core::HyperlaneDomain;
+use hyperlane_core::{config::*, HyperlaneHighWatermarkDB, H256};
 
 use crate::chain_scraper::HyperlaneSqlDb;
 use crate::db::ScraperDb;
@@ -169,8 +169,19 @@ impl Scraper {
     /// This will create a long-running task that should be spawned.
     async fn scrape(&self, domain_id: &u32) -> Instrumented<JoinHandle<eyre::Result<()>>> {
         let scraper = self.scrapers.get(&domain_id).unwrap().clone();
-        let index_settings = scraper.clone().index_settings.clone();
         let db = scraper.clone().db.clone();
+        let default_index_settings = scraper.clone().index_settings.clone();
+        let watermark =
+            <Arc<HyperlaneSqlDb> as HyperlaneHighWatermarkDB<H256>>::retrieve_high_watermark::<
+                '_,
+                '_,
+            >(&db)
+            .await
+            .unwrap();
+        let index_settings = IndexSettings {
+            from: watermark.unwrap_or(default_index_settings.from.into()),
+            chunk_size: default_index_settings.chunk_size,
+        };
         let domain = scraper.clone().domain.clone();
 
         let mut tasks = Vec::with_capacity(2);
@@ -211,8 +222,12 @@ impl Scraper {
             .rate_limited_cursor(index_settings.clone())
             .await;
         tasks.push(
-            tokio::spawn(async move { delivery_sync.sync("message_delivery", delivery_cursor).await })
-                .instrument(info_span!("ContractSync")),
+            tokio::spawn(async move {
+                delivery_sync
+                    .sync("message_delivery", delivery_cursor)
+                    .await
+            })
+            .instrument(info_span!("ContractSync")),
         );
         let payment_sync = self
             .as_ref()
