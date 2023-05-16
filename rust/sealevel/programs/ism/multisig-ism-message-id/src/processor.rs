@@ -131,7 +131,9 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     }
 
     // Ensure the access control PDA account isn't already initialized.
-    if let Ok(Some(_)) = AccessControlAccount::fetch_data(&mut &access_control_pda_account.data.borrow_mut()[..]) {
+    if let Ok(Some(_)) =
+        AccessControlAccount::fetch_data(&mut &access_control_pda_account.data.borrow_mut()[..])
+    {
         return Err(Error::AlreadyInitialized.into());
     }
 
@@ -282,8 +284,7 @@ fn set_validators_and_threshold(
     // Account 2: The PDA relating to the provided domain.
     let domain_pda_account = next_account_info(accounts_iter)?;
 
-    let domain_data =
-        DomainDataAccount::fetch_data(&mut &domain_pda_account.data.borrow_mut()[..]);
+    let domain_data = DomainDataAccount::fetch_data(&mut &domain_pda_account.data.borrow_mut()[..]);
 
     let bump_seed = match domain_data {
         Ok(Some(domain_data)) => {
@@ -303,7 +304,7 @@ fn set_validators_and_threshold(
             }
 
             domain_data.bump_seed
-        }  
+        }
         Ok(None) | Err(_) => {
             // Create the domain PDA account if it doesn't exist.
 
