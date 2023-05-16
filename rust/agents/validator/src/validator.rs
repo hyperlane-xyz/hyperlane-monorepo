@@ -64,7 +64,7 @@ impl BaseAgent for Validator {
             origin_chain: settings.origin_chain,
             core,
             mailbox,
-            validator_announce,
+            validator_announce: validator_announce.into(),
             signer,
             reorg_period: settings.reorg_period,
             interval: settings.interval,

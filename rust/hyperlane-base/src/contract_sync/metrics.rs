@@ -1,6 +1,5 @@
 use crate::CoreMetrics;
 use prometheus::{IntCounterVec, IntGaugeVec};
-use std::sync::Arc;
 
 /// Struct encapsulating prometheus metrics used by the ContractSync.
 #[derive(Debug, Clone)]
@@ -37,7 +36,7 @@ pub struct ContractSyncMetrics {
 
 impl ContractSyncMetrics {
     /// Instantiate a new ContractSyncMetrics object.
-    pub fn new(metrics: Arc<CoreMetrics>) -> Self {
+    pub fn new(metrics: &CoreMetrics) -> Self {
         let indexed_height = metrics
             .new_int_gauge(
                 "contract_sync_block_height",

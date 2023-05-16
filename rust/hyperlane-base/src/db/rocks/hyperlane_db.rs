@@ -7,8 +7,8 @@ use tokio::time::sleep;
 use tracing::{debug, info, trace};
 
 use hyperlane_core::{
-    HyperlaneDB, HyperlaneDomain, HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment,
-    InterchainGasPaymentMeta, LogMeta, H256, U256,
+    HyperlaneDB, HyperlaneDomain, HyperlaneMessage, HyperlaneMessageDB, InterchainGasExpenditure,
+    InterchainGasPayment, InterchainGasPaymentMeta, LogMeta, H256, U256,
 };
 
 use super::{
@@ -247,12 +247,9 @@ impl HyperlaneRocksDB {
 }
 
 #[async_trait]
-impl HyperlaneDB for HyperlaneRocksDB {
+impl HyperlaneDB<HyperlaneMessage> for HyperlaneRocksDB {
     /// Store a list of dispatched messages and their associated metadata.
-    async fn store_dispatched_messages(
-        &self,
-        messages: &[(HyperlaneMessage, LogMeta)],
-    ) -> Result<u32> {
+    async fn store_logs(&self, messages: &[(HyperlaneMessage, LogMeta)]) -> Result<u32> {
         let mut stored = 0;
         // TODO: Is it more efficient to check if the message is already inserted?
         for (message, meta) in messages {
@@ -266,17 +263,20 @@ impl HyperlaneDB for HyperlaneRocksDB {
         }
         Ok(stored)
     }
+}
 
+#[async_trait]
+impl HyperlaneDB<H256> for HyperlaneRocksDB {
     /// Store a list of delivered messages and their associated metadata.
-    async fn store_delivered_messages(&self, _deliveries: &[(H256, LogMeta)]) -> Result<u32> {
+    async fn store_logs(&self, _deliveries: &[(H256, LogMeta)]) -> Result<u32> {
         todo!();
     }
+}
 
+#[async_trait]
+impl HyperlaneDB<InterchainGasPayment> for HyperlaneRocksDB {
     /// Store a list of interchain gas payments and their associated metadata.
-    async fn store_gas_payments(
-        &self,
-        payments: &[(InterchainGasPayment, LogMeta)],
-    ) -> Result<u32> {
+    async fn store_logs(&self, payments: &[(InterchainGasPayment, LogMeta)]) -> Result<u32> {
         let mut new = 0;
         for (payment, meta) in payments {
             if self.process_gas_payment(*payment, meta)? {
@@ -285,7 +285,10 @@ impl HyperlaneDB for HyperlaneRocksDB {
         }
         Ok(new)
     }
+}
 
+#[async_trait]
+impl HyperlaneMessageDB for HyperlaneRocksDB {
     /// Retrieve dispatched block number by message nonce
     async fn retrieve_dispatched_block_number(&self, nonce: u32) -> Result<Option<u64>> {
         let number = self.retrieve_keyed_decodable(MESSAGE_DISPATCHED_BLOCK_NUMBER, &nonce)?;

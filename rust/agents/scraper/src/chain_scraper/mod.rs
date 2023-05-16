@@ -6,14 +6,13 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use eyre::{eyre, Result};
-use hyperlane_base::{CachingInterchainGasPaymaster, CachingMailbox};
 use itertools::Itertools;
 use tracing::trace;
 
 use hyperlane_base::chains::IndexSettings;
 use hyperlane_core::{
-    BlockInfo, HyperlaneDB, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
-    InterchainGasPayment, LogMeta, H256,
+    BlockInfo, HyperlaneDB, HyperlaneDomain, HyperlaneMessage, HyperlaneMessageDB,
+    HyperlaneProvider, InterchainGasPayment, LogMeta, H256,
 };
 
 use crate::db::StorablePayment;
@@ -27,14 +26,6 @@ use crate::{
 /// lot of data to query from the node provider between points when we would
 /// actually save it to the database.
 const CHUNK_SIZE: usize = 50;
-
-/// Local chain components like the mailbox.
-#[derive(Debug, Clone)]
-pub struct Contracts {
-    pub mailbox: CachingMailbox,
-    pub igp: CachingInterchainGasPaymaster,
-    pub provider: Arc<dyn HyperlaneProvider>,
-}
 
 // TODO: Will probably need to take contracts out of this, since SqlChainScraper is the HyperlaneDB implementation that will be used by the caching contracts.
 /// A chain scraper is comprised of all the information and contract/provider
@@ -256,15 +247,12 @@ impl HyperlaneSqlDb {
 }
 
 #[async_trait]
-impl HyperlaneDB for HyperlaneSqlDb {
+impl HyperlaneDB<HyperlaneMessage> for HyperlaneSqlDb {
     /// Store messages from the origin mailbox into the database.
     ///
     /// Returns the highest message nonce which was provided to this
     /// function.
-    async fn store_dispatched_messages(
-        &self,
-        messages: &[(HyperlaneMessage, LogMeta)],
-    ) -> Result<u32> {
+    async fn store_logs(&self, messages: &[(HyperlaneMessage, LogMeta)]) -> Result<u32> {
         debug_assert!(!messages.is_empty());
         let txns: HashMap<H256, TxnWithId> = self
             .ensure_blocks_and_txns(messages.iter().map(|r| &r.1))
@@ -293,9 +281,12 @@ impl HyperlaneDB for HyperlaneSqlDb {
 
         Ok(max_nonce)
     }
+}
 
+#[async_trait]
+impl HyperlaneDB<H256> for HyperlaneSqlDb {
     // TODO: Return a sensible int
-    async fn store_delivered_messages(&self, deliveries: &[(H256, LogMeta)]) -> Result<u32> {
+    async fn store_logs(&self, deliveries: &[(H256, LogMeta)]) -> Result<u32> {
         if deliveries.is_empty() {
             return Ok(0);
         }
@@ -327,12 +318,12 @@ impl HyperlaneDB for HyperlaneSqlDb {
 
         Ok(0)
     }
+}
 
+#[async_trait]
+impl HyperlaneDB<InterchainGasPayment> for HyperlaneSqlDb {
     // TODO: Return a sensible int
-    async fn store_gas_payments(
-        &self,
-        payments: &[(InterchainGasPayment, LogMeta)],
-    ) -> Result<u32> {
+    async fn store_logs(&self, payments: &[(InterchainGasPayment, LogMeta)]) -> Result<u32> {
         if payments.is_empty() {
             return Ok(0);
         }
@@ -360,7 +351,10 @@ impl HyperlaneDB for HyperlaneSqlDb {
             .await?;
         Ok(0)
     }
+}
 
+#[async_trait]
+impl HyperlaneMessageDB for HyperlaneSqlDb {
     /// Retrieves the block number at which the message with the provided nonce
     /// was dispatched.
     async fn retrieve_dispatched_block_number(&self, nonce: u32) -> Result<Option<u64>> {

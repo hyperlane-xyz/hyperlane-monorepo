@@ -9,12 +9,12 @@ use async_trait::async_trait;
 use ethers::abi::AbiEncode;
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
-use tracing::instrument;
+use tracing::{info, instrument};
 
 use hyperlane_core::{
     utils::fmt_bytes, ChainCommunicationError, ChainResult, Checkpoint, ContractLocator,
     HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProtocolError, HyperlaneProvider, Indexer, LogMeta, Mailbox, MailboxIndexer,
+    HyperlaneProtocolError, HyperlaneProvider, Indexer, LogMeta, Mailbox, MessageIndexer,
     RawHyperlaneMessage, TxCostEstimate, TxOutcome, H160, H256, U256,
 };
 
@@ -39,7 +39,7 @@ pub struct MailboxIndexerBuilder {
 
 #[async_trait]
 impl BuildableWithProvider for MailboxIndexerBuilder {
-    type Output = Box<dyn MailboxIndexer>;
+    type Output = Box<dyn MessageIndexer>;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
@@ -54,7 +54,7 @@ impl BuildableWithProvider for MailboxIndexerBuilder {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// Struct that retrieves event data for an Ethereum mailbox
 pub struct EthereumMailboxIndexer<M>
 where
@@ -84,12 +84,16 @@ where
 }
 
 #[async_trait]
-impl<M> Indexer for EthereumMailboxIndexer<M>
+impl<M> Indexer<HyperlaneMessage> for EthereumMailboxIndexer<M>
 where
     M: Middleware + 'static,
 {
-    #[instrument(level = "debug", err, ret, skip(self))]
+    #[instrument(level = "info", err, ret, skip(self))]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+        info!(
+            finality = self.finality_blocks,
+            "Getting finalized block number"
+        );
         Ok(self
             .provider
             .get_block_number()
@@ -98,15 +102,9 @@ where
             .as_u32()
             .saturating_sub(self.finality_blocks))
     }
-}
 
-#[async_trait]
-impl<M> MailboxIndexer for EthereumMailboxIndexer<M>
-where
-    M: Middleware + 'static,
-{
     #[instrument(err, skip(self))]
-    async fn fetch_sorted_messages(
+    async fn fetch_logs(
         &self,
         from: u32,
         to: u32,
@@ -125,13 +123,46 @@ where
         events.sort_by(|a, b| a.0.nonce.cmp(&b.0.nonce));
         Ok(events)
     }
+}
+
+#[async_trait]
+impl<M> MessageIndexer for EthereumMailboxIndexer<M>
+where
+    M: Middleware + 'static,
+{
+    #[instrument(err, skip(self))]
+    async fn fetch_count_at_tip(&self) -> ChainResult<(u32, u32)> {
+        let tip =
+            <EthereumMailboxIndexer<M> as Indexer<HyperlaneMessage>>::get_finalized_block_number::<
+                '_,
+                '_,
+            >(self)
+            .await?;
+        let base_call = self.contract.count();
+        let call_at_tip = base_call.block(u64::from(tip));
+        let count = call_at_tip.call().await?;
+        Ok((count, tip))
+    }
+}
+
+#[async_trait]
+impl<M> Indexer<H256> for EthereumMailboxIndexer<M>
+where
+    M: Middleware + 'static,
+{
+    #[instrument(level = "debug", err, ret, skip(self))]
+    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+        Ok(self
+            .provider
+            .get_block_number()
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .as_u32()
+            .saturating_sub(self.finality_blocks))
+    }
 
     #[instrument(err, skip(self))]
-    async fn fetch_delivered_messages(
-        &self,
-        from: u32,
-        to: u32,
-    ) -> ChainResult<Vec<(H256, LogMeta)>> {
+    async fn fetch_logs(&self, from: u32, to: u32) -> ChainResult<Vec<(H256, LogMeta)>> {
         Ok(self
             .contract
             .process_id_filter()
@@ -143,17 +174,7 @@ where
             .map(|(event, meta)| (H256::from(event.message_id), meta.into()))
             .collect())
     }
-
-    #[instrument(err, skip(self))]
-    async fn fetch_count_at_tip(&self) -> ChainResult<(u32, u32)> {
-        let tip = self.get_finalized_block_number().await?;
-        let base_call = self.contract.count();
-        let call_at_tip = base_call.block(u64::from(tip));
-        let count = call_at_tip.call().await?;
-        Ok((count, tip))
-    }
 }
-
 pub struct MailboxBuilder {}
 
 #[async_trait]

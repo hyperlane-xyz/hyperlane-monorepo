@@ -9,8 +9,8 @@ use ethers_prometheus::middleware::{
 };
 use hyperlane_core::{
     config::*, ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol,
-    HyperlaneProvider, HyperlaneSigner, InterchainGasPaymaster, InterchainGasPaymasterIndexer,
-    InterchainSecurityModule, Mailbox, MailboxIndexer, MultisigIsm, RoutingIsm, ValidatorAnnounce,
+    HyperlaneProvider, HyperlaneSigner, Indexer, InterchainGasPaymaster, InterchainGasPayment,
+    InterchainSecurityModule, Mailbox, MessageIndexer, MultisigIsm, RoutingIsm, ValidatorAnnounce,
     H160, H256,
 };
 use hyperlane_ethereum::{
@@ -340,10 +340,10 @@ impl ChainConf {
     }
 
     /// Try to convert the chain settings into a mailbox indexer
-    pub async fn build_mailbox_indexer(
+    pub async fn build_message_indexer(
         &self,
         metrics: &CoreMetrics,
-    ) -> Result<Box<dyn MailboxIndexer>> {
+    ) -> Result<Box<dyn MessageIndexer>> {
         let ctx = "Building mailbox indexer";
         let locator = self.locator(self.addresses.mailbox);
 
@@ -391,10 +391,10 @@ impl ChainConf {
     }
 
     /// Try to convert the chain settings into a IGP indexer
-    pub async fn build_interchain_gas_paymaster_indexer(
+    pub async fn build_interchain_gas_payment_indexer(
         &self,
         metrics: &CoreMetrics,
-    ) -> Result<Box<dyn InterchainGasPaymasterIndexer>> {
+    ) -> Result<Box<dyn Indexer<InterchainGasPayment>>> {
         let ctx = "Building IGP indexer";
         let locator = self.locator(self.addresses.interchain_gas_paymaster);
 

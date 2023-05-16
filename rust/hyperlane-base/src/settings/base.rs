@@ -6,9 +6,9 @@ use eyre::{eyre, Context};
 use serde::Deserialize;
 
 use hyperlane_core::{
-    config::*, HyperlaneChain, HyperlaneDB, HyperlaneDomain, HyperlaneProvider,
-    InterchainGasPaymaster, InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm,
-    ValidatorAnnounce, H256,
+    config::*, HyperlaneChain, HyperlaneDB, HyperlaneDomain, HyperlaneMessage, HyperlaneMessageDB,
+    HyperlaneProvider, Indexer, InterchainGasPaymaster, InterchainGasPayment, Mailbox,
+    MessageIndexer, MultisigIsm, ValidatorAnnounce, H256,
 };
 
 use crate::{
@@ -17,8 +17,9 @@ use crate::{
         signers::SignerConf,
         trace::TracingConfig,
     },
-    CachingInterchainGasPaymaster, CachingMailbox, CoreMetrics, HyperlaneAgentCore, RawSignerConf,
+    CoreMetrics, HyperlaneAgentCore, RawSignerConf,
 };
+use crate::{ContractSync, ContractSyncMetrics};
 
 /// Settings. Usually this should be treated as a base config and used as
 /// follows:
@@ -152,40 +153,65 @@ impl Settings {
         Ok(result)
     }
 
+    /// Okay, this builds a ContractSync with a
     /// Try to get a CachingMailbox
-    pub async fn build_caching_mailbox(
+    pub async fn build_message_sync(
         &self,
         domain: &HyperlaneDomain,
         metrics: &CoreMetrics,
-        db: Arc<dyn HyperlaneDB>,
-    ) -> eyre::Result<CachingMailbox> {
-        let mailbox = self
-            .build_mailbox(domain, metrics)
-            .await
-            .with_context(|| format!("Building mailbox for {domain}"))?;
-        let indexer = self
-            .build_mailbox_indexer(domain, metrics)
-            .await
-            .with_context(|| format!("Building mailbox indexer for {domain}"))?;
-        Ok(CachingMailbox::new(mailbox.into(), db, indexer.into()))
+        sync_metrics: &ContractSyncMetrics,
+        db: Arc<dyn HyperlaneMessageDB>,
+    ) -> eyre::Result<
+        Box<ContractSync<HyperlaneMessage, Arc<dyn HyperlaneMessageDB>, Arc<dyn MessageIndexer>>>,
+    > {
+        let setup = self.chain_setup(domain)?;
+        let indexer: Box<dyn MessageIndexer> = setup.build_message_indexer(metrics.clone()).await?;
+        let sync: ContractSync<
+            HyperlaneMessage,
+            Arc<dyn HyperlaneMessageDB>,
+            Arc<dyn MessageIndexer>,
+        > = ContractSync::new(
+            domain.clone(),
+            db.clone(),
+            indexer.into(),
+            sync_metrics.clone(),
+        );
+
+        Ok(Box::new(sync))
     }
 
     /// Try to get a CachingInterchainGasPaymaster
-    pub async fn build_caching_interchain_gas_paymaster(
+    pub async fn build_interchain_gas_payment_sync(
         &self,
         domain: &HyperlaneDomain,
         metrics: &CoreMetrics,
-        db: Arc<dyn HyperlaneDB>,
-    ) -> eyre::Result<CachingInterchainGasPaymaster> {
-        let interchain_gas_paymaster = self.build_interchain_gas_paymaster(domain, metrics).await?;
-        let indexer = self
-            .build_interchain_gas_paymaster_indexer(domain, metrics)
+        sync_metrics: &ContractSyncMetrics,
+        db: Arc<dyn HyperlaneDB<InterchainGasPayment>>,
+    ) -> eyre::Result<
+        Box<
+            ContractSync<
+                InterchainGasPayment,
+                Arc<dyn HyperlaneDB<InterchainGasPayment>>,
+                Arc<dyn Indexer<InterchainGasPayment>>,
+            >,
+        >,
+    > {
+        let setup = self.chain_setup(domain)?;
+        let indexer: Box<dyn Indexer<InterchainGasPayment>> = setup
+            .build_interchain_gas_payment_indexer(metrics.clone())
             .await?;
-        Ok(CachingInterchainGasPaymaster::new(
-            interchain_gas_paymaster.into(),
-            db,
+        let sync: ContractSync<
+            InterchainGasPayment,
+            Arc<dyn HyperlaneDB<InterchainGasPayment>>,
+            Arc<dyn Indexer<InterchainGasPayment>>,
+        > = ContractSync::new(
+            domain.clone(),
+            db.clone(),
             indexer.into(),
-        ))
+            sync_metrics.clone(),
+        );
+
+        Ok(Box::new(sync))
     }
 
     /// Try to get a MultisigIsm
@@ -199,20 +225,6 @@ impl Settings {
             .chain_setup(domain)
             .with_context(|| format!("Building multisig ism for {domain}"))?;
         setup.build_multisig_ism(address, metrics).await
-    }
-
-    /// Try to get a ValidatorAnnounce
-    pub async fn build_validator_announce(
-        &self,
-        domain: &HyperlaneDomain,
-        metrics: &CoreMetrics,
-    ) -> eyre::Result<Arc<dyn ValidatorAnnounce>> {
-        let setup = self.chain_setup(domain)?;
-        let announce = setup
-            .build_validator_announce(metrics)
-            .await
-            .with_context(|| format!("Building validator announce for {domain}"))?;
-        Ok(announce.into())
     }
 
     /// Try to get the chain configuration for the given domain.
@@ -267,8 +279,7 @@ macro_rules! delegate_fn {
 
 impl Settings {
     delegate_fn!(build_interchain_gas_paymaster -> dyn InterchainGasPaymaster);
-    delegate_fn!(build_interchain_gas_paymaster_indexer -> dyn InterchainGasPaymasterIndexer);
     delegate_fn!(build_mailbox -> dyn Mailbox);
-    delegate_fn!(build_mailbox_indexer -> dyn MailboxIndexer);
+    delegate_fn!(build_validator_announce -> dyn ValidatorAnnounce);
     delegate_fn!(build_provider -> dyn HyperlaneProvider);
 }

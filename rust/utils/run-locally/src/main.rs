@@ -128,10 +128,8 @@ fn main() -> ExitCode {
 
     let checkpoints_dir = tempdir().unwrap();
     let rocks_db_dir = tempdir().unwrap();
-    let anvil_db_dir = tempdir().unwrap();
     let relayer_db = concat_path(&rocks_db_dir, "relayer");
     let validator_db = concat_path(&rocks_db_dir, "validator");
-    let anvil_db = concat_path(&anvil_db_dir, "anvil");
 
     let common_env = hashmap! {
         "RUST_BACKTRACE" => "full",
@@ -184,7 +182,6 @@ fn main() -> ExitCode {
     println!("Signed checkpoints in {}", checkpoints_dir.path().display());
     println!("Relayer DB in {}", relayer_db.display());
     println!("Validator DB in {}", validator_db.display());
-    println!("Anvil DB in {}", anvil_db.display());
 
     println!("Building typescript...");
     build_cmd(&["yarn", "install"], &build_log, log_all, Some("../"));
@@ -209,13 +206,21 @@ fn main() -> ExitCode {
 
     let mut state = State::default();
 
-    println!("Launching anvil...");
-    let mut node = Command::new("anvil");
-    node.args(["--state", anvil_db.to_str().unwrap()]);
-    node.stdout(Stdio::null());
+    println!("Launching hardhat...");
+    let mut node = Command::new("yarn");
+    node.args(["hardhat", "node"])
+        .current_dir("../typescript/infra");
+    if log_all {
+        // TODO: should we log this? It seems way too verbose to be useful
+        // node.stdout(Stdio::piped());
+        node.stdout(Stdio::null());
+    } else {
+        node.stdout(append_to(hardhat_log));
+    }
     let node = node.spawn().expect("Failed to start node");
+    state.node = Some(node);
 
-    sleep(Duration::from_secs(1));
+    sleep(Duration::from_secs(5));
 
     println!("Deploying hyperlane ism contracts...");
     let status = Command::new("yarn")
@@ -275,33 +280,6 @@ fn main() -> ExitCode {
         log_all,
         Some("../typescript/sdk"),
     );
-
-    println!("Killing anvil...");
-    let mut kill = Command::new("kill")
-        .args(["-s", "INT", &node.id().to_string()])
-        .spawn()
-        .unwrap();
-    kill.wait().unwrap();
-    println!("Launching anvil...");
-    let mut node = Command::new("anvil");
-    node.args(["--state", anvil_db.to_str().unwrap(), "--block-time", "1"]);
-    if log_all {
-        // TODO: should we log this? It seems way too verbose to be useful
-        // node.stdout(Stdio::piped());
-        node.stdout(Stdio::null());
-    } else {
-        node.stdout(append_to(hardhat_log));
-    }
-    let node = node.spawn().expect("Failed to start node");
-    // if log_all {
-    //     let output = node.stdout.take().unwrap();
-    //     state
-    //         .watchers
-    //         .push(spawn(move || prefix_log(output, "ETH")))
-    // }
-    state.node = Some(node);
-
-    sleep(Duration::from_secs(1));
 
     println!("Spawning validator...");
     let mut validator = Command::new("target/debug/validator")
