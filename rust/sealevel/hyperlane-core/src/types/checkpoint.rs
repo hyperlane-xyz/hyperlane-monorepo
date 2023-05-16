@@ -33,19 +33,6 @@ impl Signable for Checkpoint {
     }
 }
 
-// impl Signable for Checkpoint {
-//     fn signing_hash(&self) -> H256 {
-//         let mut bytes = [0u8; 76];
-//         bytes[0..32].copy_from_slice(&self.mailbox_address[..]);
-//         bytes[4..8].copy_from_slice(&self.mailbox_domain.to_be_bytes());
-//         bytes[8..40].copy_from_slice(&self.root[..]);
-//         bytes[40..44].copy_from_slice(&self.index.to_be_bytes());
-//         bytes[44..76].copy_from_slice(&self.message_id[..]);
-
-//         H256::from_slice(Keccak256::new().chain(&bytes).finalize().as_slice())
-//     }
-// }
-
 /// Computes hash of domain concatenated with "HYPERLANE"
 pub fn domain_hash(address: H256, domain: impl Into<u32>) -> H256 {
     H256::from_slice(

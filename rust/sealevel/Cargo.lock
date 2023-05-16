@@ -2119,8 +2119,6 @@ dependencies = [
  "borsh",
  "hex",
  "hyperlane-core",
- "num-derive",
- "num-traits",
  "solana-program",
  "thiserror",
 ]

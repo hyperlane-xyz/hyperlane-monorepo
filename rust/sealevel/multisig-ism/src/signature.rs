@@ -1,4 +1,4 @@
-use hyperlane_core::{Encode, H160};
+use hyperlane_core::H160;
 use solana_program::{
     keccak,
     secp256k1_recover::{secp256k1_recover, Secp256k1RecoverError},
