@@ -6,12 +6,12 @@ use std::time::{Duration, Instant};
 use eyre::Result;
 use prometheus::IntGauge;
 use tokio::{task::JoinHandle, time::sleep};
-use tracing::{trace, debug, info, info_span, instrument::Instrumented, Instrument};
+use tracing::{debug, info, info_span, instrument::Instrumented, trace, Instrument};
 
 use hyperlane_base::{CachingMailbox, CheckpointSyncer, CoreMetrics};
 use hyperlane_core::{
-    Announcement, Checkpoint, CheckpointWithMessageId, HyperlaneDomain, HyperlaneSigner,
-    HyperlaneSignerExt, Mailbox, HyperlaneContract, HyperlaneChain,
+    Announcement, Checkpoint, CheckpointWithMessageId, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox,
 };
 
 #[derive(Clone)]

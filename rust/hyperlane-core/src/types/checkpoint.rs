@@ -1,9 +1,9 @@
 use async_trait::async_trait;
+use derive_more::Deref;
 use ethers_core::types::{Address, Signature};
 use serde::{Deserialize, Serialize};
 use sha3::{digest::Update, Digest, Keccak256};
 use std::fmt::Debug;
-use derive_more::Deref;
 
 use crate::{utils::domain_hash, Signable, SignedType, H256};
 
@@ -29,7 +29,6 @@ pub struct CheckpointWithMessageId {
     /// hash of message emitted from mailbox checkpoint.index
     pub message_id: H256,
 }
-
 
 #[async_trait]
 impl Signable for Checkpoint {
@@ -108,7 +107,6 @@ pub struct MultisigSignedCheckpoint {
     /// Signatures over the checkpoint. No ordering guarantees.
     pub signatures: Vec<SignatureWithSigner>,
 }
-
 
 /// A checkpoint and multiple signatures
 #[derive(Clone, Debug)]
