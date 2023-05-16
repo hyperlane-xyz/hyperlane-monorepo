@@ -43,7 +43,10 @@ impl<T> From<Box<T>> for AccountData<T> {
     }
 }
 
-impl<T> SizedData for AccountData<T> where T: SizedData {
+impl<T> SizedData for AccountData<T>
+where
+    T: SizedData,
+{
     fn size() -> usize {
         // Add an extra byte for the initialized flag.
         1 + T::size()

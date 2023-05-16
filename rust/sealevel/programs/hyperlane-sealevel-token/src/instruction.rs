@@ -1,7 +1,7 @@
 //! TODO
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use hyperlane_core::{Decode, Encode, H256, HyperlaneError, U256};
+use hyperlane_core::{Decode, Encode, HyperlaneError, H256, U256};
 use solana_program::{program_error::ProgramError, pubkey::Pubkey};
 
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
@@ -135,7 +135,7 @@ impl TokenMessage {
         self.recipient
     }
 
-    pub fn amount(&self) ->  U256 {
+    pub fn amount(&self) -> U256 {
         self.amount_or_id
     }
 
@@ -193,9 +193,7 @@ where
     D: BorshDeserialize + BorshSerialize + EventLabel + std::fmt::Debug,
 {
     pub fn new(data: D) -> Self {
-        Self {
-            data
-        }
+        Self { data }
     }
     pub fn into_inner(self) -> D {
         self.data
@@ -237,7 +235,7 @@ where
                     return Err(EventError);
                 }
                 label_end
-            },
+            }
             _ => return Err(EventError),
         };
         let data = D::deserialize(&mut &data[header_len..]).map_err(|_err| EventError)?;
