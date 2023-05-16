@@ -117,25 +117,6 @@ pub struct MultisigSignedCheckpointWithMessageId {
     pub signatures: Vec<SignatureWithSigner>,
 }
 
-/// A checkpoint and multiple signatures
-#[derive(Clone)]
-pub struct MultisigSignedCheckpointWithMessageId {
-    /// The checkpoint
-    pub checkpoint: CheckpointWithMessageId,
-    /// Signatures over the checkpoint. No ordering guarantees.
-    pub signatures: Vec<SignatureWithSigner>,
-}
-
-impl Debug for MultisigSignedCheckpointWithMessageId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "MultisigSignedCheckpoint {{ checkpoint: {:?}, signature_count: {} }}",
-            self.checkpoint,
-            self.signatures.len()
-        )
-    }
-}
 
 /// Error types for MultisigSignedCheckpoint
 #[derive(Debug, thiserror::Error)]

@@ -1,8 +1,6 @@
 use core::panic;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt::Debug;
-use std::ops::Deref;
-use std::todo;
 
 use async_trait::async_trait;
 use derive_new::new;
@@ -10,25 +8,19 @@ use ethers::abi::Token;
 
 use eyre::Context;
 use hyperlane_core::accumulator::merkle::Proof;
-use hyperlane_core::{Checkpoint, HyperlaneMessage, ModuleType, SignatureWithSigner, H256};
-use num_derive::FromPrimitive;
+use hyperlane_core::{Checkpoint, HyperlaneMessage, MultisigIsm, ModuleType, SignatureWithSigner, H256};
 use strum::Display;
 use tracing::{debug, info, instrument};
+use derive_more::Deref;
 
-use super::{BaseMetadataBuilder, MetadataBuilder};
+use super::base::MetadataBuilder;
+use super::BaseMetadataBuilder;
 
-#[derive(Clone, Debug, new)]
+#[derive(Clone, Debug, new, Deref)]
 pub struct MultisigIsmMetadataBuilder {
+    #[deref]
     base: BaseMetadataBuilder,
     variant: ModuleType,
-}
-
-impl Deref for MultisigIsmMetadataBuilder {
-    type Target = BaseMetadataBuilder;
-
-    fn deref(&self) -> &Self::Target {
-        &self.base
-    }
 }
 
 #[derive(Debug, Display, PartialEq, Eq, Clone)]
