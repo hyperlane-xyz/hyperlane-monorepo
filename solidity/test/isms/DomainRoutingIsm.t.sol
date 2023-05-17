@@ -22,9 +22,7 @@ contract DomainRoutingIsmTest is Test {
         internal
         returns (TestIsm)
     {
-        TestIsm testIsm = new TestIsm(abi.encode(requiredMetadata));
-        ism.set(domain, testIsm);
-        return testIsm;
+        return new TestIsm(abi.encode(requiredMetadata));
     }
 
     function getMetadata(uint32 domain) private view returns (bytes memory) {
@@ -66,7 +64,7 @@ contract DomainRoutingIsmTest is Test {
     }
 
     function testVerify(uint32 domain, bytes32 seed) public {
-        deployTestIsm(domain, seed);
+        ism.set(domain, deployTestIsm(domain, seed));
 
         bytes memory metadata = getMetadata(domain);
         assertTrue(ism.verify(metadata, MessageUtils.build(domain)));
@@ -74,7 +72,7 @@ contract DomainRoutingIsmTest is Test {
 
     function testVerifyNoIsm(uint32 domain, bytes32 seed) public {
         vm.assume(domain > 0);
-        deployTestIsm(domain, seed);
+        ism.set(domain, deployTestIsm(domain, seed));
 
         bytes memory metadata = getMetadata(domain);
         vm.expectRevert("No ISM found for origin domain");
@@ -83,6 +81,7 @@ contract DomainRoutingIsmTest is Test {
 
     function testRoute(uint32 domain, bytes32 seed) public {
         TestIsm testIsm = deployTestIsm(domain, seed);
+        ism.set(domain, testIsm);
         assertEq(
             address(ism.route(MessageUtils.build(domain))),
             address(testIsm)
