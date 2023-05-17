@@ -17,14 +17,11 @@ use tokio::{
 };
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
-use hyperlane_core::{
-    HyperlaneDomain, InterchainGasPayment, U256,
-};
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
-    run_all, BaseAgent, ContractSyncMetrics,
-    CoreMetrics, HyperlaneAgentCore,
+    run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
 };
+use hyperlane_core::{HyperlaneDomain, InterchainGasPayment, U256};
 
 use crate::msg::pending_message::MessageSubmissionMetrics;
 use crate::{
@@ -52,7 +49,8 @@ pub struct Relayer {
     destination_chains: HashSet<HyperlaneDomain>,
     core: HyperlaneAgentCore,
     message_syncs: HashMap<HyperlaneDomain, Arc<MessageContractSync>>,
-    interchain_gas_payment_syncs: HashMap<HyperlaneDomain, Arc<WatermarkContractSync<InterchainGasPayment>>>,
+    interchain_gas_payment_syncs:
+        HashMap<HyperlaneDomain, Arc<WatermarkContractSync<InterchainGasPayment>>>,
     /// Context data for each (origin, destination) chain pair a message can be
     /// sent between
     msg_ctxs: HashMap<ContextKey, Arc<MessageContext>>,
@@ -103,19 +101,19 @@ impl BaseAgent for Relayer {
         let dbs = settings
             .origin_chains
             .iter()
-            .map(|origin| (origin.clone(), Arc::new(HyperlaneRocksDB::new(origin, db.clone()))))
+            .map(|origin| {
+                (
+                    origin.clone(),
+                    Arc::new(HyperlaneRocksDB::new(origin, db.clone())),
+                )
+            })
             .collect::<HashMap<_, _>>();
-
-        
 
         let mailboxes = settings
             .build_mailboxes(settings.destination_chains.iter(), &metrics)
             .await?;
         let interchain_gas_paymasters = settings
-            .build_interchain_gas_paymasters(
-                settings.origin_chains.iter(),
-                &metrics,
-            )
+            .build_interchain_gas_paymasters(settings.origin_chains.iter(), &metrics)
             .await?;
         let validator_announces = settings
             .build_validator_announces(settings.origin_chains.iter(), &metrics)
@@ -128,7 +126,9 @@ impl BaseAgent for Relayer {
                 settings.origin_chains.iter(),
                 &metrics,
                 &contract_sync_metrics,
-                dbs.into_iter().map(|(d, db)| (d, db.clone() as _)).collect(),
+                dbs.into_iter()
+                    .map(|(d, db)| (d, db.clone() as _))
+                    .collect(),
             )
             .await?
             .into();
@@ -180,7 +180,7 @@ impl BaseAgent for Relayer {
                     domain.clone(),
                     Arc::new(GasPaymentEnforcer::new(
                         settings.gas_payment_enforcement.clone(),
-                        dbs.get(domain).unwrap().clone()
+                        dbs.get(domain).unwrap().clone(),
                     )),
                 )
             })
@@ -270,26 +270,35 @@ impl BaseAgent for Relayer {
 }
 
 impl Relayer {
-    async fn run_message_sync(&self, origin: &HyperlaneDomain) -> Instrumented<JoinHandle<eyre::Result<()>>> {
-        let index_settings = self.as_ref().settings.chains[origin.name()]
-            .index
-            .clone();
+    async fn run_message_sync(
+        &self,
+        origin: &HyperlaneDomain,
+    ) -> Instrumented<JoinHandle<eyre::Result<()>>> {
+        let index_settings = self.as_ref().settings.chains[origin.name()].index.clone();
         let contract_sync = self.message_syncs.get(origin).unwrap().clone();
-        let cursor = 
-            contract_sync.forward_backward_message_sync_cursor(index_settings)
+        let cursor = contract_sync
+            .forward_backward_message_sync_cursor(index_settings)
             .await;
-        tokio::spawn(async move { contract_sync.clone().sync("dispatched_messages", cursor).await })
-            .instrument(info_span!("ContractSync"))
+        tokio::spawn(async move {
+            contract_sync
+                .clone()
+                .sync("dispatched_messages", cursor)
+                .await
+        })
+        .instrument(info_span!("ContractSync"))
     }
 
-    async fn run_interchain_gas_payment_sync(&self, origin: &HyperlaneDomain) -> Instrumented<JoinHandle<eyre::Result<()>>> {
-        let index_settings = self.as_ref().settings.chains[origin.name()]
-            .index
+    async fn run_interchain_gas_payment_sync(
+        &self,
+        origin: &HyperlaneDomain,
+    ) -> Instrumented<JoinHandle<eyre::Result<()>>> {
+        let index_settings = self.as_ref().settings.chains[origin.name()].index.clone();
+        let contract_sync = self
+            .interchain_gas_payment_syncs
+            .get(origin)
+            .unwrap()
             .clone();
-        let contract_sync = self.interchain_gas_payment_syncs.get(origin).unwrap().clone();
-        let cursor = contract_sync
-            .rate_limited_cursor(index_settings)
-            .await;
+        let cursor = contract_sync.rate_limited_cursor(index_settings).await;
         tokio::spawn(async move { contract_sync.clone().sync("gas_payments", cursor).await })
             .instrument(info_span!("ContractSync"))
     }

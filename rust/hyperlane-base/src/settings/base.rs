@@ -8,8 +8,8 @@ use serde::Deserialize;
 
 use hyperlane_core::{
     config::*, HyperlaneChain, HyperlaneDomain, HyperlaneHighWatermarkDB, HyperlaneMessageDB,
-    HyperlaneProvider, InterchainGasPaymaster, InterchainGasPayment, Mailbox,
-    MultisigIsm, ValidatorAnnounce, H256,
+    HyperlaneProvider, InterchainGasPaymaster, InterchainGasPayment, Mailbox, MultisigIsm,
+    ValidatorAnnounce, H256,
 };
 
 use crate::{
