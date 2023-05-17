@@ -6,6 +6,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use ethers::abi::Token;
 
+use ethers::utils::hex;
 use eyre::Context;
 use hyperlane_core::accumulator::merkle::Proof;
 use hyperlane_core::{Checkpoint, HyperlaneMessage, MultisigIsm, ModuleType, SignatureWithSigner, H256};
@@ -136,7 +137,7 @@ impl MetadataBuilder for MultisigIsmMetadataBuilder {
         let signatures: Vec<SignatureWithSigner>;
         match self.variant {
             ModuleType::LegacyMultisig => {
-                let Some(quorum_checkpoint) = self.fetch_checkpoint(&validators, threshold.into(), message)
+                let Some(quorum_checkpoint) = self.legacy_fetch_checkpoint(&validators, threshold.into(), message)
                     .await.context(CTX)?
                 else {
                     info!(
@@ -150,7 +151,7 @@ impl MetadataBuilder for MultisigIsmMetadataBuilder {
                 message_id = message.id();
             }
             ModuleType::MerkleRootMultisig | ModuleType::MessageIdMultisig => {
-                let Some(quorum_checkpoint) = self.fetch_checkpoint_with_message_id(&validators, threshold.into(), message)
+                let Some(quorum_checkpoint) = self.fetch_checkpoint(&validators, threshold.into(), message)
                     .await.context(CTX)?
                 else {
                     info!(
@@ -160,12 +161,8 @@ impl MetadataBuilder for MultisigIsmMetadataBuilder {
                     return Ok(None);
                 };
                 checkpoint = quorum_checkpoint.checkpoint.checkpoint;
-                message_id = if self.variant == ModuleType::MessageIdMultisig {
-                    message.id()
-                } else {
-                    quorum_checkpoint.checkpoint.message_id
-                };
                 signatures = quorum_checkpoint.signatures;
+                message_id = quorum_checkpoint.checkpoint.message_id;
             }
             _ => panic!("Unsupported multisig variant: {:?}", self.variant),
         }
@@ -194,14 +191,21 @@ impl MetadataBuilder for MultisigIsmMetadataBuilder {
             "Fetched metadata"
         );
 
-        return Ok(Some(self.format_metadata(
+        let metadata = self.format_metadata(
             &message_id,
             &checkpoint,
             &proof,
             &validators,
             &signatures,
             threshold,
-        )));
+        );
+
+        debug!(
+            metadata=?hex::encode(&metadata),
+            "Formatted metadata"
+        );
+
+        return Ok(Some(metadata));
     }
 }
 

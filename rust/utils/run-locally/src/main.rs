@@ -149,8 +149,8 @@ fn main() -> ExitCode {
         "HYP_BASE_METRICS" => "9092",
         "HYP_ORIGINCHAINNAME" => "INVALIDCHAIN",
         "HYP_BASE_DB" => relayer_db.to_str().unwrap(),
-        "HYP_BASE_CHAINS_TEST1_SIGNER_KEY" => "8166f546bab6da521a8369cab06c5d2b9e46670292d85c875ee9ec20e84ffb61",
-        "HYP_BASE_CHAINS_TEST2_SIGNER_KEY" => "f214f2b2cd398c806f84e317254e0f0b801d0643303237d97a22a48e01628897",
+        "HYP_BASE_CHAINS_TEST1_SIGNER_KEY" => "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", // anvil account 0
+        "HYP_BASE_CHAINS_TEST2_SIGNER_KEY" => "59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d", // anvil account 1
         "HYP_RELAYER_ORIGINCHAINNAME" => "test1",
         "HYP_RELAYER_DESTINATIONCHAINNAMES" => "test2,test3",
         "HYP_RELAYER_WHITELIST" => r#"[{"senderAddress": "*", "destinationDomain": [13372, 13373], "recipientAddress": "*"}]"#,
@@ -161,7 +161,7 @@ fn main() -> ExitCode {
     let relayer_args = [
         "--chains.test1.connection.urls=\"http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545\"",
         // default is used for TEST3
-        "--defaultSigner.key", "701b615bbdfb9de65240bc28bd21bbc0d996645a3dd57e7b12bc2bdf6f192c82",
+        "--defaultSigner.key", "5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a", // anvil account 2
         "--originChainName=test1",
     ];
 
@@ -174,7 +174,7 @@ fn main() -> ExitCode {
         "HYP_BASE_METRICS" => "9091",
         "HYP_BASE_DB" => validator_db.to_str().unwrap(),
         "HYP_VALIDATOR_ORIGINCHAINNAME" => "test1",
-        "HYP_VALIDATOR_VALIDATOR_KEY" => "59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+        "HYP_VALIDATOR_VALIDATOR_KEY" => "7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6", // anvil account 3
         "HYP_VALIDATOR_REORGPERIOD" => "0",
         "HYP_VALIDATOR_INTERVAL" => "5",
         "HYP_VALIDATOR_CHECKPOINTSYNCER_TYPE" => "localStorage",
@@ -188,10 +188,10 @@ fn main() -> ExitCode {
     println!("Relayer DB in {}", relayer_db.display());
     println!("Validator DB in {}", validator_db.display());
 
-    // println!("Building typescript...");
-    // build_cmd(&["yarn", "install"], &build_log, log_all, Some("../"));
-    // build_cmd(&["yarn", "clean"], &build_log, log_all, Some("../"));
-    // build_cmd(&["yarn", "build"], &build_log, log_all, Some("../"));
+    println!("Building typescript...");
+    build_cmd(&["yarn", "install"], &build_log, log_all, Some("../"));
+    build_cmd(&["yarn", "clean"], &build_log, log_all, Some("../"));
+    build_cmd(&["yarn", "build"], &build_log, log_all, Some("../"));
 
     println!("Building relayer...");
     build_cmd(
@@ -205,7 +205,7 @@ fn main() -> ExitCode {
     build_cmd(
         &["cargo", "build", "--bin", "validator"],
         &build_log,
-        true,
+        log_all,
         None,
     );
 
@@ -240,15 +240,15 @@ fn main() -> ExitCode {
         .success();
     assert!(status, "Failed to deploy ism contracts");
 
-    // println!("Rebuilding sdk...");
-    // let status = Command::new("yarn")
-    //     .arg("build")
-    //     .current_dir("../typescript/sdk")
-    //     .stdout(Stdio::null())
-    //     .status()
-    //     .expect("Failed to rebuild sdk")
-    //     .success();
-    // assert!(status, "Failed to rebuild sdk");
+    println!("Rebuilding sdk...");
+    let status = Command::new("yarn")
+        .arg("build")
+        .current_dir("../typescript/sdk")
+        .stdout(Stdio::null())
+        .status()
+        .expect("Failed to rebuild sdk")
+        .success();
+    assert!(status, "Failed to rebuild sdk");
 
     println!("Deploying hyperlane core contracts...");
     let status = Command::new("yarn")
@@ -319,7 +319,7 @@ fn main() -> ExitCode {
         .expect("Failed to start validator");
     let validator_stdout = validator.stdout.take().unwrap();
     state.watchers.push(spawn(move || {
-        if true {
+        if log_all {
             prefix_log(validator_stdout, "VAL")
         } else {
             inspect_and_write_to_file(validator_stdout, validator_stdout_log, &["ERROR"])
@@ -327,7 +327,7 @@ fn main() -> ExitCode {
     }));
     let validator_stderr = validator.stderr.take().unwrap();
     state.watchers.push(spawn(move || {
-        if true {
+        if log_all {
             prefix_log(validator_stderr, "VAL")
         } else {
             inspect_and_write_to_file(validator_stderr, validator_stderr_log, &[])
@@ -336,13 +336,13 @@ fn main() -> ExitCode {
     state.validator = Some(validator);
 
     // Rebuild the SDK to pick up the deployed contracts
-    // println!("Rebuilding sdk...");
-    // build_cmd(
-    //     &["yarn", "build"],
-    //     &build_log,
-    //     log_all,
-    //     Some("../typescript/sdk"),
-    // );
+    println!("Rebuilding sdk...");
+    build_cmd(
+        &["yarn", "build"],
+        &build_log,
+        log_all,
+        Some("../typescript/sdk"),
+    );
 
     // Register the validator announcement
     println!("Announcing validator...");

@@ -119,7 +119,7 @@ impl BaseMetadataBuilder {
             .context(CTX)
     }
 
-    pub async fn fetch_checkpoint(
+    pub async fn legacy_fetch_checkpoint(
         &self,
         validators: &Vec<H256>,
         threshold: usize,
@@ -132,12 +132,12 @@ impl BaseMetadataBuilder {
             .await
             .context(CTX)?;
         checkpoint_syncer
-            .fetch_checkpoint_in_range(validators, threshold, message.nonce, highest_known_nonce)
+            .legacy_fetch_checkpoint_in_range(validators, threshold, message.nonce, highest_known_nonce)
             .await
             .context(CTX)
     }
 
-    pub async fn fetch_checkpoint_with_message_id(
+    pub async fn fetch_checkpoint(
         &self,
         validators: &Vec<H256>,
         threshold: usize,
@@ -149,7 +149,7 @@ impl BaseMetadataBuilder {
             .await
             .context(CTX)?;
         checkpoint_syncer
-            .fetch_checkpoint_with_message_id(message.nonce, validators, threshold)
+            .fetch_checkpoint(message.nonce, validators, threshold)
             .await
             .context(CTX)
     }

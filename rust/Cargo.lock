@@ -4331,6 +4331,7 @@ dependencies = [
  "async-trait",
  "config",
  "derive-new",
+ "derive_more",
  "ethers",
  "ethers-contract",
  "eyre",

@@ -32,7 +32,7 @@ impl MultisigCheckpointSyncer {
     ///
     /// Note it's possible to not find a quorum.
     #[instrument(err, skip(self))]
-    pub async fn fetch_checkpoint_in_range(
+    pub async fn legacy_fetch_checkpoint_in_range(
         &self,
         validators: &Vec<H256>,
         threshold: usize,
@@ -77,7 +77,7 @@ impl MultisigCheckpointSyncer {
             }
             for index in (minimum_index..=start_index).rev() {
                 if let Ok(Some(checkpoint)) =
-                    self.fetch_checkpoint(index, validators, threshold).await
+                    self.legacy_fetch_checkpoint(index, validators, threshold).await
                 {
                     return Ok(Some(checkpoint));
                 }
@@ -90,7 +90,7 @@ impl MultisigCheckpointSyncer {
     /// Fetches a MultisigSignedCheckpoint if there is a quorum.
     /// Returns Ok(None) if there is no quorum.
     #[instrument(err, skip(self))]
-    async fn fetch_checkpoint(
+    async fn legacy_fetch_checkpoint(
         &self,
         index: u32,
         validators: &Vec<H256>,
@@ -184,7 +184,7 @@ impl MultisigCheckpointSyncer {
     /// Fetches a MultisigSignedCheckpointWithMessageId if there is a quorum.
     /// Returns Ok(None) if there is no quorum.
     #[instrument(err, skip(self))]
-    pub async fn fetch_checkpoint_with_message_id(
+    pub async fn fetch_checkpoint(
         &self,
         index: u32,
         validators: &Vec<H256>,
@@ -202,7 +202,7 @@ impl MultisigCheckpointSyncer {
                 // Gracefully ignore an error fetching the checkpoint from a validator's
                 // checkpoint syncer, which can happen if the validator has not
                 // signed the checkpoint at `index`.
-                if let Ok(Some(signed_checkpoint)) = checkpoint_syncer.fetch_checkpoint_with_message_id(index).await
+                if let Ok(Some(signed_checkpoint)) = checkpoint_syncer.fetch_checkpoint(index).await
                 {
                     // If the signed checkpoint is for a different index, ignore it
                     if signed_checkpoint.value.index != index {
