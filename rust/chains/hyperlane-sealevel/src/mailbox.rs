@@ -27,10 +27,7 @@ use crate::{
         pubkey::Pubkey,
         rpc_config::RpcSendTransactionConfig,
         signature::Signature,
-        signer::{
-            keypair::{read_keypair_file, Keypair},
-            Signer as _,
-        },
+        signer::{keypair::Keypair, Signer as _},
         transaction::{Transaction, VersionedTransaction},
         transaction_status::{
             EncodedConfirmedBlock, EncodedTransaction, EncodedTransactionWithStatusMeta,
@@ -56,7 +53,7 @@ pub struct SealevelMailbox {
     outbox: (Pubkey, u8),
     rpc_client: RpcClient,
     domain: HyperlaneDomain,
-    payer: Keypair,
+    payer: Option<Keypair>,
     // FIXME don't understand why the trait bounds for Mailbox are designed to disallow
     // Arc<Mutex<dyn Inspector>> or a wrapper around SealevelMailbox that contains
     // Arc<Mutex<SealevelMailbox>>. Now we have to box an arc mutex... wtf?
@@ -66,11 +63,12 @@ pub struct SealevelMailbox {
 
 impl SealevelMailbox {
     /// Create a new sealevel mailbox
-    pub fn new(conf: &ConnectionConf, locator: ContractLocator) -> ChainResult<Self> {
+    pub fn new(
+        conf: &ConnectionConf,
+        locator: ContractLocator,
+        payer: Option<Keypair>,
+    ) -> ChainResult<Self> {
         let rpc_client = RpcClient::new(conf.url.to_string());
-
-        // TODO better way of creating the keypair & passing it around
-        let payer = read_keypair_file(&conf.keypair_path).unwrap();
 
         // TODO use helper functions from mailbox contract lib
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
@@ -304,8 +302,13 @@ impl Mailbox for SealevelMailbox {
             // any additional accounts.
         ];
 
+        let payer = self
+            .payer
+            .as_ref()
+            .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
+
         // Inject additional accounts required by recipient instruction.
-        match self.inspector.inspect(&self.payer.pubkey(), message) {
+        match self.inspector.inspect(&payer.pubkey(), message) {
             Ok(inspection) => {
                 trace!("Extending accounts after inner message inspection!");
                 accounts.extend(inspection.accounts)
@@ -333,8 +336,8 @@ impl Mailbox for SealevelMailbox {
             .map_err(ChainCommunicationError::from_other)?;
         let txn = Transaction::new_signed_with_payer(
             &instructions,
-            Some(&self.payer.pubkey()),
-            &[&self.payer],
+            Some(&payer.pubkey()),
+            &[payer],
             recent_blockhash,
         );
 

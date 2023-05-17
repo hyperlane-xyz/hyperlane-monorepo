@@ -78,6 +78,9 @@ pub enum ChainCommunicationError {
     /// A transaction submission timed out
     #[error("Transaction submission timed out")]
     TransactionTimeout(),
+    /// No signer is available and was required for the operation
+    #[error("Signer unavailable")]
+    SignerUnavailable,
 }
 
 impl ChainCommunicationError {

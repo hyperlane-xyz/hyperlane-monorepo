@@ -347,9 +347,12 @@ impl ChainConf {
                     .map(|m| Box::new(m) as Box<dyn Mailbox>)
                     .map_err(Into::into)
             }
-            ChainConnectionConf::Sealevel(conf) => h_sealevel::SealevelMailbox::new(conf, locator)
-                .map(|m| Box::new(m) as Box<dyn Mailbox>)
-                .map_err(Into::into),
+            ChainConnectionConf::Sealevel(conf) => {
+                let keypair = self.sealevel_signer().await.context(ctx)?;
+                h_sealevel::SealevelMailbox::new(conf, locator, keypair)
+                    .map(|m| Box::new(m) as Box<dyn Mailbox>)
+                    .map_err(Into::into)
+            }
         }
         .context(ctx)
     }
@@ -544,7 +547,9 @@ impl ChainConf {
             }
 
             ChainConnectionConf::Fuel(_) => todo!(),
-            ChainConnectionConf::Sealevel(_) => todo!(),
+            ChainConnectionConf::Sealevel(_) => {
+                Err(eyre!("Sealevel does not support routing ISM yet")).context(ctx)
+            }
         }
         .context(ctx)
     }
@@ -565,6 +570,12 @@ impl ChainConf {
         self.signer().await.and_then(|opt| {
             opt.ok_or_else(|| eyre!("Fuel requires a signer to construct contract instances"))
         })
+    }
+
+    async fn sealevel_signer(
+        &self,
+    ) -> Result<Option<h_sealevel::solana::signer::keypair::Keypair>> {
+        self.signer().await
     }
 
     /// Get a clone of the ethereum metrics conf with correctly configured

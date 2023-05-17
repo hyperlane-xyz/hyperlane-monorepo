@@ -343,6 +343,8 @@ fn inbox_process(
     };
     invoke_signed(&noop_cpi_log, &[], &[auth_seeds])?;
 
+    msg!("Hyperlane inbox processed message {:?}", id);
+
     // FIXME store before or after recipient cpi? What if fail to write but recipient cpi okay?
     InboxAccount::from(inbox).store(inbox_account, true)?;
     Ok(())

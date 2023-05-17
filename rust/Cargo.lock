@@ -2975,6 +2975,7 @@ dependencies = [
  "color-eyre",
  "config",
  "derive-new",
+ "ed25519-dalek",
  "ethers",
  "ethers-prometheus",
  "eyre",
