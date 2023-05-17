@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use std::{collections::HashMap, sync::Arc};
 
 use eyre::{eyre, Context, Result};
-use futures_util::{future::try_join_all};
+use futures_util::future::try_join_all;
 use serde::Deserialize;
 
 use hyperlane_core::{

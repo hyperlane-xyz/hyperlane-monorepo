@@ -123,7 +123,9 @@ impl BaseAgent for Relayer {
                 settings.origin_chains.iter(),
                 &metrics,
                 &contract_sync_metrics,
-                dbs.iter().map(|(d, db)| (d.clone(), db.clone() as _)).collect(),
+                dbs.iter()
+                    .map(|(d, db)| (d.clone(), db.clone() as _))
+                    .collect(),
             )
             .await?;
         let interchain_gas_payment_syncs = settings
@@ -131,7 +133,9 @@ impl BaseAgent for Relayer {
                 settings.origin_chains.iter(),
                 &metrics,
                 &contract_sync_metrics,
-                dbs.iter().map(|(d, db)| (d.clone(), db.clone() as _)).collect(),
+                dbs.iter()
+                    .map(|(d, db)| (d.clone(), db.clone() as _))
+                    .collect(),
             )
             .await?;
 
