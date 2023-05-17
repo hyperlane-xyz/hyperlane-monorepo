@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use eyre::{Report, Result};
 use futures_util::future::select_all;
 use tokio::task::JoinHandle;
-use tracing::{info_span, instrument::Instrumented, Instrument};
+use tracing::{debug_span, instrument::Instrumented, Instrument};
 
 use crate::{cancel_task, metrics::CoreMetrics, settings::Settings};
 
@@ -81,7 +81,7 @@ pub fn run_all(
     tasks: Vec<Instrumented<JoinHandle<Result<(), Report>>>>,
 ) -> Instrumented<JoinHandle<Result<()>>> {
     debug_assert!(!tasks.is_empty(), "No tasks submitted");
-    let span = info_span!("run_all");
+    let span = debug_span!("run_all");
     tokio::spawn(async move {
         let (res, _, remaining) = select_all(tasks).await;
 
