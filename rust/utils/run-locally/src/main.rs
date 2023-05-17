@@ -36,9 +36,9 @@ use tempfile::tempdir;
 
 /// These private keys are from hardhat/anvil's testing accounts.
 const RELAYER_KEYS: &[&str] = &[
-    "8166f546bab6da521a8369cab06c5d2b9e46670292d85c875ee9ec20e84ffb61",
-    "f214f2b2cd398c806f84e317254e0f0b801d0643303237d97a22a48e01628897",
-    "701b615bbdfb9de65240bc28bd21bbc0d996645a3dd57e7b12bc2bdf6f192c82",
+    "47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a",
+    "8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba",
+    "92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e",
 ];
 /// These private keys are from hardhat/anvil's testing accounts.
 /// These must be consistent with the ISM config for the test.
