@@ -1,3 +1,4 @@
+/// Errors relating to a MultisigIsm
 #[derive(Copy, Clone, Debug, Eq, thiserror::Error, PartialEq)]
 pub enum MultisigIsmError {
     #[error("Invalid signature")]
@@ -6,6 +7,7 @@ pub enum MultisigIsmError {
     ThresholdNotMet,
 }
 
+/// Errors relating to an EcdsaSignature
 #[derive(Copy, Clone, Debug, Eq, thiserror::Error, PartialEq)]
 pub enum EcdsaSignatureError {
     #[error("Invalid signature length")]

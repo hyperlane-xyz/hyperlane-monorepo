@@ -8,7 +8,8 @@ use solana_program::{
 };
 
 use hyperlane_core::{IsmType, H160};
-use hyperlane_sealevel_ism_multisig_ism_message_id::{
+use hyperlane_sealevel_mailbox::instruction::IsmInstruction;
+use hyperlane_sealevel_multisig_ism_message_id::{
     access_control_pda_seeds,
     accounts::{AccessControlAccount, AccessControlData, DomainData, DomainDataAccount},
     domain_data_pda_seeds,
@@ -16,7 +17,6 @@ use hyperlane_sealevel_ism_multisig_ism_message_id::{
     instruction::{Domained, Instruction as MultisigIsmInstruction, ValidatorsAndThreshold},
     processor::process_instruction,
 };
-use hyperlane_sealevel_mailbox::instruction::IsmInstruction;
 use solana_program_test::*;
 use solana_sdk::{
     hash::Hash,
@@ -76,7 +76,7 @@ async fn initialize(
 
 #[tokio::test]
 async fn test_initialize() {
-    let program_id = hyperlane_sealevel_ism_multisig_ism_message_id::id();
+    let program_id = hyperlane_sealevel_multisig_ism_message_id::id();
     let (mut banks_client, payer, recent_blockhash) = ProgramTest::new(
         "hyperlane_sealevel_ism_multisig_ism",
         program_id,
@@ -114,7 +114,7 @@ async fn test_initialize() {
 
 #[tokio::test]
 async fn test_initialize_errors_if_called_twice() {
-    let program_id = hyperlane_sealevel_ism_multisig_ism_message_id::id();
+    let program_id = hyperlane_sealevel_multisig_ism_message_id::id();
     let (mut banks_client, payer, recent_blockhash) = ProgramTest::new(
         "hyperlane_sealevel_ism_multisig_ism",
         program_id,
@@ -159,7 +159,7 @@ async fn test_initialize_errors_if_called_twice() {
 
 #[tokio::test]
 async fn test_set_validators_and_threshold_creates_pda_account() {
-    let program_id = hyperlane_sealevel_ism_multisig_ism_message_id::id();
+    let program_id = hyperlane_sealevel_multisig_ism_message_id::id();
     let (mut banks_client, payer, recent_blockhash) = ProgramTest::new(
         "hyperlane_sealevel_ism_multisig_ism",
         program_id,
@@ -271,7 +271,7 @@ async fn test_set_validators_and_threshold_creates_pda_account() {
 
 #[tokio::test]
 async fn test_ism_type() {
-    let program_id = hyperlane_sealevel_ism_multisig_ism_message_id::id();
+    let program_id = hyperlane_sealevel_multisig_ism_message_id::id();
     let (mut banks_client, payer, recent_blockhash) = ProgramTest::new(
         "hyperlane_sealevel_ism_multisig_ism",
         program_id,

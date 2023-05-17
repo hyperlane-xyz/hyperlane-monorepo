@@ -10,8 +10,12 @@ use crate::error::Error;
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub enum Instruction {
     /// Verifies a message.
+    /// This MUST be the first instruction to maintain consistency
+    /// with the IsmInstruction::Verify instruction used by the Mailbox.
     IsmVerify(IsmVerify),
-    /// Gets the type of ISM
+    /// Gets the type of ISM.
+    /// This MUST be the second instruction to maintain consistency
+    /// with the IsmInstruction::Type instruction.
     IsmType,
     /// Initializes the program.
     Initialize,

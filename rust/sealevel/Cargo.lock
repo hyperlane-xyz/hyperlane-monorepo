@@ -1617,23 +1617,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hyperlane-sealevel-ism-multisig-ism-message-id"
-version = "0.1.0"
-dependencies = [
- "borsh",
- "hex",
- "hyperlane-core",
- "hyperlane-sealevel-mailbox",
- "multisig-ism",
- "num-derive",
- "num-traits",
- "solana-program",
- "solana-program-test",
- "solana-sdk",
- "thiserror",
-]
-
-[[package]]
 name = "hyperlane-sealevel-ism-rubber-stamp"
 version = "0.1.0"
 dependencies = [
@@ -1656,6 +1639,23 @@ dependencies = [
  "solana-program",
  "spl-noop",
  "testing_logger",
+ "thiserror",
+]
+
+[[package]]
+name = "hyperlane-sealevel-multisig-ism-message-id"
+version = "0.1.0"
+dependencies = [
+ "borsh",
+ "hex",
+ "hyperlane-core",
+ "hyperlane-sealevel-mailbox",
+ "multisig-ism",
+ "num-derive",
+ "num-traits",
+ "solana-program",
+ "solana-program-test",
+ "solana-sdk",
  "thiserror",
 ]
 

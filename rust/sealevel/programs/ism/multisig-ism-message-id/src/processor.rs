@@ -18,6 +18,7 @@ use hyperlane_sealevel_mailbox::accounts::SizedData;
 use crate::{
     accounts::{AccessControlAccount, AccessControlData, DomainData, DomainDataAccount},
     error::Error,
+    id,
     instruction::{Domained, Instruction, ValidatorsAndThreshold},
     metadata::MultisigIsmMessageIdMetadata,
 };
@@ -27,10 +28,6 @@ use multisig_ism::multisig::MultisigIsm;
 use borsh::BorshSerialize;
 
 const ISM_TYPE: IsmType = IsmType::MessageIdMultisig;
-
-// FIXME Read these in at compile time? And don't use harcoded test keys.
-// TODO this needs changing
-solana_program::declare_id!("F6dVnLFioQ8hKszqPsmjWPwHn2dJfebgMfztWrzL548V");
 
 #[cfg(not(feature = "no-entrypoint"))]
 entrypoint!(process_instruction);
@@ -435,7 +432,7 @@ fn set_owner(program_id: &Pubkey, accounts: &[AccountInfo], new_owner: Pubkey) -
 mod test {
     use super::*;
 
-    use hyperlane_core::{Checkpoint, Encode, HyperlaneMessage, Signable, H160, H256};
+    use hyperlane_core::{Checkpoint, Encode, HyperlaneMessage, H160, H256};
     use hyperlane_sealevel_mailbox::instruction::{IsmInstruction, IsmVerify};
     use multisig_ism::signature::EcdsaSignature;
     use solana_program::stake_history::Epoch;

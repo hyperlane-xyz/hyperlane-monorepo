@@ -5,6 +5,8 @@ use solana_program::{account_info::AccountInfo, program_error::ProgramError, pub
 
 use crate::{error::Error, instruction::ValidatorsAndThreshold};
 
+/// The data of a "domain data" PDA account.
+/// One of these exists for each domain that's been enrolled.
 #[derive(BorshSerialize, BorshDeserialize, Debug, Default, PartialEq)]
 pub struct DomainData {
     pub bump_seed: u8,
@@ -13,6 +15,7 @@ pub struct DomainData {
 
 pub type DomainDataAccount = AccountData<DomainData>;
 
+/// The data of the access control PDA account.
 #[derive(BorshSerialize, BorshDeserialize, Debug, Default, PartialEq)]
 pub struct AccessControlData {
     pub bump_seed: u8,

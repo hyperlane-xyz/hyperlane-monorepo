@@ -2,6 +2,8 @@ use hyperlane_core::{Signable, H160};
 
 use crate::{error::MultisigIsmError, signature::EcdsaSignature};
 
+/// A type for verifying a quorum of ECDSA signatures from a validator set
+/// over a signable data type.
 pub struct MultisigIsm<T: Signable> {
     signed_data: T,
     signatures: Vec<EcdsaSignature>,
@@ -24,6 +26,11 @@ impl<T: Signable> MultisigIsm<T> {
         }
     }
 
+    /// Returns Ok(()) if there is a quorum of validator signatures over the
+    /// signed data.
+    /// Requires the signatures over the signed data to be ordered by the `this.validators`
+    /// ordering.
+    /// Returns an error if the threshold is not met or if any of the signatures are invalid.
     pub fn verify(&self) -> Result<(), MultisigIsmError> {
         let signed_digest = self.signed_data.eth_signed_message_hash();
         let signed_digest_bytes = signed_digest.as_bytes();
