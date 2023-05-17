@@ -2,13 +2,14 @@ use std::collections::HashSet;
 use std::fmt::Debug;
 use std::{collections::HashMap, sync::Arc};
 
-use eyre::{eyre, Context};
+use eyre::{eyre, Context, Result};
+use futures_util::{future::try_join_all, TryFutureExt};
 use serde::Deserialize;
 
 use hyperlane_core::{
     config::*, HyperlaneChain, HyperlaneDomain, HyperlaneHighWatermarkDB, HyperlaneMessageDB,
-    HyperlaneProvider, Indexer, InterchainGasPaymaster, InterchainGasPayment, Mailbox,
-    MessageIndexer, MultisigIsm, ValidatorAnnounce, H256,
+    HyperlaneProvider, InterchainGasPaymaster, InterchainGasPayment, Mailbox,
+    MultisigIsm, ValidatorAnnounce, H256,
 };
 
 use crate::{
@@ -125,102 +126,13 @@ impl Settings {
         }
     }
 
-    /// Try to get a map of chain name -> mailbox contract
-    pub async fn build_mailboxes(
-        &self,
-        domains: &[&HyperlaneDomain],
-        metrics: &CoreMetrics,
-    ) -> eyre::Result<HashMap<HyperlaneDomain, Arc<dyn Mailbox>>> {
-        let mut result = HashMap::new();
-        for &domain in domains {
-            let mailbox = self.build_mailbox(domain, metrics).await?;
-            result.insert(mailbox.domain().clone(), mailbox.into());
-        }
-        Ok(result)
-    }
-
-    /// Try to get a map of chain name -> interchain gas paymaster contract
-    pub async fn build_interchain_gas_paymasters(
-        &self,
-        domains: &[&HyperlaneDomain],
-        metrics: &CoreMetrics,
-    ) -> eyre::Result<HashMap<HyperlaneDomain, Arc<dyn InterchainGasPaymaster>>> {
-        let mut result = HashMap::new();
-        for &domain in domains {
-            let igp = self.build_interchain_gas_paymaster(domain, metrics).await?;
-            result.insert(igp.domain().clone(), igp.into());
-        }
-        Ok(result)
-    }
-
-    /// Try to get a ContractSync for dispatched messages
-    pub async fn build_message_sync(
-        &self,
-        domain: &HyperlaneDomain,
-        metrics: &CoreMetrics,
-        sync_metrics: &ContractSyncMetrics,
-        db: Arc<dyn HyperlaneMessageDB>,
-    ) -> eyre::Result<Box<MessageContractSync>> {
-        let setup = self.chain_setup(domain)?;
-        let indexer: Box<dyn MessageIndexer> = setup.build_message_indexer(metrics).await?;
-        let sync: MessageContractSync = ContractSync::new(
-            domain.clone(),
-            db.clone(),
-            indexer.into(),
-            sync_metrics.clone(),
-        );
-
-        Ok(Box::new(sync))
-    }
-
-    /// Try to get a ContractSync for delivered messages
-    pub async fn build_delivery_sync(
-        &self,
-        domain: &HyperlaneDomain,
-        metrics: &CoreMetrics,
-        sync_metrics: &ContractSyncMetrics,
-        db: Arc<dyn HyperlaneHighWatermarkDB<H256>>,
-    ) -> eyre::Result<Box<WatermarkContractSync<H256>>> {
-        let setup = self.chain_setup(domain)?;
-        let indexer: Box<dyn Indexer<H256>> = setup.build_delivery_indexer(metrics).await?;
-        let sync: WatermarkContractSync<H256> = ContractSync::new(
-            domain.clone(),
-            db.clone(),
-            indexer.into(),
-            sync_metrics.clone(),
-        );
-
-        Ok(Box::new(sync))
-    }
-
-    /// Try to get a ContractSync for gas payments
-    pub async fn build_interchain_gas_payment_sync(
-        &self,
-        domain: &HyperlaneDomain,
-        metrics: &CoreMetrics,
-        sync_metrics: &ContractSyncMetrics,
-        db: Arc<dyn HyperlaneHighWatermarkDB<InterchainGasPayment>>,
-    ) -> eyre::Result<Box<WatermarkContractSync<InterchainGasPayment>>> {
-        let setup = self.chain_setup(domain)?;
-        let indexer: Box<dyn Indexer<InterchainGasPayment>> =
-            setup.build_interchain_gas_payment_indexer(metrics).await?;
-        let sync: WatermarkContractSync<InterchainGasPayment> = ContractSync::new(
-            domain.clone(),
-            db.clone(),
-            indexer.into(),
-            sync_metrics.clone(),
-        );
-
-        Ok(Box::new(sync))
-    }
-
     /// Try to get a MultisigIsm
     pub async fn build_multisig_ism(
         &self,
         domain: &HyperlaneDomain,
         address: H256,
         metrics: &CoreMetrics,
-    ) -> eyre::Result<Box<dyn MultisigIsm>> {
+    ) -> Result<Box<dyn MultisigIsm>> {
         let setup = self
             .chain_setup(domain)
             .with_context(|| format!("Building multisig ism for {domain}"))?;
@@ -263,23 +175,81 @@ impl Settings {
 }
 
 /// Generate a call to ChainSetup for the given builder
-macro_rules! delegate_fn {
-    ($name:ident -> $ret:ty) => {
+macro_rules! build_contract_fns {
+    ($singular:ident, $plural:ident -> $ret:ty) => {
         /// Delegates building to ChainSetup
-        pub async fn $name(
+        pub async fn $singular(
             &self,
             domain: &HyperlaneDomain,
             metrics: &CoreMetrics,
         ) -> eyre::Result<Box<$ret>> {
             let setup = self.chain_setup(domain)?;
-            setup.$name(metrics).await
+            setup.$singular(metrics).await
+        }
+
+        /// Builds a contract for each domain
+        pub async fn $plural(
+            &self,
+            domains: impl Iterator<Item = &HyperlaneDomain>,
+            metrics: &CoreMetrics,
+        ) -> Result<HashMap<HyperlaneDomain, Arc<$ret>>> {
+            try_join_all(domains.map(|d| {
+                self.$singular(d, metrics)
+                    .map_ok(|m| (m.domain().clone(), Arc::from(m)))
+            }))
+            .await
+            .map(|vec| vec.into_iter().collect())
+        }
+    };
+}
+
+/// Generate a call to ChainSetup for the given builder
+macro_rules! build_indexer_fns {
+    ($singular:ident, $plural:ident -> $db:ty, $ret:ty) => {
+        /// Delegates building to ChainSetup
+        pub async fn $singular(
+            &self,
+            domain: &HyperlaneDomain,
+            metrics: &CoreMetrics,
+            sync_metrics: &ContractSyncMetrics,
+            db: Arc<$db>,
+        ) -> eyre::Result<Box<$ret>> {
+            let setup = self.chain_setup(domain)?;
+            let indexer = setup.$singular(metrics).await?;
+            let sync: $ret = ContractSync::new(
+                domain.clone(),
+                db.clone(),
+                indexer.into(),
+                sync_metrics.clone(),
+            );
+
+            Ok(Box::new(sync))
+        }
+
+        /// Builds a contract for each domain
+        pub async fn $plural(
+            &self,
+            domains: impl Iterator<Item = &HyperlaneDomain>,
+            metrics: &CoreMetrics,
+            sync_metrics: &ContractSyncMetrics,
+            dbs: HashMap<HyperlaneDomain, Arc<$db>>,
+        ) -> Result<HashMap<HyperlaneDomain, Arc<$ret>>> {
+            try_join_all(domains.map(|d| {
+                self.$singular(d, metrics, sync_metrics, dbs.get(d).unwrap().clone())
+                    .map_ok(|m| (m.domain().clone(), Arc::from(m)))
+            }))
+            .await
+            .map(|vec| vec.into_iter().collect())
         }
     };
 }
 
 impl Settings {
-    delegate_fn!(build_interchain_gas_paymaster -> dyn InterchainGasPaymaster);
-    delegate_fn!(build_mailbox -> dyn Mailbox);
-    delegate_fn!(build_validator_announce -> dyn ValidatorAnnounce);
-    delegate_fn!(build_provider -> dyn HyperlaneProvider);
+    build_contract_fns!(build_interchain_gas_paymaster, build_interchain_gas_paymasters -> dyn InterchainGasPaymaster);
+    build_contract_fns!(build_mailbox, build_mailboxes -> dyn Mailbox);
+    build_contract_fns!(build_validator_announce, build_validator_announces -> dyn ValidatorAnnounce);
+    build_contract_fns!(build_provider, build_providers -> dyn HyperlaneProvider);
+    build_indexer_fns!(build_delivery_indexer, build_delivery_indexers -> dyn HyperlaneHighWatermarkDB<H256>, WatermarkContractSync<H256>);
+    build_indexer_fns!(build_message_indexer, build_message_indexers -> dyn HyperlaneMessageDB, MessageContractSync);
+    build_indexer_fns!(build_interchain_gas_payment_indexer, build_interchain_gas_payment_indexers -> dyn HyperlaneHighWatermarkDB<InterchainGasPayment>, WatermarkContractSync<InterchainGasPayment>);
 }

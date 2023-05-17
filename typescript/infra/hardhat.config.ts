@@ -63,13 +63,13 @@ task('kathy', 'Dispatches random hyperlane messages')
       let messages = Number.parseInt(taskArgs.messages) || 0;
       const run_forever = messages === 0;
       while (run_forever || messages-- > 0) {
-        const local = core.chains()[0];
+        // Round robin origin chain
+        const local = core.chains()[messages % core.chains().length];
+        // Random remote chain
         const remote: ChainName = randomElement(core.remoteChains(local));
         const remoteId = multiProvider.getDomainId(remote);
         const mailbox = core.getContracts(local).mailbox;
         const igp = igps.getContracts(local).interchainGasPaymaster;
-        // Send a batch of messages to the destination chain to test
-        // the relayer submitting only greedily
         await recipient.dispatchToSelf(
           mailbox.address,
           igp.address,

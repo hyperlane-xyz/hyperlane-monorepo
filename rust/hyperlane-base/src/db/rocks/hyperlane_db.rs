@@ -32,32 +32,37 @@ type DbResult<T> = std::result::Result<T, DbError>;
 
 /// DB handle for storing data tied to a specific Mailbox.
 #[derive(Debug, Clone)]
-pub struct HyperlaneRocksDB(TypedDB);
+pub struct HyperlaneRocksDB(HyperlaneDomain, TypedDB);
 
 impl std::ops::Deref for HyperlaneRocksDB {
     type Target = TypedDB;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.1
     }
 }
 
 impl AsRef<TypedDB> for HyperlaneRocksDB {
     fn as_ref(&self) -> &TypedDB {
-        &self.0
+        &self.1
     }
 }
 
 impl AsRef<DB> for HyperlaneRocksDB {
     fn as_ref(&self) -> &DB {
-        self.0.as_ref()
+        self.1.as_ref()
     }
 }
 
 impl HyperlaneRocksDB {
     /// Instantiated new `HyperlaneRocksDB`
     pub fn new(domain: &HyperlaneDomain, db: DB) -> Self {
-        Self(TypedDB::new(domain, db))
+        Self(domain.clone(), TypedDB::new(domain, db))
+    }
+
+    /// Get the domain this database is scoped to
+    pub fn domain(&self) -> &HyperlaneDomain {
+        &self.0
     }
 
     /// Store a raw committed message
@@ -128,9 +133,10 @@ impl HyperlaneRocksDB {
     }
 
     /// Retrieve nonce processed status
-    pub fn retrieve_message_processed(&self, nonce: u32) -> DbResult<Option<bool>> {
-        let value: Option<bool> = self.retrieve_keyed_decodable(NONCE_PROCESSED, &nonce)?;
-        Ok(value)
+    pub fn retrieve_message_processed(&self, nonce: u32) -> Result<bool> {
+        Ok(self
+            .retrieve_keyed_decodable(NONCE_PROCESSED, &nonce)?
+            .unwrap_or(false))
     }
 
     /// If the provided gas payment, identified by its metadata, has not been

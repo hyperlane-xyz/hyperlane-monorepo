@@ -35,6 +35,11 @@ where
     D: HyperlaneDB<T> + 'static,
     I: Indexer<T> + Clone + 'static,
 {
+    /// The domain that this ContractSync is running on
+    pub fn domain(&self) -> &HyperlaneDomain {
+        &self.domain
+    }
+
     /// Sync logs and write them to the DB
     #[tracing::instrument(name = "ContractSync", skip(self, cursor))]
     pub async fn sync(

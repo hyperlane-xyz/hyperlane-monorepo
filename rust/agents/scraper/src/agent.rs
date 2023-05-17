@@ -176,7 +176,7 @@ impl Scraper {
         let message_sync = self
             .as_ref()
             .settings
-            .build_message_sync(
+            .build_message_indexer(
                 &domain,
                 &self.metrics.clone(),
                 &self.contract_sync_metrics.clone(),
@@ -198,7 +198,7 @@ impl Scraper {
         let delivery_sync = self
             .as_ref()
             .settings
-            .build_delivery_sync(
+            .build_delivery_indexer(
                 &domain,
                 &self.metrics.clone(),
                 &self.contract_sync_metrics.clone(),
@@ -220,7 +220,7 @@ impl Scraper {
         let payment_sync = self
             .as_ref()
             .settings
-            .build_interchain_gas_payment_sync(
+            .build_interchain_gas_payment_indexer(
                 &domain,
                 &self.metrics.clone(),
                 &self.contract_sync_metrics.clone(),
