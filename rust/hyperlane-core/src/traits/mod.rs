@@ -28,7 +28,7 @@ mod validator_announce;
 #[derive(Debug, Clone, Copy)]
 pub struct TxOutcome {
     /// The txid
-    pub txid: crate::H256,
+    pub txid: crate::TxId,
     /// True if executed, false otherwise (reverted, etc.)
     pub executed: bool,
     /// Amount of gas used on this transaction.
@@ -41,7 +41,7 @@ pub struct TxOutcome {
 impl From<ethers_core::types::TransactionReceipt> for TxOutcome {
     fn from(t: ethers_core::types::TransactionReceipt) -> Self {
         Self {
-            txid: t.transaction_hash,
+            txid: t.transaction_hash.into(),
             executed: t.status.unwrap().low_u32() == 1,
             gas_used: t.gas_used.unwrap_or(crate::U256::zero()),
             gas_price: t.effective_gas_price.unwrap_or(crate::U256::zero()),

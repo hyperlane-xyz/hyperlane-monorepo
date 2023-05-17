@@ -15,9 +15,10 @@ auto_impl = "1.0"
 bytes = { version = "1", features = ["serde"] }
 convert_case = "0.6"
 derive-new.workspace = true
-ethers-providers.workspace = true
-ethers-core.workspace = true
+derive_more.workspace = true
 ethers-contract.workspace = true
+ethers-core.workspace = true
+ethers-providers.workspace = true
 eyre.workspace = true
 hex = "0.4.3"
 itertools.workspace = true

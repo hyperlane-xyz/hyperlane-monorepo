@@ -1,6 +1,8 @@
-pub use primitive_types::{H128, H160, H256, H512, U128, U256, U512};
+use std::fmt::{Debug, Display, Formatter};
 use std::io::{Read, Write};
 use std::ops::Add;
+
+pub use primitive_types::{H128, H160, H256, H512, U128, U256, U512};
 
 pub use announcement::*;
 pub use chain_data::*;
@@ -19,6 +21,50 @@ mod message;
 /// Unified 32-byte identifier with convenience tooling for handling
 /// 20-byte ids (e.g ethereum addresses)
 pub mod identifiers;
+
+/// Error indicating the internal type does not match the type it is being
+/// converted to
+#[derive(thiserror::Error)]
+pub struct InvalidType;
+
+impl Debug for InvalidType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{InvalidType}")
+    }
+}
+
+impl Display for InvalidType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Incorrect internal type")
+    }
+}
+
+/// Quickly create a new primitive type wrapping enum
+macro_rules! define_primitive_hash_enum {
+    {$(#[$m:meta])* enum $name:ident { $($t:tt),+}} => {
+        $(#[$m])*
+        #[derive(Debug, Copy, Clone, derive_more::From, Hash, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+        pub enum $name {
+            $(#[allow(missing_docs)] $t($t),)*
+        }
+
+        $(impl TryFrom<$name> for $t {
+            type Error = InvalidType;
+
+            fn try_from(value: $name) -> Result<Self, Self::Error> {
+                match value {
+                    $name::$t(v) => Ok(v),
+                    _ => Err(InvalidType),
+                }
+            }
+        })*
+    };
+}
+
+define_primitive_hash_enum! {
+    /// A transaction identifier
+    enum TxId { H256, H512 }
+}
 
 /// A payment of a message's gas costs.
 #[derive(Debug, Copy, Clone)]
