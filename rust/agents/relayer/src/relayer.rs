@@ -112,9 +112,6 @@ impl BaseAgent for Relayer {
         let mailboxes = settings
             .build_mailboxes(settings.destination_chains.iter(), &metrics)
             .await?;
-        let interchain_gas_paymasters = settings
-            .build_interchain_gas_paymasters(settings.origin_chains.iter(), &metrics)
-            .await?;
         let validator_announces = settings
             .build_validator_announces(settings.origin_chains.iter(), &metrics)
             .await?;
