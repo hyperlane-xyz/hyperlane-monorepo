@@ -9,7 +9,7 @@ use hyperlane_base::db::HyperlaneRocksDB;
 use prometheus::{IntCounter, IntGauge};
 use tracing::{debug, error, info, instrument, trace, warn};
 
-use hyperlane_base::{CoreMetrics};
+use hyperlane_base::CoreMetrics;
 use hyperlane_core::{HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, U256};
 
 use super::{

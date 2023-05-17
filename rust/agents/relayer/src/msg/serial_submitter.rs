@@ -16,8 +16,8 @@ use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tracing::{debug, info_span, instrument, instrument::Instrumented, trace, Instrument};
 
-use hyperlane_base::{CoreMetrics};
-use hyperlane_core::{HyperlaneDomain};
+use hyperlane_base::CoreMetrics;
+use hyperlane_core::HyperlaneDomain;
 
 use super::pending_operation::*;
 
