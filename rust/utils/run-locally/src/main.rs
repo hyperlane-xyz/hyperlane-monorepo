@@ -145,7 +145,9 @@ fn main() -> ExitCode {
     let checkpoints_dirs = (0..3).map(|_| tempdir().unwrap()).collect::<Vec<_>>();
     let rocks_db_dir = tempdir().unwrap();
     let relayer_db = concat_path(&rocks_db_dir, "relayer");
-    let validator_dbs = (0..3).map(|i| concat_path(&rocks_db_dir, format!("validator{i}"))).collect::<Vec<_>>();
+    let validator_dbs = (0..3)
+        .map(|i| concat_path(&rocks_db_dir, format!("validator{i}")))
+        .collect::<Vec<_>>();
 
     let common_env = hashmap! {
         "RUST_BACKTRACE" => "full",

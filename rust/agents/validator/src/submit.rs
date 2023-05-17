@@ -12,9 +12,8 @@ use hyperlane_base::{CachingMailbox, CheckpointSyncer, CoreMetrics};
 use tracing::{debug, error, info, info_span, instrument::Instrumented, trace, warn, Instrument};
 
 use hyperlane_core::{
-    Checkpoint, CheckpointWithMessageId, HyperlaneChain, HyperlaneContract,
-    Announcement, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox, ValidatorAnnounce,
-    H256, U256,
+    Announcement, Checkpoint, CheckpointWithMessageId, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox, ValidatorAnnounce, H256, U256,
 };
 
 #[derive(Clone)]
