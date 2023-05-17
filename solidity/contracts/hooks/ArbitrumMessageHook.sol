@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+import "forge-std/console.sol";
+
 // ============ Internal Imports ============
 import {IArbitrumMessageHook} from "../interfaces/hooks/IArbitrumMessageHook.sol";
 import {ArbitrumISM} from "../isms/native/ArbitrumISM.sol";
@@ -8,7 +10,6 @@ import {TypeCasts} from "../libs/TypeCasts.sol";
 
 // ============ External Imports ============
 import {IInbox} from "@arbitrum/nitro-contracts/src/bridge/IInbox.sol";
-import {AddressAliasHelper} from "@arbitrum/nitro-contracts/src/libraries/AddressAliasHelper.sol";
 
 /**
  * @title ArbitrumMessageHook
@@ -18,10 +19,13 @@ import {AddressAliasHelper} from "@arbitrum/nitro-contracts/src/libraries/Addres
 contract ArbitrumMessageHook is IArbitrumMessageHook {
     // ============ Constants ============
 
-    // Domain of chain on which the optimism ISM is deployed
+    // Domain of chain on which the arbitrum ISM is deployed
     uint32 public immutable destinationDomain;
     // Arbitrum's inbox used to send messages from L1 -> L2
     IInbox public immutable inbox;
+
+    uint128 internal constant MAX_GAS_LIMIT = 100_000;
+    uint128 internal constant MAX_GAS_PRICE = 1e9;
 
     // ============ Public Storage ============
 
@@ -36,6 +40,15 @@ contract ArbitrumMessageHook is IArbitrumMessageHook {
     }
 
     // ============ External Functions ============
+
+    /**
+     * @notice Sets the arbitrum ISM you want to use to verify messages.
+     * @param _ism The address of the arbitrum ISM.
+     */
+    function setArbitrumISM(address _ism) external {
+        require(address(ism) == address(0), "ArbitrumHook: ism already set");
+        ism = ArbitrumISM(_ism);
+    }
 
     /**
      * @notice Hook to inform the Arbitrum ISM of messages published through.
@@ -63,23 +76,37 @@ contract ArbitrumMessageHook is IArbitrumMessageHook {
             (_messageId, msg.sender)
         );
 
+        // total gas cost = l1 submission fee + l2 execution cost
+
+        // submission fee as rent to keep message in memory and
+        // refunded to l2 address if auto-redeem is successful
         uint256 submissionFee = inbox.calculateRetryableSubmissionFee(
             _payload.length,
             0
         );
 
-        address l2Alias = AddressAliasHelper.applyL1ToL2Alias(msg.sender);
+        uint256 totalGasCost = submissionFee + (MAX_GAS_LIMIT * MAX_GAS_PRICE);
 
-        IInbox(inbox).createRetryableTicket{value: submissionFee}({
+        // require(msg.value >= totalGasCost, "ArbitrumHook: insufficient funds");
+
+        // TODO: check if unaliasing is necessay for contract addresses
+        IInbox(inbox).createRetryableTicket{value: totalGasCost}({
             to: address(ism),
-            l2CallValue: 0, // no value is transferred to the L2 to
+            l2CallValue: 0, // no value is transferred to the L2 receiver
             maxSubmissionCost: submissionFee,
-            excessFeeRefundAddress: l2Alias,
-            callValueRefundAddress: l2Alias,
-            gasLimit: 0,
-            maxFeePerGas: 0,
+            excessFeeRefundAddress: msg.sender, // refund limit x price - execution cost
+            callValueRefundAddress: msg.sender, // refund if timeout or cancelled
+            gasLimit: MAX_GAS_LIMIT,
+            maxFeePerGas: MAX_GAS_PRICE,
             data: _payload
         });
+
+        emit ArbitrumMessagePublished(
+            address(ism),
+            msg.sender,
+            _messageId,
+            submissionFee
+        );
 
         return submissionFee;
     }

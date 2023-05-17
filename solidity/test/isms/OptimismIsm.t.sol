@@ -14,7 +14,6 @@ pragma solidity ^0.8.13;
 @@@@@@@@@       @@@@@@@@*/
 
 import "forge-std/Test.sol";
-import "forge-std/console.sol";
 
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {Mailbox} from "../../contracts/Mailbox.sol";
@@ -116,7 +115,7 @@ contract OptimismISMTest is Test {
         vm.makePersistent(address(opMailbox));
     }
 
-    function deployOptimsimIsm() public {
+    function deployOptimsimISM() public {
         vm.selectFork(optimismFork);
 
         opISM = new OptimismISM(
@@ -127,7 +126,7 @@ contract OptimismISMTest is Test {
     }
 
     function deployAll() public {
-        deployOptimsimIsm();
+        deployOptimsimISM();
         deployEthMailbox();
         deployOpMailbox();
 
@@ -200,7 +199,7 @@ contract OptimismISMTest is Test {
     }
 
     function testDispatch_ISMNotSet() public {
-        deployOptimsimIsm();
+        deployOptimsimISM();
 
         vm.selectFork(mainnetFork);
 

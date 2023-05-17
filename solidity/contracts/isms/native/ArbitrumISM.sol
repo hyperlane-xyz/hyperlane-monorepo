@@ -14,7 +14,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 contract ArbitrumISM is IInterchainSecurityModule, Ownable {
     mapping(bytes32 => mapping(address => bool)) public receivedEmitters;
 
-    IArbitrumMessageHook public l1Hook;
+    IArbitrumMessageHook public immutable l1Hook;
 
     // solhint-disable-next-line const-name-snakecase
     uint8 public constant moduleType =
@@ -27,16 +27,14 @@ contract ArbitrumISM is IInterchainSecurityModule, Ownable {
      */
     modifier isAuthorized() {
         require(
-            msg.sender == AddressAliasHelper.applyL1ToL2Alias(address(l1Hook)),
+            AddressAliasHelper.undoL1ToL2Alias(msg.sender) == address(l1Hook),
             "ArbitrumISM: caller is not the owner"
         );
 
         _;
     }
 
-    constructor() {}
-
-    function setArbitrumHook(IArbitrumMessageHook _hook) external onlyOwner {
+    constructor(IArbitrumMessageHook _hook) {
         l1Hook = _hook;
     }
 
