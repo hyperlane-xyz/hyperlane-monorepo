@@ -8,8 +8,8 @@ use serde::Deserialize;
 
 use hyperlane_core::{
     config::*, HyperlaneChain, HyperlaneDomain, HyperlaneHighWatermarkDB, HyperlaneMessageDB,
-    HyperlaneProvider, InterchainGasPaymaster, InterchainGasPayment, Mailbox,
-    MultisigIsm, ValidatorAnnounce, H256,
+    HyperlaneProvider, InterchainGasPaymaster, InterchainGasPayment, Mailbox, MultisigIsm,
+    ValidatorAnnounce, H256,
 };
 
 use crate::{
@@ -193,12 +193,11 @@ macro_rules! build_contract_fns {
             domains: impl Iterator<Item = &HyperlaneDomain>,
             metrics: &CoreMetrics,
         ) -> Result<HashMap<HyperlaneDomain, Arc<$ret>>> {
-            try_join_all(domains.map(|d| {
-                self.$singular(d, metrics)
-                    .map_ok(|m| (m.domain().clone(), Arc::from(m)))
-            }))
-            .await
-            .map(|vec| vec.into_iter().collect())
+            try_join_all(domains.map(|d| self.$singular(d, metrics)))
+                .await?
+                .into_iter()
+                .map(|i| Ok((i.domain().clone(), Arc::from(i))))
+                .collect()
         }
     };
 }
@@ -234,12 +233,14 @@ macro_rules! build_indexer_fns {
             sync_metrics: &ContractSyncMetrics,
             dbs: HashMap<HyperlaneDomain, Arc<$db>>,
         ) -> Result<HashMap<HyperlaneDomain, Arc<$ret>>> {
-            try_join_all(domains.map(|d| {
-                self.$singular(d, metrics, sync_metrics, dbs.get(d).unwrap().clone())
-                    .map_ok(|m| (m.domain().clone(), Arc::from(m)))
-            }))
-            .await
-            .map(|vec| vec.into_iter().collect())
+            try_join_all(
+                domains
+                    .map(|d| self.$singular(d, metrics, sync_metrics, dbs.get(d).unwrap().clone())),
+            )
+            .await?
+            .into_iter()
+            .map(|i| Ok((i.domain().clone(), Arc::from(i))))
+            .collect()
         }
     };
 }

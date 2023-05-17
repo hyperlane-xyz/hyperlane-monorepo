@@ -106,8 +106,6 @@ impl BaseAgent for Relayer {
             .map(|origin| (origin.clone(), Arc::new(HyperlaneRocksDB::new(origin, db.clone()))))
             .collect::<HashMap<_, _>>();
 
-        
-
         let mailboxes = settings
             .build_mailboxes(settings.destination_chains.iter(), &metrics)
             .await?;
@@ -128,19 +126,17 @@ impl BaseAgent for Relayer {
                 settings.origin_chains.iter(),
                 &metrics,
                 &contract_sync_metrics,
-                dbs.into_iter().map(|(d, db)| (d, db.clone() as _)).collect(),
+                dbs.iter().map(|(d, db)| (d.clone(), db.clone() as _)).collect(),
             )
-            .await?
-            .into();
+            .await?;
         let interchain_gas_payment_syncs = settings
             .build_interchain_gas_payment_indexers(
                 settings.origin_chains.iter(),
                 &metrics,
                 &contract_sync_metrics,
-                dbs,
+                dbs.iter().map(|(d, db)| (d.clone(), db.clone() as _)).collect(),
             )
-            .await?
-            .into();
+            .await?;
 
         let whitelist = Arc::new(settings.whitelist);
         let blacklist = Arc::new(settings.blacklist);
