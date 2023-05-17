@@ -6,13 +6,15 @@ use async_trait::async_trait;
 use derive_new::new;
 use ethers::abi::Token;
 
+use derive_more::Deref;
 use ethers::utils::hex;
 use eyre::Context;
 use hyperlane_core::accumulator::merkle::Proof;
-use hyperlane_core::{Checkpoint, HyperlaneMessage, MultisigIsm, ModuleType, SignatureWithSigner, H256};
+use hyperlane_core::{
+    Checkpoint, HyperlaneMessage, ModuleType, MultisigIsm, SignatureWithSigner, H256,
+};
 use strum::Display;
 use tracing::{debug, info, instrument};
-use derive_more::Deref;
 
 use super::base::MetadataBuilder;
 use super::BaseMetadataBuilder;
@@ -91,21 +93,21 @@ impl MultisigIsmMetadataBuilder {
                     .iter()
                     .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
                     .collect();
-                return ethers::abi::encode(&proof_tokens);
+                ethers::abi::encode(&proof_tokens)
             }
             MetadataToken::Validators => {
                 let validator_tokens: Vec<Token> = validators
                     .iter()
                     .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
                     .collect();
-                return ethers::abi::encode(&[Token::FixedArray(validator_tokens)]);
+                ethers::abi::encode(&[Token::FixedArray(validator_tokens)])
             }
             MetadataToken::Signatures => order_signatures(validators, signatures).concat(),
         };
 
         let layout = self.token_layout();
         let token_bytes: Vec<Vec<u8>> = layout.iter().map(build_token).collect();
-        return token_bytes.concat();
+        token_bytes.concat()
     }
 }
 

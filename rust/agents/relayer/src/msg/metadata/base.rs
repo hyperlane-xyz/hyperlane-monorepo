@@ -13,8 +13,9 @@ use hyperlane_base::{
 };
 use hyperlane_core::accumulator::merkle::Proof;
 use hyperlane_core::{
-    HyperlaneDomain, HyperlaneMessage, ModuleType, MultisigIsm, MultisigSignedCheckpoint,
-    RoutingIsm, ValidatorAnnounce, H160, H256, Checkpoint, MultisigSignedCheckpointWithMessageId,
+    Checkpoint, HyperlaneDomain, HyperlaneMessage, ModuleType, MultisigIsm,
+    MultisigSignedCheckpoint, MultisigSignedCheckpointWithMessageId, RoutingIsm, ValidatorAnnounce,
+    H160, H256,
 };
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
@@ -133,7 +134,12 @@ impl BaseMetadataBuilder {
             .await
             .context(CTX)?;
         checkpoint_syncer
-            .legacy_fetch_checkpoint_in_range(validators, threshold, message.nonce, highest_known_nonce)
+            .legacy_fetch_checkpoint_in_range(
+                validators,
+                threshold,
+                message.nonce,
+                highest_known_nonce,
+            )
             .await
             .context(CTX)
     }

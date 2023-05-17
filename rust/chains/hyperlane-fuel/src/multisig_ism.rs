@@ -2,7 +2,7 @@ use async_trait::async_trait;
 
 use hyperlane_core::{
     ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProvider, MultisigIsm, H256
+    HyperlaneProvider, MultisigIsm, H256,
 };
 
 /// A reference to a MultisigIsm contract on some Fuel chain

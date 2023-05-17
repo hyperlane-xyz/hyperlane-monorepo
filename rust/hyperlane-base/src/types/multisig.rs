@@ -6,7 +6,10 @@ use ethers::prelude::Address;
 use eyre::Result;
 use tracing::{debug, instrument, trace};
 
-use hyperlane_core::{MultisigSignedCheckpoint, SignedCheckpointWithSigner, H160, H256, SignedCheckpointWithMessageIdWithSigner, MultisigSignedCheckpointWithMessageId};
+use hyperlane_core::{
+    MultisigSignedCheckpoint, MultisigSignedCheckpointWithMessageId,
+    SignedCheckpointWithMessageIdWithSigner, SignedCheckpointWithSigner, H160, H256,
+};
 
 use crate::CheckpointSyncer;
 
@@ -76,8 +79,9 @@ impl MultisigCheckpointSyncer {
                 return Ok(None);
             }
             for index in (minimum_index..=start_index).rev() {
-                if let Ok(Some(checkpoint)) =
-                    self.legacy_fetch_checkpoint(index, validators, threshold).await
+                if let Ok(Some(checkpoint)) = self
+                    .legacy_fetch_checkpoint(index, validators, threshold)
+                    .await
                 {
                     return Ok(Some(checkpoint));
                 }
@@ -193,8 +197,10 @@ impl MultisigCheckpointSyncer {
         // Keeps track of signed validator checkpoints for a particular root.
         // In practice, it's likely that validators will all sign the same root for a
         // particular index, but we'd like to be robust to this not being the case
-        let mut signed_checkpoints_per_root: HashMap<H256, Vec<SignedCheckpointWithMessageIdWithSigner>> =
-            HashMap::new();
+        let mut signed_checkpoints_per_root: HashMap<
+            H256,
+            Vec<SignedCheckpointWithMessageIdWithSigner>,
+        > = HashMap::new();
 
         for validator in validators.iter() {
             let addr = H160::from(*validator);
@@ -253,8 +259,9 @@ impl MultisigCheckpointSyncer {
                     // If we've hit a quorum, create a MultisigSignedCheckpoint
                     if signature_count >= threshold {
                         if let Some(signed_checkpoints) = signed_checkpoints_per_root.get(&root) {
-                            let checkpoint =
-                                MultisigSignedCheckpointWithMessageId::try_from(signed_checkpoints)?;
+                            let checkpoint = MultisigSignedCheckpointWithMessageId::try_from(
+                                signed_checkpoints,
+                            )?;
                             debug!(checkpoint=?checkpoint, "Fetched multisig checkpoint");
                             return Ok(Some(checkpoint));
                         }

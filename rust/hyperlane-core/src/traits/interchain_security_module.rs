@@ -22,7 +22,7 @@ pub enum ModuleType {
     /// Merkle Proof ISM (batching and censorship resistance)
     MerkleRootMultisig,
     /// Message ID ISM (cheapest multisig with no batching)
-    MessageIdMultisig
+    MessageIdMultisig,
 }
 
 /// Interface for the InterchainSecurityModule chain contract. Allows abstraction over
@@ -30,7 +30,7 @@ pub enum ModuleType {
 #[async_trait]
 #[auto_impl(&, Box, Arc)]
 pub trait InterchainSecurityModule: HyperlaneContract + Send + Sync + Debug {
-    /// Returns the module type of the ISM compliant with the corresponding 
+    /// Returns the module type of the ISM compliant with the corresponding
     /// metadata offchain fetching and onchain formatting standard.
     async fn module_type(&self) -> ChainResult<ModuleType>;
 }

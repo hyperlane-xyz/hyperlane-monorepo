@@ -8,11 +8,11 @@ use async_trait::async_trait;
 use ethers::providers::Middleware;
 use tracing::instrument;
 
-use num_traits::cast::FromPrimitive;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneProvider, InterchainSecurityModule, H256, ModuleType
+    HyperlaneProvider, InterchainSecurityModule, ModuleType, H256,
 };
+use num_traits::cast::FromPrimitive;
 
 use crate::contracts::i_interchain_security_module::{
     IInterchainSecurityModule as EthereumInterchainSecurityModuleInternal,

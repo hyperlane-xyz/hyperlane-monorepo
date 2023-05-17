@@ -117,7 +117,6 @@ pub struct MultisigSignedCheckpointWithMessageId {
     pub signatures: Vec<SignatureWithSigner>,
 }
 
-
 /// Error types for MultisigSignedCheckpoint
 #[derive(Debug, thiserror::Error)]
 pub enum MultisigSignedCheckpointError {
@@ -163,12 +162,16 @@ impl TryFrom<&Vec<SignedCheckpointWithSigner>> for MultisigSignedCheckpoint {
     }
 }
 
-impl TryFrom<&Vec<SignedCheckpointWithMessageIdWithSigner>> for MultisigSignedCheckpointWithMessageId {
+impl TryFrom<&Vec<SignedCheckpointWithMessageIdWithSigner>>
+    for MultisigSignedCheckpointWithMessageId
+{
     type Error = MultisigSignedCheckpointError;
 
     /// Given multiple signed checkpoints with their signer, creates a
     /// MultisigSignedCheckpoint
-    fn try_from(signed_checkpoints: &Vec<SignedCheckpointWithMessageIdWithSigner>) -> Result<Self, Self::Error> {
+    fn try_from(
+        signed_checkpoints: &Vec<SignedCheckpointWithMessageIdWithSigner>,
+    ) -> Result<Self, Self::Error> {
         if signed_checkpoints.is_empty() {
             return Err(MultisigSignedCheckpointError::EmptySignatures());
         }
