@@ -30,7 +30,9 @@ where
 
 #[cfg(test)]
 mod test {
-    use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, RawHyperlaneMessage, H256};
+    use hyperlane_core::{
+        HyperlaneDB, HyperlaneDomain, HyperlaneMessage, LogMeta, RawHyperlaneMessage, H256, U256,
+    };
 
     use crate::db::HyperlaneRocksDB;
 
@@ -53,8 +55,16 @@ mod test {
                 recipient: H256::from_low_u64_be(5),
                 body: vec![1, 2, 3],
             };
+            let meta = LogMeta {
+                address: H256::from_low_u64_be(1),
+                block_number: 1,
+                block_hash: H256::from_low_u64_be(1),
+                transaction_hash: H256::from_low_u64_be(1),
+                transaction_index: 0,
+                log_index: U256::from(0),
+            };
 
-            db.store_message(&m).unwrap();
+            db.store_logs(&vec![(m.clone(), meta)]).await.unwrap();
 
             let by_id = db.message_by_id(m.id()).unwrap().unwrap();
             assert_eq!(

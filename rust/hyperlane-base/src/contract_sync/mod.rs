@@ -4,8 +4,8 @@ use derive_new::new;
 
 use cursor::*;
 use hyperlane_core::{
-    ContractSyncCursor, HyperlaneDB, HyperlaneDomain, HyperlaneMessage, HyperlaneMessageDB,
-    Indexer, MessageIndexer,
+    ContractSyncCursor, HyperlaneDB, HyperlaneDomain, HyperlaneHighWatermarkDB, HyperlaneMessage,
+    HyperlaneMessageDB, Indexer, MessageIndexer,
 };
 pub use metrics::ContractSyncMetrics;
 use std::fmt::Debug;
@@ -38,23 +38,6 @@ where
     D: HyperlaneDB<T> + 'static,
     I: Indexer<T> + Clone + 'static,
 {
-    /// Should this be moved to RateLimitedContractSyncCursor::new?
-    /// Returns a new cursor to be used for syncing events from the indexer based on time
-    pub async fn rate_limited_cursor(
-        &self,
-        index_settings: IndexSettings,
-    ) -> Box<dyn ContractSyncCursor<T>> {
-        Box::new(
-            RateLimitedContractSyncCursor::new(
-                Arc::new(self.indexer.clone()),
-                index_settings.chunk_size,
-                index_settings.from,
-            )
-            .await
-            .unwrap(),
-        )
-    }
-
     /// Sync logs
     #[tracing::instrument(name = "ContractSync", skip(self, cursor))]
     pub async fn sync(
@@ -88,6 +71,34 @@ where
             // Update cursor
             cursor.update(logs).await?;
         }
+    }
+}
+
+impl<T> ContractSync<T, Arc<dyn HyperlaneHighWatermarkDB<T>>, Arc<dyn Indexer<T>>>
+where
+    T: Debug + Send + Sync + Clone + 'static,
+{
+    /// Should this be moved to RateLimitedContractSyncCursor::new?
+    /// Returns a new cursor to be used for syncing events from the indexer based on time
+    pub async fn rate_limited_cursor(
+        &self,
+        index_settings: IndexSettings,
+    ) -> Box<dyn ContractSyncCursor<T>> {
+        let watermark = self.db.retrieve_high_watermark().await.unwrap();
+        let index_settings = IndexSettings {
+            from: watermark.unwrap_or(index_settings.from.into()),
+            chunk_size: index_settings.chunk_size,
+        };
+        Box::new(
+            RateLimitedContractSyncCursor::new(
+                Arc::new(self.indexer.clone()),
+                self.db.clone(),
+                index_settings.chunk_size,
+                index_settings.from,
+            )
+            .await
+            .unwrap(),
+        )
     }
 }
 

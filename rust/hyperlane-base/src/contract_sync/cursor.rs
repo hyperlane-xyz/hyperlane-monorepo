@@ -12,8 +12,8 @@ use tokio::time::sleep;
 use tracing::warn;
 
 use hyperlane_core::{
-    ChainResult, ContractSyncCursor, HyperlaneMessage, HyperlaneMessageDB, Indexer, LogMeta,
-    MessageIndexer,
+    ChainResult, ContractSyncCursor, HyperlaneHighWatermarkDB, HyperlaneMessage,
+    HyperlaneMessageDB, Indexer, LogMeta, MessageIndexer,
 };
 
 use crate::contract_sync::eta_calculator::SyncerEtaCalculator;
@@ -287,27 +287,32 @@ impl ContractSyncCursor<HyperlaneMessage> for ForwardBackwardMessageSyncCursor {
 pub(crate) struct RateLimitedContractSyncCursor<T> {
     // TODO: It's weird that ContractSync takes an indexer *and* cursors take an indexer...
     indexer: Arc<dyn Indexer<T>>,
+    db: Arc<dyn HyperlaneHighWatermarkDB<T>>,
     tip: u32,
     last_tip_update: Instant,
     chunk_size: u32,
     from: u32,
     eta_calculator: SyncerEtaCalculator,
+    initial_height: u32,
 }
 
 impl<T> RateLimitedContractSyncCursor<T> {
     /// Construct a new contract sync helper.
     pub async fn new(
         indexer: Arc<dyn Indexer<T>>,
+        db: Arc<dyn HyperlaneHighWatermarkDB<T>>,
         chunk_size: u32,
         initial_height: u32,
     ) -> Result<Self> {
         let tip = indexer.get_finalized_block_number().await?;
         Ok(Self {
             indexer,
+            db,
             tip,
             chunk_size,
             last_tip_update: Instant::now(),
             from: initial_height,
+            initial_height,
             eta_calculator: SyncerEtaCalculator::new(initial_height, tip, ETA_TIME_WINDOW),
         })
     }
@@ -365,6 +370,12 @@ where
     }
 
     async fn update(&mut self, _: Vec<(T, LogMeta)>) -> eyre::Result<()> {
+        self.db
+            .store_high_watermark(u32::max(
+                self.initial_height,
+                self.from.saturating_sub(self.chunk_size),
+            ))
+            .await?;
         Ok(())
     }
 }

@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use eyre::Result;
-use hyperlane_base::chains::IndexSettings;
 use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_base::{ContractSync, ContractSyncMetrics};
 use tokio::sync::{
@@ -15,7 +14,7 @@ use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
 use hyperlane_base::{db::DB, run_all, BaseAgent, CoreMetrics, HyperlaneAgentCore};
 use hyperlane_core::{
-    HyperlaneChain, HyperlaneDB, HyperlaneDomain, HyperlaneHighWatermarkDB, HyperlaneMessage,
+    HyperlaneChain, HyperlaneDomain, HyperlaneHighWatermarkDB, HyperlaneMessage,
     HyperlaneMessageDB, Indexer, InterchainGasPayment, Mailbox, MessageIndexer, ValidatorAnnounce,
     U256,
 };
@@ -42,7 +41,7 @@ pub struct Relayer {
     origin_interchain_gas_paymaster_sync: Arc<
         ContractSync<
             InterchainGasPayment,
-            Arc<dyn HyperlaneDB<InterchainGasPayment>>,
+            Arc<dyn HyperlaneHighWatermarkDB<InterchainGasPayment>>,
             Arc<dyn Indexer<InterchainGasPayment>>,
         >,
     >,
@@ -232,14 +231,9 @@ impl Relayer {
     async fn run_interchain_gas_paymaster_sync(
         &self,
     ) -> Instrumented<JoinHandle<eyre::Result<()>>> {
-        let default_index_settings = self.as_ref().settings.chains[self.origin_chain.name()]
+        let index_settings = self.as_ref().settings.chains[self.origin_chain.name()]
             .index
             .clone();
-        let watermark = <Arc<HyperlaneRocksDB> as HyperlaneHighWatermarkDB<InterchainGasPayment>>::retrieve_high_watermark::<'_, '_>(&self.origin_db).await.unwrap();
-        let index_settings = IndexSettings {
-            from: watermark.unwrap_or(default_index_settings.from.into()),
-            chunk_size: default_index_settings.chunk_size,
-        };
         let cursor = self
             .origin_interchain_gas_paymaster_sync
             .rate_limited_cursor(index_settings)

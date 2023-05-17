@@ -13,8 +13,8 @@ use hyperlane_base::{
     decl_settings, run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
     Settings,
 };
+use hyperlane_core::config::*;
 use hyperlane_core::HyperlaneDomain;
-use hyperlane_core::{config::*, HyperlaneHighWatermarkDB, H256};
 
 use crate::chain_scraper::HyperlaneSqlDb;
 use crate::db::ScraperDb;
@@ -170,18 +170,7 @@ impl Scraper {
     async fn scrape(&self, domain_id: &u32) -> Instrumented<JoinHandle<eyre::Result<()>>> {
         let scraper = self.scrapers.get(&domain_id).unwrap().clone();
         let db = scraper.clone().db.clone();
-        let default_index_settings = scraper.clone().index_settings.clone();
-        let watermark =
-            <Arc<HyperlaneSqlDb> as HyperlaneHighWatermarkDB<H256>>::retrieve_high_watermark::<
-                '_,
-                '_,
-            >(&db)
-            .await
-            .unwrap();
-        let index_settings = IndexSettings {
-            from: watermark.unwrap_or(default_index_settings.from.into()),
-            chunk_size: default_index_settings.chunk_size,
-        };
+        let index_settings = scraper.clone().index_settings.clone();
         let domain = scraper.clone().domain.clone();
 
         let mut tasks = Vec::with_capacity(2);
