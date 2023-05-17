@@ -129,9 +129,9 @@ impl PendingOperation for PendingMessage {
             return PendingOperationResult::Success;
         }
 
-        // The Mailbox's `recipientIsm` function will revert if
-        // the recipient is not a contract.
         let provider = self.ctx.destination_mailbox.provider();
+
+        // We cannot deliver to an address that is not a contract so check and drop if it isn't.
         let is_contract = op_try!(
             provider.is_contract(&self.message.recipient).await,
             "checking if message recipient is a contract"
@@ -139,7 +139,7 @@ impl PendingOperation for PendingMessage {
         if !is_contract {
             info!(
                 recipient=?self.message.recipient,
-                "Could not fetch metadata: Recipient is not a contract"
+                "Dropping message because recipient is not a contract"
             );
             return PendingOperationResult::Drop;
         }
