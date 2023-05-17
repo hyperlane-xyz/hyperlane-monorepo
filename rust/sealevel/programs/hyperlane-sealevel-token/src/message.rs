@@ -1,6 +1,6 @@
 //! TODO
 
-use hyperlane_core::{Decode, Encode, H256, HyperlaneError, U256};
+use hyperlane_core::{Decode, Encode, HyperlaneError, H256, U256};
 use solana_program::pubkey::Pubkey;
 
 /// Message body of Hyperlane protocol messages for Warp Routes.
@@ -24,7 +24,7 @@ impl Message {
 impl Encode for Message {
     fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
     where
-        W: std::io::Write
+        W: std::io::Write,
     {
         let mut written = 0;
         written += self.recipient.write_to(writer)?;
@@ -39,7 +39,7 @@ impl Decode for Message {
     fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneError>
     where
         R: std::io::Read,
-        Self: Sized
+        Self: Sized,
     {
         let recipient = H256::read_from(reader)?;
         let amount_or_token_id = U256::read_from(reader)?;
@@ -48,7 +48,7 @@ impl Decode for Message {
         Ok(Message {
             recipient,
             amount_or_token_id,
-            metadata
+            metadata,
         })
     }
 }

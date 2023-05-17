@@ -8,31 +8,31 @@ use std::str::FromStr as _;
 use clap::{Args, Parser, Subcommand};
 use hyperlane_sealevel_ism_rubber_stamp::ID as DEFAULT_ISM_PROG_ID;
 use hyperlane_sealevel_mailbox::{
-    ID as MAILBOX_PROG_ID,
-    spl_noop,
-    hyperlane_core::{message::HyperlaneMessage, types::{H256, U256}, Encode},
     accounts::{InboxAccount, OutboxAccount},
-    instruction::{
-        InboxProcess, Init as InitMailbox, Instruction as MailboxInstruction, OutboxDispatch,
-        MailboxRecipientInstruction, VERSION,
+    hyperlane_core::{
+        message::HyperlaneMessage,
+        types::{H256, U256},
+        Encode,
     },
-    mailbox_authority_pda_seeds, mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds
+    instruction::{
+        InboxProcess, Init as InitMailbox, Instruction as MailboxInstruction,
+        MailboxRecipientInstruction, OutboxDispatch, VERSION,
+    },
+    mailbox_authority_pda_seeds, mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds, spl_noop,
+    ID as MAILBOX_PROG_ID,
 };
 use hyperlane_sealevel_recipient_echo::ID as RECIPIENT_ECHO_PROG_ID;
 use hyperlane_sealevel_token::{
-    ID as HYPERLANE_TOKEN_PROG_ID,
     accounts::{HyperlaneErc20Account, HyperlaneTokenAccount},
-    hyperlane_token_erc20_pda_seeds,
-    hyperlane_token_mint_pda_seeds,
-    hyperlane_token_native_collateral_pda_seeds,
-    hyperlane_token_pda_seeds,
+    hyperlane_token_erc20_pda_seeds, hyperlane_token_mint_pda_seeds,
+    hyperlane_token_native_collateral_pda_seeds, hyperlane_token_pda_seeds,
     instruction::{
-        Instruction as HtInstruction, Init as HtInit, InitErc20 as HtInitErc20,
+        Init as HtInit, InitErc20 as HtInitErc20, Instruction as HtInstruction,
         TokenMessage as HtMessage, TransferFromRemote as HtTransferFromRemote,
         TransferRemote as HtTransferRemote,
     },
     spl_associated_token_account::{self, get_associated_token_address_with_program_id},
-    spl_token_2022,
+    spl_token_2022, ID as HYPERLANE_TOKEN_PROG_ID,
 };
 use solana_clap_utils::input_validators::{is_keypair, is_url, normalize_to_url_if_moniker};
 use solana_cli_config::{Config, CONFIG_FILE};
@@ -42,7 +42,7 @@ use solana_sdk::{
     compute_budget::ComputeBudgetInstruction,
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
-    signature::{Keypair, read_keypair_file, Signer as _},
+    signature::{read_keypair_file, Keypair, Signer as _},
     system_program,
     transaction::Transaction,
 };
@@ -116,7 +116,6 @@ struct Outbox {
     message: String,
     #[arg(long, short, default_value_t = MAILBOX_PROG_ID)]
     program_id: Pubkey,
-
     // #[arg(long, short, default_value_t = MAX_MESSAGE_BODY_BYTES)]
     // message_len: usize,
 }
@@ -309,7 +308,7 @@ fn main() {
         client,
         payer,
         commitment,
-        instructions
+        instructions,
     };
     match cli.cmd {
         HyperlaneSealevelCmd::Mailbox(cmd) => process_mailbox_cmd(ctx, cmd),
@@ -450,8 +449,7 @@ fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
             );
 
             let signature = ctx.client.send_transaction(&txn).unwrap();
-            ctx
-                .client
+            ctx.client
                 .confirm_transaction_with_spinner(&signature, &recent_blockhash, ctx.commitment)
                 .unwrap();
         }
@@ -512,8 +510,7 @@ fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
             );
 
             let signature = ctx.client.send_transaction(&txn).unwrap();
-            ctx
-                .client
+            ctx.client
                 .confirm_transaction_with_spinner(&signature, &recent_blockhash, ctx.commitment)
                 .unwrap();
         }
@@ -523,10 +520,8 @@ fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
 fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
     match cmd.cmd {
         TokenSubCmd::Init(init) => {
-            let (token_account, token_bump) = Pubkey::find_program_address(
-                hyperlane_token_pda_seeds!(),
-                &init.program_id,
-            );
+            let (token_account, token_bump) =
+                Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &init.program_id);
             let (native_collateral_account, native_collateral_bump) = Pubkey::find_program_address(
                 hyperlane_token_native_collateral_pda_seeds!(),
                 &init.program_id,
@@ -567,19 +562,22 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 .confirm_transaction_with_spinner(&signature, &recent_blockhash, ctx.commitment)
                 .unwrap();
 
-            println!("native (name, symbol)=({}, {})", init.native_name, init.native_symbol);
-            println!("hyperlane_token storage =({}, {})", token_account, token_bump);
+            println!(
+                "native (name, symbol)=({}, {})",
+                init.native_name, init.native_symbol
+            );
+            println!(
+                "hyperlane_token storage =({}, {})",
+                token_account, token_bump
+            );
             println!(
                 "hyperlane_token_native_collateral =({}, {})",
-                native_collateral_account,
-                native_collateral_bump
+                native_collateral_account, native_collateral_bump
             );
-        },
+        }
         TokenSubCmd::InitErc20(init) => {
-            let (token_account, _token_bump) = Pubkey::find_program_address(
-                hyperlane_token_pda_seeds!(),
-                &init.program_id,
-            );
+            let (token_account, _token_bump) =
+                Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &init.program_id);
             let (erc20_account, erc20_bump) = Pubkey::find_program_address(
                 hyperlane_token_erc20_pda_seeds!(init.name, init.symbol),
                 &init.program_id,
@@ -589,13 +587,12 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 &init.program_id,
             );
 
-            let ixn = MailboxRecipientInstruction::new_custom(HtInstruction::InitErc20(
-                HtInitErc20 {
+            let ixn =
+                MailboxRecipientInstruction::new_custom(HtInstruction::InitErc20(HtInitErc20 {
                     total_supply: init.total_supply.into(),
                     name: init.name,
                     symbol: init.symbol,
-                }
-            ));
+                }));
             let init_instruction = Instruction {
                 program_id: init.program_id,
                 data: ixn.into_instruction_data().unwrap(),
@@ -625,12 +622,10 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
 
             println!("erc20=({}, {})", erc20_account, erc20_bump);
             println!("mint=({}, {})", mint_account, mint_bump);
-        },
+        }
         TokenSubCmd::Query(query) => {
-            let (token_account, token_bump) = Pubkey::find_program_address(
-                hyperlane_token_pda_seeds!(),
-                &query.program_id,
-            );
+            let (token_account, token_bump) =
+                Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &query.program_id);
             let (native_collateral_account, native_collateral_bump) = Pubkey::find_program_address(
                 hyperlane_token_native_collateral_pda_seeds!(),
                 &query.program_id,
@@ -649,12 +644,16 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 .get_multiple_accounts(&[
                     token_account,
                     native_collateral_account,
-                    erc20_account, mint_account
+                    erc20_account,
+                    mint_account,
                 ])
                 .unwrap();
             println!("hyperlane-sealevel-token={}", query.program_id);
             println!("--------------------------------");
-            println!("Hyperlane Token Storage: {}, bump={}", token_account, token_bump);
+            println!(
+                "Hyperlane Token Storage: {}, bump={}",
+                token_account, token_bump
+            );
             if let Some(info) = &accounts[0] {
                 println!("{:#?}", info);
                 match HyperlaneTokenAccount::fetch(&mut info.data.as_ref()) {
@@ -667,8 +666,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
             println!("--------------------------------");
             println!(
                 "Native Token Collateral: {}, bump={}",
-                native_collateral_account,
-                native_collateral_bump
+                native_collateral_account, native_collateral_bump
             );
             if let Some(info) = &accounts[1] {
                 println!("{:#?}", info);
@@ -687,7 +685,10 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 println!("Not yet created?");
             }
             println!("--------------------------------");
-            println!("Mint / Mint Authority: {}, bump={}", mint_account, mint_bump);
+            println!(
+                "Mint / Mint Authority: {}, bump={}",
+                mint_account, mint_bump
+            );
             if let Some(info) = &accounts[3] {
                 println!("{:#?}", info);
                 use solana_program::program_pack::Pack as _;
@@ -698,15 +699,13 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
             } else {
                 println!("Not yet created?");
             }
-        },
+        }
         TokenSubCmd::TransferRemote(xfer) => {
             is_keypair(&xfer.sender).unwrap();
             let sender = read_keypair_file(xfer.sender).unwrap();
 
-            let (token_account, _token_bump) = Pubkey::find_program_address(
-                hyperlane_token_pda_seeds!(),
-                &xfer.program_id,
-            );
+            let (token_account, _token_bump) =
+                Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &xfer.program_id);
             let (mailbox_outbox_account, _mailbox_outbox_bump) = Pubkey::find_program_address(
                 mailbox_outbox_pda_seeds!(xfer.mailbox_local_domain),
                 &xfer.mailbox,
@@ -718,11 +717,10 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                     destination_program_id: xfer.destination_token_program_id.to_bytes().into(),
                     recipient: xfer.recipient.to_bytes().into(),
                     amount_or_id: xfer.amount.into(),
-                }
+                },
             ));
 
-            let xfer_is_native =
-                xfer.name == xfer.native_name && xfer.symbol == xfer.native_symbol;
+            let xfer_is_native = xfer.name == xfer.native_name && xfer.symbol == xfer.native_symbol;
             // Accounts:
             // 1. spl_noop
             // 2. hyperlane_token storage
@@ -752,7 +750,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                     );
                 accounts.extend([
                     AccountMeta::new_readonly(system_program::id(), false),
-                    AccountMeta::new(native_collateral_account, false)
+                    AccountMeta::new(native_collateral_account, false),
                 ]);
             } else {
                 let (erc20_account, _erc20_bump) = Pubkey::find_program_address(
@@ -800,24 +798,21 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                     err
                 })
                 .unwrap();
-            ctx
-                .client
+            ctx.client
                 .confirm_transaction_with_spinner(&signature, &recent_blockhash, ctx.commitment)
                 .map_err(|err| {
                     eprintln!("{:#?}", err);
                     err
                 })
                 .unwrap();
-        },
+        }
         TokenSubCmd::TransferFromRemote(xfer) => {
             let (mailbox_auth_account, _mailbox_auth_bump) = Pubkey::find_program_address(
                 mailbox_authority_pda_seeds!(xfer.mailbox_local_domain),
                 &xfer.mailbox_program_id,
             );
-            let (token_account, _token_bump) = Pubkey::find_program_address(
-                hyperlane_token_pda_seeds!(),
-                &xfer.program_id,
-            );
+            let (token_account, _token_bump) =
+                Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &xfer.program_id);
 
             let message = HtMessage::new_erc20(
                 H256::from(xfer.recipient.to_bytes()),
@@ -828,11 +823,10 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 HtTransferFromRemote {
                     origin: xfer.origin_domain,
                     message: message.to_vec(),
-                }
+                },
             ));
 
-            let xfer_is_native =
-                xfer.name == xfer.native_name && xfer.symbol == xfer.native_symbol;
+            let xfer_is_native = xfer.name == xfer.native_name && xfer.symbol == xfer.native_symbol;
             // Accounts:
             // 1. mailbox_authority
             // 2. system_program
@@ -863,9 +857,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                         hyperlane_token_native_collateral_pda_seeds!(),
                         &xfer.program_id,
                     );
-                accounts.extend([
-                    AccountMeta::new(native_collateral_account, false)
-                ]);
+                accounts.extend([AccountMeta::new(native_collateral_account, false)]);
             } else {
                 let (erc20_account, _erc20_bump) = Pubkey::find_program_address(
                     hyperlane_token_erc20_pda_seeds!(xfer.name, xfer.symbol),
@@ -921,6 +913,6 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                     err
                 })
                 .unwrap();
-        },
+        }
     }
 }

@@ -1,2 +1,0 @@
-pwd
-dirname $0

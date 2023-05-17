@@ -10,7 +10,6 @@ pub enum Error {
 
     #[error("Unused account(s) provided")]
     ExtraneousAccount = 2,
-
     // #[error("Hyperlane message is malformatted")]
     // MalformattedHyperlaneMessage = 2,
     // #[error("Unsupported message version")]

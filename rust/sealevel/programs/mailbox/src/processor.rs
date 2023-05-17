@@ -21,7 +21,8 @@ use crate::{
     error::Error,
     instruction::{
         InboxProcess, InboxSetDefaultModule, Init, Instruction as MailboxIxn, IsmInstruction,
-        MailboxRecipientInstruction, OutboxDispatch, OutboxQuery, MAX_MESSAGE_BODY_BYTES, VERSION,
+        IsmVerify, MailboxRecipientInstruction, OutboxDispatch, OutboxQuery,
+        MAX_MESSAGE_BODY_BYTES, VERSION,
     },
 };
 
@@ -226,7 +227,7 @@ fn inbox_process(
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
-    let message = HyperlaneMessage::read_from(&mut std::io::Cursor::new(process.message))
+    let message = HyperlaneMessage::read_from(&mut std::io::Cursor::new(&process.message))
         .map_err(|_| ProgramError::from(Error::MalformattedHyperlaneMessage))?;
     if message.version != VERSION {
         return Err(ProgramError::from(Error::UnsupportedMessageVersion));
@@ -315,17 +316,17 @@ fn inbox_process(
     let auth_seeds: &[&[u8]] =
         mailbox_authority_pda_seeds!(inbox.local_domain, inbox.auth_bump_seed);
 
-    let ism_ixn = IsmInstruction {
+    let ism_ixn = IsmInstruction::Verify(IsmVerify {
         metadata: process.metadata,
-        message: message.body,
-    };
+        message: process.message,
+    });
     let verify = Instruction::new_with_borsh(inbox.ism, &ism_ixn, ism_account_metas);
     invoke_signed(&verify, &ism_accounts, &[auth_seeds])?;
 
     let recp_ixn = MailboxRecipientInstruction::<()>::new_mailbox_recipient_cpi(
         message.sender,
         message.origin,
-        ism_ixn.message,
+        message.body,
     );
     let recieve = Instruction::new_with_bytes(
         message.recipient.0.into(),

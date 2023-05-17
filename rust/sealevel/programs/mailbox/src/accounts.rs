@@ -8,6 +8,10 @@ use solana_program::{account_info::AccountInfo, program_error::ProgramError, pub
 
 use crate::{error::Error, DEFAULT_ISM, DEFAULT_ISM_ACCOUNTS};
 
+pub trait SizedData {
+    fn size() -> usize;
+}
+
 // FIXME should probably define another trait rather than use Default for this as a valid but
 // uninitialized object in rust is a big no no.
 pub trait Data: BorshDeserialize + BorshSerialize + Default {}
@@ -39,6 +43,16 @@ impl<T> From<Box<T>> for AccountData<T> {
     }
 }
 
+impl<T> SizedData for AccountData<T>
+where
+    T: SizedData,
+{
+    fn size() -> usize {
+        // Add an extra byte for the initialized flag.
+        1 + T::size()
+    }
+}
+
 impl<T> AccountData<T>
 where
     T: Data,
@@ -47,15 +61,22 @@ where
         self.data
     }
 
-    pub fn fetch(buf: &mut &[u8]) -> Result<Self, ProgramError> {
+    // TODO: better name here?
+    pub fn fetch_data(buf: &mut &[u8]) -> Result<Option<Box<T>>, ProgramError> {
         // Account data is zero initialized.
         let initialized = bool::deserialize(buf)?;
         let data = if initialized {
-            T::deserialize(buf).map(Box::new)?
+            Some(T::deserialize(buf).map(Box::new)?)
         } else {
-            Box::<T>::default()
+            None
         };
-        Ok(Self { data })
+        Ok(data)
+    }
+
+    pub fn fetch(buf: &mut &[u8]) -> Result<Self, ProgramError> {
+        Ok(Self::from(
+            Self::fetch_data(buf)?.unwrap_or_else(|| Box::<T>::default()),
+        ))
     }
 
     // Optimisically write then realloc on failure.
