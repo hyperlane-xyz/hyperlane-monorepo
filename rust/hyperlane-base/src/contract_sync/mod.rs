@@ -74,7 +74,10 @@ where
     }
 }
 
-impl<T> ContractSync<T, Arc<dyn HyperlaneHighWatermarkDB<T>>, Arc<dyn Indexer<T>>>
+/// A ContractSync for syncing events using a RateLimitedContractSyncCursor
+pub type WatermarkContractSync<T> =
+    ContractSync<T, Arc<dyn HyperlaneHighWatermarkDB<T>>, Arc<dyn Indexer<T>>>;
+impl<T> WatermarkContractSync<T>
 where
     T: Debug + Send + Sync + Clone + 'static,
 {
@@ -86,7 +89,7 @@ where
     ) -> Box<dyn ContractSyncCursor<T>> {
         let watermark = self.db.retrieve_high_watermark().await.unwrap();
         let index_settings = IndexSettings {
-            from: watermark.unwrap_or(index_settings.from.into()),
+            from: watermark.unwrap_or(index_settings.from),
             chunk_size: index_settings.chunk_size,
         };
         Box::new(
@@ -102,7 +105,10 @@ where
     }
 }
 
-impl ContractSync<HyperlaneMessage, Arc<dyn HyperlaneMessageDB>, Arc<dyn MessageIndexer>> {
+/// A ContractSync for syncing messages using a MessageSyncCursor
+pub type MessageContractSync =
+    ContractSync<HyperlaneMessage, Arc<dyn HyperlaneMessageDB>, Arc<dyn MessageIndexer>>;
+impl MessageContractSync {
     /// Returns a new cursor to be used for syncing dispatched messages from the indexer
     pub async fn forward_message_sync_cursor(
         &self,

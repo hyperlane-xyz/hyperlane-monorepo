@@ -6,9 +6,9 @@ use eyre::{eyre, Context};
 use serde::Deserialize;
 
 use hyperlane_core::{
-    config::*, HyperlaneChain, HyperlaneDomain, HyperlaneHighWatermarkDB, HyperlaneMessage,
-    HyperlaneMessageDB, HyperlaneProvider, Indexer, InterchainGasPaymaster, InterchainGasPayment,
-    Mailbox, MessageIndexer, MultisigIsm, ValidatorAnnounce, H256,
+    config::*, HyperlaneChain, HyperlaneDomain, HyperlaneHighWatermarkDB, HyperlaneMessageDB,
+    HyperlaneProvider, Indexer, InterchainGasPaymaster, InterchainGasPayment, Mailbox,
+    MessageIndexer, MultisigIsm, ValidatorAnnounce, H256,
 };
 
 use crate::{
@@ -19,7 +19,7 @@ use crate::{
     },
     CoreMetrics, HyperlaneAgentCore, RawSignerConf,
 };
-use crate::{ContractSync, ContractSyncMetrics};
+use crate::{ContractSync, ContractSyncMetrics, MessageContractSync, WatermarkContractSync};
 
 /// Settings. Usually this should be treated as a base config and used as
 /// follows:
@@ -160,16 +160,10 @@ impl Settings {
         metrics: &CoreMetrics,
         sync_metrics: &ContractSyncMetrics,
         db: Arc<dyn HyperlaneMessageDB>,
-    ) -> eyre::Result<
-        Box<ContractSync<HyperlaneMessage, Arc<dyn HyperlaneMessageDB>, Arc<dyn MessageIndexer>>>,
-    > {
+    ) -> eyre::Result<Box<MessageContractSync>> {
         let setup = self.chain_setup(domain)?;
-        let indexer: Box<dyn MessageIndexer> = setup.build_message_indexer(metrics.clone()).await?;
-        let sync: ContractSync<
-            HyperlaneMessage,
-            Arc<dyn HyperlaneMessageDB>,
-            Arc<dyn MessageIndexer>,
-        > = ContractSync::new(
+        let indexer: Box<dyn MessageIndexer> = setup.build_message_indexer(metrics).await?;
+        let sync: MessageContractSync = ContractSync::new(
             domain.clone(),
             db.clone(),
             indexer.into(),
@@ -186,16 +180,10 @@ impl Settings {
         metrics: &CoreMetrics,
         sync_metrics: &ContractSyncMetrics,
         db: Arc<dyn HyperlaneHighWatermarkDB<H256>>,
-    ) -> eyre::Result<
-        Box<ContractSync<H256, Arc<dyn HyperlaneHighWatermarkDB<H256>>, Arc<dyn Indexer<H256>>>>,
-    > {
+    ) -> eyre::Result<Box<WatermarkContractSync<H256>>> {
         let setup = self.chain_setup(domain)?;
-        let indexer: Box<dyn Indexer<H256>> = setup.build_delivery_indexer(metrics.clone()).await?;
-        let sync: ContractSync<
-            H256,
-            Arc<dyn HyperlaneHighWatermarkDB<H256>>,
-            Arc<dyn Indexer<H256>>,
-        > = ContractSync::new(
+        let indexer: Box<dyn Indexer<H256>> = setup.build_delivery_indexer(metrics).await?;
+        let sync: WatermarkContractSync<H256> = ContractSync::new(
             domain.clone(),
             db.clone(),
             indexer.into(),
@@ -212,24 +200,11 @@ impl Settings {
         metrics: &CoreMetrics,
         sync_metrics: &ContractSyncMetrics,
         db: Arc<dyn HyperlaneHighWatermarkDB<InterchainGasPayment>>,
-    ) -> eyre::Result<
-        Box<
-            ContractSync<
-                InterchainGasPayment,
-                Arc<dyn HyperlaneHighWatermarkDB<InterchainGasPayment>>,
-                Arc<dyn Indexer<InterchainGasPayment>>,
-            >,
-        >,
-    > {
+    ) -> eyre::Result<Box<WatermarkContractSync<InterchainGasPayment>>> {
         let setup = self.chain_setup(domain)?;
-        let indexer: Box<dyn Indexer<InterchainGasPayment>> = setup
-            .build_interchain_gas_payment_indexer(metrics.clone())
-            .await?;
-        let sync: ContractSync<
-            InterchainGasPayment,
-            Arc<dyn HyperlaneHighWatermarkDB<InterchainGasPayment>>,
-            Arc<dyn Indexer<InterchainGasPayment>>,
-        > = ContractSync::new(
+        let indexer: Box<dyn Indexer<InterchainGasPayment>> =
+            setup.build_interchain_gas_payment_indexer(metrics).await?;
+        let sync: WatermarkContractSync<InterchainGasPayment> = ContractSync::new(
             domain.clone(),
             db.clone(),
             indexer.into(),

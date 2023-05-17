@@ -150,7 +150,7 @@ impl BaseAgent for Scraper {
             core,
             metrics,
             contract_sync_metrics,
-            scrapers: scrapers,
+            scrapers,
         })
     }
 
@@ -168,10 +168,10 @@ impl Scraper {
     /// Sync contract data and other blockchain with the current chain state.
     /// This will create a long-running task that should be spawned.
     async fn scrape(&self, domain_id: &u32) -> Instrumented<JoinHandle<eyre::Result<()>>> {
-        let scraper = self.scrapers.get(&domain_id).unwrap().clone();
-        let db = scraper.clone().db.clone();
-        let index_settings = scraper.clone().index_settings.clone();
-        let domain = scraper.clone().domain.clone();
+        let scraper = self.scrapers.get(domain_id).unwrap();
+        let db = scraper.db.clone();
+        let index_settings = scraper.index_settings.clone();
+        let domain = scraper.domain.clone();
 
         let mut tasks = Vec::with_capacity(2);
         let message_sync = self

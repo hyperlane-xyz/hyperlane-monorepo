@@ -102,7 +102,7 @@ impl ForwardMessageSyncCursor {
                 // We are synced up to the latest nonce so we don't need to index anything.
                 // We update our next block number accordingly.
                 self.0.next_block = tip;
-                return Ok(None);
+                Ok(None)
             }
             Ordering::Less => {
                 // The cursor is behind the mailbox, so we need to index some blocks.
@@ -110,7 +110,7 @@ impl ForwardMessageSyncCursor {
                 let from = self.0.next_block;
                 let to = u32::min(tip, from + self.0.chunk_size);
                 self.0.next_block = to + 1;
-                return Ok(Some((from, to, Duration::from_secs(0))));
+                Ok(Some((from, to, Duration::from_secs(0))))
             }
             Ordering::Greater => {
                 panic!("Cursor is ahead of mailbox, this should never happen.");
@@ -178,7 +178,7 @@ impl BackwardMessageSyncCursor {
     async fn get_next_range(&mut self) -> Option<(u32, u32, Duration)> {
         self.rewind().await;
         if self.synced {
-            return None;
+            None
         } else {
             // Just keep going backwards.
             let to = self.cursor.next_block;
@@ -338,13 +338,13 @@ impl<T> RateLimitedContractSyncCursor<T> {
                     // we retrieved a new tip value, go ahead and update.
                     self.last_tip_update = Instant::now();
                     self.tip = tip;
-                    return Ok(());
+                    Ok(())
                 }
                 Err(e) => {
                     warn!(error = %e, "Failed to get next block range because we could not get the current tip");
                     // we are failing to make a basic query, we should wait before retrying.
                     sleep(Duration::from_secs(10)).await;
-                    return Err(e);
+                    Err(e)
                 }
             }
         }

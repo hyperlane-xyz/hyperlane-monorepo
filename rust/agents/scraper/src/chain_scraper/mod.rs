@@ -301,8 +301,8 @@ impl HyperlaneDB<H256> for HyperlaneSqlDb {
             .map(|(message_id, meta)| {
                 let txn_id = txns.get(&meta.transaction_hash).unwrap().id;
                 StorableDelivery {
-                    message_id: message_id.clone(),
-                    meta: meta,
+                    message_id: *message_id,
+                    meta,
                     txn_id,
                 }
             })
@@ -339,8 +339,8 @@ impl HyperlaneDB<InterchainGasPayment> for HyperlaneSqlDb {
             .map(|(payment, meta)| {
                 let txn_id = txns.get(&meta.transaction_hash).unwrap().id;
                 StorablePayment {
-                    payment: payment,
-                    meta: meta,
+                    payment,
+                    meta,
                     txn_id,
                 }
             })
@@ -389,7 +389,8 @@ where
     }
     /// Stores the block number high watermark
     async fn store_high_watermark(&self, block_number: u32) -> Result<()> {
-        Ok(self.cursor.update(block_number.into()).await)
+        self.cursor.update(block_number.into()).await;
+        Ok(())
     }
 }
 
