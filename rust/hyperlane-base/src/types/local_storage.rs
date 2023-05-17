@@ -72,10 +72,7 @@ impl CheckpointSyncer for LocalStorage {
         }
     }
 
-    async fn fetch_checkpoint(
-        &self,
-        index: u32,
-    ) -> Result<Option<SignedCheckpointWithMessageId>> {
+    async fn fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpointWithMessageId>> {
         let Ok(data) = tokio::fs::read(self.checkpoint_with_message_id_file_path(index)).await else {
             return Ok(None)
         };

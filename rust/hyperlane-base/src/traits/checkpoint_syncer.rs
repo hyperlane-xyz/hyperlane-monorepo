@@ -13,10 +13,7 @@ pub trait CheckpointSyncer: Debug + Send + Sync {
     /// Attempt to fetch the signed checkpoint at this index
     async fn legacy_fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpoint>>;
     /// Attempt to fetch the signed (checkpoint, messageId) tuple at this index
-    async fn fetch_checkpoint(
-        &self,
-        index: u32,
-    ) -> Result<Option<SignedCheckpointWithMessageId>>;
+    async fn fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpointWithMessageId>>;
     /// Write the signed checkpoint to this syncer
     async fn legacy_write_checkpoint(&self, signed_checkpoint: &SignedCheckpoint) -> Result<()>;
     /// Write the signed (checkpoint, messageId) tuple to this syncer
