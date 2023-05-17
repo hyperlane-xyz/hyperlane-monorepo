@@ -49,9 +49,11 @@ pub trait PendingOperation {
     /// which we consider it safe from reorgs.
     async fn confirm(&mut self) -> PendingOperationResult;
 
-    fn next_attempt_after(&self) -> Option<Instant>;
-
-    fn submitted(&self) -> bool;
+    /// Get the earliest instant at which this should next be attempted.
+    ///
+    /// This is only used for sorting, the functions are responsible for
+    /// returning `NotReady` if it is too early and matters.
+    fn _next_attempt_after(&self) -> Option<Instant>;
 }
 
 /// A "dynamic" pending operation implementation which knows about the
@@ -77,7 +79,7 @@ impl Ord for DynPendingOperation {
     fn cmp(&self, other: &Self) -> Ordering {
         use DynPendingOperation::*;
         use Ordering::*;
-        match (self.next_attempt_after(), other.next_attempt_after()) {
+        match (self._next_attempt_after(), other._next_attempt_after()) {
             (Some(a), Some(b)) => a.cmp(&b),
             // No time means it should come before
             (None, Some(_)) => Less,

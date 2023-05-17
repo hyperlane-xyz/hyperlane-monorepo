@@ -123,7 +123,7 @@ impl PendingOperation for PendingMessage {
             "checking message delivery status"
         );
         if is_already_delivered {
-            debug!("Message has already been delivered, adding to confirmation queue.");
+            debug!("Message has already been delivered, marking as submitted.");
             self.submitted = true;
             self.next_attempt_after = Some(Instant::now() + CONFIRM_DELAY);
             return PendingOperationResult::Success;
@@ -290,12 +290,8 @@ impl PendingOperation for PendingMessage {
         }
     }
 
-    fn next_attempt_after(&self) -> Option<Instant> {
+    fn _next_attempt_after(&self) -> Option<Instant> {
         self.next_attempt_after
-    }
-
-    fn submitted(&self) -> bool {
-        self.submitted
     }
 }
 
