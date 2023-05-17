@@ -131,7 +131,7 @@ fn main() -> ExitCode {
         fs::create_dir_all(&log_dir).expect("Failed to make log dir");
     }
     let build_log = concat_path(&log_dir, "build.log");
-    let hardhat_log = concat_path(&log_dir, "hardhat.stdout.log");
+    let node_log = concat_path(&log_dir, "node.stdout.log");
     let relayer_stdout_log = concat_path(&log_dir, "relayer.stdout.log");
     let relayer_stderr_log = concat_path(&log_dir, "relayer.stderr.log");
     let validator_stdout_logs = (1..=3)
@@ -252,7 +252,7 @@ fn main() -> ExitCode {
         // node.stdout(Stdio::piped());
         node.stdout(Stdio::null());
     } else {
-        node.stdout(append_to(hardhat_log));
+        node.stdout(append_to(node_log));
     }
     let node = node.spawn().expect("Failed to start node");
     // if log_all {
