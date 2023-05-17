@@ -1,12 +1,10 @@
 use hyperlane_core::{Checkpoint, Decode, HyperlaneMessage, IsmType};
 
-// use hyperlane_sealevel_mailbox::instruction::IsmInstruction;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint,
     entrypoint::ProgramResult,
     program::{invoke_signed, set_return_data},
-    // msg,
     program_error::ProgramError,
     pubkey::Pubkey,
     system_instruction,
@@ -32,6 +30,7 @@ const ISM_TYPE: IsmType = IsmType::MessageIdMultisig;
 #[cfg(not(feature = "no-entrypoint"))]
 entrypoint!(process_instruction);
 
+/// PDA seeds relating to the access control PDA account.
 #[macro_export]
 macro_rules! access_control_pda_seeds {
     () => {{
@@ -48,6 +47,8 @@ macro_rules! access_control_pda_seeds {
     }};
 }
 
+/// PDA seeds relating to a domain data PDA account.
+/// A distinct account exists for each domain.
 #[macro_export]
 macro_rules! domain_data_pda_seeds {
     ($domain:expr) => {{
@@ -78,12 +79,14 @@ pub fn process_instruction(
     instruction_data: &[u8],
 ) -> ProgramResult {
     match Instruction::try_from(instruction_data)? {
+        /// Verifies a message.
         Instruction::IsmVerify(ism_verify) => verify(
             program_id,
             accounts,
             ism_verify.metadata,
             ism_verify.message,
         ),
+        /// Gets the type of ISM.
         Instruction::IsmType => {
             set_return_data(
                 &(ISM_TYPE as u32)
@@ -92,15 +95,20 @@ pub fn process_instruction(
             );
             Ok(())
         }
+        /// Initializes the program.
+        Instruction::Initialize => initialize(program_id, accounts),
+        /// Gets the validators and threshold for a given domain.
         Instruction::GetValidatorsAndThreshold(domain) => {
             get_validators_and_threshold(program_id, accounts, domain)
         }
+        /// Sets the validators and threshold for a given domain.
         Instruction::SetValidatorsAndThreshold(config) => {
             set_validators_and_threshold(program_id, accounts, config)
         }
+        /// Gets the owner of this program from the access control account.
         Instruction::GetOwner => get_owner(program_id, accounts),
+        /// Sets the owner of this program in the access control account.
         Instruction::SetOwner(new_owner) => set_owner(program_id, accounts, new_owner),
-        Instruction::Initialize => initialize(program_id, accounts),
     }
 }
 
