@@ -27,7 +27,7 @@ serde_json.workspace = true
 static_assertions.workspace = true
 tempfile = { version = "3.3", optional = true }
 thiserror.workspace = true
-tokio = { workspace = true, features = ["rt", "macros"] }
+tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
 tracing-error = "0.2"
 tracing-futures.workspace = true
 tracing-subscriber = { workspace = true, features = ["json", "ansi"] }

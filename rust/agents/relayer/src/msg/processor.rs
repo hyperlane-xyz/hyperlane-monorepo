@@ -1,3 +1,4 @@
+use std::fmt::{Debug, Formatter};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use derive_new::new;
@@ -7,29 +8,53 @@ use tokio::{
     sync::{mpsc::UnboundedSender, RwLock},
     task::JoinHandle,
 };
-use tracing::{debug, info_span, instrument, instrument::Instrumented, Instrument};
+use tracing::{debug, info_span, instrument, instrument::Instrumented, trace, Instrument};
 
 use hyperlane_base::{db::HyperlaneDB, CoreMetrics};
 use hyperlane_core::{HyperlaneDomain, HyperlaneMessage};
 
-use crate::{
-    merkle_tree_builder::MerkleTreeBuilder, msg::PendingMessage,
-    settings::matching_list::MatchingList,
-};
+use crate::msg::pending_operation::DynPendingOperation;
+use crate::{merkle_tree_builder::MerkleTreeBuilder, settings::matching_list::MatchingList};
 
-#[derive(Debug, new)]
-pub(crate) struct MessageProcessor {
+use super::pending_message::*;
+
+/// Finds unprocessed messages from an origin and submits then through a channel
+/// for to the appropriate destination.
+#[derive(new)]
+pub struct MessageProcessor {
     db: HyperlaneDB,
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,
     metrics: MessageProcessorMetrics,
     prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
-    send_channels: HashMap<u32, UnboundedSender<PendingMessage>>,
+    /// channel for each destination chain to send operations (i.e. message
+    /// submissions) to
+    send_channels: HashMap<u32, UnboundedSender<Box<DynPendingOperation>>>,
+    /// Needed context to send a message for each destination chain
+    destination_ctxs: HashMap<u32, Arc<MessageContext>>,
     #[new(default)]
     message_nonce: u32,
 }
 
+impl Debug for MessageProcessor {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "MessageProcessor {{ whitelist: {:?}, blacklist: {:?}, prover_sync: {:?}, message_nonce: {:?} }}",
+            self.whitelist,
+            self.blacklist,
+            self.prover_sync,
+            self.message_nonce
+        )
+    }
+}
+
 impl MessageProcessor {
+    /// The domain this processor is getting messages from.
+    pub fn domain(&self) -> &HyperlaneDomain {
+        self.db.domain()
+    }
+
     pub fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("MessageProcessor");
         tokio::spawn(async move { self.main_loop().await }).instrument(span)
@@ -65,22 +90,14 @@ impl MessageProcessor {
                 }
 
                 // If this message has already been processed, on to the next one.
-                if self
-                    .db
-                    .retrieve_message_processed(self.message_nonce)?
-                    .is_none()
-                {
+                if !self.db.retrieve_message_processed(self.message_nonce)? {
                     return Ok(Some(message));
                 } else {
-                    debug!(
-                    nonce=?self.message_nonce,
-                    "Message already marked as processed in DB");
+                    debug!(nonce=?self.message_nonce, "Message already marked as processed in DB");
                     self.message_nonce += 1;
                 }
             } else {
-                debug!(
-                nonce=?self.message_nonce,
-                "No message found in DB for nonce");
+                trace!(nonce=?self.message_nonce, "No message found in DB for nonce");
                 return Ok(None);
             }
         }
@@ -92,6 +109,7 @@ impl MessageProcessor {
         // Scan until we find next nonce without delivery confirmation.
         if let Some(msg) = self.try_get_unprocessed_message()? {
             debug!(?msg, "Processor working on message");
+            let destination = msg.destination;
 
             // Skip if not whitelisted.
             if !self.whitelist.msg_matches(&msg, true) {
@@ -108,7 +126,7 @@ impl MessageProcessor {
             }
 
             // Skip if the message is intended for a destination we do not service
-            if self.send_channels.get(&msg.destination).is_none() {
+            if !self.send_channels.contains_key(&destination) {
                 debug!(?msg, "Message destined for unknown domain, skipping");
                 self.message_nonce += 1;
                 return Ok(());
@@ -124,10 +142,8 @@ impl MessageProcessor {
             debug!(%msg, "Sending message to submitter");
 
             // Finally, build the submit arg and dispatch it to the submitter.
-            let submit_args = PendingMessage::new(msg.clone());
-            // Guaranteed to exist as we return early above if it does not.
-            let send_channel = self.send_channels.get(&msg.destination).unwrap();
-            send_channel.send(submit_args)?;
+            let pending_msg = PendingMessage::new(msg, self.destination_ctxs[&destination].clone());
+            self.send_channels[&destination].send(Box::new(pending_msg.into()))?;
             self.message_nonce += 1;
         } else {
             tokio::time::sleep(Duration::from_secs(1)).await;
@@ -137,16 +153,16 @@ impl MessageProcessor {
 }
 
 #[derive(Debug)]
-pub(crate) struct MessageProcessorMetrics {
+pub struct MessageProcessorMetrics {
     max_last_known_message_nonce_gauge: IntGauge,
     last_known_message_nonce_gauges: HashMap<u32, IntGauge>,
 }
 
 impl MessageProcessorMetrics {
-    pub fn new(
+    pub fn new<'a>(
         metrics: &CoreMetrics,
         origin: &HyperlaneDomain,
-        destinations: Vec<&HyperlaneDomain>,
+        destinations: impl Iterator<Item = &'a HyperlaneDomain>,
     ) -> Self {
         let mut gauges: HashMap<u32, IntGauge> = HashMap::new();
         for destination in destinations {

@@ -5,14 +5,17 @@ use tokio::time::sleep;
 use tracing::{debug, trace};
 
 use hyperlane_core::{
-    HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment, InterchainGasPaymentMeta,
-    LogMeta, H256, U256,
+    HyperlaneDomain, HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment,
+    InterchainGasPaymentMeta, LogMeta, H256, U256,
 };
 
 use super::{
     storage_types::{InterchainGasExpenditureData, InterchainGasPaymentData},
     DbError, TypedDB, DB,
 };
+
+// these keys MUST not be given multiple uses in case multiple agents are
+// started with the same database and domain.
 
 const MESSAGE_ID: &str = "message_id_";
 const MESSAGE: &str = "message_";
@@ -26,35 +29,38 @@ const GAS_EXPENDITURE_FOR_MESSAGE_ID: &str = "gas_expenditure_for_message_id_";
 type Result<T> = std::result::Result<T, DbError>;
 
 /// DB handle for storing data tied to a specific Mailbox.
-///
-/// Key structure: ```<entity>_<additional_prefix(es)>_<key>```
 #[derive(Debug, Clone)]
-pub struct HyperlaneDB(TypedDB);
+pub struct HyperlaneDB(HyperlaneDomain, TypedDB);
 
 impl std::ops::Deref for HyperlaneDB {
     type Target = TypedDB;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.1
     }
 }
 
 impl AsRef<TypedDB> for HyperlaneDB {
     fn as_ref(&self) -> &TypedDB {
-        &self.0
+        &self.1
     }
 }
 
 impl AsRef<DB> for HyperlaneDB {
     fn as_ref(&self) -> &DB {
-        self.0.as_ref()
+        self.1.as_ref()
     }
 }
 
 impl HyperlaneDB {
     /// Instantiated new `HyperlaneDB`
-    pub fn new(entity: impl AsRef<str>, db: DB) -> Self {
-        Self(TypedDB::new(entity.as_ref().to_owned(), db))
+    pub fn new(domain: &HyperlaneDomain, db: DB) -> Self {
+        Self(domain.clone(), TypedDB::new(domain, db))
+    }
+
+    /// Get the domain this database is scoped to
+    pub fn domain(&self) -> &HyperlaneDomain {
+        &self.0
     }
 
     /// Store list of messages
@@ -177,9 +183,10 @@ impl HyperlaneDB {
     }
 
     /// Retrieve nonce processed status
-    pub fn retrieve_message_processed(&self, nonce: u32) -> Result<Option<bool>> {
-        let value: Option<bool> = self.retrieve_keyed_decodable(NONCE_PROCESSED, &nonce)?;
-        Ok(value)
+    pub fn retrieve_message_processed(&self, nonce: u32) -> Result<bool> {
+        Ok(self
+            .retrieve_keyed_decodable(NONCE_PROCESSED, &nonce)?
+            .unwrap_or(false))
     }
 
     /// If the provided gas payment, identified by its metadata, has not been
