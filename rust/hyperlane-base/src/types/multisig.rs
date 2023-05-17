@@ -108,7 +108,7 @@ impl MultisigCheckpointSyncer {
                 // Gracefully ignore an error fetching the checkpoint from a validator's
                 // checkpoint syncer, which can happen if the validator has not
                 // signed the checkpoint at `index`.
-                if let Ok(Some(signed_checkpoint)) = checkpoint_syncer.fetch_checkpoint(index).await
+                if let Ok(Some(signed_checkpoint)) = checkpoint_syncer.legacy_fetch_checkpoint(index).await
                 {
                     // If the signed checkpoint is for a different index, ignore it
                     if signed_checkpoint.value.index != index {

@@ -31,8 +31,4 @@ impl HyperlaneProvider for FuelProvider {
     async fn is_contract(&self, address: &H256) -> ChainResult<bool> {
         todo!()
     }
-
-    async fn get_storage_at(&self, address: H256, location: H256) -> ChainResult<H256> {
-        todo!()
-    }
 }
