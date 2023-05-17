@@ -8,7 +8,7 @@ use num_traits::FromPrimitive;
 use strum::{EnumIter, EnumString, IntoStaticStr};
 
 use crate::utils::many_to_one;
-use crate::{ HyperlaneProtocolError, H160, H256};
+use crate::{HyperlaneProtocolError, H160, H256};
 
 #[derive(Debug, Clone)]
 pub struct ContractLocator<'a> {
