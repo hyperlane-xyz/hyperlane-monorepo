@@ -145,6 +145,7 @@ fn main() -> ExitCode {
     let checkpoints_dirs = (0..3).map(|_| tempdir().unwrap()).collect::<Vec<_>>();
     let rocks_db_dir = tempdir().unwrap();
     let relayer_db = concat_path(&rocks_db_dir, "relayer");
+    let validator_dbs = (0..3).map(|i| concat_path(&rocks_db_dir, format!("validator{i}"))).collect::<Vec<_>>();
 
     let common_env = hashmap! {
         "RUST_BACKTRACE" => "full",
@@ -185,6 +186,7 @@ fn main() -> ExitCode {
             "HYP_BASE_CHAINS_TEST2_CONNECTION_TYPE" => "httpFallback",
             "HYP_BASE_CHAINS_TEST3_CONNECTION_URL" => "http://127.0.0.1:8545",
             "HYP_BASE_METRICS" => metrics_port,
+            "HYP_BASE_DB" => validator_dbs[i].to_str().unwrap(),
             "HYP_VALIDATOR_ORIGINCHAINNAME" => originchainname,
             "HYP_VALIDATOR_VALIDATOR_KEY" => VALIDATOR_KEYS[i],
             "HYP_VALIDATOR_REORGPERIOD" => "0",
