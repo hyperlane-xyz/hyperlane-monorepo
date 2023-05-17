@@ -29,7 +29,7 @@ pub struct InvalidType;
 
 impl Debug for InvalidType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{InvalidType}")
+        write!(f, "{self}")
     }
 }
 
