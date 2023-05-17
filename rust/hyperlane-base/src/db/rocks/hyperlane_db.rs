@@ -267,14 +267,6 @@ impl HyperlaneDB<HyperlaneMessage> for HyperlaneRocksDB {
 }
 
 #[async_trait]
-impl HyperlaneDB<H256> for HyperlaneRocksDB {
-    /// Store a list of delivered messages and their associated metadata.
-    async fn store_logs(&self, _deliveries: &[(H256, LogMeta)]) -> Result<u32> {
-        todo!();
-    }
-}
-
-#[async_trait]
 impl HyperlaneDB<InterchainGasPayment> for HyperlaneRocksDB {
     /// Store a list of interchain gas payments and their associated metadata.
     async fn store_logs(&self, payments: &[(InterchainGasPayment, LogMeta)]) -> Result<u32> {
@@ -297,6 +289,8 @@ impl HyperlaneMessageDB for HyperlaneRocksDB {
     }
 }
 
+/// Note that for legacy reasons this watermark may be shared across multiple cursors, some of which may not have anything to do with gas payments
+/// The high watermark cursor is relatively conservative in writing block numbers, so this shouldn't result in any events being missed.
 #[async_trait]
 impl<T> HyperlaneHighWatermarkDB<T> for HyperlaneRocksDB
 where

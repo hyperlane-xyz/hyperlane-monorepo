@@ -35,13 +35,11 @@ impl FromQueryResult for BasicBlock {
 }
 
 impl ScraperDb {
-    // TODO: Is this correct?
     pub async fn retrieve_block_number(&self, block_id: i64) -> Result<Option<u64>> {
         #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
         enum QueryAs {
             Height,
         }
-        // TODO: Is this correct?
         let block_height = block::Entity::find()
             .filter(block::Column::Id.eq(block_id))
             .select_only()

@@ -61,7 +61,7 @@ impl ScraperDb {
         Ok(last_nonce)
     }
 
-    /// Get the highest message nonce that is stored in the database.
+    /// Get the tx id associated with a dispatched message.
     #[instrument(skip(self))]
     pub async fn retrieve_dispatched_tx_id(
         &self,
@@ -74,7 +74,6 @@ impl ScraperDb {
             Nonce,
         }
 
-        // TODO: Is this correct?
         let tx_id = message::Entity::find()
             .filter(message::Column::Origin.eq(origin_domain))
             .filter(message::Column::OriginMailbox.eq(address_to_bytes(origin_mailbox)))

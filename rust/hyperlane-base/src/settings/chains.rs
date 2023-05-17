@@ -365,7 +365,7 @@ impl ChainConf {
         .context(ctx)
     }
 
-    /// Try to convert the chain settings into a IGP indexer
+    /// Try to convert the chain settings into a delivery indexer
     pub async fn build_delivery_indexer(
         &self,
         metrics: &CoreMetrics,
@@ -391,7 +391,6 @@ impl ChainConf {
         .context(ctx)
     }
 
-    /// Try to convert the chain settings into a ValidatorAnnounce
     /// Try to convert the chain setting into an interchain gas paymaster
     /// contract
     pub async fn build_interchain_gas_paymaster(
@@ -417,7 +416,7 @@ impl ChainConf {
         .context(ctx)
     }
 
-    /// Try to convert the chain settings into a IGP indexer
+    /// Try to convert the chain settings into a gas payment indexer
     pub async fn build_interchain_gas_payment_indexer(
         &self,
         metrics: &CoreMetrics,

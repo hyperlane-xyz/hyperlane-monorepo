@@ -142,16 +142,8 @@ impl Mailbox for FuelMailbox {
 }
 
 /// Struct that retrieves event data for a Fuel Mailbox contract
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct FuelMailboxIndexer {}
-
-/*
-#[async_trait]
-impl<T> Indexer<T> for FuelMailboxIndexer {
-    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        todo!()
-    }
-}*/
 
 #[async_trait]
 impl Indexer<HyperlaneMessage> for FuelMailboxIndexer {
@@ -178,13 +170,6 @@ impl Indexer<H256> for FuelMailboxIndexer {
         todo!()
     }
 }
-
-/*
-    async fn fetch_count_at_tip(&self) -> ChainResult<(u32, u32)> {
-        todo!()
-    }
-}
- */
 
 struct FuelMailboxAbi;
 

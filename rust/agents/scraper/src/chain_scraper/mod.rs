@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use eyre::{eyre, Result};
+use eyre::Result;
 use itertools::Itertools;
 use tracing::trace;
 
@@ -27,7 +27,6 @@ use crate::{
 /// actually save it to the database.
 const CHUNK_SIZE: usize = 50;
 
-// TODO: Will probably need to take contracts out of this, since SqlChainScraper is the HyperlaneDB implementation that will be used by the caching contracts.
 /// A chain scraper is comprised of all the information and contract/provider
 /// connections needed to scrape the contracts on a single blockchain.
 #[derive(Clone, Debug)]
@@ -249,43 +248,33 @@ impl HyperlaneSqlDb {
 #[async_trait]
 impl HyperlaneDB<HyperlaneMessage> for HyperlaneSqlDb {
     /// Store messages from the origin mailbox into the database.
-    ///
-    /// Returns the highest message nonce which was provided to this
-    /// function.
     async fn store_logs(&self, messages: &[(HyperlaneMessage, LogMeta)]) -> Result<u32> {
-        debug_assert!(!messages.is_empty());
+        if messages.is_empty() {
+            return Ok(0);
+        }
         let txns: HashMap<H256, TxnWithId> = self
             .ensure_blocks_and_txns(messages.iter().map(|r| &r.1))
             .await?
             .map(|t| (t.hash, t))
             .collect();
-
-        let max_nonce = messages
-            .iter()
-            .map(|m| m.0.nonce)
-            .max()
-            .ok_or_else(|| eyre!("Received empty list"))?;
+        let storable = messages.iter().map(|m| {
+            let txn = txns.get(&m.1.transaction_hash).unwrap();
+            StorableMessage {
+                msg: m.0.clone(),
+                meta: &m.1,
+                txn_id: txn.id,
+            }
+        });
         self.db
-            .store_dispatched_messages(
-                &self.mailbox_address,
-                messages.iter().map(|m| {
-                    let txn = txns.get(&m.1.transaction_hash).unwrap();
-                    StorableMessage {
-                        msg: m.0.clone(),
-                        meta: &m.1,
-                        txn_id: txn.id,
-                    }
-                }),
-            )
+            .store_dispatched_messages(&self.mailbox_address, storable)
             .await?;
 
-        Ok(max_nonce)
+        Ok(messages.len() as u32)
     }
 }
 
 #[async_trait]
 impl HyperlaneDB<H256> for HyperlaneSqlDb {
-    // TODO: Return a sensible int
     async fn store_logs(&self, deliveries: &[(H256, LogMeta)]) -> Result<u32> {
         if deliveries.is_empty() {
             return Ok(0);
@@ -295,61 +284,45 @@ impl HyperlaneDB<H256> for HyperlaneSqlDb {
             .await?
             .map(|t| (t.hash, t))
             .collect();
-
-        let storable = deliveries
-            .iter()
-            .map(|(message_id, meta)| {
-                let txn_id = txns.get(&meta.transaction_hash).unwrap().id;
-                StorableDelivery {
-                    message_id: *message_id,
-                    meta,
-                    txn_id,
-                }
-            })
-            .collect_vec();
+        let storable = deliveries.iter().map(|(message_id, meta)| {
+            let txn_id = txns.get(&meta.transaction_hash).unwrap().id;
+            StorableDelivery {
+                message_id: *message_id,
+                meta,
+                txn_id,
+            }
+        });
 
         self.db
-            .store_deliveries(
-                self.domain().id(),
-                self.mailbox_address,
-                storable.into_iter(),
-            )
+            .store_deliveries(self.domain().id(), self.mailbox_address, storable)
             .await?;
 
-        Ok(0)
+        Ok(deliveries.len() as u32)
     }
 }
 
 #[async_trait]
 impl HyperlaneDB<InterchainGasPayment> for HyperlaneSqlDb {
-    // TODO: Return a sensible int
     async fn store_logs(&self, payments: &[(InterchainGasPayment, LogMeta)]) -> Result<u32> {
         if payments.is_empty() {
             return Ok(0);
         }
-
         let txns: HashMap<H256, TxnWithId> = self
             .ensure_blocks_and_txns(payments.iter().map(|r| &r.1))
             .await?
             .map(|t| (t.hash, t))
             .collect();
+        let storable = payments.iter().map(|(payment, meta)| {
+            let txn_id = txns.get(&meta.transaction_hash).unwrap().id;
+            StorablePayment {
+                payment,
+                meta,
+                txn_id,
+            }
+        });
 
-        let storable = payments
-            .iter()
-            .map(|(payment, meta)| {
-                let txn_id = txns.get(&meta.transaction_hash).unwrap().id;
-                StorablePayment {
-                    payment,
-                    meta,
-                    txn_id,
-                }
-            })
-            .collect_vec();
-
-        self.db
-            .store_payments(self.domain().id(), storable.into_iter())
-            .await?;
-        Ok(0)
+        self.db.store_payments(self.domain().id(), storable).await?;
+        Ok(payments.len() as u32)
     }
 }
 
@@ -394,7 +367,6 @@ where
     }
 }
 
-// TODO: Can this all be removed?
 #[derive(Debug, Clone)]
 struct TxnWithId {
     hash: H256,

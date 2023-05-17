@@ -53,23 +53,17 @@ impl MessageSyncCursor {
         // If we found messages, but did *not* find the message we were looking for,
         // we need to rewind to the block at which we found the last message.
         if !logs.is_empty() && !logs.iter().any(|m| m.0.nonce == self.next_nonce) {
-            self.rewind_to_nonce(prev_nonce).await?;
+            // If the previous nonce has been synced, rewind to the block number
+            // at which it was dispatched. Otherwise, rewind all the way back to the start block.
+            if let Some(block_number) = self.retrieve_dispatched_block_number(prev_nonce).await {
+                self.next_block = block_number;
+            } else {
+                self.next_block = self.start_block;
+            }
             Ok(())
         } else {
             Ok(())
         }
-    }
-
-    /// If the previous block has been synced, rewind to the block number
-    /// at which it was dispatched.
-    /// Otherwise, rewind all the way back to the start block.
-    async fn rewind_to_nonce(&mut self, nonce: u32) -> ChainResult<u32> {
-        if let Some(block_number) = self.retrieve_dispatched_block_number(nonce).await {
-            self.next_block = block_number;
-        } else {
-            self.next_block = self.start_block;
-        }
-        Ok(self.next_block)
     }
 }
 
@@ -78,9 +72,9 @@ impl MessageSyncCursor {
 pub(crate) struct ForwardMessageSyncCursor(MessageSyncCursor);
 
 impl ForwardMessageSyncCursor {
-    /// Check if any new messages have been inserted into the DB,
-    /// and update the cursor accordingly.
-    async fn fast_forward(&mut self) {
+    async fn get_next_range(&mut self) -> ChainResult<Option<(u32, u32, Duration)>> {
+        // Check if any new messages have been inserted into the DB,
+        // and update the cursor accordingly.
         while let Some(block_number) = self
             .0
             .retrieve_dispatched_block_number(self.0.next_nonce)
@@ -89,10 +83,7 @@ impl ForwardMessageSyncCursor {
             self.0.next_nonce += 1;
             self.0.next_block = block_number;
         }
-    }
 
-    async fn get_next_range(&mut self) -> ChainResult<Option<(u32, u32, Duration)>> {
-        self.fast_forward().await;
         let (mailbox_count, tip) = self.0.indexer.fetch_count_at_tip().await?;
         let cursor_count = self.0.next_nonce;
 
@@ -153,9 +144,9 @@ pub(crate) struct BackwardMessageSyncCursor {
 }
 
 impl BackwardMessageSyncCursor {
-    /// Check if any new messages have been inserted into the DB,
-    /// and update the cursor accordingly.
-    async fn rewind(&mut self) {
+    async fn get_next_range(&mut self) -> Option<(u32, u32, Duration)> {
+        // Check if any new messages have been inserted into the DB,
+        // and update the cursor accordingly.
         while !self.synced {
             if let Some(block_number) = self
                 .cursor
@@ -173,10 +164,6 @@ impl BackwardMessageSyncCursor {
                 break;
             }
         }
-    }
-
-    async fn get_next_range(&mut self) -> Option<(u32, u32, Duration)> {
-        self.rewind().await;
         if self.synced {
             None
         } else {
@@ -184,6 +171,7 @@ impl BackwardMessageSyncCursor {
             let to = self.cursor.next_block;
             let from = to.saturating_sub(self.cursor.chunk_size);
             self.cursor.next_block = from.saturating_sub(1);
+            // TODO: Consider returning a proper ETA for the backwards pass
             Some((from, to, Duration::from_secs(0)))
         }
     }
@@ -285,7 +273,6 @@ impl ContractSyncCursor<HyperlaneMessage> for ForwardBackwardMessageSyncCursor {
 /// queried is and also handling rate limiting. Rate limiting is automatically
 /// performed by `next_range`.
 pub(crate) struct RateLimitedContractSyncCursor<T> {
-    // TODO: It's weird that ContractSync takes an indexer *and* cursors take an indexer...
     indexer: Arc<dyn Indexer<T>>,
     db: Arc<dyn HyperlaneHighWatermarkDB<T>>,
     tip: u32,
@@ -370,6 +357,8 @@ where
     }
 
     async fn update(&mut self, _: Vec<(T, LogMeta)>) -> eyre::Result<()> {
+        // Store a relatively conservative view of the high watermark, which should allow a single watermark to be
+        // safely shared across multiple cursors, so long as they are running sufficiently in sync
         self.db
             .store_high_watermark(u32::max(
                 self.initial_height,

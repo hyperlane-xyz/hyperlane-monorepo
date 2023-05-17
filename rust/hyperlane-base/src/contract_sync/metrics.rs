@@ -4,7 +4,6 @@ use prometheus::{IntCounterVec, IntGaugeVec};
 /// Struct encapsulating prometheus metrics used by the ContractSync.
 #[derive(Debug, Clone)]
 pub struct ContractSyncMetrics {
-    // TODO: Does this still apply?
     /// Most recently indexed block height.
     ///
     /// Labels:
@@ -12,15 +11,13 @@ pub struct ContractSyncMetrics {
     /// - `chain`: Chain the indexer is collecting data from.
     pub indexed_height: IntGaugeVec,
 
-    /// Events stored into HyperlaneRocksDB (label values differentiate checkpoints vs.
-    /// messages)
+    /// Events stored into HyperlaneDB (label values differentiate event types)
     ///
     /// Labels:
     /// - `data_type`: the data the indexer is recording. E.g. `messages` or `gas_payments`.
     /// - `chain`: Chain the indexer is collecting data from.
     pub stored_events: IntCounterVec,
 
-    // TODO: Does this still apply?
     /// Unique occasions when agent missed an event (label values
     /// differentiate checkpoints vs. messages)
     ///
@@ -29,7 +26,6 @@ pub struct ContractSyncMetrics {
     /// - `chain`: Chain the indexer is collecting data from.
     pub missed_events: IntCounterVec,
 
-    // TODO: Does this still apply?
     /// See `last_known_message_nonce` in CoreMetrics.
     pub message_nonce: IntGaugeVec,
 }

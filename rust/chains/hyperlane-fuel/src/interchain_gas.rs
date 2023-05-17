@@ -28,13 +28,8 @@ impl HyperlaneChain for FuelInterchainGasPaymaster {
 impl InterchainGasPaymaster for FuelInterchainGasPaymaster {}
 
 /// Struct that retrieves event data for a Fuel IGP contract
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct FuelInterchainGasPaymasterIndexer {}
-
-/*
-#[async_trait]
-impl<T> Indexer<T> for FuelInterchainGasPaymasterIndexer {
-} */
 
 #[async_trait]
 impl Indexer<InterchainGasPayment> for FuelInterchainGasPaymasterIndexer {

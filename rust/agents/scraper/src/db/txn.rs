@@ -24,7 +24,6 @@ impl ScraperDb {
         enum QueryAs {
             BlockId,
         }
-        // TODO: Is this correct?
         let block_id = transaction::Entity::find()
             .filter(transaction::Column::Id.eq(tx_id))
             .select_only()

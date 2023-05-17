@@ -116,7 +116,6 @@ impl BaseAgent for Scraper {
         let core = settings.build_hyperlane_core(metrics.clone());
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
-        // TODO: Key by domain
         let mut scrapers: HashMap<u32, ChainScraper> = HashMap::new();
 
         for domain in settings.chains_to_scrape.iter() {
@@ -191,10 +190,10 @@ impl Scraper {
         tasks.push(
             tokio::spawn(async move {
                 message_sync
-                    .sync("dispatched_messages", message_cursor)
+                    .sync("message_dispatch", message_cursor)
                     .await
             })
-            .instrument(info_span!("ContractSync")),
+            .instrument(info_span!("ChainContractSync", chain=%scraper.domain.name(), event="message_dispatch")),
         );
         let delivery_sync = self
             .as_ref()
@@ -216,7 +215,7 @@ impl Scraper {
                     .sync("message_delivery", delivery_cursor)
                     .await
             })
-            .instrument(info_span!("ContractSync")),
+            .instrument(info_span!("ChainContractSync", chain=%scraper.domain.name(), event="messsage_delivery")),
         );
         let payment_sync = self
             .as_ref()
@@ -234,7 +233,7 @@ impl Scraper {
             .await;
         tasks.push(
             tokio::spawn(async move { payment_sync.sync("gas_payments", payment_cursor).await })
-                .instrument(info_span!("ContractSync")),
+                .instrument(info_span!("ChainContractSync", chain=%scraper.domain.name(), event="gas_payments")),
         );
         run_all(tasks)
     }

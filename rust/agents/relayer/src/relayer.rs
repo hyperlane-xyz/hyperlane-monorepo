@@ -69,17 +69,6 @@ impl BaseAgent for Relayer {
         let origin_db = Arc::new(HyperlaneRocksDB::new(&settings.origin_chain, db.clone()));
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
 
-        // Use defined remote chains + the origin chain
-        let domains = settings
-            .destination_chains
-            .iter()
-            .chain([&settings.origin_chain])
-            .collect::<Vec<_>>();
-        let destinations = domains
-            .into_iter()
-            .filter(|c| **c != settings.origin_chain)
-            .collect::<Vec<&HyperlaneDomain>>();
-
         let origin_message_sync = settings
             .build_message_sync(
                 &settings.origin_chain,
@@ -101,6 +90,10 @@ impl BaseAgent for Relayer {
         let origin_validator_announce = settings
             .build_validator_announce(&settings.origin_chain, &metrics)
             .await?;
+        let destinations = settings
+            .destination_chains
+            .iter()
+            .collect::<Vec<&HyperlaneDomain>>();
         let destination_mailboxes = settings.build_mailboxes(&destinations, &metrics).await?;
 
         let whitelist = Arc::new(settings.whitelist);
@@ -141,16 +134,12 @@ impl BaseAgent for Relayer {
 
     #[allow(clippy::async_yields_async)]
     async fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
-        // One task for the message processor
-        // One task for each destination chain mailbox
-        // One task to sync the origin chain mailbox
-        // One task to sync the origin chain IGP
         let destinations = self
             .destination_mailboxes
             .keys()
             .collect::<Vec<&HyperlaneDomain>>();
-        let num_tasks = destinations.len() + 3;
-        let mut tasks = Vec::with_capacity(num_tasks);
+        // One serial submitter per destination chain, one message processor, one message sync, one gas payment sync
+        let mut tasks = Vec::with_capacity(destinations.len() + 3);
         tasks.push(self.run_origin_message_sync().await);
         tasks.push(self.run_interchain_gas_payment_sync().await);
 
