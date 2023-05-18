@@ -1617,9 +1617,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-interchain-security-module-interface"
+version = "0.1.0"
+dependencies = [
+ "borsh",
+ "solana-program",
+ "spl-type-length-value",
+]
+
+[[package]]
 name = "hyperlane-sealevel-ism-rubber-stamp"
 version = "0.1.0"
 dependencies = [
+ "borsh",
+ "hyperlane-core",
+ "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-mailbox",
  "solana-program",
 ]
@@ -1632,6 +1644,7 @@ dependencies = [
  "borsh",
  "bs58",
  "hyperlane-core",
+ "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-message-recipient-interface",
  "itertools",
  "log",
@@ -1660,6 +1673,7 @@ dependencies = [
  "borsh",
  "hex",
  "hyperlane-core",
+ "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-mailbox",
  "multisig-ism",
  "num-derive",

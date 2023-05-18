@@ -16,6 +16,9 @@ use solana_program::{
     sysvar::rent::Rent,
 };
 
+use hyperlane_sealevel_interchain_security_module_interface::{
+    InterchainSecurityModuleInstruction, VerifyInstruction,
+};
 use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
 };
@@ -24,8 +27,8 @@ use crate::{
     accounts::{Inbox, InboxAccount, Outbox, OutboxAccount},
     error::Error,
     instruction::{
-        InboxProcess, InboxSetDefaultModule, Init, Instruction as MailboxIxn, IsmInstruction,
-        IsmVerify, OutboxDispatch, OutboxQuery, MAX_MESSAGE_BODY_BYTES, VERSION,
+        InboxProcess, InboxSetDefaultModule, Init, Instruction as MailboxIxn, OutboxDispatch,
+        OutboxQuery, MAX_MESSAGE_BODY_BYTES, VERSION,
     },
 };
 
@@ -319,11 +322,11 @@ fn inbox_process(
     let auth_seeds: &[&[u8]] =
         mailbox_authority_pda_seeds!(inbox.local_domain, inbox.auth_bump_seed);
 
-    let ism_ixn = IsmInstruction::Verify(IsmVerify {
+    let ism_ixn = InterchainSecurityModuleInstruction::Verify(VerifyInstruction {
         metadata: process.metadata,
         message: process.message,
     });
-    let verify = Instruction::new_with_borsh(inbox.ism, &ism_ixn, ism_account_metas);
+    let verify = Instruction::new_with_bytes(inbox.ism, &ism_ixn.encode()?, ism_account_metas);
     invoke_signed(&verify, &ism_accounts, &[auth_seeds])?;
 
     let recp_ixn = MessageRecipientInstruction::Handle(HandleInstruction::new(
@@ -764,7 +767,7 @@ mod test {
 
         process_instruction(&mailbox_program_id, &accounts, &instruction_data).unwrap();
         testing_logger::validate(|logs| {
-            assert_eq!(logs.len(), 3);
+            assert_eq!(logs.len(), 4);
             assert_eq!(logs[0].level, log::Level::Info);
             assert_eq!(
                 logs[0].body,
@@ -779,6 +782,11 @@ mod test {
             assert_eq!(
                 logs[2].body,
                 "SyscallStubs: sol_invoke_signed() not available"
+            );
+            assert_eq!(logs[3].level, log::Level::Info);
+            assert_eq!(
+                logs[3].body,
+                format!("Hyperlane inbox processed message {:?}", message.id()),
             );
         });
         let inbox = InboxAccount::fetch(&mut &accounts[0].data.borrow_mut()[..])

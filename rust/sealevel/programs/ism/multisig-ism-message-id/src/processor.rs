@@ -21,6 +21,7 @@ use crate::{
     metadata::MultisigIsmMessageIdMetadata,
 };
 
+use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
 use multisig_ism::multisig::MultisigIsm;
 
 use borsh::BorshSerialize;
@@ -78,36 +79,41 @@ pub fn process_instruction(
     accounts: &[AccountInfo],
     instruction_data: &[u8],
 ) -> ProgramResult {
+    // First, try to decode the instruction as an interchain security module
+    // interface supported function based off the discriminator.
+    if let Ok(ism_instruction) = InterchainSecurityModuleInstruction::decode(instruction_data) {
+        return match ism_instruction {
+            InterchainSecurityModuleInstruction::Type => {
+                set_return_data(
+                    &(ISM_TYPE as u32)
+                        .try_to_vec()
+                        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
+                );
+                return Ok(());
+            }
+            InterchainSecurityModuleInstruction::Verify(verify_data) => verify(
+                program_id,
+                accounts,
+                verify_data.metadata,
+                verify_data.message,
+            ),
+        };
+    }
+
     match Instruction::try_from(instruction_data)? {
-        /// Verifies a message.
-        Instruction::IsmVerify(ism_verify) => verify(
-            program_id,
-            accounts,
-            ism_verify.metadata,
-            ism_verify.message,
-        ),
-        /// Gets the type of ISM.
-        Instruction::IsmType => {
-            set_return_data(
-                &(ISM_TYPE as u32)
-                    .try_to_vec()
-                    .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
-            );
-            Ok(())
-        }
-        /// Initializes the program.
+        // Initializes the program.
         Instruction::Initialize => initialize(program_id, accounts),
-        /// Gets the validators and threshold for a given domain.
+        // Gets the validators and threshold for a given domain.
         Instruction::GetValidatorsAndThreshold(domain) => {
             get_validators_and_threshold(program_id, accounts, domain)
         }
-        /// Sets the validators and threshold for a given domain.
+        // Sets the validators and threshold for a given domain.
         Instruction::SetValidatorsAndThreshold(config) => {
             set_validators_and_threshold(program_id, accounts, config)
         }
-        /// Gets the owner of this program from the access control account.
+        // Gets the owner of this program from the access control account.
         Instruction::GetOwner => get_owner(program_id, accounts),
-        /// Sets the owner of this program in the access control account.
+        // Sets the owner of this program in the access control account.
         Instruction::SetOwner(new_owner) => set_owner(program_id, accounts, new_owner),
     }
 }
@@ -441,7 +447,9 @@ mod test {
     use super::*;
 
     use hyperlane_core::{Checkpoint, Encode, HyperlaneMessage, H160, H256};
-    use hyperlane_sealevel_mailbox::instruction::{IsmInstruction, IsmVerify};
+    use hyperlane_sealevel_interchain_security_module_interface::{
+        InterchainSecurityModuleInstruction, VerifyInstruction,
+    };
     use multisig_ism::signature::EcdsaSignature;
     use solana_program::stake_history::Epoch;
 
@@ -547,9 +555,9 @@ mod test {
         let result = process_instruction(
             &program_id,
             &[domain_pda_account.clone()],
-            // Use the IsmInstruction enum to ensure the instruction
+            // Use the InterchainSecurityModuleInstruction enum to ensure the instruction
             // is handled in compliance with what the Mailbox expects
-            IsmInstruction::Verify(IsmVerify {
+            InterchainSecurityModuleInstruction::Verify(VerifyInstruction {
                 metadata: MultisigIsmMessageIdMetadata {
                     origin_mailbox: checkpoint.mailbox_address,
                     merkle_root: checkpoint.root,
@@ -561,7 +569,7 @@ mod test {
                 .to_vec(),
                 message: message_bytes.clone(),
             })
-            .try_to_vec()
+            .encode()
             .unwrap()
             .as_slice(),
         );
@@ -572,9 +580,9 @@ mod test {
         let result = process_instruction(
             &program_id,
             &[domain_pda_account.clone()],
-            // Use the IsmInstruction enum to ensure the instruction
+            // Use the InterchainSecurityModuleInstruction enum to ensure the instruction
             // is handled in compliance with what the Mailbox expects
-            IsmInstruction::Verify(IsmVerify {
+            InterchainSecurityModuleInstruction::Verify(VerifyInstruction {
                 metadata: MultisigIsmMessageIdMetadata {
                     origin_mailbox: checkpoint.mailbox_address,
                     merkle_root: checkpoint.root,
@@ -586,7 +594,7 @@ mod test {
                 .to_vec(),
                 message: message_bytes.clone(),
             })
-            .try_to_vec()
+            .encode()
             .unwrap()
             .as_slice(),
         );
@@ -600,9 +608,9 @@ mod test {
             &[
                 domain_pda_account.clone(),
             ],
-            // Use the IsmInstruction enum to ensure the instruction
+            // Use the InterchainSecurityModuleInstruction enum to ensure the instruction
             // is handled in compliance with what the Mailbox expects
-            IsmInstruction::Verify(IsmVerify {
+            InterchainSecurityModuleInstruction::Verify(VerifyInstruction {
                 metadata: MultisigIsmMessageIdMetadata {
                     origin_mailbox: checkpoint.mailbox_address,
                     merkle_root: checkpoint.root,
@@ -616,7 +624,7 @@ mod test {
                     ],
                 }.to_vec(),
                 message: message_bytes.clone(),
-            }).try_to_vec().unwrap().as_slice(),
+            }).encode().unwrap().as_slice(),
         );
         assert!(result.is_ok());
 
@@ -624,9 +632,9 @@ mod test {
         let result = process_instruction(
             &program_id,
             &[domain_pda_account.clone()],
-            // Use the IsmInstruction enum to ensure the instruction
+            // Use the InterchainSecurityModuleInstruction enum to ensure the instruction
             // is handled in compliance with what the Mailbox expects
-            IsmInstruction::Verify(IsmVerify {
+            InterchainSecurityModuleInstruction::Verify(VerifyInstruction {
                 metadata: MultisigIsmMessageIdMetadata {
                     origin_mailbox: checkpoint.mailbox_address,
                     merkle_root: checkpoint.root,
@@ -642,7 +650,7 @@ mod test {
                 }
                 .to_vec(),
             })
-            .try_to_vec()
+            .encode()
             .unwrap()
             .as_slice(),
         );

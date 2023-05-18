@@ -8,7 +8,7 @@ use solana_program::{
 };
 
 use hyperlane_core::{IsmType, H160};
-use hyperlane_sealevel_mailbox::instruction::IsmInstruction;
+use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
 use hyperlane_sealevel_multisig_ism_message_id::{
     access_control_pda_seeds,
     accounts::{AccessControlAccount, AccessControlData, DomainData, DomainDataAccount},
@@ -282,9 +282,9 @@ async fn test_ism_type() {
 
     let type_bytes = banks_client
         .simulate_transaction(Transaction::new_unsigned(Message::new_with_blockhash(
-            &[Instruction::new_with_borsh(
+            &[Instruction::new_with_bytes(
                 program_id,
-                &IsmInstruction::Type,
+                &InterchainSecurityModuleInstruction::Type.encode().unwrap(),
                 vec![],
             )],
             Some(&payer.pubkey()),
