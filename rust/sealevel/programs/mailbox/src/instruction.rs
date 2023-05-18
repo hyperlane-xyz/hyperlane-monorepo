@@ -100,7 +100,7 @@ impl IsmInstruction {
 
 /// Generic instruction to allow program instruction data to be parsed as either instruction data
 /// for a recipient CPI call from the mailbox or an arbitrary type T.
-#[derive(Debug)]
+#[derive(BorshSerialize, BorshDeserialize, Debug)]
 pub enum MailboxRecipientInstruction<T> {
     MailboxRecipientCpi(RecipientInstruction),
     Custom(T),

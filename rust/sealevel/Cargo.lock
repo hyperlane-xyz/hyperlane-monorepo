@@ -1678,6 +1678,8 @@ dependencies = [
  "num-derive",
  "num-traits",
  "solana-program",
+ "solana-program-test",
+ "solana-sdk",
  "spl-associated-token-account 1.1.2 (git+https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library?branch=steven/eclipse-1.14.13)",
  "spl-noop",
  "spl-token 3.5.0 (git+https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library?branch=steven/eclipse-1.14.13)",

@@ -7,10 +7,9 @@ use solana_program::{program_error::ProgramError, pubkey::Pubkey};
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub enum Instruction {
     Init(Init),
-    InitErc20(InitErc20),
     TransferRemote(TransferRemote),
     // This is "handle" in solidity contract. Used as mailbox recipient.
-    TransferFromRemote(TransferFromRemote),
+    // TransferFromRemote(TransferFromRemote),
 }
 
 impl Instruction {
@@ -30,28 +29,13 @@ pub struct Init {
     pub mailbox: Pubkey,
     /// The mailbox's local domain.
     pub mailbox_local_domain: u32,
-    /// The name of the token.
-    pub name: String,
-    /// The symbol of the token.
-    pub symbol: String, // FIXME use datatype to enforce character set
-}
-
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
-pub struct InitErc20 {
-    /// The initial supply of the token.
-    pub total_supply: U256,
-    // TODO use datatype to enforce character set. We don't want to allow "-" because it is used
-    // in pda seeds as separator, right? Either that or we should base58 encode or hash the strings.
-    /// The name of the token.
-    pub name: String,
-    /// The symbol of the token.
-    pub symbol: String,
 }
 
 /// Transfers `amount_or_id` token to `recipient` on `destination` domain.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub struct TransferRemote {
     pub destination_domain: u32,
+    /// TODO imply this from Router
     pub destination_program_id: H256,
     pub recipient: H256,
     pub amount_or_id: U256,
@@ -61,6 +45,7 @@ pub struct TransferRemote {
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub struct TransferFromRemote {
     pub origin: u32,
+    pub sender: H256,
     pub message: Vec<u8>,
 }
 

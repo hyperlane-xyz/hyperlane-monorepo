@@ -46,5 +46,9 @@ branch = "steven/eclipse-1.14.13"
 # log = "0.4"
 # testing_logger = "=0.1.1"
 
+[dev-dependencies]
+solana-program-test = "=1.14.13"
+solana-sdk = "=1.14.13"
+
 [lib]
 crate-type = ["cdylib", "lib"]
