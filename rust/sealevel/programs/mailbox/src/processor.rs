@@ -16,13 +16,16 @@ use solana_program::{
     sysvar::rent::Rent,
 };
 
+use hyperlane_sealevel_message_recipient_interface::{
+    HandleInstruction, MessageRecipientInstruction,
+};
+
 use crate::{
     accounts::{Inbox, InboxAccount, Outbox, OutboxAccount},
     error::Error,
     instruction::{
         InboxProcess, InboxSetDefaultModule, Init, Instruction as MailboxIxn, IsmInstruction,
-        IsmVerify, MailboxRecipientInstruction, OutboxDispatch, OutboxQuery,
-        MAX_MESSAGE_BODY_BYTES, VERSION,
+        IsmVerify, OutboxDispatch, OutboxQuery, MAX_MESSAGE_BODY_BYTES, VERSION,
     },
 };
 
@@ -323,14 +326,14 @@ fn inbox_process(
     let verify = Instruction::new_with_borsh(inbox.ism, &ism_ixn, ism_account_metas);
     invoke_signed(&verify, &ism_accounts, &[auth_seeds])?;
 
-    let recp_ixn = MailboxRecipientInstruction::<()>::new_mailbox_recipient_cpi(
-        message.sender,
+    let recp_ixn = MessageRecipientInstruction::Handle(HandleInstruction::new(
         message.origin,
+        message.sender,
         message.body,
-    );
+    ));
     let recieve = Instruction::new_with_bytes(
         message.recipient.0.into(),
-        &recp_ixn.into_instruction_data()?,
+        &recp_ixn.encode()?,
         recp_account_metas,
     );
     invoke_signed(&recieve, &recp_accounts, &[auth_seeds])?;

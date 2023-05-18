@@ -1,20 +1,19 @@
 //! TODO
 
+use borsh::BorshSerialize;
 use hyperlane_core::{Decode, Encode as _, H256};
 use hyperlane_sealevel_mailbox::{
-    instruction::{
-        Instruction as MailboxIxn, MailboxRecipientInstruction,
-        OutboxDispatch as MailboxOutboxDispatch,
-    },
+    instruction::{Instruction as MailboxIxn, OutboxDispatch as MailboxOutboxDispatch},
     mailbox_outbox_pda_seeds,
 };
+use hyperlane_sealevel_message_recipient_interface::MessageRecipientInstruction;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint,
     entrypoint::ProgramResult,
     instruction::{AccountMeta, Instruction},
     msg,
-    program::invoke_signed,
+    program::{invoke_signed, set_return_data},
     program_error::ProgramError,
     program_pack::Pack as _,
     pubkey::Pubkey,
@@ -136,29 +135,43 @@ pub fn process_instruction(
     accounts: &[AccountInfo],
     instruction_data: &[u8],
 ) -> ProgramResult {
-    let instruction = MailboxRecipientInstruction::<TokenIxn>::from_instruction_data(
-        instruction_data,
-    )
-    .map_err(|err| {
+    // First, check if the instruction has a discriminant relating to
+    // the message recipient interface.
+    if let Ok(message_recipient_instruction) = MessageRecipientInstruction::decode(instruction_data)
+    {
+        return match message_recipient_instruction {
+            MessageRecipientInstruction::InterchainSecurityModule => {
+                // Return None, indicating the default ISM should be used
+                // TODO change this
+                let ism: Option<Pubkey> = None;
+                set_return_data(
+                    &ism.try_to_vec()
+                        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
+                );
+                Ok(())
+            }
+            MessageRecipientInstruction::Handle(handle) => transfer_from_remote(
+                program_id,
+                accounts,
+                TransferFromRemote {
+                    origin: handle.origin,
+                    // sender: recipient_ixn.sender,
+                    message: handle.message,
+                },
+            ),
+        };
+    }
+
+    // Otherwise, try decoding a "normal" token instruction
+    let token_instruction = TokenIxn::from_instruction_data(instruction_data).map_err(|err| {
         msg!("{}", err);
         err
     })?;
-    match instruction {
-        MailboxRecipientInstruction::MailboxRecipientCpi(recipient_ixn) => transfer_from_remote(
-            program_id,
-            accounts,
-            TransferFromRemote {
-                origin: recipient_ixn.origin,
-                // sender: recipient_ixn.sender,
-                message: recipient_ixn.message,
-            },
-        ),
-        MailboxRecipientInstruction::Custom(token_ixn) => match token_ixn {
-            TokenIxn::Init(init) => initialize(program_id, accounts, init),
-            TokenIxn::InitErc20(init) => initialize_erc20(program_id, accounts, init),
-            TokenIxn::TransferRemote(xfer) => transfer_remote(program_id, accounts, xfer),
-            TokenIxn::TransferFromRemote(xfer) => transfer_from_remote(program_id, accounts, xfer),
-        },
+    match token_instruction {
+        TokenIxn::Init(init) => initialize(program_id, accounts, init),
+        TokenIxn::InitErc20(init) => initialize_erc20(program_id, accounts, init),
+        TokenIxn::TransferRemote(xfer) => transfer_remote(program_id, accounts, xfer),
+        TokenIxn::TransferFromRemote(xfer) => transfer_from_remote(program_id, accounts, xfer),
     }
     .map_err(|err| {
         msg!("{}", err);

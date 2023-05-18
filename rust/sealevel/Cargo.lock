@@ -1688,6 +1688,7 @@ dependencies = [
  "bs58",
  "hyperlane-core",
  "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-message-recipient-interface",
  "num-derive",
  "num-traits",
  "solana-program",

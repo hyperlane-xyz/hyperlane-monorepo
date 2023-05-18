@@ -10,6 +10,7 @@ no-entrypoint = []
 bs58 = "=0.4.0" # FIXME remove
 hyperlane-core = { path = "../../hyperlane-core" }
 hyperlane-sealevel-mailbox = { path = "../mailbox", features = ["no-entrypoint"] }
+hyperlane-sealevel-message-recipient-interface = { path = "../../libraries/message-recipient-interface" }
 borsh = "0.9"
 num-derive = "0.3"
 num-traits = "0.2"
