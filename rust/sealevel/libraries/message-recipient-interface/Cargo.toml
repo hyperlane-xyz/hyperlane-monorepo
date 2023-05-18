@@ -1,5 +1,5 @@
 [package]
-name = "message-recipient-interface"
+name = "hyperlane-sealevel-message-recipient-interface"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,7 +9,6 @@ no-entrypoint = []
 [dependencies]
 borsh = "0.9"
 solana-program = "=1.14.13"
-# spl-type-length-value = { git = "https://github.com/solana-labs/solana-program-library", rev = "4856af1" }
 
 [dependencies.spl-type-length-value]
 version = "0.1.0"

@@ -1643,6 +1643,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-message-recipient-interface"
+version = "0.1.0"
+dependencies = [
+ "borsh",
+ "solana-program",
+ "spl-type-length-value",
+]
+
+[[package]]
 name = "hyperlane-sealevel-multisig-ism-message-id"
 version = "0.1.0"
 dependencies = [
@@ -1663,7 +1672,9 @@ dependencies = [
 name = "hyperlane-sealevel-recipient-echo"
 version = "0.1.0"
 dependencies = [
+ "borsh",
  "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-message-recipient-interface",
  "solana-program",
 ]
 
@@ -2046,15 +2057,6 @@ dependencies = [
  "keccak",
  "rand_core 0.6.4",
  "zeroize",
-]
-
-[[package]]
-name = "message-recipient-interface"
-version = "0.1.0"
-dependencies = [
- "borsh",
- "solana-program",
- "spl-type-length-value",
 ]
 
 [[package]]
