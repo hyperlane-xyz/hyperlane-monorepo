@@ -83,7 +83,7 @@ async function helmValuesForChain(
 }
 
 export async function getAgentEnvVars(
-  outboxChainName: ChainName,
+  originChainName: ChainName,
   role: KEY_ROLE_ENUM,
   agentConfig: AgentConfig,
   index?: number,
@@ -93,7 +93,7 @@ export async function getAgentEnvVars(
     throw Error('Expected index for validator role');
   }
 
-  const valueDict = await helmValuesForChain(outboxChainName, agentConfig);
+  const valueDict = await helmValuesForChain(originChainName, agentConfig);
   let envVars: string[] = [];
   const rpcEndpoints = await getSecretRpcEndpoints(agentConfig);
   valueDict.hyperlane.chains.forEach((chain: any) => {
@@ -108,7 +108,7 @@ export async function getAgentEnvVars(
   envVars.push(`HYP_BASE_METRICS=9090`);
   envVars.push(`HYP_BASE_TRACING_LEVEL=info`);
   envVars.push(
-    `HYP_BASE_DB=/tmp/${agentConfig.runEnv}-${role}-${outboxChainName}${
+    `HYP_BASE_DB=/tmp/${agentConfig.runEnv}-${role}-${originChainName}${
       role === KEY_ROLE_ENUM.Validator ? `-${index}` : ''
     }-db`,
   );
@@ -117,14 +117,14 @@ export async function getAgentEnvVars(
   if (!agentConfig.aws) {
     const gcpKeys = (await fetchKeysForChain(
       agentConfig,
-      outboxChainName,
+      originChainName,
     )) as Record<string, AgentGCPKey>;
 
     const keyId = keyIdentifier(
       agentConfig.runEnv,
       agentConfig.context,
       role,
-      outboxChainName,
+      originChainName,
       index,
     );
 
@@ -155,7 +155,7 @@ export async function getAgentEnvVars(
 
     if (role === KEY_ROLE_ENUM.Validator && agentConfig.validators) {
       const checkpointSyncer =
-        agentConfig.validators[outboxChainName].validators[index!]
+        agentConfig.validators[originChainName].validators[index!]
           .checkpointSyncer;
       if (checkpointSyncer.type !== CheckpointSyncerType.S3) {
         throw Error(
@@ -165,7 +165,7 @@ export async function getAgentEnvVars(
       user = new ValidatorAgentAwsUser(
         agentConfig.runEnv,
         agentConfig.context,
-        outboxChainName,
+        originChainName,
         index!,
         checkpointSyncer.region,
         checkpointSyncer.bucket,
@@ -176,7 +176,7 @@ export async function getAgentEnvVars(
         agentConfig.context,
         role,
         agentConfig.aws!.region,
-        outboxChainName,
+        originChainName,
       );
     }
 
@@ -188,7 +188,7 @@ export async function getAgentEnvVars(
     // Only the relayer needs to sign txs
     if (role === KEY_ROLE_ENUM.Relayer) {
       chainNames.forEach((chainName) => {
-        const key = new AgentAwsKey(agentConfig, role, outboxChainName);
+        const key = new AgentAwsKey(agentConfig, role, originChainName);
         envVars = envVars.concat(
           configEnvVars(
             key.keyConfig,
@@ -308,12 +308,12 @@ async function getSecretRpcEndpoints(agentConfig: AgentConfig, quorum = false) {
 
 export async function doesAgentReleaseExist(
   agentConfig: AgentConfig,
-  outboxChainName: ChainName,
+  originChainName: ChainName,
 ) {
   try {
     await execCmd(
       `helm status ${getHelmReleaseName(
-        outboxChainName,
+        originChainName,
         agentConfig,
       )} --namespace ${agentConfig.namespace}`,
       {},
@@ -329,12 +329,12 @@ export async function doesAgentReleaseExist(
 export async function runAgentHelmCommand(
   action: HelmCommand,
   agentConfig: AgentConfig,
-  outboxChainName: ChainName,
+  originChainName: ChainName,
 ) {
   if (action === HelmCommand.Remove) {
     return execCmd(
       `helm ${action} ${getHelmReleaseName(
-        outboxChainName,
+        originChainName,
         agentConfig,
       )} --namespace ${agentConfig.namespace}`,
       {},
@@ -343,7 +343,7 @@ export async function runAgentHelmCommand(
     );
   }
 
-  const valueDict = await helmValuesForChain(outboxChainName, agentConfig);
+  const valueDict = await helmValuesForChain(originChainName, agentConfig);
   const values = helmifyValues(valueDict);
 
   const extraPipe =
@@ -358,7 +358,7 @@ export async function runAgentHelmCommand(
         `kubectl delete secrets --namespace ${
           agentConfig.namespace
         } --selector app.kubernetes.io/instance=${getHelmReleaseName(
-          outboxChainName,
+          originChainName,
           agentConfig,
         )}`,
         {},
@@ -375,7 +375,7 @@ export async function runAgentHelmCommand(
 
   await execCmd(
     `helm ${action} ${getHelmReleaseName(
-      outboxChainName,
+      originChainName,
       agentConfig,
     )} ${helmChartPath} --create-namespace --namespace ${
       agentConfig.namespace
@@ -389,15 +389,15 @@ export async function runAgentHelmCommand(
 }
 
 function getHelmReleaseName(
-  outboxChainName: ChainName,
+  originChainName: ChainName,
   agentConfig: AgentConfig,
 ): string {
   // For backward compatibility reasons, don't include the context
   // in the name of the helm release if the context is the default "hyperlane"
   if (agentConfig.context === 'hyperlane') {
-    return outboxChainName;
+    return originChainName;
   }
-  return `${outboxChainName}-${agentConfig.context}`;
+  return `${originChainName}-${agentConfig.context}`;
 }
 
 export async function getCurrentKubernetesContext(): Promise<string> {
