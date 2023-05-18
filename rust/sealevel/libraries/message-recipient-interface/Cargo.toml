@@ -13,7 +13,8 @@ hyperlane-core = { path = "../../hyperlane-core" }
 
 [dependencies.spl-type-length-value]
 version = "0.1.0"
-path = "/Users/trevor/eclipse-program-library/libraries/type-length-value"
+git = "https://github.com/tkporter/eclipse-program-library"
+branch = "trevor/steven/eclipse-1.14.13/with-tlv-lib"
 features = ["borsh"]
 
 [lib]
