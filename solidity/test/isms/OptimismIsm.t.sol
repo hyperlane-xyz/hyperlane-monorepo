@@ -119,19 +119,20 @@ contract OptimismISMTest is Test {
         vm.selectFork(optimismFork);
 
         opISM = new OptimismISM(
-            L2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER)
+            L2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER),
+            opHook
         );
 
         vm.makePersistent(address(opISM));
     }
 
     function deployAll() public {
-        deployOptimsimISM();
         deployEthMailbox();
+        deployOptimsimISM();
         deployOpMailbox();
 
-        vm.selectFork(optimismFork);
-        opISM.setOptimismHook(opHook);
+        vm.selectFork(mainnetFork);
+        opHook.setOptimismISM(address(opISM));
     }
 
     ///////////////////////////////////////////////////////////////////

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
+import "forge-std/console.sol";
 
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {Mailbox} from "../../contracts/Mailbox.sol";
@@ -10,9 +11,10 @@ import {TestMultisigIsm} from "../../contracts/test/TestMultisigIsm.sol";
 import {ArbitrumISM} from "../../contracts/isms/native/ArbitrumISM.sol";
 import {ArbitrumMessageHook} from "../../contracts/hooks/ArbitrumMessageHook.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
-import {Bytes32AddressLib} from "solmate/src/utils/Bytes32AddressLib.sol";
 
 import {IInbox} from "@arbitrum/nitro-contracts/src/bridge/IInbox.sol";
+import {IBridge} from "@arbitrum/nitro-contracts/src/bridge/IBridge.sol";
+import {AddressAliasHelper} from "@arbitrum/nitro-contracts/src/libraries/AddressAliasHelper.sol";
 
 contract ArbitrumISMTest is Test {
     uint256 internal mainnetFork;
@@ -29,8 +31,11 @@ contract ArbitrumISMTest is Test {
 
     address internal constant INBOX =
         0x4Dbd4fc535Ac27206064B68FfCf827b0A60BAB3f;
+    address internal constant BRIDGE =
+        0x8315177aB297bA92A06054cE80a67Ed4DBd7ed3a;
 
     IInbox internal arbitrumInbox;
+
     ArbitrumISM internal arbitrumISM;
     ArbitrumMessageHook internal arbitrumHook;
 
@@ -142,6 +147,8 @@ contract ArbitrumISMTest is Test {
             testMessage
         );
 
+        uint256 messageCountBefore = IBridge(BRIDGE).delayedMessageCount();
+
         // TODO: need approximate emits for submission fees abi-encoded
         vm.expectEmit(false, false, false, false, INBOX);
         emit InboxMessageDelivered(0, encodedMessageData);
@@ -155,6 +162,10 @@ contract ArbitrumISMTest is Test {
         );
 
         arbitrumHook.postDispatch(ARBITRUM_DOMAIN, messageId);
+
+        uint256 messageCountAfter = IBridge(BRIDGE).delayedMessageCount();
+
+        assertEq(messageCountAfter, messageCountBefore + 1);
     }
 
     function testDispatch_ChainIDNotSupported() public {
@@ -184,6 +195,145 @@ contract ArbitrumISMTest is Test {
         vm.expectRevert("ArbitrumHook: ArbitrumISM not set");
 
         arbitrumHook.postDispatch(ARBITRUM_DOMAIN, bytes32(0));
+    }
+
+    function testDispatch_InsufficientFunds() public {
+        deployAll();
+
+        vm.selectFork(mainnetFork);
+        vm.deal(address(arbitrumHook), 0 ether);
+
+        ethMailbox.dispatch(
+            ARBITRUM_DOMAIN,
+            TypeCasts.addressToBytes32(address(testRecipient)),
+            testMessage
+        );
+        bytes32 messageId = Message.id(
+            _encodeTestMessage(0, address(testRecipient))
+        );
+
+        vm.expectRevert();
+        arbitrumHook.postDispatch(ARBITRUM_DOMAIN, messageId);
+    }
+
+    /* ============ ISM.receiveFromHook ============ */
+
+    function testReceiveFromHook() public {
+        deployAll();
+
+        vm.selectFork(arbitrumFork);
+
+        bytes32 _messageId = keccak256(
+            _encodeTestMessage(0, address(testRecipient))
+        );
+
+        vm.startPrank(
+            AddressAliasHelper.applyL1ToL2Alias(address(arbitrumHook))
+        );
+
+        vm.expectEmit(true, true, false, false, address(arbitrumISM));
+        emit ReceivedMessage(_messageId, address(this));
+
+        arbitrumISM.receiveFromHook(_messageId, address(this));
+
+        assertEq(arbitrumISM.receivedEmitters(_messageId, address(this)), true);
+
+        vm.stopPrank();
+    }
+
+    function testReceiveFromHook_NotAuthorized() public {
+        deployAll();
+
+        vm.selectFork(arbitrumFork);
+
+        bytes32 _messageId = keccak256(
+            _encodeTestMessage(0, address(testRecipient))
+        );
+
+        // needs to be called by the cannonical messenger on Optimism
+        vm.expectRevert("ArbitrumISM: caller is not authorized.");
+        arbitrumISM.receiveFromHook(_messageId, address(arbitrumHook));
+
+        vm.prank(address(arbitrumHook));
+
+        vm.expectRevert("ArbitrumISM: caller is not authorized.");
+        arbitrumISM.receiveFromHook(_messageId, address(arbitrumHook));
+    }
+
+    /* ============ ISM.verify ============ */
+
+    function testVerify() public {
+        deployAll();
+
+        vm.selectFork(arbitrumFork);
+
+        bytes memory encodedMessage = _encodeTestMessage(
+            0,
+            address(testRecipient)
+        );
+        bytes32 _messageId = keccak256(encodedMessage);
+
+        vm.prank(AddressAliasHelper.applyL1ToL2Alias(address(arbitrumHook)));
+        arbitrumISM.receiveFromHook(_messageId, address(this));
+
+        bool verified = arbitrumISM.verify(new bytes(0), encodedMessage);
+        assertTrue(verified);
+    }
+
+    function testVerify_InvalidMessage_Hyperlane() public {
+        deployAll();
+
+        vm.selectFork(arbitrumFork);
+
+        bytes memory encodedMessage = _encodeTestMessage(
+            0,
+            address(testRecipient)
+        );
+        bytes32 _messageId = keccak256(encodedMessage);
+
+        vm.prank(AddressAliasHelper.applyL1ToL2Alias(address(arbitrumHook)));
+        arbitrumISM.receiveFromHook(_messageId, address(this));
+
+        bytes memory invalidMessage = _encodeTestMessage(0, address(this));
+        bool verified = arbitrumISM.verify(new bytes(0), invalidMessage);
+        assertFalse(verified);
+    }
+
+    function testVerify_InvalidMessageID_Optimism() public {
+        deployAll();
+
+        vm.selectFork(arbitrumFork);
+
+        bytes memory encodedMessage = _encodeTestMessage(
+            0,
+            address(testRecipient)
+        );
+        bytes memory invalidMessage = _encodeTestMessage(0, address(this));
+        bytes32 _messageId = Message.id(invalidMessage);
+
+        vm.prank(AddressAliasHelper.applyL1ToL2Alias(address(arbitrumHook)));
+        arbitrumISM.receiveFromHook(_messageId, address(this));
+
+        bool verified = arbitrumISM.verify(new bytes(0), encodedMessage);
+        assertFalse(verified);
+    }
+
+    function testVerify_InvalidSender() public {
+        deployAll();
+
+        vm.selectFork(arbitrumFork);
+
+        bytes memory encodedMessage = _encodeTestMessage(
+            0,
+            address(testRecipient)
+        );
+        bytes32 _messageId = Message.id(encodedMessage);
+
+        vm.prank(AddressAliasHelper.applyL1ToL2Alias(address(arbitrumHook)));
+        arbitrumISM.receiveFromHook(_messageId, alice);
+
+        bool verified = arbitrumISM.verify(new bytes(0), encodedMessage);
+        assertFalse(verified);
     }
 
     /* ============ helper functions ============ */

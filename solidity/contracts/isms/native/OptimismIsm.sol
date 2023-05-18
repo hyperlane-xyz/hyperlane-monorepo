@@ -11,17 +11,34 @@ import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {ICrossDomainMessenger} from "@eth-optimism/contracts/libraries/bridge/ICrossDomainMessenger.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
+/**
+ * @title OptimismISM
+ * @notice Uses the native Optimism bridge to verify interchain messages.
+ */
 contract OptimismISM is IInterchainSecurityModule, Ownable {
-    mapping(bytes32 => mapping(address => bool)) public receivedEmitters;
-
-    ICrossDomainMessenger public immutable l2Messenger;
-    IOptimismMessageHook public l1Hook;
+    // ============ Constants ============
 
     // solhint-disable-next-line const-name-snakecase
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.OPTIMISM);
 
+    // Optimism's native CrossDomainMessenger deployed on L2
+    // @dev Only allowed to call `receiveFromHook`.
+    ICrossDomainMessenger public immutable l2Messenger;
+    // Hook deployed on L1 responsible for sending message via the Optimism bridge
+    IOptimismMessageHook public immutable l1Hook;
+
+    // ============ Public Storage ============
+
+    // mapping to check if the specific messageID from a specific emitter has been received
+    // @dev anyone can send an untrusted messageId, so need to check for that while verifying
+    mapping(bytes32 => mapping(address => bool)) public receivedEmitters;
+
+    // ============ Events ============
+
     event ReceivedMessage(bytes32 indexed messageId, address indexed emitter);
+
+    // ============ Modifiers ============
 
     /**
      * @notice Check if sender is authorized to message `receiveFromHook`.
@@ -38,17 +55,18 @@ contract OptimismISM is IInterchainSecurityModule, Ownable {
             _l2Messenger.xDomainMessageSender() == address(l1Hook),
             "OptimismISM: caller is not the owner"
         );
-
         _;
     }
 
-    constructor(ICrossDomainMessenger _l2Messenger) {
-        l2Messenger = _l2Messenger;
-    }
+    // ============ Constructor ============
 
-    function setOptimismHook(IOptimismMessageHook _hook) external onlyOwner {
+    constructor(ICrossDomainMessenger _l2Messenger, IOptimismMessageHook _hook)
+    {
+        l2Messenger = _l2Messenger;
         l1Hook = _hook;
     }
+
+    // ============ External Functions ============
 
     function receiveFromHook(bytes32 _messageId, address _emitter)
         external

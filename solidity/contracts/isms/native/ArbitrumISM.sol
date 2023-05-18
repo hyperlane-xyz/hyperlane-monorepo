@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import "forge-std/console.sol";
-
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {IArbitrumMessageHook} from "../../interfaces/hooks/IArbitrumMessageHook.sol";
 import {Message} from "../../libs/Message.sol";
@@ -28,9 +26,8 @@ contract ArbitrumISM is IInterchainSecurityModule, Ownable {
     modifier isAuthorized() {
         require(
             AddressAliasHelper.undoL1ToL2Alias(msg.sender) == address(l1Hook),
-            "ArbitrumISM: caller is not the owner"
+            "ArbitrumISM: caller is not authorized."
         );
-
         _;
     }
 
