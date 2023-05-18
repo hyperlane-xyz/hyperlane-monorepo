@@ -38,7 +38,7 @@ pub fn process_instruction(
     instruction_data: &[u8],
 ) -> ProgramResult {
     match MessageRecipientInstruction::decode(instruction_data)? {
-        MessageRecipientInstruction::InterchainSecurityModule(_) => {
+        MessageRecipientInstruction::InterchainSecurityModule => {
             // Return None, indicating the default ISM should be used
             let ism: Option<Pubkey> = None;
             set_return_data(

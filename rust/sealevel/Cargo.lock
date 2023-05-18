@@ -1632,6 +1632,7 @@ dependencies = [
  "borsh",
  "bs58",
  "hyperlane-core",
+ "hyperlane-sealevel-message-recipient-interface",
  "itertools",
  "log",
  "num-derive",
@@ -1647,6 +1648,7 @@ name = "hyperlane-sealevel-message-recipient-interface"
 version = "0.1.0"
 dependencies = [
  "borsh",
+ "hyperlane-core",
  "solana-program",
  "spl-type-length-value",
 ]

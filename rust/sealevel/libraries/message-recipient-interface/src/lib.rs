@@ -1,4 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
+use hyperlane_core::H256;
 use solana_program::program_error::ProgramError;
 use spl_type_length_value::discriminator::{Discriminator, TlvDiscriminator};
 
@@ -7,13 +8,8 @@ use spl_type_length_value::discriminator::{Discriminator, TlvDiscriminator};
 /// allows programs to implement the required interface.
 #[derive(Eq, PartialEq, Debug)]
 pub enum MessageRecipientInstruction {
-    InterchainSecurityModule(InterchainSecurityModuleInstruction),
+    InterchainSecurityModule,
     Handle(HandleInstruction),
-}
-
-#[derive(Eq, PartialEq, BorshSerialize, BorshDeserialize, Debug)]
-pub struct InterchainSecurityModuleInstruction {
-    pub message: Vec<u8>,
 }
 
 /// First 8 bytes of `hash::hashv(&[b"hyperlane-message-recipient:interchain-security-module"])`
@@ -22,36 +18,39 @@ const INTERCHAIN_SECURITY_MODULE_DISCRIMINATOR: [u8; Discriminator::LENGTH] =
 const INTERCHAIN_SECURITY_MODULE_DISCRIMINATOR_SLICE: &[u8] =
     &INTERCHAIN_SECURITY_MODULE_DISCRIMINATOR;
 
-impl TlvDiscriminator for InterchainSecurityModuleInstruction {
-    const TLV_DISCRIMINATOR: Discriminator =
-        Discriminator::new(INTERCHAIN_SECURITY_MODULE_DISCRIMINATOR);
-}
-
 #[derive(Eq, PartialEq, BorshSerialize, BorshDeserialize, Debug)]
 pub struct HandleInstruction {
-    pub metadata: Vec<u8>,
+    pub origin: u32,
+    pub sender: H256,
     pub message: Vec<u8>,
+}
+
+impl HandleInstruction {
+    pub fn new(origin: u32, sender: H256, message: Vec<u8>) -> Self {
+        Self {
+            origin,
+            sender,
+            message,
+        }
+    }
 }
 
 /// First 8 bytes of `hash::hashv(&[b"hyperlane-message-recipient:handle"])`
 const HANDLE_DISCRIMINATOR: [u8; Discriminator::LENGTH] = [33, 210, 5, 66, 196, 212, 239, 142];
 const HANDLE_DISCRIMINATOR_SLICE: &[u8] = &HANDLE_DISCRIMINATOR;
 
+// TODO: does this even need to be implemented?
 impl TlvDiscriminator for HandleInstruction {
     const TLV_DISCRIMINATOR: Discriminator = Discriminator::new(HANDLE_DISCRIMINATOR);
 }
 
+// TODO implement hyperlane-core's Encode & Decode?
 impl MessageRecipientInstruction {
     pub fn encode(&self) -> Result<Vec<u8>, ProgramError> {
         let mut buf = vec![];
         match self {
-            MessageRecipientInstruction::InterchainSecurityModule(instruction) => {
+            MessageRecipientInstruction::InterchainSecurityModule => {
                 buf.extend_from_slice(&INTERCHAIN_SECURITY_MODULE_DISCRIMINATOR_SLICE[..]);
-                buf.extend_from_slice(
-                    &instruction
-                        .try_to_vec()
-                        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
-                );
             }
             MessageRecipientInstruction::Handle(instruction) => {
                 buf.extend_from_slice(&HANDLE_DISCRIMINATOR_SLICE[..]);
@@ -72,11 +71,7 @@ impl MessageRecipientInstruction {
         }
         let (discriminator, rest) = buf.split_at(Discriminator::LENGTH);
         match discriminator {
-            INTERCHAIN_SECURITY_MODULE_DISCRIMINATOR_SLICE => {
-                let instruction = InterchainSecurityModuleInstruction::try_from_slice(rest)
-                    .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
-                Ok(Self::InterchainSecurityModule(instruction))
-            }
+            INTERCHAIN_SECURITY_MODULE_DISCRIMINATOR_SLICE => Ok(Self::InterchainSecurityModule),
             HANDLE_DISCRIMINATOR_SLICE => {
                 let instruction = HandleInstruction::try_from_slice(rest)
                     .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
@@ -108,11 +103,7 @@ mod test {
 
     #[test]
     fn test_encode_decode_interchain_security_module_instruction() {
-        let instruction = MessageRecipientInstruction::InterchainSecurityModule(
-            InterchainSecurityModuleInstruction {
-                message: vec![1, 2, 3, 4, 5],
-            },
-        );
+        let instruction = MessageRecipientInstruction::InterchainSecurityModule;
 
         let encoded = instruction.encode().unwrap();
         assert_eq!(
@@ -126,10 +117,11 @@ mod test {
 
     #[test]
     fn test_encode_decode_handle_instruction() {
-        let instruction = MessageRecipientInstruction::Handle(HandleInstruction {
-            metadata: vec![5, 4, 3, 2, 1],
-            message: vec![1, 2, 3, 4, 5],
-        });
+        let instruction = MessageRecipientInstruction::Handle(HandleInstruction::new(
+            69,
+            H256::random(),
+            vec![1, 2, 3, 4, 5],
+        ));
 
         let encoded = instruction.encode().unwrap();
         assert_eq!(

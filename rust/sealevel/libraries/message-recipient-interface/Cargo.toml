@@ -9,6 +9,7 @@ no-entrypoint = []
 [dependencies]
 borsh = "0.9"
 solana-program = "=1.14.13"
+hyperlane-core = { path = "../../hyperlane-core" }
 
 [dependencies.spl-type-length-value]
 version = "0.1.0"
