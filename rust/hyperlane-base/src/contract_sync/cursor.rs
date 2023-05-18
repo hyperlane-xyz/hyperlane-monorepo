@@ -83,7 +83,12 @@ impl ForwardMessageSyncCursor {
     async fn get_next_range(&mut self) -> ChainResult<Option<(u32, u32, Duration)>> {
         // Check if any new messages have been inserted into the DB,
         // and update the cursor accordingly.
-        while let Some(_) = self.0.retrieve_message_by_nonce(self.0.next_nonce).await {
+        while self
+            .0
+            .retrieve_message_by_nonce(self.0.next_nonce)
+            .await
+            .is_some()
+        {
             if let Some(block_number) = self
                 .0
                 .retrieve_dispatched_block_number(self.0.next_nonce)
@@ -153,8 +158,13 @@ impl BackwardMessageSyncCursor {
         // Check if any new messages have been inserted into the DB,
         // and update the cursor accordingly.
         while !self.synced {
-            let Some(_) = self.cursor.retrieve_message_by_nonce(self.cursor.next_nonce).await else {
-                break
+            if self
+                .cursor
+                .retrieve_message_by_nonce(self.cursor.next_nonce)
+                .await
+                .is_none()
+            {
+                break;
             };
             // If we found nonce zero, we are done rewinding.
             if self.cursor.next_nonce == 0 {
