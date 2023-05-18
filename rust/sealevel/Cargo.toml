@@ -8,4 +8,5 @@ members = [
     "programs/ism/rubber-stamp",
     "programs/ism/multisig-ism-message-id",
     "programs/hyperlane-sealevel-token",
+    "libraries/message-recipient-interface",
 ]

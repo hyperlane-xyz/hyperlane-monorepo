@@ -1,0 +1,20 @@
+[package]
+name = "message-recipient-interface"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+no-entrypoint = []
+
+[dependencies]
+borsh = "0.9"
+solana-program = "=1.14.13"
+# spl-type-length-value = { git = "https://github.com/solana-labs/solana-program-library", rev = "4856af1" }
+
+[dependencies.spl-type-length-value]
+version = "0.1.0"
+path = "/Users/trevor/eclipse-program-library/libraries/type-length-value"
+features = ["borsh"]
+
+[lib]
+crate-type = ["cdylib", "lib"]
