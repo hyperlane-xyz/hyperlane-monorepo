@@ -37,6 +37,14 @@ pub(crate) struct MessageSyncCursor {
 }
 
 impl MessageSyncCursor {
+    async fn retrieve_message_by_nonce(&self, nonce: u32) -> Option<HyperlaneMessage> {
+        if let Ok(Some(message)) = self.db.retrieve_message_by_nonce(nonce).await {
+            Some(message)
+        } else {
+            None
+        }
+    }
+
     async fn retrieve_dispatched_block_number(&self, nonce: u32) -> Option<u32> {
         if let Ok(Some(block_number)) = self.db.retrieve_dispatched_block_number(nonce).await {
             Some(u32::try_from(block_number).unwrap())
@@ -75,13 +83,15 @@ impl ForwardMessageSyncCursor {
     async fn get_next_range(&mut self) -> ChainResult<Option<(u32, u32, Duration)>> {
         // Check if any new messages have been inserted into the DB,
         // and update the cursor accordingly.
-        while let Some(block_number) = self
-            .0
-            .retrieve_dispatched_block_number(self.0.next_nonce)
-            .await
-        {
+        while let Some(_) = self.0.retrieve_message_by_nonce(self.0.next_nonce).await {
+            if let Some(block_number) = self
+                .0
+                .retrieve_dispatched_block_number(self.0.next_nonce)
+                .await
+            {
+                self.0.next_block = block_number;
+            }
             self.0.next_nonce += 1;
-            self.0.next_block = block_number;
         }
 
         let (mailbox_count, tip) = self.0.indexer.fetch_count_at_tip().await?;
@@ -143,18 +153,23 @@ impl BackwardMessageSyncCursor {
         // Check if any new messages have been inserted into the DB,
         // and update the cursor accordingly.
         while !self.synced {
-            let Some(block_number) = self
-            .cursor
-            .retrieve_dispatched_block_number(self.cursor.next_nonce)
-            .await
-            else { break };
-
-            self.cursor.next_block = block_number;
+            let Some(_) = self.cursor.retrieve_message_by_nonce(self.cursor.next_nonce).await else {
+                break
+            };
             // If we found nonce zero, we are done rewinding.
             if self.cursor.next_nonce == 0 {
                 self.synced = true;
                 return None;
             }
+
+            if let Some(block_number) = self
+                .cursor
+                .retrieve_dispatched_block_number(self.cursor.next_nonce)
+                .await
+            {
+                self.cursor.next_block = block_number;
+            }
+
             self.cursor.next_nonce = self.cursor.next_nonce.saturating_sub(1);
         }
 

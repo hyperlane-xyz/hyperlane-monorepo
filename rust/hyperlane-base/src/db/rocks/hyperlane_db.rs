@@ -289,6 +289,12 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneRocksDB {
 
 #[async_trait]
 impl HyperlaneMessageStore for HyperlaneRocksDB {
+    /// Gets a message by nonce.
+    async fn retrieve_message_by_nonce(&self, nonce: u32) -> Result<Option<HyperlaneMessage>> {
+        let message = self.message_by_nonce(nonce)?;
+        Ok(message)
+    }
+
     /// Retrieve dispatched block number by message nonce
     async fn retrieve_dispatched_block_number(&self, nonce: u32) -> Result<Option<u64>> {
         let number = self.retrieve_keyed_decodable(MESSAGE_DISPATCHED_BLOCK_NUMBER, &nonce)?;

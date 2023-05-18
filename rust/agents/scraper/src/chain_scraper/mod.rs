@@ -11,8 +11,9 @@ use tracing::trace;
 
 use hyperlane_base::chains::IndexSettings;
 use hyperlane_core::{
-    BlockInfo, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage, HyperlaneMessageStore,
-    HyperlaneProvider, HyperlaneWatermarkedLogStore, InterchainGasPayment, LogMeta, H256,
+    BlockInfo, Delivery, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
+    HyperlaneMessageStore, HyperlaneProvider, HyperlaneWatermarkedLogStore, InterchainGasPayment,
+    LogMeta, H256,
 };
 
 use crate::db::StorablePayment;
@@ -70,9 +71,9 @@ impl HyperlaneSqlDb {
     /// Returns the relevant transaction info.
     async fn ensure_blocks_and_txns(
         &self,
-        message_metadata: impl Iterator<Item = &LogMeta>,
+        log_meta: impl Iterator<Item = &LogMeta>,
     ) -> Result<impl Iterator<Item = TxnWithId>> {
-        let block_hash_by_txn_hash: HashMap<H256, H256> = message_metadata
+        let block_hash_by_txn_hash: HashMap<H256, H256> = log_meta
             .map(|meta| (meta.transaction_hash, meta.block_hash))
             .collect();
 
@@ -274,12 +275,12 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneSqlDb {
 }
 
 #[async_trait]
-impl HyperlaneLogStore<H256> for HyperlaneSqlDb {
-    async fn store_logs(&self, deliveries: &[(H256, LogMeta)]) -> Result<u32> {
+impl HyperlaneLogStore<Delivery> for HyperlaneSqlDb {
+    async fn store_logs(&self, deliveries: &[(Delivery, LogMeta)]) -> Result<u32> {
         if deliveries.is_empty() {
             return Ok(0);
         }
-        let txns: HashMap<H256, TxnWithId> = self
+        let txns: HashMap<Delivery, TxnWithId> = self
             .ensure_blocks_and_txns(deliveries.iter().map(|r| &r.1))
             .await?
             .map(|t| (t.hash, t))
@@ -328,6 +329,15 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneSqlDb {
 
 #[async_trait]
 impl HyperlaneMessageStore for HyperlaneSqlDb {
+    /// Gets a message by nonce.
+    async fn retrieve_message_by_nonce(&self, nonce: u32) -> Result<Option<HyperlaneMessage>> {
+        let message = self
+            .db
+            .retrieve_message_by_nonce(self.domain().id(), &self.mailbox_address, nonce)
+            .await?;
+        Ok(message)
+    }
+
     /// Retrieves the block number at which the message with the provided nonce
     /// was dispatched.
     async fn retrieve_dispatched_block_number(&self, nonce: u32) -> Result<Option<u64>> {
@@ -335,13 +345,13 @@ impl HyperlaneMessageStore for HyperlaneSqlDb {
         .db
         .retrieve_dispatched_tx_id(self.domain().id(), &self.mailbox_address, nonce)
         .await?
-    else {
-        return Ok(None);
-    };
+        else {
+            return Ok(None);
+        };
 
         let Some(block_id) = self.db.retrieve_block_id(tx_id).await? else {
-        return Ok(None);
-    };
+            return Ok(None);
+        };
 
         Ok(self.db.retrieve_block_number(block_id).await?)
     }

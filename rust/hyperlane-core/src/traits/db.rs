@@ -19,7 +19,9 @@ pub trait HyperlaneLogStore<T>: Send + Sync + Debug {
 #[async_trait]
 #[auto_impl(&, Box, Arc)]
 pub trait HyperlaneMessageStore: HyperlaneLogStore<HyperlaneMessage> {
-    /// Gets the block number at which a known message was dispatched.
+    /// Gets a message by nonce.
+    async fn retrieve_message_by_nonce(&self, nonce: u32) -> Result<Option<HyperlaneMessage>>;
+    /// Gets the block number at which a message was dispatched.
     async fn retrieve_dispatched_block_number(&self, nonce: u32) -> Result<Option<u64>>;
 }
 

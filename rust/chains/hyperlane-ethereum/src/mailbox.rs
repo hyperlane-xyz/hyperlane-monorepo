@@ -102,13 +102,7 @@ where
             finality_blocks,
         }
     }
-}
 
-#[async_trait]
-impl<M> Indexer<HyperlaneMessage> for EthereumMailboxIndexer<M>
-where
-    M: Middleware + 'static,
-{
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         Ok(self
@@ -118,6 +112,16 @@ where
             .map_err(ChainCommunicationError::from_other)?
             .as_u32()
             .saturating_sub(self.finality_blocks))
+    }
+}
+
+#[async_trait]
+impl<M> Indexer<HyperlaneMessage> for EthereumMailboxIndexer<M>
+where
+    M: Middleware + 'static,
+{
+    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+        self.get_finalized_block_number().await
     }
 
     #[instrument(err, skip(self))]
@@ -162,15 +166,8 @@ impl<M> Indexer<H256> for EthereumMailboxIndexer<M>
 where
     M: Middleware + 'static,
 {
-    #[instrument(level = "debug", err, ret, skip(self))]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        Ok(self
-            .provider
-            .get_block_number()
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .as_u32()
-            .saturating_sub(self.finality_blocks))
+        self.get_finalized_block_number().await
     }
 
     #[instrument(err, skip(self))]

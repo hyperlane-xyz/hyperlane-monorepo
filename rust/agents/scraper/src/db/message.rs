@@ -60,6 +60,43 @@ impl ScraperDb {
         Ok(last_nonce)
     }
 
+    /// Get the dispatched message associated with a nonce.
+    #[instrument(skip(self))]
+    pub async fn retrieve_message_by_nonce(
+        &self,
+        origin_domain: u32,
+        origin_mailbox: &H256,
+        nonce: u32,
+    ) -> Result<Option<HyperlaneMessage>> {
+        #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
+        enum QueryAs {
+            Nonce,
+        }
+
+        if let Some(message) = message::Entity::find()
+            .filter(message::Column::Origin.eq(origin_domain))
+            .filter(message::Column::OriginMailbox.eq(address_to_bytes(origin_mailbox)))
+            .filter(message::Column::Nonce.eq(nonce))
+            .order_by_desc(message::Column::Nonce)
+            .select_only()
+            .one(&self.0)
+            .await?
+        {
+            Ok(Some(HyperlaneMessage {
+                // We do not write version to the DB.
+                version: 0,
+                origin: message.origin.try_into()?,
+                nonce: message.nonce.try_into()?,
+                destination: message.destination.try_into()?,
+                sender: H256::from_slice(&message.sender[..]),
+                recipient: H256::from_slice(&message.recipient[..]),
+                body: message.msg_body.unwrap_or(Vec::new()),
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Get the tx id associated with a dispatched message.
     #[instrument(skip(self))]
     pub async fn retrieve_dispatched_tx_id(
@@ -99,7 +136,7 @@ impl ScraperDb {
         // we have a race condition where a message may not have been scraped yet even
         // though we have received news of delivery on this chain, so the
         // message IDs are looked up in a separate "thread".
-        let models = deliveries
+        let models: Vec<delivered_message::ActiveModel> = deliveries
             .map(|delivery| delivered_message::ActiveModel {
                 id: NotSet,
                 time_created: Set(date_time::now()),

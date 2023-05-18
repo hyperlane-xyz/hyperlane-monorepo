@@ -35,6 +35,7 @@ impl FromQueryResult for BasicBlock {
 }
 
 impl ScraperDb {
+    /// Retrieves the block number for a given block database ID
     pub async fn retrieve_block_number(&self, block_id: i64) -> Result<Option<u64>> {
         #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
         enum QueryAs {
