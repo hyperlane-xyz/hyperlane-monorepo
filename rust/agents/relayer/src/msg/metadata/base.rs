@@ -47,13 +47,14 @@ pub trait MetadataBuilder: Send + Sync {
 
 #[derive(Clone, new)]
 pub struct BaseMetadataBuilder {
-    chain_setup: ChainConf,
-    prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
-    validator_announce: Arc<dyn ValidatorAnnounce>,
+    destination_chain_setup: ChainConf,
+    origin_prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
+    origin_validator_announce: Arc<dyn ValidatorAnnounce>,
     allow_local_checkpoint_syncers: bool,
     metrics: Arc<CoreMetrics>,
     /// ISMs can be structured recursively. We keep track of the depth
-    /// of the recursion to avoid infinit loops.
+    /// of the recursion to avoid infinite loops.
+    #[new(default)]
     depth: u32,
     max_depth: u32,
 }
@@ -63,7 +64,7 @@ impl Debug for BaseMetadataBuilder {
         write!(
             f,
             "MetadataBuilder {{ chain_setup: {:?}, validator_announce: {:?} }}",
-            self.chain_setup, self.validator_announce
+            self.destination_chain_setup, self.origin_validator_announce
         )
     }
 }
@@ -78,7 +79,7 @@ impl MetadataBuilder for BaseMetadataBuilder {
     ) -> Result<Option<Vec<u8>>> {
         const CTX: &str = "When fetching module type";
         let ism = self
-            .chain_setup
+            .destination_chain_setup
             .build_ism(ism_address, &self.metrics)
             .await
             .context(CTX)?;
@@ -104,7 +105,7 @@ impl MetadataBuilder for BaseMetadataBuilder {
 
 impl BaseMetadataBuilder {
     pub fn domain(&self) -> &HyperlaneDomain {
-        &self.chain_setup.domain
+        &self.destination_chain_setup.domain
     }
 
     pub fn clone_with_incremented_depth(&self) -> Result<BaseMetadataBuilder> {
@@ -123,7 +124,7 @@ impl BaseMetadataBuilder {
         checkpoint: MultisigSignedCheckpoint,
     ) -> Result<Proof> {
         const CTX: &str = "When fetching message proof";
-        self.prover_sync
+        self.origin_prover_sync
             .read()
             .await
             .get_proof(message.nonce, checkpoint.checkpoint.index)
@@ -137,7 +138,7 @@ impl BaseMetadataBuilder {
         message: &HyperlaneMessage,
     ) -> Result<Option<MultisigSignedCheckpoint>> {
         const CTX: &str = "When fetching checkpoint signatures";
-        let highest_known_nonce = self.prover_sync.read().await.count() - 1;
+        let highest_known_nonce = self.origin_prover_sync.read().await.count() - 1;
         let checkpoint_syncer = self
             .build_checkpoint_syncer(validators)
             .await
@@ -149,13 +150,13 @@ impl BaseMetadataBuilder {
     }
 
     pub async fn build_routing_ism(&self, address: H256) -> Result<Box<dyn RoutingIsm>> {
-        self.chain_setup
+        self.destination_chain_setup
             .build_routing_ism(address, &self.metrics)
             .await
     }
 
     pub async fn build_multisig_ism(&self, address: H256) -> Result<Box<dyn MultisigIsm>> {
-        self.chain_setup
+        self.destination_chain_setup
             .build_multisig_ism(address, &self.metrics)
             .await
     }
@@ -165,7 +166,7 @@ impl BaseMetadataBuilder {
         validators: &[H256],
     ) -> Result<MultisigCheckpointSyncer> {
         let storage_locations = self
-            .validator_announce
+            .origin_validator_announce
             .get_announced_storage_locations(validators)
             .await?;
 

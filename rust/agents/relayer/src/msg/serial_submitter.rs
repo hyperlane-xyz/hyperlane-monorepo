@@ -1,45 +1,46 @@
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use derive_new::new;
-use eyre::{bail, Context, Result};
+use eyre::{bail, Result};
+use futures_util::future::try_join_all;
 use prometheus::{IntCounter, IntGauge};
-use tokio::sync::mpsc::{self, error::TryRecvError};
+use tokio::spawn;
+use tokio::sync::{
+    mpsc::{self},
+    Mutex,
+};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
-use tracing::{debug, error, info, info_span, instrument, instrument::Instrumented, Instrument};
+use tracing::{debug, info_span, instrument, instrument::Instrumented, trace, Instrument};
 
-use hyperlane_base::{db::HyperlaneDB, CachingMailbox, CoreMetrics};
-use hyperlane_core::{HyperlaneChain, HyperlaneDomain, Mailbox, U256};
+use hyperlane_base::CoreMetrics;
+use hyperlane_core::HyperlaneDomain;
 
-use crate::msg::PendingMessage;
+use super::pending_operation::*;
 
-use super::{
-    gas_payment::GasPaymentEnforcer, metadata::BaseMetadataBuilder, metadata::MetadataBuilder,
-};
+type OpQueue = Arc<Mutex<BinaryHeap<Reverse<Box<DynPendingOperation>>>>>;
 
-/// SerialSubmitter accepts undelivered messages over a channel from a
-/// MessageProcessor. It is responsible for executing the right strategy to
-/// deliver those messages to the destination chain. It is designed to be used
-/// in a scenario allowing only one simultaneously in-flight submission, a
-/// consequence imposed by strictly ordered nonces at the target chain combined
-/// with a hesitancy to speculatively batch > 1 messages with a sequence of
-/// nonces, which entails harder to manage error recovery, could lead to head of
-/// line blocking, etc.
+/// SerialSubmitter accepts operations over a channel. It is responsible for
+/// executing the right strategy to deliver those messages to the destination
+/// chain. It is designed to be used in a scenario allowing only one
+/// simultaneously in-flight submission, a consequence imposed by strictly
+/// ordered nonces at the target chain combined with a hesitancy to
+/// speculatively batch > 1 messages with a sequence of nonces, which entails
+/// harder to manage error recovery, could lead to head of line blocking, etc.
 ///
 /// The single transaction execution slot is (likely) a bottlenecked resource
 /// under steady state traffic, so the SerialSubmitter implemented in this file
-/// carefully schedules work items (pending messages) onto the constrained
+/// carefully schedules work items onto the constrained
 /// resource (transaction execution slot) according to a policy that
-/// incorporates both user-visible metrics (like distribution of message
-/// delivery latency and delivery order), as well as message delivery
-/// eligibility (e.g. due to (non-)existence of source chain gas payments).
+/// incorporates both user-visible metrics and message operation readiness
+/// checks.
 ///
-/// Messages which failed delivery due to a retriable error are also retained
-/// within the SerialSubmitter, and will eventually be retried according to our
-/// prioritization rule.
+/// Operations which failed processing due to a retriable error are also
+/// retained within the SerialSubmitter, and will eventually be retried
+/// according to our prioritization rule.
 ///
 /// Finally, the SerialSubmitter ensures that message delivery is robust to
 /// destination chain reorgs prior to committing delivery status to
@@ -54,329 +55,269 @@ use super::{
 /// 1. Progress for well-behaved applications should not be inhibited by
 /// delivery of messages for which we have evidence of possible issues
 /// (i.e., that we have already tried and failed to deliver them, and have
-/// retained them for retry). So we should attempt delivery of fresh
-/// messages (num_retries=0) before ones that have been failing for a
+/// retained them for retry). So we should attempt processing operations
+/// (num_retries=0) before ones that have been failing for a
 /// while (num_retries>0)
 ///
-/// 2. Messages should be delivered in-order, i.e. if msg_a was sent on source
-/// chain prior to msg_b, and they're both destined for the same destination
-/// chain and are otherwise eligible, we should try to deliver msg_a before
-/// msg_b, all else equal. This is because we expect applications may prefer
-/// this even if they do not strictly rely on it for correctness.
+/// 2. Operations should be executed in in-order, i.e. if op_a was sent on
+/// source chain prior to op_b, and they're both destined for the same
+/// destination chain and are otherwise eligible, we should try to deliver op_a
+/// before op_b, all else equal. This is because we expect applications may
+/// prefer this even if they do not strictly rely on it for correctness.
 ///
 /// 3. Be [work-conserving](https://en.wikipedia.org/wiki/Work-conserving_scheduler) w.r.t.
 /// the single execution slot, i.e. so long as there is at least one message
 /// eligible for submission, we should be working on it within reason. This
 /// must be balanced with the cost of making RPCs that will almost certainly
 /// fail and potentially block new messages from being sent immediately.
-///
-/// TODO: Do we also want to await finality_blocks on source chain before
-///  attempting submission? Does this already happen?
 #[derive(Debug, new)]
-pub(crate) struct SerialSubmitter {
+pub struct SerialSubmitter {
+    /// Domain this submitter delivers to.
+    domain: HyperlaneDomain,
     /// Receiver for new messages to submit.
-    rx: mpsc::UnboundedReceiver<PendingMessage>,
-    /// Messages waiting for their turn to be dispatched. The SerialSubmitter
-    /// can only dispatch one message at a time, so this queue could grow.
-    #[new(default)]
-    run_queue: BinaryHeap<Reverse<PendingMessage>>,
-    /// Mailbox on the destination chain.
-    mailbox: CachingMailbox,
-    /// Used to construct the ISM metadata needed to verify a message.
-    metadata_builder: BaseMetadataBuilder,
-    /// Interface to agent rocks DB for e.g. writing delivery status upon
-    /// completion.
-    db: HyperlaneDB,
+    rx: mpsc::UnboundedReceiver<Box<DynPendingOperation>>,
     /// Metrics for serial submitter.
     metrics: SerialSubmitterMetrics,
-    /// Used to determine if messages have made sufficient gas payments.
-    gas_payment_enforcer: Arc<GasPaymentEnforcer>,
-    /// Hard limit on transaction gas when submitting a transaction.
-    transaction_gas_limit: Option<U256>,
 }
 
 impl SerialSubmitter {
-    pub fn spawn(mut self) -> Instrumented<JoinHandle<Result<()>>> {
-        tokio::spawn(async move { self.work_loop().await })
-            .instrument(info_span!("serial submitter work loop"))
+    pub fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
+        let span = info_span!("SerialSubmitter", destination=%self.domain);
+        spawn(async move { self.run().await }).instrument(span)
     }
 
-    #[instrument(skip_all, fields(mbx=%self.mailbox.domain()))]
-    async fn work_loop(&mut self) -> Result<()> {
-        loop {
-            self.tick().await?;
-            sleep(Duration::from_millis(200)).await;
+    async fn run(self) -> Result<()> {
+        let Self {
+            domain,
+            metrics,
+            rx: rx_prepare,
+        } = self;
+        let prepare_queue: OpQueue = Default::default();
+        let confirm_queue: OpQueue = Default::default();
+
+        // This is a channel because we want to only have a small number of messages
+        // sitting ready to go at a time and this acts as a synchronization tool
+        // to slow down the preparation of messages when the submitter gets
+        // behind.
+        let (tx_submit, rx_submit) = mpsc::channel(1);
+
+        let tasks = [
+            spawn(receive_task(
+                domain.clone(),
+                rx_prepare,
+                prepare_queue.clone(),
+            )),
+            spawn(prepare_task(
+                domain.clone(),
+                prepare_queue.clone(),
+                tx_submit,
+                metrics.clone(),
+            )),
+            spawn(submit_task(
+                domain.clone(),
+                rx_submit,
+                prepare_queue.clone(),
+                confirm_queue.clone(),
+                metrics.clone(),
+            )),
+            spawn(confirm_task(
+                domain.clone(),
+                prepare_queue,
+                confirm_queue,
+                metrics,
+            )),
+        ];
+
+        for i in try_join_all(tasks).await? {
+            i?
         }
-    }
-
-    /// Tick represents a single round of scheduling wherein we will process
-    /// each queue and await at most one message submission. It is extracted
-    /// from the main loop to allow for testing the state of the scheduler
-    /// at particular points without having to worry about concurrent
-    /// access.
-    async fn tick(&mut self) -> Result<()> {
-        // Pull any messages sent by processor over channel.
-        loop {
-            match self.rx.try_recv() {
-                Ok(msg) => {
-                    self.run_queue.push(Reverse(msg));
-                }
-                Err(TryRecvError::Empty) => {
-                    break;
-                }
-                Err(_) => {
-                    bail!("Disconnected rcvq or fatal err");
-                }
-            }
-        }
-
-        // TODO: Scan verification queue, dropping messages that have been
-        // confirmed processed by the mailbox indexer observing it. For any
-        // still-unverified messages that have been in the verification queue
-        // for > threshold_time, move them back to the wait queue for further
-        // processing.
-
-        self.metrics
-            .run_queue_length_gauge
-            .set(self.run_queue.len() as i64);
-
-        // check if the next message is going to be processable
-        if let Some(Reverse(PendingMessage {
-            next_attempt_after: Some(retry_after),
-            ..
-        })) = self.run_queue.peek()
-        {
-            if Instant::now() < *retry_after {
-                return Ok(());
-            }
-        }
-
-        // Pick the next message to try processing.
-        let mut msg = match self.run_queue.pop() {
-            Some(m) => m.0,
-            None => return Ok(()),
-        };
-
-        match self.process_message(&msg).await {
-            Ok(true) => {
-                info!(msg=%msg.message, "Message processed");
-                self.record_message_process_success(&msg)?;
-                return Ok(());
-            }
-            Ok(false) => {
-                info!(msg=%msg.message, "Message not processed");
-            }
-            // We expect this branch to be hit when there is unexpected behavior -
-            // defined behavior like gas estimation failing will not hit this branch.
-            Err(error) => {
-                error!(msg=%msg.message, ?error, "Error occurred when attempting to process message");
-            }
-        }
-
-        // The message was not processed, so increment the # of retries and add
-        // it back to the run_queue so it will be processed again at some point.
-        msg.num_retries += 1;
-        msg.last_attempted_at = Instant::now();
-        msg.next_attempt_after =
-            Self::calculate_msg_backoff(msg.num_retries).map(|dur| msg.last_attempted_at + dur);
-        self.run_queue.push(Reverse(msg));
-
         Ok(())
-    }
-
-    /// Returns the message's status. If the message is processed, either by a
-    /// transaction in this fn or by a view call to the Mailbox contract
-    /// discovering the message has already been processed, Ok(true) is
-    /// returned. If this message is unable to be processed, either due to
-    /// failed gas estimation or an insufficient gas payment, Ok(false) is
-    /// returned.
-    #[instrument(skip(self))]
-    async fn process_message(&self, msg: &PendingMessage) -> Result<bool> {
-        // If the message has already been processed, e.g. due to another relayer having
-        // already processed, then mark it as already-processed, and move on to
-        // the next tick.
-        //
-        // TODO(webbhorn): Make this robust to re-orgs on mailbox.
-        if self.mailbox.delivered(msg.message.id()).await? {
-            debug!("Message already processed");
-            return Ok(true);
-        }
-
-        // The Mailbox's `recipientIsm` function will revert if
-        // the recipient is not a contract. This can pose issues with
-        // our use of the RetryingProvider, which will continuously retry
-        // the eth_call to the `recipientIsm` function.
-        // As a workaround, we avoid the call entirely if the recipient is
-        // not a contract.
-        const CTX: &str = "When fetching ISM";
-        let provider = self.mailbox.provider();
-        if !provider
-            .is_contract(&msg.message.recipient)
-            .await
-            .context(CTX)?
-        {
-            info!(
-                recipient=?msg.message.recipient,
-                "Could not fetch metadata: Recipient is not a contract"
-            );
-            return Ok(false);
-        }
-
-        let ism_address = self
-            .mailbox
-            .recipient_ism(msg.message.recipient)
-            .await
-            .context(CTX)?;
-
-        let Some(metadata) = self.metadata_builder
-            .build(ism_address, &msg.message)
-            .await?
-        else {
-            info!("Could not fetch metadata");
-            return Ok(false)
-        };
-
-        // Estimate transaction costs for the process call. If there are issues, it's
-        // likely that gas estimation has failed because the message is
-        // reverting. This is defined behavior, so we just log the error and
-        // move onto the next tick.
-        let tx_cost_estimate = match self
-            .mailbox
-            .process_estimate_costs(&msg.message, &metadata)
-            .await
-        {
-            Ok(tx_cost_estimate) => tx_cost_estimate,
-            Err(error) => {
-                info!(?error, "Error estimating process costs");
-                return Ok(false);
-            }
-        };
-
-        // If the gas payment requirement hasn't been met, move to the next tick.
-        let Some(gas_limit) = self
-            .gas_payment_enforcer
-            .message_meets_gas_payment_requirement(&msg.message, &tx_cost_estimate)
-            .await?
-        else {
-            info!(?tx_cost_estimate, "Gas payment requirement not met yet");
-            return Ok(false);
-        };
-
-        // Go ahead and attempt processing of message to destination chain.
-        debug!(?gas_limit, "Ready to process message");
-
-        // TODO: consider differentiating types of processing errors, and pushing to the
-        //  front of the run queue for intermittent types of errors that can
-        //  occur even if a message's processing isn't reverting, e.g. timeouts
-        //  or txs being dropped from the mempool. To avoid consistently retrying
-        //  only these messages, the number of retries could be considered.
-
-        let gas_limit = tx_cost_estimate.gas_limit;
-
-        if let Some(max_limit) = self.transaction_gas_limit {
-            if gas_limit > max_limit {
-                info!("Message delivery estimated gas exceeds max gas limit");
-                return Ok(false);
-            }
-        }
-
-        // We use the estimated gas limit from the prior call to
-        // `process_estimate_costs` to avoid a second gas estimation.
-        let outcome = self
-            .mailbox
-            .process(&msg.message, &metadata, Some(gas_limit))
-            .await?;
-
-        // TODO(trevor): Instead of immediately marking as processed, move to a
-        //  verification queue, which will wait for finality and indexing by the
-        //  mailbox indexer and then mark as processed (or eventually retry if
-        //  no confirmation is ever seen).
-
-        self.gas_payment_enforcer
-            .record_tx_outcome(&msg.message, outcome)?;
-        if outcome.executed {
-            info!(
-                hash=?outcome.txid,
-                rq_sz=?self.run_queue.len(),
-                "Message successfully processed by transaction"
-            );
-            Ok(true)
-        } else {
-            info!(
-                hash=?outcome.txid,
-                "Transaction attempting to process transaction reverted"
-            );
-            Ok(false)
-        }
-    }
-
-    /// Record in HyperlaneDB and various metrics that this process has observed
-    /// the successful processing of a message. An `Ok(())` value returned by
-    /// this function is the 'commit' point in a message's lifetime for
-    /// final processing -- after this function has been seen to
-    /// `return Ok(())`, then without a wiped HyperlaneDB, we will never
-    /// re-attempt processing for this message again, even after the relayer
-    /// restarts.
-    fn record_message_process_success(&mut self, msg: &PendingMessage) -> Result<()> {
-        self.db.mark_nonce_as_processed(msg.message.nonce)?;
-        self.metrics.max_submitted_nonce =
-            std::cmp::max(self.metrics.max_submitted_nonce, msg.message.nonce);
-        self.metrics
-            .processed_gauge
-            .set(self.metrics.max_submitted_nonce as i64);
-        self.metrics.messages_processed_count.inc();
-        Ok(())
-    }
-
-    /// Get duration we should wait before re-attempting to deliver a message
-    /// given the number of retries.
-    fn calculate_msg_backoff(num_retries: u32) -> Option<Duration> {
-        Some(Duration::from_secs(match num_retries {
-            i if i < 1 => return None,
-            // wait 10s for the first few attempts; this prevents thrashing
-            i if (1..12).contains(&i) => 10,
-            // wait 90s to 19.5min with a linear increase
-            i if (12..24).contains(&i) => (i as u64 - 11) * 90,
-            // exponential increase + 30 min; -21 makes it so that at i = 32 it will be
-            // ~60min timeout (64min to be more precise).
-            i => (2u64).pow(i - 21) + 60 * 30,
-        }))
     }
 }
 
-#[derive(Debug)]
-pub(crate) struct SerialSubmitterMetrics {
-    run_queue_length_gauge: IntGauge,
-    processed_gauge: IntGauge,
-    messages_processed_count: IntCounter,
+#[instrument(skip_all)]
+async fn receive_task(
+    domain: HyperlaneDomain,
+    mut rx: mpsc::UnboundedReceiver<Box<DynPendingOperation>>,
+    prepare_queue: OpQueue,
+) -> Result<()> {
+    // Pull any messages sent to this submitter
+    while let Some(op) = rx.recv().await {
+        trace!(?op, "Received new operation");
+        // make sure things are getting wired up correctly; if this works in testing it
+        // should also be valid in production.
+        debug_assert_eq!(*op.domain(), domain);
+        prepare_queue.lock().await.push(Reverse(op));
+    }
+    bail!("Submitter receive channel was closed")
+}
 
-    /// Private state used to update actual metrics each tick.
-    max_submitted_nonce: u32,
+#[instrument(skip_all)]
+async fn prepare_task(
+    domain: HyperlaneDomain,
+    prepare_queue: OpQueue,
+    tx_submit: mpsc::Sender<Box<DynPendingOperation>>,
+    metrics: SerialSubmitterMetrics,
+) -> Result<()> {
+    loop {
+        // Pick the next message to try preparing.
+        let next = {
+            let mut queue = prepare_queue.lock().await;
+            metrics.prepare_queue_length.set(queue.len() as i64);
+            queue.pop()
+        };
+        let Some(Reverse(mut op)) = next else {
+            // queue is empty so give some time before checking again to prevent burning CPU
+            sleep(Duration::from_millis(200)).await;
+            continue;
+        };
+        trace!(?op, "Preparing operation");
+        debug_assert_eq!(*op.domain(), domain);
+
+        match op.prepare().await {
+            PendingOperationResult::Success => {
+                debug!(?op, "Operation prepared");
+                metrics.ops_prepared.inc();
+                // this send will pause this task if the submitter is not ready to accept yet
+                tx_submit.send(op).await?;
+            }
+            PendingOperationResult::NotReady => {
+                // none of the operations are ready yet, so wait for a little bit
+                prepare_queue.lock().await.push(Reverse(op));
+                sleep(Duration::from_millis(200)).await;
+            }
+            PendingOperationResult::Reprepare => {
+                metrics.ops_failed.inc();
+                prepare_queue.lock().await.push(Reverse(op));
+            }
+            PendingOperationResult::Drop => {
+                metrics.ops_dropped.inc();
+            }
+            PendingOperationResult::CriticalFailure(e) => {
+                return Err(e);
+            }
+        }
+    }
+}
+
+#[instrument(skip_all)]
+async fn submit_task(
+    domain: HyperlaneDomain,
+    mut rx_submit: mpsc::Receiver<Box<DynPendingOperation>>,
+    prepare_queue: OpQueue,
+    confirm_queue: OpQueue,
+    metrics: SerialSubmitterMetrics,
+) -> Result<()> {
+    while let Some(mut op) = rx_submit.recv().await {
+        trace!(?op, "Submitting operation");
+        debug_assert_eq!(*op.domain(), domain);
+
+        match op.submit().await {
+            PendingOperationResult::Success => {
+                debug!(?op, "Operation submitted");
+                metrics.ops_submitted.inc();
+                confirm_queue.lock().await.push(Reverse(op));
+            }
+            PendingOperationResult::NotReady => {
+                panic!("Pending operation was prepared and therefore must be ready")
+            }
+            PendingOperationResult::Reprepare => {
+                metrics.ops_failed.inc();
+                prepare_queue.lock().await.push(Reverse(op));
+            }
+            PendingOperationResult::Drop => {
+                metrics.ops_dropped.inc();
+            }
+            PendingOperationResult::CriticalFailure(e) => return Err(e),
+        }
+    }
+    bail!("Internal submitter channel was closed");
+}
+
+#[instrument(skip_all)]
+async fn confirm_task(
+    domain: HyperlaneDomain,
+    prepare_queue: OpQueue,
+    confirm_queue: OpQueue,
+    metrics: SerialSubmitterMetrics,
+) -> Result<()> {
+    loop {
+        // Pick the next message to try confirming.
+        let next = {
+            let mut queue = confirm_queue.lock().await;
+            metrics.confirm_queue_length.set(queue.len() as i64);
+            queue.pop()
+        };
+        let Some(Reverse(mut op)) = next else {
+            sleep(Duration::from_secs(5)).await;
+            continue;
+        };
+        trace!(?op, "Confirming operation");
+        debug_assert_eq!(*op.domain(), domain);
+
+        match op.confirm().await {
+            PendingOperationResult::Success => {
+                debug!(?op, "Operation confirmed");
+                metrics.ops_confirmed.inc();
+            }
+            PendingOperationResult::NotReady => {
+                // none of the operations are ready yet, so wait for a little bit
+                confirm_queue.lock().await.push(Reverse(op));
+                sleep(Duration::from_secs(5)).await;
+            }
+            PendingOperationResult::Reprepare => {
+                metrics.ops_reorged.inc();
+                prepare_queue.lock().await.push(Reverse(op));
+            }
+            PendingOperationResult::Drop => {
+                metrics.ops_dropped.inc();
+            }
+            PendingOperationResult::CriticalFailure(e) => return Err(e),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SerialSubmitterMetrics {
+    prepare_queue_length: IntGauge,
+    confirm_queue_length: IntGauge,
+
+    ops_prepared: IntCounter,
+    ops_submitted: IntCounter,
+    ops_confirmed: IntCounter,
+    ops_reorged: IntCounter,
+    ops_failed: IntCounter,
+    ops_dropped: IntCounter,
 }
 
 impl SerialSubmitterMetrics {
-    pub fn new(
-        metrics: &CoreMetrics,
-        origin: &HyperlaneDomain,
-        destination: &HyperlaneDomain,
-    ) -> Self {
-        let origin = origin.name();
+    pub fn new(metrics: &CoreMetrics, destination: &HyperlaneDomain) -> Self {
         let destination = destination.name();
         Self {
-            run_queue_length_gauge: metrics.submitter_queue_length().with_label_values(&[
-                origin,
-                destination,
-                "run_queue",
-            ]),
-            messages_processed_count: metrics
-                .messages_processed_count()
-                .with_label_values(&[origin, destination]),
-            processed_gauge: metrics.last_known_message_nonce().with_label_values(&[
-                "message_processed",
-                origin,
-                destination,
-            ]),
-            max_submitted_nonce: 0,
+            prepare_queue_length: metrics
+                .submitter_queue_length()
+                .with_label_values(&[destination, "prepare_queue"]),
+            confirm_queue_length: metrics
+                .submitter_queue_length()
+                .with_label_values(&[destination, "confirm_queue"]),
+            ops_prepared: metrics
+                .operations_processed_count()
+                .with_label_values(&["prepared", destination]),
+            ops_submitted: metrics
+                .operations_processed_count()
+                .with_label_values(&["submitted", destination]),
+            ops_confirmed: metrics
+                .operations_processed_count()
+                .with_label_values(&["confirmed", destination]),
+            ops_reorged: metrics
+                .operations_processed_count()
+                .with_label_values(&["reorged", destination]),
+            ops_failed: metrics
+                .operations_processed_count()
+                .with_label_values(&["failed", destination]),
+            ops_dropped: metrics
+                .operations_processed_count()
+                .with_label_values(&["dropped", destination]),
         }
     }
 }

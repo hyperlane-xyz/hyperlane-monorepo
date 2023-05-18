@@ -41,6 +41,7 @@ pub struct CoreMetrics {
     validator_checkpoint_index: IntGaugeVec,
     submitter_queue_length: IntGaugeVec,
 
+    operations_processed_count: IntCounterVec,
     messages_processed_count: IntCounterVec,
 
     latest_checkpoint: IntGaugeVec,
@@ -125,7 +126,7 @@ impl CoreMetrics {
                 "Submitter queue length",
                 const_labels_ref
             ),
-            &["origin", "remote", "queue_name"],
+            &["remote", "queue_name"],
             registry
         )?;
 
@@ -133,6 +134,16 @@ impl CoreMetrics {
             opts!(
                 namespaced!("latest_checkpoint"),
                 "Mailbox latest checkpoint",
+                const_labels_ref
+            ),
+            &["phase", "chain"],
+            registry
+        )?;
+
+        let operations_processed_count = register_int_counter_vec_with_registry!(
+            opts!(
+                namespaced!("operations_processed_count"),
+                "Number of operations processed",
                 const_labels_ref
             ),
             &["phase", "chain"],
@@ -163,6 +174,7 @@ impl CoreMetrics {
 
             submitter_queue_length,
 
+            operations_processed_count,
             messages_processed_count,
 
             latest_checkpoint,
@@ -308,11 +320,37 @@ impl CoreMetrics {
     /// Measure of the queue lengths in Submitter instances
     ///
     /// Labels:
-    /// - `origin`: Origin chain the queue is for.
     /// - `remote`: Remote chain the queue is for.
     /// - `queue_name`: Which queue the message is in.
     pub fn submitter_queue_length(&self) -> IntGaugeVec {
         self.submitter_queue_length.clone()
+    }
+
+    /// The number of operations successfully submitted by this process during
+    /// its lifetime.
+    ///
+    /// Tracks the number of operations to go through each stage.
+    ///
+    /// Labels:
+    /// - `phase`: Phase of the operation submission process.
+    /// - `chain`: Chain the operation was submitted to.
+    ///
+    /// The following phases have been implemented:
+    /// - `prepared`: When the operation has been prepared for submission. This
+    ///   is a pipelining step that happens before submission and may need to be
+    ///   re-done.
+    /// - `submitted`: When the operation has been submitted to the chain but is
+    ///   not yet certain to be included after a re-org.
+    /// - `confirmed`: When the operation has been confirmed to have made it
+    ///   into the chain after the reorg window has passed.
+    /// - `reorged`: When the operation was not included and needs to be
+    ///   reprocessed.
+    /// - `failed`: When some part of the pipeline failed. The operation may
+    ///   still be retried later.
+    /// - `dropped`: When the operation was dropped from the pipeline. This may
+    ///   or may not be because of an error.
+    pub fn operations_processed_count(&self) -> IntCounterVec {
+        self.operations_processed_count.clone()
     }
 
     /// The number of messages successfully submitted by this process during its
