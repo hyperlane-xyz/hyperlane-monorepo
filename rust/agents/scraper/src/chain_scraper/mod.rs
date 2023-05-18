@@ -11,8 +11,8 @@ use tracing::trace;
 
 use hyperlane_base::chains::IndexSettings;
 use hyperlane_core::{
-    BlockInfo, HyperlaneLogStore, HyperlaneDomain, HyperlaneWatermarkedLogStore, HyperlaneMessage,
-    HyperlaneProvider, InterchainGasPayment, LogMeta, H256, HyperlaneMessageStore,
+    BlockInfo, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage, HyperlaneMessageStore,
+    HyperlaneProvider, HyperlaneWatermarkedLogStore, InterchainGasPayment, LogMeta, H256,
 };
 
 use crate::db::StorablePayment;
@@ -331,23 +331,19 @@ impl HyperlaneMessageStore for HyperlaneSqlDb {
     /// Retrieves the block number at which the message with the provided nonce
     /// was dispatched.
     async fn retrieve_dispatched_block_number(&self, nonce: u32) -> Result<Option<u64>> {
-        let tx_id = self
-            .db
-            .retrieve_dispatched_tx_id(self.domain().id(), &self.mailbox_address, nonce)
-            .await?;
-        match tx_id {
-            Some(tx_id) => {
-                let block_id = self.db.retrieve_block_id(tx_id).await?;
-                match block_id {
-                    Some(block_id) => {
-                        let block_number = self.db.retrieve_block_number(block_id).await?;
-                        Ok(block_number)
-                    }
-                    None => Ok(None),
-                }
-            }
-            None => Ok(None),
-        }
+        let Some(tx_id) = self
+        .db
+        .retrieve_dispatched_tx_id(self.domain().id(), &self.mailbox_address, nonce)
+        .await?
+    else {
+        return Ok(None);
+    };
+
+        let Some(block_id) = self.db.retrieve_block_id(tx_id).await? else {
+        return Ok(None);
+    };
+
+        Ok(self.db.retrieve_block_number(block_id).await?)
     }
 }
 

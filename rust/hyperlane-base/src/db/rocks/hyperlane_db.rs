@@ -7,8 +7,9 @@ use tokio::time::sleep;
 use tracing::{debug, trace};
 
 use hyperlane_core::{
-    HyperlaneLogStore, HyperlaneDomain, HyperlaneWatermarkedLogStore, HyperlaneMessage, HyperlaneMessageStore,
-    InterchainGasExpenditure, InterchainGasPayment, InterchainGasPaymentMeta, LogMeta, H256, U256,
+    HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage, HyperlaneMessageStore,
+    HyperlaneWatermarkedLogStore, InterchainGasExpenditure, InterchainGasPayment,
+    InterchainGasPaymentMeta, LogMeta, H256, U256,
 };
 
 use super::{

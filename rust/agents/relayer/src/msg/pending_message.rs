@@ -32,7 +32,7 @@ pub struct MessageContext {
     /// Mailbox on the destination chain.
     pub destination_mailbox: Arc<dyn Mailbox>,
     /// Origin chain database to verify gas payments.
-    pub origin_db: Arc<HyperlaneRocksDB>,
+    pub origin_db: HyperlaneRocksDB,
     /// Used to construct the ISM metadata needed to verify a message from the
     /// origin.
     pub metadata_builder: BaseMetadataBuilder,

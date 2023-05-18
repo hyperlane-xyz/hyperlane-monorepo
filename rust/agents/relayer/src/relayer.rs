@@ -55,7 +55,7 @@ pub struct Relayer {
     /// sent between
     msg_ctxs: HashMap<ContextKey, Arc<MessageContext>>,
     prover_syncs: HashMap<HyperlaneDomain, Arc<RwLock<MerkleTreeBuilder>>>,
-    dbs: HashMap<HyperlaneDomain, Arc<HyperlaneRocksDB>>,
+    dbs: HashMap<HyperlaneDomain, HyperlaneRocksDB>,
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,
     transaction_gas_limit: Option<U256>,
@@ -101,12 +101,7 @@ impl BaseAgent for Relayer {
         let dbs = settings
             .origin_chains
             .iter()
-            .map(|origin| {
-                (
-                    origin.clone(),
-                    Arc::new(HyperlaneRocksDB::new(origin, db.clone())),
-                )
-            })
+            .map(|origin| (origin.clone(), HyperlaneRocksDB::new(origin, db.clone())))
             .collect::<HashMap<_, _>>();
 
         let mailboxes = settings
@@ -124,7 +119,7 @@ impl BaseAgent for Relayer {
                 &metrics,
                 &contract_sync_metrics,
                 dbs.iter()
-                    .map(|(d, db)| (d.clone(), db.clone() as _))
+                    .map(|(d, db)| (d.clone(), Arc::new(db.clone()) as _))
                     .collect(),
             )
             .await?;
@@ -134,7 +129,7 @@ impl BaseAgent for Relayer {
                 &metrics,
                 &contract_sync_metrics,
                 dbs.iter()
-                    .map(|(d, db)| (d.clone(), db.clone() as _))
+                    .map(|(d, db)| (d.clone(), Arc::new(db.clone()) as _))
                     .collect(),
             )
             .await?;

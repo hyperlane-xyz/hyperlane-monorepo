@@ -22,7 +22,7 @@ use super::pending_message::*;
 /// for to the appropriate destination.
 #[derive(new)]
 pub struct MessageProcessor {
-    db: Arc<HyperlaneRocksDB>,
+    db: HyperlaneRocksDB,
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,
     metrics: MessageProcessorMetrics,

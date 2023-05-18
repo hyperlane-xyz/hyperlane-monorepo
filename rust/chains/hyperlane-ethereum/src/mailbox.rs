@@ -149,12 +149,7 @@ where
 {
     #[instrument(err, skip(self))]
     async fn fetch_count_at_tip(&self) -> ChainResult<(u32, u32)> {
-        let tip =
-            <EthereumMailboxIndexer<M> as Indexer<HyperlaneMessage>>::get_finalized_block_number::<
-                '_,
-                '_,
-            >(self)
-            .await?;
+        let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self as _).await?;
         let base_call = self.contract.count();
         let call_at_tip = base_call.block(u64::from(tip));
         let count = call_at_tip.call().await?;

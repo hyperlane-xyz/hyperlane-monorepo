@@ -7,9 +7,9 @@ use futures_util::future::try_join_all;
 use serde::Deserialize;
 
 use hyperlane_core::{
-    config::*, HyperlaneChain, HyperlaneDomain, HyperlaneWatermarkedLogStore, HyperlaneMessageStore,
-    HyperlaneProvider, InterchainGasPaymaster, InterchainGasPayment, Mailbox, MultisigIsm,
-    ValidatorAnnounce, H256,
+    config::*, HyperlaneChain, HyperlaneDomain, HyperlaneMessageStore, HyperlaneProvider,
+    HyperlaneWatermarkedLogStore, InterchainGasPaymaster, InterchainGasPayment, Mailbox,
+    MultisigIsm, ValidatorAnnounce, H256,
 };
 
 use crate::{

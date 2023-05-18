@@ -1,5 +1,4 @@
 use std::fmt::Debug;
-use std::sync::Arc;
 
 use async_trait::async_trait;
 use eyre::Result;
@@ -41,13 +40,13 @@ pub struct GasPaymentEnforcer {
     /// policy or another. If a message matches multiple policies'
     /// whitelists, then whichever is first in the list will be used.
     policies: Vec<(Box<dyn GasPaymentPolicy>, MatchingList)>,
-    db: Arc<HyperlaneRocksDB>,
+    db: HyperlaneRocksDB,
 }
 
 impl GasPaymentEnforcer {
     pub fn new(
         policy_configs: impl IntoIterator<Item = GasPaymentEnforcementConf>,
-        db: Arc<HyperlaneRocksDB>,
+        db: HyperlaneRocksDB,
     ) -> Self {
         let policies = policy_configs
             .into_iter()
@@ -135,7 +134,7 @@ impl GasPaymentEnforcer {
 
 #[cfg(test)]
 mod test {
-    use std::{str::FromStr, sync::Arc};
+    use std::str::FromStr;
 
     use hyperlane_base::db::{test_utils, HyperlaneRocksDB};
     use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, TxCostEstimate, H160, H256, U256};
@@ -149,10 +148,10 @@ mod test {
     #[tokio::test]
     async fn test_empty_whitelist() {
         test_utils::run_test_db(|db| async move {
-            let hyperlane_db = Arc::new(HyperlaneRocksDB::new(
+            let hyperlane_db = HyperlaneRocksDB::new(
                 &HyperlaneDomain::new_test_domain("test_empty_whitelist"),
                 db,
-            ));
+            );
 
             let enforcer = GasPaymentEnforcer::new(
                 // Require a payment
@@ -185,10 +184,8 @@ mod test {
     async fn test_no_match() {
         #[allow(unused_must_use)]
         test_utils::run_test_db(|db| async move {
-            let hyperlane_db = Arc::new(HyperlaneRocksDB::new(
-                &HyperlaneDomain::new_test_domain("test_no_match"),
-                db,
-            ));
+            let hyperlane_db =
+                HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("test_no_match"), db);
             let matching_list = serde_json::from_str(r#"[{"originDomain": 234}]"#).unwrap();
             let enforcer = GasPaymentEnforcer::new(
                 // Require a payment
@@ -215,7 +212,7 @@ mod test {
     #[tokio::test]
     async fn test_non_empty_matching_list() {
         test_utils::run_test_db(|db| async move {
-            let hyperlane_db = Arc::new(HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("test_non_empty_matching_list"), db));
+            let hyperlane_db = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("test_non_empty_matching_list"), db);
 
             let sender_address = "0xaa000000000000000000000000000000000000aa";
             let recipient_address = "0xbb000000000000000000000000000000000000bb";

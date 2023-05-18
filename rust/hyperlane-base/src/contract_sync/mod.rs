@@ -4,8 +4,8 @@ use derive_new::new;
 
 use cursor::*;
 use hyperlane_core::{
-    utils::fmt_sync_time, ContractSyncCursor, HyperlaneLogStore, HyperlaneDomain,
-    HyperlaneWatermarkedLogStore, HyperlaneMessage, HyperlaneMessageStore, Indexer, MessageIndexer,
+    utils::fmt_sync_time, ContractSyncCursor, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
+    HyperlaneMessageStore, HyperlaneWatermarkedLogStore, Indexer, MessageIndexer,
 };
 pub use metrics::ContractSyncMetrics;
 use std::fmt::Debug;

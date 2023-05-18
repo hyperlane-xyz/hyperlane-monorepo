@@ -308,7 +308,12 @@ fn main() -> ExitCode {
     println!("Spawning Kathy to send Hyperlane message traffic...");
     let mut kathy = Command::new("yarn");
     kathy.arg("kathy");
-    kathy.args(["--messages", &kathy_messages.to_string(), "--timeout", "1000"]);
+    kathy.args([
+        "--messages",
+        &kathy_messages.to_string(),
+        "--timeout",
+        "1000",
+    ]);
     let mut kathy = kathy
         .current_dir("../typescript/infra")
         .stdout(Stdio::piped())
@@ -357,7 +362,12 @@ fn main() -> ExitCode {
     println!("Spawning Kathy to send Hyperlane message traffic...");
     let mut kathy = Command::new("yarn");
     kathy.arg("kathy");
-    kathy.args(["--messages", &kathy_messages.to_string(), "--timeout", "1000"]);
+    kathy.args([
+        "--messages",
+        &kathy_messages.to_string(),
+        "--timeout",
+        "1000",
+    ]);
     let mut kathy = kathy
         .current_dir("../typescript/infra")
         .stdout(Stdio::piped())

@@ -18,9 +18,7 @@ pub trait HyperlaneLogStore<T>: Send + Sync + Debug {
 /// Extension of HyperlaneLogStore trait that supports getting the block number at which a known message was dispatched.
 #[async_trait]
 #[auto_impl(&, Box, Arc)]
-pub trait HyperlaneMessageStore:
-    HyperlaneLogStore<HyperlaneMessage>
-{
+pub trait HyperlaneMessageStore: HyperlaneLogStore<HyperlaneMessage> {
     /// Gets the block number at which a known message was dispatched.
     async fn retrieve_dispatched_block_number(&self, nonce: u32) -> Result<Option<u64>>;
 }
@@ -28,7 +26,7 @@ pub trait HyperlaneMessageStore:
 /// Extension of HyperlaneLogStore trait that supports a high watermark for the highest indexed block number.
 #[async_trait]
 #[auto_impl(&, Box, Arc)]
-pub trait HyperlaneWatermarkedLogStore<T>: HyperlaneLogStore<T>{
+pub trait HyperlaneWatermarkedLogStore<T>: HyperlaneLogStore<T> {
     /// Gets the block number high watermark
     async fn retrieve_high_watermark(&self) -> Result<Option<u32>>;
     /// Stores the block number high watermark

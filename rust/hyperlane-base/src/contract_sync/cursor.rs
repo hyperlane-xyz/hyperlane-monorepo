@@ -1,6 +1,6 @@
+use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::{
-    cmp::Ordering,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -12,8 +12,8 @@ use tokio::time::sleep;
 use tracing::warn;
 
 use hyperlane_core::{
-    ChainResult, ContractSyncCursor, HyperlaneWatermarkedLogStore, HyperlaneMessage,
-    HyperlaneMessageStore, Indexer, LogMeta, MessageIndexer,
+    ChainResult, ContractSyncCursor, HyperlaneMessage, HyperlaneMessageStore,
+    HyperlaneWatermarkedLogStore, Indexer, LogMeta, MessageIndexer,
 };
 
 use crate::contract_sync::eta_calculator::SyncerEtaCalculator;
@@ -86,7 +86,6 @@ impl ForwardMessageSyncCursor {
 
         let (mailbox_count, tip) = self.0.indexer.fetch_count_at_tip().await?;
         let cursor_count = self.0.next_nonce;
-
         let cmp = cursor_count.cmp(&mailbox_count);
         match cmp {
             Ordering::Equal => {
@@ -114,16 +113,12 @@ impl ForwardMessageSyncCursor {
 impl ContractSyncCursor<HyperlaneMessage> for ForwardMessageSyncCursor {
     async fn next_range(&mut self) -> ChainResult<(u32, u32, Duration)> {
         loop {
-            let range = self.get_next_range().await?;
-            match range {
-                Some(range) => {
-                    return Ok(range);
-                }
-                None => {
-                    // TODO: Define the sleep time from interval flag
-                    sleep(Duration::from_secs(5)).await;
-                }
+            if let Some(range) = self.get_next_range().await? {
+                return Ok(range);
             }
+
+            // TODO: Define the sleep time from interval flag
+            sleep(Duration::from_secs(5)).await;
         }
     }
 
@@ -148,32 +143,27 @@ impl BackwardMessageSyncCursor {
         // Check if any new messages have been inserted into the DB,
         // and update the cursor accordingly.
         while !self.synced {
-            if let Some(block_number) = self
-                .cursor
-                .retrieve_dispatched_block_number(self.cursor.next_nonce)
-                .await
-            {
-                self.cursor.next_block = block_number;
-                // If we found nonce zero, we are done rewinding.
-                if self.cursor.next_nonce == 0 {
-                    self.synced = true;
-                    break;
-                }
-                self.cursor.next_nonce = self.cursor.next_nonce.saturating_sub(1);
-            } else {
-                break;
+            let Some(block_number) = self
+            .cursor
+            .retrieve_dispatched_block_number(self.cursor.next_nonce)
+            .await
+            else { break };
+
+            self.cursor.next_block = block_number;
+            // If we found nonce zero, we are done rewinding.
+            if self.cursor.next_nonce == 0 {
+                self.synced = true;
+                return None;
             }
+            self.cursor.next_nonce = self.cursor.next_nonce.saturating_sub(1);
         }
-        if self.synced {
-            None
-        } else {
-            // Just keep going backwards.
-            let to = self.cursor.next_block;
-            let from = to.saturating_sub(self.cursor.chunk_size);
-            self.cursor.next_block = from.saturating_sub(1);
-            // TODO: Consider returning a proper ETA for the backwards pass
-            Some((from, to, Duration::from_secs(0)))
-        }
+
+        // Just keep going backwards.
+        let to = self.cursor.next_block;
+        let from = to.saturating_sub(self.cursor.chunk_size);
+        self.cursor.next_block = from.saturating_sub(1);
+        // TODO: Consider returning a proper ETA for the backwards pass
+        Some((from, to, Duration::from_secs(0)))
     }
 
     /// If the previous block has been synced, rewind to the block number
@@ -238,26 +228,19 @@ impl ForwardBackwardMessageSyncCursor {
 impl ContractSyncCursor<HyperlaneMessage> for ForwardBackwardMessageSyncCursor {
     async fn next_range(&mut self) -> ChainResult<(u32, u32, Duration)> {
         loop {
-            let forward_range = self.forward.get_next_range().await?;
-            match forward_range {
-                Some(range) => {
-                    self.direction = SyncDirection::Forward;
-                    return Ok(range);
-                }
-                None => {
-                    let backward_range = self.backward.get_next_range().await;
-                    match backward_range {
-                        Some(range) => {
-                            self.direction = SyncDirection::Backward;
-                            return Ok(range);
-                        }
-                        None => {
-                            // TODO: Define the sleep time from interval flag
-                            sleep(Duration::from_secs(5)).await;
-                        }
-                    }
-                }
+            // Prioritize forward syncing over backward syncing.
+            if let Some(forward_range) = self.forward.get_next_range().await? {
+                self.direction = SyncDirection::Forward;
+                return Ok(forward_range);
             }
+
+            if let Some(backward_range) = self.backward.get_next_range().await {
+                self.direction = SyncDirection::Backward;
+                return Ok(backward_range);
+            }
+
+            // TODO: Define the sleep time from interval flag
+            sleep(Duration::from_secs(5)).await;
         }
     }
 
