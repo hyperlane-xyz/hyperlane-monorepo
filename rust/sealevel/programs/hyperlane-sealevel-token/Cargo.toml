@@ -10,6 +10,7 @@ no-entrypoint = []
 bs58 = "=0.4.0" # FIXME remove
 hyperlane-core = { path = "../../hyperlane-core" }
 hyperlane-sealevel-mailbox = { path = "../mailbox", features = ["no-entrypoint"] }
+hyperlane-sealevel-message-recipient-interface = { path = "../../libraries/message-recipient-interface" }
 borsh = "0.9"
 num-derive = "0.3"
 num-traits = "0.2"
@@ -19,26 +20,26 @@ thiserror = "1.0"
 [dependencies.spl-associated-token-account]
 version = "=1.1.2"
 features = ["no-entrypoint"]
-git = "https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library"
-branch = "steven/eclipse-1.14.13"
+git = "https://github.com/tkporter/eclipse-program-library"
+branch = "trevor/steven/eclipse-1.14.13/with-tlv-lib"
 
 [dependencies.spl-noop]
 version = "=0.1.3"
 features = ["no-entrypoint"]
-git = "https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library"
-branch = "steven/eclipse-1.14.13"
+git = "https://github.com/tkporter/eclipse-program-library"
+branch = "trevor/steven/eclipse-1.14.13/with-tlv-lib"
 [dependencies.spl-token]
 version = "=3.5.0"
 features = ["no-entrypoint"]
-git = "https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library"
-branch = "steven/eclipse-1.14.13"
+git = "https://github.com/tkporter/eclipse-program-library"
+branch = "trevor/steven/eclipse-1.14.13/with-tlv-lib"
 
 # FIXME Should we actually use 2022 here or try normal token program?
 [dependencies.spl-token-2022]
 version = "=0.5.0"
 features = ["no-entrypoint"]
-git = "https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library"
-branch = "steven/eclipse-1.14.13"
+git = "https://github.com/tkporter/eclipse-program-library"
+branch = "trevor/steven/eclipse-1.14.13/with-tlv-lib"
 
 # [dev-dependencies]
 # base64 = "0.13"
