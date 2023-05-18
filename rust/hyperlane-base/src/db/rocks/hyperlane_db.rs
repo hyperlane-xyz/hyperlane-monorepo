@@ -7,7 +7,7 @@ use tokio::time::sleep;
 use tracing::{debug, trace};
 
 use hyperlane_core::{
-    HyperlaneDB, HyperlaneDomain, HyperlaneHighWatermarkDB, HyperlaneMessage, HyperlaneMessageDB,
+    HyperlaneLogStore, HyperlaneDomain, HyperlaneWatermarkedLogStore, HyperlaneMessage, HyperlaneMessageStore,
     InterchainGasExpenditure, InterchainGasPayment, InterchainGasPaymentMeta, LogMeta, H256, U256,
 };
 
@@ -75,9 +75,13 @@ impl HyperlaneRocksDB {
         &self,
         message: &HyperlaneMessage,
         dispatched_block_number: u64,
-    ) -> DbResult<()> {
-        let id = message.id();
+    ) -> DbResult<bool> {
+        if let Ok(Some(_)) = self.message_id_by_nonce(message.nonce) {
+            trace!(msg=?message, "Message already stored in db");
+            return Ok(false);
+        }
 
+        let id = message.id();
         debug!(msg=?message, "Storing new message in db",);
 
         // - `id` --> `message`
@@ -90,7 +94,7 @@ impl HyperlaneRocksDB {
             &message.nonce,
             &dispatched_block_number,
         )?;
-        Ok(())
+        Ok(true)
     }
 
     /// Retrieve a message by its id
@@ -254,17 +258,13 @@ impl HyperlaneRocksDB {
 }
 
 #[async_trait]
-impl HyperlaneDB<HyperlaneMessage> for HyperlaneRocksDB {
+impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneRocksDB {
     /// Store a list of dispatched messages and their associated metadata.
     async fn store_logs(&self, messages: &[(HyperlaneMessage, LogMeta)]) -> Result<u32> {
         let mut stored = 0;
-        // TODO: Is it more efficient to check if the message is already inserted?
         for (message, meta) in messages {
-            if let Ok(Some(_)) = self.message_id_by_nonce(message.nonce) {
-                trace!(msg=?message, "Message already stored in db");
-            } else {
-                self.store_message(message, meta.block_number)?;
-                trace!(msg=?message, "Stored message in db");
+            let stored_message = self.store_message(message, meta.block_number)?;
+            if stored_message {
                 stored += 1;
             }
         }
@@ -273,7 +273,7 @@ impl HyperlaneDB<HyperlaneMessage> for HyperlaneRocksDB {
 }
 
 #[async_trait]
-impl HyperlaneDB<InterchainGasPayment> for HyperlaneRocksDB {
+impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneRocksDB {
     /// Store a list of interchain gas payments and their associated metadata.
     async fn store_logs(&self, payments: &[(InterchainGasPayment, LogMeta)]) -> Result<u32> {
         let mut new = 0;
@@ -287,7 +287,7 @@ impl HyperlaneDB<InterchainGasPayment> for HyperlaneRocksDB {
 }
 
 #[async_trait]
-impl HyperlaneMessageDB for HyperlaneRocksDB {
+impl HyperlaneMessageStore for HyperlaneRocksDB {
     /// Retrieve dispatched block number by message nonce
     async fn retrieve_dispatched_block_number(&self, nonce: u32) -> Result<Option<u64>> {
         let number = self.retrieve_keyed_decodable(MESSAGE_DISPATCHED_BLOCK_NUMBER, &nonce)?;
@@ -298,9 +298,9 @@ impl HyperlaneMessageDB for HyperlaneRocksDB {
 /// Note that for legacy reasons this watermark may be shared across multiple cursors, some of which may not have anything to do with gas payments
 /// The high watermark cursor is relatively conservative in writing block numbers, so this shouldn't result in any events being missed.
 #[async_trait]
-impl<T> HyperlaneHighWatermarkDB<T> for HyperlaneRocksDB
+impl<T> HyperlaneWatermarkedLogStore<T> for HyperlaneRocksDB
 where
-    HyperlaneRocksDB: HyperlaneDB<T>,
+    HyperlaneRocksDB: HyperlaneLogStore<T>,
 {
     /// Gets the block number high watermark
     async fn retrieve_high_watermark(&self) -> Result<Option<u32>> {

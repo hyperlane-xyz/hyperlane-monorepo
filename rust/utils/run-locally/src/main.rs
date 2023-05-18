@@ -105,11 +105,7 @@ fn main() -> ExitCode {
         let r = env::var("E2E_KATHY_MESSAGES")
             .ok()
             .map(|r| r.parse::<u64>().unwrap());
-        if ci_mode && r.is_none() {
-            Some(10)
-        } else {
-            r
-        }
+        r.unwrap_or(10)
     };
 
     let log_all = env::var("E2E_LOG_ALL")
@@ -251,7 +247,7 @@ fn main() -> ExitCode {
     let node = node.spawn().expect("Failed to start node");
     state.node = Some(node);
 
-    sleep(Duration::from_secs(5));
+    sleep(Duration::from_secs(10));
 
     println!("Deploying hyperlane ism contracts...");
     build_cmd(&["yarn", "deploy-ism"], Some("../typescript/infra"));
@@ -312,9 +308,7 @@ fn main() -> ExitCode {
     println!("Spawning Kathy to send Hyperlane message traffic...");
     let mut kathy = Command::new("yarn");
     kathy.arg("kathy");
-    if let Some(r) = kathy_messages {
-        kathy.args(["--messages", &r.to_string(), "--timeout", "1000"]);
-    }
+    kathy.args(["--messages", &kathy_messages.to_string(), "--timeout", "1000"]);
     let mut kathy = kathy
         .current_dir("../typescript/infra")
         .stdout(Stdio::piped())
@@ -324,18 +318,7 @@ fn main() -> ExitCode {
     state
         .watchers
         .push(spawn(move || prefix_log(kathy_stdout, "KTY")));
-    loop {
-        match kathy.try_wait().unwrap() {
-            Some(s) if s.success() => {
-                println!("Done sending first round of Kathy messages...");
-                break;
-            }
-            Some(_) => {
-                return ExitCode::from(1);
-            }
-            None => {}
-        }
-    }
+    kathy.wait().unwrap();
 
     println!("Spawning relayer...");
     let mut relayer = Command::new("target/debug/relayer")
@@ -374,9 +357,7 @@ fn main() -> ExitCode {
     println!("Spawning Kathy to send Hyperlane message traffic...");
     let mut kathy = Command::new("yarn");
     kathy.arg("kathy");
-    if let Some(r) = kathy_messages {
-        kathy.args(["--messages", &r.to_string(), "--timeout", "1000"]);
-    }
+    kathy.args(["--messages", &kathy_messages.to_string(), "--timeout", "1000"]);
     let mut kathy = kathy
         .current_dir("../typescript/infra")
         .stdout(Stdio::piped())
@@ -411,7 +392,7 @@ fn main() -> ExitCode {
         }
         if ci_mode {
             // for CI we have to look for the end condition.
-            let num_messages_expected = kathy_messages.unwrap() as u32 * 2;
+            let num_messages_expected = kathy_messages as u32 * 2;
             if kathy_done && termination_invariants_met(num_messages_expected) {
                 // end condition reached successfully
                 println!("Kathy completed successfully and the retry queues are empty");

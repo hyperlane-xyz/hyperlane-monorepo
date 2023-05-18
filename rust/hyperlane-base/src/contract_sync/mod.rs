@@ -4,8 +4,8 @@ use derive_new::new;
 
 use cursor::*;
 use hyperlane_core::{
-    utils::fmt_sync_time, ContractSyncCursor, HyperlaneDB, HyperlaneDomain,
-    HyperlaneHighWatermarkDB, HyperlaneMessage, HyperlaneMessageDB, Indexer, MessageIndexer,
+    utils::fmt_sync_time, ContractSyncCursor, HyperlaneLogStore, HyperlaneDomain,
+    HyperlaneWatermarkedLogStore, HyperlaneMessage, HyperlaneMessageStore, Indexer, MessageIndexer,
 };
 pub use metrics::ContractSyncMetrics;
 use std::fmt::Debug;
@@ -21,18 +21,18 @@ mod metrics;
 /// Extracts chain-specific data (emitted checkpoints, messages, etc) from an
 /// `indexer` and fills the agent's db with this data.
 #[derive(Debug, new, Clone)]
-pub struct ContractSync<T, D: HyperlaneDB<T>, I: Indexer<T>> {
+pub struct ContractSync<T, D: HyperlaneLogStore<T>, I: Indexer<T>> {
     domain: HyperlaneDomain,
     db: D,
     indexer: I,
     metrics: ContractSyncMetrics,
-    fixme: PhantomData<T>,
+    _phantom: PhantomData<T>,
 }
 
 impl<T, D, I> ContractSync<T, D, I>
 where
     T: Debug + Send + Sync + Clone + 'static,
-    D: HyperlaneDB<T> + 'static,
+    D: HyperlaneLogStore<T> + 'static,
     I: Indexer<T> + Clone + 'static,
 {
     /// The domain that this ContractSync is running on
@@ -40,7 +40,7 @@ where
         &self.domain
     }
 
-    /// Sync logs and write them to the DB
+    /// Sync logs and write them to the LogStore
     #[tracing::instrument(name = "ContractSync", skip(self, cursor))]
     pub async fn sync(
         &self,
@@ -48,6 +48,10 @@ where
         mut cursor: Box<dyn ContractSyncCursor<T>>,
     ) -> eyre::Result<()> {
         let chain_name = self.domain.as_ref();
+        let indexed_height = self
+            .metrics
+            .indexed_height
+            .with_label_values(&[label, chain_name]);
         let stored_logs = self
             .metrics
             .stored_events
@@ -71,6 +75,8 @@ where
             let stored = self.db.store_logs(&logs).await?;
             // Report amount of deliveries stored into db
             stored_logs.inc_by(stored as u64);
+            // Report current block height
+            indexed_height.set(to as i64);
             // Update cursor
             cursor.update(logs).await?;
         }
@@ -79,7 +85,7 @@ where
 
 /// A ContractSync for syncing events using a RateLimitedContractSyncCursor
 pub type WatermarkContractSync<T> =
-    ContractSync<T, Arc<dyn HyperlaneHighWatermarkDB<T>>, Arc<dyn Indexer<T>>>;
+    ContractSync<T, Arc<dyn HyperlaneWatermarkedLogStore<T>>, Arc<dyn Indexer<T>>>;
 impl<T> WatermarkContractSync<T>
 where
     T: Debug + Send + Sync + Clone + 'static,
@@ -109,7 +115,7 @@ where
 
 /// A ContractSync for syncing messages using a MessageSyncCursor
 pub type MessageContractSync =
-    ContractSync<HyperlaneMessage, Arc<dyn HyperlaneMessageDB>, Arc<dyn MessageIndexer>>;
+    ContractSync<HyperlaneMessage, Arc<dyn HyperlaneMessageStore>, Arc<dyn MessageIndexer>>;
 impl MessageContractSync {
     /// Returns a new cursor to be used for syncing dispatched messages from the indexer
     pub async fn forward_message_sync_cursor(

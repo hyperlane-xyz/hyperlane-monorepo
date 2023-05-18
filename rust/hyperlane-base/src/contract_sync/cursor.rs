@@ -12,8 +12,8 @@ use tokio::time::sleep;
 use tracing::warn;
 
 use hyperlane_core::{
-    ChainResult, ContractSyncCursor, HyperlaneHighWatermarkDB, HyperlaneMessage,
-    HyperlaneMessageDB, Indexer, LogMeta, MessageIndexer,
+    ChainResult, ContractSyncCursor, HyperlaneWatermarkedLogStore, HyperlaneMessage,
+    HyperlaneMessageStore, Indexer, LogMeta, MessageIndexer,
 };
 
 use crate::contract_sync::eta_calculator::SyncerEtaCalculator;
@@ -26,7 +26,7 @@ const ETA_TIME_WINDOW: f64 = 2. * 60.;
 #[derive(Debug, new)]
 pub(crate) struct MessageSyncCursor {
     indexer: Arc<dyn MessageIndexer>,
-    db: Arc<dyn HyperlaneMessageDB>,
+    db: Arc<dyn HyperlaneMessageStore>,
     chunk_size: u32,
     /// The starting block for the cursor
     start_block: u32,
@@ -201,7 +201,7 @@ impl ForwardBackwardMessageSyncCursor {
     /// Construct a new contract sync helper.
     pub async fn new(
         indexer: Arc<dyn MessageIndexer>,
-        db: Arc<dyn HyperlaneMessageDB>,
+        db: Arc<dyn HyperlaneMessageStore>,
         chunk_size: u32,
     ) -> Result<Self> {
         let (count, tip) = indexer.fetch_count_at_tip().await?;
@@ -274,7 +274,7 @@ impl ContractSyncCursor<HyperlaneMessage> for ForwardBackwardMessageSyncCursor {
 /// performed by `next_range`.
 pub(crate) struct RateLimitedContractSyncCursor<T> {
     indexer: Arc<dyn Indexer<T>>,
-    db: Arc<dyn HyperlaneHighWatermarkDB<T>>,
+    db: Arc<dyn HyperlaneWatermarkedLogStore<T>>,
     tip: u32,
     last_tip_update: Instant,
     chunk_size: u32,
@@ -287,7 +287,7 @@ impl<T> RateLimitedContractSyncCursor<T> {
     /// Construct a new contract sync helper.
     pub async fn new(
         indexer: Arc<dyn Indexer<T>>,
-        db: Arc<dyn HyperlaneHighWatermarkDB<T>>,
+        db: Arc<dyn HyperlaneWatermarkedLogStore<T>>,
         chunk_size: u32,
         initial_height: u32,
     ) -> Result<Self> {

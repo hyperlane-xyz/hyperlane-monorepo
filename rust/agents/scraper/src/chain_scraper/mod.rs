@@ -11,8 +11,8 @@ use tracing::trace;
 
 use hyperlane_base::chains::IndexSettings;
 use hyperlane_core::{
-    BlockInfo, HyperlaneDB, HyperlaneDomain, HyperlaneHighWatermarkDB, HyperlaneMessage,
-    HyperlaneMessageDB, HyperlaneProvider, InterchainGasPayment, LogMeta, H256,
+    BlockInfo, HyperlaneLogStore, HyperlaneDomain, HyperlaneWatermarkedLogStore, HyperlaneMessage,
+    HyperlaneProvider, InterchainGasPayment, LogMeta, H256, HyperlaneMessageStore,
 };
 
 use crate::db::StorablePayment;
@@ -246,7 +246,7 @@ impl HyperlaneSqlDb {
 }
 
 #[async_trait]
-impl HyperlaneDB<HyperlaneMessage> for HyperlaneSqlDb {
+impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneSqlDb {
     /// Store messages from the origin mailbox into the database.
     async fn store_logs(&self, messages: &[(HyperlaneMessage, LogMeta)]) -> Result<u32> {
         if messages.is_empty() {
@@ -274,7 +274,7 @@ impl HyperlaneDB<HyperlaneMessage> for HyperlaneSqlDb {
 }
 
 #[async_trait]
-impl HyperlaneDB<H256> for HyperlaneSqlDb {
+impl HyperlaneLogStore<H256> for HyperlaneSqlDb {
     async fn store_logs(&self, deliveries: &[(H256, LogMeta)]) -> Result<u32> {
         if deliveries.is_empty() {
             return Ok(0);
@@ -302,7 +302,7 @@ impl HyperlaneDB<H256> for HyperlaneSqlDb {
 }
 
 #[async_trait]
-impl HyperlaneDB<InterchainGasPayment> for HyperlaneSqlDb {
+impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneSqlDb {
     async fn store_logs(&self, payments: &[(InterchainGasPayment, LogMeta)]) -> Result<u32> {
         if payments.is_empty() {
             return Ok(0);
@@ -327,7 +327,7 @@ impl HyperlaneDB<InterchainGasPayment> for HyperlaneSqlDb {
 }
 
 #[async_trait]
-impl HyperlaneMessageDB for HyperlaneSqlDb {
+impl HyperlaneMessageStore for HyperlaneSqlDb {
     /// Retrieves the block number at which the message with the provided nonce
     /// was dispatched.
     async fn retrieve_dispatched_block_number(&self, nonce: u32) -> Result<Option<u64>> {
@@ -352,9 +352,9 @@ impl HyperlaneMessageDB for HyperlaneSqlDb {
 }
 
 #[async_trait]
-impl<T> HyperlaneHighWatermarkDB<T> for HyperlaneSqlDb
+impl<T> HyperlaneWatermarkedLogStore<T> for HyperlaneSqlDb
 where
-    HyperlaneSqlDb: HyperlaneDB<T>,
+    HyperlaneSqlDb: HyperlaneLogStore<T>,
 {
     /// Gets the block number high watermark
     async fn retrieve_high_watermark(&self) -> Result<Option<u32>> {

@@ -18,14 +18,6 @@ pub struct ContractSyncMetrics {
     /// - `chain`: Chain the indexer is collecting data from.
     pub stored_events: IntCounterVec,
 
-    /// Unique occasions when agent missed an event (label values
-    /// differentiate checkpoints vs. messages)
-    ///
-    /// Labels:
-    /// - `data_type`: the data the indexer is recording. E.g. `messages` or `gas_payments`.
-    /// - `chain`: Chain the indexer is collecting data from.
-    pub missed_events: IntCounterVec,
-
     /// See `last_known_message_nonce` in CoreMetrics.
     pub message_nonce: IntGaugeVec,
 }
@@ -49,20 +41,11 @@ impl ContractSyncMetrics {
             )
             .expect("failed to register stored_events metric");
 
-        let missed_events = metrics
-            .new_int_counter(
-                "contract_sync_missed_events",
-                "Number of unique occasions when agent missed an event",
-                &["data_type", "chain"],
-            )
-            .expect("failed to register missed_events metric");
-
         let message_nonce = metrics.last_known_message_nonce();
 
         ContractSyncMetrics {
             indexed_height,
             stored_events,
-            missed_events,
             message_nonce,
         }
     }

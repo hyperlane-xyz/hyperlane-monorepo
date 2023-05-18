@@ -45,9 +45,8 @@ impl ScraperDb {
         let last_nonce = message::Entity::find()
             .filter(message::Column::Origin.eq(origin_domain))
             .filter(message::Column::OriginMailbox.eq(address_to_bytes(origin_mailbox)))
-            .order_by_desc(message::Column::Nonce)
             .select_only()
-            .column_as(message::Column::Nonce, QueryAs::Nonce)
+            .column_as(message::Column::Nonce.max(), QueryAs::Nonce)
             .into_values::<i32, QueryAs>()
             .one(&self.0)
             .await?
