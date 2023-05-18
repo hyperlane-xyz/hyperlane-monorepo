@@ -31,7 +31,8 @@ where
 #[cfg(test)]
 mod test {
     use hyperlane_core::{
-        HyperlaneDB, HyperlaneDomain, HyperlaneMessage, LogMeta, RawHyperlaneMessage, H256, U256,
+        HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage, LogMeta, RawHyperlaneMessage, H256,
+        U256,
     };
 
     use crate::db::HyperlaneRocksDB;
