@@ -1617,6 +1617,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-interchain-security-module-interface"
+version = "0.1.0"
+dependencies = [
+ "borsh",
+ "solana-program",
+ "spl-type-length-value",
+]
+
+[[package]]
 name = "hyperlane-sealevel-ism-rubber-stamp"
 version = "0.1.0"
 dependencies = [
