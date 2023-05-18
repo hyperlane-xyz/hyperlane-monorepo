@@ -2,7 +2,6 @@
 members = [
     "hyperlane-core",
     "client",
-    "multisig-ism",
     "programs/mailbox",
     "programs/recipient/echo",
     "programs/ism/rubber-stamp",
@@ -10,4 +9,5 @@ members = [
     "programs/hyperlane-sealevel-token",
     "libraries/interchain-security-module-interface",
     "libraries/message-recipient-interface",
+    "libraries/multisig-ism",
 ]

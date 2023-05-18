@@ -79,14 +79,14 @@ pub fn process_instruction(
     instruction_data: &[u8],
 ) -> ProgramResult {
     match Instruction::try_from(instruction_data)? {
-        /// Verifies a message.
+        // Verifies a message.
         Instruction::IsmVerify(ism_verify) => verify(
             program_id,
             accounts,
             ism_verify.metadata,
             ism_verify.message,
         ),
-        /// Gets the type of ISM.
+        // Gets the type of ISM.
         Instruction::IsmType => {
             set_return_data(
                 &(ISM_TYPE as u32)
@@ -95,19 +95,19 @@ pub fn process_instruction(
             );
             Ok(())
         }
-        /// Initializes the program.
+        // Initializes the program.
         Instruction::Initialize => initialize(program_id, accounts),
-        /// Gets the validators and threshold for a given domain.
+        // Gets the validators and threshold for a given domain.
         Instruction::GetValidatorsAndThreshold(domain) => {
             get_validators_and_threshold(program_id, accounts, domain)
         }
-        /// Sets the validators and threshold for a given domain.
+        // Sets the validators and threshold for a given domain.
         Instruction::SetValidatorsAndThreshold(config) => {
             set_validators_and_threshold(program_id, accounts, config)
         }
-        /// Gets the owner of this program from the access control account.
+        // Gets the owner of this program from the access control account.
         Instruction::GetOwner => get_owner(program_id, accounts),
-        /// Sets the owner of this program in the access control account.
+        // Sets the owner of this program in the access control account.
         Instruction::SetOwner(new_owner) => set_owner(program_id, accounts, new_owner),
     }
 }
