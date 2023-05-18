@@ -1,15 +1,13 @@
 //! TODO
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use hyperlane_core::{Decode, Encode, HyperlaneError, H256, U256};
+use hyperlane_core::{H256, U256};
 use solana_program::{program_error::ProgramError, pubkey::Pubkey};
 
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub enum Instruction {
     Init(Init),
     TransferRemote(TransferRemote),
-    // This is "handle" in solidity contract. Used as mailbox recipient.
-    // TransferFromRemote(TransferFromRemote),
 }
 
 impl Instruction {
@@ -47,90 +45,6 @@ pub struct TransferFromRemote {
     pub origin: u32,
     pub sender: H256,
     pub message: Vec<u8>,
-}
-
-// FIXME move to common lib
-#[derive(Debug)]
-pub struct TokenMessage {
-    recipient: H256,
-    // TODO we probably don't need to use "or_id" since this smart contract only handles erc20
-    // currently.
-    amount_or_id: U256,
-    metadata: Vec<u8>,
-}
-
-impl Encode for TokenMessage {
-    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
-    where
-        W: std::io::Write,
-    {
-        writer.write_all(self.recipient.as_ref())?;
-
-        let mut amount_or_id = [0_u8; 32];
-        self.amount_or_id.to_big_endian(&mut amount_or_id);
-        writer.write_all(&amount_or_id)?;
-
-        writer.write_all(&self.metadata)?;
-
-        Ok(32 + 32 + self.metadata.len())
-    }
-}
-
-impl Decode for TokenMessage {
-    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneError>
-    where
-        R: std::io::Read,
-    {
-        let mut recipient = H256::zero();
-        reader.read_exact(recipient.as_mut())?;
-
-        let mut amount_or_id = [0_u8; 32];
-        reader.read_exact(&mut amount_or_id)?;
-        let amount_or_id = U256::from_big_endian(&amount_or_id);
-
-        let mut metadata = vec![];
-        reader.read_to_end(&mut metadata)?;
-
-        Ok(Self {
-            recipient,
-            amount_or_id: U256::from(amount_or_id),
-            metadata,
-        })
-    }
-}
-
-impl TokenMessage {
-    pub fn new_erc20(recipient: H256, amount: U256, metadata: Vec<u8>) -> Self {
-        Self {
-            recipient,
-            amount_or_id: amount,
-            metadata,
-        }
-    }
-
-    pub fn new_erc721(recipient: H256, id: U256, metadata: Vec<u8>) -> Self {
-        Self {
-            recipient,
-            amount_or_id: id,
-            metadata,
-        }
-    }
-
-    pub fn recipient(&self) -> H256 {
-        self.recipient
-    }
-
-    pub fn amount(&self) -> U256 {
-        self.amount_or_id
-    }
-
-    pub fn token_id(&self) -> U256 {
-        self.amount_or_id
-    }
-
-    pub fn metadata(&self) -> &[u8] {
-        &self.metadata
-    }
 }
 
 // FIXME we should include the asset (name, symbol) that was transferred in this event...

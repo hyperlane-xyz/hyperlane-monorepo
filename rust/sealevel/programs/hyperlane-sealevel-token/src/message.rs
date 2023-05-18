@@ -1,54 +1,84 @@
 //! TODO
 
 use hyperlane_core::{Decode, Encode, HyperlaneError, H256, U256};
-use solana_program::pubkey::Pubkey;
 
-/// Message body of Hyperlane protocol messages for Warp Routes.
 #[derive(Debug)]
-pub struct Message {
-    pub recipient: H256,
-    pub amount_or_token_id: U256, // ERC721 uses this as id not amount
-    pub metadata: Vec<u8>,
+pub struct TokenMessage {
+    recipient: H256,
+    amount_or_id: U256,
+    metadata: Vec<u8>,
 }
 
-impl Message {
-    pub fn recipient_pubkey(&self) -> Result<Pubkey, crate::error::Error> {
-        self.recipient
-            .as_bytes()
-            .try_into()
-            .map_err(|_| crate::error::Error::TODO)
-            .map(Pubkey::new_from_array)
-    }
-}
-
-impl Encode for Message {
+impl Encode for TokenMessage {
     fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
     where
         W: std::io::Write,
     {
-        let mut written = 0;
-        written += self.recipient.write_to(writer)?;
-        written += self.amount_or_token_id.write_to(writer)?;
-        writer.write_all(self.metadata.as_ref())?;
-        written += self.metadata.len();
-        Ok(written)
+        writer.write_all(self.recipient.as_ref())?;
+
+        let mut amount_or_id = [0_u8; 32];
+        self.amount_or_id.to_big_endian(&mut amount_or_id);
+        writer.write_all(&amount_or_id)?;
+
+        writer.write_all(&self.metadata)?;
+
+        Ok(32 + 32 + self.metadata.len())
     }
 }
 
-impl Decode for Message {
+impl Decode for TokenMessage {
     fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneError>
     where
         R: std::io::Read,
-        Self: Sized,
     {
-        let recipient = H256::read_from(reader)?;
-        let amount_or_token_id = U256::read_from(reader)?;
+        let mut recipient = H256::zero();
+        reader.read_exact(recipient.as_mut())?;
+
+        let mut amount_or_id = [0_u8; 32];
+        reader.read_exact(&mut amount_or_id)?;
+        let amount_or_id = U256::from_big_endian(&amount_or_id);
+
         let mut metadata = vec![];
         reader.read_to_end(&mut metadata)?;
-        Ok(Message {
+
+        Ok(Self {
             recipient,
-            amount_or_token_id,
+            amount_or_id: U256::from(amount_or_id),
             metadata,
         })
+    }
+}
+
+impl TokenMessage {
+    pub fn new_erc20(recipient: H256, amount: U256, metadata: Vec<u8>) -> Self {
+        Self {
+            recipient,
+            amount_or_id: amount,
+            metadata,
+        }
+    }
+
+    pub fn new_erc721(recipient: H256, id: U256, metadata: Vec<u8>) -> Self {
+        Self {
+            recipient,
+            amount_or_id: id,
+            metadata,
+        }
+    }
+
+    pub fn recipient(&self) -> H256 {
+        self.recipient
+    }
+
+    pub fn amount(&self) -> U256 {
+        self.amount_or_id
+    }
+
+    pub fn token_id(&self) -> U256 {
+        self.amount_or_id
+    }
+
+    pub fn metadata(&self) -> &[u8] {
+        &self.metadata
     }
 }
