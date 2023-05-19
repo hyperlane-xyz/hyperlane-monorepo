@@ -270,7 +270,7 @@ async fn test_set_validators_and_threshold_creates_pda_account() {
         }),
     );
 
-    // For good measure, let's also use the MultisigIsmProgramInstruction::ValidatorsAndThreshold
+    // For good measure, let's also use the MultisigIsmInstruction::ValidatorsAndThreshold
     // instruction!
 
     let test_message = HyperlaneMessage {
