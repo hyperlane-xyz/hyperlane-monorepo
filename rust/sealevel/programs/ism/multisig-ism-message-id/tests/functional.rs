@@ -223,32 +223,22 @@ async fn test_set_validators_and_threshold_creates_pda_account() {
 
     let domain: u32 = 1234;
 
-    let (domain_data_pda_key, domain_data_pda_bump_seed) =
-        Pubkey::find_program_address(domain_data_pda_seeds!(domain), &program_id);
-
     let validators_and_threshold = ValidatorsAndThreshold {
         validators: vec![H160::random(), H160::random(), H160::random()],
         threshold: 2,
     };
 
-    let mut transaction = Transaction::new_with_payer(
-        &[Instruction::new_with_borsh(
-            program_id,
-            &MultisigIsmProgramInstruction::SetValidatorsAndThreshold(Domained {
-                domain,
-                data: validators_and_threshold.clone(),
-            }),
-            vec![
-                AccountMeta::new_readonly(payer.pubkey(), true),
-                AccountMeta::new_readonly(access_control_pda_key, false),
-                AccountMeta::new(domain_data_pda_key, false),
-                AccountMeta::new_readonly(solana_program::system_program::id(), false),
-            ],
-        )],
-        Some(&payer.pubkey()),
-    );
-    transaction.sign(&[&payer], recent_blockhash);
-    banks_client.process_transaction(transaction).await.unwrap();
+    let (domain_data_pda_key, domain_data_pda_bump_seed) = set_validators_and_threshold(
+        program_id.clone(),
+        &mut banks_client,
+        &payer,
+        recent_blockhash.clone(),
+        access_control_pda_key,
+        domain,
+        validators_and_threshold.clone(),
+    )
+    .await
+    .unwrap();
 
     let domain_data_account_data = banks_client
         .get_account(domain_data_pda_key)
