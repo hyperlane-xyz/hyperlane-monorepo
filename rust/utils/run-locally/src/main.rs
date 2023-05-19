@@ -23,7 +23,7 @@ use std::{
     process::{Child, Command, ExitCode, Stdio},
     sync::atomic::{AtomicBool, Ordering},
     thread::{sleep, spawn, JoinHandle},
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH}
 };
 
 use maplit::hashmap;
@@ -210,6 +210,9 @@ fn main() -> ExitCode {
             .join(", ")
     );
     println!("Relayer DB in {}", relayer_db.display());
+    (0..3).for_each(|i| {
+        println!("Validator {} DB in {}", i + 1, validator_dbs[i].display());
+    });
 
     let build_cmd = {
         let build_log = make_static(build_log.to_str().unwrap().into());

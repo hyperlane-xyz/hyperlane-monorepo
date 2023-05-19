@@ -6,20 +6,20 @@ use async_trait::async_trait;
 use derive_new::new;
 use eyre::{Context, Result};
 use tokio::sync::RwLock;
-use tracing::{debug, instrument, warn};
+use tracing::{debug, info, instrument, warn};
 
 use hyperlane_base::{
     ChainConf, CheckpointSyncer, CheckpointSyncerConf, CoreMetrics, MultisigCheckpointSyncer,
 };
 use hyperlane_core::accumulator::merkle::Proof;
 use hyperlane_core::{
-    Checkpoint, HyperlaneDomain, HyperlaneMessage, ModuleType, MultisigIsm,
-    MultisigSignedCheckpoint, MultisigSignedCheckpointWithMessageId, RoutingIsm, ValidatorAnnounce,
-    H160, H256,
+    Checkpoint, HyperlaneDomain, HyperlaneMessage, ModuleType,
+    MultisigIsm, RoutingIsm, ValidatorAnnounce, H160, H256,
 };
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
-use crate::msg::metadata::{MultisigIsmMetadataBuilder, RoutingIsmMetadataBuilder};
+use crate::msg::metadata::RoutingIsmMetadataBuilder;
+use crate::msg::metadata::multisig::{LegacyMultisigMetadataBuilder, MerkleRootMultisigMetadataBuilder, MessageIdMultisigMetadataBuilder};
 
 #[derive(Debug, thiserror::Error)]
 pub enum MetadataBuilderError {
@@ -78,11 +78,9 @@ impl MetadataBuilder for BaseMetadataBuilder {
         let base = self.clone_with_incremented_depth()?;
 
         let metadata_builder: Box<dyn MetadataBuilder> = match module_type {
-            ModuleType::LegacyMultisig
-            | ModuleType::MerkleRootMultisig
-            | ModuleType::MessageIdMultisig => {
-                Box::new(MultisigIsmMetadataBuilder::new(base, module_type))
-            }
+            ModuleType::LegacyMultisig => Box::new(LegacyMultisigMetadataBuilder::new(base)),
+            ModuleType::MerkleRootMultisig => Box::new(MerkleRootMultisigMetadataBuilder::new(base)),
+            ModuleType::MessageIdMultisig => Box::new(MessageIdMultisigMetadataBuilder::new(base)),
             ModuleType::Routing => Box::new(RoutingIsmMetadataBuilder::new(base)),
             _ => return Err(MetadataBuilderError::UnsupportedModuleType(module_type).into()),
         };
@@ -110,55 +108,30 @@ impl BaseMetadataBuilder {
 
     pub async fn get_proof(
         &self,
-        message: &HyperlaneMessage,
+        nonce: u32,
         checkpoint: Checkpoint,
-    ) -> Result<Proof> {
+    ) -> Result<Option<Proof>> {
         const CTX: &str = "When fetching message proof";
-        self.origin_prover_sync
+        let proof = self
+            .origin_prover_sync
             .read()
             .await
-            .get_proof(message.nonce, checkpoint.index)
-            .context(CTX)
+            .get_proof(nonce, checkpoint.index)
+            .context(CTX)?;
+        if proof.root() != checkpoint.root {
+            info!(
+                ?checkpoint,
+                canonical_root = ?proof.root(),
+                "Could not fetch metadata: checkpoint root does not match canonical root from merkle proof"
+            );
+            Ok(None)
+        } else {
+            Ok(Some(proof))
+        }
     }
 
-    pub async fn legacy_fetch_checkpoint(
-        &self,
-        validators: &Vec<H256>,
-        threshold: usize,
-        message: &HyperlaneMessage,
-    ) -> Result<Option<MultisigSignedCheckpoint>> {
-        const CTX: &str = "When fetching checkpoint signatures";
-        let highest_known_nonce = self.origin_prover_sync.read().await.count() - 1;
-        let checkpoint_syncer = self
-            .build_checkpoint_syncer(validators)
-            .await
-            .context(CTX)?;
-        checkpoint_syncer
-            .legacy_fetch_checkpoint_in_range(
-                validators,
-                threshold,
-                message.nonce,
-                highest_known_nonce,
-            )
-            .await
-            .context(CTX)
-    }
-
-    pub async fn fetch_checkpoint(
-        &self,
-        validators: &Vec<H256>,
-        threshold: usize,
-        message: &HyperlaneMessage,
-    ) -> Result<Option<MultisigSignedCheckpointWithMessageId>> {
-        const CTX: &str = "When fetching (checkpoint, message ID) signatures";
-        let checkpoint_syncer = self
-            .build_checkpoint_syncer(validators)
-            .await
-            .context(CTX)?;
-        checkpoint_syncer
-            .fetch_checkpoint(message.nonce, validators, threshold)
-            .await
-            .context(CTX)
+    pub async fn highest_known_nonce(&self) -> u32 {
+        self.origin_prover_sync.read().await.count() - 1
     }
 
     pub async fn build_routing_ism(&self, address: H256) -> Result<Box<dyn RoutingIsm>> {
