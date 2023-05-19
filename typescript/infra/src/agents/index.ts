@@ -19,67 +19,62 @@ import { AgentGCPKey } from './gcp';
 import { fetchKeysForChain } from './key-utils';
 import { KEY_ROLE_ENUM } from './roles';
 
-const helmChartPath = '../../rust/helm/hyperlane-agent/';
+const HELM_CHART_PATH = '../../rust/helm/hyperlane-agent/';
 
-async function helmValuesForChain(
-  chainName: ChainName,
+export async function runAgentHelmCommand(
+  action: HelmCommand,
   agentConfig: AgentConfig,
-) {
-  const chainAgentConfig = new ChainAgentConfig(agentConfig, chainName);
+  originChainName: ChainName,
+): Promise<void> {
+  // TODO: how is this function running for the relayer and validator? We need to make it only run for one or the other.
 
-  // By default, if a context only enables a subset of chains, the
-  // connection url (or urls, when HttpQuorum is used) are not fetched
-  // from GCP secret manager. For Http/Ws, the `url` param is expected,
-  // which is set by default to "" in the agent json configs. For HttpQuorum,
-  // no default is present in those configs, so we make sure to pass in urls
-  // as "" to avoid startup configuration issues.
-  let baseConnectionConfig: Record<string, string> = {
-    type: agentConfig.connectionType,
-  };
-  if (baseConnectionConfig.type == AgentConnectionType.HttpQuorum) {
-    baseConnectionConfig = {
-      ...baseConnectionConfig,
-      urls: '',
-    };
-  } else {
-    baseConnectionConfig = {
-      ...baseConnectionConfig,
-      url: '',
-    };
+  const helmReleaseName = getHelmReleaseName(agentConfig, originChainName);
+  const namespace = `--namespace ${agentConfig.namespace}`;
+
+  if (action === HelmCommand.Remove) {
+    const cmd = ['helm', action, helmReleaseName, namespace];
+    await execCmd(cmd.join(' '), {}, false, true);
+    return;
   }
 
-  const signers = await chainAgentConfig.signers();
+  const valueDict = await helmValuesForChain(agentConfig, originChainName);
+  const values = helmifyValues(valueDict);
 
-  return {
-    image: {
-      repository: agentConfig.docker.repo,
-      tag: agentConfig.docker.tag,
-    },
-    hyperlane: {
-      runEnv: agentConfig.runEnv,
-      context: agentConfig.context,
-      aws: !!agentConfig.aws,
-      chains: agentConfig.environmentChainNames.map((envChainName) => ({
-        name: envChainName,
-        disabled: !agentConfig.contextChainNames.includes(envChainName),
-        connection: baseConnectionConfig,
-      })),
-      // Only the relayer has the signers on the chains config object
-      relayerChains: agentConfig.environmentChainNames.map((envChainName) => ({
-        name: envChainName,
-        signer: signers[envChainName],
-      })),
-      validator: {
-        enabled: chainAgentConfig.validatorEnabled,
-        configs: await chainAgentConfig.validatorConfigs(),
-      },
-      relayer: {
-        enabled: chainAgentConfig.relayerEnabled,
-        aws: await chainAgentConfig.relayerRequiresAwsCredentials(),
-        config: chainAgentConfig.relayerConfig,
-      },
-    },
-  };
+  if (action === HelmCommand.InstallOrUpgrade) {
+    // Delete secrets to avoid them being stale
+    const cmd = [
+      'kubectl',
+      'delete',
+      'secrets',
+      namespace,
+      '--selector',
+      `app.kubernetes.io/instance=${helmReleaseName}`,
+    ];
+    try {
+      await execCmd(cmd.join(' '), {}, false, false);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  // Build the chart dependencies
+  await buildHelmChartDependencies(HELM_CHART_PATH);
+
+  const cmd = [
+    'helm',
+    action,
+    helmReleaseName,
+    HELM_CHART_PATH,
+    '--create-namespace',
+    namespace,
+    ...values,
+  ];
+  if (action === HelmCommand.UpgradeDiff) {
+    cmd.push(
+      `| kubectl diff ${namespace} --field-manager="Go-http-client" -f - || true`,
+    );
+  }
+  await execCmd(cmd.join(' '), {}, false, true);
 }
 
 export async function getAgentEnvVars(
@@ -226,37 +221,6 @@ export async function getAgentEnvVars(
   return envVars;
 }
 
-// Recursively converts a config object into environment variables than can
-// be parsed by rust. For example, a config of { foo: { bar: { baz: 420 }, boo: 421 } } will
-// be: HYP_FOO_BAR_BAZ=420 and HYP_FOO_BOO=421
-function configEnvVars(
-  config: Record<string, any>,
-  role: string,
-  key_name_prefix = '',
-) {
-  let envVars: string[] = [];
-  for (const key of Object.keys(config)) {
-    const value = config[key];
-    if (typeof value === 'object') {
-      envVars = [
-        ...envVars,
-        ...configEnvVars(
-          value,
-          role,
-          `${key_name_prefix}${key.toUpperCase()}_`,
-        ),
-      ];
-    } else {
-      envVars.push(
-        `HYP_${role.toUpperCase()}_${key_name_prefix}${key.toUpperCase()}=${
-          config[key]
-        }`,
-      );
-    }
-  }
-  return envVars;
-}
-
 export async function getSecretAwsCredentials(agentConfig: AgentConfig) {
   return {
     accessKeyId: await fetchGCPSecret(
@@ -296,16 +260,6 @@ export async function getSecretDeployerKey(
   return key.privateKey;
 }
 
-async function getSecretRpcEndpoints(agentConfig: AgentConfig, quorum = false) {
-  const environment = agentConfig.runEnv;
-  return Object.fromEntries(
-    agentConfig.contextChainNames.map((chainName) => [
-      chainName,
-      getSecretRpcEndpoint(environment, chainName, quorum),
-    ]),
-  );
-}
-
 export async function doesAgentReleaseExist(
   agentConfig: AgentConfig,
   originChainName: ChainName,
@@ -313,8 +267,8 @@ export async function doesAgentReleaseExist(
   try {
     await execCmd(
       `helm status ${getHelmReleaseName(
-        originChainName,
         agentConfig,
+        originChainName,
       )} --namespace ${agentConfig.namespace}`,
       {},
       false,
@@ -326,78 +280,124 @@ export async function doesAgentReleaseExist(
   }
 }
 
-export async function runAgentHelmCommand(
-  action: HelmCommand,
+async function helmValuesForChain(
   agentConfig: AgentConfig,
-  originChainName: ChainName,
+  chainName: ChainName,
 ) {
-  if (action === HelmCommand.Remove) {
-    return execCmd(
-      `helm ${action} ${getHelmReleaseName(
-        originChainName,
-        agentConfig,
-      )} --namespace ${agentConfig.namespace}`,
-      {},
-      false,
-      true,
-    );
+  const chainAgentConfig = new ChainAgentConfig(agentConfig, chainName);
+
+  // By default, if a context only enables a subset of chains, the
+  // connection url (or urls, when HttpQuorum is used) are not fetched
+  // from GCP secret manager. For Http/Ws, the `url` param is expected,
+  // which is set by default to "" in the agent json configs. For HttpQuorum,
+  // no default is present in those configs, so we make sure to pass in urls
+  // as "" to avoid startup configuration issues.
+  let baseConnectionConfig: Record<string, string> = {
+    type: agentConfig.connectionType,
+  };
+  if (baseConnectionConfig.type == AgentConnectionType.HttpQuorum) {
+    baseConnectionConfig = {
+      ...baseConnectionConfig,
+      urls: '',
+    };
+  } else {
+    baseConnectionConfig = {
+      ...baseConnectionConfig,
+      url: '',
+    };
   }
 
-  const valueDict = await helmValuesForChain(originChainName, agentConfig);
-  const values = helmifyValues(valueDict);
+  const signers = await chainAgentConfig.signers();
 
-  const extraPipe =
-    action === HelmCommand.UpgradeDiff
-      ? ` | kubectl diff -n ${agentConfig.namespace} --field-manager="Go-http-client" -f - || true`
-      : '';
+  return {
+    image: {
+      repository: agentConfig.docker.repo,
+      tag: agentConfig.docker.tag,
+    },
+    hyperlane: {
+      runEnv: agentConfig.runEnv,
+      context: agentConfig.context,
+      aws: !!agentConfig.aws,
+      chains: agentConfig.environmentChainNames.map((envChainName) => ({
+        name: envChainName,
+        disabled: !agentConfig.contextChainNames.includes(envChainName),
+        connection: baseConnectionConfig,
+      })),
+      // Only the relayer has the signers on the chains config object
+      relayerChains: agentConfig.environmentChainNames.map((envChainName) => ({
+        name: envChainName,
+        signer: signers[envChainName],
+      })),
+      /// TODO: this is how we specify what agent is being deployed
+      scraper: {
+        enabled: false,
+      },
+      validator: {
+        enabled: chainAgentConfig.validatorEnabled,
+        configs: await chainAgentConfig.validatorConfigs(),
+      },
+      relayer: {
+        enabled: chainAgentConfig.relayerEnabled,
+        aws: await chainAgentConfig.relayerRequiresAwsCredentials(),
+        config: chainAgentConfig.relayerConfig,
+      },
+    },
+  };
+}
 
-  if (action === HelmCommand.InstallOrUpgrade) {
-    // Delete secrets to avoid them being stale
-    try {
-      await execCmd(
-        `kubectl delete secrets --namespace ${
-          agentConfig.namespace
-        } --selector app.kubernetes.io/instance=${getHelmReleaseName(
-          originChainName,
-          agentConfig,
-        )}`,
-        {},
-        false,
-        false,
+// Recursively converts a config object into environment variables than can
+// be parsed by rust. For example, a config of { foo: { bar: { baz: 420 }, boo: 421 } } will
+// be: HYP_FOO_BAR_BAZ=420 and HYP_FOO_BOO=421
+function configEnvVars(
+  config: Record<string, any>,
+  role: string,
+  key_name_prefix = '',
+) {
+  let envVars: string[] = [];
+  for (const key of Object.keys(config)) {
+    const value = config[key];
+    if (typeof value === 'object') {
+      envVars = [
+        ...envVars,
+        ...configEnvVars(
+          value,
+          role,
+          `${key_name_prefix}${key.toUpperCase()}_`,
+        ),
+      ];
+    } else {
+      envVars.push(
+        `HYP_${role.toUpperCase()}_${key_name_prefix}${key.toUpperCase()}=${
+          config[key]
+        }`,
       );
-    } catch (e) {
-      console.error(e);
     }
   }
+  return envVars;
+}
 
-  // Build the chart dependencies
-  await buildHelmChartDependencies(helmChartPath);
-
-  await execCmd(
-    `helm ${action} ${getHelmReleaseName(
-      originChainName,
-      agentConfig,
-    )} ${helmChartPath} --create-namespace --namespace ${
-      agentConfig.namespace
-    } ${values.join(' ')} ${extraPipe}`,
-    {},
-    false,
-    true,
+async function getSecretRpcEndpoints(agentConfig: AgentConfig, quorum = false) {
+  const environment = agentConfig.runEnv;
+  return Object.fromEntries(
+    agentConfig.contextChainNames.map((chainName) => [
+      chainName,
+      getSecretRpcEndpoint(environment, chainName, quorum),
+    ]),
   );
-
-  return;
 }
 
 function getHelmReleaseName(
-  originChainName: ChainName,
   agentConfig: AgentConfig,
+  originChainName?: ChainName,
 ): string {
   // For backward compatibility reasons, don't include the context
   // in the name of the helm release if the context is the default "hyperlane"
-  if (agentConfig.context === 'hyperlane') {
-    return originChainName;
+
+  const nameParts = [originChainName ?? 'omniscient'];
+  if (agentConfig.context !== 'hyperlane') {
+    nameParts.push(agentConfig.context);
   }
-  return `${originChainName}-${agentConfig.context}`;
+  return nameParts.join('-');
 }
 
 export async function getCurrentKubernetesContext(): Promise<string> {
