@@ -5,4 +5,4 @@ forge-std/=lib/forge-std/src/
 @arbitrum/nitro-contracts/=lib/nitro-contracts/
 @rari-capital/solmate/=lib/solmate/
 solmate/=lib/solmate/
-
+fx-portal/=lib/fx-portal/

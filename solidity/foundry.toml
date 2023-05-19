@@ -16,3 +16,4 @@ verbosity = 4
 mainnet = "${MAINNET_RPC_URL}"
 optimism = "${OPTIMISM_RPC_URL}"
 arbitrum = "${ARBITRUM_RPC_URL}"
+polygon = "${POLYGON_RPC_URL}"

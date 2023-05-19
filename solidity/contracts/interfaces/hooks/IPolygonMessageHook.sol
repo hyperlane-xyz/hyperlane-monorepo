@@ -4,16 +4,16 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 import {IMessageHook} from "./IMessageHook.sol";
 
-interface IOptimismMessageHook is IMessageHook {
+interface IPolygonMessageHook is IMessageHook {
     // ============ Events ============
     /**
-     * @notice Emitted when a message is published throug the native Optimism bridges
+     * @notice Emitted when a message is published throug the native Polygon tunnel
      * @dev Used by the relayer to aid in finding VAA
-     * @param target The target contract address
-     * @param sender The sender of the message
-     * @param messageId The hyperlane message ID
+     * @param target The wormhole message payload
+     * @param sender The wormhole nonce associated with the message
+     * @param messageId The wormhole sequence associated with the message
      */
-    event OptimismMessagePublished(
+    event PolygonMessagePublished(
         address indexed target,
         address indexed sender,
         bytes32 indexed messageId

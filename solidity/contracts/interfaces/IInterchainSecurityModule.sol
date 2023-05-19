@@ -10,7 +10,8 @@ interface IInterchainSecurityModule {
         MULTISIG,
         WORMHOLE,
         OPTIMISM,
-        ARBITRUM
+        ARBITRUM,
+        POLYGON
     }
 
     /**

@@ -13,7 +13,7 @@ pragma solidity ^0.8.13;
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
 
-import "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {Mailbox} from "../../contracts/Mailbox.sol";

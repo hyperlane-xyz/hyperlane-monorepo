@@ -4,7 +4,6 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 import {IOptimismMessageHook} from "../interfaces/hooks/IOptimismMessageHook.sol";
 import {OptimismISM} from "../isms/native/OptimismISM.sol";
-import {TypeCasts} from "../libs/TypeCasts.sol";
 
 // ============ External Imports ============
 import {ICrossDomainMessenger} from "@eth-optimism/contracts/libraries/bridge/ICrossDomainMessenger.sol";
@@ -51,7 +50,7 @@ contract OptimismMessageHook is IOptimismMessageHook {
 
     /**
      * @notice Hook to inform the optimism ISM of messages published through.
-     * @notice anyone can call this function, that's why we to send msg.sender
+     * @dev anyone can call this function, that's why we to send msg.sender
      * @param _destination The destination domain of the message.
      * @param _messageId The message ID.
      * @return gasOverhead The gas overhead for the function call on L2.
