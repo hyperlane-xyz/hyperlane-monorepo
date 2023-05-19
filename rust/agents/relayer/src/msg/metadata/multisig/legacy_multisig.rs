@@ -10,7 +10,7 @@ use hyperlane_core::H256;
 
 use crate::msg::metadata::BaseMetadataBuilder;
 
-use super::multisig::{MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata};
+use super::base::{MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata};
 
 #[derive(Debug, Clone, Deref, new)]
 pub struct LegacyMultisigMetadataBuilder(BaseMetadataBuilder);
