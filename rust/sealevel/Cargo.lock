@@ -1617,9 +1617,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-interchain-security-module-interface"
+version = "0.1.0"
+dependencies = [
+ "borsh",
+ "solana-program",
+ "spl-type-length-value",
+]
+
+[[package]]
 name = "hyperlane-sealevel-ism-rubber-stamp"
 version = "0.1.0"
 dependencies = [
+ "borsh",
+ "hyperlane-core",
+ "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-mailbox",
  "solana-program",
 ]
@@ -1632,6 +1644,8 @@ dependencies = [
  "borsh",
  "bs58",
  "hyperlane-core",
+ "hyperlane-sealevel-interchain-security-module-interface",
+ "hyperlane-sealevel-message-recipient-interface",
  "itertools",
  "log",
  "num-derive",
@@ -1643,16 +1657,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-message-recipient-interface"
+version = "0.1.0"
+dependencies = [
+ "borsh",
+ "hyperlane-core",
+ "solana-program",
+ "spl-type-length-value",
+]
+
+[[package]]
 name = "hyperlane-sealevel-multisig-ism-message-id"
 version = "0.1.0"
 dependencies = [
  "borsh",
  "hex",
  "hyperlane-core",
+ "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-mailbox",
  "multisig-ism",
  "num-derive",
  "num-traits",
+ "serializable-account-meta",
  "solana-program",
  "solana-program-test",
  "solana-sdk",
@@ -1663,7 +1689,9 @@ dependencies = [
 name = "hyperlane-sealevel-recipient-echo"
 version = "0.1.0"
 dependencies = [
+ "borsh",
  "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-message-recipient-interface",
  "solana-program",
 ]
 
@@ -1675,15 +1703,16 @@ dependencies = [
  "bs58",
  "hyperlane-core",
  "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-message-recipient-interface",
  "num-derive",
  "num-traits",
  "solana-program",
  "solana-program-test",
  "solana-sdk",
- "spl-associated-token-account 1.1.2 (git+https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library?branch=steven/eclipse-1.14.13)",
+ "spl-associated-token-account 1.1.2 (git+https://github.com/tkporter/eclipse-program-library?branch=trevor/steven/eclipse-1.14.13/with-tlv-lib)",
  "spl-noop",
- "spl-token 3.5.0 (git+https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library?branch=steven/eclipse-1.14.13)",
- "spl-token-2022 0.5.0 (git+https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library?branch=steven/eclipse-1.14.13)",
+ "spl-token 3.5.0 (git+https://github.com/tkporter/eclipse-program-library?branch=trevor/steven/eclipse-1.14.13/with-tlv-lib)",
+ "spl-token-2022 0.5.0 (git+https://github.com/tkporter/eclipse-program-library?branch=trevor/steven/eclipse-1.14.13/with-tlv-lib)",
  "thiserror",
 ]
 
@@ -2051,15 +2080,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "message-recipient-interface"
-version = "0.1.0"
-dependencies = [
- "borsh",
- "solana-program",
- "spl-type-length-value",
-]
-
-[[package]]
 name = "mime"
 version = "0.3.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2131,6 +2151,7 @@ dependencies = [
  "hex",
  "hyperlane-core",
  "solana-program",
+ "spl-type-length-value",
  "thiserror",
 ]
 
@@ -3237,6 +3258,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "serializable-account-meta"
+version = "0.1.0"
+dependencies = [
+ "borsh",
+ "solana-program",
+]
+
+[[package]]
 name = "sha-1"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4233,15 +4262,15 @@ dependencies = [
 [[package]]
 name = "spl-associated-token-account"
 version = "1.1.2"
-source = "git+https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library?branch=steven/eclipse-1.14.13#b76028cd0285f2b2f5585c8bb34c5d253e662e83"
+source = "git+https://github.com/tkporter/eclipse-program-library?branch=trevor/steven/eclipse-1.14.13/with-tlv-lib#89b2adf3b8c31292c0afc2b848196691f229e8bf"
 dependencies = [
  "assert_matches",
  "borsh",
  "num-derive",
  "num-traits",
  "solana-program",
- "spl-token 3.5.0 (git+https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library?branch=steven/eclipse-1.14.13)",
- "spl-token-2022 0.5.0 (git+https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library?branch=steven/eclipse-1.14.13)",
+ "spl-token 3.5.0 (git+https://github.com/tkporter/eclipse-program-library?branch=trevor/steven/eclipse-1.14.13/with-tlv-lib)",
+ "spl-token-2022 0.5.0 (git+https://github.com/tkporter/eclipse-program-library?branch=trevor/steven/eclipse-1.14.13/with-tlv-lib)",
  "thiserror",
 ]
 
@@ -4257,7 +4286,7 @@ dependencies = [
 [[package]]
 name = "spl-memo"
 version = "3.0.1"
-source = "git+https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library?branch=steven/eclipse-1.14.13#b76028cd0285f2b2f5585c8bb34c5d253e662e83"
+source = "git+https://github.com/tkporter/eclipse-program-library?branch=trevor/steven/eclipse-1.14.13/with-tlv-lib#89b2adf3b8c31292c0afc2b848196691f229e8bf"
 dependencies = [
  "solana-program",
 ]
@@ -4265,7 +4294,7 @@ dependencies = [
 [[package]]
 name = "spl-noop"
 version = "0.1.3"
-source = "git+https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library?branch=steven/eclipse-1.14.13#b76028cd0285f2b2f5585c8bb34c5d253e662e83"
+source = "git+https://github.com/tkporter/eclipse-program-library?branch=trevor/steven/eclipse-1.14.13/with-tlv-lib#89b2adf3b8c31292c0afc2b848196691f229e8bf"
 dependencies = [
  "solana-program",
 ]
@@ -4288,7 +4317,7 @@ dependencies = [
 [[package]]
 name = "spl-token"
 version = "3.5.0"
-source = "git+https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library?branch=steven/eclipse-1.14.13#b76028cd0285f2b2f5585c8bb34c5d253e662e83"
+source = "git+https://github.com/tkporter/eclipse-program-library?branch=trevor/steven/eclipse-1.14.13/with-tlv-lib#89b2adf3b8c31292c0afc2b848196691f229e8bf"
 dependencies = [
  "arrayref",
  "bytemuck",
@@ -4320,7 +4349,7 @@ dependencies = [
 [[package]]
 name = "spl-token-2022"
 version = "0.5.0"
-source = "git+https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library?branch=steven/eclipse-1.14.13#b76028cd0285f2b2f5585c8bb34c5d253e662e83"
+source = "git+https://github.com/tkporter/eclipse-program-library?branch=trevor/steven/eclipse-1.14.13/with-tlv-lib#89b2adf3b8c31292c0afc2b848196691f229e8bf"
 dependencies = [
  "arrayref",
  "bytemuck",
@@ -4329,14 +4358,15 @@ dependencies = [
  "num_enum 0.5.7",
  "solana-program",
  "solana-zk-token-sdk",
- "spl-memo 3.0.1 (git+https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library?branch=steven/eclipse-1.14.13)",
- "spl-token 3.5.0 (git+https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library?branch=steven/eclipse-1.14.13)",
+ "spl-memo 3.0.1 (git+https://github.com/tkporter/eclipse-program-library?branch=trevor/steven/eclipse-1.14.13/with-tlv-lib)",
+ "spl-token 3.5.0 (git+https://github.com/tkporter/eclipse-program-library?branch=trevor/steven/eclipse-1.14.13/with-tlv-lib)",
  "thiserror",
 ]
 
 [[package]]
 name = "spl-type-length-value"
 version = "0.1.0"
+source = "git+https://github.com/tkporter/eclipse-program-library?branch=trevor/steven/eclipse-1.14.13/with-tlv-lib#89b2adf3b8c31292c0afc2b848196691f229e8bf"
 dependencies = [
  "arrayref",
  "borsh",

@@ -7,8 +7,11 @@ edition = "2021"
 no-entrypoint = []
 
 [dependencies]
+borsh = "0.9"
 solana-program = "=1.14.13"
+hyperlane-core = { path = "../../../hyperlane-core" }
 hyperlane-sealevel-mailbox = { path = "../../mailbox", features = ["no-entrypoint"] }
+hyperlane-sealevel-interchain-security-module-interface = { path = "../../../libraries/interchain-security-module-interface" }
 
 [lib]
 crate-type = ["cdylib", "lib"]

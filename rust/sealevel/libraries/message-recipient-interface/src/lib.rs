@@ -1,4 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
+use hyperlane_core::H256;
 use solana_program::program_error::ProgramError;
 use spl_type_length_value::discriminator::{Discriminator, TlvDiscriminator};
 
@@ -7,13 +8,16 @@ use spl_type_length_value::discriminator::{Discriminator, TlvDiscriminator};
 /// allows programs to implement the required interface.
 #[derive(Eq, PartialEq, Debug)]
 pub enum MessageRecipientInstruction {
-    InterchainSecurityModule(InterchainSecurityModuleInstruction),
+    /// Gets the ISM that should verify the message.
+    InterchainSecurityModule,
+    /// Handles a message from the Mailbox.
     Handle(HandleInstruction),
-}
-
-#[derive(Eq, PartialEq, BorshSerialize, BorshDeserialize, Debug)]
-pub struct InterchainSecurityModuleInstruction {
-    pub message: Vec<u8>,
+    /// Gets the account metas required for the `Handle` instruction.
+    /// Intended to be simulated by an off-chain client.
+    /// The only account passed into this instruction is expected to be
+    /// the read-only PDA relating to the program ID and the seeds
+    /// `HANDLE_ACCOUNT_METAS_PDA_SEEDS`
+    HandleAccountMetas(HandleInstruction),
 }
 
 /// First 8 bytes of `hash::hashv(&[b"hyperlane-message-recipient:interchain-security-module"])`
@@ -22,39 +26,65 @@ const INTERCHAIN_SECURITY_MODULE_DISCRIMINATOR: [u8; Discriminator::LENGTH] =
 const INTERCHAIN_SECURITY_MODULE_DISCRIMINATOR_SLICE: &[u8] =
     &INTERCHAIN_SECURITY_MODULE_DISCRIMINATOR;
 
-impl TlvDiscriminator for InterchainSecurityModuleInstruction {
-    const TLV_DISCRIMINATOR: Discriminator =
-        Discriminator::new(INTERCHAIN_SECURITY_MODULE_DISCRIMINATOR);
-}
-
 #[derive(Eq, PartialEq, BorshSerialize, BorshDeserialize, Debug)]
 pub struct HandleInstruction {
-    pub metadata: Vec<u8>,
+    pub origin: u32,
+    pub sender: H256,
     pub message: Vec<u8>,
+}
+
+impl HandleInstruction {
+    pub fn new(origin: u32, sender: H256, message: Vec<u8>) -> Self {
+        Self {
+            origin,
+            sender,
+            message,
+        }
+    }
 }
 
 /// First 8 bytes of `hash::hashv(&[b"hyperlane-message-recipient:handle"])`
 const HANDLE_DISCRIMINATOR: [u8; Discriminator::LENGTH] = [33, 210, 5, 66, 196, 212, 239, 142];
 const HANDLE_DISCRIMINATOR_SLICE: &[u8] = &HANDLE_DISCRIMINATOR;
 
+/// First 8 bytes of `hash::hashv(&[b"hyperlane-message-recipient:handle-account-metas"])`
+const HANDLE_ACCOUNT_METAS_DISCRIMINATOR: [u8; Discriminator::LENGTH] =
+    [194, 141, 30, 82, 241, 41, 169, 52];
+const HANDLE_ACCOUNT_METAS_DISCRIMINATOR_SLICE: &[u8] = &HANDLE_ACCOUNT_METAS_DISCRIMINATOR;
+
+/// Seeds for the PDA that's expected to be passed into the `HandleAccountMetas`
+/// instruction.
+pub const HANDLE_ACCOUNT_METAS_PDA_SEEDS: &[&[u8]] = &[
+    b"hyperlane-message-recipient",
+    b"-",
+    b"handle",
+    b"-",
+    b"account_metas",
+];
+
+// TODO: does this even need to be implemented?
 impl TlvDiscriminator for HandleInstruction {
     const TLV_DISCRIMINATOR: Discriminator = Discriminator::new(HANDLE_DISCRIMINATOR);
 }
 
+// TODO implement hyperlane-core's Encode & Decode?
 impl MessageRecipientInstruction {
     pub fn encode(&self) -> Result<Vec<u8>, ProgramError> {
         let mut buf = vec![];
         match self {
-            MessageRecipientInstruction::InterchainSecurityModule(instruction) => {
+            MessageRecipientInstruction::InterchainSecurityModule => {
                 buf.extend_from_slice(&INTERCHAIN_SECURITY_MODULE_DISCRIMINATOR_SLICE[..]);
+            }
+            MessageRecipientInstruction::Handle(instruction) => {
+                buf.extend_from_slice(&HANDLE_DISCRIMINATOR_SLICE[..]);
                 buf.extend_from_slice(
                     &instruction
                         .try_to_vec()
                         .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
                 );
             }
-            MessageRecipientInstruction::Handle(instruction) => {
-                buf.extend_from_slice(&HANDLE_DISCRIMINATOR_SLICE[..]);
+            MessageRecipientInstruction::HandleAccountMetas(instruction) => {
+                buf.extend_from_slice(&HANDLE_ACCOUNT_METAS_DISCRIMINATOR_SLICE[..]);
                 buf.extend_from_slice(
                     &instruction
                         .try_to_vec()
@@ -72,15 +102,16 @@ impl MessageRecipientInstruction {
         }
         let (discriminator, rest) = buf.split_at(Discriminator::LENGTH);
         match discriminator {
-            INTERCHAIN_SECURITY_MODULE_DISCRIMINATOR_SLICE => {
-                let instruction = InterchainSecurityModuleInstruction::try_from_slice(rest)
-                    .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
-                Ok(Self::InterchainSecurityModule(instruction))
-            }
+            INTERCHAIN_SECURITY_MODULE_DISCRIMINATOR_SLICE => Ok(Self::InterchainSecurityModule),
             HANDLE_DISCRIMINATOR_SLICE => {
                 let instruction = HandleInstruction::try_from_slice(rest)
                     .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
                 Ok(Self::Handle(instruction))
+            }
+            HANDLE_ACCOUNT_METAS_DISCRIMINATOR_SLICE => {
+                let instruction = HandleInstruction::try_from_slice(rest)
+                    .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+                Ok(Self::HandleAccountMetas(instruction))
             }
             _ => Err(ProgramError::InvalidInstructionData),
         }
@@ -104,15 +135,17 @@ mod test {
             &hashv(&[b"hyperlane-message-recipient:handle"]).to_bytes()[..Discriminator::LENGTH],
             HANDLE_DISCRIMINATOR_SLICE,
         );
+
+        assert_eq!(
+            &hashv(&[b"hyperlane-message-recipient:handle-account-metas"]).to_bytes()
+                [..Discriminator::LENGTH],
+            HANDLE_ACCOUNT_METAS_DISCRIMINATOR_SLICE,
+        );
     }
 
     #[test]
     fn test_encode_decode_interchain_security_module_instruction() {
-        let instruction = MessageRecipientInstruction::InterchainSecurityModule(
-            InterchainSecurityModuleInstruction {
-                message: vec![1, 2, 3, 4, 5],
-            },
-        );
+        let instruction = MessageRecipientInstruction::InterchainSecurityModule;
 
         let encoded = instruction.encode().unwrap();
         assert_eq!(
@@ -126,15 +159,34 @@ mod test {
 
     #[test]
     fn test_encode_decode_handle_instruction() {
-        let instruction = MessageRecipientInstruction::Handle(HandleInstruction {
-            metadata: vec![5, 4, 3, 2, 1],
-            message: vec![1, 2, 3, 4, 5],
-        });
+        let instruction = MessageRecipientInstruction::Handle(HandleInstruction::new(
+            69,
+            H256::random(),
+            vec![1, 2, 3, 4, 5],
+        ));
 
         let encoded = instruction.encode().unwrap();
         assert_eq!(
             &encoded[..Discriminator::LENGTH],
             HANDLE_DISCRIMINATOR_SLICE,
+        );
+
+        let decoded = MessageRecipientInstruction::decode(&encoded).unwrap();
+        assert_eq!(instruction, decoded);
+    }
+
+    #[test]
+    fn test_encode_decode_handle_account_metas_instruction() {
+        let instruction = MessageRecipientInstruction::HandleAccountMetas(HandleInstruction::new(
+            69,
+            H256::random(),
+            vec![1, 2, 3, 4, 5],
+        ));
+
+        let encoded = instruction.encode().unwrap();
+        assert_eq!(
+            &encoded[..Discriminator::LENGTH],
+            HANDLE_ACCOUNT_METAS_DISCRIMINATOR_SLICE,
         );
 
         let decoded = MessageRecipientInstruction::decode(&encoded).unwrap();

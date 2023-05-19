@@ -1,5 +1,5 @@
 [package]
-name = "multisig-ism"
+name = "serializable-account-meta"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,11 +9,6 @@ no-entrypoint = []
 [dependencies]
 borsh = "0.9"
 solana-program = "=1.14.13"
-hyperlane-core = { path = "../hyperlane-core" }
-thiserror = "1.0"
-
-[dev-dependencies]
-hex = "0.4.3"
 
 [lib]
 crate-type = ["cdylib", "lib"]

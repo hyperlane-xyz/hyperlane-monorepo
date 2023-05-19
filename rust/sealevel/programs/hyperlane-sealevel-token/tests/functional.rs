@@ -10,10 +10,11 @@ use solana_program::{
 };
 
 use hyperlane_sealevel_mailbox::{
-    instruction::{
-        Init as InitMailbox, Instruction as MailboxInstruction, MailboxRecipientInstruction,
-    },
+    instruction::{Init as InitMailbox, Instruction as MailboxInstruction},
     mailbox_authority_pda_seeds, mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds,
+};
+use hyperlane_sealevel_message_recipient_interface::{
+    HandleInstruction, MessageRecipientInstruction,
 };
 use hyperlane_sealevel_token::{
     hyperlane_token_mint_pda_seeds, hyperlane_token_pda_seeds,
@@ -155,10 +156,10 @@ async fn test_initialize() {
         &[
             Instruction::new_with_bytes(
                 program_id,
-                &MailboxRecipientInstruction::Custom(HyperlaneTokenInstruction::Init(Init {
+                &HyperlaneTokenInstruction::Init(Init {
                     mailbox: hyperlane_sealevel_mailbox::id(),
                     mailbox_local_domain: local_domain,
-                }))
+                })
                 .into_instruction_data()
                 .unwrap(),
                 vec![
@@ -208,13 +209,13 @@ async fn test_initialize() {
     let mut transaction = Transaction::new_with_payer(
         &[Instruction::new_with_bytes(
             program_id,
-            &MailboxRecipientInstruction::<()>::new_mailbox_recipient_cpi(
+            &MessageRecipientInstruction::Handle(HandleInstruction::new(
+                remote_domain,
                 // TODO change
                 H256::zero(),
-                remote_domain,
                 TokenMessage::new_erc20(recipient, 100u64.into(), vec![]).to_vec(),
-            )
-            .into_instruction_data()
+            ))
+            .encode()
             .unwrap(),
             vec![
                 // TODO this will need to be a signer
@@ -254,15 +255,13 @@ async fn test_initialize() {
     let mut transaction = Transaction::new_with_payer(
         &[Instruction::new_with_bytes(
             program_id,
-            &MailboxRecipientInstruction::Custom(HyperlaneTokenInstruction::TransferRemote(
-                TransferRemote {
-                    destination_domain: remote_domain,
-                    /// TODO imply this from Router
-                    destination_program_id: H256::random(),
-                    recipient: H256::random(),
-                    amount_or_id: 69u64.into(),
-                },
-            ))
+            &HyperlaneTokenInstruction::TransferRemote(TransferRemote {
+                destination_domain: remote_domain,
+                /// TODO imply this from Router
+                destination_program_id: H256::random(),
+                recipient: H256::random(),
+                amount_or_id: 69u64.into(),
+            })
             .into_instruction_data()
             .unwrap(),
             vec![

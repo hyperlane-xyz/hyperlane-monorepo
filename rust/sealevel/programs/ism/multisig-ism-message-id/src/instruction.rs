@@ -1,6 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H160;
-use hyperlane_sealevel_mailbox::instruction::IsmVerify;
 use solana_program::{program_error::ProgramError, pubkey::Pubkey};
 
 use std::collections::HashSet;
@@ -9,20 +8,6 @@ use crate::error::Error;
 
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub enum Instruction {
-    /// Verifies a message.
-    /// This MUST be the first instruction to maintain consistency
-    /// with the IsmInstruction::Verify instruction used by the Mailbox.
-    ///
-    /// Accounts:
-    /// 0. `[]` The PDA relating to the message's origin domain.
-    IsmVerify(IsmVerify),
-    /// Gets the type of ISM.
-    /// This MUST be the second instruction to maintain consistency
-    /// with the IsmInstruction::Type instruction.
-    ///
-    /// Accounts:
-    /// None.
-    IsmType,
     /// Initializes the program.
     ///
     /// Accounts:
@@ -30,11 +15,6 @@ pub enum Instruction {
     /// 1. `[writable]` The access control PDA account.
     /// 2. `[executable]` The system program account.
     Initialize,
-    /// Input: domain ID to query.
-    ///
-    /// Accounts:
-    /// 0. `[]` The PDA relating to the provided domain.
-    GetValidatorsAndThreshold(u32),
     /// Input: domain ID, validators, & threshold to set.
     ///
     /// Accounts:

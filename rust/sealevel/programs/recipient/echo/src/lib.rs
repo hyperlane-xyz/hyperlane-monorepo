@@ -10,12 +10,16 @@
 
 use std::str::FromStr as _;
 
-use hyperlane_sealevel_mailbox::instruction::MailboxRecipientInstruction;
+use borsh::ser::BorshSerialize;
+use hyperlane_sealevel_message_recipient_interface::{
+    HandleInstruction, MessageRecipientInstruction,
+};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint,
     entrypoint::ProgramResult,
     msg,
+    program::set_return_data,
     program_error::ProgramError,
     pubkey::Pubkey,
 };
@@ -29,9 +33,34 @@ entrypoint!(process_instruction);
 const AUTHORITY: &str = "G9CdDjMs6dEd3Tv5eG2ZXo8iKksLRcbHTxpS41sEmX1g";
 
 pub fn process_instruction(
-    _program_id: &Pubkey,
+    program_id: &Pubkey,
     accounts: &[AccountInfo],
     instruction_data: &[u8],
+) -> ProgramResult {
+    match MessageRecipientInstruction::decode(instruction_data)? {
+        MessageRecipientInstruction::InterchainSecurityModule => {
+            // Return None, indicating the default ISM should be used
+            let ism: Option<Pubkey> = None;
+            set_return_data(
+                &ism.try_to_vec()
+                    .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
+            );
+            Ok(())
+        }
+        MessageRecipientInstruction::Handle(instruction) => {
+            handle(program_id, accounts, instruction)
+        }
+        MessageRecipientInstruction::HandleAccountMetas(_) => {
+            // No additional accounts required!
+            Ok(())
+        }
+    }
+}
+
+pub fn handle(
+    _program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    handle: HandleInstruction,
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
     let hyperlane_mailbox_auth = next_account_info(accounts_iter)?;
@@ -44,7 +73,6 @@ pub fn process_instruction(
     if accounts_iter.next().is_some() {
         return Err(ProgramError::InvalidArgument);
     }
-    let ixn = MailboxRecipientInstruction::<()>::from_instruction_data(instruction_data)?;
-    msg!("hyperlane-sealevel-recipient-echo: {:?}", ixn);
+    msg!("hyperlane-sealevel-recipient-echo: {:?}", handle);
     Ok(())
 }

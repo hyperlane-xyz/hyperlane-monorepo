@@ -15,8 +15,8 @@ use hyperlane_sealevel_mailbox::{
         Encode,
     },
     instruction::{
-        InboxProcess, Init as InitMailbox, Instruction as MailboxInstruction,
-        MailboxRecipientInstruction, OutboxDispatch, VERSION,
+        InboxProcess, Init as InitMailbox, Instruction as MailboxInstruction, OutboxDispatch,
+        VERSION,
     },
     mailbox_authority_pda_seeds, mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds, spl_noop,
     ID as MAILBOX_PROG_ID,
@@ -526,12 +526,12 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 hyperlane_token_native_collateral_pda_seeds!(),
                 &init.program_id,
             );
-            let ixn = MailboxRecipientInstruction::new_custom(HtInstruction::Init(HtInit {
+            let ixn = HtInstruction::Init(HtInit {
                 mailbox: init.mailbox,
                 mailbox_local_domain: init.mailbox_local_domain,
                 name: init.native_name.clone(),
                 symbol: init.native_symbol.clone(),
-            }));
+            });
             // Accounts:
             // 1. system_program
             // 2. hyperlane_token storage
@@ -587,12 +587,11 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 &init.program_id,
             );
 
-            let ixn =
-                MailboxRecipientInstruction::new_custom(HtInstruction::InitErc20(HtInitErc20 {
-                    total_supply: init.total_supply.into(),
-                    name: init.name,
-                    symbol: init.symbol,
-                }));
+            let ixn = HtInstruction::InitErc20(HtInitErc20 {
+                total_supply: init.total_supply.into(),
+                name: init.name,
+                symbol: init.symbol,
+            });
             let init_instruction = Instruction {
                 program_id: init.program_id,
                 data: ixn.into_instruction_data().unwrap(),
@@ -711,14 +710,12 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 &xfer.mailbox,
             );
 
-            let ixn = MailboxRecipientInstruction::new_custom(HtInstruction::TransferRemote(
-                HtTransferRemote {
-                    destination_domain: xfer.destination_domain,
-                    destination_program_id: xfer.destination_token_program_id.to_bytes().into(),
-                    recipient: xfer.recipient.to_bytes().into(),
-                    amount_or_id: xfer.amount.into(),
-                },
-            ));
+            let ixn = HtInstruction::TransferRemote(HtTransferRemote {
+                destination_domain: xfer.destination_domain,
+                destination_program_id: xfer.destination_token_program_id.to_bytes().into(),
+                recipient: xfer.recipient.to_bytes().into(),
+                amount_or_id: xfer.amount.into(),
+            });
 
             let xfer_is_native = xfer.name == xfer.native_name && xfer.symbol == xfer.native_symbol;
             // Accounts:
@@ -819,12 +816,10 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 U256::from(xfer.amount),
                 vec![],
             );
-            let ixn = MailboxRecipientInstruction::new_custom(HtInstruction::TransferFromRemote(
-                HtTransferFromRemote {
-                    origin: xfer.origin_domain,
-                    message: message.to_vec(),
-                },
-            ));
+            let ixn = HtInstruction::TransferFromRemote(HtTransferFromRemote {
+                origin: xfer.origin_domain,
+                message: message.to_vec(),
+            });
 
             let xfer_is_native = xfer.name == xfer.native_name && xfer.symbol == xfer.native_symbol;
             // Accounts:
