@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::providers::Middleware;
-use tracing::instrument;
+use tracing::{instrument, warn};
 
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
@@ -98,8 +98,13 @@ where
 {
     #[instrument(err, ret)]
     async fn module_type(&self) -> ChainResult<ModuleType> {
-        let module_type = self.contract.module_type().call().await?;
-        Ok(ModuleType::from_u8(module_type).unwrap_or_default())
+        let module = self.contract.module_type().call().await?;
+        if let Some(module_type) = ModuleType::from_u8(module) {
+            Ok(module_type)
+        } else {
+            warn!("Unknown module type: {}", module);
+            Ok(ModuleType::Unused)
+        }
     }
 }
 
