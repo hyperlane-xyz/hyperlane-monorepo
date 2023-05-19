@@ -13,13 +13,16 @@ use hyperlane_base::{
 };
 use hyperlane_core::accumulator::merkle::Proof;
 use hyperlane_core::{
-    Checkpoint, HyperlaneDomain, HyperlaneMessage, ModuleType,
-    MultisigIsm, RoutingIsm, ValidatorAnnounce, H160, H256,
+    Checkpoint, HyperlaneDomain, HyperlaneMessage, ModuleType, MultisigIsm, RoutingIsm,
+    ValidatorAnnounce, H160, H256,
 };
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
+use crate::msg::metadata::multisig::{
+    LegacyMultisigMetadataBuilder, MerkleRootMultisigMetadataBuilder,
+    MessageIdMultisigMetadataBuilder,
+};
 use crate::msg::metadata::RoutingIsmMetadataBuilder;
-use crate::msg::metadata::multisig::{LegacyMultisigMetadataBuilder, MerkleRootMultisigMetadataBuilder, MessageIdMultisigMetadataBuilder};
 
 #[derive(Debug, thiserror::Error)]
 pub enum MetadataBuilderError {
@@ -79,7 +82,9 @@ impl MetadataBuilder for BaseMetadataBuilder {
 
         let metadata_builder: Box<dyn MetadataBuilder> = match module_type {
             ModuleType::LegacyMultisig => Box::new(LegacyMultisigMetadataBuilder::new(base)),
-            ModuleType::MerkleRootMultisig => Box::new(MerkleRootMultisigMetadataBuilder::new(base)),
+            ModuleType::MerkleRootMultisig => {
+                Box::new(MerkleRootMultisigMetadataBuilder::new(base))
+            }
             ModuleType::MessageIdMultisig => Box::new(MessageIdMultisigMetadataBuilder::new(base)),
             ModuleType::Routing => Box::new(RoutingIsmMetadataBuilder::new(base)),
             _ => return Err(MetadataBuilderError::UnsupportedModuleType(module_type).into()),
@@ -106,11 +111,7 @@ impl BaseMetadataBuilder {
         }
     }
 
-    pub async fn get_proof(
-        &self,
-        nonce: u32,
-        checkpoint: Checkpoint,
-    ) -> Result<Option<Proof>> {
+    pub async fn get_proof(&self, nonce: u32, checkpoint: Checkpoint) -> Result<Option<Proof>> {
         const CTX: &str = "When fetching message proof";
         let proof = self
             .origin_prover_sync

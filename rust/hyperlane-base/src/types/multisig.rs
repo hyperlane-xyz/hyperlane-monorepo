@@ -7,7 +7,8 @@ use eyre::Result;
 use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
-    MultisigSignedCheckpoint, Checkpoint, CheckpointWithMessageId, SignedCheckpointWithSigner, H160, H256,
+    Checkpoint, CheckpointWithMessageId, MultisigSignedCheckpoint, SignedCheckpointWithSigner,
+    H160, H256,
 };
 
 use crate::CheckpointSyncer;
@@ -102,8 +103,10 @@ impl MultisigCheckpointSyncer {
         // Keeps track of signed validator checkpoints for a particular root.
         // In practice, it's likely that validators will all sign the same root for a
         // particular index, but we'd like to be robust to this not being the case
-        let mut signed_checkpoints_per_root: HashMap<H256, Vec<SignedCheckpointWithSigner<Checkpoint>>> =
-            HashMap::new();
+        let mut signed_checkpoints_per_root: HashMap<
+            H256,
+            Vec<SignedCheckpointWithSigner<Checkpoint>>,
+        > = HashMap::new();
 
         for validator in validators.iter() {
             let addr = H160::from(*validator);
@@ -241,9 +244,8 @@ impl MultisigCheckpointSyncer {
                 return Ok(None);
             }
             for index in (minimum_index..=start_index).rev() {
-                if let Ok(Some(checkpoint)) = self
-                    .fetch_checkpoint(validators, threshold, index)
-                    .await
+                if let Ok(Some(checkpoint)) =
+                    self.fetch_checkpoint(validators, threshold, index).await
                 {
                     return Ok(Some(checkpoint));
                 }
@@ -260,7 +262,7 @@ impl MultisigCheckpointSyncer {
         &self,
         validators: &[H256],
         threshold: usize,
-        index: u32
+        index: u32,
     ) -> Result<Option<MultisigSignedCheckpoint<CheckpointWithMessageId>>> {
         // Keeps track of signed validator checkpoints for a particular root.
         // In practice, it's likely that validators will all sign the same root for a
@@ -300,10 +302,11 @@ impl MultisigCheckpointSyncer {
                     }
 
                     // Insert the SignedCheckpointWithSigner into signed_checkpoints_per_root
-                    let signed_checkpoint_with_signer = SignedCheckpointWithSigner::<CheckpointWithMessageId> {
-                        signer,
-                        signed_checkpoint,
-                    };
+                    let signed_checkpoint_with_signer =
+                        SignedCheckpointWithSigner::<CheckpointWithMessageId> {
+                            signer,
+                            signed_checkpoint,
+                        };
                     let root = signed_checkpoint_with_signer.signed_checkpoint.value.root;
 
                     let signature_count = match signed_checkpoints_per_root.entry(root) {
@@ -327,9 +330,10 @@ impl MultisigCheckpointSyncer {
                     // If we've hit a quorum, create a MultisigSignedCheckpoint
                     if signature_count >= threshold {
                         if let Some(signed_checkpoints) = signed_checkpoints_per_root.get(&root) {
-                            let checkpoint = MultisigSignedCheckpoint::<CheckpointWithMessageId>::try_from(
-                                signed_checkpoints,
-                            )?;
+                            let checkpoint =
+                                MultisigSignedCheckpoint::<CheckpointWithMessageId>::try_from(
+                                    signed_checkpoints,
+                                )?;
                             debug!(checkpoint=?checkpoint, "Fetched multisig checkpoint");
                             return Ok(Some(checkpoint));
                         }

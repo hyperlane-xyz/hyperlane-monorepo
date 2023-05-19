@@ -1,4 +1,3 @@
-
 use std::fmt::Debug;
 
 use async_trait::async_trait;
@@ -11,7 +10,7 @@ use hyperlane_core::H256;
 
 use crate::msg::metadata::BaseMetadataBuilder;
 
-use super::multisig::{MultisigIsmMetadataBuilder, MetadataToken, MultisigMetadata};
+use super::multisig::{MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata};
 
 #[derive(Debug, Clone, Deref, new)]
 pub struct LegacyMultisigMetadataBuilder(BaseMetadataBuilder);
@@ -31,7 +30,8 @@ impl MultisigIsmMetadataBuilder for LegacyMultisigMetadataBuilder {
             MetadataToken::Threshold,
             MetadataToken::Signatures,
             MetadataToken::Validators,
-        ].to_vec()
+        ]
+        .to_vec()
     }
 
     async fn fetch_metadata(
@@ -46,12 +46,13 @@ impl MultisigIsmMetadataBuilder for LegacyMultisigMetadataBuilder {
         if let Some(quorum_checkpoint) = checkpoint_syncer
             .legacy_fetch_checkpoint_in_range(validators, threshold as usize, nonce, highest_nonce)
             .await
-            .context(CTX)? {
-
+            .context(CTX)?
+        {
             if let Some(proof) = self
                 .get_proof(nonce, quorum_checkpoint.checkpoint)
-                    .await
-                    .context(CTX)? {
+                .await
+                .context(CTX)?
+            {
                 return Ok(Some(MultisigMetadata::new(
                     quorum_checkpoint.checkpoint,
                     quorum_checkpoint.signatures,

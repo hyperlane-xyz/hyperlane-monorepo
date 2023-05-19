@@ -64,7 +64,9 @@ impl Signable for CheckpointWithMessageId {
     }
 }
 
+/// Signed checkpoint
 pub type SignedCheckpoint = SignedType<Checkpoint>;
+/// Signed (checkpoint, messageId) tuple
 pub type SignedCheckpointWithMessageId = SignedType<CheckpointWithMessageId>;
 
 /// An individual signed checkpoint with the recovered signer
@@ -105,12 +107,16 @@ pub enum MultisigSignedCheckpointError {
     EmptySignatures(),
 }
 
-impl<T: Signable + Eq + Copy> TryFrom<&Vec<SignedCheckpointWithSigner<T>>> for MultisigSignedCheckpoint<T> {
+impl<T: Signable + Eq + Copy> TryFrom<&Vec<SignedCheckpointWithSigner<T>>>
+    for MultisigSignedCheckpoint<T>
+{
     type Error = MultisigSignedCheckpointError;
 
     /// Given multiple signed checkpoints with their signer, creates a
     /// MultisigSignedCheckpoint
-    fn try_from(signed_checkpoints: &Vec<SignedCheckpointWithSigner<T>>) -> Result<Self, Self::Error> {
+    fn try_from(
+        signed_checkpoints: &Vec<SignedCheckpointWithSigner<T>>,
+    ) -> Result<Self, Self::Error> {
         if signed_checkpoints.is_empty() {
             return Err(MultisigSignedCheckpointError::EmptySignatures());
         }

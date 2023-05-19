@@ -8,17 +8,14 @@ use ethers::abi::Token;
 use eyre::{Context, Result};
 use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::accumulator::merkle::Proof;
-use hyperlane_core::{
-    Checkpoint, HyperlaneMessage, MultisigIsm,
-    SignatureWithSigner, H256,
-};
+use hyperlane_core::{Checkpoint, HyperlaneMessage, MultisigIsm, SignatureWithSigner, H256};
 use strum::Display;
 use tracing::{debug, info};
 
 use crate::msg::metadata::BaseMetadataBuilder;
 use crate::msg::metadata::MetadataBuilder;
 
-#[derive(new, Debug)]
+#[derive(new)]
 pub struct MultisigMetadata {
     checkpoint: Checkpoint,
     signatures: Vec<SignatureWithSigner>,
@@ -136,7 +133,7 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
             .await
             .context(CTX)?
         {
-            debug!(?message, ?metadata, "Found checkpoint with quorum");
+            debug!(?message, ?metadata.checkpoint, "Found checkpoint with quorum");
             Ok(Some(self.format_metadata(&validators, threshold, metadata)))
         } else {
             info!(

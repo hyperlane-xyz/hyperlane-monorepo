@@ -23,7 +23,7 @@ use std::{
     process::{Child, Command, ExitCode, Stdio},
     sync::atomic::{AtomicBool, Ordering},
     thread::{sleep, spawn, JoinHandle},
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH}
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use maplit::hashmap;

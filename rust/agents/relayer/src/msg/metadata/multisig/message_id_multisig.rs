@@ -10,7 +10,7 @@ use hyperlane_core::H256;
 
 use crate::msg::metadata::BaseMetadataBuilder;
 
-use super::multisig::{MultisigIsmMetadataBuilder, MetadataToken, MultisigMetadata};
+use super::multisig::{MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata};
 
 #[derive(Debug, Clone, Deref, new)]
 pub struct MessageIdMultisigMetadataBuilder(BaseMetadataBuilder);
@@ -26,7 +26,8 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
             MetadataToken::CheckpointMailbox,
             MetadataToken::CheckpointRoot,
             MetadataToken::Signatures,
-        ].to_vec()
+        ]
+        .to_vec()
     }
 
     async fn fetch_metadata(
@@ -40,15 +41,16 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
         if let Some(quorum_checkpoint) = checkpoint_syncer
             .fetch_checkpoint(validators, threshold as usize, nonce)
             .await
-            .context(CTX)? {
-                Ok(Some(MultisigMetadata::new(
-                    quorum_checkpoint.checkpoint.checkpoint,
-                    quorum_checkpoint.signatures,
-                    None,
-                    None
-                )))
-            } else {
-                Ok(None)
-            }
+            .context(CTX)?
+        {
+            Ok(Some(MultisigMetadata::new(
+                quorum_checkpoint.checkpoint.checkpoint,
+                quorum_checkpoint.signatures,
+                None,
+                None,
+            )))
+        } else {
+            Ok(None)
         }
+    }
 }
