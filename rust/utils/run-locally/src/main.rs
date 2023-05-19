@@ -15,9 +15,11 @@
 //! else false.
 
 use std::{
+    collections::HashMap,
     env,
     fs::{self, File},
     io::{BufRead, BufReader, BufWriter, Read, Write},
+    os::macos::raw::stat,
     path::{Path, PathBuf},
     process::{Child, Command, ExitCode, Stdio},
     sync::atomic::{AtomicBool, Ordering},
@@ -57,6 +59,7 @@ struct State {
     node: Option<Child>,
     relayer: Option<Child>,
     validators: Vec<Child>,
+    scraper: Option<Child>,
 
     watchers: Vec<JoinHandle<()>>,
 }
@@ -68,6 +71,9 @@ impl Drop for State {
             stop_child(&mut c);
         }
         if let Some(mut c) = self.relayer.take() {
+            stop_child(&mut c);
+        }
+        if let Some(mut c) = self.scraper.take() {
             stop_child(&mut c);
         }
         for mut c in self.validators.drain(..) {
@@ -123,15 +129,6 @@ fn main() -> ExitCode {
     }
     let build_log = concat_path(&log_dir, "build.log");
     let hardhat_log = concat_path(&log_dir, "hardhat.stdout.log");
-    let relayer_stdout_log = concat_path(&log_dir, "relayer.stdout.log");
-    let relayer_stderr_log = concat_path(&log_dir, "relayer.stderr.log");
-    let validator_stdout_logs = (1..=3)
-        .map(|i| concat_path(&log_dir, format!("validator{i}.stdout.log")))
-        .collect::<Vec<_>>();
-    let validator_stderr_logs = (1..=3)
-        .map(|i| concat_path(&log_dir, format!("validator{i}.stderr.log")))
-        .collect::<Vec<_>>();
-    let kathy_log = concat_path(&log_dir, "kathy.stdout.log");
 
     let checkpoints_dirs = (0..3).map(|_| tempdir().unwrap()).collect::<Vec<_>>();
     let rocks_db_dir = tempdir().unwrap();
@@ -167,7 +164,7 @@ fn main() -> ExitCode {
     ];
 
     let validator_envs: Vec<_> = (0..3).map(|i| {
-        let metrics_port = make_static((9093 + i).to_string());
+        let metrics_port = make_static((9094 + i).to_string());
         let originchainname = make_static(format!("test{}", 1 + i));
         hashmap! {
             "HYP_BASE_CHAINS_TEST1_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
@@ -185,6 +182,18 @@ fn main() -> ExitCode {
         }
     }).collect();
 
+    let scraper_env = hashmap! {
+        "HYP_BASE_CHAINS_TEST1_CONNECTION_TYPE" => "httpQuorum",
+        "HYP_BASE_CHAINS_TEST1_CONNECTION_URL" => "http://127.0.0.1:8545",
+        "HYP_BASE_CHAINS_TEST2_CONNECTION_TYPE" => "httpQuorum",
+        "HYP_BASE_CHAINS_TEST2_CONNECTION_URL" => "http://127.0.0.1:8545",
+        "HYP_BASE_CHAINS_TEST3_CONNECTION_TYPE" => "httpQuorum",
+        "HYP_BASE_CHAINS_TEST3_CONNECTION_URL" => "http://127.0.0.1:8545",
+        "HYP_BASE_CHAINSTOSCRAPE" => "test1,test2,test3",
+        "HYP_BASE_METRICS" => "9093",
+        "HYP_BASE_DB"=>"postgresql://postgres:47221c18c610@localhost:5432/postgres",
+    };
+
     if !log_all {
         println!("Logs in {}", log_dir.display());
     }
@@ -200,7 +209,7 @@ fn main() -> ExitCode {
 
     let build_cmd = {
         let build_log = make_static(build_log.to_str().unwrap().into());
-        move |cmd, path| build_cmd(cmd, build_log, log_all, path)
+        move |cmd, path, env| build_cmd(cmd, build_log, log_all, path, env)
     };
 
     // this task takes a long time in the CI so run it in parallel
@@ -217,19 +226,45 @@ fn main() -> ExitCode {
                     "relayer",
                     "--bin",
                     "validator",
+                    "--bin",
+                    "scraper",
+                    "--bin",
+                    "init-db",
                 ],
+                None,
                 None,
             );
         })
     };
 
+    println!("Running postgres db...");
+    let postgres_env = hashmap! {
+        "DATABASE_URL"=>"postgresql://postgres:47221c18c610@localhost:5432/postgres",
+    };
+    build_cmd(
+        &[
+            "docker",
+            "run",
+            "--name",
+            "scraper-testnet-postgres",
+            "-e",
+            "POSTGRES_PASSWORD=47221c18c610",
+            "-p",
+            "5432:5432",
+            "-d",
+            "postgres:14",
+        ],
+        None,
+        Some(&postgres_env),
+    );
+
     println!("Installing typescript dependencies...");
-    build_cmd(&["yarn", "install"], Some("../"));
+    build_cmd(&["yarn", "install"], Some("../"), None);
     if !is_ci_env {
         // don't need to clean in the CI
-        build_cmd(&["yarn", "clean"], Some("../"));
+        build_cmd(&["yarn", "clean"], Some("../"), None);
     }
-    build_cmd(&["yarn", "build:e2e"], Some("../"));
+    build_cmd(&["yarn", "build:e2e"], Some("../"), None);
 
     let mut state = State::default();
 
@@ -250,137 +285,116 @@ fn main() -> ExitCode {
     sleep(Duration::from_secs(10));
 
     println!("Deploying hyperlane ism contracts...");
-    build_cmd(&["yarn", "deploy-ism"], Some("../typescript/infra"));
+    build_cmd(&["yarn", "deploy-ism"], Some("../typescript/infra"), None);
 
     println!("Rebuilding sdk...");
-    build_cmd(&["yarn", "build"], Some("../typescript/sdk"));
+    build_cmd(&["yarn", "build"], Some("../typescript/sdk"), None);
 
     println!("Deploying hyperlane core contracts...");
-    build_cmd(&["yarn", "deploy-core"], Some("../typescript/infra"));
+    build_cmd(&["yarn", "deploy-core"], Some("../typescript/infra"), None);
 
     println!("Deploying hyperlane igp contracts...");
-    build_cmd(&["yarn", "deploy-igp"], Some("../typescript/infra"));
+    build_cmd(&["yarn", "deploy-igp"], Some("../typescript/infra"), None);
 
     if !is_ci_env {
         // Follow-up 'yarn hardhat node' invocation with 'yarn prettier' to fixup
         // formatting on any autogenerated json config files to avoid any diff creation.
-        build_cmd(&["yarn", "prettier"], Some("../"));
+        build_cmd(&["yarn", "prettier"], Some("../"), None);
     }
 
     // Rebuild the SDK to pick up the deployed contracts
     println!("Rebuilding sdk...");
-    build_cmd(&["yarn", "build"], Some("../typescript/sdk"));
+    build_cmd(&["yarn", "build"], Some("../typescript/sdk"), None);
 
     build_rust.join().unwrap();
 
+    println!("Init postgres db...");
+    build_cmd(
+        &["cargo", "run", "-r", "-p", "migration", "--bin", "init-db"],
+        None,
+        None,
+    );
+
+    let (scraper, scraper_stdout, scraper_stderr) = run_agent(
+        "scraper",
+        &scraper_env.into_iter().chain(common_env.clone()).collect(),
+        &[],
+        "SCR",
+        log_all,
+        &log_dir,
+    );
+    state.watchers.push(scraper_stdout);
+    state.watchers.push(scraper_stderr);
+    state.scraper = Some(scraper);
+
     for (i, validator_env) in validator_envs.iter().enumerate() {
-        println!("Spawning validator for test{}", 1 + i);
-        let mut validator = Command::new("target/debug/validator")
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .envs(&common_env)
-            .envs(validator_env)
-            .spawn()
-            .expect("Failed to start validator");
-        let validator_stdout = validator.stdout.take().unwrap();
-        let validator_stdout_log = validator_stdout_logs[i].clone();
-        let log_prefix = make_static(format!("VAL{}", 1 + i));
-        state.watchers.push(spawn(move || {
-            if log_all {
-                prefix_log(validator_stdout, log_prefix)
-            } else {
-                inspect_and_write_to_file(validator_stdout, validator_stdout_log, &["ERROR"])
-            }
-        }));
-        let validator_stderr = validator.stderr.take().unwrap();
-        let validator_stderr_log = validator_stderr_logs[i].clone();
-        state.watchers.push(spawn(move || {
-            if log_all {
-                prefix_log(validator_stderr, log_prefix)
-            } else {
-                inspect_and_write_to_file(validator_stderr, &validator_stderr_log, &[])
-            }
-        }));
+        let (validator, validator_stdout, validator_stderr) = run_agent(
+            "validator",
+            &common_env
+                .clone()
+                .into_iter()
+                .chain(validator_env.clone())
+                .collect(),
+            &[],
+            make_static(format!("VAL{}", 1 + i)),
+            log_all,
+            &log_dir,
+        );
+        state.watchers.push(validator_stdout);
+        state.watchers.push(validator_stderr);
         state.validators.push(validator);
     }
 
     // Run one round of kathy before the relayer comes up
-    println!("Spawning Kathy to send Hyperlane message traffic...");
     let mut kathy = Command::new("yarn");
-    kathy.arg("kathy");
-    kathy.args([
-        "--messages",
-        &kathy_messages.to_string(),
-        "--timeout",
-        "1000",
-    ]);
-    let mut kathy = kathy
+    kathy
+        .arg("kathy")
+        .args([
+            "--messages",
+            &kathy_messages.to_string(),
+            "--timeout",
+            "1000",
+        ])
         .current_dir("../typescript/infra")
         .stdout(Stdio::piped())
-        .spawn()
-        .expect("Failed to start kathy");
-    let kathy_stdout = kathy.stdout.take().unwrap();
-    state
-        .watchers
-        .push(spawn(move || prefix_log(kathy_stdout, "KTY")));
+        .stderr(Stdio::piped());
+    let (mut kathy, kathy_stdout, kathy_stderr) =
+        spawn_cmd_with_logging("kathy", kathy, "KTY", log_all, &log_dir);
+    state.watchers.push(kathy_stdout);
+    state.watchers.push(kathy_stderr);
     kathy.wait().unwrap();
 
-    println!("Spawning relayer...");
-    let mut relayer = Command::new("target/debug/relayer")
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .envs(&common_env)
-        .envs(&relayer_env)
-        .args(relayer_args)
-        .spawn()
-        .expect("Failed to start relayer");
-    let relayer_stdout = relayer.stdout.take().unwrap();
-    state.watchers.push(spawn(move || {
-        if log_all {
-            prefix_log(relayer_stdout, "RLY")
-        } else {
-            inspect_and_write_to_file(
-                relayer_stdout,
-                relayer_stdout_log,
-                &["ERROR", "message successfully processed"],
-            )
-        }
-    }));
-    let relayer_stderr = relayer.stderr.take().unwrap();
-    state.watchers.push(spawn(move || {
-        if log_all {
-            prefix_log(relayer_stderr, "RLY")
-        } else {
-            inspect_and_write_to_file(relayer_stderr, relayer_stderr_log, &[])
-        }
-    }));
+    let (relayer, relayer_stdout, relayer_stderr) = run_agent(
+        "relayer",
+        &relayer_env.into_iter().chain(common_env.clone()).collect(),
+        &relayer_args,
+        "RLY",
+        log_all,
+        &log_dir,
+    );
+    state.watchers.push(relayer_stdout);
+    state.watchers.push(relayer_stderr);
     state.relayer = Some(relayer);
 
     println!("Setup complete! Agents running in background...");
     println!("Ctrl+C to end execution...");
 
-    println!("Spawning Kathy to send Hyperlane message traffic...");
     let mut kathy = Command::new("yarn");
-    kathy.arg("kathy");
-    kathy.args([
-        "--messages",
-        &kathy_messages.to_string(),
-        "--timeout",
-        "1000",
-    ]);
-    let mut kathy = kathy
+    kathy
+        .arg("kathy")
+        .args([
+            "--messages",
+            &kathy_messages.to_string(),
+            "--timeout",
+            "1000",
+        ])
         .current_dir("../typescript/infra")
         .stdout(Stdio::piped())
-        .spawn()
-        .expect("Failed to start kathy");
-    let kathy_stdout = kathy.stdout.take().unwrap();
-    state.watchers.push(spawn(move || {
-        if log_all {
-            prefix_log(kathy_stdout, "KTY")
-        } else {
-            inspect_and_write_to_file(kathy_stdout, kathy_log, &["send"])
-        }
-    }));
+        .stderr(Stdio::piped());
+    let (kathy, kathy_stdout, kathy_stderr) =
+        spawn_cmd_with_logging("kathy", kathy, "KTY", log_all, &log_dir);
+    state.watchers.push(kathy_stdout);
+    state.watchers.push(kathy_stderr);
     state.kathy = Some(kathy);
 
     let loop_start = Instant::now();
@@ -418,6 +432,10 @@ fn main() -> ExitCode {
             break;
         }
         sleep(Duration::from_secs(5));
+    }
+    // TODO: Remove me!
+    loop {
+        sleep(Duration::from_secs(10));
     }
 
     ExitCode::from(0)
@@ -569,7 +587,13 @@ fn append_to(p: impl AsRef<Path>) -> File {
         .expect("Failed to open file")
 }
 
-fn build_cmd(cmd: &[&str], log: impl AsRef<Path>, log_all: bool, wd: Option<&str>) {
+fn build_cmd(
+    cmd: &[&str],
+    log: impl AsRef<Path>,
+    log_all: bool,
+    wd: Option<&str>,
+    env: Option<&HashMap<&str, &str>>,
+) {
     assert!(!cmd.is_empty(), "Must specify a command!");
     let mut c = Command::new(cmd[0]);
     c.args(&cmd[1..]);
@@ -591,4 +615,55 @@ fn build_cmd(cmd: &[&str], log: impl AsRef<Path>, log_all: bool, wd: Option<&str
 
 fn make_static(s: String) -> &'static str {
     Box::leak(s.into_boxed_str())
+}
+
+fn spawn_cmd_with_logging(
+    name: &str,
+    mut command: Command,
+    log_prefix: &'static str,
+    log_all: bool,
+    log_dir: &PathBuf,
+) -> (std::process::Child, JoinHandle<()>, JoinHandle<()>) {
+    println!("Spawning {}...", name);
+    let mut child = command.spawn().expect(&format!("Failed to start {}", name));
+    let stdout_path = concat_path(log_dir, format!("{}.stdout.log", log_prefix));
+    let child_stdout = child.stdout.take().unwrap();
+    let stdout = spawn(move || {
+        if log_all {
+            prefix_log(child_stdout, &log_prefix.clone())
+        } else {
+            inspect_and_write_to_file(
+                child_stdout,
+                stdout_path,
+                &["ERROR", "message successfully processed"],
+            )
+        }
+    });
+    let stderr_path = concat_path(log_dir, format!("{}.stderr.log", log_prefix));
+    let child_stderr = child.stderr.take().unwrap();
+    let stderr = spawn(move || {
+        if log_all {
+            prefix_log(child_stderr, &log_prefix.clone())
+        } else {
+            inspect_and_write_to_file(child_stderr, stderr_path, &[])
+        }
+    });
+    (child, stdout, stderr)
+}
+
+fn run_agent(
+    name: &str,
+    env: &HashMap<&str, &str>,
+    args: &[&str],
+    log_prefix: &'static str,
+    log_all: bool,
+    log_dir: &PathBuf,
+) -> (std::process::Child, JoinHandle<()>, JoinHandle<()>) {
+    let mut command = Command::new(format!("target/debug/{}", name));
+    command
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .envs(env)
+        .args(args);
+    spawn_cmd_with_logging(name, command, log_prefix, log_all, log_dir)
 }

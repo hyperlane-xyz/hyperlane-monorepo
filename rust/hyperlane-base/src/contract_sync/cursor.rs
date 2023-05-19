@@ -169,7 +169,7 @@ impl BackwardMessageSyncCursor {
             // If we found nonce zero, we are done rewinding.
             if self.cursor.next_nonce == 0 {
                 self.synced = true;
-                return None;
+                break;
             }
 
             if let Some(block_number) = self
@@ -181,6 +181,9 @@ impl BackwardMessageSyncCursor {
             }
 
             self.cursor.next_nonce = self.cursor.next_nonce.saturating_sub(1);
+        }
+        if self.synced {
+            return None;
         }
 
         // Just keep going backwards.

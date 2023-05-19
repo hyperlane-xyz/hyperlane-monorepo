@@ -8,7 +8,7 @@ use tracing::{debug, instrument, trace};
 use hyperlane_core::{HyperlaneMessage, LogMeta, H256};
 use migration::OnConflict;
 
-use crate::conversions::{address_to_bytes, h256_to_bytes};
+use crate::conversions::{address_to_bytes, bytes_to_address, h256_to_bytes};
 use crate::date_time;
 use crate::db::ScraperDb;
 
@@ -72,13 +72,10 @@ impl ScraperDb {
         enum QueryAs {
             Nonce,
         }
-
         if let Some(message) = message::Entity::find()
             .filter(message::Column::Origin.eq(origin_domain))
             .filter(message::Column::OriginMailbox.eq(address_to_bytes(origin_mailbox)))
             .filter(message::Column::Nonce.eq(nonce))
-            .order_by_desc(message::Column::Nonce)
-            .select_only()
             .one(&self.0)
             .await?
         {
@@ -88,8 +85,8 @@ impl ScraperDb {
                 origin: message.origin.try_into()?,
                 nonce: message.nonce.try_into()?,
                 destination: message.destination.try_into()?,
-                sender: H256::from_slice(&message.sender[..]),
-                recipient: H256::from_slice(&message.recipient[..]),
+                sender: bytes_to_address(message.sender)?,
+                recipient: bytes_to_address(message.recipient)?,
                 body: message.msg_body.unwrap_or(Vec::new()),
             }))
         } else {
