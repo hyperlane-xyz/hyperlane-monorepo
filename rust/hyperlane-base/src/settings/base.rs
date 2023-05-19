@@ -2,7 +2,8 @@ use std::collections::HashSet;
 use std::fmt::Debug;
 use std::{collections::HashMap, sync::Arc};
 
-use eyre::{eyre, Context};
+use eyre::{eyre, Context, Result};
+use futures_util::{future::try_join_all, TryFutureExt};
 use serde::Deserialize;
 
 use hyperlane_core::{
@@ -49,7 +50,7 @@ pub struct Settings {
     /// Configuration for contracts on each chain
     pub chains: HashMap<String, ChainConf>,
     /// Port to listen for prometheus scrape requests
-    pub metrics: Option<u16>,
+    pub metrics_port: u16,
     /// The tracing configuration
     pub tracing: TracingConfig,
 }
@@ -101,14 +102,15 @@ impl FromRawConf<'_, RawSettings, Option<&HashSet<&str>>> for Settings {
             Default::default()
         };
         let tracing = raw.tracing.unwrap_or_default();
-        let metrics: Option<u16> = raw
+        let metrics = raw
             .metrics
-            .and_then(|port| port.try_into().take_err(&mut err, || cwp + "metrics"));
+            .and_then(|port| port.try_into().take_err(&mut err, || cwp + "metrics"))
+            .unwrap_or(9090);
 
         err.into_result()?;
         Ok(Self {
             chains,
-            metrics,
+            metrics_port: metrics,
             tracing,
         })
     }
@@ -122,38 +124,50 @@ impl Settings {
             settings: self.clone(),
         }
     }
+
     /// Try to get a map of chain name -> mailbox contract
     pub async fn build_all_mailboxes(
         &self,
-        domains: &[&HyperlaneDomain],
+        domains: impl Iterator<Item = &HyperlaneDomain>,
         metrics: &CoreMetrics,
         db: DB,
-    ) -> eyre::Result<HashMap<HyperlaneDomain, CachingMailbox>> {
-        let mut result = HashMap::new();
-        for &domain in domains {
-            let mailbox = self
-                .build_caching_mailbox(domain, db.clone(), metrics)
-                .await?;
-            result.insert(mailbox.domain().clone(), mailbox);
-        }
-        Ok(result)
+    ) -> Result<HashMap<HyperlaneDomain, CachingMailbox>> {
+        try_join_all(domains.map(|d| {
+            self.build_caching_mailbox(d, db.clone(), metrics)
+                .map_ok(|m| (m.domain().clone(), m))
+        }))
+        .await
+        .map(|vec| vec.into_iter().collect())
     }
 
     /// Try to get a map of chain name -> interchain gas paymaster contract
     pub async fn build_all_interchain_gas_paymasters(
         &self,
-        domains: &[&HyperlaneDomain],
+        domains: impl Iterator<Item = &HyperlaneDomain>,
         metrics: &CoreMetrics,
         db: DB,
-    ) -> eyre::Result<HashMap<HyperlaneDomain, CachingInterchainGasPaymaster>> {
-        let mut result = HashMap::new();
-        for &domain in domains {
-            let igp = self
-                .build_caching_interchain_gas_paymaster(domain, db.clone(), metrics)
-                .await?;
-            result.insert(igp.paymaster().domain().clone(), igp);
-        }
-        Ok(result)
+    ) -> Result<HashMap<HyperlaneDomain, CachingInterchainGasPaymaster>> {
+        try_join_all(domains.map(|d| {
+            self.build_caching_interchain_gas_paymaster(d, db.clone(), metrics)
+                .map_ok(|m| (m.paymaster().domain().clone(), m))
+        }))
+        .await
+        .map(|vec| vec.into_iter().collect())
+    }
+
+    /// Try to get a map of chain name -> validator announce contract
+    pub async fn build_all_validator_announces(
+        &self,
+        domains: impl Iterator<Item = &HyperlaneDomain>,
+        metrics: &CoreMetrics,
+    ) -> Result<HashMap<HyperlaneDomain, Arc<dyn ValidatorAnnounce>>> {
+        Ok(
+            try_join_all(domains.map(|d| self.build_validator_announce(d, metrics)))
+                .await?
+                .into_iter()
+                .map(|va| (va.domain().clone(), va))
+                .collect(),
+        )
     }
 
     /// Try to get a CachingMailbox
@@ -162,7 +176,7 @@ impl Settings {
         domain: &HyperlaneDomain,
         db: DB,
         metrics: &CoreMetrics,
-    ) -> eyre::Result<CachingMailbox> {
+    ) -> Result<CachingMailbox> {
         let mailbox = self
             .build_mailbox(domain, metrics)
             .await
@@ -171,7 +185,7 @@ impl Settings {
             .build_mailbox_indexer(domain, metrics)
             .await
             .with_context(|| format!("Building mailbox indexer for {domain}"))?;
-        let hyperlane_db = HyperlaneDB::new(domain.name(), db);
+        let hyperlane_db = HyperlaneDB::new(domain, db);
         Ok(CachingMailbox::new(
             mailbox.into(),
             hyperlane_db,
@@ -185,12 +199,12 @@ impl Settings {
         domain: &HyperlaneDomain,
         db: DB,
         metrics: &CoreMetrics,
-    ) -> eyre::Result<CachingInterchainGasPaymaster> {
+    ) -> Result<CachingInterchainGasPaymaster> {
         let interchain_gas_paymaster = self.build_interchain_gas_paymaster(domain, metrics).await?;
         let indexer = self
             .build_interchain_gas_paymaster_indexer(domain, metrics)
             .await?;
-        let hyperlane_db = HyperlaneDB::new(domain.name(), db);
+        let hyperlane_db = HyperlaneDB::new(domain, db);
         Ok(CachingInterchainGasPaymaster::new(
             interchain_gas_paymaster.into(),
             hyperlane_db,
@@ -204,7 +218,7 @@ impl Settings {
         domain: &HyperlaneDomain,
         address: H256,
         metrics: &CoreMetrics,
-    ) -> eyre::Result<Box<dyn MultisigIsm>> {
+    ) -> Result<Box<dyn MultisigIsm>> {
         let setup = self
             .chain_setup(domain)
             .with_context(|| format!("Building multisig ism for {domain}"))?;
@@ -216,7 +230,7 @@ impl Settings {
         &self,
         domain: &HyperlaneDomain,
         metrics: &CoreMetrics,
-    ) -> eyre::Result<Arc<dyn ValidatorAnnounce>> {
+    ) -> Result<Arc<dyn ValidatorAnnounce>> {
         let setup = self.chain_setup(domain)?;
         let announce = setup
             .build_validator_announce(metrics)
@@ -244,7 +258,7 @@ impl Settings {
     pub fn metrics(&self, name: &str) -> eyre::Result<Arc<CoreMetrics>> {
         Ok(Arc::new(CoreMetrics::new(
             name,
-            self.metrics,
+            self.metrics_port,
             prometheus::Registry::new(),
         )?))
     }
@@ -254,7 +268,7 @@ impl Settings {
     fn clone(&self) -> Self {
         Self {
             chains: self.chains.clone(),
-            metrics: self.metrics,
+            metrics_port: self.metrics_port,
             tracing: self.tracing.clone(),
         }
     }

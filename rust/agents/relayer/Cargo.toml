@@ -11,17 +11,19 @@ version.workspace = true
 async-trait.workspace = true
 config.workspace = true
 derive-new.workspace = true
+enum_dispatch.workspace = true
 ethers-contract.workspace = true
 ethers.workspace = true
 eyre.workspace = true
 futures-util.workspace = true
+itertools.workspace = true
 prometheus.workspace = true
 reqwest = { workspace = true, features = ["json"] }
 serde.workspace = true
 serde_json.workspace = true
 strum.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, features = ["rt", "macros"] }
+tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
 tracing-futures.workspace = true
 tracing-subscriber.workspace = true
 tracing.workspace = true
@@ -41,3 +43,4 @@ hyperlane-base = { path = "../../hyperlane-base", features = ["test-utils"] }
 default = ["color-eyre", "oneline-errors"]
 oneline-errors = ["hyperlane-base/oneline-errors"]
 color-eyre = ["hyperlane-base/color-eyre"]
+test-utils = ["hyperlane-base/test-utils"]

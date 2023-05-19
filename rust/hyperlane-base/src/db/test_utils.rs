@@ -1,6 +1,5 @@
 use futures_util::Future;
 use rocksdb::Options;
-
 use tempfile::TempDir;
 
 use crate::db::DB;
@@ -31,7 +30,7 @@ where
 
 #[cfg(test)]
 mod test {
-    use hyperlane_core::{HyperlaneMessage, RawHyperlaneMessage, H256};
+    use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, RawHyperlaneMessage, H256};
 
     use crate::db::HyperlaneDB;
 
@@ -40,8 +39,10 @@ mod test {
     #[tokio::test]
     async fn db_stores_and_retrieves_messages() {
         run_test_db(|db| async move {
-            let mailbox_name = "mailbox_1".to_owned();
-            let db = HyperlaneDB::new(mailbox_name, db);
+            let db = HyperlaneDB::new(
+                &HyperlaneDomain::new_test_domain("db_stores_and_retrieves_messages"),
+                db,
+            );
 
             let m = HyperlaneMessage {
                 nonce: 100,

@@ -22,12 +22,6 @@ pub struct CachingMailbox {
     indexer: Arc<dyn MailboxIndexer>,
 }
 
-impl std::fmt::Display for CachingMailbox {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{self:?}")
-    }
-}
-
 impl CachingMailbox {
     /// Return handle on mailbox object
     pub fn mailbox(&self) -> &Arc<dyn Mailbox> {
@@ -55,7 +49,7 @@ impl CachingMailbox {
         );
 
         tokio::spawn(async move { sync.sync_dispatched_messages().await })
-            .instrument(info_span!("MailboxContractSync", self = %self))
+            .instrument(info_span!("MailboxContractSync", domain=%self.mailbox.domain()))
     }
 }
 

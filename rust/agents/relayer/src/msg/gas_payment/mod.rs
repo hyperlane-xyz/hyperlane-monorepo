@@ -137,7 +137,7 @@ mod test {
     use std::str::FromStr;
 
     use hyperlane_base::db::{test_utils, HyperlaneDB};
-    use hyperlane_core::{HyperlaneMessage, TxCostEstimate, H160, H256, U256};
+    use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, TxCostEstimate, H160, H256, U256};
 
     use crate::settings::{
         matching_list::MatchingList, GasPaymentEnforcementConf, GasPaymentEnforcementPolicy,
@@ -148,7 +148,10 @@ mod test {
     #[tokio::test]
     async fn test_empty_whitelist() {
         test_utils::run_test_db(|db| async move {
-            let hyperlane_db = HyperlaneDB::new("mailbox", db);
+            let hyperlane_db = HyperlaneDB::new(
+                &HyperlaneDomain::new_test_domain("test_empty_whitelist"),
+                db,
+            );
 
             let enforcer = GasPaymentEnforcer::new(
                 // Require a payment
@@ -181,7 +184,8 @@ mod test {
     async fn test_no_match() {
         #[allow(unused_must_use)]
         test_utils::run_test_db(|db| async move {
-            let hyperlane_db = HyperlaneDB::new("mailbox", db);
+            let hyperlane_db =
+                HyperlaneDB::new(&HyperlaneDomain::new_test_domain("test_no_match"), db);
             let matching_list = serde_json::from_str(r#"[{"originDomain": 234}]"#).unwrap();
             let enforcer = GasPaymentEnforcer::new(
                 // Require a payment
@@ -208,7 +212,7 @@ mod test {
     #[tokio::test]
     async fn test_non_empty_matching_list() {
         test_utils::run_test_db(|db| async move {
-            let hyperlane_db = HyperlaneDB::new("mailbox", db);
+            let hyperlane_db = HyperlaneDB::new(&HyperlaneDomain::new_test_domain("test_non_empty_matching_list"), db);
 
             let sender_address = "0xaa000000000000000000000000000000000000aa";
             let recipient_address = "0xbb000000000000000000000000000000000000bb";
