@@ -1,7 +1,7 @@
+mod base;
 mod legacy_multisig;
 mod merkle_root_multisig;
 mod message_id_multisig;
-mod base;
 
 pub use base::{MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata};
 
