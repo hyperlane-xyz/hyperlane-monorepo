@@ -159,6 +159,10 @@ pub fn process_instruction(
                     message: handle.message,
                 },
             ),
+            MessageRecipientInstruction::HandleAccountMetas(_) => {
+                // TODO: not implemented yet!
+                Ok(())
+            }
         };
     }
 

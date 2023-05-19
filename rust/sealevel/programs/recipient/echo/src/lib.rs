@@ -50,6 +50,10 @@ pub fn process_instruction(
         MessageRecipientInstruction::Handle(instruction) => {
             handle(program_id, accounts, instruction)
         }
+        MessageRecipientInstruction::HandleAccountMetas(_) => {
+            // No additional accounts required!
+            Ok(())
+        }
     }
 }
 
