@@ -8,8 +8,16 @@ use spl_type_length_value::discriminator::{Discriminator, TlvDiscriminator};
 /// allows programs to implement the required interface.
 #[derive(Eq, PartialEq, Debug)]
 pub enum MessageRecipientInstruction {
+    /// Gets the ISM that should verify the message.
     InterchainSecurityModule,
+    /// Handles a message from the Mailbox.
     Handle(HandleInstruction),
+    /// Gets the account metas required for the `Handle` instruction.
+    /// Intended to be simulated by an off-chain client.
+    /// The only account passed into this instruction is expected to be
+    /// the read-only PDA relating to the program ID and the seeds
+    /// `HANDLE_ACCOUNT_METAS_PDA_SEEDS`
+    HandleAccountMetas(HandleInstruction),
 }
 
 /// First 8 bytes of `hash::hashv(&[b"hyperlane-message-recipient:interchain-security-module"])`
@@ -39,6 +47,11 @@ impl HandleInstruction {
 const HANDLE_DISCRIMINATOR: [u8; Discriminator::LENGTH] = [33, 210, 5, 66, 196, 212, 239, 142];
 const HANDLE_DISCRIMINATOR_SLICE: &[u8] = &HANDLE_DISCRIMINATOR;
 
+/// First 8 bytes of `hash::hashv(&[b"hyperlane-message-recipient:handle-account-metas"])`
+const HANDLE_ACCOUNT_METAS_DISCRIMINATOR: [u8; Discriminator::LENGTH] =
+    [194, 141, 30, 82, 241, 41, 169, 52];
+const HANDLE_ACCOUNT_METAS_DISCRIMINATOR_SLICE: &[u8] = &HANDLE_ACCOUNT_METAS_DISCRIMINATOR;
+
 // TODO: does this even need to be implemented?
 impl TlvDiscriminator for HandleInstruction {
     const TLV_DISCRIMINATOR: Discriminator = Discriminator::new(HANDLE_DISCRIMINATOR);
@@ -54,6 +67,14 @@ impl MessageRecipientInstruction {
             }
             MessageRecipientInstruction::Handle(instruction) => {
                 buf.extend_from_slice(&HANDLE_DISCRIMINATOR_SLICE[..]);
+                buf.extend_from_slice(
+                    &instruction
+                        .try_to_vec()
+                        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
+                );
+            }
+            MessageRecipientInstruction::HandleAccountMetas(instruction) => {
+                buf.extend_from_slice(&HANDLE_ACCOUNT_METAS_DISCRIMINATOR_SLICE[..]);
                 buf.extend_from_slice(
                     &instruction
                         .try_to_vec()
@@ -77,6 +98,11 @@ impl MessageRecipientInstruction {
                     .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
                 Ok(Self::Handle(instruction))
             }
+            HANDLE_ACCOUNT_METAS_DISCRIMINATOR_SLICE => {
+                let instruction = HandleInstruction::try_from_slice(rest)
+                    .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+                Ok(Self::HandleAccountMetas(instruction))
+            }
             _ => Err(ProgramError::InvalidInstructionData),
         }
     }
@@ -98,6 +124,12 @@ mod test {
         assert_eq!(
             &hashv(&[b"hyperlane-message-recipient:handle"]).to_bytes()[..Discriminator::LENGTH],
             HANDLE_DISCRIMINATOR_SLICE,
+        );
+
+        assert_eq!(
+            &hashv(&[b"hyperlane-message-recipient:handle-account-metas"]).to_bytes()
+                [..Discriminator::LENGTH],
+            HANDLE_ACCOUNT_METAS_DISCRIMINATOR_SLICE,
         );
     }
 
@@ -127,6 +159,24 @@ mod test {
         assert_eq!(
             &encoded[..Discriminator::LENGTH],
             HANDLE_DISCRIMINATOR_SLICE,
+        );
+
+        let decoded = MessageRecipientInstruction::decode(&encoded).unwrap();
+        assert_eq!(instruction, decoded);
+    }
+
+    #[test]
+    fn test_encode_decode_handle_account_metas_instruction() {
+        let instruction = MessageRecipientInstruction::HandleAccountMetas(HandleInstruction::new(
+            69,
+            H256::random(),
+            vec![1, 2, 3, 4, 5],
+        ));
+
+        let encoded = instruction.encode().unwrap();
+        assert_eq!(
+            &encoded[..Discriminator::LENGTH],
+            HANDLE_ACCOUNT_METAS_DISCRIMINATOR_SLICE,
         );
 
         let decoded = MessageRecipientInstruction::decode(&encoded).unwrap();
