@@ -5,13 +5,15 @@ use spl_type_length_value::discriminator::{Discriminator, TlvDiscriminator};
 /// Instructions that a Hyperlane interchain security module is expected to process.
 /// The first 8 bytes of the encoded instruction is a discriminator that
 /// allows programs to implement the required interface.
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub enum InterchainSecurityModuleInstruction {
     /// Gets the type of ISM.
     Type,
     /// Verifies a message.
     Verify(VerifyInstruction),
     /// Gets the list of AccountMetas required for the `Verify` instruction.
+    /// The only account expected to be passed into this instruction is the
+    /// read-only PDA relating to the program ID and the seeds `VERIFY_ACCOUNT_METAS_PDA_SEEDS`
     VerifyAccountMetas(VerifyInstruction),
 }
 
@@ -19,7 +21,7 @@ pub enum InterchainSecurityModuleInstruction {
 const TYPE_DISCRIMINATOR: [u8; Discriminator::LENGTH] = [105, 97, 97, 88, 63, 124, 106, 18];
 const TYPE_DISCRIMINATOR_SLICE: &[u8] = &TYPE_DISCRIMINATOR;
 
-#[derive(Eq, PartialEq, BorshSerialize, BorshDeserialize, Debug)]
+#[derive(Eq, PartialEq, BorshSerialize, BorshDeserialize, Debug, Clone)]
 pub struct VerifyInstruction {
     pub metadata: Vec<u8>,
     pub message: Vec<u8>,
@@ -39,6 +41,11 @@ const VERIFY_DISCRIMINATOR_SLICE: &[u8] = &VERIFY_DISCRIMINATOR;
 const VERIFY_ACCOUNT_METAS_DISCRIMINATOR: [u8; Discriminator::LENGTH] =
     [200, 65, 157, 12, 89, 255, 131, 216];
 const VERIFY_ACCOUNT_METAS_DISCRIMINATOR_SLICE: &[u8] = &VERIFY_ACCOUNT_METAS_DISCRIMINATOR;
+
+/// Seeds for the PDA that's expected to be passed into the `VerifyAccountMetas`
+/// instruction.
+pub const VERIFY_ACCOUNT_METAS_PDA_SEEDS: &[&[u8]] =
+    &[b"hyperlane_ism", b"-", b"verify", b"-", b"account_metas"];
 
 // TODO: does this even need to be implemented?
 impl TlvDiscriminator for VerifyInstruction {

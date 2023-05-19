@@ -22,6 +22,7 @@ thiserror = "1.0"
 solana-program-test = "=1.14.13"
 solana-sdk = "=1.14.13"
 hex = "0.4.3"
+multisig-ism = { path = "../../../libraries/multisig-ism", features = ["test-data"] }
 
 [lib]
 crate-type = ["cdylib", "lib"]

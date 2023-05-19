@@ -9,17 +9,22 @@ use solana_program::{
 };
 
 use hyperlane_core::{Encode, HyperlaneMessage, IsmType, H160, H256};
-use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
+use hyperlane_sealevel_interchain_security_module_interface::{
+    InterchainSecurityModuleInstruction, VerifyInstruction, VERIFY_ACCOUNT_METAS_PDA_SEEDS,
+};
 use hyperlane_sealevel_multisig_ism_message_id::{
     access_control_pda_seeds,
     accounts::{AccessControlAccount, AccessControlData, DomainData, DomainDataAccount},
     domain_data_pda_seeds,
     error::Error as MultisigIsmError,
     instruction::{Domained, Instruction as MultisigIsmProgramInstruction, ValidatorsAndThreshold},
+    metadata::MultisigIsmMessageIdMetadata,
     processor::process_instruction,
 };
-use multisig_ism::interface::{
-    MultisigIsmInstruction, VALIDATORS_AND_THRESHOLD_ACCOUNT_METAS_PDA_SEEDS,
+use multisig_ism::{
+    interface::{MultisigIsmInstruction, VALIDATORS_AND_THRESHOLD_ACCOUNT_METAS_PDA_SEEDS},
+    signature::EcdsaSignature,
+    test_data::{get_multisig_ism_test_data, MultisigIsmTestData},
 };
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program_test::*;
@@ -77,6 +82,40 @@ async fn initialize(
     banks_client.process_transaction(transaction).await?;
 
     Ok((access_control_pda_key, _access_control_pda_bump_seed))
+}
+
+async fn set_validators_and_threshold(
+    program_id: Pubkey,
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    recent_blockhash: Hash,
+    access_control_pda_key: Pubkey,
+    domain: u32,
+    validators_and_threshold: ValidatorsAndThreshold,
+) -> Result<(Pubkey, u8), BanksClientError> {
+    let (domain_data_pda_key, domain_data_pda_bump_seed) =
+        Pubkey::find_program_address(domain_data_pda_seeds!(domain), &program_id);
+
+    let mut transaction = Transaction::new_with_payer(
+        &[Instruction::new_with_borsh(
+            program_id,
+            &MultisigIsmProgramInstruction::SetValidatorsAndThreshold(Domained {
+                domain,
+                data: validators_and_threshold.clone(),
+            }),
+            vec![
+                AccountMeta::new_readonly(payer.pubkey(), true),
+                AccountMeta::new_readonly(access_control_pda_key, false),
+                AccountMeta::new(domain_data_pda_key, false),
+                AccountMeta::new_readonly(solana_program::system_program::id(), false),
+            ],
+        )],
+        Some(&payer.pubkey()),
+    );
+    transaction.sign(&[payer], recent_blockhash);
+    banks_client.process_transaction(transaction).await.unwrap();
+
+    Ok((domain_data_pda_key, domain_data_pda_bump_seed))
 }
 
 #[tokio::test]
@@ -347,6 +386,126 @@ async fn test_set_validators_and_threshold_creates_pda_account() {
     assert_eq!(
         ValidatorsAndThreshold::try_from_slice(validators_and_threshold_bytes.as_slice()).unwrap(),
         validators_and_threshold
+    );
+}
+
+#[tokio::test]
+async fn test_ism_verify() {
+    let program_id = hyperlane_sealevel_multisig_ism_message_id::id();
+    let (mut banks_client, payer, recent_blockhash) = ProgramTest::new(
+        "hyperlane_sealevel_ism_multisig_ism",
+        program_id,
+        processor!(process_instruction),
+    )
+    .start()
+    .await;
+
+    let (access_control_pda_key, _) = initialize(
+        program_id.clone(),
+        &mut banks_client,
+        &payer,
+        recent_blockhash.clone(),
+    )
+    .await
+    .unwrap();
+
+    let MultisigIsmTestData {
+        message,
+        checkpoint,
+        validators,
+        signatures,
+    } = get_multisig_ism_test_data();
+
+    let origin_domain = message.origin;
+    let validators_and_threshold = ValidatorsAndThreshold {
+        validators: validators.clone(),
+        threshold: 2,
+    };
+
+    set_validators_and_threshold(
+        program_id.clone(),
+        &mut banks_client,
+        &payer,
+        recent_blockhash.clone(),
+        access_control_pda_key,
+        origin_domain,
+        validators_and_threshold.clone(),
+    )
+    .await
+    .unwrap();
+
+    // A valid verify instruction with a quorum
+    let verify_instruction = VerifyInstruction {
+        metadata: MultisigIsmMessageIdMetadata {
+            origin_mailbox: checkpoint.mailbox_address,
+            merkle_root: checkpoint.root,
+            validator_signatures: vec![
+                EcdsaSignature::from_bytes(&signatures[0]).unwrap(),
+                EcdsaSignature::from_bytes(&signatures[1]).unwrap(),
+            ],
+        }
+        .to_vec(),
+        message: message.to_vec(),
+    };
+
+    // First get the account metas needed
+    let (account_metas_pda_key, _) =
+        Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, &program_id);
+    let account_metas_return_data = banks_client
+        .simulate_transaction(Transaction::new_unsigned(Message::new_with_blockhash(
+            &[Instruction::new_with_bytes(
+                program_id,
+                &InterchainSecurityModuleInstruction::VerifyAccountMetas(
+                    verify_instruction.clone(),
+                )
+                .encode()
+                .unwrap(),
+                vec![AccountMeta::new(account_metas_pda_key, false)],
+            )],
+            Some(&payer.pubkey()),
+            &recent_blockhash,
+        )))
+        .await
+        .unwrap()
+        .simulation_details
+        .unwrap()
+        .return_data
+        .unwrap()
+        .data;
+    let account_metas: Vec<SerializableAccountMeta> =
+        SimulationReturnData::<Vec<SerializableAccountMeta>>::try_from_slice(
+            account_metas_return_data.as_slice(),
+        )
+        .unwrap()
+        .return_data;
+    let account_metas: Vec<AccountMeta> = account_metas
+        .into_iter()
+        .map(|serializable_account_meta| serializable_account_meta.into())
+        .collect();
+
+    // Now let it rip with MultisigIsmInstruction::ValidatorsAndThreshold
+    let verify_simulation_logs = banks_client
+        .simulate_transaction(Transaction::new_unsigned(Message::new_with_blockhash(
+            &[Instruction::new_with_bytes(
+                program_id,
+                &InterchainSecurityModuleInstruction::Verify(verify_instruction)
+                    .encode()
+                    .unwrap(),
+                account_metas,
+            )],
+            Some(&payer.pubkey()),
+            &recent_blockhash,
+        )))
+        .await
+        .unwrap()
+        .simulation_details
+        .unwrap()
+        .logs;
+    // The only real indication of success in the interface we're given is the final log
+    // indicating success
+    assert_eq!(
+        verify_simulation_logs[verify_simulation_logs.len() - 1],
+        format!("Program {} success", program_id),
     );
 }
 

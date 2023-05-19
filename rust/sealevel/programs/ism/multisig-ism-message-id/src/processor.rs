@@ -99,6 +99,23 @@ pub fn process_instruction(
                 verify_data.metadata,
                 verify_data.message,
             ),
+            InterchainSecurityModuleInstruction::VerifyAccountMetas(verify_data) => {
+                let account_metas = verify_account_metas(
+                    program_id,
+                    accounts,
+                    verify_data.metadata,
+                    verify_data.message,
+                )?;
+                // Wrap it in the SimulationReturnData because serialized account_metas
+                // may end with zero byte(s), which are incorrectly truncated as
+                // simulated transaction return data.
+                // See `SimulationReturnData` for details.
+                let bytes = SimulationReturnData::new(account_metas)
+                    .try_to_vec()
+                    .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+                set_return_data(&bytes[..]);
+                Ok(())
+            }
         };
     }
 
@@ -246,6 +263,25 @@ fn verify(
     multisig_ism
         .verify()
         .map_err(|err| Into::<Error>::into(err).into())
+}
+
+/// Gets the list of AccountMetas required by the `Verify` instruction.
+///
+/// Accounts:
+/// 0. `[]` This program's PDA relating to the seeds VERIFY_ACCOUNT_METAS_PDA_SEEDS.
+///         Note this is not actually used / required in this implementation.
+fn verify_account_metas(
+    program_id: &Pubkey,
+    _accounts: &[AccountInfo],
+    _metadata_bytes: Vec<u8>,
+    message_bytes: Vec<u8>,
+) -> Result<Vec<SerializableAccountMeta>, ProgramError> {
+    let message = HyperlaneMessage::read_from(&mut &message_bytes[..])
+        .map_err(|_| ProgramError::InvalidArgument)?;
+    let (domain_pda_key, _) =
+        Pubkey::find_program_address(domain_data_pda_seeds!(message.origin), &program_id);
+
+    Ok(vec![AccountMeta::new_readonly(domain_pda_key, false).into()])
 }
 
 /// Gets the validators and threshold for a given domain, and returns it as return data.
@@ -495,27 +531,34 @@ fn set_owner(program_id: &Pubkey, accounts: &[AccountInfo], new_owner: Pubkey) -
 }
 
 #[cfg(test)]
-mod test {
+pub mod test {
     use super::*;
 
-    use hyperlane_core::{Checkpoint, Encode, HyperlaneMessage, H160, H256};
+    use hyperlane_core::{Encode, HyperlaneMessage, H160};
     use hyperlane_sealevel_interchain_security_module_interface::{
         InterchainSecurityModuleInstruction, VerifyInstruction,
     };
-    use multisig_ism::signature::EcdsaSignature;
+    use multisig_ism::{
+        signature::EcdsaSignature,
+        test_data::{get_multisig_ism_test_data, MultisigIsmTestData},
+    };
     use solana_program::stake_history::Epoch;
 
-    use std::str::FromStr;
+    const ORIGIN_DOMAIN: u32 = 1234u32;
 
     #[test]
     fn test_verify() {
         let program_id = id();
 
-        let origin_domain = 1234u32;
-        let destination_domain = 4321u32;
-
         let (domain_pda_key, domain_pda_bump_seed) =
-            Pubkey::find_program_address(domain_data_pda_seeds!(origin_domain), &program_id);
+            Pubkey::find_program_address(domain_data_pda_seeds!(ORIGIN_DOMAIN), &program_id);
+
+        let MultisigIsmTestData {
+            message,
+            checkpoint,
+            validators,
+            signatures,
+        } = get_multisig_ism_test_data();
 
         let mut domain_account_lamports = 0;
         let mut domain_account_data = vec![0_u8; 2048];
@@ -532,11 +575,7 @@ mod test {
         let init_domain_data = DomainData {
             bump_seed: domain_pda_bump_seed,
             validators_and_threshold: ValidatorsAndThreshold {
-                validators: vec![
-                    H160::from_str("0xE3DCDBbc248cE191bDc271f3FCcd0d95911BFC5D").unwrap(),
-                    H160::from_str("0xb25206874C24733F05CC0dD11924724A8E7175bd").unwrap(),
-                    H160::from_str("0x28b8d0E2bBfeDe9071F8Ff3DaC9CcE3d3176DBd3").unwrap(),
-                ],
+                validators: validators.clone(),
                 threshold: 2,
             },
         };
@@ -544,62 +583,6 @@ mod test {
             .store(&domain_pda_account, false)
             .unwrap();
 
-        let message = HyperlaneMessage {
-            version: 0,
-            nonce: 69,
-            origin: origin_domain,
-            sender: H256::from_str(
-                "0xafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafaf",
-            )
-            .unwrap(),
-            destination: destination_domain,
-            recipient: H256::from_str(
-                "0xbebebebebebebebebebebebebebebebebebebebebebebebebebebebebebebebe",
-            )
-            .unwrap(),
-            body: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-        };
-
-        let checkpoint = Checkpoint {
-            mailbox_address: H256::from_str(
-                "0xabababababababababababababababababababababababababababababababab",
-            )
-            .unwrap(),
-            mailbox_domain: origin_domain,
-            root: H256::from_str(
-                "0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
-            )
-            .unwrap(),
-            index: 69,
-            message_id: message.id(),
-        };
-
-        // checkpoint.signing_hash() is equal to:
-        // 0xb7f083667def5ba8a9b22af4faa336e2f5219bfa976a474034a67a9b5b71f13e
-
-        // Validator 0:
-        // Address: 0xE3DCDBbc248cE191bDc271f3FCcd0d95911BFC5D
-        // Private Key: 0x788aa7213bd92ff92017d767fde0d75601425818c8e4b21e87314c2a4dcd6091
-        //   > await (new ethers.Wallet('0x788aa7213bd92ff92017d767fde0d75601425818c8e4b21e87314c2a4dcd6091')).signMessage(ethers.utils.arrayify('0xb7f083667def5ba8a9b22af4faa336e2f5219bfa976a474034a67a9b5b71f13e'))
-        //   '0xba6ac92e3e1156c572ad2a9ba8bfc3a5e9492dfe9d0d00c6522682306614969a181962c07c64f8df863ded67ecc628fb19e4998e0521c4555b380a69b0afbf0c1b'
-        let signature_0 = hex::decode("ba6ac92e3e1156c572ad2a9ba8bfc3a5e9492dfe9d0d00c6522682306614969a181962c07c64f8df863ded67ecc628fb19e4998e0521c4555b380a69b0afbf0c1b").unwrap();
-
-        // Validator 1:
-        // Address: 0xb25206874C24733F05CC0dD11924724A8E7175bd
-        // Private Key: 0x4a599de3915f404d84a2ebe522bfe7032ebb1ca76a65b55d6eb212b129043a0e
-        //   > await (new ethers.Wallet('0x4a599de3915f404d84a2ebe522bfe7032ebb1ca76a65b55d6eb212b129043a0e')).signMessage(ethers.utils.arrayify('0xb7f083667def5ba8a9b22af4faa336e2f5219bfa976a474034a67a9b5b71f13e'))
-        //   '0x9034ee44173817edf63c223b5761e3a7580adf34ed6239b25da3e4f9b5c5d6230d903672de6744827f128b89b74be3c3f3ea367a618162f239f1b6d4aae66eec1c'
-        let signature_1 = hex::decode("9034ee44173817edf63c223b5761e3a7580adf34ed6239b25da3e4f9b5c5d6230d903672de6744827f128b89b74be3c3f3ea367a618162f239f1b6d4aae66eec1c").unwrap();
-
-        // Validator 2:
-        // Address: 0x28b8d0E2bBfeDe9071F8Ff3DaC9CcE3d3176DBd3
-        // Private Key: 0x2cc76d56db9924ddc3388164454dfea9edd2d5f5da81102fd3594fc7c5281515
-        //   > await (new ethers.Wallet('0x2cc76d56db9924ddc3388164454dfea9edd2d5f5da81102fd3594fc7c5281515')).signMessage(ethers.utils.arrayify('0xb7f083667def5ba8a9b22af4faa336e2f5219bfa976a474034a67a9b5b71f13e'))
-        //   '0x2b228823c04b9dd37577763043127fe3307074bb45968302c6111e8e334c3cd25292061618f392549c81351ae9e08d5c4a1e0b9947b79a30f8d693257e8818731c'
-        let signature_2 = hex::decode("2b228823c04b9dd37577763043127fe3307074bb45968302c6111e8e334c3cd25292061618f392549c81351ae9e08d5c4a1e0b9947b79a30f8d693257e8818731c").unwrap();
-
-        // let vec = checkpoint.signing_hash();
-        // println!("vec {:x}", vec);
         let message_bytes = message.to_vec();
 
         // A quorum of signatures in the correct order.
@@ -614,8 +597,8 @@ mod test {
                     origin_mailbox: checkpoint.mailbox_address,
                     merkle_root: checkpoint.root,
                     validator_signatures: vec![
-                        EcdsaSignature::from_bytes(&signature_0).unwrap(),
-                        EcdsaSignature::from_bytes(&signature_1).unwrap(),
+                        EcdsaSignature::from_bytes(&signatures[0]).unwrap(),
+                        EcdsaSignature::from_bytes(&signatures[1]).unwrap(),
                     ],
                 }
                 .to_vec(),
@@ -639,8 +622,8 @@ mod test {
                     origin_mailbox: checkpoint.mailbox_address,
                     merkle_root: checkpoint.root,
                     validator_signatures: vec![
-                        EcdsaSignature::from_bytes(&signature_1).unwrap(),
-                        EcdsaSignature::from_bytes(&signature_0).unwrap(),
+                        EcdsaSignature::from_bytes(&signatures[1]).unwrap(),
+                        EcdsaSignature::from_bytes(&signatures[0]).unwrap(),
                     ],
                 }
                 .to_vec(),
@@ -667,8 +650,8 @@ mod test {
                     origin_mailbox: checkpoint.mailbox_address,
                     merkle_root: checkpoint.root,
                     validator_signatures: vec![
-                        EcdsaSignature::from_bytes(&signature_0).unwrap(),
-                        EcdsaSignature::from_bytes(&signature_2).unwrap(),
+                        EcdsaSignature::from_bytes(&signatures[0]).unwrap(),
+                        EcdsaSignature::from_bytes(&signatures[2]).unwrap(),
                         // Signature from a non-validator:
                         //   Address: 0xB92752D900573BC114D18e023D81312bBC32e266
                         //   Private Key: 0x2e09250a71f712e5f834285cc60f1d62578360c65a0f4836daa0a5caa27199cf
@@ -691,8 +674,8 @@ mod test {
                     origin_mailbox: checkpoint.mailbox_address,
                     merkle_root: checkpoint.root,
                     validator_signatures: vec![
-                        EcdsaSignature::from_bytes(&signature_0).unwrap(),
-                        EcdsaSignature::from_bytes(&signature_1).unwrap(),
+                        EcdsaSignature::from_bytes(&signatures[0]).unwrap(),
+                        EcdsaSignature::from_bytes(&signatures[1]).unwrap(),
                     ],
                 }
                 .to_vec(),
