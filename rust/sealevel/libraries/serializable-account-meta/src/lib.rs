@@ -1,6 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::{instruction::AccountMeta, pubkey::Pubkey};
 
+/// A borsh-serializable version of `AccountMeta`.
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub struct SerializableAccountMeta {
     pub pubkey: Pubkey,
@@ -29,8 +30,8 @@ impl Into<AccountMeta> for SerializableAccountMeta {
 }
 
 /// A ridiculous workaround for https://github.com/solana-labs/solana/issues/31391,
-/// which is a bug when a simulated transaction's return data ends with zero byte(s),
-/// which end up being incorrectly truncated.
+/// which is a bug where if a simulated transaction's return data ends with zero byte(s),
+/// they end up being incorrectly truncated.
 /// As a workaround, we can (de)serialize data with a trailing non-zero byte.
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub struct SimulationReturnData<T>
