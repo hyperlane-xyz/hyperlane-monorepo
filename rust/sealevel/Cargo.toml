@@ -10,4 +10,5 @@ members = [
     "libraries/interchain-security-module-interface",
     "libraries/message-recipient-interface",
     "libraries/multisig-ism",
+    "libraries/serializable-account-meta",
 ]
