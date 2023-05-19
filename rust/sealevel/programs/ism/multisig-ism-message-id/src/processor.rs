@@ -1,9 +1,11 @@
 use hyperlane_core::{Checkpoint, Decode, HyperlaneMessage, IsmType};
 
+use serializable_account_meta::SerializableAccountMeta;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint,
     entrypoint::ProgramResult,
+    instruction::AccountMeta,
     program::{invoke_signed, set_return_data},
     program_error::ProgramError,
     pubkey::Pubkey,
@@ -108,6 +110,23 @@ pub fn process_instruction(
                 let message = HyperlaneMessage::read_from(&mut &message_bytes[..])
                     .map_err(|_| ProgramError::InvalidArgument)?;
                 get_validators_and_threshold(program_id, accounts, message.origin)
+            }
+            MultisigIsmInstruction::ValidatorsAndThresholdAccountMetas(message_bytes) => {
+                // TODO consider de-duping this by just having the instructions pass in
+                // a deserialized HyperlaneMessage
+                let message = HyperlaneMessage::read_from(&mut &message_bytes[..])
+                    .map_err(|_| ProgramError::InvalidArgument)?;
+                let account_metas = get_validators_and_threshold_account_metas(
+                    program_id,
+                    accounts,
+                    message.origin,
+                )?;
+                set_return_data(
+                    &account_metas
+                        .try_to_vec()
+                        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
+                );
+                Ok(())
             }
         };
     }
@@ -238,6 +257,19 @@ fn get_validators_and_threshold(
             .map_err(|err| ProgramError::BorshIoError(err.to_string()))?,
     );
     Ok(())
+}
+
+/// Returns a list of account metas that are required for a call to `get_validators_and_threshold`,
+/// which is called by the MultisigIsmInstruction::ValidatorsAndThreshold instruction.
+fn get_validators_and_threshold_account_metas(
+    program_id: &Pubkey,
+    _accounts: &[AccountInfo],
+    domain: u32,
+) -> Result<Vec<SerializableAccountMeta>, ProgramError> {
+    let (domain_pda_key, _) =
+        Pubkey::find_program_address(domain_data_pda_seeds!(domain), &program_id);
+
+    Ok(vec![AccountMeta::new_readonly(domain_pda_key, false).into()])
 }
 
 /// Gets the validators and threshold for a given domain.

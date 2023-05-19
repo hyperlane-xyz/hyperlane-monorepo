@@ -1678,6 +1678,7 @@ dependencies = [
  "multisig-ism",
  "num-derive",
  "num-traits",
+ "serializable-account-meta",
  "solana-program",
  "solana-program-test",
  "solana-sdk",
@@ -3252,6 +3253,14 @@ dependencies = [
  "ryu",
  "serde",
  "yaml-rust",
+]
+
+[[package]]
+name = "serializable-account-meta"
+version = "0.1.0"
+dependencies = [
+ "borsh",
+ "solana-program",
 ]
 
 [[package]]
