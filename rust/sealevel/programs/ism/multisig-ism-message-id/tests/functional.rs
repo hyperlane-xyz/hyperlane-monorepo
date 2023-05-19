@@ -2,21 +2,23 @@
 //! strictly in unit tests. This includes CPIs, like creating
 //! new PDA accounts.
 
+use borsh::BorshDeserialize;
 use solana_program::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
 };
 
-use hyperlane_core::{IsmType, H160};
+use hyperlane_core::{Encode, HyperlaneMessage, IsmType, H160, H256};
 use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
 use hyperlane_sealevel_multisig_ism_message_id::{
     access_control_pda_seeds,
     accounts::{AccessControlAccount, AccessControlData, DomainData, DomainDataAccount},
     domain_data_pda_seeds,
     error::Error as MultisigIsmError,
-    instruction::{Domained, Instruction as MultisigIsmInstruction, ValidatorsAndThreshold},
+    instruction::{Domained, Instruction as MultisigIsmProgramInstruction, ValidatorsAndThreshold},
     processor::process_instruction,
 };
+use multisig_ism::interface::MultisigIsmInstruction;
 use solana_program_test::*;
 use solana_sdk::{
     hash::Hash,
@@ -59,7 +61,7 @@ async fn initialize(
     let mut transaction = Transaction::new_with_payer(
         &[Instruction::new_with_borsh(
             program_id,
-            &MultisigIsmInstruction::Initialize,
+            &MultisigIsmProgramInstruction::Initialize,
             vec![
                 AccountMeta::new_readonly(payer.pubkey(), true),
                 AccountMeta::new(access_control_pda_key, false),
@@ -190,7 +192,7 @@ async fn test_set_validators_and_threshold_creates_pda_account() {
     let mut transaction = Transaction::new_with_payer(
         &[Instruction::new_with_borsh(
             program_id,
-            &MultisigIsmInstruction::SetValidatorsAndThreshold(Domained {
+            &MultisigIsmProgramInstruction::SetValidatorsAndThreshold(Domained {
                 domain,
                 data: validators_and_threshold.clone(),
             }),
@@ -236,7 +238,7 @@ async fn test_set_validators_and_threshold_creates_pda_account() {
     let mut transaction = Transaction::new_with_payer(
         &[Instruction::new_with_borsh(
             program_id,
-            &MultisigIsmInstruction::SetValidatorsAndThreshold(Domained {
+            &MultisigIsmProgramInstruction::SetValidatorsAndThreshold(Domained {
                 domain,
                 data: validators_and_threshold.clone(),
             }),
@@ -264,8 +266,45 @@ async fn test_set_validators_and_threshold_creates_pda_account() {
         domain_data,
         Box::new(DomainData {
             bump_seed: domain_data_pda_bump_seed,
-            validators_and_threshold,
+            validators_and_threshold: validators_and_threshold.clone(),
         }),
+    );
+
+    // For good measure, let's also use the MultisigIsmProgramInstruction::ValidatorsAndThreshold
+    // instruction!
+
+    let test_message = HyperlaneMessage {
+        version: 0,
+        nonce: 0,
+        origin: domain,
+        sender: H256::random(),
+        destination: domain + 1,
+        recipient: H256::random(),
+        body: vec![1, 2, 3, 4, 5],
+    };
+
+    let validators_and_threshold_bytes = banks_client
+        .simulate_transaction(Transaction::new_unsigned(Message::new_with_blockhash(
+            &[Instruction::new_with_bytes(
+                program_id,
+                &MultisigIsmInstruction::ValidatorsAndThreshold(test_message.to_vec())
+                    .encode()
+                    .unwrap(),
+                vec![AccountMeta::new(domain_data_pda_key, false)],
+            )],
+            Some(&payer.pubkey()),
+            &recent_blockhash,
+        )))
+        .await
+        .unwrap()
+        .simulation_details
+        .unwrap()
+        .return_data
+        .unwrap()
+        .data;
+    assert_eq!(
+        ValidatorsAndThreshold::try_from_slice(validators_and_threshold_bytes.as_slice()).unwrap(),
+        validators_and_threshold
     );
 }
 
