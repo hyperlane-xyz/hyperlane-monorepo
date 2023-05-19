@@ -58,6 +58,7 @@ opentelemetry-zipkin = { version = "0.16", default-features = false, features = 
 rusoto_core = "*"
 rusoto_kms = "*"
 rusoto_s3 = "*"
+rusoto_sts = "*"
 
 lazy_static = "1.4"
 once_cell = "1.16"
