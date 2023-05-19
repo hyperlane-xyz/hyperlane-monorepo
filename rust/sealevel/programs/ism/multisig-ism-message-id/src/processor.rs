@@ -22,7 +22,7 @@ use crate::{
 };
 
 use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
-use multisig_ism::multisig::MultisigIsm;
+use multisig_ism::{interface::MultisigIsmInstruction, multisig::MultisigIsm};
 
 use borsh::BorshSerialize;
 
@@ -100,13 +100,21 @@ pub fn process_instruction(
         };
     }
 
+    // Next, try to decode the instruction as a multisig ISM instruction.
+    if let Ok(multisig_ism_instruction) = MultisigIsmInstruction::decode(instruction_data) {
+        return match multisig_ism_instruction {
+            // Gets the validators and threshold to verify the provided message.
+            MultisigIsmInstruction::ValidatorsAndThreshold(message_bytes) => {
+                let message = HyperlaneMessage::read_from(&mut &message_bytes[..])
+                    .map_err(|_| ProgramError::InvalidArgument)?;
+                get_validators_and_threshold(program_id, accounts, message.origin)
+            }
+        };
+    }
+
     match Instruction::try_from(instruction_data)? {
         // Initializes the program.
         Instruction::Initialize => initialize(program_id, accounts),
-        // Gets the validators and threshold for a given domain.
-        Instruction::GetValidatorsAndThreshold(domain) => {
-            get_validators_and_threshold(program_id, accounts, domain)
-        }
         // Sets the validators and threshold for a given domain.
         Instruction::SetValidatorsAndThreshold(config) => {
             set_validators_and_threshold(program_id, accounts, config)

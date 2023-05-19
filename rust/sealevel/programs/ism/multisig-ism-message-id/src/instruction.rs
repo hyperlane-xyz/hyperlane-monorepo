@@ -15,11 +15,6 @@ pub enum Instruction {
     /// 1. `[writable]` The access control PDA account.
     /// 2. `[executable]` The system program account.
     Initialize,
-    /// Input: domain ID to query.
-    ///
-    /// Accounts:
-    /// 0. `[]` The PDA relating to the provided domain.
-    GetValidatorsAndThreshold(u32),
     /// Input: domain ID, validators, & threshold to set.
     ///
     /// Accounts:

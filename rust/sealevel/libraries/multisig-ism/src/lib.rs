@@ -1,4 +1,5 @@
 pub mod error;
+pub mod interface;
 pub mod multisig;
 pub mod signature;
 
