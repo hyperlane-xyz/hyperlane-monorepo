@@ -6,7 +6,8 @@ use spl_type_length_value::discriminator::Discriminator;
 /// allows programs to implement the required interface.
 #[derive(Eq, PartialEq, Debug)]
 pub enum MultisigIsmInstruction {
-    ValidatorsAndThreshold,
+    // Gets the validators and threshold for the provided message.
+    ValidatorsAndThreshold(Vec<u8>),
 }
 
 /// First 8 bytes of `hash::hashv(&[b"hyperlane-multisig-ism:validators-and-threshold"])`
@@ -19,8 +20,9 @@ impl MultisigIsmInstruction {
     pub fn encode(&self) -> Result<Vec<u8>, ProgramError> {
         let mut buf = vec![];
         match self {
-            MultisigIsmInstruction::ValidatorsAndThreshold => {
+            MultisigIsmInstruction::ValidatorsAndThreshold(message) => {
                 buf.extend_from_slice(&VALIDATORS_AND_THRESHOLD_DISCRIMINATOR_SLICE[..]);
+                buf.extend_from_slice(&message[..]);
             }
         }
 
@@ -31,9 +33,12 @@ impl MultisigIsmInstruction {
         if buf.len() < Discriminator::LENGTH {
             return Err(ProgramError::InvalidInstructionData);
         }
-        let (discriminator, _) = buf.split_at(Discriminator::LENGTH);
+        let (discriminator, rest) = buf.split_at(Discriminator::LENGTH);
         match discriminator {
-            VALIDATORS_AND_THRESHOLD_DISCRIMINATOR_SLICE => Ok(Self::ValidatorsAndThreshold),
+            VALIDATORS_AND_THRESHOLD_DISCRIMINATOR_SLICE => {
+                let message = rest.to_vec();
+                Ok(Self::ValidatorsAndThreshold(message))
+            },
             _ => Err(ProgramError::InvalidInstructionData),
         }
     }
@@ -55,7 +60,7 @@ mod test {
 
     #[test]
     fn test_encode_decode_validators_and_threshold_instruction() {
-        let instruction = MultisigIsmInstruction::ValidatorsAndThreshold;
+        let instruction = MultisigIsmInstruction::ValidatorsAndThreshold(vec![1, 2, 3, 4, 5]);
 
         let encoded = instruction.encode().unwrap();
         assert_eq!(

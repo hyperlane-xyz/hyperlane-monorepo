@@ -22,7 +22,10 @@ use crate::{
 };
 
 use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
-use multisig_ism::multisig::MultisigIsm;
+use multisig_ism::{
+    interface::MultisigIsmInstruction,
+    multisig::MultisigIsm,
+};
 
 use borsh::BorshSerialize;
 
@@ -97,6 +100,15 @@ pub fn process_instruction(
                 verify_data.metadata,
                 verify_data.message,
             ),
+        };
+    }
+
+    // Next, try to decode the instruction as a multisig ISM instruction.
+    if let Ok(multisig_ism_instruction) = MultisigIsmInstruction::decode(instruction_data) {
+        return match multisig_ism_instruction {
+            MultisigIsmInstruction::ValidatorsAndThreshold => {
+                get_validators_and_threshold(program_id, accounts, 0)
+            }
         };
     }
 
