@@ -13,7 +13,7 @@ pub enum MultisigIsmInstruction {
     /// Intended to be simulated by an off-chain client.
     /// The only account passed into this instruction is expected to be
     /// the read-only PDA relating to the program ID and the seeds
-    /// &["hyperlane_multisig_ism", "-", "validators_and_threshold", "-", "account-metas"]
+    /// &[b"hyperlane_multisig_ism", b"-", b"validators_and_threshold", b"-", b"account-metas"]
     ValidatorsAndThresholdAccountMetas(Vec<u8>),
 }
 
@@ -26,6 +26,14 @@ const VALIDATORS_AND_THRESHOLD_ACCOUNT_METAS_DISCRIMINATOR: [u8; Discriminator::
     [113, 7, 132, 85, 239, 247, 157, 204];
 const VALIDATORS_AND_THRESHOLD_ACCOUNT_METAS_DISCRIMINATOR_SLICE: &[u8] =
     &VALIDATORS_AND_THRESHOLD_ACCOUNT_METAS_DISCRIMINATOR;
+
+pub const VALIDATORS_AND_THRESHOLD_ACCOUNT_METAS_PDA_SEEDS: &[&[u8]] = &[
+    b"hyperlane_multisig_ism",
+    b"-",
+    b"validators_and_threshold",
+    b"-",
+    b"account-metas",
+];
 
 // TODO implement hyperlane-core's Encode & Decode?
 impl MultisigIsmInstruction {

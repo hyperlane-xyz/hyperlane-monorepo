@@ -18,7 +18,10 @@ use hyperlane_sealevel_multisig_ism_message_id::{
     instruction::{Domained, Instruction as MultisigIsmProgramInstruction, ValidatorsAndThreshold},
     processor::process_instruction,
 };
-use multisig_ism::interface::MultisigIsmInstruction;
+use multisig_ism::interface::{
+    MultisigIsmInstruction, VALIDATORS_AND_THRESHOLD_ACCOUNT_METAS_PDA_SEEDS,
+};
+use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program_test::*;
 use solana_sdk::{
     hash::Hash,
@@ -271,7 +274,8 @@ async fn test_set_validators_and_threshold_creates_pda_account() {
     );
 
     // For good measure, let's also use the MultisigIsmInstruction::ValidatorsAndThreshold
-    // instruction!
+    // instruction, and also use the MultisigIsmInstruction::ValidatorsAndThresholdAccountMetas
+    // to fetch the account metas required for the instruction.
 
     let test_message = HyperlaneMessage {
         version: 0,
@@ -283,6 +287,44 @@ async fn test_set_validators_and_threshold_creates_pda_account() {
         body: vec![1, 2, 3, 4, 5],
     };
 
+    // First, call MultisigIsmInstruction::ValidatorsAndThresholdAccountMetas to get the metas
+    // for our future call to MultisigIsmInstruction::ValidatorsAndThreshold
+    let (account_metas_pda_key, _) = Pubkey::find_program_address(
+        VALIDATORS_AND_THRESHOLD_ACCOUNT_METAS_PDA_SEEDS,
+        &program_id,
+    );
+    let account_metas_return_data = banks_client
+        .simulate_transaction(Transaction::new_unsigned(Message::new_with_blockhash(
+            &[Instruction::new_with_bytes(
+                program_id,
+                &MultisigIsmInstruction::ValidatorsAndThresholdAccountMetas(test_message.to_vec())
+                    .encode()
+                    .unwrap(),
+                vec![AccountMeta::new(account_metas_pda_key, false)],
+            )],
+            Some(&payer.pubkey()),
+            &recent_blockhash,
+        )))
+        .await
+        .unwrap()
+        .simulation_details
+        .unwrap()
+        .return_data
+        .unwrap()
+        .data;
+
+    let account_metas: Vec<SerializableAccountMeta> =
+        SimulationReturnData::<Vec<SerializableAccountMeta>>::try_from_slice(
+            account_metas_return_data.as_slice(),
+        )
+        .unwrap()
+        .return_data;
+    let account_metas: Vec<AccountMeta> = account_metas
+        .into_iter()
+        .map(|serializable_account_meta| serializable_account_meta.into())
+        .collect();
+
+    // Now let it rip with MultisigIsmInstruction::ValidatorsAndThreshold
     let validators_and_threshold_bytes = banks_client
         .simulate_transaction(Transaction::new_unsigned(Message::new_with_blockhash(
             &[Instruction::new_with_bytes(
@@ -290,7 +332,7 @@ async fn test_set_validators_and_threshold_creates_pda_account() {
                 &MultisigIsmInstruction::ValidatorsAndThreshold(test_message.to_vec())
                     .encode()
                     .unwrap(),
-                vec![AccountMeta::new(domain_data_pda_key, false)],
+                account_metas,
             )],
             Some(&payer.pubkey()),
             &recent_blockhash,

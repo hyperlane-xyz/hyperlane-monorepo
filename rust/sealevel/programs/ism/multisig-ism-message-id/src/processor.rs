@@ -1,6 +1,6 @@
 use hyperlane_core::{Checkpoint, Decode, HyperlaneMessage, IsmType};
 
-use serializable_account_meta::SerializableAccountMeta;
+use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint,
@@ -106,9 +106,14 @@ pub fn process_instruction(
     if let Ok(multisig_ism_instruction) = MultisigIsmInstruction::decode(instruction_data) {
         return match multisig_ism_instruction {
             // Gets the validators and threshold to verify the provided message.
+            //
+            // Accounts passed into this must be those returned by the
+            // ValidatorsAndThresholdAccountMetas instruction.
             MultisigIsmInstruction::ValidatorsAndThreshold(message_bytes) => {
                 let message = HyperlaneMessage::read_from(&mut &message_bytes[..])
                     .map_err(|_| ProgramError::InvalidArgument)?;
+                // No need to wrap in SimulationReturnData because the threshold
+                // should always be the last serialized byte and non-zero.
                 get_validators_and_threshold(program_id, accounts, message.origin)
             }
             MultisigIsmInstruction::ValidatorsAndThresholdAccountMetas(message_bytes) => {
@@ -121,11 +126,14 @@ pub fn process_instruction(
                     accounts,
                     message.origin,
                 )?;
-                set_return_data(
-                    &account_metas
-                        .try_to_vec()
-                        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
-                );
+                // Wrap it in the SimulationReturnData because serialized account_metas
+                // may end with zero byte(s), which are incorrectly truncated as
+                // simulated transaction return data.
+                // See `SimulationReturnData` for details.
+                let bytes = SimulationReturnData::new(account_metas)
+                    .try_to_vec()
+                    .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+                set_return_data(&bytes[..]);
                 Ok(())
             }
         };
@@ -261,6 +269,10 @@ fn get_validators_and_threshold(
 
 /// Returns a list of account metas that are required for a call to `get_validators_and_threshold`,
 /// which is called by the MultisigIsmInstruction::ValidatorsAndThreshold instruction.
+///
+/// Accounts:
+/// 0. `[]` This program's PDA relating to the seeds VALIDATORS_AND_THRESHOLD_ACCOUNT_METAS_PDA_SEEDS.
+///         Note this is not actually used / required in this implementation.
 fn get_validators_and_threshold_account_metas(
     program_id: &Pubkey,
     _accounts: &[AccountInfo],
