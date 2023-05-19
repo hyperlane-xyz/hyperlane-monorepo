@@ -52,6 +52,16 @@ const HANDLE_ACCOUNT_METAS_DISCRIMINATOR: [u8; Discriminator::LENGTH] =
     [194, 141, 30, 82, 241, 41, 169, 52];
 const HANDLE_ACCOUNT_METAS_DISCRIMINATOR_SLICE: &[u8] = &HANDLE_ACCOUNT_METAS_DISCRIMINATOR;
 
+/// Seeds for the PDA that's expected to be passed into the `HandleAccountMetas`
+/// instruction.
+pub const HANDLE_ACCOUNT_METAS_PDA_SEEDS: &[&[u8]] = &[
+    b"hyperlane-message-recipient",
+    b"-",
+    b"handle",
+    b"-",
+    b"account_metas",
+];
+
 // TODO: does this even need to be implemented?
 impl TlvDiscriminator for HandleInstruction {
     const TLV_DISCRIMINATOR: Discriminator = Discriminator::new(HANDLE_DISCRIMINATOR);
