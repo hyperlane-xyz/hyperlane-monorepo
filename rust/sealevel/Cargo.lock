@@ -2148,6 +2148,7 @@ dependencies = [
  "hex",
  "hyperlane-core",
  "solana-program",
+ "spl-type-length-value",
  "thiserror",
 ]
 
