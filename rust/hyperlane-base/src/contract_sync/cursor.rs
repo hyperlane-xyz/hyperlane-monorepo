@@ -166,8 +166,8 @@ impl BackwardMessageSyncCursor {
             {
                 break;
             };
-            // If we found nonce zero, we are done rewinding.
-            if self.cursor.next_nonce == 0 {
+            // If we found nonce zero or hit block zero, we are done rewinding.
+            if self.cursor.next_nonce == 0 || self.cursor.next_block == 0 {
                 self.synced = true;
                 break;
             }
@@ -232,18 +232,17 @@ impl ForwardBackwardMessageSyncCursor {
             count,
         ));
 
-        let backward_cursor = BackwardMessageSyncCursor::new(
-            MessageSyncCursor::new(
-                indexer.clone(),
-                db.clone(),
-                chunk_size,
-                tip,
-                tip,
-                count.saturating_sub(1),
-            ),
-            false,
-        );
-
+            let backward_cursor = BackwardMessageSyncCursor::new(
+                MessageSyncCursor::new(
+                    indexer.clone(),
+                    db.clone(),
+                    chunk_size,
+                    tip,
+                    tip,
+                    count.saturating_sub(1),
+                ),
+                count == 0,
+            );
         Ok(Self {
             forward: forward_cursor,
             backward: backward_cursor,

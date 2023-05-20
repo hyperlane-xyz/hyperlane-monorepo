@@ -19,7 +19,6 @@ use std::{
     env,
     fs::{self, File},
     io::{BufRead, BufReader, BufWriter, Read, Write},
-    os::macos::raw::stat,
     path::{Path, PathBuf},
     process::{Child, Command, ExitCode, Stdio},
     sync::atomic::{AtomicBool, Ordering},
@@ -37,16 +36,16 @@ use tempfile::tempdir;
 
 /// These private keys are from hardhat/anvil's testing accounts.
 const RELAYER_KEYS: &[&str] = &[
-    "8166f546bab6da521a8369cab06c5d2b9e46670292d85c875ee9ec20e84ffb61",
-    "f214f2b2cd398c806f84e317254e0f0b801d0643303237d97a22a48e01628897",
-    "701b615bbdfb9de65240bc28bd21bbc0d996645a3dd57e7b12bc2bdf6f192c82",
+    "0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6",
+    "0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97",
+    "0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356",
 ];
 /// These private keys are from hardhat/anvil's testing accounts.
 /// These must be consistent with the ISM config for the test.
 const VALIDATOR_KEYS: &[&str] = &[
-    "59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
-    "5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a",
-    "7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6",
+    "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a",
+    "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba",
+    "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e",
 ];
 
 static RUNNING: AtomicBool = AtomicBool::new(true);
@@ -55,6 +54,8 @@ static RUNNING: AtomicBool = AtomicBool::new(true);
 /// cleanup purposes at this time.
 #[derive(Default)]
 struct State {
+    build_log: PathBuf,
+    log_all: bool,
     kathy: Option<Child>,
     node: Option<Child>,
     relayer: Option<Child>,
@@ -62,6 +63,25 @@ struct State {
     scraper: Option<Child>,
 
     watchers: Vec<JoinHandle<()>>,
+}
+
+fn kill_scraper_postgres(build_log: &PathBuf, log_all: bool) {
+    build_cmd(
+        &["docker", "stop", "scraper-testnet-postgres"],
+        build_log,
+        log_all,
+        None,
+        None,
+        false,
+    );
+    build_cmd(
+        &["docker", "rm", "scraper-testnet-postgres"],
+        build_log,
+        log_all,
+        None,
+        None,
+        false,
+    );
 }
 
 impl Drop for State {
@@ -75,6 +95,7 @@ impl Drop for State {
         }
         if let Some(mut c) = self.scraper.take() {
             stop_child(&mut c);
+            kill_scraper_postgres(&self.build_log, self.log_all);
         }
         for mut c in self.validators.drain(..) {
             stop_child(&mut c);
@@ -209,7 +230,7 @@ fn main() -> ExitCode {
 
     let build_cmd = {
         let build_log = make_static(build_log.to_str().unwrap().into());
-        move |cmd, path, env| build_cmd(cmd, build_log, log_all, path, env)
+        move |cmd, path, env| build_cmd(cmd, build_log, log_all, path, env, true)
     };
 
     // this task takes a long time in the CI so run it in parallel
@@ -241,6 +262,7 @@ fn main() -> ExitCode {
     let postgres_env = hashmap! {
         "DATABASE_URL"=>"postgresql://postgres:47221c18c610@localhost:5432/postgres",
     };
+    kill_scraper_postgres(&build_log, log_all);
     build_cmd(
         &[
             "docker",
@@ -267,6 +289,8 @@ fn main() -> ExitCode {
     build_cmd(&["yarn", "build:e2e"], Some("../"), None);
 
     let mut state = State::default();
+    state.build_log = build_log;
+    state.log_all = log_all;
 
     println!("Launching hardhat...");
     let mut node = Command::new("yarn");
@@ -419,7 +443,7 @@ fn main() -> ExitCode {
             let num_messages_expected = kathy_messages as u32 * 2;
             if kathy_done && termination_invariants_met(num_messages_expected) {
                 // end condition reached successfully
-                println!("Kathy completed successfully and the retry queues are empty");
+                println!("Kathy completed successfully and agent metrics look healthy");
                 break;
             } else if (Instant::now() - loop_start).as_secs() > ci_mode_timeout {
                 // we ran out of time
@@ -433,27 +457,31 @@ fn main() -> ExitCode {
         }
         sleep(Duration::from_secs(5));
     }
-    // TODO: Remove me!
-    loop {
-        sleep(Duration::from_secs(10));
-    }
 
     ExitCode::from(0)
 }
 
-/// Use the metrics to check if the relayer queues are empty and the expected
-/// number of messages have been sent.
-fn termination_invariants_met(num_expected_messages_processed: u32) -> bool {
-    let lengths: Vec<_> = ureq::get("http://127.0.0.1:9092/metrics")
-        .call()
+fn fetch_metric(port: &str, metric: &str, labels: &HashMap<&str, &str>) -> Vec<u32> {
+    let resp = ureq::get(&format!("http://127.0.0.1:{}/metrics", port));
+    resp.call()
         .unwrap()
         .into_string()
         .unwrap()
         .lines()
-        .filter(|l| l.starts_with("hyperlane_submitter_queue_length"))
-        .filter(|l| !l.contains("queue_name=\"confirm_queue\""))
+        .filter(|l| l.starts_with(metric))
+        .filter(|l| {
+            labels
+                .iter()
+                .all(|(k, v)| l.contains(&format!("{}=\"{}\"", k, v)))
+        })
         .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
-        .collect();
+        .collect()
+}
+
+/// Use the metrics to check if the relayer queues are empty and the expected
+/// number of messages have been sent.
+fn termination_invariants_met(num_expected_messages: u32) -> bool {
+    let lengths = fetch_metric("9092", "hyperlane_submitter_queue_length", &hashmap! {});
     assert!(!lengths.is_empty(), "Could not find queue length metric");
     if lengths.into_iter().any(|n| n != 0) {
         println!("<E2E> Relayer queues not empty");
@@ -462,40 +490,81 @@ fn termination_invariants_met(num_expected_messages_processed: u32) -> bool {
 
     // Also ensure the counter is as expected (total number of messages), summed
     // across all mailboxes.
-    let msg_processed_count: Vec<_> = ureq::get("http://127.0.0.1:9092/metrics")
-        .call()
-        .unwrap()
-        .into_string()
-        .unwrap()
-        .lines()
-        .filter(|l| l.starts_with("hyperlane_messages_processed_count"))
-        .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
-        .collect();
-    assert!(
-        !msg_processed_count.is_empty(),
-        "Could not find message_processed phase metric"
-    );
-    if msg_processed_count.into_iter().sum::<u32>() < num_expected_messages_processed {
-        println!("<E2E> Not all messages have been processed");
+    let msg_processed_count =
+        fetch_metric("9092", "hyperlane_messages_processed_count", &hashmap! {})
+            .iter()
+            .sum::<u32>();
+    if msg_processed_count != num_expected_messages {
+        println!(
+            "<E2E> Relayer has {} processed messages, expected {}",
+            msg_processed_count, num_expected_messages
+        );
         return false;
     }
 
-    let gas_payment_events_count = ureq::get("http://127.0.0.1:9092/metrics")
-        .call()
-        .unwrap()
-        .into_string()
-        .unwrap()
-        .lines()
-        .filter(|l| l.starts_with("hyperlane_contract_sync_stored_events"))
-        .filter(|l| l.contains(r#"data_type="gas_payments""#))
-        .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
-        .sum::<u32>();
+    let gas_payment_events_count = fetch_metric(
+        "9092",
+        "hyperlane_contract_sync_stored_events",
+        &hashmap! {"data_type" => "gas_payments"},
+    )
+    .iter()
+    .sum::<u32>();
+    // TestSendReceiver randomly breaks gas payments up into
+    // two. So we expect at least as many gas payments as messages.
+    if gas_payment_events_count < num_expected_messages {
+        println!(
+            "<E2E> Relayer has {} gas payment events, expected at least {}",
+            gas_payment_events_count, num_expected_messages
+        );
+        return false;
+    }
 
-    if gas_payment_events_count < num_expected_messages_processed {
-        println!("<E2E> Missing gas payment events");
-        false
+    let dispatched_messages_scraped = fetch_metric(
+        "9093",
+        "hyperlane_contract_sync_stored_events",
+        &hashmap! {"data_type" => "message_dispatch"},
+    )
+    .iter()
+    .sum::<u32>();
+    if dispatched_messages_scraped != num_expected_messages {
+        println!(
+            "<E2E> Scraper has scraped {} dispatched messages, expected {}",
+            dispatched_messages_scraped, num_expected_messages
+        );
+        return false;
+    }
+
+    let delivered_messages_scraped = fetch_metric(
+        "9093",
+        "hyperlane_contract_sync_stored_events",
+        &hashmap! {"data_type" => "message_delivery"},
+    )
+    .iter()
+    .sum::<u32>();
+    if delivered_messages_scraped != num_expected_messages {
+        println!(
+            "<E2E> Scraper has scraped {} delivered messages, expected {}",
+            delivered_messages_scraped, num_expected_messages
+        );
+        return false;
+    }
+
+    let gas_payments_scraped = fetch_metric(
+        "9093",
+        "hyperlane_contract_sync_stored_events",
+        &hashmap! {"data_type" => "gas_payment"},
+    )
+    .iter()
+    .sum::<u32>();
+    // The relayer and scraper should have the same number of gas payments.
+    if gas_payments_scraped != gas_payment_events_count {
+        println!(
+            "<E2E> Scraper has scraped {} gas payments, expected {}",
+            gas_payments_scraped, num_expected_messages
+        );
+        return false;
     } else {
-        true
+        return true;
     }
 }
 
@@ -593,6 +662,7 @@ fn build_cmd(
     log_all: bool,
     wd: Option<&str>,
     env: Option<&HashMap<&str, &str>>,
+    assert_success: bool
 ) {
     assert!(!cmd.is_empty(), "Must specify a command!");
     let mut c = Command::new(cmd[0]);
@@ -605,12 +675,17 @@ fn build_cmd(
     if let Some(wd) = wd {
         c.current_dir(wd);
     }
+    if let Some(env) = env {
+        c.envs(env);
+    }
     let status = c.status().expect("Failed to run command");
+    if assert_success {
     assert!(
         status.success(),
         "Command returned non-zero exit code: {}",
         cmd.join(" ")
     );
+    }
 }
 
 fn make_static(s: String) -> &'static str {

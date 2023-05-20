@@ -83,7 +83,7 @@ impl HyperlaneRocksDB {
         }
 
         let id = message.id();
-        debug!(msg=?message, "Storing new message in db",);
+        debug!(msg=?message,  "Storing new message in db",);
 
         // - `id` --> `message`
         self.store_keyed_encodable(MESSAGE, &id, message)?;

@@ -266,11 +266,11 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneSqlDb {
                 txn_id: txn.id,
             }
         });
-        self.db
-            .store_dispatched_messages(&self.mailbox_address, storable)
+        let stored = self
+            .db
+            .store_dispatched_messages(self.domain().id(), &self.mailbox_address, storable)
             .await?;
-
-        Ok(messages.len() as u32)
+        Ok(stored as u32)
     }
 }
 
@@ -294,11 +294,11 @@ impl HyperlaneLogStore<Delivery> for HyperlaneSqlDb {
             }
         });
 
-        self.db
+        let stored = self
+            .db
             .store_deliveries(self.domain().id(), self.mailbox_address, storable)
             .await?;
-
-        Ok(deliveries.len() as u32)
+        Ok(stored as u32)
     }
 }
 
@@ -322,8 +322,8 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneSqlDb {
             }
         });
 
-        self.db.store_payments(self.domain().id(), storable).await?;
-        Ok(payments.len() as u32)
+        let stored = self.db.store_payments(self.domain().id(), storable).await?;
+        Ok(stored as u32)
     }
 }
 

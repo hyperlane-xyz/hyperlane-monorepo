@@ -120,6 +120,14 @@ impl ScraperDb {
         Ok(tx_id)
     }
 
+    async fn deliveries_count(&self, domain: u32, destination_mailbox: Vec<u8>) -> Result<u64> {
+        Ok(delivered_message::Entity::find()
+            .filter(delivered_message::Column::Domain.eq(domain))
+            .filter(delivered_message::Column::DestinationMailbox.eq(destination_mailbox.clone()))
+            .count(&self.0)
+            .await?)
+    }
+
     /// Store deliveries from a mailbox into the database (or update an existing
     /// one).
     #[instrument(skip_all)]
@@ -128,8 +136,11 @@ impl ScraperDb {
         domain: u32,
         destination_mailbox: H256,
         deliveries: impl Iterator<Item = StorableDelivery<'_>>,
-    ) -> Result<()> {
+    ) -> Result<u64> {
         let destination_mailbox = address_to_bytes(&destination_mailbox);
+        let deliveries_count_before = self
+            .deliveries_count(domain, destination_mailbox.clone())
+            .await?;
         // we have a race condition where a message may not have been scraped yet even
         // though we have received news of delivery on this chain, so the
         // message IDs are looked up in a separate "thread".
@@ -162,7 +173,16 @@ impl ScraperDb {
             )
             .exec(&self.0)
             .await?;
-        Ok(())
+        let deliveries_count_after = self.deliveries_count(domain, destination_mailbox).await?;
+        Ok(deliveries_count_after - deliveries_count_before)
+    }
+
+    async fn dispatched_messages_count(&self, domain: u32, origin_mailbox: Vec<u8>) -> Result<u64> {
+        Ok(message::Entity::find()
+            .filter(message::Column::Origin.eq(domain))
+            .filter(message::Column::OriginMailbox.eq(origin_mailbox))
+            .count(&self.0)
+            .await?)
     }
 
     /// Store messages from a mailbox into the database (or update an existing
@@ -170,9 +190,15 @@ impl ScraperDb {
     #[instrument(skip_all)]
     pub async fn store_dispatched_messages(
         &self,
+        domain: u32,
         origin_mailbox: &H256,
         messages: impl Iterator<Item = StorableMessage<'_>>,
-    ) -> Result<()> {
+    ) -> Result<u64> {
+        let origin_mailbox = address_to_bytes(origin_mailbox);
+        let messages_count_before = self
+            .dispatched_messages_count(domain, origin_mailbox.clone())
+            .await?;
+        // we have a race condition where a message may not have been scraped yet even
         let models = messages
             .map(|storable| message::ActiveModel {
                 id: NotSet,
@@ -188,7 +214,7 @@ impl ScraperDb {
                 } else {
                     Some(storable.msg.body)
                 }),
-                origin_mailbox: Unchanged(address_to_bytes(origin_mailbox)),
+                origin_mailbox: Unchanged(origin_mailbox.clone()),
                 origin_tx_id: Set(storable.txn_id),
             })
             .collect_vec();
@@ -216,6 +242,9 @@ impl ScraperDb {
             )
             .exec(&self.0)
             .await?;
-        Ok(())
+        let messages_count_after = self
+            .dispatched_messages_count(domain, origin_mailbox)
+            .await?;
+        Ok(messages_count_after - messages_count_before)
     }
 }

@@ -41,7 +41,7 @@ where
     }
 
     /// Sync logs and write them to the LogStore
-    #[tracing::instrument(name = "ContractSync", skip(self, cursor))]
+    #[tracing::instrument(name = "ContractSync", fields(domain=self.domain().name()), skip(self, cursor))]
     pub async fn sync(
         &self,
         label: &'static str,
