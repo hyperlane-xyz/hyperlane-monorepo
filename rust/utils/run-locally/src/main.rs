@@ -562,9 +562,9 @@ fn termination_invariants_met(num_expected_messages: u32) -> bool {
             "<E2E> Scraper has scraped {} gas payments, expected {}",
             gas_payments_scraped, num_expected_messages
         );
-        return false;
+        false
     } else {
-        return true;
+        true
     }
 }
 
@@ -662,7 +662,7 @@ fn build_cmd(
     log_all: bool,
     wd: Option<&str>,
     env: Option<&HashMap<&str, &str>>,
-    assert_success: bool
+    assert_success: bool,
 ) {
     assert!(!cmd.is_empty(), "Must specify a command!");
     let mut c = Command::new(cmd[0]);
@@ -680,11 +680,11 @@ fn build_cmd(
     }
     let status = c.status().expect("Failed to run command");
     if assert_success {
-    assert!(
-        status.success(),
-        "Command returned non-zero exit code: {}",
-        cmd.join(" ")
-    );
+        assert!(
+            status.success(),
+            "Command returned non-zero exit code: {}",
+            cmd.join(" ")
+        );
     }
 }
 
@@ -700,12 +700,14 @@ fn spawn_cmd_with_logging(
     log_dir: &PathBuf,
 ) -> (std::process::Child, JoinHandle<()>, JoinHandle<()>) {
     println!("Spawning {}...", name);
-    let mut child = command.spawn().expect(&format!("Failed to start {}", name));
+    let mut child = command
+        .spawn()
+        .unwrap_or_else(|_| panic!("Failed to start {}", name));
     let stdout_path = concat_path(log_dir, format!("{}.stdout.log", log_prefix));
     let child_stdout = child.stdout.take().unwrap();
     let stdout = spawn(move || {
         if log_all {
-            prefix_log(child_stdout, &log_prefix.clone())
+            prefix_log(child_stdout, log_prefix)
         } else {
             inspect_and_write_to_file(
                 child_stdout,
@@ -718,7 +720,7 @@ fn spawn_cmd_with_logging(
     let child_stderr = child.stderr.take().unwrap();
     let stderr = spawn(move || {
         if log_all {
-            prefix_log(child_stderr, &log_prefix.clone())
+            prefix_log(child_stderr, log_prefix)
         } else {
             inspect_and_write_to_file(child_stderr, stderr_path, &[])
         }

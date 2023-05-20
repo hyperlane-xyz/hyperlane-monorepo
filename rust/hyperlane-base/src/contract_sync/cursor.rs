@@ -232,17 +232,17 @@ impl ForwardBackwardMessageSyncCursor {
             count,
         ));
 
-            let backward_cursor = BackwardMessageSyncCursor::new(
-                MessageSyncCursor::new(
-                    indexer.clone(),
-                    db.clone(),
-                    chunk_size,
-                    tip,
-                    tip,
-                    count.saturating_sub(1),
-                ),
-                count == 0,
-            );
+        let backward_cursor = BackwardMessageSyncCursor::new(
+            MessageSyncCursor::new(
+                indexer.clone(),
+                db.clone(),
+                chunk_size,
+                tip,
+                tip,
+                count.saturating_sub(1),
+            ),
+            count == 0,
+        );
         Ok(Self {
             forward: forward_cursor,
             backward: backward_cursor,
