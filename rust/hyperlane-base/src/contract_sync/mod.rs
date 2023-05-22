@@ -76,7 +76,7 @@ where
             stored_logs.inc_by(stored as u64);
             // We check the value of the current gauge to avoid overwriting a higher value
             // when using a ForwardBackwardMessageSyncCursor
-            if to > indexed_height.get() {
+            if to as i64 > indexed_height.get() {
                 indexed_height.set(to as i64);
             }
             // Update cursor

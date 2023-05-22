@@ -211,7 +211,7 @@ impl AsRef<HyperlaneAgentCore> for Scraper {
     }
 }
 
-/// Generate a call to ChainSetup for the given builder
+/// Create a function to spawn task that syncs contract events
 macro_rules! spawn_sync_task {
     ($name:ident, $cursor: ident, $label:literal) => {
         async fn $name(

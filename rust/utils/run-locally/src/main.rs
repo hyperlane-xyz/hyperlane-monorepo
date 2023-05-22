@@ -9,7 +9,7 @@
 //!   the test for. This
 //! does not include the initial setup time. If this timeout is reached before
 //! the end conditions are met, the test is a failure. Defaults to 10 min.
-//! - `E2E_KATHY_MESSAGES`: Number of kathy messages to dispatch. Defaults to 10 if CI mode is enabled.
+//! - `E2E_KATHY_MESSAGES`: Number of kathy messages to dispatch. Defaults to 16 if CI mode is enabled.
 //! - `E2E_LOG_ALL`: Log all output instead of writing to log files. Defaults to
 //!   true if CI mode,
 //! else false.
@@ -132,7 +132,7 @@ fn main() -> ExitCode {
         let r = env::var("E2E_KATHY_MESSAGES")
             .ok()
             .map(|r| r.parse::<u64>().unwrap());
-        r.unwrap_or(10)
+        r.unwrap_or(16)
     };
 
     let log_all = env::var("E2E_LOG_ALL")
@@ -369,13 +369,13 @@ fn main() -> ExitCode {
         state.validators.push(validator);
     }
 
-    // Run one round of kathy before the relayer comes up
+    // Send half the kathy messages before the relayer comes up
     let mut kathy = Command::new("yarn");
     kathy
         .arg("kathy")
         .args([
             "--messages",
-            &kathy_messages.to_string(),
+            &(kathy_messages / 2).to_string(),
             "--timeout",
             "1000",
         ])
@@ -403,12 +403,13 @@ fn main() -> ExitCode {
     println!("Setup complete! Agents running in background...");
     println!("Ctrl+C to end execution...");
 
+    // Send half the kathy messages after the relayer comes up
     let mut kathy = Command::new("yarn");
     kathy
         .arg("kathy")
         .args([
             "--messages",
-            &kathy_messages.to_string(),
+            &(kathy_messages / 2).to_string(),
             "--timeout",
             "1000",
         ])
@@ -440,7 +441,7 @@ fn main() -> ExitCode {
         }
         if ci_mode {
             // for CI we have to look for the end condition.
-            let num_messages_expected = kathy_messages as u32 * 2;
+            let num_messages_expected = (kathy_messages / 2) as u32 * 2;
             if kathy_done && termination_invariants_met(num_messages_expected) {
                 // end condition reached successfully
                 println!("Kathy completed successfully and agent metrics look healthy");

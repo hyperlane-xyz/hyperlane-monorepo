@@ -1,7 +1,7 @@
 use eyre::Result;
 use itertools::Itertools;
 use sea_orm::{
-    prelude::*, ActiveValue::*, DeriveColumn, EnumIter, Insert, QueryOrder, QuerySelect,
+    prelude::*, ActiveValue::*, DeriveColumn, EnumIter, Insert, QuerySelect,
 };
 use tracing::{debug, instrument, trace};
 
@@ -111,9 +111,9 @@ impl ScraperDb {
             .filter(message::Column::Origin.eq(origin_domain))
             .filter(message::Column::OriginMailbox.eq(address_to_bytes(origin_mailbox)))
             .filter(message::Column::Nonce.eq(nonce))
-            .order_by_desc(message::Column::Nonce)
             .select_only()
-            .column_as(message::Column::OriginTxId, QueryAs::Nonce)
+            .column_as(message::Column::OriginTxId.max(), QueryAs::Nonce)
+            .group_by(message::Column::Origin)
             .into_values::<i64, QueryAs>()
             .one(&self.0)
             .await?;

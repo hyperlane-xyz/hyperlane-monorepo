@@ -13,7 +13,7 @@ pub fn address_to_bytes(data: &H256) -> Vec<u8> {
     }
 }
 
-// Creates a big-endian hex representation of the address hash
+// Creates a big-endian hex representation of the address
 pub fn bytes_to_address(data: Vec<u8>) -> eyre::Result<H256> {
     if (data.len() != 20) && (data.len() != 32) {
         return Err(eyre::eyre!("Invalid address length"));
