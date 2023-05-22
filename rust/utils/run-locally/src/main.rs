@@ -465,7 +465,8 @@ fn main() -> ExitCode {
 
 fn fetch_metric(port: &str, metric: &str, labels: &HashMap<&str, &str>) -> Result<Vec<u32>> {
     let resp = ureq::get(&format!("http://127.0.0.1:{}/metrics", port));
-    Ok(resp.call()?
+    Ok(resp
+        .call()?
         .into_string()?
         .lines()
         .filter(|l| l.starts_with(metric))
