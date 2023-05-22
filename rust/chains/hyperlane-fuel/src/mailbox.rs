@@ -7,10 +7,10 @@ use fuels::prelude::{Bech32ContractId, WalletUnlocked};
 use tracing::instrument;
 
 use hyperlane_core::{
-    utils::fmt_bytes, ChainCommunicationError, ChainResult, Checkpoint, ContractLocator,
-    HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProvider, Indexer, LogMeta, Mailbox, TxCostEstimate, TxOutcome, H256, U256,
-    accumulator::incremental::IncrementalMerkle
+    accumulator::incremental::IncrementalMerkle, utils::fmt_bytes, ChainCommunicationError,
+    ChainResult, Checkpoint, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox,
+    TxCostEstimate, TxOutcome, H256, U256,
 };
 
 use crate::{

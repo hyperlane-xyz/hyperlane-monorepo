@@ -1,19 +1,26 @@
-use std::time::Duration;
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_base::MessageContractSync;
-use tokio::task::JoinHandle;
-use tracing::{Instrument, info_span};
-use tracing::instrument::Instrumented;
+use hyperlane_core::accumulator::incremental::IncrementalMerkle;
+use tokio::{task::JoinHandle, time::sleep};
+use tracing::{instrument::Instrumented, Instrument, error, info_span, info, warn};
+use std::num::NonZeroU64;
 
 use hyperlane_base::{
     db::DB, run_all, BaseAgent, CheckpointSyncer, ContractSyncMetrics, CoreMetrics,
     HyperlaneAgentCore,
 };
-use hyperlane_core::{HyperlaneDomain, HyperlaneSigner, Mailbox, ValidatorAnnounce};
+
+use hyperlane_core::{
+    HyperlaneDomain, HyperlaneSigner, Mailbox, ValidatorAnnounce,
+    Announcement, HyperlaneChain, HyperlaneContract,
+    HyperlaneSignerExt,
+    H256, U256,
+};
 
 use crate::{
     settings::ValidatorSettings, submit::ValidatorSubmitter, submit::ValidatorSubmitterMetrics,
@@ -77,9 +84,10 @@ impl BaseAgent for Validator {
                 &settings.origin_chain,
                 &metrics,
                 &contract_sync_metrics,
-                Arc::new(msg_db.clone())
+                Arc::new(msg_db.clone()),
             )
-            .await?.into();
+            .await?
+            .into();
 
         Ok(Self {
             origin_chain: settings.origin_chain,
@@ -97,22 +105,14 @@ impl BaseAgent for Validator {
 
     #[allow(clippy::async_yields_async)]
     async fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
-        let submit = ValidatorSubmitter::new(
-            self.interval,
-            self.reorg_period,
-            self.mailbox.clone(),
-            self.validator_announce.clone(),
-            self.signer.clone(),
-            self.checkpoint_syncer.clone(),
-            self.db.clone(),
-            ValidatorSubmitterMetrics::new(&self.core.metrics, &self.origin_chain),
-        );
+        self.announce().await.expect("Failed to announce validator");
 
         let mut tasks = vec![];
 
         tasks.push(self.run_message_sync().await);
-        tasks.push(submit.clone().spawn_legacy());
-        tasks.push(submit.spawn());
+        for checkpoint_sync_task in self.run_checkpoint_sync().await {
+            tasks.push(checkpoint_sync_task);
+        }
 
         run_all(tasks)
     }
@@ -133,7 +133,94 @@ impl Validator {
                 .sync("dispatched_messages", cursor)
                 .await
         })
-        .instrument(info_span!("ContractSync"))
+        .instrument(info_span!("MailboxMessageSyncer"))
+    }
+
+    async fn run_checkpoint_sync(&self) -> Vec<Instrumented<JoinHandle<eyre::Result<()>>>> {
+        let submitter = ValidatorSubmitter::new(
+            self.interval,
+            self.reorg_period,
+            self.mailbox.clone(),
+            self.signer.clone(),
+            self.checkpoint_syncer.clone(),
+            self.db.clone(),
+            ValidatorSubmitterMetrics::new(&self.core.metrics, &self.origin_chain),
+        );
+
+        let backfill_tree = IncrementalMerkle::default();
+        let lag = NonZeroU64::new(self.reorg_period);
+        let tip_tree = self.mailbox.tree(lag).await.expect("failed to get mailbox tree");
+        let backfill_target = tip_tree.count() as u32;
+
+        let mut tasks = vec![];
+
+        let backfill_submitter = submitter.clone();
+        let legacy_submitter = submitter.clone();
+
+        tasks.push(tokio::spawn(async move { backfill_submitter.checkpoint_submitter(backfill_tree, Some(backfill_target)).await }).instrument(info_span!("BackfillCheckpointSubmitter")));
+        tasks.push(tokio::spawn(async move { submitter.checkpoint_submitter(tip_tree, None).await }).instrument(info_span!("TipCheckpointSubmitter")));
+        tasks.push(tokio::spawn(async move { legacy_submitter.legacy_checkpoint_submitter().await }).instrument(info_span!("LegacyCheckpointSubmitter")));
+
+        tasks
+    }
+
+    async fn announce(&self) -> Result<()> {
+        // Sign and post the validator announcement
+        let announcement = Announcement {
+            validator: self.signer.eth_address(),
+            mailbox_address: self.mailbox.address(),
+            mailbox_domain: self.mailbox.domain().id(),
+            storage_location: self.checkpoint_syncer.announcement_location(),
+        };
+        let signed_announcement = self.signer.sign(announcement.clone()).await?;
+        self.checkpoint_syncer
+            .write_announcement(&signed_announcement)
+            .await?;
+
+        // Ensure that the validator has announced themselves before we enter
+        // the main validator submit loop. This is to avoid a situation in
+        // which the validator is signing checkpoints but has not announced
+        // their locations, which makes them functionally unusable.
+        let validators: [H256; 1] = [self.signer.eth_address().into()];
+        loop {
+            info!("Checking for validator announcement");
+            if let Some(locations) = self
+                .validator_announce
+                .get_announced_storage_locations(&validators)
+                .await?
+                .first()
+            {
+                if locations.contains(&self.checkpoint_syncer.announcement_location()) {
+                    info!("Validator has announced signature storage location");
+                    break;
+                }
+                info!("Validator has not announced signature storage location");
+                let balance_delta = self
+                    .validator_announce
+                    .announce_tokens_needed(signed_announcement.clone())
+                    .await?;
+                if balance_delta > U256::zero() {
+                    warn!(
+                        tokens_needed=%balance_delta,
+                        validator_address=?announcement.validator,
+                        "Please send tokens to the validator address to announce",
+                    );
+                } else {
+                    let outcome = self
+                        .validator_announce
+                        .announce(signed_announcement.clone(), None)
+                        .await?;
+                    if !outcome.executed {
+                        error!(
+                            hash=?outcome.txid,
+                            "Transaction attempting to announce validator reverted"
+                        );
+                    }
+                }
+            }
+            sleep(self.interval).await;
+        }
+        Ok(())
     }
 }
 
