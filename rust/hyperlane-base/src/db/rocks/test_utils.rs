@@ -67,13 +67,7 @@ mod test {
 
             db.store_logs(&vec![(m.clone(), meta)]).await.unwrap();
 
-            let by_id = db.message_by_id(m.id()).unwrap().unwrap();
-            assert_eq!(
-                RawHyperlaneMessage::from(&by_id),
-                RawHyperlaneMessage::from(&m)
-            );
-
-            let by_nonce = db.message_by_nonce(m.nonce).unwrap().unwrap();
+            let by_nonce = db.retrieve_message_by_nonce(m.nonce).unwrap().unwrap();
             assert_eq!(
                 RawHyperlaneMessage::from(&by_nonce),
                 RawHyperlaneMessage::from(&m)

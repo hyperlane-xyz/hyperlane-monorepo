@@ -319,7 +319,7 @@ impl PendingMessage {
     fn record_message_process_success(&mut self) -> Result<()> {
         self.ctx
             .origin_db
-            .mark_nonce_as_processed(self.message.nonce)?;
+            .store_processed_by_nonce(&self.message.nonce, &true)?;
         self.ctx.metrics.update_nonce(&self.message);
         self.ctx.metrics.messages_processed.inc();
         Ok(())
