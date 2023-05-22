@@ -18,11 +18,9 @@ use hyperlane_sealevel_message_recipient_interface::{
 };
 use hyperlane_sealevel_token::{
     hyperlane_token_ata_payer_pda_seeds, hyperlane_token_mint_pda_seeds, hyperlane_token_pda_seeds,
-    instruction::Instruction as HyperlaneTokenInstruction, processor::process_instruction,
-};
-use hyperlane_sealevel_token_lib::{
-    instruction::{Init, TransferRemote},
+    instruction::{Init, Instruction as HyperlaneTokenInstruction, TransferRemote},
     message::TokenMessage,
+    processor::process_instruction,
 };
 use solana_program_test::*;
 use solana_sdk::{signature::Signer, signer::keypair::Keypair, transaction::Transaction};
@@ -179,9 +177,9 @@ async fn test_initialize() {
                 vec![
                     AccountMeta::new_readonly(solana_program::system_program::id(), false),
                     AccountMeta::new(token_account_key, false),
-                    AccountMeta::new_readonly(payer.pubkey(), true),
                     AccountMeta::new(mint_account_key, false),
                     AccountMeta::new(ata_payer_account_key, false),
+                    AccountMeta::new_readonly(payer.pubkey(), true),
                 ],
             ),
             initialize_mint2(
