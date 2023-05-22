@@ -4,16 +4,17 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use eyre::Result;
+use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use prometheus::IntGauge;
 use tokio::{task::JoinHandle, time::sleep};
 
-use hyperlane_base::{CachingMailbox, CheckpointSyncer, CoreMetrics};
+use hyperlane_base::{CheckpointSyncer, CoreMetrics};
 use tracing::{debug, error, info, info_span, instrument::Instrumented, trace, warn, Instrument};
 
 use hyperlane_core::{
     Announcement, Checkpoint, CheckpointWithMessageId, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox, ValidatorAnnounce, H256, U256,
+    HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox, ValidatorAnnounce, H256, U256, HyperlaneMessageStore,
 };
 
 #[derive(Clone)]
@@ -21,9 +22,10 @@ pub(crate) struct ValidatorSubmitter {
     interval: Duration,
     reorg_period: Option<NonZeroU64>,
     signer: Arc<dyn HyperlaneSigner>,
-    mailbox: CachingMailbox,
+    mailbox: Arc<dyn Mailbox>,
     validator_announce: Arc<dyn ValidatorAnnounce>,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
+    message_db: HyperlaneRocksDB,
     metrics: ValidatorSubmitterMetrics,
 }
 
@@ -31,10 +33,11 @@ impl ValidatorSubmitter {
     pub(crate) fn new(
         interval: Duration,
         reorg_period: u64,
-        mailbox: CachingMailbox,
+        mailbox: Arc<dyn Mailbox>,
         validator_announce: Arc<dyn ValidatorAnnounce>,
         signer: Arc<dyn HyperlaneSigner>,
         checkpoint_syncer: Arc<dyn CheckpointSyncer>,
+        message_db: HyperlaneRocksDB,
         metrics: ValidatorSubmitterMetrics,
     ) -> Self {
         Self {
@@ -44,6 +47,7 @@ impl ValidatorSubmitter {
             validator_announce,
             signer,
             checkpoint_syncer,
+            message_db,
             metrics,
         }
     }
@@ -149,6 +153,7 @@ impl ValidatorSubmitter {
     }
 
     async fn checkpoint_submitter(self) -> Result<()> {
+        // TODO: move to validator.rs
         self.announce_task().await?;
 
         // initialize local copy of incremental merkle tree
@@ -158,11 +163,12 @@ impl ValidatorSubmitter {
 
         loop {
             // poll DB for message IDs to ingest
-            while let Some(message_id) =
-                self.mailbox.db().message_id_by_nonce(tree.count() as u32)?
+            while let Some(message) =
+                self.message_db.retrieve_message_by_nonce(tree.count() as u32).await?
             {
-                debug!(message_id=?message_id, "Ingest message ID to tree");
-                tree.ingest(message_id);
+                debug!(nonce=message.nonce, "Ingesting leaf to tree");
+                let message_id = message.id();
+                tree.ingest(message.id());
 
                 let checkpoint_with_id = CheckpointWithMessageId {
                     checkpoint: Checkpoint {

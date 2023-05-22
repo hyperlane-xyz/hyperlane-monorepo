@@ -44,7 +44,7 @@ type OpQueue = Arc<Mutex<BinaryHeap<Reverse<Box<DynPendingOperation>>>>>;
 ///
 /// Finally, the SerialSubmitter ensures that message delivery is robust to
 /// destination chain reorgs prior to committing delivery status to
-/// HyperlaneDB.
+/// HyperlaneRocksDB.
 ///
 ///
 /// Objectives

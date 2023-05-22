@@ -7,12 +7,13 @@ use futures_util::TryStreamExt;
 use once_cell::sync::OnceCell;
 use prometheus::IntGauge;
 use rusoto_core::{
-    credential::{Anonymous, AwsCredentials, EnvironmentProvider, StaticProvider},
+    credential::{Anonymous, AwsCredentials, StaticProvider},
     HttpClient, Region, RusotoError,
 };
 use rusoto_s3::{GetObjectError, GetObjectRequest, PutObjectRequest, S3Client, S3};
 use tokio::time::timeout;
 
+use crate::settings::aws_credentials::AwsChainCredentialsProvider;
 use hyperlane_core::{SignedAnnouncement, SignedCheckpoint, SignedCheckpointWithMessageId};
 
 use crate::CheckpointSyncer;
@@ -93,7 +94,7 @@ impl S3Storage {
         self.authenticated_client.get_or_init(|| {
             S3Client::new_with(
                 HttpClient::new().unwrap(),
-                EnvironmentProvider::default(),
+                AwsChainCredentialsProvider::new(),
                 self.region.clone(),
             )
         })

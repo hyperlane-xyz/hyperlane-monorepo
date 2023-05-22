@@ -3,7 +3,7 @@ use std::fmt::Display;
 use eyre::Result;
 use tracing::{debug, error, instrument};
 
-use hyperlane_base::db::{DbError, HyperlaneDB};
+use hyperlane_base::db::{DbError, HyperlaneRocksDB};
 use hyperlane_core::{
     accumulator::{incremental::IncrementalMerkle, merkle::Proof},
     ChainCommunicationError, H256,
@@ -14,7 +14,7 @@ use crate::prover::{Prover, ProverError};
 /// Struct to sync prover.
 #[derive(Debug)]
 pub struct MerkleTreeBuilder {
-    db: HyperlaneDB,
+    db: HyperlaneRocksDB,
     prover: Prover,
     incremental: IncrementalMerkle,
 }
@@ -68,7 +68,7 @@ pub enum MerkleTreeBuilderError {
 }
 
 impl MerkleTreeBuilder {
-    pub fn new(db: HyperlaneDB) -> Self {
+    pub fn new(db: HyperlaneRocksDB) -> Self {
         let prover = Prover::default();
         let incremental = IncrementalMerkle::default();
         Self {

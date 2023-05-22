@@ -5,10 +5,11 @@ use std::time::{Duration, Instant};
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::{Context, Result};
+use hyperlane_base::db::HyperlaneRocksDB;
 use prometheus::{IntCounter, IntGauge};
 use tracing::{debug, error, info, instrument, trace, warn};
 
-use hyperlane_base::{db::HyperlaneDB, CachingMailbox, CoreMetrics};
+use hyperlane_base::CoreMetrics;
 use hyperlane_core::{HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, U256};
 
 use super::{
@@ -29,9 +30,9 @@ const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
 /// instance is for a unique origin -> destination pairing.
 pub struct MessageContext {
     /// Mailbox on the destination chain.
-    pub destination_mailbox: CachingMailbox,
+    pub destination_mailbox: Arc<dyn Mailbox>,
     /// Origin chain database to verify gas payments.
-    pub origin_db: HyperlaneDB,
+    pub origin_db: HyperlaneRocksDB,
     /// Used to construct the ISM metadata needed to verify a message from the
     /// origin.
     pub metadata_builder: BaseMetadataBuilder,
