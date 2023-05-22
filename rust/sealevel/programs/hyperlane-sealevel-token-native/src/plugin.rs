@@ -1,9 +1,11 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_sealevel_token_lib::{
-    accounts::HyperlaneToken, processor::HyperlaneSealevelTokenPlugin,
+    accounts::HyperlaneToken, message::TokenMessage, processor::HyperlaneSealevelTokenPlugin,
 };
+use serializable_account_meta::SerializableAccountMeta;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
+    instruction::AccountMeta,
     program::{invoke, invoke_signed},
     program_error::ProgramError,
     pubkey::Pubkey,
@@ -170,5 +172,24 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
             &[native_collateral_account.clone(), recipient_wallet.clone()],
             &[native_collateral_seeds],
         )
+    }
+
+    fn transfer_out_account_metas(
+        program_id: &Pubkey,
+        token_message: &TokenMessage,
+    ) -> Result<(Vec<SerializableAccountMeta>, bool), ProgramError> {
+        let (native_collateral_key, _native_collateral_bump) = Pubkey::find_program_address(
+            hyperlane_token_native_collateral_pda_seeds!(),
+            program_id,
+        );
+
+        Ok((
+            vec![
+                AccountMeta::new_readonly(solana_program::system_program::id(), false),
+                AccountMeta::new(native_collateral_key, false),
+            ],
+            // Recipient wallet must be writeable to send lamports to it.
+            true,
+        ))
     }
 }

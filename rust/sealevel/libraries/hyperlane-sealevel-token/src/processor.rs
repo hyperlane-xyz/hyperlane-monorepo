@@ -6,6 +6,7 @@ use hyperlane_sealevel_mailbox::{
     instruction::{Instruction as MailboxIxn, OutboxDispatch as MailboxOutboxDispatch},
     mailbox_outbox_pda_seeds,
 };
+use serializable_account_meta::SerializableAccountMeta;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
@@ -13,7 +14,6 @@ use solana_program::{
     program::invoke_signed,
     program_error::ProgramError,
     pubkey::Pubkey,
-    msg,
     rent::Rent,
     system_instruction,
 };
@@ -73,6 +73,12 @@ where
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
         amount: u64,
     ) -> Result<(), ProgramError>;
+
+    /// Returns (AccountMetas, whether recipient wallet must be writeable)
+    fn transfer_out_account_metas(
+        program_id: &Pubkey,
+        token_message: &TokenMessage,
+    ) -> Result<(Vec<SerializableAccountMeta>, bool), ProgramError>;
 }
 
 pub struct HyperlaneSealevelToken<
@@ -330,6 +336,10 @@ where
 
         // Account 4: Recipient wallet
         let recipient_wallet = next_account_info(accounts_iter)?;
+        let expected_recipient = Pubkey::new_from_array(message.recipient().into());
+        if recipient_wallet.key != &expected_recipient {
+            return Err(ProgramError::InvalidArgument);
+        }
 
         T::transfer_out(
             program_id,
@@ -359,5 +369,36 @@ where
         invoke_signed(&noop_cpi_log, &[], &[token_seeds])?;
 
         Ok(())
+    }
+
+    pub fn transfer_from_remote_account_metas(
+        program_id: &Pubkey,
+        _accounts: &[AccountInfo],
+        transfer: TransferFromRemote,
+    ) -> Result<Vec<SerializableAccountMeta>, ProgramError> {
+        let mut message_reader = std::io::Cursor::new(transfer.message);
+        let message = TokenMessage::read_from(&mut message_reader)
+            .map_err(|_err| ProgramError::from(Error::TODO))?;
+
+        let (token_key, _token_bump) =
+            Pubkey::find_program_address(hyperlane_token_pda_seeds!(), program_id);
+
+        let (transfer_out_account_metas, writeable_recipient) =
+            T::transfer_out_account_metas(program_id, &message)?;
+
+        let mut accounts = vec![
+            AccountMeta::new_readonly(solana_program::system_program::id(), false).into(),
+            AccountMeta::new_readonly(spl_noop::id(), false).into(),
+            AccountMeta::new_readonly(token_key, false).into(),
+            AccountMeta {
+                pubkey: Pubkey::new_from_array(message.recipient().into()),
+                is_signer: false,
+                is_writable: writeable_recipient,
+            }
+            .into(),
+        ];
+        accounts.extend(transfer_out_account_metas);
+
+        Ok(accounts)
     }
 }

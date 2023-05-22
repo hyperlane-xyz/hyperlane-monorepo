@@ -6,6 +6,7 @@ use hyperlane_sealevel_token_lib::{
     instruction::{Init, TransferFromRemote, TransferRemote},
     processor::HyperlaneSealevelToken,
 };
+use serializable_account_meta::SimulationReturnData;
 use solana_program::{
     account_info::AccountInfo, entrypoint, entrypoint::ProgramResult, msg,
     program::set_return_data, program_error::ProgramError, pubkey::Pubkey,
@@ -45,9 +46,16 @@ pub fn process_instruction(
                     message: handle.message,
                 },
             ),
-            MessageRecipientInstruction::HandleAccountMetas(_) => {
-                // TODO: not implemented yet!
-                Ok(())
+            MessageRecipientInstruction::HandleAccountMetas(handle) => {
+                transfer_from_remote_account_metas(
+                    program_id,
+                    accounts,
+                    TransferFromRemote {
+                        origin: handle.origin,
+                        sender: handle.sender,
+                        message: handle.message,
+                    },
+                )
             }
         };
     }
@@ -112,4 +120,23 @@ fn transfer_from_remote(
     transfer: TransferFromRemote,
 ) -> ProgramResult {
     HyperlaneSealevelToken::<NativePlugin>::transfer_from_remote(program_id, accounts, transfer)
+}
+
+fn transfer_from_remote_account_metas(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    transfer: TransferFromRemote,
+) -> ProgramResult {
+    let account_metas = HyperlaneSealevelToken::<NativePlugin>::transfer_from_remote_account_metas(
+        program_id, accounts, transfer,
+    )?;
+    // Wrap it in the SimulationReturnData because serialized account_metas
+    // may end with zero byte(s), which are incorrectly truncated as
+    // simulated transaction return data.
+    // See `SimulationReturnData` for details.
+    let bytes = SimulationReturnData::new(account_metas)
+        .try_to_vec()
+        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+    set_return_data(&bytes[..]);
+    Ok(())
 }
