@@ -1,5 +1,6 @@
 import '@nomiclabs/hardhat-etherscan';
 import '@nomiclabs/hardhat-waffle';
+import { BigNumber } from 'ethers';
 import { task } from 'hardhat/config';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 
@@ -59,6 +60,10 @@ task('kathy', 'Dispatches random hyperlane messages')
       const recipient = await recipientF.deploy();
       await recipient.deployTransaction.wait();
 
+      const isAutomine: boolean = await hre.network.provider.send(
+        'hardhat_getAutomine',
+      );
+
       //  Generate artificial traffic
       let rounds = Number.parseInt(taskArgs.rounds) || 0;
       const run_forever = rounds === 0;
@@ -91,6 +96,15 @@ task('kathy', 'Dispatches random hyperlane messages')
           );
           console.log(await chainSummary(core, local));
           console.log(await chainSummary(core, remote));
+
+          // mine confirmation blocks instantly
+          if (isAutomine) {
+            const confirmations =
+              multiProvider.getChainMetadata(local).blocks?.confirmations || 1;
+            const hexConfirmations =
+              BigNumber.from(confirmations).toHexString();
+            await hre.network.provider.send('hardhat_mine', [hexConfirmations]);
+          }
           await sleep(timeout);
         }
       }
