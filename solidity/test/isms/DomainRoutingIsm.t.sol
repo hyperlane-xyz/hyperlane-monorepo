@@ -9,16 +9,17 @@ import {IInterchainSecurityModule} from "../../contracts/interfaces/IInterchainS
 import {MessageUtils, TestIsm} from "./IsmTestUtils.sol";
 
 contract DomainRoutingIsmTest is Test {
-    address constant nonOwner = 0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe;
+    address private constant NON_OWNER =
+        0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe;
     event ModuleSet(uint32 indexed domain, IInterchainSecurityModule module);
-    DomainRoutingIsm ism;
+    DomainRoutingIsm private ism;
 
     function setUp() public {
         ism = new DomainRoutingIsm();
         ism.initialize(address(this));
     }
 
-    function deployTestIsm(uint32 domain, bytes32 requiredMetadata)
+    function deployTestIsm(bytes32 requiredMetadata)
         internal
         returns (TestIsm)
     {
@@ -30,7 +31,7 @@ contract DomainRoutingIsmTest is Test {
     }
 
     function testSet(uint32 domain) public {
-        TestIsm _ism = deployTestIsm(domain, bytes32(0));
+        TestIsm _ism = deployTestIsm(bytes32(0));
         vm.expectEmit(true, true, false, true);
         emit ModuleSet(domain, _ism);
         ism.set(domain, _ism);
@@ -45,7 +46,7 @@ contract DomainRoutingIsmTest is Test {
             memory _isms = new IInterchainSecurityModule[](count);
         for (uint32 i = 0; i < count; ++i) {
             _domains[i] = domain - i;
-            _isms[i] = deployTestIsm(_domains[i], bytes32(0));
+            _isms[i] = deployTestIsm(bytes32(0));
             vm.expectEmit(true, true, false, true);
             emit ModuleSet(_domains[i], _isms[i]);
         }
@@ -58,13 +59,13 @@ contract DomainRoutingIsmTest is Test {
     function testSetNonOwner(uint32 domain, IInterchainSecurityModule _ism)
         public
     {
-        vm.prank(nonOwner);
+        vm.prank(NON_OWNER);
         vm.expectRevert("Ownable: caller is not the owner");
         ism.set(domain, _ism);
     }
 
     function testVerify(uint32 domain, bytes32 seed) public {
-        ism.set(domain, deployTestIsm(domain, seed));
+        ism.set(domain, deployTestIsm(seed));
 
         bytes memory metadata = getMetadata(domain);
         assertTrue(ism.verify(metadata, MessageUtils.build(domain)));
@@ -72,7 +73,7 @@ contract DomainRoutingIsmTest is Test {
 
     function testVerifyNoIsm(uint32 domain, bytes32 seed) public {
         vm.assume(domain > 0);
-        ism.set(domain, deployTestIsm(domain, seed));
+        ism.set(domain, deployTestIsm(seed));
 
         bytes memory metadata = getMetadata(domain);
         vm.expectRevert("No ISM found for origin domain");
@@ -80,7 +81,7 @@ contract DomainRoutingIsmTest is Test {
     }
 
     function testRoute(uint32 domain, bytes32 seed) public {
-        TestIsm testIsm = deployTestIsm(domain, seed);
+        TestIsm testIsm = deployTestIsm(seed);
         ism.set(domain, testIsm);
         assertEq(
             address(ism.route(MessageUtils.build(domain))),
