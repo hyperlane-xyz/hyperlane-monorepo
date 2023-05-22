@@ -12,8 +12,9 @@ use tokio::time::sleep;
 use hyperlane_base::{CheckpointSyncer, CoreMetrics};
 use tracing::{debug, info, trace};
 
-use hyperlane_core::{Checkpoint, CheckpointWithMessageId, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessageStore, HyperlaneSigner, HyperlaneSignerExt, Mailbox
+use hyperlane_core::{
+    Checkpoint, CheckpointWithMessageId, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneMessageStore, HyperlaneSigner, HyperlaneSignerExt, Mailbox,
 };
 
 #[derive(Clone)]
@@ -79,7 +80,11 @@ impl ValidatorSubmitter {
         Ok(tree.count())
     }
 
-    pub(crate) async fn checkpoint_submitter(self, mut tree: IncrementalMerkle, target_nonce: Option<u32>) -> Result<()> {
+    pub(crate) async fn checkpoint_submitter(
+        self,
+        mut tree: IncrementalMerkle,
+        target_nonce: Option<u32>,
+    ) -> Result<()> {
         let mut latest_count_checked = self.check_consistency(&tree).await?;
 
         loop {

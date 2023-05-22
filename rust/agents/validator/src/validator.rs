@@ -6,9 +6,9 @@ use eyre::Result;
 use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_base::MessageContractSync;
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
-use tokio::{task::JoinHandle, time::sleep};
-use tracing::{instrument::Instrumented, Instrument, error, info_span, info, warn};
 use std::num::NonZeroU64;
+use tokio::{task::JoinHandle, time::sleep};
+use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument};
 
 use hyperlane_base::{
     db::DB, run_all, BaseAgent, CheckpointSyncer, ContractSyncMetrics, CoreMetrics,
@@ -16,10 +16,8 @@ use hyperlane_base::{
 };
 
 use hyperlane_core::{
-    HyperlaneDomain, HyperlaneSigner, Mailbox, ValidatorAnnounce,
-    Announcement, HyperlaneChain, HyperlaneContract,
-    HyperlaneSignerExt,
-    H256, U256,
+    Announcement, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSigner,
+    HyperlaneSignerExt, Mailbox, ValidatorAnnounce, H256, U256,
 };
 
 use crate::{
@@ -149,7 +147,11 @@ impl Validator {
 
         let backfill_tree = IncrementalMerkle::default();
         let lag = NonZeroU64::new(self.reorg_period);
-        let tip_tree = self.mailbox.tree(lag).await.expect("failed to get mailbox tree");
+        let tip_tree = self
+            .mailbox
+            .tree(lag)
+            .await
+            .expect("failed to get mailbox tree");
         let backfill_target = tip_tree.count() as u32;
 
         let mut tasks = vec![];
@@ -157,9 +159,22 @@ impl Validator {
         let backfill_submitter = submitter.clone();
         let legacy_submitter = submitter.clone();
 
-        tasks.push(tokio::spawn(async move { backfill_submitter.checkpoint_submitter(backfill_tree, Some(backfill_target)).await }).instrument(info_span!("BackfillCheckpointSubmitter")));
-        tasks.push(tokio::spawn(async move { submitter.checkpoint_submitter(tip_tree, None).await }).instrument(info_span!("TipCheckpointSubmitter")));
-        tasks.push(tokio::spawn(async move { legacy_submitter.legacy_checkpoint_submitter().await }).instrument(info_span!("LegacyCheckpointSubmitter")));
+        tasks.push(
+            tokio::spawn(async move {
+                backfill_submitter
+                    .checkpoint_submitter(backfill_tree, Some(backfill_target))
+                    .await
+            })
+            .instrument(info_span!("BackfillCheckpointSubmitter")),
+        );
+        tasks.push(
+            tokio::spawn(async move { submitter.checkpoint_submitter(tip_tree, None).await })
+                .instrument(info_span!("TipCheckpointSubmitter")),
+        );
+        tasks.push(
+            tokio::spawn(async move { legacy_submitter.legacy_checkpoint_submitter().await })
+                .instrument(info_span!("LegacyCheckpointSubmitter")),
+        );
 
         tasks
     }

@@ -298,7 +298,7 @@ fn main() -> ExitCode {
     let mut state = State::default();
     state.build_log = build_log;
     state.log_all = log_all;
-    
+
     println!("Launching anvil...");
     let mut node = Command::new("anvil");
     if log_all {
