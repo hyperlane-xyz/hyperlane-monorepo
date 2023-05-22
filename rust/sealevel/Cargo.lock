@@ -1739,6 +1739,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-token-native"
+version = "0.1.0"
+dependencies = [
+ "borsh",
+ "bs58",
+ "hyperlane-core",
+ "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-message-recipient-interface",
+ "hyperlane-sealevel-token-lib",
+ "num-derive",
+ "num-traits",
+ "solana-program",
+ "solana-program-test",
+ "solana-sdk",
+ "spl-noop",
+ "thiserror",
+]
+
+[[package]]
 name = "iana-time-zone"
 version = "0.1.53"
 source = "registry+https://github.com/rust-lang/crates.io-index"
