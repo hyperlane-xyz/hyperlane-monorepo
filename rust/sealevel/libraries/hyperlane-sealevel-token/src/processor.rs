@@ -96,13 +96,10 @@ where
     /// Initializes the program.
     ///
     /// Accounts:
-    /// 0. [executable] The system program.
-    /// 1. [writable] The token PDA account.
-    /// 2. [signer] The payer.
-    ///
-    /// Plugin-specific accounts: (TODO remove)
-    /// 3. [writable] The mint / mint authority PDA account.
-    /// 4. [writable] The ATA payer PDA account.
+    /// 0.   [executable] The system program.
+    /// 1.   [writable] The token PDA account.
+    /// 2.   [signer] The payer.
+    /// 3..N [??..??] Plugin-specific accounts.
     pub fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramResult {
         // On chain create appears to use realloc which is limited to 1024 byte increments.
         let token_account_size = 2048;
@@ -170,16 +167,12 @@ where
     /// then dispatches a message to the remote recipient.
     ///
     /// Accounts:
-    /// 0. [executable] The spl_noop program.
-    /// 1. [] The token PDA account.
-    /// 2. [executable] The mailbox program.
-    /// 3. [writeable] The mailbox outbox account.
-    /// 4. [signer] The token sender.
-    ///
-    /// Plugin-specific accounts: (TODO remove)
-    /// 5. [executable] The spl_token_2022 program.
-    /// 6. [writeable] The mint / mint authority PDA account.
-    /// 7. [writeable] The token sender's associated token account, from which tokens will be burned.
+    /// 0.   [executable] The spl_noop program.
+    /// 1.   [] The token PDA account.
+    /// 2.   [executable] The mailbox program.
+    /// 3.   [writeable] The mailbox outbox account.
+    /// 4.   [signer] The token sender.
+    /// 5..N [??..??] Plugin-specific accounts.
     pub fn transfer_remote(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -284,18 +277,12 @@ where
     }
 
     /// Accounts:
-    /// 0. [signer] mailbox authority
-    /// 1. [executable] system_program
-    /// 2. [executable] spl_noop
-    /// 3. [] hyperlane_token storage
-    /// 4. [] recipient wallet address
-    ///
-    /// Plugin-specific: (TODO remove?)
-    /// 5. [executable] SPL token 2022 program
-    /// 6. [executable] SPL associated token account
-    /// 7. [writeable] Mint account
-    /// 8. [writeable] Recipient associated token account
-    /// 9. [writeable] ATA payer PDA account.
+    /// 0.   [signer] mailbox authority
+    /// 1.   [executable] system_program
+    /// 2.   [executable] spl_noop
+    /// 3.   [] hyperlane_token storage
+    /// 4.   [] recipient wallet address
+    /// 5..N [??..??] Plugin-specific accounts.
     pub fn transfer_from_remote(
         program_id: &Pubkey,
         accounts: &[AccountInfo],

@@ -46,6 +46,9 @@ macro_rules! hyperlane_token_ata_payer_pda_seeds {
     }};
 }
 
+/// A plugin for the Hyperlane token program that mints synthetic
+/// tokens upon receiving a transfer from a remote chain, and burns
+/// synthetic tokens when transferring out to a remote chain.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Default)]
 pub struct SyntheticPlugin {
     mint: Pubkey,
@@ -61,8 +64,8 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
     /// Initializes the plugin.
     ///
     /// Accounts:
-    /// N.     [writable] The mint / mint authority PDA account.
-    /// N + 1. [writable] The ATA payer PDA account.
+    /// 0. [writable] The mint / mint authority PDA account.
+    /// 1. [writable] The ATA payer PDA account.
     fn initialize<'a, 'b>(
         program_id: &Pubkey,
         _system_program: &'a AccountInfo<'b>,
@@ -70,7 +73,7 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
         payer_account: &'a AccountInfo<'b>,
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
     ) -> Result<Self, ProgramError> {
-        // Account N + 0: Mint / mint authority
+        // Account 0: Mint / mint authority
         let mint_account = next_account_info(accounts_iter)?;
         let (mint_key, mint_bump) =
             Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), program_id);
@@ -92,7 +95,7 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
             &[hyperlane_token_mint_pda_seeds!(mint_bump)],
         )?;
 
-        // Account N + 1: ATA payer.
+        // Account 1: ATA payer.
         let ata_payer_account = next_account_info(accounts_iter)?;
         let (ata_payer_key, ata_payer_bump) =
             Pubkey::find_program_address(hyperlane_token_ata_payer_pda_seeds!(), program_id);
@@ -125,6 +128,13 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
         })
     }
 
+    /// Transfers tokens into the program so they can be sent to a remote chain.
+    /// Burns the tokens from the sender's associated token account.
+    ///
+    /// Accounts:
+    /// 0. [executable] The spl_token_2022 program.
+    /// 1. [writeable] The mint / mint authority PDA account.
+    /// 2. [writeable] The token sender's associated token account, from which tokens will be burned.
     fn transfer_in<'a, 'b>(
         program_id: &Pubkey,
         token: &HyperlaneToken<Self>,
@@ -132,13 +142,13 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
         amount: u64,
     ) -> Result<(), ProgramError> {
-        // 5. SPL token 2022 program
+        // 0. SPL token 2022 program
         let spl_token_2022 = next_account_info(accounts_iter)?;
         if spl_token_2022.key != &spl_token_2022::id() || !spl_token_2022.executable {
             return Err(ProgramError::InvalidArgument);
         }
 
-        // 6. mint account
+        // 1. The mint / mint authority.
         let mint_account = next_account_info(accounts_iter)?;
         let mint_seeds: &[&[u8]] = hyperlane_token_mint_pda_seeds!(token.plugin_data.mint_bump);
         let expected_mint_key = Pubkey::create_program_address(mint_seeds, program_id)?;
@@ -155,9 +165,7 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
             return Err(ProgramError::IncorrectProgramId);
         }
 
-        // Hmmmmmm should this be enforced?
-
-        // 7. sender associated token account
+        // 2. The sender's associated token account.
         let sender_ata = next_account_info(accounts_iter)?;
         let expected_sender_associated_token_account = get_associated_token_address_with_program_id(
             sender_wallet.key,
@@ -190,6 +198,15 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
         Ok(())
     }
 
+    /// Transfers tokens out to a recipient's associated token account as a
+    /// result of a transfer to this chain from a remote chain.
+    ///
+    /// Accounts:
+    /// 0. [executable] SPL token 2022 program
+    /// 1. [executable] SPL associated token account
+    /// 2. [writeable] Mint account
+    /// 3. [writeable] Recipient associated token account
+    /// 4. [writeable] ATA payer PDA account.
     fn transfer_out<'a, 'b>(
         program_id: &Pubkey,
         token: &HyperlaneToken<Self>,
@@ -198,18 +215,18 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
         amount: u64,
     ) -> Result<(), ProgramError> {
-        // Account 5: SPL token 2022 program
+        // Account 0: SPL token 2022 program
         let spl_token_2022 = next_account_info(accounts_iter)?;
         if spl_token_2022.key != &spl_token_2022::id() || !spl_token_2022.executable {
             return Err(ProgramError::InvalidArgument);
         }
-        // Account 6: SPL associated token account
+        // Account 1: SPL associated token account
         let spl_ata = next_account_info(accounts_iter)?;
         if spl_ata.key != &spl_associated_token_account::id() || !spl_ata.executable {
             return Err(ProgramError::InvalidArgument);
         }
 
-        // Account 7: Mint account
+        // Account 2: Mint account
         let mint_account = next_account_info(accounts_iter)?;
         let mint_seeds: &[&[u8]] = hyperlane_token_mint_pda_seeds!(token.plugin_data.mint_bump);
         let expected_mint_key = Pubkey::create_program_address(mint_seeds, program_id)?;
@@ -220,7 +237,7 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
             return Err(ProgramError::IncorrectProgramId);
         }
 
-        // Account 8: Recipient associated token account
+        // Account 3: Recipient associated token account
         let recipient_ata = next_account_info(accounts_iter)?;
         let expected_recipient_associated_token_account =
             get_associated_token_address_with_program_id(
@@ -232,7 +249,7 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
             return Err(ProgramError::InvalidArgument);
         }
 
-        // Account 9: ATA payer PDA account
+        // Account 4: ATA payer PDA account
         let ata_payer_account = next_account_info(accounts_iter)?;
         let ata_payer_seeds: &[&[u8]] =
             hyperlane_token_ata_payer_pda_seeds!(token.plugin_data.ata_payer_bump);
@@ -250,17 +267,12 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
         invoke_signed(
             &create_associated_token_account_idempotent(
                 ata_payer_account.key,
-                // payer_account.key,
                 recipient_wallet.key,
                 mint_account.key,
                 &spl_token_2022::id(),
             ),
             &[
                 ata_payer_account.clone(),
-                // token_account.clone(),
-                // mint_account.clone(),
-                // solana_program::instruction::AccountMeta::new_readonly(*mint_account.key, true),
-                // payer_account.clone(),
                 recipient_ata.clone(),
                 recipient_wallet.clone(),
                 mint_account.clone(),
@@ -278,21 +290,6 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
             return Err(ProgramError::from(Error::AtaBalanceTooLow));
         }
 
-        // Mints new tokens to an account.  The native mint does not support
-        // minting.
-        //
-        // Accounts expected by this instruction:
-        //
-        //   * Single authority
-        //   0. `[writable]` The mint.
-        //   1. `[writable]` The account to mint tokens to.
-        //   2. `[signer]` The mint's minting authority.
-        //
-        //   * Multisignature authority
-        //   0. `[writable]` The mint.
-        //   1. `[writable]` The account to mint tokens to.
-        //   2. `[]` The mint's multisignature mint-tokens authority.
-        //   3. ..3+M `[signer]` M signer accounts.
         let mint_ixn = mint_to_checked(
             &spl_token_2022::id(),
             mint_account.key,

@@ -17,10 +17,11 @@ use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
 };
 use hyperlane_sealevel_token::{
-    hyperlane_token_ata_payer_pda_seeds, hyperlane_token_mint_pda_seeds, hyperlane_token_pda_seeds,
+    hyperlane_token_ata_payer_pda_seeds, hyperlane_token_mint_pda_seeds,
     instruction::Instruction as HyperlaneTokenInstruction, processor::process_instruction,
 };
 use hyperlane_sealevel_token_lib::{
+    hyperlane_token_pda_seeds,
     instruction::{Init, TransferRemote},
     message::TokenMessage,
 };

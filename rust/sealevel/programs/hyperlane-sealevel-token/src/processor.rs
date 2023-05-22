@@ -16,18 +16,6 @@ use crate::{instruction::Instruction as TokenIxn, plugin::SyntheticPlugin};
 #[cfg(not(feature = "no-entrypoint"))]
 entrypoint!(process_instruction);
 
-/// Seeds relating to the PDA account with information about this warp route.
-#[macro_export]
-macro_rules! hyperlane_token_pda_seeds {
-    () => {{
-        &[b"hyperlane_token", b"-", b"token"]
-    }};
-
-    ($bump_seed:expr) => {{
-        &[b"hyperlane_token", b"-", b"token", &[$bump_seed]]
-    }};
-}
-
 pub fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
