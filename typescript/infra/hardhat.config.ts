@@ -87,6 +87,7 @@ task('kathy', 'Dispatches random hyperlane messages')
             // so gas estimation may sometimes be incorrect. Just avoid
             // estimation to avoid this.
             gasLimit: 150_000,
+            gasPrice: 2_000_000_000,
           },
         );
         console.log(
