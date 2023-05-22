@@ -80,7 +80,7 @@ impl MessageProcessor {
     fn try_get_unprocessed_message(&mut self) -> Result<Option<HyperlaneMessage>> {
         loop {
             // First, see if we can find the message so we can update the gauge.
-            if let Some(message) = self.db.message_by_nonce(self.message_nonce)? {
+            if let Some(message) = self.db.retrieve_message_by_nonce(self.message_nonce)? {
                 // Update the latest nonce gauges
                 self.metrics
                     .max_last_known_message_nonce_gauge
@@ -90,7 +90,11 @@ impl MessageProcessor {
                 }
 
                 // If this message has already been processed, on to the next one.
-                if !self.db.retrieve_message_processed(self.message_nonce)? {
+                if !self
+                    .db
+                    .retrieve_processed_by_nonce(&self.message_nonce)?
+                    .unwrap_or(false)
+                {
                     return Ok(Some(message));
                 } else {
                     debug!(nonce=?self.message_nonce, "Message already marked as processed in DB");
