@@ -64,6 +64,17 @@ macro_rules! hyperlane_token_mint_pda_seeds {
     }};
 }
 
+#[macro_export]
+macro_rules! hyperlane_token_ata_payer_pda_seeds {
+    () => {{
+        &[b"hyperlane_token", b"-", b"ata_payer"]
+    }};
+
+    ($bump_seed:expr) => {{
+        &[b"hyperlane_token", b"-", b"ata_payer", &[$bump_seed]]
+    }};
+}
+
 // TODO make these easily configurable?
 pub const REMOTE_DECIMALS: u8 = 18;
 pub const DECIMALS: u8 = 8;
@@ -128,7 +139,8 @@ pub fn process_instruction(
 /// 0. [executable] The system program.
 /// 1. [writable] The token PDA account.
 /// 2. [writable] The mint / mint authority PDA account.
-/// 3. [signer] The payer.
+/// 3. [writable] The ATA payer PDA account.
+/// 4. [signer] The payer.
 fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramResult {
     // On chain create appears to use realloc which is limited to 1024 byte increments.
     let token_account_size = 2048;
@@ -157,7 +169,15 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
         return Err(ProgramError::InvalidArgument);
     }
 
-    // Account 3: Payer
+    // Account 3: ATA payer.
+    let ata_payer_account = next_account_info(accounts_iter)?;
+    let (ata_payer_key, ata_payer_bump) =
+        Pubkey::find_program_address(hyperlane_token_ata_payer_pda_seeds!(), program_id);
+    if &ata_payer_key != ata_payer_account.key {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    // Account 4: Payer
     let payer_account = next_account_info(accounts_iter)?;
     if !payer_account.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
@@ -166,6 +186,24 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
     if accounts_iter.next().is_some() {
         return Err(ProgramError::from(Error::ExtraneousAccount));
     }
+
+    // Create the ATA payer.
+    // This is a separate PDA because the ATA program requires
+    // the payer to have no data in it.
+    invoke_signed(
+        &system_instruction::create_account(
+            payer_account.key,
+            ata_payer_account.key,
+            Rent::default().minimum_balance(0),
+            0,
+            // Grant ownership to the system program so that the ATA program
+            // can call into the system program with the ATA payer as the
+            // payer.
+            &solana_program::system_program::id(),
+        ),
+        &[payer_account.clone(), ata_payer_account.clone()],
+        &[hyperlane_token_ata_payer_pda_seeds!(ata_payer_bump)],
+    )?;
 
     // Create token account PDA
     invoke_signed(
@@ -186,6 +224,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
         mailbox_local_domain: init.mailbox_local_domain,
         mint: mint_key,
         mint_bump: mint_bump,
+        ata_payer_bump,
     };
     HyperlaneTokenAccount::from(token).store(token_account, true)?;
 
@@ -380,20 +419,11 @@ fn transfer_remote(
 // 2. [executable] spl_noop
 // 3. [] hyperlane_token storage
 // 4. [] recipient wallet address
-// 5. [signer] payer // <- TODO this should NOT be required as a signer
-// 6. [executable] SPL token 2022 program
-// 7. [executable] SPL associated token account
-// 8. [writeable] Mint account
-// 9. [writeable] Recipient associated token account
-
-// For wrapped tokens:
-//     7. spl_token_2022
-//     8. spl_associated_token_account
-//     9. hyperlane_token_erc20
-//     10. hyperlane_token_mint
-//     11. recipient associated token account
-// For native token:
-//     7. native_token_collateral wallet
+// 5. [executable] SPL token 2022 program
+// 6. [executable] SPL associated token account
+// 7. [writeable] Mint account
+// 8. [writeable] Recipient associated token account
+// 9. [writeable] ATA payer PDA account.
 fn transfer_from_remote(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -441,22 +471,18 @@ fn transfer_from_remote(
     // Account 4: Recipient wallet
     let recipient_wallet = next_account_info(accounts_iter)?;
 
-    // Account 5: Payer
-    // TODO does this need to be a signer? It shouldn't...
-    let payer_account = next_account_info(accounts_iter)?;
-
-    // Account 6: SPL token 2022 program
+    // Account 5: SPL token 2022 program
     let spl_token_2022 = next_account_info(accounts_iter)?;
     if spl_token_2022.key != &spl_token_2022::id() || !spl_token_2022.executable {
         return Err(ProgramError::InvalidArgument);
     }
-    // Account 7: SPL associated token account
+    // Account 6: SPL associated token account
     let spl_ata = next_account_info(accounts_iter)?;
     if spl_ata.key != &spl_associated_token_account::id() || !spl_ata.executable {
         return Err(ProgramError::InvalidArgument);
     }
 
-    // Account 8: Mint account
+    // Account 7: Mint account
     let mint_account = next_account_info(accounts_iter)?;
     let mint_seeds: &[&[u8]] = hyperlane_token_mint_pda_seeds!(token.mint_bump);
     let expected_mint_key = Pubkey::create_program_address(mint_seeds, program_id)?;
@@ -467,7 +493,7 @@ fn transfer_from_remote(
         return Err(ProgramError::IncorrectProgramId);
     }
 
-    // Account 9: Recipient associated token account
+    // Account 8: Recipient associated token account
     let recipient_ata = next_account_info(accounts_iter)?;
     let expected_recipient_associated_token_account = get_associated_token_address_with_program_id(
         recipient_wallet.key,
@@ -477,6 +503,15 @@ fn transfer_from_remote(
     if recipient_ata.key != &expected_recipient_associated_token_account {
         return Err(ProgramError::InvalidArgument);
     }
+
+    // Account 9: ATA payer PDA account
+    let ata_payer_account = next_account_info(accounts_iter)?;
+    let ata_payer_seeds: &[&[u8]] = hyperlane_token_ata_payer_pda_seeds!(token.ata_payer_bump);
+    let expected_ata_payer_account = Pubkey::create_program_address(ata_payer_seeds, program_id)?;
+    if ata_payer_account.key != &expected_ata_payer_account {
+        return Err(ProgramError::InvalidArgument);
+    }
+
     if accounts_iter.next().is_some() {
         return Err(ProgramError::from(Error::ExtraneousAccount));
     }
@@ -484,21 +519,34 @@ fn transfer_from_remote(
     // Create and init (this does both) associated token account if necessary.
     invoke_signed(
         &create_associated_token_account_idempotent(
-            payer_account.key,
+            ata_payer_account.key,
+            // payer_account.key,
             recipient_wallet.key,
             mint_account.key,
             &spl_token_2022::id(),
         ),
         &[
-            payer_account.clone(),
+            ata_payer_account.clone(),
+            // token_account.clone(),
+            // mint_account.clone(),
+            // solana_program::instruction::AccountMeta::new_readonly(*mint_account.key, true),
+            // payer_account.clone(),
             recipient_ata.clone(),
             recipient_wallet.clone(),
             mint_account.clone(),
             system_program.clone(),
             spl_token_2022.clone(),
         ],
-        &[mint_seeds],
+        &[ata_payer_seeds, mint_seeds],
     )?;
+
+    // After potentially paying for the ATA creation, we need to make sure
+    // the ATA payer still meets the rent-exemption requirements!
+    let ata_payer_lamports = ata_payer_account.lamports();
+    let ata_payer_rent_exemption_requirement = Rent::default().minimum_balance(0);
+    if ata_payer_lamports < ata_payer_rent_exemption_requirement {
+        return Err(ProgramError::from(Error::AtaBalanceTooLow));
+    }
 
     // Mints new tokens to an account.  The native mint does not support
     // minting.

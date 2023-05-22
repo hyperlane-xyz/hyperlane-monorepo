@@ -10,6 +10,9 @@ pub enum Error {
 
     #[error("Unused account(s) provided")]
     ExtraneousAccount = 2,
+
+    #[error("Associated token account balance is too low")]
+    AtaBalanceTooLow = 3,
     // #[error("Hyperlane message is malformatted")]
     // MalformattedHyperlaneMessage = 2,
     // #[error("Unsupported message version")]

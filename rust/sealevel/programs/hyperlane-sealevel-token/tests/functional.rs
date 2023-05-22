@@ -17,7 +17,7 @@ use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
 };
 use hyperlane_sealevel_token::{
-    hyperlane_token_mint_pda_seeds, hyperlane_token_pda_seeds,
+    hyperlane_token_ata_payer_pda_seeds, hyperlane_token_mint_pda_seeds, hyperlane_token_pda_seeds,
     instruction::{Init, Instruction as HyperlaneTokenInstruction, TransferRemote},
     message::TokenMessage,
     processor::process_instruction,
@@ -34,18 +34,27 @@ async fn new_funded_keypair(
     lamports: u64,
 ) -> Keypair {
     let keypair = Keypair::new();
+    transfer_lamports(banks_client, payer, &keypair.pubkey(), lamports).await;
+    keypair
+}
+
+async fn transfer_lamports(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    to: &Pubkey,
+    lamports: u64,
+) {
     let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
     let mut transaction = Transaction::new_with_payer(
         &[solana_sdk::system_instruction::transfer(
             &payer.pubkey(),
-            &keypair.pubkey(),
+            to,
             lamports,
         )],
         Some(&payer.pubkey()),
     );
     transaction.sign(&[payer], recent_blockhash);
     banks_client.process_transaction(transaction).await.unwrap();
-    keypair
 }
 
 struct MailboxAccounts {
@@ -152,6 +161,9 @@ async fn test_initialize() {
     let (mint_account_key, _mint_account_bump_seed) =
         Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
 
+    let (ata_payer_account_key, _ata_payer_account_bump_seed) =
+        Pubkey::find_program_address(hyperlane_token_ata_payer_pda_seeds!(), &program_id);
+
     let mut transaction = Transaction::new_with_payer(
         &[
             Instruction::new_with_bytes(
@@ -166,6 +178,7 @@ async fn test_initialize() {
                     AccountMeta::new_readonly(solana_program::system_program::id(), false),
                     AccountMeta::new(token_account_key, false),
                     AccountMeta::new(mint_account_key, false),
+                    AccountMeta::new(ata_payer_account_key, false),
                     AccountMeta::new_readonly(payer.pubkey(), true),
                 ],
             ),
@@ -188,23 +201,15 @@ async fn test_initialize() {
     let recipient_keypair = new_funded_keypair(&mut banks_client, &payer, 1000000).await;
     let recipient: H256 = recipient_keypair.pubkey().to_bytes().into();
 
-    // 0. [signer] mailbox authority
-    // 1. [executable] system_program
-    // 2. [executable] spl_noop
-    // 3. [] hyperlane_token storage
-    // 4. [] recipient wallet address
-    // 5. [signer] payer // <- TODO this should NOT be required as a signer
-    // 6. [executable] SPL token 2022 program
-    // 7. [executable] SPL associated token account
-    // 8. [writeable] Mint account
-    // 9. [writeable] Recipient associated token account
-
     let recipient_associated_token_account =
         spl_associated_token_account::get_associated_token_address_with_program_id(
             &recipient_keypair.pubkey(),
             &mint_account_key,
             &spl_token_2022::id(),
         );
+
+    // ATA payer must have a balance to create new ATAs
+    transfer_lamports(&mut banks_client, &payer, &ata_payer_account_key, 100000000).await;
 
     let mut transaction = Transaction::new_with_payer(
         &[Instruction::new_with_bytes(
@@ -224,12 +229,11 @@ async fn test_initialize() {
                 AccountMeta::new_readonly(spl_noop::id(), false),
                 AccountMeta::new_readonly(token_account_key, false),
                 AccountMeta::new_readonly(recipient_keypair.pubkey(), false),
-                // TODO try to make this not a signer
-                AccountMeta::new_readonly(payer.pubkey(), true),
                 AccountMeta::new_readonly(spl_token_2022::id(), false),
                 AccountMeta::new_readonly(spl_associated_token_account::id(), false),
                 AccountMeta::new(mint_account_key, false),
                 AccountMeta::new(recipient_associated_token_account, false),
+                AccountMeta::new(ata_payer_account_key, false),
             ],
         )],
         Some(&payer.pubkey()),

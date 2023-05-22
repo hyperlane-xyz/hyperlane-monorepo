@@ -19,4 +19,8 @@ pub struct HyperlaneToken {
     pub mint: Pubkey,
     /// The bump seed for the mint / mint authority PDA.
     pub mint_bump: u8,
+    // /// The PDA that will serve as a payer for ATA creation.
+    // pub ata_payer: Pubkey,
+    /// The bump seed for the ATA payer.
+    pub ata_payer_bump: u8,
 }
