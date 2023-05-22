@@ -23,7 +23,12 @@ macro_rules! hyperlane_token_native_collateral_pda_seeds {
     }};
 
     ($bump_seed:expr) => {{
-        &[b"hyperlane_token", b"-", b"native_collateral", &[$bump_seed]]
+        &[
+            b"hyperlane_token",
+            b"-",
+            b"native_collateral",
+            &[$bump_seed],
+        ]
     }};
 }
 
@@ -49,8 +54,10 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
     ) -> Result<Self, ProgramError> {
         // Account 0: Native collateral PDA account.
         let native_collateral_account = next_account_info(accounts_iter)?;
-        let (native_collateral_key, native_collateral_bump) =
-            Pubkey::find_program_address(hyperlane_token_native_collateral_pda_seeds!(), program_id);
+        let (native_collateral_key, native_collateral_bump) = Pubkey::find_program_address(
+            hyperlane_token_native_collateral_pda_seeds!(),
+            program_id,
+        );
         if &native_collateral_key != native_collateral_account.key {
             return Err(ProgramError::InvalidArgument);
         }
@@ -66,7 +73,9 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
                 &solana_program::system_program::id(),
             ),
             &[payer_account.clone(), native_collateral_account.clone()],
-            &[hyperlane_token_native_collateral_pda_seeds!(native_collateral_bump)],
+            &[hyperlane_token_native_collateral_pda_seeds!(
+                native_collateral_bump
+            )],
         )?;
 
         Ok(Self {
@@ -151,7 +160,11 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
         }
 
         invoke_signed(
-            &system_instruction::transfer(native_collateral_account.key, recipient_wallet.key, amount),
+            &system_instruction::transfer(
+                native_collateral_account.key,
+                recipient_wallet.key,
+                amount,
+            ),
             &[native_collateral_account.clone(), recipient_wallet.clone()],
             &[native_collateral_seeds],
         )
