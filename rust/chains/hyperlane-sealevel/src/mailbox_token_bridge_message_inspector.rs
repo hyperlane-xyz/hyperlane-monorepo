@@ -6,7 +6,7 @@ use tracing::error;
 use crate::mailbox_message_inspector::{Error, Inspection, Inspector};
 use crate::solana::{instruction::AccountMeta, pubkey::Pubkey};
 use crate::{
-    hyperlane_token_erc20_pda_seeds, hyperlane_token_mint_pda_seeds,
+    hyperlane_token_ata_payer_pda_seeds, hyperlane_token_mint_pda_seeds,
     hyperlane_token_native_collateral_pda_seeds, hyperlane_token_pda_seeds,
 };
 
@@ -78,70 +78,39 @@ mod token_contract {
     use borsh::{BorshDeserialize, BorshSerialize};
     use hyperlane_core::{Decode, Encode, HyperlaneProtocolError, H256, U256};
 
-    #[macro_export]
-    macro_rules! hyperlane_token_erc20_pda_seeds {
-        ($token_name:expr, $token_symbol:expr) => {{
-            &[
-                b"hyperlane_token",
-                b"-",
-                $token_name.as_bytes(),
-                b"-",
-                $token_symbol.as_bytes(),
-                b"-",
-                b"erc20",
-            ]
-        }};
-
-        ($token_name:expr, $token_symbol:expr, $bump_seed:expr) => {{
-            &[
-                b"hyperlane_token",
-                b"-",
-                $token_name.as_bytes(),
-                b"-",
-                $token_symbol.as_bytes(),
-                b"-",
-                b"erc20",
-                &[$bump_seed],
-            ]
-        }};
-    }
-
-    #[macro_export]
-    macro_rules! hyperlane_token_mint_pda_seeds {
-        ($token_name:expr, $token_symbol:expr) => {{
-            &[
-                b"hyperlane_token",
-                b"-",
-                $token_name.as_bytes(),
-                b"-",
-                $token_symbol.as_bytes(),
-                b"-",
-                b"mint",
-            ]
-        }};
-
-        ($token_name:expr, $token_symbol:expr, $bump_seed:expr) => {{
-            &[
-                b"hyperlane_token",
-                b"-",
-                $token_name.as_bytes(),
-                b"-",
-                $token_symbol.as_bytes(),
-                b"-",
-                b"mint",
-                &[$bump_seed],
-            ]
-        }};
-    }
-
+    /// Seeds relating to the PDA account with information about this warp route.
     #[macro_export]
     macro_rules! hyperlane_token_pda_seeds {
         () => {{
-            &[b"hyperlane_token", b"-", b"storage"]
+            &[b"hyperlane_token", b"-", b"token"]
         }};
 
         ($bump_seed:expr) => {{
-            &[b"hyperlane_token", b"-", b"storage", &[$bump_seed]]
+            &[b"hyperlane_token", b"-", b"token", &[$bump_seed]]
+        }};
+    }
+
+    /// Seeds relating to the PDA account that acts both as the mint
+    /// *and* the mint authority.
+    #[macro_export]
+    macro_rules! hyperlane_token_mint_pda_seeds {
+        () => {{
+            &[b"hyperlane_token", b"-", b"mint"]
+        }};
+
+        ($bump_seed:expr) => {{
+            &[b"hyperlane_token", b"-", b"mint", &[$bump_seed]]
+        }};
+    }
+
+    #[macro_export]
+    macro_rules! hyperlane_token_ata_payer_pda_seeds {
+        () => {{
+            &[b"hyperlane_token", b"-", b"ata_payer"]
+        }};
+
+        ($bump_seed:expr) => {{
+            &[b"hyperlane_token", b"-", b"ata_payer", &[$bump_seed]]
         }};
     }
 
@@ -311,28 +280,23 @@ impl Inspector for TokenBridgeInspector {
         // FIXME we need the token message to contain asset name & symbol in order to determine
         // since solana smart contract program accounts are decoupled from data storage accounts.
         // let xfer_is_native = false;
-        let xfer_is_native = true;
-        // Accounts:
-        // 1. mailbox_authority (added prior to CPI by mailbox program)
-        // 2. system_program
-        // 3. spl_noop
-        // 4. hyperlane_token storage
-        // 5. recipient wallet address
-        // 6. payer
-        // For wrapped tokens:
-        //     7. spl_token_2022
-        //     8. spl_associated_token_account
-        //     9. hyperlane_token_erc20
-        //     10. hyperlane_token_mint
-        //     11. recipient associated token account
-        // For native token:
-        //     7. native_token_collateral
+        let xfer_is_native = false;
+
+        // 0. [signer] mailbox authority
+        // 1. [executable] system_program
+        // 2. [executable] spl_noop
+        // 3. [] hyperlane_token storage
+        // 4. [] recipient wallet address
+        // 5. [executable] SPL token 2022 program
+        // 6. [executable] SPL associated token account
+        // 7. [writeable] Mint account
+        // 8. [writeable] Recipient associated token account
+        // 9. [writeable] ATA payer PDA account.
         let mut accounts = vec![
             AccountMeta::new_readonly(*solana::SYSTEM_PROGRAM_ID, false),
             AccountMeta::new_readonly(*solana::SPL_NOOP_ID, false),
-            AccountMeta::new(token_account, false),
+            AccountMeta::new_readonly(token_account, false),
             AccountMeta::new(recipient_wallet_account, false),
-            AccountMeta::new(*payer, true),
         ];
         if xfer_is_native {
             let (native_collateral_account, _native_collateral_bump) = Pubkey::find_program_address(
@@ -341,12 +305,12 @@ impl Inspector for TokenBridgeInspector {
             );
             accounts.extend([AccountMeta::new(native_collateral_account, false)]);
         } else {
-            let (erc20_account, _erc20_bump) = Pubkey::find_program_address(
-                hyperlane_token_erc20_pda_seeds!(self.erc20_token_name, self.erc20_token_symbol),
+            let (mint_account, _mint_bump) = Pubkey::find_program_address(
+                hyperlane_token_mint_pda_seeds!(),
                 &self.program_id,
             );
-            let (mint_account, _mint_bump) = Pubkey::find_program_address(
-                hyperlane_token_mint_pda_seeds!(self.erc20_token_name, self.erc20_token_symbol),
+            let (ata_payer_account, _ata_payer_bump) = Pubkey::find_program_address(
+                hyperlane_token_ata_payer_pda_seeds!(),
                 &self.program_id,
             );
             let recipient_associated_token_account =
@@ -358,9 +322,9 @@ impl Inspector for TokenBridgeInspector {
             accounts.extend([
                 AccountMeta::new_readonly(*solana::SPL_TOKEN_2022_ID, false),
                 AccountMeta::new_readonly(*solana::SPL_ASSOCIATED_TOKEN_ACCOUNT_ID, false),
-                AccountMeta::new_readonly(erc20_account, false),
                 AccountMeta::new(mint_account, false),
                 AccountMeta::new(recipient_associated_token_account, false),
+                AccountMeta::new(ata_payer_account, false),
             ]);
         }
 

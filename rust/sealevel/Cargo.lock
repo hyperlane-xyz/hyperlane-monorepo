@@ -1607,6 +1607,8 @@ dependencies = [
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-recipient-echo",
  "hyperlane-sealevel-token",
+ "hyperlane-sealevel-token-lib",
+ "hyperlane-sealevel-token-native",
  "lazy_static",
  "pretty_env_logger",
  "solana-clap-utils",

@@ -112,9 +112,10 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
         if native_collateral_account.key != &expected_native_collateral_key {
             return Err(ProgramError::InvalidArgument);
         }
-        if native_collateral_account.owner != program_id {
-            return Err(ProgramError::IncorrectProgramId);
-        }
+        // TODO should this be enforced????
+        // if native_collateral_account.owner != program_id {
+        //     return Err(ProgramError::IncorrectProgramId);
+        // }
 
         // Hold native tokens that are now "off chain" in custody account.
         // TODO: does it need to be signed by this program? shouldn't...
@@ -155,9 +156,10 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
         if native_collateral_account.key != &expected_native_collateral_key {
             return Err(ProgramError::InvalidArgument);
         }
-        if native_collateral_account.owner != program_id {
-            return Err(ProgramError::IncorrectProgramId);
-        }
+        // TODO should this be enforced????
+        // if native_collateral_account.owner != program_id {
+        //     return Err(ProgramError::IncorrectProgramId);
+        // }
 
         invoke_signed(
             &system_instruction::transfer(

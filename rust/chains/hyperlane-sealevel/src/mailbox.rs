@@ -327,7 +327,7 @@ impl Mailbox for SealevelMailbox {
             data: ixn_data,
             accounts,
         };
-        trace!("accounts={:#?}", inbox_instruction.accounts);
+        tracing::info!("accounts={:#?}", inbox_instruction.accounts);
         instructions.push(inbox_instruction);
         let (recent_blockhash, _) = self
             .rpc_client
@@ -353,7 +353,8 @@ impl Mailbox for SealevelMailbox {
             )
             .await
             .map_err(ChainCommunicationError::from_other)?;
-        debug!("signature={}", signature);
+        tracing::info!("signature={}", signature);
+        tracing::info!("txn={:?}", txn);
         let executed = self
             .rpc_client
             .confirm_transaction_with_commitment(&signature, commitment)
@@ -724,7 +725,10 @@ impl SealevelMailboxIndexer {
                     ); // FIXME remove?
                     continue;
                 }
-                Err(err) => panic!("{}", err),
+                Err(err) => {
+                    error!("Error in extract_hyperlane_messages {}", err);
+                    continue;
+                },
             };
             let block_hash: H256 = Hash::from_str(&block.blockhash)
                 .expect("Invalid blockhash")

@@ -5,6 +5,7 @@ use hyperlane_sealevel_token_lib::{
 };
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
+    msg,
     program::{invoke, invoke_signed},
     program_error::ProgramError,
     program_pack::Pack as _,

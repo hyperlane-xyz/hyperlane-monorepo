@@ -10,6 +10,8 @@ hyperlane-sealevel-ism-rubber-stamp = { path = "../programs/ism/rubber-stamp" }
 hyperlane-sealevel-mailbox = { path = "../programs/mailbox" }
 hyperlane-sealevel-recipient-echo = { path = "../programs/recipient/echo" }
 hyperlane-sealevel-token = { path = "../programs/hyperlane-sealevel-token" }
+hyperlane-sealevel-token-native = { path = "../programs/hyperlane-sealevel-token-native" }
+hyperlane-sealevel-token-lib = { path = "../libraries/hyperlane-sealevel-token" }
 lazy_static = "1.4"
 pretty_env_logger = "0.4"
 solana-client = "=1.14.13"

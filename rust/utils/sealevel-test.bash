@@ -48,6 +48,7 @@ build_programs() {
     build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_mailbox.so" "${TARGET_DIR}/../programs/mailbox"
     build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_ism_rubber_stamp.so" "${TARGET_DIR}/../programs/ism"
     build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_token.so" "${TARGET_DIR}/../programs/hyperlane-sealevel-token"
+    build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_token_native.so" "${TARGET_DIR}/../programs/hyperlane-sealevel-token-native"
     build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_recipient_echo.so" "${TARGET_DIR}/../programs/recipient"
 }
 
@@ -82,27 +83,44 @@ test_mailbox() {
 }
 
 token_init() {
+    local -r token_type="${1}"
+    local -r program_id="${2}"
+
     set +e
-    while ! "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" token init; do
+    while ! "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" token init "${token_type}" --program-id "${program_id}"; do
         sleep 3
     done
 
-    while ! "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" token init-erc20; do
-        sleep 3
-    done
-
-    while "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" token query | grep -q 'Not yet created'; do
+    while "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" token query "${token_type}" --program-id "${program_id}" | grep -q 'Not yet created'; do
         sleep 3
     done
     set -e
-    "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" token query
+    "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" token query "${token_type}" --program-id "${program_id}"
 }
 
 test_token() {
     local -r is_native_xfer="${1}"
 
     mailbox_init
-    token_init
+
+    local token_type=""
+    local program_id=""
+    if "${is_native_xfer}"; then
+        token_type="native"
+        program_id="CGn8yNtSD3aTTqJfYhUb6s1aVTN75NzwtsFKo1e83aga"
+
+        # Also init the other token type
+        token_init synthetic "3MzUPjP5LEkiHH82nEAe28Xtz9ztuMqWc8UmuKxrpVQH"
+    else
+        token_type="synthetic"
+        program_id="3MzUPjP5LEkiHH82nEAe28Xtz9ztuMqWc8UmuKxrpVQH"
+
+        # Also init the other token type
+        token_init native "CGn8yNtSD3aTTqJfYhUb6s1aVTN75NzwtsFKo1e83aga"
+    fi
+
+    
+    token_init "${token_type}" "${program_id}"
 
     local amount
     if "${is_native_xfer}"; then
@@ -132,15 +150,14 @@ test_token() {
         # Initiate loopback transfer.
         "${BIN_DIR}/hyperlane-sealevel-client" \
             -k "${KEYPAIR}" \
-            token transfer-remote "${sender_keypair}" "${amount}" "${CHAIN_ID}" "${recipient}" \
-            --name "MOON" --symbol "$"
+            token transfer-remote "${sender_keypair}" "${amount}" "${CHAIN_ID}" "${recipient}" "${token_type}" --program-id "${program_id}"
     else
         # Load the sender account with tokens.
         # TODO: Note that this will not work if the mailbox auth account is required to be a signer
         # which it should be when the contract is deployed in prod.
         "${BIN_DIR}/hyperlane-sealevel-client" \
             -k "${KEYPAIR}" \
-            token transfer-from-remote "${CHAIN_ID}" "${sender}" "${amount}"
+            token transfer-from-remote "${CHAIN_ID}" "${sender}" "${amount}" "${token_type}" --program-id "${program_id}"
 
         sleep 20 # FIXME shouldn't need this sleep but idk why things are broken if the balance is queried
         while "${SPL_TOKEN}" -ul display "${sender_ata}" | grep -q 'Balance: 0'; do
@@ -153,7 +170,7 @@ test_token() {
         # Initiate loopback transfer.
         "${BIN_DIR}/hyperlane-sealevel-client" \
             -k "${KEYPAIR}" \
-            token transfer-remote "${sender_keypair}" "${amount}" "${CHAIN_ID}" "${recipient}"
+            token transfer-remote "${sender_keypair}" "${amount}" "${CHAIN_ID}" "${recipient}" "${token_type}" --program-id "${program_id}"
     fi
 
     # Wait for token transfer message to appear in outbox.
@@ -169,7 +186,7 @@ test_token() {
         "${SPL_TOKEN}" -ul display "${sender_ata}"
     fi
     "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox query
-    "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" token query
+    "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" token query "${token_type}" --program-id "${program_id}"
 
     # Wait for token transfer message to appear in inbox.
     while "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox query | grep -q 'delivered: {}'
@@ -184,7 +201,7 @@ test_token() {
         "${SPL_TOKEN}" -ul display "${recipient_ata}"
     fi
     "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox query
-    "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" token query
+    "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" token query "${token_type}" --program-id "${program_id}"
 }
 
 main() {
@@ -201,6 +218,7 @@ main() {
     solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/spl_associated_token_account.so"
 
     solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_token.so"
+    solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_token_native.so"
     solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_mailbox.so"
     solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_recipient_echo.so"
     solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_ism_rubber_stamp.so"
