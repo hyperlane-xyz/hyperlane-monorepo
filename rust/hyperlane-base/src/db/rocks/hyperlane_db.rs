@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use eyre::Result;
+use paste::paste;
 use tokio::time::sleep;
 use tracing::{debug, trace};
 
@@ -273,47 +274,35 @@ where
 }
 
 /// Generate a call to ChainSetup for the given builder
-macro_rules! build_store_and_retrieve {
-    ($vis:vis, $setter:ident, $getter:ident, $prefix: ident, $key: ty, $val: ty) => {
-        /// Delegates building to ChainSetup
-        $vis fn $setter(
-            &self,
-            key: &$key,
-            val: &$val,
-        ) -> DbResult<()> {
-            self.store_keyed_encodable($prefix, key, val)
-        }
+macro_rules! make_store_and_retrieve {
+    ($vis:vis, $name_suffix:ident, $key_prefix: ident, $key_ty:ty, $val_ty:ty$(,)?) => {
+        impl HyperlaneRocksDB {
+            paste! {
+                /// Stores a key value pair in the DB
+                $vis fn [<store_ $name_suffix>] (
+                    &self,
+                    key: &$key_ty,
+                    val: &$val_ty,
+                ) -> DbResult<()> {
+                    self.store_keyed_encodable($key_prefix, key, val)
+                }
 
-        /// Builds a contract for each domain
-        $vis fn $getter(
-            &self,
-            key: &$key,
-        ) -> DbResult<Option<$val>> {
-            self.retrieve_keyed_decodable($prefix, key)
+                /// Retrieves a key value pair from the DB
+                $vis fn [<retrieve_ $name_suffix>] (
+                    &self,
+                    key: &$key_ty,
+                ) -> DbResult<Option<$val_ty>> {
+                    self.retrieve_keyed_decodable($key_prefix, key)
+                }
+            }
         }
     };
 }
 
-impl HyperlaneRocksDB {
-    build_store_and_retrieve!(
-        pub,
-        store_message_id_by_nonce,
-        retrieve_message_id_by_nonce,
-        MESSAGE_ID,
-        u32,
-        H256
-    );
-    build_store_and_retrieve!(pub(self), store_message_by_id, retrieve_message_by_id, MESSAGE, H256, HyperlaneMessage);
-    build_store_and_retrieve!(pub(self), store_dispatched_block_number_by_nonce, retrieve_dispatched_block_number_by_nonce, MESSAGE_DISPATCHED_BLOCK_NUMBER, u32, u64);
-    build_store_and_retrieve!(
-        pub,
-        store_processed_by_nonce,
-        retrieve_processed_by_nonce,
-        NONCE_PROCESSED,
-        u32,
-        bool
-    );
-    build_store_and_retrieve!(pub(self), store_processed_by_gas_payment_meta, retrieve_processed_by_gas_payment_meta, GAS_PAYMENT_META_PROCESSED, InterchainGasPaymentMeta, bool);
-    build_store_and_retrieve!(pub(self), store_interchain_gas_expenditure_data_by_message_id, retrieve_interchain_gas_expenditure_data_by_message_id, GAS_EXPENDITURE_FOR_MESSAGE_ID, H256, InterchainGasExpenditureData);
-    build_store_and_retrieve!(pub(self), store_interchain_gas_payment_data_by_message_id, retrieve_interchain_gas_payment_data_by_message_id, GAS_PAYMENT_FOR_MESSAGE_ID, H256, InterchainGasPaymentData);
-}
+make_store_and_retrieve!(pub, message_id_by_nonce, MESSAGE_ID, u32, H256);
+make_store_and_retrieve!(pub(self), message_by_id, MESSAGE, H256, HyperlaneMessage);
+make_store_and_retrieve!(pub(self), dispatched_block_number_by_nonce, MESSAGE_DISPATCHED_BLOCK_NUMBER, u32, u64);
+make_store_and_retrieve!(pub, processed_by_nonce, NONCE_PROCESSED, u32, bool);
+make_store_and_retrieve!(pub(self), processed_by_gas_payment_meta, GAS_PAYMENT_META_PROCESSED, InterchainGasPaymentMeta, bool);
+make_store_and_retrieve!(pub(self), interchain_gas_expenditure_data_by_message_id, GAS_EXPENDITURE_FOR_MESSAGE_ID, H256, InterchainGasExpenditureData);
+make_store_and_retrieve!(pub(self), interchain_gas_payment_data_by_message_id, GAS_PAYMENT_FOR_MESSAGE_ID, H256, InterchainGasPaymentData);
