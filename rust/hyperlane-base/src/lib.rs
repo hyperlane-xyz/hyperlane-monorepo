@@ -21,18 +21,11 @@ pub use agent::*;
 #[macro_use]
 pub mod macros;
 
-/// mailbox type
-mod mailbox;
-pub use mailbox::*;
-
 mod metrics;
 pub use metrics::*;
 
 mod contract_sync;
 pub use contract_sync::*;
-
-mod interchain_gas;
-pub use interchain_gas::*;
 
 mod traits;
 pub use traits::*;

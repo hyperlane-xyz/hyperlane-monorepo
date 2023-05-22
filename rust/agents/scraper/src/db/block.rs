@@ -35,6 +35,25 @@ impl FromQueryResult for BasicBlock {
 }
 
 impl ScraperDb {
+    /// Retrieves the block number for a given block database ID
+    pub async fn retrieve_block_number(&self, block_id: i64) -> Result<Option<u64>> {
+        #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
+        enum QueryAs {
+            Height,
+        }
+        let block_height = block::Entity::find()
+            .filter(block::Column::Id.eq(block_id))
+            .select_only()
+            .column_as(block::Column::Height, QueryAs::Height)
+            .into_values::<i64, QueryAs>()
+            .one(&self.0)
+            .await?;
+        match block_height {
+            Some(height) => Ok(Some(height.try_into()?)),
+            None => Ok(None),
+        }
+    }
+
     /// Get basic block data that can be used to insert a transaction or
     /// message. Any blocks which are not found will be excluded from the
     /// response.
