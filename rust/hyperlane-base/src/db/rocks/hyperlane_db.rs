@@ -26,7 +26,7 @@ const MESSAGE: &str = "message_";
 const NONCE_PROCESSED: &str = "nonce_processed_";
 const GAS_PAYMENT_FOR_MESSAGE_ID: &str = "gas_payment_for_message_id_v2_";
 const GAS_PAYMENT_META_PROCESSED: &str = "gas_payment_meta_processed_v2_";
-const GAS_EXPENDITURE_FOR_MESSAGE_ID: &str = "gas_expenditure_for_message_id_";
+const GAS_EXPENDITURE_FOR_MESSAGE_ID: &str = "gas_expenditure_for_message_id_v2_";
 const LATEST_INDEXED_GAS_PAYMENT_BLOCK: &str = "latest_indexed_gas_payment_block";
 
 type DbResult<T> = std::result::Result<T, DbError>;
@@ -220,10 +220,10 @@ impl HyperlaneRocksDB {
         let total = existing_payment + event;
 
         debug!(?event, new_total_gas_payment=?total, "Storing gas payment");
-        self.store_keyed_encodable::<_, U256>(
+        self.store_keyed_encodable::<_, InterchainGasExpenditureData>(
             GAS_EXPENDITURE_FOR_MESSAGE_ID,
             &total.message_id,
-            &total.tokens_used,
+            &InterchainGasExpenditureData { tokens_used: total.tokens_used, gas_used: total.gas_used }
         )?;
 
         Ok(())
