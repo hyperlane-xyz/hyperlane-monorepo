@@ -70,13 +70,15 @@ where
                 estimated_time_to_sync = fmt_sync_time(eta),
                 "Found log(s) in block range"
             );
-
             // Store deliveries
             let stored = self.db.store_logs(&logs).await?;
             // Report amount of deliveries stored into db
             stored_logs.inc_by(stored as u64);
-            // Report current block height
-            indexed_height.set(to as i64);
+            // We check the value of the current gauge to avoid overwriting a higher value
+            // when using a ForwardBackwardMessageSyncCursor
+            if to > indexed_height.get() {
+                indexed_height.set(to as i64);
+            }
             // Update cursor
             cursor.update(logs).await?;
         }
