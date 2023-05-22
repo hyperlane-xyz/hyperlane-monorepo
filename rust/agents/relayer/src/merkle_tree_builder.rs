@@ -90,7 +90,7 @@ impl MerkleTreeBuilder {
     }
 
     fn ingest_nonce(&mut self, nonce: u32) -> Result<(), MerkleTreeBuilderError> {
-        match self.db.message_id_by_nonce(nonce) {
+        match self.db.retrieve_message_id_by_nonce(&nonce) {
             Ok(Some(leaf)) => {
                 debug!(nonce, "Ingesting leaf");
                 self.prover.ingest(leaf).expect("!tree full");
