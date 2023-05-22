@@ -1,8 +1,6 @@
 use eyre::Result;
 use itertools::Itertools;
-use sea_orm::{
-    prelude::*, ActiveValue::*, DeriveColumn, EnumIter, Insert, QuerySelect,
-};
+use sea_orm::{prelude::*, ActiveValue::*, DeriveColumn, EnumIter, Insert, QuerySelect};
 use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{HyperlaneMessage, LogMeta, H256};
