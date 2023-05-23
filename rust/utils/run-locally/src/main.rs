@@ -417,7 +417,7 @@ fn main() -> ExitCode {
             &(kathy_messages / 2).to_string(),
             "--timeout",
             "1000",
-            "--mineforever"
+            "--mineforever",
         ])
         .current_dir("../typescript/infra")
         .stdout(Stdio::piped())
