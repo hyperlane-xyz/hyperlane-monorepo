@@ -176,7 +176,7 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
 
     fn transfer_out_account_metas(
         program_id: &Pubkey,
-        token_message: &TokenMessage,
+        _token_message: &TokenMessage,
     ) -> Result<(Vec<SerializableAccountMeta>, bool), ProgramError> {
         let (native_collateral_key, _native_collateral_bump) = Pubkey::find_program_address(
             hyperlane_token_native_collateral_pda_seeds!(),
@@ -185,8 +185,8 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
 
         Ok((
             vec![
-                AccountMeta::new_readonly(solana_program::system_program::id(), false),
-                AccountMeta::new(native_collateral_key, false),
+                AccountMeta::new_readonly(solana_program::system_program::id(), false).into(),
+                AccountMeta::new(native_collateral_key, false).into(),
             ],
             // Recipient wallet must be writeable to send lamports to it.
             true,

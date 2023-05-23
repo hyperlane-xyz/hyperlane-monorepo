@@ -3,17 +3,11 @@
 // #![deny(missing_docs)] // FIXME
 #![deny(unsafe_code)]
 
-use std::str::FromStr as _;
-
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use hyperlane_sealevel_ism_rubber_stamp::ID as DEFAULT_ISM_PROG_ID;
 use hyperlane_sealevel_mailbox::{
     accounts::{InboxAccount, OutboxAccount},
-    hyperlane_core::{
-        message::HyperlaneMessage,
-        types::{H256, U256},
-        Encode,
-    },
+    hyperlane_core::{message::HyperlaneMessage, types::H256, Encode},
     instruction::{
         InboxProcess, Init as InitMailbox, Instruction as MailboxInstruction, OutboxDispatch,
         VERSION,
@@ -24,19 +18,14 @@ use hyperlane_sealevel_mailbox::{
 use hyperlane_sealevel_recipient_echo::ID as RECIPIENT_ECHO_PROG_ID;
 use hyperlane_sealevel_token::{
     hyperlane_token_ata_payer_pda_seeds, hyperlane_token_mint_pda_seeds,
-    instruction::Instruction as HtInstruction,
-    plugin::SyntheticPlugin,
-    spl_associated_token_account::{self, get_associated_token_address_with_program_id},
-    spl_token_2022, ID as HYPERLANE_TOKEN_PROG_ID,
+    instruction::Instruction as HtInstruction, plugin::SyntheticPlugin,
+    spl_associated_token_account::get_associated_token_address_with_program_id, spl_token_2022,
+    ID as HYPERLANE_TOKEN_PROG_ID,
 };
 use hyperlane_sealevel_token_lib::{
     accounts::HyperlaneTokenAccount,
     hyperlane_token_pda_seeds,
-    instruction::{
-        Init as HtInit, TransferFromRemote as HtTransferFromRemote,
-        TransferRemote as HtTransferRemote,
-    },
-    message::TokenMessage as HtMessage,
+    instruction::{Init as HtInit, TransferRemote as HtTransferRemote},
 };
 use hyperlane_sealevel_token_native::{
     hyperlane_token_native_collateral_pda_seeds, plugin::NativePlugin,
@@ -182,7 +171,6 @@ enum TokenSubCmd {
     Init(TokenInit),
     Query(TokenQuery),
     TransferRemote(TokenTransferRemote),
-    TransferFromRemote(TokenTransferFromRemote),
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -229,21 +217,6 @@ struct TokenTransferRemote {
     recipient: Pubkey,
     #[arg(value_enum)]
     token_type: TokenType,
-}
-
-#[derive(Args)]
-struct TokenTransferFromRemote {
-    #[arg(long, short, default_value_t = MAILBOX_PROG_ID)]
-    mailbox_program_id: Pubkey,
-    #[arg(long, short = 'd', default_value_t = ECLIPSE_DOMAIN)]
-    mailbox_local_domain: u32,
-    #[arg(long, short, default_value_t = HYPERLANE_TOKEN_PROG_ID)]
-    program_id: Pubkey,
-    // #[arg(long, short, default_value_t = ECLIPSE_DOMAIN)]
-    origin_domain: u32,
-    // Note this is normal account not the derived associated token account.
-    recipient: Pubkey,
-    amount: u64,
 }
 
 struct Context {
@@ -614,7 +587,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
 
             match query.token_type {
                 TokenType::Native => {
-                    let (native_collateral_account, native_collateral_bump) =
+                    let (native_collateral_account, _native_collateral_bump) =
                         Pubkey::find_program_address(
                             hyperlane_token_native_collateral_pda_seeds!(),
                             &query.program_id,
@@ -622,11 +595,11 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                     accounts_to_query.push(native_collateral_account);
                 }
                 TokenType::Synthetic => {
-                    let (mint_account, mint_bump) = Pubkey::find_program_address(
+                    let (mint_account, _mint_bump) = Pubkey::find_program_address(
                         hyperlane_token_mint_pda_seeds!(),
                         &query.program_id,
                     );
-                    let (ata_payer_account, ata_payer_bump) = Pubkey::find_program_address(
+                    let (ata_payer_account, _ata_payer_bump) = Pubkey::find_program_address(
                         hyperlane_token_ata_payer_pda_seeds!(),
                         &query.program_id,
                     );
@@ -737,16 +710,16 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 amount_or_id: xfer.amount.into(),
             });
 
-            /// Transfers tokens to a remote.
-            /// Burns the tokens from the sender's associated token account and
-            /// then dispatches a message to the remote recipient.
-            ///
-            /// Accounts:
-            /// 0. [executable] The spl_noop program.
-            /// 1. [] The token PDA account.
-            /// 2. [executable] The mailbox program.
-            /// 3. [writeable] The mailbox outbox account.
-            /// 4. [signer] The token sender.
+            // Transfers tokens to a remote.
+            // Burns the tokens from the sender's associated token account and
+            // then dispatches a message to the remote recipient.
+            //
+            // Accounts:
+            // 0. [executable] The spl_noop program.
+            // 1. [] The token PDA account.
+            // 2. [executable] The mailbox program.
+            // 3. [writeable] The mailbox outbox account.
+            // 4. [signer] The token sender.
             let mut accounts = vec![
                 AccountMeta::new_readonly(spl_noop::id(), false),
                 AccountMeta::new(token_account, false),
@@ -822,112 +795,6 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                     err
                 })
                 .unwrap();
-        }
-        TokenSubCmd::TransferFromRemote(xfer) => {
-            // let (mailbox_auth_account, _mailbox_auth_bump) = Pubkey::find_program_address(
-            //     mailbox_authority_pda_seeds!(xfer.mailbox_local_domain),
-            //     &xfer.mailbox_program_id,
-            // );
-            // let (token_account, _token_bump) =
-            //     Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &xfer.program_id);
-
-            // let message = HtMessage::new_erc20(
-            //     H256::from(xfer.recipient.to_bytes()),
-            //     U256::from(xfer.amount),
-            //     vec![],
-            // );
-            // let ixn = HtInstruction::TransferFromRemote(HtTransferFromRemote {
-            //     origin: xfer.origin_domain,
-            //     message: message.to_vec(),
-            // });
-
-            // let xfer_is_native = xfer.name == xfer.native_name && xfer.symbol == xfer.native_symbol;
-            // // Accounts:
-            // // 1. mailbox_authority
-            // // 2. system_program
-            // // 3. spl_noop
-            // // 4. hyperlane_token storage
-            // // 5. recipient wallet address
-            // // 6. payer
-            // // For wrapped tokens:
-            // //     7. spl_token_2022
-            // //     8. spl_associated_token_account
-            // //     9. hyperlane_token_erc20
-            // //     10. hyperlane_token_mint
-            // //     11. recipient associated token account
-            // // For native token:
-            // //     7. native_token_collateral
-            // let mut accounts = vec![
-            //     // FIXME won't work when we check that mailbox is signer
-            //     AccountMeta::new_readonly(mailbox_auth_account, false),
-            //     AccountMeta::new_readonly(system_program::id(), false),
-            //     AccountMeta::new_readonly(spl_noop::id(), false),
-            //     AccountMeta::new(token_account, false),
-            //     AccountMeta::new(xfer.recipient, false),
-            //     AccountMeta::new(ctx.payer.pubkey(), true),
-            // ];
-            // if xfer_is_native {
-            //     let (native_collateral_account, _native_collateral_bump) =
-            //         Pubkey::find_program_address(
-            //             hyperlane_token_native_collateral_pda_seeds!(),
-            //             &xfer.program_id,
-            //         );
-            //     accounts.extend([AccountMeta::new(native_collateral_account, false)]);
-            // } else {
-            //     let (erc20_account, _erc20_bump) = Pubkey::find_program_address(
-            //         hyperlane_token_erc20_pda_seeds!(xfer.name, xfer.symbol),
-            //         &xfer.program_id,
-            //     );
-            //     let (mint_account, _mint_bump) = Pubkey::find_program_address(
-            //         hyperlane_token_mint_pda_seeds!(xfer.name, xfer.symbol),
-            //         &xfer.program_id,
-            //     );
-            //     let recipient_associated_token_account =
-            //         get_associated_token_address_with_program_id(
-            //             &xfer.recipient,
-            //             &mint_account,
-            //             &spl_token_2022::id(),
-            //         );
-            //     accounts.extend([
-            //         AccountMeta::new_readonly(spl_token_2022::id(), false),
-            //         AccountMeta::new_readonly(spl_associated_token_account::id(), false),
-            //         AccountMeta::new_readonly(erc20_account, false),
-            //         AccountMeta::new(mint_account, false),
-            //         AccountMeta::new(recipient_associated_token_account, false),
-            //     ]);
-            // }
-
-            // eprintln!("accounts={:#?}", accounts); // FIXME remove
-            // let xfer_instruction = Instruction {
-            //     program_id: xfer.program_id,
-            //     data: ixn.into_instruction_data().unwrap(),
-            //     accounts,
-            // };
-            // ctx.instructions.push(xfer_instruction);
-
-            // let recent_blockhash = ctx.client.get_latest_blockhash().unwrap();
-            // let txn = Transaction::new_signed_with_payer(
-            //     &ctx.instructions,
-            //     Some(&ctx.payer.pubkey()),
-            //     &[&ctx.payer],
-            //     recent_blockhash,
-            // );
-
-            // let signature = ctx
-            //     .client
-            //     .send_transaction(&txn)
-            //     .map_err(|err| {
-            //         eprintln!("{:#?}", err);
-            //         err
-            //     })
-            //     .unwrap();
-            // ctx.client
-            //     .confirm_transaction_with_spinner(&signature, &recent_blockhash, ctx.commitment)
-            //     .map_err(|err| {
-            //         eprintln!("{:#?}", err);
-            //         err
-            //     })
-            //     .unwrap();
         }
     }
 }
