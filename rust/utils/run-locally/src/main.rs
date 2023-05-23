@@ -535,21 +535,6 @@ fn termination_invariants_met(num_expected_messages: u32) -> bool {
         return false;
     }
 
-    let delivered_messages_scraped = fetch_metric(
-        "9093",
-        "hyperlane_contract_sync_stored_events",
-        &hashmap! {"data_type" => "message_delivery"},
-    )
-    .iter()
-    .sum::<u32>();
-    if delivered_messages_scraped != num_expected_messages {
-        println!(
-            "<E2E> Scraper has scraped {} delivered messages, expected {}",
-            delivered_messages_scraped, num_expected_messages
-        );
-        return false;
-    }
-
     let gas_payments_scraped = fetch_metric(
         "9093",
         "hyperlane_contract_sync_stored_events",
@@ -562,6 +547,21 @@ fn termination_invariants_met(num_expected_messages: u32) -> bool {
         println!(
             "<E2E> Scraper has scraped {} gas payments, expected {}",
             gas_payments_scraped, num_expected_messages
+        );
+        return false;
+    }
+
+    let delivered_messages_scraped = fetch_metric(
+        "9093",
+        "hyperlane_contract_sync_stored_events",
+        &hashmap! {"data_type" => "message_delivery"},
+    )
+    .iter()
+    .sum::<u32>();
+    if delivered_messages_scraped != num_expected_messages {
+        println!(
+            "<E2E> Scraper has scraped {} delivered messages, expected {}",
+            delivered_messages_scraped, num_expected_messages
         );
         false
     } else {
