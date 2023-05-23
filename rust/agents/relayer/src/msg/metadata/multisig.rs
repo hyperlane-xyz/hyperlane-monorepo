@@ -32,7 +32,7 @@ impl Deref for MultisigIsmMetadataBuilder {
 
 #[async_trait]
 impl MetadataBuilder for MultisigIsmMetadataBuilder {
-    #[instrument(err)]
+    #[instrument(err, skip(self))]
     async fn build(
         &self,
         ism_address: H256,

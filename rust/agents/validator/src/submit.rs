@@ -5,6 +5,7 @@ use std::time::{Duration, Instant};
 use eyre::Result;
 use prometheus::IntGauge;
 use tokio::{task::JoinHandle, time::sleep};
+use tracing::instrument;
 use tracing::{debug, error, info, info_span, instrument::Instrumented, warn, Instrument};
 
 use hyperlane_base::{CheckpointSyncer, CoreMetrics};
@@ -108,6 +109,7 @@ impl ValidatorSubmitter {
         Ok(())
     }
 
+    #[instrument(err, skip(self), fields(domain=self.mailbox.domain().name()))]
     async fn main_task(self) -> Result<()> {
         self.announce_task().await?;
 
