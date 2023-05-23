@@ -8,26 +8,21 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use ethers::abi::AbiEncode;
 use ethers::prelude::Middleware;
-use ethers::types::Eip1559TransactionRequest;
 use ethers_contract::builders::ContractCall;
-use hyperlane_core::{KnownHyperlaneDomain, H160};
 use tracing::instrument;
 
 use hyperlane_core::{
     utils::fmt_bytes, ChainCommunicationError, ChainResult, Checkpoint, ContractLocator,
     HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProtocolError, HyperlaneProvider, Indexer, LogMeta, Mailbox, MailboxIndexer,
-    RawHyperlaneMessage, TxCostEstimate, TxOutcome, H256, U256,
+    HyperlaneProtocolError, HyperlaneProvider, Indexer, LogMeta, Mailbox, MessageIndexer,
+    RawHyperlaneMessage, TxCostEstimate, TxOutcome, H160, H256, U256,
 };
 
 use crate::contracts::arbitrum_node_interface::ArbitrumNodeInterface;
 use crate::contracts::i_mailbox::{IMailbox as EthereumMailboxInternal, ProcessCall, IMAILBOX_ABI};
 use crate::trait_builder::BuildableWithProvider;
-use crate::tx::report_tx;
+use crate::tx::{fill_tx_gas_params, report_tx};
 use crate::EthereumProvider;
-
-/// An amount of gas to add to the estimated gas
-const GAS_ESTIMATE_BUFFER: u32 = 50000;
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
 where
@@ -38,13 +33,13 @@ where
     }
 }
 
-pub struct MailboxIndexerBuilder {
+pub struct MessageIndexerBuilder {
     pub finality_blocks: u32,
 }
 
 #[async_trait]
-impl BuildableWithProvider for MailboxIndexerBuilder {
-    type Output = Box<dyn MailboxIndexer>;
+impl BuildableWithProvider for MessageIndexerBuilder {
+    type Output = Box<dyn MessageIndexer>;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
@@ -59,7 +54,28 @@ impl BuildableWithProvider for MailboxIndexerBuilder {
     }
 }
 
-#[derive(Debug)]
+pub struct DeliveryIndexerBuilder {
+    pub finality_blocks: u32,
+}
+
+#[async_trait]
+impl BuildableWithProvider for DeliveryIndexerBuilder {
+    type Output = Box<dyn Indexer<H256>>;
+
+    async fn build_with_provider<M: Middleware + 'static>(
+        &self,
+        provider: M,
+        locator: &ContractLocator,
+    ) -> Self::Output {
+        Box::new(EthereumMailboxIndexer::new(
+            Arc::new(provider),
+            locator,
+            self.finality_blocks,
+        ))
+    }
+}
+
+#[derive(Debug, Clone)]
 /// Struct that retrieves event data for an Ethereum mailbox
 pub struct EthereumMailboxIndexer<M>
 where
@@ -86,13 +102,7 @@ where
             finality_blocks,
         }
     }
-}
 
-#[async_trait]
-impl<M> Indexer for EthereumMailboxIndexer<M>
-where
-    M: Middleware + 'static,
-{
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         Ok(self
@@ -106,12 +116,16 @@ where
 }
 
 #[async_trait]
-impl<M> MailboxIndexer for EthereumMailboxIndexer<M>
+impl<M> Indexer<HyperlaneMessage> for EthereumMailboxIndexer<M>
 where
     M: Middleware + 'static,
 {
+    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+        self.get_finalized_block_number().await
+    }
+
     #[instrument(err, skip(self))]
-    async fn fetch_sorted_messages(
+    async fn fetch_logs(
         &self,
         from: u32,
         to: u32,
@@ -130,13 +144,34 @@ where
         events.sort_by(|a, b| a.0.nonce.cmp(&b.0.nonce));
         Ok(events)
     }
+}
+
+#[async_trait]
+impl<M> MessageIndexer for EthereumMailboxIndexer<M>
+where
+    M: Middleware + 'static,
+{
+    #[instrument(err, skip(self))]
+    async fn fetch_count_at_tip(&self) -> ChainResult<(u32, u32)> {
+        let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self as _).await?;
+        let base_call = self.contract.count();
+        let call_at_tip = base_call.block(u64::from(tip));
+        let count = call_at_tip.call().await?;
+        Ok((count, tip))
+    }
+}
+
+#[async_trait]
+impl<M> Indexer<H256> for EthereumMailboxIndexer<M>
+where
+    M: Middleware + 'static,
+{
+    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+        self.get_finalized_block_number().await
+    }
 
     #[instrument(err, skip(self))]
-    async fn fetch_delivered_messages(
-        &self,
-        from: u32,
-        to: u32,
-    ) -> ChainResult<Vec<(H256, LogMeta)>> {
+    async fn fetch_logs(&self, from: u32, to: u32) -> ChainResult<Vec<(H256, LogMeta)>> {
         Ok(self
             .contract
             .process_id_filter()
@@ -149,7 +184,6 @@ where
             .collect())
     }
 }
-
 pub struct MailboxBuilder {}
 
 #[async_trait]
@@ -218,46 +252,7 @@ where
             metadata.to_vec().into(),
             RawHyperlaneMessage::from(message).to_vec().into(),
         );
-        let gas_limit = if let Some(gas_limit) = tx_gas_limit {
-            gas_limit
-        } else {
-            tx.estimate_gas()
-                .await?
-                .saturating_add(U256::from(GAS_ESTIMATE_BUFFER))
-        };
-        let Ok((max_fee, max_priority_fee)) = self.provider.estimate_eip1559_fees(None).await else {
-            // Is not EIP 1559 chain
-            return Ok(tx.gas(gas_limit))
-        };
-        let max_priority_fee = if matches!(
-            KnownHyperlaneDomain::try_from(message.destination),
-            Ok(KnownHyperlaneDomain::Polygon)
-        ) {
-            // Polygon needs a max priority fee >= 30 gwei
-            let min_polygon_fee = U256::from(30_000_000_000u64);
-            max_priority_fee.max(min_polygon_fee)
-        } else {
-            max_priority_fee
-        };
-        // Is EIP 1559 chain
-        let mut request = Eip1559TransactionRequest::new();
-        if let Some(from) = tx.tx.from() {
-            request = request.from(*from);
-        }
-        if let Some(to) = tx.tx.to() {
-            request = request.to(to.clone());
-        }
-        if let Some(data) = tx.tx.data() {
-            request = request.data(data.clone());
-        }
-        if let Some(value) = tx.tx.value() {
-            request = request.value(*value);
-        }
-        request = request.max_fee_per_gas(max_fee);
-        request = request.max_priority_fee_per_gas(max_priority_fee);
-        let mut eip_1559_tx = tx.clone();
-        eip_1559_tx.tx = ethers::types::transaction::eip2718::TypedTransaction::Eip1559(request);
-        Ok(eip_1559_tx.gas(gas_limit))
+        fill_tx_gas_params(tx, tx_gas_limit, self.provider.clone(), message.destination).await
     }
 }
 
@@ -447,7 +442,10 @@ mod test {
         TxCostEstimate, H160, H256, U256,
     };
 
-    use crate::{mailbox::GAS_ESTIMATE_BUFFER, EthereumMailbox};
+    use crate::EthereumMailbox;
+
+    /// An amount of gas to add to the estimated gas
+    const GAS_ESTIMATE_BUFFER: u32 = 50000;
 
     #[tokio::test]
     async fn test_process_estimate_costs_sets_l2_gas_limit_for_arbitrum() {

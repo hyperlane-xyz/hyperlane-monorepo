@@ -9,8 +9,8 @@ use ethers_prometheus::middleware::{
 };
 use hyperlane_core::{
     config::*, ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol,
-    HyperlaneProvider, HyperlaneSigner, InterchainGasPaymaster, InterchainGasPaymasterIndexer,
-    InterchainSecurityModule, Mailbox, MailboxIndexer, MultisigIsm, RoutingIsm, ValidatorAnnounce,
+    HyperlaneProvider, HyperlaneSigner, Indexer, InterchainGasPaymaster, InterchainGasPayment,
+    InterchainSecurityModule, Mailbox, MessageIndexer, MultisigIsm, RoutingIsm, ValidatorAnnounce,
     H160, H256,
 };
 use hyperlane_ethereum::{
@@ -357,12 +357,12 @@ impl ChainConf {
         .context(ctx)
     }
 
-    /// Try to convert the chain settings into a mailbox indexer
-    pub async fn build_mailbox_indexer(
+    /// Try to convert the chain settings into a message indexer
+    pub async fn build_message_indexer(
         &self,
         metrics: &CoreMetrics,
-    ) -> Result<Box<dyn MailboxIndexer>> {
-        let ctx = "Building mailbox indexer";
+    ) -> Result<Box<dyn MessageIndexer>> {
+        let ctx = "Building delivery indexer";
         let locator = self.locator(self.addresses.mailbox);
 
         match &self.connection()? {
@@ -371,7 +371,7 @@ impl ChainConf {
                     conf,
                     &locator,
                     metrics,
-                    h_eth::MailboxIndexerBuilder {
+                    h_eth::MessageIndexerBuilder {
                         finality_blocks: self.finality_blocks,
                     },
                 )
@@ -380,8 +380,38 @@ impl ChainConf {
 
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
-                let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator));
-                Ok(indexer as Box<dyn MailboxIndexer>)
+                let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
+                Ok(indexer as Box<dyn MessageIndexer>)
+            }
+        }
+        .context(ctx)
+    }
+
+    /// Try to convert the chain settings into a delivery indexer
+    pub async fn build_delivery_indexer(
+        &self,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn Indexer<H256>>> {
+        let ctx = "Building delivery indexer";
+        let locator = self.locator(self.addresses.mailbox);
+
+        match &self.connection()? {
+            ChainConnectionConf::Ethereum(conf) => {
+                self.build_ethereum(
+                    conf,
+                    &locator,
+                    metrics,
+                    h_eth::DeliveryIndexerBuilder {
+                        finality_blocks: self.finality_blocks,
+                    },
+                )
+                .await
+            }
+
+            ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(conf) => {
+                let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
+                Ok(indexer as Box<dyn Indexer<H256>>)
             }
         }
         .context(ctx)
@@ -418,11 +448,11 @@ impl ChainConf {
         .context(ctx)
     }
 
-    /// Try to convert the chain settings into a IGP indexer
-    pub async fn build_interchain_gas_paymaster_indexer(
+    /// Try to convert the chain settings into a gas payment indexer
+    pub async fn build_interchain_gas_payment_indexer(
         &self,
         metrics: &CoreMetrics,
-    ) -> Result<Box<dyn InterchainGasPaymasterIndexer>> {
+    ) -> Result<Box<dyn Indexer<InterchainGasPayment>>> {
         let ctx = "Building IGP indexer";
         let locator = self.locator(self.addresses.interchain_gas_paymaster);
 
@@ -445,7 +475,7 @@ impl ChainConf {
                 let indexer = Box::new(h_sealevel::SealevelInterchainGasPaymasterIndexer::new(
                     conf, locator,
                 ));
-                Ok(indexer as Box<dyn InterchainGasPaymasterIndexer>)
+                Ok(indexer as Box<dyn Indexer<InterchainGasPayment>>)
             }
         }
         .context(ctx)

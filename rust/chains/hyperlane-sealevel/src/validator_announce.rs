@@ -2,8 +2,9 @@ use async_trait::async_trait;
 
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    ValidatorAnnounce, H256,
+    ValidatorAnnounce, H256, U256, TxOutcome, Announcement, SignedType,
 };
+use tracing::instrument;
 
 use crate::{solana::pubkey::Pubkey, ConnectionConf};
 
@@ -55,5 +56,26 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
             "file:///tmp/test_sealevel_checkpoints_0x70997970c51812dc3a010c7d01b50e0d17dc79c8"
                 .into(),
         ]])
+    }
+
+    async fn announce_tokens_needed(
+        &self,
+        _announcement: SignedType<Announcement>,
+    ) -> ChainResult<U256> {
+        Ok(U256::zero())
+    }
+
+    #[instrument(err, ret, skip(self))]
+    async fn announce(
+        &self,
+        _announcement: SignedType<Announcement>,
+        _tx_gas_limit: Option<U256>,
+    ) -> ChainResult<TxOutcome> {
+        Ok(TxOutcome {
+            txid: H256::zero(),
+            executed: false,
+            gas_used: U256::zero(),
+            gas_price: U256::zero(),
+        })
     }
 }

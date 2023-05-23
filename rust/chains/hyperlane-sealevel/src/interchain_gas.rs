@@ -2,9 +2,9 @@ use async_trait::async_trait;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster,
-    InterchainGasPaymasterIndexer, InterchainGasPayment, LogMeta, H256,
+    InterchainGasPayment, LogMeta, H256,
 };
-use tracing::warn;
+use tracing::{warn, instrument};
 
 use crate::{
     solana::{
@@ -74,7 +74,20 @@ impl SealevelInterchainGasPaymasterIndexer {
 }
 
 #[async_trait]
-impl Indexer for SealevelInterchainGasPaymasterIndexer {
+impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
+    #[instrument(err, skip(self))]
+    async fn fetch_logs(
+        &self,
+        _from_block: u32,
+        _to_block: u32,
+    ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
+        // FIXME not quite sure what the implemenation here is supposed to be yet given that we
+        // selected None for gas payment enforment policy in the config?
+        warn!("Reporting no gas payments");
+        Ok(vec![])
+    }
+
+    #[instrument(level = "debug", err, ret, skip(self))]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         let height = self
             .rpc_client
@@ -86,19 +99,5 @@ impl Indexer for SealevelInterchainGasPaymasterIndexer {
             // FIXME solana block height is u64...
             .expect("sealevel block height exceeds u32::MAX");
         Ok(height)
-    }
-}
-
-#[async_trait]
-impl InterchainGasPaymasterIndexer for SealevelInterchainGasPaymasterIndexer {
-    async fn fetch_gas_payments(
-        &self,
-        _from_block: u32,
-        _to_block: u32,
-    ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
-        // FIXME not quite sure what the implemenation here is supposed to be yet given that we
-        // selected None for gas payment enforment policy in the config?
-        warn!("Reporting no gas payments");
-        Ok(vec![])
     }
 }

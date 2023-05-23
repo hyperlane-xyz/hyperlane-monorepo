@@ -12,8 +12,8 @@ use borsh::BorshDeserialize;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, Decode as _, Encode as _,
     HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProvider, Indexer, LogMeta, Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256,
-    U256,
+    HyperlaneProvider, Indexer, LogMeta, Mailbox, TxCostEstimate, TxOutcome, H256,
+    U256, MessageIndexer,
 };
 use tracing::{debug, error, instrument, trace, warn};
 
@@ -726,20 +726,36 @@ impl SealevelTxnWithMeta {
 #[derive(Debug)]
 pub struct SealevelMailboxIndexer {
     rpc_client: crate::RpcClientWithDebug,
+    mailbox: SealevelMailbox,
     program_id: Pubkey,
     // domain: HyperlaneDomain, // FIXME should probably sanity check domain in messages?
 }
 
 impl SealevelMailboxIndexer {
-    pub fn new(conf: &ConnectionConf, locator: ContractLocator) -> Self {
+    pub fn new(conf: &ConnectionConf, locator: ContractLocator) -> ChainResult<Self> {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         // let domain = locator.domain;
         let rpc_client = crate::RpcClientWithDebug::new(conf.url.to_string());
-        Self {
+        let mailbox = SealevelMailbox::new(conf, locator, None)?;
+        Ok(Self {
             program_id,
             rpc_client,
+            mailbox,
             // domain,
-        }
+        })
+    }
+
+    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+        let height = self
+            .rpc_client
+            .0
+            .get_block_height()
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .try_into()
+            // FIXME solana block height is u64...
+            .expect("sealevel block height exceeds u32::MAX");
+        Ok(height)
     }
 
     fn extract_hyperlane_messages(
@@ -839,24 +855,19 @@ impl SealevelMailboxIndexer {
 }
 
 #[async_trait]
-impl Indexer for SealevelMailboxIndexer {
-    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        let height = self
-            .rpc_client
-            .0
-            .get_block_height()
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .try_into()
-            // FIXME solana block height is u64...
-            .expect("sealevel block height exceeds u32::MAX");
-        Ok(height)
+impl MessageIndexer for SealevelMailboxIndexer {
+    #[instrument(err, skip(self))]
+    async fn fetch_count_at_tip(&self) -> ChainResult<(u32, u32)> {
+        let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self as _).await?;
+        // TODO: need to make sure the call and tip are at the same height!
+        let count = self.mailbox.count(None).await?;
+        Ok((count, tip))
     }
 }
 
 #[async_trait]
-impl MailboxIndexer for SealevelMailboxIndexer {
-    async fn fetch_sorted_messages(
+impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
+    async fn fetch_logs(
         &self,
         from: u32,
         to: u32,
@@ -891,14 +902,23 @@ impl MailboxIndexer for SealevelMailboxIndexer {
         Ok(messages)
     }
 
-    // This is for "inbox process"
-    async fn fetch_delivered_messages(
+    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+        self.get_finalized_block_number().await
+    }
+}
+
+#[async_trait]
+impl Indexer<H256> for SealevelMailboxIndexer {
+    async fn fetch_logs(
         &self,
-        _from: u32,
-        _to: u32,
+        from: u32,
+        to: u32,
     ) -> ChainResult<Vec<(H256, LogMeta)>> {
-        // It doesn't look like this is used by relayer/validator.
         todo!()
+    }
+
+    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+        self.get_finalized_block_number().await
     }
 }
 

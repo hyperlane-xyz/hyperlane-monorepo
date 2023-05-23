@@ -33,14 +33,14 @@ const chainSummary = async (core: HyperlaneCore, chain: ChainName) => {
 
 task('kathy', 'Dispatches random hyperlane messages')
   .addParam(
-    'rounds',
-    'Number of message sending rounds to perform; defaults to having no limit',
+    'messages',
+    'Number of messages to send; defaults to having no limit',
     '0',
   )
-  .addParam('timeout', 'Time to wait between rounds in ms.', '5000')
+  .addParam('timeout', 'Time to wait between messages in ms.', '5000')
   .setAction(
     async (
-      taskArgs: { rounds: string; timeout: string },
+      taskArgs: { messages: string; timeout: string },
       hre: HardhatRuntimeEnvironment,
     ) => {
       const timeout = Number.parseInt(taskArgs.timeout);
@@ -60,38 +60,36 @@ task('kathy', 'Dispatches random hyperlane messages')
       await recipient.deployTransaction.wait();
 
       //  Generate artificial traffic
-      let rounds = Number.parseInt(taskArgs.rounds) || 0;
-      const run_forever = rounds === 0;
-      while (run_forever || rounds-- > 0) {
-        const local = core.chains()[0];
+      let messages = Number.parseInt(taskArgs.messages) || 0;
+      const run_forever = messages === 0;
+      while (run_forever || messages-- > 0) {
+        // Round robin origin chain
+        const local = core.chains()[messages % core.chains().length];
+        // Random remote chain
         const remote: ChainName = randomElement(core.remoteChains(local));
         const remoteId = multiProvider.getDomainId(remote);
         const mailbox = core.getContracts(local).mailbox;
         const igp = igps.getContracts(local).interchainGasPaymaster;
-        // Send a batch of messages to the destination chain to test
-        // the relayer submitting only greedily
-        for (let i = 0; i < 10; i++) {
-          await recipient.dispatchToSelf(
-            mailbox.address,
-            igp.address,
-            remoteId,
-            '0x1234',
-            {
-              value: interchainGasPayment,
-              // Some behavior is dependent upon the previous block hash
-              // so gas estimation may sometimes be incorrect. Just avoid
-              // estimation to avoid this.
-              gasLimit: 150_000,
-            },
-          );
-          console.log(
-            `send to ${recipient.address} on ${remote} via mailbox ${
-              mailbox.address
-            } on ${local} with nonce ${(await mailbox.count()) - 1}`,
-          );
-          console.log(await chainSummary(core, local));
-          await sleep(timeout);
-        }
+        await recipient.dispatchToSelf(
+          mailbox.address,
+          igp.address,
+          remoteId,
+          '0x1234',
+          {
+            value: interchainGasPayment,
+            // Some behavior is dependent upon the previous block hash
+            // so gas estimation may sometimes be incorrect. Just avoid
+            // estimation to avoid this.
+            gasLimit: 150_000,
+          },
+        );
+        console.log(
+          `send to ${recipient.address} on ${remote} via mailbox ${
+            mailbox.address
+          } on ${local} with nonce ${(await mailbox.count()) - 1}`,
+        );
+        console.log(await chainSummary(core, local));
+        await sleep(timeout);
       }
     },
   );
