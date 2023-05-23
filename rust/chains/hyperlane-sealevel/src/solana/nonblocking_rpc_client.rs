@@ -1420,7 +1420,7 @@ impl RpcClient {
         )
         .await
     }
-        
+
     /*
 
         /// Returns the highest slot information that the node has snapshots for.

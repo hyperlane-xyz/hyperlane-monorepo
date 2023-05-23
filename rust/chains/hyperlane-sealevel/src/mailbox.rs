@@ -18,12 +18,12 @@ use hyperlane_core::{
 use tracing::{debug, error, instrument, trace, warn};
 
 use crate::{
-    mailbox_message_inspector::{Error as InspectionError, Inspector},
-    mailbox_token_bridge_message_inspector::TokenBridgeInspector,
     solana::{
+        account::Account,
         commitment_config::CommitmentConfig,
         hash::Hash,
         instruction::{AccountMeta, Instruction},
+        message::Message,
         nonblocking_rpc_client::RpcClient,
         pubkey::Pubkey,
         rpc_config::RpcSendTransactionConfig,
@@ -32,14 +32,14 @@ use crate::{
         transaction::{Transaction, VersionedTransaction},
         transaction_status::{
             EncodedConfirmedBlock, EncodedTransaction, EncodedTransactionWithStatusMeta,
-            UiInnerInstructions, UiInstruction, UiMessage, UiParsedInstruction, UiTransaction,
-            UiTransactionStatusMeta, UiTransactionReturnData, UiReturnDataEncoding,
-        }, message::Message, account::Account,
+            UiInnerInstructions, UiInstruction, UiMessage, UiParsedInstruction,
+            UiReturnDataEncoding, UiTransaction, UiTransactionReturnData, UiTransactionStatusMeta,
+        },
     },
     /*make_provider,*/ ConnectionConf, SealevelProvider,
 };
 
-use self::contract::{SimulationReturnData, SerializableAccountMeta};
+use self::contract::{SerializableAccountMeta, SimulationReturnData};
 
 // FIXME solana uses the first 64 byte signature of a transaction to uniquely identify the
 // transaction rather than a 32 byte transaction hash like ethereum. Hash it here to reduce
@@ -57,11 +57,6 @@ pub struct SealevelMailbox {
     rpc_client: RpcClient,
     domain: HyperlaneDomain,
     payer: Option<Keypair>,
-    // FIXME don't understand why the trait bounds for Mailbox are designed to disallow
-    // Arc<Mutex<dyn Inspector>> or a wrapper around SealevelMailbox that contains
-    // Arc<Mutex<SealevelMailbox>>. Now we have to box an arc mutex... wtf?
-    // TODO make this a hash map of mailbox recipient to inspector(s)
-    inspector: Box<dyn Inspector + Send + Sync>,
 }
 
 impl SealevelMailbox {
@@ -95,21 +90,6 @@ impl SealevelMailbox {
             &program_id,
         );
 
-        // FIXME inject via config
-        let hyperlane_token_program_id =
-            Pubkey::from_str("3MzUPjP5LEkiHH82nEAe28Xtz9ztuMqWc8UmuKxrpVQH").unwrap();
-        let native_token_name = "MOON_SPL".to_string();
-        let native_token_symbol = "$".to_string();
-        let erc20_token_name = "wETH".to_string();
-        let erc20_token_symbol = "$eth".to_string();
-        let inspector = Box::new(Arc::new(Mutex::new(TokenBridgeInspector::new(
-            hyperlane_token_program_id,
-            native_token_name,
-            native_token_symbol,
-            erc20_token_name,
-            erc20_token_symbol,
-        ))));
-
         debug!(
             "domain={}\nmailbox={}\nauthority=({}, {})\ninbox=({}, {})\noutbox=({}, {})",
             domain, program_id, authority.0, authority.1, inbox.0, inbox.1, outbox.0, outbox.1,
@@ -123,7 +103,6 @@ impl SealevelMailbox {
             rpc_client,
             domain: locator.domain.clone(),
             payer,
-            inspector,
         })
     }
 
@@ -144,25 +123,31 @@ impl SealevelMailbox {
         payer: &Pubkey,
     ) -> ChainResult<Vec<AccountMeta>> {
         let recipient_program_id = Pubkey::new_from_array(message.recipient.into());
-        let instruction = contract::MessageRecipientInstruction::HandleAccountMetas(contract::HandleInstruction {
-            sender: message.sender,
-            origin: message.origin,
-            message: message.body.clone(),
-        });
+        let instruction = contract::MessageRecipientInstruction::HandleAccountMetas(
+            contract::HandleInstruction {
+                sender: message.sender,
+                origin: message.origin,
+                message: message.body.clone(),
+            },
+        );
         let commitment = CommitmentConfig::finalized();
         let (recent_blockhash, _) = self
             .rpc_client
             .get_latest_blockhash_with_commitment(commitment)
             .await
             .map_err(ChainCommunicationError::from_other)?;
-        let (account_metas_pda_key, _) =
-            Pubkey::find_program_address(contract::HANDLE_ACCOUNT_METAS_PDA_SEEDS, &recipient_program_id);
+        let (account_metas_pda_key, _) = Pubkey::find_program_address(
+            contract::HANDLE_ACCOUNT_METAS_PDA_SEEDS,
+            &recipient_program_id,
+        );
         let account_metas_return_data = self
             .rpc_client
             .simulate_transaction(&Transaction::new_unsigned(Message::new_with_blockhash(
                 &[Instruction::new_with_bytes(
                     recipient_program_id,
-                    &instruction.encode().map_err(ChainCommunicationError::from_other)?,
+                    &instruction
+                        .encode()
+                        .map_err(ChainCommunicationError::from_other)?,
                     vec![AccountMeta::new(account_metas_pda_key, false)],
                 )],
                 Some(payer),
@@ -172,18 +157,20 @@ impl SealevelMailbox {
             .map_err(ChainCommunicationError::from_other)?
             .value
             .return_data;
+        // If there isn't any return data, let's try gracefully handling
+        // and assume that there are simply no extra account metas required.
         if let Some(encoded_account_metas) = account_metas_return_data {
             let account_metas_bytes = match encoded_account_metas.data.1 {
-                UiReturnDataEncoding::Base64 => {
-                    base64::decode(encoded_account_metas.data.0)
-                        .map_err(ChainCommunicationError::from_other)?
-                }
+                UiReturnDataEncoding::Base64 => base64::decode(encoded_account_metas.data.0)
+                    .map_err(ChainCommunicationError::from_other)?,
             };
 
             let serialized_account_metas: Vec<SerializableAccountMeta> =
                 SimulationReturnData::<Vec<SerializableAccountMeta>>::try_from_slice(
                     account_metas_bytes.as_slice(),
-                ).map_err(ChainCommunicationError::from_other)?.return_data;
+                )
+                .map_err(ChainCommunicationError::from_other)?
+                .return_data;
             let account_metas: Vec<AccountMeta> = serialized_account_metas
                 .into_iter()
                 .map(|serializable_account_meta| serializable_account_meta.into())
@@ -368,28 +355,12 @@ impl Mailbox for SealevelMailbox {
             .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
 
         // Get account metas required for the Handle instruction
-        let handle_account_metas = self.get_handle_account_metas(
-            message,
-            &payer.pubkey(),
-        ).await?;
+        let handle_account_metas = self
+            .get_handle_account_metas(message, &payer.pubkey())
+            .await?;
         tracing::info!("handle_account_metas {:?}", handle_account_metas);
 
         accounts.extend(handle_account_metas);
-
-        // // Inject additional accounts required by recipient instruction.
-        // match self.inspector.inspect(&payer.pubkey(), message) {
-        //     Ok(inspection) => {
-        //         trace!("Extending accounts after inner message inspection!");
-        //         accounts.extend(inspection.accounts)
-        //     }
-        //     Err(InspectionError::IncorrectProgramId) => {
-        //         trace!(
-        //             "Inspector ignoring irrelevant program id: {}",
-        //             Pubkey::new_from_array(message.recipient.into())
-        //         );
-        //     }
-        //     Err(err) => return Err(ChainCommunicationError::from_other(err)),
-        // };
 
         let inbox_instruction = Instruction {
             program_id: self.program_id,
@@ -797,7 +768,7 @@ impl SealevelMailboxIndexer {
                 Err(err) => {
                     error!("Error in extract_hyperlane_messages {}", err);
                     continue;
-                },
+                }
             };
             let block_hash: H256 = Hash::from_str(&block.blockhash)
                 .expect("Invalid blockhash")
@@ -1129,7 +1100,7 @@ mod contract {
                     );
                 }
             }
-    
+
             Ok(buf)
         }
     }
@@ -1142,8 +1113,7 @@ mod contract {
     }
 
     /// First 8 bytes of `hash::hashv(&[b"hyperlane-message-recipient:handle-account-metas"])`
-    pub const HANDLE_ACCOUNT_METAS_DISCRIMINATOR: [u8; 8] =
-    [194, 141, 30, 82, 241, 41, 169, 52];
+    pub const HANDLE_ACCOUNT_METAS_DISCRIMINATOR: [u8; 8] = [194, 141, 30, 82, 241, 41, 169, 52];
     pub const HANDLE_ACCOUNT_METAS_DISCRIMINATOR_SLICE: &[u8] = &HANDLE_ACCOUNT_METAS_DISCRIMINATOR;
 
     /// Seeds for the PDA that's expected to be passed into the `HandleAccountMetas`
@@ -1208,6 +1178,5 @@ mod contract {
             }
         }
     }
-
 }
 //-------------------------------------------------------------------------------------------------
