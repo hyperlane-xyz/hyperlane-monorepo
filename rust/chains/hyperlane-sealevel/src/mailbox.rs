@@ -8,6 +8,7 @@ use std::{
 };
 
 use async_trait::async_trait;
+use borsh::BorshDeserialize;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, Decode as _, Encode as _,
     HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
@@ -32,11 +33,13 @@ use crate::{
         transaction_status::{
             EncodedConfirmedBlock, EncodedTransaction, EncodedTransactionWithStatusMeta,
             UiInnerInstructions, UiInstruction, UiMessage, UiParsedInstruction, UiTransaction,
-            UiTransactionStatusMeta,
-        },
+            UiTransactionStatusMeta, UiTransactionReturnData, UiReturnDataEncoding,
+        }, message::Message, account::Account,
     },
     /*make_provider,*/ ConnectionConf, SealevelProvider,
 };
+
+use self::contract::{SimulationReturnData, SerializableAccountMeta};
 
 // FIXME solana uses the first 64 byte signature of a transaction to uniquely identify the
 // transaction rather than a 32 byte transaction hash like ethereum. Hash it here to reduce
@@ -133,6 +136,63 @@ impl SealevelMailbox {
     }
     pub fn outbox(&self) -> (Pubkey, u8) {
         self.outbox
+    }
+
+    pub async fn get_handle_account_metas(
+        &self,
+        message: &HyperlaneMessage,
+        payer: &Pubkey,
+    ) -> ChainResult<Vec<AccountMeta>> {
+        let recipient_program_id = Pubkey::new_from_array(message.recipient.into());
+        let instruction = contract::MessageRecipientInstruction::HandleAccountMetas(contract::HandleInstruction {
+            sender: message.sender,
+            origin: message.origin,
+            message: message.body.clone(),
+        });
+        let commitment = CommitmentConfig::finalized();
+        let (recent_blockhash, _) = self
+            .rpc_client
+            .get_latest_blockhash_with_commitment(commitment)
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+        let (account_metas_pda_key, _) =
+            Pubkey::find_program_address(contract::HANDLE_ACCOUNT_METAS_PDA_SEEDS, &recipient_program_id);
+        let account_metas_return_data = self
+            .rpc_client
+            .simulate_transaction(&Transaction::new_unsigned(Message::new_with_blockhash(
+                &[Instruction::new_with_bytes(
+                    recipient_program_id,
+                    &instruction.encode().map_err(ChainCommunicationError::from_other)?,
+                    vec![AccountMeta::new(account_metas_pda_key, false)],
+                )],
+                Some(payer),
+                &recent_blockhash,
+            )))
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .value
+            .return_data;
+        if let Some(encoded_account_metas) = account_metas_return_data {
+            let account_metas_bytes = match encoded_account_metas.data.1 {
+                UiReturnDataEncoding::Base64 => {
+                    base64::decode(encoded_account_metas.data.0)
+                        .map_err(ChainCommunicationError::from_other)?
+                }
+            };
+
+            let serialized_account_metas: Vec<SerializableAccountMeta> =
+                SimulationReturnData::<Vec<SerializableAccountMeta>>::try_from_slice(
+                    account_metas_bytes.as_slice(),
+                ).map_err(ChainCommunicationError::from_other)?.return_data;
+            let account_metas: Vec<AccountMeta> = serialized_account_metas
+                .into_iter()
+                .map(|serializable_account_meta| serializable_account_meta.into())
+                .collect();
+
+            return Ok(account_metas);
+        }
+
+        Ok(vec![])
     }
 }
 
@@ -307,20 +367,29 @@ impl Mailbox for SealevelMailbox {
             .as_ref()
             .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
 
-        // Inject additional accounts required by recipient instruction.
-        match self.inspector.inspect(&payer.pubkey(), message) {
-            Ok(inspection) => {
-                trace!("Extending accounts after inner message inspection!");
-                accounts.extend(inspection.accounts)
-            }
-            Err(InspectionError::IncorrectProgramId) => {
-                trace!(
-                    "Inspector ignoring irrelevant program id: {}",
-                    Pubkey::new_from_array(message.recipient.into())
-                );
-            }
-            Err(err) => return Err(ChainCommunicationError::from_other(err)),
-        };
+        // Get account metas required for the Handle instruction
+        let handle_account_metas = self.get_handle_account_metas(
+            message,
+            &payer.pubkey(),
+        ).await?;
+        tracing::info!("handle_account_metas {:?}", handle_account_metas);
+
+        accounts.extend(handle_account_metas);
+
+        // // Inject additional accounts required by recipient instruction.
+        // match self.inspector.inspect(&payer.pubkey(), message) {
+        //     Ok(inspection) => {
+        //         trace!("Extending accounts after inner message inspection!");
+        //         accounts.extend(inspection.accounts)
+        //     }
+        //     Err(InspectionError::IncorrectProgramId) => {
+        //         trace!(
+        //             "Inspector ignoring irrelevant program id: {}",
+        //             Pubkey::new_from_array(message.recipient.into())
+        //         );
+        //     }
+        //     Err(err) => return Err(ChainCommunicationError::from_other(err)),
+        // };
 
         let inbox_instruction = Instruction {
             program_id: self.program_id,
@@ -885,6 +954,8 @@ mod contract {
     use borsh::{BorshDeserialize, BorshSerialize};
     use hyperlane_core::accumulator::incremental::IncrementalMerkle as MerkleTree;
 
+    use crate::solana::instruction::AccountMeta;
+
     pub static DEFAULT_ISM: &'static str = "6TCwgXydobJUEqabm7e6SL4FMdiFDvp1pmYoL6xXmRJq";
     pub static DEFAULT_ISM_ACCOUNTS: [&'static str; 0] = [];
 
@@ -1040,5 +1111,103 @@ mod contract {
         pub program_id: Pubkey,
         pub accounts: Vec<Pubkey>,
     }
+
+    pub enum MessageRecipientInstruction {
+        HandleAccountMetas(HandleInstruction),
+    }
+
+    impl MessageRecipientInstruction {
+        pub fn encode(&self) -> Result<Vec<u8>, ProgramError> {
+            let mut buf = vec![];
+            match self {
+                MessageRecipientInstruction::HandleAccountMetas(instruction) => {
+                    buf.extend_from_slice(&HANDLE_ACCOUNT_METAS_DISCRIMINATOR_SLICE[..]);
+                    buf.extend_from_slice(
+                        &instruction
+                            .try_to_vec()
+                            .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
+                    );
+                }
+            }
+    
+            Ok(buf)
+        }
+    }
+
+    #[derive(Eq, PartialEq, BorshSerialize, BorshDeserialize, Debug)]
+    pub struct HandleInstruction {
+        pub origin: u32,
+        pub sender: H256,
+        pub message: Vec<u8>,
+    }
+
+    /// First 8 bytes of `hash::hashv(&[b"hyperlane-message-recipient:handle-account-metas"])`
+    pub const HANDLE_ACCOUNT_METAS_DISCRIMINATOR: [u8; 8] =
+    [194, 141, 30, 82, 241, 41, 169, 52];
+    pub const HANDLE_ACCOUNT_METAS_DISCRIMINATOR_SLICE: &[u8] = &HANDLE_ACCOUNT_METAS_DISCRIMINATOR;
+
+    /// Seeds for the PDA that's expected to be passed into the `HandleAccountMetas`
+    /// instruction.
+    pub const HANDLE_ACCOUNT_METAS_PDA_SEEDS: &[&[u8]] = &[
+        b"hyperlane-message-recipient",
+        b"-",
+        b"handle",
+        b"-",
+        b"account_metas",
+    ];
+
+    /// A borsh-serializable version of `AccountMeta`.
+    #[derive(Debug, BorshSerialize, BorshDeserialize)]
+    pub struct SerializableAccountMeta {
+        pub pubkey: Pubkey,
+        pub is_signer: bool,
+        pub is_writable: bool,
+    }
+
+    impl From<AccountMeta> for SerializableAccountMeta {
+        fn from(account_meta: AccountMeta) -> Self {
+            Self {
+                pubkey: account_meta.pubkey,
+                is_signer: account_meta.is_signer,
+                is_writable: account_meta.is_writable,
+            }
+        }
+    }
+
+    impl Into<AccountMeta> for SerializableAccountMeta {
+        fn into(self) -> AccountMeta {
+            AccountMeta {
+                pubkey: self.pubkey,
+                is_signer: self.is_signer,
+                is_writable: self.is_writable,
+            }
+        }
+    }
+
+    /// A ridiculous workaround for https://github.com/solana-labs/solana/issues/31391,
+    /// which is a bug where if a simulated transaction's return data ends with zero byte(s),
+    /// they end up being incorrectly truncated.
+    /// As a workaround, we can (de)serialize data with a trailing non-zero byte.
+    #[derive(Debug, BorshSerialize, BorshDeserialize)]
+    pub struct SimulationReturnData<T>
+    where
+        T: BorshSerialize + BorshDeserialize,
+    {
+        pub return_data: T,
+        trailing_byte: u8,
+    }
+
+    impl<T> SimulationReturnData<T>
+    where
+        T: BorshSerialize + BorshDeserialize,
+    {
+        pub fn new(return_data: T) -> Self {
+            Self {
+                return_data,
+                trailing_byte: u8::MAX,
+            }
+        }
+    }
+
 }
 //-------------------------------------------------------------------------------------------------

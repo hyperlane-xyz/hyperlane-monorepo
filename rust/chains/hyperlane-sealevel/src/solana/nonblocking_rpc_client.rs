@@ -1252,175 +1252,176 @@ impl RpcClient {
         }
     }
 
-    /*
-        /// Simulates sending a transaction.
-        ///
-        /// If the transaction fails, then the [`err`] field of the returned
-        /// [`RpcSimulateTransactionResult`] will be `Some`. Any logs emitted from
-        /// the transaction are returned in the [`logs`] field.
-        ///
-        /// [`err`]: crate::rpc_response::RpcSimulateTransactionResult::err
-        /// [`logs`]: crate::rpc_response::RpcSimulateTransactionResult::logs
-        ///
-        /// Simulating a transaction is similar to the ["preflight check"] that is
-        /// run by default when sending a transaction.
-        ///
-        /// ["preflight check"]: https://docs.solana.com/developing/clients/jsonrpc-api#sendtransaction
-        ///
-        /// By default, signatures are not verified during simulation. To verify
-        /// signatures, call the [`simulate_transaction_with_config`] method, with
-        /// the [`sig_verify`] field of [`RpcSimulateTransactionConfig`] set to
-        /// `true`.
-        ///
-        /// [`simulate_transaction_with_config`]: RpcClient::simulate_transaction_with_config
-        /// [`sig_verify`]: crate::rpc_config::RpcSimulateTransactionConfig::sig_verify
-        ///
-        /// # RPC Reference
-        ///
-        /// This method is built on the [`simulateTransaction`] RPC method.
-        ///
-        /// [`simulateTransaction`]: https://docs.solana.com/developing/clients/jsonrpc-api#simulatetransaction
-        ///
-        /// # Examples
-        ///
-        /// ```
-        /// # use solana_client::{
-        /// #     client_error::ClientError,
-        /// #     nonblocking::rpc_client::RpcClient,
-        /// #     rpc_response::RpcSimulateTransactionResult,
-        /// # };
-        /// # use solana_sdk::{
-        /// #     signature::Signer,
-        /// #     signature::Signature,
-        /// #     signer::keypair::Keypair,
-        /// #     hash::Hash,
-        /// #     system_transaction,
-        /// # };
-        /// # futures::executor::block_on(async {
-        /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
-        /// // Transfer lamports from Alice to Bob
-        /// #     let alice = Keypair::new();
-        /// #     let bob = Keypair::new();
-        /// #     let lamports = 50;
-        /// let latest_blockhash = rpc_client.get_latest_blockhash().await?;
-        /// let tx = system_transaction::transfer(&alice, &bob.pubkey(), lamports, latest_blockhash);
-        /// let result = rpc_client.simulate_transaction(&tx).await?;
-        /// assert!(result.value.err.is_none());
-        /// #     Ok::<(), ClientError>(())
-        /// # })?;
-        /// # Ok::<(), ClientError>(())
-        /// ```
-        pub async fn simulate_transaction(
-            &self,
-            transaction: &impl SerializableTransaction,
-        ) -> RpcResult<RpcSimulateTransactionResult> {
-            self.simulate_transaction_with_config(
-                transaction,
-                RpcSimulateTransactionConfig {
-                    commitment: Some(self.commitment()),
-                    ..RpcSimulateTransactionConfig::default()
-                },
-            )
-            .await
-        }
+    /// Simulates sending a transaction.
+    ///
+    /// If the transaction fails, then the [`err`] field of the returned
+    /// [`RpcSimulateTransactionResult`] will be `Some`. Any logs emitted from
+    /// the transaction are returned in the [`logs`] field.
+    ///
+    /// [`err`]: crate::rpc_response::RpcSimulateTransactionResult::err
+    /// [`logs`]: crate::rpc_response::RpcSimulateTransactionResult::logs
+    ///
+    /// Simulating a transaction is similar to the ["preflight check"] that is
+    /// run by default when sending a transaction.
+    ///
+    /// ["preflight check"]: https://docs.solana.com/developing/clients/jsonrpc-api#sendtransaction
+    ///
+    /// By default, signatures are not verified during simulation. To verify
+    /// signatures, call the [`simulate_transaction_with_config`] method, with
+    /// the [`sig_verify`] field of [`RpcSimulateTransactionConfig`] set to
+    /// `true`.
+    ///
+    /// [`simulate_transaction_with_config`]: RpcClient::simulate_transaction_with_config
+    /// [`sig_verify`]: crate::rpc_config::RpcSimulateTransactionConfig::sig_verify
+    ///
+    /// # RPC Reference
+    ///
+    /// This method is built on the [`simulateTransaction`] RPC method.
+    ///
+    /// [`simulateTransaction`]: https://docs.solana.com/developing/clients/jsonrpc-api#simulatetransaction
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use solana_client::{
+    /// #     client_error::ClientError,
+    /// #     nonblocking::rpc_client::RpcClient,
+    /// #     rpc_response::RpcSimulateTransactionResult,
+    /// # };
+    /// # use solana_sdk::{
+    /// #     signature::Signer,
+    /// #     signature::Signature,
+    /// #     signer::keypair::Keypair,
+    /// #     hash::Hash,
+    /// #     system_transaction,
+    /// # };
+    /// # futures::executor::block_on(async {
+    /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
+    /// // Transfer lamports from Alice to Bob
+    /// #     let alice = Keypair::new();
+    /// #     let bob = Keypair::new();
+    /// #     let lamports = 50;
+    /// let latest_blockhash = rpc_client.get_latest_blockhash().await?;
+    /// let tx = system_transaction::transfer(&alice, &bob.pubkey(), lamports, latest_blockhash);
+    /// let result = rpc_client.simulate_transaction(&tx).await?;
+    /// assert!(result.value.err.is_none());
+    /// #     Ok::<(), ClientError>(())
+    /// # })?;
+    /// # Ok::<(), ClientError>(())
+    /// ```
+    pub async fn simulate_transaction(
+        &self,
+        transaction: &impl SerializableTransaction,
+    ) -> RpcResult<RpcSimulateTransactionResult> {
+        self.simulate_transaction_with_config(
+            transaction,
+            RpcSimulateTransactionConfig {
+                commitment: Some(self.commitment()),
+                ..RpcSimulateTransactionConfig::default()
+            },
+        )
+        .await
+    }
 
-        /// Simulates sending a transaction.
-        ///
-        /// If the transaction fails, then the [`err`] field of the returned
-        /// [`RpcSimulateTransactionResult`] will be `Some`. Any logs emitted from
-        /// the transaction are returned in the [`logs`] field.
-        ///
-        /// [`err`]: crate::rpc_response::RpcSimulateTransactionResult::err
-        /// [`logs`]: crate::rpc_response::RpcSimulateTransactionResult::logs
-        ///
-        /// Simulating a transaction is similar to the ["preflight check"] that is
-        /// run by default when sending a transaction.
-        ///
-        /// ["preflight check"]: https://docs.solana.com/developing/clients/jsonrpc-api#sendtransaction
-        ///
-        /// By default, signatures are not verified during simulation. To verify
-        /// signatures, call the [`simulate_transaction_with_config`] method, with
-        /// the [`sig_verify`] field of [`RpcSimulateTransactionConfig`] set to
-        /// `true`.
-        ///
-        /// [`simulate_transaction_with_config`]: RpcClient::simulate_transaction_with_config
-        /// [`sig_verify`]: crate::rpc_config::RpcSimulateTransactionConfig::sig_verify
-        ///
-        /// This method can additionally query information about accounts by
-        /// including them in the [`accounts`] field of the
-        /// [`RpcSimulateTransactionConfig`] argument, in which case those results
-        /// are reported in the [`accounts`][accounts2] field of the returned
-        /// [`RpcSimulateTransactionResult`].
-        ///
-        /// [`accounts`]: crate::rpc_config::RpcSimulateTransactionConfig::accounts
-        /// [accounts2]: crate::rpc_response::RpcSimulateTransactionResult::accounts
-        ///
-        /// # RPC Reference
-        ///
-        /// This method is built on the [`simulateTransaction`] RPC method.
-        ///
-        /// [`simulateTransaction`]: https://docs.solana.com/developing/clients/jsonrpc-api#simulatetransaction
-        ///
-        /// # Examples
-        ///
-        /// ```
-        /// # use solana_client::{
-        /// #     client_error::ClientError,
-        /// #     nonblocking::rpc_client::RpcClient,
-        /// #     rpc_config::RpcSimulateTransactionConfig,
-        /// #     rpc_response::RpcSimulateTransactionResult,
-        /// # };
-        /// # use solana_sdk::{
-        /// #     signature::Signer,
-        /// #     signer::keypair::Keypair,
-        /// #     hash::Hash,
-        /// #     system_transaction,
-        /// # };
-        /// # futures::executor::block_on(async {
-        /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
-        /// // Transfer lamports from Alice to Bob
-        /// #     let alice = Keypair::new();
-        /// #     let bob = Keypair::new();
-        /// #     let lamports = 50;
-        /// let latest_blockhash = rpc_client.get_latest_blockhash().await?;
-        /// let tx = system_transaction::transfer(&alice, &bob.pubkey(), lamports, latest_blockhash);
-        /// let config = RpcSimulateTransactionConfig {
-        ///     sig_verify: true,
-        ///     .. RpcSimulateTransactionConfig::default()
-        /// };
-        /// let result = rpc_client.simulate_transaction_with_config(
-        ///     &tx,
-        ///     config,
-        /// ).await?;
-        /// assert!(result.value.err.is_none());
-        /// #     Ok::<(), ClientError>(())
-        /// # })?;
-        /// # Ok::<(), ClientError>(())
-        /// ```
-        pub async fn simulate_transaction_with_config(
-            &self,
-            transaction: &impl SerializableTransaction,
-            config: RpcSimulateTransactionConfig,
-        ) -> RpcResult<RpcSimulateTransactionResult> {
-            let encoding = if let Some(encoding) = config.encoding {
-                encoding
-            } else {
-                self.default_cluster_transaction_encoding().await?
-            };
-            let commitment = config.commitment.unwrap_or_default();
-            let commitment = self.maybe_map_commitment(commitment).await?;
-            let config = RpcSimulateTransactionConfig {
-                encoding: Some(encoding),
-                commitment: Some(commitment),
-                ..config
-            };
-            let serialized_encoded = serialize_and_encode(transaction, encoding)?;
-            self.send(
-                RpcRequest::SimulateTransaction,
-                json!([serialized_encoded, config]),
-            )
-            .await
-        }
+    /// Simulates sending a transaction.
+    ///
+    /// If the transaction fails, then the [`err`] field of the returned
+    /// [`RpcSimulateTransactionResult`] will be `Some`. Any logs emitted from
+    /// the transaction are returned in the [`logs`] field.
+    ///
+    /// [`err`]: crate::rpc_response::RpcSimulateTransactionResult::err
+    /// [`logs`]: crate::rpc_response::RpcSimulateTransactionResult::logs
+    ///
+    /// Simulating a transaction is similar to the ["preflight check"] that is
+    /// run by default when sending a transaction.
+    ///
+    /// ["preflight check"]: https://docs.solana.com/developing/clients/jsonrpc-api#sendtransaction
+    ///
+    /// By default, signatures are not verified during simulation. To verify
+    /// signatures, call the [`simulate_transaction_with_config`] method, with
+    /// the [`sig_verify`] field of [`RpcSimulateTransactionConfig`] set to
+    /// `true`.
+    ///
+    /// [`simulate_transaction_with_config`]: RpcClient::simulate_transaction_with_config
+    /// [`sig_verify`]: crate::rpc_config::RpcSimulateTransactionConfig::sig_verify
+    ///
+    /// This method can additionally query information about accounts by
+    /// including them in the [`accounts`] field of the
+    /// [`RpcSimulateTransactionConfig`] argument, in which case those results
+    /// are reported in the [`accounts`][accounts2] field of the returned
+    /// [`RpcSimulateTransactionResult`].
+    ///
+    /// [`accounts`]: crate::rpc_config::RpcSimulateTransactionConfig::accounts
+    /// [accounts2]: crate::rpc_response::RpcSimulateTransactionResult::accounts
+    ///
+    /// # RPC Reference
+    ///
+    /// This method is built on the [`simulateTransaction`] RPC method.
+    ///
+    /// [`simulateTransaction`]: https://docs.solana.com/developing/clients/jsonrpc-api#simulatetransaction
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use solana_client::{
+    /// #     client_error::ClientError,
+    /// #     nonblocking::rpc_client::RpcClient,
+    /// #     rpc_config::RpcSimulateTransactionConfig,
+    /// #     rpc_response::RpcSimulateTransactionResult,
+    /// # };
+    /// # use solana_sdk::{
+    /// #     signature::Signer,
+    /// #     signer::keypair::Keypair,
+    /// #     hash::Hash,
+    /// #     system_transaction,
+    /// # };
+    /// # futures::executor::block_on(async {
+    /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
+    /// // Transfer lamports from Alice to Bob
+    /// #     let alice = Keypair::new();
+    /// #     let bob = Keypair::new();
+    /// #     let lamports = 50;
+    /// let latest_blockhash = rpc_client.get_latest_blockhash().await?;
+    /// let tx = system_transaction::transfer(&alice, &bob.pubkey(), lamports, latest_blockhash);
+    /// let config = RpcSimulateTransactionConfig {
+    ///     sig_verify: true,
+    ///     .. RpcSimulateTransactionConfig::default()
+    /// };
+    /// let result = rpc_client.simulate_transaction_with_config(
+    ///     &tx,
+    ///     config,
+    /// ).await?;
+    /// assert!(result.value.err.is_none());
+    /// #     Ok::<(), ClientError>(())
+    /// # })?;
+    /// # Ok::<(), ClientError>(())
+    /// ```
+    pub async fn simulate_transaction_with_config(
+        &self,
+        transaction: &impl SerializableTransaction,
+        config: RpcSimulateTransactionConfig,
+    ) -> RpcResult<RpcSimulateTransactionResult> {
+        let encoding = if let Some(encoding) = config.encoding {
+            encoding
+        } else {
+            self.default_cluster_transaction_encoding().await?
+        };
+        let commitment = config.commitment.unwrap_or_default();
+        let commitment = self.maybe_map_commitment(commitment).await?;
+        let config = RpcSimulateTransactionConfig {
+            encoding: Some(encoding),
+            commitment: Some(commitment),
+            ..config
+        };
+        let serialized_encoded = serialize_and_encode(transaction, encoding)?;
+        self.send(
+            RpcRequest::SimulateTransaction,
+            json!([serialized_encoded, config]),
+        )
+        .await
+    }
+        
+    /*
 
         /// Returns the highest slot information that the node has snapshots for.
         ///
