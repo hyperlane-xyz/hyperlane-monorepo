@@ -81,7 +81,7 @@ export function getArgs() {
 
 export async function getEnvironmentFromArgs(): Promise<string> {
   const argv = await getArgs().argv;
-  return argv.environment!;
+  return argv.environment ?? '';
 }
 
 export function assertEnvironment(env: string): DeployEnvironment {

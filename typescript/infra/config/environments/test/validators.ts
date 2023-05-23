@@ -1,14 +1,14 @@
 import { ChainName } from '@hyperlane-xyz/sdk';
 
 import {
-  ChainValidatorConfigs,
   CheckpointSyncerType,
+  ValidatorBaseChainConfigMap,
 } from '../../../src/config/agent';
 
 const localStoragePath = (chainName: ChainName) =>
   `/tmp/hyperlane-test-${chainName}-validator`;
 
-export const validators: ChainValidatorConfigs = {
+export const validators: ValidatorBaseChainConfigMap = {
   test1: {
     interval: 5,
     reorgPeriod: 0,

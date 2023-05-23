@@ -77,16 +77,21 @@ export class AgentAwsUser {
     accessKeyId: string;
     secretAccessKey: string;
   }> {
-    return {
-      accessKeyId: await fetchGCPSecret(this.accessKeyIdSecretName, false),
-      secretAccessKey: await fetchGCPSecret(
-        this.secretAccessKeySecretName,
-        false,
-      ),
-    };
+    const accessKeyId = await fetchGCPSecret(this.accessKeyIdSecretName, false);
+    if (typeof accessKeyId != 'string')
+      throw Error('Expected accessKeyId to be a string');
+
+    const secretAccessKey = await fetchGCPSecret(
+      this.secretAccessKeySecretName,
+      false,
+    );
+    if (typeof secretAccessKey != 'string')
+      throw Error('Expected secretAccessKey to be a string');
+
+    return { accessKeyId, secretAccessKey };
   }
 
-  async createAndSaveAccessKey() {
+  async createAndSaveAccessKey(): Promise<void> {
     const cmd = new CreateAccessKeyCommand({
       UserName: this.userName,
     });
@@ -110,7 +115,7 @@ export class AgentAwsUser {
     return new AgentAwsKey(agentConfig, this.role, this.chainName);
   }
 
-  async createKeyIfNotExists(agentConfig: AgentConfig) {
+  async createKeyIfNotExists(agentConfig: AgentConfig): Promise<AgentAwsKey> {
     const key = this.key(agentConfig);
     await key.createIfNotExists();
     await key.putKeyPolicy(this.arn);
@@ -153,15 +158,12 @@ export class AgentAwsUser {
   }
 
   get tags(): Record<string, string> {
-    let tags: Record<string, string> = {
+    const tags: Record<string, string> = {
       environment: this.environment,
       role: this.role,
     };
     if (this.chainName !== undefined) {
-      tags = {
-        ...tags,
-        chain: this.chainName,
-      };
+      tags.chain = this.chainName;
     }
     return tags;
   }

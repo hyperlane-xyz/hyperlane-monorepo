@@ -1,9 +1,20 @@
-import { AgentConnectionType, ChainName } from '@hyperlane-xyz/sdk';
+import {
+  AgentConnection,
+  AgentConnectionType,
+  ChainMap,
+  ChainName,
+} from '@hyperlane-xyz/sdk';
 import { utils } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import { AgentConfig, DeployEnvironment } from '../config';
-import { ChainAgentConfig, CheckpointSyncerType } from '../config/agent';
+import {
+  CheckpointSyncerType,
+  KeyConfig,
+  RelayerConfigHelper,
+  ScraperConfigHelper,
+  ValidatorConfigHelper,
+} from '../config/agent';
 import { fetchGCPSecret } from '../utils/gcloud';
 import {
   HelmCommand,
@@ -17,17 +28,43 @@ import { AgentAwsUser, ValidatorAgentAwsUser } from './aws';
 import { AgentAwsKey } from './aws/key';
 import { AgentGCPKey } from './gcp';
 import { fetchKeysForChain } from './key-utils';
-import { KEY_ROLE_ENUM } from './roles';
+import { ALL_AGENT_ROLES, KEY_ROLE_ENUM } from './roles';
 
 const HELM_CHART_PATH = '../../rust/helm/hyperlane-agent/';
+/** Roles which do not need deployments per chain */
+const OMNISCIENT_ROLES = [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Scraper];
 
-export async function runAgentHelmCommand(
+export async function runAgentHelmCommandsForRoles(
   action: HelmCommand,
   agentConfig: AgentConfig,
-  originChainName: ChainName,
+  roles: KEY_ROLE_ENUM[],
+  originChainNames: ChainName[] = [],
 ): Promise<void> {
-  // TODO: how is this function running for the relayer and validator? We need to make it only run for one or the other.
+  const promises: Promise<void>[] = [];
+  for (const role of roles) {
+    if (!ALL_AGENT_ROLES.includes(role)) {
+      console.warn(`Skipping unknown agent role ${role}`);
+      continue;
+    }
 
+    if (OMNISCIENT_ROLES.includes(role)) {
+      promises.push(runAgentHelmCommand(action, agentConfig, role));
+      continue;
+    }
+
+    for (const chainName of originChainNames) {
+      promises.push(runAgentHelmCommand(action, agentConfig, role, chainName));
+    }
+  }
+  await Promise.all(promises);
+}
+
+async function runAgentHelmCommand(
+  action: HelmCommand,
+  agentConfig: AgentConfig,
+  role: KEY_ROLE_ENUM,
+  originChainName?: ChainName,
+): Promise<void> {
   const helmReleaseName = getHelmReleaseName(agentConfig, originChainName);
   const namespace = `--namespace ${agentConfig.namespace}`;
 
@@ -37,7 +74,11 @@ export async function runAgentHelmCommand(
     return;
   }
 
-  const valueDict = await helmValuesForChain(agentConfig, originChainName);
+  const valueDict = await helmValuesForAgent(
+    agentConfig,
+    role,
+    originChainName,
+  );
   const values = helmifyValues(valueDict);
 
   if (action === HelmCommand.InstallOrUpgrade) {
@@ -78,9 +119,9 @@ export async function runAgentHelmCommand(
 }
 
 export async function getAgentEnvVars(
-  originChainName: ChainName,
-  role: KEY_ROLE_ENUM,
   agentConfig: AgentConfig,
+  role: KEY_ROLE_ENUM,
+  originChainName: ChainName,
   index?: number,
 ) {
   const chainNames = agentConfig.contextChainNames;
@@ -88,16 +129,19 @@ export async function getAgentEnvVars(
     throw Error('Expected index for validator role');
   }
 
-  const valueDict = await helmValuesForChain(originChainName, agentConfig);
+  const valueDict = await helmValuesForAgent(
+    agentConfig,
+    role,
+    originChainName,
+  );
   let envVars: string[] = [];
-  const rpcEndpoints = await getSecretRpcEndpoints(agentConfig);
-  valueDict.hyperlane.chains.forEach((chain: any) => {
-    envVars.push(
-      `HYP_BASE_CHAINS_${chain.name.toUpperCase()}_CONNECTION_URL=${
-        rpcEndpoints[chain.name]
-      }`,
-    );
-  });
+  // // TODO: Where are we setting the urls for the fallback/quorum providers?
+  // const rpcEndpoints = await getSecretRpcEndpoints(agentConfig);
+  // for (const chain of valueDict.hyperlane.chains) {
+  //   const name = chain.name.toUpperCase();
+  //   const url = rpcEndpoints[chain.name];
+  //   envVars.push(`HYP_BASE_CHAINS_${name}_CONNECTION_URL=${url}`);
+  // }
 
   // Base vars from config map
   envVars.push(`HYP_BASE_METRICS=9090`);
@@ -139,8 +183,8 @@ export async function getAgentEnvVars(
       const privateKey = gcpKeys[keyId].privateKey;
 
       envVars.push(
-        `HYP_VALIDATOR_VALIDATOR_KEY=${utils.strip0x(privateKey)}`,
-        `HYP_VALIDATOR_VALIDATOR_TYPE=hexKey`,
+        `HYP_BASE_VALIDATOR_KEY=${utils.strip0x(privateKey)}`,
+        `HYP_BASE_VALIDATOR_TYPE=hexKey`,
       );
     }
   } else {
@@ -187,7 +231,6 @@ export async function getAgentEnvVars(
         envVars = envVars.concat(
           configEnvVars(
             key.keyConfig,
-            'BASE',
             `CHAINS_${chainName.toUpperCase()}_SIGNER_`,
           ),
         );
@@ -195,28 +238,45 @@ export async function getAgentEnvVars(
     }
   }
 
+  let configToSerialize: any;
   switch (role) {
     case KEY_ROLE_ENUM.Validator:
-      if (valueDict.hyperlane.validator.configs) {
-        envVars = envVars.concat(
-          configEnvVars(
-            valueDict.hyperlane.validator.configs[index!],
-            KEY_ROLE_ENUM.Validator,
-          ),
-        );
-      }
+      configToSerialize = valueDict.hyperlane.validator.configs[index!];
       break;
     case KEY_ROLE_ENUM.Relayer:
-      if (valueDict.hyperlane.relayer.config) {
-        envVars = envVars.concat(
-          configEnvVars(
-            valueDict.hyperlane.relayer.config,
-            KEY_ROLE_ENUM.Relayer,
-          ),
-        );
-      }
+      configToSerialize = valueDict.hyperlane.relayer.config;
       break;
+    case KEY_ROLE_ENUM.Scraper:
+      configToSerialize = valueDict.hyperlane.scraper.config;
+      break;
+    default:
   }
+  if (configToSerialize) {
+    envVars.concat(configEnvVars(configToSerialize));
+  }
+
+  // switch (role) {
+  //   case KEY_ROLE_ENUM.Validator:
+  //     if (valueDict.hyperlane.validator.configs) {
+  //       envVars = envVars.concat(
+  //         configEnvVars(
+  //           valueDict.hyperlane.validator.configs[index!],
+  //           KEY_ROLE_ENUM.Validator,
+  //         ),
+  //       );
+  //     }
+  //     break;
+  //   case KEY_ROLE_ENUM.Relayer:
+  //     if (valueDict.hyperlane.relayer.config) {
+  //       envVars = envVars.concat(
+  //         configEnvVars(
+  //           valueDict.hyperlane.relayer.config,
+  //           KEY_ROLE_ENUM.Relayer,
+  //         ),
+  //       );
+  //     }
+  //     break;
+  // }
 
   return envVars;
 }
@@ -238,11 +298,24 @@ export async function getSecretRpcEndpoint(
   environment: string,
   chainName: ChainName,
   quorum = false,
-) {
-  return fetchGCPSecret(
+): Promise<string[]> {
+  const secret = await fetchGCPSecret(
     `${environment}-rpc-endpoint${quorum ? 's' : ''}-${chainName}`,
     quorum,
   );
+  if (typeof secret != 'string' && !Array.isArray(secret)) {
+    throw Error(`Expected secret for ${chainName} rpc endpoint`);
+  }
+  if (!Array.isArray(secret)) {
+    return [secret];
+  }
+
+  secret.forEach((i) => {
+    if (typeof i != 'string')
+      throw new Error(`Expected string in rpc endpoint array for ${chainName}`);
+  });
+
+  return secret as string[];
 }
 
 export async function getSecretDeployerKey(
@@ -280,34 +353,81 @@ export async function doesAgentReleaseExist(
   }
 }
 
-async function helmValuesForChain(
+async function helmValuesForAgent(
   agentConfig: AgentConfig,
-  chainName: ChainName,
+  role: KEY_ROLE_ENUM,
+  chainName?: ChainName,
 ) {
-  const chainAgentConfig = new ChainAgentConfig(agentConfig, chainName);
+  // // TODO: This can't be in use because it would break when fallback is used, so where are we actually getting the values from?
+  // // By default, if a context only enables a subset of chains, the
+  // // connection url (or urls, when HttpQuorum is used) are not fetched
+  // // from GCP secret manager. For Http/Ws, the `url` param is expected,
+  // // which is set by default to "" in the agent json configs. For HttpQuorum,
+  // // no default is present in those configs, so we make sure to pass in urls
+  // // as "" to avoid startup configuration issues.
+  // let baseConnectionConfig: Record<string, string> = {
+  //   type: agentConfig.connectionType,
+  // };
+  // if (baseConnectionConfig.type == AgentConnectionType.HttpQuorum) {
+  //   baseConnectionConfig = {
+  //     ...baseConnectionConfig,
+  //     urls: '',
+  //   };
+  // } else {
+  //   baseConnectionConfig = {
+  //     ...baseConnectionConfig,
+  //     url: '',
+  //   };
+  // }
 
-  // By default, if a context only enables a subset of chains, the
-  // connection url (or urls, when HttpQuorum is used) are not fetched
-  // from GCP secret manager. For Http/Ws, the `url` param is expected,
-  // which is set by default to "" in the agent json configs. For HttpQuorum,
-  // no default is present in those configs, so we make sure to pass in urls
-  // as "" to avoid startup configuration issues.
-  let baseConnectionConfig: Record<string, string> = {
-    type: agentConfig.connectionType,
-  };
-  if (baseConnectionConfig.type == AgentConnectionType.HttpQuorum) {
-    baseConnectionConfig = {
-      ...baseConnectionConfig,
-      urls: '',
-    };
-  } else {
-    baseConnectionConfig = {
-      ...baseConnectionConfig,
-      url: '',
+  let validator: Record<string, unknown> = { enabled: false };
+  if (role == KEY_ROLE_ENUM.Validator) {
+    if (!chainName) {
+      throw new Error('chainName is required for validator configs');
+    }
+    const validatorHelper = new ValidatorConfigHelper(agentConfig, chainName);
+    if (!validatorHelper.isDefined) {
+      throw new Error(
+        `Validator config is not enabled for ${chainName} validator`,
+      );
+    }
+    validator = {
+      enabled: true,
+      configs: await validatorHelper.buildConfig(),
     };
   }
 
-  const signers = await chainAgentConfig.signers();
+  let relayer: Record<string, unknown> = { enabled: false };
+  let relayerChains: Array<{ name: string; signer: KeyConfig }> = [];
+  if (role == KEY_ROLE_ENUM.Relayer) {
+    const relayerHelper = new RelayerConfigHelper(agentConfig);
+    if (!relayerHelper.isDefined) {
+      throw new Error(`Relayer config is not enabled`);
+    }
+    relayer = {
+      enabled: true,
+      // TODO: merge this aws true/false with the one in the root of the config (hyperlane.aws)
+      aws: relayerHelper.requiresAwsCredentials,
+      config: await relayerHelper.buildConfig(),
+    };
+    const signers = await relayerHelper.signers();
+    relayerChains = agentConfig.environmentChainNames.map((envChainName) => ({
+      name: envChainName,
+      signer: signers[envChainName],
+    }));
+  }
+
+  let scraper: Record<string, unknown> = { enabled: false };
+  if (role == KEY_ROLE_ENUM.Scraper) {
+    const scraperHelper = new ScraperConfigHelper(agentConfig);
+    if (!scraperHelper.isDefined) {
+      throw new Error(`Scraper config is not enabled`);
+    }
+    scraper = {
+      enabled: true,
+      config: await scraperHelper.buildConfig(),
+    };
+  }
 
   return {
     image: {
@@ -321,26 +441,14 @@ async function helmValuesForChain(
       chains: agentConfig.environmentChainNames.map((envChainName) => ({
         name: envChainName,
         disabled: !agentConfig.contextChainNames.includes(envChainName),
-        connection: baseConnectionConfig,
+        connection: { type: agentConfig.connectionType },
       })),
       // Only the relayer has the signers on the chains config object
-      relayerChains: agentConfig.environmentChainNames.map((envChainName) => ({
-        name: envChainName,
-        signer: signers[envChainName],
-      })),
-      /// TODO: this is how we specify what agent is being deployed
-      scraper: {
-        enabled: false,
-      },
-      validator: {
-        enabled: chainAgentConfig.validatorEnabled,
-        configs: await chainAgentConfig.validatorConfigs(),
-      },
-      relayer: {
-        enabled: chainAgentConfig.relayerEnabled,
-        aws: await chainAgentConfig.relayerRequiresAwsCredentials(),
-        config: chainAgentConfig.relayerConfig,
-      },
+      // TODO: why is this not under the "relayer" object?
+      relayerChains,
+      scraper,
+      validator,
+      relayer,
     },
   };
 }
@@ -348,43 +456,33 @@ async function helmValuesForChain(
 // Recursively converts a config object into environment variables than can
 // be parsed by rust. For example, a config of { foo: { bar: { baz: 420 }, boo: 421 } } will
 // be: HYP_FOO_BAR_BAZ=420 and HYP_FOO_BOO=421
-function configEnvVars(
-  config: Record<string, any>,
-  role: string,
-  key_name_prefix = '',
-) {
+function configEnvVars(config: Record<string, any>, key_name_prefix = '') {
   let envVars: string[] = [];
   for (const key of Object.keys(config)) {
     const value = config[key];
     if (typeof value === 'object') {
       envVars = [
         ...envVars,
-        ...configEnvVars(
-          value,
-          role,
-          `${key_name_prefix}${key.toUpperCase()}_`,
-        ),
+        ...configEnvVars(value, `${key_name_prefix}${key.toUpperCase()}_`),
       ];
     } else {
       envVars.push(
-        `HYP_${role.toUpperCase()}_${key_name_prefix}${key.toUpperCase()}=${
-          config[key]
-        }`,
+        `HYP_BASE_${key_name_prefix}${key.toUpperCase()}=${config[key]}`,
       );
     }
   }
   return envVars;
 }
 
-async function getSecretRpcEndpoints(agentConfig: AgentConfig, quorum = false) {
-  const environment = agentConfig.runEnv;
-  return Object.fromEntries(
-    agentConfig.contextChainNames.map((chainName) => [
-      chainName,
-      getSecretRpcEndpoint(environment, chainName, quorum),
-    ]),
-  );
-}
+// async function getSecretRpcEndpoints(agentConfig: AgentConfig, quorum = false): Promise<ChainMap<string>> {
+//   const environment = agentConfig.runEnv;
+//   return Object.fromEntries(await Promise.all(
+//     agentConfig.contextChainNames.map(async (chainName) => [
+//       chainName,
+//       await getSecretRpcEndpoint(environment, chainName, quorum),
+//     ]),
+//   ));
+// }
 
 function getHelmReleaseName(
   agentConfig: AgentConfig,

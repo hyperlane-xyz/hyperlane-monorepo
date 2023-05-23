@@ -2,10 +2,11 @@ import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import { DeployEnvironment } from '../config';
+import { assertRole } from '../utils/utils';
 
 import { KEY_ROLE_ENUM } from './roles';
 
-export function isValidatorKey(role: string) {
+export function isValidatorKey(role: KEY_ROLE_ENUM) {
   return role === KEY_ROLE_ENUM.Validator;
 }
 
@@ -13,7 +14,7 @@ function identifier(
   isKey: boolean,
   environment: string,
   context: Contexts,
-  role: string,
+  role: KEY_ROLE_ENUM,
   chainName?: ChainName,
   index?: number,
 ) {
@@ -23,12 +24,10 @@ function identifier(
       if (index === undefined) {
         throw Error('Expected index for validator key');
       }
-      return `${prefix}${chainName}-${role}-${index}`;
-    case KEY_ROLE_ENUM.Relayer:
-      if (chainName === undefined) {
+      if (!chainName) {
         throw Error('Expected chainName for relayer key');
       }
-      return `${prefix}${chainName}-${role}`;
+      return `${prefix}${chainName}-${role}-${index}`;
     default:
       return `${prefix}${role}`;
   }
@@ -37,7 +36,7 @@ function identifier(
 export function keyIdentifier(
   environment: DeployEnvironment,
   context: Contexts,
-  role: string,
+  role: KEY_ROLE_ENUM,
   chainName?: ChainName,
   index?: number,
 ) {
@@ -47,7 +46,7 @@ export function keyIdentifier(
 export function userIdentifier(
   environment: string,
   context: Contexts,
-  role: string,
+  role: KEY_ROLE_ENUM,
   chainName?: ChainName,
   index?: number,
 ) {
@@ -59,7 +58,7 @@ export function userIdentifier(
 export function parseKeyIdentifier(identifier: string): {
   environment: string;
   context: string;
-  role: string;
+  role: KEY_ROLE_ENUM;
   chainName?: string;
   index?: number;
 } {
@@ -72,27 +71,27 @@ export function parseKeyIdentifier(identifier: string): {
   const context = matches[2];
   const environment = matches[3];
 
-  // If matches[5] is undefined, this key doesn't have a chainName, and matches[4]
-  // is the role name.
   if (matches[5] === undefined) {
+    // If matches[5] is undefined, this key doesn't have a chainName, and matches[4]
+    // is the role name.
     return {
-      environment,
       context,
-      role: matches[4],
+      environment,
+      role: assertRole(matches[4]),
     };
   } else if (matches[6] === undefined) {
     // If matches[6] is undefined, this key doesn't have an index.
     return {
-      environment,
       context,
-      role: matches[5],
+      environment,
+      role: assertRole(matches[5]),
       chainName: matches[4],
     };
   }
   return {
-    environment,
     context,
-    role: matches[5],
+    environment,
+    role: assertRole(matches[5]),
     chainName: matches[4],
     index: parseInt(matches[6]),
   };

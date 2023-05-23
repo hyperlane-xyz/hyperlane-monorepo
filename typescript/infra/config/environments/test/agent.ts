@@ -21,13 +21,11 @@ export const hyperlane: AgentConfig = {
   connectionType: AgentConnectionType.Http,
   validators,
   relayer: {
-    default: {
-      gasPaymentEnforcement: [
-        {
-          type: GasPaymentEnforcementPolicyType.None,
-        },
-      ],
-    },
+    gasPaymentEnforcement: [
+      {
+        type: GasPaymentEnforcementPolicyType.None,
+      },
+    ],
   },
   rolesWithKeys: ALL_KEY_ROLES,
 };

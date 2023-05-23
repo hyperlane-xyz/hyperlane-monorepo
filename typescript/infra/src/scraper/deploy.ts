@@ -14,6 +14,7 @@ export async function runScraperHelmCommand(
   action: HelmCommand,
   agentConfig: AgentConfig,
 ) {
+  // TODO: Merge this into the `runAgentHelmCommand`
   const values = await scraperHelmValues(agentConfig);
 
   const extraPipe =

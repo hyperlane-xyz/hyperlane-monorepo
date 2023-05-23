@@ -87,6 +87,7 @@ hyperlane:
 
   relayer:
     enabled: false
+    aws: # true | false
     podAnnotations:
       prometheus.io/port: '9090'
       prometheus.io/scrape: 'true'
@@ -101,7 +102,6 @@ hyperlane:
         cpu: 250m
         memory: 256Mi
     config:
-      originChainName:
       multisigCheckpointSyncer:
         checkpointSyncers:
 

@@ -33,32 +33,36 @@ export const hyperlane: AgentConfig = {
   },
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
-  connectionType: AgentConnectionType.HttpQuorum,
-  validators,
-  relayer: {
-    default: {
-      blacklist: [
-        ...releaseCandidateHelloworldMatchingList,
-        {
-          originDomain: 137,
-          recipientAddress: '0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE',
-        },
-      ],
-      gasPaymentEnforcement: [
-        {
-          type: GasPaymentEnforcementPolicyType.None,
-          // To continue relaying interchain query callbacks, we whitelist
-          // all messages between interchain query routers.
-          // This whitelist will become more strict with
-          // https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/1605
-          matchingList: interchainQueriesMatchingList,
-        },
-        {
-          type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
-        },
-      ],
+  connectionType: AgentConnectionType.HttpFallback,
+  validators: {
+    ...validators,
+    baseOverride: {
+      connectionType: AgentConnectionType.HttpQuorum,
     },
   },
+  relayer: {
+    blacklist: [
+      ...releaseCandidateHelloworldMatchingList,
+      {
+        originDomain: 137,
+        recipientAddress: '0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE',
+      },
+    ],
+    gasPaymentEnforcement: [
+      {
+        type: GasPaymentEnforcementPolicyType.None,
+        // To continue relaying interchain query callbacks, we whitelist
+        // all messages between interchain query routers.
+        // This whitelist will become more strict with
+        // https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/1605
+        matchingList: interchainQueriesMatchingList,
+      },
+      {
+        type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
+      },
+    ],
+  },
+  scraper: {},
   rolesWithKeys: ALL_KEY_ROLES,
 };
 
@@ -77,22 +81,20 @@ export const releaseCandidate: AgentConfig = {
   contextChainNames: chainNames,
   connectionType: AgentConnectionType.HttpFallback,
   relayer: {
-    default: {
-      whitelist: releaseCandidateHelloworldMatchingList,
-      gasPaymentEnforcement: [
-        {
-          type: GasPaymentEnforcementPolicyType.None,
-          matchingList: interchainQueriesMatchingList,
-        },
-        {
-          type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
-        },
-      ],
-      transactionGasLimit: 750000,
-      // Skipping arbitrum because the gas price estimates are inclusive of L1
-      // fees which leads to wildly off predictions.
-      skipTransactionGasLimitFor: [chainMetadata.arbitrum.chainId],
-    },
+    whitelist: releaseCandidateHelloworldMatchingList,
+    gasPaymentEnforcement: [
+      {
+        type: GasPaymentEnforcementPolicyType.None,
+        matchingList: interchainQueriesMatchingList,
+      },
+      {
+        type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
+      },
+    ],
+    transactionGasLimit: 750000,
+    // Skipping arbitrum because the gas price estimates are inclusive of L1
+    // fees which leads to wildly off predictions.
+    skipTransactionGasLimitFor: [chainMetadata.arbitrum.chainId],
   },
   rolesWithKeys: [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy],
 };
