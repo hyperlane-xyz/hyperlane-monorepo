@@ -7,13 +7,14 @@ use futures_util::TryStreamExt;
 use once_cell::sync::OnceCell;
 use prometheus::IntGauge;
 use rusoto_core::{
-    credential::{Anonymous, AwsCredentials, EnvironmentProvider, StaticProvider},
+    credential::{Anonymous, AwsCredentials, StaticProvider},
     HttpClient, Region, RusotoError,
 };
 use rusoto_s3::{GetObjectError, GetObjectRequest, PutObjectRequest, S3Client, S3};
 use tokio::time::timeout;
 
-use hyperlane_core::{SignedAnnouncement, SignedCheckpoint};
+use crate::settings::aws_credentials::AwsChainCredentialsProvider;
+use hyperlane_core::{SignedAnnouncement, SignedCheckpoint, SignedCheckpointWithMessageId};
 
 use crate::CheckpointSyncer;
 
@@ -93,7 +94,7 @@ impl S3Storage {
         self.authenticated_client.get_or_init(|| {
             S3Client::new_with(
                 HttpClient::new().unwrap(),
-                EnvironmentProvider::default(),
+                AwsChainCredentialsProvider::new(),
                 self.region.clone(),
             )
         })
@@ -120,7 +121,11 @@ impl S3Storage {
     }
 
     fn checkpoint_key(index: u32) -> String {
-        format!("checkpoint_{}.json", index)
+        format!("checkpoint_{index}.json")
+    }
+
+    fn checkpoint_with_id_key(index: u32) -> String {
+        format!("checkpoint_{index}_with_id.json")
     }
 
     fn index_key() -> String {
@@ -151,7 +156,7 @@ impl CheckpointSyncer for S3Storage {
         ret
     }
 
-    async fn fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpoint>> {
+    async fn legacy_fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpoint>> {
         self.anonymously_read_from_bucket(S3Storage::checkpoint_key(index))
             .await?
             .map(|data| serde_json::from_slice(&data))
@@ -159,7 +164,15 @@ impl CheckpointSyncer for S3Storage {
             .map_err(Into::into)
     }
 
-    async fn write_checkpoint(&self, signed_checkpoint: &SignedCheckpoint) -> Result<()> {
+    async fn fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpointWithMessageId>> {
+        self.anonymously_read_from_bucket(S3Storage::checkpoint_with_id_key(index))
+            .await?
+            .map(|data| serde_json::from_slice(&data))
+            .transpose()
+            .map_err(Into::into)
+    }
+
+    async fn legacy_write_checkpoint(&self, signed_checkpoint: &SignedCheckpoint) -> Result<()> {
         let serialized_checkpoint = serde_json::to_string_pretty(signed_checkpoint)?;
         self.write_to_bucket(
             S3Storage::checkpoint_key(signed_checkpoint.value.index),
@@ -175,17 +188,27 @@ impl CheckpointSyncer for S3Storage {
         Ok(())
     }
 
+    async fn write_checkpoint(
+        &self,
+        signed_checkpoint: &SignedCheckpointWithMessageId,
+    ) -> Result<()> {
+        let serialized_checkpoint = serde_json::to_string_pretty(signed_checkpoint)?;
+        self.write_to_bucket(
+            S3Storage::checkpoint_with_id_key(signed_checkpoint.value.index),
+            &serialized_checkpoint,
+        )
+        .await?;
+        Ok(())
+    }
+
     async fn write_announcement(&self, signed_announcement: &SignedAnnouncement) -> Result<()> {
         let serialized_announcement = serde_json::to_string_pretty(signed_announcement)?;
         self.write_to_bucket(S3Storage::announcement_key(), &serialized_announcement)
             .await?;
         Ok(())
     }
+
     fn announcement_location(&self) -> String {
-        let mut location: String = "s3://".to_owned();
-        location.push_str(self.bucket.as_ref());
-        location.push('/');
-        location.push_str(self.region.name());
-        location
+        format!("s3://{}/{}", self.bucket, self.region.name())
     }
 }
