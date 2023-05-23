@@ -239,7 +239,7 @@ where
         }
 
         let token_xfer_message =
-            TokenMessage::new_erc20(xfer.recipient, xfer.amount_or_id, vec![]).to_vec();
+            TokenMessage::new(xfer.recipient, xfer.amount_or_id, vec![]).to_vec();
         let mailbox_ixn = MailboxIxn::OutboxDispatch(MailboxOutboxDispatch {
             sender: *token_account.key,
             local_domain: token.mailbox_local_domain,

@@ -50,18 +50,10 @@ impl Decode for TokenMessage {
 }
 
 impl TokenMessage {
-    pub fn new_erc20(recipient: H256, amount: U256, metadata: Vec<u8>) -> Self {
+    pub fn new(recipient: H256, amount_or_id: U256, metadata: Vec<u8>) -> Self {
         Self {
             recipient,
-            amount_or_id: amount,
-            metadata,
-        }
-    }
-
-    pub fn new_erc721(recipient: H256, id: U256, metadata: Vec<u8>) -> Self {
-        Self {
-            recipient,
-            amount_or_id: id,
+            amount_or_id,
             metadata,
         }
     }

@@ -221,7 +221,7 @@ async fn test_initialize() {
                 remote_domain,
                 // TODO change
                 H256::zero(),
-                TokenMessage::new_erc20(recipient, 100u64.into(), vec![]).to_vec(),
+                TokenMessage::new(recipient, 100u64.into(), vec![]).to_vec(),
             ))
             .encode()
             .unwrap(),

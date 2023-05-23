@@ -261,10 +261,6 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
             return Err(ProgramError::InvalidArgument);
         }
 
-        if accounts_iter.next().is_some() {
-            return Err(ProgramError::from(Error::ExtraneousAccount));
-        }
-
         // Create and init (this does both) associated token account if necessary.
         invoke_signed(
             &create_associated_token_account_idempotent(
