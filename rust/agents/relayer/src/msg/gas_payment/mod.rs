@@ -78,8 +78,8 @@ impl GasPaymentEnforcer {
         tx_cost_estimate: &TxCostEstimate,
     ) -> Result<Option<U256>> {
         let msg_id = message.id();
-        let current_payment = self.db.retrieve_gas_payment_for_message_id(msg_id)?;
-        let current_expenditure = self.db.retrieve_gas_expenditure_for_message_id(msg_id)?;
+        let current_payment = self.db.retrieve_gas_payment_by_message_id(msg_id)?;
+        let current_expenditure = self.db.retrieve_gas_expenditure_by_message_id(msg_id)?;
         for (policy, whitelist) in &self.policies {
             if !whitelist.msg_matches(message, true) {
                 trace!(

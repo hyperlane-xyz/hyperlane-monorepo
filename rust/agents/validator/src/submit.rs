@@ -14,7 +14,7 @@ use tracing::{debug, info, trace};
 
 use hyperlane_core::{
     Checkpoint, CheckpointWithMessageId, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessageStore, HyperlaneSigner, HyperlaneSignerExt, Mailbox,
+    HyperlaneSigner, HyperlaneSignerExt, Mailbox,
 };
 
 #[derive(Clone)]
@@ -91,8 +91,7 @@ impl ValidatorSubmitter {
             // poll DB for message IDs to ingest
             while let Some(message) = self
                 .message_db
-                .retrieve_message_by_nonce(tree.count() as u32)
-                .await?
+                .retrieve_message_by_nonce(tree.count() as u32)?
             {
                 debug!(nonce = message.nonce, "Ingesting leaf to tree");
                 let message_id = message.id();
