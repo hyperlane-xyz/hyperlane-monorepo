@@ -430,24 +430,11 @@ fn main() -> ExitCode {
     let loop_start = Instant::now();
     // give things a chance to fully start.
     sleep(Duration::from_secs(5));
-    let mut kathy_done = false;
     while RUNNING.fetch_and(true, Ordering::Relaxed) {
-        if !kathy_done {
-            // check if kathy has finished
-            match state.kathy.as_mut().unwrap().try_wait().unwrap() {
-                Some(s) if s.success() => {
-                    kathy_done = true;
-                }
-                Some(_) => {
-                    return ExitCode::from(1);
-                }
-                None => {}
-            }
-        }
         if ci_mode {
             // for CI we have to look for the end condition.
             let num_messages_expected = (kathy_messages / 2) as u32 * 2;
-            if kathy_done && termination_invariants_met(num_messages_expected) {
+            if termination_invariants_met(num_messages_expected) {
                 // end condition reached successfully
                 println!("Kathy completed successfully and agent metrics look healthy");
                 break;
@@ -456,10 +443,6 @@ fn main() -> ExitCode {
                 eprintln!("CI timeout reached before queues emptied and or kathy finished.");
                 return ExitCode::from(1);
             }
-        } else if kathy_done {
-            // when not in CI mode, run until kathy finishes, which should only happen if a
-            // number of rounds is specified.
-            break;
         }
         sleep(Duration::from_secs(5));
     }

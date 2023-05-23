@@ -98,13 +98,15 @@ task('kathy', 'Dispatches random hyperlane messages')
         console.log(await chainSummary(core, local));
         console.log(await chainSummary(core, remote));
 
+        await sleep(timeout);
+      }
+
+      while (isAutomine) {
         // mine confirmation blocks instantly
-        if (isAutomine) {
-          const confirmations =
-            multiProvider.getChainMetadata(local).blocks?.confirmations || 1;
-          const hexConfirmations = BigNumber.from(confirmations).toHexString();
-          await hre.network.provider.send('hardhat_mine', [hexConfirmations]);
-        }
+        const confirmations = 1;
+        const hexConfirmations = BigNumber.from(confirmations).toHexString();
+        await hre.network.provider.send('hardhat_mine', [hexConfirmations]);
+
         await sleep(timeout);
       }
     },

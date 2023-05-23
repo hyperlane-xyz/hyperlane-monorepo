@@ -83,7 +83,7 @@ impl ValidatorSubmitter {
     pub(crate) async fn checkpoint_submitter(
         self,
         mut tree: IncrementalMerkle,
-        target_nonce: Option<u32>,
+        target_count: Option<u32>,
     ) -> Result<()> {
         let mut latest_count_checked = self.check_consistency(&tree).await?;
 
@@ -95,7 +95,7 @@ impl ValidatorSubmitter {
             {
                 debug!(nonce = message.nonce, "Ingesting leaf to tree");
                 let message_id = message.id();
-                tree.ingest(message.id());
+                tree.ingest(message_id);
 
                 let checkpoint_with_id = CheckpointWithMessageId {
                     checkpoint: Checkpoint {
@@ -124,15 +124,19 @@ impl ValidatorSubmitter {
             }
 
             // if target nonce is specified, stop submitting checkpoints after reaching target
-            if let Some(target_nonce) = target_nonce {
-                if tree.count() as u32 >= target_nonce {
-                    info!("Reached target nonce, stopping checkpoint submission");
-                    // TODO: exit
-                    sleep(self.interval * 100).await;
+            if let Some(target_count) = target_count {
+                if tree.count() as u32 >= target_count {
+                    info!("Reached target count, stopping checkpoint submission");
+                    break;
                 }
             }
 
             sleep(self.interval).await;
+        }
+
+        // hack to prevent the backfill task from exiting
+        loop {
+            sleep(Duration::from_secs(60 * 60)).await;
         }
     }
 
