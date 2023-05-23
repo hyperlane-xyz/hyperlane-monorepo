@@ -356,24 +356,6 @@ fn main() -> ExitCode {
     state.watchers.push(scraper_stderr);
     state.scraper = Some(scraper);
 
-    for (i, validator_env) in validator_envs.iter().enumerate() {
-        let (validator, validator_stdout, validator_stderr) = run_agent(
-            "validator",
-            &common_env
-                .clone()
-                .into_iter()
-                .chain(validator_env.clone())
-                .collect(),
-            &[],
-            make_static(format!("VAL{}", 1 + i)),
-            log_all,
-            &log_dir,
-        );
-        state.watchers.push(validator_stdout);
-        state.watchers.push(validator_stderr);
-        state.validators.push(validator);
-    }
-
     // Send half the kathy messages before the relayer comes up
     let mut kathy = Command::new("yarn");
     kathy
@@ -392,6 +374,24 @@ fn main() -> ExitCode {
     state.watchers.push(kathy_stdout);
     state.watchers.push(kathy_stderr);
     kathy.wait().unwrap();
+
+    for (i, validator_env) in validator_envs.iter().enumerate() {
+        let (validator, validator_stdout, validator_stderr) = run_agent(
+            "validator",
+            &common_env
+                .clone()
+                .into_iter()
+                .chain(validator_env.clone())
+                .collect(),
+            &[],
+            make_static(format!("VAL{}", 1 + i)),
+            log_all,
+            &log_dir,
+        );
+        state.watchers.push(validator_stdout);
+        state.watchers.push(validator_stderr);
+        state.validators.push(validator);
+    }
 
     let (relayer, relayer_stdout, relayer_stderr) = run_agent(
         "relayer",
@@ -417,6 +417,7 @@ fn main() -> ExitCode {
             &(kathy_messages / 2).to_string(),
             "--timeout",
             "1000",
+            "--mineforever"
         ])
         .current_dir("../typescript/infra")
         .stdout(Stdio::piped())

@@ -39,9 +39,10 @@ task('kathy', 'Dispatches random hyperlane messages')
     '0',
   )
   .addParam('timeout', 'Time to wait between messages in ms.', '5000')
+  .addFlag('mineforever', 'Mine forever after sending messages')
   .setAction(
     async (
-      taskArgs: { messages: string; timeout: string },
+      taskArgs: { messages: string; timeout: string; mineforever: boolean },
       hre: HardhatRuntimeEnvironment,
     ) => {
       const timeout = Number.parseInt(taskArgs.timeout);
@@ -101,7 +102,7 @@ task('kathy', 'Dispatches random hyperlane messages')
         await sleep(timeout);
       }
 
-      while (isAutomine) {
+      while (taskArgs.mineforever && isAutomine) {
         // mine confirmation blocks instantly
         const confirmations = 1;
         const hexConfirmations = BigNumber.from(confirmations).toHexString();
