@@ -12,7 +12,7 @@ use solana_program::{
     program::set_return_data, program_error::ProgramError, pubkey::Pubkey,
 };
 
-use crate::{instruction::Instruction as TokenIxn, plugin::SyntheticPlugin};
+use crate::{instruction::Instruction as TokenIxn, plugin::NativePlugin};
 
 #[cfg(not(feature = "no-entrypoint"))]
 entrypoint!(process_instruction);
@@ -80,11 +80,10 @@ pub fn process_instruction(
 /// Accounts:
 /// 0. [executable] The system program.
 /// 1. [writable] The token PDA account.
-/// 2. [writable] The mint / mint authority PDA account.
-/// 3. [writable] The ATA payer PDA account.
-/// 4. [signer] The payer.
+/// 2. [signer] The payer.
+/// 3. [writable] The native collateral PDA account.
 fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramResult {
-    HyperlaneSealevelToken::<SyntheticPlugin>::initialize(program_id, accounts, init)
+    HyperlaneSealevelToken::<NativePlugin>::initialize(program_id, accounts, init)
 }
 
 /// Transfers tokens to a remote.
@@ -97,34 +96,30 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
 /// 2. [executable] The mailbox program.
 /// 3. [writeable] The mailbox outbox account.
 /// 4. [signer] The token sender.
-/// 5. [executable] The spl_token_2022 program.
-/// 6. [writeable] The mint / mint authority PDA account.
-/// 7. [writeable] The token sender's associated token account, from which tokens will be burned.
+/// 5. [executable] The system program.
+/// 6. [writeable] The native token collateral PDA account.
 fn transfer_remote(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     transfer: TransferRemote,
 ) -> ProgramResult {
-    HyperlaneSealevelToken::<SyntheticPlugin>::transfer_remote(program_id, accounts, transfer)
+    HyperlaneSealevelToken::<NativePlugin>::transfer_remote(program_id, accounts, transfer)
 }
 
-// Accounts:
-// 0. [signer] mailbox authority
-// 1. [executable] system_program
-// 2. [executable] spl_noop
-// 3. [] hyperlane_token storage
-// 4. [] recipient wallet address
-// 5. [executable] SPL token 2022 program
-// 6. [executable] SPL associated token account
-// 7. [writeable] Mint account
-// 8. [writeable] Recipient associated token account
-// 9. [writeable] ATA payer PDA account.
+/// Accounts:
+/// 0. [signer] mailbox authority
+/// 1. [executable] system_program
+/// 2. [executable] spl_noop
+/// 3. [] hyperlane_token storage
+/// 4. [] recipient wallet address
+/// 5. [executable] The system program.
+/// 6. [writeable] The native token collateral PDA account.
 fn transfer_from_remote(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     transfer: TransferFromRemote,
 ) -> ProgramResult {
-    HyperlaneSealevelToken::<SyntheticPlugin>::transfer_from_remote(program_id, accounts, transfer)
+    HyperlaneSealevelToken::<NativePlugin>::transfer_from_remote(program_id, accounts, transfer)
 }
 
 fn transfer_from_remote_account_metas(
@@ -132,10 +127,9 @@ fn transfer_from_remote_account_metas(
     accounts: &[AccountInfo],
     transfer: TransferFromRemote,
 ) -> ProgramResult {
-    let account_metas =
-        HyperlaneSealevelToken::<SyntheticPlugin>::transfer_from_remote_account_metas(
-            program_id, accounts, transfer,
-        )?;
+    let account_metas = HyperlaneSealevelToken::<NativePlugin>::transfer_from_remote_account_metas(
+        program_id, accounts, transfer,
+    )?;
     // Wrap it in the SimulationReturnData because serialized account_metas
     // may end with zero byte(s), which are incorrectly truncated as
     // simulated transaction return data.

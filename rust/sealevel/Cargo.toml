@@ -7,8 +7,10 @@ members = [
     "programs/ism/rubber-stamp",
     "programs/ism/multisig-ism-message-id",
     "programs/hyperlane-sealevel-token",
+    "programs/hyperlane-sealevel-token-native",
     "libraries/interchain-security-module-interface",
     "libraries/message-recipient-interface",
     "libraries/multisig-ism",
     "libraries/serializable-account-meta",
+    "libraries/hyperlane-sealevel-token",
 ]

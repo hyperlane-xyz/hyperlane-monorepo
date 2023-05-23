@@ -4,9 +4,10 @@
 // #![deny(missing_docs)] // FIXME
 #![deny(unsafe_code)]
 
+pub mod accounts;
 pub mod error;
 pub mod instruction;
-pub mod plugin;
+pub mod message;
 pub mod processor;
 
 pub use spl_associated_token_account;

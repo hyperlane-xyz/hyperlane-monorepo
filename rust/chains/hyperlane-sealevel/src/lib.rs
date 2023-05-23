@@ -20,8 +20,6 @@ use solana::nonblocking_rpc_client::RpcClient;
 mod interchain_gas;
 mod interchain_security_module;
 mod mailbox;
-mod mailbox_message_inspector;
-mod mailbox_token_bridge_message_inspector;
 mod multisig_ism;
 mod provider;
 mod trait_builder;

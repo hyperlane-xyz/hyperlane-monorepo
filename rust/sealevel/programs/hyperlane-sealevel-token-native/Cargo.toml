@@ -1,5 +1,5 @@
 [package]
-name = "hyperlane-sealevel-token"
+name = "hyperlane-sealevel-token-native"
 version = "0.1.0"
 edition = "2021"
 
@@ -19,35 +19,11 @@ solana-program = "=1.14.13"
 serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
 thiserror = "1.0"
 
-[dependencies.spl-associated-token-account]
-version = "=1.1.2"
-features = ["no-entrypoint"]
-git = "https://github.com/tkporter/eclipse-program-library"
-branch = "trevor/steven/eclipse-1.14.13/with-tlv-lib"
-
 [dependencies.spl-noop]
 version = "=0.1.3"
 features = ["no-entrypoint"]
 git = "https://github.com/tkporter/eclipse-program-library"
 branch = "trevor/steven/eclipse-1.14.13/with-tlv-lib"
-[dependencies.spl-token]
-version = "=3.5.0"
-features = ["no-entrypoint"]
-git = "https://github.com/tkporter/eclipse-program-library"
-branch = "trevor/steven/eclipse-1.14.13/with-tlv-lib"
-
-# FIXME Should we actually use 2022 here or try normal token program?
-[dependencies.spl-token-2022]
-version = "=0.5.0"
-features = ["no-entrypoint"]
-git = "https://github.com/tkporter/eclipse-program-library"
-branch = "trevor/steven/eclipse-1.14.13/with-tlv-lib"
-
-# [dev-dependencies]
-# base64 = "0.13"
-# itertools =  "0.10.1"
-# log = "0.4"
-# testing_logger = "=0.1.1"
 
 [dev-dependencies]
 solana-program-test = "=1.14.13"
