@@ -1,8 +1,10 @@
 import { AgentConnectionType, chainMetadata } from '@hyperlane-xyz/sdk';
 
 import { ALL_KEY_ROLES, KEY_ROLE_ENUM } from '../../../src/agents/roles';
-import { AgentConfig } from '../../../src/config';
-import { GasPaymentEnforcementPolicyType } from '../../../src/config/agent';
+import {
+  AgentConfig,
+  GasPaymentEnforcementPolicyType,
+} from '../../../src/config';
 import { Contexts } from '../../contexts';
 import { helloworldMatchingList, routerMatchingList } from '../../utils';
 

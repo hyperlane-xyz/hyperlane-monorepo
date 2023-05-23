@@ -1,9 +1,4 @@
-import {
-  AgentConnection,
-  AgentConnectionType,
-  ChainMap,
-  ChainName,
-} from '@hyperlane-xyz/sdk';
+import { ChainName } from '@hyperlane-xyz/sdk';
 import { utils } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
