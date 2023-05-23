@@ -80,8 +80,9 @@ pub fn process_instruction(
 /// Accounts:
 /// 0. [executable] The system program.
 /// 1. [writable] The token PDA account.
-/// 2. [signer] The payer.
-/// 3. [writable] The native collateral PDA account.
+/// 2. [writable] The dispatch authority PDA account.
+/// 3. [signer] The payer and mailbox payer.
+/// 4. [writable] The native collateral PDA account.
 fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramResult {
     HyperlaneSealevelToken::<NativePlugin>::initialize(program_id, accounts, init)
 }

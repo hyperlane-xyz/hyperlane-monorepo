@@ -4,7 +4,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{Decode, Encode as _, H256};
 use hyperlane_sealevel_mailbox::{
     instruction::{Instruction as MailboxIxn, OutboxDispatch as MailboxOutboxDispatch},
-    mailbox_outbox_pda_seeds,
+    mailbox_outbox_pda_seeds, mailbox_message_dispatch_authority_pda_seeds,
 };
 use serializable_account_meta::SerializableAccountMeta;
 use solana_program::{
@@ -105,8 +105,9 @@ where
     /// Accounts:
     /// 0.   [executable] The system program.
     /// 1.   [writable] The token PDA account.
-    /// 2.   [signer] The payer.
-    /// 3..N [??..??] Plugin-specific accounts.
+    /// 2.   [writable] The dispatch authority PDA account.
+    /// 3.   [signer] The payer.
+    /// 4..N [??..??] Plugin-specific accounts.
     pub fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramResult {
         // On chain create appears to use realloc which is limited to 1024 byte increments.
         let token_account_size = 2048;
@@ -127,7 +128,17 @@ where
             return Err(ProgramError::InvalidArgument);
         }
 
-        // Account 2: Payer
+        // Account 2: Dispatch authority PDA.
+        let dispatch_authority_account = next_account_info(accounts_iter)?;
+        let (dispatch_authority_key, dispatch_authority_bump) = Pubkey::find_program_address(
+            mailbox_message_dispatch_authority_pda_seeds!(),
+            program_id,
+        );
+        if *dispatch_authority_account.key != dispatch_authority_key {
+            return Err(ProgramError::InvalidArgument);
+        }
+
+        // Account 3: Payer
         let payer_account = next_account_info(accounts_iter)?;
         if !payer_account.is_signer {
             return Err(ProgramError::MissingRequiredSignature);
@@ -158,10 +169,24 @@ where
             &[hyperlane_token_pda_seeds!(token_bump)],
         )?;
 
+        // Create dispatch authority PDA
+        invoke_signed(
+            &system_instruction::create_account(
+                payer_account.key,
+                dispatch_authority_account.key,
+                Rent::default().minimum_balance(0),
+                0,
+                program_id,
+            ),
+            &[payer_account.clone(), dispatch_authority_account.clone()],
+            &[mailbox_message_dispatch_authority_pda_seeds!(dispatch_authority_bump)],
+        )?;
+
         let token: HyperlaneToken<T> = HyperlaneToken {
             bump: token_bump,
             mailbox: init.mailbox,
             mailbox_local_domain: init.mailbox_local_domain,
+            dispatch_authority_bump,
             plugin_data,
         };
         HyperlaneTokenAccount::<T>::from(token).store(token_account, true)?;
@@ -174,12 +199,16 @@ where
     /// then dispatches a message to the remote recipient.
     ///
     /// Accounts:
-    /// 0.   [executable] The spl_noop program.
-    /// 1.   [] The token PDA account.
-    /// 2.   [executable] The mailbox program.
-    /// 3.   [writeable] The mailbox outbox account.
-    /// 4.   [signer] The token sender.
-    /// 5..N [??..??] Plugin-specific accounts.
+    /// 0.   [executable] The system program.
+    /// 1.   [executable] The spl_noop program.
+    /// 2.   [] The token PDA account.
+    /// 3.   [executable] The mailbox program.
+    /// 4.   [writeable] The mailbox outbox account.
+    /// 5.   [] Message dispatch authority.
+    /// 6.   [signer] The token sender and mailbox payer.
+    /// 7.   [signer] Unique message account.
+    /// 8.   [writeable] Message storage PDA.
+    /// 9..N [??..??] Plugin-specific accounts.
     pub fn transfer_remote(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -188,6 +217,12 @@ where
         let amount: u64 = xfer.amount_or_id.try_into().map_err(|_| Error::TODO)?;
 
         let accounts_iter = &mut accounts.iter();
+
+        // Account 0: System program.
+        let system_program_account = next_account_info(accounts_iter)?;
+        if system_program_account.key != &solana_program::system_program::id() {
+            return Err(ProgramError::InvalidArgument);
+        }
 
         // Account 0: SPL Noop
         let spl_noop = next_account_info(accounts_iter)?;
@@ -217,6 +252,7 @@ where
 
         // Account 3: Mailbox outbox data account
         // TODO should I be using find_program_address...?
+        // TODO why not just get it from the outbox account data?
         let mailbox_outbox_account = next_account_info(accounts_iter)?;
         let (mailbox_outbox, _mailbox_outbox_bump) = Pubkey::find_program_address(
             mailbox_outbox_pda_seeds!(token.mailbox_local_domain),
@@ -226,12 +262,32 @@ where
             return Err(ProgramError::InvalidArgument);
         }
 
-        // Account 4: Sender account
+        // Account 4: Message dispatch authority
+        let dispatch_authority_account = next_account_info(accounts_iter)?;
+        let dispatch_authority_seeds: &[&[u8]] = mailbox_message_dispatch_authority_pda_seeds!(token.dispatch_authority_bump);
+        let dispatch_authority_key = Pubkey::create_program_address(
+            dispatch_authority_seeds,
+            program_id,
+        )?;
+        if *dispatch_authority_account.key != dispatch_authority_key {
+            return Err(ProgramError::InvalidArgument);
+        }
+
+        // Account 5: Sender account / mailbox payer
         let sender_wallet = next_account_info(accounts_iter)?;
         if !sender_wallet.is_signer {
             return Err(ProgramError::MissingRequiredSignature);
         }
 
+        // Account 6: Unique message account
+        // Defer to the checks in the Mailbox, no need to verify anything here.
+        let unique_message_account = next_account_info(accounts_iter)?;
+
+        // Account 7: Message storage PDA.
+        // Similarly defer to the checks in the Mailbox to ensure account validity.
+        let message_storage_pda = next_account_info(accounts_iter)?;
+
+        // Transfer tokens in...
         T::transfer_in(program_id, &*token, sender_wallet, accounts_iter, amount)?;
 
         if accounts_iter.next().is_some() {
@@ -241,7 +297,7 @@ where
         let token_xfer_message =
             TokenMessage::new(xfer.recipient, xfer.amount_or_id, vec![]).to_vec();
         let mailbox_ixn = MailboxIxn::OutboxDispatch(MailboxOutboxDispatch {
-            sender: *token_account.key,
+            sender: *program_id,
             local_domain: token.mailbox_local_domain,
             destination_domain: xfer.destination_domain,
             recipient: xfer.destination_program_id,
@@ -252,8 +308,12 @@ where
             data: mailbox_ixn.into_instruction_data().unwrap(),
             accounts: vec![
                 AccountMeta::new(*mailbox_outbox_account.key, false),
-                AccountMeta::new_readonly(*token_account.key, true),
+                AccountMeta::new_readonly(*dispatch_authority_account.key, true),
+                AccountMeta::new_readonly(solana_program::system_program::id(), false),
                 AccountMeta::new_readonly(spl_noop::id(), false),
+                AccountMeta::new(*sender_wallet.key, true),
+                AccountMeta::new_readonly(*unique_message_account.key, true),
+                AccountMeta::new(*message_storage_pda.key, false),
             ],
         };
         // TODO implement interchain gas payment via paymaster? dispatch_with_gas()?
@@ -261,10 +321,14 @@ where
             &mailbox_ixn,
             &[
                 mailbox_outbox_account.clone(),
-                token_account.clone(),
+                dispatch_authority_account.clone(),
+                system_program_account.clone(),
                 spl_noop.clone(),
+                sender_wallet.clone(),
+                unique_message_account.clone(),
+                message_storage_pda.clone()
             ],
-            &[token_seeds],
+            &[dispatch_authority_seeds],
         )?;
 
         let event = Event::new(EventSentTransferRemote {

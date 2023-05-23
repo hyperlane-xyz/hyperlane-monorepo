@@ -13,6 +13,7 @@ use hyperlane_sealevel_mailbox::{
         VERSION,
     },
     mailbox_authority_pda_seeds, mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds, spl_noop,
+    mailbox_message_dispatch_authority_pda_seeds, mailbox_message_storage_pda_seeds,
     ID as MAILBOX_PROG_ID,
 };
 use hyperlane_sealevel_recipient_echo::ID as RECIPIENT_ECHO_PROG_ID;
@@ -473,6 +474,8 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
         TokenSubCmd::Init(init) => {
             let (token_account, token_bump) =
                 Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &init.program_id);
+            let (dispatch_authority_account, _dispatch_authority_bump) =
+                Pubkey::find_program_address(mailbox_message_dispatch_authority_pda_seeds!(), &init.program_id);
 
             let ixn = HtInstruction::Init(HtInit {
                 mailbox: init.mailbox,
@@ -482,11 +485,13 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
             // Accounts:
             // 0.   [executable] The system program.
             // 1.   [writable] The token PDA account.
-            // 2.   [signer] The payer.
-            // 3..N [??..??] Plugin-specific accounts.
+            // 2.   [writable] The dispatch authority.
+            // 3.   [signer] The payer.
+            // 4..N [??..??] Plugin-specific accounts.
             let mut accounts = vec![
                 AccountMeta::new_readonly(system_program::id(), false),
                 AccountMeta::new(token_account, false),
+                AccountMeta::new(dispatch_authority_account, false),
                 AccountMeta::new(ctx.payer.pubkey(), true),
             ];
 
@@ -698,6 +703,15 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
 
             let (token_account, _token_bump) =
                 Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &xfer.program_id);
+            let (dispatch_authority_account, _dispatch_authority_bump) =
+                Pubkey::find_program_address(mailbox_message_dispatch_authority_pda_seeds!(), &xfer.program_id);
+            
+            let unique_message_account_keypair = Keypair::new();
+            let (message_storage_account, _message_storage_bump) = Pubkey::find_program_address(
+                mailbox_message_storage_pda_seeds!(&unique_message_account_keypair.pubkey()),
+                &xfer.mailbox,
+            );
+
             let (mailbox_outbox_account, _mailbox_outbox_bump) = Pubkey::find_program_address(
                 mailbox_outbox_pda_seeds!(xfer.mailbox_local_domain),
                 &xfer.mailbox,
@@ -714,18 +728,25 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
             // Burns the tokens from the sender's associated token account and
             // then dispatches a message to the remote recipient.
             //
-            // Accounts:
-            // 0. [executable] The spl_noop program.
-            // 1. [] The token PDA account.
-            // 2. [executable] The mailbox program.
-            // 3. [writeable] The mailbox outbox account.
-            // 4. [signer] The token sender.
+            // 0.   [executable] The system program.
+            // 0.   [executable] The spl_noop program.
+            // 1.   [] The token PDA account.
+            // 2.   [executable] The mailbox program.
+            // 3.   [writeable] The mailbox outbox account.
+            // 4.   [] Message dispatch authority.
+            // 5.   [writeable,signer] The token sender and mailbox payer.
+            // 6.   [signer] Unique message account.
+            // 7.   [writeable] Message storage PDA.
             let mut accounts = vec![
+                AccountMeta::new_readonly(solana_program::system_program::id(), false),
                 AccountMeta::new_readonly(spl_noop::id(), false),
-                AccountMeta::new(token_account, false),
+                AccountMeta::new_readonly(token_account, false),
                 AccountMeta::new_readonly(xfer.mailbox, false),
                 AccountMeta::new(mailbox_outbox_account, false),
+                AccountMeta::new_readonly(dispatch_authority_account, false),
                 AccountMeta::new(sender.pubkey(), true),
+                AccountMeta::new_readonly(unique_message_account_keypair.pubkey(), true),
+                AccountMeta::new(message_storage_account, false),
             ];
 
             match xfer.token_type {
@@ -776,7 +797,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
             let txn = Transaction::new_signed_with_payer(
                 &ctx.instructions,
                 Some(&ctx.payer.pubkey()),
-                &[&ctx.payer, &sender],
+                &[&ctx.payer, &sender, &unique_message_account_keypair],
                 recent_blockhash,
             );
 

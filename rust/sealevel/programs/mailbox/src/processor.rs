@@ -107,6 +107,49 @@ macro_rules! mailbox_outbox_pda_seeds {
     }};
 }
 
+/// Gets the PDA seeds for a message storage account that's
+/// based upon the pubkey of a unique message account.
+#[macro_export]
+macro_rules! mailbox_message_storage_pda_seeds {
+    ($unique_message_pubkey:expr) => {{
+        &[
+            b"hyperlane",
+            b"-",
+            b"dispatched_message",
+            b"-",
+            $unique_message_pubkey.as_ref(),
+        ]
+    }};
+
+    ($unique_message_pubkey:expr, $bump_seed:expr) => {{
+        &[
+            b"hyperlane",
+            b"-",
+            b"dispatched_message",
+            b"-",
+            $unique_message_pubkey.as_ref(),
+            &[$bump_seed],
+        ]
+    }};
+}
+
+/// The PDA seeds relating to a program's dispatch authority.
+#[macro_export]
+macro_rules! mailbox_message_dispatch_authority_pda_seeds {
+    () => {{
+        &[
+            b"hyperlane_dispatcher", b"-", b"dispatch_authority",
+        ]
+    }};
+
+    ($bump_seed:expr) => {{
+        &[
+            b"hyperlane_dispatcher", b"-", b"dispatch_authority",
+            &[$bump_seed],
+        ]
+    }};
+}
+
 pub fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -387,10 +430,22 @@ fn inbox_set_default_ism(
     Ok(())
 }
 
-// Accounts:
-// 1. outbox pda
-// 2. sender
-// 3. spl_noop
+/// Dispatches a message.
+/// If the message sender is a program, the message sender signer *must* be
+/// the PDA for the sending program with the seeds `mailbox_message_dispatch_authority_pda_seeds!()`.
+/// in order for the sender field of the message to be set to the sending program
+/// ID. Otherwise, the sender field of the message is set to the message sender signer.
+/// 
+/// Accounts:
+/// 
+/// 0. [writeable] Outbox PDA.
+/// 1. [signer] Message sender signer.
+/// 2. [executable] System program.
+/// 3. [executable] SPL Noop program.
+/// 4. [signer] Payer.
+/// 5. [signer] Unique message account.
+/// 6. [writeable] Message storage PDA. An empty message PDA relating to the seeds
+///    `mailbox_message_dispatch_authority_pda_seeds` where the message contents will be stored.
 fn outbox_dispatch(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -398,33 +453,89 @@ fn outbox_dispatch(
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
+    // Account 0: Outbox PDA.
     let outbox_account = next_account_info(accounts_iter)?;
     let mut outbox = OutboxAccount::fetch(&mut &outbox_account.data.borrow_mut()[..])?.into_inner();
     let expected_outbox_key = Pubkey::create_program_address(
         mailbox_outbox_pda_seeds!(dispatch.local_domain, outbox.outbox_bump_seed),
         program_id,
     )?;
-    if outbox_account.key != &expected_outbox_key {
-        return Err(ProgramError::InvalidArgument);
-    }
-    if outbox_account.owner != program_id {
+    if outbox_account.key != &expected_outbox_key || outbox_account.owner != program_id {
         return Err(ProgramError::IncorrectProgramId);
     }
-    let sender = next_account_info(accounts_iter)?;
-    if dispatch.sender != *sender.key {
+    if !outbox_account.is_writable {
         return Err(ProgramError::InvalidArgument);
     }
-    if !sender.is_signer || sender.executable {
+
+    // Account 1: Message sender signer.
+    let sender_signer = next_account_info(accounts_iter)?;
+    if !sender_signer.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
     }
+    // If the sender signer key differs from the specified dispatch.sender,
+    // we need to confirm that the sender signer has the authority to sign
+    // on behalf of the dispatch.sender!
+    if *sender_signer.key != dispatch.sender {
+        // TODO would be great to have the bump in here...
+        // Maybe shove it into the data of the sender_signer?
+        let (expected_signer_key, _expected_signer_bump) = Pubkey::find_program_address(
+            mailbox_message_dispatch_authority_pda_seeds!(),
+            &dispatch.sender,
+        );
+        // If the sender_signer isn't the expected dispatch authority for the
+        // specified dispatch.sender, fail.
+        if expected_signer_key != *sender_signer.key {
+            return Err(ProgramError::MissingRequiredSignature);
+        }
+    }
+
+    // Account 2: System program.
+    let system_program_account = next_account_info(accounts_iter)?;
+    if system_program_account.key != &solana_program::system_program::id() {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    // Account 3: SPL Noop program.
     let spl_noop = next_account_info(accounts_iter)?;
     if spl_noop.key != &spl_noop::id() || !spl_noop.executable {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    // Account 4: Payer.
+    let payer_account = next_account_info(accounts_iter)?;
+    if !payer_account.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+
+    // Account 5: Unique message account.
+    let unique_message_account = next_account_info(accounts_iter)?;
+    // Require the unique message account to be empty.
+    // TODO ^ is this really required?
+    if !unique_message_account.data_is_empty() || unique_message_account.lamports() > 0 {
+        return Err(ProgramError::InvalidArgument);
+    }
+    if !unique_message_account.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+
+    // Account 6: Message storage PDA.
+    let message_storage_pda = next_account_info(accounts_iter)?;
+    let (message_storage_key, message_storage_bump) = Pubkey::find_program_address(
+        mailbox_message_storage_pda_seeds!(unique_message_account.key),
+        program_id,
+    );
+    if message_storage_key != *message_storage_pda.key {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+    // Make sure an account can't be written to that already exists.
+    if !message_storage_pda.data_is_empty() || *message_storage_pda.owner != solana_program::system_program::id() {
         return Err(ProgramError::InvalidArgument);
     }
 
     if accounts_iter.next().is_some() {
         return Err(ProgramError::from(Error::ExtraneousAccount));
     }
+
     if dispatch.message_body.len() > MAX_MESSAGE_BODY_BYTES {
         return Err(ProgramError::from(Error::MaxMessageSizeExceeded));
     }
@@ -451,6 +562,27 @@ fn outbox_dispatch(
     let id = message.id();
     outbox.tree.ingest(id);
 
+    println!("before message storage creation?");
+
+    // Create the message storage PDA.
+    // [0:1]  Initialized flag
+    // [1:2]  Message storage format version
+    // [2:34] Unique message account pubkey
+    // [34:34 + message.len()] Encoded message
+    let message_storage_account_size: usize = 1 + 1 + 32 + formatted.len();
+    invoke_signed(
+        &system_instruction::create_account(
+            payer_account.key,
+            message_storage_pda.key,
+            Rent::default().minimum_balance(message_storage_account_size),
+            message_storage_account_size.try_into().unwrap(),
+            program_id,
+        ),
+        &[payer_account.clone(), message_storage_pda.clone()],
+        &[mailbox_message_storage_pda_seeds!(unique_message_account.key, message_storage_bump)],
+    )?;
+
+    // TODO I think I can remove this
     let noop_cpi_log = Instruction {
         program_id: *spl_noop.key,
         accounts: vec![],

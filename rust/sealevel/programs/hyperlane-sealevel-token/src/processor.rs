@@ -80,9 +80,10 @@ pub fn process_instruction(
 /// Accounts:
 /// 0. [executable] The system program.
 /// 1. [writable] The token PDA account.
-/// 2. [writable] The mint / mint authority PDA account.
-/// 3. [writable] The ATA payer PDA account.
-/// 4. [signer] The payer.
+/// 2. [writable] The dispatch authority PDA account.
+/// 3. [signer] The payer.
+/// 4. [writable] The mint / mint authority PDA account.
+/// 5. [writable] The ATA payer PDA account.
 fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramResult {
     HyperlaneSealevelToken::<SyntheticPlugin>::initialize(program_id, accounts, init)
 }
