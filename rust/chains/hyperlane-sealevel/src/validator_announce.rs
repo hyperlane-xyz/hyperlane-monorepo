@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 
 use hyperlane_core::{
-    ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    ValidatorAnnounce, H256, U256, TxOutcome, Announcement, SignedType,
+    Announcement, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    SignedType, TxOutcome, ValidatorAnnounce, H256, U256,
 };
 use tracing::instrument;
 

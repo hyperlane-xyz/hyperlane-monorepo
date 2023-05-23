@@ -1,10 +1,10 @@
 use async_trait::async_trait;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster,
-    InterchainGasPayment, LogMeta, H256,
+    HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster, InterchainGasPayment,
+    LogMeta, H256,
 };
-use tracing::{warn, instrument};
+use tracing::{instrument, warn};
 
 use crate::{
     solana::{

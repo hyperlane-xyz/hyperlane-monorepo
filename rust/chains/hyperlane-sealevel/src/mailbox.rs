@@ -12,8 +12,8 @@ use borsh::BorshDeserialize;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, Decode as _, Encode as _,
     HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProvider, Indexer, LogMeta, Mailbox, TxCostEstimate, TxOutcome, H256,
-    U256, MessageIndexer,
+    HyperlaneProvider, Indexer, LogMeta, Mailbox, MessageIndexer, TxCostEstimate, TxOutcome, H256,
+    U256,
 };
 use tracing::{debug, error, instrument, trace, warn};
 
@@ -909,11 +909,7 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
 
 #[async_trait]
 impl Indexer<H256> for SealevelMailboxIndexer {
-    async fn fetch_logs(
-        &self,
-        from: u32,
-        to: u32,
-    ) -> ChainResult<Vec<(H256, LogMeta)>> {
+    async fn fetch_logs(&self, from: u32, to: u32) -> ChainResult<Vec<(H256, LogMeta)>> {
         todo!()
     }
 
