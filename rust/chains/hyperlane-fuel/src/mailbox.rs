@@ -4,14 +4,13 @@ use std::num::NonZeroU64;
 
 use async_trait::async_trait;
 use fuels::prelude::{Bech32ContractId, WalletUnlocked};
-use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use tracing::instrument;
 
 use hyperlane_core::{
-    utils::fmt_bytes, ChainCommunicationError, ChainResult, Checkpoint, ContractLocator,
-    HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProvider, Indexer, LogMeta, Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256,
-    U256,
+    accumulator::incremental::IncrementalMerkle, utils::fmt_bytes, ChainCommunicationError,
+    ChainResult, Checkpoint, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox,
+    TxCostEstimate, TxOutcome, H256, U256,
 };
 
 use crate::{
@@ -153,15 +152,8 @@ impl Mailbox for FuelMailbox {
 pub struct FuelMailboxIndexer {}
 
 #[async_trait]
-impl Indexer for FuelMailboxIndexer {
-    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        todo!()
-    }
-}
-
-#[async_trait]
-impl MailboxIndexer for FuelMailboxIndexer {
-    async fn fetch_sorted_messages(
+impl Indexer<HyperlaneMessage> for FuelMailboxIndexer {
+    async fn fetch_logs(
         &self,
         from: u32,
         to: u32,
@@ -169,11 +161,18 @@ impl MailboxIndexer for FuelMailboxIndexer {
         todo!()
     }
 
-    async fn fetch_delivered_messages(
-        &self,
-        from: u32,
-        to: u32,
-    ) -> ChainResult<Vec<(H256, LogMeta)>> {
+    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+        todo!()
+    }
+}
+
+#[async_trait]
+impl Indexer<H256> for FuelMailboxIndexer {
+    async fn fetch_logs(&self, from: u32, to: u32) -> ChainResult<Vec<(H256, LogMeta)>> {
+        todo!()
+    }
+
+    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         todo!()
     }
 }

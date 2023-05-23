@@ -4,16 +4,17 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use eyre::Result;
+use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use prometheus::IntGauge;
-use tokio::{task::JoinHandle, time::sleep};
+use tokio::time::sleep;
 
-use hyperlane_base::{CachingMailbox, CheckpointSyncer, CoreMetrics};
-use tracing::{debug, error, info, info_span, instrument::Instrumented, trace, warn, Instrument};
+use hyperlane_base::{CheckpointSyncer, CoreMetrics};
+use tracing::{debug, info, trace};
 
 use hyperlane_core::{
-    Announcement, Checkpoint, CheckpointWithMessageId, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox, ValidatorAnnounce, H256, U256,
+    Checkpoint, CheckpointWithMessageId, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneSigner, HyperlaneSignerExt, Mailbox,
 };
 
 #[derive(Clone)]
@@ -21,9 +22,9 @@ pub(crate) struct ValidatorSubmitter {
     interval: Duration,
     reorg_period: Option<NonZeroU64>,
     signer: Arc<dyn HyperlaneSigner>,
-    mailbox: CachingMailbox,
-    validator_announce: Arc<dyn ValidatorAnnounce>,
+    mailbox: Arc<dyn Mailbox>,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
+    message_db: HyperlaneRocksDB,
     metrics: ValidatorSubmitterMetrics,
 }
 
@@ -31,31 +32,21 @@ impl ValidatorSubmitter {
     pub(crate) fn new(
         interval: Duration,
         reorg_period: u64,
-        mailbox: CachingMailbox,
-        validator_announce: Arc<dyn ValidatorAnnounce>,
+        mailbox: Arc<dyn Mailbox>,
         signer: Arc<dyn HyperlaneSigner>,
         checkpoint_syncer: Arc<dyn CheckpointSyncer>,
+        message_db: HyperlaneRocksDB,
         metrics: ValidatorSubmitterMetrics,
     ) -> Self {
         Self {
             reorg_period: NonZeroU64::new(reorg_period),
             interval,
             mailbox,
-            validator_announce,
             signer,
             checkpoint_syncer,
+            message_db,
             metrics,
         }
-    }
-
-    pub(crate) fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
-        let span = info_span!("ValidatorSubmitter");
-        tokio::spawn(async move { self.checkpoint_submitter().await }).instrument(span)
-    }
-
-    pub(crate) fn spawn_legacy(self) -> Instrumented<JoinHandle<Result<()>>> {
-        let span = info_span!("LegacyValidatorSubmitter");
-        tokio::spawn(async move { self.legacy_checkpoint_submitter().await }).instrument(span)
     }
 
     /// validate local tree's root against latest checkpoint root
@@ -89,79 +80,21 @@ impl ValidatorSubmitter {
         Ok(tree.count())
     }
 
-    async fn announce_task(&self) -> Result<()> {
-        // Sign and post the validator announcement
-        let announcement = Announcement {
-            validator: self.signer.eth_address(),
-            mailbox_address: self.mailbox.address(),
-            mailbox_domain: self.mailbox.domain().id(),
-            storage_location: self.checkpoint_syncer.announcement_location(),
-        };
-        let signed_announcement = self.signer.sign(announcement.clone()).await?;
-        self.checkpoint_syncer
-            .write_announcement(&signed_announcement)
-            .await?;
-
-        // Ensure that the validator has announced themselves before we enter
-        // the main validator submit loop. This is to avoid a situation in
-        // which the validator is signing checkpoints but has not announced
-        // their locations, which makes them functionally unusable.
-        let validators: [H256; 1] = [self.signer.eth_address().into()];
-        loop {
-            info!("Checking for validator announcement");
-            if let Some(locations) = self
-                .validator_announce
-                .get_announced_storage_locations(&validators)
-                .await?
-                .first()
-            {
-                if locations.contains(&self.checkpoint_syncer.announcement_location()) {
-                    info!("Validator has announced signature storage location");
-                    break;
-                }
-                info!("Validator has not announced signature storage location");
-                let balance_delta = self
-                    .validator_announce
-                    .announce_tokens_needed(signed_announcement.clone())
-                    .await?;
-                if balance_delta > U256::zero() {
-                    warn!(
-                        tokens_needed=%balance_delta,
-                        validator_address=?announcement.validator,
-                        "Please send tokens to the validator address to announce",
-                    );
-                } else {
-                    let outcome = self
-                        .validator_announce
-                        .announce(signed_announcement.clone(), None)
-                        .await?;
-                    if !outcome.executed {
-                        error!(
-                            hash=?outcome.txid,
-                            "Transaction attempting to announce validator reverted"
-                        );
-                    }
-                }
-            }
-            sleep(self.interval).await;
-        }
-        Ok(())
-    }
-
-    async fn checkpoint_submitter(self) -> Result<()> {
-        self.announce_task().await?;
-
-        // initialize local copy of incremental merkle tree
-        let mut tree = self.mailbox.tree(self.reorg_period).await?;
-
+    pub(crate) async fn checkpoint_submitter(
+        self,
+        mut tree: IncrementalMerkle,
+        target_count: Option<u32>,
+    ) -> Result<()> {
         let mut latest_count_checked = self.check_consistency(&tree).await?;
 
         loop {
             // poll DB for message IDs to ingest
-            while let Some(message_id) =
-                self.mailbox.db().message_id_by_nonce(tree.count() as u32)?
+            while let Some(message) = self
+                .message_db
+                .retrieve_message_by_nonce(tree.count() as u32)?
             {
-                debug!(message_id=?message_id, "Ingest message ID to tree");
+                debug!(nonce = message.nonce, "Ingesting leaf to tree");
+                let message_id = message.id();
                 tree.ingest(message_id);
 
                 let checkpoint_with_id = CheckpointWithMessageId {
@@ -190,11 +123,24 @@ impl ValidatorSubmitter {
                 latest_count_checked = self.check_consistency(&tree).await?;
             }
 
+            // if target nonce is specified, stop submitting checkpoints after reaching target
+            if let Some(target_count) = target_count {
+                if tree.count() as u32 >= target_count {
+                    info!("Reached target count, stopping checkpoint submission");
+                    break;
+                }
+            }
+
             sleep(self.interval).await;
+        }
+
+        // hack to prevent the backfill task from exiting
+        loop {
+            sleep(Duration::from_secs(60 * 60)).await;
         }
     }
 
-    async fn legacy_checkpoint_submitter(self) -> Result<()> {
+    pub(crate) async fn legacy_checkpoint_submitter(self) -> Result<()> {
         // Ensure that the mailbox has > 0 messages before we enter the main
         // validator submit loop. This is to avoid an underflow / reverted
         // call when we invoke the `mailbox.latest_checkpoint()` method,
@@ -234,7 +180,6 @@ impl ValidatorSubmitter {
             true
         };
 
-        info!(current_index = current_index, "Starting Validator");
         loop {
             // Check the latest checkpoint
             let latest_checkpoint = self.mailbox.latest_checkpoint(self.reorg_period).await?;

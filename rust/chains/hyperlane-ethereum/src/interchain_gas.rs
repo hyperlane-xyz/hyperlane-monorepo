@@ -11,7 +11,7 @@ use tracing::instrument;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster,
-    InterchainGasPaymasterIndexer, InterchainGasPayment, LogMeta, H160, H256,
+    InterchainGasPayment, LogMeta, H160, H256,
 };
 
 use crate::contracts::i_interchain_gas_paymaster::{
@@ -36,7 +36,7 @@ pub struct InterchainGasPaymasterIndexerBuilder {
 
 #[async_trait]
 impl BuildableWithProvider for InterchainGasPaymasterIndexerBuilder {
-    type Output = Box<dyn InterchainGasPaymasterIndexer>;
+    type Output = Box<dyn Indexer<InterchainGasPayment>>;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
@@ -80,29 +80,12 @@ where
 }
 
 #[async_trait]
-impl<M> Indexer for EthereumInterchainGasPaymasterIndexer<M>
-where
-    M: Middleware + 'static,
-{
-    #[instrument(level = "debug", err, ret, skip(self))]
-    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        Ok(self
-            .provider
-            .get_block_number()
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .as_u32()
-            .saturating_sub(self.finality_blocks))
-    }
-}
-
-#[async_trait]
-impl<M> InterchainGasPaymasterIndexer for EthereumInterchainGasPaymasterIndexer<M>
+impl<M> Indexer<InterchainGasPayment> for EthereumInterchainGasPaymasterIndexer<M>
 where
     M: Middleware + 'static,
 {
     #[instrument(err, skip(self))]
-    async fn fetch_gas_payments(
+    async fn fetch_logs(
         &self,
         from_block: u32,
         to_block: u32,
@@ -128,6 +111,17 @@ where
                 )
             })
             .collect())
+    }
+
+    #[instrument(level = "debug", err, ret, skip(self))]
+    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+        Ok(self
+            .provider
+            .get_block_number()
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .as_u32()
+            .saturating_sub(self.finality_blocks))
     }
 }
 

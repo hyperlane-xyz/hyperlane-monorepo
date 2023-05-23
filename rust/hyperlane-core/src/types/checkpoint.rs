@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use derive_more::Deref;
 use ethers_core::types::{Address, Signature};
 use serde::{Deserialize, Serialize};
@@ -30,7 +29,6 @@ pub struct CheckpointWithMessageId {
     pub message_id: H256,
 }
 
-#[async_trait]
 impl Signable for Checkpoint {
     /// A hash of the checkpoint contents.
     /// The EIP-191 compliant version of this hash is signed by validators.
@@ -48,7 +46,6 @@ impl Signable for Checkpoint {
     }
 }
 
-#[async_trait]
 impl Signable for CheckpointWithMessageId {
     /// A hash of the checkpoint contents.
     /// The EIP-191 compliant version of this hash is signed by validators.
@@ -67,27 +64,18 @@ impl Signable for CheckpointWithMessageId {
     }
 }
 
-/// A checkpoint that has been signed.
+/// Signed checkpoint
 pub type SignedCheckpoint = SignedType<Checkpoint>;
-/// A (checkpoint, messageId) tuple that has been signed.
+/// Signed (checkpoint, messageId) tuple
 pub type SignedCheckpointWithMessageId = SignedType<CheckpointWithMessageId>;
 
 /// An individual signed checkpoint with the recovered signer
 #[derive(Clone, Debug)]
-pub struct SignedCheckpointWithSigner {
+pub struct SignedCheckpointWithSigner<T: Signable> {
     /// The recovered signer
     pub signer: Address,
     /// The signed checkpoint
-    pub signed_checkpoint: SignedCheckpoint,
-}
-
-/// An individual signed checkpoint with the recovered signer
-#[derive(Clone, Debug)]
-pub struct SignedCheckpointWithMessageIdWithSigner {
-    /// The recovered signer
-    pub signer: Address,
-    /// The signed checkpoint
-    pub signed_checkpoint: SignedCheckpointWithMessageId,
+    pub signed_checkpoint: SignedType<T>,
 }
 
 /// A signature and its signer.
@@ -101,18 +89,9 @@ pub struct SignatureWithSigner {
 
 /// A checkpoint and multiple signatures
 #[derive(Clone, Debug)]
-pub struct MultisigSignedCheckpoint {
+pub struct MultisigSignedCheckpoint<T> {
     /// The checkpoint
-    pub checkpoint: Checkpoint,
-    /// Signatures over the checkpoint. No ordering guarantees.
-    pub signatures: Vec<SignatureWithSigner>,
-}
-
-/// A checkpoint and multiple signatures
-#[derive(Clone, Debug)]
-pub struct MultisigSignedCheckpointWithMessageId {
-    /// The checkpoint
-    pub checkpoint: CheckpointWithMessageId,
+    pub checkpoint: T,
     /// Signatures over the checkpoint. No ordering guarantees.
     pub signatures: Vec<SignatureWithSigner>,
 }
@@ -128,12 +107,16 @@ pub enum MultisigSignedCheckpointError {
     EmptySignatures(),
 }
 
-impl TryFrom<&Vec<SignedCheckpointWithSigner>> for MultisigSignedCheckpoint {
+impl<T: Signable + Eq + Copy> TryFrom<&Vec<SignedCheckpointWithSigner<T>>>
+    for MultisigSignedCheckpoint<T>
+{
     type Error = MultisigSignedCheckpointError;
 
     /// Given multiple signed checkpoints with their signer, creates a
     /// MultisigSignedCheckpoint
-    fn try_from(signed_checkpoints: &Vec<SignedCheckpointWithSigner>) -> Result<Self, Self::Error> {
+    fn try_from(
+        signed_checkpoints: &Vec<SignedCheckpointWithSigner<T>>,
+    ) -> Result<Self, Self::Error> {
         if signed_checkpoints.is_empty() {
             return Err(MultisigSignedCheckpointError::EmptySignatures());
         }
@@ -149,7 +132,7 @@ impl TryFrom<&Vec<SignedCheckpointWithSigner>> for MultisigSignedCheckpoint {
 
         let signatures = signed_checkpoints
             .iter()
-            .map(|c| SignatureWithSigner {
+            .map(|c: &SignedCheckpointWithSigner<T>| SignatureWithSigner {
                 signature: c.signed_checkpoint.signature,
                 signer: c.signer,
             })
