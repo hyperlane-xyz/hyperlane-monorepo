@@ -18,15 +18,19 @@ use hyperlane_core::{
 use tracing::{debug, error, instrument, trace, warn};
 
 use crate::{
+    mailbox::contract::DispatchedMessageAccount,
+    mailbox_message_storage_pda_seeds,
     solana::{
         account::Account,
+        account_decoder::{UiAccountEncoding, UiDataSliceConfig},
         commitment_config::CommitmentConfig,
         hash::Hash,
         instruction::{AccountMeta, Instruction},
         message::Message,
         nonblocking_rpc_client::RpcClient,
         pubkey::Pubkey,
-        rpc_config::RpcSendTransactionConfig,
+        rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig, RpcSendTransactionConfig},
+        rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType},
         signature::Signature,
         signer::{keypair::Keypair, Signer as _},
         transaction::{Transaction, VersionedTransaction},
@@ -39,7 +43,9 @@ use crate::{
     /*make_provider,*/ ConnectionConf, SealevelProvider,
 };
 
-use self::contract::{SerializableAccountMeta, SimulationReturnData};
+use self::contract::{
+    SerializableAccountMeta, SimulationReturnData, DISPATCHED_MESSAGE_DISCRIMINATOR,
+};
 
 // FIXME solana uses the first 64 byte signature of a transaction to uniquely identify the
 // transaction rather than a 32 byte transaction hash like ethereum. Hash it here to reduce
@@ -758,6 +764,111 @@ impl SealevelMailboxIndexer {
         Ok(height)
     }
 
+    async fn get_message_with_nonce(&self, nonce: u32) -> ChainResult<(HyperlaneMessage, LogMeta)> {
+        let target_message_account_bytes = &[
+            &DISPATCHED_MESSAGE_DISCRIMINATOR[..],
+            &nonce.to_be_bytes()[..],
+        ]
+        .concat();
+        let target_message_account_bytes = base64::encode(target_message_account_bytes);
+
+        // First, find all accounts with the matching account data.
+        // To keep responses small in case there is ever more than 1
+        // match, we don't request the full account data, and just request
+        // the `unique_message_pubkey` field.
+        let memcmp = RpcFilterType::Memcmp(Memcmp {
+            // Ignore the first byte, which is the `initialized` bool flag.
+            offset: 1,
+            bytes: MemcmpEncodedBytes::Base64(target_message_account_bytes),
+            encoding: None,
+        });
+        let config = RpcProgramAccountsConfig {
+            filters: Some(vec![memcmp]),
+            account_config: RpcAccountInfoConfig {
+                encoding: Some(UiAccountEncoding::Base64),
+                // Don't return any data
+                data_slice: Some(UiDataSliceConfig {
+                    offset: 1 + 8 + 4 + 8, // the offset to get the `unique_message_pubkey` field
+                    length: 32,            // the length of the `unique_message_pubkey` field
+                }),
+                commitment: Some(CommitmentConfig::finalized()),
+                min_context_slot: None,
+            },
+            with_context: Some(false),
+        };
+        let accounts = self
+            .rpc_client
+            .0
+            .get_program_accounts_with_config(&self.mailbox.program_id, config)
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+
+        println!("get_message_with_nonce matching accounts {:?}", accounts);
+
+        // Now loop through matching accounts and find the one with a valid account pubkey
+        // that proves it's an actual message storage PDA.
+        let mut valid_message_storage_pda_pubkey = Option::<Pubkey>::None;
+
+        for (pubkey, account) in accounts.iter() {
+            let unique_message_pubkey = Pubkey::new(&account.data);
+            let (expected_pubkey, _bump) = Pubkey::try_find_program_address(
+                mailbox_message_storage_pda_seeds!(unique_message_pubkey),
+                &self.mailbox.program_id,
+            )
+            .ok_or_else(|| {
+                ChainCommunicationError::from_other_str(
+                    "Could not find program address for unique_message_pubkey",
+                )
+            })?;
+            if expected_pubkey == *pubkey {
+                valid_message_storage_pda_pubkey = Some(*pubkey);
+                break;
+            }
+        }
+
+        let valid_message_storage_pda_pubkey =
+            valid_message_storage_pda_pubkey.ok_or_else(|| {
+                ChainCommunicationError::from_other_str(
+                    "Could not find valid message storage PDA pubkey",
+                )
+            })?;
+
+        // Now that we have the valid message storage PDA pubkey, we can get the full account data.
+        let account = self
+            .rpc_client
+            .0
+            .get_account_with_commitment(
+                &valid_message_storage_pda_pubkey,
+                CommitmentConfig::finalized(),
+            )
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .value
+            .ok_or_else(|| {
+                ChainCommunicationError::from_other_str("Could not find account data")
+            })?;
+        let dispatched_message_account =
+            DispatchedMessageAccount::fetch(&mut account.data.as_ref())
+                .map_err(ChainCommunicationError::from_other)?
+                .into_inner();
+        let hyperlane_message =
+            HyperlaneMessage::read_from(&mut &dispatched_message_account.encoded_message[..])?;
+
+        Ok((
+            hyperlane_message,
+            LogMeta {
+                address: self.mailbox.program_id.to_bytes().into(),
+                block_number: dispatched_message_account.slot,
+                // TODO real values?
+                // It's inconvenient to get these :|
+                block_hash: H256::zero(),
+                transaction_hash: H256::zero(),
+                transaction_index: 0,
+                log_index: U256::zero(),
+            },
+        ))
+    }
+
     fn extract_hyperlane_messages(
         &self,
         slot: u64,
@@ -869,41 +980,57 @@ impl MessageIndexer for SealevelMailboxIndexer {
 impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
     async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
         let (from, to) = match range {
-            IndexRange::Blocks(from, to) => (from, to),
-            IndexRange::Sequences(_, _) => {
+            IndexRange::Blocks(from, to) => {
                 return Err(ChainCommunicationError::from_other_str(
-                    "SealevelMailboxIndexer does not support sequence-based indexing",
+                    "SealevelMailboxIndexer does not support block-based indexing",
                 ))
             }
+            IndexRange::Sequences(from, to) => (from, to),
         };
 
-        // TODO
-        // Could use this RPC: https://docs.solana.com/developing/clients/jsonrpc-api#getblockswithlimit
-        // BUT... that seems like an inefficient way of getting updates from the mailbox. Why not
-        // either poll the mailbox account data directly or subscribe to updates? See
-        // https://docs.solana.com/developing/clients/jsonrpc-api#getaccountinfo
-        // https://docs.solana.com/developing/clients/jsonrpc-api#accountsubscribe
-        // This would require a change to where we output events however so maybe not worth it.
-        let limit = (to - from).try_into().unwrap();
-        let slots = self
-            .rpc_client
-            .0
-            .get_blocks_with_limit_and_commitment(from.into(), limit, CommitmentConfig::finalized())
-            .await
-            .map_err(ChainCommunicationError::from_other)?;
-        // FIXME need to check that the returned block numbers are contiguous and that we have all
-        // block numbers that we requested.
+        tracing::info!(
+            "Fetching SealevelMailboxIndexer HyperlaneMessage logs from {} to {}",
+            from,
+            to
+        );
 
-        let mut messages = Vec::with_capacity(limit);
-        for slot in slots.into_iter() {
-            let block = self
-                .rpc_client
-                .0
-                .get_block(slot)
-                .await
-                .map_err(ChainCommunicationError::from_other)?;
-            messages.extend(self.extract_hyperlane_messages(slot, block));
+        let expected_count: usize = (to - from)
+            .try_into()
+            .map_err(ChainCommunicationError::from_other)?;
+        let mut messages = Vec::with_capacity(expected_count);
+        for nonce in from..to {
+            messages.push(self.get_message_with_nonce(nonce).await?);
         }
+
+        // // TODO
+        // // Could use this RPC: https://docs.solana.com/developing/clients/jsonrpc-api#getblockswithlimit
+        // // BUT... that seems like an inefficient way of getting updates from the mailbox. Why not
+        // // either poll the mailbox account data directly or subscribe to updates? See
+        // // https://docs.solana.com/developing/clients/jsonrpc-api#getaccountinfo
+        // // https://docs.solana.com/developing/clients/jsonrpc-api#accountsubscribe
+        // // This would require a change to where we output events however so maybe not worth it.
+        // let limit = (to - from).try_into().unwrap();
+        // let slots = self
+        //     .rpc_client
+        //     .0
+        //     .get_blocks_with_limit_and_commitment(from.into(), limit, CommitmentConfig::finalized())
+        //     .await
+        //     .map_err(ChainCommunicationError::from_other)?;
+        // // FIXME need to check that the returned block numbers are contiguous and that we have all
+        // // block numbers that we requested.
+
+        // let mut messages = Vec::with_capacity(limit);
+        // for slot in slots.into_iter() {
+        //     let block = self
+        //         .rpc_client
+        //         .0
+        //         .get_block(slot)
+        //         .await
+        //         .map_err(ChainCommunicationError::from_other)?;
+        //     messages.extend(self.extract_hyperlane_messages(slot, block));
+        // }
+        // Ok(messages)
+
         Ok(messages)
     }
 
@@ -941,17 +1068,19 @@ mod contract {
 
     use super::*;
 
-    use std::collections::HashSet;
+    use std::{collections::HashSet, io::Read};
 
     use borsh::{BorshDeserialize, BorshSerialize};
     use hyperlane_core::accumulator::incremental::IncrementalMerkle as MerkleTree;
 
-    use crate::solana::instruction::AccountMeta;
+    use crate::solana::{clock::Slot, instruction::AccountMeta};
 
     pub static DEFAULT_ISM: &'static str = "6TCwgXydobJUEqabm7e6SL4FMdiFDvp1pmYoL6xXmRJq";
     pub static DEFAULT_ISM_ACCOUNTS: [&'static str; 0] = [];
 
     pub static SPL_NOOP: &str = "GpiNbGLpyroc8dFKPhK55eQhhvWn3XUaXJFp5fk5aXUs";
+
+    pub const DISPATCHED_MESSAGE_DISCRIMINATOR: &[u8; 8] = b"DISPATCH";
 
     pub trait Data: BorshDeserialize + BorshSerialize + Default {}
     impl<T> Data for T where T: BorshDeserialize + BorshSerialize + Default {}
@@ -1197,6 +1326,104 @@ mod contract {
                 return_data,
                 trailing_byte: u8::MAX,
             }
+        }
+    }
+
+    /// Gets the PDA seeds for a message storage account that's
+    /// based upon the pubkey of a unique message account.
+    #[macro_export]
+    macro_rules! mailbox_message_storage_pda_seeds {
+        ($unique_message_pubkey:expr) => {{
+            &[
+                b"hyperlane",
+                b"-",
+                b"dispatched_message",
+                b"-",
+                $unique_message_pubkey.as_ref(),
+            ]
+        }};
+
+        ($unique_message_pubkey:expr, $bump_seed:expr) => {{
+            &[
+                b"hyperlane",
+                b"-",
+                b"dispatched_message",
+                b"-",
+                $unique_message_pubkey.as_ref(),
+                &[$bump_seed],
+            ]
+        }};
+    }
+
+    pub type DispatchedMessageAccount = AccountData<DispatchedMessage>;
+
+    #[derive(Debug, Default)]
+    pub struct DispatchedMessage {
+        pub discriminator: [u8; 8],
+        pub nonce: u32,
+        pub slot: Slot,
+        pub unique_message_pubkey: Pubkey,
+        pub encoded_message: Vec<u8>,
+    }
+
+    impl DispatchedMessage {
+        pub fn new(
+            nonce: u32,
+            slot: Slot,
+            unique_message_pubkey: Pubkey,
+            encoded_message: Vec<u8>,
+        ) -> Self {
+            Self {
+                discriminator: *DISPATCHED_MESSAGE_DISCRIMINATOR,
+                nonce,
+                slot,
+                unique_message_pubkey,
+                encoded_message,
+            }
+        }
+    }
+
+    impl BorshSerialize for DispatchedMessage {
+        fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+            writer.write_all(DISPATCHED_MESSAGE_DISCRIMINATOR)?;
+            writer.write_all(&self.nonce.to_be_bytes())?;
+            writer.write_all(&self.slot.to_be_bytes())?;
+            writer.write_all(&self.unique_message_pubkey.to_bytes())?;
+            writer.write_all(&self.encoded_message)?;
+            Ok(())
+        }
+    }
+
+    impl BorshDeserialize for DispatchedMessage {
+        fn deserialize(reader: &mut &[u8]) -> std::io::Result<Self> {
+            let mut discriminator = [0u8; 8];
+            reader.read_exact(&mut discriminator)?;
+            if &discriminator != DISPATCHED_MESSAGE_DISCRIMINATOR {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "invalid discriminator",
+                ));
+            }
+
+            let mut nonce = [0u8; 4];
+            reader.read_exact(&mut nonce)?;
+
+            let mut slot = [0u8; 8];
+            reader.read_exact(&mut slot)?;
+
+            let mut unique_message_pubkey = [0u8; 32];
+            reader.read_exact(&mut unique_message_pubkey)?;
+
+            let mut encoded_message = vec![];
+            reader.read_to_end(&mut encoded_message)?;
+
+            Ok(Self {
+                discriminator,
+                nonce: u32::from_be_bytes(nonce),
+                slot: u64::from_be_bytes(slot),
+                unique_message_pubkey: Pubkey::new_from_array(unique_message_pubkey),
+                encoded_message,
+            })
         }
     }
 }

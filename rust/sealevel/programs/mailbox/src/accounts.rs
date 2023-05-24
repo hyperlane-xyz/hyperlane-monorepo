@@ -1,10 +1,10 @@
 //! Hyperlane Sealevel Mailbox data account layouts.
 
-use std::{collections::HashSet, str::FromStr as _};
+use std::{collections::HashSet, str::FromStr as _, io::Read};
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{accumulator::incremental::IncrementalMerkle as MerkleTree, H256};
-use solana_program::{account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey};
+use solana_program::{account_info::AccountInfo, clock::Slot, program_error::ProgramError, pubkey::Pubkey};
 
 use crate::{error::Error, DEFAULT_ISM, DEFAULT_ISM_ACCOUNTS};
 
@@ -165,4 +165,79 @@ pub struct Outbox {
     pub auth_bump_seed: u8,
     pub outbox_bump_seed: u8,
     pub tree: MerkleTree,
+}
+
+pub type DispatchedMessageAccount = AccountData<DispatchedMessage>;
+
+// TODO change?
+const DISPATCHED_MESSAGE_DISCRIMINATOR: &[u8; 8] = b"DISPATCH";
+
+#[derive(Debug, Default)]
+pub struct DispatchedMessage {
+    pub discriminator: [u8; 8],
+    pub nonce: u32,
+    pub slot: Slot,
+    pub unique_message_pubkey: Pubkey,
+    pub encoded_message: Vec<u8>,
+}
+
+impl DispatchedMessage {
+    pub fn new(
+        nonce: u32,
+        slot: Slot,
+        unique_message_pubkey: Pubkey,
+        encoded_message: Vec<u8>,
+    ) -> Self {
+        Self {
+            discriminator: *DISPATCHED_MESSAGE_DISCRIMINATOR,
+            nonce,
+            slot,
+            unique_message_pubkey,
+            encoded_message,
+        }
+    }
+}
+
+impl BorshSerialize for DispatchedMessage {
+    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        writer.write_all(DISPATCHED_MESSAGE_DISCRIMINATOR)?;
+        writer.write_all(&self.nonce.to_be_bytes())?;
+        writer.write_all(&self.slot.to_be_bytes())?;
+        writer.write_all(&self.unique_message_pubkey.to_bytes())?;
+        writer.write_all(&self.encoded_message)?;
+        Ok(())
+    }
+}
+
+impl BorshDeserialize for DispatchedMessage {
+    fn deserialize(reader: &mut &[u8]) -> std::io::Result<Self> {
+        let mut discriminator = [0u8; 8];
+        reader.read_exact(&mut discriminator)?;
+        if &discriminator != DISPATCHED_MESSAGE_DISCRIMINATOR {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "invalid discriminator",
+            ));
+        }
+
+        let mut nonce = [0u8; 4];
+        reader.read_exact(&mut nonce)?;
+
+        let mut slot = [0u8; 8];
+        reader.read_exact(&mut slot)?;
+
+        let mut unique_message_pubkey = [0u8; 32];
+        reader.read_exact(&mut unique_message_pubkey)?;
+
+        let mut encoded_message = vec![];
+        reader.read_to_end(&mut encoded_message)?;
+
+        Ok(Self {
+            discriminator,
+            nonce: u32::from_be_bytes(nonce),
+            slot: u64::from_be_bytes(slot),
+            unique_message_pubkey: Pubkey::new_from_array(unique_message_pubkey),
+            encoded_message,
+        })
+    }
 }

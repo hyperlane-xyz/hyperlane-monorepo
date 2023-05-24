@@ -13,7 +13,7 @@ use solana_program::{
     program_error::ProgramError,
     pubkey::Pubkey,
     system_instruction,
-    sysvar::rent::Rent,
+    sysvar::{rent::Rent, clock::Clock, Sysvar},
 };
 
 use hyperlane_sealevel_interchain_security_module_interface::{
@@ -24,7 +24,7 @@ use hyperlane_sealevel_message_recipient_interface::{
 };
 
 use crate::{
-    accounts::{Inbox, InboxAccount, Outbox, OutboxAccount},
+    accounts::{Inbox, InboxAccount, Outbox, OutboxAccount, DispatchedMessage, DispatchedMessageAccount},
     error::Error,
     instruction::{
         InboxProcess, InboxSetDefaultModule, Init, Instruction as MailboxIxn, OutboxDispatch,
@@ -565,11 +565,14 @@ fn outbox_dispatch(
     println!("before message storage creation?");
 
     // Create the message storage PDA.
-    // [0:1]  Initialized flag
-    // [1:2]  Message storage format version
-    // [2:34] Unique message account pubkey
-    // [34:34 + message.len()] Encoded message
-    let message_storage_account_size: usize = 1 + 1 + 32 + formatted.len();
+    // 1  Initialized flag
+    // 8  Discriminator
+    // 4 Nonce
+
+    // 8  Slot number
+    // 32 Unique message account pubkey
+    // message.len() Encoded message
+    let message_storage_account_size: usize = 1 + 8 + 4 + 8 + 32 + formatted.len();
     invoke_signed(
         &system_instruction::create_account(
             payer_account.key,
@@ -581,6 +584,13 @@ fn outbox_dispatch(
         &[payer_account.clone(), message_storage_pda.clone()],
         &[mailbox_message_storage_pda_seeds!(unique_message_account.key, message_storage_bump)],
     )?;
+    let dispatched_message = DispatchedMessage::new(
+        message.nonce,
+        Clock::get()?.slot,
+        *unique_message_account.key,
+        formatted.clone(),
+    );
+    DispatchedMessageAccount::from(dispatched_message).store(message_storage_pda, false)?;
 
     // TODO I think I can remove this
     let noop_cpi_log = Instruction {

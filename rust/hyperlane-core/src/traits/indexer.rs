@@ -8,11 +8,13 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
+use serde::Deserialize;
 
 use crate::{ChainResult, HyperlaneMessage, LogMeta};
 
 /// Indexing mode.
-#[derive(Copy, Debug, Default, Clone)]
+#[derive(Copy, Debug, Default, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub enum IndexMode {
     /// Block based indexing.
     #[default]

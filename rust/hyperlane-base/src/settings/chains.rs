@@ -158,6 +158,7 @@ pub struct IndexSettings {
 struct RawIndexSettings {
     from: Option<StrOrInt>,
     chunk: Option<StrOrInt>,
+    mode: Option<IndexMode>,
 }
 
 impl FromRawConf<'_, RawIndexSettings> for IndexSettings {
@@ -182,7 +183,7 @@ impl FromRawConf<'_, RawIndexSettings> for IndexSettings {
         Ok(Self {
             from,
             chunk_size,
-            mode: IndexMode::Block,
+            mode: raw.mode.unwrap_or_default(),
         })
     }
 }

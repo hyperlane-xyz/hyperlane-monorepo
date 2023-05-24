@@ -1,4 +1,6 @@
 use serde_derive::{Deserialize, Serialize};
+
+use super::rpc_filter::RpcFilterType;
 use {
     // crate::rpc_filter::RpcFilterType,
     crate::solana::account_decoder::{UiAccountEncoding, UiDataSliceConfig},
@@ -153,7 +155,6 @@ pub struct RpcAccountInfoConfig {
     pub min_context_slot: Option<Slot>,
 }
 
-/*
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RpcProgramAccountsConfig {
@@ -163,6 +164,7 @@ pub struct RpcProgramAccountsConfig {
     pub with_context: Option<bool>,
 }
 
+/*
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum RpcTransactionLogsFilter {

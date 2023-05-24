@@ -210,9 +210,10 @@ impl BackwardMessageSyncCursor {
 
         let range = match self.mode {
             IndexMode::Block => IndexRange::Blocks(from, to),
-            IndexMode::Sequence => {
-                IndexRange::Sequences((next_nonce - MAX_SEQUENCE_RANGE).max(0), next_nonce + 1)
-            }
+            IndexMode::Sequence => IndexRange::Sequences(
+                (next_nonce.saturating_sub(MAX_SEQUENCE_RANGE)).max(0),
+                next_nonce + 1,
+            ),
         };
 
         // TODO: Consider returning a proper ETA for the backwards pass
