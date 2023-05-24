@@ -4,7 +4,7 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneProvider, IndexRange, Indexer, InterchainGasPaymaster,
     InterchainGasPayment, LogMeta, H256,
 };
-use tracing::{instrument, warn};
+use tracing::{info, instrument};
 
 use crate::{
     solana::{
@@ -13,6 +13,8 @@ use crate::{
     },
     ConnectionConf, SealevelProvider,
 };
+
+use crate::RpcClientWithDebug;
 
 /// A reference to an IGP contract on some Sealevel chain
 #[derive(Debug)]
@@ -55,16 +57,14 @@ impl InterchainGasPaymaster for SealevelInterchainGasPaymaster {}
 /// Struct that retrieves event data for a Sealevel IGP contract
 #[derive(Debug)]
 pub struct SealevelInterchainGasPaymasterIndexer {
-    // program_id: Pubkey, // TODO don't need?
-    rpc_client: crate::RpcClientWithDebug,
-    // domain: HyperlaneDomain, // TODO don't need?
+    rpc_client: RpcClientWithDebug,
 }
 
 impl SealevelInterchainGasPaymasterIndexer {
     pub fn new(conf: &ConnectionConf, _locator: ContractLocator /*TODO don't need?*/) -> Self {
         // let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         // let domain = locator.domain;
-        let rpc_client = crate::RpcClientWithDebug::new(conf.url.to_string());
+        let rpc_client = RpcClientWithDebug::new(conf.url.to_string());
         Self {
             // program_id,
             rpc_client,
@@ -80,9 +80,8 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
         &self,
         _range: IndexRange,
     ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
-        // FIXME not quite sure what the implemenation here is supposed to be yet given that we
-        // selected None for gas payment enforment policy in the config?
-        warn!("Reporting no gas payments");
+        // TODO implement this
+        info!("Reporting no gas payments");
         Ok(vec![])
     }
 
@@ -90,7 +89,6 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         let height = self
             .rpc_client
-            .0
             .get_slot_with_commitment(CommitmentConfig::finalized())
             .await
             .map_err(ChainCommunicationError::from_other)?

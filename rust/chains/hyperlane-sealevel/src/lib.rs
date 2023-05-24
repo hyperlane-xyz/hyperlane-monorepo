@@ -25,6 +25,7 @@ mod provider;
 mod trait_builder;
 mod validator_announce;
 
+/// Kludge to implement Debug for RpcClient.
 pub(crate) struct RpcClientWithDebug(RpcClient);
 
 impl RpcClientWithDebug {
@@ -36,5 +37,13 @@ impl RpcClientWithDebug {
 impl std::fmt::Debug for RpcClientWithDebug {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("RpcClient { ... }")
+    }
+}
+
+impl std::ops::Deref for RpcClientWithDebug {
+    type Target = RpcClient;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
