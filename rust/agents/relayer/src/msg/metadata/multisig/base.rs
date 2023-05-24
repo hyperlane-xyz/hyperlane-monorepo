@@ -87,8 +87,7 @@ pub trait MultisigIsmMetadataBuilder: AsRef<BaseMetadataBuilder> + Send + Sync {
 
         self.token_layout()
             .iter()
-            .map(build_token)
-            .flatten()
+            .flat_map(build_token)
             .collect()
     }
 }
@@ -125,7 +124,7 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
             .context(CTX)?;
 
         if let Some(metadata) = self
-            .fetch_metadata(&validators, threshold, &message, &checkpoint_syncer)
+            .fetch_metadata(&validators, threshold, message, &checkpoint_syncer)
             .await
             .context(CTX)?
         {
