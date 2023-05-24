@@ -126,7 +126,7 @@ impl ValidatorSubmitter {
 
         // TODO: remove this once validator is tolerant of tasks exiting
         loop {
-            sleep(Duration::from_secs(60 * 60)).await;
+            sleep(Duration::from_secs(u64::MAX)).await;
         }
     }
 
