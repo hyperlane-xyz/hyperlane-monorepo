@@ -26,6 +26,7 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
+use eyre::{eyre, Result};
 use maplit::hashmap;
 use nix::{
     libc::pid_t,
@@ -442,7 +443,7 @@ fn main() -> ExitCode {
         if ci_mode {
             // for CI we have to look for the end condition.
             let num_messages_expected = (kathy_messages / 2) as u32 * 2;
-            if kathy_done && termination_invariants_met(num_messages_expected) {
+            if kathy_done && termination_invariants_met(num_messages_expected).unwrap_or(false) {
                 // end condition reached successfully
                 println!("Kathy completed successfully and agent metrics look healthy");
                 break;
@@ -462,37 +463,40 @@ fn main() -> ExitCode {
     ExitCode::from(0)
 }
 
-fn fetch_metric(port: &str, metric: &str, labels: &HashMap<&str, &str>) -> Vec<u32> {
+fn fetch_metric(port: &str, metric: &str, labels: &HashMap<&str, &str>) -> Result<Vec<u32>> {
     let resp = ureq::get(&format!("http://127.0.0.1:{}/metrics", port));
-    resp.call()
-        .unwrap()
-        .into_string()
-        .unwrap()
+    resp.call()?
+        .into_string()?
         .lines()
         .filter(|l| l.starts_with(metric))
         .filter(|l| {
             labels
                 .iter()
-                .all(|(k, v)| l.contains(&format!("{}=\"{}\"", k, v)))
+                .all(|(k, v)| l.contains(&format!("{k}=\"{v}\"")))
         })
-        .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
+        .map(|l| {
+            Ok(l.rsplit_once(' ')
+                .ok_or(eyre!("Unknown metric format"))?
+                .1
+                .parse::<u32>()?)
+        })
         .collect()
 }
 
 /// Use the metrics to check if the relayer queues are empty and the expected
 /// number of messages have been sent.
-fn termination_invariants_met(num_expected_messages: u32) -> bool {
-    let lengths = fetch_metric("9092", "hyperlane_submitter_queue_length", &hashmap! {});
+fn termination_invariants_met(num_expected_messages: u32) -> Result<bool> {
+    let lengths = fetch_metric("9092", "hyperlane_submitter_queue_length", &hashmap! {})?;
     assert!(!lengths.is_empty(), "Could not find queue length metric");
     if lengths.into_iter().any(|n| n != 0) {
         println!("<E2E> Relayer queues not empty");
-        return false;
+        return Ok(false);
     };
 
     // Also ensure the counter is as expected (total number of messages), summed
     // across all mailboxes.
     let msg_processed_count =
-        fetch_metric("9092", "hyperlane_messages_processed_count", &hashmap! {})
+        fetch_metric("9092", "hyperlane_messages_processed_count", &hashmap! {})?
             .iter()
             .sum::<u32>();
     if msg_processed_count != num_expected_messages {
@@ -500,14 +504,14 @@ fn termination_invariants_met(num_expected_messages: u32) -> bool {
             "<E2E> Relayer has {} processed messages, expected {}",
             msg_processed_count, num_expected_messages
         );
-        return false;
+        return Ok(false);
     }
 
     let gas_payment_events_count = fetch_metric(
         "9092",
         "hyperlane_contract_sync_stored_events",
         &hashmap! {"data_type" => "gas_payments"},
-    )
+    )?
     .iter()
     .sum::<u32>();
     // TestSendReceiver randomly breaks gas payments up into
@@ -517,14 +521,14 @@ fn termination_invariants_met(num_expected_messages: u32) -> bool {
             "<E2E> Relayer has {} gas payment events, expected at least {}",
             gas_payment_events_count, num_expected_messages
         );
-        return false;
+        return Ok(false);
     }
 
     let dispatched_messages_scraped = fetch_metric(
         "9093",
         "hyperlane_contract_sync_stored_events",
         &hashmap! {"data_type" => "message_dispatch"},
-    )
+    )?
     .iter()
     .sum::<u32>();
     if dispatched_messages_scraped != num_expected_messages {
@@ -532,14 +536,14 @@ fn termination_invariants_met(num_expected_messages: u32) -> bool {
             "<E2E> Scraper has scraped {} dispatched messages, expected {}",
             dispatched_messages_scraped, num_expected_messages
         );
-        return false;
+        return Ok(false);
     }
 
     let gas_payments_scraped = fetch_metric(
         "9093",
         "hyperlane_contract_sync_stored_events",
         &hashmap! {"data_type" => "gas_payment"},
-    )
+    )?
     .iter()
     .sum::<u32>();
     // The relayer and scraper should have the same number of gas payments.
@@ -548,14 +552,14 @@ fn termination_invariants_met(num_expected_messages: u32) -> bool {
             "<E2E> Scraper has scraped {} gas payments, expected {}",
             gas_payments_scraped, num_expected_messages
         );
-        return false;
+        return Ok(false);
     }
 
     let delivered_messages_scraped = fetch_metric(
         "9093",
         "hyperlane_contract_sync_stored_events",
         &hashmap! {"data_type" => "message_delivery"},
-    )
+    )?
     .iter()
     .sum::<u32>();
     if delivered_messages_scraped != num_expected_messages {
@@ -563,9 +567,9 @@ fn termination_invariants_met(num_expected_messages: u32) -> bool {
             "<E2E> Scraper has scraped {} delivered messages, expected {}",
             delivered_messages_scraped, num_expected_messages
         );
-        false
+        Ok(false)
     } else {
-        true
+        Ok(true)
     }
 }
 
