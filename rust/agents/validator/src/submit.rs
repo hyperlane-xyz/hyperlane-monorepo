@@ -72,7 +72,8 @@ impl ValidatorSubmitter {
                 Some(checkpoint) => checkpoint,
                 None => {
                     // lag by reorg period to match message indexing
-                    let latest_checkpoint = self.mailbox.latest_checkpoint(self.reorg_period).await?;
+                    let latest_checkpoint =
+                        self.mailbox.latest_checkpoint(self.reorg_period).await?;
                     self.metrics
                         .latest_checkpoint_observed
                         .set(latest_checkpoint.index as i64);
@@ -98,7 +99,10 @@ impl ValidatorSubmitter {
 
                 // compare against every queued checkpoint to prevent ingesting past target
                 if checkpoint == correctness_checkpoint {
-                    debug!(index = checkpoint.index, "Reached tree consistency, signing queued checkpoints");
+                    debug!(
+                        index = checkpoint.index,
+                        "Reached tree consistency, signing queued checkpoints"
+                    );
 
                     // drain and sign all checkpoints in the queue
                     for queued_checkpoint in checkpoint_queue.drain(..) {
@@ -106,10 +110,7 @@ impl ValidatorSubmitter {
                         self.checkpoint_syncer
                             .write_checkpoint(&signed_checkpoint)
                             .await?;
-                        info!(
-                            index = queued_checkpoint.index,
-                            "Signed checkpoint"
-                        );
+                        info!(index = queued_checkpoint.index, "Signed checkpoint");
                     }
 
                     self.metrics

@@ -6,7 +6,7 @@ use derive_new::new;
 
 use eyre::{Context, Result};
 use hyperlane_base::MultisigCheckpointSyncer;
-use hyperlane_core::{H256, HyperlaneMessage};
+use hyperlane_core::{HyperlaneMessage, H256};
 
 use crate::msg::metadata::BaseMetadataBuilder;
 
@@ -44,7 +44,12 @@ impl MultisigIsmMetadataBuilder for LegacyMultisigMetadataBuilder {
         const CTX: &str = "When fetching LegacyMultisig metadata";
         let highest_nonce = self.highest_known_nonce().await;
         if let Some(quorum_checkpoint) = checkpoint_syncer
-            .legacy_fetch_checkpoint_in_range(validators, threshold as usize, message.nonce, highest_nonce)
+            .legacy_fetch_checkpoint_in_range(
+                validators,
+                threshold as usize,
+                message.nonce,
+                highest_nonce,
+            )
             .await
             .context(CTX)?
         {
