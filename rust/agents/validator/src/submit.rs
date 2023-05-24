@@ -1,7 +1,7 @@
-use std::assert_eq;
 use std::num::NonZeroU64;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use std::vec;
 
 use eyre::Result;
 use hyperlane_base::db::HyperlaneRocksDB;
@@ -10,7 +10,7 @@ use prometheus::IntGauge;
 use tokio::time::sleep;
 
 use hyperlane_base::{CheckpointSyncer, CoreMetrics};
-use tracing::{debug, info, trace};
+use tracing::{debug, info};
 
 use hyperlane_core::{
     Checkpoint, CheckpointWithMessageId, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
@@ -49,92 +49,82 @@ impl ValidatorSubmitter {
         }
     }
 
-    /// validate local tree's root against latest checkpoint root
-    async fn check_consistency(&self, tree: &IncrementalMerkle) -> Result<usize> {
-        // do not check consistency until tree is nonempty
-        if tree.count() == 0 {
-            return Ok(0);
+    pub(crate) fn checkpoint(&self, tree: &IncrementalMerkle) -> Checkpoint {
+        Checkpoint {
+            root: tree.root(),
+            index: tree.index(),
+            mailbox_address: self.mailbox.address(),
+            mailbox_domain: self.mailbox.domain().id(),
         }
-
-        // do not lag view call for latest checkpoint available to validate against
-        if let Ok(latest_checkpoint) = self.mailbox.latest_checkpoint(None).await {
-            self.metrics
-                .latest_checkpoint_observed
-                .set(latest_checkpoint.index as i64);
-
-            if latest_checkpoint.index == tree.index() {
-                trace!(count = tree.count(), "Tree up to date");
-                assert_eq!(
-                    tree.root(),
-                    latest_checkpoint.root,
-                    "Local root does not match latest checkpoint root"
-                );
-            } else {
-                trace!(
-                    lag = latest_checkpoint.index - tree.index(),
-                    "Tree out of date"
-                );
-            }
-        }
-
-        Ok(tree.count())
     }
 
     pub(crate) async fn checkpoint_submitter(
         self,
         mut tree: IncrementalMerkle,
-        target_count: Option<u32>,
+        target_checkpoint: Option<Checkpoint>,
     ) -> Result<()> {
-        let mut latest_count_checked = self.check_consistency(&tree).await?;
+        let mut checkpoint_queue = vec![];
 
         loop {
-            // poll DB for message IDs to ingest
+            let compare_checkpoint = match target_checkpoint {
+                Some(checkpoint) => checkpoint,
+                None => {
+                    // lag by reorg period to match message indexing
+                    let latest_checkpoint = self.mailbox.latest_checkpoint(self.reorg_period).await?;
+                    self.metrics
+                        .latest_checkpoint_observed
+                        .set(latest_checkpoint.index as i64);
+                    latest_checkpoint
+                }
+            };
+
+            // ingest available messages from DB
             while let Some(message) = self
                 .message_db
                 .retrieve_message_by_nonce(tree.count() as u32)?
             {
-                debug!(nonce = message.nonce, "Ingesting leaf to tree");
+                debug!(index = message.nonce, "Ingesting leaf to tree");
                 let message_id = message.id();
                 tree.ingest(message_id);
 
-                let checkpoint_with_id = CheckpointWithMessageId {
-                    checkpoint: Checkpoint {
-                        index: tree.index(),
-                        root: tree.root(),
-                        mailbox_address: self.mailbox.address(),
-                        mailbox_domain: self.mailbox.domain().into(),
-                    },
+                let checkpoint = self.checkpoint(&tree);
+
+                checkpoint_queue.push(CheckpointWithMessageId {
+                    checkpoint,
                     message_id,
-                };
+                });
 
-                let signed_checkpoint = self.signer.sign(checkpoint_with_id).await?;
-                info!(?signed_checkpoint, signer=?self.signer, "Signed checkpoint");
-                self.checkpoint_syncer
-                    .write_checkpoint(&signed_checkpoint)
-                    .await?;
+                // compare against every queued checkpoint to prevent ingesting past target
+                if checkpoint == compare_checkpoint {
+                    debug!(index = checkpoint.index, "Reached tree consistency, signing queued checkpoints");
 
-                self.metrics
-                    .latest_checkpoint_processed
-                    .set(signed_checkpoint.value.index as i64);
-            }
+                    // drain and sign all checkpoints in the queue
+                    for queued_checkpoint in checkpoint_queue.drain(..) {
+                        let signed_checkpoint = self.signer.sign(queued_checkpoint).await?;
+                        self.checkpoint_syncer
+                            .write_checkpoint(&signed_checkpoint)
+                            .await?;
+                        info!(
+                            index = checkpoint.index,
+                            "Signed checkpoint"
+                        );
+                    }
 
-            // check consistency of local tree after ingesting messages
-            if tree.count() != latest_count_checked {
-                latest_count_checked = self.check_consistency(&tree).await?;
-            }
-
-            // if target nonce is specified, stop submitting checkpoints after reaching target
-            if let Some(target_count) = target_count {
-                if tree.count() as u32 >= target_count {
-                    info!("Reached target count, stopping checkpoint submission");
-                    break;
+                    self.metrics
+                        .latest_checkpoint_processed
+                        .set(checkpoint.index as i64);
                 }
+            }
+
+            if target_checkpoint.is_some() && checkpoint_queue.is_empty() {
+                debug!("Target checkpoint reached, exiting submitter loop");
+                break;
             }
 
             sleep(self.interval).await;
         }
 
-        // hack to prevent the backfill task from exiting
+        // TODO: remove this once validator is tolerant of tasks exiting
         loop {
             sleep(Duration::from_secs(60 * 60)).await;
         }

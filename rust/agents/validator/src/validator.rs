@@ -108,7 +108,7 @@ impl BaseAgent for Validator {
         let mut tasks = vec![];
 
         tasks.push(self.run_message_sync().await);
-        for checkpoint_sync_task in self.run_checkpoint_sync().await {
+        for checkpoint_sync_task in self.run_checkpoint_submitters().await {
             tasks.push(checkpoint_sync_task);
         }
 
@@ -134,7 +134,7 @@ impl Validator {
         .instrument(info_span!("MailboxMessageSyncer"))
     }
 
-    async fn run_checkpoint_sync(&self) -> Vec<Instrumented<JoinHandle<eyre::Result<()>>>> {
+    async fn run_checkpoint_submitters(&self) -> Vec<Instrumented<JoinHandle<eyre::Result<()>>>> {
         let submitter = ValidatorSubmitter::new(
             self.interval,
             self.reorg_period,
@@ -145,14 +145,14 @@ impl Validator {
             ValidatorSubmitterMetrics::new(&self.core.metrics, &self.origin_chain),
         );
 
-        let backfill_tree = IncrementalMerkle::default();
+        let empty_tree = IncrementalMerkle::default();
         let lag = NonZeroU64::new(self.reorg_period);
         let tip_tree = self
             .mailbox
             .tree(lag)
             .await
             .expect("failed to get mailbox tree");
-        let backfill_target = tip_tree.count() as u32;
+        let backfill_target = submitter.checkpoint(&tip_tree);
 
         let mut tasks = vec![];
 
@@ -162,7 +162,7 @@ impl Validator {
         tasks.push(
             tokio::spawn(async move {
                 backfill_submitter
-                    .checkpoint_submitter(backfill_tree, Some(backfill_target))
+                    .checkpoint_submitter(empty_tree, Some(backfill_target))
                     .await
             })
             .instrument(info_span!("BackfillCheckpointSubmitter")),
