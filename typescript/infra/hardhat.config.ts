@@ -1,6 +1,5 @@
 import '@nomiclabs/hardhat-etherscan';
 import '@nomiclabs/hardhat-waffle';
-import { BigNumber } from 'ethers';
 import { task } from 'hardhat/config';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 
