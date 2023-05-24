@@ -1,3 +1,4 @@
+//! An Indexer provides a common interface for bubbling up chain-specific
 //! event-data to another entity (e.g. a `ContractSync`). For example, the only
 //! way to retrieve data such as the chain's latest block number or a list of
 //! checkpoints/messages emitted within a certain block range by calling out to
