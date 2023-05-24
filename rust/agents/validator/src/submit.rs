@@ -65,8 +65,10 @@ impl ValidatorSubmitter {
     ) -> Result<()> {
         let mut checkpoint_queue = vec![];
 
-        loop {
-            let compare_checkpoint = match target_checkpoint {
+        let mut reached_target = false;
+
+        while !reached_target {
+            let correctness_checkpoint = match target_checkpoint {
                 Some(checkpoint) => checkpoint,
                 None => {
                     // lag by reorg period to match message indexing
@@ -95,7 +97,7 @@ impl ValidatorSubmitter {
                 });
 
                 // compare against every queued checkpoint to prevent ingesting past target
-                if checkpoint == compare_checkpoint {
+                if checkpoint == correctness_checkpoint {
                     debug!(index = checkpoint.index, "Reached tree consistency, signing queued checkpoints");
 
                     // drain and sign all checkpoints in the queue
@@ -113,12 +115,11 @@ impl ValidatorSubmitter {
                     self.metrics
                         .latest_checkpoint_processed
                         .set(checkpoint.index as i64);
-                }
-            }
 
-            if target_checkpoint.is_some() && checkpoint_queue.is_empty() {
-                debug!("Target checkpoint reached, exiting submitter loop");
-                break;
+                    // break out of submitter loop if target checkpoint is reached
+                    reached_target = target_checkpoint.is_some();
+                    break;
+                }
             }
 
             sleep(self.interval).await;

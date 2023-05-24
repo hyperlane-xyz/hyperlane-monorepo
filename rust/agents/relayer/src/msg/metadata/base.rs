@@ -65,7 +65,7 @@ impl Debug for BaseMetadataBuilder {
 
 #[async_trait]
 impl MetadataBuilder for BaseMetadataBuilder {
-    #[instrument(err, skip(self))]
+    #[instrument(err, skip(self), fields(domain=self.domain().name()))]
     async fn build(
         &self,
         ism_address: H256,
