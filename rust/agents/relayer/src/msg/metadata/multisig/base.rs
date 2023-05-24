@@ -8,7 +8,7 @@ use ethers::abi::Token;
 use eyre::{Context, Result};
 use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::accumulator::merkle::Proof;
-use hyperlane_core::{Checkpoint, HyperlaneMessage, MultisigIsm, SignatureWithSigner, H256};
+use hyperlane_core::{Checkpoint, HyperlaneMessage, SignatureWithSigner, H256};
 use strum::Display;
 use tracing::{debug, info};
 
@@ -36,9 +36,7 @@ pub enum MetadataToken {
 }
 
 #[async_trait]
-pub trait MultisigIsmMetadataBuilder: Send + Sync {
-    fn base(&self) -> &BaseMetadataBuilder;
-
+pub trait MultisigIsmMetadataBuilder: AsRef<BaseMetadataBuilder> + Send + Sync {
     async fn fetch_metadata(
         &self,
         validators: &[H256],
@@ -105,7 +103,7 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
     ) -> Result<Option<Vec<u8>>> {
         const CTX: &str = "When fetching MultisigIsm metadata";
         let multisig_ism = self
-            .base()
+            .as_ref()
             .build_multisig_ism(ism_address)
             .await
             .context(CTX)?;
@@ -121,7 +119,7 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
         }
 
         let checkpoint_syncer = self
-            .base()
+            .as_ref()
             .build_checkpoint_syncer(&validators)
             .await
             .context(CTX)?;

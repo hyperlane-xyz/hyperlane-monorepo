@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use async_trait::async_trait;
-use derive_more::Deref;
+use derive_more::{AsRef, Deref};
 use derive_new::new;
 
 use eyre::{Context, Result};
@@ -12,15 +12,11 @@ use crate::msg::metadata::BaseMetadataBuilder;
 
 use super::base::{MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata};
 
-#[derive(Debug, Clone, Deref, new)]
+#[derive(Debug, Clone, Deref, new, AsRef)]
 pub struct LegacyMultisigMetadataBuilder(BaseMetadataBuilder);
 
 #[async_trait]
 impl MultisigIsmMetadataBuilder for LegacyMultisigMetadataBuilder {
-    fn base(&self) -> &BaseMetadataBuilder {
-        &self.0
-    }
-
     fn token_layout(&self) -> Vec<MetadataToken> {
         vec![
             MetadataToken::CheckpointRoot,
