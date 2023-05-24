@@ -1,21 +1,16 @@
+use derive_new::new;
+
 use crate::accumulator::{
     hash_concat,
     merkle::{merkle_root_from_branch, Proof},
     H256, TREE_DEPTH, ZERO_HASHES,
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, new)]
 /// An incremental merkle tree, modeled on the eth2 deposit contract
 pub struct IncrementalMerkle {
     branch: [H256; TREE_DEPTH],
     count: usize,
-}
-
-impl IncrementalMerkle {
-    /// Build from components.
-    pub fn new(branch: [H256; TREE_DEPTH], count: usize) -> Self {
-        IncrementalMerkle { branch, count }
-    }
 }
 
 impl Default for IncrementalMerkle {

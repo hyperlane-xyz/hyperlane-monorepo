@@ -6,7 +6,7 @@ use derive_new::new;
 
 use eyre::{Context, Result};
 use hyperlane_base::MultisigCheckpointSyncer;
-use hyperlane_core::H256;
+use hyperlane_core::{H256, HyperlaneMessage};
 
 use crate::msg::metadata::BaseMetadataBuilder;
 
@@ -32,17 +32,21 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
 
     async fn fetch_metadata(
         &self,
-        nonce: u32,
         validators: &[H256],
         threshold: u8,
+        message: &HyperlaneMessage,
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>> {
         const CTX: &str = "When fetching MessageIdMultisig metadata";
         if let Some(quorum_checkpoint) = checkpoint_syncer
-            .fetch_checkpoint(validators, threshold as usize, nonce)
+            .fetch_checkpoint(validators, threshold as usize, message.nonce)
             .await
             .context(CTX)?
         {
+            if quorum_checkpoint.checkpoint.message_id != message.id() {
+                return Ok(None);
+            }
+
             Ok(Some(MultisigMetadata::new(
                 quorum_checkpoint.checkpoint.checkpoint,
                 quorum_checkpoint.signatures,

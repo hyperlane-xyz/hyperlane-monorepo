@@ -41,9 +41,9 @@ pub trait MultisigIsmMetadataBuilder: Send + Sync {
 
     async fn fetch_metadata(
         &self,
-        nonce: u32,
         validators: &[H256],
         threshold: u8,
+        message: &HyperlaneMessage,
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>>;
 
@@ -117,7 +117,7 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
             info!(
                 ism=%multisig_ism.address(),
                 chain=%self.base().domain().name(),
-                "Could not fetch metadata: No validator set for chain is configured on the recipient's ISM"
+                "Could not fetch metadata: No validator set found for ISM"
             );
             return Ok(None);
         }
@@ -129,7 +129,7 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
             .context(CTX)?;
 
         if let Some(metadata) = self
-            .fetch_metadata(message.nonce, &validators, threshold, &checkpoint_syncer)
+            .fetch_metadata(&validators, threshold, &message, &checkpoint_syncer)
             .await
             .context(CTX)?
         {

@@ -119,6 +119,9 @@ impl BaseMetadataBuilder {
             .await
             .get_proof(nonce, checkpoint.index)
             .context(CTX)?;
+
+        // checkpoint may be fraudulent if the root does not
+        // match the canonical root at the checkpoint's index
         if proof.root() != checkpoint.root {
             info!(
                 ?checkpoint,

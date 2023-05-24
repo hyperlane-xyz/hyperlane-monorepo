@@ -34,7 +34,7 @@ impl Signable for Checkpoint {
     /// The EIP-191 compliant version of this hash is signed by validators.
     fn signing_hash(&self) -> H256 {
         // sign:
-        // domain_hash(mailbox_address, mailbox_domain) || root || index (as u32) || message_id
+        // domain_hash(mailbox_address, mailbox_domain) || root || index (as u32)
         H256::from_slice(
             Keccak256::new()
                 .chain(domain_hash(self.mailbox_address, self.mailbox_domain))

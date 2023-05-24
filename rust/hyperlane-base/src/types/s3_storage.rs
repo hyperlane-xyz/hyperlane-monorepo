@@ -120,11 +120,11 @@ impl S3Storage {
         })
     }
 
-    fn checkpoint_key(index: u32) -> String {
+    fn legacy_checkpoint_key(index: u32) -> String {
         format!("checkpoint_{index}.json")
     }
 
-    fn checkpoint_with_id_key(index: u32) -> String {
+    fn checkpoint_key(index: u32) -> String {
         format!("checkpoint_{index}_with_id.json")
     }
 
@@ -157,7 +157,7 @@ impl CheckpointSyncer for S3Storage {
     }
 
     async fn legacy_fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpoint>> {
-        self.anonymously_read_from_bucket(S3Storage::checkpoint_key(index))
+        self.anonymously_read_from_bucket(S3Storage::legacy_checkpoint_key(index))
             .await?
             .map(|data| serde_json::from_slice(&data))
             .transpose()
@@ -165,7 +165,7 @@ impl CheckpointSyncer for S3Storage {
     }
 
     async fn fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpointWithMessageId>> {
-        self.anonymously_read_from_bucket(S3Storage::checkpoint_with_id_key(index))
+        self.anonymously_read_from_bucket(S3Storage::checkpoint_key(index))
             .await?
             .map(|data| serde_json::from_slice(&data))
             .transpose()
@@ -175,7 +175,7 @@ impl CheckpointSyncer for S3Storage {
     async fn legacy_write_checkpoint(&self, signed_checkpoint: &SignedCheckpoint) -> Result<()> {
         let serialized_checkpoint = serde_json::to_string_pretty(signed_checkpoint)?;
         self.write_to_bucket(
-            S3Storage::checkpoint_key(signed_checkpoint.value.index),
+            S3Storage::legacy_checkpoint_key(signed_checkpoint.value.index),
             &serialized_checkpoint,
         )
         .await?;
@@ -194,7 +194,7 @@ impl CheckpointSyncer for S3Storage {
     ) -> Result<()> {
         let serialized_checkpoint = serde_json::to_string_pretty(signed_checkpoint)?;
         self.write_to_bucket(
-            S3Storage::checkpoint_with_id_key(signed_checkpoint.value.index),
+            S3Storage::checkpoint_key(signed_checkpoint.value.index),
             &serialized_checkpoint,
         )
         .await?;

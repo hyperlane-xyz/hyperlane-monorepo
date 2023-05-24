@@ -149,7 +149,7 @@ fn main() -> ExitCode {
         fs::create_dir_all(&log_dir).expect("Failed to make log dir");
     }
     let build_log = concat_path(&log_dir, "build.log");
-    let node_log = concat_path(&log_dir, "node.stdout.log");
+    let anvil_log = concat_path(&log_dir, "anvil.stdout.log");
 
     let checkpoints_dirs = (0..3).map(|_| tempdir().unwrap()).collect::<Vec<_>>();
     let rocks_db_dir = tempdir().unwrap();
@@ -306,7 +306,7 @@ fn main() -> ExitCode {
         // node.stdout(Stdio::piped());
         node.stdout(Stdio::null());
     } else {
-        node.stdout(append_to(node_log));
+        node.stdout(append_to(anvil_log));
     }
     let node = node.spawn().expect("Failed to start node");
     state.node = Some(node);
@@ -356,7 +356,7 @@ fn main() -> ExitCode {
     state.watchers.push(scraper_stderr);
     state.scraper = Some(scraper);
 
-    // Send half the kathy messages before the relayer comes up
+    // Send half the kathy messages before starting the agents
     let mut kathy = Command::new("yarn");
     kathy
         .arg("kathy")
@@ -437,11 +437,11 @@ fn main() -> ExitCode {
             let num_messages_expected = (kathy_messages / 2) as u32 * 2;
             if termination_invariants_met(num_messages_expected) {
                 // end condition reached successfully
-                println!("Kathy completed successfully and agent metrics look healthy");
+                println!("Agent metrics look healthy");
                 break;
             } else if (Instant::now() - loop_start).as_secs() > ci_mode_timeout {
                 // we ran out of time
-                eprintln!("CI timeout reached before queues emptied and or kathy finished.");
+                eprintln!("CI timeout reached before queues emptied");
                 return ExitCode::from(1);
             }
         }

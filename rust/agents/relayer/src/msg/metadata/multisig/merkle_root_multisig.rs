@@ -6,7 +6,7 @@ use derive_new::new;
 
 use eyre::{Context, Result};
 use hyperlane_base::MultisigCheckpointSyncer;
-use hyperlane_core::H256;
+use hyperlane_core::{H256, HyperlaneMessage};
 
 use crate::msg::metadata::BaseMetadataBuilder;
 
@@ -33,20 +33,24 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
 
     async fn fetch_metadata(
         &self,
-        nonce: u32,
         validators: &[H256],
         threshold: u8,
+        message: &HyperlaneMessage,
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>> {
         const CTX: &str = "When fetching MerkleRootMultisig metadata";
         let highest_nonce = self.highest_known_nonce().await;
         if let Some(quorum_checkpoint) = checkpoint_syncer
-            .fetch_checkpoint_in_range(validators, threshold as usize, nonce, highest_nonce)
+            .fetch_checkpoint_in_range(validators, threshold as usize, message.nonce, highest_nonce)
             .await
             .context(CTX)?
         {
+            if quorum_checkpoint.checkpoint.message_id != message.id() {
+                return Ok(None);
+            }
+
             if let Some(proof) = self
-                .get_proof(nonce, quorum_checkpoint.checkpoint.checkpoint)
+                .get_proof(message.nonce, quorum_checkpoint.checkpoint.checkpoint)
                 .await
                 .context(CTX)?
             {

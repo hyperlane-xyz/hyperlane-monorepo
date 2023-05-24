@@ -76,7 +76,6 @@ task('kathy', 'Dispatches random hyperlane messages')
         const remoteId = multiProvider.getDomainId(remote);
         const mailbox = core.getContracts(local).mailbox;
         const igp = igps.getContracts(local).interchainGasPaymaster;
-
         await recipient.dispatchToSelf(
           mailbox.address,
           igp.address,
@@ -103,11 +102,7 @@ task('kathy', 'Dispatches random hyperlane messages')
       }
 
       while (taskArgs.mineforever && isAutomine) {
-        // mine confirmation blocks instantly
-        const confirmations = 1;
-        const hexConfirmations = BigNumber.from(confirmations).toHexString();
-        await hre.network.provider.send('hardhat_mine', [hexConfirmations]);
-
+        await hre.network.provider.send('hardhat_mine', ['0x01']);
         await sleep(timeout);
       }
     },
