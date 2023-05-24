@@ -26,7 +26,7 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-use eyre::Result;
+use eyre::{eyre, Result};
 use maplit::hashmap;
 use nix::{
     libc::pid_t,
@@ -465,18 +465,22 @@ fn main() -> ExitCode {
 
 fn fetch_metric(port: &str, metric: &str, labels: &HashMap<&str, &str>) -> Result<Vec<u32>> {
     let resp = ureq::get(&format!("http://127.0.0.1:{}/metrics", port));
-    Ok(resp
-        .call()?
+    resp.call()?
         .into_string()?
         .lines()
         .filter(|l| l.starts_with(metric))
         .filter(|l| {
             labels
                 .iter()
-                .all(|(k, v)| l.contains(&format!("{}=\"{}\"", k, v)))
+                .all(|(k, v)| l.contains(&format!("{k}=\"{v}\"")))
         })
-        .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
-        .collect())
+        .map(|l| {
+            Ok(l.rsplit_once(' ')
+                .ok_or(eyre!("Unknown metric format"))?
+                .1
+                .parse::<u32>()?)
+        })
+        .collect()
 }
 
 /// Use the metrics to check if the relayer queues are empty and the expected
