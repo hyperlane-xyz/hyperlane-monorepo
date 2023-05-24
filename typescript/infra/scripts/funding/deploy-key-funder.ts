@@ -2,7 +2,7 @@ import { Contexts } from '../../config/contexts';
 import {
   getKeyFunderConfig,
   runKeyFunderHelmCommand,
-} from '../../src/funding/deploy-key-funder';
+} from '../../src/funding/key-funder';
 import { HelmCommand } from '../../src/utils/helm';
 import {
   assertCorrectKubeContext,
