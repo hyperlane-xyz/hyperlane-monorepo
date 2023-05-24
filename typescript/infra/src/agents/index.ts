@@ -54,13 +54,18 @@ export async function runAgentHelmCommandsForRoles(
   await Promise.all(promises);
 }
 
+// TODO: Make sure to update helm release name based on role!
 async function runAgentHelmCommand(
   action: HelmCommand,
   agentConfig: AgentConfig,
   role: KEY_ROLE_ENUM,
   originChainName?: ChainName,
 ): Promise<void> {
-  const helmReleaseName = getHelmReleaseName(agentConfig, originChainName);
+  const helmReleaseName = getHelmReleaseName(
+    agentConfig,
+    role,
+    originChainName,
+  );
   const namespace = `--namespace ${agentConfig.namespace}`;
 
   if (action === HelmCommand.Remove) {
@@ -330,12 +335,14 @@ export async function getSecretDeployerKey(
 
 export async function doesAgentReleaseExist(
   agentConfig: AgentConfig,
+  role: KEY_ROLE_ENUM,
   originChainName: ChainName,
 ) {
   try {
     await execCmd(
       `helm status ${getHelmReleaseName(
         agentConfig,
+        role,
         originChainName,
       )} --namespace ${agentConfig.namespace}`,
       {},
@@ -481,13 +488,14 @@ function configEnvVars(config: Record<string, any>, key_name_prefix = '') {
 
 function getHelmReleaseName(
   agentConfig: AgentConfig,
+  role: KEY_ROLE_ENUM,
   originChainName?: ChainName,
 ): string {
   // For backward compatibility reasons, don't include the context
   // in the name of the helm release if the context is the default "hyperlane"
 
-  const nameParts = [originChainName ?? 'omniscient'];
-  if (agentConfig.context !== 'hyperlane') {
+  const nameParts = [originChainName ?? 'omniscient', role];
+  if (agentConfig.context != Contexts.Hyperlane) {
     nameParts.push(agentConfig.context);
   }
   return nameParts.join('-');
