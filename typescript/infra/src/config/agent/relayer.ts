@@ -1,6 +1,6 @@
 import { BigNumberish } from 'ethers';
 
-import { ChainMap } from '@hyperlane-xyz/sdk';
+import { ChainMap, chainMetadata } from '@hyperlane-xyz/sdk';
 
 import { AgentAwsUser } from '../../agents/aws';
 import { KEY_ROLE_ENUM } from '../../agents/roles';
@@ -147,4 +147,27 @@ export class RelayerConfigHelper
 
     return true;
   }
+}
+
+// Create a matching list for the given router addresses
+export function routerMatchingList(routers: ChainMap<{ router: string }>) {
+  const chains = Object.keys(routers);
+
+  const matchingList: MatchingList = [];
+
+  for (const source of chains) {
+    for (const destination of chains) {
+      if (source === destination) {
+        continue;
+      }
+
+      matchingList.push({
+        originDomain: chainMetadata[source].chainId,
+        senderAddress: routers[source].router,
+        destinationDomain: chainMetadata[destination].chainId,
+        recipientAddress: routers[destination].router,
+      });
+    }
+  }
+  return matchingList;
 }

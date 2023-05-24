@@ -7,4 +7,4 @@ export {
 } from './gas-oracle';
 export { HelloWorldConfig } from './helloworld';
 export { InfrastructureConfig } from './infrastructure';
-export { AgentConfig, GasPaymentEnforcementPolicyType } from './agent';
+export * from './agent';

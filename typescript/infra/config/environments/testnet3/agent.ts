@@ -1,19 +1,20 @@
 import { AgentConnectionType, chainMetadata } from '@hyperlane-xyz/sdk';
 
 import { ALL_KEY_ROLES, KEY_ROLE_ENUM } from '../../../src/agents/roles';
-import { AgentConfig } from '../../../src/config';
-import { GasPaymentEnforcementPolicyType } from '../../../src/config/agent';
+import {
+  AgentConfig,
+  GasPaymentEnforcementPolicyType,
+  routerMatchingList,
+} from '../../../src/config';
 import { Contexts } from '../../contexts';
-import { helloworldMatchingList, routerMatchingList } from '../../utils';
 
 import { chainNames, environment } from './chains';
 import { helloWorld } from './helloworld';
 import interchainQueryRouters from './middleware/queries/addresses.json';
 import { validators } from './validators';
 
-const releaseCandidateHelloworldMatchingList = helloworldMatchingList(
-  helloWorld,
-  Contexts.ReleaseCandidate,
+const releaseCandidateHelloworldMatchingList = routerMatchingList(
+  helloWorld[Contexts.ReleaseCandidate].addresses,
 );
 
 const interchainQueriesMatchingList = routerMatchingList(
