@@ -93,7 +93,7 @@ impl FromRawConf<'_, RawValidatorSettings> for ValidatorSettings {
             .unwrap_or_else(|| {
                 std::env::current_dir()
                     .unwrap()
-                    .join(format!("validator_db_{}", origin_chain_name))
+                    .join(format!("validator_db_{origin_chain_name}"))
             });
 
         let base = raw

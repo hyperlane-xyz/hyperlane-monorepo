@@ -68,17 +68,15 @@ impl ValidatorSubmitter {
         let mut reached_target = false;
 
         while !reached_target {
-            let correctness_checkpoint = match target_checkpoint {
-                Some(checkpoint) => checkpoint,
-                None => {
-                    // lag by reorg period to match message indexing
-                    let latest_checkpoint =
-                        self.mailbox.latest_checkpoint(self.reorg_period).await?;
-                    self.metrics
-                        .latest_checkpoint_observed
-                        .set(latest_checkpoint.index as i64);
-                    latest_checkpoint
-                }
+            let correctness_checkpoint = if let Some(c) = target_checkpoint {
+                c
+            } else {
+                // lag by reorg period to match message indexing
+                let latest_checkpoint = self.mailbox.latest_checkpoint(self.reorg_period).await?;
+                self.metrics
+                    .latest_checkpoint_observed
+                    .set(latest_checkpoint.index as i64);
+                latest_checkpoint
             };
 
             // ingest available messages from DB

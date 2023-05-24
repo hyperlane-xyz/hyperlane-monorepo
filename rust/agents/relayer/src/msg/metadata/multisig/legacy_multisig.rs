@@ -22,7 +22,7 @@ impl MultisigIsmMetadataBuilder for LegacyMultisigMetadataBuilder {
     }
 
     fn token_layout(&self) -> Vec<MetadataToken> {
-        [
+        vec![
             MetadataToken::CheckpointRoot,
             MetadataToken::CheckpointIndex,
             MetadataToken::CheckpointMailbox,
@@ -31,7 +31,6 @@ impl MultisigIsmMetadataBuilder for LegacyMultisigMetadataBuilder {
             MetadataToken::Signatures,
             MetadataToken::Validators,
         ]
-        .to_vec()
     }
 
     async fn fetch_metadata(
@@ -43,7 +42,7 @@ impl MultisigIsmMetadataBuilder for LegacyMultisigMetadataBuilder {
     ) -> Result<Option<MultisigMetadata>> {
         const CTX: &str = "When fetching LegacyMultisig metadata";
         let highest_nonce = self.highest_known_nonce().await;
-        if let Some(quorum_checkpoint) = checkpoint_syncer
+        let Some(quorum_checkpoint) = checkpoint_syncer
             .legacy_fetch_checkpoint_in_range(
                 validators,
                 threshold as usize,
@@ -52,20 +51,23 @@ impl MultisigIsmMetadataBuilder for LegacyMultisigMetadataBuilder {
             )
             .await
             .context(CTX)?
-        {
-            if let Some(proof) = self
-                .get_proof(message.nonce, quorum_checkpoint.checkpoint)
-                .await
-                .context(CTX)?
-            {
-                return Ok(Some(MultisigMetadata::new(
-                    quorum_checkpoint.checkpoint,
-                    quorum_checkpoint.signatures,
-                    None,
-                    Some(proof),
-                )));
-            }
-        }
-        return Ok(None);
+        else {
+            return Ok(None);
+        };
+
+        let Some(proof) = self
+            .get_proof(message.nonce, quorum_checkpoint.checkpoint)
+            .await
+            .context(CTX)?
+        else {
+            return Ok(None);
+        };
+
+        Ok(Some(MultisigMetadata::new(
+            quorum_checkpoint.checkpoint,
+            quorum_checkpoint.signatures,
+            None,
+            Some(proof),
+        )))
     }
 }

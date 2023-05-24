@@ -23,12 +23,11 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
     }
 
     fn token_layout(&self) -> Vec<MetadataToken> {
-        [
+        vec![
             MetadataToken::CheckpointMailbox,
             MetadataToken::CheckpointRoot,
             MetadataToken::Signatures,
         ]
-        .to_vec()
     }
 
     async fn fetch_metadata(
@@ -39,28 +38,28 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>> {
         const CTX: &str = "When fetching MessageIdMultisig metadata";
-        if let Some(quorum_checkpoint) = checkpoint_syncer
+        let Some(quorum_checkpoint) = checkpoint_syncer
             .fetch_checkpoint(validators, threshold as usize, message.nonce)
             .await
             .context(CTX)?
-        {
-            if quorum_checkpoint.checkpoint.message_id != message.id() {
-                warn!(
-                    "Quorum checkpoint message id {} does not match message id {}",
-                    quorum_checkpoint.checkpoint.message_id,
-                    message.id()
-                );
-                return Ok(None);
-            }
+        else {
+            return Ok(None);
+        };
 
-            Ok(Some(MultisigMetadata::new(
-                quorum_checkpoint.checkpoint.checkpoint,
-                quorum_checkpoint.signatures,
-                None,
-                None,
-            )))
-        } else {
-            Ok(None)
+        if quorum_checkpoint.checkpoint.message_id != message.id() {
+            warn!(
+                "Quorum checkpoint message id {} does not match message id {}",
+                quorum_checkpoint.checkpoint.message_id,
+                message.id()
+            );
+            return Ok(None);
         }
+
+        Ok(Some(MultisigMetadata::new(
+            quorum_checkpoint.checkpoint.checkpoint,
+            quorum_checkpoint.signatures,
+            None,
+            None,
+        )))
     }
 }

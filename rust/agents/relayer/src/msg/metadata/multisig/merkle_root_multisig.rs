@@ -21,14 +21,13 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
     }
 
     fn token_layout(&self) -> Vec<MetadataToken> {
-        [
+        vec![
             MetadataToken::CheckpointMailbox,
             MetadataToken::CheckpointIndex,
             MetadataToken::MessageId,
             MetadataToken::MerkleProof,
             MetadataToken::Signatures,
         ]
-        .to_vec()
     }
 
     async fn fetch_metadata(
@@ -40,24 +39,27 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
     ) -> Result<Option<MultisigMetadata>> {
         const CTX: &str = "When fetching MerkleRootMultisig metadata";
         let highest_nonce = self.highest_known_nonce().await;
-        if let Some(quorum_checkpoint) = checkpoint_syncer
+        let Some(quorum_checkpoint) = checkpoint_syncer
             .fetch_checkpoint_in_range(validators, threshold as usize, message.nonce, highest_nonce)
             .await
             .context(CTX)?
-        {
-            if let Some(proof) = self
-                .get_proof(message.nonce, quorum_checkpoint.checkpoint.checkpoint)
-                .await
-                .context(CTX)?
-            {
-                return Ok(Some(MultisigMetadata::new(
-                    quorum_checkpoint.checkpoint.checkpoint,
-                    quorum_checkpoint.signatures,
-                    Some(quorum_checkpoint.checkpoint.message_id),
-                    Some(proof),
-                )));
-            }
-        }
-        return Ok(None);
+        else {
+            return Ok(None);
+        };
+
+        let Some(proof) = self
+            .get_proof(message.nonce, quorum_checkpoint.checkpoint.checkpoint)
+            .await
+            .context(CTX)?
+        else {
+            return Ok(None);
+        };
+
+        Ok(Some(MultisigMetadata::new(
+            quorum_checkpoint.checkpoint.checkpoint,
+            quorum_checkpoint.signatures,
+            Some(quorum_checkpoint.checkpoint.message_id),
+            Some(proof),
+        )))
     }
 }

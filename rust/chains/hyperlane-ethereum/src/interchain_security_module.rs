@@ -102,7 +102,7 @@ where
         if let Some(module_type) = ModuleType::from_u8(module) {
             Ok(module_type)
         } else {
-            warn!("Unknown module type: {}", module);
+            warn!(%module, "Unknown module type");
             Ok(ModuleType::Unused)
         }
     }

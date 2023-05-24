@@ -117,7 +117,7 @@ impl BaseAgent for Validator {
 }
 
 impl Validator {
-    async fn run_message_sync(&self) -> Instrumented<JoinHandle<eyre::Result<()>>> {
+    async fn run_message_sync(&self) -> Instrumented<JoinHandle<Result<()>>> {
         let index_settings = self.as_ref().settings.chains[self.origin_chain.name()]
             .index
             .clone();
@@ -134,7 +134,7 @@ impl Validator {
         .instrument(info_span!("MailboxMessageSyncer"))
     }
 
-    async fn run_checkpoint_submitters(&self) -> Vec<Instrumented<JoinHandle<eyre::Result<()>>>> {
+    async fn run_checkpoint_submitters(&self) -> Vec<Instrumented<JoinHandle<Result<()>>>> {
         let submitter = ValidatorSubmitter::new(
             self.interval,
             self.reorg_period,

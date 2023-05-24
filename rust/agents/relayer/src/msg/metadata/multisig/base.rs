@@ -10,7 +10,7 @@ use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::accumulator::merkle::Proof;
 use hyperlane_core::{Checkpoint, HyperlaneMessage, MultisigIsm, SignatureWithSigner, H256};
 use strum::Display;
-use tracing::{debug, info, instrument};
+use tracing::{debug, info};
 
 use crate::msg::metadata::BaseMetadataBuilder;
 use crate::msg::metadata::MetadataBuilder;
@@ -87,9 +87,11 @@ pub trait MultisigIsmMetadataBuilder: Send + Sync {
             }
         };
 
-        let layout = self.token_layout();
-        let token_bytes: Vec<Vec<u8>> = layout.iter().map(build_token).collect();
-        token_bytes.concat()
+        self.token_layout()
+            .iter()
+            .map(build_token)
+            .flatten()
+            .collect()
     }
 }
 
@@ -100,7 +102,7 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
         &self,
         ism_address: H256,
         message: &HyperlaneMessage,
-    ) -> eyre::Result<Option<Vec<u8>>> {
+    ) -> Result<Option<Vec<u8>>> {
         const CTX: &str = "When fetching MultisigIsm metadata";
         let multisig_ism = self
             .base()
@@ -148,9 +150,8 @@ fn order_signatures(desired_order: &[H256], signatures: &[SignatureWithSigner]) 
     // Signer address => index to sort by
     let ordering_map: HashMap<H256, usize> = desired_order
         .iter()
-        .cloned()
         .enumerate()
-        .map(|(index, a)| (a, index))
+        .map(|(index, a)| (*a, index))
         .collect();
 
     // Create a tuple of (SignatureWithSigner, index to sort by)
@@ -161,12 +162,12 @@ fn order_signatures(desired_order: &[H256], signatures: &[SignatureWithSigner]) 
             let order_index = ordering_map.get(&H256::from(s.signer)).unwrap();
             (s, *order_index)
         })
-        .collect::<Vec<(SignatureWithSigner, usize)>>();
+        .collect::<Vec<_>>();
     // Sort by the index
     ordered_signatures.sort_by_key(|s| s.1);
     // Now collect only the raw signature bytes
     ordered_signatures
-        .iter()
+        .into_iter()
         .map(|s| s.0.signature.to_vec())
         .collect()
 }

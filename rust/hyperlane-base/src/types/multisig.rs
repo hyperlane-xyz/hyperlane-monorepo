@@ -44,7 +44,7 @@ impl MultisigCheckpointSyncer {
     ) -> Result<Option<MultisigSignedCheckpoint<Checkpoint>>> {
         // Get the latest_index from each validator's checkpoint syncer.
         let mut latest_indices = Vec::with_capacity(validators.len());
-        for validator in validators.iter() {
+        for validator in validators {
             let address = H160::from(*validator);
             if let Some(checkpoint_syncer) = self.checkpoint_syncers.get(&address) {
                 // Gracefully handle errors getting the latest_index
@@ -59,7 +59,10 @@ impl MultisigCheckpointSyncer {
                 }
             }
         }
-        debug!(latest_indices=?latest_indices, "Fetched latest indices from checkpoint syncers");
+        debug!(
+            ?latest_indices,
+            "Fetched latest indices from checkpoint syncers"
+        );
 
         if latest_indices.is_empty() {
             debug!("No validators returned a latest index");
@@ -157,10 +160,10 @@ impl MultisigCheckpointSyncer {
                         }
                     };
                     debug!(
-                        validator = format!("{:#x}", validator),
-                        index = index,
-                        root = format!("{:#x}", root),
-                        signature_count = signature_count,
+                        validator = format!("{validator:#x}"),
+                        index,
+                        root = format!("{root:#x}"),
+                        signature_count,
                         "Found signed checkpoint"
                     );
                     // If we've hit a quorum, create a MultisigSignedCheckpoint
@@ -168,13 +171,13 @@ impl MultisigCheckpointSyncer {
                         if let Some(signed_checkpoints) = signed_checkpoints_per_root.get(&root) {
                             let checkpoint =
                                 MultisigSignedCheckpoint::try_from(signed_checkpoints)?;
-                            debug!(checkpoint=?checkpoint, "Fetched multisig checkpoint");
+                            debug!(?checkpoint, "Fetched multisig checkpoint");
                             return Ok(Some(checkpoint));
                         }
                     }
                 } else {
                     debug!(
-                        validator = format!("{:#x}", validator),
+                        validator = format!("{validator:#x}"),
                         index = index,
                         "Unable to find signed checkpoint"
                     );
