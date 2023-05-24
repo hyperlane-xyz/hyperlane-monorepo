@@ -96,7 +96,7 @@ pub trait MultisigIsmMetadataBuilder: Send + Sync {
 #[async_trait]
 impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
     #[allow(clippy::async_yields_async)]
-    #[instrument(skip(self), level = "info", fields(domain=self.base().domain().name(), ism=%ism_address))]
+    #[instrument(skip(self), level = "info", fields(domain=self.base().domain().name()))]
     async fn build(
         &self,
         ism_address: H256,

@@ -65,7 +65,7 @@ impl Debug for BaseMetadataBuilder {
 
 #[async_trait]
 impl MetadataBuilder for BaseMetadataBuilder {
-    #[instrument(err)]
+    #[instrument(err, skip(self))]
     async fn build(
         &self,
         ism_address: H256,

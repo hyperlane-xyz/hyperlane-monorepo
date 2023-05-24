@@ -105,7 +105,7 @@ impl ValidatorSubmitter {
                             .write_checkpoint(&signed_checkpoint)
                             .await?;
                         info!(
-                            index = checkpoint.index,
+                            index = queued_checkpoint.index,
                             "Signed checkpoint"
                         );
                     }
