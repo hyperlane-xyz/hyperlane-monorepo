@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster, InterchainGasPayment,
-    LogMeta, H256,
+    HyperlaneDomain, HyperlaneProvider, IndexRange, Indexer, InterchainGasPaymaster,
+    InterchainGasPayment, LogMeta, H256,
 };
 use tracing::{instrument, warn};
 
@@ -78,8 +78,7 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
     #[instrument(err, skip(self))]
     async fn fetch_logs(
         &self,
-        _from_block: u32,
-        _to_block: u32,
+        _range: IndexRange,
     ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
         // FIXME not quite sure what the implemenation here is supposed to be yet given that we
         // selected None for gas payment enforment policy in the config?

@@ -10,8 +10,8 @@ use tracing::instrument;
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster,
-    InterchainGasPayment, LogMeta, H160, H256,
+    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, IndexRange, Indexer,
+    InterchainGasPaymaster, InterchainGasPayment, LogMeta, H160, H256,
 };
 
 use crate::contracts::i_interchain_gas_paymaster::{
@@ -87,9 +87,15 @@ where
     #[instrument(err, skip(self))]
     async fn fetch_logs(
         &self,
-        from_block: u32,
-        to_block: u32,
+        range: IndexRange,
     ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
+        let (from_block, to_block) = match range {
+            IndexRange::Blocks(from, to) => (from, to),
+            IndexRange::Sequences(_, _) => return Err(ChainCommunicationError::from_other_str(
+                "EthereumInterchainGasPaymasterIndexer does not support sequence-based indexing",
+            )),
+        };
+
         let events = self
             .contract
             .gas_payment_filter()

@@ -14,8 +14,8 @@ use tracing::instrument;
 use hyperlane_core::{
     utils::fmt_bytes, ChainCommunicationError, ChainResult, Checkpoint, ContractLocator,
     HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProtocolError, HyperlaneProvider, Indexer, LogMeta, Mailbox, MessageIndexer,
-    RawHyperlaneMessage, TxCostEstimate, TxOutcome, H160, H256, U256,
+    HyperlaneProtocolError, HyperlaneProvider, IndexRange, Indexer, LogMeta, Mailbox,
+    MessageIndexer, RawHyperlaneMessage, TxCostEstimate, TxOutcome, H160, H256, U256,
 };
 
 use crate::contracts::arbitrum_node_interface::ArbitrumNodeInterface;
@@ -125,11 +125,16 @@ where
     }
 
     #[instrument(err, skip(self))]
-    async fn fetch_logs(
-        &self,
-        from: u32,
-        to: u32,
-    ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
+    async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
+        let (from, to) = match range {
+            IndexRange::Blocks(from, to) => (from, to),
+            IndexRange::Sequences(_, _) => {
+                return Err(ChainCommunicationError::from_other_str(
+                    "EthereumMailboxIndexer does not support sequence-based indexing",
+                ))
+            }
+        };
+
         let mut events: Vec<(HyperlaneMessage, LogMeta)> = self
             .contract
             .dispatch_filter()
@@ -171,7 +176,16 @@ where
     }
 
     #[instrument(err, skip(self))]
-    async fn fetch_logs(&self, from: u32, to: u32) -> ChainResult<Vec<(H256, LogMeta)>> {
+    async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(H256, LogMeta)>> {
+        let (from, to) = match range {
+            IndexRange::Blocks(from, to) => (from, to),
+            IndexRange::Sequences(_, _) => {
+                return Err(ChainCommunicationError::from_other_str(
+                    "EthereumMailboxIndexer does not support sequence-based indexing",
+                ))
+            }
+        };
+
         Ok(self
             .contract
             .process_id_filter()

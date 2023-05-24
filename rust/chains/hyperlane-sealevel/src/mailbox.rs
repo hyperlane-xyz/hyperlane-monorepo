@@ -12,8 +12,8 @@ use borsh::BorshDeserialize;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, Decode as _, Encode as _,
     HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProvider, Indexer, LogMeta, Mailbox, MessageIndexer, TxCostEstimate, TxOutcome, H256,
-    U256,
+    HyperlaneProvider, IndexRange, Indexer, LogMeta, Mailbox, MessageIndexer, TxCostEstimate,
+    TxOutcome, H256, U256,
 };
 use tracing::{debug, error, instrument, trace, warn};
 
@@ -867,11 +867,16 @@ impl MessageIndexer for SealevelMailboxIndexer {
 
 #[async_trait]
 impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
-    async fn fetch_logs(
-        &self,
-        from: u32,
-        to: u32,
-    ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
+    async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
+        let (from, to) = match range {
+            IndexRange::Blocks(from, to) => (from, to),
+            IndexRange::Sequences(_, _) => {
+                return Err(ChainCommunicationError::from_other_str(
+                    "SealevelMailboxIndexer does not support sequence-based indexing",
+                ))
+            }
+        };
+
         // TODO
         // Could use this RPC: https://docs.solana.com/developing/clients/jsonrpc-api#getblockswithlimit
         // BUT... that seems like an inefficient way of getting updates from the mailbox. Why not
@@ -909,7 +914,7 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
 
 #[async_trait]
 impl Indexer<H256> for SealevelMailboxIndexer {
-    async fn fetch_logs(&self, from: u32, to: u32) -> ChainResult<Vec<(H256, LogMeta)>> {
+    async fn fetch_logs(&self, _range: IndexRange) -> ChainResult<Vec<(H256, LogMeta)>> {
         todo!()
     }
 

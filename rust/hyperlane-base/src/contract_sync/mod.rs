@@ -5,7 +5,7 @@ use derive_new::new;
 use cursor::*;
 use hyperlane_core::{
     utils::fmt_sync_time, ContractSyncCursor, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
-    HyperlaneMessageStore, HyperlaneWatermarkedLogStore, Indexer, MessageIndexer,
+    HyperlaneMessageStore, HyperlaneWatermarkedLogStore, IndexRange, Indexer, MessageIndexer,
 };
 pub use metrics::ContractSyncMetrics;
 use std::fmt::Debug;
@@ -58,14 +58,13 @@ where
             .with_label_values(&[label, chain_name]);
 
         loop {
-            let Ok((from, to, eta)) = cursor.next_range().await else { continue };
-            debug!(from, to, "Looking for for events in block range");
+            let Ok((range, eta)) = cursor.next_range().await else { continue };
+            debug!(?range, "Looking for for events in index range");
 
-            let logs = self.indexer.fetch_logs(from, to).await?;
+            let logs = self.indexer.fetch_logs(range).await?;
 
             info!(
-                from,
-                to,
+                ?range,
                 num_logs = logs.len(),
                 estimated_time_to_sync = fmt_sync_time(eta),
                 "Found log(s) in block range"
@@ -76,8 +75,10 @@ where
             stored_logs.inc_by(stored as u64);
             // We check the value of the current gauge to avoid overwriting a higher value
             // when using a ForwardBackwardMessageSyncCursor
-            if to as i64 > indexed_height.get() {
-                indexed_height.set(to as i64);
+            if let IndexRange::Blocks(_, to) = range {
+                if to as i64 > indexed_height.get() {
+                    indexed_height.set(to as i64);
+                }
             }
             // Update cursor
             cursor.update(logs).await?;
@@ -101,6 +102,7 @@ where
         let index_settings = IndexSettings {
             from: watermark.unwrap_or(index_settings.from),
             chunk_size: index_settings.chunk_size,
+            mode: index_settings.mode,
         };
         Box::new(
             RateLimitedContractSyncCursor::new(
@@ -132,7 +134,10 @@ impl MessageContractSync {
             index_settings.from,
             0,
         );
-        Box::new(ForwardMessageSyncCursor::new(forward_data))
+        Box::new(ForwardMessageSyncCursor::new(
+            forward_data,
+            index_settings.mode,
+        ))
     }
 
     /// Returns a new cursor to be used for syncing dispatched messages from the indexer
@@ -145,6 +150,7 @@ impl MessageContractSync {
                 self.indexer.clone(),
                 self.db.clone(),
                 index_settings.chunk_size,
+                index_settings.mode,
             )
             .await
             .unwrap(),

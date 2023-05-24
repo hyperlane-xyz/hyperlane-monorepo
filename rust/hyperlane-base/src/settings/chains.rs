@@ -9,9 +9,9 @@ use ethers_prometheus::middleware::{
 };
 use hyperlane_core::{
     config::*, ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol,
-    HyperlaneProvider, HyperlaneSigner, Indexer, InterchainGasPaymaster, InterchainGasPayment,
-    InterchainSecurityModule, Mailbox, MessageIndexer, MultisigIsm, RoutingIsm, ValidatorAnnounce,
-    H160, H256,
+    HyperlaneProvider, HyperlaneSigner, IndexMode, Indexer, InterchainGasPaymaster,
+    InterchainGasPayment, InterchainSecurityModule, Mailbox, MessageIndexer, MultisigIsm,
+    RoutingIsm, ValidatorAnnounce, H160, H256,
 };
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
@@ -149,6 +149,8 @@ pub struct IndexSettings {
     pub from: u32,
     /// The number of blocks to query at once when indexing contracts.
     pub chunk_size: u32,
+    /// The indexing mode.
+    pub mode: IndexMode,
 }
 
 #[derive(Debug, Deserialize)]
@@ -177,7 +179,11 @@ impl FromRawConf<'_, RawIndexSettings> for IndexSettings {
             .unwrap_or(1999);
 
         err.into_result()?;
-        Ok(Self { from, chunk_size })
+        Ok(Self {
+            from,
+            chunk_size,
+            mode: IndexMode::Block,
+        })
     }
 }
 

@@ -11,12 +11,31 @@ use auto_impl::auto_impl;
 
 use crate::{ChainResult, HyperlaneMessage, LogMeta};
 
+/// Indexing mode.
+#[derive(Copy, Debug, Default, Clone)]
+pub enum IndexMode {
+    /// Block based indexing.
+    #[default]
+    Block,
+    /// Sequence based indexing.
+    Sequence,
+}
+
+/// An indexing range.
+#[derive(Copy, Debug, Clone)]
+pub enum IndexRange {
+    /// For block-based indexers
+    Blocks(u32, u32),
+    /// For indexers that look for specific sequences, e.g. message nonces.
+    Sequences(u32, u32),
+}
+
 /// Interface for an indexer.
 #[async_trait]
 #[auto_impl(&, Box, Arc,)]
 pub trait Indexer<T: Sized>: Send + Sync + Debug {
     /// Fetch list of logs between blocks `from` and `to`, inclusive.
-    async fn fetch_logs(&self, from: u32, to: u32) -> ChainResult<Vec<(T, LogMeta)>>;
+    async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(T, LogMeta)>>;
 
     /// Get the chain's latest block number that has reached finality
     async fn get_finalized_block_number(&self) -> ChainResult<u32>;
