@@ -221,6 +221,9 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneRocksDB {
                 stored += 1;
             }
         }
+        if stored > 0 {
+            debug!(messages = stored, "Wrote new messages to database");
+        }
         Ok(stored)
     }
 }
@@ -234,6 +237,9 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneRocksDB {
             if self.process_gas_payment(*payment, meta)? {
                 new += 1;
             }
+        }
+        if new > 0 {
+            debug!(payments = new, "Wrote new gas payments to database");
         }
         Ok(new)
     }

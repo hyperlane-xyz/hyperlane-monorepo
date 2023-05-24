@@ -24,7 +24,7 @@ impl Deref for RoutingIsmMetadataBuilder {
 
 #[async_trait]
 impl MetadataBuilder for RoutingIsmMetadataBuilder {
-    #[instrument(err)]
+    #[instrument(err, skip(self))]
     async fn build(
         &self,
         ism_address: H256,
