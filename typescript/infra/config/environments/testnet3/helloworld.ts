@@ -47,7 +47,7 @@ export const releaseCandidate: HelloWorldConfig = {
   },
 };
 
-export const helloWorld: Partial<Record<Contexts, HelloWorldConfig>> = {
+export const helloWorld = {
   [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
 };
