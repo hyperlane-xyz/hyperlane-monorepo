@@ -111,7 +111,7 @@ impl MultisigCheckpointSyncer {
             Vec<SignedCheckpointWithSigner<Checkpoint>>,
         > = HashMap::new();
 
-        for validator in validators.iter() {
+        for validator in validators {
             let addr = H160::from(*validator);
             if let Some(checkpoint_syncer) = self.checkpoint_syncers.get(&addr) {
                 // Gracefully ignore an error fetching the checkpoint from a validator's
@@ -212,7 +212,7 @@ impl MultisigCheckpointSyncer {
     ) -> Result<Option<MultisigSignedCheckpoint<CheckpointWithMessageId>>> {
         // Get the latest_index from each validator's checkpoint syncer.
         let mut latest_indices = Vec::with_capacity(validators.len());
-        for validator in validators.iter() {
+        for validator in validators {
             let address = H160::from(*validator);
             if let Some(checkpoint_syncer) = self.checkpoint_syncers.get(&address) {
                 // Gracefully handle errors getting the latest_index
@@ -227,7 +227,10 @@ impl MultisigCheckpointSyncer {
                 }
             }
         }
-        debug!(latest_indices=?latest_indices, "Fetched latest indices from checkpoint syncers");
+        debug!(
+            ?latest_indices,
+            "Fetched latest indices from checkpoint syncers"
+        );
 
         if latest_indices.is_empty() {
             debug!("No validators returned a latest index");

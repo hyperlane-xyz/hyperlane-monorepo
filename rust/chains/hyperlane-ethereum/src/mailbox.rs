@@ -396,7 +396,7 @@ where
         // result from root() view call at consistent block
         assert_eq!(tree.root(), expected_root);
 
-        return Ok(tree);
+        Ok(tree)
     }
 
     #[instrument(err, ret, skip(self))]
