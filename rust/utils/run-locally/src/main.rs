@@ -481,7 +481,7 @@ fn fetch_metric(port: &str, metric: &str, labels: &HashMap<&str, &str>) -> Resul
 
 /// Use the metrics to check if the relayer queues are empty and the expected
 /// number of messages have been sent.
-fn termination_invariants_met(num_expected_messages: u32) -> eyre::Result<bool> {
+fn termination_invariants_met(num_expected_messages: u32) -> Result<bool> {
     let lengths = fetch_metric("9092", "hyperlane_submitter_queue_length", &hashmap! {})?;
     assert!(!lengths.is_empty(), "Could not find queue length metric");
     if lengths.into_iter().any(|n| n != 0) {
