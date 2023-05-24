@@ -1,6 +1,11 @@
 import path from 'path';
 
 import {
+  TestQuerySender__factory,
+  TestRecipient__factory,
+  TestTokenRecipient__factory,
+} from '@hyperlane-xyz/core';
+import {
   ChainMap,
   ChainName,
   HyperlaneAddresses,
@@ -25,8 +30,6 @@ import {
   DeployEnvironment,
   deployEnvToSdkEnv,
 } from '../src/config/environment';
-import { TestQuerySenderDeployer } from '../src/testcontracts/testquerysender';
-import { TestRecipientDeployer } from '../src/testcontracts/testrecipient';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 import {
   readJSON,
@@ -150,6 +153,63 @@ async function main() {
       : undefined;
 
   await deployWithArtifacts(config, deployer, cache, fork, agentConfig);
+}
+
+const TEST_QUERY_SENDER_FACTORIES = {
+  TestQuerySender: new TestQuerySender__factory(),
+};
+
+type TestQuerySenderConfig = { queryRouterAddress: string };
+
+class TestQuerySenderDeployer extends HyperlaneDeployer<
+  TestQuerySenderConfig,
+  typeof TEST_QUERY_SENDER_FACTORIES
+> {
+  constructor(multiProvider: MultiProvider, protected igp: HyperlaneIgp) {
+    super(multiProvider, TEST_QUERY_SENDER_FACTORIES);
+  }
+
+  async deployContracts(chain: ChainName, config: TestQuerySenderConfig) {
+    const TestQuerySender = await this.deployContract(
+      chain,
+      'TestQuerySender',
+      [],
+      [
+        config.queryRouterAddress,
+        this.igp.getContracts(chain).interchainGasPaymaster.address,
+      ],
+    );
+    return {
+      TestQuerySender,
+    };
+  }
+}
+
+const TEST_RECIPIENT_DEPLOYER_FACTORIES = {
+  TestRecipient: new TestRecipient__factory(),
+  TestTokenRecipient: new TestTokenRecipient__factory(),
+};
+
+class TestRecipientDeployer extends HyperlaneDeployer<
+  never,
+  typeof TEST_RECIPIENT_DEPLOYER_FACTORIES
+> {
+  constructor(multiProvider: MultiProvider) {
+    super(multiProvider, TEST_RECIPIENT_DEPLOYER_FACTORIES);
+  }
+
+  async deployContracts(chain: ChainName) {
+    const TestRecipient = await this.deployContract(chain, 'TestRecipient', []);
+    const TestTokenRecipient = await this.deployContract(
+      chain,
+      'TestTokenRecipient',
+      [],
+    );
+    return {
+      TestRecipient,
+      TestTokenRecipient,
+    };
+  }
 }
 
 async function deployWithArtifacts<Config>(
