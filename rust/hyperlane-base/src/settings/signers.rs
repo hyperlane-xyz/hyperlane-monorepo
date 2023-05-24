@@ -1,12 +1,12 @@
 use async_trait::async_trait;
 use ethers::prelude::{AwsSigner, LocalWallet};
 use eyre::{bail, eyre, Context, Report};
-use rusoto_core::credential::EnvironmentProvider;
 use rusoto_core::{HttpClient, Region};
 use rusoto_kms::KmsClient;
 use serde::Deserialize;
 use tracing::instrument;
 
+use super::aws_credentials::AwsChainCredentialsProvider;
 use hyperlane_core::{config::*, H256};
 
 use crate::settings::KMS_CLIENT;
@@ -109,7 +109,7 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
                 let client = KMS_CLIENT.get_or_init(|| {
                     KmsClient::new_with_client(
                         rusoto_core::Client::new_with(
-                            EnvironmentProvider::default(),
+                            AwsChainCredentialsProvider::new(),
                             HttpClient::new().unwrap(),
                         ),
                         region.clone(),

@@ -12,8 +12,11 @@ serviceAccount:
   annotations: {}
   name: ''
 
+# -- External Secret Store type and name
 externalSecrets:
-  clusterSecretStore:
+  # Available types: SecretStore, ClusterSecretStore
+  StoreType: ClusterSecretStore
+  StoreName:
 
 podAnnotations: {}
 podCommonLabels: {}

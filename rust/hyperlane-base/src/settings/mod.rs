@@ -79,6 +79,8 @@ pub use base::*;
 pub use chains::{ChainConf, ChainConnectionConf, CoreContractAddresses};
 pub use signers::{RawSignerConf, SignerConf};
 
+/// AWS Credentials provider.
+pub(crate) mod aws_credentials;
 mod base;
 /// Chain configuration
 pub mod chains;
