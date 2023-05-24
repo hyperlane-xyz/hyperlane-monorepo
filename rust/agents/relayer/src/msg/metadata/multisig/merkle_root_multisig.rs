@@ -46,15 +46,6 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
             .await
             .context(CTX)?
         {
-            if quorum_checkpoint.checkpoint.message_id != message.id() {
-                warn!(
-                    "Quorum checkpoint message id {} does not match message id {}",
-                    quorum_checkpoint.checkpoint.message_id,
-                    message.id()
-                );
-                return Ok(None);
-            }
-
             if let Some(proof) = self
                 .get_proof(message.nonce, quorum_checkpoint.checkpoint.checkpoint)
                 .await
