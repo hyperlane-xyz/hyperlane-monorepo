@@ -87,6 +87,12 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     const signer = this.multiProvider.getSigner(chain);
     let address: string;
     if (config.type === ModuleType.LEGACY_MULTISIG) {
+      if (process.env.E2E_CI_MODE !== 'true') {
+        throw new Error(
+          'Legacy multisig ISM is being deprecated, do not deploy',
+        );
+      }
+
       const multisig = await new LegacyMultisigIsm__factory()
         .connect(signer)
         .deploy();
@@ -98,8 +104,8 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     } else {
       const multisigIsmFactory =
         config.type === ModuleType.MERKLE_ROOT_MULTISIG
-          ? this.getContracts(chain).merkleRootMultisigIsm
-          : this.getContracts(chain).messageIdMultisigIsm;
+          ? this.getContracts(chain).merkleRootMultisigIsmFactory
+          : this.getContracts(chain).messageIdMultisigIsmFactory;
       address = await this.deployMOfNFactory(
         chain,
         multisigIsmFactory,
@@ -112,7 +118,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
 
   private async deployRoutingIsm(chain: ChainName, config: RoutingIsmConfig) {
     const signer = this.multiProvider.getSigner(chain);
-    const routingIsmFactory = this.getContracts(chain).routingIsm;
+    const routingIsmFactory = this.getContracts(chain).routingIsmFactory;
     const isms: ChainMap<types.Address> = {};
     for (const origin of Object.keys(config.domains)) {
       const ism = await this.deploy(chain, config.domains[origin], origin);
@@ -152,7 +158,8 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     config: AggregationIsmConfig,
   ) {
     const signer = this.multiProvider.getSigner(chain);
-    const aggregationIsmFactory = this.getContracts(chain).aggregationIsm;
+    const aggregationIsmFactory =
+      this.getContracts(chain).aggregationIsmFactory;
     const addresses: types.Address[] = [];
     for (const module of config.modules) {
       addresses.push((await this.deploy(chain, module)).address);
@@ -282,10 +289,11 @@ export async function moduleMatchesConfig(
     case ModuleType.MERKLE_ROOT_MULTISIG:
     case ModuleType.MESSAGE_ID_MULTISIG: {
       // A MultisigIsm matches if validators and threshold match the config
-      const expectedAddress = await contracts.merkleRootMultisigIsm.getAddress(
-        config.validators.sort(),
-        config.threshold,
-      );
+      const expectedAddress =
+        await contracts.merkleRootMultisigIsmFactory.getAddress(
+          config.validators.sort(),
+          config.threshold,
+        );
       matches = utils.eqAddress(expectedAddress, module.address);
       break;
     }

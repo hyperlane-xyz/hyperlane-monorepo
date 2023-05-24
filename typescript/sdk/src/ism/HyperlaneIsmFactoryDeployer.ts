@@ -33,33 +33,31 @@ export class HyperlaneIsmFactoryDeployer extends HyperlaneDeployer<
   async deployContracts(
     chain: ChainName,
   ): Promise<HyperlaneContracts<IsmFactoryFactories>> {
-    const merkleRootMultisigIsm = await this.deployContract(
+    const merkleRootMultisigIsmFactory = await this.deployContract(
       chain,
-      'merkleRootMultisigIsm',
+      'merkleRootMultisigIsmFactory',
       [],
     );
-    const messageIdMultisigIsm = await this.deployContract(
+    const messageIdMultisigIsmFactory = await this.deployContract(
       chain,
-      'messageIdMultisigIsm',
+      'messageIdMultisigIsmFactory',
       [],
     );
-    const legacyMultisigIsm = await this.deployContract(
+    const aggregationIsmFactory = await this.deployContract(
       chain,
-      'legacyMultisigIsm',
+      'aggregationIsmFactory',
       [],
     );
-    const aggregationIsm = await this.deployContract(
+    const routingIsmFactory = await this.deployContract(
       chain,
-      'aggregationIsm',
+      'routingIsmFactory',
       [],
     );
-    const routingIsm = await this.deployContract(chain, 'routingIsm', []);
     return {
-      legacyMultisigIsm,
-      merkleRootMultisigIsm,
-      messageIdMultisigIsm,
-      aggregationIsm,
-      routingIsm,
+      merkleRootMultisigIsmFactory,
+      messageIdMultisigIsmFactory,
+      aggregationIsmFactory,
+      routingIsmFactory,
     };
   }
 }
