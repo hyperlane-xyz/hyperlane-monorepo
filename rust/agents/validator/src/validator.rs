@@ -123,7 +123,7 @@ impl Validator {
             .clone();
         let contract_sync = self.message_sync.clone();
         let cursor = contract_sync
-            .forward_backward_message_sync_cursor(index_settings)
+            .forward_backward_message_sync_cursor(index_settings.chunk_size)
             .await;
         tokio::spawn(async move {
             contract_sync

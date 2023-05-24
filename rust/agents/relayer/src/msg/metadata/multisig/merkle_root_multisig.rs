@@ -7,6 +7,7 @@ use derive_new::new;
 use eyre::{Context, Result};
 use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::{H256, HyperlaneMessage};
+use tracing::warn;
 
 use crate::msg::metadata::BaseMetadataBuilder;
 
@@ -46,6 +47,11 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
             .context(CTX)?
         {
             if quorum_checkpoint.checkpoint.message_id != message.id() {
+                warn!(
+                    "Quorum checkpoint message id {} does not match message id {}",
+                    quorum_checkpoint.checkpoint.message_id,
+                    message.id()
+                );
                 return Ok(None);
             }
 

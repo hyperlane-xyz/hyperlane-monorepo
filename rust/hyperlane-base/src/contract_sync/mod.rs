@@ -138,13 +138,13 @@ impl MessageContractSync {
     /// Returns a new cursor to be used for syncing dispatched messages from the indexer
     pub async fn forward_backward_message_sync_cursor(
         &self,
-        index_settings: IndexSettings,
+        chunk_size: u32,
     ) -> Box<dyn ContractSyncCursor<HyperlaneMessage>> {
         Box::new(
             ForwardBackwardMessageSyncCursor::new(
                 self.indexer.clone(),
                 self.db.clone(),
-                index_settings.chunk_size,
+                chunk_size,
             )
             .await
             .unwrap(),

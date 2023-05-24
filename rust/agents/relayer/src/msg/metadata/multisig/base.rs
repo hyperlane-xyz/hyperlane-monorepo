@@ -10,7 +10,7 @@ use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::accumulator::merkle::Proof;
 use hyperlane_core::{Checkpoint, HyperlaneMessage, MultisigIsm, SignatureWithSigner, H256};
 use strum::Display;
-use tracing::{debug, info};
+use tracing::{debug, info, instrument};
 
 use crate::msg::metadata::BaseMetadataBuilder;
 use crate::msg::metadata::MetadataBuilder;
@@ -96,6 +96,7 @@ pub trait MultisigIsmMetadataBuilder: Send + Sync {
 #[async_trait]
 impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
     #[allow(clippy::async_yields_async)]
+    #[instrument(skip(self), level = "info", fields(domain=self.base().domain().name(), ism=%ism_address))]
     async fn build(
         &self,
         ism_address: H256,
@@ -114,11 +115,7 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
             .context(CTX)?;
 
         if validators.is_empty() {
-            info!(
-                ism=%multisig_ism.address(),
-                chain=%self.base().domain().name(),
-                "Could not fetch metadata: No validator set found for ISM"
-            );
+            info!("Could not fetch metadata: No validator set found for ISM");
             return Ok(None);
         }
 
