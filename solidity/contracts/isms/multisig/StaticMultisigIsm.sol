@@ -9,7 +9,7 @@ import {StaticMOfNAddressSetFactory} from "../../libs/StaticMOfNAddressSetFactor
 
 /**
  * @title AbstractMetaProxyMultisigIsm
- * @notice Manages per-domain m-of-n Validator sets that are used
+ * @notice Manages per-domain m-of-n Validator set that is used
  * to verify interchain messages.
  */
 abstract contract AbstractMetaProxyMultisigIsm is AbstractMultisigIsm {
@@ -26,7 +26,14 @@ abstract contract AbstractMetaProxyMultisigIsm is AbstractMultisigIsm {
     }
 }
 
-// solhint-disable-next-line no-empty-blocks
+// solhint-disable no-empty-blocks
+
+/**
+ * @title StaticMerkleRootMultisigIsm
+ * @notice Manages per-domain m-of-n validator set that is used
+ * to verify interchain messages using a merkle root signature quorum
+ * and merkle proof of inclusion.
+ */
 contract StaticMerkleRootMultisigIsm is
     AbstractMerkleRootMultisigIsm,
     AbstractMetaProxyMultisigIsm
@@ -34,18 +41,24 @@ contract StaticMerkleRootMultisigIsm is
 
 }
 
-contract StaticMerkleRootMultisigIsmFactory is StaticMOfNAddressSetFactory {
-    function _deployImplementation() internal override returns (address) {
-        return address(new StaticMerkleRootMultisigIsm());
-    }
-}
-
-// solhint-disable-next-line no-empty-blocks
+/**
+ * @title StaticMessageIdMultisigIsm
+ * @notice Manages per-domain m-of-n validator set that is used
+ * to verify interchain messages using a message ID signature quorum.
+ */
 contract StaticMessageIdMultisigIsm is
     AbstractMessageIdMultisigIsm,
     AbstractMetaProxyMultisigIsm
 {
 
+}
+
+// solhint-enable no-empty-blocks
+
+contract StaticMerkleRootMultisigIsmFactory is StaticMOfNAddressSetFactory {
+    function _deployImplementation() internal override returns (address) {
+        return address(new StaticMerkleRootMultisigIsm());
+    }
 }
 
 contract StaticMessageIdMultisigIsmFactory is StaticMOfNAddressSetFactory {

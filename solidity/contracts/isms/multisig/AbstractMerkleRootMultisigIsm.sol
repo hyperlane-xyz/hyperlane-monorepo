@@ -11,8 +11,8 @@ import {CheckpointLib} from "../../libs/CheckpointLib.sol";
 
 /**
  * @title MerkleRootMultisigIsm
- * @notice Manages per-domain m-of-n Validator sets that are used to verify
- * a quorum of signatures on some root J and merkle proof of message I in J.
+ * @notice Provides abstract logic for verifying signatures on a merkle root
+ * and a merkle proof of message inclusion in that root.
  * @dev Implement and use if you want strong censorship resistance guarantees.
  * @dev May be adapted in future to support batch message verification against a single root.
  */

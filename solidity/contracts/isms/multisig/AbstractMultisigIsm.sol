@@ -16,7 +16,7 @@ import {MerkleLib} from "../../libs/Merkle.sol";
  * interchain messages.
  * @dev See ./AbstractMerkleRootMultisigIsm.sol and ./AbstractMessageIdMultisigIsm.sol
  * for concrete implementations of `digest` and `signatureAt`.
- * @dev See ./StaticMultisigIsmFactory.sol for concrete factory implementations.
+ * @dev See ./StaticMultisigIsm.sol for concrete implementations.
  */
 abstract contract AbstractMultisigIsm is IMultisigIsm {
     // ============ Virtual Functions ============
@@ -64,7 +64,7 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
 
     /**
      * @notice Requires that m-of-n validators verify a merkle root,
-     * and verifies a merkle proof of `_message` against that root.
+     * and verifies a me∑rkle proof of `_message` against that root.
      * @param _metadata ABI encoded module metadata
      * @param _message Formatted Hyperlane message (see Message.sol).
      */

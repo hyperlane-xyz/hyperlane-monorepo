@@ -9,10 +9,10 @@ import {CheckpointLib} from "./CheckpointLib.sol";
 
 library LegacyCheckpointLib {
     /**
-     * @notice Returns the digest validators are expected to sign when signing checkpoints.
+     * @notice Returns the digest validators are expected to sign when signing legacy checkpoints.
      * @param _origin The origin domain of the checkpoint.
      * @param _originMailbox The address of the origin mailbox as bytes32.
-     * @return The digest of the checkpoint.
+     * @return The digest of the legacy checkpoint.
      */
     function digest(
         uint32 _origin,

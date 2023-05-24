@@ -5,8 +5,7 @@ import "forge-std/Test.sol";
 
 import {IMultisigIsm} from "../../contracts/interfaces/isms/IMultisigIsm.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
-import {StaticMerkleRootMultisigIsmFactory} from "../../contracts/isms/multisig/StaticMultisigIsmFactory.sol";
-import {StaticMessageIdMultisigIsmFactory} from "../../contracts/isms/multisig/StaticMultisigIsmFactory.sol";
+import {StaticMerkleRootMultisigIsmFactory, StaticMessageIdMultisigIsmFactory} from "../../contracts/isms/multisig/StaticMultisigIsm.sol";
 import {MerkleRootMultisigIsmMetadata} from "../../contracts/libs/isms/MerkleRootMultisigIsmMetadata.sol";
 import {CheckpointLib} from "../../contracts/libs/CheckpointLib.sol";
 import {StaticMOfNAddressSetFactory} from "../../contracts/libs/StaticMOfNAddressSetFactory.sol";
@@ -48,10 +47,7 @@ abstract contract AbstractMultisigIsmTest is Test {
             checkpointIndex,
             messageId
         );
-        bytes memory metadata = abi.encodePacked(
-            mailboxAsBytes32,
-            metadataPrefix(message)
-        );
+        bytes memory metadata = metadataPrefix(message);
         for (uint256 i = 0; i < m; i++) {
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(signers[i], digest);
             metadata = abi.encodePacked(metadata, r, s, v);
@@ -123,7 +119,7 @@ abstract contract AbstractMultisigIsmTest is Test {
         bytes memory message = getMessage(destination, recipient, body);
         bytes memory metadata = getMetadata(m, n, seed, message);
 
-        // changing single bit in metadata should fail signature verification
+        // changing single byte in metadata should fail signature verification
         uint256 index = uint256(seed) % metadata.length;
         metadata[index] = ~metadata[index];
         assertFalse(ism.verify(metadata, message));
@@ -145,7 +141,14 @@ contract MerkleRootMultisigIsmTest is AbstractMultisigIsmTest {
         returns (bytes memory)
     {
         uint32 checkpointIndex = uint32(mailbox.count() - 1);
-        return abi.encodePacked(checkpointIndex, message.id(), mailbox.proof());
+        bytes32 mailboxAsBytes32 = TypeCasts.addressToBytes32(address(mailbox));
+        return
+            abi.encodePacked(
+                mailboxAsBytes32,
+                checkpointIndex,
+                message.id(),
+                mailbox.proof()
+            );
     }
 }
 
@@ -163,6 +166,7 @@ contract MessageIdMultisigIsmTest is AbstractMultisigIsmTest {
         override
         returns (bytes memory)
     {
-        return abi.encodePacked(mailbox.root());
+        bytes32 mailboxAsBytes32 = TypeCasts.addressToBytes32(address(mailbox));
+        return abi.encodePacked(mailboxAsBytes32, mailbox.root());
     }
 }

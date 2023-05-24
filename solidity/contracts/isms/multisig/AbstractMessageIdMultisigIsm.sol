@@ -9,9 +9,8 @@ import {Message} from "../../libs/Message.sol";
 import {CheckpointLib} from "../../libs/CheckpointLib.sol";
 
 /**
- * @title MultisigIsm
- * @notice Manages per-domain m-of-n Validator sets that are used to verify
- * a quorum of signatures on message ID at index I.
+ * @title AbstractMessageIdMultisigIsm
+ * @notice Provides abstract logic for verifying signatures on a message ID.
  * @dev Implement and use if you want fastest and cheapest security.
  */
 abstract contract AbstractMessageIdMultisigIsm is AbstractMultisigIsm {
