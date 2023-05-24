@@ -109,7 +109,7 @@ impl ValidatorSubmitter {
         Ok(())
     }
 
-    #[instrument(err, skip(self), fields(domain=self.mailbox.domain().name()))]
+    #[instrument(err, skip(self), fields(domain=%self.mailbox.domain()))]
     async fn main_task(self) -> Result<()> {
         self.announce_task().await?;
 

@@ -60,7 +60,7 @@ impl MessageProcessor {
         tokio::spawn(async move { self.main_loop().await }).instrument(span)
     }
 
-    #[instrument(ret, err, skip(self), level = "info", fields(domain=self.domain().name()))]
+    #[instrument(ret, err, skip(self), level = "info", fields(domain=%self.domain()))]
     async fn main_loop(mut self) -> Result<()> {
         // Forever, scan HyperlaneRocksDB looking for new messages to send. When criteria are
         // satisfied or the message is disqualified, push the message onto
