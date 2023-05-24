@@ -81,7 +81,7 @@ contract GasRouterTest is Test {
     uint256 refund = 0;
     bool passRefund = true;
 
-    fallback() external payable {
+    receive() external payable {
         refund = msg.value;
         assert(passRefund);
     }
