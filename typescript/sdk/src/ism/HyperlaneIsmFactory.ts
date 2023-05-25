@@ -1,3 +1,4 @@
+import { debug } from 'debug';
 import { ethers } from 'ethers';
 
 import {
@@ -56,7 +57,11 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
       ismFactoryFactories,
       multiProvider,
     );
-    return new HyperlaneIsmFactory(helper.contractsMap, helper.multiProvider);
+    return new HyperlaneIsmFactory(
+      helper.contractsMap,
+      helper.multiProvider,
+      debug('hyperlane:IsmFactoryApp'),
+    );
   }
 
   async deploy(
@@ -69,10 +74,17 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
       config.type === ModuleType.MESSAGE_ID_MULTISIG ||
       config.type === ModuleType.LEGACY_MULTISIG
     ) {
+      this.logger(`Deploying Multisig ISM to ${chain} for verifying ${origin}`);
       return this.deployMultisigIsm(chain, config, origin);
     } else if (config.type === ModuleType.ROUTING) {
+      this.logger(
+        `Deploying Routing ISM to ${chain} for verifying ${Object.keys(
+          config.domains,
+        )}`,
+      );
       return this.deployRoutingIsm(chain, config);
     } else if (config.type === ModuleType.AGGREGATION) {
+      this.logger(`Deploying Aggregation ISM to ${chain}`);
       return this.deployAggregationIsm(chain, config);
     } else {
       throw new Error(`Unsupported ISM type`);
@@ -184,7 +196,14 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     const provider = this.multiProvider.getProvider(chain);
     const code = await provider.getCode(address);
     if (code === '0x') {
+      this.logger(
+        `Deploying new ${threshold} of ${values.length} address set to ${chain}`,
+      );
       await factory.deploy(sorted, threshold);
+    } else {
+      this.logger(
+        `Recovered ${threshold} of ${values.length} address set on ${chain}`,
+      );
     }
     return address;
   }
