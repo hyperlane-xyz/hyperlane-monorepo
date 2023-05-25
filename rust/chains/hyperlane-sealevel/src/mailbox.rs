@@ -599,11 +599,12 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
             to
         );
 
-        let expected_count: usize = (to - from)
+        let expected_count: usize = ((to + 1) - from)
             .try_into()
             .map_err(ChainCommunicationError::from_other)?;
         let mut messages = Vec::with_capacity(expected_count);
-        for nonce in from..to {
+        // Inclusive of `to` for consistency with eth_getLogs
+        for nonce in from..=to {
             messages.push(self.get_message_with_nonce(nonce).await?);
         }
         Ok(messages)

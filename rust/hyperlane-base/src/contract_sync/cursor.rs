@@ -212,7 +212,7 @@ impl BackwardMessageSyncCursor {
             IndexMode::Block => IndexRange::Blocks(from, to),
             IndexMode::Sequence => IndexRange::Sequences(
                 (next_nonce.saturating_sub(MAX_SEQUENCE_RANGE)).max(0),
-                next_nonce + 1,
+                next_nonce,
             ),
         };
 
