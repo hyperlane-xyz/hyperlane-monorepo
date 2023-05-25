@@ -87,7 +87,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     const signer = this.multiProvider.getSigner(chain);
     let address: string;
     if (config.type === ModuleType.LEGACY_MULTISIG) {
-      if (process.env.E2E_CI_MODE !== 'true') {
+      if (process.env.CI !== 'true') {
         throw new Error(
           'Legacy multisig ISM is being deprecated, do not deploy',
         );
@@ -388,7 +388,11 @@ export function collectValidators(
   config: IsmConfig,
 ): Set<string> {
   let validators: string[] = [];
-  if (config.type === ModuleType.MERKLE_ROOT_MULTISIG) {
+  if (
+    config.type === ModuleType.MERKLE_ROOT_MULTISIG ||
+    config.type === ModuleType.MESSAGE_ID_MULTISIG ||
+    config.type === ModuleType.LEGACY_MULTISIG
+  ) {
     validators = config.validators;
   } else if (config.type === ModuleType.ROUTING) {
     if (Object.keys(config.domains).includes(origin)) {
