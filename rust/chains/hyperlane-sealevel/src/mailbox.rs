@@ -19,7 +19,7 @@ use tracing::{debug, error, instrument, trace, warn};
 
 use crate::{
     mailbox::contract::DispatchedMessageAccount,
-    mailbox_message_storage_pda_seeds,
+    mailbox_message_storage_pda_seeds, mailbox_process_authority_pda_seeds,
     solana::{
         account::Account,
         account_decoder::{UiAccountEncoding, UiDataSliceConfig},
@@ -59,7 +59,6 @@ fn signature_to_txn_hash(signature: &Signature) -> H256 {
 /// A reference to a Mailbox contract on some Sealevel chain
 pub struct SealevelMailbox {
     program_id: Pubkey,
-    authority: (Pubkey, u8),
     inbox: (Pubkey, u8),
     outbox: (Pubkey, u8),
     rpc_client: RpcClient,
@@ -79,16 +78,6 @@ impl SealevelMailbox {
         // TODO use helper functions from mailbox contract lib
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         let domain = locator.domain.id();
-        let authority = Pubkey::find_program_address(
-            &[
-                b"hyperlane",
-                b"-",
-                &domain.to_le_bytes(),
-                b"-",
-                b"authority",
-            ],
-            &program_id,
-        );
         let inbox = Pubkey::find_program_address(
             &[b"hyperlane", b"-", &domain.to_le_bytes(), b"-", b"inbox"],
             &program_id,
@@ -99,13 +88,12 @@ impl SealevelMailbox {
         );
 
         debug!(
-            "domain={}\nmailbox={}\nauthority=({}, {})\ninbox=({}, {})\noutbox=({}, {})",
-            domain, program_id, authority.0, authority.1, inbox.0, inbox.1, outbox.0, outbox.1,
+            "domain={}\nmailbox={}\ninbox=({}, {})\noutbox=({}, {})",
+            domain, program_id, inbox.0, inbox.1, outbox.0, outbox.1,
         );
 
         Ok(SealevelMailbox {
             program_id,
-            authority,
             inbox,
             outbox,
             rpc_client,
@@ -114,10 +102,6 @@ impl SealevelMailbox {
         })
     }
 
-    // TODO do we need these accessors?
-    pub fn authority(&self) -> (Pubkey, u8) {
-        self.authority
-    }
     pub fn inbox(&self) -> (Pubkey, u8) {
         self.inbox
     }
@@ -337,10 +321,20 @@ impl Mailbox for SealevelMailbox {
         let mut instructions = Vec::with_capacity(1);
         let commitment = CommitmentConfig::finalized();
 
-        let recipient = message.recipient.0.into();
+        let recipient: Pubkey = message.recipient.0.into();
         let ism = inbox.ism.to_bytes().into();
         let mut encoded_message = vec![];
         message.write_to(&mut encoded_message).unwrap();
+
+        let (process_authority_key, _process_authority_bump) = Pubkey::try_find_program_address(
+            mailbox_process_authority_pda_seeds!(&recipient),
+            &self.program_id,
+        )
+        .ok_or_else(|| {
+            ChainCommunicationError::from_other_str(
+                "Could not find program address for process authority",
+            )
+        })?;
 
         let ixn = contract::Instruction::InboxProcess(contract::InboxProcess {
             metadata: metadata.to_vec(),
@@ -351,12 +345,12 @@ impl Mailbox for SealevelMailbox {
             .map_err(ChainCommunicationError::from_other)?;
         let mut accounts = vec![
             AccountMeta::new(self.inbox.0, false),
-            AccountMeta::new_readonly(self.authority.0, false),
+            AccountMeta::new_readonly(process_authority_key, false),
             AccountMeta::new_readonly(Pubkey::from_str(contract::SPL_NOOP).unwrap(), false),
             AccountMeta::new_readonly(ism, false),
-            AccountMeta::new_readonly(recipient, false),
             // Note: we would have to provide ISM accounts accounts here if the contract uses
             // any additional accounts.
+            AccountMeta::new_readonly(recipient, false),
         ];
 
         let payer = self
@@ -714,7 +708,6 @@ mod contract {
     #[derive(BorshSerialize, BorshDeserialize, Debug)]
     pub struct Inbox {
         pub local_domain: u32,
-        pub auth_bump_seed: u8,
         pub inbox_bump_seed: u8,
         // Note: 10MB account limit is around ~300k entries.
         pub delivered: HashSet<H256>,
@@ -725,7 +718,6 @@ mod contract {
         fn default() -> Self {
             Self {
                 local_domain: 0,
-                auth_bump_seed: 0,
                 inbox_bump_seed: 0,
                 delivered: Default::default(),
                 // TODO can declare_id!() or similar be used for these to compute at compile time?
@@ -742,7 +734,6 @@ mod contract {
     #[derive(BorshSerialize, BorshDeserialize, Debug, Default)]
     pub struct Outbox {
         pub local_domain: u32,
-        pub auth_bump_seed: u8,
         pub outbox_bump_seed: u8,
         pub tree: MerkleTree,
     }
@@ -780,7 +771,6 @@ mod contract {
     #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
     pub struct Init {
         pub local_domain: u32,
-        pub auth_bump_seed: u8,
         pub inbox_bump_seed: u8,
         pub outbox_bump_seed: u8,
     }
@@ -931,6 +921,31 @@ mod contract {
                 b"dispatched_message",
                 b"-",
                 $unique_message_pubkey.as_ref(),
+                &[$bump_seed],
+            ]
+        }};
+    }
+
+    /// The PDA seeds relating to the Mailbox's process authority for a particular recipient.
+    #[macro_export]
+    macro_rules! mailbox_process_authority_pda_seeds {
+        ($recipient_pubkey:expr) => {{
+            &[
+                b"hyperlane",
+                b"-",
+                b"process_authority",
+                b"-",
+                $recipient_pubkey.as_ref(),
+            ]
+        }};
+
+        ($recipient_pubkey:expr, $bump_seed:expr) => {{
+            &[
+                b"hyperlane",
+                b"-",
+                b"process_authority",
+                b"-",
+                $recipient_pubkey.as_ref(),
                 &[$bump_seed],
             ]
         }};

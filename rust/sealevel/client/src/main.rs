@@ -12,7 +12,7 @@ use hyperlane_sealevel_mailbox::{
         InboxProcess, Init as InitMailbox, Instruction as MailboxInstruction, OutboxDispatch,
         VERSION,
     },
-    mailbox_authority_pda_seeds, mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds,
+    mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds,
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds, spl_noop,
     ID as MAILBOX_PROG_ID,
 };
@@ -271,10 +271,6 @@ fn main() {
 fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
     match cmd.cmd {
         MailboxSubCmd::Init(init) => {
-            let (auth_account, auth_bump) = Pubkey::find_program_address(
-                mailbox_authority_pda_seeds!(init.local_domain),
-                &init.program_id,
-            );
             let (inbox_account, inbox_bump) = Pubkey::find_program_address(
                 mailbox_inbox_pda_seeds!(init.local_domain),
                 &init.program_id,
@@ -286,7 +282,6 @@ fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
 
             let ixn = MailboxInstruction::Init(InitMailbox {
                 local_domain: init.local_domain,
-                auth_bump_seed: auth_bump,
                 inbox_bump_seed: inbox_bump,
                 outbox_bump_seed: outbox_bump,
             });
@@ -296,7 +291,6 @@ fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
                 accounts: vec![
                     AccountMeta::new(system_program::id(), false),
                     AccountMeta::new(ctx.payer.pubkey(), true),
-                    AccountMeta::new(auth_account, false),
                     AccountMeta::new(inbox_account, false),
                     AccountMeta::new(outbox_account, false),
                 ],
@@ -315,15 +309,10 @@ fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
                 .confirm_transaction_with_spinner(&signature, &recent_blockhash, ctx.commitment)
                 .unwrap();
 
-            println!("auth=({}, {})", auth_account, auth_bump);
             println!("inbox=({}, {})", inbox_account, inbox_bump);
             println!("outbox=({}, {})", outbox_account, outbox_bump);
         }
         MailboxSubCmd::Query(query) => {
-            let (auth_account, auth_bump) = Pubkey::find_program_address(
-                mailbox_authority_pda_seeds!(query.local_domain),
-                &query.program_id,
-            );
             let (inbox_account, inbox_bump) = Pubkey::find_program_address(
                 mailbox_inbox_pda_seeds!(query.local_domain),
                 &query.program_id,
@@ -335,20 +324,13 @@ fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
 
             let accounts = ctx
                 .client
-                .get_multiple_accounts(&[auth_account, inbox_account, outbox_account])
+                .get_multiple_accounts(&[inbox_account, outbox_account])
                 .unwrap();
             println!("domain={}", query.local_domain);
             println!("mailbox={}", query.program_id);
             println!("--------------------------------");
-            println!("Authority: {}, bump={}", auth_account, auth_bump);
-            if let Some(info) = &accounts[0] {
-                println!("{:#?}", info);
-            } else {
-                println!("Not yet created?");
-            }
-            println!("--------------------------------");
             println!("Inbox: {}, bump={}", inbox_account, inbox_bump);
-            if let Some(info) = &accounts[1] {
+            if let Some(info) = &accounts[0] {
                 println!("{:#?}", info);
                 match InboxAccount::fetch(&mut info.data.as_ref()) {
                     Ok(inbox) => println!("{:#?}", inbox.into_inner()),
@@ -359,7 +341,7 @@ fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
             }
             println!("--------------------------------");
             println!("Outbox: {}, bump={}", outbox_account, outbox_bump);
-            if let Some(info) = &accounts[2] {
+            if let Some(info) = &accounts[1] {
                 println!("{:#?}", info);
                 match OutboxAccount::fetch(&mut info.data.as_ref()) {
                     Ok(outbox) => println!("{:#?}", outbox.into_inner()),
@@ -406,12 +388,10 @@ fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
                 .unwrap();
         }
         MailboxSubCmd::Receive(inbox) => {
+            // TODO this probably needs some love
+
             let (inbox_account, _inbox_bump) = Pubkey::find_program_address(
                 mailbox_inbox_pda_seeds!(inbox.local_domain),
-                &inbox.program_id,
-            );
-            let (auth_account, _auth_bump) = Pubkey::find_program_address(
-                mailbox_authority_pda_seeds!(inbox.local_domain),
                 &inbox.program_id,
             );
             let hyperlane_message = HyperlaneMessage {
@@ -444,7 +424,6 @@ fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
                 data: ixn.into_instruction_data().unwrap(),
                 accounts: vec![
                     AccountMeta::new(inbox_account, false),
-                    AccountMeta::new_readonly(auth_account, false),
                     AccountMeta::new_readonly(spl_noop::id(), false),
                     AccountMeta::new_readonly(inbox.ism, false),
                     AccountMeta::new_readonly(inbox.recipient, false),
