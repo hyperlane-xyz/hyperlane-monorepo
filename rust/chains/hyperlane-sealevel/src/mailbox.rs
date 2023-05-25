@@ -109,6 +109,7 @@ impl SealevelMailbox {
         self.outbox
     }
 
+    /// Simulates an Instruction that will return a list of AccountMetas.
     pub async fn get_account_metas(
         &self,
         instruction: Instruction,
@@ -157,6 +158,8 @@ impl SealevelMailbox {
         Ok(vec![])
     }
 
+    /// Gets the account metas required for the recipient's
+    /// `MessageRecipientInstruction::InterchainSecurityModule` instruction.
     pub async fn get_ism_getter_account_metas(
         &self,
         recipient_program_id: Pubkey,
@@ -179,6 +182,7 @@ impl SealevelMailbox {
         self.get_account_metas(instruction, payer).await
     }
 
+    /// Gets the account metas required for the recipient's `MessageRecipientInstruction::Handle` instruction.
     pub async fn get_handle_account_metas(
         &self,
         message: &HyperlaneMessage,

@@ -34,126 +34,13 @@ use crate::{
         InboxProcess, InboxSetDefaultModule, Init, Instruction as MailboxIxn, OutboxDispatch,
         OutboxQuery, MAX_MESSAGE_BODY_BYTES, VERSION,
     },
+    mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds,
+    mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
+    mailbox_process_authority_pda_seeds,
 };
 
 #[cfg(not(feature = "no-entrypoint"))]
 entrypoint!(process_instruction);
-
-#[macro_export]
-macro_rules! mailbox_inbox_pda_seeds {
-    ($local_domain:expr) => {{
-        &[
-            b"hyperlane",
-            b"-",
-            &$local_domain.to_le_bytes(),
-            b"-",
-            b"inbox",
-        ]
-    }};
-
-    ($local_domain:expr, $bump_seed:expr) => {{
-        &[
-            b"hyperlane",
-            b"-",
-            &$local_domain.to_le_bytes(),
-            b"-",
-            b"inbox",
-            &[$bump_seed],
-        ]
-    }};
-}
-
-#[macro_export]
-macro_rules! mailbox_outbox_pda_seeds {
-    ($local_domain:expr) => {{
-        &[
-            b"hyperlane",
-            b"-",
-            &$local_domain.to_le_bytes(),
-            b"-",
-            b"outbox",
-        ]
-    }};
-
-    ($local_domain:expr, $bump_seed:expr) => {{
-        &[
-            b"hyperlane",
-            b"-",
-            &$local_domain.to_le_bytes(),
-            b"-",
-            b"outbox",
-            &[$bump_seed],
-        ]
-    }};
-}
-
-/// Gets the PDA seeds for a message storage account that's
-/// based upon the pubkey of a unique message account.
-#[macro_export]
-macro_rules! mailbox_dispatched_message_pda_seeds {
-    ($unique_message_pubkey:expr) => {{
-        &[
-            b"hyperlane",
-            b"-",
-            b"dispatched_message",
-            b"-",
-            $unique_message_pubkey.as_ref(),
-        ]
-    }};
-
-    ($unique_message_pubkey:expr, $bump_seed:expr) => {{
-        &[
-            b"hyperlane",
-            b"-",
-            b"dispatched_message",
-            b"-",
-            $unique_message_pubkey.as_ref(),
-            &[$bump_seed],
-        ]
-    }};
-}
-
-/// The PDA seeds relating to a program's dispatch authority.
-#[macro_export]
-macro_rules! mailbox_message_dispatch_authority_pda_seeds {
-    () => {{
-        &[b"hyperlane_dispatcher", b"-", b"dispatch_authority"]
-    }};
-
-    ($bump_seed:expr) => {{
-        &[
-            b"hyperlane_dispatcher",
-            b"-",
-            b"dispatch_authority",
-            &[$bump_seed],
-        ]
-    }};
-}
-
-/// The PDA seeds relating to the Mailbox's process authority for a particular recipient.
-#[macro_export]
-macro_rules! mailbox_process_authority_pda_seeds {
-    ($recipient_pubkey:expr) => {{
-        &[
-            b"hyperlane",
-            b"-",
-            b"process_authority",
-            b"-",
-            $recipient_pubkey.as_ref(),
-        ]
-    }};
-
-    ($recipient_pubkey:expr, $bump_seed:expr) => {{
-        &[
-            b"hyperlane",
-            b"-",
-            b"process_authority",
-            b"-",
-            $recipient_pubkey.as_ref(),
-            &[$bump_seed],
-        ]
-    }};
-}
 
 pub fn process_instruction(
     program_id: &Pubkey,
@@ -978,7 +865,7 @@ mod test {
 
         process_instruction(&mailbox_program_id, &accounts, &instruction_data).unwrap();
         testing_logger::validate(|logs| {
-            assert_eq!(logs.len(), 4);
+            assert_eq!(logs.len(), 5);
             assert_eq!(logs[0].level, log::Level::Info);
             assert_eq!(
                 logs[0].body,
@@ -997,6 +884,11 @@ mod test {
             assert_eq!(logs[3].level, log::Level::Info);
             assert_eq!(
                 logs[3].body,
+                "SyscallStubs: sol_invoke_signed() not available"
+            );
+            assert_eq!(logs[4].level, log::Level::Info);
+            assert_eq!(
+                logs[4].body,
                 format!("Hyperlane inbox processed message {:?}", message.id()),
             );
         });
