@@ -74,7 +74,7 @@ impl ScraperDb {
             .await
             .context("When querying blocks")?;
 
-        debug!(blocks = blocks.len(), "Queried block info for hashes");
+        trace!(blocks = blocks.len(), "Queried block info for hashes");
         Ok(blocks)
     }
 

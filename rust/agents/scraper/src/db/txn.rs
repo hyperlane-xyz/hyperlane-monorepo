@@ -60,7 +60,6 @@ impl ScraperDb {
             .map(|(id, hash)| Ok((H256::from_slice(&hash), id)))
             .collect::<Result<HashMap<_, _>>>()?;
 
-        debug!(txns = txns.len(), "Queried transaction info for hashes");
         trace!(?txns, "Queried transaction info for hashes");
         Ok(txns)
     }

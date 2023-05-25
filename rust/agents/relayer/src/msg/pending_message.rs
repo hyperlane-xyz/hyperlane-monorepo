@@ -190,7 +190,10 @@ impl PendingOperation for PendingMessage {
             };
 
         // Go ahead and attempt processing of message to destination chain.
-        debug!(?gas_limit, "Ready to process message");
+        debug!(
+            ?gas_limit,
+            "Gas payment requirement met, ready to process message"
+        );
 
         let gas_limit = tx_cost_estimate.gas_limit;
 

@@ -8,9 +8,10 @@ use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use prometheus::IntGauge;
 use tokio::time::sleep;
+use tracing::instrument;
+use tracing::{debug, info};
 
 use hyperlane_base::{CheckpointSyncer, CoreMetrics};
-use tracing::{debug, info};
 
 use hyperlane_core::{
     Checkpoint, CheckpointWithMessageId, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
@@ -58,6 +59,7 @@ impl ValidatorSubmitter {
         }
     }
 
+    #[instrument(err, skip(self), fields(domain=%self.mailbox.domain()))]
     pub(crate) async fn checkpoint_submitter(
         self,
         mut tree: IncrementalMerkle,

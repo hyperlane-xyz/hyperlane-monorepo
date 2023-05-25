@@ -85,10 +85,7 @@ pub trait MultisigIsmMetadataBuilder: AsRef<BaseMetadataBuilder> + Send + Sync {
             }
         };
 
-        self.token_layout()
-            .iter()
-            .flat_map(build_token)
-            .collect()
+        self.token_layout().iter().flat_map(build_token).collect()
     }
 }
 
