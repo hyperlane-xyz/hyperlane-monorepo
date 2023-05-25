@@ -512,8 +512,6 @@ impl SealevelMailboxIndexer {
             .await
             .map_err(ChainCommunicationError::from_other)?;
 
-        println!("get_message_with_nonce matching accounts {:?}", accounts);
-
         // Now loop through matching accounts and find the one with a valid account pubkey
         // that proves it's an actual message storage PDA.
         let mut valid_message_storage_pda_pubkey = Option::<Pubkey>::None;
