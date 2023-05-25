@@ -17,7 +17,8 @@
         "url": "http://127.0.0.1:8899"
       },
       "index": {
-        "from": "1"
+        "from": "1",
+        "mode": "sequence"
       }
     }
   },

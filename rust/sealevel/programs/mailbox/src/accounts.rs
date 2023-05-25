@@ -1,15 +1,17 @@
 //! Hyperlane Sealevel Mailbox data account layouts.
 
-use std::{collections::HashSet, str::FromStr as _};
+use std::{collections::HashSet, io::Read, str::FromStr as _};
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{accumulator::incremental::IncrementalMerkle as MerkleTree, H256};
-use solana_program::{account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey};
+use solana_program::{
+    account_info::AccountInfo, clock::Slot, program_error::ProgramError, pubkey::Pubkey,
+};
 
 use crate::{error::Error, DEFAULT_ISM, DEFAULT_ISM_ACCOUNTS};
 
 pub trait SizedData {
-    fn size() -> usize;
+    fn size(&self) -> usize;
 }
 
 // FIXME should probably define another trait rather than use Default for this as a valid but
@@ -47,9 +49,9 @@ impl<T> SizedData for AccountData<T>
 where
     T: SizedData,
 {
-    fn size() -> usize {
+    fn size(&self) -> usize {
         // Add an extra byte for the initialized flag.
-        1 + T::size()
+        1 + self.data.size()
     }
 }
 
@@ -165,4 +167,115 @@ pub struct Outbox {
     pub auth_bump_seed: u8,
     pub outbox_bump_seed: u8,
     pub tree: MerkleTree,
+}
+
+pub type DispatchedMessageAccount = AccountData<DispatchedMessage>;
+
+// TODO change?
+const DISPATCHED_MESSAGE_DISCRIMINATOR: &[u8; 8] = b"DISPATCH";
+
+#[derive(Debug, Default, Eq, PartialEq)]
+pub struct DispatchedMessage {
+    pub discriminator: [u8; 8],
+    pub nonce: u32,
+    pub slot: Slot,
+    pub unique_message_pubkey: Pubkey,
+    pub encoded_message: Vec<u8>,
+}
+
+impl DispatchedMessage {
+    pub fn new(
+        nonce: u32,
+        slot: Slot,
+        unique_message_pubkey: Pubkey,
+        encoded_message: Vec<u8>,
+    ) -> Self {
+        Self {
+            discriminator: *DISPATCHED_MESSAGE_DISCRIMINATOR,
+            nonce,
+            slot,
+            unique_message_pubkey,
+            encoded_message,
+        }
+    }
+}
+
+impl SizedData for DispatchedMessage {
+    fn size(&self) -> usize {
+        // 8 byte discriminator
+        // 4 byte nonce
+        // 8 byte slot
+        // 32 byte unique_message_pubkey
+        // encoded_message.len() bytes
+        8 + 4 + 8 + 32 + self.encoded_message.len()
+    }
+}
+
+impl BorshSerialize for DispatchedMessage {
+    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        writer.write_all(DISPATCHED_MESSAGE_DISCRIMINATOR)?;
+        writer.write_all(&self.nonce.to_be_bytes())?;
+        writer.write_all(&self.slot.to_be_bytes())?;
+        writer.write_all(&self.unique_message_pubkey.to_bytes())?;
+        writer.write_all(&self.encoded_message)?;
+        Ok(())
+    }
+}
+
+impl BorshDeserialize for DispatchedMessage {
+    fn deserialize(reader: &mut &[u8]) -> std::io::Result<Self> {
+        let mut discriminator = [0u8; 8];
+        reader.read_exact(&mut discriminator)?;
+        if &discriminator != DISPATCHED_MESSAGE_DISCRIMINATOR {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "invalid discriminator",
+            ));
+        }
+
+        let mut nonce = [0u8; 4];
+        reader.read_exact(&mut nonce)?;
+
+        let mut slot = [0u8; 8];
+        reader.read_exact(&mut slot)?;
+
+        let mut unique_message_pubkey = [0u8; 32];
+        reader.read_exact(&mut unique_message_pubkey)?;
+
+        let mut encoded_message = vec![];
+        reader.read_to_end(&mut encoded_message)?;
+
+        Ok(Self {
+            discriminator,
+            nonce: u32::from_be_bytes(nonce),
+            slot: u64::from_be_bytes(slot),
+            unique_message_pubkey: Pubkey::new_from_array(unique_message_pubkey),
+            encoded_message,
+        })
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    use solana_program::pubkey::Pubkey;
+
+    #[test]
+    fn test_dispatched_message_ser_deser() {
+        let dispatched_message = DispatchedMessage::new(
+            420,
+            69696969,
+            Pubkey::new_unique(),
+            vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 0],
+        );
+
+        let mut serialized = vec![];
+        dispatched_message.serialize(&mut serialized).unwrap();
+
+        let deserialized = DispatchedMessage::deserialize(&mut serialized.as_slice()).unwrap();
+
+        assert_eq!(dispatched_message, deserialized);
+        assert_eq!(serialized.len(), dispatched_message.size());
+    }
 }

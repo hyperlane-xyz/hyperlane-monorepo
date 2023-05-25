@@ -59,7 +59,7 @@ function getLiquidityLayerRelayerHelmValues(
 export function getLiquidityLayerRelayerConfig(
   coreConfig: EnvironmentConfig,
 ): LiquidityLayerRelayerConfig {
-  const relayerConfig = coreConfig.liquidityLayerRelayerConfig;
+  const relayerConfig = coreConfig.liquidityLayerConfig?.relayer;
   if (!relayerConfig) {
     throw new Error(
       `Environment ${coreConfig.environment} does not have a LiquidityLayerRelayerConfig config`,

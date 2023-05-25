@@ -11,7 +11,8 @@ use solana_program::{
 
 use hyperlane_sealevel_mailbox::{
     instruction::{Init as InitMailbox, Instruction as MailboxInstruction},
-    mailbox_authority_pda_seeds, mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds,
+    mailbox_authority_pda_seeds, mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds,
+    mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
 };
 use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
@@ -161,6 +162,9 @@ async fn test_initialize() {
     let (token_account_key, _token_account_bump_seed) =
         Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &program_id);
 
+    let (dispatch_authority_key, _dispatch_authority_seed) =
+        Pubkey::find_program_address(mailbox_message_dispatch_authority_pda_seeds!(), &program_id);
+
     let (mint_account_key, _mint_account_bump_seed) =
         Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
 
@@ -180,6 +184,7 @@ async fn test_initialize() {
                 vec![
                     AccountMeta::new_readonly(solana_program::system_program::id(), false),
                     AccountMeta::new(token_account_key, false),
+                    AccountMeta::new(dispatch_authority_key, false),
                     AccountMeta::new_readonly(payer.pubkey(), true),
                     AccountMeta::new(mint_account_key, false),
                     AccountMeta::new(ata_payer_account_key, false),
@@ -201,7 +206,7 @@ async fn test_initialize() {
 
     // Try minting some innit
 
-    let recipient_keypair = new_funded_keypair(&mut banks_client, &payer, 1000000).await;
+    let recipient_keypair = new_funded_keypair(&mut banks_client, &payer, 1000000000).await;
     let recipient: H256 = recipient_keypair.pubkey().to_bytes().into();
 
     let recipient_associated_token_account =
@@ -259,6 +264,12 @@ async fn test_initialize() {
 
     // Let's try transferring some tokens to the remote domain now
 
+    let unique_message_account_keypair = Keypair::new();
+    let (dispatched_message_key, _dispatched_message_bump) = Pubkey::find_program_address(
+        mailbox_dispatched_message_pda_seeds!(&unique_message_account_keypair.pubkey()),
+        &mailbox_program_id,
+    );
+
     let mut transaction = Transaction::new_with_payer(
         &[Instruction::new_with_bytes(
             program_id,
@@ -272,11 +283,15 @@ async fn test_initialize() {
             .into_instruction_data()
             .unwrap(),
             vec![
+                AccountMeta::new_readonly(solana_program::system_program::id(), false),
                 AccountMeta::new_readonly(spl_noop::id(), false),
                 AccountMeta::new_readonly(token_account_key, false),
                 AccountMeta::new_readonly(mailbox_accounts.program, false),
                 AccountMeta::new(mailbox_accounts.outbox, false),
+                AccountMeta::new_readonly(dispatch_authority_key, false),
                 AccountMeta::new_readonly(recipient_keypair.pubkey(), true),
+                AccountMeta::new_readonly(unique_message_account_keypair.pubkey(), true),
+                AccountMeta::new(dispatched_message_key, false),
                 AccountMeta::new_readonly(spl_token_2022::id(), false),
                 AccountMeta::new(mint_account_key, false),
                 AccountMeta::new(recipient_associated_token_account, false),
@@ -284,7 +299,10 @@ async fn test_initialize() {
         )],
         Some(&recipient_keypair.pubkey()),
     );
-    transaction.sign(&[&recipient_keypair], recent_blockhash);
+    transaction.sign(
+        &[&recipient_keypair, &unique_message_account_keypair],
+        recent_blockhash,
+    );
     banks_client.process_transaction(transaction).await.unwrap();
 
     let recipient_associated_token_account_data = banks_client

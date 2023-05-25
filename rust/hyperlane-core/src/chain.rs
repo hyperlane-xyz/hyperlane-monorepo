@@ -124,7 +124,7 @@ pub enum HyperlaneDomain {
     Known(KnownHyperlaneDomain),
     Unknown {
         domain_id: u32,
-        chain_name: String,
+        domain_name: String,
         domain_type: HyperlaneDomainType,
         domain_protocol: HyperlaneDomainProtocol,
     },
@@ -138,6 +138,18 @@ impl HyperlaneDomain {
                 KnownHyperlaneDomain::Arbitrum | KnownHyperlaneDomain::ArbitrumGoerli,
             )
         )
+    }
+}
+
+#[cfg(any(test, feature = "test-utils"))]
+impl HyperlaneDomain {
+    pub fn new_test_domain(name: &str) -> Self {
+        Self::Unknown {
+            domain_id: 0,
+            domain_name: name.to_owned(),
+            domain_type: HyperlaneDomainType::LocalTestChain,
+            domain_protocol: HyperlaneDomainProtocol::Ethereum,
+        }
     }
 }
 
@@ -305,7 +317,7 @@ impl HyperlaneDomain {
         } else {
             Ok(HyperlaneDomain::Unknown {
                 domain_id,
-                chain_name: name,
+                domain_name: name,
                 // we might want to support accepting these from the config later
                 domain_type: HyperlaneDomainType::Unknown,
                 domain_protocol: protocol,
@@ -317,7 +329,10 @@ impl HyperlaneDomain {
     pub fn name(&self) -> &str {
         match self {
             HyperlaneDomain::Known(domain) => domain.as_str(),
-            HyperlaneDomain::Unknown { chain_name, .. } => chain_name.as_str(),
+            HyperlaneDomain::Unknown {
+                domain_name: chain_name,
+                ..
+            } => chain_name.as_str(),
         }
     }
 

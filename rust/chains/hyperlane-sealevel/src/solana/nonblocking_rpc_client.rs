@@ -6,6 +6,8 @@
 //!
 //! [JSON-RPC]: https://www.jsonrpc.org/specification
 
+use super::rpc_filter::{self, RpcFilterType};
+
 /*
 pub use crate::mock_sender::Mocks;
 #[allow(deprecated)]
@@ -593,18 +595,18 @@ impl RpcClient {
         Ok(request)
     }
 
-    /*
-        #[allow(deprecated)]
-        async fn maybe_map_filters(
-            &self,
-            mut filters: Vec<RpcFilterType>,
-        ) -> Result<Vec<RpcFilterType>, RpcError> {
-            let node_version = self.get_node_version().await?;
-            rpc_filter::maybe_map_filters(Some(node_version), &mut filters)
-                .map_err(RpcError::RpcRequestError)?;
-            Ok(filters)
-        }
+    #[allow(deprecated)]
+    async fn maybe_map_filters(
+        &self,
+        mut filters: Vec<RpcFilterType>,
+    ) -> Result<Vec<RpcFilterType>, RpcError> {
+        let node_version = self.get_node_version().await?;
+        rpc_filter::maybe_map_filters(Some(node_version), &mut filters)
+            .map_err(RpcError::RpcRequestError)?;
+        Ok(filters)
+    }
 
+    /*
         /// Submit a transaction and wait for confirmation.
         ///
         /// Once this function returns successfully, the given transaction is
@@ -4040,521 +4042,524 @@ impl RpcClient {
     }
 
     /*
-        /// Get the max slot seen from retransmit stage.
-        ///
-        /// # RPC Reference
-        ///
-        /// This method corresponds directly to the [`getMaxRetransmitSlot`] RPC
-        /// method.
-        ///
-        /// [`getMaxRetransmitSlot`]: https://docs.solana.com/developing/clients/jsonrpc-api#getmaxretransmitslot
-        ///
-        /// # Examples
-        ///
-        /// ```
-        /// # use solana_client::{
-        /// #     nonblocking::rpc_client::RpcClient,
-        /// #     client_error::ClientError,
-        /// # };
-        /// # futures::executor::block_on(async {
-        /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
-        /// let slot = rpc_client.get_max_retransmit_slot().await?;
-        /// #     Ok::<(), ClientError>(())
-        /// # })?;
-        /// # Ok::<(), ClientError>(())
-        pub async fn get_max_retransmit_slot(&self) -> ClientResult<Slot> {
-            self.send(RpcRequest::GetMaxRetransmitSlot, Value::Null)
-                .await
-        }
+    /// Get the max slot seen from retransmit stage.
+    ///
+    /// # RPC Reference
+    ///
+    /// This method corresponds directly to the [`getMaxRetransmitSlot`] RPC
+    /// method.
+    ///
+    /// [`getMaxRetransmitSlot`]: https://docs.solana.com/developing/clients/jsonrpc-api#getmaxretransmitslot
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use solana_client::{
+    /// #     nonblocking::rpc_client::RpcClient,
+    /// #     client_error::ClientError,
+    /// # };
+    /// # futures::executor::block_on(async {
+    /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
+    /// let slot = rpc_client.get_max_retransmit_slot().await?;
+    /// #     Ok::<(), ClientError>(())
+    /// # })?;
+    /// # Ok::<(), ClientError>(())
+    pub async fn get_max_retransmit_slot(&self) -> ClientResult<Slot> {
+        self.send(RpcRequest::GetMaxRetransmitSlot, Value::Null)
+            .await
+    }
 
-        /// Get the max slot seen from after [shred](https://docs.solana.com/terminology#shred) insert.
-        ///
-        /// # RPC Reference
-        ///
-        /// This method corresponds directly to the
-        /// [`getMaxShredInsertSlot`] RPC method.
-        ///
-        /// [`getMaxShredInsertSlot`]: https://docs.solana.com/developing/clients/jsonrpc-api#getmaxshredinsertslot
-        ///
-        /// # Examples
-        ///
-        /// ```
-        /// # use solana_client::{
-        /// #     nonblocking::rpc_client::RpcClient,
-        /// #     client_error::ClientError,
-        /// # };
-        /// # futures::executor::block_on(async {
-        /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
-        /// let slot = rpc_client.get_max_shred_insert_slot().await?;
-        /// #     Ok::<(), ClientError>(())
-        /// # })?;
-        /// # Ok::<(), ClientError>(())
-        pub async fn get_max_shred_insert_slot(&self) -> ClientResult<Slot> {
-            self.send(RpcRequest::GetMaxShredInsertSlot, Value::Null)
-                .await
-        }
+    /// Get the max slot seen from after [shred](https://docs.solana.com/terminology#shred) insert.
+    ///
+    /// # RPC Reference
+    ///
+    /// This method corresponds directly to the
+    /// [`getMaxShredInsertSlot`] RPC method.
+    ///
+    /// [`getMaxShredInsertSlot`]: https://docs.solana.com/developing/clients/jsonrpc-api#getmaxshredinsertslot
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use solana_client::{
+    /// #     nonblocking::rpc_client::RpcClient,
+    /// #     client_error::ClientError,
+    /// # };
+    /// # futures::executor::block_on(async {
+    /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
+    /// let slot = rpc_client.get_max_shred_insert_slot().await?;
+    /// #     Ok::<(), ClientError>(())
+    /// # })?;
+    /// # Ok::<(), ClientError>(())
+    pub async fn get_max_shred_insert_slot(&self) -> ClientResult<Slot> {
+        self.send(RpcRequest::GetMaxShredInsertSlot, Value::Null)
+            .await
+    }
 
-        /// Returns the account information for a list of pubkeys.
-        ///
-        /// This method uses the configured [commitment level][cl].
-        ///
-        /// [cl]: https://docs.solana.com/developing/clients/jsonrpc-api#configuring-state-commitment
-        ///
-        /// # RPC Reference
-        ///
-        /// This method is built on the [`getMultipleAccounts`] RPC method.
-        ///
-        /// [`getMultipleAccounts`]: https://docs.solana.com/developing/clients/jsonrpc-api#getmultipleaccounts
-        ///
-        /// # Examples
-        ///
-        /// ```
-        /// # use solana_client::{
-        /// #     nonblocking::rpc_client::RpcClient,
-        /// #     client_error::ClientError,
-        /// # };
-        /// # use solana_sdk::{
-        /// #     signature::Signer,
-        /// #     signer::keypair::Keypair,
-        /// # };
-        /// # futures::executor::block_on(async {
-        /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
-        /// #     let alice = Keypair::new();
-        /// #     let bob = Keypair::new();
-        /// let pubkeys = vec![alice.pubkey(), bob.pubkey()];
-        /// let accounts = rpc_client.get_multiple_accounts(&pubkeys).await?;
-        /// #     Ok::<(), ClientError>(())
-        /// # })?;
-        /// # Ok::<(), ClientError>(())
-        /// ```
-        pub async fn get_multiple_accounts(
-            &self,
-            pubkeys: &[Pubkey],
-        ) -> ClientResult<Vec<Option<Account>>> {
-            Ok(self
-                .get_multiple_accounts_with_commitment(pubkeys, self.commitment())
-                .await?
-                .value)
-        }
+    /// Returns the account information for a list of pubkeys.
+    ///
+    /// This method uses the configured [commitment level][cl].
+    ///
+    /// [cl]: https://docs.solana.com/developing/clients/jsonrpc-api#configuring-state-commitment
+    ///
+    /// # RPC Reference
+    ///
+    /// This method is built on the [`getMultipleAccounts`] RPC method.
+    ///
+    /// [`getMultipleAccounts`]: https://docs.solana.com/developing/clients/jsonrpc-api#getmultipleaccounts
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use solana_client::{
+    /// #     nonblocking::rpc_client::RpcClient,
+    /// #     client_error::ClientError,
+    /// # };
+    /// # use solana_sdk::{
+    /// #     signature::Signer,
+    /// #     signer::keypair::Keypair,
+    /// # };
+    /// # futures::executor::block_on(async {
+    /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
+    /// #     let alice = Keypair::new();
+    /// #     let bob = Keypair::new();
+    /// let pubkeys = vec![alice.pubkey(), bob.pubkey()];
+    /// let accounts = rpc_client.get_multiple_accounts(&pubkeys).await?;
+    /// #     Ok::<(), ClientError>(())
+    /// # })?;
+    /// # Ok::<(), ClientError>(())
+    /// ```
+    pub async fn get_multiple_accounts(
+        &self,
+        pubkeys: &[Pubkey],
+    ) -> ClientResult<Vec<Option<Account>>> {
+        Ok(self
+            .get_multiple_accounts_with_commitment(pubkeys, self.commitment())
+            .await?
+            .value)
+    }
 
-        /// Returns the account information for a list of pubkeys.
-        ///
-        /// # RPC Reference
-        ///
-        /// This method is built on the [`getMultipleAccounts`] RPC method.
-        ///
-        /// [`getMultipleAccounts`]: https://docs.solana.com/developing/clients/jsonrpc-api#getmultipleaccounts
-        ///
-        /// # Examples
-        ///
-        /// ```
-        /// # use solana_client::{
-        /// #     nonblocking::rpc_client::RpcClient,
-        /// #     client_error::ClientError,
-        /// # };
-        /// # use solana_sdk::{
-        /// #     signature::Signer,
-        /// #     signer::keypair::Keypair,
-        /// #     commitment_config::CommitmentConfig,
-        /// # };
-        /// # futures::executor::block_on(async {
-        /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
-        /// #     let alice = Keypair::new();
-        /// #     let bob = Keypair::new();
-        /// let pubkeys = vec![alice.pubkey(), bob.pubkey()];
-        /// let commitment_config = CommitmentConfig::processed();
-        /// let accounts = rpc_client.get_multiple_accounts_with_commitment(
-        ///     &pubkeys,
-        ///     commitment_config,
-        /// ).await?;
-        /// #     Ok::<(), ClientError>(())
-        /// # })?;
-        /// # Ok::<(), ClientError>(())
-        /// ```
-        pub async fn get_multiple_accounts_with_commitment(
-            &self,
-            pubkeys: &[Pubkey],
-            commitment_config: CommitmentConfig,
-        ) -> RpcResult<Vec<Option<Account>>> {
-            self.get_multiple_accounts_with_config(
-                pubkeys,
-                RpcAccountInfoConfig {
+    /// Returns the account information for a list of pubkeys.
+    ///
+    /// # RPC Reference
+    ///
+    /// This method is built on the [`getMultipleAccounts`] RPC method.
+    ///
+    /// [`getMultipleAccounts`]: https://docs.solana.com/developing/clients/jsonrpc-api#getmultipleaccounts
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use solana_client::{
+    /// #     nonblocking::rpc_client::RpcClient,
+    /// #     client_error::ClientError,
+    /// # };
+    /// # use solana_sdk::{
+    /// #     signature::Signer,
+    /// #     signer::keypair::Keypair,
+    /// #     commitment_config::CommitmentConfig,
+    /// # };
+    /// # futures::executor::block_on(async {
+    /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
+    /// #     let alice = Keypair::new();
+    /// #     let bob = Keypair::new();
+    /// let pubkeys = vec![alice.pubkey(), bob.pubkey()];
+    /// let commitment_config = CommitmentConfig::processed();
+    /// let accounts = rpc_client.get_multiple_accounts_with_commitment(
+    ///     &pubkeys,
+    ///     commitment_config,
+    /// ).await?;
+    /// #     Ok::<(), ClientError>(())
+    /// # })?;
+    /// # Ok::<(), ClientError>(())
+    /// ```
+    pub async fn get_multiple_accounts_with_commitment(
+        &self,
+        pubkeys: &[Pubkey],
+        commitment_config: CommitmentConfig,
+    ) -> RpcResult<Vec<Option<Account>>> {
+        self.get_multiple_accounts_with_config(
+            pubkeys,
+            RpcAccountInfoConfig {
+                encoding: Some(UiAccountEncoding::Base64Zstd),
+                commitment: Some(self.maybe_map_commitment(commitment_config).await?),
+                data_slice: None,
+                min_context_slot: None,
+            },
+        )
+        .await
+    }
+
+    /// Returns the account information for a list of pubkeys.
+    ///
+    /// # RPC Reference
+    ///
+    /// This method is built on the [`getMultipleAccounts`] RPC method.
+    ///
+    /// [`getMultipleAccounts`]: https://docs.solana.com/developing/clients/jsonrpc-api#getmultipleaccounts
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use solana_client::{
+    /// #     nonblocking::rpc_client::RpcClient,
+    /// #     rpc_config::RpcAccountInfoConfig,
+    /// #     client_error::ClientError,
+    /// # };
+    /// # use solana_sdk::{
+    /// #     signature::Signer,
+    /// #     signer::keypair::Keypair,
+    /// #     commitment_config::CommitmentConfig,
+    /// # };
+    /// # use solana_account_decoder::UiAccountEncoding;
+    /// # futures::executor::block_on(async {
+    /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
+    /// #     let alice = Keypair::new();
+    /// #     let bob = Keypair::new();
+    /// let pubkeys = vec![alice.pubkey(), bob.pubkey()];
+    /// let commitment_config = CommitmentConfig::processed();
+    /// let config = RpcAccountInfoConfig {
+    ///     encoding: Some(UiAccountEncoding::Base64),
+    ///     commitment: Some(commitment_config),
+    ///     .. RpcAccountInfoConfig::default()
+    /// };
+    /// let accounts = rpc_client.get_multiple_accounts_with_config(
+    ///     &pubkeys,
+    ///     config,
+    /// ).await?;
+    /// #     Ok::<(), ClientError>(())
+    /// # })?;
+    /// # Ok::<(), ClientError>(())
+    /// ```
+    pub async fn get_multiple_accounts_with_config(
+        &self,
+        pubkeys: &[Pubkey],
+        config: RpcAccountInfoConfig,
+    ) -> RpcResult<Vec<Option<Account>>> {
+        let config = RpcAccountInfoConfig {
+            commitment: config.commitment.or_else(|| Some(self.commitment())),
+            ..config
+        };
+        let pubkeys: Vec<_> = pubkeys.iter().map(|pubkey| pubkey.to_string()).collect();
+        let response = self
+            .send(RpcRequest::GetMultipleAccounts, json!([pubkeys, config]))
+            .await?;
+        let Response {
+            context,
+            value: accounts,
+        } = serde_json::from_value::<Response<Vec<Option<UiAccount>>>>(response)?;
+        let accounts: Vec<Option<Account>> = accounts
+            .into_iter()
+            .map(|rpc_account| rpc_account.and_then(|a| a.decode()))
+            .collect();
+        Ok(Response {
+            context,
+            value: accounts,
+        })
+    }
+
+    /// Gets the raw data associated with an account.
+    ///
+    /// This is equivalent to calling [`get_account`] and then accessing the
+    /// [`data`] field of the returned [`Account`].
+    ///
+    /// [`get_account`]: RpcClient::get_account
+    /// [`data`]: Account::data
+    ///
+    /// # RPC Reference
+    ///
+    /// This method is built on the [`getAccountInfo`] RPC method.
+    ///
+    /// [`getAccountInfo`]: https://docs.solana.com/developing/clients/jsonrpc-api#getaccountinfo
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use solana_client::{
+    /// #     nonblocking::rpc_client::{self, RpcClient},
+    /// #     client_error::ClientError,
+    /// # };
+    /// # use solana_sdk::{
+    /// #     signature::Signer,
+    /// #     signer::keypair::Keypair,
+    /// #     pubkey::Pubkey,
+    /// # };
+    /// # use std::str::FromStr;
+    /// # futures::executor::block_on(async {
+    /// #     let mocks = rpc_client::create_rpc_client_mocks();
+    /// #     let rpc_client = RpcClient::new_mock_with_mocks("succeeds".to_string(), mocks);
+    /// let alice_pubkey = Pubkey::from_str("BgvYtJEfmZYdVKiptmMjxGzv8iQoo4MWjsP3QsTkhhxa").unwrap();
+    /// let account_data = rpc_client.get_account_data(&alice_pubkey).await?;
+    /// #     Ok::<(), ClientError>(())
+    /// # })?;
+    /// # Ok::<(), ClientError>(())
+    /// ```
+    pub async fn get_account_data(&self, pubkey: &Pubkey) -> ClientResult<Vec<u8>> {
+        Ok(self.get_account(pubkey).await?.data)
+    }
+
+    /// Returns minimum balance required to make an account with specified data length rent exempt.
+    ///
+    /// # RPC Reference
+    ///
+    /// This method corresponds directly to the
+    /// [`getMinimumBalanceForRentExemption`] RPC method.
+    ///
+    /// [`getMinimumBalanceForRentExemption`]: https://docs.solana.com/developing/clients/jsonrpc-api#getminimumbalanceforrentexemption
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use solana_client::{
+    /// #     nonblocking::rpc_client::RpcClient,
+    /// #     client_error::ClientError,
+    /// # };
+    /// # futures::executor::block_on(async {
+    /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
+    /// let data_len = 300;
+    /// let balance = rpc_client.get_minimum_balance_for_rent_exemption(data_len).await?;
+    /// #     Ok::<(), ClientError>(())
+    /// # })?;
+    /// # Ok::<(), ClientError>(())
+    /// ```
+    pub async fn get_minimum_balance_for_rent_exemption(
+        &self,
+        data_len: usize,
+    ) -> ClientResult<u64> {
+        let request = RpcRequest::GetMinimumBalanceForRentExemption;
+        let minimum_balance_json: Value = self
+            .send(request, json!([data_len]))
+            .await
+            .map_err(|err| err.into_with_request(request))?;
+
+        let minimum_balance: u64 = serde_json::from_value(minimum_balance_json)
+            .map_err(|err| ClientError::new_with_request(err.into(), request))?;
+        trace!(
+            "Response minimum balance {:?} {:?}",
+            data_len,
+            minimum_balance
+        );
+        Ok(minimum_balance)
+    }
+
+    /// Request the balance of the provided account pubkey.
+    ///
+    /// This method uses the configured [commitment level][cl].
+    ///
+    /// [cl]: https://docs.solana.com/developing/clients/jsonrpc-api#configuring-state-commitment
+    ///
+    /// # RPC Reference
+    ///
+    /// This method corresponds directly to the [`getBalance`] RPC method.
+    ///
+    /// [`getBalance`]: https://docs.solana.com/developing/clients/jsonrpc-api#getbalance
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use solana_client::{
+    /// #     nonblocking::rpc_client::RpcClient,
+    /// #     client_error::ClientError,
+    /// # };
+    /// # use solana_sdk::{
+    /// #     signature::Signer,
+    /// #     signer::keypair::Keypair,
+    /// # };
+    /// # futures::executor::block_on(async {
+    /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
+    /// #     let alice = Keypair::new();
+    /// let balance = rpc_client.get_balance(&alice.pubkey()).await?;
+    /// #     Ok::<(), ClientError>(())
+    /// # })?;
+    /// # Ok::<(), ClientError>(())
+    /// ```
+    pub async fn get_balance(&self, pubkey: &Pubkey) -> ClientResult<u64> {
+        Ok(self
+            .get_balance_with_commitment(pubkey, self.commitment())
+            .await?
+            .value)
+    }
+
+    /// Request the balance of the provided account pubkey.
+    ///
+    /// # RPC Reference
+    ///
+    /// This method corresponds directly to the [`getBalance`] RPC method.
+    ///
+    /// [`getBalance`]: https://docs.solana.com/developing/clients/jsonrpc-api#getbalance
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use solana_client::{
+    /// #     nonblocking::rpc_client::RpcClient,
+    /// #     client_error::ClientError,
+    /// # };
+    /// # use solana_sdk::{
+    /// #     signature::Signer,
+    /// #     signer::keypair::Keypair,
+    /// #     commitment_config::CommitmentConfig,
+    /// # };
+    /// # futures::executor::block_on(async {
+    /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
+    /// #     let alice = Keypair::new();
+    /// let commitment_config = CommitmentConfig::processed();
+    /// let balance = rpc_client.get_balance_with_commitment(
+    ///     &alice.pubkey(),
+    ///     commitment_config,
+    /// ).await?;
+    /// #     Ok::<(), ClientError>(())
+    /// # })?;
+    /// # Ok::<(), ClientError>(())
+    /// ```
+    pub async fn get_balance_with_commitment(
+        &self,
+        pubkey: &Pubkey,
+        commitment_config: CommitmentConfig,
+    ) -> RpcResult<u64> {
+        self.send(
+            RpcRequest::GetBalance,
+            json!([
+                pubkey.to_string(),
+                self.maybe_map_commitment(commitment_config).await?
+            ]),
+        )
+        .await
+    }
+
+    /// Returns all accounts owned by the provided program pubkey.
+    ///
+    /// This method uses the configured [commitment level][cl].
+    ///
+    /// [cl]: https://docs.solana.com/developing/clients/jsonrpc-api#configuring-state-commitment
+    ///
+    /// # RPC Reference
+    ///
+    /// This method corresponds directly to the [`getProgramAccounts`] RPC
+    /// method.
+    ///
+    /// [`getProgramAccounts`]: https://docs.solana.com/developing/clients/jsonrpc-api#getprogramaccounts
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use solana_client::{
+    /// #     nonblocking::rpc_client::RpcClient,
+    /// #     client_error::ClientError,
+    /// # };
+    /// # use solana_sdk::{
+    /// #     signature::Signer,
+    /// #     signer::keypair::Keypair,
+    /// # };
+    /// # futures::executor::block_on(async {
+    /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
+    /// #     let alice = Keypair::new();
+    /// let accounts = rpc_client.get_program_accounts(&alice.pubkey()).await?;
+    /// #     Ok::<(), ClientError>(())
+    /// # })?;
+    /// # Ok::<(), ClientError>(())
+    /// ```
+    pub async fn get_program_accounts(
+        &self,
+        pubkey: &Pubkey,
+    ) -> ClientResult<Vec<(Pubkey, Account)>> {
+        self.get_program_accounts_with_config(
+            pubkey,
+            RpcProgramAccountsConfig {
+                account_config: RpcAccountInfoConfig {
                     encoding: Some(UiAccountEncoding::Base64Zstd),
-                    commitment: Some(self.maybe_map_commitment(commitment_config).await?),
-                    data_slice: None,
-                    min_context_slot: None,
+                    ..RpcAccountInfoConfig::default()
                 },
+                ..RpcProgramAccountsConfig::default()
+            },
+        )
+        .await
+    }
+
+    */
+
+    /// Returns all accounts owned by the provided program pubkey.
+    ///
+    /// # RPC Reference
+    ///
+    /// This method is built on the [`getProgramAccounts`] RPC method.
+    ///
+    /// [`getProgramAccounts`]: https://docs.solana.com/developing/clients/jsonrpc-api#getprogramaccounts
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use solana_client::{
+    /// #     nonblocking::rpc_client::RpcClient,
+    /// #     client_error::ClientError,
+    /// #     rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig},
+    /// #     rpc_filter::{MemcmpEncodedBytes, RpcFilterType, Memcmp},
+    /// # };
+    /// # use solana_sdk::{
+    /// #     signature::Signer,
+    /// #     signer::keypair::Keypair,
+    /// #     commitment_config::CommitmentConfig,
+    /// # };
+    /// # use solana_account_decoder::{UiDataSliceConfig, UiAccountEncoding};
+    /// # futures::executor::block_on(async {
+    /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
+    /// #     let alice = Keypair::new();
+    /// #     let base64_bytes = "\
+    /// #         AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\
+    /// #         AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\
+    /// #         AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+    /// let memcmp = RpcFilterType::Memcmp(Memcmp {
+    ///     offset: 0,
+    ///     bytes: MemcmpEncodedBytes::Base64(base64_bytes.to_string()),
+    ///     encoding: None,
+    /// });
+    /// let config = RpcProgramAccountsConfig {
+    ///     filters: Some(vec![
+    ///         RpcFilterType::DataSize(128),
+    ///         memcmp,
+    ///     ]),
+    ///     account_config: RpcAccountInfoConfig {
+    ///         encoding: Some(UiAccountEncoding::Base64),
+    ///         data_slice: Some(UiDataSliceConfig {
+    ///             offset: 0,
+    ///             length: 5,
+    ///         }),
+    ///         commitment: Some(CommitmentConfig::processed()),
+    ///         min_context_slot: Some(1234),
+    ///     },
+    ///     with_context: Some(false),
+    /// };
+    /// let accounts = rpc_client.get_program_accounts_with_config(
+    ///     &alice.pubkey(),
+    ///     config,
+    /// ).await?;
+    /// #     Ok::<(), ClientError>(())
+    /// # })?;
+    /// # Ok::<(), ClientError>(())
+    /// ```
+    pub async fn get_program_accounts_with_config(
+        &self,
+        pubkey: &Pubkey,
+        mut config: RpcProgramAccountsConfig,
+    ) -> ClientResult<Vec<(Pubkey, Account)>> {
+        let commitment = config
+            .account_config
+            .commitment
+            .unwrap_or_else(|| self.commitment());
+        let commitment = self.maybe_map_commitment(commitment).await?;
+        config.account_config.commitment = Some(commitment);
+        if let Some(filters) = config.filters {
+            config.filters = Some(self.maybe_map_filters(filters).await?);
+        }
+        let accounts: Vec<RpcKeyedAccount> = self
+            .send(
+                RpcRequest::GetProgramAccounts,
+                json!([pubkey.to_string(), config]),
             )
-            .await
-        }
-
-        /// Returns the account information for a list of pubkeys.
-        ///
-        /// # RPC Reference
-        ///
-        /// This method is built on the [`getMultipleAccounts`] RPC method.
-        ///
-        /// [`getMultipleAccounts`]: https://docs.solana.com/developing/clients/jsonrpc-api#getmultipleaccounts
-        ///
-        /// # Examples
-        ///
-        /// ```
-        /// # use solana_client::{
-        /// #     nonblocking::rpc_client::RpcClient,
-        /// #     rpc_config::RpcAccountInfoConfig,
-        /// #     client_error::ClientError,
-        /// # };
-        /// # use solana_sdk::{
-        /// #     signature::Signer,
-        /// #     signer::keypair::Keypair,
-        /// #     commitment_config::CommitmentConfig,
-        /// # };
-        /// # use solana_account_decoder::UiAccountEncoding;
-        /// # futures::executor::block_on(async {
-        /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
-        /// #     let alice = Keypair::new();
-        /// #     let bob = Keypair::new();
-        /// let pubkeys = vec![alice.pubkey(), bob.pubkey()];
-        /// let commitment_config = CommitmentConfig::processed();
-        /// let config = RpcAccountInfoConfig {
-        ///     encoding: Some(UiAccountEncoding::Base64),
-        ///     commitment: Some(commitment_config),
-        ///     .. RpcAccountInfoConfig::default()
-        /// };
-        /// let accounts = rpc_client.get_multiple_accounts_with_config(
-        ///     &pubkeys,
-        ///     config,
-        /// ).await?;
-        /// #     Ok::<(), ClientError>(())
-        /// # })?;
-        /// # Ok::<(), ClientError>(())
-        /// ```
-        pub async fn get_multiple_accounts_with_config(
-            &self,
-            pubkeys: &[Pubkey],
-            config: RpcAccountInfoConfig,
-        ) -> RpcResult<Vec<Option<Account>>> {
-            let config = RpcAccountInfoConfig {
-                commitment: config.commitment.or_else(|| Some(self.commitment())),
-                ..config
-            };
-            let pubkeys: Vec<_> = pubkeys.iter().map(|pubkey| pubkey.to_string()).collect();
-            let response = self
-                .send(RpcRequest::GetMultipleAccounts, json!([pubkeys, config]))
-                .await?;
-            let Response {
-                context,
-                value: accounts,
-            } = serde_json::from_value::<Response<Vec<Option<UiAccount>>>>(response)?;
-            let accounts: Vec<Option<Account>> = accounts
-                .into_iter()
-                .map(|rpc_account| rpc_account.and_then(|a| a.decode()))
-                .collect();
-            Ok(Response {
-                context,
-                value: accounts,
-            })
-        }
-
-        /// Gets the raw data associated with an account.
-        ///
-        /// This is equivalent to calling [`get_account`] and then accessing the
-        /// [`data`] field of the returned [`Account`].
-        ///
-        /// [`get_account`]: RpcClient::get_account
-        /// [`data`]: Account::data
-        ///
-        /// # RPC Reference
-        ///
-        /// This method is built on the [`getAccountInfo`] RPC method.
-        ///
-        /// [`getAccountInfo`]: https://docs.solana.com/developing/clients/jsonrpc-api#getaccountinfo
-        ///
-        /// # Examples
-        ///
-        /// ```
-        /// # use solana_client::{
-        /// #     nonblocking::rpc_client::{self, RpcClient},
-        /// #     client_error::ClientError,
-        /// # };
-        /// # use solana_sdk::{
-        /// #     signature::Signer,
-        /// #     signer::keypair::Keypair,
-        /// #     pubkey::Pubkey,
-        /// # };
-        /// # use std::str::FromStr;
-        /// # futures::executor::block_on(async {
-        /// #     let mocks = rpc_client::create_rpc_client_mocks();
-        /// #     let rpc_client = RpcClient::new_mock_with_mocks("succeeds".to_string(), mocks);
-        /// let alice_pubkey = Pubkey::from_str("BgvYtJEfmZYdVKiptmMjxGzv8iQoo4MWjsP3QsTkhhxa").unwrap();
-        /// let account_data = rpc_client.get_account_data(&alice_pubkey).await?;
-        /// #     Ok::<(), ClientError>(())
-        /// # })?;
-        /// # Ok::<(), ClientError>(())
-        /// ```
-        pub async fn get_account_data(&self, pubkey: &Pubkey) -> ClientResult<Vec<u8>> {
-            Ok(self.get_account(pubkey).await?.data)
-        }
-
-        /// Returns minimum balance required to make an account with specified data length rent exempt.
-        ///
-        /// # RPC Reference
-        ///
-        /// This method corresponds directly to the
-        /// [`getMinimumBalanceForRentExemption`] RPC method.
-        ///
-        /// [`getMinimumBalanceForRentExemption`]: https://docs.solana.com/developing/clients/jsonrpc-api#getminimumbalanceforrentexemption
-        ///
-        /// # Examples
-        ///
-        /// ```
-        /// # use solana_client::{
-        /// #     nonblocking::rpc_client::RpcClient,
-        /// #     client_error::ClientError,
-        /// # };
-        /// # futures::executor::block_on(async {
-        /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
-        /// let data_len = 300;
-        /// let balance = rpc_client.get_minimum_balance_for_rent_exemption(data_len).await?;
-        /// #     Ok::<(), ClientError>(())
-        /// # })?;
-        /// # Ok::<(), ClientError>(())
-        /// ```
-        pub async fn get_minimum_balance_for_rent_exemption(
-            &self,
-            data_len: usize,
-        ) -> ClientResult<u64> {
-            let request = RpcRequest::GetMinimumBalanceForRentExemption;
-            let minimum_balance_json: Value = self
-                .send(request, json!([data_len]))
-                .await
-                .map_err(|err| err.into_with_request(request))?;
-
-            let minimum_balance: u64 = serde_json::from_value(minimum_balance_json)
-                .map_err(|err| ClientError::new_with_request(err.into(), request))?;
-            trace!(
-                "Response minimum balance {:?} {:?}",
-                data_len,
-                minimum_balance
-            );
-            Ok(minimum_balance)
-        }
-
-        /// Request the balance of the provided account pubkey.
-        ///
-        /// This method uses the configured [commitment level][cl].
-        ///
-        /// [cl]: https://docs.solana.com/developing/clients/jsonrpc-api#configuring-state-commitment
-        ///
-        /// # RPC Reference
-        ///
-        /// This method corresponds directly to the [`getBalance`] RPC method.
-        ///
-        /// [`getBalance`]: https://docs.solana.com/developing/clients/jsonrpc-api#getbalance
-        ///
-        /// # Examples
-        ///
-        /// ```
-        /// # use solana_client::{
-        /// #     nonblocking::rpc_client::RpcClient,
-        /// #     client_error::ClientError,
-        /// # };
-        /// # use solana_sdk::{
-        /// #     signature::Signer,
-        /// #     signer::keypair::Keypair,
-        /// # };
-        /// # futures::executor::block_on(async {
-        /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
-        /// #     let alice = Keypair::new();
-        /// let balance = rpc_client.get_balance(&alice.pubkey()).await?;
-        /// #     Ok::<(), ClientError>(())
-        /// # })?;
-        /// # Ok::<(), ClientError>(())
-        /// ```
-        pub async fn get_balance(&self, pubkey: &Pubkey) -> ClientResult<u64> {
-            Ok(self
-                .get_balance_with_commitment(pubkey, self.commitment())
-                .await?
-                .value)
-        }
-
-        /// Request the balance of the provided account pubkey.
-        ///
-        /// # RPC Reference
-        ///
-        /// This method corresponds directly to the [`getBalance`] RPC method.
-        ///
-        /// [`getBalance`]: https://docs.solana.com/developing/clients/jsonrpc-api#getbalance
-        ///
-        /// # Examples
-        ///
-        /// ```
-        /// # use solana_client::{
-        /// #     nonblocking::rpc_client::RpcClient,
-        /// #     client_error::ClientError,
-        /// # };
-        /// # use solana_sdk::{
-        /// #     signature::Signer,
-        /// #     signer::keypair::Keypair,
-        /// #     commitment_config::CommitmentConfig,
-        /// # };
-        /// # futures::executor::block_on(async {
-        /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
-        /// #     let alice = Keypair::new();
-        /// let commitment_config = CommitmentConfig::processed();
-        /// let balance = rpc_client.get_balance_with_commitment(
-        ///     &alice.pubkey(),
-        ///     commitment_config,
-        /// ).await?;
-        /// #     Ok::<(), ClientError>(())
-        /// # })?;
-        /// # Ok::<(), ClientError>(())
-        /// ```
-        pub async fn get_balance_with_commitment(
-            &self,
-            pubkey: &Pubkey,
-            commitment_config: CommitmentConfig,
-        ) -> RpcResult<u64> {
-            self.send(
-                RpcRequest::GetBalance,
-                json!([
-                    pubkey.to_string(),
-                    self.maybe_map_commitment(commitment_config).await?
-                ]),
-            )
-            .await
-        }
-
-        /// Returns all accounts owned by the provided program pubkey.
-        ///
-        /// This method uses the configured [commitment level][cl].
-        ///
-        /// [cl]: https://docs.solana.com/developing/clients/jsonrpc-api#configuring-state-commitment
-        ///
-        /// # RPC Reference
-        ///
-        /// This method corresponds directly to the [`getProgramAccounts`] RPC
-        /// method.
-        ///
-        /// [`getProgramAccounts`]: https://docs.solana.com/developing/clients/jsonrpc-api#getprogramaccounts
-        ///
-        /// # Examples
-        ///
-        /// ```
-        /// # use solana_client::{
-        /// #     nonblocking::rpc_client::RpcClient,
-        /// #     client_error::ClientError,
-        /// # };
-        /// # use solana_sdk::{
-        /// #     signature::Signer,
-        /// #     signer::keypair::Keypair,
-        /// # };
-        /// # futures::executor::block_on(async {
-        /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
-        /// #     let alice = Keypair::new();
-        /// let accounts = rpc_client.get_program_accounts(&alice.pubkey()).await?;
-        /// #     Ok::<(), ClientError>(())
-        /// # })?;
-        /// # Ok::<(), ClientError>(())
-        /// ```
-        pub async fn get_program_accounts(
-            &self,
-            pubkey: &Pubkey,
-        ) -> ClientResult<Vec<(Pubkey, Account)>> {
-            self.get_program_accounts_with_config(
-                pubkey,
-                RpcProgramAccountsConfig {
-                    account_config: RpcAccountInfoConfig {
-                        encoding: Some(UiAccountEncoding::Base64Zstd),
-                        ..RpcAccountInfoConfig::default()
-                    },
-                    ..RpcProgramAccountsConfig::default()
-                },
-            )
-            .await
-        }
-
-        /// Returns all accounts owned by the provided program pubkey.
-        ///
-        /// # RPC Reference
-        ///
-        /// This method is built on the [`getProgramAccounts`] RPC method.
-        ///
-        /// [`getProgramAccounts`]: https://docs.solana.com/developing/clients/jsonrpc-api#getprogramaccounts
-        ///
-        /// # Examples
-        ///
-        /// ```
-        /// # use solana_client::{
-        /// #     nonblocking::rpc_client::RpcClient,
-        /// #     client_error::ClientError,
-        /// #     rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig},
-        /// #     rpc_filter::{MemcmpEncodedBytes, RpcFilterType, Memcmp},
-        /// # };
-        /// # use solana_sdk::{
-        /// #     signature::Signer,
-        /// #     signer::keypair::Keypair,
-        /// #     commitment_config::CommitmentConfig,
-        /// # };
-        /// # use solana_account_decoder::{UiDataSliceConfig, UiAccountEncoding};
-        /// # futures::executor::block_on(async {
-        /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
-        /// #     let alice = Keypair::new();
-        /// #     let base64_bytes = "\
-        /// #         AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\
-        /// #         AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\
-        /// #         AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
-        /// let memcmp = RpcFilterType::Memcmp(Memcmp {
-        ///     offset: 0,
-        ///     bytes: MemcmpEncodedBytes::Base64(base64_bytes.to_string()),
-        ///     encoding: None,
-        /// });
-        /// let config = RpcProgramAccountsConfig {
-        ///     filters: Some(vec![
-        ///         RpcFilterType::DataSize(128),
-        ///         memcmp,
-        ///     ]),
-        ///     account_config: RpcAccountInfoConfig {
-        ///         encoding: Some(UiAccountEncoding::Base64),
-        ///         data_slice: Some(UiDataSliceConfig {
-        ///             offset: 0,
-        ///             length: 5,
-        ///         }),
-        ///         commitment: Some(CommitmentConfig::processed()),
-        ///         min_context_slot: Some(1234),
-        ///     },
-        ///     with_context: Some(false),
-        /// };
-        /// let accounts = rpc_client.get_program_accounts_with_config(
-        ///     &alice.pubkey(),
-        ///     config,
-        /// ).await?;
-        /// #     Ok::<(), ClientError>(())
-        /// # })?;
-        /// # Ok::<(), ClientError>(())
-        /// ```
-        pub async fn get_program_accounts_with_config(
-            &self,
-            pubkey: &Pubkey,
-            mut config: RpcProgramAccountsConfig,
-        ) -> ClientResult<Vec<(Pubkey, Account)>> {
-            let commitment = config
-                .account_config
-                .commitment
-                .unwrap_or_else(|| self.commitment());
-            let commitment = self.maybe_map_commitment(commitment).await?;
-            config.account_config.commitment = Some(commitment);
-            if let Some(filters) = config.filters {
-                config.filters = Some(self.maybe_map_filters(filters).await?);
-            }
-            let accounts: Vec<RpcKeyedAccount> = self
-                .send(
-                    RpcRequest::GetProgramAccounts,
-                    json!([pubkey.to_string(), config]),
-                )
-                .await?;
-            parse_keyed_accounts(accounts, RpcRequest::GetProgramAccounts)
-        }
+            .await?;
+        parse_keyed_accounts(accounts, RpcRequest::GetProgramAccounts)
+    }
+    /*
 
         /// Returns the stake minimum delegation, in lamports.
         ///
@@ -5484,7 +5489,6 @@ pub(crate) fn get_rpc_request_str(rpc_addr: SocketAddr, tls: bool) -> String {
     }
 }
 
-/*
 pub(crate) fn parse_keyed_accounts(
     accounts: Vec<RpcKeyedAccount>,
     request: RpcRequest,
@@ -5510,6 +5514,7 @@ pub(crate) fn parse_keyed_accounts(
     Ok(pubkey_accounts)
 }
 
+/*
 #[doc(hidden)]
 pub fn create_rpc_client_mocks() -> crate::mock_sender::Mocks {
     let mut mocks = std::collections::HashMap::new();

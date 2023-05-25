@@ -169,12 +169,12 @@ pub struct RpcInflationRate {
     pub epoch: Epoch,
 }
 
-// #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
-// #[serde(rename_all = "camelCase")]
-// pub struct RpcKeyedAccount {
-//     pub pubkey: String,
-//     pub account: UiAccount,
-// }
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RpcKeyedAccount {
+    pub pubkey: String,
+    pub account: UiAccount,
+}
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SlotInfo {

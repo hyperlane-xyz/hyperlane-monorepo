@@ -17,6 +17,8 @@ pub struct HyperlaneToken<T> {
     pub mailbox: Pubkey,
     /// The mailbox's local domain.
     pub mailbox_local_domain: u32,
+    /// The dispatch authority PDA's bump seed.
+    pub dispatch_authority_bump: u8,
     /// Plugin-specific data.
     pub plugin_data: T,
 }

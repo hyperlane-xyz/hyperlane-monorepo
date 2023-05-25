@@ -4,12 +4,12 @@ import {
   CircleBridgeAdapter__factory,
   ICircleMessageTransmitter__factory,
   ITokenMessenger__factory,
+  Mailbox__factory,
   PortalAdapter__factory,
 } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../../HyperlaneApp';
-import { Chains } from '../../consts/chains';
 import { HyperlaneContracts } from '../../contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ChainMap, ChainName } from '../../types';
@@ -20,8 +20,10 @@ import { liquidityLayerFactories } from './contracts';
 
 const PORTAL_VAA_SERVICE_TESTNET_BASE_URL =
   'https://wormhole-v2-testnet-api.certus.one/v1/signed_vaa/';
-const CIRCLE_ATTESTATIONS_BASE_URL =
+const CIRCLE_ATTESTATIONS_TESTNET_BASE_URL =
   'https://iris-api-sandbox.circle.com/attestations/';
+const CIRCLE_ATTESTATIONS_MAINNET_BASE_URL =
+  'https://iris-api.circle.com/attestations/';
 
 const PORTAL_VAA_SERVICE_SUCCESS_CODE = 5;
 
@@ -29,6 +31,7 @@ const TokenMessengerInterface = ITokenMessenger__factory.createInterface();
 const CircleBridgeAdapterInterface =
   CircleBridgeAdapter__factory.createInterface();
 const PortalAdapterInterface = PortalAdapter__factory.createInterface();
+const MailboxInterface = Mailbox__factory.createInterface();
 
 const BridgedTokenTopic = CircleBridgeAdapterInterface.getEventTopic(
   CircleBridgeAdapterInterface.getEvent('BridgedToken'),
@@ -69,6 +72,7 @@ export class LiquidityLayerApp extends HyperlaneApp<
   }
 
   async fetchCircleMessageTransactions(chain: ChainName): Promise<string[]> {
+    console.log(`Fetch circle messages for ${chain}`);
     const url = new URL(this.multiProvider.getExplorerApiUrl(chain));
     url.searchParams.set('module', 'logs');
     url.searchParams.set('action', 'getLogs');
@@ -80,7 +84,7 @@ export class LiquidityLayerApp extends HyperlaneApp<
     const req = await fetchWithTimeout(url);
     const response = await req.json();
 
-    return response.result.map((_: any) => _.transactionHash).flat();
+    return response.result.map((tx: any) => tx.transactionHash).flat();
   }
 
   async fetchPortalBridgeTransactions(chain: ChainName): Promise<string[]> {
@@ -99,7 +103,7 @@ export class LiquidityLayerApp extends HyperlaneApp<
       throw Error(`Expected result in response: ${response}`);
     }
 
-    return response.result.map((_: any) => _.transactionHash).flat();
+    return response.result.map((tx: any) => tx.transactionHash).flat();
   }
 
   async parsePortalMessages(
@@ -109,9 +113,9 @@ export class LiquidityLayerApp extends HyperlaneApp<
     const provider = this.multiProvider.getProvider(chain);
     const receipt = await provider.getTransactionReceipt(txHash);
     const matchingLogs = receipt.logs
-      .map((_) => {
+      .map((log) => {
         try {
-          return [PortalAdapterInterface.parseLog(_)];
+          return [PortalAdapterInterface.parseLog(log)];
         } catch {
           return [];
         }
@@ -119,7 +123,7 @@ export class LiquidityLayerApp extends HyperlaneApp<
       .flat();
     if (matchingLogs.length == 0) return [];
 
-    const event = matchingLogs.find((_) => _!.name === 'BridgedToken')!;
+    const event = matchingLogs.find((log) => log!.name === 'BridgedToken')!;
     const portalSequence = event.args.portalSequence.toNumber();
     const nonce = event.args.nonce.toNumber();
     const destination = this.multiProvider.getChainName(event.args.destination);
@@ -131,30 +135,41 @@ export class LiquidityLayerApp extends HyperlaneApp<
     chain: ChainName,
     txHash: string,
   ): Promise<CircleBridgeMessage[]> {
+    console.debug(`Parse Circle messages for chain ${chain} ${txHash}`);
     const provider = this.multiProvider.getProvider(chain);
     const receipt = await provider.getTransactionReceipt(txHash);
     const matchingLogs = receipt.logs
-      .map((_) => {
+      .map((log) => {
         try {
-          return [TokenMessengerInterface.parseLog(_)];
+          return [TokenMessengerInterface.parseLog(log)];
         } catch {
           try {
-            return [CircleBridgeAdapterInterface.parseLog(_)];
+            return [CircleBridgeAdapterInterface.parseLog(log)];
           } catch {
-            return [];
+            try {
+              return [MailboxInterface.parseLog(log)];
+            } catch {
+              return [];
+            }
           }
         }
       })
       .flat();
 
     if (matchingLogs.length == 0) return [];
-    const message = matchingLogs.find((_) => _!.name === 'MessageSent')!.args
-      .message;
-    const nonce = matchingLogs.find((_) => _!.name === 'BridgedToken')!.args
+    const message = matchingLogs.find((log) => log!.name === 'MessageSent')!
+      .args.message;
+    const nonce = matchingLogs.find((log) => log!.name === 'BridgedToken')!.args
       .nonce;
-    const remoteChain = chain === Chains.fuji ? Chains.goerli : Chains.fuji;
+
+    const destinationDomain = matchingLogs.find(
+      (log) => log!.name === 'Dispatch',
+    )!.args.destination;
+
+    const remoteChain = this.multiProvider.getChainName(destinationDomain);
     const domain = this.config[chain].circle!.circleDomainMapping.find(
-      (_) => _.hyperlaneDomain === this.multiProvider.getDomainId(chain),
+      (mapping) =>
+        mapping.hyperlaneDomain === this.multiProvider.getDomainId(chain),
     )!.circleDomain;
     return [
       {
@@ -196,8 +211,9 @@ export class LiquidityLayerApp extends HyperlaneApp<
     const wormholeOriginDomain = this.config[
       message.destination
     ].portal!.wormholeDomainMapping.find(
-      (_) =>
-        _.hyperlaneDomain === this.multiProvider.getDomainId(message.origin),
+      (mapping) =>
+        mapping.hyperlaneDomain ===
+        this.multiProvider.getDomainId(message.origin),
     )?.wormholeDomain;
     const emitter = utils.strip0x(
       utils.addressToBytes32(
@@ -207,7 +223,7 @@ export class LiquidityLayerApp extends HyperlaneApp<
 
     const vaa = await fetchWithTimeout(
       `${PORTAL_VAA_SERVICE_TESTNET_BASE_URL}${wormholeOriginDomain}/${emitter}/${message.portalSequence}`,
-    ).then((_) => _.json());
+    ).then((response) => response.json());
 
     if (vaa.code && vaa.code === PORTAL_VAA_SERVICE_SUCCESS_CODE) {
       console.log(`VAA not yet found for nonce ${message.nonce}`);
@@ -253,10 +269,13 @@ export class LiquidityLayerApp extends HyperlaneApp<
       return;
     }
 
+    console.log(`Attempt Circle message delivery`, JSON.stringify(message));
+
     const messageHash = ethers.utils.keccak256(message.message);
-    const attestationsB = await fetchWithTimeout(
-      `${CIRCLE_ATTESTATIONS_BASE_URL}${messageHash}`,
-    );
+    const baseurl = this.multiProvider.getChainMetadata(message.chain).isTestnet
+      ? CIRCLE_ATTESTATIONS_TESTNET_BASE_URL
+      : CIRCLE_ATTESTATIONS_MAINNET_BASE_URL;
+    const attestationsB = await fetchWithTimeout(`${baseurl}${messageHash}`);
     const attestations = await attestationsB.json();
 
     if (attestations.status !== 'complete') {

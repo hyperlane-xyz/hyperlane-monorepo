@@ -13,14 +13,14 @@ export const hyperlane: HelloWorldConfig = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: '25f19b7-20230319-124624',
+      tag: '4c598b9-20230503-205323',
     },
     chainsToSkip: [],
     runEnv: environment,
     namespace: environment,
     runConfig: {
       mode: HelloWorldKathyRunMode.Service,
-      fullCycleTime: 1000 * 60 * 60 * 3, // every 3 hours
+      fullCycleTime: 1000 * 60 * 60 * 24, // every 24 hours
     },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min

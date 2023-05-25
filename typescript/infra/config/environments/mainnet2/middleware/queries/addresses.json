@@ -22,5 +22,8 @@
   },
   "moonbeam": {
     "router": "0x234b19282985882d6d6fd54dEBa272271f4eb784"
+  },
+  "gnosis": {
+    "router": "0x234b19282985882d6d6fd54dEBa272271f4eb784"
   }
 }

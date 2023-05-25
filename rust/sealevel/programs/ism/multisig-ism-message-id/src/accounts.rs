@@ -23,7 +23,7 @@ pub struct AccessControlData {
 }
 
 impl SizedData for AccessControlData {
-    fn size() -> usize {
+    fn size(&self) -> usize {
         // 1 byte bump seed + 32 byte owner pubkey
         1 + 32
     }

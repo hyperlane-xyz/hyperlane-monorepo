@@ -18,7 +18,6 @@ pub struct SealevelMultisigIsm {
 
 impl SealevelMultisigIsm {
     pub fn new(_conf: &ConnectionConf, locator: ContractLocator) -> Self {
-        // let rpc_client = RpcClient::new(conf.url.clone());
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
 
         Self {

@@ -11,12 +11,13 @@ use prometheus::{
     Encoder, GaugeVec, HistogramVec, IntCounterVec, IntGaugeVec, Registry,
 };
 use tokio::task::JoinHandle;
+use tracing::warn;
 
-use ethers_prometheus::json_rpc_client::JsonRpcClientMetrics;
-use ethers_prometheus::middleware::MiddlewareMetrics;
+use ethers_prometheus::{json_rpc_client::JsonRpcClientMetrics, middleware::MiddlewareMetrics};
 
-use crate::metrics::json_rpc_client::create_json_rpc_client_metrics;
-use crate::metrics::provider::create_provider_metrics;
+use crate::metrics::{
+    json_rpc_client::create_json_rpc_client_metrics, provider::create_provider_metrics,
+};
 
 /// Macro to prefix a string with the namespace.
 macro_rules! namespaced {
@@ -30,7 +31,7 @@ pub struct CoreMetrics {
     /// Metrics registry for adding new metrics and gathering reports
     registry: Registry,
     const_labels: HashMap<String, String>,
-    listen_port: Option<u16>,
+    listen_port: u16,
     agent_name: String,
 
     span_durations: CounterVec,
@@ -40,6 +41,7 @@ pub struct CoreMetrics {
     validator_checkpoint_index: IntGaugeVec,
     submitter_queue_length: IntGaugeVec,
 
+    operations_processed_count: IntCounterVec,
     messages_processed_count: IntCounterVec,
 
     latest_checkpoint: IntGaugeVec,
@@ -56,14 +58,9 @@ impl CoreMetrics {
     /// Track metrics for a particular agent name.
     ///
     /// - `for_agent` name of the agent these metrics are tracking.
-    /// - `listen_port` port to start the HTTP server on. If None the server
-    ///   will not be started.
+    /// - `listen_port` port to start the HTTP server on.
     /// - `registry` prometheus registry to attach the metrics to
-    pub fn new(
-        for_agent: &str,
-        listen_port: Option<u16>,
-        registry: Registry,
-    ) -> prometheus::Result<Self> {
+    pub fn new(for_agent: &str, listen_port: u16, registry: Registry) -> prometheus::Result<Self> {
         let const_labels: HashMap<String, String> = labels! {
             namespaced!("baselib_version") => env!("CARGO_PKG_VERSION").into(),
             "agent".into() => for_agent.into(),
@@ -129,7 +126,7 @@ impl CoreMetrics {
                 "Submitter queue length",
                 const_labels_ref
             ),
-            &["origin", "remote", "queue_name"],
+            &["remote", "queue_name"],
             registry
         )?;
 
@@ -137,6 +134,16 @@ impl CoreMetrics {
             opts!(
                 namespaced!("latest_checkpoint"),
                 "Mailbox latest checkpoint",
+                const_labels_ref
+            ),
+            &["phase", "chain"],
+            registry
+        )?;
+
+        let operations_processed_count = register_int_counter_vec_with_registry!(
+            opts!(
+                namespaced!("operations_processed_count"),
+                "Number of operations processed",
                 const_labels_ref
             ),
             &["phase", "chain"],
@@ -167,6 +174,7 @@ impl CoreMetrics {
 
             submitter_queue_length,
 
+            operations_processed_count,
             messages_processed_count,
 
             latest_checkpoint,
@@ -312,11 +320,37 @@ impl CoreMetrics {
     /// Measure of the queue lengths in Submitter instances
     ///
     /// Labels:
-    /// - `origin`: Origin chain the queue is for.
     /// - `remote`: Remote chain the queue is for.
     /// - `queue_name`: Which queue the message is in.
     pub fn submitter_queue_length(&self) -> IntGaugeVec {
         self.submitter_queue_length.clone()
+    }
+
+    /// The number of operations successfully submitted by this process during
+    /// its lifetime.
+    ///
+    /// Tracks the number of operations to go through each stage.
+    ///
+    /// Labels:
+    /// - `phase`: Phase of the operation submission process.
+    /// - `chain`: Chain the operation was submitted to.
+    ///
+    /// The following phases have been implemented:
+    /// - `prepared`: When the operation has been prepared for submission. This
+    ///   is a pipelining step that happens before submission and may need to be
+    ///   re-done.
+    /// - `submitted`: When the operation has been submitted to the chain but is
+    ///   not yet certain to be included after a re-org.
+    /// - `confirmed`: When the operation has been confirmed to have made it
+    ///   into the chain after the reorg window has passed.
+    /// - `reorged`: When the operation was not included and needs to be
+    ///   reprocessed.
+    /// - `failed`: When some part of the pipeline failed. The operation may
+    ///   still be retried later.
+    /// - `dropped`: When the operation was dropped from the pipeline. This may
+    ///   or may not be because of an error.
+    pub fn operations_processed_count(&self) -> IntCounterVec {
+        self.operations_processed_count.clone()
     }
 
     /// The number of messages successfully submitted by this process during its
@@ -384,36 +418,33 @@ impl CoreMetrics {
     /// scrape me!
     pub fn run_http_server(self: Arc<Self>) -> JoinHandle<()> {
         use warp::Filter;
-        if let Some(port) = self.listen_port {
-            tracing::info!(port, "starting prometheus server on 0.0.0.0:{port}");
-            tokio::spawn(async move {
-                warp::serve(
-                    warp::path!("metrics")
-                        .map(move || {
-                            warp::reply::with_header(
-                                self.gather().expect("failed to encode metrics"),
-                                "Content-Type",
-                                // OpenMetrics specs demands "application/openmetrics-text;
-                                // version=1.0.0; charset=utf-8"
-                                // but the prometheus scraper itself doesn't seem to care?
-                                // try text/plain to make web browsers happy.
-                                "text/plain; charset=utf-8",
-                            )
-                        })
-                        .or(warp::any().map(|| {
-                            warp::reply::with_status(
-                                "go look at /metrics",
-                                warp::http::StatusCode::NOT_FOUND,
-                            )
-                        })),
-                )
-                .run(([0, 0, 0, 0], port))
-                .await;
-            })
-        } else {
-            tracing::info!("not starting prometheus server");
-            tokio::spawn(std::future::ready(()))
-        }
+        let port = self.listen_port;
+        tracing::info!(port, "starting prometheus server on 0.0.0.0");
+        tokio::spawn(async move {
+            warp::serve(
+                warp::path!("metrics")
+                    .map(move || {
+                        warp::reply::with_header(
+                            self.gather().expect("failed to encode metrics"),
+                            "Content-Type",
+                            // OpenMetrics specs demands "application/openmetrics-text;
+                            // version=1.0.0; charset=utf-8"
+                            // but the prometheus scraper itself doesn't seem to care?
+                            // try text/plain to make web browsers happy.
+                            "text/plain; charset=utf-8",
+                        )
+                    })
+                    .or(warp::any().map(|| {
+                        warp::reply::with_status(
+                            "go look at /metrics",
+                            warp::http::StatusCode::NOT_FOUND,
+                        )
+                    })),
+            )
+            .try_bind(([0, 0, 0, 0], port))
+            .await;
+            warn!("Prometheus server could not be started or exited early");
+        })
     }
 
     /// Get the name of this agent, e.g. "relayer"

@@ -6,6 +6,9 @@ use crate::{Decode, Encode, HyperlaneProtocolError, H256};
 
 const HYPERLANE_MESSAGE_PREFIX_LEN: usize = 77;
 
+/// A message ID that has been delivered to the destination
+pub type Delivery = H256;
+
 /// A Stamped message that has been committed at some nonce
 pub type RawHyperlaneMessage = Vec<u8>;
 
