@@ -1,15 +1,17 @@
 //! Hyperlane Sealevel Mailbox data account layouts.
 
-use std::{collections::HashSet, str::FromStr as _, io::Read};
+use std::{collections::HashSet, io::Read, str::FromStr as _};
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{accumulator::incremental::IncrementalMerkle as MerkleTree, H256};
-use solana_program::{account_info::AccountInfo, clock::Slot, program_error::ProgramError, pubkey::Pubkey};
+use solana_program::{
+    account_info::AccountInfo, clock::Slot, program_error::ProgramError, pubkey::Pubkey,
+};
 
 use crate::{error::Error, DEFAULT_ISM, DEFAULT_ISM_ACCOUNTS};
 
 pub trait SizedData {
-    fn size() -> usize;
+    fn size(&self) -> usize;
 }
 
 // FIXME should probably define another trait rather than use Default for this as a valid but
@@ -47,9 +49,9 @@ impl<T> SizedData for AccountData<T>
 where
     T: SizedData,
 {
-    fn size() -> usize {
+    fn size(&self) -> usize {
         // Add an extra byte for the initialized flag.
-        1 + T::size()
+        1 + self.data.size()
     }
 }
 
@@ -172,7 +174,7 @@ pub type DispatchedMessageAccount = AccountData<DispatchedMessage>;
 // TODO change?
 const DISPATCHED_MESSAGE_DISCRIMINATOR: &[u8; 8] = b"DISPATCH";
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Eq, PartialEq)]
 pub struct DispatchedMessage {
     pub discriminator: [u8; 8],
     pub nonce: u32,
@@ -195,6 +197,17 @@ impl DispatchedMessage {
             unique_message_pubkey,
             encoded_message,
         }
+    }
+}
+
+impl SizedData for DispatchedMessage {
+    fn size(&self) -> usize {
+        // 8 byte discriminator
+        // 4 byte nonce
+        // 8 byte slot
+        // 32 byte unique_message_pubkey
+        // encoded_message.len() bytes
+        8 + 4 + 8 + 32 + self.encoded_message.len()
     }
 }
 
@@ -239,5 +252,30 @@ impl BorshDeserialize for DispatchedMessage {
             unique_message_pubkey: Pubkey::new_from_array(unique_message_pubkey),
             encoded_message,
         })
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    use solana_program::pubkey::Pubkey;
+
+    #[test]
+    fn test_dispatched_message_ser_deser() {
+        let dispatched_message = DispatchedMessage::new(
+            420,
+            69696969,
+            Pubkey::new_unique(),
+            vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 0],
+        );
+
+        let mut serialized = vec![];
+        dispatched_message.serialize(&mut serialized).unwrap();
+
+        let deserialized = DispatchedMessage::deserialize(&mut serialized.as_slice()).unwrap();
+
+        assert_eq!(dispatched_message, deserialized);
+        assert_eq!(serialized.len(), dispatched_message.size());
     }
 }

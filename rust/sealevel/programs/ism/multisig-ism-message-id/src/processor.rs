@@ -207,7 +207,11 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     }
 
     // Create the access control PDA account.
-    let access_control_account_data_size = AccessControlAccount::size();
+    let access_control_account = AccessControlAccount::from(AccessControlData {
+        bump_seed: access_control_pda_bump_seed,
+        owner: *owner_account.key,
+    });
+    let access_control_account_data_size = access_control_account.size();
     invoke_signed(
         &system_instruction::create_account(
             owner_account.key,
@@ -221,11 +225,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     )?;
 
     // Store the access control data.
-    AccessControlAccount::from(AccessControlData {
-        bump_seed: access_control_pda_bump_seed,
-        owner: *owner_account.key,
-    })
-    .store(access_control_pda_account, false)?;
+    access_control_account.store(access_control_pda_account, false)?;
 
     Ok(())
 }

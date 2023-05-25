@@ -13,7 +13,7 @@ use solana_program::{
     program_error::ProgramError,
     pubkey::Pubkey,
     system_instruction,
-    sysvar::{rent::Rent, clock::Clock, Sysvar},
+    sysvar::{clock::Clock, rent::Rent, Sysvar},
 };
 
 use hyperlane_sealevel_interchain_security_module_interface::{
@@ -24,7 +24,10 @@ use hyperlane_sealevel_message_recipient_interface::{
 };
 
 use crate::{
-    accounts::{Inbox, InboxAccount, Outbox, OutboxAccount, DispatchedMessage, DispatchedMessageAccount},
+    accounts::{
+        DispatchedMessage, DispatchedMessageAccount, Inbox, InboxAccount, Outbox, OutboxAccount,
+        SizedData,
+    },
     error::Error,
     instruction::{
         InboxProcess, InboxSetDefaultModule, Init, Instruction as MailboxIxn, OutboxDispatch,
@@ -110,7 +113,7 @@ macro_rules! mailbox_outbox_pda_seeds {
 /// Gets the PDA seeds for a message storage account that's
 /// based upon the pubkey of a unique message account.
 #[macro_export]
-macro_rules! mailbox_message_storage_pda_seeds {
+macro_rules! mailbox_dispatched_message_pda_seeds {
     ($unique_message_pubkey:expr) => {{
         &[
             b"hyperlane",
@@ -137,14 +140,14 @@ macro_rules! mailbox_message_storage_pda_seeds {
 #[macro_export]
 macro_rules! mailbox_message_dispatch_authority_pda_seeds {
     () => {{
-        &[
-            b"hyperlane_dispatcher", b"-", b"dispatch_authority",
-        ]
+        &[b"hyperlane_dispatcher", b"-", b"dispatch_authority"]
     }};
 
     ($bump_seed:expr) => {{
         &[
-            b"hyperlane_dispatcher", b"-", b"dispatch_authority",
+            b"hyperlane_dispatcher",
+            b"-",
+            b"dispatch_authority",
             &[$bump_seed],
         ]
     }};
@@ -435,17 +438,17 @@ fn inbox_set_default_ism(
 /// the PDA for the sending program with the seeds `mailbox_message_dispatch_authority_pda_seeds!()`.
 /// in order for the sender field of the message to be set to the sending program
 /// ID. Otherwise, the sender field of the message is set to the message sender signer.
-/// 
+///
 /// Accounts:
-/// 
+///
 /// 0. [writeable] Outbox PDA.
 /// 1. [signer] Message sender signer.
 /// 2. [executable] System program.
 /// 3. [executable] SPL Noop program.
 /// 4. [signer] Payer.
 /// 5. [signer] Unique message account.
-/// 6. [writeable] Message storage PDA. An empty message PDA relating to the seeds
-///    `mailbox_message_dispatch_authority_pda_seeds` where the message contents will be stored.
+/// 6. [writeable] Dispatched message PDA. An empty message PDA relating to the seeds
+///    `mailbox_dispatched_message_pda_seeds` where the message contents will be stored.
 fn outbox_dispatch(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -508,27 +511,27 @@ fn outbox_dispatch(
     }
 
     // Account 5: Unique message account.
+    // Uniqueness is enforced by making sure the message storage PDA based on
+    // this unique message account is empty, which is done next.
     let unique_message_account = next_account_info(accounts_iter)?;
-    // Require the unique message account to be empty.
-    // TODO ^ is this really required?
-    if !unique_message_account.data_is_empty() || unique_message_account.lamports() > 0 {
-        return Err(ProgramError::InvalidArgument);
-    }
     if !unique_message_account.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
     }
 
-    // Account 6: Message storage PDA.
-    let message_storage_pda = next_account_info(accounts_iter)?;
-    let (message_storage_key, message_storage_bump) = Pubkey::find_program_address(
-        mailbox_message_storage_pda_seeds!(unique_message_account.key),
+    // Account 6: Dispatched message PDA.
+    let dispatched_message_pda = next_account_info(accounts_iter)?;
+    let (dispatched_message_key, dispatched_message_bump) = Pubkey::find_program_address(
+        mailbox_dispatched_message_pda_seeds!(unique_message_account.key),
         program_id,
     );
-    if message_storage_key != *message_storage_pda.key {
+    if dispatched_message_key != *dispatched_message_pda.key {
         return Err(ProgramError::IncorrectProgramId);
     }
     // Make sure an account can't be written to that already exists.
-    if !message_storage_pda.data_is_empty() || *message_storage_pda.owner != solana_program::system_program::id() {
+    if !dispatched_message_pda.data_is_empty()
+        || *dispatched_message_pda.owner != solana_program::system_program::id()
+        || dispatched_message_pda.lamports() != 0
+    {
         return Err(ProgramError::InvalidArgument);
     }
 
@@ -554,56 +557,50 @@ fn outbox_dispatch(
         recipient: dispatch.recipient,
         body: dispatch.message_body,
     };
-    let mut formatted = vec![];
+    let mut encoded_message = vec![];
     message
-        .write_to(&mut formatted)
+        .write_to(&mut encoded_message)
         .map_err(|_| ProgramError::from(Error::MalformattedMessage))?;
 
     let id = message.id();
     outbox.tree.ingest(id);
 
-    println!("before message storage creation?");
-
-    // Create the message storage PDA.
-    // 1  Initialized flag
-    // 8  Discriminator
-    // 4 Nonce
-
-    // 8  Slot number
-    // 32 Unique message account pubkey
-    // message.len() Encoded message
-    let message_storage_account_size: usize = 1 + 8 + 4 + 8 + 32 + formatted.len();
-    invoke_signed(
-        &system_instruction::create_account(
-            payer_account.key,
-            message_storage_pda.key,
-            Rent::default().minimum_balance(message_storage_account_size),
-            message_storage_account_size.try_into().unwrap(),
-            program_id,
-        ),
-        &[payer_account.clone(), message_storage_pda.clone()],
-        &[mailbox_message_storage_pda_seeds!(unique_message_account.key, message_storage_bump)],
-    )?;
-    let dispatched_message = DispatchedMessage::new(
+    // Create the dispatched message PDA.
+    let dispatched_message_account = DispatchedMessageAccount::from(DispatchedMessage::new(
         message.nonce,
         Clock::get()?.slot,
         *unique_message_account.key,
-        formatted.clone(),
-    );
-    DispatchedMessageAccount::from(dispatched_message).store(message_storage_pda, false)?;
+        encoded_message,
+    ));
+    let dispatched_message_account_size: usize = dispatched_message_account.size();
+    invoke_signed(
+        &system_instruction::create_account(
+            payer_account.key,
+            dispatched_message_pda.key,
+            Rent::default().minimum_balance(dispatched_message_account_size),
+            dispatched_message_account_size.try_into().unwrap(),
+            program_id,
+        ),
+        &[payer_account.clone(), dispatched_message_pda.clone()],
+        &[mailbox_dispatched_message_pda_seeds!(
+            unique_message_account.key,
+            dispatched_message_bump
+        )],
+    )?;
+    dispatched_message_account.store(dispatched_message_pda, false)?;
 
-    // TODO I think I can remove this
+    // Log the message using the SPL Noop program.
     let noop_cpi_log = Instruction {
         program_id: *spl_noop.key,
         accounts: vec![],
-        data: formatted,
+        data: dispatched_message_pda.data.borrow().to_vec(),
     };
+    // TODO: I expect these will need to go
     let auth_seeds: &[&[u8]] =
         mailbox_authority_pda_seeds!(outbox.local_domain, outbox.auth_bump_seed);
-    msg!("data = {}", bs58::encode(&noop_cpi_log.data).into_string()); // FIXME remove
     invoke_signed(&noop_cpi_log, &[], &[auth_seeds])?;
 
-    // FIXME store before or after noop cpi? What if fail to write but noop cpi okay?
+    // Store the Outbox with the new updates.
     OutboxAccount::from(outbox).store(outbox_account, true)?;
 
     set_return_data(id.as_ref());
@@ -938,6 +935,10 @@ mod test {
         assert!(inbox.delivered.contains(&message.id(),));
     }
 
+    // TODO: this is ignored because Dispatch now creates a PDA for outbound messages,
+    // which must be done in a functional test.
+    // Move this to a functional test!
+    #[ignore]
     #[test]
     fn test_outbox_dispatch() {
         setup_logging();
@@ -1006,6 +1007,19 @@ mod test {
             Epoch::default(),
         );
 
+        let mut system_program_lamports = 0;
+        let mut system_program_data = vec![];
+        let system_program_account = AccountInfo::new(
+            &system_program_id,
+            false,
+            false,
+            &mut system_program_lamports,
+            &mut system_program_data,
+            &system_program_id,
+            true,
+            Epoch::default(),
+        );
+
         let mut spl_noop_lamports = 0;
         let mut spl_noop_data = vec![];
         let spl_noop_id = spl_noop::id();
@@ -1020,7 +1034,61 @@ mod test {
             Epoch::default(),
         );
 
-        let accounts = vec![outbox_account, sender_account, spl_noop_account];
+        let payer = Pubkey::new_from_array([69; 32]);
+        let mut payer_account_lamports = 1000000000;
+        let mut payer_account_data = vec![];
+        let payer_account = AccountInfo::new(
+            &payer,
+            true,
+            false,
+            &mut payer_account_lamports,
+            &mut payer_account_data,
+            &system_program_id,
+            false,
+            Epoch::default(),
+        );
+
+        let unique_message_account_pubkey = Pubkey::new_from_array([22; 32]);
+        let mut unique_message_account_lamports = 0;
+        let mut unique_message_account_data = vec![];
+        let unique_message_account = AccountInfo::new(
+            &unique_message_account_pubkey,
+            true,
+            false,
+            &mut unique_message_account_lamports,
+            &mut unique_message_account_data,
+            &system_program_id,
+            false,
+            Epoch::default(),
+        );
+
+        let (dispatched_message_account_pubkey, _dispatched_message_bump) =
+            Pubkey::find_program_address(
+                mailbox_dispatched_message_pda_seeds!(unique_message_account.key),
+                &mailbox_program_id,
+            );
+        let mut dispatched_message_account_lamports = 0;
+        let mut dispatched_message_account_data = vec![];
+        let dispatched_message_account = AccountInfo::new(
+            &dispatched_message_account_pubkey,
+            false,
+            true,
+            &mut dispatched_message_account_lamports,
+            &mut dispatched_message_account_data,
+            &system_program_id,
+            false,
+            Epoch::default(),
+        );
+
+        let accounts = vec![
+            outbox_account,
+            sender_account,
+            system_program_account,
+            spl_noop_account,
+            payer_account,
+            unique_message_account,
+            dispatched_message_account,
+        ];
         let outbox = OutboxAccount::fetch(&mut &accounts[0].data.borrow_mut()[..])
             .unwrap()
             .into_inner();

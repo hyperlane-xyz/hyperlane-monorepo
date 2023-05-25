@@ -4,7 +4,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{Decode, Encode as _, H256};
 use hyperlane_sealevel_mailbox::{
     instruction::{Instruction as MailboxIxn, OutboxDispatch as MailboxOutboxDispatch},
-    mailbox_outbox_pda_seeds, mailbox_message_dispatch_authority_pda_seeds,
+    mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
 };
 use serializable_account_meta::SerializableAccountMeta;
 use solana_program::{
@@ -179,7 +179,9 @@ where
                 program_id,
             ),
             &[payer_account.clone(), dispatch_authority_account.clone()],
-            &[mailbox_message_dispatch_authority_pda_seeds!(dispatch_authority_bump)],
+            &[mailbox_message_dispatch_authority_pda_seeds!(
+                dispatch_authority_bump
+            )],
         )?;
 
         let token: HyperlaneToken<T> = HyperlaneToken {
@@ -264,11 +266,10 @@ where
 
         // Account 4: Message dispatch authority
         let dispatch_authority_account = next_account_info(accounts_iter)?;
-        let dispatch_authority_seeds: &[&[u8]] = mailbox_message_dispatch_authority_pda_seeds!(token.dispatch_authority_bump);
-        let dispatch_authority_key = Pubkey::create_program_address(
-            dispatch_authority_seeds,
-            program_id,
-        )?;
+        let dispatch_authority_seeds: &[&[u8]] =
+            mailbox_message_dispatch_authority_pda_seeds!(token.dispatch_authority_bump);
+        let dispatch_authority_key =
+            Pubkey::create_program_address(dispatch_authority_seeds, program_id)?;
         if *dispatch_authority_account.key != dispatch_authority_key {
             return Err(ProgramError::InvalidArgument);
         }
@@ -285,7 +286,7 @@ where
 
         // Account 7: Message storage PDA.
         // Similarly defer to the checks in the Mailbox to ensure account validity.
-        let message_storage_pda = next_account_info(accounts_iter)?;
+        let dispatched_message_pda = next_account_info(accounts_iter)?;
 
         // Transfer tokens in...
         T::transfer_in(program_id, &*token, sender_wallet, accounts_iter, amount)?;
@@ -313,7 +314,7 @@ where
                 AccountMeta::new_readonly(spl_noop::id(), false),
                 AccountMeta::new(*sender_wallet.key, true),
                 AccountMeta::new_readonly(*unique_message_account.key, true),
-                AccountMeta::new(*message_storage_pda.key, false),
+                AccountMeta::new(*dispatched_message_pda.key, false),
             ],
         };
         // TODO implement interchain gas payment via paymaster? dispatch_with_gas()?
@@ -326,7 +327,7 @@ where
                 spl_noop.clone(),
                 sender_wallet.clone(),
                 unique_message_account.clone(),
-                message_storage_pda.clone()
+                dispatched_message_pda.clone(),
             ],
             &[dispatch_authority_seeds],
         )?;

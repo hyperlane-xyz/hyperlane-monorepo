@@ -12,8 +12,8 @@ use hyperlane_sealevel_mailbox::{
         InboxProcess, Init as InitMailbox, Instruction as MailboxInstruction, OutboxDispatch,
         VERSION,
     },
-    mailbox_authority_pda_seeds, mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds, spl_noop,
-    mailbox_message_dispatch_authority_pda_seeds, mailbox_message_storage_pda_seeds,
+    mailbox_authority_pda_seeds, mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds,
+    mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds, spl_noop,
     ID as MAILBOX_PROG_ID,
 };
 use hyperlane_sealevel_recipient_echo::ID as RECIPIENT_ECHO_PROG_ID;
@@ -475,7 +475,10 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
             let (token_account, token_bump) =
                 Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &init.program_id);
             let (dispatch_authority_account, _dispatch_authority_bump) =
-                Pubkey::find_program_address(mailbox_message_dispatch_authority_pda_seeds!(), &init.program_id);
+                Pubkey::find_program_address(
+                    mailbox_message_dispatch_authority_pda_seeds!(),
+                    &init.program_id,
+                );
 
             let ixn = HtInstruction::Init(HtInit {
                 mailbox: init.mailbox,
@@ -704,13 +707,17 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
             let (token_account, _token_bump) =
                 Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &xfer.program_id);
             let (dispatch_authority_account, _dispatch_authority_bump) =
-                Pubkey::find_program_address(mailbox_message_dispatch_authority_pda_seeds!(), &xfer.program_id);
-            
+                Pubkey::find_program_address(
+                    mailbox_message_dispatch_authority_pda_seeds!(),
+                    &xfer.program_id,
+                );
+
             let unique_message_account_keypair = Keypair::new();
-            let (message_storage_account, _message_storage_bump) = Pubkey::find_program_address(
-                mailbox_message_storage_pda_seeds!(&unique_message_account_keypair.pubkey()),
-                &xfer.mailbox,
-            );
+            let (dispatched_message_account, _dispatched_message_bump) =
+                Pubkey::find_program_address(
+                    mailbox_dispatched_message_pda_seeds!(&unique_message_account_keypair.pubkey()),
+                    &xfer.mailbox,
+                );
 
             let (mailbox_outbox_account, _mailbox_outbox_bump) = Pubkey::find_program_address(
                 mailbox_outbox_pda_seeds!(xfer.mailbox_local_domain),
@@ -746,7 +753,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 AccountMeta::new_readonly(dispatch_authority_account, false),
                 AccountMeta::new(sender.pubkey(), true),
                 AccountMeta::new_readonly(unique_message_account_keypair.pubkey(), true),
-                AccountMeta::new(message_storage_account, false),
+                AccountMeta::new(dispatched_message_account, false),
             ];
 
             match xfer.token_type {
