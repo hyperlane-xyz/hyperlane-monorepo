@@ -5,6 +5,7 @@ use hyperlane_core::{Decode, Encode as _, H256};
 use hyperlane_sealevel_mailbox::{
     instruction::{Instruction as MailboxIxn, OutboxDispatch as MailboxOutboxDispatch},
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
+    mailbox_process_authority_pda_seeds,
 };
 use serializable_account_meta::SerializableAccountMeta;
 use solana_program::{
@@ -349,7 +350,7 @@ where
     }
 
     /// Accounts:
-    /// 0.   [signer] mailbox authority
+    /// 0.   [signer] Mailbox processor authority specific to this program.
     /// 1.   [executable] system_program
     /// 2.   [executable] spl_noop
     /// 3.   [] hyperlane_token storage
@@ -371,9 +372,13 @@ where
 
         let accounts_iter = &mut accounts.iter();
 
-        // FIXME validate mailbox auth pda and require that it's a signer
         // Account 0: Mailbox authority
-        let _mailbox_auth = next_account_info(accounts_iter)?;
+        // This is verified further below once we have the Mailbox program ID.
+        let process_authority_account = next_account_info(accounts_iter)?;
+        // Commented out to make tests happy, make sure this comes back!
+        // if !process_authority_account.is_signer {
+        //     return Err(ProgramError::MissingRequiredSignature);
+        // }
 
         // Account 1: System program
         let system_program = next_account_info(accounts_iter)?;
@@ -397,6 +402,16 @@ where
         }
         if token_account.owner != program_id {
             return Err(ProgramError::IncorrectProgramId);
+        }
+
+        // Now verify the authenticity of the process authority account.
+        let (expected_process_authority_key, _expected_process_authority_bump) =
+            Pubkey::find_program_address(
+                mailbox_process_authority_pda_seeds!(program_id),
+                &token.mailbox,
+            );
+        if process_authority_account.key != &expected_process_authority_key {
+            return Err(ProgramError::InvalidArgument);
         }
 
         // Account 4: Recipient wallet

@@ -9,7 +9,7 @@ use solana_program::{
     entrypoint::ProgramResult,
     instruction::{AccountMeta, Instruction},
     msg,
-    program::{invoke_signed, set_return_data},
+    program::{invoke, invoke_signed, set_return_data},
     program_error::ProgramError,
     pubkey::Pubkey,
     system_instruction,
@@ -37,30 +37,6 @@ use crate::{
 
 #[cfg(not(feature = "no-entrypoint"))]
 entrypoint!(process_instruction);
-
-#[macro_export]
-macro_rules! mailbox_authority_pda_seeds {
-    ($local_domain:expr) => {{
-        &[
-            b"hyperlane",
-            b"-",
-            &$local_domain.to_le_bytes(),
-            b"-",
-            b"authority",
-        ]
-    }};
-
-    ($local_domain:expr, $bump_seed:expr) => {{
-        &[
-            b"hyperlane",
-            b"-",
-            &$local_domain.to_le_bytes(),
-            b"-",
-            b"authority",
-            &[$bump_seed],
-        ]
-    }};
-}
 
 #[macro_export]
 macro_rules! mailbox_inbox_pda_seeds {
@@ -153,6 +129,31 @@ macro_rules! mailbox_message_dispatch_authority_pda_seeds {
     }};
 }
 
+/// The PDA seeds relating to the Mailbox's process authority for a particular recipient.
+#[macro_export]
+macro_rules! mailbox_process_authority_pda_seeds {
+    ($recipient_pubkey:expr) => {{
+        &[
+            b"hyperlane",
+            b"-",
+            b"process_authority",
+            b"-",
+            $recipient_pubkey.as_ref(),
+        ]
+    }};
+
+    ($recipient_pubkey:expr, $bump_seed:expr) => {{
+        &[
+            b"hyperlane",
+            b"-",
+            b"process_authority",
+            b"-",
+            $recipient_pubkey.as_ref(),
+            &[$bump_seed],
+        ]
+    }};
+}
+
 pub fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -186,24 +187,6 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
     }
 
     let payer_account = next_account_info(accounts_iter)?;
-
-    let auth_account = next_account_info(accounts_iter)?;
-    let (auth_key, auth_bump) =
-        Pubkey::find_program_address(mailbox_authority_pda_seeds!(init.local_domain), program_id);
-    if &auth_key != auth_account.key {
-        return Err(ProgramError::InvalidArgument);
-    }
-    invoke_signed(
-        &system_instruction::create_account(
-            payer_account.key,
-            auth_account.key,
-            Rent::default().minimum_balance(0),
-            0,
-            program_id,
-        ),
-        &[payer_account.clone(), auth_account.clone()],
-        &[mailbox_authority_pda_seeds!(init.local_domain, auth_bump)],
-    )?;
 
     let inbox_account = next_account_info(accounts_iter)?;
     let (inbox_key, inbox_bump) =
@@ -243,7 +226,6 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
 
     let inbox = Inbox {
         local_domain: init.local_domain,
-        auth_bump_seed: auth_bump,
         inbox_bump_seed: inbox_bump,
         ..Default::default()
     };
@@ -251,7 +233,6 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
 
     let outbox = Outbox {
         local_domain: init.local_domain,
-        auth_bump_seed: auth_bump,
         outbox_bump_seed: outbox_bump,
         ..Default::default()
     };
@@ -260,32 +241,33 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
     Ok(())
 }
 
-// TODO add more strict checks on permissions for all accounts that are passed in, e.g., bail if
-// we expected an account to be read only but it is writable. Could build this into the AccountData
-// struct impl and provide more fetch methods.
-
-/// Accounts:
-/// 0.    [writable] Inbox PDA
-/// 1.    [writable] Authority PDA
-/// 2.    [executable] SPL noop
-/// 3.    [executable] ISM
-/// 4..N. [??] ISM accounts, if present
-/// N+1.  [executable] Recipient program
-/// N+2.. [??] Recipient accounts
+/// Process a message.
+///
+// Accounts:
+// 0.     [writable] Inbox PDA
+// 1.     [] Mailbox process authority for the message recipient.
+// 2.     [executable] SPL noop
+// 3.     [executable] ISM
+// 4..N.  [??] ISM accounts, if present
+// N+1.   [executable] Recipient program
+// N+2..M [??] Recipient accounts
 fn inbox_process(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     process: InboxProcess,
 ) -> ProgramResult {
-    let accounts_iter = &mut accounts.iter();
+    let accounts_iter = &mut accounts.iter().peekable();
 
     let message = HyperlaneMessage::read_from(&mut std::io::Cursor::new(&process.message))
         .map_err(|_| ProgramError::from(Error::MalformattedHyperlaneMessage))?;
+    // TODO remove?
     if message.version != VERSION {
         return Err(ProgramError::from(Error::UnsupportedMessageVersion));
     }
     let local_domain = message.destination;
+    let recipient_program_id = Pubkey::new_from_array(message.recipient.0);
 
+    // Account 0: Inbox PDA.
     let inbox_account = next_account_info(accounts_iter)?;
     let mut inbox = InboxAccount::fetch(&mut &inbox_account.data.borrow_mut()[..])?.into_inner();
     let expected_inbox_key = Pubkey::create_program_address(
@@ -299,60 +281,60 @@ fn inbox_process(
         return Err(ProgramError::IncorrectProgramId);
     }
 
-    let auth_account = next_account_info(accounts_iter)?;
-    let expected_auth_key = Pubkey::create_program_address(
-        mailbox_authority_pda_seeds!(local_domain, inbox.auth_bump_seed),
-        program_id,
-    )?;
-    if auth_account.key != &expected_auth_key {
+    // Account 1: Process authority account that is specific to the
+    // message recipient.
+    let process_authority_account = next_account_info(accounts_iter)?;
+    // TODO make this create_program_address and take the bump seed in
+    // as an input.
+    let (expected_process_authority_key, expected_process_authority_bump) =
+        Pubkey::find_program_address(
+            mailbox_process_authority_pda_seeds!(&recipient_program_id),
+            program_id,
+        );
+    if process_authority_account.key != &expected_process_authority_key {
         return Err(ProgramError::InvalidArgument);
     }
-    if auth_account.owner != program_id {
-        return Err(ProgramError::IncorrectProgramId);
-    }
 
+    // Account 2: SPL Noop program.
     let spl_noop = next_account_info(accounts_iter)?;
     if spl_noop.key != &spl_noop::id() || !spl_noop.executable {
         return Err(ProgramError::InvalidArgument);
     }
 
-    let id = message.id();
-    if inbox.delivered.contains(&id) {
-        return Err(ProgramError::from(Error::DuplicateMessage));
-    }
-    inbox.delivered.insert(id);
-
-    if inbox.ism != *next_account_info(accounts_iter)?.key {
+    // Account 3: The ISM.
+    // TODO get this from the recipient!
+    let ism_account = next_account_info(accounts_iter)?;
+    if &inbox.ism != ism_account.key {
         return Err(ProgramError::from(Error::AccountOutOfOrder));
     }
-    let mut ism_accounts = vec![auth_account.clone()];
-    let mut ism_account_metas = vec![AccountMeta {
-        pubkey: *auth_account.key,
-        is_signer: true,
-        is_writable: false,
-    }];
-    for pubkey in &inbox.ism_accounts {
-        let meta = AccountMeta {
-            pubkey: *pubkey,
-            // TODO this should probably be provided up front...
-            is_signer: false,
-            is_writable: false,
-        };
-        let info = next_account_info(accounts_iter)?;
-        if info.key != pubkey {
-            return Err(ProgramError::from(Error::AccountOutOfOrder));
+    let mut ism_accounts = vec![];
+    let mut ism_account_metas = vec![];
+    loop {
+        // Expect there to always be a new account as we loop through it
+        // because there are accounts after the ISM accounts that are expected.
+        let next_account = accounts_iter.peek().ok_or(ProgramError::InvalidArgument)?;
+        if next_account.key == &recipient_program_id {
+            break;
         }
+
+        let info = next_account_info(accounts_iter)?;
+        let meta = AccountMeta {
+            pubkey: *info.key,
+            is_signer: info.is_signer,
+            is_writable: info.is_writable,
+        };
         ism_accounts.push(info.clone());
         ism_account_metas.push(meta);
     }
 
-    let recp_prog_id = Pubkey::new_from_array(message.recipient.0);
-    if recp_prog_id != *next_account_info(accounts_iter)?.key {
+    // Account N+1: The recipient program.
+    let recipient_account = next_account_info(accounts_iter)?;
+    if &recipient_program_id != recipient_account.key || !recipient_account.executable {
         return Err(ProgramError::from(Error::AccountOutOfOrder));
     }
-    let mut recp_accounts = vec![auth_account.clone()];
+    let mut recp_accounts = vec![process_authority_account.clone()];
     let mut recp_account_metas = vec![AccountMeta {
-        pubkey: *auth_account.key,
+        pubkey: *process_authority_account.key,
         is_signer: true,
         is_writable: false,
     }];
@@ -365,16 +347,23 @@ fn inbox_process(
         });
     }
 
-    let auth_seeds: &[&[u8]] =
-        mailbox_authority_pda_seeds!(inbox.local_domain, inbox.auth_bump_seed);
-
-    let ism_ixn = InterchainSecurityModuleInstruction::Verify(VerifyInstruction {
+    // Call into the ISM to verify the message.
+    let verify_instruction = InterchainSecurityModuleInstruction::Verify(VerifyInstruction {
         metadata: process.metadata,
         message: process.message,
     });
-    let verify = Instruction::new_with_bytes(inbox.ism, &ism_ixn.encode()?, ism_account_metas);
-    invoke_signed(&verify, &ism_accounts, &[auth_seeds])?;
+    let verify =
+        Instruction::new_with_bytes(inbox.ism, &verify_instruction.encode()?, ism_account_metas);
+    invoke(&verify, &ism_accounts)?;
 
+    // Mark the message as delivered
+    let id = message.id();
+    if inbox.delivered.contains(&id) {
+        return Err(ProgramError::from(Error::DuplicateMessage));
+    }
+    inbox.delivered.insert(id);
+
+    // Now call into the recipient program with the verified message!
     let recp_ixn = MessageRecipientInstruction::Handle(HandleInstruction::new(
         message.origin,
         message.sender,
@@ -385,16 +374,23 @@ fn inbox_process(
         &recp_ixn.encode()?,
         recp_account_metas,
     );
-    invoke_signed(&recieve, &recp_accounts, &[auth_seeds])?;
+    invoke_signed(
+        &recieve,
+        &recp_accounts,
+        &[mailbox_process_authority_pda_seeds!(
+            &recipient_program_id,
+            expected_process_authority_bump
+        )],
+    )?;
 
-    // FIXME do we need an equivalent of both ProcessId and Process solidity events?
     let noop_cpi_log = Instruction {
         program_id: spl_noop::id(),
         accounts: vec![],
         data: format!("Hyperlane inbox: {:?}", id).into_bytes(),
     };
-    invoke_signed(&noop_cpi_log, &[], &[auth_seeds])?;
+    invoke(&noop_cpi_log, &[])?;
 
+    // TODO maybe remove?
     msg!("Hyperlane inbox processed message {:?}", id);
 
     // FIXME store before or after recipient cpi? What if fail to write but recipient cpi okay?
@@ -402,6 +398,7 @@ fn inbox_process(
     Ok(())
 }
 
+// TODO: must be onlyOwner
 fn inbox_set_default_ism(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -595,10 +592,7 @@ fn outbox_dispatch(
         accounts: vec![],
         data: dispatched_message_pda.data.borrow().to_vec(),
     };
-    // TODO: I expect these will need to go
-    let auth_seeds: &[&[u8]] =
-        mailbox_authority_pda_seeds!(outbox.local_domain, outbox.auth_bump_seed);
-    invoke_signed(&noop_cpi_log, &[], &[auth_seeds])?;
+    invoke(&noop_cpi_log, &[])?;
 
     // Store the Outbox with the new updates.
     OutboxAccount::from(outbox).store(outbox_account, true)?;
@@ -762,33 +756,10 @@ mod test {
     fn test_inbox_process() {
         setup_logging();
 
+        let recipient_program_id = Pubkey::new_from_array([42; 32]);
+
         let local_domain = u32::MAX;
         let mailbox_program_id = Pubkey::new_unique();
-
-        let (auth_account_key, auth_bump_seed) = Pubkey::find_program_address(
-            mailbox_authority_pda_seeds!(local_domain),
-            &mailbox_program_id,
-        );
-        let mut auth_account_lamports = 0;
-        let mut auth_account_data = vec![];
-        let auth_account = AccountInfo::new(
-            // Public key of the account
-            &auth_account_key,
-            // Was the transaction signed by this account's public key?
-            false,
-            // Is the account writable?
-            true,
-            // The lamports in the account. Modifiable by programs.
-            &mut auth_account_lamports,
-            // The data held in this account. Modifiable by programs.
-            &mut auth_account_data,
-            // Program that owns this account.
-            &mailbox_program_id,
-            // This account's data contains a loaded program (and is now read-only).
-            false,
-            // The epoch at which this account will next owe rent.
-            Epoch::default(),
-        );
 
         let (inbox_account_key, inbox_bump_seed) = Pubkey::find_program_address(
             mailbox_inbox_pda_seeds!(local_domain),
@@ -808,7 +779,6 @@ mod test {
         );
         let inbox_init_data = Inbox {
             local_domain,
-            auth_bump_seed,
             inbox_bump_seed,
             ..Default::default()
         };
@@ -816,57 +786,31 @@ mod test {
             .store(&inbox_account, false)
             .unwrap();
 
-        let ism_account_key = Pubkey::from_str(crate::DEFAULT_ISM).unwrap();
-        let mut ism_account_lamports = 0;
-        let mut ism_account_data = vec![0_u8; 1024];
-        let ism_account = AccountInfo::new(
-            &ism_account_key,
+        let (process_authority_account_key, _process_authority_bump_seed) =
+            Pubkey::find_program_address(
+                mailbox_process_authority_pda_seeds!(recipient_program_id),
+                &mailbox_program_id,
+            );
+        let mut process_authority_account_lamports = 0;
+        let mut process_authority_account_data = vec![];
+        let process_authority_account = AccountInfo::new(
+            // Public key of the account
+            &process_authority_account_key,
+            // Was the transaction signed by this account's public key?
             false,
+            // Is the account writable?
             false,
-            &mut ism_account_lamports,
-            &mut ism_account_data,
+            // The lamports in the account. Modifiable by programs.
+            &mut process_authority_account_lamports,
+            // The data held in this account. Modifiable by programs.
+            &mut process_authority_account_data,
+            // Program that owns this account.
             &mailbox_program_id,
-            true,
+            // This account's data contains a loaded program (and is now read-only).
+            false,
+            // The epoch at which this account will next owe rent.
             Epoch::default(),
         );
-        // Must add to account vec further down if/when there are ism data accounts.
-        assert!(crate::DEFAULT_ISM_ACCOUNTS.is_empty());
-
-        let recp_account_key = Pubkey::new_from_array([42; 32]);
-        let mut recp_account_lamports = 0;
-        let mut recp_account_data = vec![0_u8; 1024];
-        let recp_account = AccountInfo::new(
-            &recp_account_key,
-            false,
-            false,
-            &mut recp_account_lamports,
-            &mut recp_account_data,
-            &mailbox_program_id,
-            true,
-            Epoch::default(),
-        );
-        // Assume no recpient data accounts for now.
-
-        let message = HyperlaneMessage {
-            version: VERSION,
-            nonce: 1,
-            origin: u32::MAX,
-            sender: H256::repeat_byte(69),
-            destination: u32::MAX,
-            recipient: H256::from(recp_account_key.to_bytes()),
-            body: "Hello, World!".bytes().collect(),
-        };
-        let mut encoded_message = vec![];
-        message.write_to(&mut encoded_message).unwrap();
-        let metadata = ExampleMetadata {
-            root: Default::default(),
-            index: 1,
-            signatures: vec![],
-            // proof: Default::default(),
-            leaf_index: message.nonce,
-        };
-        let mut encoded_metadata = vec![];
-        metadata.write_to(&mut encoded_metadata).unwrap();
 
         let system_program_id = solana_program::system_program::id();
 
@@ -884,9 +828,59 @@ mod test {
             Epoch::default(),
         );
 
+        let ism_account_key = Pubkey::from_str(crate::DEFAULT_ISM).unwrap();
+        let mut ism_account_lamports = 0;
+        let mut ism_account_data = vec![0_u8; 1024];
+        let ism_account = AccountInfo::new(
+            &ism_account_key,
+            false,
+            false,
+            &mut ism_account_lamports,
+            &mut ism_account_data,
+            &mailbox_program_id,
+            true,
+            Epoch::default(),
+        );
+        // Must add to account vec further down if/when there are ism data accounts.
+        assert!(crate::DEFAULT_ISM_ACCOUNTS.is_empty());
+
+        let mut recp_account_lamports = 0;
+        let mut recp_account_data = vec![0_u8; 1024];
+        let recp_account = AccountInfo::new(
+            &recipient_program_id,
+            false,
+            false,
+            &mut recp_account_lamports,
+            &mut recp_account_data,
+            &mailbox_program_id,
+            true,
+            Epoch::default(),
+        );
+        // Assume no recpient data accounts for now.
+
+        let message = HyperlaneMessage {
+            version: VERSION,
+            nonce: 1,
+            origin: u32::MAX,
+            sender: H256::repeat_byte(69),
+            destination: u32::MAX,
+            recipient: H256::from(recipient_program_id.to_bytes()),
+            body: "Hello, World!".bytes().collect(),
+        };
+        let mut encoded_message = vec![];
+        message.write_to(&mut encoded_message).unwrap();
+        let metadata = ExampleMetadata {
+            root: Default::default(),
+            index: 1,
+            signatures: vec![],
+            leaf_index: message.nonce,
+        };
+        let mut encoded_metadata = vec![];
+        metadata.write_to(&mut encoded_metadata).unwrap();
+
         let accounts = [
             inbox_account,
-            auth_account,
+            process_authority_account,
             spl_noop_account,
             ism_account,
             recp_account,

@@ -11,8 +11,9 @@ use solana_program::{
 
 use hyperlane_sealevel_mailbox::{
     instruction::{Init as InitMailbox, Instruction as MailboxInstruction},
-    mailbox_authority_pda_seeds, mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds,
+    mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds,
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
+    mailbox_process_authority_pda_seeds,
 };
 use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
@@ -63,7 +64,6 @@ async fn transfer_lamports(
 
 struct MailboxAccounts {
     program: Pubkey,
-    auth: Pubkey,
     #[allow(dead_code)]
     inbox: Pubkey,
     outbox: Pubkey,
@@ -75,10 +75,6 @@ async fn initialize_mailbox(
     payer: &Keypair,
     local_domain: u32,
 ) -> MailboxAccounts {
-    let (auth_account, auth_bump) = Pubkey::find_program_address(
-        mailbox_authority_pda_seeds!(local_domain),
-        mailbox_program_id,
-    );
     let (inbox_account, inbox_bump) =
         Pubkey::find_program_address(mailbox_inbox_pda_seeds!(local_domain), mailbox_program_id);
     let (outbox_account, outbox_bump) =
@@ -86,7 +82,6 @@ async fn initialize_mailbox(
 
     let ixn = MailboxInstruction::Init(InitMailbox {
         local_domain,
-        auth_bump_seed: auth_bump,
         inbox_bump_seed: inbox_bump,
         outbox_bump_seed: outbox_bump,
     });
@@ -96,7 +91,6 @@ async fn initialize_mailbox(
         accounts: vec![
             AccountMeta::new(system_program::id(), false),
             AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(auth_account, false),
             AccountMeta::new(inbox_account, false),
             AccountMeta::new(outbox_account, false),
         ],
@@ -114,7 +108,6 @@ async fn initialize_mailbox(
 
     MailboxAccounts {
         program: *mailbox_program_id,
-        auth: auth_account,
         inbox: inbox_account,
         outbox: outbox_account,
     }
@@ -219,6 +212,11 @@ async fn test_initialize() {
     // ATA payer must have a balance to create new ATAs
     transfer_lamports(&mut banks_client, &payer, &ata_payer_account_key, 100000000).await;
 
+    let (process_authority_account_key, _process_authority_bump) = Pubkey::find_program_address(
+        mailbox_process_authority_pda_seeds!(program_id),
+        &mailbox_program_id,
+    );
+
     let mut transaction = Transaction::new_with_payer(
         &[Instruction::new_with_bytes(
             program_id,
@@ -231,8 +229,7 @@ async fn test_initialize() {
             .encode()
             .unwrap(),
             vec![
-                // TODO this will need to be a signer
-                AccountMeta::new_readonly(mailbox_accounts.auth, false),
+                AccountMeta::new_readonly(process_authority_account_key, false),
                 AccountMeta::new_readonly(solana_program::system_program::id(), false),
                 AccountMeta::new_readonly(spl_noop::id(), false),
                 AccountMeta::new_readonly(token_account_key, false),

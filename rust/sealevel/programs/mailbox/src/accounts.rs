@@ -134,7 +134,6 @@ pub type InboxAccount = AccountData<Inbox>;
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 pub struct Inbox {
     pub local_domain: u32,
-    pub auth_bump_seed: u8,
     pub inbox_bump_seed: u8,
     // Note: 10MB account limit is around ~300k entries.
     pub delivered: HashSet<H256>,
@@ -146,7 +145,6 @@ impl Default for Inbox {
     fn default() -> Self {
         Self {
             local_domain: 0,
-            auth_bump_seed: 0,
             inbox_bump_seed: 0,
             delivered: Default::default(),
             // TODO can declare_id!() or similar be used for these to compute at compile time?
@@ -164,7 +162,6 @@ pub type OutboxAccount = AccountData<Outbox>;
 #[derive(BorshSerialize, BorshDeserialize, Debug, Default)]
 pub struct Outbox {
     pub local_domain: u32,
-    pub auth_bump_seed: u8,
     pub outbox_bump_seed: u8,
     pub tree: MerkleTree,
 }
