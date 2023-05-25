@@ -1,4 +1,5 @@
 import { Contexts } from '../../../config/contexts';
+import { HelmStatefulSetValues } from '../infrastructure';
 
 import { AgentConfig, AgentConfigHelper, ConfigHelper } from './index';
 
@@ -8,6 +9,10 @@ export interface BaseScraperConfig {
 }
 
 export type ScraperConfig = BaseScraperConfig;
+
+export interface HelmScraperValues extends HelmStatefulSetValues {
+  config?: ScraperConfig;
+}
 
 export class ScraperConfigHelper
   extends AgentConfigHelper

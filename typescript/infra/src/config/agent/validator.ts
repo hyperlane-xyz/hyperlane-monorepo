@@ -2,6 +2,7 @@ import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../../config/contexts';
 import { ValidatorAgentAwsUser } from '../../agents/aws';
+import { HelmStatefulSetValues } from '../infrastructure';
 
 import {
   AgentConfig,
@@ -37,6 +38,10 @@ export interface ValidatorConfig {
   originChainName: ChainName;
   checkpointSyncer: CheckpointSyncerConfig;
   validator: KeyConfig;
+}
+
+export interface HelmValidatorValues extends HelmStatefulSetValues {
+  configs?: ValidatorConfig[];
 }
 
 export type CheckpointSyncerConfig =

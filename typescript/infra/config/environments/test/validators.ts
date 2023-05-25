@@ -3,7 +3,7 @@ import { ChainName } from '@hyperlane-xyz/sdk';
 import {
   CheckpointSyncerType,
   ValidatorBaseChainConfigMap,
-} from '../../../src/config/agent';
+} from '../../../src/config';
 
 const localStoragePath = (chainName: ChainName) =>
   `/tmp/hyperlane-test-${chainName}-validator`;

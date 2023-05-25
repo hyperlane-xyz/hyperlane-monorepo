@@ -4,6 +4,7 @@ import { ChainMap, chainMetadata } from '@hyperlane-xyz/sdk';
 
 import { AgentAwsUser } from '../../agents/aws';
 import { KEY_ROLE_ENUM } from '../../agents/roles';
+import { HelmStatefulSetValues } from '../infrastructure';
 
 import {
   AgentConfig,
@@ -71,6 +72,20 @@ export interface RelayerConfig
   blacklist?: string;
   transactionGasLimit?: string;
   skipTransactionGasLimitFor?: string;
+}
+
+// See rust/helm/values.yaml for the full list of options and their defaults.
+// This is at `.hyperlane.relayer` in the values file.
+export interface HelmRelayerValues extends HelmStatefulSetValues {
+  aws: boolean;
+  config?: RelayerConfig;
+}
+
+// See rust/helm/values.yaml for the full list of options and their defaults.
+// This is at `.hyperlane.relayerChains` in the values file.
+export interface HelmRelayerChainValues {
+  name: string;
+  signer: KeyConfig;
 }
 
 export class RelayerConfigHelper

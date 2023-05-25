@@ -2,14 +2,28 @@ import { ChainName } from '@hyperlane-xyz/sdk';
 import { utils } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
-import { AgentConfig, DeployEnvironment } from '../config';
+import {
+  AgentConfig,
+  DeployEnvironment,
+  HelmAgentChainOverride,
+  HelmRootAgentValues,
+} from '../config';
 import {
   CheckpointSyncerType,
-  KeyConfig,
   RelayerConfigHelper,
   ScraperConfigHelper,
   ValidatorConfigHelper,
 } from '../config/agent';
+import {
+  HelmRelayerChainValues,
+  HelmRelayerValues,
+  RelayerConfig,
+} from '../config/agent/relayer';
+import { HelmScraperValues, ScraperConfig } from '../config/agent/scraper';
+import {
+  HelmValidatorValues,
+  ValidatorConfig,
+} from '../config/agent/validator';
 import { fetchGCPSecret } from '../utils/gcloud';
 import {
   HelmCommand,
@@ -238,16 +252,28 @@ export async function getAgentEnvVars(
     }
   }
 
-  let configToSerialize: any;
+  if (role == KEY_ROLE_ENUM.Validator && valueDict.hyperlane.validator?.configs)
+    envVars.concat(
+      configEnvVars(valueDict.hyperlane.validator?.configs[index!]),
+    );
+
+  let configToSerialize:
+    | ValidatorConfig
+    | RelayerConfig
+    | ScraperConfig
+    | undefined;
+
   switch (role) {
     case KEY_ROLE_ENUM.Validator:
-      configToSerialize = valueDict.hyperlane.validator.configs[index!];
+      configToSerialize = (valueDict.hyperlane.validator?.configs ?? [])[
+        index!
+      ];
       break;
     case KEY_ROLE_ENUM.Relayer:
-      configToSerialize = valueDict.hyperlane.relayer.config;
+      configToSerialize = valueDict.hyperlane.relayer?.config;
       break;
     case KEY_ROLE_ENUM.Scraper:
-      configToSerialize = valueDict.hyperlane.scraper.config;
+      configToSerialize = valueDict.hyperlane.scraper?.config;
       break;
     default:
   }
@@ -359,7 +385,7 @@ async function helmValuesForAgent(
   agentConfig: AgentConfig,
   role: KEY_ROLE_ENUM,
   chainName?: ChainName,
-) {
+): Promise<HelmRootAgentValues> {
   // // TODO: This can't be in use because it would break when fallback is used, so where are we actually getting the values from?
   // // By default, if a context only enables a subset of chains, the
   // // connection url (or urls, when HttpQuorum is used) are not fetched
@@ -382,7 +408,7 @@ async function helmValuesForAgent(
   //   };
   // }
 
-  let validator: Record<string, unknown> = { enabled: false };
+  let validator: HelmValidatorValues = { enabled: false };
   if (role == KEY_ROLE_ENUM.Validator) {
     if (!chainName) {
       throw new Error('chainName is required for validator configs');
@@ -399,8 +425,8 @@ async function helmValuesForAgent(
     };
   }
 
-  let relayer: Record<string, unknown> = { enabled: false };
-  let relayerChains: Array<{ name: string; signer: KeyConfig }> = [];
+  let relayer: HelmRelayerValues = { enabled: false, aws: false };
+  let relayerChains: HelmRelayerChainValues[] = [];
   if (role == KEY_ROLE_ENUM.Relayer) {
     const relayerHelper = new RelayerConfigHelper(agentConfig);
     if (!relayerHelper.isDefined) {
@@ -419,7 +445,7 @@ async function helmValuesForAgent(
     }));
   }
 
-  let scraper: Record<string, unknown> = { enabled: false };
+  let scraper: HelmScraperValues = { enabled: false };
   if (role == KEY_ROLE_ENUM.Scraper) {
     const scraperHelper = new ScraperConfigHelper(agentConfig);
     if (!scraperHelper.isDefined) {
@@ -440,11 +466,13 @@ async function helmValuesForAgent(
       runEnv: agentConfig.runEnv,
       context: agentConfig.context,
       aws: !!agentConfig.aws,
-      chains: agentConfig.environmentChainNames.map((envChainName) => ({
-        name: envChainName,
-        disabled: !agentConfig.contextChainNames.includes(envChainName),
-        connection: { type: agentConfig.connectionType },
-      })),
+      chains: agentConfig.environmentChainNames.map(
+        (envChainName): HelmAgentChainOverride => ({
+          name: envChainName as ChainName,
+          disabled: !agentConfig.contextChainNames.includes(envChainName),
+          connection: { type: agentConfig.connectionType },
+        }),
+      ),
       // Only the relayer has the signers on the chains config object
       // TODO: why is this not under the "relayer" object?
       relayerChains,

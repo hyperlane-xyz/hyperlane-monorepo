@@ -84,8 +84,9 @@ async function main() {
       console.warn('No validators provided for context');
       return;
     }
+    const { baseOveride, ...validatorChainConfigMap } = agentConfig.validators;
     await Promise.all(
-      Object.entries(agentConfig.validators).map(
+      Object.entries(validatorChainConfigMap).map(
         async ([chain, validatorChainConfig]) => {
           for (const validatorBaseConfig of validatorChainConfig.validators) {
             if (

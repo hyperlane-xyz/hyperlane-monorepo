@@ -4,6 +4,7 @@ import { ALL_KEY_ROLES, KEY_ROLE_ENUM } from '../../../src/agents/roles';
 import {
   AgentConfig,
   GasPaymentEnforcementPolicyType,
+  overrideBase,
   routerMatchingList,
 } from '../../../src/config';
 import { Contexts } from '../../contexts';
@@ -35,12 +36,9 @@ export const hyperlane: AgentConfig = {
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
   connectionType: AgentConnectionType.HttpFallback,
-  validators: {
-    ...validators,
-    baseOverride: {
-      connectionType: AgentConnectionType.HttpQuorum,
-    },
-  },
+  validators: overrideBase(validators, {
+    connectionType: AgentConnectionType.HttpQuorum,
+  }),
   relayer: {
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,

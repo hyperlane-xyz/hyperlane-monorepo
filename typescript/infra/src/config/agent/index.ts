@@ -1,13 +1,23 @@
 // Eventually consumed by Rust, which expects camelCase values
-import { AgentConnectionType, ChainName } from '@hyperlane-xyz/sdk';
+import {
+  AgentChainSetup,
+  AgentConnection,
+  AgentConnectionType,
+  ChainName,
+} from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../../config/contexts';
 import { KEY_ROLE_ENUM } from '../../agents/roles';
 import { DeployEnvironment } from '../environment';
+import { HelmImageValues } from '../infrastructure';
 
-import { BaseRelayerConfig } from './relayer';
-import { BaseScraperConfig } from './scraper';
-import { ValidatorBaseChainConfigMap } from './validator';
+import {
+  BaseRelayerConfig,
+  HelmRelayerChainValues,
+  HelmRelayerValues,
+} from './relayer';
+import { BaseScraperConfig, HelmScraperValues } from './scraper';
+import { HelmValidatorValues, ValidatorBaseChainConfigMap } from './validator';
 
 export {
   ValidatorConfigHelper,
@@ -20,6 +30,38 @@ export {
   routerMatchingList,
 } from './relayer';
 export { ScraperConfigHelper } from './scraper';
+
+// See rust/helm/values.yaml for the full list of options and their defaults.
+// This is the root object in the values file.
+export interface HelmRootAgentValues {
+  image: HelmImageValues;
+  hyperlane: HelmHyperlaneValues;
+}
+
+// See rust/helm/values.yaml for the full list of options and their defaults.
+// This is at `.hyperlane` in the values file.
+interface HelmHyperlaneValues {
+  runEnv: DeployEnvironment;
+  context: Contexts;
+  dbPath?: string;
+  rustBacktrace?: '1' | 'full';
+  aws: boolean;
+  // chain overrides
+  chains: HelmAgentChainOverride[];
+  validator?: HelmValidatorValues;
+  relayer?: HelmRelayerValues;
+  relayerChains?: HelmRelayerChainValues[];
+  scraper?: HelmScraperValues;
+}
+
+// See rust/helm/values.yaml for the full list of options and their defaults.
+// This is at `.hyperlane.chains` in the values file.
+export interface HelmAgentChainOverride
+  extends Partial<Omit<AgentChainSetup, 'connection'>> {
+  name: ChainName;
+  disabled?: boolean;
+  connection?: Partial<AgentConnection>;
+}
 
 export interface AgentConfig extends BaseAgentConfig {
   relayer?: WithOverrideableBase<BaseRelayerConfig>;
@@ -83,6 +125,18 @@ export interface DockerConfig {
 export type WithOverrideableBase<T> = T & {
   baseOverride?: Partial<BaseAgentConfig>;
 };
+
+// helper to deal with the broken TS type system that does not handle
+// `{...config, baseOverride: { key: value } }` properly.
+export function overrideBase<T>(
+  config: T,
+  baseOverride: Partial<BaseAgentConfig>,
+): WithOverrideableBase<T> {
+  return {
+    ...config,
+    baseOverride,
+  };
+}
 
 // Helper interface to build configs. Ensures all helpers have a similar interface.
 export interface ConfigHelper<T> {
