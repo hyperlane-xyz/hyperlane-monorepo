@@ -2,7 +2,6 @@ import { ChainName } from '@hyperlane-xyz/sdk';
 import { utils } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
-import { Helmable } from '../commands';
 import { AgentConfig, DeployEnvironment } from '../config';
 import {
   CheckpointSyncerType,
@@ -30,58 +29,6 @@ const HELM_CHART_PATH = '../../rust/helm/hyperlane-agent/';
 /** Roles which do not need deployments per chain */
 const OMNISCIENT_ROLES = [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Scraper];
 
-export class AgentHelm extends Helmable {
-  readonly helmChartPath: string = HELM_CHART_PATH;
-  readonly helmReleaseName: string;
-  readonly namespace: string;
-
-  constructor(
-    agentConfig: AgentConfig,
-    role: KEY_ROLE_ENUM,
-    originChainName?: ChainName,
-  ) {
-    super();
-    this.namespace = agentConfig.namespace;
-    this.helmReleaseName = getHelmReleaseName(
-      agentConfig,
-      role,
-      originChainName,
-    );
-  }
-
-  async before(action: HelmCommand): Promise<void> {
-    if (action == HelmCommand.InstallOrUpgrade) await this.#refreshSecrets();
-  }
-
-  async helmValues(): Promise<string[]> {
-    return Promise.resolve([]);
-  }
-
-  async helmValues(): Promise<string[]> {
-    return helmifyValues(
-      await helmValuesForAgent(agentConfig, role, originChainName),
-    );
-  }
-
-  async #refreshSecrets(): Promise<void> {
-    // Delete secrets to avoid them being stale
-    const cmd = [
-      'kubectl',
-      'delete',
-      'secrets',
-      '--namespace',
-      this.namespace,
-      '--selector',
-      `app.kubernetes.io/instance=${this.helmReleaseName}`,
-    ];
-    try {
-      await execCmd(cmd.join(' '), {}, false, false);
-    } catch (e) {
-      console.error(e);
-    }
-  }
-}
-
 export async function runAgentHelmCommandsForRoles(
   action: HelmCommand,
   agentConfig: AgentConfig,
@@ -107,6 +54,7 @@ export async function runAgentHelmCommandsForRoles(
   await Promise.all(promises);
 }
 
+// TODO: Make sure to update helm release name based on role!
 async function runAgentHelmCommand(
   action: HelmCommand,
   agentConfig: AgentConfig,
