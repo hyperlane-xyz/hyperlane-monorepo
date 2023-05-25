@@ -1,3 +1,4 @@
+import { Helmable } from '../../commands';
 import { InfrastructureConfig } from '../../config/infrastructure';
 import {
   createServiceAccountIfNotExists,
@@ -15,6 +16,25 @@ import {
 import { execCmd, execCmdAndParseJson, sleep } from '../../utils/utils';
 
 const SECRET_ACCESSOR_ROLE = 'roles/secretmanager.secretAccessor';
+
+export class ExternalSecretsHelm extends Helmable {
+  readonly helmChartPath: string = './src/infrastructure/external-secrets/helm';
+  readonly helmReleaseName: string = 'external-secrets-gcp';
+  private readonly config: InfrastructureConfig['externalSecrets'];
+
+  constructor(infraConfig: InfrastructureConfig, envi) {
+    super();
+    this.infraConfig = infraConfig.externalSecrets;
+  }
+
+  get namespace(): string {
+    this.config.namespace;
+  }
+
+  async helmValues(): Promise<string[]> {
+    return getGcpExternalSecretsHelmChartValues(this.infraConfig);
+  }
+}
 
 // Ensures the out of the box external-secrets (with the CRDs etc) is properly deployed,
 // deploying/upgrading otherwise, and performs a helm command for the separate
