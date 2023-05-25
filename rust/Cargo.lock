@@ -3038,6 +3038,7 @@ dependencies = [
  "config",
  "convert_case 0.6.0",
  "derive-new",
+ "derive_more",
  "ethers-contract",
  "ethers-core",
  "ethers-providers",
@@ -3073,6 +3074,7 @@ dependencies = [
  "hex 0.4.3",
  "hyperlane-core",
  "num",
+ "num-traits",
  "reqwest",
  "serde",
  "serde_json",
@@ -4667,6 +4669,7 @@ dependencies = [
  "async-trait",
  "config",
  "derive-new",
+ "derive_more",
  "enum_dispatch",
  "ethers",
  "ethers-contract",
@@ -4853,6 +4856,7 @@ name = "run-locally"
 version = "0.1.0"
 dependencies = [
  "ctrlc",
+ "eyre",
  "maplit",
  "nix",
  "tempfile",

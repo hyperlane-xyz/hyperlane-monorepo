@@ -63,12 +63,14 @@ where
 
             let logs = self.indexer.fetch_logs(range).await?;
 
-            info!(
-                ?range,
-                num_logs = logs.len(),
-                estimated_time_to_sync = fmt_sync_time(eta),
-                "Found log(s) in block range"
-            );
+            if !logs.is_empty() {
+                info!(
+                    ?range,
+                    num_logs = logs.len(),
+                    estimated_time_to_sync = fmt_sync_time(eta),
+                    "Found logs(s) in range"
+                );
+            }
             // Store deliveries
             let stored = self.db.store_logs(&logs).await?;
             // Report amount of deliveries stored into db
