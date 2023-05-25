@@ -1,14 +1,13 @@
-use async_trait::async_trait;
+use derive_more::Deref;
 use ethers_core::types::{Address, Signature};
 use serde::{Deserialize, Serialize};
 use sha3::{digest::Update, Digest, Keccak256};
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
 
-use crate::utils::{fmt_address_for_domain, fmt_domain};
 use crate::{utils::domain_hash, Signable, SignedType, H256};
 
 /// An Hyperlane checkpoint
-#[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize, Debug)]
 pub struct Checkpoint {
     /// The mailbox address
     pub mailbox_address: H256,
@@ -20,20 +19,16 @@ pub struct Checkpoint {
     pub index: u32,
 }
 
-impl Debug for Checkpoint {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Checkpoint {{ mailbox_address: {}, mailbox_domain: {}, root: {:?}, index: {} }}",
-            fmt_address_for_domain(self.mailbox_domain, self.mailbox_address),
-            fmt_domain(self.mailbox_domain),
-            self.root,
-            self.index
-        )
-    }
+/// A Hyperlane (checkpoint, messageId) tuple
+#[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize, Debug, Deref)]
+pub struct CheckpointWithMessageId {
+    /// existing Hyperlane checkpoint struct
+    #[deref]
+    pub checkpoint: Checkpoint,
+    /// hash of message emitted from mailbox checkpoint.index
+    pub message_id: H256,
 }
 
-#[async_trait]
 impl Signable for Checkpoint {
     /// A hash of the checkpoint contents.
     /// The EIP-191 compliant version of this hash is signed by validators.
@@ -51,16 +46,36 @@ impl Signable for Checkpoint {
     }
 }
 
-/// A checkpoint that has been signed.
+impl Signable for CheckpointWithMessageId {
+    /// A hash of the checkpoint contents.
+    /// The EIP-191 compliant version of this hash is signed by validators.
+    fn signing_hash(&self) -> H256 {
+        // sign:
+        // domain_hash(mailbox_address, mailbox_domain) || root || index (as u32) || message_id
+        H256::from_slice(
+            Keccak256::new()
+                .chain(domain_hash(self.mailbox_address, self.mailbox_domain))
+                .chain(self.root)
+                .chain(self.index.to_be_bytes())
+                .chain(self.message_id)
+                .finalize()
+                .as_slice(),
+        )
+    }
+}
+
+/// Signed checkpoint
 pub type SignedCheckpoint = SignedType<Checkpoint>;
+/// Signed (checkpoint, messageId) tuple
+pub type SignedCheckpointWithMessageId = SignedType<CheckpointWithMessageId>;
 
 /// An individual signed checkpoint with the recovered signer
 #[derive(Clone, Debug)]
-pub struct SignedCheckpointWithSigner {
+pub struct SignedCheckpointWithSigner<T: Signable> {
     /// The recovered signer
     pub signer: Address,
     /// The signed checkpoint
-    pub signed_checkpoint: SignedCheckpoint,
+    pub signed_checkpoint: SignedType<T>,
 }
 
 /// A signature and its signer.
@@ -73,23 +88,12 @@ pub struct SignatureWithSigner {
 }
 
 /// A checkpoint and multiple signatures
-#[derive(Clone)]
-pub struct MultisigSignedCheckpoint {
+#[derive(Clone, Debug)]
+pub struct MultisigSignedCheckpoint<T> {
     /// The checkpoint
-    pub checkpoint: Checkpoint,
+    pub checkpoint: T,
     /// Signatures over the checkpoint. No ordering guarantees.
     pub signatures: Vec<SignatureWithSigner>,
-}
-
-impl Debug for MultisigSignedCheckpoint {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "MultisigSignedCheckpoint {{ checkpoint: {:?}, signature_count: {} }}",
-            self.checkpoint,
-            self.signatures.len()
-        )
-    }
 }
 
 /// Error types for MultisigSignedCheckpoint
@@ -103,12 +107,16 @@ pub enum MultisigSignedCheckpointError {
     EmptySignatures(),
 }
 
-impl TryFrom<&Vec<SignedCheckpointWithSigner>> for MultisigSignedCheckpoint {
+impl<T: Signable + Eq + Copy> TryFrom<&Vec<SignedCheckpointWithSigner<T>>>
+    for MultisigSignedCheckpoint<T>
+{
     type Error = MultisigSignedCheckpointError;
 
     /// Given multiple signed checkpoints with their signer, creates a
     /// MultisigSignedCheckpoint
-    fn try_from(signed_checkpoints: &Vec<SignedCheckpointWithSigner>) -> Result<Self, Self::Error> {
+    fn try_from(
+        signed_checkpoints: &Vec<SignedCheckpointWithSigner<T>>,
+    ) -> Result<Self, Self::Error> {
         if signed_checkpoints.is_empty() {
             return Err(MultisigSignedCheckpointError::EmptySignatures());
         }
@@ -124,7 +132,7 @@ impl TryFrom<&Vec<SignedCheckpointWithSigner>> for MultisigSignedCheckpoint {
 
         let signatures = signed_checkpoints
             .iter()
-            .map(|c| SignatureWithSigner {
+            .map(|c: &SignedCheckpointWithSigner<T>| SignatureWithSigner {
                 signature: c.signed_checkpoint.signature,
                 signer: c.signer,
             })

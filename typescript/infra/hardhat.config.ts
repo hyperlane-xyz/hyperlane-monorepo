@@ -38,9 +38,10 @@ task('kathy', 'Dispatches random hyperlane messages')
     '0',
   )
   .addParam('timeout', 'Time to wait between messages in ms.', '5000')
+  .addFlag('mineforever', 'Mine forever after sending messages')
   .setAction(
     async (
-      taskArgs: { messages: string; timeout: string },
+      taskArgs: { messages: string; timeout: string; mineforever: boolean },
       hre: HardhatRuntimeEnvironment,
     ) => {
       const timeout = Number.parseInt(taskArgs.timeout);
@@ -58,6 +59,10 @@ task('kathy', 'Dispatches random hyperlane messages')
       const recipientF = new TestSendReceiver__factory(signer);
       const recipient = await recipientF.deploy();
       await recipient.deployTransaction.wait();
+
+      const isAutomine: boolean = await hre.network.provider.send(
+        'hardhat_getAutomine',
+      );
 
       //  Generate artificial traffic
       let messages = Number.parseInt(taskArgs.messages) || 0;
@@ -81,6 +86,7 @@ task('kathy', 'Dispatches random hyperlane messages')
             // so gas estimation may sometimes be incorrect. Just avoid
             // estimation to avoid this.
             gasLimit: 150_000,
+            gasPrice: 2_000_000_000,
           },
         );
         console.log(
@@ -89,6 +95,13 @@ task('kathy', 'Dispatches random hyperlane messages')
           } on ${local} with nonce ${(await mailbox.count()) - 1}`,
         );
         console.log(await chainSummary(core, local));
+        console.log(await chainSummary(core, remote));
+
+        await sleep(timeout);
+      }
+
+      while (taskArgs.mineforever && isAutomine) {
+        await hre.network.provider.send('hardhat_mine', ['0x01']);
         await sleep(timeout);
       }
     },

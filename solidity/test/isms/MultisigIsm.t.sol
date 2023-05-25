@@ -5,28 +5,61 @@ import "forge-std/Test.sol";
 
 import {IMultisigIsm} from "../../contracts/interfaces/isms/IMultisigIsm.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
-import {StaticMultisigIsmFactory} from "../../contracts/isms/multisig/StaticMultisigIsmFactory.sol";
+import {StaticMerkleRootMultisigIsmFactory, StaticMessageIdMultisigIsmFactory} from "../../contracts/isms/multisig/StaticMultisigIsm.sol";
+import {MerkleRootMultisigIsmMetadata} from "../../contracts/libs/isms/MerkleRootMultisigIsmMetadata.sol";
 import {CheckpointLib} from "../../contracts/libs/CheckpointLib.sol";
+import {StaticMOfNAddressSetFactory} from "../../contracts/libs/StaticMOfNAddressSetFactory.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {MOfNTestUtils} from "./IsmTestUtils.sol";
 
-contract MultisigIsmTest is Test {
+abstract contract AbstractMultisigIsmTest is Test {
+    using Message for bytes;
+
     uint32 constant ORIGIN = 11;
-    StaticMultisigIsmFactory factory;
+    StaticMOfNAddressSetFactory factory;
     IMultisigIsm ism;
     TestMailbox mailbox;
 
-    function setUp() public {
-        mailbox = new TestMailbox(ORIGIN);
-        factory = new StaticMultisigIsmFactory();
+    function metadataPrefix(bytes memory message)
+        internal
+        view
+        virtual
+        returns (bytes memory);
+
+    function getMetadata(
+        uint8 m,
+        uint8 n,
+        bytes32 seed,
+        bytes memory message
+    ) internal returns (bytes memory) {
+        uint32 domain = mailbox.localDomain();
+        uint256[] memory keys = addValidators(m, n, seed);
+        uint256[] memory signers = MOfNTestUtils.choose(m, keys, seed);
+        bytes32 mailboxAsBytes32 = TypeCasts.addressToBytes32(address(mailbox));
+        bytes32 checkpointRoot = mailbox.root();
+        uint32 checkpointIndex = uint32(mailbox.count() - 1);
+        bytes32 messageId = message.id();
+        bytes32 digest = CheckpointLib.digest(
+            domain,
+            mailboxAsBytes32,
+            checkpointRoot,
+            checkpointIndex,
+            messageId
+        );
+        bytes memory metadata = metadataPrefix(message);
+        for (uint256 i = 0; i < m; i++) {
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(signers[i], digest);
+            metadata = abi.encodePacked(metadata, r, s, v);
+        }
+        return metadata;
     }
 
     function addValidators(
         uint8 m,
         uint8 n,
         bytes32 seed
-    ) private returns (uint256[] memory) {
+    ) internal returns (uint256[] memory) {
         uint256[] memory keys = new uint256[](n);
         address[] memory addresses = new address[](n);
         for (uint256 i = 0; i < n; i++) {
@@ -60,36 +93,6 @@ contract MultisigIsmTest is Test {
         return message;
     }
 
-    function getMetadata(
-        uint8 m,
-        uint8 n,
-        bytes32 seed
-    ) private returns (bytes memory) {
-        uint32 domain = mailbox.localDomain();
-        uint256[] memory keys = addValidators(m, n, seed);
-        uint256[] memory signers = MOfNTestUtils.choose(m, keys, seed);
-        bytes32 mailboxAsBytes32 = TypeCasts.addressToBytes32(address(mailbox));
-        bytes32 checkpointRoot = mailbox.root();
-        uint32 checkpointIndex = uint32(mailbox.count() - 1);
-        bytes memory metadata = abi.encodePacked(
-            checkpointRoot,
-            checkpointIndex,
-            mailboxAsBytes32,
-            mailbox.proof()
-        );
-        bytes32 digest = CheckpointLib.digest(
-            domain,
-            mailboxAsBytes32,
-            checkpointRoot,
-            checkpointIndex
-        );
-        for (uint256 i = 0; i < signers.length; i++) {
-            (uint8 v, bytes32 r, bytes32 s) = vm.sign(signers[i], digest);
-            metadata = abi.encodePacked(metadata, r, s, v);
-        }
-        return metadata;
-    }
-
     function testVerify(
         uint32 destination,
         bytes32 recipient,
@@ -100,7 +103,70 @@ contract MultisigIsmTest is Test {
     ) public {
         vm.assume(0 < m && m <= n && n < 10);
         bytes memory message = getMessage(destination, recipient, body);
-        bytes memory metadata = getMetadata(m, n, seed);
+        bytes memory metadata = getMetadata(m, n, seed, message);
         assertTrue(ism.verify(metadata, message));
+    }
+
+    function testFailVerify(
+        uint32 destination,
+        bytes32 recipient,
+        bytes calldata body,
+        uint8 m,
+        uint8 n,
+        bytes32 seed
+    ) public {
+        vm.assume(0 < m && m <= n && n < 10);
+        bytes memory message = getMessage(destination, recipient, body);
+        bytes memory metadata = getMetadata(m, n, seed, message);
+
+        // changing single byte in metadata should fail signature verification
+        uint256 index = uint256(seed) % metadata.length;
+        metadata[index] = ~metadata[index];
+        assertFalse(ism.verify(metadata, message));
+    }
+}
+
+contract MerkleRootMultisigIsmTest is AbstractMultisigIsmTest {
+    using Message for bytes;
+
+    function setUp() public {
+        mailbox = new TestMailbox(ORIGIN);
+        factory = new StaticMerkleRootMultisigIsmFactory();
+    }
+
+    function metadataPrefix(bytes memory message)
+        internal
+        view
+        override
+        returns (bytes memory)
+    {
+        uint32 checkpointIndex = uint32(mailbox.count() - 1);
+        bytes32 mailboxAsBytes32 = TypeCasts.addressToBytes32(address(mailbox));
+        return
+            abi.encodePacked(
+                mailboxAsBytes32,
+                checkpointIndex,
+                message.id(),
+                mailbox.proof()
+            );
+    }
+}
+
+contract MessageIdMultisigIsmTest is AbstractMultisigIsmTest {
+    using Message for bytes;
+
+    function setUp() public {
+        mailbox = new TestMailbox(ORIGIN);
+        factory = new StaticMessageIdMultisigIsmFactory();
+    }
+
+    function metadataPrefix(bytes memory)
+        internal
+        view
+        override
+        returns (bytes memory)
+    {
+        bytes32 mailboxAsBytes32 = TypeCasts.addressToBytes32(address(mailbox));
+        return abi.encodePacked(mailboxAsBytes32, mailbox.root());
     }
 }
