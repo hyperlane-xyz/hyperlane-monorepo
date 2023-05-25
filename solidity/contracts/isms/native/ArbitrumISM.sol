@@ -9,14 +9,21 @@ import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {AddressAliasHelper} from "@arbitrum/nitro-contracts/src/libraries/AddressAliasHelper.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
+/**
+ * @title ArbitrumISM
+ * @notice Uses the native Arbitrum bridge to verify interchain messages.
+ */
 contract ArbitrumISM is IInterchainSecurityModule, Ownable {
-    mapping(bytes32 => mapping(address => bool)) public receivedEmitters;
-
-    IArbitrumMessageHook public immutable l1Hook;
-
     // solhint-disable-next-line const-name-snakecase
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.ARBITRUM);
+
+    // ============ Public Storage ============
+
+    IArbitrumMessageHook public l1Hook;
+    // mapping to check if the specific messageID from a specific emitter has been received
+    // @dev anyone can send an untrusted messageId, so need to check for that while verifying
+    mapping(bytes32 => mapping(address => bool)) public receivedEmitters;
 
     event ReceivedMessage(bytes32 indexed messageId, address indexed emitter);
 
@@ -31,11 +38,23 @@ contract ArbitrumISM is IInterchainSecurityModule, Ownable {
         _;
     }
 
-    constructor(IArbitrumMessageHook _hook) {
-        l1Hook = _hook;
+    // ============ External Functions ============
+
+    /**
+     * @notice Set the hook responsible for sending messages from L1.
+     * @param _hook Address of the hook.
+     */
+    function setArbitrumHook(address _hook) external onlyOwner {
+        l1Hook = IArbitrumMessageHook(_hook);
     }
 
-    function receiveFromHook(bytes32 _messageId, address _emitter)
+    /**
+     * @notice Receive a message from the ArbSys precompile.
+     * @dev Only callable by the alias of L1 hook.
+     * @param _emitter Address of the emitter.
+     * @param _messageId Hyperlane ID for the message.
+     */
+    function receiveFromHook(address _emitter, bytes32 _messageId)
         external
         isAuthorized
     {
@@ -46,6 +65,10 @@ contract ArbitrumISM is IInterchainSecurityModule, Ownable {
         emit ReceivedMessage(_messageId, _emitter);
     }
 
+    /**
+     * @notice Verify a message was received by ISM.
+     * @param _message Message to verify.
+     */
     function verify(
         bytes calldata, /*_metadata*/
         bytes calldata _message

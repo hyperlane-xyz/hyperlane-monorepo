@@ -9,13 +9,11 @@ interface IArbitrumMessageHook is IMessageHook {
     /**
      * @notice Emitted when a message is published throug the native Optimism bridges
      * @dev Used by the relayer to aid in finding VAA
-     * @param target The wormhole message payload
-     * @param sender The wormhole nonce associated with the message
-     * @param messageId The wormhole sequence associated with the message
+     * @param sender The sender of the message
+     * @param messageId The hyperlane message ID
      * @param gasOverhead The gas overhead for the function call on L2.
      */
     event ArbitrumMessagePublished(
-        address indexed target,
         address indexed sender,
         bytes32 indexed messageId,
         uint256 gasOverhead

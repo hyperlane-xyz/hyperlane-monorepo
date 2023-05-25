@@ -25,11 +25,11 @@ contract OptimismISM is IInterchainSecurityModule, Ownable {
     // Optimism's native CrossDomainMessenger deployed on L2
     // @dev Only allowed to call `receiveFromHook`.
     ICrossDomainMessenger public immutable l2Messenger;
-    // Hook deployed on L1 responsible for sending message via the Optimism bridge
-    IOptimismMessageHook public immutable l1Hook;
 
     // ============ Public Storage ============
 
+    // Hook deployed on L1 responsible for sending message via the Optimism bridge
+    IOptimismMessageHook public l1Hook;
     // mapping to check if the specific messageID from a specific emitter has been received
     // @dev anyone can send an untrusted messageId, so need to check for that while verifying
     mapping(bytes32 => mapping(address => bool)) public receivedEmitters;
@@ -60,15 +60,31 @@ contract OptimismISM is IInterchainSecurityModule, Ownable {
 
     // ============ Constructor ============
 
-    constructor(ICrossDomainMessenger _l2Messenger, IOptimismMessageHook _hook)
-    {
-        l2Messenger = _l2Messenger;
-        l1Hook = _hook;
+    constructor(address _l2Messenger) {
+        require(_l2Messenger != address(0), "OptimismISM: invalid messenger");
+
+        l2Messenger = ICrossDomainMessenger(_l2Messenger);
     }
 
     // ============ External Functions ============
 
-    function receiveFromHook(bytes32 _messageId, address _emitter)
+    /**
+     * @notice Set the hook responsible for sending messages from L1.
+     * @param _hook Address of the hook.
+     */
+    function setOptimismHook(address _hook) external onlyOwner {
+        require(_hook != address(0), "OptimismISM: invalid hook");
+
+        l1Hook = IOptimismMessageHook(_hook);
+    }
+
+    /**
+     * @notice Receive a message from the L2 messenger.
+     * @dev Only callable by the L2 messenger.
+     * @param _emitter Address of the emitter.
+     * @param _messageId Hyperlane ID for the message.
+     */
+    function receiveFromHook(address _emitter, bytes32 _messageId)
         external
         isAuthorized
     {
@@ -79,13 +95,17 @@ contract OptimismISM is IInterchainSecurityModule, Ownable {
         emit ReceivedMessage(_messageId, _emitter);
     }
 
+    /**
+     * @notice Verify a message was received by ISM.
+     * @param _message Message to verify.
+     */
     function verify(
         bytes calldata, /*_metadata*/
         bytes calldata _message
-    ) external view returns (bool messageVerified) {
+    ) external view returns (bool) {
         bytes32 _messageId = Message.id(_message);
         address _messageSender = Message.senderAddress(_message);
 
-        messageVerified = receivedEmitters[_messageId][_messageSender];
+        return receivedEmitters[_messageId][_messageSender];
     }
 }

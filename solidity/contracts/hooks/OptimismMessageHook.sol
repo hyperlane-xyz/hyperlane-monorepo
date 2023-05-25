@@ -19,34 +19,33 @@ contract OptimismMessageHook is IOptimismMessageHook {
     // Domain of chain on which the optimism ISM is deployed
     uint32 public immutable destinationDomain;
     // Messenger used to send messages from L1 -> L2
-    ICrossDomainMessenger public immutable l1messenger;
+    ICrossDomainMessenger public immutable l1Messenger;
+    // Optimism ISM to verify messages
+    OptimismISM public immutable ism;
     // Gas limit for sending messages to L2
     // First 1.92e6 gas is provided by Optimism, see more here:
     // https://community.optimism.io/docs/developers/bridge/messaging/#for-l1-%E2%87%92-l2-transactions
     uint32 internal constant GAS_LIMIT = 1_920_000;
 
-    // ============ Public Storage ============
-
-    // Optimism ISM to verify messages
-    OptimismISM public ism;
-
     // ============ Constructor ============
 
-    constructor(uint32 _destinationDomain, ICrossDomainMessenger _messenger) {
+    constructor(
+        uint32 _destinationDomain,
+        address _messenger,
+        address _ism
+    ) {
+        require(
+            _messenger != address(0),
+            "OptimismHook: invalid messenger address"
+        );
+        require(_ism != address(0), "OptimismHook: invalid ism address");
+
         destinationDomain = _destinationDomain;
-        l1messenger = _messenger;
+        l1Messenger = ICrossDomainMessenger(_messenger);
+        ism = OptimismISM(_ism);
     }
 
     // ============ External Functions ============
-
-    /**
-     * @notice Sets the optimism ISM you want to use to verify messages.
-     * @param _ism The address of the optimism ISM.
-     */
-    function setOptimismISM(address _ism) external {
-        require(address(ism) == address(0), "OptimismHook: ism already set");
-        ism = OptimismISM(_ism);
-    }
 
     /**
      * @notice Hook to inform the optimism ISM of messages published through.
@@ -64,19 +63,15 @@ contract OptimismMessageHook is IOptimismMessageHook {
             _destination == destinationDomain,
             "OptimismHook: invalid destination domain"
         );
-        require(
-            address(ism) != address(0),
-            "OptimismHook: OptimismISM not set"
-        );
 
         bytes memory _payload = abi.encodeCall(
             OptimismISM.receiveFromHook,
-            (_messageId, msg.sender)
+            (msg.sender, _messageId)
         );
 
-        l1messenger.sendMessage(address(ism), _payload, GAS_LIMIT);
+        l1Messenger.sendMessage(address(ism), _payload, GAS_LIMIT);
 
-        emit OptimismMessagePublished(address(ism), msg.sender, _messageId);
+        emit OptimismMessagePublished(msg.sender, _messageId);
 
         // calling the receiveFromHook function is ~25k gas but we get 1.92m gas from Optimism
         return 0;

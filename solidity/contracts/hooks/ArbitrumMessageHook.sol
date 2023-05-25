@@ -21,34 +21,30 @@ contract ArbitrumMessageHook is IArbitrumMessageHook {
 
     // Domain of chain on which the arbitrum ISM is deployed
     uint32 public immutable destinationDomain;
+    // Arbitrum ISM to verify messages
+    ArbitrumISM public immutable ism;
     // Arbitrum's inbox used to send messages from L1 -> L2
     IInbox public immutable inbox;
 
     uint128 internal constant MAX_GAS_LIMIT = 100_000;
     uint128 internal constant MAX_GAS_PRICE = 1e9;
 
-    // ============ Public Storage ============
-
-    // Arbitrum ISM to verify messages
-    ArbitrumISM public ism;
-
     // ============ Constructor ============
 
-    constructor(uint32 _destinationDomain, IInbox _inbox) {
+    constructor(
+        uint32 _destinationDomain,
+        address _inbox,
+        address _ism
+    ) {
+        require(_inbox != address(0), "ArbitrumHook: invalid inbox address");
+        require(_ism != address(0), "ArbitrumHook: invalid ISM address");
+
         destinationDomain = _destinationDomain;
-        inbox = _inbox;
+        inbox = IInbox(_inbox);
+        ism = ArbitrumISM(_ism);
     }
 
     // ============ External Functions ============
-
-    /**
-     * @notice Sets the arbitrum ISM you want to use to verify messages.
-     * @param _ism The address of the arbitrum ISM.
-     */
-    function setArbitrumISM(address _ism) external {
-        require(address(ism) == address(0), "ArbitrumHook: ism already set");
-        ism = ArbitrumISM(_ism);
-    }
 
     /**
      * @notice Hook to inform the Arbitrum ISM of messages published through.
@@ -66,14 +62,10 @@ contract ArbitrumMessageHook is IArbitrumMessageHook {
             _destination == destinationDomain,
             "ArbitrumHook: invalid destination domain"
         );
-        require(
-            address(ism) != address(0),
-            "ArbitrumHook: ArbitrumISM not set"
-        );
 
         bytes memory _payload = abi.encodeCall(
             ism.receiveFromHook,
-            (_messageId, msg.sender)
+            (msg.sender, _messageId)
         );
 
         // total gas cost = l1 submission fee + l2 execution cost
@@ -101,12 +93,7 @@ contract ArbitrumMessageHook is IArbitrumMessageHook {
             data: _payload
         });
 
-        emit ArbitrumMessagePublished(
-            address(ism),
-            msg.sender,
-            _messageId,
-            submissionFee
-        );
+        emit ArbitrumMessagePublished(msg.sender, _messageId, submissionFee);
 
         return submissionFee;
     }

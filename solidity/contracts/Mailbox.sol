@@ -122,7 +122,6 @@ contract Mailbox is
         // Insert the message ID into the merkle tree.
         bytes32 _id = _message.id();
         tree.insert(_id);
-
         emit Dispatch(
             msg.sender,
             _destinationDomain,
