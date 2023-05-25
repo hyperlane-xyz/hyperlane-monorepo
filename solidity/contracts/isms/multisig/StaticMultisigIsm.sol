@@ -1,33 +1,68 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
-
 // ============ Internal Imports ============
 import {AbstractMultisigIsm} from "./AbstractMultisigIsm.sol";
-import {MultisigIsmMetadata} from "../../libs/isms/MultisigIsmMetadata.sol";
+import {AbstractMerkleRootMultisigIsm} from "./AbstractMerkleRootMultisigIsm.sol";
+import {AbstractMessageIdMultisigIsm} from "./AbstractMessageIdMultisigIsm.sol";
 import {MetaProxy} from "../../libs/MetaProxy.sol";
+import {StaticMOfNAddressSetFactory} from "../../libs/StaticMOfNAddressSetFactory.sol";
 
 /**
- * @title StaticMultisigIsm
- * @notice Manages per-domain m-of-n Validator sets that are used
+ * @title AbstractMetaProxyMultisigIsm
+ * @notice Manages per-domain m-of-n Validator set that is used
  * to verify interchain messages.
  */
-contract StaticMultisigIsm is AbstractMultisigIsm {
-    // ============ Public Functions ============
-
+abstract contract AbstractMetaProxyMultisigIsm is AbstractMultisigIsm {
     /**
-     * @notice Returns the set of validators responsible for verifying _message
-     * and the number of signatures required
-     * @dev Can change based on the content of _message
-     * @return validators The array of validator addresses
-     * @return threshold The number of validator signatures needed
+     * @inheritdoc AbstractMultisigIsm
      */
     function validatorsAndThreshold(bytes calldata)
         public
-        view
-        virtual
+        pure
         override
         returns (address[] memory, uint8)
     {
         return abi.decode(MetaProxy.metadata(), (address[], uint8));
+    }
+}
+
+// solhint-disable no-empty-blocks
+
+/**
+ * @title StaticMerkleRootMultisigIsm
+ * @notice Manages per-domain m-of-n validator set that is used
+ * to verify interchain messages using a merkle root signature quorum
+ * and merkle proof of inclusion.
+ */
+contract StaticMerkleRootMultisigIsm is
+    AbstractMerkleRootMultisigIsm,
+    AbstractMetaProxyMultisigIsm
+{
+
+}
+
+/**
+ * @title StaticMessageIdMultisigIsm
+ * @notice Manages per-domain m-of-n validator set that is used
+ * to verify interchain messages using a message ID signature quorum.
+ */
+contract StaticMessageIdMultisigIsm is
+    AbstractMessageIdMultisigIsm,
+    AbstractMetaProxyMultisigIsm
+{
+
+}
+
+// solhint-enable no-empty-blocks
+
+contract StaticMerkleRootMultisigIsmFactory is StaticMOfNAddressSetFactory {
+    function _deployImplementation() internal override returns (address) {
+        return address(new StaticMerkleRootMultisigIsm());
+    }
+}
+
+contract StaticMessageIdMultisigIsmFactory is StaticMOfNAddressSetFactory {
+    function _deployImplementation() internal override returns (address) {
+        return address(new StaticMessageIdMultisigIsm());
     }
 }

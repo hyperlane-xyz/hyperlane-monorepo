@@ -7,9 +7,10 @@ use fuels::prelude::{Bech32ContractId, WalletUnlocked};
 use tracing::instrument;
 
 use hyperlane_core::{
-    utils::fmt_bytes, ChainCommunicationError, ChainResult, Checkpoint, ContractLocator,
-    HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProvider, Indexer, LogMeta, Mailbox, TxCostEstimate, TxOutcome, H256, U256,
+    accumulator::incremental::IncrementalMerkle, utils::fmt_bytes, ChainCommunicationError,
+    ChainResult, Checkpoint, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox,
+    TxCostEstimate, TxOutcome, H256, U256,
 };
 
 use crate::{
@@ -77,6 +78,11 @@ impl Mailbox for FuelMailbox {
             .await
             .map(|r| r.value)
             .map_err(ChainCommunicationError::from_other)
+    }
+
+    #[instrument(level = "debug", err, ret, skip(self))]
+    async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
+        todo!()
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]

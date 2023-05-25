@@ -1,11 +1,14 @@
 import {
   DomainRoutingIsmFactory__factory,
   StaticAggregationIsmFactory__factory,
-  StaticMultisigIsmFactory__factory,
+  StaticMerkleRootMultisigIsmFactory__factory,
+  StaticMessageIdMultisigIsmFactory__factory,
 } from '@hyperlane-xyz/core';
 
 export const ismFactoryFactories = {
-  multisigIsmFactory: new StaticMultisigIsmFactory__factory(),
+  merkleRootMultisigIsmFactory:
+    new StaticMerkleRootMultisigIsmFactory__factory(),
+  messageIdMultisigIsmFactory: new StaticMessageIdMultisigIsmFactory__factory(),
   aggregationIsmFactory: new StaticAggregationIsmFactory__factory(),
   routingIsmFactory: new DomainRoutingIsmFactory__factory(),
 };

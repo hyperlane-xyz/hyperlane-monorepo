@@ -5,7 +5,7 @@ use std::num::NonZeroU64;
 use async_trait::async_trait;
 use mockall::*;
 
-use hyperlane_core::*;
+use hyperlane_core::{accumulator::incremental::IncrementalMerkle, *};
 
 mock! {
     pub MailboxContract {
@@ -27,6 +27,8 @@ mock! {
             &self,
             nonce: usize,
         ) -> ChainResult<Option<H256>> {}
+
+        pub fn _tree(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {}
 
         pub fn _count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {}
 
@@ -68,6 +70,10 @@ impl std::fmt::Debug for MockMailboxContract {
 impl Mailbox for MockMailboxContract {
     async fn count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
         self._count(maybe_lag)
+    }
+
+    async fn tree(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
+        self._tree(maybe_lag)
     }
 
     async fn latest_checkpoint(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
