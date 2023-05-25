@@ -3,7 +3,7 @@ import { HDNode } from 'ethers/lib/utils';
 
 import { Contexts } from '../../config/contexts';
 import { AgentGCPKey } from '../agents/gcp';
-import { KEY_ROLE_ENUM } from '../agents/roles';
+import { KeyRole } from '../agents/roles';
 import { DeployEnvironment } from '../config';
 
 // Keys that are derived from the deployer key, mainly to have deterministic addresses on every chain
@@ -27,7 +27,7 @@ export const getDeterministicKey = async (
   const deployerKey = new AgentGCPKey(
     environment,
     Contexts.Hyperlane,
-    KEY_ROLE_ENUM.Deployer,
+    KeyRole.Deployer,
   );
   await deployerKey.fetch();
   const seed = HDNode.fromSeed(deployerKey.privateKey);

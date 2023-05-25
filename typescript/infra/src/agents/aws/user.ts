@@ -17,7 +17,7 @@ import {
   setGCPSecret,
 } from '../../utils/gcloud';
 import { userIdentifier } from '../agent';
-import { KEY_ROLE_ENUM } from '../roles';
+import { KeyRole } from '../roles';
 
 import { AgentAwsKey } from './key';
 
@@ -29,7 +29,7 @@ export class AgentAwsUser {
   constructor(
     public readonly environment: DeployEnvironment,
     public readonly context: Contexts,
-    public readonly role: KEY_ROLE_ENUM,
+    public readonly role: KeyRole,
     public readonly region: string,
     public readonly chainName?: ChainName,
   ) {

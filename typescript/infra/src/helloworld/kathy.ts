@@ -1,6 +1,6 @@
 import { Contexts } from '../../config/contexts';
 import { AgentAwsUser } from '../agents/aws';
-import { KEY_ROLE_ENUM } from '../agents/roles';
+import { KeyRole } from '../agents/roles';
 import { AgentConfig } from '../config';
 import {
   HelloWorldKathyConfig,
@@ -19,7 +19,7 @@ export async function runHelloworldKathyHelmCommand(
     const awsUser = new AgentAwsUser(
       agentConfig.runEnv,
       agentConfig.context,
-      KEY_ROLE_ENUM.Kathy,
+      KeyRole.Kathy,
       agentConfig.aws.region,
     );
     await awsUser.createIfNotExists();

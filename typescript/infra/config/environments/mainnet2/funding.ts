@@ -1,6 +1,6 @@
 import { AgentConnectionType } from '@hyperlane-xyz/sdk';
 
-import { KEY_ROLE_ENUM } from '../../../src/agents/roles';
+import { KeyRole } from '../../../src/agents/roles';
 import { KeyFunderConfig } from '../../../src/config/funding';
 import { Contexts } from '../../contexts';
 
@@ -20,8 +20,8 @@ export const keyFunderConfig: KeyFunderConfig = {
     'http://prometheus-pushgateway.monitoring.svc.cluster.local:9091',
   contextFundingFrom: Contexts.Hyperlane,
   contextsAndRolesToFund: {
-    [Contexts.Hyperlane]: [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy],
-    [Contexts.ReleaseCandidate]: [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy],
+    [Contexts.Hyperlane]: [KeyRole.Relayer, KeyRole.Kathy],
+    [Contexts.ReleaseCandidate]: [KeyRole.Relayer, KeyRole.Kathy],
   },
   connectionType: AgentConnectionType.Http,
 };

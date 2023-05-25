@@ -4,23 +4,23 @@ import { Contexts } from '../../config/contexts';
 import { DeployEnvironment } from '../config';
 import { assertRole } from '../utils/utils';
 
-import { KEY_ROLE_ENUM } from './roles';
+import { KeyRole } from './roles';
 
-export function isValidatorKey(role: KEY_ROLE_ENUM) {
-  return role === KEY_ROLE_ENUM.Validator;
+export function isValidatorKey(role: KeyRole) {
+  return role === KeyRole.Validator;
 }
 
 function identifier(
   isKey: boolean,
   environment: string,
   context: Contexts,
-  role: KEY_ROLE_ENUM,
+  role: KeyRole,
   chainName?: ChainName,
   index?: number,
 ) {
   const prefix = `${context}-${environment}-${isKey ? 'key-' : ''}`;
   switch (role) {
-    case KEY_ROLE_ENUM.Validator:
+    case KeyRole.Validator:
       if (index === undefined) {
         throw Error('Expected index for validator key');
       }
@@ -36,7 +36,7 @@ function identifier(
 export function keyIdentifier(
   environment: DeployEnvironment,
   context: Contexts,
-  role: KEY_ROLE_ENUM,
+  role: KeyRole,
   chainName?: ChainName,
   index?: number,
 ) {
@@ -46,7 +46,7 @@ export function keyIdentifier(
 export function userIdentifier(
   environment: string,
   context: Contexts,
-  role: KEY_ROLE_ENUM,
+  role: KeyRole,
   chainName?: ChainName,
   index?: number,
 ) {
@@ -58,7 +58,7 @@ export function userIdentifier(
 export function parseKeyIdentifier(identifier: string): {
   environment: string;
   context: string;
-  role: KEY_ROLE_ENUM;
+  role: KeyRole;
   chainName?: string;
   index?: number;
 } {

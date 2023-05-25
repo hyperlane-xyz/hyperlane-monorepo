@@ -24,7 +24,7 @@ import { AgentConfig, AwsKeyConfig, KeyType } from '../../config/agent';
 import { getEthereumAddress, sleep } from '../../utils/utils';
 import { keyIdentifier } from '../agent';
 import { CloudAgentKey } from '../keys';
-import { KEY_ROLE_ENUM } from '../roles';
+import { KeyRole } from '../roles';
 
 interface UnfetchedKey {
   fetched: false;
@@ -44,7 +44,7 @@ export class AgentAwsKey extends CloudAgentKey {
 
   constructor(
     agentConfig: AgentConfig,
-    role: KEY_ROLE_ENUM,
+    role: KeyRole,
     chainName?: ChainName,
     index?: number,
   ) {

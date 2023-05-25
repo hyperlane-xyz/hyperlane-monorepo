@@ -1,4 +1,4 @@
-export enum KEY_ROLE_ENUM {
+export enum KeyRole {
   Validator = 'validator',
   Relayer = 'relayer',
   Scraper = 'scraper',
@@ -8,16 +8,16 @@ export enum KEY_ROLE_ENUM {
 }
 
 export const ALL_KEY_ROLES = [
-  KEY_ROLE_ENUM.Validator,
-  KEY_ROLE_ENUM.Relayer,
-  KEY_ROLE_ENUM.Scraper,
-  KEY_ROLE_ENUM.Deployer,
-  KEY_ROLE_ENUM.Bank,
-  KEY_ROLE_ENUM.Kathy,
+  KeyRole.Validator,
+  KeyRole.Relayer,
+  KeyRole.Scraper,
+  KeyRole.Deployer,
+  KeyRole.Bank,
+  KeyRole.Kathy,
 ];
 
 export const ALL_AGENT_ROLES = [
-  KEY_ROLE_ENUM.Validator,
-  KEY_ROLE_ENUM.Relayer,
-  KEY_ROLE_ENUM.Scraper,
+  KeyRole.Validator,
+  KeyRole.Relayer,
+  KeyRole.Scraper,
 ];

@@ -13,7 +13,7 @@ import { types } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import { environments } from '../../config/environments';
-import { KEY_ROLE_ENUM } from '../agents/roles';
+import { KeyRole } from '../agents/roles';
 
 import { AgentConfig } from './agent';
 import { KeyFunderConfig } from './funding';
@@ -40,7 +40,7 @@ export type EnvironmentConfig = {
   infra: InfrastructureConfig;
   getMultiProvider: (
     context?: Contexts,
-    role?: KEY_ROLE_ENUM,
+    role?: KeyRole,
     connectionType?: AgentConnectionType,
   ) => Promise<MultiProvider>;
   helloWorld?: Partial<Record<Contexts, HelloWorldConfig>>;

@@ -1,6 +1,6 @@
 import { AgentConnectionType, chainMetadata } from '@hyperlane-xyz/sdk';
 
-import { ALL_KEY_ROLES, KEY_ROLE_ENUM } from '../../../src/agents/roles';
+import { ALL_KEY_ROLES, KeyRole } from '../../../src/agents/roles';
 import {
   AgentConfig,
   GasPaymentEnforcementPolicyType,
@@ -96,7 +96,7 @@ export const releaseCandidate: AgentConfig = {
     // fees which leads to wildly off predictions.
     skipTransactionGasLimitFor: [chainMetadata.arbitrumgoerli.chainId],
   },
-  rolesWithKeys: [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy],
+  rolesWithKeys: [KeyRole.Relayer, KeyRole.Kathy],
 };
 
 export const agents = {

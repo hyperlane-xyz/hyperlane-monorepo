@@ -23,7 +23,7 @@ import { environments } from '../config/environments';
 import { getCurrentKubernetesContext } from '../src/agents';
 import { getCloudAgentKey } from '../src/agents/key-utils';
 import { CloudAgentKey } from '../src/agents/keys';
-import { KEY_ROLE_ENUM } from '../src/agents/roles';
+import { KeyRole } from '../src/agents/roles';
 import { DeployEnvironment, EnvironmentConfig } from '../src/config';
 import { fetchProvider } from '../src/config/chain';
 import { EnvironmentNames, deployEnvToSdkEnv } from '../src/config/environment';
@@ -138,7 +138,7 @@ async function getKeyForRole(
   environment: DeployEnvironment,
   context: Contexts,
   chain: ChainName,
-  role: KEY_ROLE_ENUM,
+  role: KeyRole,
   index?: number,
 ): Promise<CloudAgentKey> {
   const environmentConfig = environments[environment];
@@ -150,7 +150,7 @@ export async function getMultiProviderForRole(
   txConfigs: ChainMap<ChainMetadata>,
   environment: DeployEnvironment,
   context: Contexts,
-  role: KEY_ROLE_ENUM,
+  role: KeyRole,
   index?: number,
   connectionType?: AgentConnectionType,
 ): Promise<MultiProvider> {
@@ -207,7 +207,7 @@ export function getKeyRoleAndChainArgs() {
   return getArgs()
     .alias('r', 'role')
     .describe('r', 'key role')
-    .choices('r', Object.values(KEY_ROLE_ENUM))
+    .choices('r', Object.values(KeyRole))
     .require('r')
     .alias('c', 'chain')
     .describe('c', 'chain name')

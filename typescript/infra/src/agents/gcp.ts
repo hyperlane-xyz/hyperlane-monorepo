@@ -9,7 +9,7 @@ import { execCmd, include } from '../utils/utils';
 
 import { isValidatorKey, keyIdentifier } from './agent';
 import { CloudAgentKey } from './keys';
-import { KEY_ROLE_ENUM } from './roles';
+import { KeyRole } from './roles';
 
 // This is the type for how the keys are persisted in GCP
 export interface SecretManagerPersistedKeys {
@@ -38,7 +38,7 @@ export class AgentGCPKey extends CloudAgentKey {
   constructor(
     environment: DeployEnvironment,
     context: Contexts,
-    role: KEY_ROLE_ENUM,
+    role: KeyRole,
     chainName?: ChainName,
     index?: number,
     private remoteKey: RemoteKey = { fetched: false },

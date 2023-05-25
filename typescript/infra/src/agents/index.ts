@@ -37,16 +37,16 @@ import { AgentAwsUser, ValidatorAgentAwsUser } from './aws';
 import { AgentAwsKey } from './aws/key';
 import { AgentGCPKey } from './gcp';
 import { fetchKeysForChain } from './key-utils';
-import { ALL_AGENT_ROLES, KEY_ROLE_ENUM } from './roles';
+import { ALL_AGENT_ROLES, KeyRole } from './roles';
 
 const HELM_CHART_PATH = '../../rust/helm/hyperlane-agent/';
 /** Roles which do not need deployments per chain */
-const OMNISCIENT_ROLES = [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Scraper];
+const OMNISCIENT_ROLES = [KeyRole.Relayer, KeyRole.Scraper];
 
 export async function runAgentHelmCommandsForRoles(
   action: HelmCommand,
   agentConfig: AgentConfig,
-  roles: KEY_ROLE_ENUM[],
+  roles: KeyRole[],
   originChainNames: ChainName[] = [],
 ): Promise<void> {
   const promises: Promise<void>[] = [];
@@ -72,7 +72,7 @@ export async function runAgentHelmCommandsForRoles(
 async function runAgentHelmCommand(
   action: HelmCommand,
   agentConfig: AgentConfig,
-  role: KEY_ROLE_ENUM,
+  role: KeyRole,
   originChainName?: ChainName,
 ): Promise<void> {
   const helmReleaseName = getHelmReleaseName(
@@ -134,12 +134,12 @@ async function runAgentHelmCommand(
 
 export async function getAgentEnvVars(
   agentConfig: AgentConfig,
-  role: KEY_ROLE_ENUM,
+  role: KeyRole,
   originChainName: ChainName,
   index?: number,
 ) {
   const chainNames = agentConfig.contextChainNames;
-  if (role === KEY_ROLE_ENUM.Validator && index === undefined) {
+  if (role === KeyRole.Validator && index === undefined) {
     throw Error('Expected index for validator role');
   }
 
@@ -162,7 +162,7 @@ export async function getAgentEnvVars(
   envVars.push(`HYP_BASE_TRACING_LEVEL=info`);
   envVars.push(
     `HYP_BASE_DB=/tmp/${agentConfig.runEnv}-${role}-${originChainName}${
-      role === KEY_ROLE_ENUM.Validator ? `-${index}` : ''
+      role === KeyRole.Validator ? `-${index}` : ''
     }-db`,
   );
 
@@ -182,7 +182,7 @@ export async function getAgentEnvVars(
     );
 
     // Only the relayer needs to sign txs
-    if (role === KEY_ROLE_ENUM.Relayer) {
+    if (role === KeyRole.Relayer) {
       chainNames.forEach((name) => {
         envVars.push(
           `HYP_BASE_CHAINS_${name.toUpperCase()}_SIGNER_KEY=${utils.strip0x(
@@ -193,7 +193,7 @@ export async function getAgentEnvVars(
           `HYP_BASE_CHAINS_${name.toUpperCase()}_SIGNER_TYPE=hexKey`,
         );
       });
-    } else if (role === KEY_ROLE_ENUM.Validator) {
+    } else if (role === KeyRole.Validator) {
       const privateKey = gcpKeys[keyId].privateKey;
 
       envVars.push(
@@ -206,7 +206,7 @@ export async function getAgentEnvVars(
 
     let user: AgentAwsUser;
 
-    if (role === KEY_ROLE_ENUM.Validator && agentConfig.validators) {
+    if (role === KeyRole.Validator && agentConfig.validators) {
       const checkpointSyncer =
         agentConfig.validators[originChainName].validators[index!]
           .checkpointSyncer;
@@ -239,7 +239,7 @@ export async function getAgentEnvVars(
     envVars.push(`AWS_SECRET_ACCESS_KEY=${accessKeys.secretAccessKey}`);
 
     // Only the relayer needs to sign txs
-    if (role === KEY_ROLE_ENUM.Relayer) {
+    if (role === KeyRole.Relayer) {
       chainNames.forEach((chainName) => {
         const key = new AgentAwsKey(agentConfig, role, originChainName);
         envVars = envVars.concat(
@@ -252,7 +252,7 @@ export async function getAgentEnvVars(
     }
   }
 
-  if (role == KEY_ROLE_ENUM.Validator && valueDict.hyperlane.validator?.configs)
+  if (role == KeyRole.Validator && valueDict.hyperlane.validator?.configs)
     envVars.concat(
       configEnvVars(valueDict.hyperlane.validator?.configs[index!]),
     );
@@ -264,15 +264,15 @@ export async function getAgentEnvVars(
     | undefined;
 
   switch (role) {
-    case KEY_ROLE_ENUM.Validator:
+    case KeyRole.Validator:
       configToSerialize = (valueDict.hyperlane.validator?.configs ?? [])[
         index!
       ];
       break;
-    case KEY_ROLE_ENUM.Relayer:
+    case KeyRole.Relayer:
       configToSerialize = valueDict.hyperlane.relayer?.config;
       break;
-    case KEY_ROLE_ENUM.Scraper:
+    case KeyRole.Scraper:
       configToSerialize = valueDict.hyperlane.scraper?.config;
       break;
     default:
@@ -352,7 +352,7 @@ export async function getSecretDeployerKey(
   const key = new AgentGCPKey(
     environment,
     context,
-    KEY_ROLE_ENUM.Deployer,
+    KeyRole.Deployer,
     chainName,
   );
   await key.fetch();
@@ -361,7 +361,7 @@ export async function getSecretDeployerKey(
 
 export async function doesAgentReleaseExist(
   agentConfig: AgentConfig,
-  role: KEY_ROLE_ENUM,
+  role: KeyRole,
   originChainName: ChainName,
 ) {
   try {
@@ -383,7 +383,7 @@ export async function doesAgentReleaseExist(
 
 async function helmValuesForAgent(
   agentConfig: AgentConfig,
-  role: KEY_ROLE_ENUM,
+  role: KeyRole,
   chainName?: ChainName,
 ): Promise<HelmRootAgentValues> {
   // // TODO: This can't be in use because it would break when fallback is used, so where are we actually getting the values from?
@@ -409,7 +409,7 @@ async function helmValuesForAgent(
   // }
 
   let validator: HelmValidatorValues = { enabled: false };
-  if (role == KEY_ROLE_ENUM.Validator) {
+  if (role == KeyRole.Validator) {
     if (!chainName) {
       throw new Error('chainName is required for validator configs');
     }
@@ -427,7 +427,7 @@ async function helmValuesForAgent(
 
   let relayer: HelmRelayerValues = { enabled: false, aws: false };
   let relayerChains: HelmRelayerChainValues[] = [];
-  if (role == KEY_ROLE_ENUM.Relayer) {
+  if (role == KeyRole.Relayer) {
     const relayerHelper = new RelayerConfigHelper(agentConfig);
     if (!relayerHelper.isDefined) {
       throw new Error(`Relayer config is not enabled`);
@@ -446,7 +446,7 @@ async function helmValuesForAgent(
   }
 
   let scraper: HelmScraperValues = { enabled: false };
-  if (role == KEY_ROLE_ENUM.Scraper) {
+  if (role == KeyRole.Scraper) {
     const scraperHelper = new ScraperConfigHelper(agentConfig);
     if (!scraperHelper.isDefined) {
       throw new Error(`Scraper config is not enabled`);
@@ -516,7 +516,7 @@ function configEnvVars(config: Record<string, any>, key_name_prefix = '') {
 
 function getHelmReleaseName(
   agentConfig: AgentConfig,
-  role: KEY_ROLE_ENUM,
+  role: KeyRole,
   originChainName?: ChainName,
 ): string {
   // For backward compatibility reasons, don't include the context

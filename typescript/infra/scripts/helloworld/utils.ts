@@ -7,7 +7,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
-import { KEY_ROLE_ENUM } from '../../src/agents/roles';
+import { KeyRole } from '../../src/agents/roles';
 import { EnvironmentConfig } from '../../src/config';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { HelloWorldConfig } from '../../src/config/helloworld';
@@ -15,7 +15,7 @@ import { HelloWorldConfig } from '../../src/config/helloworld';
 export async function getApp(
   coreConfig: EnvironmentConfig,
   context: Contexts,
-  keyRole: KEY_ROLE_ENUM,
+  keyRole: KeyRole,
   keyContext: Contexts = context,
   connectionType: AgentConnectionType = AgentConnectionType.Http,
 ) {

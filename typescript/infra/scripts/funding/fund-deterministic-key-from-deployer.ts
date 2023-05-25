@@ -5,7 +5,7 @@ import { promiseObjAll } from '@hyperlane-xyz/sdk';
 import { error } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
-import { KEY_ROLE_ENUM } from '../../src/agents/roles';
+import { KeyRole } from '../../src/agents/roles';
 import {
   DeterministicKeyRoles,
   getDeterministicKey,
@@ -45,7 +45,7 @@ async function main() {
   const coreConfig = getEnvironmentConfig(environment);
   const multiProvider = await coreConfig.getMultiProvider(
     Contexts.Hyperlane,
-    KEY_ROLE_ENUM.Deployer,
+    KeyRole.Deployer,
   );
 
   const address =
