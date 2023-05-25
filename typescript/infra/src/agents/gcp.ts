@@ -90,9 +90,9 @@ export class AgentGCPKey extends CloudAgentKey {
   }
 
   async fetch() {
-    const secret: SecretManagerPersistedKeys = await fetchGCPSecret(
+    const secret: SecretManagerPersistedKeys = (await fetchGCPSecret(
       this.identifier,
-    );
+    )) as any;
     this.remoteKey = {
       fetched: true,
       privateKey: secret.privateKey,
