@@ -37,6 +37,10 @@ pub fn process_instruction(
                 );
                 Ok(())
             }
+            MessageRecipientInstruction::InterchainSecurityModuleAccountMetas => {
+                // No account metas are required, no return data necessary.
+                Ok(())
+            }
             MessageRecipientInstruction::Handle(handle) => transfer_from_remote(
                 program_id,
                 accounts,

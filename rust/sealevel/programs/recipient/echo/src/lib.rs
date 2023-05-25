@@ -8,9 +8,8 @@
 // #![deny(missing_docs)] // FIXME
 #![deny(unsafe_code)]
 
-use std::str::FromStr as _;
-
 use borsh::ser::BorshSerialize;
+use hyperlane_sealevel_mailbox::mailbox_process_authority_pda_seeds;
 use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
 };
@@ -30,8 +29,6 @@ solana_program::declare_id!("FZ8hyduJy4GQAfBu9zEiuQtk429Gjc6inwHgEW5MvsEm");
 #[cfg(not(feature = "no-entrypoint"))]
 entrypoint!(process_instruction);
 
-const AUTHORITY: &str = "G9CdDjMs6dEd3Tv5eG2ZXo8iKksLRcbHTxpS41sEmX1g";
-
 pub fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -47,6 +44,10 @@ pub fn process_instruction(
             );
             Ok(())
         }
+        MessageRecipientInstruction::InterchainSecurityModuleAccountMetas => {
+            // No account metas are required, no return data necessary.
+            Ok(())
+        }
         MessageRecipientInstruction::Handle(instruction) => {
             handle(program_id, accounts, instruction)
         }
@@ -58,16 +59,21 @@ pub fn process_instruction(
 }
 
 pub fn handle(
-    _program_id: &Pubkey,
+    program_id: &Pubkey,
     accounts: &[AccountInfo],
     handle: HandleInstruction,
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
-    let hyperlane_mailbox_auth = next_account_info(accounts_iter)?;
-    if hyperlane_mailbox_auth.key != &Pubkey::from_str(AUTHORITY).unwrap() {
+    let process_authority = next_account_info(accounts_iter)?;
+    let (expected_process_authority_key, _expected_process_authority_bump) =
+        Pubkey::find_program_address(
+            mailbox_process_authority_pda_seeds!(program_id),
+            &hyperlane_sealevel_mailbox::id(),
+        );
+    if process_authority.key != &expected_process_authority_key {
         return Err(ProgramError::InvalidArgument);
     }
-    if !hyperlane_mailbox_auth.is_signer {
+    if !process_authority.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
     }
     if accounts_iter.next().is_some() {
