@@ -20,6 +20,7 @@ use tracing::{debug, error, instrument, trace, warn};
 use crate::{
     mailbox::contract::DispatchedMessageAccount,
     mailbox_message_storage_pda_seeds, mailbox_process_authority_pda_seeds,
+    mailbox_processed_message_pda_seeds,
     solana::{
         account::Account,
         account_decoder::{UiAccountEncoding, UiDataSliceConfig},
@@ -447,6 +448,16 @@ impl Mailbox for SealevelMailbox {
                 "Could not find program address for process authority",
             )
         })?;
+        let (processed_message_account_key, _processed_message_account_bump) =
+            Pubkey::try_find_program_address(
+                mailbox_processed_message_pda_seeds!(message.id()),
+                &self.program_id,
+            )
+            .ok_or_else(|| {
+                ChainCommunicationError::from_other_str(
+                    "Could not find program address for processed message account",
+                )
+            })?;
 
         // Get the account metas required for the recipient.InterchainSecurityModule instruction.
         let ism_getter_account_metas = self.get_ism_getter_account_metas(recipient).await?;
@@ -466,8 +477,11 @@ impl Mailbox for SealevelMailbox {
 
         // Craft the accounts for the transaction.
         let mut accounts: Vec<AccountMeta> = vec![
+            AccountMeta::new_readonly(payer.pubkey(), true),
+            AccountMeta::new_readonly(Pubkey::from_str(contract::SYSTEM_PROGRAM).unwrap(), false),
             AccountMeta::new(self.inbox.0, false),
             AccountMeta::new_readonly(process_authority_key, false),
+            AccountMeta::new(processed_message_account_key, false),
         ];
         accounts.extend(ism_getter_account_metas);
         accounts.extend([
@@ -774,6 +788,7 @@ mod contract {
 
     pub static DEFAULT_ISM: &'static str = "6TCwgXydobJUEqabm7e6SL4FMdiFDvp1pmYoL6xXmRJq";
 
+    pub static SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
     pub static SPL_NOOP: &str = "GpiNbGLpyroc8dFKPhK55eQhhvWn3XUaXJFp5fk5aXUs";
 
     pub const DISPATCHED_MESSAGE_DISCRIMINATOR: &[u8; 8] = b"DISPATCH";
@@ -1085,6 +1100,31 @@ mod contract {
                 b"process_authority",
                 b"-",
                 $recipient_pubkey.as_ref(),
+                &[$bump_seed],
+            ]
+        }};
+    }
+
+    /// The PDA seeds relating to the Mailbox's process authority for a particular recipient.
+    #[macro_export]
+    macro_rules! mailbox_processed_message_pda_seeds {
+        ($message_id_h256:expr) => {{
+            &[
+                b"hyperlane",
+                b"-",
+                b"processed_message",
+                b"-",
+                $message_id_h256.as_bytes(),
+            ]
+        }};
+
+        ($message_id_h256:expr, $bump_seed:expr) => {{
+            &[
+                b"hyperlane",
+                b"-",
+                b"processed_message",
+                b"-",
+                $message_id_h256.as_bytes(),
                 &[$bump_seed],
             ]
         }};

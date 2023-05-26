@@ -157,6 +157,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
 ///
 // Accounts:
 // 0.      [signer] Payer account. This pays for the creation of the processed message PDA.
+// 1.      [executable] The system program.
 // 1.      [writable] Inbox PDA
 // 2.      [] Mailbox process authority for the message recipient.
 // 3.      [writable] Processed message PDA.
@@ -189,6 +190,12 @@ fn inbox_process(
         return Err(ProgramError::MissingRequiredSignature);
     }
 
+    // Account 1: The system program.
+    let system_program = next_account_info(accounts_iter)?;
+    if system_program.key != &solana_program::system_program::ID {
+        return Err(ProgramError::InvalidArgument);
+    }
+
     // Account 1: Inbox PDA.
     let inbox_account = next_account_info(accounts_iter)?;
     let inbox = InboxAccount::fetch(&mut &inbox_account.data.borrow_mut()[..])?.into_inner();
@@ -219,9 +226,8 @@ fn inbox_process(
 
     // Account 3: Processed message PDA.
     let processed_message_account = next_account_info(accounts_iter)?;
-    let processed_message_pda_seeds: &[&[u8]] = mailbox_processed_message_pda_seeds!(message_id);
-    let (expected_processed_message_key, _expected_processed_message_bump) =
-        Pubkey::find_program_address(processed_message_pda_seeds, program_id);
+    let (expected_processed_message_key, expected_processed_message_bump) =
+        Pubkey::find_program_address(mailbox_processed_message_pda_seeds!(message_id), program_id);
     if processed_message_account.key != &expected_processed_message_key {
         return Err(ProgramError::InvalidArgument);
     }
@@ -330,23 +336,26 @@ fn inbox_process(
         Instruction::new_with_bytes(ism, &verify_instruction.encode()?, ism_verify_account_metas);
     invoke(&verify, &ism_verify_accounts)?;
 
-    let processed_message_data = ProcessedMessage::new(message_id, Clock::get()?.slot);
-    let processed_message_data_size = processed_message_data.size();
+    let processed_message_account_data =
+        ProcessedMessageAccount::from(ProcessedMessage::new(message_id, Clock::get()?.slot));
+    let processed_message_account_data_size = processed_message_account_data.size();
     // Mark the message as delivered by creating the processed message account.
     invoke_signed(
         &system_instruction::create_account(
             payer_account.key,
             processed_message_account.key,
-            Rent::default().minimum_balance(processed_message_data_size),
-            processed_message_data_size.try_into().unwrap(),
+            Rent::default().minimum_balance(processed_message_account_data_size),
+            processed_message_account_data_size.try_into().unwrap(),
             program_id,
         ),
         &[payer_account.clone(), processed_message_account.clone()],
-        &[processed_message_pda_seeds],
+        &[mailbox_processed_message_pda_seeds!(
+            message_id,
+            expected_processed_message_bump
+        )],
     )?;
     // Write the processed message data to the processed message account.
-    ProcessedMessageAccount::from(processed_message_data)
-        .store(processed_message_account, false)?;
+    processed_message_account_data.store(processed_message_account, false)?;
 
     // Now call into the recipient program with the verified message!
     let recp_ixn = MessageRecipientInstruction::Handle(HandleInstruction::new(
