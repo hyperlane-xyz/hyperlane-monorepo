@@ -43,3 +43,18 @@ impl AccessControlData {
 }
 
 pub type AccessControlAccount = AccountData<AccessControlData>;
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_access_control_data_size() {
+        let data = AccessControlData {
+            bump_seed: 0,
+            owner: Pubkey::new_unique(),
+        };
+        let serialized = data.try_to_vec().unwrap();
+        assert_eq!(data.size(), serialized.len());
+    }
+}
