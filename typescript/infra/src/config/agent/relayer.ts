@@ -12,7 +12,7 @@ import {
   ConfigHelper,
   KeyConfig,
   KeyType,
-} from './index';
+} from './agent';
 
 export type MatchingList = MatchingListElement[];
 

@@ -10,7 +10,7 @@ import {
   ConfigHelper,
   KeyConfig,
   KeyType,
-} from './index';
+} from './agent';
 
 // Validator agents for each chain.
 export type ValidatorBaseChainConfigMap = ChainMap<ValidatorBaseChainConfig>;

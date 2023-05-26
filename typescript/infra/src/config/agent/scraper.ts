@@ -1,7 +1,7 @@
 import { Contexts } from '../../../config/contexts';
 import { HelmStatefulSetValues } from '../infrastructure';
 
-import { AgentConfig, AgentConfigHelper, ConfigHelper } from './index';
+import { AgentConfig, AgentConfigHelper, ConfigHelper } from './agent';
 
 export interface BaseScraperConfig {
   // no configs at this time
