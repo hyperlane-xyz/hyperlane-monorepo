@@ -24,12 +24,17 @@ async function deploy() {
   // While this function still has these side effects, the workaround is to just
   // run the create-keys script first.
 
-  // TODO: we need to have each agent type decide whether to run for each chain or just once for all
   await Promise.all(
     agentConfig.contextChainNames.map(async (name: string) => {
       await new ValidatorHelmManager(agentConfig, name).runHelmCommand(
         HelmCommand.InstallOrUpgrade,
       );
+      // await new RelayerHelmManager(agentConfig).runHelmCommand(
+      //   HelmCommand.InstallOrUpgrade,
+      // );
+      // await new ScraperHelmManager(agentConfig).runHelmCommand(
+      //   HelmCommand.InstallOrUpgrade,
+      // );
     }),
   );
 }
