@@ -90,6 +90,10 @@ export class ValidatorConfigHelper
     );
   }
 
+  get validators(): ValidatorBaseConfig[] {
+    return this.#validatorsConfig![this.chainName].validators;
+  }
+
   async #configForValidator(
     cfg: ValidatorBaseConfig,
     idx: number,
@@ -108,7 +112,8 @@ export class ValidatorConfigHelper
       await awsUser.createBucketIfNotExists();
 
       if (this.aws)
-        validator = (await awsUser.createKeyIfNotExists(this)).keyConfig;
+        validator = (await awsUser.createKeyIfNotExists(this.rawConfig))
+          .keyConfig;
     } else {
       console.warn(
         `Validator ${cfg.address}'s checkpoint syncer is not S3-based. Be sure this is a non-k8s-based environment!`,

@@ -73,12 +73,14 @@ export function getEthereumAddress(publicKey: Buffer): string {
 }
 
 export function execCmd(
-  cmd: string,
+  cmd: string | string[],
   execOptions: any = {},
   rejectWithOutput = false,
   pipeOutput = false,
 ): Promise<[string, string]> {
   return new Promise((resolve, reject) => {
+    if (Array.isArray(cmd)) cmd = cmd.join(' ');
+
     if (process.env.VERBOSE === 'true') {
       console.debug('$ ' + cmd);
       pipeOutput = true;

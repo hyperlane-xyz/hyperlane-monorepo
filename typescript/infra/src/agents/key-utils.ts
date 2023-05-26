@@ -1,7 +1,7 @@
 import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
-import { AgentConfig, DeployEnvironment } from '../config';
+import { AgentConfig, BaseAgentConfig, DeployEnvironment } from '../config';
 import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
 import { execCmd } from '../utils/utils';
 
@@ -59,7 +59,7 @@ export function getRelayerCloudAgentKeys(
 }
 
 export function getAllCloudAgentKeys(
-  agentConfig: AgentConfig,
+  agentConfig: BaseAgentConfig,
 ): Array<CloudAgentKey> {
   return agentConfig.rolesWithKeys.flatMap((role) => {
     if (role === KeyRole.Validator) {
@@ -141,14 +141,17 @@ async function persistAddresses(
 // This function returns all keys for a given mailbox chain in a dictionary where the key is the identifier
 export async function fetchKeysForChain(
   agentConfig: AgentConfig,
-  chainName: ChainName,
+  chainNames: ChainName | ChainName[],
 ): Promise<Record<string, CloudAgentKey>> {
-  // Get all keys for the chainName. Include keys where chainName is undefined,
+  if (!Array.isArray(chainNames)) chainNames = [chainNames];
+
+  // Get all keys for the chainNames. Include keys where chainNames is undefined,
   // which are keys that are not chain-specific but should still be included
   const keys = await Promise.all(
     getAllCloudAgentKeys(agentConfig)
       .filter(
-        (key) => key.chainName === undefined || key.chainName == chainName,
+        (key) =>
+          key.chainName === undefined || chainNames.includes(key.chainName),
       )
       .map(async (key) => {
         await key.fetch();

@@ -146,6 +146,8 @@ export interface ConfigHelper<T> {
 }
 
 export abstract class AgentConfigHelper implements BaseAgentConfig {
+  readonly rawConfig: AgentConfig;
+
   aws?: AwsConfig;
   connectionType: AgentConnectionType;
   context: Contexts;
@@ -161,6 +163,7 @@ export abstract class AgentConfigHelper implements BaseAgentConfig {
     config: AgentConfig,
     override: WithOverrideableBase<unknown> = {},
   ) {
+    this.rawConfig = config;
     const merged: BaseAgentConfig = { ...config, ...override.baseOverride };
     this.aws = merged.aws;
     this.connectionType = merged.connectionType;
