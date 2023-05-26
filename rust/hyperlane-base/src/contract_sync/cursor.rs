@@ -121,7 +121,10 @@ impl ForwardMessageSyncCursor {
                 Ok(Some((from, to, Duration::from_secs(0))))
             }
             Ordering::Greater => {
-                panic!("Cursor is ahead of mailbox, this should never happen.");
+                // Providers may be internally inconsistent, e.g. RPC request A could hit a node
+                // whose tip is N and subsequent RPC request B could hit a node whose tip is < N.
+                debug!("Cursor count is greater than Mailbox count");
+                Ok(None)
             }
         }
     }
