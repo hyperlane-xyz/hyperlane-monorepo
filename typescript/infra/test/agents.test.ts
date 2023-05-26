@@ -26,10 +26,10 @@ describe('ReadOnlyCloudAgentKey', () => {
       // and ensure they can be correctly parsed
       const testKeys = [
         new AgentGCPKey(environment, context, KeyRole.Deployer),
-        new AgentGCPKey(environment, context, KeyRole.Relayer, chainName),
+        new AgentGCPKey(environment, context, KeyRole.Relayer),
         new AgentGCPKey(environment, context, KeyRole.Validator, chainName, 0),
         new AgentAwsKey(mockAgentConfig, KeyRole.Deployer),
-        new AgentAwsKey(mockAgentConfig, KeyRole.Relayer, chainName),
+        new AgentAwsKey(mockAgentConfig, KeyRole.Relayer),
         new AgentAwsKey(mockAgentConfig, KeyRole.Validator, chainName, 0),
       ];
 
@@ -41,6 +41,7 @@ describe('ReadOnlyCloudAgentKey', () => {
           addressZero,
         );
 
+        console.log(testKey);
         expect(readOnly.environment).to.eq(testKey.environment);
         expect(readOnly.context).to.eq(testKey.context);
         expect(readOnly.role).to.eq(testKey.role);
