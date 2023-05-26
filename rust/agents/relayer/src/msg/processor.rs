@@ -130,7 +130,7 @@ impl MessageProcessor {
             }
 
             // Skip if the message is intended for this origin
-            if msg.destination == self.domain().id() {
+            if destination == self.domain().id() {
                 debug!(?msg, "Message destined for self, skipping");
                 self.message_nonce += 1;
                 return Ok(());
