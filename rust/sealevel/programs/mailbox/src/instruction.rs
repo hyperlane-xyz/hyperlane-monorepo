@@ -15,6 +15,7 @@ pub enum Instruction {
     Init(Init),
     InboxProcess(InboxProcess),
     InboxSetDefaultModule(InboxSetDefaultModule),
+    InboxGetRecipientIsm(u32, Pubkey),
     OutboxDispatch(OutboxDispatch),
     OutboxGetCount(OutboxQuery),
     OutboxGetLatestCheckpoint(OutboxQuery),

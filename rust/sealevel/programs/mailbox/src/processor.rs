@@ -1,6 +1,6 @@
 //! Entrypoint, dispatch, and execution for the Hyperlane Sealevel mailbox instruction.
 
-use borsh::BorshDeserialize;
+use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{Decode, Encode, HyperlaneMessage, H256};
 #[cfg(not(feature = "no-entrypoint"))]
 use solana_program::entrypoint;
@@ -23,6 +23,7 @@ use hyperlane_sealevel_interchain_security_module_interface::{
 use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
 };
+use serializable_account_meta::SimulationReturnData;
 
 use crate::{
     accounts::{
@@ -51,6 +52,9 @@ pub fn process_instruction(
         MailboxIxn::Init(init) => initialize(program_id, accounts, init),
         MailboxIxn::InboxProcess(process) => inbox_process(program_id, accounts, process),
         MailboxIxn::InboxSetDefaultModule(ism) => inbox_set_default_ism(program_id, accounts, ism),
+        MailboxIxn::InboxGetRecipientIsm(local_domain, recipient) => {
+            inbox_get_recipient_ism(program_id, accounts, local_domain, recipient)
+        }
         MailboxIxn::OutboxDispatch(dispatch) => outbox_dispatch(program_id, accounts, dispatch),
         MailboxIxn::OutboxGetCount(query) => outbox_get_count(program_id, accounts, query),
         MailboxIxn::OutboxGetLatestCheckpoint(query) => {
@@ -213,7 +217,7 @@ fn inbox_process(
         &recipient_program_id,
         get_ism_accounts,
         get_ism_account_metas,
-        inbox.ism,
+        inbox.default_ism,
     )?;
 
     // Account N: SPL Noop program.
@@ -276,11 +280,8 @@ fn inbox_process(
         metadata: process.metadata,
         message: process.message,
     });
-    let verify = Instruction::new_with_bytes(
-        inbox.ism,
-        &verify_instruction.encode()?,
-        ism_verify_account_metas,
-    );
+    let verify =
+        Instruction::new_with_bytes(ism, &verify_instruction.encode()?, ism_verify_account_metas);
     invoke(&verify, &ism_verify_accounts)?;
 
     // Mark the message as delivered.
@@ -325,11 +326,70 @@ fn inbox_process(
     Ok(())
 }
 
+/// Gets the ISM to use for a recipient program and sets it as return data.
+///
+/// Accounts:
+/// 0.    [] - The Inbox PDA.
+/// 1.    [] - The recipient program.
+/// 2..N. [??] - The accounts required to make the CPI into the recipient program.
+///             These can be retrieved from the recipient using the
+///             `MessageRecipientInstruction::InterchainSecurityModuleAccountMetas` instruction.
+fn inbox_get_recipient_ism(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    local_domain: u32,
+    recipient: Pubkey,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: Inbox PDA.
+    let inbox_account = next_account_info(accounts_iter)?;
+    let inbox = InboxAccount::fetch(&mut &inbox_account.data.borrow()[..])?.into_inner();
+    let expected_inbox_key = Pubkey::create_program_address(
+        mailbox_inbox_pda_seeds!(local_domain, inbox.inbox_bump_seed),
+        program_id,
+    )?;
+    if inbox_account.key != &expected_inbox_key {
+        return Err(ProgramError::InvalidArgument);
+    }
+    if inbox_account.owner != program_id {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    // Account 1: The recipient program.
+    let recipient_account = next_account_info(accounts_iter)?;
+    if &recipient != recipient_account.key || !recipient_account.executable {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    // Account 2..N: The accounts required to make the CPI into the recipient program.
+    let mut account_infos = vec![];
+    let mut account_metas = vec![];
+    for account in accounts_iter {
+        account_infos.push(account.clone());
+        account_metas.push(AccountMeta {
+            pubkey: *account.key,
+            is_signer: account.is_signer,
+            is_writable: account.is_writable,
+        });
+    }
+
+    let ism = get_recipient_ism(&recipient, account_infos, account_metas, inbox.default_ism)?;
+
+    // Return the borsh serialized ISM pubkey.
+    set_return_data(
+        &SimulationReturnData::new(ism)
+            .try_to_vec()
+            .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
+    );
+
+    Ok(())
+}
+
 /// Get the ISM to use for a recipient program.
 ///
 /// Expects `account_infos` and `account_metas` to be those required
-/// to make the CPI into the recipient program with the InterchainSecurityModule
-/// instruction.
+/// by the recipient program's InterchainSecurityModule instruction.
 fn get_recipient_ism(
     recipient_program_id: &Pubkey,
     account_infos: Vec<AccountInfo>,
@@ -388,8 +448,7 @@ fn inbox_set_default_ism(
         return Err(ProgramError::from(Error::ExtraneousAccount));
     }
 
-    inbox.ism = ism.program_id;
-    inbox.ism_accounts = ism.accounts;
+    inbox.default_ism = ism.program_id;
     InboxAccount::from(inbox).store(inbox_account, true)?;
 
     Ok(())
@@ -806,8 +865,6 @@ mod test {
             true,
             Epoch::default(),
         );
-        // Must add to account vec further down if/when there are ism data accounts.
-        assert!(crate::DEFAULT_ISM_ACCOUNTS.is_empty());
 
         let mut recp_account_lamports = 0;
         let mut recp_account_data = vec![0_u8; 1024];

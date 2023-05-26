@@ -8,7 +8,7 @@ use solana_program::{
     account_info::AccountInfo, clock::Slot, program_error::ProgramError, pubkey::Pubkey,
 };
 
-use crate::{error::Error, DEFAULT_ISM, DEFAULT_ISM_ACCOUNTS};
+use crate::{error::Error, DEFAULT_ISM};
 
 pub trait SizedData {
     fn size(&self) -> usize;
@@ -137,8 +137,7 @@ pub struct Inbox {
     pub inbox_bump_seed: u8,
     // Note: 10MB account limit is around ~300k entries.
     pub delivered: HashSet<H256>,
-    pub ism: Pubkey,
-    pub ism_accounts: Vec<Pubkey>,
+    pub default_ism: Pubkey,
 }
 
 impl Default for Inbox {
@@ -147,12 +146,7 @@ impl Default for Inbox {
             local_domain: 0,
             inbox_bump_seed: 0,
             delivered: Default::default(),
-            // TODO can declare_id!() or similar be used for these to compute at compile time?
-            ism: Pubkey::from_str(DEFAULT_ISM).unwrap(),
-            ism_accounts: DEFAULT_ISM_ACCOUNTS
-                .iter()
-                .map(|account| Pubkey::from_str(account).unwrap())
-                .collect(),
+            default_ism: Pubkey::from_str(DEFAULT_ISM).unwrap(),
         }
     }
 }
