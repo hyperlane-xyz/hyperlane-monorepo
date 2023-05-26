@@ -117,3 +117,28 @@ macro_rules! mailbox_process_authority_pda_seeds {
         ]
     }};
 }
+
+/// The PDA seeds relating to the Mailbox's process authority for a particular recipient.
+#[macro_export]
+macro_rules! mailbox_processed_message_pda_seeds {
+    ($message_id_h256:expr) => {{
+        &[
+            b"hyperlane",
+            b"-",
+            b"processed_message",
+            b"-",
+            $message_id_h256.as_bytes(),
+        ]
+    }};
+
+    ($message_id_h256:expr, $bump_seed:expr) => {{
+        &[
+            b"hyperlane",
+            b"-",
+            b"processed_message",
+            b"-",
+            $message_id_h256.as_bytes(),
+            &[$bump_seed],
+        ]
+    }};
+}

@@ -189,7 +189,8 @@ test_token() {
     "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" token query "${token_type}" --program-id "${program_id}"
 
     # Wait for token transfer message to appear in inbox.
-    while "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox query | grep -q 'delivered: {}'
+    # This ID was manually gotten from running the Relayer and observing the logs - fragile, I know!
+    while "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox delivered --message-id 0xbacfe0c091894423458e1fc28f03e2c130c592c5ce1550a69c0289671a3d6628 | grep -q 'Message not delivered'
     do
         sleep 3
     done

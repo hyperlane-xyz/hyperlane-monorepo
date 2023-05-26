@@ -15,11 +15,13 @@ use hyperlane_core::{
     HyperlaneProvider, IndexRange, Indexer, LogMeta, Mailbox, MessageIndexer, TxCostEstimate,
     TxOutcome, H256, U256,
 };
+use jsonrpc_core::futures_util::TryFutureExt;
 use tracing::{debug, error, instrument, trace, warn};
 
 use crate::{
     mailbox::contract::DispatchedMessageAccount,
     mailbox_message_storage_pda_seeds, mailbox_process_authority_pda_seeds,
+    mailbox_processed_message_pda_seeds,
     solana::{
         account::Account,
         account_decoder::{UiAccountEncoding, UiDataSliceConfig},
@@ -326,21 +328,22 @@ impl Mailbox for SealevelMailbox {
 
     #[instrument(err, ret, skip(self))]
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
-        let inbox_account = self
+        let (processed_message_account_key, _processed_message_account_bump) =
+            Pubkey::find_program_address(
+                mailbox_processed_message_pda_seeds!(id),
+                &self.program_id,
+            );
+
+        let account = self
             .rpc_client
-            .get_account(&self.inbox.0)
+            .get_account_with_commitment(
+                &processed_message_account_key,
+                CommitmentConfig::finalized(),
+            )
             .await
             .map_err(ChainCommunicationError::from_other)?;
-        let inbox = contract::InboxAccount::fetch(&mut inbox_account.data.as_ref())
-            .map_err(ChainCommunicationError::from_other)?
-            .into_inner();
 
-        let res = inbox
-            .delivered
-            .contains(&id.into())
-            .try_into()
-            .map_err(ChainCommunicationError::from_other);
-        res
+        Ok(account.value.is_some())
     }
 
     #[instrument(err, ret, skip(self))]
@@ -447,6 +450,16 @@ impl Mailbox for SealevelMailbox {
                 "Could not find program address for process authority",
             )
         })?;
+        let (processed_message_account_key, _processed_message_account_bump) =
+            Pubkey::try_find_program_address(
+                mailbox_processed_message_pda_seeds!(message.id()),
+                &self.program_id,
+            )
+            .ok_or_else(|| {
+                ChainCommunicationError::from_other_str(
+                    "Could not find program address for processed message account",
+                )
+            })?;
 
         // Get the account metas required for the recipient.InterchainSecurityModule instruction.
         let ism_getter_account_metas = self.get_ism_getter_account_metas(recipient).await?;
@@ -466,8 +479,11 @@ impl Mailbox for SealevelMailbox {
 
         // Craft the accounts for the transaction.
         let mut accounts: Vec<AccountMeta> = vec![
+            AccountMeta::new_readonly(payer.pubkey(), true),
+            AccountMeta::new_readonly(Pubkey::from_str(contract::SYSTEM_PROGRAM).unwrap(), false),
             AccountMeta::new(self.inbox.0, false),
             AccountMeta::new_readonly(process_authority_key, false),
+            AccountMeta::new(processed_message_account_key, false),
         ];
         accounts.extend(ism_getter_account_metas);
         accounts.extend([
@@ -774,6 +790,7 @@ mod contract {
 
     pub static DEFAULT_ISM: &'static str = "6TCwgXydobJUEqabm7e6SL4FMdiFDvp1pmYoL6xXmRJq";
 
+    pub static SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
     pub static SPL_NOOP: &str = "GpiNbGLpyroc8dFKPhK55eQhhvWn3XUaXJFp5fk5aXUs";
 
     pub const DISPATCHED_MESSAGE_DISCRIMINATOR: &[u8; 8] = b"DISPATCH";
@@ -830,17 +847,16 @@ mod contract {
     pub struct Inbox {
         pub local_domain: u32,
         pub inbox_bump_seed: u8,
-        // Note: 10MB account limit is around ~300k entries.
-        pub delivered: HashSet<H256>,
         pub default_ism: Pubkey,
+        pub processed_count: u64,
     }
     impl Default for Inbox {
         fn default() -> Self {
             Self {
                 local_domain: 0,
                 inbox_bump_seed: 0,
-                delivered: Default::default(),
                 default_ism: Pubkey::from_str(DEFAULT_ISM).unwrap(),
+                processed_count: 0,
             }
         }
     }
@@ -1090,6 +1106,31 @@ mod contract {
         }};
     }
 
+    /// The PDA seeds relating to the Mailbox's process authority for a particular recipient.
+    #[macro_export]
+    macro_rules! mailbox_processed_message_pda_seeds {
+        ($message_id_h256:expr) => {{
+            &[
+                b"hyperlane",
+                b"-",
+                b"processed_message",
+                b"-",
+                $message_id_h256.as_bytes(),
+            ]
+        }};
+
+        ($message_id_h256:expr, $bump_seed:expr) => {{
+            &[
+                b"hyperlane",
+                b"-",
+                b"processed_message",
+                b"-",
+                $message_id_h256.as_bytes(),
+                &[$bump_seed],
+            ]
+        }};
+    }
+
     pub type DispatchedMessageAccount = AccountData<DispatchedMessage>;
 
     #[derive(Debug, Default)]
@@ -1154,8 +1195,8 @@ mod contract {
 
             Ok(Self {
                 discriminator,
-                nonce: u32::from_be_bytes(nonce),
-                slot: u64::from_be_bytes(slot),
+                nonce: u32::from_le_bytes(nonce),
+                slot: u64::from_le_bytes(slot),
                 unique_message_pubkey: Pubkey::new_from_array(unique_message_pubkey),
                 encoded_message,
             })

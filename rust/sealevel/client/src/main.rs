@@ -13,8 +13,8 @@ use hyperlane_sealevel_mailbox::{
         VERSION,
     },
     mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds,
-    mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds, spl_noop,
-    ID as MAILBOX_PROG_ID,
+    mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
+    mailbox_processed_message_pda_seeds, spl_noop, ID as MAILBOX_PROG_ID,
 };
 use hyperlane_sealevel_recipient_echo::ID as RECIPIENT_ECHO_PROG_ID;
 use hyperlane_sealevel_token::{
@@ -83,6 +83,7 @@ enum MailboxSubCmd {
     Query(Query),
     Send(Outbox),
     Receive(Inbox),
+    Delivered(Delivered),
 }
 
 #[derive(Args)]
@@ -133,6 +134,14 @@ struct Inbox {
     program_id: Pubkey,
     #[arg(long, default_value_t = DEFAULT_ISM_PROG_ID)]
     ism: Pubkey,
+}
+
+#[derive(Args)]
+struct Delivered {
+    #[arg(long, short, default_value_t = MAILBOX_PROG_ID)]
+    program_id: Pubkey,
+    #[arg(long, short)]
+    message_id: H256,
 }
 
 // Actual content depends on which ISM is used.
@@ -444,6 +453,26 @@ fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
             ctx.client
                 .confirm_transaction_with_spinner(&signature, &recent_blockhash, ctx.commitment)
                 .unwrap();
+        }
+        MailboxSubCmd::Delivered(delivered) => {
+            let (processed_message_account_key, _processed_message_account_bump) =
+                Pubkey::find_program_address(
+                    mailbox_processed_message_pda_seeds!(delivered.message_id),
+                    &delivered.program_id,
+                );
+            let account = ctx
+                .client
+                .get_account_with_commitment(
+                    &processed_message_account_key,
+                    CommitmentConfig::finalized(),
+                )
+                .unwrap()
+                .value;
+            if account.is_none() {
+                println!("Message not delivered");
+            } else {
+                println!("Message delivered");
+            }
         }
     };
 }
