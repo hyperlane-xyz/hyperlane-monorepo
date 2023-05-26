@@ -12,6 +12,7 @@ multisig-ism = { path = "../../../libraries/multisig-ism" }
 num-derive = "0.3"
 num-traits = "0.2"
 solana-program = "=1.14.13"
+access-control = { path = "../../../libraries/access-control" }
 hyperlane-core = { path = "../../../hyperlane-core" }
 hyperlane-sealevel-mailbox = { path = "../../mailbox", features = ["no-entrypoint"] }
 hyperlane-sealevel-interchain-security-module-interface = { path = "../../../libraries/interchain-security-module-interface" }

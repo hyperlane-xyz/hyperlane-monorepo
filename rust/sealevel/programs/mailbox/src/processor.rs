@@ -1,5 +1,6 @@
 //! Entrypoint, dispatch, and execution for the Hyperlane Sealevel mailbox instruction.
 
+use access_control::AccessControl;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{Decode, Encode, HyperlaneMessage, H256};
 #[cfg(not(feature = "no-entrypoint"))]
@@ -61,6 +62,10 @@ pub fn process_instruction(
             outbox_get_latest_checkpoint(program_id, accounts, query)
         }
         MailboxIxn::OutboxGetRoot(query) => outbox_get_root(program_id, accounts, query),
+        MailboxIxn::GetOwner(query) => get_owner(program_id, accounts, query),
+        MailboxIxn::TransferOwnership(query, new_owner) => {
+            transfer_ownership(program_id, accounts, query, new_owner)
+        }
     }
     .map_err(|err| {
         msg!("{}", err);
@@ -68,18 +73,31 @@ pub fn process_instruction(
     })
 }
 
+/// Initializes the Mailbox.
+///
+/// Accounts:
+/// 0. [executable] The system program.
+/// 1. [writable] The payer account and owner of the Mailbox.
+/// 2. [writable] The inbox PDA account.
+/// 3. [writable] The outbox PDA account.
 fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramResult {
     // On chain create appears to use realloc which is limited to 1024 byte increments.
     let mailbox_size = 2048;
     let accounts_iter = &mut accounts.iter();
 
+    // Account 0: The system program.
     let system_program = next_account_info(accounts_iter)?;
     if system_program.key != &solana_program::system_program::ID {
         return Err(ProgramError::InvalidArgument);
     }
 
+    // Account 1: The payer account and owner of the Mailbox.
     let payer_account = next_account_info(accounts_iter)?;
+    if !payer_account.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
 
+    // Account 2: The inbox PDA account.
     let inbox_account = next_account_info(accounts_iter)?;
     let (inbox_key, inbox_bump) =
         Pubkey::find_program_address(mailbox_inbox_pda_seeds!(init.local_domain), program_id);
@@ -98,6 +116,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
         &[mailbox_inbox_pda_seeds!(init.local_domain, inbox_bump)],
     )?;
 
+    // Account 3: The outbox PDA account.
     let outbox_account = next_account_info(accounts_iter)?;
     let (outbox_key, outbox_bump) =
         Pubkey::find_program_address(mailbox_outbox_pda_seeds!(init.local_domain), program_id);
@@ -126,6 +145,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
     let outbox = Outbox {
         local_domain: init.local_domain,
         outbox_bump_seed: outbox_bump,
+        owner: Some(*payer_account.key),
         ..Default::default()
     };
     OutboxAccount::from(outbox).store(outbox_account, true)?;
@@ -423,7 +443,12 @@ fn get_recipient_ism(
     Ok(ism)
 }
 
-// TODO: must be onlyOwner
+/// Sets the default ISM.
+///
+/// Accounts:
+/// 0. [writeable] - The Inbox PDA account.
+/// 1. [] - The Outbox PDA account.
+/// 2. [signer] - The owner of the Mailbox.
 fn inbox_set_default_ism(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -431,6 +456,7 @@ fn inbox_set_default_ism(
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
+    // Account 0: Inbox PDA account.
     let inbox_account = next_account_info(accounts_iter)?;
     let mut inbox = InboxAccount::fetch(&mut &inbox_account.data.borrow_mut()[..])?.into_inner();
     let expected_inbox_key = Pubkey::create_program_address(
@@ -444,11 +470,32 @@ fn inbox_set_default_ism(
         return Err(ProgramError::IncorrectProgramId);
     }
 
+    // Account 1: Outbox PDA account.
+    let outbox_account = next_account_info(accounts_iter)?;
+    let outbox = OutboxAccount::fetch(&mut &outbox_account.data.borrow_mut()[..])?.into_inner();
+    let expected_outbox_key = Pubkey::create_program_address(
+        mailbox_outbox_pda_seeds!(ism.local_domain, outbox.outbox_bump_seed),
+        program_id,
+    )?;
+    if outbox_account.key != &expected_outbox_key {
+        return Err(ProgramError::InvalidArgument);
+    }
+    if outbox_account.owner != program_id {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    // Account 2: The owner of the Mailbox.
+    let owner_account = next_account_info(accounts_iter)?;
+    // Errors if the owner account isn't correct or isn't a signer.
+    outbox.ensure_owner_signer(owner_account)?;
+
     if accounts_iter.next().is_some() {
         return Err(ProgramError::from(Error::ExtraneousAccount));
     }
 
+    // Set the new default ISM.
     inbox.default_ism = ism.program_id;
+    // Store the updated inbox.
     InboxAccount::from(inbox).store(inbox_account, true)?;
 
     Ok(())
@@ -722,6 +769,74 @@ fn outbox_get_root(
 
     let root = outbox.tree.root();
     set_return_data(root.as_ref());
+    Ok(())
+}
+
+/// Gets the owner as return data.
+///
+/// Accounts:
+/// 0. `[]` The Outbox PDA account.
+fn get_owner(program_id: &Pubkey, accounts: &[AccountInfo], query: OutboxQuery) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: Outbox PDA.
+    let outbox_account = next_account_info(accounts_iter)?;
+    let outbox = OutboxAccount::fetch(&mut &outbox_account.data.borrow_mut()[..])?.into_inner();
+    let expected_outbox_key = Pubkey::create_program_address(
+        mailbox_outbox_pda_seeds!(query.local_domain, outbox.outbox_bump_seed),
+        program_id,
+    )?;
+    if outbox_account.key != &expected_outbox_key {
+        return Err(ProgramError::InvalidArgument);
+    }
+    if outbox_account.owner != program_id {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    set_return_data(
+        &outbox
+            .owner
+            .try_to_vec()
+            .map_err(|err| ProgramError::BorshIoError(err.to_string()))?,
+    );
+    Ok(())
+}
+
+/// Transfers ownership.
+///
+/// Accounts:
+/// 0. `[]` The Outbox PDA account.
+/// 1. `[signer]` The current owner.
+fn transfer_ownership(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    query: OutboxQuery,
+    new_owner: Option<Pubkey>,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: Outbox PDA.
+    let outbox_account = next_account_info(accounts_iter)?;
+    let mut outbox = OutboxAccount::fetch(&mut &outbox_account.data.borrow_mut()[..])?.into_inner();
+    let expected_outbox_key = Pubkey::create_program_address(
+        mailbox_outbox_pda_seeds!(query.local_domain, outbox.outbox_bump_seed),
+        program_id,
+    )?;
+    if outbox_account.key != &expected_outbox_key {
+        return Err(ProgramError::InvalidArgument);
+    }
+    if outbox_account.owner != program_id {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    // Account 1: Current owner.
+    let owner_account = next_account_info(accounts_iter)?;
+    // Errors if the owner_account is not the actual owner or is not a signer.
+    outbox.transfer_ownership(owner_account, new_owner)?;
+
+    // Store the updated outbox.
+    OutboxAccount::from(outbox).store(outbox_account, false)?;
+
     Ok(())
 }
 

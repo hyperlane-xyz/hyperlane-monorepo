@@ -151,7 +151,7 @@ async fn test_initialize() {
         access_control,
         Box::new(AccessControlData {
             bump_seed: access_control_pda_bump_seed,
-            owner: payer.pubkey(),
+            owner: Some(payer.pubkey()),
         }),
     );
 }

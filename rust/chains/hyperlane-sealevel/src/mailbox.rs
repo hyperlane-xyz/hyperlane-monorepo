@@ -850,6 +850,7 @@ mod contract {
     pub struct Outbox {
         pub local_domain: u32,
         pub outbox_bump_seed: u8,
+        pub owner: Option<Pubkey>,
         pub tree: MerkleTree,
     }
 
