@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
 use tokio::time::sleep;
-use tracing::{warn, debug};
+use tracing::{debug, warn};
 
 use hyperlane_core::{
     ChainResult, ContractSyncCursor, HyperlaneMessage, HyperlaneMessageStore,
@@ -147,7 +147,10 @@ impl ContractSyncCursor<HyperlaneMessage> for ForwardMessageSyncCursor {
         let prev_nonce = self.0.next_nonce.saturating_sub(1);
         // We may wind up having re-indexed messages that are previous to the nonce that we are looking for.
         // We should not consider these messages when checking for continuity errors.
-        let filtered_logs = logs.into_iter().filter(|m| m.0.nonce >= self.0.next_nonce).collect();
+        let filtered_logs = logs
+            .into_iter()
+            .filter(|m| m.0.nonce >= self.0.next_nonce)
+            .collect();
         self.0.update(filtered_logs, prev_nonce).await
     }
 }
@@ -208,7 +211,10 @@ impl BackwardMessageSyncCursor {
         let prev_nonce = self.cursor.next_nonce.saturating_add(1);
         // We may wind up having re-indexed messages that are previous to the nonce that we are looking for.
         // We should not consider these messages when checking for continuity errors.
-        let filtered_logs = logs.into_iter().filter(|m| m.0.nonce <= self.cursor.next_nonce).collect();
+        let filtered_logs = logs
+            .into_iter()
+            .filter(|m| m.0.nonce <= self.cursor.next_nonce)
+            .collect();
         self.cursor.update(filtered_logs, prev_nonce).await
     }
 }
