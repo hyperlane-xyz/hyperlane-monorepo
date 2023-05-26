@@ -5,15 +5,13 @@ import { Contexts } from '../../config/contexts';
 import {
   AgentConfig,
   AgentConfigHelper,
+  CheckpointSyncerType,
   DeployEnvironment,
   HelmRootAgentValues,
-} from '../config';
-import {
-  CheckpointSyncerType,
   RelayerConfigHelper,
   ScraperConfigHelper,
   ValidatorConfigHelper,
-} from '../config/agent';
+} from '../config';
 import { fetchGCPSecret } from '../utils/gcloud';
 import {
   HelmCommand,
@@ -124,9 +122,9 @@ abstract class AgentHelmManager {
         runEnv: this.environment,
         context: this.context,
         aws: !!this.config.aws,
-        chains: this.config.environmentChainNames.map((chainName) => ({
-          name: chainName,
-          disabled: !this.config.contextChainNames.includes(chainName),
+        chains: this.config.environmentChainNames.map((name) => ({
+          name,
+          disabled: !this.config.contextChainNames.includes(name),
           connection: { type: this.config.connectionType },
         })),
       },
