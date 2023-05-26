@@ -15,6 +15,7 @@ use hyperlane_core::{
     HyperlaneProvider, IndexRange, Indexer, LogMeta, Mailbox, MessageIndexer, TxCostEstimate,
     TxOutcome, H256, U256,
 };
+use jsonrpc_core::futures_util::TryFutureExt;
 use tracing::{debug, error, instrument, trace, warn};
 
 use crate::{
@@ -327,21 +328,22 @@ impl Mailbox for SealevelMailbox {
 
     #[instrument(err, ret, skip(self))]
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
-        let inbox_account = self
+        let (processed_message_account_key, _processed_message_account_bump) =
+            Pubkey::find_program_address(
+                mailbox_processed_message_pda_seeds!(id),
+                &self.program_id,
+            );
+
+        let account = self
             .rpc_client
-            .get_account(&self.inbox.0)
+            .get_account_with_commitment(
+                &processed_message_account_key,
+                CommitmentConfig::finalized(),
+            )
             .await
             .map_err(ChainCommunicationError::from_other)?;
-        let inbox = contract::InboxAccount::fetch(&mut inbox_account.data.as_ref())
-            .map_err(ChainCommunicationError::from_other)?
-            .into_inner();
 
-        let res = inbox
-            .delivered
-            .contains(&id.into())
-            .try_into()
-            .map_err(ChainCommunicationError::from_other);
-        res
+        Ok(account.value.is_some())
     }
 
     #[instrument(err, ret, skip(self))]
@@ -845,8 +847,6 @@ mod contract {
     pub struct Inbox {
         pub local_domain: u32,
         pub inbox_bump_seed: u8,
-        // Note: 10MB account limit is around ~300k entries.
-        pub delivered: HashSet<H256>,
         pub default_ism: Pubkey,
     }
     impl Default for Inbox {
@@ -854,7 +854,6 @@ mod contract {
             Self {
                 local_domain: 0,
                 inbox_bump_seed: 0,
-                delivered: Default::default(),
                 default_ism: Pubkey::from_str(DEFAULT_ISM).unwrap(),
             }
         }

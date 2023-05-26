@@ -1,6 +1,6 @@
 //! Hyperlane Sealevel Mailbox data account layouts.
 
-use std::{collections::HashSet, io::Read, str::FromStr as _};
+use std::{io::Read, str::FromStr as _};
 
 use access_control::AccessControl;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -136,8 +136,6 @@ pub type InboxAccount = AccountData<Inbox>;
 pub struct Inbox {
     pub local_domain: u32,
     pub inbox_bump_seed: u8,
-    // Note: 10MB account limit is around ~300k entries.
-    pub delivered: HashSet<H256>,
     pub default_ism: Pubkey,
 }
 
@@ -146,7 +144,6 @@ impl Default for Inbox {
         Self {
             local_domain: 0,
             inbox_bump_seed: 0,
-            delivered: Default::default(),
             default_ism: Pubkey::from_str(DEFAULT_ISM).unwrap(),
         }
     }
