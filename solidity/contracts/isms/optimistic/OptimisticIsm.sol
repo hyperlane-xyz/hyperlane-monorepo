@@ -5,6 +5,8 @@ pragma solidity >=0.8.0;
 import {IInterchainSecurityModule} from "../IInterchainSecurityModule.sol";
 import {AbstractOptimisticIsm} from "./AbtractOptimisticIsm.sol";
 import {Message} from "../../libs/Message.sol";
+import {WatcherConfigFactory} from "../isms/optimistic/WatcherConfigFactory.sol";
+
 
 
 
@@ -17,7 +19,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  * @title OptimisticIsm
  */
 
- contract OptimisticIsm is AbstractOptimisticIsm, Initializable, OwnableUpgradeable {
+ contract OptimisticIsm is AbstractOptimisticIsm, Initializable, WatcherConfigFactory, OwnableUpgradeable {
 
 
     address public submodule;
