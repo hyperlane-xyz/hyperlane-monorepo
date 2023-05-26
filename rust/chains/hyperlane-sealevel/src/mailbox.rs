@@ -848,6 +848,7 @@ mod contract {
         pub local_domain: u32,
         pub inbox_bump_seed: u8,
         pub default_ism: Pubkey,
+        pub processed_count: u64,
     }
     impl Default for Inbox {
         fn default() -> Self {
@@ -855,6 +856,7 @@ mod contract {
                 local_domain: 0,
                 inbox_bump_seed: 0,
                 default_ism: Pubkey::from_str(DEFAULT_ISM).unwrap(),
+                processed_count: 0,
             }
         }
     }

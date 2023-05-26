@@ -198,7 +198,7 @@ fn inbox_process(
 
     // Account 2: Inbox PDA.
     let inbox_account = next_account_info(accounts_iter)?;
-    let inbox = InboxAccount::fetch(&mut &inbox_account.data.borrow_mut()[..])?.into_inner();
+    let mut inbox = InboxAccount::fetch(&mut &inbox_account.data.borrow_mut()[..])?.into_inner();
     let expected_inbox_key = Pubkey::create_program_address(
         mailbox_inbox_pda_seeds!(local_domain, inbox.inbox_bump_seed),
         program_id,
@@ -336,8 +336,11 @@ fn inbox_process(
         Instruction::new_with_bytes(ism, &verify_instruction.encode()?, ism_verify_account_metas);
     invoke(&verify, &ism_verify_accounts)?;
 
-    let processed_message_account_data =
-        ProcessedMessageAccount::from(ProcessedMessage::new(message_id, Clock::get()?.slot));
+    let processed_message_account_data = ProcessedMessageAccount::from(ProcessedMessage::new(
+        inbox.processed_count,
+        message_id,
+        Clock::get()?.slot,
+    ));
     let processed_message_account_data_size = processed_message_account_data.size();
     // Mark the message as delivered by creating the processed message account.
     invoke_signed(
@@ -356,6 +359,9 @@ fn inbox_process(
     )?;
     // Write the processed message data to the processed message account.
     processed_message_account_data.store(processed_message_account, false)?;
+    // Increment the processed count and store the updated Inbox account.
+    inbox.processed_count += 1;
+    InboxAccount::from(inbox).store(inbox_account, false)?;
 
     // Now call into the recipient program with the verified message!
     let recp_ixn = MessageRecipientInstruction::Handle(HandleInstruction::new(

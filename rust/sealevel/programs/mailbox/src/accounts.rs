@@ -137,6 +137,7 @@ pub struct Inbox {
     pub local_domain: u32,
     pub inbox_bump_seed: u8,
     pub default_ism: Pubkey,
+    pub processed_count: u64,
 }
 
 impl Default for Inbox {
@@ -145,6 +146,7 @@ impl Default for Inbox {
             local_domain: 0,
             inbox_bump_seed: 0,
             default_ism: Pubkey::from_str(DEFAULT_ISM).unwrap(),
+            processed_count: 0,
         }
     }
 }
@@ -263,14 +265,16 @@ const PROCESSED_MESSAGE_DISCRIMINATOR: &[u8; 8] = b"PROCESSD";
 #[derive(Debug, Default, Eq, PartialEq, BorshSerialize)]
 pub struct ProcessedMessage {
     pub discriminator: [u8; 8],
+    pub sequence: u64,
     pub message_id: H256,
     pub slot: Slot,
 }
 
 impl ProcessedMessage {
-    pub fn new(message_id: H256, slot: Slot) -> Self {
+    pub fn new(sequence: u64, message_id: H256, slot: Slot) -> Self {
         Self {
             discriminator: *PROCESSED_MESSAGE_DISCRIMINATOR,
+            sequence,
             message_id,
             slot,
         }
@@ -280,9 +284,10 @@ impl ProcessedMessage {
 impl SizedData for ProcessedMessage {
     fn size(&self) -> usize {
         // 8 byte discriminator
+        // 8 byte sequence
         // 32 byte message_id
         // 8 byte slot
-        8 + 32 + 8
+        8 + 8 + 32 + 8
     }
 }
 
@@ -297,6 +302,9 @@ impl BorshDeserialize for ProcessedMessage {
             ));
         }
 
+        let mut sequence = [0u8; 8];
+        reader.read_exact(&mut sequence)?;
+
         let mut message_id = [0u8; 32];
         reader.read_exact(&mut message_id)?;
 
@@ -305,6 +313,7 @@ impl BorshDeserialize for ProcessedMessage {
 
         Ok(Self {
             discriminator,
+            sequence: u64::from_le_bytes(sequence),
             message_id: H256::from_slice(&message_id),
             slot: u64::from_le_bytes(slot),
         })
@@ -337,7 +346,7 @@ mod test {
 
     #[test]
     fn test_processed_message_ser_deser() {
-        let processed_message = ProcessedMessage::new(H256::random(), 69696969);
+        let processed_message = ProcessedMessage::new(420420420, H256::random(), 69696969);
 
         let mut serialized = vec![];
         processed_message.serialize(&mut serialized).unwrap();
