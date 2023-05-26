@@ -1,4 +1,4 @@
-import { runAgentHelmCommand } from '../src/agents';
+import { ValidatorHelmManager } from '../src/agents';
 import { HelmCommand } from '../src/utils/helm';
 
 import {
@@ -26,9 +26,11 @@ async function deploy() {
 
   // TODO: we need to have each agent type decide whether to run for each chain or just once for all
   await Promise.all(
-    agentConfig.contextChainNames.map((name: string) =>
-      runAgentHelmCommand(HelmCommand.InstallOrUpgrade, agentConfig, name),
-    ),
+    agentConfig.contextChainNames.map(async (name: string) => {
+      await new ValidatorHelmManager(agentConfig, name).runHelmCommand(
+        HelmCommand.InstallOrUpgrade,
+      );
+    }),
   );
 }
 

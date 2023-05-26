@@ -35,6 +35,11 @@ abstract class AgentHelmManager {
   readonly helmChartPath: string = HELM_CHART_PATH;
   protected abstract readonly config: AgentConfigHelper;
 
+  // Number of indexes this agent has
+  get length(): number {
+    return 1;
+  }
+
   get context(): Contexts {
     return this.config.context;
   }
@@ -47,8 +52,9 @@ abstract class AgentHelmManager {
     return this.config.namespace;
   }
 
-  abstract readonly keyIdentifier: string;
-  abstract readonly userIdentifier: string;
+  abstract keyIdentifier(index?: number): string;
+
+  abstract userIdentifier(index?: number): string;
 
   async runHelmCommand(action: HelmCommand): Promise<void> {
     if (action == HelmCommand.Remove) {
@@ -96,7 +102,10 @@ abstract class AgentHelmManager {
     await execCmd(cmd, {}, false, true);
   }
 
-  async getEnvVars(valueDict?: HelmRootAgentValues): Promise<string[]> {
+  async getEnvVars(
+    index?: number,
+    valueDict?: HelmRootAgentValues,
+  ): Promise<string[]> {
     if (!valueDict) valueDict = await this.helmValues();
     const envVars: string[] = [];
     const rpcEndpoints = await this.getSecretRpcEndpoints();
@@ -160,11 +169,11 @@ abstract class AgentHelmManager {
 }
 
 abstract class OmniscientAgentHelmManager extends AgentHelmManager {
-  get keyIdentifier(): string {
+  keyIdentifier(): string {
     return keyIdentifier(this.environment, this.context, this.role);
   }
 
-  get userIdentifier(): string {
+  userIdentifier(): string {
     return userIdentifier(this.environment, this.context, this.role);
   }
 
@@ -202,7 +211,7 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
 
   async getEnvVars(): Promise<string[]> {
     const valueDict = await this.helmValues();
-    const envVars = await super.getEnvVars(valueDict);
+    const envVars = await super.getEnvVars(undefined, valueDict);
     envVars.push(`HYP_BASE_DB=/tmp/${this.environment}-${this.role}-db`);
     if (!this.config.aws) {
       const gcpKeys = (await fetchKeysForChain(
@@ -210,7 +219,7 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
         this.config.contextChainNames,
       )) as Record<string, AgentGCPKey>;
 
-      const keyId = this.keyIdentifier;
+      const keyId = this.keyIdentifier();
       for (const name of this.config.contextChainNames) {
         envVars.push(
           `HYP_BASE_CHAINS_${name.toUpperCase()}_SIGNER_KEY=${utils.strip0x(
@@ -285,7 +294,7 @@ export class ScraperHelmManager extends OmniscientAgentHelmManager {
 
   async getEnvVars(): Promise<string[]> {
     const valueDict = await this.helmValues();
-    const envVars = await super.getEnvVars(valueDict);
+    const envVars = await super.getEnvVars(undefined, valueDict);
     envVars.push(...configEnvVars(valueDict.hyperlane.scraper?.config ?? {}));
 
     // TODO: this is a secret that needs to be fetched
@@ -311,11 +320,7 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
   protected readonly config: ValidatorConfigHelper;
   readonly role: KeyRole.Validator = KeyRole.Validator;
 
-  constructor(
-    config: AgentConfig,
-    chainName: ChainName,
-    public readonly index: number,
-  ) {
+  constructor(config: AgentConfig, chainName: ChainName) {
     super(chainName);
     this.config = new ValidatorConfigHelper(config, chainName);
     if (!this.config.contextChainNames.includes(chainName))
@@ -326,31 +331,35 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
       throw Error('Context does not support validator');
   }
 
-  get keyIdentifier(): string {
+  get length(): number {
+    return this.config.validators.length;
+  }
+
+  keyIdentifier(index = 0): string {
     return keyIdentifier(
       this.environment,
       this.context,
       this.role,
       this.chainName,
-      this.index,
+      index,
     );
   }
 
-  get userIdentifier(): string {
+  userIdentifier(index = 0): string {
     return userIdentifier(
       this.environment,
       this.context,
       this.role,
       this.chainName,
-      this.index,
+      index,
     );
   }
 
-  async getEnvVars(): Promise<string[]> {
+  async getEnvVars(index = 0): Promise<string[]> {
     const valueDict = await this.helmValues();
-    const envVars = await super.getEnvVars(valueDict);
+    const envVars = await super.getEnvVars(index, valueDict);
     envVars.push(
-      `HYP_BASE_DB=/tmp/${this.environment}-${this.role}-${this.chainName}-${this.index}-db`,
+      `HYP_BASE_DB=/tmp/${this.environment}-${this.role}-${this.chainName}-${index}-db`,
     );
     if (!this.config.aws) {
       const gcpKeys = (await fetchKeysForChain(
@@ -358,7 +367,7 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
         this.chainName,
       )) as Record<string, AgentGCPKey>;
 
-      const privateKey = gcpKeys[this.keyIdentifier].privateKey;
+      const privateKey = gcpKeys[this.keyIdentifier(index)].privateKey;
 
       envVars.push(
         `HYP_BASE_VALIDATOR_KEY=${utils.strip0x(privateKey)}`,
@@ -366,8 +375,7 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
       );
     } else {
       // AWS keys
-      const checkpointSyncer =
-        this.config.validators[this.index].checkpointSyncer;
+      const checkpointSyncer = this.config.validators[index].checkpointSyncer;
       if (checkpointSyncer.type != CheckpointSyncerType.S3)
         throw Error(
           'Expected S3 checkpoint syncer for validator with AWS keys',
@@ -377,7 +385,7 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
         this.environment,
         this.context,
         this.chainName,
-        this.index,
+        index,
         checkpointSyncer.region,
         checkpointSyncer.bucket,
       );
@@ -388,7 +396,7 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
 
     envVars.push(
       ...configEnvVars(
-        (valueDict.hyperlane.validator?.configs ?? [])[this.index] ?? {},
+        (valueDict.hyperlane.validator?.configs ?? [])[index] ?? {},
       ),
     );
 
