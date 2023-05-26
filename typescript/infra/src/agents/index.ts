@@ -4,6 +4,7 @@ import { utils } from '@hyperlane-xyz/utils';
 import { Contexts } from '../../config/contexts';
 import {
   AgentConfig,
+  AgentConfigHelper,
   DeployEnvironment,
   HelmAgentChainOverride,
   HelmRootAgentValues,
@@ -132,16 +133,36 @@ async function runAgentHelmCommand(
   await execCmd(cmd.join(' '), {}, false, true);
 }
 
+// Get a list of all the env vars that are available to the agent
+// export function getAgentEnvVars(
+//   agentConfig: AgentConfig,
+//   role: KeyRole.Relayer | KeyRole.Scraper,
+// ): Promise<string[]>;
+// export function getAgentEnvVars(
+//   agentConfig: AgentConfig,
+//   role: KeyRole.Validator,
+//   originChainName: ChainName,
+//   index: number,
+// ): Promise<string[]>;
 export async function getAgentEnvVars(
   agentConfig: AgentConfig,
   role: KeyRole,
-  originChainName: ChainName,
+  originChainName?: ChainName,
   index?: number,
-) {
+): Promise<string[]> {
   const chainNames = agentConfig.contextChainNames;
   if (role === KeyRole.Validator && index === undefined) {
     throw Error('Expected index for validator role');
   }
+
+  let helper: AgentConfigHelper;
+  if (role == KeyRole.Validator)
+    helper = new ValidatorConfigHelper(agentConfig, originChainName!);
+  else if (role == KeyRole.Relayer)
+    helper = new RelayerConfigHelper(agentConfig);
+  else if (role == KeyRole.Scraper)
+    helper = new ScraperConfigHelper(agentConfig);
+  else throw Error('Unsupported role');
 
   const valueDict = await helmValuesForAgent(
     agentConfig,
@@ -149,25 +170,24 @@ export async function getAgentEnvVars(
     originChainName,
   );
   let envVars: string[] = [];
-  // // TODO: Where are we setting the urls for the fallback/quorum providers?
-  // const rpcEndpoints = await getSecretRpcEndpoints(agentConfig);
-  // for (const chain of valueDict.hyperlane.chains) {
-  //   const name = chain.name.toUpperCase();
-  //   const url = rpcEndpoints[chain.name];
-  //   envVars.push(`HYP_BASE_CHAINS_${name}_CONNECTION_URL=${url}`);
-  // }
+  const rpcEndpoints = await getSecretRpcEndpoints(agentConfig);
+  for (const chain of valueDict.hyperlane.chains) {
+    const name = chain.name.toUpperCase();
+    const url = rpcEndpoints[chain.name];
+    envVars.push(`HYP_BASE_CHAINS_${name}_CONNECTION_URL=${url}`);
+  }
 
   // Base vars from config map
   envVars.push(`HYP_BASE_METRICS=9090`);
   envVars.push(`HYP_BASE_TRACING_LEVEL=info`);
   envVars.push(
-    `HYP_BASE_DB=/tmp/${agentConfig.runEnv}-${role}-${originChainName}${
+    `HYP_BASE_DB=/tmp/${helper.runEnv}-${role}-${originChainName}${
       role === KeyRole.Validator ? `-${index}` : ''
     }-db`,
   );
 
   // GCP keys
-  if (!agentConfig.aws) {
+  if (!helper.aws) {
     const gcpKeys = (await fetchKeysForChain(
       agentConfig,
       originChainName,
@@ -208,7 +228,7 @@ export async function getAgentEnvVars(
 
     if (role === KeyRole.Validator && agentConfig.validators) {
       const checkpointSyncer =
-        agentConfig.validators[originChainName].validators[index!]
+        agentConfig.validators[originChainName!].validators[index!]
           .checkpointSyncer;
       if (checkpointSyncer.type !== CheckpointSyncerType.S3) {
         throw Error(
@@ -218,7 +238,7 @@ export async function getAgentEnvVars(
       user = new ValidatorAgentAwsUser(
         agentConfig.runEnv,
         agentConfig.context,
-        originChainName,
+        originChainName!,
         index!,
         checkpointSyncer.region,
         checkpointSyncer.bucket,
@@ -504,15 +524,20 @@ function configEnvVars(config: Record<string, any>, key_name_prefix = '') {
   return envVars;
 }
 
-// async function getSecretRpcEndpoints(agentConfig: AgentConfig, quorum = false): Promise<ChainMap<string>> {
-//   const environment = agentConfig.runEnv;
-//   return Object.fromEntries(await Promise.all(
-//     agentConfig.contextChainNames.map(async (chainName) => [
-//       chainName,
-//       await getSecretRpcEndpoint(environment, chainName, quorum),
-//     ]),
-//   ));
-// }
+async function getSecretRpcEndpoints(
+  agentConfig: AgentConfig,
+  quorum = false,
+): Promise<ChainMap<string>> {
+  const environment = agentConfig.runEnv;
+  return Object.fromEntries(
+    await Promise.all(
+      agentConfig.contextChainNames.map(async (chainName) => [
+        chainName,
+        await getSecretRpcEndpoint(environment, chainName, quorum),
+      ]),
+    ),
+  );
+}
 
 function getHelmReleaseName(
   agentConfig: AgentConfig,

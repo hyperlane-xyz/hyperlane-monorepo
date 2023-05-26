@@ -15,7 +15,6 @@ export abstract class BaseAgentKey {
     public readonly environment: DeployEnvironment,
     public readonly role: KeyRole,
     public readonly chainName?: ChainName,
-    public readonly readonly = true,
   ) {}
 
   abstract get address(): string;
@@ -38,7 +37,7 @@ export abstract class CloudAgentKey extends BaseCloudAgentKey {
     public readonly chainName?: ChainName,
     public readonly index?: number,
   ) {
-    super(environment, role, chainName, false);
+    super(environment, role, chainName);
   }
 
   abstract fetch(): Promise<void>;
