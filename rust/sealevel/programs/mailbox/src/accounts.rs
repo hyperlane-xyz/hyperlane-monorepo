@@ -2,6 +2,7 @@
 
 use std::{collections::HashSet, io::Read, str::FromStr as _};
 
+use access_control::AccessControl;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{accumulator::incremental::IncrementalMerkle as MerkleTree, H256};
 use solana_program::{
@@ -157,7 +158,19 @@ pub type OutboxAccount = AccountData<Outbox>;
 pub struct Outbox {
     pub local_domain: u32,
     pub outbox_bump_seed: u8,
+    pub owner: Option<Pubkey>,
     pub tree: MerkleTree,
+}
+
+impl AccessControl for Outbox {
+    fn owner(&self) -> Option<&Pubkey> {
+        self.owner.as_ref()
+    }
+
+    fn set_owner(&mut self, owner: Option<Pubkey>) -> Result<(), ProgramError> {
+        self.owner = owner;
+        Ok(())
+    }
 }
 
 pub type DispatchedMessageAccount = AccountData<DispatchedMessage>;

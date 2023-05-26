@@ -1,4 +1,4 @@
-use solana_program::{account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey};
+use solana_program::{account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey, msg};
 
 pub trait AccessControl {
     fn owner(&self) -> Option<&Pubkey>;
@@ -30,7 +30,9 @@ pub trait AccessControl {
         new_owner: Option<Pubkey>,
     ) -> Result<(), ProgramError> {
         self.ensure_owner_signer(maybe_existing_owner)?;
-        self.set_owner(new_owner)
+        self.set_owner(new_owner)?;
+        msg!("Ownership transferred to {:?}", new_owner);
+        Ok(())
     }
 }
 
