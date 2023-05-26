@@ -460,16 +460,18 @@ fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
                     mailbox_processed_message_pda_seeds!(delivered.message_id),
                     &delivered.program_id,
                 );
-            let account_result = ctx.client.get_account(&processed_message_account_key);
-            let delivered = if let Ok(account) = account_result {
-                account.data.len() > 0
-            } else {
-                false
-            };
-            if delivered {
-                println!("Message delivered");
-            } else {
+            let account = ctx
+                .client
+                .get_account_with_commitment(
+                    &processed_message_account_key,
+                    CommitmentConfig::finalized(),
+                )
+                .unwrap()
+                .value;
+            if account.is_none() {
                 println!("Message not delivered");
+            } else {
+                println!("Message delivered");
             }
         }
     };
