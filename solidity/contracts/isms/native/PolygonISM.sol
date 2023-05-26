@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import "forge-std/console.sol";
-
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {IPolygonMessageHook} from "../../interfaces/hooks/IPolygonMessageHook.sol";
 import {Message} from "../../libs/Message.sol";
@@ -22,11 +20,10 @@ contract PolygonISM is IInterchainSecurityModule, FxBaseChildTunnel, Ownable {
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.POLYGON);
 
-    // Hook deployed on L1 responsible for sending message via the Polygon tunnel
-    IPolygonMessageHook public immutable l1Hook;
-
     // ============ Public Storage ============
 
+    // Hook deployed on L1 responsible for sending message via the Polygon tunnel
+    IPolygonMessageHook public l1Hook;
     // mapping to check if the specific messageID from a specific emitter has been received
     // @dev anyone can send an untrusted messageId, so need to check for that while verifying
     mapping(bytes32 => mapping(address => bool)) public receivedEmitters;
@@ -37,11 +34,16 @@ contract PolygonISM is IInterchainSecurityModule, FxBaseChildTunnel, Ownable {
 
     // ============ Constructor ============
 
-    constructor(address _fxChild, address _hook) FxBaseChildTunnel(_fxChild) {
-        l1Hook = IPolygonMessageHook(_hook);
-    }
+    constructor(address _fxChild) FxBaseChildTunnel(_fxChild) {}
 
     // ============ External Functions ============
+
+    function setPolygonHook(address _hook) external {
+        require(_hook != address(0), "PolygonISM: invalid hook address");
+
+        l1Hook = IPolygonMessageHook(_hook);
+        fxRootTunnel = _hook;
+    }
 
     /// @inheritdoc FxBaseChildTunnel
     function _processMessageFromRoot(
@@ -49,9 +51,9 @@ contract PolygonISM is IInterchainSecurityModule, FxBaseChildTunnel, Ownable {
         address _sender,
         bytes memory _data
     ) internal override validateSender(_sender) {
-        (bytes32 _messageId, address _emitter) = abi.decode(
+        (address _emitter, bytes32 _messageId) = abi.decode(
             _data,
-            (bytes32, address)
+            (address, bytes32)
         );
 
         require(_emitter != address(0), "PolygonISM: invalid emitter");

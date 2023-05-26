@@ -1,6 +1,18 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+/*@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+     @@@@@  HYPERLANE  @@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+@@@@@@@@@       @@@@@@@@*/
+
 // ============ Internal Imports ============
 import {IPolygonMessageHook} from "../interfaces/hooks/IPolygonMessageHook.sol";
 import {PolygonISM} from "../isms/native/PolygonISM.sol";
@@ -11,45 +23,37 @@ import {FxBaseRootTunnel} from "fx-portal/contracts/tunnel/FxBaseRootTunnel.sol"
 contract PolygonMessageHook is IPolygonMessageHook, FxBaseRootTunnel {
     // ============ Constants ============
 
+    // Polygon ISM to verify messages
+    PolygonISM public immutable ism;
     // Domain of chain on which the optimism ISM is deployed
     uint32 public immutable destinationDomain;
-
-    // ============ Public Storage ============
-
-    // Polygon ISM to verify messages
-    PolygonISM public ism;
 
     // ============ Constructor ============
 
     /**
      * @notice MessageDispatcherPolygon constructor.
-     * @param _checkpointManager Address of the root chain manager contract on L1
-     * @param _fxRoot Address of the state sender contract on L1
-     * @param _destinationDomain domain of the chain on which the polygon ISM is deployed
+     * @param _destinationDomain Domain of the chain on which the polygon ISM is deployed.
+     * @param _checkpointManager Address of the root chain manager contract on L1.
+     * @param _fxRoot Address of the state sender contract on L1.
+     * @param _ism Address of the polygon ISM.
      */
     constructor(
+        uint32 _destinationDomain,
         address _checkpointManager,
         address _fxRoot,
-        uint32 _destinationDomain
+        address _ism
     ) FxBaseRootTunnel(_checkpointManager, _fxRoot) {
         require(
             _destinationDomain != 0,
             "PolygonHook: destinationDomain cannot be 0"
         );
+        require(_ism != address(0), "PolygonHook: invalid ISM address");
+
         destinationDomain = _destinationDomain;
+        ism = PolygonISM(_ism);
     }
 
     // ============ External Functions ============
-
-    /**
-     * @notice Sets the optimism ISM you want to use to verify messages.
-     * @param _ism The address of the optimism ISM.
-     */
-    function setPolygonISM(address _ism) external {
-        require(address(ism) == address(0), "PolygonHook: ism already set");
-        ism = PolygonISM(_ism);
-        setFxChildTunnel(_ism);
-    }
 
     /**
      * @notice Hook to inform the polygon ISM of messages published through.
@@ -69,11 +73,11 @@ contract PolygonMessageHook is IPolygonMessageHook, FxBaseRootTunnel {
         );
         require(address(ism) != address(0), "PolygonHook: PolygonISM not set");
 
-        bytes memory _payload = abi.encode(_messageId, msg.sender);
+        bytes memory _payload = abi.encode(msg.sender, _messageId);
 
         _sendMessageToChild(_payload);
 
-        emit PolygonMessagePublished(address(ism), msg.sender, _messageId);
+        emit PolygonMessagePublished(msg.sender, _messageId);
 
         return 0;
     }

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+import "forge-std/console.sol";
+
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {IArbitrumMessageHook} from "../../interfaces/hooks/IArbitrumMessageHook.sol";
 import {Message} from "../../libs/Message.sol";
@@ -8,12 +10,17 @@ import {TypeCasts} from "../../libs/TypeCasts.sol";
 
 import {AddressAliasHelper} from "@arbitrum/nitro-contracts/src/libraries/AddressAliasHelper.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {CrossChainEnabledArbitrumL2} from "@openzeppelin/contracts/crosschain/arbitrum/CrossChainEnabledArbitrumL2.sol";
 
 /**
  * @title ArbitrumISM
  * @notice Uses the native Arbitrum bridge to verify interchain messages.
  */
-contract ArbitrumISM is IInterchainSecurityModule, Ownable {
+contract ArbitrumISM is
+    IInterchainSecurityModule,
+    CrossChainEnabledArbitrumL2,
+    Ownable
+{
     // solhint-disable-next-line const-name-snakecase
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.ARBITRUM);
@@ -31,6 +38,9 @@ contract ArbitrumISM is IInterchainSecurityModule, Ownable {
      * @notice Check if sender is authorized to message `receiveFromHook`.
      */
     modifier isAuthorized() {
+        console.log(_crossChainSender());
+        console.log(address(l1Hook));
+
         require(
             AddressAliasHelper.undoL1ToL2Alias(msg.sender) == address(l1Hook),
             "ArbitrumISM: caller is not authorized."

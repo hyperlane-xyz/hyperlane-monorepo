@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import "forge-std/console.sol";
-
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {IOptimismMessageHook} from "../../interfaces/hooks/IOptimismMessageHook.sol";
 import {Message} from "../../libs/Message.sol";
@@ -10,12 +8,17 @@ import {TypeCasts} from "../../libs/TypeCasts.sol";
 
 import {ICrossDomainMessenger} from "@eth-optimism/contracts/libraries/bridge/ICrossDomainMessenger.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {CrossChainEnabledOptimism} from "@openzeppelin/contracts/crosschain/optimism/CrossChainEnabledOptimism.sol";
 
 /**
  * @title OptimismISM
  * @notice Uses the native Optimism bridge to verify interchain messages.
  */
-contract OptimismISM is IInterchainSecurityModule, Ownable {
+contract OptimismISM is
+    IInterchainSecurityModule,
+    CrossChainEnabledOptimism,
+    Ownable
+{
     // ============ Constants ============
 
     // solhint-disable-next-line const-name-snakecase
@@ -44,15 +47,8 @@ contract OptimismISM is IInterchainSecurityModule, Ownable {
      * @notice Check if sender is authorized to message `receiveFromHook`.
      */
     modifier isAuthorized() {
-        ICrossDomainMessenger _l2Messenger = l2Messenger;
-
         require(
-            msg.sender == address(_l2Messenger),
-            "OptimismISM: caller is not the messenger"
-        );
-
-        require(
-            _l2Messenger.xDomainMessageSender() == address(l1Hook),
+            _crossChainSender() == address(l1Hook),
             "OptimismISM: caller is not the owner"
         );
         _;
@@ -60,7 +56,7 @@ contract OptimismISM is IInterchainSecurityModule, Ownable {
 
     // ============ Constructor ============
 
-    constructor(address _l2Messenger) {
+    constructor(address _l2Messenger) CrossChainEnabledOptimism(_l2Messenger) {
         require(_l2Messenger != address(0), "OptimismISM: invalid messenger");
 
         l2Messenger = ICrossDomainMessenger(_l2Messenger);

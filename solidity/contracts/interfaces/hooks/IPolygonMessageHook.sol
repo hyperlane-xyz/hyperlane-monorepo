@@ -7,14 +7,12 @@ import {IMessageHook} from "./IMessageHook.sol";
 interface IPolygonMessageHook is IMessageHook {
     // ============ Events ============
     /**
-     * @notice Emitted when a message is published throug the native Polygon tunnel
+     * @notice Emitted when a message is published throug the native Optimism bridges
      * @dev Used by the relayer to aid in finding VAA
-     * @param target The wormhole message payload
-     * @param sender The wormhole nonce associated with the message
-     * @param messageId The wormhole sequence associated with the message
+     * @param sender The sender of the message
+     * @param messageId The hyperlane message ID
      */
     event PolygonMessagePublished(
-        address indexed target,
         address indexed sender,
         bytes32 indexed messageId
     );

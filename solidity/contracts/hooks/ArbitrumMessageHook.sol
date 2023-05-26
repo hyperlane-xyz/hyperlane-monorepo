@@ -1,7 +1,17 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import "forge-std/console.sol";
+/*@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+     @@@@@  HYPERLANE  @@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+@@@@@@@@@       @@@@@@@@*/
 
 // ============ Internal Imports ============
 import {IArbitrumMessageHook} from "../interfaces/hooks/IArbitrumMessageHook.sol";
@@ -26,7 +36,7 @@ contract ArbitrumMessageHook is IArbitrumMessageHook {
     // Arbitrum's inbox used to send messages from L1 -> L2
     IInbox public immutable inbox;
 
-    uint128 internal constant MAX_GAS_LIMIT = 100_000;
+    uint128 internal constant MAX_GAS_LIMIT = 26_000;
     uint128 internal constant MAX_GAS_PRICE = 1e9;
 
     // ============ Constructor ============

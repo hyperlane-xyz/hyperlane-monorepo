@@ -1,18 +1,6 @@
 // SPDX-License-Identifier: MIT or Apache-2.0
 pragma solidity ^0.8.13;
 
-/*@@@@@@@       @@@@@@@@@
- @@@@@@@@@       @@@@@@@@@
-  @@@@@@@@@       @@@@@@@@@
-   @@@@@@@@@       @@@@@@@@@
-    @@@@@@@@@@@@@@@@@@@@@@@@@
-     @@@@@  HYPERLANE  @@@@@@@
-    @@@@@@@@@@@@@@@@@@@@@@@@@
-   @@@@@@@@@       @@@@@@@@@
-  @@@@@@@@@       @@@@@@@@@
- @@@@@@@@@       @@@@@@@@@
-@@@@@@@@@       @@@@@@@@*/
-
 import {Test} from "forge-std/Test.sol";
 
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
@@ -33,11 +21,6 @@ import {Predeploys} from "@eth-optimism/contracts-bedrock/contracts/libraries/Pr
 contract OptimismISMTest is Test {
     uint256 public mainnetFork;
     uint256 public optimismFork;
-
-    Mailbox public ethMailbox;
-    Mailbox public opMailbox;
-
-    TestMultisigIsm public ism;
 
     address public constant L1_MESSENGER_ADDRESS =
         0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1;
@@ -76,6 +59,8 @@ contract OptimismISMTest is Test {
 
     event ReceivedMessage(bytes32 indexed messageId, address indexed emitter);
 
+    error NotCrossChainCall();
+
     function setUp() public {
         mainnetFork = vm.createFork(vm.rpcUrl("mainnet"));
         optimismFork = vm.createFork(vm.rpcUrl("optimism"));
@@ -87,10 +72,8 @@ contract OptimismISMTest is Test {
     ///                            SETUP                            ///
     ///////////////////////////////////////////////////////////////////
 
-    function deployEthMailbox() public {
+    function deployOptimismHook() public {
         vm.selectFork(mainnetFork);
-
-        ism = new TestMultisigIsm();
 
         opNativeMessenger = ICrossDomainMessenger(L1_MESSENGER_ADDRESS);
         opHook = new OptimismMessageHook(
@@ -99,19 +82,7 @@ contract OptimismISMTest is Test {
             address(opISM)
         );
 
-        ethMailbox = new Mailbox(MAINNET_DOMAIN);
-        ethMailbox.initialize(address(this), address(ism));
-
-        vm.makePersistent(address(ethMailbox));
-    }
-
-    function deployOpMailbox() public {
-        vm.selectFork(optimismFork);
-
-        opMailbox = new Mailbox(OPTIMISM_DOMAIN);
-        opMailbox.initialize(address(this), address(opISM));
-
-        vm.makePersistent(address(opMailbox));
+        vm.makePersistent(address(opHook));
     }
 
     function deployOptimsimISM() public {
@@ -128,8 +99,7 @@ contract OptimismISMTest is Test {
 
     function deployAll() public {
         deployOptimsimISM();
-        deployEthMailbox();
-        deployOpMailbox();
+        deployOptimismHook();
 
         vm.selectFork(optimismFork);
         opISM.setOptimismHook(address(opHook));
@@ -150,7 +120,7 @@ contract OptimismISMTest is Test {
             0,
             address(testRecipient)
         );
-        bytes32 messageId = keccak256(encodedMessage);
+        bytes32 messageId = Message.id(encodedMessage);
 
         bytes memory encodedHookData = abi.encodeCall(
             OptimismISM.receiveFromHook,
@@ -159,12 +129,6 @@ contract OptimismISMTest is Test {
 
         uint40 nonce = ICanonicalTransactionChain(L1_CANNONICAL_CHAIN)
             .getQueueLength();
-
-        ethMailbox.dispatch(
-            OPTIMISM_DOMAIN,
-            TypeCasts.addressToBytes32(address(testRecipient)),
-            testMessage
-        );
 
         vm.expectEmit(true, true, true, true, L1_MESSENGER_ADDRESS);
         emit SentMessage(
@@ -186,11 +150,6 @@ contract OptimismISMTest is Test {
 
         vm.selectFork(mainnetFork);
 
-        ethMailbox.dispatch(
-            11,
-            TypeCasts.addressToBytes32(address(testRecipient)),
-            testMessage
-        );
         bytes32 messageId = Message.id(
             _encodeTestMessage(0, address(testRecipient))
         );
@@ -211,7 +170,7 @@ contract OptimismISMTest is Test {
             Predeploys.L2_CROSS_DOMAIN_MESSENGER
         );
 
-        bytes32 _messageId = keccak256(
+        bytes32 _messageId = Message.id(
             _encodeTestMessage(0, address(testRecipient))
         );
 
@@ -243,7 +202,7 @@ contract OptimismISMTest is Test {
             false,
             Predeploys.L2_CROSS_DOMAIN_MESSENGER
         );
-        emit RelayedMessage(keccak256(xDomainCalldata));
+        emit RelayedMessage(Message.id(xDomainCalldata));
 
         l2Bridge.relayMessage(
             address(opISM),
@@ -266,10 +225,10 @@ contract OptimismISMTest is Test {
             0,
             address(testRecipient)
         );
-        bytes32 _messageId = keccak256(encodedMessage);
+        bytes32 _messageId = Message.id(encodedMessage);
 
         // needs to be called by the cannonical messenger on Optimism
-        vm.expectRevert("OptimismISM: caller is not the messenger");
+        vm.expectRevert(NotCrossChainCall.selector);
         opISM.receiveFromHook(address(opHook), _messageId);
 
         L2CrossDomainMessenger l2Bridge = L2CrossDomainMessenger(
@@ -303,7 +262,7 @@ contract OptimismISMTest is Test {
             0,
             address(testRecipient)
         );
-        bytes32 _messageId = keccak256(encodedMessage);
+        bytes32 _messageId = Message.id(encodedMessage);
 
         bytes memory encodedHookData = abi.encodeCall(
             OptimismISM.receiveFromHook,
@@ -339,7 +298,7 @@ contract OptimismISMTest is Test {
             0,
             address(testRecipient)
         );
-        bytes32 _messageId = keccak256(encodedMessage);
+        bytes32 _messageId = Message.id(encodedMessage);
 
         bytes memory encodedHookData = abi.encodeCall(
             OptimismISM.receiveFromHook,

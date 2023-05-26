@@ -2,15 +2,14 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "forge-std/console.sol";
 
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {Mailbox} from "../../contracts/Mailbox.sol";
 import {Message} from "../../contracts/libs/Message.sol";
-import {TestMultisigIsm} from "../../contracts/test/TestMultisigIsm.sol";
 import {ArbitrumISM} from "../../contracts/isms/native/ArbitrumISM.sol";
 import {ArbitrumMessageHook} from "../../contracts/hooks/ArbitrumMessageHook.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
+import {MockArbSys} from "./arbitrum/MockArbSys.sol";
 
 import {IInbox} from "@arbitrum/nitro-contracts/src/bridge/IInbox.sol";
 import {IBridge} from "@arbitrum/nitro-contracts/src/bridge/IBridge.sol";
@@ -20,11 +19,6 @@ contract ArbitrumISMTest is Test {
     uint256 internal mainnetFork;
     uint256 internal arbitrumFork;
 
-    Mailbox internal ethMailbox;
-    Mailbox internal arbMailbox;
-
-    TestMultisigIsm internal ism;
-
     uint8 internal constant VERSION = 0;
 
     address internal alice = address(0x1);
@@ -33,6 +27,8 @@ contract ArbitrumISMTest is Test {
         0x4Dbd4fc535Ac27206064B68FfCf827b0A60BAB3f;
     address internal constant BRIDGE =
         0x8315177aB297bA92A06054cE80a67Ed4DBd7ed3a;
+    address internal constant ARB_SYS_ADDRESS =
+        0x0000000000000000000000000000000000000064;
 
     IInbox internal arbitrumInbox;
 
@@ -40,6 +36,7 @@ contract ArbitrumISMTest is Test {
     ArbitrumMessageHook internal arbitrumHook;
 
     TestRecipient internal testRecipient;
+    MockArbSys internal mockArbSys;
     bytes internal testMessage =
         abi.encodePacked("Hello from the other chain!");
 
@@ -54,9 +51,9 @@ contract ArbitrumISMTest is Test {
 
     event InboxMessageDelivered(uint256 indexed messageNum, bytes data);
 
-    event RelayedMessage(bytes32 indexed msgHash);
-
     event ReceivedMessage(bytes32 indexed messageId, address indexed emitter);
+
+    error NotCrossChainCall();
 
     function setUp() public {
         mainnetFork = vm.createFork(vm.rpcUrl("mainnet"));
@@ -69,39 +66,27 @@ contract ArbitrumISMTest is Test {
     ///                            SETUP                            ///
     ///////////////////////////////////////////////////////////////////
 
-    function deployEthMailbox() public {
+    function deployArbitrumHook() public {
         vm.selectFork(mainnetFork);
-
-        ism = new TestMultisigIsm();
 
         arbitrumInbox = IInbox(INBOX);
         arbitrumHook = new ArbitrumMessageHook(
             ARBITRUM_DOMAIN,
             address(arbitrumInbox),
-            address(ism)
+            address(arbitrumISM)
         );
 
         // TEMPORARY
         vm.deal(address(arbitrumHook), 100 ether);
 
-        ethMailbox = new Mailbox(MAINNET_DOMAIN);
-        ethMailbox.initialize(address(this), address(ism));
-
-        vm.makePersistent(address(ethMailbox));
-    }
-
-    function deployArbMailbox() public {
-        vm.selectFork(arbitrumFork);
-
-        arbMailbox = new Mailbox(ARBITRUM_DOMAIN);
-        arbMailbox.initialize(address(this), address(arbitrumISM));
-
-        vm.makePersistent(address(arbMailbox));
+        vm.makePersistent(address(arbitrumHook));
     }
 
     function deployArbitrumISM() public {
         vm.selectFork(arbitrumFork);
 
+        mockArbSys = new MockArbSys();
+        vm.etch(ARB_SYS_ADDRESS, address(mockArbSys).code);
         arbitrumISM = new ArbitrumISM();
 
         vm.makePersistent(address(arbitrumISM));
@@ -109,8 +94,7 @@ contract ArbitrumISMTest is Test {
 
     function deployAll() public {
         deployArbitrumISM();
-        deployEthMailbox();
-        deployArbMailbox();
+        deployArbitrumHook();
 
         vm.selectFork(arbitrumFork);
         arbitrumISM.setArbitrumHook(address(arbitrumHook));
@@ -131,7 +115,7 @@ contract ArbitrumISMTest is Test {
             0,
             address(testRecipient)
         );
-        bytes32 messageId = keccak256(encodedMessage);
+        bytes32 messageId = Message.id(encodedMessage);
 
         bytes memory encodedHookData = abi.encodeCall(
             ArbitrumISM.receiveFromHook,
@@ -142,12 +126,6 @@ contract ArbitrumISMTest is Test {
             uint256(uint160(address(arbitrumISM))),
             address(this),
             encodedHookData
-        );
-
-        ethMailbox.dispatch(
-            ARBITRUM_DOMAIN,
-            TypeCasts.addressToBytes32(address(testRecipient)),
-            testMessage
         );
 
         uint256 messageCountBefore = IBridge(BRIDGE).delayedMessageCount();
@@ -171,11 +149,6 @@ contract ArbitrumISMTest is Test {
 
         vm.selectFork(mainnetFork);
 
-        ethMailbox.dispatch(
-            42162,
-            TypeCasts.addressToBytes32(address(testRecipient)),
-            testMessage
-        );
         bytes32 messageId = Message.id(
             _encodeTestMessage(0, address(testRecipient))
         );
@@ -190,11 +163,6 @@ contract ArbitrumISMTest is Test {
         vm.selectFork(mainnetFork);
         vm.deal(address(arbitrumHook), 0 ether);
 
-        ethMailbox.dispatch(
-            ARBITRUM_DOMAIN,
-            TypeCasts.addressToBytes32(address(testRecipient)),
-            testMessage
-        );
         bytes32 messageId = Message.id(
             _encodeTestMessage(0, address(testRecipient))
         );
@@ -210,7 +178,7 @@ contract ArbitrumISMTest is Test {
 
         vm.selectFork(arbitrumFork);
 
-        bytes32 _messageId = keccak256(
+        bytes32 _messageId = Message.id(
             _encodeTestMessage(0, address(testRecipient))
         );
 
@@ -228,42 +196,14 @@ contract ArbitrumISMTest is Test {
         vm.stopPrank();
     }
 
-    function testReceiveFromHook_ArbRetryableTx() public {
-        deployAll();
-
-        vm.selectFork(arbitrumFork);
-
-        bytes32 _messageId = keccak256(
-            _encodeTestMessage(0, address(testRecipient))
-        );
-
-        vm.startPrank(
-            AddressAliasHelper.applyL1ToL2Alias(address(arbitrumHook))
-        );
-
-        // TODO
-        // create a RetryableTicket
-        // redeem it from aliased address
-
-        arbitrumISM.receiveFromHook(address(this), _messageId);
-
-        assertEq(arbitrumISM.receivedEmitters(_messageId, address(this)), true);
-
-        vm.stopPrank();
-    }
-
     function testReceiveFromHook_NotAuthorized() public {
         deployAll();
 
         vm.selectFork(arbitrumFork);
 
-        bytes32 _messageId = keccak256(
+        bytes32 _messageId = Message.id(
             _encodeTestMessage(0, address(testRecipient))
         );
-
-        // needs to be called by the cannonical messenger on Optimism
-        vm.expectRevert("ArbitrumISM: caller is not authorized.");
-        arbitrumISM.receiveFromHook(address(arbitrumHook), _messageId);
 
         vm.prank(address(arbitrumHook));
 
@@ -282,7 +222,7 @@ contract ArbitrumISMTest is Test {
             0,
             address(testRecipient)
         );
-        bytes32 _messageId = keccak256(encodedMessage);
+        bytes32 _messageId = Message.id(encodedMessage);
 
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(address(arbitrumHook)));
         arbitrumISM.receiveFromHook(address(this), _messageId);
@@ -300,7 +240,7 @@ contract ArbitrumISMTest is Test {
             0,
             address(testRecipient)
         );
-        bytes32 _messageId = keccak256(encodedMessage);
+        bytes32 _messageId = Message.id(encodedMessage);
 
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(address(arbitrumHook)));
         arbitrumISM.receiveFromHook(address(this), _messageId);
