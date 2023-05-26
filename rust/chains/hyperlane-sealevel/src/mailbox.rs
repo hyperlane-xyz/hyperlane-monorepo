@@ -227,6 +227,29 @@ impl SealevelMailbox {
         self.get_account_metas(instruction).await
     }
 
+    /// Gets the account metas required for the ISM's `Verify` instruction.
+    pub async fn get_ism_verify_account_metas(
+        &self,
+        ism: Pubkey,
+        metadata: Vec<u8>,
+        message: Vec<u8>,
+    ) -> ChainResult<Vec<AccountMeta>> {
+        let (account_metas_pda_key, _) =
+            Pubkey::find_program_address(contract::VERIFY_ACCOUNT_METAS_PDA_SEEDS, &ism);
+        let instruction = contract::InterchainSecurityModuleInstruction::VerifyAccountMetas(
+            contract::VerifyInstruction { metadata, message },
+        );
+        let instruction = Instruction::new_with_bytes(
+            ism,
+            &instruction
+                .encode()
+                .map_err(ChainCommunicationError::from_other)?,
+            vec![AccountMeta::new(account_metas_pda_key, false)],
+        );
+
+        self.get_account_metas(instruction).await
+    }
+
     /// Gets the account metas required for the recipient's `MessageRecipientInstruction::Handle` instruction.
     pub async fn get_handle_account_metas(
         &self,
@@ -435,7 +458,7 @@ impl Mailbox for SealevelMailbox {
 
         let ixn = contract::Instruction::InboxProcess(contract::InboxProcess {
             metadata: metadata.to_vec(),
-            message: encoded_message,
+            message: encoded_message.clone(),
         });
         let ixn_data = ixn
             .into_instruction_data()
@@ -451,8 +474,14 @@ impl Mailbox for SealevelMailbox {
             AccountMeta::new_readonly(Pubkey::from_str(contract::SPL_NOOP).unwrap(), false),
             AccountMeta::new_readonly(ism, false),
         ]);
-        // Note: we would have to provide ISM accounts accounts here if the contract uses
-        // any additional accounts.
+
+        // Get the account metas required for the ISM.Verify instruction.
+        let ism_verify_account_metas = self
+            .get_ism_verify_account_metas(ism, metadata.into(), encoded_message)
+            .await?;
+        accounts.extend(ism_verify_account_metas);
+
+        // The recipient.
         accounts.extend([AccountMeta::new_readonly(recipient, false)]);
 
         // Get account metas required for the Handle instruction
@@ -1129,6 +1158,65 @@ mod contract {
                 unique_message_pubkey: Pubkey::new_from_array(unique_message_pubkey),
                 encoded_message,
             })
+        }
+    }
+
+    // InterchainSecurityModule interface -----
+
+    /// Instructions that a Hyperlane interchain security module is expected to process.
+    /// The first 8 bytes of the encoded instruction is a discriminator that
+    /// allows programs to implement the required interface.
+    #[derive(Clone, Eq, PartialEq, Debug)]
+    pub enum InterchainSecurityModuleInstruction {
+        /// Gets the type of ISM.
+        Type,
+
+        /// Verifies a message.
+        // Verify(VerifyInstruction),
+
+        /// Gets the list of AccountMetas required for the `Verify` instruction.
+        /// The only account expected to be passed into this instruction is the
+        /// read-only PDA relating to the program ID and the seeds `VERIFY_ACCOUNT_METAS_PDA_SEEDS`
+        VerifyAccountMetas(VerifyInstruction),
+    }
+
+    /// First 8 bytes of `hash::hashv(&[b"hyperlane-interchain-security-module:type"])`
+    const TYPE_DISCRIMINATOR: [u8; 8] = [105, 97, 97, 88, 63, 124, 106, 18];
+    const TYPE_DISCRIMINATOR_SLICE: &[u8] = &TYPE_DISCRIMINATOR;
+
+    /// First 8 bytes of `hash::hashv(&[b"hyperlane-interchain-security-module:verify-account-metas"])`
+    const VERIFY_ACCOUNT_METAS_DISCRIMINATOR: [u8; 8] = [200, 65, 157, 12, 89, 255, 131, 216];
+    const VERIFY_ACCOUNT_METAS_DISCRIMINATOR_SLICE: &[u8] = &VERIFY_ACCOUNT_METAS_DISCRIMINATOR;
+
+    /// Seeds for the PDA that's expected to be passed into the `VerifyAccountMetas`
+    /// instruction.
+    pub const VERIFY_ACCOUNT_METAS_PDA_SEEDS: &[&[u8]] =
+        &[b"hyperlane_ism", b"-", b"verify", b"-", b"account_metas"];
+
+    #[derive(Eq, PartialEq, BorshSerialize, BorshDeserialize, Debug, Clone)]
+    pub struct VerifyInstruction {
+        pub metadata: Vec<u8>,
+        pub message: Vec<u8>,
+    }
+
+    impl InterchainSecurityModuleInstruction {
+        pub fn encode(&self) -> Result<Vec<u8>, ProgramError> {
+            let mut buf = vec![];
+            match self {
+                InterchainSecurityModuleInstruction::Type => {
+                    buf.extend_from_slice(&TYPE_DISCRIMINATOR_SLICE[..]);
+                }
+                InterchainSecurityModuleInstruction::VerifyAccountMetas(instruction) => {
+                    buf.extend_from_slice(&VERIFY_ACCOUNT_METAS_DISCRIMINATOR_SLICE[..]);
+                    buf.extend_from_slice(
+                        &instruction
+                            .try_to_vec()
+                            .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
+                    );
+                }
+            }
+
+            Ok(buf)
         }
     }
 }
