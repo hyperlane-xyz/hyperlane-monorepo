@@ -1652,6 +1652,7 @@ dependencies = [
  "log",
  "num-derive",
  "num-traits",
+ "serializable-account-meta",
  "solana-program",
  "spl-noop",
  "testing_logger",

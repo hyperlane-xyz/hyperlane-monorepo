@@ -8,7 +8,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use borsh::BorshDeserialize;
+use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, Decode as _, Encode as _,
     HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
@@ -109,10 +109,128 @@ impl SealevelMailbox {
         self.outbox
     }
 
+    /// Simulates an instruction, and attempts to deserialize it into a T.
+    /// If no return data at all was returned, returns Ok(None).
+    /// If some return data was returned but deserialization was unsuccesful,
+    /// an Err is returned.
+    pub async fn simulate_instruction<T: BorshDeserialize + BorshSerialize>(
+        &self,
+        instruction: Instruction,
+    ) -> ChainResult<Option<T>> {
+        let commitment = CommitmentConfig::finalized();
+        let (recent_blockhash, _) = self
+            .rpc_client
+            .get_latest_blockhash_with_commitment(commitment)
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+        let payer = self
+            .payer
+            .as_ref()
+            .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
+        let return_data = self
+            .rpc_client
+            .simulate_transaction(&Transaction::new_unsigned(Message::new_with_blockhash(
+                &[instruction],
+                Some(&payer.pubkey()),
+                &recent_blockhash,
+            )))
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .value
+            .return_data;
+
+        if let Some(return_data) = return_data {
+            let bytes = match return_data.data.1 {
+                UiReturnDataEncoding::Base64 => base64::decode(return_data.data.0)
+                    .map_err(ChainCommunicationError::from_other)?,
+            };
+
+            let decoded_data =
+                T::try_from_slice(bytes.as_slice()).map_err(ChainCommunicationError::from_other)?;
+
+            return Ok(Some(decoded_data));
+        }
+
+        Ok(None)
+    }
+
+    /// Simulates an Instruction that will return a list of AccountMetas.
+    pub async fn get_account_metas(
+        &self,
+        instruction: Instruction,
+    ) -> ChainResult<Vec<AccountMeta>> {
+        // If there's no data at all, default to an empty vec.
+        let account_metas = self
+            .simulate_instruction::<SimulationReturnData<Vec<SerializableAccountMeta>>>(instruction)
+            .await?
+            .map(|serializable_account_metas| {
+                serializable_account_metas
+                    .return_data
+                    .into_iter()
+                    .map(|serializable_account_meta| serializable_account_meta.into())
+                    .collect()
+            })
+            .unwrap_or_else(|| vec![]);
+
+        Ok(account_metas)
+    }
+
+    /// Gets the recipient ISM given a recipient program id and the ISM getter account metas.
+    pub async fn get_recipient_ism(
+        &self,
+        recipient_program_id: Pubkey,
+        ism_getter_account_metas: Vec<AccountMeta>,
+    ) -> ChainResult<Pubkey> {
+        let mut accounts = vec![
+            // Inbox PDA
+            AccountMeta::new_readonly(self.inbox.0, false),
+            // The recipient program.
+            AccountMeta::new_readonly(recipient_program_id, false),
+        ];
+        accounts.extend(ism_getter_account_metas);
+
+        let instruction = Instruction::new_with_borsh(
+            self.program_id,
+            &contract::Instruction::InboxGetRecipientIsm(self.domain.id(), recipient_program_id),
+            accounts,
+        );
+        let ism = self
+            .simulate_instruction::<SimulationReturnData<Pubkey>>(instruction)
+            .await?
+            .ok_or(ChainCommunicationError::from_other_str(
+                "No return data from InboxGetRecipientIsm instruction",
+            ))?
+            .return_data;
+        Ok(ism)
+    }
+
+    /// Gets the account metas required for the recipient's
+    /// `MessageRecipientInstruction::InterchainSecurityModule` instruction.
+    pub async fn get_ism_getter_account_metas(
+        &self,
+        recipient_program_id: Pubkey,
+    ) -> ChainResult<Vec<AccountMeta>> {
+        let (account_metas_pda_key, _) = Pubkey::find_program_address(
+            contract::INTERCHAIN_SECURITY_MODULE_ACCOUNT_METAS_PDA_SEEDS,
+            &recipient_program_id,
+        );
+        let instruction =
+            contract::MessageRecipientInstruction::InterchainSecurityModuleAccountMetas;
+        let instruction = Instruction::new_with_bytes(
+            recipient_program_id,
+            &instruction
+                .encode()
+                .map_err(ChainCommunicationError::from_other)?,
+            vec![AccountMeta::new(account_metas_pda_key, false)],
+        );
+
+        self.get_account_metas(instruction).await
+    }
+
+    /// Gets the account metas required for the recipient's `MessageRecipientInstruction::Handle` instruction.
     pub async fn get_handle_account_metas(
         &self,
         message: &HyperlaneMessage,
-        payer: &Pubkey,
     ) -> ChainResult<Vec<AccountMeta>> {
         let recipient_program_id = Pubkey::new_from_array(message.recipient.into());
         let instruction = contract::MessageRecipientInstruction::HandleAccountMetas(
@@ -122,57 +240,19 @@ impl SealevelMailbox {
                 message: message.body.clone(),
             },
         );
-        let commitment = CommitmentConfig::finalized();
-        let (recent_blockhash, _) = self
-            .rpc_client
-            .get_latest_blockhash_with_commitment(commitment)
-            .await
-            .map_err(ChainCommunicationError::from_other)?;
         let (account_metas_pda_key, _) = Pubkey::find_program_address(
             contract::HANDLE_ACCOUNT_METAS_PDA_SEEDS,
             &recipient_program_id,
         );
-        let account_metas_return_data = self
-            .rpc_client
-            .simulate_transaction(&Transaction::new_unsigned(Message::new_with_blockhash(
-                &[Instruction::new_with_bytes(
-                    recipient_program_id,
-                    &instruction
-                        .encode()
-                        .map_err(ChainCommunicationError::from_other)?,
-                    vec![AccountMeta::new(account_metas_pda_key, false)],
-                )],
-                Some(payer),
-                &recent_blockhash,
-            )))
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .value
-            .return_data;
+        let instruction = Instruction::new_with_bytes(
+            recipient_program_id,
+            &instruction
+                .encode()
+                .map_err(ChainCommunicationError::from_other)?,
+            vec![AccountMeta::new(account_metas_pda_key, false)],
+        );
 
-        // If there isn't any return data, let's try gracefully handling
-        // and assume that there are simply no extra account metas required.
-        if let Some(encoded_account_metas) = account_metas_return_data {
-            let account_metas_bytes = match encoded_account_metas.data.1 {
-                UiReturnDataEncoding::Base64 => base64::decode(encoded_account_metas.data.0)
-                    .map_err(ChainCommunicationError::from_other)?,
-            };
-
-            let serialized_account_metas: Vec<SerializableAccountMeta> =
-                SimulationReturnData::<Vec<SerializableAccountMeta>>::try_from_slice(
-                    account_metas_bytes.as_slice(),
-                )
-                .map_err(ChainCommunicationError::from_other)?
-                .return_data;
-            let account_metas: Vec<AccountMeta> = serialized_account_metas
-                .into_iter()
-                .map(|serializable_account_meta| serializable_account_meta.into())
-                .collect();
-
-            return Ok(account_metas);
-        }
-
-        Ok(vec![])
+        self.get_account_metas(instruction).await
     }
 }
 
@@ -278,19 +358,6 @@ impl Mailbox for SealevelMailbox {
 
     #[instrument(err, ret, skip(self))]
     async fn default_ism(&self) -> ChainResult<H256> {
-        // TODO get from on-chain
-        Ok(Pubkey::from_str(contract::DEFAULT_ISM)
-            .unwrap()
-            .to_bytes()
-            .into())
-    }
-
-    #[instrument(err, ret, skip(self))]
-    async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
-        // FIXME what to do with recipient? Just lookup in a mapping of recipient contract to ISM
-        // that we pass in via config?
-        let _ = recipient;
-
         let inbox_account = self
             .rpc_client
             .get_account(&self.inbox.0)
@@ -299,7 +366,25 @@ impl Mailbox for SealevelMailbox {
         let inbox = contract::InboxAccount::fetch(&mut inbox_account.data.as_ref())
             .map_err(ChainCommunicationError::from_other)?
             .into_inner();
-        Ok(inbox.ism.to_bytes().into())
+
+        Ok(inbox.default_ism.to_bytes().into())
+    }
+
+    #[instrument(err, ret, skip(self))]
+    async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
+        let recipient_program_id = Pubkey::new_from_array(recipient.0);
+
+        // Get the account metas required for the recipient.InterchainSecurityModule instruction.
+        let ism_getter_account_metas = self
+            .get_ism_getter_account_metas(recipient_program_id)
+            .await?;
+
+        // Get the ISM to use.
+        let ism_pubkey = self
+            .get_recipient_ism(recipient_program_id, ism_getter_account_metas)
+            .await?;
+
+        Ok(ism_pubkey.to_bytes().into())
     }
 
     #[instrument(err, ret, skip(self))]
@@ -309,6 +394,15 @@ impl Mailbox for SealevelMailbox {
         metadata: &[u8],
         _tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
+        let recipient: Pubkey = message.recipient.0.into();
+        let mut encoded_message = vec![];
+        message.write_to(&mut encoded_message).unwrap();
+
+        let payer = self
+            .payer
+            .as_ref()
+            .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
+
         let inbox_account = self
             .rpc_client
             .get_account(&self.inbox.0)
@@ -321,11 +415,6 @@ impl Mailbox for SealevelMailbox {
         let mut instructions = Vec::with_capacity(1);
         let commitment = CommitmentConfig::finalized();
 
-        let recipient: Pubkey = message.recipient.0.into();
-        let ism = inbox.ism.to_bytes().into();
-        let mut encoded_message = vec![];
-        message.write_to(&mut encoded_message).unwrap();
-
         let (process_authority_key, _process_authority_bump) = Pubkey::try_find_program_address(
             mailbox_process_authority_pda_seeds!(&recipient),
             &self.program_id,
@@ -336,6 +425,14 @@ impl Mailbox for SealevelMailbox {
             )
         })?;
 
+        // Get the account metas required for the recipient.InterchainSecurityModule instruction.
+        let ism_getter_account_metas = self.get_ism_getter_account_metas(recipient).await?;
+
+        // Get the recipient ISM.
+        let ism = self
+            .get_recipient_ism(recipient, ism_getter_account_metas.clone())
+            .await?;
+
         let ixn = contract::Instruction::InboxProcess(contract::InboxProcess {
             metadata: metadata.to_vec(),
             message: encoded_message,
@@ -343,27 +440,23 @@ impl Mailbox for SealevelMailbox {
         let ixn_data = ixn
             .into_instruction_data()
             .map_err(ChainCommunicationError::from_other)?;
-        let mut accounts = vec![
+
+        // Craft the accounts for the transaction.
+        let mut accounts: Vec<AccountMeta> = vec![
             AccountMeta::new(self.inbox.0, false),
             AccountMeta::new_readonly(process_authority_key, false),
+        ];
+        accounts.extend(ism_getter_account_metas);
+        accounts.extend([
             AccountMeta::new_readonly(Pubkey::from_str(contract::SPL_NOOP).unwrap(), false),
             AccountMeta::new_readonly(ism, false),
-            // Note: we would have to provide ISM accounts accounts here if the contract uses
-            // any additional accounts.
-            AccountMeta::new_readonly(recipient, false),
-        ];
-
-        let payer = self
-            .payer
-            .as_ref()
-            .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
+        ]);
+        // Note: we would have to provide ISM accounts accounts here if the contract uses
+        // any additional accounts.
+        accounts.extend([AccountMeta::new_readonly(recipient, false)]);
 
         // Get account metas required for the Handle instruction
-        let handle_account_metas = self
-            .get_handle_account_metas(message, &payer.pubkey())
-            .await?;
-        tracing::info!("handle_account_metas {:?}", handle_account_metas);
-
+        let handle_account_metas = self.get_handle_account_metas(message).await?;
         accounts.extend(handle_account_metas);
 
         let inbox_instruction = Instruction {
@@ -651,7 +744,6 @@ mod contract {
     use crate::solana::{clock::Slot, instruction::AccountMeta};
 
     pub static DEFAULT_ISM: &'static str = "6TCwgXydobJUEqabm7e6SL4FMdiFDvp1pmYoL6xXmRJq";
-    pub static DEFAULT_ISM_ACCOUNTS: [&'static str; 0] = [];
 
     pub static SPL_NOOP: &str = "GpiNbGLpyroc8dFKPhK55eQhhvWn3XUaXJFp5fk5aXUs";
 
@@ -711,8 +803,7 @@ mod contract {
         pub inbox_bump_seed: u8,
         // Note: 10MB account limit is around ~300k entries.
         pub delivered: HashSet<H256>,
-        pub ism: Pubkey,
-        pub ism_accounts: Vec<Pubkey>,
+        pub default_ism: Pubkey,
     }
     impl Default for Inbox {
         fn default() -> Self {
@@ -720,12 +811,7 @@ mod contract {
                 local_domain: 0,
                 inbox_bump_seed: 0,
                 delivered: Default::default(),
-                // TODO can declare_id!() or similar be used for these to compute at compile time?
-                ism: Pubkey::from_str(DEFAULT_ISM).unwrap(),
-                ism_accounts: DEFAULT_ISM_ACCOUNTS
-                    .iter()
-                    .map(|account| Pubkey::from_str(account).unwrap())
-                    .collect(),
+                default_ism: Pubkey::from_str(DEFAULT_ISM).unwrap(),
             }
         }
     }
@@ -751,6 +837,7 @@ mod contract {
         Init(Init),
         InboxProcess(InboxProcess),
         InboxSetDefaultModule(InboxSetDefaultModule),
+        InboxGetRecipientIsm(u32, Pubkey),
         OutboxDispatch(OutboxDispatch),
         OutboxGetCount(OutboxQuery),
         OutboxGetLatestCheckpoint(OutboxQuery),
@@ -805,6 +892,7 @@ mod contract {
     }
 
     pub enum MessageRecipientInstruction {
+        InterchainSecurityModuleAccountMetas,
         HandleAccountMetas(HandleInstruction),
     }
 
@@ -812,6 +900,11 @@ mod contract {
         pub fn encode(&self) -> Result<Vec<u8>, ProgramError> {
             let mut buf = vec![];
             match self {
+                MessageRecipientInstruction::InterchainSecurityModuleAccountMetas => {
+                    buf.extend_from_slice(
+                        &INTERCHAIN_SECURITY_MODULE_ACCOUNT_METAS_DISCRIMINATOR_SLICE[..],
+                    );
+                }
                 MessageRecipientInstruction::HandleAccountMetas(instruction) => {
                     buf.extend_from_slice(&HANDLE_ACCOUNT_METAS_DISCRIMINATOR_SLICE[..]);
                     buf.extend_from_slice(
@@ -825,6 +918,22 @@ mod contract {
             Ok(buf)
         }
     }
+
+    /// First 8 bytes of `hash::hashv(&[b"hyperlane-message-recipient:interchain-security-module-account-metas"])`
+    const INTERCHAIN_SECURITY_MODULE_ACCOUNT_METAS_DISCRIMINATOR: [u8; 8] =
+        [190, 214, 218, 129, 67, 97, 4, 76];
+    const INTERCHAIN_SECURITY_MODULE_ACCOUNT_METAS_DISCRIMINATOR_SLICE: &[u8] =
+        &INTERCHAIN_SECURITY_MODULE_ACCOUNT_METAS_DISCRIMINATOR;
+
+    /// Seeds for the PDA that's expected to be passed into the `InterchainSecurityModuleAccountMetas`
+    /// instruction.
+    pub const INTERCHAIN_SECURITY_MODULE_ACCOUNT_METAS_PDA_SEEDS: &[&[u8]] = &[
+        b"hyperlane_message_recipient",
+        b"-",
+        b"interchain_security_module",
+        b"-",
+        b"account_metas",
+    ];
 
     #[derive(Eq, PartialEq, BorshSerialize, BorshDeserialize, Debug)]
     pub struct HandleInstruction {
@@ -840,7 +949,7 @@ mod contract {
     /// Seeds for the PDA that's expected to be passed into the `HandleAccountMetas`
     /// instruction.
     pub const HANDLE_ACCOUNT_METAS_PDA_SEEDS: &[&[u8]] = &[
-        b"hyperlane-message-recipient",
+        b"hyperlane_message_recipient",
         b"-",
         b"handle",
         b"-",

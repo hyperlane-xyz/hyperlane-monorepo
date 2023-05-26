@@ -10,6 +10,12 @@ use spl_type_length_value::discriminator::{Discriminator, TlvDiscriminator};
 pub enum MessageRecipientInstruction {
     /// Gets the ISM that should verify the message.
     InterchainSecurityModule,
+    /// Gets the account metas required for the `InterchainSecurityModule` instruction.
+    /// Intended to be simulated by an off-chain client.
+    /// The only account passed into this instruction is expected to be
+    /// the read-only PDA relating to the program ID and the seeds
+    /// `INTERCHAIN_SECURITY_MODULE_ACCOUNT_METAS_PDA_SEEDS`
+    InterchainSecurityModuleAccountMetas,
     /// Handles a message from the Mailbox.
     Handle(HandleInstruction),
     /// Gets the account metas required for the `Handle` instruction.
@@ -25,6 +31,22 @@ const INTERCHAIN_SECURITY_MODULE_DISCRIMINATOR: [u8; Discriminator::LENGTH] =
     [45, 18, 245, 87, 234, 46, 246, 15];
 const INTERCHAIN_SECURITY_MODULE_DISCRIMINATOR_SLICE: &[u8] =
     &INTERCHAIN_SECURITY_MODULE_DISCRIMINATOR;
+
+/// First 8 bytes of `hash::hashv(&[b"hyperlane-message-recipient:interchain-security-module-account-metas"])`
+const INTERCHAIN_SECURITY_MODULE_ACCOUNT_METAS_DISCRIMINATOR: [u8; Discriminator::LENGTH] =
+    [190, 214, 218, 129, 67, 97, 4, 76];
+const INTERCHAIN_SECURITY_MODULE_ACCOUNT_METAS_DISCRIMINATOR_SLICE: &[u8] =
+    &INTERCHAIN_SECURITY_MODULE_ACCOUNT_METAS_DISCRIMINATOR;
+
+/// Seeds for the PDA that's expected to be passed into the `InterchainSecurityModuleAccountMetas`
+/// instruction.
+pub const INTERCHAIN_SECURITY_MODULE_ACCOUNT_METAS_PDA_SEEDS: &[&[u8]] = &[
+    b"hyperlane_message_recipient",
+    b"-",
+    b"interchain_security_module",
+    b"-",
+    b"account_metas",
+];
 
 #[derive(Eq, PartialEq, BorshSerialize, BorshDeserialize, Debug)]
 pub struct HandleInstruction {
@@ -55,7 +77,7 @@ const HANDLE_ACCOUNT_METAS_DISCRIMINATOR_SLICE: &[u8] = &HANDLE_ACCOUNT_METAS_DI
 /// Seeds for the PDA that's expected to be passed into the `HandleAccountMetas`
 /// instruction.
 pub const HANDLE_ACCOUNT_METAS_PDA_SEEDS: &[&[u8]] = &[
-    b"hyperlane-message-recipient",
+    b"hyperlane_message_recipient",
     b"-",
     b"handle",
     b"-",
@@ -74,6 +96,11 @@ impl MessageRecipientInstruction {
         match self {
             MessageRecipientInstruction::InterchainSecurityModule => {
                 buf.extend_from_slice(&INTERCHAIN_SECURITY_MODULE_DISCRIMINATOR_SLICE[..]);
+            }
+            MessageRecipientInstruction::InterchainSecurityModuleAccountMetas => {
+                buf.extend_from_slice(
+                    &INTERCHAIN_SECURITY_MODULE_ACCOUNT_METAS_DISCRIMINATOR_SLICE[..],
+                );
             }
             MessageRecipientInstruction::Handle(instruction) => {
                 buf.extend_from_slice(&HANDLE_DISCRIMINATOR_SLICE[..]);
@@ -103,6 +130,9 @@ impl MessageRecipientInstruction {
         let (discriminator, rest) = buf.split_at(Discriminator::LENGTH);
         match discriminator {
             INTERCHAIN_SECURITY_MODULE_DISCRIMINATOR_SLICE => Ok(Self::InterchainSecurityModule),
+            INTERCHAIN_SECURITY_MODULE_ACCOUNT_METAS_DISCRIMINATOR_SLICE => {
+                Ok(Self::InterchainSecurityModuleAccountMetas)
+            }
             HANDLE_DISCRIMINATOR_SLICE => {
                 let instruction = HandleInstruction::try_from_slice(rest)
                     .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
@@ -132,6 +162,12 @@ mod test {
         );
 
         assert_eq!(
+            &hashv(&[b"hyperlane-message-recipient:interchain-security-module-account-metas"])
+                .to_bytes()[..Discriminator::LENGTH],
+            INTERCHAIN_SECURITY_MODULE_ACCOUNT_METAS_DISCRIMINATOR_SLICE,
+        );
+
+        assert_eq!(
             &hashv(&[b"hyperlane-message-recipient:handle"]).to_bytes()[..Discriminator::LENGTH],
             HANDLE_DISCRIMINATOR_SLICE,
         );
@@ -151,6 +187,20 @@ mod test {
         assert_eq!(
             &encoded[..Discriminator::LENGTH],
             INTERCHAIN_SECURITY_MODULE_DISCRIMINATOR_SLICE,
+        );
+
+        let decoded = MessageRecipientInstruction::decode(&encoded).unwrap();
+        assert_eq!(instruction, decoded);
+    }
+
+    #[test]
+    fn test_encode_decode_interchain_security_module_account_metas_instruction() {
+        let instruction = MessageRecipientInstruction::InterchainSecurityModuleAccountMetas;
+
+        let encoded = instruction.encode().unwrap();
+        assert_eq!(
+            &encoded[..Discriminator::LENGTH],
+            INTERCHAIN_SECURITY_MODULE_ACCOUNT_METAS_DISCRIMINATOR_SLICE,
         );
 
         let decoded = MessageRecipientInstruction::decode(&encoded).unwrap();
