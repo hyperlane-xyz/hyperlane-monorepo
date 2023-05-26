@@ -301,6 +301,8 @@ export class ScraperHelmManager extends OmniscientAgentHelmManager {
           config: await this.config.buildConfig(),
         }
       : { enabled: false };
+    // scraper never requires aws credentials
+    values.hyperlane.aws = false;
     return values;
   }
 }
