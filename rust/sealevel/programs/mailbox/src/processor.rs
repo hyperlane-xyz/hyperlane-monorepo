@@ -62,6 +62,10 @@ pub fn process_instruction(
             outbox_get_latest_checkpoint(program_id, accounts, query)
         }
         MailboxIxn::OutboxGetRoot(query) => outbox_get_root(program_id, accounts, query),
+        MailboxIxn::GetOwner(query) => get_owner(program_id, accounts, query),
+        MailboxIxn::TransferOwnership(query, new_owner) => {
+            transfer_ownership(program_id, accounts, query, new_owner)
+        }
     }
     .map_err(|err| {
         msg!("{}", err);
@@ -765,6 +769,74 @@ fn outbox_get_root(
 
     let root = outbox.tree.root();
     set_return_data(root.as_ref());
+    Ok(())
+}
+
+/// Gets the owner as return data.
+///
+/// Accounts:
+/// 0. `[]` The Outbox PDA account.
+fn get_owner(program_id: &Pubkey, accounts: &[AccountInfo], query: OutboxQuery) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: Outbox PDA.
+    let outbox_account = next_account_info(accounts_iter)?;
+    let outbox = OutboxAccount::fetch(&mut &outbox_account.data.borrow_mut()[..])?.into_inner();
+    let expected_outbox_key = Pubkey::create_program_address(
+        mailbox_outbox_pda_seeds!(query.local_domain, outbox.outbox_bump_seed),
+        program_id,
+    )?;
+    if outbox_account.key != &expected_outbox_key {
+        return Err(ProgramError::InvalidArgument);
+    }
+    if outbox_account.owner != program_id {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    set_return_data(
+        &outbox
+            .owner
+            .try_to_vec()
+            .map_err(|err| ProgramError::BorshIoError(err.to_string()))?,
+    );
+    Ok(())
+}
+
+/// Transfers ownership.
+///
+/// Accounts:
+/// 0. `[]` The Outbox PDA account.
+/// 1. `[signer]` The current owner.
+fn transfer_ownership(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    query: OutboxQuery,
+    new_owner: Option<Pubkey>,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: Outbox PDA.
+    let outbox_account = next_account_info(accounts_iter)?;
+    let mut outbox = OutboxAccount::fetch(&mut &outbox_account.data.borrow_mut()[..])?.into_inner();
+    let expected_outbox_key = Pubkey::create_program_address(
+        mailbox_outbox_pda_seeds!(query.local_domain, outbox.outbox_bump_seed),
+        program_id,
+    )?;
+    if outbox_account.key != &expected_outbox_key {
+        return Err(ProgramError::InvalidArgument);
+    }
+    if outbox_account.owner != program_id {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    // Account 1: Current owner.
+    let owner_account = next_account_info(accounts_iter)?;
+    // Errors if the owner_account is not the actual owner or is not a signer.
+    outbox.transfer_ownership(owner_account, new_owner)?;
+
+    // Store the updated outbox.
+    OutboxAccount::from(outbox).store(outbox_account, false)?;
+
     Ok(())
 }
 

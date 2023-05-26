@@ -20,6 +20,8 @@ pub enum Instruction {
     OutboxGetCount(OutboxQuery),
     OutboxGetLatestCheckpoint(OutboxQuery),
     OutboxGetRoot(OutboxQuery),
+    GetOwner(OutboxQuery),
+    TransferOwnership(OutboxQuery, Option<Pubkey>),
 }
 
 impl Instruction {

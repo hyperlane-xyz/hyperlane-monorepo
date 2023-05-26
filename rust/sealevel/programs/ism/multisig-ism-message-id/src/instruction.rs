@@ -33,7 +33,7 @@ pub enum Instruction {
     /// Accounts:
     /// 0. `[signer]` The current access control owner.
     /// 1. `[]` The access control PDA account.
-    SetOwner(Option<Pubkey>),
+    TransferOwnership(Option<Pubkey>),
 }
 
 impl TryFrom<&[u8]> for Instruction {

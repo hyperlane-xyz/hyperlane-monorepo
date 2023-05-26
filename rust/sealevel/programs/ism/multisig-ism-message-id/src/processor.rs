@@ -167,7 +167,9 @@ pub fn process_instruction(
         // Gets the owner of this program from the access control account.
         Instruction::GetOwner => get_owner(program_id, accounts),
         // Sets the owner of this program in the access control account.
-        Instruction::SetOwner(new_owner) => set_owner(program_id, accounts, new_owner),
+        Instruction::TransferOwnership(new_owner) => {
+            transfer_ownership(program_id, accounts, new_owner)
+        }
     }
 }
 
@@ -503,12 +505,12 @@ fn access_control_data(
     Ok(*access_control_data)
 }
 
-/// Sets a new access control owner.
+/// Transfers ownership to a new access control owner.
 ///
 /// Accounts:
 /// 0. `[signer]` The current access control owner.
 /// 1. `[]` The access control PDA account.
-fn set_owner(
+fn transfer_ownership(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     new_owner: Option<Pubkey>,
@@ -696,7 +698,7 @@ pub mod test {
     }
 
     #[test]
-    fn test_set_owner() {
+    fn test_transfer_ownership() {
         let program_id = id();
 
         let owner_key = Pubkey::new_unique();
@@ -748,7 +750,7 @@ pub mod test {
         let result = process_instruction(
             &program_id,
             &accounts,
-            Instruction::SetOwner(Some(new_owner_key))
+            Instruction::TransferOwnership(Some(new_owner_key))
                 .try_to_vec()
                 .unwrap()
                 .as_slice(),
@@ -761,7 +763,7 @@ pub mod test {
         process_instruction(
             &program_id,
             &accounts,
-            Instruction::SetOwner(Some(new_owner_key))
+            Instruction::TransferOwnership(Some(new_owner_key))
                 .try_to_vec()
                 .unwrap()
                 .as_slice(),
@@ -784,7 +786,7 @@ pub mod test {
         let result = process_instruction(
             &program_id,
             &accounts,
-            Instruction::SetOwner(Some(new_owner_key))
+            Instruction::TransferOwnership(Some(new_owner_key))
                 .try_to_vec()
                 .unwrap()
                 .as_slice(),
