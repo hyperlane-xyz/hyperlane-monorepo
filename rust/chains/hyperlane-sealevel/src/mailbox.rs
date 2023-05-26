@@ -1154,8 +1154,8 @@ mod contract {
 
             Ok(Self {
                 discriminator,
-                nonce: u32::from_be_bytes(nonce),
-                slot: u64::from_be_bytes(slot),
+                nonce: u32::from_le_bytes(nonce),
+                slot: u64::from_le_bytes(slot),
                 unique_message_pubkey: Pubkey::new_from_array(unique_message_pubkey),
                 encoded_message,
             })

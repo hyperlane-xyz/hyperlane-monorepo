@@ -29,7 +29,7 @@ use serializable_account_meta::SimulationReturnData;
 use crate::{
     accounts::{
         DispatchedMessage, DispatchedMessageAccount, Inbox, InboxAccount, Outbox, OutboxAccount,
-        SizedData,
+        ProcessedMessage, ProcessedMessageAccount, SizedData,
     },
     error::Error,
     instruction::{
@@ -38,7 +38,7 @@ use crate::{
     },
     mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds,
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
-    mailbox_process_authority_pda_seeds,
+    mailbox_process_authority_pda_seeds, mailbox_processed_message_pda_seeds,
 };
 
 #[cfg(not(feature = "no-entrypoint"))]
@@ -156,9 +156,11 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
 /// Process a message.
 ///
 // Accounts:
-// 0.      [writable] Inbox PDA
-// 1.      [] Mailbox process authority for the message recipient.
-// 2..N    [??] Accounts required to invoke the recipient's InterchainSecurityModule instruction.
+// 0.      [signer] Payer account. This pays for the creation of the processed message PDA.
+// 1.      [writable] Inbox PDA
+// 2.      [] Mailbox process authority for the message recipient.
+// 3.      [writable] Processed message PDA.
+// 4..N    [??] Accounts required to invoke the recipient's InterchainSecurityModule instruction.
 // N+1.    [executable] SPL noop
 // N+2.    [executable] ISM
 // N+2..M. [??] ISM accounts, if present
@@ -173,15 +175,23 @@ fn inbox_process(
 
     let message = HyperlaneMessage::read_from(&mut std::io::Cursor::new(&process.message))
         .map_err(|_| ProgramError::from(Error::MalformattedHyperlaneMessage))?;
+    let message_id = message.id();
+
     if message.version != VERSION {
         return Err(ProgramError::from(Error::UnsupportedMessageVersion));
     }
     let local_domain = message.destination;
     let recipient_program_id = Pubkey::new_from_array(message.recipient.0);
 
-    // Account 0: Inbox PDA.
+    // Account 0: Payer account.
+    let payer_account = next_account_info(accounts_iter)?;
+    if !payer_account.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+
+    // Account 1: Inbox PDA.
     let inbox_account = next_account_info(accounts_iter)?;
-    let mut inbox = InboxAccount::fetch(&mut &inbox_account.data.borrow_mut()[..])?.into_inner();
+    let inbox = InboxAccount::fetch(&mut &inbox_account.data.borrow_mut()[..])?.into_inner();
     let expected_inbox_key = Pubkey::create_program_address(
         mailbox_inbox_pda_seeds!(local_domain, inbox.inbox_bump_seed),
         program_id,
@@ -193,7 +203,7 @@ fn inbox_process(
         return Err(ProgramError::IncorrectProgramId);
     }
 
-    // Account 1: Process authority account that is specific to the
+    // Account 2: Process authority account that is specific to the
     // message recipient.
     let process_authority_account = next_account_info(accounts_iter)?;
     // TODO make this create_program_address and take the bump seed in
@@ -207,9 +217,25 @@ fn inbox_process(
         return Err(ProgramError::InvalidArgument);
     }
 
+    // Account 3: Processed message PDA.
+    let processed_message_account = next_account_info(accounts_iter)?;
+    let processed_message_pda_seeds: &[&[u8]] = mailbox_processed_message_pda_seeds!(message_id);
+    let (expected_processed_message_key, _expected_processed_message_bump) =
+        Pubkey::find_program_address(processed_message_pda_seeds, program_id);
+    if processed_message_account.key != &expected_processed_message_key {
+        return Err(ProgramError::InvalidArgument);
+    }
+    // If the processed message account already exists, then the message
+    // has been processed already.
+    if processed_message_account.owner != &solana_program::system_program::id()
+        || !processed_message_account.data_is_empty()
+    {
+        return Err(Error::DuplicateMessage.into());
+    }
+
     let spl_noop_id = spl_noop::id();
 
-    // Accounts 2..N: the accounts required for getting the ISM the recipient wants to use.
+    // Accounts 4..N: the accounts required for getting the ISM the recipient wants to use.
     let mut get_ism_accounts = vec![];
     let mut get_ism_account_metas = vec![];
     loop {
@@ -304,12 +330,23 @@ fn inbox_process(
         Instruction::new_with_bytes(ism, &verify_instruction.encode()?, ism_verify_account_metas);
     invoke(&verify, &ism_verify_accounts)?;
 
-    // Mark the message as delivered.
-    let id = message.id();
-    if inbox.delivered.contains(&id) {
-        return Err(ProgramError::from(Error::DuplicateMessage));
-    }
-    inbox.delivered.insert(id);
+    let processed_message_data = ProcessedMessage::new(message_id, Clock::get()?.slot);
+    let processed_message_data_size = processed_message_data.size();
+    // Mark the message as delivered by creating the processed message account.
+    invoke_signed(
+        &system_instruction::create_account(
+            payer_account.key,
+            processed_message_account.key,
+            Rent::default().minimum_balance(processed_message_data_size),
+            processed_message_data_size.try_into().unwrap(),
+            program_id,
+        ),
+        &[payer_account.clone(), processed_message_account.clone()],
+        &[processed_message_pda_seeds],
+    )?;
+    // Write the processed message data to the processed message account.
+    ProcessedMessageAccount::from(processed_message_data)
+        .store(processed_message_account, false)?;
 
     // Now call into the recipient program with the verified message!
     let recp_ixn = MessageRecipientInstruction::Handle(HandleInstruction::new(
@@ -334,15 +371,13 @@ fn inbox_process(
     let noop_cpi_log = Instruction {
         program_id: spl_noop::id(),
         accounts: vec![],
-        data: format!("Hyperlane inbox: {:?}", id).into_bytes(),
+        data: format!("Hyperlane inbox: {:?}", message_id).into_bytes(),
     };
     invoke(&noop_cpi_log, &[])?;
 
     // TODO maybe remove?
-    msg!("Hyperlane inbox processed message {:?}", id);
+    msg!("Hyperlane inbox processed message {:?}", message_id);
 
-    // FIXME store before or after recipient cpi? What if fail to write but recipient cpi okay?
-    InboxAccount::from(inbox).store(inbox_account, true)?;
     Ok(())
 }
 
@@ -865,7 +900,6 @@ mod test {
         pub root: H256,
         pub index: u32,
         pub leaf_index: u32,
-        // pub proof: [H256; 32],
         pub signatures: Vec<H256>,
     }
     impl Encode for ExampleMetadata {
@@ -876,9 +910,6 @@ mod test {
             writer.write_all(&self.root.as_ref())?;
             writer.write_all(&self.index.to_be_bytes())?;
             writer.write_all(&self.leaf_index.to_be_bytes())?;
-            // for hash in self.proof {
-            //     writer.write_all(hash.as_ref())?;
-            // }
             for signature in &self.signatures {
                 writer.write_all(signature.as_ref())?;
             }
@@ -891,14 +922,45 @@ mod test {
         testing_logger::setup();
     }
 
+    // Now that the Clock sysvar is used in inbox_process, this test also doesn't work!
+    // Need to move over to functional tests.
+    #[ignore]
     #[test]
     fn test_inbox_process() {
         setup_logging();
 
         let recipient_program_id = Pubkey::new_from_array([42; 32]);
 
+        let message = HyperlaneMessage {
+            version: VERSION,
+            nonce: 1,
+            origin: u32::MAX,
+            sender: H256::repeat_byte(69),
+            destination: u32::MAX,
+            recipient: H256::from(recipient_program_id.to_bytes()),
+            body: "Hello, World!".bytes().collect(),
+        };
+        let mut encoded_message = vec![];
+        message.write_to(&mut encoded_message).unwrap();
+        let message_id = message.id();
+
         let local_domain = u32::MAX;
         let mailbox_program_id = Pubkey::new_unique();
+        let system_program_id = solana_program::system_program::id();
+
+        let payer = Pubkey::new_unique();
+        let mut payer_account_lamports = 1000000000;
+        let mut payer_account_data = vec![];
+        let payer_account = AccountInfo::new(
+            &payer,
+            true,
+            false,
+            &mut payer_account_lamports,
+            &mut payer_account_data,
+            &system_program_id,
+            false,
+            Epoch::default(),
+        );
 
         let (inbox_account_key, inbox_bump_seed) = Pubkey::find_program_address(
             mailbox_inbox_pda_seeds!(local_domain),
@@ -951,7 +1013,24 @@ mod test {
             Epoch::default(),
         );
 
-        let system_program_id = solana_program::system_program::id();
+        let (processed_message_account_key, _processed_message_bump_seed) =
+            Pubkey::find_program_address(
+                mailbox_processed_message_pda_seeds!(message_id),
+                &mailbox_program_id,
+            );
+        let mut processed_message_account_lamports = 0;
+        let mut processed_message_account_data = vec![];
+        let processed_message_account = AccountInfo::new(
+            // Public key of the account
+            &processed_message_account_key,
+            false,
+            true,
+            &mut processed_message_account_lamports,
+            &mut processed_message_account_data,
+            &system_program_id,
+            false,
+            Epoch::default(),
+        );
 
         let mut spl_noop_lamports = 0;
         let mut spl_noop_data = vec![];
@@ -995,17 +1074,6 @@ mod test {
         );
         // Assume no recpient data accounts for now.
 
-        let message = HyperlaneMessage {
-            version: VERSION,
-            nonce: 1,
-            origin: u32::MAX,
-            sender: H256::repeat_byte(69),
-            destination: u32::MAX,
-            recipient: H256::from(recipient_program_id.to_bytes()),
-            body: "Hello, World!".bytes().collect(),
-        };
-        let mut encoded_message = vec![];
-        message.write_to(&mut encoded_message).unwrap();
         let metadata = ExampleMetadata {
             root: Default::default(),
             index: 1,
@@ -1016,8 +1084,10 @@ mod test {
         metadata.write_to(&mut encoded_metadata).unwrap();
 
         let accounts = [
+            payer_account,
             inbox_account,
             process_authority_account,
+            processed_message_account,
             spl_noop_account,
             ism_account,
             recp_account,
@@ -1030,7 +1100,7 @@ mod test {
             .into_instruction_data()
             .unwrap();
 
-        let inbox = InboxAccount::fetch(&mut &accounts[0].data.borrow_mut()[..])
+        let inbox = InboxAccount::fetch(&mut &accounts[1].data.borrow_mut()[..])
             .unwrap()
             .into_inner();
         assert_eq!(inbox.delivered.len(), 0);
