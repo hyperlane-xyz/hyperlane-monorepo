@@ -23,7 +23,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
     address public submodule;
     uint256 public fraudWindowDuration;
     bool public isConfigured;
-    
+
 
         // ============ Public Storage ============
 
@@ -74,11 +74,10 @@ function setFraudWindowDuration(uint256 _duration) external onlyOwner {
     fraudWindowDuration = _duration;
 }    
 
-function configureSubmodule(address _submodule, uint256 _fraudWindowDuration) external returns onlyOwner (bool) {
+function configureSubmodule(address _submodule, uint256 _fraudWindowDuration) external onlyOwner {
     submodule = _submodule;
     fraudWindowDuration = _fraudWindowDuration;
     isConfigured = true;
-    return true;
 
 }
 
