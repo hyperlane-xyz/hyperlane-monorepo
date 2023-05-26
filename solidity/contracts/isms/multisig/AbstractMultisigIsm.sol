@@ -8,22 +8,17 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {IMultisigIsm} from "../../interfaces/isms/IMultisigIsm.sol";
 import {Message} from "../../libs/Message.sol";
-import {MultisigIsmMetadata} from "../../libs/isms/MultisigIsmMetadata.sol";
-import {CheckpointLib} from "../../libs/CheckpointLib.sol";
 import {MerkleLib} from "../../libs/Merkle.sol";
 
 /**
  * @title MultisigIsm
  * @notice Manages per-domain m-of-n Validator sets that are used to verify
  * interchain messages.
+ * @dev See ./AbstractMerkleRootMultisigIsm.sol and ./AbstractMessageIdMultisigIsm.sol
+ * for concrete implementations of `digest` and `signatureAt`.
+ * @dev See ./StaticMultisigIsm.sol for concrete implementations.
  */
 abstract contract AbstractMultisigIsm is IMultisigIsm {
-    // ============ Constants ============
-
-    // solhint-disable-next-line const-name-snakecase
-    uint8 public constant moduleType =
-        uint8(IInterchainSecurityModule.Types.MULTISIG);
-
     // ============ Virtual Functions ============
     // ======= OVERRIDE THESE TO IMPLEMENT =======
 
@@ -41,12 +36,36 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
         virtual
         returns (address[] memory, uint8);
 
+    /**
+     * @notice Returns the digest to be used for signature verification.
+     * @param _metadata ABI encoded module metadata
+     * @param _message Formatted Hyperlane message (see Message.sol).
+     * @return digest The digest to be signed by validators
+     */
+    function digest(bytes calldata _metadata, bytes calldata _message)
+        internal
+        view
+        virtual
+        returns (bytes32);
+
+    /**
+     * @notice Returns the signature at a given index from the metadata.
+     * @param _metadata ABI encoded module metadata
+     * @param _index The index of the signature to return
+     * @return signature Packed encoding of signature (65 bytes)
+     */
+    function signatureAt(bytes calldata _metadata, uint256 _index)
+        internal
+        pure
+        virtual
+        returns (bytes memory);
+
     // ============ Public Functions ============
 
     /**
      * @notice Requires that m-of-n validators verify a merkle root,
-     * and verifies a merkle proof of `_message` against that root.
-     * @param _metadata ABI encoded module metadata (see MultisigIsmMetadata.sol)
+     * and verifies a me∑rkle proof of `_message` against that root.
+     * @param _metadata ABI encoded module metadata
      * @param _message Formatted Hyperlane message (see Message.sol).
      */
     function verify(bytes calldata _metadata, bytes calldata _message)
@@ -54,61 +73,18 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
         view
         returns (bool)
     {
-        require(_verifyMerkleProof(_metadata, _message), "!merkle");
-        require(_verifyValidatorSignatures(_metadata, _message), "!sigs");
-        return true;
-    }
-
-    // ============ Internal Functions ============
-
-    /**
-     * @notice Verifies the merkle proof of `_message` against the provided
-     * checkpoint.
-     * @param _metadata ABI encoded module metadata (see MultisigIsmMetadata.sol)
-     * @param _message Formatted Hyperlane message (see Message.sol).
-     */
-    function _verifyMerkleProof(
-        bytes calldata _metadata,
-        bytes calldata _message
-    ) internal pure returns (bool) {
-        // calculate the expected root based on the proof
-        bytes32 _calculatedRoot = MerkleLib.branchRoot(
-            Message.id(_message),
-            MultisigIsmMetadata.proof(_metadata),
-            Message.nonce(_message)
-        );
-        return _calculatedRoot == MultisigIsmMetadata.root(_metadata);
-    }
-
-    /**
-     * @notice Verifies that a quorum of the origin domain's validators signed
-     * the provided checkpoint.
-     * @param _metadata ABI encoded module metadata (see MultisigIsmMetadata.sol)
-     * @param _message Formatted Hyperlane message (see Message.sol).
-     */
-    function _verifyValidatorSignatures(
-        bytes calldata _metadata,
-        bytes calldata _message
-    ) internal view returns (bool) {
+        bytes32 _digest = digest(_metadata, _message);
         (
             address[] memory _validators,
             uint8 _threshold
         ) = validatorsAndThreshold(_message);
         require(_threshold > 0, "No MultisigISM threshold present for message");
-        bytes32 _digest = CheckpointLib.digest(
-            Message.origin(_message),
-            MultisigIsmMetadata.originMailbox(_metadata),
-            MultisigIsmMetadata.root(_metadata),
-            MultisigIsmMetadata.index(_metadata)
-        );
+
         uint256 _validatorCount = _validators.length;
         uint256 _validatorIndex = 0;
         // Assumes that signatures are ordered by validator
         for (uint256 i = 0; i < _threshold; ++i) {
-            address _signer = ECDSA.recover(
-                _digest,
-                MultisigIsmMetadata.signatureAt(_metadata, i)
-            );
+            address _signer = ECDSA.recover(_digest, signatureAt(_metadata, i));
             // Loop through remaining validators until we find a match
             while (
                 _validatorIndex < _validatorCount &&

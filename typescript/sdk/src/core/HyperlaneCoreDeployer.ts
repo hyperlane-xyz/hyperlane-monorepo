@@ -66,22 +66,22 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     const cachedMailbox = this.deployedContracts[chain]?.mailbox;
     if (cachedMailbox) {
       const module = await cachedMailbox.defaultIsm();
-      const matches = await moduleMatchesConfig(
-        chain,
-        module,
-        config,
-        this.ismFactory.multiProvider,
-        this.ismFactory.getContracts(chain),
-      );
-      if (!matches) {
-        const ism = await this.ismFactory.deploy(chain, config);
-        return ism.address;
+      if (
+        await moduleMatchesConfig(
+          chain,
+          module,
+          config,
+          this.ismFactory.multiProvider,
+          this.ismFactory.getContracts(chain),
+        )
+      ) {
+        this.logger(`Default ISM matches config for ${chain}`);
+        return module;
       }
-      return module;
-    } else {
-      const ism = await this.ismFactory.deploy(chain, config);
-      return ism.address;
     }
+    this.logger(`Deploying new ISM to ${chain}`);
+    const ism = await this.ismFactory.deploy(chain, config);
+    return ism.address;
   }
 
   async deployContracts(
