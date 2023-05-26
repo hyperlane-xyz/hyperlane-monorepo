@@ -299,7 +299,7 @@ async function writeAgentConfig(
   const agentConfig = buildAgentConfig(
     multiProvider.getKnownChainNames(),
     multiProvider,
-    addresses as ChainMap<HyperlaneAgentAddresses>,
+    addresses as unknown as ChainMap<HyperlaneAgentAddresses>,
     startBlocks,
   );
   const sdkEnv = deployEnvToSdkEnv[environment];
