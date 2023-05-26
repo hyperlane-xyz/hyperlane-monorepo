@@ -1,5 +1,6 @@
 use hyperlane_core::{Checkpoint, Decode, HyperlaneMessage, IsmType};
 
+use access_control::AccessControl;
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
@@ -209,7 +210,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     // Create the access control PDA account.
     let access_control_account = AccessControlAccount::from(AccessControlData {
         bump_seed: access_control_pda_bump_seed,
-        owner: *owner_account.key,
+        owner: Some(*owner_account.key),
     });
     let access_control_account_data_size = access_control_account.size();
     invoke_signed(
@@ -507,7 +508,11 @@ fn access_control_data(
 /// Accounts:
 /// 0. `[signer]` The current access control owner.
 /// 1. `[]` The access control PDA account.
-fn set_owner(program_id: &Pubkey, accounts: &[AccountInfo], new_owner: Pubkey) -> ProgramResult {
+fn set_owner(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    new_owner: Option<Pubkey>,
+) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
     // Account 0: The current access control owner.
@@ -516,16 +521,13 @@ fn set_owner(program_id: &Pubkey, accounts: &[AccountInfo], new_owner: Pubkey) -
 
     // Account 1: The access control PDA account.
     let access_control_pda_account = next_account_info(accounts_iter)?;
-    let access_control_data = access_control_data(program_id, access_control_pda_account)?;
-    // Ensure the owner account is really the owner of this program.
-    access_control_data.ensure_owner_signer(owner_account)?;
+    let mut access_control_data = access_control_data(program_id, access_control_pda_account)?;
+
+    // Transfer ownership. This errors if `owner_account` is not a signer or the owner.
+    access_control_data.transfer_ownership(owner_account, new_owner)?;
 
     // Store the new access control owner.
-    AccessControlAccount::from(AccessControlData {
-        bump_seed: access_control_data.bump_seed,
-        owner: new_owner,
-    })
-    .store(access_control_pda_account, false)?;
+    AccessControlAccount::from(access_control_data).store(access_control_pda_account, false)?;
 
     Ok(())
 }
@@ -729,7 +731,7 @@ pub mod test {
         );
         let init_access_control_data = AccessControlData {
             bump_seed: access_control_pda_bump_seed,
-            owner: owner_key,
+            owner: Some(owner_key),
         };
         AccessControlAccount::from(init_access_control_data)
             .store(&access_control_pda_account, false)
@@ -746,7 +748,7 @@ pub mod test {
         let result = process_instruction(
             &program_id,
             &accounts,
-            Instruction::SetOwner(new_owner_key)
+            Instruction::SetOwner(Some(new_owner_key))
                 .try_to_vec()
                 .unwrap()
                 .as_slice(),
@@ -759,7 +761,7 @@ pub mod test {
         process_instruction(
             &program_id,
             &accounts,
-            Instruction::SetOwner(new_owner_key)
+            Instruction::SetOwner(Some(new_owner_key))
                 .try_to_vec()
                 .unwrap()
                 .as_slice(),
@@ -774,7 +776,7 @@ pub mod test {
             access_control_data,
             Box::new(AccessControlData {
                 bump_seed: access_control_pda_bump_seed,
-                owner: new_owner_key,
+                owner: Some(new_owner_key),
             })
         );
 
@@ -782,12 +784,12 @@ pub mod test {
         let result = process_instruction(
             &program_id,
             &accounts,
-            Instruction::SetOwner(new_owner_key)
+            Instruction::SetOwner(Some(new_owner_key))
                 .try_to_vec()
                 .unwrap()
                 .as_slice(),
         );
-        assert_eq!(result, Err(Error::AccountNotOwner.into()));
+        assert_eq!(result, Err(ProgramError::InvalidArgument));
     }
 
     // Only tests the case where a domain data PDA account has already been created.
@@ -856,7 +858,7 @@ pub mod test {
         );
         let init_access_control_data = AccessControlData {
             bump_seed: access_control_pda_bump_seed,
-            owner: owner_key,
+            owner: Some(owner_key),
         };
         AccessControlAccount::from(init_access_control_data)
             .store(&access_control_pda_account, false)

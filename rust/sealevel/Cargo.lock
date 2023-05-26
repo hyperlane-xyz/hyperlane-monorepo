@@ -13,6 +13,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "access-control"
+version = "0.1.0"
+dependencies = [
+ "solana-program",
+ "solana-program-test",
+ "solana-sdk",
+]
+
+[[package]]
 name = "adler"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1673,6 +1682,7 @@ dependencies = [
 name = "hyperlane-sealevel-multisig-ism-message-id"
 version = "0.1.0"
 dependencies = [
+ "access-control",
  "borsh",
  "hex",
  "hyperlane-core",
