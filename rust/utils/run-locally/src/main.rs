@@ -317,17 +317,18 @@ fn main() -> ExitCode {
 
     sleep(Duration::from_secs(10));
 
+    let deploy_env = hashmap! {"ALLOW_LEGACY_MULTISIG_ISM" => "true"};
     println!("Deploying hyperlane ism contracts...");
-    build_cmd(&["yarn", "deploy-ism"], Some("../typescript/infra"), None);
+    build_cmd(&["yarn", "deploy-ism"], Some("../typescript/infra"), Some(&deploy_env));
 
     println!("Rebuilding sdk...");
     build_cmd(&["yarn", "build"], Some("../typescript/sdk"), None);
 
     println!("Deploying hyperlane core contracts...");
-    build_cmd(&["yarn", "deploy-core"], Some("../typescript/infra"), None);
+    build_cmd(&["yarn", "deploy-core"], Some("../typescript/infra"), Some(&deploy_env));
 
     println!("Deploying hyperlane igp contracts...");
-    build_cmd(&["yarn", "deploy-igp"], Some("../typescript/infra"), None);
+    build_cmd(&["yarn", "deploy-igp"], Some("../typescript/infra"), Some(&deploy_env));
 
     if !is_ci_env {
         // Follow-up 'yarn hardhat node' invocation with 'yarn prettier' to fixup
