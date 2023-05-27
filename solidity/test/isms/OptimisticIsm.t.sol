@@ -39,6 +39,80 @@ contract OptimisticIsmTest is Test {
         return watchers;
     }
 
+    function testSetSubmodule(
+        uint8 m,
+        uint8 n,
+        bytes32 seed
+    ) public {
+        vm.assume(0 < m && m <= n && n < 10);
+        deployOptimisticIsmWithWatchers(m, n, seed);
+
+        address newSubmodule = address(new TestIsm(""));
+        ism.setSubmodule(newSubmodule);
+        assertTrue(address(ism.submodule("")) == newSubmodule);
+    }
+
+    function testSetSubmodule_revertsWhenNonOwner(
+        uint8 m,
+        uint8 n,
+        bytes32 seed,
+        address nonOwner
+    ) public {
+        vm.assume(0 < m && m <= n && n < 10);
+        vm.assume(nonOwner != address(this));
+        deployOptimisticIsmWithWatchers(m, n, seed);
+
+        address newSubmodule = address(new TestIsm(""));
+        vm.prank(nonOwner);
+        vm.expectRevert(bytes("Ownable: caller is not the owner"));
+        ism.setSubmodule(newSubmodule);
+    }
+
+    function testSetSubnmodule_revertsWithZeroAddress(
+        uint8 m,
+        uint8 n,
+        bytes32 seed
+    ) public {
+        vm.assume(0 < m && m <= n && n < 10);
+        deployOptimisticIsmWithWatchers(m, n, seed);
+
+        vm.expectRevert(bytes("address(0)"));
+        ism.setSubmodule(address(0));
+    }
+
+    function testMarkFraudulent(
+        uint8 m,
+        uint8 n,
+        bytes32 seed
+    ) public {
+        vm.assume(0 < m && m <= n && n < 10);
+        address[] memory watchers = deployOptimisticIsmWithWatchers(m, n, seed);
+
+        // call markFraudulent for m watchers
+        for (uint256 i = 0; i < m; i++) {
+            vm.prank(watchers[i]);
+            ism.markFraudulent(submodule);
+        }
+        assertTrue(ism.fraudulentCounter(submodule) == m);
+    }
+
+    function testMarkFraudulent_revertsWhenCalledByNonWatchers(
+        uint8 m,
+        uint8 n,
+        bytes32 seed,
+        address nonWatcher
+    ) public {
+        vm.assume(0 < m && m <= n && n < 10);
+        deployOptimisticIsmWithWatchers(m, n, seed);
+        vm.assume(
+            ism.hasRole(ism.OPTIMISTIC_ISM_WATCHER_ROLE(), nonWatcher) == false
+        );
+
+        vm.prank(nonWatcher);
+        vm.expectRevert(bytes("!watcher"));
+        ism.markFraudulent(submodule);
+    }
+
     function testPreVerify(
         uint8 m,
         uint8 n,
@@ -50,7 +124,7 @@ contract OptimisticIsmTest is Test {
         assertTrue(ism.preVerify(metadata, ""));
     }
 
-    function testPreVerify_revertsWithWrongMetadata(
+    function testPreVerify_revertsWithDuplicateMessage(
         uint8 m,
         uint8 n,
         bytes32 seed
@@ -58,7 +132,21 @@ contract OptimisticIsmTest is Test {
         vm.assume(0 < m && m <= n && n < 10);
         deployOptimisticIsmWithWatchers(m, n, seed);
 
-        bytes memory wrongMetadata = abi.encode(keccak256(metadata));
+        assertTrue(ism.preVerify(metadata, ""));
+        vm.expectRevert(bytes("preVerified"));
+        ism.preVerify(metadata, "");
+    }
+
+    function testPreVerify_revertsWithWrongMetadata(
+        uint8 m,
+        uint8 n,
+        bytes32 seed,
+        bytes calldata wrongMetadata
+    ) public {
+        vm.assume(0 < m && m <= n && n < 10);
+        vm.assume(keccak256(wrongMetadata) != keccak256(metadata));
+        deployOptimisticIsmWithWatchers(m, n, seed);
+
         vm.expectRevert(bytes("!verify"));
         ism.preVerify(wrongMetadata, "");
     }
@@ -78,14 +166,16 @@ contract OptimisticIsmTest is Test {
     function testVerify_revertsBeforeFraudWindowCloses(
         uint8 m,
         uint8 n,
-        bytes32 seed
+        bytes32 seed,
+        uint256 waitDuration
     ) public {
         vm.assume(0 < m && m <= n && n < 10);
+        vm.assume(waitDuration <= FRAUD_WINDOW);
         deployOptimisticIsmWithWatchers(m, n, seed);
 
         ism.preVerify(metadata, "");
         // skip the fraud window timestamp
-        vm.warp(block.timestamp + FRAUD_WINDOW / 2);
+        vm.warp(block.timestamp + waitDuration);
         vm.expectRevert(bytes("!fraudWindow"));
         ism.verify(metadata, "");
     }
