@@ -20,8 +20,8 @@ use tracing::{debug, error, instrument, trace, warn};
 
 use crate::{
     mailbox::contract::DispatchedMessageAccount,
-    mailbox_message_storage_pda_seeds, mailbox_process_authority_pda_seeds,
-    mailbox_processed_message_pda_seeds,
+    mailbox_inbox_pda_seeds, mailbox_message_storage_pda_seeds, mailbox_outbox_pda_seeds,
+    mailbox_process_authority_pda_seeds, mailbox_processed_message_pda_seeds,
     solana::{
         account::Account,
         account_decoder::{UiAccountEncoding, UiDataSliceConfig},
@@ -80,14 +80,8 @@ impl SealevelMailbox {
         // TODO use helper functions from mailbox contract lib
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         let domain = locator.domain.id();
-        let inbox = Pubkey::find_program_address(
-            &[b"hyperlane", b"-", &domain.to_le_bytes(), b"-", b"inbox"],
-            &program_id,
-        );
-        let outbox = Pubkey::find_program_address(
-            &[b"hyperlane", b"-", &domain.to_le_bytes(), b"-", b"outbox"],
-            &program_id,
-        );
+        let inbox = Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), &program_id);
+        let outbox = Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), &program_id);
 
         debug!(
             "domain={}\nmailbox={}\ninbox=({}, {})\noutbox=({}, {})",
@@ -193,7 +187,7 @@ impl SealevelMailbox {
 
         let instruction = Instruction::new_with_borsh(
             self.program_id,
-            &contract::Instruction::InboxGetRecipientIsm(self.domain.id(), recipient_program_id),
+            &contract::Instruction::InboxGetRecipientIsm(recipient_program_id),
             accounts,
         );
         let ism = self
@@ -883,11 +877,11 @@ mod contract {
         Init(Init),
         InboxProcess(InboxProcess),
         InboxSetDefaultModule(InboxSetDefaultModule),
-        InboxGetRecipientIsm(u32, Pubkey),
+        InboxGetRecipientIsm(Pubkey),
         OutboxDispatch(OutboxDispatch),
-        OutboxGetCount(OutboxQuery),
-        OutboxGetLatestCheckpoint(OutboxQuery),
-        OutboxGetRoot(OutboxQuery),
+        OutboxGetCount,
+        OutboxGetLatestCheckpoint,
+        OutboxGetRoot,
     }
 
     impl Instruction {
@@ -912,15 +906,9 @@ mod contract {
     pub struct OutboxDispatch {
         // The sender may not necessarily be the transaction payer so specify separately.
         pub sender: Pubkey,
-        pub local_domain: u32,
         pub destination_domain: u32,
         pub recipient: H256,
         pub message_body: Vec<u8>,
-    }
-
-    #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
-    pub struct OutboxQuery {
-        pub local_domain: u32,
     }
 
     // Note: maximum transaction size is ~1kB, so will need to use accounts for large messages.
@@ -1053,6 +1041,30 @@ mod contract {
                 trailing_byte: u8::MAX,
             }
         }
+    }
+
+    /// PDA seeds for the Inbox account.
+    #[macro_export]
+    macro_rules! mailbox_inbox_pda_seeds {
+        () => {{
+            &[b"hyperlane", b"-", b"inbox"]
+        }};
+
+        ($bump_seed:expr) => {{
+            &[b"hyperlane", b"-", b"inbox", &[$bump_seed]]
+        }};
+    }
+
+    /// PDA seeds for the Outbox account.
+    #[macro_export]
+    macro_rules! mailbox_outbox_pda_seeds {
+        () => {{
+            &[b"hyperlane", b"-", b"outbox"]
+        }};
+
+        ($bump_seed:expr) => {{
+            &[b"hyperlane", b"-", b"outbox", &[$bump_seed]]
+        }};
     }
 
     /// Gets the PDA seeds for a message storage account that's
