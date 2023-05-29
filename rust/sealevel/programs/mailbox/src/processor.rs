@@ -34,7 +34,7 @@ use crate::{
     error::Error,
     instruction::{
         InboxProcess, InboxSetDefaultModule, Init, Instruction as MailboxIxn, OutboxDispatch,
-        OutboxQuery, MAX_MESSAGE_BODY_BYTES, VERSION,
+        MAX_MESSAGE_BODY_BYTES, VERSION,
     },
     mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds,
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
@@ -53,18 +53,16 @@ pub fn process_instruction(
         MailboxIxn::Init(init) => initialize(program_id, accounts, init),
         MailboxIxn::InboxProcess(process) => inbox_process(program_id, accounts, process),
         MailboxIxn::InboxSetDefaultModule(ism) => inbox_set_default_ism(program_id, accounts, ism),
-        MailboxIxn::InboxGetRecipientIsm(local_domain, recipient) => {
-            inbox_get_recipient_ism(program_id, accounts, local_domain, recipient)
+        MailboxIxn::InboxGetRecipientIsm(recipient) => {
+            inbox_get_recipient_ism(program_id, accounts, recipient)
         }
         MailboxIxn::OutboxDispatch(dispatch) => outbox_dispatch(program_id, accounts, dispatch),
-        MailboxIxn::OutboxGetCount(query) => outbox_get_count(program_id, accounts, query),
-        MailboxIxn::OutboxGetLatestCheckpoint(query) => {
-            outbox_get_latest_checkpoint(program_id, accounts, query)
-        }
-        MailboxIxn::OutboxGetRoot(query) => outbox_get_root(program_id, accounts, query),
-        MailboxIxn::GetOwner(query) => get_owner(program_id, accounts, query),
-        MailboxIxn::TransferOwnership(query, new_owner) => {
-            transfer_ownership(program_id, accounts, query, new_owner)
+        MailboxIxn::OutboxGetCount => outbox_get_count(program_id, accounts),
+        MailboxIxn::OutboxGetLatestCheckpoint => outbox_get_latest_checkpoint(program_id, accounts),
+        MailboxIxn::OutboxGetRoot => outbox_get_root(program_id, accounts),
+        MailboxIxn::GetOwner => get_owner(program_id, accounts),
+        MailboxIxn::TransferOwnership(new_owner) => {
+            transfer_ownership(program_id, accounts, new_owner)
         }
     }
     .map_err(|err| {
@@ -100,7 +98,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
     // Account 2: The inbox PDA account.
     let inbox_account = next_account_info(accounts_iter)?;
     let (inbox_key, inbox_bump) =
-        Pubkey::find_program_address(mailbox_inbox_pda_seeds!(init.local_domain), program_id);
+        Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), program_id);
     if &inbox_key != inbox_account.key {
         return Err(ProgramError::InvalidArgument);
     }
@@ -113,13 +111,13 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
             program_id,
         ),
         &[payer_account.clone(), inbox_account.clone()],
-        &[mailbox_inbox_pda_seeds!(init.local_domain, inbox_bump)],
+        &[mailbox_inbox_pda_seeds!(inbox_bump)],
     )?;
 
     // Account 3: The outbox PDA account.
     let outbox_account = next_account_info(accounts_iter)?;
     let (outbox_key, outbox_bump) =
-        Pubkey::find_program_address(mailbox_outbox_pda_seeds!(init.local_domain), program_id);
+        Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), program_id);
     if &outbox_key != outbox_account.key {
         return Err(ProgramError::InvalidArgument);
     }
@@ -132,7 +130,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
             program_id,
         ),
         &[payer_account.clone(), outbox_account.clone()],
-        &[mailbox_outbox_pda_seeds!(init.local_domain, outbox_bump)],
+        &[mailbox_outbox_pda_seeds!(outbox_bump)],
     )?;
 
     let inbox = Inbox {
@@ -181,7 +179,6 @@ fn inbox_process(
     if message.version != VERSION {
         return Err(ProgramError::from(Error::UnsupportedMessageVersion));
     }
-    let local_domain = message.destination;
     let recipient_program_id = Pubkey::new_from_array(message.recipient.0);
 
     // Account 0: Payer account.
@@ -200,7 +197,7 @@ fn inbox_process(
     let inbox_account = next_account_info(accounts_iter)?;
     let mut inbox = InboxAccount::fetch(&mut &inbox_account.data.borrow_mut()[..])?.into_inner();
     let expected_inbox_key = Pubkey::create_program_address(
-        mailbox_inbox_pda_seeds!(local_domain, inbox.inbox_bump_seed),
+        mailbox_inbox_pda_seeds!(inbox.inbox_bump_seed),
         program_id,
     )?;
     if inbox_account.key != &expected_inbox_key {
@@ -208,6 +205,11 @@ fn inbox_process(
     }
     if inbox_account.owner != program_id {
         return Err(ProgramError::IncorrectProgramId);
+    }
+
+    // Verify the message's destination matches the inbox's local domain.
+    if inbox.local_domain != message.destination {
+        return Err(ProgramError::InvalidArgument);
     }
 
     // Account 3: Process authority account that is specific to the
@@ -407,7 +409,6 @@ fn inbox_process(
 fn inbox_get_recipient_ism(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
-    local_domain: u32,
     recipient: Pubkey,
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
@@ -416,7 +417,7 @@ fn inbox_get_recipient_ism(
     let inbox_account = next_account_info(accounts_iter)?;
     let inbox = InboxAccount::fetch(&mut &inbox_account.data.borrow()[..])?.into_inner();
     let expected_inbox_key = Pubkey::create_program_address(
-        mailbox_inbox_pda_seeds!(local_domain, inbox.inbox_bump_seed),
+        mailbox_inbox_pda_seeds!(inbox.inbox_bump_seed),
         program_id,
     )?;
     if inbox_account.key != &expected_inbox_key {
@@ -510,7 +511,7 @@ fn inbox_set_default_ism(
     let inbox_account = next_account_info(accounts_iter)?;
     let mut inbox = InboxAccount::fetch(&mut &inbox_account.data.borrow_mut()[..])?.into_inner();
     let expected_inbox_key = Pubkey::create_program_address(
-        mailbox_inbox_pda_seeds!(ism.local_domain, inbox.inbox_bump_seed),
+        mailbox_inbox_pda_seeds!(inbox.inbox_bump_seed),
         program_id,
     )?;
     if inbox_account.key != &expected_inbox_key {
@@ -524,7 +525,7 @@ fn inbox_set_default_ism(
     let outbox_account = next_account_info(accounts_iter)?;
     let outbox = OutboxAccount::fetch(&mut &outbox_account.data.borrow_mut()[..])?.into_inner();
     let expected_outbox_key = Pubkey::create_program_address(
-        mailbox_outbox_pda_seeds!(ism.local_domain, outbox.outbox_bump_seed),
+        mailbox_outbox_pda_seeds!(outbox.outbox_bump_seed),
         program_id,
     )?;
     if outbox_account.key != &expected_outbox_key {
@@ -578,7 +579,7 @@ fn outbox_dispatch(
     let outbox_account = next_account_info(accounts_iter)?;
     let mut outbox = OutboxAccount::fetch(&mut &outbox_account.data.borrow_mut()[..])?.into_inner();
     let expected_outbox_key = Pubkey::create_program_address(
-        mailbox_outbox_pda_seeds!(dispatch.local_domain, outbox.outbox_bump_seed),
+        mailbox_outbox_pda_seeds!(outbox.outbox_bump_seed),
         program_id,
     )?;
     if outbox_account.key != &expected_outbox_key || outbox_account.owner != program_id {
@@ -669,7 +670,7 @@ fn outbox_dispatch(
     let message = HyperlaneMessage {
         version: VERSION,
         nonce: count,
-        origin: dispatch.local_domain,
+        origin: outbox.local_domain,
         sender: H256(dispatch.sender.to_bytes()),
         destination: dispatch.destination_domain,
         recipient: dispatch.recipient,
@@ -722,17 +723,13 @@ fn outbox_dispatch(
     Ok(())
 }
 
-fn outbox_get_count(
-    program_id: &Pubkey,
-    accounts: &[AccountInfo],
-    query: OutboxQuery,
-) -> ProgramResult {
+fn outbox_get_count(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
     let outbox_account = next_account_info(accounts_iter)?;
     let outbox = OutboxAccount::fetch(&mut &outbox_account.data.borrow_mut()[..])?.into_inner();
     let expected_outbox_key = Pubkey::create_program_address(
-        mailbox_outbox_pda_seeds!(query.local_domain, outbox.outbox_bump_seed),
+        mailbox_outbox_pda_seeds!(outbox.outbox_bump_seed),
         program_id,
     )?;
     if outbox_account.key != &expected_outbox_key {
@@ -755,17 +752,13 @@ fn outbox_get_count(
     Ok(())
 }
 
-fn outbox_get_latest_checkpoint(
-    program_id: &Pubkey,
-    accounts: &[AccountInfo],
-    query: OutboxQuery,
-) -> ProgramResult {
+fn outbox_get_latest_checkpoint(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
     let outbox_account = next_account_info(accounts_iter)?;
     let outbox = OutboxAccount::fetch(&mut &outbox_account.data.borrow_mut()[..])?.into_inner();
     let expected_outbox_key = Pubkey::create_program_address(
-        mailbox_outbox_pda_seeds!(query.local_domain, outbox.outbox_bump_seed),
+        mailbox_outbox_pda_seeds!(outbox.outbox_bump_seed),
         program_id,
     )?;
     if outbox_account.key != &expected_outbox_key {
@@ -793,17 +786,13 @@ fn outbox_get_latest_checkpoint(
     Ok(())
 }
 
-fn outbox_get_root(
-    program_id: &Pubkey,
-    accounts: &[AccountInfo],
-    query: OutboxQuery,
-) -> ProgramResult {
+fn outbox_get_root(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
     let outbox_account = next_account_info(accounts_iter)?;
     let outbox = OutboxAccount::fetch(&mut &outbox_account.data.borrow_mut()[..])?.into_inner();
     let expected_outbox_key = Pubkey::create_program_address(
-        mailbox_outbox_pda_seeds!(query.local_domain, outbox.outbox_bump_seed),
+        mailbox_outbox_pda_seeds!(outbox.outbox_bump_seed),
         program_id,
     )?;
     if outbox_account.key != &expected_outbox_key {
@@ -826,14 +815,14 @@ fn outbox_get_root(
 ///
 /// Accounts:
 /// 0. `[]` The Outbox PDA account.
-fn get_owner(program_id: &Pubkey, accounts: &[AccountInfo], query: OutboxQuery) -> ProgramResult {
+fn get_owner(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
     // Account 0: Outbox PDA.
     let outbox_account = next_account_info(accounts_iter)?;
     let outbox = OutboxAccount::fetch(&mut &outbox_account.data.borrow_mut()[..])?.into_inner();
     let expected_outbox_key = Pubkey::create_program_address(
-        mailbox_outbox_pda_seeds!(query.local_domain, outbox.outbox_bump_seed),
+        mailbox_outbox_pda_seeds!(outbox.outbox_bump_seed),
         program_id,
     )?;
     if outbox_account.key != &expected_outbox_key {
@@ -860,7 +849,6 @@ fn get_owner(program_id: &Pubkey, accounts: &[AccountInfo], query: OutboxQuery) 
 fn transfer_ownership(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
-    query: OutboxQuery,
     new_owner: Option<Pubkey>,
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
@@ -869,7 +857,7 @@ fn transfer_ownership(
     let outbox_account = next_account_info(accounts_iter)?;
     let mut outbox = OutboxAccount::fetch(&mut &outbox_account.data.borrow_mut()[..])?.into_inner();
     let expected_outbox_key = Pubkey::create_program_address(
-        mailbox_outbox_pda_seeds!(query.local_domain, outbox.outbox_bump_seed),
+        mailbox_outbox_pda_seeds!(outbox.outbox_bump_seed),
         program_id,
     )?;
     if outbox_account.key != &expected_outbox_key {
@@ -977,10 +965,8 @@ mod test {
             Epoch::default(),
         );
 
-        let (inbox_account_key, inbox_bump_seed) = Pubkey::find_program_address(
-            mailbox_inbox_pda_seeds!(local_domain),
-            &mailbox_program_id,
-        );
+        let (inbox_account_key, inbox_bump_seed) =
+            Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), &mailbox_program_id);
         let mut inbox_account_lamports = 0;
         let mut inbox_account_data = vec![0_u8; 2048];
         let inbox_account = AccountInfo::new(
@@ -1160,10 +1146,8 @@ mod test {
         let local_domain = u32::MAX;
         let mailbox_program_id = Pubkey::new_unique();
 
-        let (outbox_account_key, outbox_bump_seed) = Pubkey::find_program_address(
-            mailbox_outbox_pda_seeds!(local_domain),
-            &mailbox_program_id,
-        );
+        let (outbox_account_key, outbox_bump_seed) =
+            Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), &mailbox_program_id);
         let mut outbox_account_lamports = 0;
         let mut outbox_account_data = vec![0_u8; 2048];
         let outbox_account = AccountInfo::new(
