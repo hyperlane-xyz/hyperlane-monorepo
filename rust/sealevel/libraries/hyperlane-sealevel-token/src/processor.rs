@@ -188,7 +188,6 @@ where
         let token: HyperlaneToken<T> = HyperlaneToken {
             bump: token_bump,
             mailbox: init.mailbox,
-            mailbox_local_domain: init.mailbox_local_domain,
             dispatch_authority_bump,
             plugin_data,
         };
@@ -257,10 +256,8 @@ where
         // TODO should I be using find_program_address...?
         // TODO why not just get it from the outbox account data?
         let mailbox_outbox_account = next_account_info(accounts_iter)?;
-        let (mailbox_outbox, _mailbox_outbox_bump) = Pubkey::find_program_address(
-            mailbox_outbox_pda_seeds!(token.mailbox_local_domain),
-            &token.mailbox,
-        );
+        let (mailbox_outbox, _mailbox_outbox_bump) =
+            Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), &token.mailbox);
         if mailbox_outbox_account.key != &mailbox_outbox {
             return Err(ProgramError::InvalidArgument);
         }
@@ -300,7 +297,6 @@ where
             TokenMessage::new(xfer.recipient, xfer.amount_or_id, vec![]).to_vec();
         let mailbox_ixn = MailboxIxn::OutboxDispatch(MailboxOutboxDispatch {
             sender: *program_id,
-            local_domain: token.mailbox_local_domain,
             destination_domain: xfer.destination_domain,
             recipient: xfer.destination_program_id,
             message_body: token_xfer_message,

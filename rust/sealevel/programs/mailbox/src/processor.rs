@@ -1181,7 +1181,6 @@ mod test {
         };
         let dispatch = OutboxDispatch {
             sender: sender.clone(),
-            local_domain: hyperlane_message.origin,
             destination_domain: hyperlane_message.destination,
             recipient: hyperlane_message.recipient,
             message_body: hyperlane_message.body.clone(),

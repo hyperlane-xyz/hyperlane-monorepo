@@ -76,9 +76,9 @@ async fn initialize_mailbox(
     local_domain: u32,
 ) -> MailboxAccounts {
     let (inbox_account, inbox_bump) =
-        Pubkey::find_program_address(mailbox_inbox_pda_seeds!(local_domain), mailbox_program_id);
+        Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), mailbox_program_id);
     let (outbox_account, outbox_bump) =
-        Pubkey::find_program_address(mailbox_outbox_pda_seeds!(local_domain), mailbox_program_id);
+        Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), mailbox_program_id);
 
     let ixn = MailboxInstruction::Init(InitMailbox {
         local_domain,
@@ -170,7 +170,6 @@ async fn test_initialize() {
                 program_id,
                 &HyperlaneTokenInstruction::Init(Init {
                     mailbox: hyperlane_sealevel_mailbox::id(),
-                    mailbox_local_domain: local_domain,
                 })
                 .into_instruction_data()
                 .unwrap(),
