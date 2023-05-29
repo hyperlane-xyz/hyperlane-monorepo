@@ -15,13 +15,13 @@ pub enum Instruction {
     Init(Init),
     InboxProcess(InboxProcess),
     InboxSetDefaultModule(InboxSetDefaultModule),
-    InboxGetRecipientIsm(u32, Pubkey),
+    InboxGetRecipientIsm(Pubkey),
     OutboxDispatch(OutboxDispatch),
-    OutboxGetCount(OutboxQuery),
-    OutboxGetLatestCheckpoint(OutboxQuery),
-    OutboxGetRoot(OutboxQuery),
-    GetOwner(OutboxQuery),
-    TransferOwnership(OutboxQuery, Option<Pubkey>),
+    OutboxGetCount,
+    OutboxGetLatestCheckpoint,
+    OutboxGetRoot,
+    GetOwner,
+    TransferOwnership(Option<Pubkey>),
 }
 
 impl Instruction {
@@ -46,15 +46,9 @@ pub struct Init {
 pub struct OutboxDispatch {
     // The sender may not necessarily be the transaction payer so specify separately.
     pub sender: Pubkey,
-    pub local_domain: u32,
     pub destination_domain: u32,
     pub recipient: H256,
     pub message_body: Vec<u8>,
-}
-
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
-pub struct OutboxQuery {
-    pub local_domain: u32,
 }
 
 // Note: maximum transaction size is ~1kB, so will need to use accounts for large messages.
@@ -66,7 +60,6 @@ pub struct InboxProcess {
 
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub struct InboxSetDefaultModule {
-    pub local_domain: u32,
     pub program_id: Pubkey,
     pub accounts: Vec<Pubkey>,
 }

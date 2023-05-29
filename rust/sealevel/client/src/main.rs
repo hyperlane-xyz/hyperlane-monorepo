@@ -98,14 +98,10 @@ struct Init {
 struct Query {
     #[arg(long, short, default_value_t = MAILBOX_PROG_ID)]
     program_id: Pubkey,
-    #[arg(long, short, default_value_t = ECLIPSE_DOMAIN)]
-    local_domain: u32,
 }
 
 #[derive(Args)]
 struct Outbox {
-    #[arg(long, short, default_value_t = ECLIPSE_DOMAIN)]
-    local_domain: u32,
     #[arg(long, short, default_value_t = ECLIPSE_DOMAIN)]
     destination: u32,
     #[arg(long, short, default_value_t = RECIPIENT_ECHO_PROG_ID)]
@@ -195,8 +191,6 @@ struct TokenInit {
     program_id: Pubkey,
     #[arg(long, short, default_value_t = MAILBOX_PROG_ID)]
     mailbox: Pubkey,
-    #[arg(long, short = 'd', default_value_t = ECLIPSE_DOMAIN)]
-    mailbox_local_domain: u32,
     #[arg(value_enum)]
     token_type: TokenType,
 }
@@ -215,8 +209,6 @@ struct TokenTransferRemote {
     program_id: Pubkey,
     #[arg(long, short, default_value_t = MAILBOX_PROG_ID)]
     mailbox: Pubkey,
-    #[arg(long, short = 'd', default_value_t = ECLIPSE_DOMAIN)]
-    mailbox_local_domain: u32,
     // Note this is the keypair for normal account not the derived associated token account or delegate.
     sender: String,
     amount: u64,
@@ -280,14 +272,10 @@ fn main() {
 fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
     match cmd.cmd {
         MailboxSubCmd::Init(init) => {
-            let (inbox_account, inbox_bump) = Pubkey::find_program_address(
-                mailbox_inbox_pda_seeds!(init.local_domain),
-                &init.program_id,
-            );
-            let (outbox_account, outbox_bump) = Pubkey::find_program_address(
-                mailbox_outbox_pda_seeds!(init.local_domain),
-                &init.program_id,
-            );
+            let (inbox_account, inbox_bump) =
+                Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), &init.program_id);
+            let (outbox_account, outbox_bump) =
+                Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), &init.program_id);
 
             let ixn = MailboxInstruction::Init(InitMailbox {
                 local_domain: init.local_domain,
@@ -322,20 +310,15 @@ fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
             println!("outbox=({}, {})", outbox_account, outbox_bump);
         }
         MailboxSubCmd::Query(query) => {
-            let (inbox_account, inbox_bump) = Pubkey::find_program_address(
-                mailbox_inbox_pda_seeds!(query.local_domain),
-                &query.program_id,
-            );
-            let (outbox_account, outbox_bump) = Pubkey::find_program_address(
-                mailbox_outbox_pda_seeds!(query.local_domain),
-                &query.program_id,
-            );
+            let (inbox_account, inbox_bump) =
+                Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), &query.program_id);
+            let (outbox_account, outbox_bump) =
+                Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), &query.program_id);
 
             let accounts = ctx
                 .client
                 .get_multiple_accounts(&[inbox_account, outbox_account])
                 .unwrap();
-            println!("domain={}", query.local_domain);
             println!("mailbox={}", query.program_id);
             println!("--------------------------------");
             println!("Inbox: {}, bump={}", inbox_account, inbox_bump);
@@ -361,13 +344,10 @@ fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
             }
         }
         MailboxSubCmd::Send(outbox) => {
-            let (outbox_account, _outbox_bump) = Pubkey::find_program_address(
-                mailbox_outbox_pda_seeds!(outbox.local_domain),
-                &outbox.program_id,
-            );
+            let (outbox_account, _outbox_bump) =
+                Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), &outbox.program_id);
             let ixn = MailboxInstruction::OutboxDispatch(OutboxDispatch {
                 sender: ctx.payer.pubkey(),
-                local_domain: outbox.local_domain,
                 destination_domain: outbox.destination,
                 recipient: H256(outbox.recipient.to_bytes()),
                 message_body: outbox.message.into(),
@@ -399,10 +379,8 @@ fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
         MailboxSubCmd::Receive(inbox) => {
             // TODO this probably needs some love
 
-            let (inbox_account, _inbox_bump) = Pubkey::find_program_address(
-                mailbox_inbox_pda_seeds!(inbox.local_domain),
-                &inbox.program_id,
-            );
+            let (inbox_account, _inbox_bump) =
+                Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), &inbox.program_id);
             let hyperlane_message = HyperlaneMessage {
                 version: VERSION,
                 nonce: inbox.nonce,
@@ -490,7 +468,6 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
 
             let ixn = HtInstruction::Init(HtInit {
                 mailbox: init.mailbox,
-                mailbox_local_domain: init.mailbox_local_domain,
             });
 
             // Accounts:
@@ -727,10 +704,8 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                     &xfer.mailbox,
                 );
 
-            let (mailbox_outbox_account, _mailbox_outbox_bump) = Pubkey::find_program_address(
-                mailbox_outbox_pda_seeds!(xfer.mailbox_local_domain),
-                &xfer.mailbox,
-            );
+            let (mailbox_outbox_account, _mailbox_outbox_bump) =
+                Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), &xfer.mailbox);
 
             let ixn = HtInstruction::TransferRemote(HtTransferRemote {
                 destination_domain: xfer.destination_domain,

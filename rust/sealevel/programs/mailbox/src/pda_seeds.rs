@@ -3,50 +3,24 @@
 /// PDA seeds for the Inbox account.
 #[macro_export]
 macro_rules! mailbox_inbox_pda_seeds {
-    ($local_domain:expr) => {{
-        &[
-            b"hyperlane",
-            b"-",
-            &$local_domain.to_le_bytes(),
-            b"-",
-            b"inbox",
-        ]
+    () => {{
+        &[b"hyperlane", b"-", b"inbox"]
     }};
 
-    ($local_domain:expr, $bump_seed:expr) => {{
-        &[
-            b"hyperlane",
-            b"-",
-            &$local_domain.to_le_bytes(),
-            b"-",
-            b"inbox",
-            &[$bump_seed],
-        ]
+    ($bump_seed:expr) => {{
+        &[b"hyperlane", b"-", b"inbox", &[$bump_seed]]
     }};
 }
 
 /// PDA seeds for the Outbox account.
 #[macro_export]
 macro_rules! mailbox_outbox_pda_seeds {
-    ($local_domain:expr) => {{
-        &[
-            b"hyperlane",
-            b"-",
-            &$local_domain.to_le_bytes(),
-            b"-",
-            b"outbox",
-        ]
+    () => {{
+        &[b"hyperlane", b"-", b"outbox"]
     }};
 
-    ($local_domain:expr, $bump_seed:expr) => {{
-        &[
-            b"hyperlane",
-            b"-",
-            &$local_domain.to_le_bytes(),
-            b"-",
-            b"outbox",
-            &[$bump_seed],
-        ]
+    ($bump_seed:expr) => {{
+        &[b"hyperlane", b"-", b"outbox", &[$bump_seed]]
     }};
 }
 
