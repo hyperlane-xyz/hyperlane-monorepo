@@ -4,9 +4,11 @@ use access_control::AccessControl;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H256;
 use hyperlane_sealevel_connection_client::{
-    HyperlaneConnectionClient, HyperlaneConnectionClientRecipient, HyperlaneRouter,
-    HyperlaneRouterAccessControl, HyperlaneRouterDispatch, HyperlaneRouterMessageRecipient,
-    RemoteRouterConfig,
+    router::{
+        HyperlaneRouter, HyperlaneRouterAccessControl, HyperlaneRouterDispatch,
+        HyperlaneRouterMessageRecipient, RemoteRouterConfig,
+    },
+    HyperlaneConnectionClient, HyperlaneConnectionClientRecipient,
 };
 use hyperlane_sealevel_mailbox::accounts::AccountData;
 use solana_program::{program_error::ProgramError, pubkey::Pubkey};
@@ -29,7 +31,7 @@ pub struct HyperlaneToken<T> {
     /// Access control owner.
     pub owner: Option<Pubkey>,
     /// Remote routers.
-    pub remote_routers: HashMap<u32, Option<H256>>,
+    pub remote_routers: HashMap<u32, H256>,
     /// Plugin-specific data.
     pub plugin_data: T,
 }

@@ -3,7 +3,7 @@
 use access_control::AccessControl;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{Decode, Encode as _, H256};
-use hyperlane_sealevel_connection_client::{
+use hyperlane_sealevel_connection_client::router::{
     HyperlaneRouterAccessControl, HyperlaneRouterDispatch, HyperlaneRouterMessageRecipient,
     RemoteRouterConfig,
 };
