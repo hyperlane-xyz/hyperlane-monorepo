@@ -4,7 +4,7 @@
 #![deny(unsafe_code)]
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
-use hyperlane_sealevel_connection_client::RemoteRouterConfig;
+use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_ism_rubber_stamp::ID as DEFAULT_ISM_PROG_ID;
 use hyperlane_sealevel_mailbox::{
     accounts::{InboxAccount, OutboxAccount},
