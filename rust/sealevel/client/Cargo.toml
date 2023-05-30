@@ -12,7 +12,7 @@ hyperlane-sealevel-recipient-echo = { path = "../programs/recipient/echo" }
 hyperlane-sealevel-token = { path = "../programs/hyperlane-sealevel-token" }
 hyperlane-sealevel-token-native = { path = "../programs/hyperlane-sealevel-token-native" }
 hyperlane-sealevel-token-lib = { path = "../libraries/hyperlane-sealevel-token" }
-hyperlane-sealevel-router = { path = "../libraries/router" }
+hyperlane-sealevel-connection-client = { path = "../libraries/hyperlane-sealevel-connection-client" }
 lazy_static = "1.4"
 pretty_env_logger = "0.4"
 solana-client = "=1.14.13"

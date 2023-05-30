@@ -1,7 +1,7 @@
 //! TODO
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use hyperlane_sealevel_router::RemoteRouterConfig;
+use hyperlane_sealevel_connection_client::RemoteRouterConfig;
 use hyperlane_sealevel_token_lib::instruction::{Init, TransferRemote};
 use solana_program::{program_error::ProgramError, pubkey::Pubkey};
 

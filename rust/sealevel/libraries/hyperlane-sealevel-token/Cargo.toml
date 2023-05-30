@@ -12,7 +12,7 @@ bs58 = "=0.4.0" # FIXME remove
 hyperlane-core = { path = "../../hyperlane-core" }
 hyperlane-sealevel-mailbox = { path = "../../programs/mailbox", features = ["no-entrypoint"] }
 hyperlane-sealevel-message-recipient-interface = { path = "../message-recipient-interface" }
-hyperlane-sealevel-router = { path = "../router" }
+hyperlane-sealevel-connection-client = { path = "../hyperlane-sealevel-connection-client" }
 serializable-account-meta = { path = "../serializable-account-meta" }
 borsh = "0.9"
 num-derive = "0.3"

@@ -4,6 +4,7 @@
 #![deny(unsafe_code)]
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
+use hyperlane_sealevel_connection_client::RemoteRouterConfig;
 use hyperlane_sealevel_ism_rubber_stamp::ID as DEFAULT_ISM_PROG_ID;
 use hyperlane_sealevel_mailbox::{
     accounts::{InboxAccount, OutboxAccount},
@@ -17,7 +18,6 @@ use hyperlane_sealevel_mailbox::{
     mailbox_processed_message_pda_seeds, spl_noop, ID as MAILBOX_PROG_ID,
 };
 use hyperlane_sealevel_recipient_echo::ID as RECIPIENT_ECHO_PROG_ID;
-use hyperlane_sealevel_router::RemoteRouterConfig;
 use hyperlane_sealevel_token::{
     hyperlane_token_ata_payer_pda_seeds, hyperlane_token_mint_pda_seeds,
     instruction::Instruction as HtInstruction, plugin::SyntheticPlugin,

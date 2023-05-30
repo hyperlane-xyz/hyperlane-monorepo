@@ -1,8 +1,8 @@
 //! TODO
 
 use borsh::BorshSerialize;
+use hyperlane_sealevel_connection_client::RemoteRouterConfig;
 use hyperlane_sealevel_message_recipient_interface::MessageRecipientInstruction;
-use hyperlane_sealevel_router::RemoteRouterConfig;
 use hyperlane_sealevel_token_lib::{
     instruction::{Init, TransferFromRemote, TransferRemote},
     processor::HyperlaneSealevelToken,

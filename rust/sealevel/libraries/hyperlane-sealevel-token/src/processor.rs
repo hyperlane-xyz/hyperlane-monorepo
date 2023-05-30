@@ -3,13 +3,13 @@
 use access_control::AccessControl;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{Decode, Encode as _, H256};
+use hyperlane_sealevel_connection_client::{
+    HyperlaneRouterAccessControl, HyperlaneRouterDispatch, HyperlaneRouterMessageRecipient,
+    RemoteRouterConfig,
+};
 use hyperlane_sealevel_mailbox::{
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
     mailbox_process_authority_pda_seeds,
-};
-use hyperlane_sealevel_router::{
-    HyperlaneRouterAccessControl, HyperlaneRouterDispatch, HyperlaneRouterMessageRecipient,
-    RemoteRouterConfig,
 };
 use serializable_account_meta::SerializableAccountMeta;
 use solana_program::{

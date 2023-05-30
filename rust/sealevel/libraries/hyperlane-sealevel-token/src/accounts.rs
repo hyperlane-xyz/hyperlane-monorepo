@@ -3,12 +3,12 @@
 use access_control::AccessControl;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H256;
-use hyperlane_sealevel_mailbox::accounts::AccountData;
-use hyperlane_sealevel_router::{
+use hyperlane_sealevel_connection_client::{
     HyperlaneConnectionClient, HyperlaneConnectionClientRecipient, HyperlaneRouter,
     HyperlaneRouterAccessControl, HyperlaneRouterDispatch, HyperlaneRouterMessageRecipient,
     RemoteRouterConfig,
 };
+use hyperlane_sealevel_mailbox::accounts::AccountData;
 use solana_program::{program_error::ProgramError, pubkey::Pubkey};
 use std::{collections::HashMap, fmt::Debug};
 
