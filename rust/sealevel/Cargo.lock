@@ -1713,6 +1713,8 @@ dependencies = [
 name = "hyperlane-sealevel-router"
 version = "0.1.0"
 dependencies = [
+ "access-control",
+ "borsh",
  "hyperlane-core",
  "hyperlane-sealevel-mailbox",
  "solana-program",
@@ -1729,6 +1731,7 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
+ "hyperlane-sealevel-router",
  "hyperlane-sealevel-token-lib",
  "num-derive",
  "num-traits",
@@ -1776,6 +1779,7 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
+ "hyperlane-sealevel-router",
  "hyperlane-sealevel-token-lib",
  "num-derive",
  "num-traits",

@@ -1,12 +1,15 @@
 //! TODO
 
+use access_control::AccessControl;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{Decode, Encode as _, H256};
 use hyperlane_sealevel_mailbox::{
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
     mailbox_process_authority_pda_seeds,
 };
-use hyperlane_sealevel_router::HyperlaneRouterDispatch;
+use hyperlane_sealevel_router::{
+    HyperlaneRouterAccessControl, HyperlaneRouterDispatch, RemoteRouterConfig,
+};
 use serializable_account_meta::SerializableAccountMeta;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
@@ -476,5 +479,116 @@ where
         accounts.extend(transfer_out_account_metas);
 
         Ok(accounts)
+    }
+
+    /// Enrolls a remote router.
+    ///
+    /// Accounts:
+    /// 0. [writeable] The token PDA account.
+    /// 1. [signer] The owner.
+    pub fn enroll_remote_router(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+        config: RemoteRouterConfig,
+    ) -> ProgramResult {
+        let accounts_iter = &mut accounts.iter();
+
+        // Account 0: Token account
+        let token_account = next_account_info(accounts_iter)?;
+        let mut token =
+            HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow_mut()[..])?.into_inner();
+        let token_seeds: &[&[u8]] = hyperlane_token_pda_seeds!(token.bump);
+        let expected_token_key = Pubkey::create_program_address(token_seeds, program_id)?;
+        if token_account.key != &expected_token_key {
+            return Err(ProgramError::InvalidArgument);
+        }
+        if token_account.owner != program_id {
+            return Err(ProgramError::IncorrectProgramId);
+        }
+
+        // Account 1: Owner
+        let owner_account = next_account_info(accounts_iter)?;
+
+        // This errors if owner_account is not really the owner.
+        token.enroll_remote_router_only_owner(owner_account, config)?;
+
+        // Store the updated token account.
+        HyperlaneTokenAccount::<T>::from(token).store(token_account, true)?;
+
+        Ok(())
+    }
+
+    /// Enrolls remote routers.
+    ///
+    /// Accounts:
+    /// 0. [writeable] The token PDA account.
+    /// 1. [signer] The owner.
+    pub fn enroll_remote_routers(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+        configs: Vec<RemoteRouterConfig>,
+    ) -> ProgramResult {
+        let accounts_iter = &mut accounts.iter();
+
+        // Account 0: Token account
+        let token_account = next_account_info(accounts_iter)?;
+        let mut token =
+            HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow_mut()[..])?.into_inner();
+        let token_seeds: &[&[u8]] = hyperlane_token_pda_seeds!(token.bump);
+        let expected_token_key = Pubkey::create_program_address(token_seeds, program_id)?;
+        if token_account.key != &expected_token_key {
+            return Err(ProgramError::InvalidArgument);
+        }
+        if token_account.owner != program_id {
+            return Err(ProgramError::IncorrectProgramId);
+        }
+
+        // Account 1: Owner
+        let owner_account = next_account_info(accounts_iter)?;
+
+        // This errors if owner_account is not really the owner.
+        token.enroll_remote_routers_only_owner(owner_account, configs)?;
+
+        // Store the updated token account.
+        HyperlaneTokenAccount::<T>::from(token).store(token_account, true)?;
+
+        Ok(())
+    }
+
+    /// Transfers ownership.
+    ///
+    /// Accounts:
+    /// 0. [writeable] The token PDA account.
+    /// 1. [signer] The current owner.
+    pub fn transfer_ownership(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+        new_owner: Option<Pubkey>,
+    ) -> ProgramResult {
+        let accounts_iter = &mut accounts.iter();
+
+        // Account 0: Token account
+        let token_account = next_account_info(accounts_iter)?;
+        let mut token =
+            HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow_mut()[..])?.into_inner();
+        let token_seeds: &[&[u8]] = hyperlane_token_pda_seeds!(token.bump);
+        let expected_token_key = Pubkey::create_program_address(token_seeds, program_id)?;
+        if token_account.key != &expected_token_key {
+            return Err(ProgramError::InvalidArgument);
+        }
+        if token_account.owner != program_id {
+            return Err(ProgramError::IncorrectProgramId);
+        }
+
+        // Account 1: Owner
+        let owner_account = next_account_info(accounts_iter)?;
+
+        // This errors if owner_account is not really the owner.
+        token.transfer_ownership(owner_account, new_owner)?;
+
+        // Store the updated token account.
+        HyperlaneTokenAccount::<T>::from(token).store(token_account, true)?;
+
+        Ok(())
     }
 }

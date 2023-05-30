@@ -6,7 +6,8 @@ use hyperlane_core::H256;
 use hyperlane_sealevel_mailbox::accounts::AccountData;
 use hyperlane_sealevel_router::{
     HyperlaneConnectionClient, HyperlaneConnectionClientRecipient, HyperlaneRouter,
-    HyperlaneRouterDispatch, RemoteRouterConfig,
+    HyperlaneRouterAccessControl, HyperlaneRouterDispatch, HyperlaneRouterMessageRecipient,
+    RemoteRouterConfig,
 };
 use solana_program::{program_error::ProgramError, pubkey::Pubkey};
 use std::{collections::HashMap, fmt::Debug};
@@ -79,3 +80,7 @@ impl<T> HyperlaneRouter for HyperlaneToken<T> {
 }
 
 impl<T> HyperlaneRouterDispatch for HyperlaneToken<T> {}
+
+impl<T> HyperlaneRouterAccessControl for HyperlaneToken<T> {}
+
+impl<T> HyperlaneRouterMessageRecipient for HyperlaneToken<T> {}

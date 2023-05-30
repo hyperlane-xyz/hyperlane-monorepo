@@ -1,3 +1,5 @@
+use access_control::AccessControl;
+use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H256;
 use solana_program::{
     account_info::AccountInfo,
@@ -23,8 +25,22 @@ pub trait HyperlaneConnectionClient {
 
 pub trait HyperlaneConnectionClientRecipient {
     fn mailbox_process_authority(&self) -> &Pubkey;
+
+    fn ensure_mailbox_process_authority_signer(
+        &self,
+        maybe_authority: &AccountInfo,
+    ) -> Result<(), ProgramError> {
+        if self.mailbox_process_authority() != maybe_authority.key {
+            return Err(ProgramError::InvalidArgument);
+        }
+        if !maybe_authority.is_signer {
+            return Err(ProgramError::MissingRequiredSignature);
+        }
+        Ok(())
+    }
 }
 
+#[derive(Debug, Clone, PartialEq, BorshDeserialize, BorshSerialize)]
 pub struct RemoteRouterConfig {
     pub domain: u32,
     pub router: Option<H256>,
@@ -33,7 +49,7 @@ pub struct RemoteRouterConfig {
 pub trait HyperlaneRouter {
     fn router(&self, origin: u32) -> Option<&H256>;
 
-    fn only_remote_router(&self, origin: u32, maybe_router: H256) -> Result<(), ProgramError> {
+    fn only_remote_router(&self, origin: u32, maybe_router: &H256) -> Result<(), ProgramError> {
         if !self.is_remote_router(origin, maybe_router) {
             return Err(ProgramError::InvalidInstructionData);
         }
@@ -48,8 +64,30 @@ pub trait HyperlaneRouter {
         }
     }
 
-    fn is_remote_router(&self, origin: u32, maybe_router: H256) -> bool {
-        self.router(origin) == Some(&maybe_router)
+    fn is_remote_router(&self, origin: u32, maybe_router: &H256) -> bool {
+        self.router(origin) == Some(maybe_router)
+    }
+}
+
+pub trait HyperlaneRouterAccessControl: HyperlaneRouter + AccessControl {
+    fn enroll_remote_router_only_owner(
+        &mut self,
+        maybe_owner: &AccountInfo,
+        config: RemoteRouterConfig,
+    ) -> Result<(), ProgramError> {
+        self.ensure_owner_signer(maybe_owner)?;
+        self.enroll_remote_router(config);
+        Ok(())
+    }
+
+    fn enroll_remote_routers_only_owner(
+        &mut self,
+        maybe_owner: &AccountInfo,
+        configs: Vec<RemoteRouterConfig>,
+    ) -> Result<(), ProgramError> {
+        self.ensure_owner_signer(maybe_owner)?;
+        self.enroll_remote_routers(configs);
+        Ok(())
     }
 }
 
@@ -96,5 +134,26 @@ pub trait HyperlaneRouterDispatch: HyperlaneRouter + HyperlaneConnectionClient {
         };
         // Call the Mailbox program to dispatch the message.
         invoke_signed(&mailbox_ixn, account_infos, &[dispatch_authority_seeds])
+    }
+}
+
+pub trait HyperlaneRouterMessageRecipient:
+    HyperlaneRouter + HyperlaneConnectionClientRecipient
+{
+    /// Returns Err if `maybe_mailbox_process_authority` is not a signer or is not the
+    /// Mailbox's process authority for this recipient, or if the sender is not the
+    /// remote router for the provided origin.
+    fn ensure_valid_router_message(
+        &self,
+        maybe_mailbox_process_authority: &AccountInfo,
+        origin: u32,
+        sender: &H256,
+    ) -> Result<(), ProgramError> {
+        // First ensure that the Mailbox's process authority for this recipient
+        // is a signer.
+        self.ensure_mailbox_process_authority_signer(maybe_mailbox_process_authority)?;
+
+        // Now make sure the sender is really a remote router.
+        self.only_remote_router(origin, sender)
     }
 }
