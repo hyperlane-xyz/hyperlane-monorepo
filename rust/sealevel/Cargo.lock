@@ -1794,6 +1794,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-validator-announce"
+version = "0.1.0"
+dependencies = [
+ "borsh",
+ "hex",
+ "hyperlane-core",
+ "hyperlane-sealevel-mailbox",
+ "serializable-account-meta",
+ "solana-program",
+ "solana-program-test",
+ "solana-sdk",
+]
+
+[[package]]
 name = "iana-time-zone"
 version = "0.1.53"
 source = "registry+https://github.com/rust-lang/crates.io-index"

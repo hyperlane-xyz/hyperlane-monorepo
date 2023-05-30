@@ -8,6 +8,7 @@ members = [
     "programs/ism/multisig-ism-message-id",
     "programs/hyperlane-sealevel-token",
     "programs/hyperlane-sealevel-token-native",
+    "programs/validator-announce",
     "libraries/access-control",
     "libraries/interchain-security-module-interface",
     "libraries/message-recipient-interface",
