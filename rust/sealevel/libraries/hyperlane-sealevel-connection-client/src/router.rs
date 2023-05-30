@@ -25,9 +25,12 @@ pub struct RemoteRouterConfig {
     pub router: Option<H256>,
 }
 
+/// The Hyperlane router pattern.
 pub trait HyperlaneRouter {
+    /// Returns the router for the provided origin, or None if no router is enrolled.
     fn router(&self, origin: u32) -> Option<&H256>;
 
+    /// Returns Err if `maybe_router` is not the remote router for the provided origin.
     fn only_remote_router(&self, origin: u32, maybe_router: &H256) -> Result<(), ProgramError> {
         if !self.is_remote_router(origin, maybe_router) {
             return Err(ProgramError::InvalidInstructionData);
@@ -35,20 +38,26 @@ pub trait HyperlaneRouter {
         Ok(())
     }
 
+    /// Enrolls a remote router.
     fn enroll_remote_router(&mut self, config: RemoteRouterConfig);
 
+    /// Enrolls multiple remote routers.
     fn enroll_remote_routers(&mut self, configs: Vec<RemoteRouterConfig>) {
         for config in configs {
             self.enroll_remote_router(config);
         }
     }
 
+    /// Returns true if `maybe_router` is the remote router for the provided origin.
     fn is_remote_router(&self, origin: u32, maybe_router: &H256) -> bool {
         self.router(origin) == Some(maybe_router)
     }
 }
 
+/// The Hyperlane router pattern with setters restricted to the access control owner.
 pub trait HyperlaneRouterAccessControl: HyperlaneRouter + AccessControl {
+    /// Enrolls a remote router if the provided `maybe_owner` is a signer and is the access control owner.
+    /// Otherwise, returns an error.
     fn enroll_remote_router_only_owner(
         &mut self,
         maybe_owner: &AccountInfo,
@@ -59,6 +68,8 @@ pub trait HyperlaneRouterAccessControl: HyperlaneRouter + AccessControl {
         Ok(())
     }
 
+    /// Enrolls multiple remote routers if the provided `maybe_owner` is a signer and is the access control owner.
+    /// Otherwise, returns an error.
     fn enroll_remote_routers_only_owner(
         &mut self,
         maybe_owner: &AccountInfo,
@@ -70,7 +81,10 @@ pub trait HyperlaneRouterAccessControl: HyperlaneRouter + AccessControl {
     }
 }
 
+/// The Hyperlane router pattern with a helper function to dispatch messages
+/// to remote routers.
 pub trait HyperlaneRouterDispatch: HyperlaneRouter + HyperlaneConnectionClient {
+    /// Dispatches a message to the remote router for the provided destination domain.
     fn dispatch(
         &self,
         program_id: &Pubkey,
@@ -101,6 +115,8 @@ pub trait HyperlaneRouterDispatch: HyperlaneRouter + HyperlaneConnectionClient {
     }
 }
 
+/// The Hyperlane router pattern with a helper function to ensure messages
+/// come only via the Mailbox & from an enrolled remote router.
 pub trait HyperlaneRouterMessageRecipient:
     HyperlaneRouter + HyperlaneConnectionClientRecipient
 {

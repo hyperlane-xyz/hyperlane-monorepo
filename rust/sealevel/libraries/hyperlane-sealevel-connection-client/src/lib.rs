@@ -2,6 +2,7 @@ use solana_program::{account_info::AccountInfo, program_error::ProgramError, pub
 
 pub mod router;
 
+/// Getters for the HyperlaneConnectionClient.
 pub trait HyperlaneConnectionClient {
     fn mailbox(&self) -> &Pubkey;
 
@@ -10,6 +11,7 @@ pub trait HyperlaneConnectionClient {
     fn interchain_security_module(&self) -> Option<&Pubkey>;
 }
 
+/// A recipient of Hyperlane messages.
 pub trait HyperlaneConnectionClientRecipient {
     fn mailbox_process_authority(&self) -> &Pubkey;
 
