@@ -1731,6 +1731,7 @@ dependencies = [
  "bs58",
  "hyperlane-core",
  "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-ism-rubber-stamp",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
  "hyperlane-sealevel-token-lib",

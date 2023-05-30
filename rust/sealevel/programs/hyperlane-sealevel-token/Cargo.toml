@@ -53,6 +53,7 @@ branch = "trevor/steven/eclipse-1.14.13/with-tlv-lib"
 [dev-dependencies]
 solana-program-test = "=1.14.13"
 solana-sdk = "=1.14.13"
+hyperlane-sealevel-ism-rubber-stamp = { path = "../ism/rubber-stamp" }
 
 [lib]
 crate-type = ["cdylib", "lib"]
