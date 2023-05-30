@@ -8,7 +8,8 @@ use hyperlane_sealevel_mailbox::{
     mailbox_process_authority_pda_seeds,
 };
 use hyperlane_sealevel_router::{
-    HyperlaneRouterAccessControl, HyperlaneRouterDispatch, RemoteRouterConfig,
+    HyperlaneRouterAccessControl, HyperlaneRouterDispatch, HyperlaneRouterMessageRecipient,
+    RemoteRouterConfig,
 };
 use serializable_account_meta::SerializableAccountMeta;
 use solana_program::{
@@ -312,7 +313,7 @@ where
             TokenMessage::new(xfer.recipient, xfer.amount_or_id, vec![]).to_vec();
 
         // Dispatch the message.
-        (*token).dispatch(
+        token.dispatch(
             program_id,
             dispatch_authority_seeds,
             xfer.destination_domain,
@@ -377,18 +378,15 @@ where
         let accounts_iter = &mut accounts.iter();
 
         // Account 0: Mailbox authority
-        // This is verified further below once we have the Mailbox program ID.
+        // This is verified further below.
         let process_authority_account = next_account_info(accounts_iter)?;
-        // Commented out to make tests happy, make sure this comes back!
-        // if !process_authority_account.is_signer {
-        //     return Err(ProgramError::MissingRequiredSignature);
-        // }
 
         // Account 1: System program
         let system_program = next_account_info(accounts_iter)?;
         if system_program.key != &solana_program::system_program::id() {
             return Err(ProgramError::InvalidArgument);
         }
+
         // Account 2: SPL Noop program
         let spl_noop = next_account_info(accounts_iter)?;
         if spl_noop.key != &spl_noop::id() || !spl_noop.executable {
@@ -408,17 +406,17 @@ where
             return Err(ProgramError::IncorrectProgramId);
         }
 
-        // Now verify the authenticity of the process authority account.
-        if process_authority_account.key != &token.mailbox_process_authority {
-            return Err(ProgramError::InvalidArgument);
-        }
-
         // Account 4: Recipient wallet
         let recipient_wallet = next_account_info(accounts_iter)?;
         let expected_recipient = Pubkey::new_from_array(message.recipient().into());
         if recipient_wallet.key != &expected_recipient {
             return Err(ProgramError::InvalidArgument);
         }
+
+        // Verify the authenticity of the message.
+        // This ensures the `process_authority_account` is valid and a signer,
+        // and that the sender is the remote router for the origin.
+        token.ensure_valid_router_message(process_authority_account, xfer.origin, &xfer.sender)?;
 
         T::transfer_out(
             program_id,

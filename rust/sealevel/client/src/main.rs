@@ -17,6 +17,7 @@ use hyperlane_sealevel_mailbox::{
     mailbox_processed_message_pda_seeds, spl_noop, ID as MAILBOX_PROG_ID,
 };
 use hyperlane_sealevel_recipient_echo::ID as RECIPIENT_ECHO_PROG_ID;
+use hyperlane_sealevel_router::RemoteRouterConfig;
 use hyperlane_sealevel_token::{
     hyperlane_token_ata_payer_pda_seeds, hyperlane_token_mint_pda_seeds,
     instruction::Instruction as HtInstruction, plugin::SyntheticPlugin,
@@ -177,6 +178,7 @@ enum TokenSubCmd {
     Init(TokenInit),
     Query(TokenQuery),
     TransferRemote(TokenTransferRemote),
+    EnrollRemoteRouter(TokenEnrollRemoteRouter),
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -219,6 +221,14 @@ struct TokenTransferRemote {
     recipient: Pubkey,
     #[arg(value_enum)]
     token_type: TokenType,
+}
+
+#[derive(Args)]
+struct TokenEnrollRemoteRouter {
+    #[arg(long, short, default_value_t = HYPERLANE_TOKEN_PROG_ID)]
+    program_id: Pubkey,
+    domain: u32,
+    router: H256,
 }
 
 struct Context {
@@ -788,6 +798,48 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 &ctx.instructions,
                 Some(&ctx.payer.pubkey()),
                 &[&ctx.payer, &sender, &unique_message_account_keypair],
+                recent_blockhash,
+            );
+
+            let signature = ctx
+                .client
+                .send_transaction(&txn)
+                .map_err(|err| {
+                    eprintln!("{:#?}", err);
+                    err
+                })
+                .unwrap();
+            ctx.client
+                .confirm_transaction_with_spinner(&signature, &recent_blockhash, ctx.commitment)
+                .map_err(|err| {
+                    eprintln!("{:#?}", err);
+                    err
+                })
+                .unwrap();
+        }
+        TokenSubCmd::EnrollRemoteRouter(enroll) => {
+            let enroll_instruction = HtInstruction::EnrollRemoteRouter(RemoteRouterConfig {
+                domain: enroll.domain,
+                router: enroll.router.into(),
+            });
+            let (token_account, _token_bump) =
+                Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &enroll.program_id);
+
+            let instruction = Instruction {
+                program_id: enroll.program_id,
+                data: enroll_instruction.into_instruction_data().unwrap(),
+                accounts: vec![
+                    AccountMeta::new(token_account, false),
+                    AccountMeta::new_readonly(ctx.payer.pubkey(), true),
+                ],
+            };
+            ctx.instructions.push(instruction);
+
+            let recent_blockhash = ctx.client.get_latest_blockhash().unwrap();
+            let txn = Transaction::new_signed_with_payer(
+                &ctx.instructions,
+                Some(&ctx.payer.pubkey()),
+                &[&ctx.payer],
                 recent_blockhash,
             );
 

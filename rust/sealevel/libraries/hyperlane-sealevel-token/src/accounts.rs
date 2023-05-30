@@ -67,8 +67,6 @@ impl<T> HyperlaneConnectionClientRecipient for HyperlaneToken<T> {
     }
 }
 
-// Satisfy the trait for HyperlaneToken<T> so that we get the
-// HyperlaneRouterDispatch trait for free.
 impl<T> HyperlaneRouter for HyperlaneToken<T> {
     fn router(&self, origin: u32) -> Option<&H256> {
         self.remote_routers.router(origin)
