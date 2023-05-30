@@ -12,6 +12,7 @@ hyperlane-core = { path = "../../hyperlane-core" }
 hyperlane-sealevel-token-lib = { path = "../../libraries/hyperlane-sealevel-token" }
 hyperlane-sealevel-mailbox = { path = "../mailbox", features = ["no-entrypoint"] }
 hyperlane-sealevel-message-recipient-interface = { path = "../../libraries/message-recipient-interface" }
+hyperlane-sealevel-connection-client = { path = "../../libraries/hyperlane-sealevel-connection-client" }
 borsh = "0.9"
 num-derive = "0.3"
 num-traits = "0.2"

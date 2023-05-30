@@ -1,9 +1,13 @@
 //! TODO
 
+use access_control::AccessControl;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{Decode, Encode as _, H256};
+use hyperlane_sealevel_connection_client::router::{
+    HyperlaneRouterAccessControl, HyperlaneRouterDispatch, HyperlaneRouterMessageRecipient,
+    RemoteRouterConfig,
+};
 use hyperlane_sealevel_mailbox::{
-    instruction::{Instruction as MailboxIxn, OutboxDispatch as MailboxOutboxDispatch},
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
     mailbox_process_authority_pda_seeds,
 };
@@ -18,6 +22,7 @@ use solana_program::{
     rent::Rent,
     system_instruction,
 };
+use std::collections::HashMap;
 
 use crate::{
     accounts::{HyperlaneToken, HyperlaneTokenAccount},
@@ -107,7 +112,7 @@ where
     /// 0.   [executable] The system program.
     /// 1.   [writable] The token PDA account.
     /// 2.   [writable] The dispatch authority PDA account.
-    /// 3.   [signer] The payer.
+    /// 3.   [signer] The payer and access control owner.
     /// 4..N [??..??] Plugin-specific accounts.
     pub fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramResult {
         // On chain create appears to use realloc which is limited to 1024 byte increments.
@@ -144,6 +149,14 @@ where
         if !payer_account.is_signer {
             return Err(ProgramError::MissingRequiredSignature);
         }
+
+        // Get the Mailbox's process authority that is specific to this program
+        // as a recipient.
+        let (mailbox_process_authority, _mailbox_process_authority_bump) =
+            Pubkey::find_program_address(
+                mailbox_process_authority_pda_seeds!(program_id),
+                &init.mailbox,
+            );
 
         let plugin_data = T::initialize(
             program_id,
@@ -188,7 +201,10 @@ where
         let token: HyperlaneToken<T> = HyperlaneToken {
             bump: token_bump,
             mailbox: init.mailbox,
+            mailbox_process_authority,
             dispatch_authority_bump,
+            owner: Some(*payer_account.key),
+            remote_routers: HashMap::new(),
             plugin_data,
         };
         HyperlaneTokenAccount::<T>::from(token).store(token_account, true)?;
@@ -293,18 +309,16 @@ where
             return Err(ProgramError::from(Error::ExtraneousAccount));
         }
 
-        let token_xfer_message =
+        let token_transfer_message =
             TokenMessage::new(xfer.recipient, xfer.amount_or_id, vec![]).to_vec();
-        let mailbox_ixn = MailboxIxn::OutboxDispatch(MailboxOutboxDispatch {
-            sender: *program_id,
-            destination_domain: xfer.destination_domain,
-            recipient: xfer.destination_program_id,
-            message_body: token_xfer_message,
-        });
-        let mailbox_ixn = Instruction {
-            program_id: token.mailbox,
-            data: mailbox_ixn.into_instruction_data().unwrap(),
-            accounts: vec![
+
+        // Dispatch the message.
+        token.dispatch(
+            program_id,
+            dispatch_authority_seeds,
+            xfer.destination_domain,
+            token_transfer_message,
+            vec![
                 AccountMeta::new(*mailbox_outbox_account.key, false),
                 AccountMeta::new_readonly(*dispatch_authority_account.key, true),
                 AccountMeta::new_readonly(solana_program::system_program::id(), false),
@@ -313,10 +327,6 @@ where
                 AccountMeta::new_readonly(*unique_message_account.key, true),
                 AccountMeta::new(*dispatched_message_pda.key, false),
             ],
-        };
-        // TODO implement interchain gas payment via paymaster? dispatch_with_gas()?
-        invoke_signed(
-            &mailbox_ixn,
             &[
                 mailbox_outbox_account.clone(),
                 dispatch_authority_account.clone(),
@@ -326,7 +336,6 @@ where
                 unique_message_account.clone(),
                 dispatched_message_pda.clone(),
             ],
-            &[dispatch_authority_seeds],
         )?;
 
         let event = Event::new(EventSentTransferRemote {
@@ -369,18 +378,15 @@ where
         let accounts_iter = &mut accounts.iter();
 
         // Account 0: Mailbox authority
-        // This is verified further below once we have the Mailbox program ID.
+        // This is verified further below.
         let process_authority_account = next_account_info(accounts_iter)?;
-        // Commented out to make tests happy, make sure this comes back!
-        // if !process_authority_account.is_signer {
-        //     return Err(ProgramError::MissingRequiredSignature);
-        // }
 
         // Account 1: System program
         let system_program = next_account_info(accounts_iter)?;
         if system_program.key != &solana_program::system_program::id() {
             return Err(ProgramError::InvalidArgument);
         }
+
         // Account 2: SPL Noop program
         let spl_noop = next_account_info(accounts_iter)?;
         if spl_noop.key != &spl_noop::id() || !spl_noop.executable {
@@ -400,22 +406,17 @@ where
             return Err(ProgramError::IncorrectProgramId);
         }
 
-        // Now verify the authenticity of the process authority account.
-        let (expected_process_authority_key, _expected_process_authority_bump) =
-            Pubkey::find_program_address(
-                mailbox_process_authority_pda_seeds!(program_id),
-                &token.mailbox,
-            );
-        if process_authority_account.key != &expected_process_authority_key {
-            return Err(ProgramError::InvalidArgument);
-        }
-
         // Account 4: Recipient wallet
         let recipient_wallet = next_account_info(accounts_iter)?;
         let expected_recipient = Pubkey::new_from_array(message.recipient().into());
         if recipient_wallet.key != &expected_recipient {
             return Err(ProgramError::InvalidArgument);
         }
+
+        // Verify the authenticity of the message.
+        // This ensures the `process_authority_account` is valid and a signer,
+        // and that the sender is the remote router for the origin.
+        token.ensure_valid_router_message(process_authority_account, xfer.origin, &xfer.sender)?;
 
         T::transfer_out(
             program_id,
@@ -476,5 +477,116 @@ where
         accounts.extend(transfer_out_account_metas);
 
         Ok(accounts)
+    }
+
+    /// Enrolls a remote router.
+    ///
+    /// Accounts:
+    /// 0. [writeable] The token PDA account.
+    /// 1. [signer] The owner.
+    pub fn enroll_remote_router(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+        config: RemoteRouterConfig,
+    ) -> ProgramResult {
+        let accounts_iter = &mut accounts.iter();
+
+        // Account 0: Token account
+        let token_account = next_account_info(accounts_iter)?;
+        let mut token =
+            HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow_mut()[..])?.into_inner();
+        let token_seeds: &[&[u8]] = hyperlane_token_pda_seeds!(token.bump);
+        let expected_token_key = Pubkey::create_program_address(token_seeds, program_id)?;
+        if token_account.key != &expected_token_key {
+            return Err(ProgramError::InvalidArgument);
+        }
+        if token_account.owner != program_id {
+            return Err(ProgramError::IncorrectProgramId);
+        }
+
+        // Account 1: Owner
+        let owner_account = next_account_info(accounts_iter)?;
+
+        // This errors if owner_account is not really the owner.
+        token.enroll_remote_router_only_owner(owner_account, config)?;
+
+        // Store the updated token account.
+        HyperlaneTokenAccount::<T>::from(token).store(token_account, true)?;
+
+        Ok(())
+    }
+
+    /// Enrolls remote routers.
+    ///
+    /// Accounts:
+    /// 0. [writeable] The token PDA account.
+    /// 1. [signer] The owner.
+    pub fn enroll_remote_routers(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+        configs: Vec<RemoteRouterConfig>,
+    ) -> ProgramResult {
+        let accounts_iter = &mut accounts.iter();
+
+        // Account 0: Token account
+        let token_account = next_account_info(accounts_iter)?;
+        let mut token =
+            HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow_mut()[..])?.into_inner();
+        let token_seeds: &[&[u8]] = hyperlane_token_pda_seeds!(token.bump);
+        let expected_token_key = Pubkey::create_program_address(token_seeds, program_id)?;
+        if token_account.key != &expected_token_key {
+            return Err(ProgramError::InvalidArgument);
+        }
+        if token_account.owner != program_id {
+            return Err(ProgramError::IncorrectProgramId);
+        }
+
+        // Account 1: Owner
+        let owner_account = next_account_info(accounts_iter)?;
+
+        // This errors if owner_account is not really the owner.
+        token.enroll_remote_routers_only_owner(owner_account, configs)?;
+
+        // Store the updated token account.
+        HyperlaneTokenAccount::<T>::from(token).store(token_account, true)?;
+
+        Ok(())
+    }
+
+    /// Transfers ownership.
+    ///
+    /// Accounts:
+    /// 0. [writeable] The token PDA account.
+    /// 1. [signer] The current owner.
+    pub fn transfer_ownership(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+        new_owner: Option<Pubkey>,
+    ) -> ProgramResult {
+        let accounts_iter = &mut accounts.iter();
+
+        // Account 0: Token account
+        let token_account = next_account_info(accounts_iter)?;
+        let mut token =
+            HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow_mut()[..])?.into_inner();
+        let token_seeds: &[&[u8]] = hyperlane_token_pda_seeds!(token.bump);
+        let expected_token_key = Pubkey::create_program_address(token_seeds, program_id)?;
+        if token_account.key != &expected_token_key {
+            return Err(ProgramError::InvalidArgument);
+        }
+        if token_account.owner != program_id {
+            return Err(ProgramError::IncorrectProgramId);
+        }
+
+        // Account 1: Owner
+        let owner_account = next_account_info(accounts_iter)?;
+
+        // This errors if owner_account is not really the owner.
+        token.transfer_ownership(owner_account, new_owner)?;
+
+        // Store the updated token account.
+        HyperlaneTokenAccount::<T>::from(token).store(token_account, true)?;
+
+        Ok(())
     }
 }

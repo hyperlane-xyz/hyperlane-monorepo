@@ -105,22 +105,41 @@ test_token() {
 
     local token_type=""
     local program_id=""
+    local hex_program_id=""
+
+    local recipient_token_type=""
+    local recipient_program_id=""
+    local recipient_hex_program_id=""
+
     if "${is_native_xfer}"; then
         token_type="native"
         program_id="CGn8yNtSD3aTTqJfYhUb6s1aVTN75NzwtsFKo1e83aga"
+        # Hex representation of program_id
+        hex_program_id="0xa77b4e2ed231894cc8cb8eee21adcc705d8489bccc6b2fcf40a358de23e60b7b"
 
-        # Also init the other token type
-        token_init synthetic "3MzUPjP5LEkiHH82nEAe28Xtz9ztuMqWc8UmuKxrpVQH"
+        recipient_token_type="synthetic"
+        recipient_program_id="3MzUPjP5LEkiHH82nEAe28Xtz9ztuMqWc8UmuKxrpVQH"
+        # Hex representation of recipient_program_id
+        recipient_hex_program_id="0x2317f9615d4ebc2419ad4b88580e2a80a03b2c7a60bc960de7d6934dbc37a87e"
     else
         token_type="synthetic"
         program_id="3MzUPjP5LEkiHH82nEAe28Xtz9ztuMqWc8UmuKxrpVQH"
+        # Hex representation of program_id
+        hex_program_id="0x2317f9615d4ebc2419ad4b88580e2a80a03b2c7a60bc960de7d6934dbc37a87e"
 
-        # Also init the other token type
-        token_init native "CGn8yNtSD3aTTqJfYhUb6s1aVTN75NzwtsFKo1e83aga"
+        recipient_token_type="native"
+        recipient_program_id="CGn8yNtSD3aTTqJfYhUb6s1aVTN75NzwtsFKo1e83aga"
+        # Hex representation of recipient_program_id
+        recipient_hex_program_id="0xa77b4e2ed231894cc8cb8eee21adcc705d8489bccc6b2fcf40a358de23e60b7b"
     fi
-
     
+    # Init origin side & enroll the remote router
     token_init "${token_type}" "${program_id}"
+    "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" token enroll-remote-router $CHAIN_ID "${recipient_hex_program_id}" --program-id "${program_id}"
+
+    # Init destination side & enroll the remote router
+    token_init "${recipient_token_type}" "${recipient_program_id}"
+    "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" token enroll-remote-router $CHAIN_ID "${hex_program_id}" --program-id "${recipient_program_id}"
 
     local amount
     if "${is_native_xfer}"; then

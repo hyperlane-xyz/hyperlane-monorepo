@@ -1,6 +1,7 @@
 //! TODO
 
 use borsh::BorshSerialize;
+use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_message_recipient_interface::MessageRecipientInstruction;
 use hyperlane_sealevel_token_lib::{
     instruction::{Init, TransferFromRemote, TransferRemote},
@@ -72,6 +73,13 @@ pub fn process_instruction(
     match token_instruction {
         TokenIxn::Init(init) => initialize(program_id, accounts, init),
         TokenIxn::TransferRemote(xfer) => transfer_remote(program_id, accounts, xfer),
+        TokenIxn::EnrollRemoteRouter(config) => enroll_remote_router(program_id, accounts, config),
+        TokenIxn::EnrollRemoteRouters(configs) => {
+            enroll_remote_routers(program_id, accounts, configs)
+        }
+        TokenIxn::TransferOwnership(new_owner) => {
+            transfer_ownership(program_id, accounts, new_owner)
+        }
     }
     .map_err(|err| {
         msg!("{}", err);
@@ -144,4 +152,43 @@ fn transfer_from_remote_account_metas(
         .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
     set_return_data(&bytes[..]);
     Ok(())
+}
+
+/// Enrolls a remote router.
+///
+/// Accounts:
+/// 0. [writeable] The token PDA account.
+/// 1. [signer] The owner.
+fn enroll_remote_router(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    config: RemoteRouterConfig,
+) -> ProgramResult {
+    HyperlaneSealevelToken::<NativePlugin>::enroll_remote_router(program_id, accounts, config)
+}
+
+/// Enrolls remote routers.
+///
+/// Accounts:
+/// 0. [writeable] The token PDA account.
+/// 1. [signer] The owner.
+fn enroll_remote_routers(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    configs: Vec<RemoteRouterConfig>,
+) -> ProgramResult {
+    HyperlaneSealevelToken::<NativePlugin>::enroll_remote_routers(program_id, accounts, configs)
+}
+
+/// Transfers ownership.
+///
+/// Accounts:
+/// 0. [writeable] The token PDA account.
+/// 1. [signer] The current owner.
+fn transfer_ownership(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    new_owner: Option<Pubkey>,
+) -> ProgramResult {
+    HyperlaneSealevelToken::<NativePlugin>::transfer_ownership(program_id, accounts, new_owner)
 }

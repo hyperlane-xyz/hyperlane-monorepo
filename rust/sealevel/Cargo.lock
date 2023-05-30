@@ -1612,6 +1612,7 @@ version = "0.1.0"
 dependencies = [
  "borsh",
  "clap 4.0.26",
+ "hyperlane-sealevel-connection-client",
  "hyperlane-sealevel-ism-rubber-stamp",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-recipient-echo",
@@ -1624,6 +1625,19 @@ dependencies = [
  "solana-cli-config",
  "solana-client",
  "solana-program",
+ "solana-sdk",
+]
+
+[[package]]
+name = "hyperlane-sealevel-connection-client"
+version = "0.1.0"
+dependencies = [
+ "access-control",
+ "borsh",
+ "hyperlane-core",
+ "hyperlane-sealevel-mailbox",
+ "solana-program",
+ "solana-program-test",
  "solana-sdk",
 ]
 
@@ -1716,6 +1730,8 @@ dependencies = [
  "borsh",
  "bs58",
  "hyperlane-core",
+ "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-ism-rubber-stamp",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
  "hyperlane-sealevel-token-lib",
@@ -1736,9 +1752,11 @@ dependencies = [
 name = "hyperlane-sealevel-token-lib"
 version = "0.1.0"
 dependencies = [
+ "access-control",
  "borsh",
  "bs58",
  "hyperlane-core",
+ "hyperlane-sealevel-connection-client",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
  "num-derive",
@@ -1761,6 +1779,7 @@ dependencies = [
  "borsh",
  "bs58",
  "hyperlane-core",
+ "hyperlane-sealevel-connection-client",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
  "hyperlane-sealevel-token-lib",
