@@ -3,10 +3,10 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{Decode, Encode as _, H256};
 use hyperlane_sealevel_mailbox::{
-    instruction::{Instruction as MailboxIxn, OutboxDispatch as MailboxOutboxDispatch},
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
     mailbox_process_authority_pda_seeds,
 };
+use hyperlane_sealevel_router::HyperlaneRouterDispatch;
 use serializable_account_meta::SerializableAccountMeta;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
@@ -18,6 +18,7 @@ use solana_program::{
     rent::Rent,
     system_instruction,
 };
+use std::collections::HashMap;
 
 use crate::{
     accounts::{HyperlaneToken, HyperlaneTokenAccount},
@@ -107,7 +108,7 @@ where
     /// 0.   [executable] The system program.
     /// 1.   [writable] The token PDA account.
     /// 2.   [writable] The dispatch authority PDA account.
-    /// 3.   [signer] The payer.
+    /// 3.   [signer] The payer and access control owner.
     /// 4..N [??..??] Plugin-specific accounts.
     pub fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramResult {
         // On chain create appears to use realloc which is limited to 1024 byte increments.
@@ -144,6 +145,14 @@ where
         if !payer_account.is_signer {
             return Err(ProgramError::MissingRequiredSignature);
         }
+
+        // Get the Mailbox's process authority that is specific to this program
+        // as a recipient.
+        let (mailbox_process_authority, _mailbox_process_authority_bump) =
+            Pubkey::find_program_address(
+                mailbox_process_authority_pda_seeds!(program_id),
+                &init.mailbox,
+            );
 
         let plugin_data = T::initialize(
             program_id,
@@ -188,7 +197,10 @@ where
         let token: HyperlaneToken<T> = HyperlaneToken {
             bump: token_bump,
             mailbox: init.mailbox,
+            mailbox_process_authority,
             dispatch_authority_bump,
+            owner: Some(*payer_account.key),
+            remote_routers: HashMap::new(),
             plugin_data,
         };
         HyperlaneTokenAccount::<T>::from(token).store(token_account, true)?;
@@ -293,18 +305,16 @@ where
             return Err(ProgramError::from(Error::ExtraneousAccount));
         }
 
-        let token_xfer_message =
+        let token_transfer_message =
             TokenMessage::new(xfer.recipient, xfer.amount_or_id, vec![]).to_vec();
-        let mailbox_ixn = MailboxIxn::OutboxDispatch(MailboxOutboxDispatch {
-            sender: *program_id,
-            destination_domain: xfer.destination_domain,
-            recipient: xfer.destination_program_id,
-            message_body: token_xfer_message,
-        });
-        let mailbox_ixn = Instruction {
-            program_id: token.mailbox,
-            data: mailbox_ixn.into_instruction_data().unwrap(),
-            accounts: vec![
+
+        // Dispatch the message.
+        (*token).dispatch(
+            program_id,
+            dispatch_authority_seeds,
+            xfer.destination_domain,
+            token_transfer_message,
+            vec![
                 AccountMeta::new(*mailbox_outbox_account.key, false),
                 AccountMeta::new_readonly(*dispatch_authority_account.key, true),
                 AccountMeta::new_readonly(solana_program::system_program::id(), false),
@@ -313,10 +323,6 @@ where
                 AccountMeta::new_readonly(*unique_message_account.key, true),
                 AccountMeta::new(*dispatched_message_pda.key, false),
             ],
-        };
-        // TODO implement interchain gas payment via paymaster? dispatch_with_gas()?
-        invoke_signed(
-            &mailbox_ixn,
             &[
                 mailbox_outbox_account.clone(),
                 dispatch_authority_account.clone(),
@@ -326,7 +332,6 @@ where
                 unique_message_account.clone(),
                 dispatched_message_pda.clone(),
             ],
-            &[dispatch_authority_seeds],
         )?;
 
         let event = Event::new(EventSentTransferRemote {
@@ -401,12 +406,7 @@ where
         }
 
         // Now verify the authenticity of the process authority account.
-        let (expected_process_authority_key, _expected_process_authority_bump) =
-            Pubkey::find_program_address(
-                mailbox_process_authority_pda_seeds!(program_id),
-                &token.mailbox,
-            );
-        if process_authority_account.key != &expected_process_authority_key {
+        if process_authority_account.key != &token.mailbox_process_authority {
             return Err(ProgramError::InvalidArgument);
         }
 

@@ -14,4 +14,5 @@ members = [
     "libraries/multisig-ism",
     "libraries/serializable-account-meta",
     "libraries/hyperlane-sealevel-token",
+    "libraries/router",
 ]
