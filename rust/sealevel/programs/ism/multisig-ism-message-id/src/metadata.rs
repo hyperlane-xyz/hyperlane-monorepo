@@ -1,5 +1,5 @@
+use ecdsa_signature::EcdsaSignature;
 use hyperlane_core::{Encode, H256};
-use multisig_ism::signature::EcdsaSignature;
 
 use crate::error::Error;
 

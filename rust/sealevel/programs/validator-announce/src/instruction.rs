@@ -1,6 +1,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H160;
-use solana_program::{program_error::ProgramError, pubkey::Pubkey};
+use solana_program::{keccak, program_error::ProgramError, pubkey::Pubkey};
 
 /// Instructions for the ValidatorAnnounce program.
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -35,4 +35,13 @@ pub struct AnnounceInstruction {
     pub validator: H160,
     pub storage_location: String,
     pub signature: Vec<u8>,
+}
+
+impl AnnounceInstruction {
+    pub fn replay_id(&self) -> [u8; 32] {
+        let mut hasher = keccak::Hasher::default();
+        hasher.hash(self.validator.as_bytes());
+        hasher.hash(self.storage_location.as_bytes());
+        hasher.result().to_bytes()
+    }
 }

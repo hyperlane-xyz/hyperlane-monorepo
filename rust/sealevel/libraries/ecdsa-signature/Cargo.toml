@@ -1,0 +1,15 @@
+[package]
+name = "ecdsa-signature"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+no-entrypoint = []
+
+[dependencies]
+solana-program = "=1.14.13"
+hyperlane-core = { path = "../../hyperlane-core" }
+thiserror = "1.0"
+
+[lib]
+crate-type = ["cdylib", "lib"]

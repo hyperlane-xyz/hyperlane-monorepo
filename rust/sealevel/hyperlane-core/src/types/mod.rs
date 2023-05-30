@@ -1,5 +1,8 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 
+pub mod announcement;
+pub use announcement::*;
+
 pub mod checkpoint;
 pub use checkpoint::*;
 

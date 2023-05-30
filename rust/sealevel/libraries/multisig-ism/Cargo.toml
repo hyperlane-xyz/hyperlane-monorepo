@@ -9,6 +9,7 @@ test-data = ["dep:hex"]
 
 [dependencies]
 borsh = "0.9"
+ecdsa-signature = { path = "../ecdsa-signature" }
 solana-program = "=1.14.13"
 hyperlane-core = { path = "../../hyperlane-core" }
 thiserror = "1.0"
