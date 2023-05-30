@@ -104,7 +104,7 @@ function getKathyArgs() {
 
     .string('connection-type')
     .describe('connection-type', 'The provider connection type to use for RPCs')
-    .default('connection-type', AgentConnectionType.Http)
+    .default('connection-type', AgentConnectionType.HttpQuorum)
     .choices('connection-type', [
       AgentConnectionType.Http,
       AgentConnectionType.HttpQuorum,
