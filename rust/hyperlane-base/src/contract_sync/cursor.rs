@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
 use tokio::time::sleep;
-use tracing::{debug, warn, info};
+use tracing::{debug, info, warn};
 
 use hyperlane_core::{
     ChainResult, ContractSyncCursor, HyperlaneMessage, HyperlaneMessageStore,
@@ -96,11 +96,14 @@ impl ForwardMessageSyncCursor {
                 .retrieve_dispatched_block_number(self.0.next_nonce)
                 .await
             {
-                debug!(next_block=block_number, "Fast forwarding next block");
+                debug!(next_block = block_number, "Fast forwarding next block");
                 // It's possible that eth_getLogs dropped logs from this block, therefore we cannot do block_number + 1.
                 self.0.next_block = block_number;
             }
-            debug!(next_nonce=self.0.next_nonce + 1, "Fast forwarding next nonce");
+            debug!(
+                next_nonce = self.0.next_nonce + 1,
+                "Fast forwarding next nonce"
+            );
             self.0.next_nonce += 1;
         }
 
