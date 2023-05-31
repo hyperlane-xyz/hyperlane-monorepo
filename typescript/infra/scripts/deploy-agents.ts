@@ -24,19 +24,30 @@ async function deploy() {
   // While this function still has these side effects, the workaround is to just
   // run the create-keys script first.
 
-  await Promise.all(
-    agentConfig.contextChainNames.map(async (name: string) => {
-      await new ValidatorHelmManager(agentConfig, name).runHelmCommand(
-        HelmCommand.InstallOrUpgrade,
-      );
-      // await new RelayerHelmManager(agentConfig).runHelmCommand(
-      //   HelmCommand.InstallOrUpgrade,
-      // );
-      // await new ScraperHelmManager(agentConfig).runHelmCommand(
-      //   HelmCommand.InstallOrUpgrade,
-      // );
-    }),
+  const chain = agentConfig.contextChainNames[0];
+  await new ValidatorHelmManager(agentConfig, chain).runHelmCommand(
+    HelmCommand.InstallOrUpgrade,
   );
+  // await new RelayerHelmManager(agentConfig).runHelmCommand(
+  //   HelmCommand.InstallOrUpgrade,
+  // );
+  // await new ScraperHelmManager(agentConfig).runHelmCommand(
+  //   HelmCommand.InstallOrUpgrade,
+  // );
+
+  // await Promise.all(
+  //   agentConfig.contextChainNames.map(async (name: string) => {
+  //     await new ValidatorHelmManager(agentConfig, name).runHelmCommand(
+  //       HelmCommand.InstallOrUpgrade,
+  //     );
+  //     // await new RelayerHelmManager(agentConfig).runHelmCommand(
+  //     //   HelmCommand.InstallOrUpgrade,
+  //     // );
+  //     // await new ScraperHelmManager(agentConfig).runHelmCommand(
+  //     //   HelmCommand.InstallOrUpgrade,
+  //     // );
+  //   }),
+  // );
 }
 
 deploy().then(console.log).catch(console.error);
