@@ -8,7 +8,7 @@ use crate::validator_announce_pda_seeds;
 pub type ValidatorAnnounceAccount = AccountData<ValidatorAnnounce>;
 
 /// Data used for verifying validator announcements.
-#[derive(BorshSerialize, BorshDeserialize, Debug, Default)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Default, Clone)]
 pub struct ValidatorAnnounce {
     pub bump_seed: u8,
     pub mailbox: Pubkey,

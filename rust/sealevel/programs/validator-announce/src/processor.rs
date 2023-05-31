@@ -358,3 +358,83 @@ fn verify_validator_signed_announcement(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod test {
+    // See tests/functional.rs for the rest of the tests that could not be
+    // done as unit tests due to required system program CPIs.
+
+    use hyperlane_core::{H160, H256};
+    use std::str::FromStr;
+
+    use super::*;
+
+    #[test]
+    fn test_verify_validator_signed_announcement() {
+        // Announcement from https://hyperlane-mainnet2-ethereum-validator-0.s3.us-east-1.amazonaws.com/announcement.json
+
+        let announce_instruction = AnnounceInstruction {
+            validator: H160::from_str("0x4c327ccb881a7542be77500b2833dc84c839e7b7").unwrap(),
+            storage_location: "s3://hyperlane-mainnet2-ethereum-validator-0/us-east-1".to_owned(),
+            // The `serialized_signature` component of the announcement,
+            // which is the 65-byte serialized ECDSA signature
+            signature: hex::decode("20ac937917284eaa3d67287278fc51875874241fffab5eb5fd8ae899a7074c5679be15f0bdb5b4f7594cefc5cba17df59b68ba3c55836053a23307db5a95610d1b").unwrap(),
+        };
+        let mailbox =
+            H256::from_str("0x00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70")
+                .unwrap();
+        let validator_announce = ValidatorAnnounce {
+            // Bump seed is not used/verified in this test
+            bump_seed: 255,
+            mailbox: Pubkey::new_from_array(mailbox.0),
+            // The ethereum domain
+            local_domain: 1,
+        };
+
+        // Expect a successful verification
+        assert!(
+            verify_validator_signed_announcement(&announce_instruction, &validator_announce)
+                .is_ok()
+        );
+
+        // Let's change the local domain to something else, expecting an error now
+        assert!(verify_validator_signed_announcement(
+            &announce_instruction,
+            &ValidatorAnnounce {
+                local_domain: 2,
+                ..validator_announce.clone()
+            },
+        )
+        .is_err());
+
+        // Change the validator to something else, also expect an error
+        assert!(verify_validator_signed_announcement(
+            &AnnounceInstruction {
+                validator: H160::random(),
+                ..announce_instruction.clone()
+            },
+            &validator_announce,
+        )
+        .is_err());
+
+        // Change the storage location to something else, also expect an error
+        assert!(verify_validator_signed_announcement(
+            &AnnounceInstruction {
+                storage_location: "fooooooooooooooo".to_owned(),
+                ..announce_instruction
+            },
+            &validator_announce,
+        )
+        .is_err());
+
+        // Change the signature to something else, also expect an error
+        assert!(verify_validator_signed_announcement(
+            &AnnounceInstruction {
+                signature: vec![4u8; 65],
+                ..announce_instruction
+            },
+            &validator_announce,
+        )
+        .is_err());
+    }
+}
