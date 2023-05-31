@@ -8,7 +8,7 @@ use crate::validator_announce_pda_seeds;
 pub type ValidatorAnnounceAccount = AccountData<ValidatorAnnounce>;
 
 /// Data used for verifying validator announcements.
-#[derive(BorshSerialize, BorshDeserialize, Debug, Default, Clone)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Default, Clone, PartialEq, Eq)]
 pub struct ValidatorAnnounce {
     pub bump_seed: u8,
     pub mailbox: Pubkey,
@@ -44,7 +44,7 @@ impl ValidatorAnnounce {
 pub type ValidatorStorageLocationsAccount = AccountData<ValidatorStorageLocations>;
 
 /// Storage locations for a validator.
-#[derive(BorshSerialize, BorshDeserialize, Debug, Default)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Default, Clone, PartialEq, Eq)]
 pub struct ValidatorStorageLocations {
     pub bump_seed: u8,
     pub storage_locations: Vec<String>,
@@ -75,13 +75,26 @@ impl SizedData for ValidatorStorageLocations {
     }
 }
 
+impl ValidatorStorageLocations {
+    /// An O(1) method for determining how much to increase the size of the
+    /// account data by when adding a new storage location.
+    /// Only intended to be used for subsequent announcements for a validator,
+    /// not the first announcement.
+    pub fn size_increase_for_new_storage_location(new_storage_location: &str) -> usize {
+        // The only difference in the account is the new storage location, which is Borsh-serialized
+        // as the u32 length of the string + the Vec<u8> it is serialized into.
+        // See https://borsh.io/ for details.
+        4 + new_storage_location.len()
+    }
+}
+
 /// An account whose presence is used as a replay protection mechanism.
 /// Replay protection account addresses are PDAs based off the hash of
 /// a validator's storage location. So these ultimately serve like a
 /// HashMap to tell if a storage location has already been announced.
 pub type ReplayProtectionAccount = AccountData<ReplayProtection>;
 
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Default, Clone, PartialEq, Eq)]
 pub struct ReplayProtection(pub ());
 
 impl SizedData for ReplayProtection {

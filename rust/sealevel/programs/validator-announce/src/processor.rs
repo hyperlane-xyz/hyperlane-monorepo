@@ -71,11 +71,13 @@ pub fn process_init(
 
     // Account 2: The ValidatorAnnounce PDA account.
     let validator_announce_info = next_account_info(account_info_iter)?;
-    if !validator_announce_info.is_writable
-        || validator_announce_info.owner != &system_program_id
+    if !validator_announce_info.is_writable {
+        return Err(ProgramError::InvalidAccountData);
+    }
+    if validator_announce_info.owner != &system_program_id
         || !validator_announce_info.data_is_empty()
     {
-        return Err(ProgramError::InvalidAccountData);
+        return Err(ProgramError::AccountAlreadyInitialized);
     }
     let (validator_announce_key, validator_announce_bump_seed) =
         Pubkey::find_program_address(validator_announce_pda_seeds!(), program_id);
@@ -102,6 +104,9 @@ pub fn process_init(
         &[payer_info.clone(), validator_announce_info.clone()],
         &[validator_announce_pda_seeds!(validator_announce_bump_seed)],
     )?;
+
+    // Store the validator_announce_account.
+    validator_announce_account.store(validator_announce_info, false)?;
 
     Ok(())
 }
@@ -162,8 +167,10 @@ fn process_announce(
         return Err(ProgramError::AccountAlreadyInitialized);
     }
 
+    // Errors if the announcement is not signed by the validator.
     verify_validator_signed_announcement(&announcement, &validator_announce)?;
 
+    // Update the stored storage locations.
     update_validator_storage_locations(
         program_id,
         payer_info,
@@ -171,6 +178,7 @@ fn process_announce(
         &announcement,
     )?;
 
+    // Create the ReplayProtection account so this cannot be announced again.
     create_replay_protection_account(
         program_id,
         payer_info,
@@ -223,12 +231,10 @@ fn update_validator_storage_locations<'a>(
             }
 
             // Calculate the new serialized size.
-            // The only difference is the new storage location, which is Borsh-serialized
-            // as the u32 length of the string + u32 length of the serialized Vec<u8> + the Vec<u8> it is serialized
-            // into. See https://borsh.io/ for details.
             let new_serialized_size = validator_storage_locations_info.data_len()
-                + 4
-                + announcement.storage_location.len();
+                + ValidatorStorageLocations::size_increase_for_new_storage_location(
+                    &announcement.storage_location,
+                );
 
             // Append the storage location.
             validator_storage_locations

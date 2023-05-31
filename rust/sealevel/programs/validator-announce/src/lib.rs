@@ -11,4 +11,4 @@ pub mod pda_seeds;
 pub mod processor;
 
 // FIXME Read these in at compile time? And don't use harcoded test keys.
-solana_program::declare_id!("692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1");
+solana_program::declare_id!("DH43ae1LwemXAboWwSh8zc9pG8j72gKUEXNi57w8fEnn");
