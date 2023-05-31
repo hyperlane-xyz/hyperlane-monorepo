@@ -386,19 +386,8 @@ fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
                     AccountMeta::new(outbox_account, false),
                 ],
             };
-
-            let recent_blockhash = ctx.client.get_latest_blockhash().unwrap();
-            let txn = Transaction::new_signed_with_payer(
-                &[init_instruction],
-                Some(&ctx.payer.pubkey()),
-                &[&ctx.payer],
-                recent_blockhash,
-            );
-
-            let signature = ctx.client.send_transaction(&txn).unwrap();
-            ctx.client
-                .confirm_transaction_with_spinner(&signature, &recent_blockhash, ctx.commitment)
-                .unwrap();
+            ctx.instructions.push(init_instruction);
+            ctx.send_transaction(&[&ctx.payer]);
 
             println!("inbox=({}, {})", inbox_account, inbox_bump);
             println!("outbox=({}, {})", outbox_account, outbox_bump);
@@ -457,18 +446,7 @@ fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
                 ],
             };
             ctx.instructions.push(outbox_instruction);
-            let recent_blockhash = ctx.client.get_latest_blockhash().unwrap();
-            let txn = Transaction::new_signed_with_payer(
-                &ctx.instructions,
-                Some(&ctx.payer.pubkey()),
-                &[&ctx.payer],
-                recent_blockhash,
-            );
-
-            let signature = ctx.client.send_transaction(&txn).unwrap();
-            ctx.client
-                .confirm_transaction_with_spinner(&signature, &recent_blockhash, ctx.commitment)
-                .unwrap();
+            ctx.send_transaction(&[&ctx.payer]);
         }
         MailboxSubCmd::Receive(inbox) => {
             // TODO this probably needs some love
@@ -513,18 +491,7 @@ fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
                 ],
             };
             ctx.instructions.push(inbox_instruction);
-            let recent_blockhash = ctx.client.get_latest_blockhash().unwrap();
-            let txn = Transaction::new_signed_with_payer(
-                &ctx.instructions,
-                Some(&ctx.payer.pubkey()),
-                &[&ctx.payer],
-                recent_blockhash,
-            );
-
-            let signature = ctx.client.send_transaction(&txn).unwrap();
-            ctx.client
-                .confirm_transaction_with_spinner(&signature, &recent_blockhash, ctx.commitment)
-                .unwrap();
+            ctx.send_transaction(&[&ctx.payer]);
         }
         MailboxSubCmd::Delivered(delivered) => {
             let (processed_message_account_key, _processed_message_account_bump) =
@@ -645,18 +612,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                     ));
             }
 
-            let recent_blockhash = ctx.client.get_latest_blockhash().unwrap();
-            let txn = Transaction::new_signed_with_payer(
-                &ctx.instructions,
-                Some(&ctx.payer.pubkey()),
-                &[&ctx.payer],
-                recent_blockhash,
-            );
-
-            let signature = ctx.client.send_transaction(&txn).unwrap();
-            ctx.client
-                .confirm_transaction_with_spinner(&signature, &recent_blockhash, ctx.commitment)
-                .unwrap();
+            ctx.send_transaction(&[&ctx.payer]);
 
             println!(
                 "hyperlane_token (key, bump) =({}, {})",
@@ -874,29 +830,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
             };
             ctx.instructions.push(xfer_instruction);
 
-            let recent_blockhash = ctx.client.get_latest_blockhash().unwrap();
-            let txn = Transaction::new_signed_with_payer(
-                &ctx.instructions,
-                Some(&ctx.payer.pubkey()),
-                &[&ctx.payer, &sender, &unique_message_account_keypair],
-                recent_blockhash,
-            );
-
-            let signature = ctx
-                .client
-                .send_transaction(&txn)
-                .map_err(|err| {
-                    eprintln!("{:#?}", err);
-                    err
-                })
-                .unwrap();
-            ctx.client
-                .confirm_transaction_with_spinner(&signature, &recent_blockhash, ctx.commitment)
-                .map_err(|err| {
-                    eprintln!("{:#?}", err);
-                    err
-                })
-                .unwrap();
+            ctx.send_transaction(&[&ctx.payer, &sender, &unique_message_account_keypair]);
         }
         TokenSubCmd::EnrollRemoteRouter(enroll) => {
             let enroll_instruction = HtInstruction::EnrollRemoteRouter(RemoteRouterConfig {
@@ -916,29 +850,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
             };
             ctx.instructions.push(instruction);
 
-            let recent_blockhash = ctx.client.get_latest_blockhash().unwrap();
-            let txn = Transaction::new_signed_with_payer(
-                &ctx.instructions,
-                Some(&ctx.payer.pubkey()),
-                &[&ctx.payer],
-                recent_blockhash,
-            );
-
-            let signature = ctx
-                .client
-                .send_transaction(&txn)
-                .map_err(|err| {
-                    eprintln!("{:#?}", err);
-                    err
-                })
-                .unwrap();
-            ctx.client
-                .confirm_transaction_with_spinner(&signature, &recent_blockhash, ctx.commitment)
-                .map_err(|err| {
-                    eprintln!("{:#?}", err);
-                    err
-                })
-                .unwrap();
+            ctx.send_transaction(&[&ctx.payer]);
         }
     }
 }

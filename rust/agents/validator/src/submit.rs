@@ -80,7 +80,7 @@ impl ValidatorSubmitter {
                     break;
                 }
                 info!(
-                    ?locations,
+                    announced_locations=?locations,
                     "Validator has not announced signature storage location"
                 );
                 let balance_delta = self

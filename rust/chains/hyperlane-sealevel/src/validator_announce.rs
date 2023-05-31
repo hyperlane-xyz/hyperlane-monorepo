@@ -61,6 +61,7 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
             .iter()
             .map(|v| {
                 let (key, _bump) = Pubkey::find_program_address(
+                    // The seed is based off the H160 representation of the validator address.
                     validator_storage_locations_pda_seeds!(H160::from_slice(&v.as_bytes()[12..])),
                     &self.program_id,
                 );
