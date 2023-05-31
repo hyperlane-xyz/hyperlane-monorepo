@@ -4138,6 +4138,7 @@ impl RpcClient {
             .await?
             .value)
     }
+    */
 
     /// Returns the account information for a list of pubkeys.
     ///
@@ -4258,6 +4259,7 @@ impl RpcClient {
         })
     }
 
+    /*
     /// Gets the raw data associated with an account.
     ///
     /// This is equivalent to calling [`get_account`] and then accessing the

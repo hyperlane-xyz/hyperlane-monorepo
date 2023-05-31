@@ -1,0 +1,24 @@
+[package]
+name = "hyperlane-sealevel-validator-announce"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+no-entrypoint = []
+
+[dependencies]
+borsh = "0.9"
+solana-program = "=1.14.13"
+ecdsa-signature = { path = "../../libraries/ecdsa-signature" }
+hyperlane-core = { path = "../../hyperlane-core" }
+hyperlane-sealevel-mailbox = { path = "../mailbox", features = ["no-entrypoint"] }
+serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
+thiserror = "1.0"
+
+[dev-dependencies]
+solana-program-test = "=1.14.13"
+solana-sdk = "=1.14.13"
+hex = "0.4.3"
+
+[lib]
+crate-type = ["cdylib", "lib"]

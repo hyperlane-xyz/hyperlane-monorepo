@@ -8,6 +8,7 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
+use ecdsa_signature::EcdsaSignature;
 use hyperlane_core::{Encode, HyperlaneMessage, IsmType, H160, H256};
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction, VERIFY_ACCOUNT_METAS_PDA_SEEDS,
@@ -23,7 +24,6 @@ use hyperlane_sealevel_multisig_ism_message_id::{
 };
 use multisig_ism::{
     interface::{MultisigIsmInstruction, VALIDATORS_AND_THRESHOLD_ACCOUNT_METAS_PDA_SEEDS},
-    signature::EcdsaSignature,
     test_data::{get_multisig_ism_test_data, MultisigIsmTestData},
 };
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};

@@ -1,6 +1,6 @@
+use crate::error::MultisigIsmError;
+use ecdsa_signature::EcdsaSignature;
 use hyperlane_core::{Signable, H160};
-
-use crate::{error::MultisigIsmError, signature::EcdsaSignature};
 
 /// A type for verifying a quorum of ECDSA signatures from a validator set
 /// over a signable data type.
@@ -63,7 +63,7 @@ impl<T: Signable> MultisigIsm<T> {
 mod test {
     use super::*;
 
-    use crate::signature::EcdsaSignature;
+    use ecdsa_signature::EcdsaSignature;
 
     use std::str::FromStr;
 
