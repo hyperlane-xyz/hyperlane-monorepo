@@ -77,7 +77,6 @@ impl SealevelMailbox {
     ) -> ChainResult<Self> {
         let rpc_client = RpcClient::new(conf.url.to_string());
 
-        // TODO use helper functions from mailbox contract lib
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         let domain = locator.domain.id();
         let inbox = Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), &program_id);
@@ -771,7 +770,7 @@ impl HyperlaneAbi for SealevelMailboxAbi {
 //-------------------------------------------------------------------------------------------------
 // FIXME mostly copypasta from sealevel contracts
 //-------------------------------------------------------------------------------------------------
-mod contract {
+pub(crate) mod contract {
 
     use super::*;
 

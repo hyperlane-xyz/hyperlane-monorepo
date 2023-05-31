@@ -4,7 +4,14 @@ use solana_program::{
     secp256k1_recover::{secp256k1_recover, Secp256k1RecoverError},
 };
 
-use crate::error::EcdsaSignatureError;
+/// Errors relating to an EcdsaSignature
+#[derive(Copy, Clone, Debug, Eq, thiserror::Error, PartialEq)]
+pub enum EcdsaSignatureError {
+    #[error("Invalid signature length")]
+    InvalidLength,
+    #[error("Invalid signature recovery ID")]
+    InvalidRecoveryId,
+}
 
 /// An ECDSA signature with a recovery ID.
 /// Signature recovery functions expect a 64 byte serialized r & s value and a 1 byte recovery ID

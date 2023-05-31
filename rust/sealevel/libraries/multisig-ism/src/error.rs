@@ -6,12 +6,3 @@ pub enum MultisigIsmError {
     #[error("Threshold not met")]
     ThresholdNotMet,
 }
-
-/// Errors relating to an EcdsaSignature
-#[derive(Copy, Clone, Debug, Eq, thiserror::Error, PartialEq)]
-pub enum EcdsaSignatureError {
-    #[error("Invalid signature length")]
-    InvalidLength,
-    #[error("Invalid signature recovery ID")]
-    InvalidRecoveryId,
-}

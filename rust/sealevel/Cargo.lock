@@ -1027,6 +1027,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "abe71d579d1812060163dff96056261deb5bf6729b100fa2e36a68b9649ba3d3"
 
 [[package]]
+name = "ecdsa-signature"
+version = "0.1.0"
+dependencies = [
+ "hyperlane-core",
+ "solana-program",
+ "thiserror",
+]
+
+[[package]]
 name = "ed25519"
 version = "1.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1612,6 +1621,8 @@ version = "0.1.0"
 dependencies = [
  "borsh",
  "clap 4.0.26",
+ "hex",
+ "hyperlane-core",
  "hyperlane-sealevel-connection-client",
  "hyperlane-sealevel-ism-rubber-stamp",
  "hyperlane-sealevel-mailbox",
@@ -1619,6 +1630,7 @@ dependencies = [
  "hyperlane-sealevel-token",
  "hyperlane-sealevel-token-lib",
  "hyperlane-sealevel-token-native",
+ "hyperlane-sealevel-validator-announce",
  "lazy_static",
  "pretty_env_logger",
  "solana-clap-utils",
@@ -1699,6 +1711,7 @@ version = "0.1.0"
 dependencies = [
  "access-control",
  "borsh",
+ "ecdsa-signature",
  "hex",
  "hyperlane-core",
  "hyperlane-sealevel-interchain-security-module-interface",
@@ -1790,6 +1803,22 @@ dependencies = [
  "solana-program-test",
  "solana-sdk",
  "spl-noop",
+ "thiserror",
+]
+
+[[package]]
+name = "hyperlane-sealevel-validator-announce"
+version = "0.1.0"
+dependencies = [
+ "borsh",
+ "ecdsa-signature",
+ "hex",
+ "hyperlane-core",
+ "hyperlane-sealevel-mailbox",
+ "serializable-account-meta",
+ "solana-program",
+ "solana-program-test",
+ "solana-sdk",
  "thiserror",
 ]
 
@@ -2225,6 +2254,7 @@ name = "multisig-ism"
 version = "0.1.0"
 dependencies = [
  "borsh",
+ "ecdsa-signature",
  "hex",
  "hyperlane-core",
  "solana-program",

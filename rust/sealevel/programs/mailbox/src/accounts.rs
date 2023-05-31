@@ -66,6 +66,9 @@ where
 
     // TODO: better name here?
     pub fn fetch_data(buf: &mut &[u8]) -> Result<Option<Box<T>>, ProgramError> {
+        if buf.is_empty() {
+            return Ok(None);
+        }
         // Account data is zero initialized.
         let initialized = bool::deserialize(buf)?;
         let data = if initialized {
