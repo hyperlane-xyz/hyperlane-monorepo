@@ -1621,6 +1621,8 @@ version = "0.1.0"
 dependencies = [
  "borsh",
  "clap 4.0.26",
+ "hex",
+ "hyperlane-core",
  "hyperlane-sealevel-connection-client",
  "hyperlane-sealevel-ism-rubber-stamp",
  "hyperlane-sealevel-mailbox",
@@ -1628,6 +1630,7 @@ dependencies = [
  "hyperlane-sealevel-token",
  "hyperlane-sealevel-token-lib",
  "hyperlane-sealevel-token-native",
+ "hyperlane-sealevel-validator-announce",
  "lazy_static",
  "pretty_env_logger",
  "solana-clap-utils",

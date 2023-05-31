@@ -46,6 +46,7 @@ build_programs() {
 
     # hyperlane sealevel programs
     build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_mailbox.so" "${TARGET_DIR}/../programs/mailbox"
+    build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_validator_announce.so" "${TARGET_DIR}/../programs/validator-announce"
     build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_ism_rubber_stamp.so" "${TARGET_DIR}/../programs/ism"
     build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_token.so" "${TARGET_DIR}/../programs/hyperlane-sealevel-token"
     build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_token_native.so" "${TARGET_DIR}/../programs/hyperlane-sealevel-token-native"
@@ -60,6 +61,21 @@ build_spl_token_cli() {
     fi
 }
 
+announce_validator() {
+    set +e
+    # init the validator announce contract
+    "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" validator-announce init
+
+    # announce the validator
+    # This may fail until the previous init command reaches finality,
+    # just retry till it succeeds
+    while ! "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" validator-announce announce --validator 0x70997970c51812dc3a010c7d01b50e0d17dc79c8 --storage-location "file:///tmp/test_sealevel_checkpoints_0x70997970c51812dc3a010c7d01b50e0d17dc79c8" --signature "0xcd87b715cd4c2e3448be9e34204cf16376a6ba6106e147a4965e26ea946dd2ab19598140bf26f1e9e599c23f6b661553c7d89e8db22b3609068c91eb7f0fa2f01b"; do
+        sleep 3
+    done
+
+    set -e
+}
+
 mailbox_init() {
     set +e
     while ! "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox init; do
@@ -71,6 +87,8 @@ mailbox_init() {
     done
     set -e
     "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox query
+
+    announce_validator
 }
 
 test_mailbox() {
@@ -240,6 +258,7 @@ main() {
     solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_token.so"
     solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_token_native.so"
     solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_mailbox.so"
+    solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_validator_announce.so"
     solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_recipient_echo.so"
     solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_ism_rubber_stamp.so"
 
