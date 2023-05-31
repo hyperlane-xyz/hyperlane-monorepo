@@ -225,6 +225,11 @@ test_token() {
 }
 
 main() {
+    # build the client
+    pushd "${SCRIPT_DIR}/../sealevel/client"
+    cargo build
+    popd
+
     # build all the required sealevel programs
     build_programs
     # build the SPL token CLI
