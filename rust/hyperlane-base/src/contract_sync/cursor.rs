@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
 use tokio::time::sleep;
-use tracing::{debug, info, warn};
+use tracing::{debug, warn};
 
 use hyperlane_core::{
     ChainResult, ContractSyncCursor, HyperlaneMessage, HyperlaneMessageStore,
