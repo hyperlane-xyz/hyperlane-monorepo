@@ -1461,6 +1461,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "enum_dispatch"
+version = "0.3.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "11f36e95862220b211a6e2aa5eca09b4fa391b13cd52ceb8035a24bf65a79de2"
+dependencies = [
+ "once_cell",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "errno"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2798,6 +2810,7 @@ dependencies = [
  "rusoto_core",
  "rusoto_kms",
  "rusoto_s3",
+ "rusoto_sts",
  "serde",
  "serde_json",
  "static_assertions",
@@ -2822,6 +2835,7 @@ dependencies = [
  "config",
  "convert_case 0.6.0",
  "derive-new",
+ "derive_more",
  "ethers-contract",
  "ethers-core",
  "ethers-providers",
@@ -2857,6 +2871,7 @@ dependencies = [
  "hex 0.4.3",
  "hyperlane-core",
  "num",
+ "num-traits",
  "reqwest",
  "serde",
  "serde_json",
@@ -4329,6 +4344,8 @@ dependencies = [
  "async-trait",
  "config",
  "derive-new",
+ "derive_more",
+ "enum_dispatch",
  "ethers",
  "ethers-contract",
  "eyre",
@@ -4337,6 +4354,7 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-ethereum",
  "hyperlane-test",
+ "itertools",
  "num-derive",
  "num-traits",
  "prometheus",
@@ -4512,6 +4530,7 @@ name = "run-locally"
 version = "0.1.0"
 dependencies = [
  "ctrlc",
+ "eyre",
  "maplit",
  "nix",
  "tempfile",
@@ -4612,6 +4631,21 @@ dependencies = [
  "serde",
  "sha2 0.9.9",
  "tokio",
+]
+
+[[package]]
+name = "rusoto_sts"
+version = "0.48.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d1643f49aa67cb7cb895ebac5a2ff3f991c6dbdc58ad98b28158cd5706aecd1d"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "chrono",
+ "futures",
+ "rusoto_core",
+ "serde_urlencoded",
+ "xml-rs",
 ]
 
 [[package]]

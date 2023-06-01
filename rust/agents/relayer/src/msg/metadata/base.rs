@@ -5,37 +5,31 @@ use std::{collections::HashMap, fmt::Debug};
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::{Context, Result};
-use num_derive::FromPrimitive;
-use num_traits::FromPrimitive;
 use tokio::sync::RwLock;
-use tracing::{debug, instrument, warn};
+use tracing::{debug, info, instrument, warn};
 
 use hyperlane_base::{
     ChainConf, CheckpointSyncer, CheckpointSyncerConf, CoreMetrics, MultisigCheckpointSyncer,
 };
 use hyperlane_core::accumulator::merkle::Proof;
 use hyperlane_core::{
-    HyperlaneDomain, HyperlaneMessage, MultisigIsm, MultisigSignedCheckpoint, RoutingIsm,
+    Checkpoint, HyperlaneDomain, HyperlaneMessage, ModuleType, MultisigIsm, RoutingIsm,
     ValidatorAnnounce, H160, H256,
 };
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
-use crate::msg::metadata::{MultisigIsmMetadataBuilder, RoutingIsmMetadataBuilder};
+use crate::msg::metadata::multisig::{
+    LegacyMultisigMetadataBuilder, MerkleRootMultisigMetadataBuilder,
+    MessageIdMultisigMetadataBuilder,
+};
+use crate::msg::metadata::RoutingIsmMetadataBuilder;
 
 #[derive(Debug, thiserror::Error)]
 pub enum MetadataBuilderError {
     #[error("Unknown or invalid module type ({0})")]
-    UnsupportedModuleType(u8),
+    UnsupportedModuleType(ModuleType),
     #[error("Exceeded max depth when building metadata ({0})")]
     MaxDepthExceeded(u32),
-}
-
-#[derive(FromPrimitive, Clone, Debug)]
-pub enum SupportedIsmTypes {
-    Routing = 1,
-    // Aggregation = 2,
-    LegacyMultisig = 3,
-    Multisig = 4,
 }
 
 #[async_trait]
@@ -47,13 +41,14 @@ pub trait MetadataBuilder: Send + Sync {
 
 #[derive(Clone, new)]
 pub struct BaseMetadataBuilder {
-    chain_setup: ChainConf,
-    prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
-    validator_announce: Arc<dyn ValidatorAnnounce>,
+    destination_chain_setup: ChainConf,
+    origin_prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
+    origin_validator_announce: Arc<dyn ValidatorAnnounce>,
     allow_local_checkpoint_syncers: bool,
     metrics: Arc<CoreMetrics>,
     /// ISMs can be structured recursively. We keep track of the depth
-    /// of the recursion to avoid infinit loops.
+    /// of the recursion to avoid infinite loops.
+    #[new(default)]
     depth: u32,
     max_depth: u32,
 }
@@ -63,14 +58,14 @@ impl Debug for BaseMetadataBuilder {
         write!(
             f,
             "MetadataBuilder {{ chain_setup: {:?}, validator_announce: {:?} }}",
-            self.chain_setup, self.validator_announce
+            self.destination_chain_setup, self.origin_validator_announce
         )
     }
 }
 
 #[async_trait]
 impl MetadataBuilder for BaseMetadataBuilder {
-    #[instrument(err)]
+    #[instrument(err, skip(self), fields(domain=self.domain().name()))]
     async fn build(
         &self,
         ism_address: H256,
@@ -78,22 +73,21 @@ impl MetadataBuilder for BaseMetadataBuilder {
     ) -> Result<Option<Vec<u8>>> {
         const CTX: &str = "When fetching module type";
         let ism = self
-            .chain_setup
+            .destination_chain_setup
             .build_ism(ism_address, &self.metrics)
             .await
             .context(CTX)?;
         let module_type = ism.module_type().await.context(CTX)?;
-        let supported_type = SupportedIsmTypes::from_u8(module_type)
-            .ok_or(MetadataBuilderError::UnsupportedModuleType(module_type))
-            .context(CTX)?;
         let base = self.clone_with_incremented_depth()?;
 
-        let metadata_builder: Box<dyn MetadataBuilder> = match supported_type {
-            SupportedIsmTypes::Multisig => Box::new(MultisigIsmMetadataBuilder::new(base, false)),
-            SupportedIsmTypes::LegacyMultisig => {
-                Box::new(MultisigIsmMetadataBuilder::new(base, true))
+        let metadata_builder: Box<dyn MetadataBuilder> = match module_type {
+            ModuleType::LegacyMultisig => Box::new(LegacyMultisigMetadataBuilder::new(base)),
+            ModuleType::MerkleRootMultisig => {
+                Box::new(MerkleRootMultisigMetadataBuilder::new(base))
             }
-            SupportedIsmTypes::Routing => Box::new(RoutingIsmMetadataBuilder::new(base)),
+            ModuleType::MessageIdMultisig => Box::new(MessageIdMultisigMetadataBuilder::new(base)),
+            ModuleType::Routing => Box::new(RoutingIsmMetadataBuilder::new(base)),
+            _ => return Err(MetadataBuilderError::UnsupportedModuleType(module_type).into()),
         };
         metadata_builder
             .build(ism_address, message)
@@ -104,7 +98,7 @@ impl MetadataBuilder for BaseMetadataBuilder {
 
 impl BaseMetadataBuilder {
     pub fn domain(&self) -> &HyperlaneDomain {
-        &self.chain_setup.domain
+        &self.destination_chain_setup.domain
     }
 
     pub fn clone_with_incremented_depth(&self) -> Result<BaseMetadataBuilder> {
@@ -117,45 +111,41 @@ impl BaseMetadataBuilder {
         }
     }
 
-    pub async fn get_proof(
-        &self,
-        message: &HyperlaneMessage,
-        checkpoint: MultisigSignedCheckpoint,
-    ) -> Result<Proof> {
+    pub async fn get_proof(&self, nonce: u32, checkpoint: Checkpoint) -> Result<Option<Proof>> {
         const CTX: &str = "When fetching message proof";
-        self.prover_sync
+        let proof = self
+            .origin_prover_sync
             .read()
             .await
-            .get_proof(message.nonce, checkpoint.checkpoint.index)
-            .context(CTX)
+            .get_proof(nonce, checkpoint.index)
+            .context(CTX)?;
+
+        // checkpoint may be fraudulent if the root does not
+        // match the canonical root at the checkpoint's index
+        if proof.root() != checkpoint.root {
+            info!(
+                ?checkpoint,
+                canonical_root = ?proof.root(),
+                "Could not fetch metadata: checkpoint root does not match canonical root from merkle proof"
+            );
+            Ok(None)
+        } else {
+            Ok(Some(proof))
+        }
     }
 
-    pub async fn fetch_checkpoint(
-        &self,
-        validators: &Vec<H256>,
-        threshold: usize,
-        message: &HyperlaneMessage,
-    ) -> Result<Option<MultisigSignedCheckpoint>> {
-        const CTX: &str = "When fetching checkpoint signatures";
-        let highest_known_nonce = self.prover_sync.read().await.count() - 1;
-        let checkpoint_syncer = self
-            .build_checkpoint_syncer(validators)
-            .await
-            .context(CTX)?;
-        checkpoint_syncer
-            .fetch_checkpoint_in_range(validators, threshold, message.nonce, highest_known_nonce)
-            .await
-            .context(CTX)
+    pub async fn highest_known_nonce(&self) -> u32 {
+        self.origin_prover_sync.read().await.count() - 1
     }
 
     pub async fn build_routing_ism(&self, address: H256) -> Result<Box<dyn RoutingIsm>> {
-        self.chain_setup
+        self.destination_chain_setup
             .build_routing_ism(address, &self.metrics)
             .await
     }
 
     pub async fn build_multisig_ism(&self, address: H256) -> Result<Box<dyn MultisigIsm>> {
-        self.chain_setup
+        self.destination_chain_setup
             .build_multisig_ism(address, &self.metrics)
             .await
     }
@@ -165,7 +155,7 @@ impl BaseMetadataBuilder {
         validators: &[H256],
     ) -> Result<MultisigCheckpointSyncer> {
         let storage_locations = self
-            .validator_announce
+            .origin_validator_announce
             .get_announced_storage_locations(validators)
             .await?;
 
@@ -207,11 +197,15 @@ impl BaseMetadataBuilder {
                 }
             }
             if checkpoint_syncers.get(&validator.into()).is_none() {
-                warn!(
-                    ?validator,
-                    ?validator_storage_locations,
-                    "No valid checkpoint syncer configs for validator"
-                );
+                if validator_storage_locations.is_empty() {
+                    warn!(?validator, "Validator has not announced any storage locations; see https://docs.hyperlane.xyz/docs/operators/validators/announcing-your-validator");
+                } else {
+                    warn!(
+                        ?validator,
+                        ?validator_storage_locations,
+                        "No valid checkpoint syncer configs for validator"
+                    );
+                }
             }
         }
         Ok(MultisigCheckpointSyncer::new(checkpoint_syncers))

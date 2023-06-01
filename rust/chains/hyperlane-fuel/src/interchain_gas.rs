@@ -2,7 +2,6 @@ use async_trait::async_trait;
 
 use hyperlane_core::{
     ChainResult, HyperlaneChain, HyperlaneContract, Indexer, InterchainGasPaymaster,
-    InterchainGasPaymasterIndexer,
 };
 use hyperlane_core::{HyperlaneDomain, HyperlaneProvider, InterchainGasPayment, LogMeta, H256};
 
@@ -33,19 +32,16 @@ impl InterchainGasPaymaster for FuelInterchainGasPaymaster {}
 pub struct FuelInterchainGasPaymasterIndexer {}
 
 #[async_trait]
-impl Indexer for FuelInterchainGasPaymasterIndexer {
-    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        todo!()
-    }
-}
-
-#[async_trait]
-impl InterchainGasPaymasterIndexer for FuelInterchainGasPaymasterIndexer {
-    async fn fetch_gas_payments(
+impl Indexer<InterchainGasPayment> for FuelInterchainGasPaymasterIndexer {
+    async fn fetch_logs(
         &self,
         from_block: u32,
         to_block: u32,
     ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
+        todo!()
+    }
+
+    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         todo!()
     }
 }

@@ -16,7 +16,7 @@ sea-orm = {version = "0.11.1", features = ["macros", "with-bigdecimal", "with-ti
 sea-orm-migration = { version = "0.11.1", features = ["runtime-tokio-native-tls", "sqlx-postgres"] }
 serde.workspace = true
 time = "0.3"
-tokio = { workspace = true, features = ["rt", "macros"] }
+tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
 
 hyperlane-core = { path = "../../../hyperlane-core" }
 

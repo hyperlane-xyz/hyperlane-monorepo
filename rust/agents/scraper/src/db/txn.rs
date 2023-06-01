@@ -19,6 +19,21 @@ pub struct StorableTxn {
 }
 
 impl ScraperDb {
+    pub async fn retrieve_block_id(&self, tx_id: i64) -> Result<Option<i64>> {
+        #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
+        enum QueryAs {
+            BlockId,
+        }
+        let block_id = transaction::Entity::find()
+            .filter(transaction::Column::Id.eq(tx_id))
+            .select_only()
+            .column_as(transaction::Column::BlockId, QueryAs::BlockId)
+            .into_values::<i64, QueryAs>()
+            .one(&self.0)
+            .await?;
+        Ok(block_id)
+    }
+
     /// Lookup transactions and find their ids. Any transactions which are not
     /// found be excluded from the hashmap.
     pub async fn get_txn_ids(
@@ -45,7 +60,6 @@ impl ScraperDb {
             .map(|(id, hash)| Ok((H256::from_slice(&hash), id)))
             .collect::<Result<HashMap<_, _>>>()?;
 
-        debug!(txns = txns.len(), "Queried transaction info for hashes");
         trace!(?txns, "Queried transaction info for hashes");
         Ok(txns)
     }
