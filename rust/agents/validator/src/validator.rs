@@ -152,21 +152,23 @@ impl Validator {
             .tree(lag)
             .await
             .expect("failed to get mailbox tree");
-        let backfill_target = submitter.checkpoint(&tip_tree);
-
         let mut tasks = vec![];
 
-        let backfill_submitter = submitter.clone();
         let legacy_submitter = submitter.clone();
 
-        tasks.push(
-            tokio::spawn(async move {
-                backfill_submitter
-                    .checkpoint_submitter(empty_tree, Some(backfill_target))
-                    .await
-            })
-            .instrument(info_span!("BackfillCheckpointSubmitter")),
-        );
+        if tip_tree.count() > 0 {
+            let backfill_target = submitter.checkpoint(&tip_tree);
+            let backfill_submitter = submitter.clone();
+            tasks.push(
+                tokio::spawn(async move {
+                    backfill_submitter
+                        .checkpoint_submitter(empty_tree, Some(backfill_target))
+                        .await
+                })
+                .instrument(info_span!("BackfillCheckpointSubmitter")),
+            );
+        }
+
         tasks.push(
             tokio::spawn(async move { submitter.checkpoint_submitter(tip_tree, None).await })
                 .instrument(info_span!("TipCheckpointSubmitter")),
