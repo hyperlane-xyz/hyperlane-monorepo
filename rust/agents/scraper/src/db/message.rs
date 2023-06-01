@@ -80,9 +80,9 @@ impl ScraperDb {
             Ok(Some(HyperlaneMessage {
                 // We do not write version to the DB.
                 version: 0,
-                origin: message.origin.try_into()?,
-                nonce: message.nonce.try_into()?,
-                destination: message.destination.try_into()?,
+                origin: message.origin as u32,
+                destination: message.destination as u32,
+                nonce: message.nonce as u32,
                 sender: bytes_to_address(message.sender)?,
                 recipient: bytes_to_address(message.recipient)?,
                 body: message.msg_body.unwrap_or(Vec::new()),
