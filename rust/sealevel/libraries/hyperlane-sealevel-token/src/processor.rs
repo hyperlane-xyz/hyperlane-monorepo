@@ -3,20 +3,23 @@
 use access_control::AccessControl;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{Decode, Encode as _, H256};
-use hyperlane_sealevel_connection_client::router::{
-    HyperlaneRouterAccessControl, HyperlaneRouterDispatch, HyperlaneRouterMessageRecipient,
-    RemoteRouterConfig,
+use hyperlane_sealevel_connection_client::{
+    router::{
+        HyperlaneRouterAccessControl, HyperlaneRouterDispatch, HyperlaneRouterMessageRecipient,
+        RemoteRouterConfig,
+    },
+    HyperlaneConnectionClient, HyperlaneConnectionClientSetterAccessControl,
 };
 use hyperlane_sealevel_mailbox::{
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
     mailbox_process_authority_pda_seeds,
 };
-use serializable_account_meta::SerializableAccountMeta;
+use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
     instruction::{AccountMeta, Instruction},
-    program::invoke_signed,
+    program::{invoke_signed, set_return_data},
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
@@ -213,6 +216,7 @@ where
             mailbox_process_authority,
             dispatch_authority_bump,
             owner: Some(*payer_account.key),
+            interchain_security_module: init.interchain_security_module,
             remote_routers: HashMap::new(),
             plugin_data,
         };
@@ -576,22 +580,85 @@ where
 
         // Account 0: Token account
         let token_account = next_account_info(accounts_iter)?;
-        let mut token =
-            HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow_mut()[..])?.into_inner();
-        let token_seeds: &[&[u8]] = hyperlane_token_pda_seeds!(token.bump);
-        let expected_token_key = Pubkey::create_program_address(token_seeds, program_id)?;
-        if token_account.key != &expected_token_key {
-            return Err(ProgramError::InvalidArgument);
-        }
-        if token_account.owner != program_id {
-            return Err(ProgramError::IncorrectProgramId);
-        }
+        let mut token = HyperlaneToken::verify_account_and_fetch_inner(program_id, token_account)?;
 
         // Account 1: Owner
         let owner_account = next_account_info(accounts_iter)?;
 
         // This errors if owner_account is not really the owner.
         token.transfer_ownership(owner_account, new_owner)?;
+
+        // Store the updated token account.
+        HyperlaneTokenAccount::<T>::from(token).store(token_account, true)?;
+
+        Ok(())
+    }
+
+    /// Gets the interchain security module.
+    ///
+    /// Accounts:
+    /// 0. [] The token PDA account.
+    pub fn interchain_security_module(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+    ) -> ProgramResult {
+        let accounts_iter = &mut accounts.iter();
+
+        // Account 0: Token account
+        let token_account = next_account_info(accounts_iter)?;
+        let token = HyperlaneToken::<T>::verify_account_and_fetch_inner(program_id, token_account)?;
+
+        // Set the return data to the serialized Option<Pubkey> representing
+        // the ISM.
+        token.set_interchain_security_module_return_data();
+
+        Ok(())
+    }
+
+    /// Gets the account metas required to get the ISM.
+    ///
+    /// Accounts:
+    ///   None
+    pub fn interchain_security_module_account_metas(program_id: &Pubkey) -> ProgramResult {
+        let (token_key, _token_bump) =
+            Pubkey::find_program_address(hyperlane_token_pda_seeds!(), program_id);
+
+        let account_metas: Vec<SerializableAccountMeta> =
+            vec![AccountMeta::new_readonly(token_key, false).into()];
+
+        // Wrap it in the SimulationReturnData because serialized account_metas
+        // may end with zero byte(s), which are incorrectly truncated as
+        // simulated transaction return data.
+        // See `SimulationReturnData` for details.
+        let bytes = SimulationReturnData::new(account_metas)
+            .try_to_vec()
+            .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+        set_return_data(&bytes[..]);
+
+        Ok(())
+    }
+
+    /// Lets the owner set the interchain security module.
+    ///
+    /// Accounts:
+    /// 0. [writeable] The token PDA account.
+    /// 1. [signer] The access control owner.
+    pub fn set_interchain_security_module(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+        ism: Option<Pubkey>,
+    ) -> ProgramResult {
+        let accounts_iter = &mut accounts.iter();
+
+        // Account 0: Token account
+        let token_account = next_account_info(accounts_iter)?;
+        let mut token = HyperlaneToken::verify_account_and_fetch_inner(program_id, token_account)?;
+
+        // Account 1: Owner
+        let owner_account = next_account_info(accounts_iter)?;
+
+        // This errors if owner_account is not really the owner.
+        token.set_interchain_security_module_only_owner(owner_account, ism)?;
 
         // Store the updated token account.
         HyperlaneTokenAccount::<T>::from(token).store(token_account, true)?;

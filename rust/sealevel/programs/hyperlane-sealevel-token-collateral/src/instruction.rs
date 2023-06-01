@@ -11,6 +11,7 @@ pub enum Instruction {
     TransferRemote(TransferRemote),
     EnrollRemoteRouter(RemoteRouterConfig),
     EnrollRemoteRouters(Vec<RemoteRouterConfig>),
+    SetInterchainSecurityModule(Option<Pubkey>),
     TransferOwnership(Option<Pubkey>),
 }
 

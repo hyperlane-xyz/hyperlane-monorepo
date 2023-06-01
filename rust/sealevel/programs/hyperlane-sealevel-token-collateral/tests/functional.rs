@@ -326,6 +326,7 @@ async fn initialize_hyperlane_token(
             *program_id,
             &HyperlaneTokenInstruction::Init(Init {
                 mailbox: hyperlane_sealevel_mailbox::id(),
+                interchain_security_module: None,
             })
             .into_instruction_data()
             .unwrap(),
@@ -446,6 +447,7 @@ async fn test_initialize() {
             mailbox_process_authority: hyperlane_token_accounts.mailbox_process_authority,
             dispatch_authority_bump: hyperlane_token_accounts.dispatch_authority_bump,
             owner: Some(payer.pubkey()),
+            interchain_security_module: None,
             remote_routers: HashMap::new(),
             plugin_data: CollateralPlugin {
                 mint,
@@ -751,6 +753,9 @@ async fn transfer_from_remote(
                     false,
                 ),
                 AccountMeta::new(processed_message_account_key, false),
+                // Accounts required to get recipient's ISM
+                AccountMeta::new(hyperlane_token_accounts.token, false),
+                // Noop
                 AccountMeta::new_readonly(spl_noop::id(), false),
                 // ISM
                 AccountMeta::new_readonly(hyperlane_sealevel_ism_rubber_stamp::id(), false),
@@ -1040,6 +1045,177 @@ async fn test_enroll_remote_router_errors_if_not_signed_by_owner() {
     assert_transaction_error(
         result,
         TransactionError::InstructionError(0, InstructionError::MissingRequiredSignature),
+    );
+}
+
+#[tokio::test]
+async fn test_transfer_ownership() {
+    let program_id = hyperlane_sealevel_token_collateral::id();
+
+    let (mut banks_client, payer) = setup_client().await;
+
+    let (mint, _mint_authority) = initialize_mint(&mut banks_client, &payer, LOCAL_DECIMALS).await;
+
+    let hyperlane_token_accounts =
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, &mint)
+            .await
+            .unwrap();
+
+    let new_owner = Some(Pubkey::new_unique());
+
+    // Transfer ownership
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let mut transaction = Transaction::new_with_payer(
+        &[Instruction::new_with_bytes(
+            program_id,
+            &HyperlaneTokenInstruction::TransferOwnership(new_owner)
+                .into_instruction_data()
+                .unwrap(),
+            vec![
+                AccountMeta::new(hyperlane_token_accounts.token, false),
+                AccountMeta::new_readonly(payer.pubkey(), true),
+            ],
+        )],
+        Some(&payer.pubkey()),
+    );
+    transaction.sign(&[&payer], recent_blockhash);
+    banks_client.process_transaction(transaction).await.unwrap();
+
+    // Verify the new owner is set
+    let token_account_data = banks_client
+        .get_account(hyperlane_token_accounts.token)
+        .await
+        .unwrap()
+        .unwrap()
+        .data;
+    let token = HyperlaneTokenAccount::<CollateralPlugin>::fetch(&mut &token_account_data[..])
+        .unwrap()
+        .into_inner();
+    assert_eq!(token.owner, new_owner);
+}
+
+#[tokio::test]
+async fn test_transfer_ownership_errors_if_owner_not_signer() {
+    let program_id = hyperlane_sealevel_token_collateral::id();
+
+    let (mut banks_client, payer) = setup_client().await;
+
+    let (mint, mint_authority) = initialize_mint(&mut banks_client, &payer, LOCAL_DECIMALS).await;
+
+    let hyperlane_token_accounts =
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, &mint)
+            .await
+            .unwrap();
+
+    let new_owner = Some(Pubkey::new_unique());
+
+    // Try transferring ownership using the mint authority key
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let mut transaction = Transaction::new_with_payer(
+        &[Instruction::new_with_bytes(
+            program_id,
+            &HyperlaneTokenInstruction::TransferOwnership(new_owner)
+                .into_instruction_data()
+                .unwrap(),
+            vec![
+                AccountMeta::new(hyperlane_token_accounts.token, false),
+                AccountMeta::new_readonly(mint_authority.pubkey(), true),
+            ],
+        )],
+        Some(&mint_authority.pubkey()),
+    );
+    transaction.sign(&[&mint_authority], recent_blockhash);
+    let result = banks_client.process_transaction(transaction).await;
+
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
+}
+
+#[tokio::test]
+async fn test_set_interchain_security_module() {
+    let program_id = hyperlane_sealevel_token_collateral::id();
+
+    let (mut banks_client, payer) = setup_client().await;
+
+    let (mint, _mint_authority) = initialize_mint(&mut banks_client, &payer, LOCAL_DECIMALS).await;
+
+    let hyperlane_token_accounts =
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, &mint)
+            .await
+            .unwrap();
+
+    let new_ism = Some(Pubkey::new_unique());
+
+    // Set the ISM
+    // Transfer ownership
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let mut transaction = Transaction::new_with_payer(
+        &[Instruction::new_with_bytes(
+            program_id,
+            &HyperlaneTokenInstruction::SetInterchainSecurityModule(new_ism)
+                .into_instruction_data()
+                .unwrap(),
+            vec![
+                AccountMeta::new(hyperlane_token_accounts.token, false),
+                AccountMeta::new_readonly(payer.pubkey(), true),
+            ],
+        )],
+        Some(&payer.pubkey()),
+    );
+    transaction.sign(&[&payer], recent_blockhash);
+    banks_client.process_transaction(transaction).await.unwrap();
+
+    // Verify the new ISM is set
+    let token_account_data = banks_client
+        .get_account(hyperlane_token_accounts.token)
+        .await
+        .unwrap()
+        .unwrap()
+        .data;
+    let token = HyperlaneTokenAccount::<CollateralPlugin>::fetch(&mut &token_account_data[..])
+        .unwrap()
+        .into_inner();
+    assert_eq!(token.interchain_security_module, new_ism);
+}
+
+#[tokio::test]
+async fn test_set_interchain_security_module_errors_if_owner_not_signer() {
+    let program_id = hyperlane_sealevel_token_collateral::id();
+
+    let (mut banks_client, payer) = setup_client().await;
+
+    let (mint, mint_authority) = initialize_mint(&mut banks_client, &payer, LOCAL_DECIMALS).await;
+
+    let hyperlane_token_accounts =
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, &mint)
+            .await
+            .unwrap();
+
+    let new_ism = Some(Pubkey::new_unique());
+
+    // Try setting the ISM using the mint authority key
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let mut transaction = Transaction::new_with_payer(
+        &[Instruction::new_with_bytes(
+            program_id,
+            &HyperlaneTokenInstruction::SetInterchainSecurityModule(new_ism)
+                .into_instruction_data()
+                .unwrap(),
+            vec![
+                AccountMeta::new(hyperlane_token_accounts.token, false),
+                AccountMeta::new_readonly(mint_authority.pubkey(), true),
+            ],
+        )],
+        Some(&mint_authority.pubkey()),
+    );
+    transaction.sign(&[&mint_authority], recent_blockhash);
+    let result = banks_client.process_transaction(transaction).await;
+
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
     );
 }
 
