@@ -93,9 +93,12 @@ pub fn process_instruction(
 /// 0. [executable] The system program.
 /// 1. [writable] The token PDA account.
 /// 2. [writable] The dispatch authority PDA account.
-/// 3. [signer] The payer.
-/// 4. [writable] The mint / mint authority PDA account.
-/// 5. [writable] The ATA payer PDA account.
+/// 3. [signer] The payer and access control owner of the program.
+/// 4. [] The mint.
+/// 5. [executable] The SPL token 2022 program.
+/// 6. [executable] The Rent sysvar program.
+/// 7. [writable] The escrow PDA account.
+/// 8. [writable] The ATA payer PDA account.
 fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramResult {
     HyperlaneSealevelToken::<CollateralPlugin>::initialize(program_id, accounts, init)
 }

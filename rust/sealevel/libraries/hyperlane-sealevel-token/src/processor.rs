@@ -121,9 +121,10 @@ where
         let accounts_iter = &mut accounts.iter();
 
         // Account 0: System program
+        let system_program_id = solana_program::system_program::id();
         let system_program = next_account_info(accounts_iter)?;
-        if system_program.key != &solana_program::system_program::id() {
-            return Err(ProgramError::InvalidArgument);
+        if system_program.key != &system_program_id {
+            return Err(ProgramError::IncorrectProgramId);
         }
 
         // Account 1: Token storage account
@@ -131,7 +132,10 @@ where
         let (token_key, token_bump) =
             Pubkey::find_program_address(hyperlane_token_pda_seeds!(), program_id);
         if &token_key != token_account.key {
-            return Err(ProgramError::InvalidArgument);
+            return Err(ProgramError::IncorrectProgramId);
+        }
+        if !token_account.data_is_empty() || token_account.owner != &system_program_id {
+            return Err(ProgramError::AccountAlreadyInitialized);
         }
 
         // Account 2: Dispatch authority PDA.
@@ -141,7 +145,12 @@ where
             program_id,
         );
         if *dispatch_authority_account.key != dispatch_authority_key {
-            return Err(ProgramError::InvalidArgument);
+            return Err(ProgramError::IncorrectProgramId);
+        }
+        if !dispatch_authority_account.data_is_empty()
+            || dispatch_authority_account.owner != &system_program_id
+        {
+            return Err(ProgramError::AccountAlreadyInitialized);
         }
 
         // Account 3: Payer

@@ -7,7 +7,7 @@ use serializable_account_meta::SerializableAccountMeta;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     // instruction::AccountMeta,
-    program::{invoke, invoke_signed},
+    program::{get_return_data, invoke, invoke_signed},
     program_error::ProgramError,
     program_pack::Pack as _,
     pubkey::Pubkey,
@@ -19,7 +19,7 @@ use spl_associated_token_account::{
     get_associated_token_address_with_program_id,
     instruction::create_associated_token_account_idempotent,
 };
-use spl_token_2022::instruction::{initialize_account, transfer_checked};
+use spl_token_2022::instruction::{get_account_data_size, initialize_account, transfer_checked};
 
 // TODO make these easily configurable?
 pub const REMOTE_DECIMALS: u8 = 18;
@@ -54,15 +54,15 @@ macro_rules! hyperlane_token_ata_payer_pda_seeds {
 /// out when transferring in from a remote chain.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Default)]
 pub struct CollateralPlugin {
-    mint: Pubkey,
-    escrow: Pubkey,
-    escrow_bump: u8,
-    ata_payer_bump: u8,
+    pub mint: Pubkey,
+    pub escrow: Pubkey,
+    pub escrow_bump: u8,
+    pub ata_payer_bump: u8,
 }
 
 impl CollateralPlugin {
     // TODO: what about spl_token
-    const MINT_ACCOUNT_SIZE: usize = spl_token_2022::state::Mint::LEN;
+    pub const MINT_ACCOUNT_SIZE: usize = spl_token_2022::state::Mint::LEN;
 }
 
 impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
@@ -70,9 +70,10 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
     ///
     /// Accounts:
     /// 0. [] The mint.
-    /// 1. [executable] The Rent sysvar program.
-    /// 1. [writable] The escrow PDA account.
-    /// 2. [writable] The ATA payer PDA account.
+    /// 1. [executable] The SPL token 2022 program.
+    /// 2. [executable] The Rent sysvar program.
+    /// 3. [writable] The escrow PDA account.
+    /// 4. [writable] The ATA payer PDA account.
     fn initialize<'a, 'b>(
         program_id: &Pubkey,
         _system_program: &'a AccountInfo<'b>,
@@ -80,16 +81,24 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
         payer_account_info: &'a AccountInfo<'b>,
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
     ) -> Result<Self, ProgramError> {
+        println!("CollateralPlugin initialize?");
+
         // Account 0: The mint.
         let mint_account_info = next_account_info(accounts_iter)?;
 
-        // Account 1: The Rent sysvar program.
+        // Account 1: The SPL token 2022 program.
+        let spl_token_2022_account_info = next_account_info(accounts_iter)?;
+        if spl_token_2022_account_info.key != &spl_token_2022::id() {
+            return Err(ProgramError::IncorrectProgramId);
+        }
+
+        // Account 2: The Rent sysvar program.
         let rent_account_info = next_account_info(accounts_iter)?;
         if rent_account_info.key != &sysvar::rent::id() {
             return Err(ProgramError::IncorrectProgramId);
         }
 
-        // Account 1: Escrow PDA account.
+        // Account 3: Escrow PDA account.
         let escrow_account_info = next_account_info(accounts_iter)?;
         let (escrow_key, escrow_bump) =
             Pubkey::find_program_address(hyperlane_token_escrow_pda_seeds!(), program_id);
@@ -99,13 +108,36 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
 
         let spl_token_2022_id = spl_token_2022::id();
 
+        // Get the required account size for the escrow PDA.
+        invoke(
+            &get_account_data_size(
+                &spl_token_2022_id,
+                mint_account_info.key,
+                // No additional extensions
+                &[],
+            )?,
+            &[mint_account_info.clone()],
+        )?;
+        let account_data_size: u64 = get_return_data()
+            .ok_or(ProgramError::InvalidArgument)
+            .and_then(|(returning_pubkey, data)| {
+                if returning_pubkey != spl_token_2022_id {
+                    return Err(ProgramError::InvalidArgument);
+                }
+                let data: [u8; 8] = data
+                    .as_slice()
+                    .try_into()
+                    .map_err(|_| ProgramError::InvalidArgument)?;
+                Ok(u64::from_le_bytes(data))
+            })?;
+
         // Create escrow PDA owned by the SPL token program.
         invoke_signed(
             &system_instruction::create_account(
                 payer_account_info.key,
                 escrow_account_info.key,
-                Rent::default().minimum_balance(Self::MINT_ACCOUNT_SIZE),
-                Self::MINT_ACCOUNT_SIZE.try_into().unwrap(),
+                Rent::default().minimum_balance(account_data_size.try_into().unwrap()),
+                account_data_size,
                 &spl_token_2022_id,
             ),
             &[payer_account_info.clone(), escrow_account_info.clone()],
@@ -128,7 +160,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
             ],
         )?;
 
-        // Account 1: ATA payer.
+        // Account 4: ATA payer.
         let ata_payer_account_info = next_account_info(accounts_iter)?;
         let (ata_payer_key, ata_payer_bump) =
             Pubkey::find_program_address(hyperlane_token_ata_payer_pda_seeds!(), program_id);
