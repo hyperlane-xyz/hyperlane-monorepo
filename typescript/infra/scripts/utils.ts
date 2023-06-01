@@ -25,9 +25,10 @@ import { getCloudAgentKey } from '../src/agents/key-utils';
 import { CloudAgentKey } from '../src/agents/keys';
 import { KeyRole } from '../src/agents/roles';
 import { DeployEnvironment, EnvironmentConfig } from '../src/config';
+import { AgentConfig } from '../src/config';
 import { fetchProvider } from '../src/config/chain';
 import { EnvironmentNames, deployEnvToSdkEnv } from '../src/config/environment';
-import { assertContext } from '../src/utils/utils';
+import { assertContext, assertRole } from '../src/utils/utils';
 
 export enum Modules {
   ISM_FACTORY = 'ism',
@@ -76,6 +77,17 @@ export function withContext<T>(args: yargs.Argv<T>) {
     .demandOption('context');
 }
 
+export function withAgentRole<T>(args: yargs.Argv<T>) {
+  return args
+    .string('role')
+    .describe('role', 'agent role or comma seperated list of roles')
+    .coerce('role', (role: string): KeyRole[] =>
+      role.split(',').map(assertRole),
+    )
+    .demandOption('role')
+    .alias('r', 'role');
+}
+
 export function withKeyRoleAndChain<T>(args: yargs.Argv<T>) {
   return args
     .alias('r', 'role')
@@ -106,8 +118,13 @@ export function getEnvironmentConfig(environment: DeployEnvironment) {
   return environments[environment];
 }
 
-export async function getConfigsBasedOnArgs() {
-  const { environment, context } = await withContext(getArgs()).argv;
+export async function getConfigsBasedOnArgs(argv?: {
+  environment: DeployEnvironment;
+  context: Contexts;
+}) {
+  const { environment, context } = argv
+    ? argv
+    : await withContext(getArgs()).argv;
   const envConfig = getEnvironmentConfig(environment);
   const agentConfig = await getAgentConfig(context, envConfig);
   return { envConfig, agentConfig };
@@ -117,7 +134,7 @@ export async function getConfigsBasedOnArgs() {
 export async function getAgentConfig(
   context: Contexts,
   environment: EnvironmentConfig | DeployEnvironment,
-) {
+): Promise<AgentConfig> {
   const coreConfig =
     typeof environment == 'string'
       ? getEnvironmentConfig(environment)
