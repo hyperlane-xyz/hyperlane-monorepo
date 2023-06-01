@@ -3,18 +3,17 @@ import { HelloWorldChecker } from '@hyperlane-xyz/helloworld';
 import { Contexts } from '../../config/contexts';
 import { KeyRole } from '../../src/agents/roles';
 import {
-  getContext,
-  getEnvironment,
+  getArgs,
   getEnvironmentConfig,
   getRouterConfig,
+  withContext,
 } from '../utils';
 
 import { getApp } from './utils';
 
 async function main() {
-  const environment = await getEnvironment();
+  const { environment, context } = await withContext(getArgs()).argv;
   const coreConfig = getEnvironmentConfig(environment);
-  const context = await getContext();
   const multiProvider = await coreConfig.getMultiProvider();
   const app = await getApp(
     coreConfig,

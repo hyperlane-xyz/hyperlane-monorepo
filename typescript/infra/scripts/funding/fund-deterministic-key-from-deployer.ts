@@ -11,7 +11,7 @@ import {
   getDeterministicKey,
 } from '../../src/funding/deterministic-keys';
 import { assertChain } from '../../src/utils/utils';
-import { getArgs, getEnvironment, getEnvironmentConfig } from '../utils';
+import { getArgs, getEnvironmentConfig } from '../utils';
 
 async function main() {
   const argv = await getArgs()
@@ -41,8 +41,7 @@ async function main() {
     throw new Error('Have to specify either --role or --address');
   }
 
-  const environment = await getEnvironment();
-  const coreConfig = getEnvironmentConfig(environment);
+  const coreConfig = getEnvironmentConfig(argv.environment);
   const multiProvider = await coreConfig.getMultiProvider(
     Contexts.Hyperlane,
     KeyRole.Deployer,
@@ -52,7 +51,7 @@ async function main() {
     argv.address ||
     (
       await getDeterministicKey(
-        environment,
+        argv.environment,
         // @ts-ignore
         DeterministicKeyRoles[argv.role],
       )

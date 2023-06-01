@@ -4,24 +4,18 @@ import {
   runLiquidityLayerRelayerHelmCommand,
 } from '../../src/middleware/liquidity-layer-relayer';
 import { HelmCommand } from '../../src/utils/helm';
-import {
-  assertCorrectKubeContext,
-  getContextAgentConfig,
-  getEnvironment,
-  getEnvironmentConfig,
-} from '../utils';
+import { assertCorrectKubeContext, getConfigsBasedOnArgs } from '../utils';
 
 async function main() {
-  const env = await getEnvironment();
-  const envConfig = getEnvironmentConfig(env);
+  const { agentConfig, envConfig } = await getConfigsBasedOnArgs();
+  if (agentConfig.context != Contexts.Hyperlane)
+    throw new Error(
+      `Context must be ${Contexts.Hyperlane}, but is ${agentConfig.context}`,
+    );
 
   await assertCorrectKubeContext(envConfig);
 
   const liquidityLayerRelayerConfig = getLiquidityLayerRelayerConfig(envConfig);
-  const agentConfig = await getContextAgentConfig(
-    envConfig,
-    Contexts.Hyperlane,
-  );
 
   await runLiquidityLayerRelayerHelmCommand(
     HelmCommand.InstallOrUpgrade,

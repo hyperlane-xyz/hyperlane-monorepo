@@ -19,16 +19,21 @@ import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 
 import {
   Modules,
-  getArgsWithModuleAndFork,
   getEnvironmentConfig,
+  getArgs as getRootArgs,
   getRouterConfig,
+  withModuleAndFork,
 } from './utils';
 
-async function check() {
-  const { fork, govern, module, environment } = await getArgsWithModuleAndFork()
+function getArgs() {
+  return withModuleAndFork(getRootArgs())
     .boolean('govern')
     .default('govern', false)
     .alias('g', 'govern').argv;
+}
+
+async function check() {
+  const { fork, govern, module, environment } = await getArgs();
   const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
 

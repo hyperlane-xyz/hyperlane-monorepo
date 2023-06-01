@@ -1,20 +1,11 @@
-import { ValidatorHelmManager } from '../src/agents';
+import { RelayerHelmManager } from '../src/agents';
 import { HelmCommand } from '../src/utils/helm';
 
-import {
-  assertCorrectKubeContext,
-  getContextAgentConfig,
-  getEnvironment,
-  getEnvironmentConfig,
-} from './utils';
+import { assertCorrectKubeContext, getConfigsBasedOnArgs } from './utils';
 
 async function deploy() {
-  const environment = await getEnvironment();
-  const config = getEnvironmentConfig(environment);
-
-  const agentConfig = await getContextAgentConfig(config);
-
-  await assertCorrectKubeContext(config);
+  const { envConfig, agentConfig } = await getConfigsBasedOnArgs();
+  await assertCorrectKubeContext(envConfig);
 
   // Note the create-keys script should be ran prior to running this script.
   // At the moment, `runAgentHelmCommand` has the side effect of creating keys / users
@@ -24,13 +15,13 @@ async function deploy() {
   // While this function still has these side effects, the workaround is to just
   // run the create-keys script first.
 
-  const chain = agentConfig.contextChainNames[0];
-  await new ValidatorHelmManager(agentConfig, chain).runHelmCommand(
-    HelmCommand.InstallOrUpgrade,
-  );
-  // await new RelayerHelmManager(agentConfig).runHelmCommand(
+  // const chain = agentConfig.contextChainNames[0];
+  // await new ValidatorHelmManager(agentConfig, chain).runHelmCommand(
   //   HelmCommand.InstallOrUpgrade,
   // );
+  await new RelayerHelmManager(agentConfig).runHelmCommand(
+    HelmCommand.InstallOrUpgrade,
+  );
   // await new ScraperHelmManager(agentConfig).runHelmCommand(
   //   HelmCommand.InstallOrUpgrade,
   // );

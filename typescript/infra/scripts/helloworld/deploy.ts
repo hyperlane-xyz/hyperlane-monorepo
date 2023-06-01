@@ -7,16 +7,15 @@ import { Contexts } from '../../config/contexts';
 import { KeyRole } from '../../src/agents/roles';
 import { readJSON, writeJSON } from '../../src/utils/utils';
 import {
-  getContext,
-  getEnvironment,
+  getArgs,
   getEnvironmentConfig,
   getEnvironmentDirectory,
   getRouterConfig,
+  withContext,
 } from '../utils';
 
 async function main() {
-  const environment = await getEnvironment();
-  const context = await getContext();
+  const { environment, context } = await withContext(getArgs()).argv;
   const coreConfig = getEnvironmentConfig(environment);
   // Always deploy from the hyperlane deployer
   const multiProvider = await coreConfig.getMultiProvider(

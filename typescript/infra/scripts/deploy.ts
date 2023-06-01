@@ -43,16 +43,17 @@ import {
   Modules,
   SDK_MODULES,
   getAgentConfigDirectory,
-  getArgsWithModuleAndFork,
+  getArgs,
   getContractAddressesSdkFilepath,
   getEnvironmentConfig,
   getEnvironmentDirectory,
   getModuleDirectory,
   getRouterConfig,
+  withModuleAndFork,
 } from './utils';
 
 async function main() {
-  const { module, fork, environment } = await getArgsWithModuleAndFork().argv;
+  const { module, fork, environment } = await withModuleAndFork(getArgs()).argv;
   const envConfig = getEnvironmentConfig(environment);
   const multiProvider = await envConfig.getMultiProvider();
 

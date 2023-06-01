@@ -29,14 +29,6 @@ import { fetchProvider } from '../src/config/chain';
 import { EnvironmentNames, deployEnvToSdkEnv } from '../src/config/environment';
 import { assertContext } from '../src/utils/utils';
 
-export function getArgsWithContext() {
-  return getArgs()
-    .describe('context', 'deploy context')
-    .coerce('context', assertContext)
-    .demandOption('context')
-    .alias('c', 'context');
-}
-
 export enum Modules {
   ISM_FACTORY = 'ism',
   CORE = 'core',
@@ -47,6 +39,7 @@ export enum Modules {
   TEST_QUERY_SENDER = 'testquerysender',
   TEST_RECIPIENT = 'testrecipient',
 }
+
 export const SDK_MODULES = [
   Modules.ISM_FACTORY,
   Modules.CORE,
@@ -54,22 +47,6 @@ export const SDK_MODULES = [
   Modules.INTERCHAIN_ACCOUNTS,
   Modules.INTERCHAIN_QUERY_SYSTEM,
 ];
-
-export function getArgsWithModule() {
-  return getArgs()
-    .string('module')
-    .choices('module', Object.values(Modules))
-    .demandOption('module')
-    .alias('m', 'module');
-}
-
-export function getArgsWithModuleAndFork() {
-  return getArgsWithModule()
-    .string('fork')
-    .describe('fork', 'network to fork')
-    .choices('fork', Object.values(Chains))
-    .alias('f', 'fork');
-}
 
 export function getArgs() {
   return yargs(process.argv.slice(2))
@@ -79,9 +56,41 @@ export function getArgs() {
     .alias('e', 'environment');
 }
 
-export async function getEnvironmentFromArgs(): Promise<string> {
-  const argv = await getArgs().argv;
-  return argv.environment ?? '';
+export function withModuleAndFork<T>(args: yargs.Argv<T>) {
+  return args
+    .string('module')
+    .choices('module', Object.values(Modules))
+    .demandOption('module')
+    .alias('m', 'module')
+
+    .string('fork')
+    .describe('fork', 'network to fork')
+    .choices('fork', Object.values(Chains))
+    .alias('f', 'fork');
+}
+
+export function withContext<T>(args: yargs.Argv<T>) {
+  return args
+    .describe('context', 'deploy context')
+    .coerce('context', assertContext)
+    .demandOption('context');
+}
+
+export function withKeyRoleAndChain<T>(args: yargs.Argv<T>) {
+  return args
+    .alias('r', 'role')
+    .describe('r', 'key role')
+    .choices('r', Object.values(KeyRole))
+    .demandOption('r')
+
+    .alias('c', 'chain')
+    .describe('c', 'chain name')
+    .choices('c', AllChains)
+    .demandOption('c')
+
+    .alias('i', 'index')
+    .describe('i', 'index of role')
+    .number('i');
 }
 
 export function assertEnvironment(env: string): DeployEnvironment {
@@ -97,40 +106,33 @@ export function getEnvironmentConfig(environment: DeployEnvironment) {
   return environments[environment];
 }
 
-export async function getEnvironment() {
-  return assertEnvironment(await getEnvironmentFromArgs());
-}
-
-export async function getContext(defaultContext?: string): Promise<Contexts> {
-  const argv = await getArgsWithContext().argv;
-  // @ts-ignore
-  return assertContext(argv.context! || defaultContext!);
-}
-
-// Gets the agent config for the context that has been specified via yargs.
-export async function getContextAgentConfig(
-  EnvironmentConfig?: EnvironmentConfig,
-  defaultContext?: string,
-) {
-  return getAgentConfig(await getContext(defaultContext), EnvironmentConfig);
+export async function getConfigsBasedOnArgs() {
+  const { environment, context } = await withContext(getArgs()).argv;
+  const envConfig = getEnvironmentConfig(environment);
+  const agentConfig = await getAgentConfig(context, envConfig);
+  return { envConfig, agentConfig };
 }
 
 // Gets the agent config of a specific context.
 export async function getAgentConfig(
   context: Contexts,
-  EnvironmentConfig?: EnvironmentConfig,
+  environment: EnvironmentConfig | DeployEnvironment,
 ) {
-  const coreConfig = EnvironmentConfig
-    ? EnvironmentConfig
-    : getEnvironmentConfig(await getEnvironment());
+  const coreConfig =
+    typeof environment == 'string'
+      ? getEnvironmentConfig(environment)
+      : environment;
   const agentConfig = coreConfig.agents[context];
-  if (!agentConfig) {
+  if (!agentConfig)
     throw Error(
       `Invalid context ${context} for environment, must be one of ${Object.keys(
         coreConfig.agents,
       )}.`,
     );
-  }
+  if (agentConfig.context != context)
+    throw Error(
+      `Agent context ${agentConfig.context} does not match expected context ${context}`,
+    );
   return agentConfig;
 }
 
@@ -201,21 +203,6 @@ export function getModuleDirectory(
 
 export function getAgentConfigDirectory() {
   return path.join('../../', 'rust', 'config');
-}
-
-export function getKeyRoleAndChainArgs() {
-  return getArgs()
-    .alias('r', 'role')
-    .describe('r', 'key role')
-    .choices('r', Object.values(KeyRole))
-    .require('r')
-    .alias('c', 'chain')
-    .describe('c', 'chain name')
-    .choices('c', AllChains)
-    .require('c')
-    .alias('i', 'index')
-    .describe('i', 'index of role')
-    .number('i');
 }
 
 export async function assertCorrectKubeContext(coreConfig: EnvironmentConfig) {

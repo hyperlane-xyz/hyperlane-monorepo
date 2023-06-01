@@ -4,24 +4,18 @@ import {
   runKeyFunderHelmCommand,
 } from '../../src/funding/key-funder';
 import { HelmCommand } from '../../src/utils/helm';
-import {
-  assertCorrectKubeContext,
-  getContextAgentConfig,
-  getEnvironment,
-  getEnvironmentConfig,
-} from '../utils';
+import { assertCorrectKubeContext, getConfigsBasedOnArgs } from '../utils';
 
 async function main() {
-  const env = await getEnvironment();
-  const coreConfig = getEnvironmentConfig(env);
+  const { agentConfig, envConfig } = await getConfigsBasedOnArgs();
+  if (agentConfig.context != Contexts.Hyperlane)
+    throw new Error(
+      `Invalid context ${agentConfig.context}, must be ${Contexts.Hyperlane}`,
+    );
 
-  await assertCorrectKubeContext(coreConfig);
+  await assertCorrectKubeContext(envConfig);
 
-  const keyFunderConfig = getKeyFunderConfig(coreConfig);
-  const agentConfig = await getContextAgentConfig(
-    coreConfig,
-    Contexts.Hyperlane,
-  );
+  const keyFunderConfig = getKeyFunderConfig(envConfig);
 
   await runKeyFunderHelmCommand(
     HelmCommand.InstallOrUpgrade,

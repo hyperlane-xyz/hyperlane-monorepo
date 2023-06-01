@@ -32,12 +32,7 @@ import {
   assertRole,
   readJSONAtPath,
 } from '../../src/utils/utils';
-import {
-  assertEnvironment,
-  getAgentConfig,
-  getArgs,
-  getEnvironmentConfig,
-} from '../utils';
+import { getAgentConfig, getArgs, getEnvironmentConfig } from '../utils';
 
 type L2Chain =
   | Chains.optimism
@@ -177,7 +172,7 @@ const igpClaimThresholdPerChain: ChainMap<string> = {
 // Example usage:
 //   ts-node ./scripts/funding/fund-keys-from-deployer.ts -e testnet2 --context hyperlane --contexts-and-roles hyperlane=relayer
 async function main() {
-  const argv = await getArgs()
+  const { environment, ...argv } = await getArgs()
     .string('f')
     .array('f')
     .alias('f', 'address-files')
@@ -208,7 +203,6 @@ async function main() {
     .describe('skip-igp-claim', 'If true, never claims funds from the IGP')
     .default('skip-igp-claim', false).argv;
 
-  const environment = assertEnvironment(argv.e as string);
   constMetricLabels.hyperlane_deployment = environment;
   const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider(
@@ -354,7 +348,7 @@ class ContextFunder {
     rolesToFund: KeyRole[],
     skipIgpClaim: boolean,
   ) {
-    const agentConfig = await getAgentConfig(context);
+    const agentConfig = await getAgentConfig(context, environment);
     const keys = getAllCloudAgentKeys(agentConfig);
     await Promise.all(keys.map((key) => key.fetch()));
     return new ContextFunder(
