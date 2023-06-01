@@ -163,9 +163,6 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
         if mint_account.owner != &spl_token_2022::id() {
             return Err(ProgramError::IncorrectProgramId);
         }
-        if mint_account.owner != &spl_token_2022::id() {
-            return Err(ProgramError::IncorrectProgramId);
-        }
 
         // 2. The sender's associated token account.
         let sender_ata = next_account_info(accounts_iter)?;
@@ -277,6 +274,7 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
                 system_program.clone(),
                 spl_token_2022.clone(),
             ],
+            // TODO: don't think mint_seeds is needed
             &[ata_payer_seeds, mint_seeds],
         )?;
 
