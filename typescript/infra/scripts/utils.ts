@@ -59,12 +59,10 @@ export function getArgs() {
 
 export function withModuleAndFork<T>(args: yargs.Argv<T>) {
   return args
-    .string('module')
     .choices('module', Object.values(Modules))
     .demandOption('module')
     .alias('m', 'module')
 
-    .string('fork')
     .describe('fork', 'network to fork')
     .choices('fork', Object.values(Chains))
     .alias('f', 'fork');
@@ -79,7 +77,6 @@ export function withContext<T>(args: yargs.Argv<T>) {
 
 export function withAgentRole<T>(args: yargs.Argv<T>) {
   return args
-    .string('role')
     .describe('role', 'agent role or comma seperated list of roles')
     .coerce('role', (role: string): KeyRole[] =>
       role.split(',').map(assertRole),
@@ -90,19 +87,24 @@ export function withAgentRole<T>(args: yargs.Argv<T>) {
 
 export function withKeyRoleAndChain<T>(args: yargs.Argv<T>) {
   return args
+    .describe('role', 'key role')
+    .choices('role', Object.values(KeyRole))
+    .demandOption('role')
     .alias('r', 'role')
-    .describe('r', 'key role')
-    .choices('r', Object.values(KeyRole))
-    .demandOption('r')
 
+    .describe('chain', 'chain name')
+    .choices('chain', AllChains)
+    .demandOption('chain')
     .alias('c', 'chain')
-    .describe('c', 'chain name')
-    .choices('c', AllChains)
-    .demandOption('c')
 
-    .alias('i', 'index')
-    .describe('i', 'index of role')
-    .number('i');
+    .describe('index', 'index of role')
+    .number('index')
+    .check((argv) => {
+      if (argv.role == KeyRole.Validator && argv.index == undefined)
+        throw Error('index must be defined for validator role');
+      return true;
+    })
+    .alias('i', 'index');
 }
 
 export function assertEnvironment(env: string): DeployEnvironment {
