@@ -99,11 +99,6 @@ export function withKeyRoleAndChain<T>(args: yargs.Argv<T>) {
 
     .describe('index', 'index of role')
     .number('index')
-    .check((argv) => {
-      if (argv.role == KeyRole.Validator && argv.index == undefined)
-        throw Error('index must be defined for validator role');
-      return true;
-    })
     .alias('i', 'index');
 }
 
