@@ -4,6 +4,8 @@
 #![deny(unsafe_code)]
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
+use hyperlane_core::H160;
+use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_ism_rubber_stamp::ID as DEFAULT_ISM_PROG_ID;
 use hyperlane_sealevel_mailbox::{
     accounts::{InboxAccount, OutboxAccount},
@@ -13,8 +15,8 @@ use hyperlane_sealevel_mailbox::{
         VERSION,
     },
     mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds,
-    mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds, spl_noop,
-    ID as MAILBOX_PROG_ID,
+    mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
+    mailbox_processed_message_pda_seeds, spl_noop, ID as MAILBOX_PROG_ID,
 };
 use hyperlane_sealevel_recipient_echo::ID as RECIPIENT_ECHO_PROG_ID;
 use hyperlane_sealevel_token::{
@@ -31,6 +33,16 @@ use hyperlane_sealevel_token_lib::{
 use hyperlane_sealevel_token_native::{
     hyperlane_token_native_collateral_pda_seeds, plugin::NativePlugin,
 };
+use hyperlane_sealevel_validator_announce::{
+    accounts::ValidatorStorageLocationsAccount,
+    instruction::{
+        AnnounceInstruction as ValidatorAnnounceAnnounceInstruction,
+        InitInstruction as ValidatorAnnounceInitInstruction,
+        Instruction as ValidatorAnnounceInstruction,
+    },
+    replay_protection_pda_seeds, validator_announce_pda_seeds,
+    validator_storage_locations_pda_seeds, ID as VALIDATOR_ANNOUNCE_PROG_ID,
+};
 use solana_clap_utils::input_validators::{is_keypair, is_url, normalize_to_url_if_moniker};
 use solana_cli_config::{Config, CONFIG_FILE};
 use solana_client::rpc_client::RpcClient;
@@ -40,6 +52,7 @@ use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
     signature::{read_keypair_file, Keypair, Signer as _},
+    signer::signers::Signers,
     system_program,
     transaction::Transaction,
 };
@@ -69,6 +82,7 @@ struct Cli {
 enum HyperlaneSealevelCmd {
     Mailbox(MailboxCmd),
     Token(TokenCmd),
+    ValidatorAnnounce(ValidatorAnnounceCmd),
 }
 
 #[derive(Args)]
@@ -83,6 +97,7 @@ enum MailboxSubCmd {
     Query(Query),
     Send(Outbox),
     Receive(Inbox),
+    Delivered(Delivered),
 }
 
 #[derive(Args)]
@@ -97,14 +112,10 @@ struct Init {
 struct Query {
     #[arg(long, short, default_value_t = MAILBOX_PROG_ID)]
     program_id: Pubkey,
-    #[arg(long, short, default_value_t = ECLIPSE_DOMAIN)]
-    local_domain: u32,
 }
 
 #[derive(Args)]
 struct Outbox {
-    #[arg(long, short, default_value_t = ECLIPSE_DOMAIN)]
-    local_domain: u32,
     #[arg(long, short, default_value_t = ECLIPSE_DOMAIN)]
     destination: u32,
     #[arg(long, short, default_value_t = RECIPIENT_ECHO_PROG_ID)]
@@ -133,6 +144,14 @@ struct Inbox {
     program_id: Pubkey,
     #[arg(long, default_value_t = DEFAULT_ISM_PROG_ID)]
     ism: Pubkey,
+}
+
+#[derive(Args)]
+struct Delivered {
+    #[arg(long, short, default_value_t = MAILBOX_PROG_ID)]
+    program_id: Pubkey,
+    #[arg(long, short)]
+    message_id: H256,
 }
 
 // Actual content depends on which ISM is used.
@@ -172,6 +191,7 @@ enum TokenSubCmd {
     Init(TokenInit),
     Query(TokenQuery),
     TransferRemote(TokenTransferRemote),
+    EnrollRemoteRouter(TokenEnrollRemoteRouter),
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -186,8 +206,6 @@ struct TokenInit {
     program_id: Pubkey,
     #[arg(long, short, default_value_t = MAILBOX_PROG_ID)]
     mailbox: Pubkey,
-    #[arg(long, short = 'd', default_value_t = ECLIPSE_DOMAIN)]
-    mailbox_local_domain: u32,
     #[arg(value_enum)]
     token_type: TokenType,
 }
@@ -206,8 +224,6 @@ struct TokenTransferRemote {
     program_id: Pubkey,
     #[arg(long, short, default_value_t = MAILBOX_PROG_ID)]
     mailbox: Pubkey,
-    #[arg(long, short = 'd', default_value_t = ECLIPSE_DOMAIN)]
-    mailbox_local_domain: u32,
     // Note this is the keypair for normal account not the derived associated token account or delegate.
     sender: String,
     amount: u64,
@@ -220,11 +236,89 @@ struct TokenTransferRemote {
     token_type: TokenType,
 }
 
+#[derive(Args)]
+struct TokenEnrollRemoteRouter {
+    #[arg(long, short, default_value_t = HYPERLANE_TOKEN_PROG_ID)]
+    program_id: Pubkey,
+    domain: u32,
+    router: H256,
+}
+
+#[derive(Args)]
+struct ValidatorAnnounceCmd {
+    #[command(subcommand)]
+    cmd: ValidatorAnnounceSubCmd,
+}
+
+#[derive(Subcommand)]
+enum ValidatorAnnounceSubCmd {
+    Init(ValidatorAnnounceInit),
+    Announce(ValidatorAnnounceAnnounce),
+    Query(ValidatorAnnounceQuery),
+}
+
+#[derive(Args)]
+struct ValidatorAnnounceInit {
+    #[arg(long, short, default_value_t = VALIDATOR_ANNOUNCE_PROG_ID)]
+    program_id: Pubkey,
+    #[arg(long, short, default_value_t = MAILBOX_PROG_ID)]
+    mailbox_id: Pubkey,
+    #[arg(long, short, default_value_t = ECLIPSE_DOMAIN)]
+    local_domain: u32,
+}
+
+#[derive(Args)]
+struct ValidatorAnnounceAnnounce {
+    #[arg(long, short, default_value_t = VALIDATOR_ANNOUNCE_PROG_ID)]
+    program_id: Pubkey,
+    #[arg(long)]
+    validator: H160,
+    #[arg(long)]
+    storage_location: String,
+    #[arg(long)]
+    signature: String,
+}
+
+#[derive(Args)]
+struct ValidatorAnnounceQuery {
+    #[arg(long, short, default_value_t = VALIDATOR_ANNOUNCE_PROG_ID)]
+    program_id: Pubkey,
+    validator: H160,
+}
+
 struct Context {
     client: RpcClient,
     payer: Keypair,
     commitment: CommitmentConfig,
     instructions: Vec<Instruction>,
+}
+
+impl Context {
+    fn send_transaction<T: Signers>(&self, signers: &T) {
+        let recent_blockhash = self.client.get_latest_blockhash().unwrap();
+        let txn = Transaction::new_signed_with_payer(
+            &self.instructions,
+            Some(&self.payer.pubkey()),
+            signers,
+            recent_blockhash,
+        );
+
+        let signature = self
+            .client
+            .send_transaction(&txn)
+            .map_err(|err| {
+                eprintln!("{:#?}", err);
+                err
+            })
+            .unwrap();
+        self.client
+            .confirm_transaction_with_spinner(&signature, &recent_blockhash, self.commitment)
+            .map_err(|err| {
+                eprintln!("{:#?}", err);
+                err
+            })
+            .unwrap();
+    }
 }
 
 fn main() {
@@ -265,20 +359,17 @@ fn main() {
     match cli.cmd {
         HyperlaneSealevelCmd::Mailbox(cmd) => process_mailbox_cmd(ctx, cmd),
         HyperlaneSealevelCmd::Token(cmd) => process_token_cmd(ctx, cmd),
+        HyperlaneSealevelCmd::ValidatorAnnounce(cmd) => process_validator_announce_cmd(ctx, cmd),
     }
 }
 
 fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
     match cmd.cmd {
         MailboxSubCmd::Init(init) => {
-            let (inbox_account, inbox_bump) = Pubkey::find_program_address(
-                mailbox_inbox_pda_seeds!(init.local_domain),
-                &init.program_id,
-            );
-            let (outbox_account, outbox_bump) = Pubkey::find_program_address(
-                mailbox_outbox_pda_seeds!(init.local_domain),
-                &init.program_id,
-            );
+            let (inbox_account, inbox_bump) =
+                Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), &init.program_id);
+            let (outbox_account, outbox_bump) =
+                Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), &init.program_id);
 
             let ixn = MailboxInstruction::Init(InitMailbox {
                 local_domain: init.local_domain,
@@ -295,38 +386,22 @@ fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
                     AccountMeta::new(outbox_account, false),
                 ],
             };
-
-            let recent_blockhash = ctx.client.get_latest_blockhash().unwrap();
-            let txn = Transaction::new_signed_with_payer(
-                &[init_instruction],
-                Some(&ctx.payer.pubkey()),
-                &[&ctx.payer],
-                recent_blockhash,
-            );
-
-            let signature = ctx.client.send_transaction(&txn).unwrap();
-            ctx.client
-                .confirm_transaction_with_spinner(&signature, &recent_blockhash, ctx.commitment)
-                .unwrap();
+            ctx.instructions.push(init_instruction);
+            ctx.send_transaction(&[&ctx.payer]);
 
             println!("inbox=({}, {})", inbox_account, inbox_bump);
             println!("outbox=({}, {})", outbox_account, outbox_bump);
         }
         MailboxSubCmd::Query(query) => {
-            let (inbox_account, inbox_bump) = Pubkey::find_program_address(
-                mailbox_inbox_pda_seeds!(query.local_domain),
-                &query.program_id,
-            );
-            let (outbox_account, outbox_bump) = Pubkey::find_program_address(
-                mailbox_outbox_pda_seeds!(query.local_domain),
-                &query.program_id,
-            );
+            let (inbox_account, inbox_bump) =
+                Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), &query.program_id);
+            let (outbox_account, outbox_bump) =
+                Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), &query.program_id);
 
             let accounts = ctx
                 .client
                 .get_multiple_accounts(&[inbox_account, outbox_account])
                 .unwrap();
-            println!("domain={}", query.local_domain);
             println!("mailbox={}", query.program_id);
             println!("--------------------------------");
             println!("Inbox: {}, bump={}", inbox_account, inbox_bump);
@@ -352,13 +427,10 @@ fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
             }
         }
         MailboxSubCmd::Send(outbox) => {
-            let (outbox_account, _outbox_bump) = Pubkey::find_program_address(
-                mailbox_outbox_pda_seeds!(outbox.local_domain),
-                &outbox.program_id,
-            );
+            let (outbox_account, _outbox_bump) =
+                Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), &outbox.program_id);
             let ixn = MailboxInstruction::OutboxDispatch(OutboxDispatch {
                 sender: ctx.payer.pubkey(),
-                local_domain: outbox.local_domain,
                 destination_domain: outbox.destination,
                 recipient: H256(outbox.recipient.to_bytes()),
                 message_body: outbox.message.into(),
@@ -374,26 +446,13 @@ fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
                 ],
             };
             ctx.instructions.push(outbox_instruction);
-            let recent_blockhash = ctx.client.get_latest_blockhash().unwrap();
-            let txn = Transaction::new_signed_with_payer(
-                &ctx.instructions,
-                Some(&ctx.payer.pubkey()),
-                &[&ctx.payer],
-                recent_blockhash,
-            );
-
-            let signature = ctx.client.send_transaction(&txn).unwrap();
-            ctx.client
-                .confirm_transaction_with_spinner(&signature, &recent_blockhash, ctx.commitment)
-                .unwrap();
+            ctx.send_transaction(&[&ctx.payer]);
         }
         MailboxSubCmd::Receive(inbox) => {
             // TODO this probably needs some love
 
-            let (inbox_account, _inbox_bump) = Pubkey::find_program_address(
-                mailbox_inbox_pda_seeds!(inbox.local_domain),
-                &inbox.program_id,
-            );
+            let (inbox_account, _inbox_bump) =
+                Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), &inbox.program_id);
             let hyperlane_message = HyperlaneMessage {
                 version: VERSION,
                 nonce: inbox.nonce,
@@ -432,18 +491,24 @@ fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
                 ],
             };
             ctx.instructions.push(inbox_instruction);
-            let recent_blockhash = ctx.client.get_latest_blockhash().unwrap();
-            let txn = Transaction::new_signed_with_payer(
-                &ctx.instructions,
-                Some(&ctx.payer.pubkey()),
-                &[&ctx.payer],
-                recent_blockhash,
-            );
-
-            let signature = ctx.client.send_transaction(&txn).unwrap();
-            ctx.client
-                .confirm_transaction_with_spinner(&signature, &recent_blockhash, ctx.commitment)
-                .unwrap();
+            ctx.send_transaction(&[&ctx.payer]);
+        }
+        MailboxSubCmd::Delivered(delivered) => {
+            let (processed_message_account_key, _processed_message_account_bump) =
+                Pubkey::find_program_address(
+                    mailbox_processed_message_pda_seeds!(delivered.message_id),
+                    &delivered.program_id,
+                );
+            let account = ctx
+                .client
+                .get_account_with_commitment(&processed_message_account_key, ctx.commitment)
+                .unwrap()
+                .value;
+            if account.is_none() {
+                println!("Message not delivered");
+            } else {
+                println!("Message delivered");
+            }
         }
     };
 }
@@ -461,7 +526,6 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
 
             let ixn = HtInstruction::Init(HtInit {
                 mailbox: init.mailbox,
-                mailbox_local_domain: init.mailbox_local_domain,
             });
 
             // Accounts:
@@ -548,18 +612,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                     ));
             }
 
-            let recent_blockhash = ctx.client.get_latest_blockhash().unwrap();
-            let txn = Transaction::new_signed_with_payer(
-                &ctx.instructions,
-                Some(&ctx.payer.pubkey()),
-                &[&ctx.payer],
-                recent_blockhash,
-            );
-
-            let signature = ctx.client.send_transaction(&txn).unwrap();
-            ctx.client
-                .confirm_transaction_with_spinner(&signature, &recent_blockhash, ctx.commitment)
-                .unwrap();
+            ctx.send_transaction(&[&ctx.payer]);
 
             println!(
                 "hyperlane_token (key, bump) =({}, {})",
@@ -698,10 +751,8 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                     &xfer.mailbox,
                 );
 
-            let (mailbox_outbox_account, _mailbox_outbox_bump) = Pubkey::find_program_address(
-                mailbox_outbox_pda_seeds!(xfer.mailbox_local_domain),
-                &xfer.mailbox,
-            );
+            let (mailbox_outbox_account, _mailbox_outbox_bump) =
+                Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), &xfer.mailbox);
 
             let ixn = HtInstruction::TransferRemote(HtTransferRemote {
                 destination_domain: xfer.destination_domain,
@@ -779,29 +830,140 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
             };
             ctx.instructions.push(xfer_instruction);
 
-            let recent_blockhash = ctx.client.get_latest_blockhash().unwrap();
-            let txn = Transaction::new_signed_with_payer(
-                &ctx.instructions,
-                Some(&ctx.payer.pubkey()),
-                &[&ctx.payer, &sender, &unique_message_account_keypair],
-                recent_blockhash,
-            );
+            ctx.send_transaction(&[&ctx.payer, &sender, &unique_message_account_keypair]);
+        }
+        TokenSubCmd::EnrollRemoteRouter(enroll) => {
+            let enroll_instruction = HtInstruction::EnrollRemoteRouter(RemoteRouterConfig {
+                domain: enroll.domain,
+                router: enroll.router.into(),
+            });
+            let (token_account, _token_bump) =
+                Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &enroll.program_id);
 
-            let signature = ctx
+            let instruction = Instruction {
+                program_id: enroll.program_id,
+                data: enroll_instruction.into_instruction_data().unwrap(),
+                accounts: vec![
+                    AccountMeta::new(token_account, false),
+                    AccountMeta::new_readonly(ctx.payer.pubkey(), true),
+                ],
+            };
+            ctx.instructions.push(instruction);
+
+            ctx.send_transaction(&[&ctx.payer]);
+        }
+    }
+}
+
+fn process_validator_announce_cmd(mut ctx: Context, cmd: ValidatorAnnounceCmd) {
+    match cmd.cmd {
+        ValidatorAnnounceSubCmd::Init(init) => {
+            let (validator_announce_account, _validator_announce_bump) =
+                Pubkey::find_program_address(validator_announce_pda_seeds!(), &init.program_id);
+
+            let ixn = ValidatorAnnounceInstruction::Init(ValidatorAnnounceInitInstruction {
+                mailbox: init.mailbox_id,
+                local_domain: init.local_domain,
+            });
+
+            // Accounts:
+            // 0. [signer] The payer.
+            // 1. [executable] The system program.
+            // 2. [writable] The ValidatorAnnounce PDA account.
+            let accounts = vec![
+                AccountMeta::new_readonly(ctx.payer.pubkey(), true),
+                AccountMeta::new_readonly(system_program::id(), false),
+                AccountMeta::new(validator_announce_account, false),
+            ];
+
+            let init_instruction = Instruction {
+                program_id: init.program_id,
+                data: ixn.into_instruction_data().unwrap(),
+                accounts,
+            };
+            ctx.instructions.push(init_instruction);
+
+            ctx.send_transaction(&[&ctx.payer]);
+        }
+        ValidatorAnnounceSubCmd::Announce(announce) => {
+            let signature = hex::decode(if announce.signature.starts_with("0x") {
+                &announce.signature[2..]
+            } else {
+                &announce.signature
+            })
+            .unwrap();
+
+            let announce_instruction = ValidatorAnnounceAnnounceInstruction {
+                validator: announce.validator,
+                storage_location: announce.storage_location,
+                signature,
+            };
+
+            let (validator_announce_account, _validator_announce_bump) =
+                Pubkey::find_program_address(validator_announce_pda_seeds!(), &announce.program_id);
+
+            let (validator_storage_locations_key, _validator_storage_locations_bump_seed) =
+                Pubkey::find_program_address(
+                    validator_storage_locations_pda_seeds!(announce.validator),
+                    &announce.program_id,
+                );
+
+            let replay_id = announce_instruction.replay_id();
+            let (replay_protection_pda_key, _replay_protection_bump_seed) =
+                Pubkey::find_program_address(
+                    replay_protection_pda_seeds!(replay_id),
+                    &announce.program_id,
+                );
+
+            let ixn = ValidatorAnnounceInstruction::Announce(announce_instruction);
+
+            // Accounts:
+            // 0. [signer] The payer.
+            // 1. [executable] The system program.
+            // 2. [] The ValidatorAnnounce PDA account.
+            // 3. [writeable] The validator-specific ValidatorStorageLocationsAccount PDA account.
+            // 4. [writeable] The ReplayProtection PDA account specific to the announcement being made.
+            let accounts = vec![
+                AccountMeta::new_readonly(ctx.payer.pubkey(), true),
+                AccountMeta::new_readonly(system_program::id(), false),
+                AccountMeta::new_readonly(validator_announce_account, false),
+                AccountMeta::new(validator_storage_locations_key, false),
+                AccountMeta::new(replay_protection_pda_key, false),
+            ];
+
+            let announce_instruction = Instruction {
+                program_id: announce.program_id,
+                data: ixn.into_instruction_data().unwrap(),
+                accounts,
+            };
+            ctx.instructions.push(announce_instruction);
+
+            ctx.send_transaction(&[&ctx.payer]);
+        }
+        ValidatorAnnounceSubCmd::Query(query) => {
+            let (validator_storage_locations_key, _validator_storage_locations_bump_seed) =
+                Pubkey::find_program_address(
+                    validator_storage_locations_pda_seeds!(query.validator),
+                    &query.program_id,
+                );
+
+            let account = ctx
                 .client
-                .send_transaction(&txn)
-                .map_err(|err| {
-                    eprintln!("{:#?}", err);
-                    err
-                })
-                .unwrap();
-            ctx.client
-                .confirm_transaction_with_spinner(&signature, &recent_blockhash, ctx.commitment)
-                .map_err(|err| {
-                    eprintln!("{:#?}", err);
-                    err
-                })
-                .unwrap();
+                .get_account_with_commitment(&validator_storage_locations_key, ctx.commitment)
+                .unwrap()
+                .value;
+            if let Some(account) = account {
+                let validator_storage_locations =
+                    ValidatorStorageLocationsAccount::fetch(&mut &account.data[..])
+                        .unwrap()
+                        .into_inner();
+                println!(
+                    "Validator {} storage locations:\n{:#?}",
+                    query.validator, validator_storage_locations
+                );
+            } else {
+                println!("Validator not yet announced");
+            }
         }
     }
 }

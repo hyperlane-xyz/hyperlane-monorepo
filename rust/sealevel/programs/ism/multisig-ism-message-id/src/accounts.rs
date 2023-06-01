@@ -1,9 +1,10 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 
+use access_control::AccessControl;
 use hyperlane_sealevel_mailbox::accounts::{AccountData, SizedData};
-use solana_program::{account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey};
+use solana_program::{program_error::ProgramError, pubkey::Pubkey};
 
-use crate::{error::Error, instruction::ValidatorsAndThreshold};
+use crate::instruction::ValidatorsAndThreshold;
 
 /// The data of a "domain data" PDA account.
 /// One of these exists for each domain that's been enrolled.
@@ -19,27 +20,40 @@ pub type DomainDataAccount = AccountData<DomainData>;
 #[derive(BorshSerialize, BorshDeserialize, Debug, Default, PartialEq)]
 pub struct AccessControlData {
     pub bump_seed: u8,
-    pub owner: Pubkey,
+    pub owner: Option<Pubkey>,
 }
 
 impl SizedData for AccessControlData {
     fn size(&self) -> usize {
-        // 1 byte bump seed + 32 byte owner pubkey
-        1 + 32
+        // 1 byte bump seed + 1 byte Option variant + 32 byte owner pubkey
+        1 + 1 + 32
     }
 }
 
-impl AccessControlData {
-    pub fn ensure_owner_signer(&self, maybe_owner: &AccountInfo) -> Result<(), ProgramError> {
-        if !maybe_owner.is_signer {
-            return Err(ProgramError::MissingRequiredSignature);
-        }
+impl AccessControl for AccessControlData {
+    fn owner(&self) -> Option<&Pubkey> {
+        self.owner.as_ref()
+    }
 
-        if self.owner != *maybe_owner.key {
-            return Err(Error::AccountNotOwner.into());
-        }
+    fn set_owner(&mut self, new_owner: Option<Pubkey>) -> Result<(), ProgramError> {
+        self.owner = new_owner;
         Ok(())
     }
 }
 
 pub type AccessControlAccount = AccountData<AccessControlData>;
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_access_control_data_size() {
+        let data = AccessControlData {
+            bump_seed: 0,
+            owner: Some(Pubkey::new_unique()),
+        };
+        let serialized = data.try_to_vec().unwrap();
+        assert_eq!(data.size(), serialized.len());
+    }
+}

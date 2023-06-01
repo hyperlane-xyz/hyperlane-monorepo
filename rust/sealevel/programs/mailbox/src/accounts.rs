@@ -1,14 +1,15 @@
 //! Hyperlane Sealevel Mailbox data account layouts.
 
-use std::{collections::HashSet, io::Read, str::FromStr as _};
+use std::{io::Read, str::FromStr as _};
 
+use access_control::AccessControl;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{accumulator::incremental::IncrementalMerkle as MerkleTree, H256};
 use solana_program::{
     account_info::AccountInfo, clock::Slot, program_error::ProgramError, pubkey::Pubkey,
 };
 
-use crate::{error::Error, DEFAULT_ISM, DEFAULT_ISM_ACCOUNTS};
+use crate::{error::Error, DEFAULT_ISM};
 
 pub trait SizedData {
     fn size(&self) -> usize;
@@ -65,6 +66,9 @@ where
 
     // TODO: better name here?
     pub fn fetch_data(buf: &mut &[u8]) -> Result<Option<Box<T>>, ProgramError> {
+        if buf.is_empty() {
+            return Ok(None);
+        }
         // Account data is zero initialized.
         let initialized = bool::deserialize(buf)?;
         let data = if initialized {
@@ -135,10 +139,8 @@ pub type InboxAccount = AccountData<Inbox>;
 pub struct Inbox {
     pub local_domain: u32,
     pub inbox_bump_seed: u8,
-    // Note: 10MB account limit is around ~300k entries.
-    pub delivered: HashSet<H256>,
-    pub ism: Pubkey,
-    pub ism_accounts: Vec<Pubkey>,
+    pub default_ism: Pubkey,
+    pub processed_count: u64,
 }
 
 impl Default for Inbox {
@@ -146,13 +148,8 @@ impl Default for Inbox {
         Self {
             local_domain: 0,
             inbox_bump_seed: 0,
-            delivered: Default::default(),
-            // TODO can declare_id!() or similar be used for these to compute at compile time?
-            ism: Pubkey::from_str(DEFAULT_ISM).unwrap(),
-            ism_accounts: DEFAULT_ISM_ACCOUNTS
-                .iter()
-                .map(|account| Pubkey::from_str(account).unwrap())
-                .collect(),
+            default_ism: Pubkey::from_str(DEFAULT_ISM).unwrap(),
+            processed_count: 0,
         }
     }
 }
@@ -163,7 +160,19 @@ pub type OutboxAccount = AccountData<Outbox>;
 pub struct Outbox {
     pub local_domain: u32,
     pub outbox_bump_seed: u8,
+    pub owner: Option<Pubkey>,
     pub tree: MerkleTree,
+}
+
+impl AccessControl for Outbox {
+    fn owner(&self) -> Option<&Pubkey> {
+        self.owner.as_ref()
+    }
+
+    fn set_owner(&mut self, owner: Option<Pubkey>) -> Result<(), ProgramError> {
+        self.owner = owner;
+        Ok(())
+    }
 }
 
 pub type DispatchedMessageAccount = AccountData<DispatchedMessage>;
@@ -211,8 +220,8 @@ impl SizedData for DispatchedMessage {
 impl BorshSerialize for DispatchedMessage {
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
         writer.write_all(DISPATCHED_MESSAGE_DISCRIMINATOR)?;
-        writer.write_all(&self.nonce.to_be_bytes())?;
-        writer.write_all(&self.slot.to_be_bytes())?;
+        writer.write_all(&self.nonce.to_le_bytes())?;
+        writer.write_all(&self.slot.to_le_bytes())?;
         writer.write_all(&self.unique_message_pubkey.to_bytes())?;
         writer.write_all(&self.encoded_message)?;
         Ok(())
@@ -244,10 +253,72 @@ impl BorshDeserialize for DispatchedMessage {
 
         Ok(Self {
             discriminator,
-            nonce: u32::from_be_bytes(nonce),
-            slot: u64::from_be_bytes(slot),
+            nonce: u32::from_le_bytes(nonce),
+            slot: u64::from_le_bytes(slot),
             unique_message_pubkey: Pubkey::new_from_array(unique_message_pubkey),
             encoded_message,
+        })
+    }
+}
+
+pub type ProcessedMessageAccount = AccountData<ProcessedMessage>;
+
+const PROCESSED_MESSAGE_DISCRIMINATOR: &[u8; 8] = b"PROCESSD";
+
+#[derive(Debug, Default, Eq, PartialEq, BorshSerialize)]
+pub struct ProcessedMessage {
+    pub discriminator: [u8; 8],
+    pub sequence: u64,
+    pub message_id: H256,
+    pub slot: Slot,
+}
+
+impl ProcessedMessage {
+    pub fn new(sequence: u64, message_id: H256, slot: Slot) -> Self {
+        Self {
+            discriminator: *PROCESSED_MESSAGE_DISCRIMINATOR,
+            sequence,
+            message_id,
+            slot,
+        }
+    }
+}
+
+impl SizedData for ProcessedMessage {
+    fn size(&self) -> usize {
+        // 8 byte discriminator
+        // 8 byte sequence
+        // 32 byte message_id
+        // 8 byte slot
+        8 + 8 + 32 + 8
+    }
+}
+
+impl BorshDeserialize for ProcessedMessage {
+    fn deserialize(reader: &mut &[u8]) -> std::io::Result<Self> {
+        let mut discriminator = [0u8; 8];
+        reader.read_exact(&mut discriminator)?;
+        if &discriminator != PROCESSED_MESSAGE_DISCRIMINATOR {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "invalid discriminator",
+            ));
+        }
+
+        let mut sequence = [0u8; 8];
+        reader.read_exact(&mut sequence)?;
+
+        let mut message_id = [0u8; 32];
+        reader.read_exact(&mut message_id)?;
+
+        let mut slot = [0u8; 8];
+        reader.read_exact(&mut slot)?;
+
+        Ok(Self {
+            discriminator,
+            sequence: u64::from_le_bytes(sequence),
+            message_id: H256::from_slice(&message_id),
+            slot: u64::from_le_bytes(slot),
         })
     }
 }
@@ -274,5 +345,18 @@ mod test {
 
         assert_eq!(dispatched_message, deserialized);
         assert_eq!(serialized.len(), dispatched_message.size());
+    }
+
+    #[test]
+    fn test_processed_message_ser_deser() {
+        let processed_message = ProcessedMessage::new(420420420, H256::random(), 69696969);
+
+        let mut serialized = vec![];
+        processed_message.serialize(&mut serialized).unwrap();
+
+        let deserialized = ProcessedMessage::deserialize(&mut serialized.as_slice()).unwrap();
+
+        assert_eq!(processed_message, deserialized);
+        assert_eq!(serialized.len(), processed_message.size());
     }
 }

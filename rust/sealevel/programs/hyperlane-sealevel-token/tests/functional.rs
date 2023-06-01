@@ -2,21 +2,19 @@
 //! strictly in unit tests. This includes CPIs, like creating
 //! new PDA accounts.
 
-use hyperlane_core::{Encode, H256};
+use hyperlane_core::{Encode, HyperlaneMessage, H256};
 use solana_program::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
     system_program,
 };
 
+use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_mailbox::{
-    instruction::{Init as InitMailbox, Instruction as MailboxInstruction},
+    instruction::{InboxProcess, Init as InitMailbox, Instruction as MailboxInstruction},
     mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds,
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
-    mailbox_process_authority_pda_seeds,
-};
-use hyperlane_sealevel_message_recipient_interface::{
-    HandleInstruction, MessageRecipientInstruction,
+    mailbox_process_authority_pda_seeds, mailbox_processed_message_pda_seeds,
 };
 use hyperlane_sealevel_token::{
     hyperlane_token_ata_payer_pda_seeds, hyperlane_token_mint_pda_seeds,
@@ -76,9 +74,9 @@ async fn initialize_mailbox(
     local_domain: u32,
 ) -> MailboxAccounts {
     let (inbox_account, inbox_bump) =
-        Pubkey::find_program_address(mailbox_inbox_pda_seeds!(local_domain), mailbox_program_id);
+        Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), mailbox_program_id);
     let (outbox_account, outbox_bump) =
-        Pubkey::find_program_address(mailbox_outbox_pda_seeds!(local_domain), mailbox_program_id);
+        Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), mailbox_program_id);
 
     let ixn = MailboxInstruction::Init(InitMailbox {
         local_domain,
@@ -147,6 +145,13 @@ async fn test_initialize() {
         processor!(hyperlane_sealevel_mailbox::processor::process_instruction),
     );
 
+    // This serves as the default ISM on the Mailbox
+    program_test.add_program(
+        "hyperlane_sealevel_ism_rubber_stamp",
+        hyperlane_sealevel_ism_rubber_stamp::id(),
+        processor!(hyperlane_sealevel_ism_rubber_stamp::process_instruction),
+    );
+
     let (mut banks_client, payer, recent_blockhash) = program_test.start().await;
 
     let mailbox_accounts =
@@ -170,7 +175,6 @@ async fn test_initialize() {
                 program_id,
                 &HyperlaneTokenInstruction::Init(Init {
                     mailbox: hyperlane_sealevel_mailbox::id(),
-                    mailbox_local_domain: local_domain,
                 })
                 .into_instruction_data()
                 .unwrap(),
@@ -197,6 +201,27 @@ async fn test_initialize() {
     transaction.sign(&[&payer], recent_blockhash);
     banks_client.process_transaction(transaction).await.unwrap();
 
+    // Enroll the remote router
+    let remote_router = H256::random();
+    let mut transaction = Transaction::new_with_payer(
+        &[Instruction::new_with_bytes(
+            program_id,
+            &HyperlaneTokenInstruction::EnrollRemoteRouter(RemoteRouterConfig {
+                domain: remote_domain,
+                router: Some(remote_router),
+            })
+            .into_instruction_data()
+            .unwrap(),
+            vec![
+                AccountMeta::new(token_account_key, false),
+                AccountMeta::new_readonly(payer.pubkey(), true),
+            ],
+        )],
+        Some(&payer.pubkey()),
+    );
+    transaction.sign(&[&payer], recent_blockhash);
+    banks_client.process_transaction(transaction).await.unwrap();
+
     // Try minting some innit
 
     let recipient_keypair = new_funded_keypair(&mut banks_client, &payer, 1000000000).await;
@@ -217,19 +242,41 @@ async fn test_initialize() {
         &mailbox_program_id,
     );
 
+    let message = HyperlaneMessage {
+        version: 0,
+        nonce: 0,
+        origin: remote_domain,
+        sender: remote_router,
+        destination: local_domain,
+        recipient: H256::from(program_id.to_bytes()),
+        body: TokenMessage::new(recipient, 100u64.into(), vec![]).to_vec(),
+    };
+
+    let (processed_message_account_key, _processed_message_account_bump) =
+        Pubkey::find_program_address(
+            mailbox_processed_message_pda_seeds!(message.id()),
+            &mailbox_program_id,
+        );
+
     let mut transaction = Transaction::new_with_payer(
-        &[Instruction::new_with_bytes(
-            program_id,
-            &MessageRecipientInstruction::Handle(HandleInstruction::new(
-                remote_domain,
-                // TODO change
-                H256::zero(),
-                TokenMessage::new(recipient, 100u64.into(), vec![]).to_vec(),
-            ))
-            .encode()
-            .unwrap(),
+        &[Instruction::new_with_borsh(
+            mailbox_program_id,
+            &MailboxInstruction::InboxProcess(InboxProcess {
+                metadata: vec![],
+                message: message.to_vec(),
+            }),
             vec![
+                AccountMeta::new_readonly(payer.pubkey(), true),
+                AccountMeta::new_readonly(solana_program::system_program::id(), false),
+                AccountMeta::new(mailbox_accounts.inbox, false),
                 AccountMeta::new_readonly(process_authority_account_key, false),
+                AccountMeta::new(processed_message_account_key, false),
+                AccountMeta::new_readonly(spl_noop::id(), false),
+                // ISM
+                AccountMeta::new_readonly(hyperlane_sealevel_ism_rubber_stamp::id(), false),
+                // Recipient
+                AccountMeta::new_readonly(program_id, false),
+                // Recipient.verify accounts
                 AccountMeta::new_readonly(solana_program::system_program::id(), false),
                 AccountMeta::new_readonly(spl_noop::id(), false),
                 AccountMeta::new_readonly(token_account_key, false),

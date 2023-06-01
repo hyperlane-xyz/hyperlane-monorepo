@@ -13,6 +13,8 @@ num-derive = "0.3"
 num-traits = "0.2"
 solana-program = "=1.14.13"
 thiserror = "1.0"
+access-control = { path = "../../libraries/access-control" }
+serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
 hyperlane-sealevel-message-recipient-interface = { path = "../../libraries/message-recipient-interface" }
 hyperlane-sealevel-interchain-security-module-interface = { path = "../../libraries/interchain-security-module-interface" }
 

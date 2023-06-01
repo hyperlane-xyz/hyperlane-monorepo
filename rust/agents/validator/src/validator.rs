@@ -209,7 +209,10 @@ impl Validator {
                     info!("Validator has announced signature storage location");
                     break;
                 }
-                info!("Validator has not announced signature storage location");
+                info!(
+                    announced_locations=?locations,
+                    "Validator has not announced signature storage location"
+                );
                 let balance_delta = self
                     .validator_announce
                     .announce_tokens_needed(signed_announcement.clone())

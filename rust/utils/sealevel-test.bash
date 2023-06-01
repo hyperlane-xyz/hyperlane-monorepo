@@ -46,6 +46,7 @@ build_programs() {
 
     # hyperlane sealevel programs
     build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_mailbox.so" "${TARGET_DIR}/../programs/mailbox"
+    build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_validator_announce.so" "${TARGET_DIR}/../programs/validator-announce"
     build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_ism_rubber_stamp.so" "${TARGET_DIR}/../programs/ism"
     build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_token.so" "${TARGET_DIR}/../programs/hyperlane-sealevel-token"
     build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_token_native.so" "${TARGET_DIR}/../programs/hyperlane-sealevel-token-native"
@@ -60,6 +61,21 @@ build_spl_token_cli() {
     fi
 }
 
+announce_validator() {
+    set +e
+    # init the validator announce contract
+    "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" validator-announce init
+
+    # announce the validator
+    # This may fail until the previous init command reaches finality,
+    # just retry till it succeeds
+    while ! "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" validator-announce announce --validator 0x70997970c51812dc3a010c7d01b50e0d17dc79c8 --storage-location "file:///tmp/test_sealevel_checkpoints_0x70997970c51812dc3a010c7d01b50e0d17dc79c8" --signature "0xcd87b715cd4c2e3448be9e34204cf16376a6ba6106e147a4965e26ea946dd2ab19598140bf26f1e9e599c23f6b661553c7d89e8db22b3609068c91eb7f0fa2f01b"; do
+        sleep 3
+    done
+
+    set -e
+}
+
 mailbox_init() {
     set +e
     while ! "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox init; do
@@ -71,6 +87,8 @@ mailbox_init() {
     done
     set -e
     "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox query
+
+    announce_validator
 }
 
 test_mailbox() {
@@ -105,22 +123,41 @@ test_token() {
 
     local token_type=""
     local program_id=""
+    local hex_program_id=""
+
+    local recipient_token_type=""
+    local recipient_program_id=""
+    local recipient_hex_program_id=""
+
     if "${is_native_xfer}"; then
         token_type="native"
         program_id="CGn8yNtSD3aTTqJfYhUb6s1aVTN75NzwtsFKo1e83aga"
+        # Hex representation of program_id
+        hex_program_id="0xa77b4e2ed231894cc8cb8eee21adcc705d8489bccc6b2fcf40a358de23e60b7b"
 
-        # Also init the other token type
-        token_init synthetic "3MzUPjP5LEkiHH82nEAe28Xtz9ztuMqWc8UmuKxrpVQH"
+        recipient_token_type="synthetic"
+        recipient_program_id="3MzUPjP5LEkiHH82nEAe28Xtz9ztuMqWc8UmuKxrpVQH"
+        # Hex representation of recipient_program_id
+        recipient_hex_program_id="0x2317f9615d4ebc2419ad4b88580e2a80a03b2c7a60bc960de7d6934dbc37a87e"
     else
         token_type="synthetic"
         program_id="3MzUPjP5LEkiHH82nEAe28Xtz9ztuMqWc8UmuKxrpVQH"
+        # Hex representation of program_id
+        hex_program_id="0x2317f9615d4ebc2419ad4b88580e2a80a03b2c7a60bc960de7d6934dbc37a87e"
 
-        # Also init the other token type
-        token_init native "CGn8yNtSD3aTTqJfYhUb6s1aVTN75NzwtsFKo1e83aga"
+        recipient_token_type="native"
+        recipient_program_id="CGn8yNtSD3aTTqJfYhUb6s1aVTN75NzwtsFKo1e83aga"
+        # Hex representation of recipient_program_id
+        recipient_hex_program_id="0xa77b4e2ed231894cc8cb8eee21adcc705d8489bccc6b2fcf40a358de23e60b7b"
     fi
-
     
+    # Init origin side & enroll the remote router
     token_init "${token_type}" "${program_id}"
+    "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" token enroll-remote-router $CHAIN_ID "${recipient_hex_program_id}" --program-id "${program_id}"
+
+    # Init destination side & enroll the remote router
+    token_init "${recipient_token_type}" "${recipient_program_id}"
+    "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" token enroll-remote-router $CHAIN_ID "${hex_program_id}" --program-id "${recipient_program_id}"
 
     local amount
     if "${is_native_xfer}"; then
@@ -189,7 +226,8 @@ test_token() {
     "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" token query "${token_type}" --program-id "${program_id}"
 
     # Wait for token transfer message to appear in inbox.
-    while "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox query | grep -q 'delivered: {}'
+    # This ID was manually gotten from running the Relayer and observing the logs - fragile, I know!
+    while "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox delivered --message-id 0xbacfe0c091894423458e1fc28f03e2c130c592c5ce1550a69c0289671a3d6628 | grep -q 'Message not delivered'
     do
         sleep 3
     done
@@ -205,6 +243,11 @@ test_token() {
 }
 
 main() {
+    # build the client
+    pushd "${SCRIPT_DIR}/../sealevel/client"
+    cargo build
+    popd
+
     # build all the required sealevel programs
     build_programs
     # build the SPL token CLI
@@ -220,6 +263,7 @@ main() {
     solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_token.so"
     solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_token_native.so"
     solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_mailbox.so"
+    solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_validator_announce.so"
     solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_recipient_echo.so"
     solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_ism_rubber_stamp.so"
 

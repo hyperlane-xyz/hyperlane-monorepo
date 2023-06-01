@@ -8,8 +8,6 @@ use solana_program::pubkey::Pubkey;
 pub struct Init {
     /// The address of the mailbox contract.
     pub mailbox: Pubkey,
-    /// The mailbox's local domain.
-    pub mailbox_local_domain: u32,
 }
 
 /// Transfers `amount_or_id` token to `recipient` on `destination` domain.
