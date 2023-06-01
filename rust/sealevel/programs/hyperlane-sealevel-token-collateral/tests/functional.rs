@@ -14,6 +14,7 @@ use std::collections::HashMap;
 
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_mailbox::{
+    accounts::{DispatchedMessage, DispatchedMessageAccount},
     instruction::{InboxProcess, Init as InitMailbox, Instruction as MailboxInstruction},
     mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds,
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
@@ -41,6 +42,9 @@ use spl_associated_token_account::instruction::create_associated_token_account_i
 use spl_token_2022::{
     extension::StateWithExtensions, instruction::initialize_mint2, state::Account,
 };
+
+/// There are 1e9 lamports in one SOL.
+const ONE_SOL_IN_LAMPORTS: u64 = 1000000000;
 
 async fn setup_client() -> (BanksClient, Keypair) {
     let program_id = hyperlane_sealevel_token_collateral::id();
@@ -169,7 +173,7 @@ async fn initialize_mint(
     decimals: u8,
 ) -> (Pubkey, Keypair) {
     let mint = Keypair::new();
-    let mint_authority = new_funded_keypair(banks_client, payer, 1000000000).await;
+    let mint_authority = new_funded_keypair(banks_client, payer, ONE_SOL_IN_LAMPORTS).await;
 
     let payer_pubkey = payer.pubkey();
     let mint_pubkey = mint.pubkey();
@@ -345,6 +349,47 @@ async fn initialize_hyperlane_token(
     })
 }
 
+async fn enroll_remote_router(
+    banks_client: &mut BanksClient,
+    program_id: &Pubkey,
+    payer: &Keypair,
+    token_account: &Pubkey,
+    domain: u32,
+    router: H256,
+) {
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    // Enroll the remote router
+    let mut transaction = Transaction::new_with_payer(
+        &[Instruction::new_with_bytes(
+            *program_id,
+            &HyperlaneTokenInstruction::EnrollRemoteRouter(RemoteRouterConfig {
+                domain,
+                router: Some(router),
+            })
+            .into_instruction_data()
+            .unwrap(),
+            vec![
+                AccountMeta::new(*token_account, false),
+                AccountMeta::new_readonly(payer.pubkey(), true),
+            ],
+        )],
+        Some(&payer.pubkey()),
+    );
+    transaction.sign(&[payer], recent_blockhash);
+    banks_client.process_transaction(transaction).await.unwrap();
+}
+
+async fn assert_balance(banks_client: &mut BanksClient, account: &Pubkey, expected_balance: u64) {
+    let data = banks_client
+        .get_account(*account)
+        .await
+        .unwrap()
+        .unwrap()
+        .data;
+    let state = StateWithExtensions::<Account>::unpack(&data).unwrap();
+    assert_eq!(state.base.amount, expected_balance);
+}
+
 #[tokio::test]
 async fn test_initialize() {
     let program_id = hyperlane_sealevel_token_collateral::id();
@@ -448,43 +493,165 @@ async fn test_initialize_errors_if_called_twice() {
     }
 }
 
-// let token_sender = new_funded_keypair(&mut banks_client, &payer, 1000000000).await;
-// let token_sender_pubkey = token_sender.pubkey();
-// // Mint 100 tokens to the token sender's ATA
-// let token_sender_ata = create_and_mint_to_ata(
-//     &mut banks_client,
-//     &mint,
-//     &mint_authority,
-//     &payer,
-//     &token_sender_pubkey,
-//     100 * 10u64.pow(8),
-// ).await;
+#[tokio::test]
+async fn test_transfer_remote() {
+    let program_id = hyperlane_sealevel_token_collateral::id();
+    let mailbox_program_id = hyperlane_sealevel_mailbox::id();
 
-// let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-// // Enroll the remote router
-// let remote_router = H256::random();
-// let mut transaction = Transaction::new_with_payer(
-//     &[Instruction::new_with_bytes(
-//         program_id,
-//         &HyperlaneTokenInstruction::EnrollRemoteRouter(RemoteRouterConfig {
-//             domain: remote_domain,
-//             router: Some(remote_router),
-//         })
-//         .into_instruction_data()
-//         .unwrap(),
-//         vec![
-//             AccountMeta::new(hyperlane_token_accounts.token, false),
-//             AccountMeta::new_readonly(payer.pubkey(), true),
-//         ],
-//     )],
-//     Some(&payer.pubkey()),
-// );
-// transaction.sign(&[&payer], recent_blockhash);
-// banks_client.process_transaction(transaction).await.unwrap();
+    let (mut banks_client, payer) = setup_client().await;
+
+    let local_domain: u32 = 1234;
+    let remote_domain: u32 = 4321;
+    let local_decimals: u8 = 8;
+
+    let mailbox_accounts =
+        initialize_mailbox(&mut banks_client, &mailbox_program_id, &payer, local_domain).await;
+
+    let (mint, mint_authority) = initialize_mint(&mut banks_client, &payer, local_decimals).await;
+
+    let hyperlane_token_accounts =
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, &mint)
+            .await
+            .unwrap();
+
+    // Enroll the remote router
+    let remote_router = H256::random();
+    enroll_remote_router(
+        &mut banks_client,
+        &program_id,
+        &payer,
+        &hyperlane_token_accounts.token,
+        remote_domain,
+        remote_router,
+    )
+    .await;
+
+    let token_sender = new_funded_keypair(&mut banks_client, &payer, ONE_SOL_IN_LAMPORTS).await;
+    let token_sender_pubkey = token_sender.pubkey();
+    // Mint 100 tokens to the token sender's ATA
+    let token_sender_ata = create_and_mint_to_ata(
+        &mut banks_client,
+        &mint,
+        &mint_authority,
+        &payer,
+        &token_sender_pubkey,
+        100 * 10u64.pow(8),
+    )
+    .await;
+
+    // Call transfer_remote
+    let unique_message_account_keypair = Keypair::new();
+    let (dispatched_message_key, _dispatched_message_bump) = Pubkey::find_program_address(
+        mailbox_dispatched_message_pda_seeds!(&unique_message_account_keypair.pubkey()),
+        &mailbox_program_id,
+    );
+
+    let remote_token_recipient = H256::random();
+    // Tranfser 69 tokens.
+    let transfer_amount = 69 * 10u64.pow(8);
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let mut transaction = Transaction::new_with_payer(
+        &[Instruction::new_with_bytes(
+            program_id,
+            &HyperlaneTokenInstruction::TransferRemote(TransferRemote {
+                destination_domain: remote_domain,
+                recipient: remote_token_recipient,
+                amount_or_id: transfer_amount.into(),
+            })
+            .into_instruction_data()
+            .unwrap(),
+            // 0.   [executable] The system program.
+            // 1.   [executable] The spl_noop program.
+            // 2.   [] The token PDA account.
+            // 3.   [executable] The mailbox program.
+            // 4.   [writeable] The mailbox outbox account.
+            // 5.   [] Message dispatch authority.
+            // 6.   [signer] The token sender and mailbox payer.
+            // 7.   [signer] Unique message account.
+            // 8.   [writeable] Message storage PDA.
+            // 9.   [executable] The spl_token_2022 program.
+            // 10.  [] The mint.
+            // 11.  [writeable] The token sender's associated token account, from which tokens will be sent.
+            // 12.  [] The escrow PDA account.
+            vec![
+                AccountMeta::new_readonly(solana_program::system_program::id(), false),
+                AccountMeta::new_readonly(spl_noop::id(), false),
+                AccountMeta::new_readonly(hyperlane_token_accounts.token, false),
+                AccountMeta::new_readonly(mailbox_accounts.program, false),
+                AccountMeta::new(mailbox_accounts.outbox, false),
+                AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
+                AccountMeta::new_readonly(token_sender_pubkey, true),
+                AccountMeta::new_readonly(unique_message_account_keypair.pubkey(), true),
+                AccountMeta::new(dispatched_message_key, false),
+                AccountMeta::new_readonly(spl_token_2022::id(), false),
+                AccountMeta::new(mint, false),
+                AccountMeta::new(token_sender_ata, false),
+                AccountMeta::new(hyperlane_token_accounts.escrow, false),
+            ],
+        )],
+        Some(&token_sender_pubkey),
+    );
+    transaction.sign(
+        &[&token_sender, &unique_message_account_keypair],
+        recent_blockhash,
+    );
+    let tx_signature = transaction.signatures[0];
+    banks_client.process_transaction(transaction).await.unwrap();
+
+    // Verify the token sender's ATA balance is 31 full tokens.
+    assert_balance(&mut banks_client, &token_sender_ata, 31 * 10u64.pow(8)).await;
+
+    // And that the escrow's balance is 69 tokens.
+    assert_balance(
+        &mut banks_client,
+        &hyperlane_token_accounts.escrow,
+        69 * 10u64.pow(8),
+    )
+    .await;
+
+    // And let's take a look at the dispatched message account data to verify the message looks right.
+    let dispatched_message_account_data = banks_client
+        .get_account(dispatched_message_key)
+        .await
+        .unwrap()
+        .unwrap()
+        .data;
+    let dispatched_message =
+        DispatchedMessageAccount::fetch(&mut &dispatched_message_account_data[..])
+            .unwrap()
+            .into_inner();
+
+    let transfer_remote_tx_status = banks_client
+        .get_transaction_status(tx_signature)
+        .await
+        .unwrap()
+        .unwrap();
+
+    let message = HyperlaneMessage {
+        version: 0,
+        nonce: 0,
+        origin: local_domain,
+        sender: program_id.to_bytes().into(),
+        destination: remote_domain,
+        recipient: remote_router,
+        body: TokenMessage::new(remote_token_recipient, transfer_amount.into(), vec![]).to_vec(),
+    };
+
+    assert_eq!(
+        dispatched_message,
+        Box::new(DispatchedMessage::new(
+            message.nonce,
+            transfer_remote_tx_status.slot,
+            unique_message_account_keypair.pubkey(),
+            message.to_vec(),
+        )),
+    );
+}
 
 // // Try minting some innit
 
-// let recipient_keypair = new_funded_keypair(&mut banks_client, &payer, 1000000000).await;
+// let recipient_keypair = new_funded_keypair(&mut banks_client, &payer, ONE_SOL_IN_LAMPORTS).await;
 // let recipient: H256 = recipient_keypair.pubkey().to_bytes().into();
 
 // let recipient_associated_token_account =
@@ -495,7 +662,7 @@ async fn test_initialize_errors_if_called_twice() {
 //     );
 
 // // ATA payer must have a balance to create new ATAs
-// transfer_lamports(&mut banks_client, &payer, &ata_payer_account_key, 100000000).await;
+// transfer_lamports(&mut banks_client, &payer, &ata_payer_account_key, ONE_SOL_IN_LAMPORTS).await;
 
 // let (process_authority_account_key, _process_authority_bump) = Pubkey::find_program_address(
 //     mailbox_process_authority_pda_seeds!(program_id),

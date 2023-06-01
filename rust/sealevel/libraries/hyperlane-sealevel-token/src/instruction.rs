@@ -14,8 +14,6 @@ pub struct Init {
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub struct TransferRemote {
     pub destination_domain: u32,
-    /// TODO imply this from Router
-    pub destination_program_id: H256,
     pub recipient: H256,
     pub amount_or_id: U256,
 }
