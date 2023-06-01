@@ -163,6 +163,9 @@ fn main() -> ExitCode {
         "RUST_BACKTRACE" => "full",
         "HYP_BASE_TRACING_FMT" => "pretty",
         "HYP_BASE_TRACING_LEVEL" => "debug",
+        "HYP_BASE_CHAINS_TEST1_INDEX_CHUNK" => "1",
+        "HYP_BASE_CHAINS_TEST2_INDEX_CHUNK" => "1",
+        "HYP_BASE_CHAINS_TEST3_INDEX_CHUNK" => "1",
     };
 
     let relayer_env = hashmap! {
