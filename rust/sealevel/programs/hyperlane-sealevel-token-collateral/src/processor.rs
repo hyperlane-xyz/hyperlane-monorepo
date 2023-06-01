@@ -135,11 +135,12 @@ fn transfer_remote(
 // 2. [executable] spl_noop
 // 3. [] hyperlane_token storage
 // 4. [] recipient wallet address
-// 5. [executable] SPL token 2022 program
-// 6. [executable] SPL associated token account
-// 7. [writeable] Mint account
-// 8. [writeable] Recipient associated token account
+// 5. [executable] SPL token 2022 program.
+// 6. [executable] SPL associated token account.
+// 7. [writeable] Mint account.
+// 8. [writeable] Recipient associated token account.
 // 9. [writeable] ATA payer PDA account.
+// 10. [writeable] Escrow account.
 fn transfer_from_remote(
     program_id: &Pubkey,
     accounts: &[AccountInfo],

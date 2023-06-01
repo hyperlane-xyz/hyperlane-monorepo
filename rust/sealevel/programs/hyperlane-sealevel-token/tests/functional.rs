@@ -276,7 +276,7 @@ async fn test_initialize() {
                 AccountMeta::new_readonly(hyperlane_sealevel_ism_rubber_stamp::id(), false),
                 // Recipient
                 AccountMeta::new_readonly(program_id, false),
-                // Recipient.verify accounts
+                // Recipient.handle accounts
                 AccountMeta::new_readonly(solana_program::system_program::id(), false),
                 AccountMeta::new_readonly(spl_noop::id(), false),
                 AccountMeta::new_readonly(token_account_key, false),

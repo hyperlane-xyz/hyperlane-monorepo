@@ -756,7 +756,6 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
 
             let ixn = HtInstruction::TransferRemote(HtTransferRemote {
                 destination_domain: xfer.destination_domain,
-                destination_program_id: xfer.destination_token_program_id.to_bytes().into(),
                 recipient: xfer.recipient.to_bytes().into(),
                 amount_or_id: xfer.amount.into(),
             });
