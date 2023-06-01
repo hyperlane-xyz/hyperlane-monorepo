@@ -19,6 +19,7 @@ import {PolygonISM} from "../isms/native/PolygonISM.sol";
 
 // ============ External Imports ============
 import {FxBaseRootTunnel} from "fx-portal/contracts/tunnel/FxBaseRootTunnel.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 contract PolygonMessageHook is IPolygonMessageHook, FxBaseRootTunnel {
     // ============ Constants ============
@@ -45,12 +46,11 @@ contract PolygonMessageHook is IPolygonMessageHook, FxBaseRootTunnel {
     ) FxBaseRootTunnel(_checkpointManager, _fxRoot) {
         require(
             _destinationDomain != 0,
-            "PolygonHook: destinationDomain cannot be 0"
+            "PolygonHook: invalid destination domain"
         );
-        require(_ism != address(0), "PolygonHook: invalid ISM address");
 
         destinationDomain = _destinationDomain;
-        ism = PolygonISM(_ism);
+        ism = PolygonISM(_onlyContract(_ism, "polygonISM"));
     }
 
     // ============ External Functions ============
@@ -64,6 +64,7 @@ contract PolygonMessageHook is IPolygonMessageHook, FxBaseRootTunnel {
      */
     function postDispatch(uint32 _destination, bytes32 _messageId)
         external
+        payable
         override
         returns (uint256)
     {
@@ -91,5 +92,17 @@ contract PolygonMessageHook is IPolygonMessageHook, FxBaseRootTunnel {
      */
     function _processMessageFromChild(bytes memory data) internal override {
         // pass
+    }
+
+    function _onlyContract(address _contract, string memory _type)
+        internal
+        view
+        returns (address)
+    {
+        require(
+            Address.isContract(_contract),
+            string.concat("PolygonHook: invalid ", _type)
+        );
+        return _contract;
     }
 }

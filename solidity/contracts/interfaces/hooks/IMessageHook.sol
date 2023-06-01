@@ -4,5 +4,6 @@ pragma solidity >=0.8.0;
 interface IMessageHook {
     function postDispatch(uint32 destination, bytes32 messageId)
         external
+        payable
         returns (uint256);
 }

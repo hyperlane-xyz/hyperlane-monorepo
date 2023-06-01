@@ -20,13 +20,16 @@ import {TypeCasts} from "../libs/TypeCasts.sol";
 
 // ============ External Imports ============
 import {IInbox} from "@arbitrum/nitro-contracts/src/bridge/IInbox.sol";
+import {ArbGasInfo} from "@arbitrum/nitro-contracts/src/precompiles/ArbGasInfo.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title ArbitrumMessageHook
  * @notice Message hook to inform the Arbitrum ISM of messages published through
  * the native Arbitrum bridge.
  */
-contract ArbitrumMessageHook is IArbitrumMessageHook {
+contract ArbitrumMessageHook is IArbitrumMessageHook, Ownable {
     // ============ Constants ============
 
     // Domain of chain on which the arbitrum ISM is deployed
@@ -36,8 +39,12 @@ contract ArbitrumMessageHook is IArbitrumMessageHook {
     // Arbitrum's inbox used to send messages from L1 -> L2
     IInbox public immutable inbox;
 
-    uint128 internal constant MAX_GAS_LIMIT = 26_000;
-    uint128 internal constant MAX_GAS_PRICE = 1e9;
+    // ============ Public Storage ============
+
+    // Gas limit for L2 execution (storage write)
+    uint128 public constant GAS_LIMIT = 26_000;
+    // Gas price for L2 - currently 0.1 gwei
+    uint128 public maxGasPrice = 1e8;
 
     // ============ Constructor ============
 
@@ -46,12 +53,14 @@ contract ArbitrumMessageHook is IArbitrumMessageHook {
         address _inbox,
         address _ism
     ) {
-        require(_inbox != address(0), "ArbitrumHook: invalid inbox address");
-        require(_ism != address(0), "ArbitrumHook: invalid ISM address");
-
+        require(
+            _destinationDomain != 0,
+            "ArbitrumHook: invalid destination domain"
+        );
         destinationDomain = _destinationDomain;
-        inbox = IInbox(_inbox);
-        ism = ArbitrumISM(_ism);
+
+        inbox = IInbox(_onlyContract(_inbox, "Inbox"));
+        ism = ArbitrumISM(_onlyContract(_ism, "ISM"));
     }
 
     // ============ External Functions ============
@@ -59,17 +68,18 @@ contract ArbitrumMessageHook is IArbitrumMessageHook {
     /**
      * @notice Hook to inform the Arbitrum ISM of messages published through.
      * @notice anyone can call this function, that's why we to send msg.sender
-     * @param _destination The destination domain of the message.
+     * @param _destinationDomain The destination domain of the message.
      * @param _messageId The message ID.
      * @return gasOverhead The gas overhead for the function call on L2.
      */
-    function postDispatch(uint32 _destination, bytes32 _messageId)
+    function postDispatch(uint32 _destinationDomain, bytes32 _messageId)
         external
+        payable
         override
         returns (uint256)
     {
         require(
-            _destination == destinationDomain,
+            _destinationDomain == destinationDomain,
             "ArbitrumHook: invalid destination domain"
         );
 
@@ -78,8 +88,6 @@ contract ArbitrumMessageHook is IArbitrumMessageHook {
             (msg.sender, _messageId)
         );
 
-        // total gas cost = l1 submission fee + l2 execution cost
-
         // submission fee as rent to keep message in memory and
         // refunded to l2 address if auto-redeem is successful
         uint256 submissionFee = inbox.calculateRetryableSubmissionFee(
@@ -87,24 +95,46 @@ contract ArbitrumMessageHook is IArbitrumMessageHook {
             0
         );
 
-        uint256 totalGasCost = submissionFee + (MAX_GAS_LIMIT * MAX_GAS_PRICE);
+        // total gas cost = l1 submission fee + l2 execution cost
+        uint256 totalGasCost = submissionFee + GAS_LIMIT * maxGasPrice;
 
-        // require(msg.value >= totalGasCost, "ArbitrumHook: insufficient funds");
+        require(msg.value >= totalGasCost, "ArbitrumHook: insufficient funds");
 
-        // TODO: check if unaliasing is necessay for contract addresses
-        IInbox(inbox).createRetryableTicket{value: totalGasCost}({
+        IInbox(inbox).createRetryableTicket{value: submissionFee}({
             to: address(ism),
             l2CallValue: 0, // no value is transferred to the L2 receiver
             maxSubmissionCost: submissionFee,
             excessFeeRefundAddress: msg.sender, // refund limit x price - execution cost
             callValueRefundAddress: msg.sender, // refund if timeout or cancelled
-            gasLimit: MAX_GAS_LIMIT,
-            maxFeePerGas: MAX_GAS_PRICE,
+            gasLimit: 0, // paid by the relayer
+            maxFeePerGas: 0, // paid by the relayer
             data: _payload
         });
 
         emit ArbitrumMessagePublished(msg.sender, _messageId, submissionFee);
 
         return submissionFee;
+    }
+
+    /**
+     * @notice Sets the max gas price for L2 execution.
+     * @param _maxGasPrice The new max gas price.
+     */
+    function setMaxGasPrice(uint128 _maxGasPrice) external onlyOwner {
+        maxGasPrice = _maxGasPrice;
+    }
+
+    // ============ Internal Functions ============
+
+    function _onlyContract(address _contract, string memory _type)
+        internal
+        view
+        returns (address)
+    {
+        require(
+            Address.isContract(_contract),
+            string.concat("ArbitrumHook: invalid ", _type)
+        );
+        return _contract;
     }
 }

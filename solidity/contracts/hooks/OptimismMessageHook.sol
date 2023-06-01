@@ -19,6 +19,7 @@ import {OptimismISM} from "../isms/native/OptimismISM.sol";
 
 // ============ External Imports ============
 import {ICrossDomainMessenger} from "@eth-optimism/contracts/libraries/bridge/ICrossDomainMessenger.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
  * @title OptimismMessageHook
@@ -47,14 +48,15 @@ contract OptimismMessageHook is IOptimismMessageHook {
         address _ism
     ) {
         require(
-            _messenger != address(0),
-            "OptimismHook: invalid messenger address"
+            _destinationDomain != 0,
+            "OptimismHook: invalid destination domain"
         );
-        require(_ism != address(0), "OptimismHook: invalid ism address");
-
         destinationDomain = _destinationDomain;
-        l1Messenger = ICrossDomainMessenger(_messenger);
-        ism = OptimismISM(_ism);
+
+        l1Messenger = ICrossDomainMessenger(
+            _onlyContract(_messenger, "crossDomainMessenger")
+        );
+        ism = OptimismISM(_onlyContract(_ism, "optimismISM"));
     }
 
     // ============ External Functions ============
@@ -68,6 +70,7 @@ contract OptimismMessageHook is IOptimismMessageHook {
      */
     function postDispatch(uint32 _destination, bytes32 _messageId)
         external
+        payable
         override
         returns (uint256)
     {
@@ -87,5 +90,19 @@ contract OptimismMessageHook is IOptimismMessageHook {
 
         // calling the receiveFromHook function is ~25k gas but we get 1.92m gas from Optimism
         return 0;
+    }
+
+    // ============ Internal Functions ============
+
+    function _onlyContract(address _contract, string memory _type)
+        internal
+        view
+        returns (address)
+    {
+        require(
+            Address.isContract(_contract),
+            string.concat("OptimismHook: invalid ", _type)
+        );
+        return _contract;
     }
 }

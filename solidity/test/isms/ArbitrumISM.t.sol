@@ -8,7 +8,9 @@ import {Mailbox} from "../../contracts/Mailbox.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {ArbitrumISM} from "../../contracts/isms/native/ArbitrumISM.sol";
 import {ArbitrumMessageHook} from "../../contracts/hooks/ArbitrumMessageHook.sol";
+import {IInterchainGasPaymaster} from "../../contracts/interfaces/IInterchainGasPaymaster.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
+
 import {MockArbSys} from "./arbitrum/MockArbSys.sol";
 
 import {IInbox} from "@arbitrum/nitro-contracts/src/bridge/IInbox.sol";
@@ -70,9 +72,10 @@ contract ArbitrumISMTest is Test {
         vm.selectFork(mainnetFork);
 
         arbitrumInbox = IInbox(INBOX);
+
         arbitrumHook = new ArbitrumMessageHook(
             ARBITRUM_DOMAIN,
-            address(arbitrumInbox),
+            INBOX,
             address(arbitrumISM)
         );
 
@@ -106,6 +109,15 @@ contract ArbitrumISMTest is Test {
 
     /* ============ hook.postDispatch ============ */
 
+    function testContructor_NotContract() public {
+        vm.selectFork(mainnetFork);
+
+        arbitrumInbox = IInbox(INBOX);
+
+        vm.expectRevert("ArbitrumHook: invalid ISM");
+        arbitrumHook = new ArbitrumMessageHook(ARBITRUM_DOMAIN, INBOX, alice);
+    }
+
     function testDispatch() public {
         deployAll();
 
@@ -130,14 +142,25 @@ contract ArbitrumISMTest is Test {
 
         uint256 messageCountBefore = IBridge(BRIDGE).delayedMessageCount();
 
+        uint256 submissionFee = arbitrumInbox.calculateRetryableSubmissionFee(
+            68,
+            0
+        );
+        console.log("l1: ", submissionFee);
+
+        uint256 totalGasCost = submissionFee + 26_000 * 1e8;
+
         // TODO: need approximate emits for submission fees abi-encoded
         vm.expectEmit(false, false, false, false, INBOX);
         emit InboxMessageDelivered(0, encodedMessageData);
 
         vm.expectEmit(true, true, true, false, address(arbitrumHook));
-        emit ArbitrumMessagePublished(address(this), messageId, 1e13);
+        emit ArbitrumMessagePublished(address(this), messageId, totalGasCost);
 
-        arbitrumHook.postDispatch(ARBITRUM_DOMAIN, messageId);
+        arbitrumHook.postDispatch{value: totalGasCost}(
+            ARBITRUM_DOMAIN,
+            messageId
+        );
 
         uint256 messageCountAfter = IBridge(BRIDGE).delayedMessageCount();
 
@@ -167,7 +190,7 @@ contract ArbitrumISMTest is Test {
             _encodeTestMessage(0, address(testRecipient))
         );
 
-        vm.expectRevert();
+        vm.expectRevert("ArbitrumHook: insufficient funds");
         arbitrumHook.postDispatch(ARBITRUM_DOMAIN, messageId);
     }
 
