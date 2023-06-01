@@ -120,7 +120,7 @@ fn transfer_remote(
 }
 
 /// Accounts:
-/// 0. [signer] mailbox authority
+/// 0. [signer] Mailbox process authority specific to this program.
 /// 1. [executable] system_program
 /// 2. [executable] spl_noop
 /// 3. [] hyperlane_token storage
