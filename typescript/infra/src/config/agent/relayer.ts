@@ -3,7 +3,7 @@ import { BigNumberish } from 'ethers';
 import { ChainMap, chainMetadata } from '@hyperlane-xyz/sdk';
 
 import { AgentAwsUser } from '../../agents/aws';
-import { KeyRole } from '../../agents/roles';
+import { Role } from '../../roles';
 import { HelmStatefulSetValues } from '../infrastructure';
 
 import {
@@ -140,7 +140,7 @@ export class RelayerConfigHelper
     const awsUser = new AgentAwsUser(
       this.runEnv,
       this.context,
-      KeyRole.Relayer,
+      Role.Relayer,
       this.aws.region,
     );
     await awsUser.createIfNotExists();

@@ -11,13 +11,13 @@ import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../../config/contexts';
 import { AgentConfig, DeployEnvironment } from '../../config';
+import { Role } from '../../roles';
 import {
   fetchGCPSecret,
   gcpSecretExists,
   setGCPSecret,
 } from '../../utils/gcloud';
 import { userIdentifier } from '../agent';
-import { KeyRole } from '../roles';
 
 import { AgentAwsKey } from './key';
 
@@ -29,7 +29,7 @@ export class AgentAwsUser {
   constructor(
     public readonly environment: DeployEnvironment,
     public readonly context: Contexts,
-    public readonly role: KeyRole,
+    public readonly role: Role,
     public readonly region: string,
     public readonly chainName?: ChainName,
   ) {

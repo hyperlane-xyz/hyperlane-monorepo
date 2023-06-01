@@ -1,11 +1,11 @@
 import { Contexts } from '../../config/contexts';
 import { AgentAwsUser } from '../agents/aws';
-import { KeyRole } from '../agents/roles';
 import { AgentConfig } from '../config';
 import {
   HelloWorldKathyConfig,
   HelloWorldKathyRunMode,
 } from '../config/helloworld';
+import { Role } from '../roles';
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { execCmd } from '../utils/utils';
 
@@ -19,7 +19,7 @@ export async function runHelloworldKathyHelmCommand(
     const awsUser = new AgentAwsUser(
       agentConfig.runEnv,
       agentConfig.context,
-      KeyRole.Kathy,
+      Role.Kathy,
       agentConfig.aws.region,
     );
     await awsUser.createIfNotExists();

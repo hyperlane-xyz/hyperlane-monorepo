@@ -2,25 +2,24 @@ import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import { DeployEnvironment } from '../config';
+import { Role } from '../roles';
 import { assertRole } from '../utils/utils';
 
-import { KeyRole } from './roles';
-
-export function isValidatorKey(role: KeyRole) {
-  return role === KeyRole.Validator;
+export function isValidatorKey(role: Role) {
+  return role === Role.Validator;
 }
 
 function identifier(
   isKey: boolean,
   environment: string,
   context: Contexts,
-  role: KeyRole,
+  role: Role,
   chainName?: ChainName,
   index?: number,
 ) {
   const prefix = `${context}-${environment}-${isKey ? 'key-' : ''}`;
   switch (role) {
-    case KeyRole.Validator:
+    case Role.Validator:
       if (index === undefined) {
         throw Error('Expected index for validator key');
       }
@@ -36,7 +35,7 @@ function identifier(
 export function keyIdentifier(
   environment: DeployEnvironment,
   context: Contexts,
-  role: KeyRole,
+  role: Role,
   chainName?: ChainName,
   index?: number,
 ) {
@@ -46,7 +45,7 @@ export function keyIdentifier(
 export function userIdentifier(
   environment: string,
   context: Contexts,
-  role: KeyRole,
+  role: Role,
   chainName?: ChainName,
   index?: number,
 ) {
@@ -58,7 +57,7 @@ export function userIdentifier(
 export function parseKeyIdentifier(identifier: string): {
   environment: string;
   context: string;
-  role: KeyRole;
+  role: Role;
   chainName?: string;
   index?: number;
 } {

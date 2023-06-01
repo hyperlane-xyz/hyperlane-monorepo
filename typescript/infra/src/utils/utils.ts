@@ -13,7 +13,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
-import { ALL_KEY_ROLES, KeyRole } from '../agents/roles';
+import { Role } from '../roles';
 
 export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -200,8 +200,8 @@ export function readJSON(directory: string, filename: string) {
 }
 
 export function assertRole(roleStr: string) {
-  const role = roleStr as KeyRole;
-  if (!ALL_KEY_ROLES.includes(role)) {
+  const role = roleStr as Role;
+  if (!Object.values(Role).includes(role)) {
     throw Error(`Invalid role ${role}`);
   }
   return role;

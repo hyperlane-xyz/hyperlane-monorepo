@@ -5,11 +5,11 @@ import { promiseObjAll } from '@hyperlane-xyz/sdk';
 import { error } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
-import { KeyRole } from '../../src/agents/roles';
 import {
   DeterministicKeyRoles,
   getDeterministicKey,
 } from '../../src/funding/deterministic-keys';
+import { Role } from '../../src/roles';
 import { assertChain } from '../../src/utils/utils';
 import { getArgs, getEnvironmentConfig } from '../utils';
 
@@ -44,7 +44,7 @@ async function main() {
   const coreConfig = getEnvironmentConfig(argv.environment);
   const multiProvider = await coreConfig.getMultiProvider(
     Contexts.Hyperlane,
-    KeyRole.Deployer,
+    Role.Deployer,
   );
 
   const address =

@@ -4,12 +4,12 @@ import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import { DeployEnvironment } from '../config';
+import { Role } from '../roles';
 import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
 import { execCmd, include } from '../utils/utils';
 
 import { isValidatorKey, keyIdentifier } from './agent';
 import { CloudAgentKey } from './keys';
-import { KeyRole } from './roles';
 
 // This is the type for how the keys are persisted in GCP
 export interface SecretManagerPersistedKeys {
@@ -38,7 +38,7 @@ export class AgentGCPKey extends CloudAgentKey {
   constructor(
     environment: DeployEnvironment,
     context: Contexts,
-    role: KeyRole,
+    role: Role,
     chainName?: ChainName,
     index?: number,
     private remoteKey: RemoteKey = { fetched: false },

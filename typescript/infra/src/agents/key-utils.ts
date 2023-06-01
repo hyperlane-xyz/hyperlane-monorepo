@@ -2,13 +2,13 @@ import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import { AgentConfig, BaseAgentConfig, DeployEnvironment } from '../config';
+import { Role } from '../roles';
 import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
 import { execCmd } from '../utils/utils';
 
 import { AgentAwsKey } from './aws/key';
 import { AgentGCPKey } from './gcp';
 import { CloudAgentKey } from './keys';
-import { KeyRole } from './roles';
 
 interface KeyAsAddress {
   identifier: string;
@@ -17,11 +17,11 @@ interface KeyAsAddress {
 
 export function getCloudAgentKey(
   agentConfig: AgentConfig,
-  role: KeyRole,
+  role: Role,
   chainName?: ChainName,
   index?: number,
 ): CloudAgentKey {
-  if (agentConfig.aws && role !== KeyRole.Deployer) {
+  if (agentConfig.aws && role !== Role.Deployer) {
     // The deployer is always GCP-based
     return new AgentAwsKey(agentConfig, role, chainName, index);
   } else {
@@ -42,7 +42,7 @@ export function getValidatorCloudAgentKeys(
   return agentConfig.contextChainNames.flatMap((chainName) => {
     if (agentConfig.validators) {
       return agentConfig.validators[chainName].validators.map((_, index) =>
-        getCloudAgentKey(agentConfig, KeyRole.Validator, chainName, index),
+        getCloudAgentKey(agentConfig, Role.Validator, chainName, index),
       );
     } else {
       return [];
@@ -54,7 +54,7 @@ export function getRelayerCloudAgentKeys(
   agentConfig: AgentConfig,
 ): Array<CloudAgentKey> {
   return agentConfig.contextChainNames.map((chainName) =>
-    getCloudAgentKey(agentConfig, KeyRole.Relayer, chainName),
+    getCloudAgentKey(agentConfig, Role.Relayer, chainName),
   );
 }
 
@@ -62,9 +62,9 @@ export function getAllCloudAgentKeys(
   agentConfig: BaseAgentConfig,
 ): Array<CloudAgentKey> {
   return agentConfig.rolesWithKeys.flatMap((role) => {
-    if (role === KeyRole.Validator) {
+    if (role === Role.Validator) {
       return getValidatorCloudAgentKeys(agentConfig);
-    } else if (role === KeyRole.Relayer) {
+    } else if (role === Role.Relayer) {
       return getRelayerCloudAgentKeys(agentConfig);
     } else {
       return [getCloudAgentKey(agentConfig, role)];
@@ -101,7 +101,7 @@ export async function createAgentKeysIfNotExists(agentConfig: AgentConfig) {
 
 export async function rotateKey(
   agentConfig: AgentConfig,
-  role: KeyRole,
+  role: Role,
   chainName: ChainName,
 ) {
   const key = getCloudAgentKey(agentConfig, role, chainName);

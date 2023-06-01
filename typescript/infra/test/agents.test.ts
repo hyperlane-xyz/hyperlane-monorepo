@@ -4,7 +4,7 @@ import { Contexts } from '../config/contexts';
 import { AgentAwsKey } from '../src/agents/aws';
 import { AgentGCPKey } from '../src/agents/gcp';
 import { ReadOnlyCloudAgentKey } from '../src/agents/keys';
-import { KeyRole } from '../src/agents/roles';
+import { Role } from '../src/roles';
 
 describe('ReadOnlyCloudAgentKey', () => {
   describe('fromSerializedAddress', () => {
@@ -25,12 +25,12 @@ describe('ReadOnlyCloudAgentKey', () => {
       // AWS and GCP agent keys to get the identifiers from
       // and ensure they can be correctly parsed
       const testKeys = [
-        new AgentGCPKey(environment, context, KeyRole.Deployer),
-        new AgentGCPKey(environment, context, KeyRole.Relayer),
-        new AgentGCPKey(environment, context, KeyRole.Validator, chainName, 0),
-        new AgentAwsKey(mockAgentConfig, KeyRole.Deployer),
-        new AgentAwsKey(mockAgentConfig, KeyRole.Relayer),
-        new AgentAwsKey(mockAgentConfig, KeyRole.Validator, chainName, 0),
+        new AgentGCPKey(environment, context, Role.Deployer),
+        new AgentGCPKey(environment, context, Role.Relayer),
+        new AgentGCPKey(environment, context, Role.Validator, chainName, 0),
+        new AgentAwsKey(mockAgentConfig, Role.Deployer),
+        new AgentAwsKey(mockAgentConfig, Role.Relayer),
+        new AgentAwsKey(mockAgentConfig, Role.Validator, chainName, 0),
       ];
 
       for (const testKey of testKeys) {

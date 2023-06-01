@@ -23,11 +23,11 @@ import { environments } from '../config/environments';
 import { getCurrentKubernetesContext } from '../src/agents';
 import { getCloudAgentKey } from '../src/agents/key-utils';
 import { CloudAgentKey } from '../src/agents/keys';
-import { KeyRole } from '../src/agents/roles';
 import { DeployEnvironment, EnvironmentConfig } from '../src/config';
 import { AgentConfig } from '../src/config';
 import { fetchProvider } from '../src/config/chain';
 import { EnvironmentNames, deployEnvToSdkEnv } from '../src/config/environment';
+import { Role } from '../src/roles';
 import { assertContext, assertRole } from '../src/utils/utils';
 
 export enum Modules {
@@ -78,9 +78,7 @@ export function withContext<T>(args: yargs.Argv<T>) {
 export function withAgentRole<T>(args: yargs.Argv<T>) {
   return args
     .describe('role', 'agent role or comma seperated list of roles')
-    .coerce('role', (role: string): KeyRole[] =>
-      role.split(',').map(assertRole),
-    )
+    .coerce('role', (role: string): Role[] => role.split(',').map(assertRole))
     .demandOption('role')
     .alias('r', 'role');
 }
@@ -88,7 +86,7 @@ export function withAgentRole<T>(args: yargs.Argv<T>) {
 export function withKeyRoleAndChain<T>(args: yargs.Argv<T>) {
   return args
     .describe('role', 'key role')
-    .choices('role', Object.values(KeyRole))
+    .choices('role', Object.values(Role))
     .demandOption('role')
     .alias('r', 'role')
 
@@ -154,7 +152,7 @@ async function getKeyForRole(
   environment: DeployEnvironment,
   context: Contexts,
   chain: ChainName,
-  role: KeyRole,
+  role: Role,
   index?: number,
 ): Promise<CloudAgentKey> {
   const environmentConfig = environments[environment];
@@ -166,7 +164,7 @@ export async function getMultiProviderForRole(
   txConfigs: ChainMap<ChainMetadata>,
   environment: DeployEnvironment,
   context: Contexts,
-  role: KeyRole,
+  role: Role,
   index?: number,
   connectionType?: AgentConnectionType,
 ): Promise<MultiProvider> {

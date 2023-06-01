@@ -14,6 +14,7 @@ import {
   ScraperConfigHelper,
   ValidatorConfigHelper,
 } from '../config';
+import { Role } from '../roles';
 import { fetchGCPSecret } from '../utils/gcloud';
 import {
   HelmCommand,
@@ -27,7 +28,6 @@ import { AgentAwsUser, ValidatorAgentAwsUser } from './aws';
 import { AgentAwsKey } from './aws/key';
 import { AgentGCPKey } from './gcp';
 import { fetchKeysForChain } from './key-utils';
-import { KeyRole } from './roles';
 
 const HELM_CHART_PATH = __dirname + '/../../../../rust/helm/hyperlane-agent/';
 if (!fs.existsSync(HELM_CHART_PATH + 'Chart.yaml'))
@@ -38,7 +38,7 @@ if (!fs.existsSync(HELM_CHART_PATH + 'Chart.yaml'))
 export type AgentEnvVars = Record<string, string | number | boolean>;
 
 export abstract class AgentHelmManager {
-  abstract readonly role: KeyRole;
+  abstract readonly role: Role;
   abstract readonly helmReleaseName: string;
   readonly helmChartPath: string = HELM_CHART_PATH;
   protected abstract readonly config: AgentConfigHelper;
@@ -214,7 +214,7 @@ abstract class MultichainAgentHelmManager extends AgentHelmManager {
 
 export class RelayerHelmManager extends OmniscientAgentHelmManager {
   protected readonly config: RelayerConfigHelper;
-  readonly role: KeyRole.Relayer = KeyRole.Relayer;
+  readonly role: Role.Relayer = Role.Relayer;
 
   constructor(config: AgentConfig) {
     super();
@@ -294,7 +294,7 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
 
 export class ScraperHelmManager extends OmniscientAgentHelmManager {
   protected readonly config: ScraperConfigHelper;
-  readonly role: KeyRole.Scraper = KeyRole.Scraper;
+  readonly role: Role.Scraper = Role.Scraper;
 
   constructor(config: AgentConfig) {
     super();
@@ -332,7 +332,7 @@ export class ScraperHelmManager extends OmniscientAgentHelmManager {
 
 export class ValidatorHelmManager extends MultichainAgentHelmManager {
   protected readonly config: ValidatorConfigHelper;
-  readonly role: KeyRole.Validator = KeyRole.Validator;
+  readonly role: Role.Validator = Role.Validator;
 
   constructor(config: AgentConfig, chainName: ChainName) {
     super(chainName);
@@ -466,12 +466,7 @@ export async function getSecretDeployerKey(
   context: Contexts,
   chainName: ChainName,
 ) {
-  const key = new AgentGCPKey(
-    environment,
-    context,
-    KeyRole.Deployer,
-    chainName,
-  );
+  const key = new AgentGCPKey(environment, context, Role.Deployer, chainName);
   await key.fetch();
   return key.privateKey;
 }

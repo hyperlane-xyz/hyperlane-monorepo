@@ -12,8 +12,8 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { debug, error, log, utils, warn } from '@hyperlane-xyz/utils';
 
-import { KeyRole } from '../../src/agents/roles';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
+import { Role } from '../../src/roles';
 import { startMetricsServer } from '../../src/utils/metrics';
 import { assertChain, diagonalize, sleep } from '../../src/utils/utils';
 import { getArgs, getEnvironmentConfig, withContext } from '../utils';
@@ -143,7 +143,7 @@ async function main(): Promise<boolean> {
   const app = await getApp(
     coreConfig,
     context,
-    KeyRole.Kathy,
+    Role.Kathy,
     undefined,
     connectionType,
   );

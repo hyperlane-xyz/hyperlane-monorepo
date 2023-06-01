@@ -6,7 +6,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../../config/contexts';
-import { KeyRole } from '../../agents/roles';
+import { Role } from '../../roles';
 import { DeployEnvironment } from '../environment';
 import { HelmImageValues } from '../infrastructure';
 
@@ -72,7 +72,7 @@ export interface BaseAgentConfig {
   contextChainNames: ChainName[];
 
   // Roles to manage keys for
-  rolesWithKeys: KeyRole[];
+  rolesWithKeys: Role[];
 }
 
 export enum KeyType {
@@ -143,7 +143,7 @@ export abstract class AgentConfigHelper implements BaseAgentConfig {
   environmentChainNames: ChainName[];
   index?: IndexingConfig;
   namespace: string;
-  rolesWithKeys: KeyRole[];
+  rolesWithKeys: Role[];
   runEnv: DeployEnvironment;
 
   protected constructor(

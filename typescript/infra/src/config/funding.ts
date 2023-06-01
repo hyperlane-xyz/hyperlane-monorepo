@@ -1,16 +1,16 @@
 import { AgentConnectionType } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
-import { KeyRole } from '../agents/roles';
+import { Role } from '../roles';
 
 import { DockerConfig } from './agent';
 
 export interface ContextAndRoles {
   context: Contexts;
-  roles: KeyRole[];
+  roles: Role[];
 }
 
-export type ContextAndRolesMap = Partial<Record<Contexts, KeyRole[]>>;
+export type ContextAndRolesMap = Partial<Record<Contexts, Role[]>>;
 
 export interface KeyFunderConfig {
   docker: DockerConfig;

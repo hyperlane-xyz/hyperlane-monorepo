@@ -21,10 +21,10 @@ import { ethers } from 'ethers';
 import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { AgentConfig, AwsKeyConfig, KeyType } from '../../config/agent';
+import { Role } from '../../roles';
 import { getEthereumAddress, sleep } from '../../utils/utils';
 import { keyIdentifier } from '../agent';
 import { CloudAgentKey } from '../keys';
-import { KeyRole } from '../roles';
 
 interface UnfetchedKey {
   fetched: false;
@@ -44,7 +44,7 @@ export class AgentAwsKey extends CloudAgentKey {
 
   constructor(
     agentConfig: AgentConfig,
-    role: KeyRole,
+    role: Role,
     chainName?: ChainName,
     index?: number,
   ) {

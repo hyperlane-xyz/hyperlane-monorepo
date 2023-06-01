@@ -4,7 +4,7 @@ import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import { serializeContractsMap } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
-import { KeyRole } from '../../src/agents/roles';
+import { Role } from '../../src/roles';
 import { readJSON, writeJSON } from '../../src/utils/utils';
 import {
   getArgs,
@@ -20,7 +20,7 @@ async function main() {
   // Always deploy from the hyperlane deployer
   const multiProvider = await coreConfig.getMultiProvider(
     Contexts.Hyperlane,
-    KeyRole.Deployer,
+    Role.Deployer,
   );
   const configMap = await getRouterConfig(environment, multiProvider, true);
   const deployer = new HelloWorldDeployer(multiProvider);

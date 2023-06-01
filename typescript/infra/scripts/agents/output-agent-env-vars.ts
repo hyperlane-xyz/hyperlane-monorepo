@@ -7,7 +7,7 @@ import {
   ScraperHelmManager,
   ValidatorHelmManager,
 } from '../../src/agents';
-import { KeyRole } from '../../src/agents/roles';
+import { Role } from '../../src/roles';
 import { getArgs, withAgentRole, withContext } from '../utils';
 import { writeFile } from 'fs/promises';
 
@@ -18,7 +18,7 @@ class EnvExporter extends AgentCli {
   chain?: ChainName;
   index?: number;
 
-  get role(): KeyRole {
+  get role(): Role {
     return this.roles[0];
   }
 
@@ -40,7 +40,7 @@ class EnvExporter extends AgentCli {
       .check((argv) => {
         if (argv.role.length > 1) throw Error('only one role can be specified');
         if (
-          argv.role[0] == KeyRole.Validator &&
+          argv.role[0] == Role.Validator &&
           (argv.index == undefined || argv.chain == undefined)
         )
           throw Error('chain and index must be defined for validator role');
@@ -82,11 +82,11 @@ class EnvExporter extends AgentCli {
 
   private getManager(): AgentHelmManager {
     switch (this.role) {
-      case KeyRole.Validator:
+      case Role.Validator:
         return new ValidatorHelmManager(this.agentConfig, this.chain!);
-      case KeyRole.Relayer:
+      case Role.Relayer:
         return new RelayerHelmManager(this.agentConfig);
-      case KeyRole.Scraper:
+      case Role.Scraper:
         return new ScraperHelmManager(this.agentConfig);
       default:
         throw Error(`Invalid role ${this.role}`);

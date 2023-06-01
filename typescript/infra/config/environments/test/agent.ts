@@ -1,16 +1,16 @@
 import { AgentConnectionType } from '@hyperlane-xyz/sdk';
 
-import { ALL_KEY_ROLES } from '../../../src/agents/roles';
 import {
   AgentConfig,
   GasPaymentEnforcementPolicyType,
 } from '../../../src/config';
+import { ALL_KEY_ROLES } from '../../../src/roles';
 import { Contexts } from '../../contexts';
 
 import { chainNames } from './chains';
 import { validators } from './validators';
 
-export const hyperlane: AgentConfig = {
+const hyperlane: AgentConfig = {
   namespace: 'test',
   runEnv: 'test',
   context: Contexts.Hyperlane,

@@ -1,7 +1,7 @@
 import { HelloWorldChecker } from '@hyperlane-xyz/helloworld';
 
 import { Contexts } from '../../config/contexts';
-import { KeyRole } from '../../src/agents/roles';
+import { Role } from '../../src/roles';
 import {
   getArgs,
   getEnvironmentConfig,
@@ -18,7 +18,7 @@ async function main() {
   const app = await getApp(
     coreConfig,
     context,
-    KeyRole.Deployer,
+    Role.Deployer,
     Contexts.Hyperlane, // Owner should always be from the hyperlane context
   );
   const configMap = await getRouterConfig(environment, multiProvider, true);

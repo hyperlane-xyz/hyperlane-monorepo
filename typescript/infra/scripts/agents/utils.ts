@@ -3,8 +3,8 @@ import {
   ScraperHelmManager,
   ValidatorHelmManager,
 } from '../../src/agents';
-import { KeyRole } from '../../src/agents/roles';
 import { AgentConfig, EnvironmentConfig } from '../../src/config';
+import { Role } from '../../src/roles';
 import { HelmCommand } from '../../src/utils/helm';
 import {
   assertCorrectKubeContext,
@@ -17,7 +17,7 @@ import {
 type GetConfigsArgv = NonNullable<Parameters<typeof getConfigsBasedOnArgs>[0]>;
 
 export class AgentCli {
-  roles!: KeyRole[];
+  roles!: Role[];
   envConfig!: EnvironmentConfig;
   agentConfig!: AgentConfig;
   initialized = false;
@@ -26,15 +26,15 @@ export class AgentCli {
     await this.init();
     for (const role of this.roles) {
       switch (role) {
-        case KeyRole.Validator:
+        case Role.Validator:
           await this.runHelmCommandForValidators(command);
           break;
-        case KeyRole.Relayer:
+        case Role.Relayer:
           await new RelayerHelmManager(this.agentConfig).runHelmCommand(
             command,
           );
           break;
-        case KeyRole.Scraper:
+        case Role.Scraper:
           await new ScraperHelmManager(this.agentConfig).runHelmCommand(
             command,
           );
@@ -45,7 +45,7 @@ export class AgentCli {
     }
   }
 
-  protected async init(argv?: GetConfigsArgv & { role: KeyRole[] }) {
+  protected async init(argv?: GetConfigsArgv & { role: Role[] }) {
     if (this.initialized) return;
     if (!argv) argv = await withAgentRole(withContext(getArgs())).argv;
 

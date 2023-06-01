@@ -1,12 +1,12 @@
 import { AgentConnectionType, chainMetadata } from '@hyperlane-xyz/sdk';
 
-import { ALL_KEY_ROLES, KeyRole } from '../../../src/agents/roles';
 import {
   AgentConfig,
   GasPaymentEnforcementPolicyType,
   overrideBase,
   routerMatchingList,
 } from '../../../src/config';
+import { ALL_KEY_ROLES, Role } from '../../../src/roles';
 import { Contexts } from '../../contexts';
 
 import { chainNames, environment } from './chains';
@@ -22,7 +22,23 @@ const interchainQueriesMatchingList = routerMatchingList(
   interchainQueryRouters,
 );
 
-export const hyperlane: AgentConfig = {
+// const base = {
+//   namespace: environment,
+//   runEnv: environment,
+//   docker: {
+//     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
+//     tag: '40cc4a6-20230420-080111',
+//   },
+//   aws: {
+//     region: 'us-east-1',
+//   },
+//   environmentChainNames: chainNames,
+//   contextChainNames: chainNames,
+//   connectionType: AgentConnectionType.HttpFallback,
+//   rolesWithKeys: ALL_KEY_ROLES,
+// } as const;
+
+const hyperlane: AgentConfig = {
   namespace: environment,
   runEnv: environment,
   context: Contexts.Hyperlane,
@@ -65,7 +81,7 @@ export const hyperlane: AgentConfig = {
   rolesWithKeys: ALL_KEY_ROLES,
 };
 
-export const releaseCandidate: AgentConfig = {
+const releaseCandidate: AgentConfig = {
   namespace: environment,
   runEnv: environment,
   context: Contexts.ReleaseCandidate,
@@ -95,7 +111,7 @@ export const releaseCandidate: AgentConfig = {
     // fees which leads to wildly off predictions.
     skipTransactionGasLimitFor: [chainMetadata.arbitrum.chainId],
   },
-  rolesWithKeys: [KeyRole.Relayer, KeyRole.Kathy],
+  rolesWithKeys: [Role.Relayer, Role.Kathy],
 };
 
 export const agents = {

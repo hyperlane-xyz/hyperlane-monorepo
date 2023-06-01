@@ -1,8 +1,8 @@
 import { AgentConnectionType } from '@hyperlane-xyz/sdk';
 
 import { getMultiProviderForRole } from '../../../scripts/utils';
-import { KeyRole } from '../../../src/agents/roles';
 import { EnvironmentConfig } from '../../../src/config';
+import { Role } from '../../../src/roles';
 import { Contexts } from '../../contexts';
 
 import { agents } from './agent';
@@ -21,7 +21,7 @@ export const environment: EnvironmentConfig = {
   chainMetadataConfigs: mainnetConfigs,
   getMultiProvider: (
     context: Contexts = Contexts.Hyperlane,
-    role: KeyRole = KeyRole.Deployer,
+    role: Role = Role.Deployer,
     connectionType?: AgentConnectionType,
   ) =>
     getMultiProviderForRole(
