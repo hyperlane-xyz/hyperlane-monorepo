@@ -8,10 +8,7 @@ interface IInterchainSecurityModule {
         AGGREGATION,
         LEGACY_MULTISIG,
         MULTISIG,
-        WORMHOLE,
-        OPTIMISM,
-        ARBITRUM,
-        POLYGON
+        OPTIMISM
     }
 
     /**

@@ -16,7 +16,6 @@ import {AddressAliasHelper} from "@eth-optimism/contracts/standards/AddressAlias
 import {ICrossDomainMessenger} from "@eth-optimism/contracts/libraries/bridge/ICrossDomainMessenger.sol";
 import {ICanonicalTransactionChain} from "@eth-optimism/contracts/l1/rollup/ICanonicalTransactionChain.sol";
 import {L2CrossDomainMessenger} from "@eth-optimism/contracts/L2/messaging/L2CrossDomainMessenger.sol";
-import {Predeploys} from "@eth-optimism/contracts-bedrock/contracts/libraries/Predeploys.sol";
 
 contract OptimismISMTest is Test {
     uint256 public mainnetFork;
@@ -26,6 +25,8 @@ contract OptimismISMTest is Test {
         0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1;
     address public constant L1_CANNONICAL_CHAIN =
         0x5E4e65926BA27467555EB562121fac00D24E9dD2;
+    address public constant L2_MESSENGER_ADDRESS =
+        0x4200000000000000000000000000000000000007;
 
     uint8 public constant VERSION = 0;
     uint256 public constant DEFAULT_GAS_LIMIT = 1_920_000;
@@ -57,7 +58,9 @@ contract OptimismISMTest is Test {
 
     event RelayedMessage(bytes32 indexed msgHash);
 
-    event ReceivedMessage(bytes32 indexed messageId, address indexed emitter);
+    event FailedRelayedMessage(bytes32 indexed msgHash);
+
+    event ReceivedMessage(address indexed emitter, bytes32 indexed messageId);
 
     error NotCrossChainCall();
 
@@ -89,9 +92,7 @@ contract OptimismISMTest is Test {
         vm.selectFork(optimismFork);
 
         opISM = new OptimismISM(
-            address(
-                L2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER)
-            )
+            address(L2CrossDomainMessenger(L2_MESSENGER_ADDRESS))
         );
 
         vm.makePersistent(address(opISM));
@@ -167,7 +168,7 @@ contract OptimismISMTest is Test {
         assertEq(vm.activeFork(), optimismFork);
 
         L2CrossDomainMessenger l2Bridge = L2CrossDomainMessenger(
-            Predeploys.L2_CROSS_DOMAIN_MESSENGER
+            L2_MESSENGER_ADDRESS
         );
 
         bytes32 _messageId = Message.id(
@@ -193,15 +194,9 @@ contract OptimismISMTest is Test {
         );
 
         vm.expectEmit(true, true, false, false, address(opISM));
-        emit ReceivedMessage(_messageId, address(this));
+        emit ReceivedMessage(address(this), _messageId);
 
-        vm.expectEmit(
-            true,
-            false,
-            false,
-            false,
-            Predeploys.L2_CROSS_DOMAIN_MESSENGER
-        );
+        vm.expectEmit(true, false, false, false, L2_MESSENGER_ADDRESS);
         emit RelayedMessage(Message.id(xDomainCalldata));
 
         l2Bridge.relayMessage(
@@ -232,7 +227,7 @@ contract OptimismISMTest is Test {
         opISM.receiveFromHook(address(opHook), _messageId);
 
         L2CrossDomainMessenger l2Bridge = L2CrossDomainMessenger(
-            Predeploys.L2_CROSS_DOMAIN_MESSENGER
+            L2_MESSENGER_ADDRESS
         );
 
         // set the xDomainMessageSender storage slot as alice
@@ -240,7 +235,7 @@ contract OptimismISMTest is Test {
         bytes32 value = TypeCasts.addressToBytes32(alice);
         vm.store(address(l2Bridge), key, value);
 
-        vm.startPrank(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+        vm.startPrank(L2_MESSENGER_ADDRESS);
 
         // needs to be called by the authorized hook contract on Ethereum
         vm.expectRevert("OptimismISM: caller is not the owner");
@@ -255,7 +250,7 @@ contract OptimismISMTest is Test {
         vm.selectFork(optimismFork);
 
         L2CrossDomainMessenger l2Bridge = L2CrossDomainMessenger(
-            Predeploys.L2_CROSS_DOMAIN_MESSENGER
+            L2_MESSENGER_ADDRESS
         );
 
         bytes memory encodedMessage = _encodeTestMessage(
@@ -280,9 +275,6 @@ contract OptimismISMTest is Test {
 
         bool verified = opISM.verify(new bytes(0), encodedMessage);
         assertTrue(verified);
-
-        // bool verifiedTwice = opISM.verify(new bytes(0), encodedMessage);
-        // assertFalse(verifiedTwice);
     }
 
     function testVerify_InvalidMessage_Hyperlane() public {
@@ -291,7 +283,7 @@ contract OptimismISMTest is Test {
         vm.selectFork(optimismFork);
 
         L2CrossDomainMessenger l2Bridge = L2CrossDomainMessenger(
-            Predeploys.L2_CROSS_DOMAIN_MESSENGER
+            L2_MESSENGER_ADDRESS
         );
 
         bytes memory encodedMessage = _encodeTestMessage(
@@ -325,7 +317,7 @@ contract OptimismISMTest is Test {
         vm.selectFork(optimismFork);
 
         L2CrossDomainMessenger l2Bridge = L2CrossDomainMessenger(
-            Predeploys.L2_CROSS_DOMAIN_MESSENGER
+            L2_MESSENGER_ADDRESS
         );
 
         bytes memory encodedMessage = _encodeTestMessage(
@@ -353,13 +345,13 @@ contract OptimismISMTest is Test {
         assertFalse(verified);
     }
 
-    function testVerify_InvalidSender() public {
+    function testVerify_InvalidSenderFail() public {
         deployAll();
 
         vm.selectFork(optimismFork);
 
         L2CrossDomainMessenger l2Bridge = L2CrossDomainMessenger(
-            Predeploys.L2_CROSS_DOMAIN_MESSENGER
+            L2_MESSENGER_ADDRESS
         );
 
         bytes memory encodedMessage = _encodeTestMessage(
@@ -371,6 +363,52 @@ contract OptimismISMTest is Test {
         bytes memory encodedHookData = abi.encodeCall(
             OptimismISM.receiveFromHook,
             (alice, _messageId)
+        );
+        uint256 nextNonce = l2Bridge.messageNonce() + 1;
+
+        bytes memory xDomainCalldata = Lib_CrossDomainUtils
+            .encodeXDomainCalldata(
+                address(opISM),
+                address(opHook),
+                encodedHookData,
+                nextNonce
+            );
+
+        // vm.expectRevert("OptimismISM: invalid emitter");
+        vm.expectEmit(true, false, false, false, L2_MESSENGER_ADDRESS);
+
+        emit FailedRelayedMessage(Message.id(xDomainCalldata));
+
+        vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
+        l2Bridge.relayMessage(
+            address(opISM),
+            address(opHook),
+            encodedHookData,
+            nextNonce
+        );
+
+        bool verified = opISM.verify(new bytes(0), encodedMessage);
+        assertFalse(verified);
+    }
+
+    function testVerify_InvalidSenderFalse() public {
+        deployAll();
+
+        vm.selectFork(optimismFork);
+
+        L2CrossDomainMessenger l2Bridge = L2CrossDomainMessenger(
+            L2_MESSENGER_ADDRESS
+        );
+
+        bytes memory encodedMessage = _encodeTestMessage(
+            0,
+            address(testRecipient)
+        );
+        bytes32 _messageId = Message.id(encodedMessage);
+
+        bytes memory encodedHookData = abi.encodeCall(
+            OptimismISM.receiveFromHook,
+            (address(opHook), _messageId)
         );
         uint256 nextNonce = l2Bridge.messageNonce() + 1;
 

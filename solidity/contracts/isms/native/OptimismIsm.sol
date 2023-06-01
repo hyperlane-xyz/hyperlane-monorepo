@@ -1,24 +1,25 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+// ============ Internal Imports ============
+
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {IOptimismMessageHook} from "../../interfaces/hooks/IOptimismMessageHook.sol";
 import {Message} from "../../libs/Message.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
+import {AbstractNativeISM} from "./AbstractNativeISM.sol";
+
+// ============ External Imports ============
 
 import {ICrossDomainMessenger} from "@eth-optimism/contracts/libraries/bridge/ICrossDomainMessenger.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {CrossChainEnabledOptimism} from "@openzeppelin/contracts/crosschain/optimism/CrossChainEnabledOptimism.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
  * @title OptimismISM
  * @notice Uses the native Optimism bridge to verify interchain messages.
  */
-contract OptimismISM is
-    IInterchainSecurityModule,
-    CrossChainEnabledOptimism,
-    Ownable
-{
+contract OptimismISM is CrossChainEnabledOptimism, AbstractNativeISM {
     // ============ Constants ============
 
     // solhint-disable-next-line const-name-snakecase
@@ -33,13 +34,6 @@ contract OptimismISM is
 
     // Hook deployed on L1 responsible for sending message via the Optimism bridge
     IOptimismMessageHook public l1Hook;
-    // mapping to check if the specific messageID from a specific emitter has been received
-    // @dev anyone can send an untrusted messageId, so need to check for that while verifying
-    mapping(bytes32 => mapping(address => bool)) public receivedEmitters;
-
-    // ============ Events ============
-
-    event ReceivedMessage(bytes32 indexed messageId, address indexed emitter);
 
     // ============ Modifiers ============
 
@@ -57,9 +51,9 @@ contract OptimismISM is
     // ============ Constructor ============
 
     constructor(address _l2Messenger) CrossChainEnabledOptimism(_l2Messenger) {
-        require(_l2Messenger != address(0), "OptimismISM: invalid messenger");
-
-        l2Messenger = ICrossDomainMessenger(_l2Messenger);
+        l2Messenger = ICrossDomainMessenger(
+            _onlyContract(_l2Messenger, "l2Messenger")
+        );
     }
 
     // ============ External Functions ============
@@ -69,9 +63,7 @@ contract OptimismISM is
      * @param _hook Address of the hook.
      */
     function setOptimismHook(address _hook) external onlyOwner {
-        require(_hook != address(0), "OptimismISM: invalid hook");
-
-        l1Hook = IOptimismMessageHook(_hook);
+        l1Hook = IOptimismMessageHook(_onlyContract(_hook, "hook"));
     }
 
     /**
@@ -84,24 +76,24 @@ contract OptimismISM is
         external
         isAuthorized
     {
-        require(_emitter != address(0), "OptimismISM: invalid emitter");
+        address emitter = _onlyContract(_emitter, "emitter");
 
-        receivedEmitters[_messageId][_emitter] = true;
+        _setEmitter(emitter, _messageId);
 
-        emit ReceivedMessage(_messageId, _emitter);
+        emit ReceivedMessage(emitter, _messageId);
     }
 
-    /**
-     * @notice Verify a message was received by ISM.
-     * @param _message Message to verify.
-     */
-    function verify(
-        bytes calldata, /*_metadata*/
-        bytes calldata _message
-    ) external view returns (bool) {
-        bytes32 _messageId = Message.id(_message);
-        address _messageSender = Message.senderAddress(_message);
+    // ============ Internal Functions ============
 
-        return receivedEmitters[_messageId][_messageSender];
+    function _onlyContract(address _contract, string memory _type)
+        internal
+        view
+        returns (address)
+    {
+        require(
+            Address.isContract(_contract),
+            string.concat("OptimismISM: invalid ", _type)
+        );
+        return _contract;
     }
 }
