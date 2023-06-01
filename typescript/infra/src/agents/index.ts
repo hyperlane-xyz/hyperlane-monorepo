@@ -1,3 +1,5 @@
+import fs from 'fs';
+
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 import { utils } from '@hyperlane-xyz/utils';
 
@@ -27,9 +29,13 @@ import { AgentGCPKey } from './gcp';
 import { fetchKeysForChain } from './key-utils';
 import { KeyRole } from './roles';
 
-const HELM_CHART_PATH = '../../rust/helm/hyperlane-agent/';
+const HELM_CHART_PATH = __dirname + '/../../../../rust/helm/hyperlane-agent/';
+if (!fs.existsSync(HELM_CHART_PATH + 'Chart.yaml'))
+  console.warn(
+    `Could not find helm chart at ${HELM_CHART_PATH}; the relative path may have changed.`,
+  );
 
-abstract class AgentHelmManager {
+export abstract class AgentHelmManager {
   abstract readonly role: KeyRole;
   abstract readonly helmReleaseName: string;
   readonly helmChartPath: string = HELM_CHART_PATH;
