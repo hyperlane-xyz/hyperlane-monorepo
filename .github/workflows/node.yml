@@ -19,7 +19,7 @@ jobs:
           submodules: recursive
 
       - name: remove submodule locks
-        run: git submodule foreach rm yarn.lock
+        run: git submodule foreach 'test -f yarn.lock && rm yarn.lock || echo "No yarn.lock file in this submodule"'
 
       - name: yarn-cache
         uses: actions/cache@v3
