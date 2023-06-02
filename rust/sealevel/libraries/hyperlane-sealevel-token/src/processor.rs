@@ -217,6 +217,9 @@ where
             dispatch_authority_bump,
             owner: Some(*payer_account.key),
             interchain_security_module: init.interchain_security_module,
+            // TODO add to init instruction
+            decimals: DECIMALS,
+            remote_decimals: REMOTE_DECIMALS,
             remote_routers: HashMap::new(),
             plugin_data,
         };
@@ -245,7 +248,11 @@ where
         accounts: &[AccountInfo],
         xfer: TransferRemote,
     ) -> ProgramResult {
-        let amount: u64 = xfer.amount_or_id.try_into().map_err(|_| Error::TODO)?;
+        // The amount denominated in the local decimals.
+        let local_amount: u64 = xfer
+            .amount_or_id
+            .try_into()
+            .map_err(|_| Error::IntegerOverflow)?;
 
         let accounts_iter = &mut accounts.iter();
 
@@ -315,15 +322,24 @@ where
         // Similarly defer to the checks in the Mailbox to ensure account validity.
         let dispatched_message_pda = next_account_info(accounts_iter)?;
 
-        // Transfer tokens in...
-        T::transfer_in(program_id, &*token, sender_wallet, accounts_iter, amount)?;
+        // Transfer `local_amount` of tokens in...
+        T::transfer_in(
+            program_id,
+            &*token,
+            sender_wallet,
+            accounts_iter,
+            local_amount,
+        )?;
 
         if accounts_iter.next().is_some() {
             return Err(ProgramError::from(Error::ExtraneousAccount));
         }
 
+        // Convert to the remote number of decimals, which is universally understood
+        // by the remote routers as the number of decimals used by the message amount.
+        let remote_amount = token.local_amount_to_remote_amount(local_amount)?;
         let token_transfer_message =
-            TokenMessage::new(xfer.recipient, xfer.amount_or_id, vec![]).to_vec();
+            TokenMessage::new(xfer.recipient, remote_amount, vec![]).to_vec();
 
         // Dispatch the message.
         token.dispatch(
@@ -354,7 +370,7 @@ where
         let event = Event::new(EventSentTransferRemote {
             destination: xfer.destination_domain,
             recipient: xfer.recipient,
-            amount: xfer.amount_or_id,
+            amount: remote_amount,
         });
         let event_data = event.to_noop_cpi_ixn_data().map_err(|_| Error::TODO)?;
         let noop_cpi_log = Instruction {
@@ -379,16 +395,11 @@ where
         accounts: &[AccountInfo],
         xfer: TransferFromRemote,
     ) -> ProgramResult {
+        let accounts_iter = &mut accounts.iter();
+
         let mut message_reader = std::io::Cursor::new(xfer.message);
         let message = TokenMessage::read_from(&mut message_reader)
             .map_err(|_err| ProgramError::from(Error::TODO))?;
-        // FIXME we must account for decimals of the mint not only the raw amount value during
-        // transfer. Wormhole accounts for this with some extra care taken to round/truncate properly -
-        // we should do the same.
-        let amount = message.amount().try_into().map_err(|_| Error::TODO)?;
-        // FIXME validate message fields?
-
-        let accounts_iter = &mut accounts.iter();
 
         // Account 0: Mailbox authority
         // This is verified further below.
@@ -431,13 +442,19 @@ where
         // and that the sender is the remote router for the origin.
         token.ensure_valid_router_message(process_authority_account, xfer.origin, &xfer.sender)?;
 
+        // The amount denominated in the local decimals.
+        let remote_amount = message.amount();
+        // Convert to the local number of decimal.
+        let local_amount: u64 = token.remote_amount_to_local_amount(remote_amount)?;
+
+        // Transfer the `local_amount` of tokens out.
         T::transfer_out(
             program_id,
             &*token,
             system_program,
             recipient_wallet,
             accounts_iter,
-            amount,
+            local_amount,
         )?;
 
         if accounts_iter.next().is_some() {
@@ -448,7 +465,7 @@ where
             origin: xfer.origin,
             // Note: assuming recipient not recipient ata is the correct "recipient" to log.
             recipient: H256::from(recipient_wallet.key.to_bytes()),
-            amount: message.amount(),
+            amount: remote_amount,
         });
         let event_data = event.to_noop_cpi_ixn_data().map_err(|_| Error::TODO)?;
         let noop_cpi_log = Instruction {
