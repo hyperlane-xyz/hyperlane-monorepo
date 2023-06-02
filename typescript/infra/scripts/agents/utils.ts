@@ -1,4 +1,5 @@
 import {
+  AgentHelmManager,
   RelayerHelmManager,
   ScraperHelmManager,
   ValidatorHelmManager,
@@ -24,25 +25,31 @@ export class AgentCli {
 
   public async runHelmCommand(command: HelmCommand) {
     await this.init();
+    // use keys to ensure uniqueness
+    const managers: Record<string, AgentHelmManager> = {};
+    // make all the managers first to ensure config validity
     for (const role of this.roles) {
       switch (role) {
         case Role.Validator:
-          await this.runHelmCommandForValidators(command);
+          for (const chain of this.agentConfig.contextChainNames) {
+            const key = `${role}-${chain}`;
+            managers[key] = new ValidatorHelmManager(this.agentConfig, chain);
+          }
           break;
         case Role.Relayer:
-          await new RelayerHelmManager(this.agentConfig).runHelmCommand(
-            command,
-          );
+          managers[role] = new RelayerHelmManager(this.agentConfig);
           break;
         case Role.Scraper:
-          await new ScraperHelmManager(this.agentConfig).runHelmCommand(
-            command,
-          );
+          managers[role] = new ScraperHelmManager(this.agentConfig);
           break;
         default:
           throw new Error(`Invalid role ${role}`);
       }
     }
+
+    await Promise.all(
+      Object.values(managers).map((m) => m.runHelmCommand(command)),
+    );
   }
 
   protected async init(argv?: GetConfigsArgv & { role: Role[] }) {
@@ -55,15 +62,5 @@ export class AgentCli {
     this.envConfig = envConfig;
     this.agentConfig = agentConfig;
     this.initialized = true;
-  }
-
-  private async runHelmCommandForValidators(command: HelmCommand) {
-    await Promise.all(
-      (this.agentConfig.contextChainNames ?? []).map((chain) =>
-        new ValidatorHelmManager(this.agentConfig, chain).runHelmCommand(
-          command,
-        ),
-      ),
-    );
   }
 }
