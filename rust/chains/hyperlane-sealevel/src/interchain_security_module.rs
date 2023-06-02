@@ -46,6 +46,6 @@ impl HyperlaneChain for SealevelInterchainSecurityModule {
 impl InterchainSecurityModule for SealevelInterchainSecurityModule {
     async fn module_type(&self) -> ChainResult<ModuleType> {
         // TODO: actually get this from the chain
-        Ok(ModuleType::LegacyMultisig)
+        Ok(ModuleType::MessageIdMultisig)
     }
 }
