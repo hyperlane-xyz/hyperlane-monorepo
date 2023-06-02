@@ -24,9 +24,9 @@ import { getCurrentKubernetesContext } from '../src/agents';
 import { getCloudAgentKey } from '../src/agents/key-utils';
 import { CloudAgentKey } from '../src/agents/keys';
 import {
-  AgentConfig,
   DeployEnvironment,
   EnvironmentConfig,
+  RootAgentConfig,
 } from '../src/config';
 import { fetchProvider } from '../src/config/chain';
 import { EnvironmentNames, deployEnvToSdkEnv } from '../src/config/environment';
@@ -132,7 +132,7 @@ export async function getConfigsBasedOnArgs(argv?: {
 export async function getAgentConfig(
   context: Contexts,
   environment: EnvironmentConfig | DeployEnvironment,
-): Promise<AgentConfig> {
+): Promise<RootAgentConfig> {
   const coreConfig =
     typeof environment == 'string'
       ? getEnvironmentConfig(environment)
@@ -144,13 +144,6 @@ export async function getAgentConfig(
         coreConfig.agents,
       )}.`,
     );
-  for (const i of ['other', 'validators', 'relayer', 'scraper'] as const) {
-    const current = agentConfig[i]?.context;
-    if (current != undefined && current != context)
-      throw Error(
-        `${i} context ${current} does not match expected context ${context}`,
-      );
-  }
   return agentConfig;
 }
 
@@ -163,19 +156,7 @@ async function getKeyForRole(
 ): Promise<CloudAgentKey> {
   const environmentConfig = environments[environment];
   const agentConfig = await getAgentConfig(context, environmentConfig);
-  let base;
-  switch (role) {
-    case Role.Validator:
-      base = agentConfig.validators;
-      break;
-    case Role.Relayer:
-      base = agentConfig.relayer;
-      break;
-    case Role.Scraper:
-      base = agentConfig.scraper;
-      break;
-  }
-  return getCloudAgentKey(base ?? agentConfig.other, role, chain, index);
+  return getCloudAgentKey(agentConfig, role, chain, index);
 }
 
 export async function getMultiProviderForRole(

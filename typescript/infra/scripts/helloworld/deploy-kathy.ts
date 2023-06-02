@@ -11,7 +11,7 @@ async function main() {
 
   await runHelloworldKathyHelmCommand(
     HelmCommand.InstallOrUpgrade,
-    agentConfig.other,
+    agentConfig,
     kathyConfig,
   );
 }

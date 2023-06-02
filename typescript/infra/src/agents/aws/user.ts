@@ -10,7 +10,7 @@ import {
 import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../../config/contexts';
-import { BaseAgentConfig, DeployEnvironment } from '../../config';
+import { AgentContextConfig, DeployEnvironment } from '../../config';
 import { Role } from '../../roles';
 import {
   fetchGCPSecret,
@@ -111,12 +111,12 @@ export class AgentAwsUser {
     );
   }
 
-  key(agentConfig: BaseAgentConfig): AgentAwsKey {
+  key(agentConfig: AgentContextConfig): AgentAwsKey {
     return new AgentAwsKey(agentConfig, this.role, this.chainName);
   }
 
   async createKeyIfNotExists(
-    agentConfig: BaseAgentConfig,
+    agentConfig: AgentContextConfig,
   ): Promise<AgentAwsKey> {
     const key = this.key(agentConfig);
     await key.createIfNotExists();

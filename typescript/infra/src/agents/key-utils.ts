@@ -1,7 +1,11 @@
 import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
-import { AgentConfig, BaseAgentConfig, DeployEnvironment } from '../config';
+import {
+  AgentContextConfig,
+  DeployEnvironment,
+  RootAgentConfig,
+} from '../config';
 import { Role } from '../roles';
 import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
 import { execCmd } from '../utils/utils';
@@ -16,7 +20,7 @@ interface KeyAsAddress {
 }
 
 export function getCloudAgentKey(
-  agentConfig: BaseAgentConfig,
+  agentConfig: AgentContextConfig,
   role: Role,
   chainName?: ChainName,
   index?: number,
@@ -36,45 +40,47 @@ export function getCloudAgentKey(
 }
 
 export function getValidatorCloudAgentKeys(
-  agentConfig: AgentConfig,
+  agentConfig: RootAgentConfig,
 ): Array<CloudAgentKey> {
   // For each chainName, create validatorCount keys
   if (!agentConfig.validators) return [];
   const validators = agentConfig.validators;
-  return validators.contextChainNames.flatMap((chainName) =>
+  return agentConfig.contextChainNames.flatMap((chainName) =>
     validators.chains[chainName].validators.map((_, index) =>
-      getCloudAgentKey(validators, Role.Validator, chainName, index),
+      getCloudAgentKey(agentConfig, Role.Validator, chainName, index),
     ),
   );
 }
 
 export function getAllCloudAgentKeys(
-  agentConfig: AgentConfig,
+  agentConfig: RootAgentConfig,
 ): Array<CloudAgentKey> {
   const keys = [];
-  if ((agentConfig.relayer?.rolesWithKeys ?? []).includes(Role.Relayer))
-    keys.push(getCloudAgentKey(agentConfig.relayer!, Role.Relayer));
-  if ((agentConfig.validators?.rolesWithKeys ?? []).includes(Role.Validator))
+  if ((agentConfig.rolesWithKeys ?? []).includes(Role.Relayer))
+    keys.push(getCloudAgentKey(agentConfig, Role.Relayer));
+  if ((agentConfig.rolesWithKeys ?? []).includes(Role.Validator))
     keys.push(...getValidatorCloudAgentKeys(agentConfig));
-  for (const role of agentConfig.other.rolesWithKeys) {
+  for (const role of agentConfig.rolesWithKeys) {
     if (role == Role.Relayer || role == Role.Validator) continue;
-    keys.push(getCloudAgentKey(agentConfig.other, role));
+    keys.push(getCloudAgentKey(agentConfig, role));
   }
   return keys;
 }
 
-export async function deleteAgentKeys(agentConfig: AgentConfig) {
+export async function deleteAgentKeys(agentConfig: AgentContextConfig) {
   const keys = getAllCloudAgentKeys(agentConfig);
   await Promise.all(keys.map((key) => key.delete()));
   await execCmd(
     `gcloud secrets delete ${addressesIdentifier(
-      agentConfig.other.runEnv,
-      agentConfig.other.context,
+      agentConfig.runEnv,
+      agentConfig.context,
     )} --quiet`,
   );
 }
 
-export async function createAgentKeysIfNotExists(agentConfig: AgentConfig) {
+export async function createAgentKeysIfNotExists(
+  agentConfig: AgentContextConfig,
+) {
   const keys = getAllCloudAgentKeys(agentConfig);
 
   await Promise.all(
@@ -84,14 +90,14 @@ export async function createAgentKeysIfNotExists(agentConfig: AgentConfig) {
   );
 
   await persistAddresses(
-    agentConfig.other.runEnv,
-    agentConfig.other.context,
+    agentConfig.runEnv,
+    agentConfig.context,
     keys.map((key) => key.serializeAsAddress()),
   );
 }
 
 export async function rotateKey(
-  agentConfig: BaseAgentConfig,
+  agentConfig: AgentContextConfig,
   role: Role,
   chainName: ChainName,
 ) {
@@ -131,7 +137,7 @@ async function persistAddresses(
 
 // This function returns all keys for a given mailbox chain in a dictionary where the key is the identifier
 export async function fetchKeysForChain(
-  agentConfig: AgentConfig,
+  agentConfig: RootAgentConfig,
   chainNames: ChainName | ChainName[],
 ): Promise<Record<string, CloudAgentKey>> {
   if (!Array.isArray(chainNames)) chainNames = [chainNames];

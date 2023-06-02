@@ -1,6 +1,7 @@
+import { Role } from '../../roles';
 import { HelmStatefulSetValues } from '../infrastructure';
 
-import { AgentConfig, AgentConfigHelper } from './agent';
+import { AgentConfigHelper, RootAgentConfig } from './agent';
 
 export interface BaseScraperConfig {
   // no configs at this time
@@ -14,7 +15,7 @@ export interface HelmScraperValues extends HelmStatefulSetValues {
 }
 
 export class ScraperConfigHelper extends AgentConfigHelper<ScraperConfig> {
-  constructor(agentConfig: AgentConfig) {
+  constructor(agentConfig: RootAgentConfig) {
     if (!agentConfig.scraper)
       throw Error('Scraper is not defined for this context');
     super(agentConfig, agentConfig.scraper);
@@ -22,5 +23,9 @@ export class ScraperConfigHelper extends AgentConfigHelper<ScraperConfig> {
 
   async buildConfig(): Promise<ScraperConfig> {
     return {};
+  }
+
+  get role(): Role {
+    return Role.Scraper;
   }
 }

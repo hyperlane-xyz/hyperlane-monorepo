@@ -50,33 +50,37 @@ export interface HelmAgentChainOverride
   connection?: Partial<AgentConnection>;
 }
 
-export interface AgentConfig {
+export interface RootAgentConfig extends AgentContextConfig {
   // other is used by non-agent specific configuration (e.g. key-funder)
-  other: BaseAgentConfig;
-  relayer?: BaseAgentConfig & BaseRelayerConfig;
-  validators?: BaseAgentConfig & {
+  relayer?: AgentRoleConfig & BaseRelayerConfig;
+  validators?: AgentRoleConfig & {
     chains: ValidatorBaseChainConfigMap;
   };
-  scraper?: BaseAgentConfig & BaseScraperConfig;
+  scraper?: AgentRoleConfig & BaseScraperConfig;
 }
 
-// incomplete common agent configuration
-export interface BaseAgentConfig {
+interface AgentEnvConfig {
   runEnv: DeployEnvironment;
+  // Names of all chains in the environment
+  environmentChainNames: ChainName[];
+}
+
+export interface AgentContextConfig extends AgentEnvConfig {
   namespace: string;
   context: Contexts;
+  aws?: AwsConfig;
+  // Roles to manage keys for
+  rolesWithKeys: Role[];
+  // Names of chains this context cares about (subset of environmentChainNames)
+  contextChainNames: ChainName[];
+}
+
+// incomplete common agent configuration for a role
+interface AgentRoleConfig {
   docker: DockerConfig;
   quorumProvider?: boolean;
   connectionType: AgentConnectionType;
   index?: IndexingConfig;
-  aws?: AwsConfig;
-  // Names of all chains in the environment
-  environmentChainNames: ChainName[];
-  // Names of chains this context cares about
-  contextChainNames: ChainName[];
-
-  // Roles to manage keys for
-  rolesWithKeys: Role[];
 }
 
 export enum KeyType {
@@ -113,35 +117,58 @@ export interface DockerConfig {
   tag: string;
 }
 
-export abstract class AgentConfigHelper<R = unknown>
-  implements BaseAgentConfig
-{
-  readonly rawConfig: AgentConfig;
+export class RootAgentConfigHelper implements AgentContextConfig {
+  readonly rawConfig: RootAgentConfig;
 
-  aws?: AwsConfig;
-  connectionType: AgentConnectionType;
   context: Contexts;
-  contextChainNames: ChainName[];
-  docker: DockerConfig;
-  environmentChainNames: ChainName[];
-  index?: IndexingConfig;
   namespace: string;
-  rolesWithKeys: Role[];
   runEnv: DeployEnvironment;
+  aws?: AwsConfig;
+  rolesWithKeys: Role[];
+  contextChainNames: ChainName[];
+  environmentChainNames: ChainName[];
 
-  protected constructor(root: AgentConfig, agent: BaseAgentConfig) {
+  constructor(root: RootAgentConfig) {
     this.rawConfig = root;
-    this.aws = agent.aws;
-    this.connectionType = agent.connectionType;
-    this.context = agent.context;
-    this.contextChainNames = agent.contextChainNames;
-    this.docker = agent.docker;
-    this.environmentChainNames = agent.environmentChainNames;
-    this.index = agent.index;
-    this.namespace = agent.namespace;
-    this.rolesWithKeys = agent.rolesWithKeys;
-    this.runEnv = agent.runEnv;
+    this.context = root.context;
+    this.namespace = root.namespace;
+    this.aws = root.aws;
+    this.runEnv = root.runEnv;
+    this.rolesWithKeys = root.rolesWithKeys;
+    this.contextChainNames = root.contextChainNames;
+    this.environmentChainNames = root.environmentChainNames;
   }
+
+  get validatorDefined(): boolean {
+    return !!this.rawConfig.validators;
+  }
+
+  get relayerDefined(): boolean {
+    return !!this.rawConfig.relayer;
+  }
+
+  get scraperDefined(): boolean {
+    return !!this.rawConfig.scraper;
+  }
+}
+
+export abstract class AgentConfigHelper<R = unknown>
+  extends RootAgentConfigHelper
+  implements AgentRoleConfig
+{
+  connectionType: AgentConnectionType;
+  docker: DockerConfig;
+  index?: IndexingConfig;
+
+  protected constructor(root: RootAgentConfig, agent: AgentRoleConfig) {
+    super(root);
+    this.connectionType = agent.connectionType;
+    this.docker = agent.docker;
+    this.index = agent.index;
+  }
+
+  // role this config is for
+  abstract get role(): Role;
 
   abstract buildConfig(): Promise<R>;
 }

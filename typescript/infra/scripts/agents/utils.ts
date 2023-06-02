@@ -3,7 +3,7 @@ import {
   ScraperHelmManager,
   ValidatorHelmManager,
 } from '../../src/agents';
-import { AgentConfig, EnvironmentConfig } from '../../src/config';
+import { EnvironmentConfig, RootAgentConfig } from '../../src/config';
 import { Role } from '../../src/roles';
 import { HelmCommand } from '../../src/utils/helm';
 import {
@@ -19,7 +19,7 @@ type GetConfigsArgv = NonNullable<Parameters<typeof getConfigsBasedOnArgs>[0]>;
 export class AgentCli {
   roles!: Role[];
   envConfig!: EnvironmentConfig;
-  agentConfig!: AgentConfig;
+  agentConfig!: RootAgentConfig;
   initialized = false;
 
   public async runHelmCommand(command: HelmCommand) {
@@ -59,7 +59,7 @@ export class AgentCli {
 
   private async runHelmCommandForValidators(command: HelmCommand) {
     await Promise.all(
-      (this.agentConfig.validators?.contextChainNames ?? []).map((chain) =>
+      (this.agentConfig.contextChainNames ?? []).map((chain) =>
         new ValidatorHelmManager(this.agentConfig, chain).runHelmCommand(
           command,
         ),

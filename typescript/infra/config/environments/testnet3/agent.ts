@@ -1,8 +1,8 @@
 import { AgentConnectionType, chainMetadata } from '@hyperlane-xyz/sdk';
 
 import {
-  AgentConfig,
   GasPaymentEnforcementPolicyType,
+  RootAgentConfig,
   routerMatchingList,
 } from '../../../src/config';
 import { GasPaymentEnforcementConfig } from '../../../src/config/agent/relayer';
@@ -22,18 +22,21 @@ const interchainQueriesMatchingList = routerMatchingList(
   interchainQueryRouters,
 );
 
-const base = {
+const contextBase = {
   namespace: environment,
   runEnv: environment,
+  contextChainNames: chainNames,
+  environmentChainNames: chainNames,
+  aws: {
+    region: 'us-east-1',
+  },
+} as const;
+
+const roleBase = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
     tag: '40cc4a6-20230420-080111',
   },
-  aws: {
-    region: 'us-east-1',
-  },
-  environmentChainNames: chainNames,
-  contextChainNames: chainNames,
   connectionType: AgentConnectionType.HttpFallback,
 } as const;
 
@@ -52,16 +55,12 @@ const gasPaymentEnforcement: GasPaymentEnforcementConfig[] = [
   },
 ];
 
-const hyperlaneBase = {
-  ...base,
+const hyperlane: RootAgentConfig = {
+  ...contextBase,
   context: Contexts.Hyperlane,
   rolesWithKeys: ALL_KEY_ROLES,
-};
-
-const hyperlane: AgentConfig = {
-  other: hyperlaneBase,
   relayer: {
-    ...hyperlaneBase,
+    ...roleBase,
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
       {
@@ -74,24 +73,20 @@ const hyperlane: AgentConfig = {
     gasPaymentEnforcement,
   },
   validators: {
-    ...hyperlaneBase,
+    ...roleBase,
     chains: validators,
   },
   scraper: {
-    ...hyperlaneBase,
+    ...roleBase,
   },
 };
 
-const releaseCandidateBase = {
-  ...base,
+const releaseCandidate: RootAgentConfig = {
+  ...contextBase,
   context: Contexts.ReleaseCandidate,
   rolesWithKeys: [Role.Relayer, Role.Kathy],
-};
-
-const releaseCandidate: AgentConfig = {
-  other: releaseCandidateBase,
   relayer: {
-    ...releaseCandidateBase,
+    ...roleBase,
     whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
     transactionGasLimit: 750000,

@@ -15,7 +15,7 @@ import { Contexts } from '../../config/contexts';
 import { environments } from '../../config/environments';
 import { Role } from '../roles';
 
-import { AgentConfig } from './agent';
+import { RootAgentConfig } from './agent';
 import { KeyFunderConfig } from './funding';
 import { AllStorageGasOracleConfigs } from './gas-oracle';
 import { HelloWorldConfig } from './helloworld';
@@ -33,7 +33,7 @@ export type EnvironmentConfig = {
   environment: DeployEnvironment;
   chainMetadataConfigs: ChainMap<ChainMetadata>;
   // Each AgentConfig, keyed by the context
-  agents: Partial<Record<Contexts, AgentConfig>>;
+  agents: Partial<Record<Contexts, RootAgentConfig>>;
   core: ChainMap<CoreConfig>;
   igp: ChainMap<OverheadIgpConfig>;
   owners: ChainMap<types.Address>;

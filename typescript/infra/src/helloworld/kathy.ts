@@ -1,6 +1,6 @@
 import { Contexts } from '../../config/contexts';
 import { AgentAwsUser } from '../agents/aws';
-import { BaseAgentConfig } from '../config';
+import { AgentContextConfig } from '../config';
 import {
   HelloWorldKathyConfig,
   HelloWorldKathyRunMode,
@@ -11,7 +11,7 @@ import { execCmd } from '../utils/utils';
 
 export async function runHelloworldKathyHelmCommand(
   helmCommand: HelmCommand,
-  agentConfig: BaseAgentConfig,
+  agentConfig: AgentContextConfig,
   kathyConfig: HelloWorldKathyConfig,
 ) {
   // If using AWS keys, ensure the Kathy user and key has been created
@@ -49,7 +49,7 @@ function getHelmReleaseName(context: Contexts): string {
 }
 
 function getHelloworldKathyHelmValues(
-  agentConfig: BaseAgentConfig,
+  agentConfig: AgentContextConfig,
   kathyConfig: HelloWorldKathyConfig,
 ) {
   const cycleOnce =

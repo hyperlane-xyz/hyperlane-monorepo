@@ -17,7 +17,7 @@ async function main() {
 
   await runLiquidityLayerRelayerHelmCommand(
     HelmCommand.InstallOrUpgrade,
-    agentConfig.other,
+    agentConfig,
     liquidityLayerRelayerConfig,
   );
 }

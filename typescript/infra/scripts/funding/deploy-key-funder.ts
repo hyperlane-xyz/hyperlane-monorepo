@@ -8,9 +8,9 @@ import { assertCorrectKubeContext, getConfigsBasedOnArgs } from '../utils';
 
 async function main() {
   const { agentConfig, envConfig } = await getConfigsBasedOnArgs();
-  if (agentConfig.other.context != Contexts.Hyperlane)
+  if (agentConfig.context != Contexts.Hyperlane)
     throw new Error(
-      `Invalid context ${agentConfig.other.context}, must be ${Contexts.Hyperlane}`,
+      `Invalid context ${agentConfig.context}, must be ${Contexts.Hyperlane}`,
     );
 
   await assertCorrectKubeContext(envConfig);
@@ -19,7 +19,7 @@ async function main() {
 
   await runKeyFunderHelmCommand(
     HelmCommand.InstallOrUpgrade,
-    agentConfig.other,
+    agentConfig,
     keyFunderConfig,
   );
 }

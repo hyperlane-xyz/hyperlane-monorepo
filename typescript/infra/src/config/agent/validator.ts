@@ -1,9 +1,15 @@
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 
 import { ValidatorAgentAwsUser } from '../../agents/aws';
+import { Role } from '../../roles';
 import { HelmStatefulSetValues } from '../infrastructure';
 
-import { AgentConfig, AgentConfigHelper, KeyConfig, KeyType } from './agent';
+import {
+  AgentConfigHelper,
+  KeyConfig,
+  KeyType,
+  RootAgentConfig,
+} from './agent';
 
 // Validator agents for each chain.
 export type ValidatorBaseChainConfigMap = ChainMap<ValidatorBaseChainConfig>;
@@ -63,7 +69,10 @@ export class ValidatorConfigHelper extends AgentConfigHelper<
 > {
   readonly #validatorsConfig: ValidatorBaseChainConfigMap;
 
-  constructor(agentConfig: AgentConfig, public readonly chainName: ChainName) {
+  constructor(
+    agentConfig: RootAgentConfig,
+    public readonly chainName: ChainName,
+  ) {
     if (!agentConfig.validators)
       throw Error('Validator is not defined for this context');
     super(agentConfig, agentConfig.validators);
@@ -80,6 +89,10 @@ export class ValidatorConfigHelper extends AgentConfigHelper<
 
   get validators(): ValidatorBaseConfig[] {
     return this.#validatorsConfig[this.chainName].validators;
+  }
+
+  get role(): Role {
+    return Role.Validator;
   }
 
   async #configForValidator(

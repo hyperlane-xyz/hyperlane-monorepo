@@ -5,13 +5,13 @@ import { utils } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import {
-  AgentConfig,
   AgentConfigHelper,
-  BaseAgentConfig,
+  AgentContextConfig,
   CheckpointSyncerType,
   DeployEnvironment,
   HelmRootAgentValues,
   RelayerConfigHelper,
+  RootAgentConfig,
   ScraperConfigHelper,
   ValidatorConfigHelper,
 } from '../config';
@@ -217,7 +217,7 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
   protected readonly config: RelayerConfigHelper;
   readonly role: Role.Relayer = Role.Relayer;
 
-  constructor(config: AgentConfig) {
+  constructor(config: RootAgentConfig) {
     super();
     this.config = new RelayerConfigHelper(config);
   }
@@ -296,7 +296,7 @@ export class ScraperHelmManager extends OmniscientAgentHelmManager {
   protected readonly config: ScraperConfigHelper;
   readonly role: Role.Scraper = Role.Scraper;
 
-  constructor(config: AgentConfig) {
+  constructor(config: RootAgentConfig) {
     super();
     this.config = new ScraperConfigHelper(config);
     if (this.context != Contexts.Hyperlane)
@@ -332,7 +332,7 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
   protected readonly config: ValidatorConfigHelper;
   readonly role: Role.Validator = Role.Validator;
 
-  constructor(config: AgentConfig, chainName: ChainName) {
+  constructor(config: RootAgentConfig, chainName: ChainName) {
     super(chainName);
     this.config = new ValidatorConfigHelper(config, chainName);
     if (!this.config.contextChainNames.includes(chainName))
@@ -421,7 +421,7 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
   }
 }
 
-export async function getSecretAwsCredentials(agentConfig: BaseAgentConfig) {
+export async function getSecretAwsCredentials(agentConfig: AgentContextConfig) {
   return {
     accessKeyId: await fetchGCPSecret(
       `${agentConfig.runEnv}-aws-access-key-id`,

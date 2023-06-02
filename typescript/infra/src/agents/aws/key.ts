@@ -20,7 +20,7 @@ import { ethers } from 'ethers';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
 
-import { AwsKeyConfig, BaseAgentConfig, KeyType } from '../../config/agent';
+import { AgentContextConfig, AwsKeyConfig, KeyType } from '../../config/agent';
 import { Role } from '../../roles';
 import { getEthereumAddress, sleep } from '../../utils/utils';
 import { keyIdentifier } from '../agent';
@@ -43,7 +43,7 @@ export class AgentAwsKey extends CloudAgentKey {
   public remoteKey: RemoteKey = { fetched: false };
 
   constructor(
-    agentConfig: BaseAgentConfig,
+    agentConfig: AgentContextConfig,
     role: Role,
     chainName?: ChainName,
     index?: number,

@@ -6,7 +6,12 @@ import { AgentAwsUser } from '../../agents/aws';
 import { Role } from '../../roles';
 import { HelmStatefulSetValues } from '../infrastructure';
 
-import { AgentConfig, AgentConfigHelper, KeyConfig, KeyType } from './agent';
+import {
+  AgentConfigHelper,
+  KeyConfig,
+  KeyType,
+  RootAgentConfig,
+} from './agent';
 
 export type MatchingList = MatchingListElement[];
 
@@ -85,7 +90,7 @@ export interface HelmRelayerChainValues {
 export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
   readonly #relayerConfig: BaseRelayerConfig;
 
-  constructor(agentConfig: AgentConfig) {
+  constructor(agentConfig: RootAgentConfig) {
     if (!agentConfig.relayer)
       throw Error('Relayer is not defined for this context');
     super(agentConfig, agentConfig.relayer);
@@ -149,6 +154,10 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
     }
 
     return true;
+  }
+
+  get role(): Role {
+    return Role.Relayer;
   }
 }
 
