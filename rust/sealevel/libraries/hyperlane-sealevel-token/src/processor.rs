@@ -37,10 +37,6 @@ use crate::{
     message::TokenMessage,
 };
 
-// TODO make these easily configurable?
-pub const REMOTE_DECIMALS: u8 = 18;
-pub const DECIMALS: u8 = 8;
-
 /// Seeds relating to the PDA account with information about this warp route.
 #[macro_export]
 macro_rules! hyperlane_token_pda_seeds {
@@ -217,9 +213,8 @@ where
             dispatch_authority_bump,
             owner: Some(*payer_account.key),
             interchain_security_module: init.interchain_security_module,
-            // TODO add to init instruction
-            decimals: DECIMALS,
-            remote_decimals: REMOTE_DECIMALS,
+            decimals: init.decimals,
+            remote_decimals: init.remote_decimals,
             remote_routers: HashMap::new(),
             plugin_data,
         };

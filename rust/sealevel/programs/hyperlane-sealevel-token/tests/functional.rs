@@ -175,6 +175,9 @@ async fn test_initialize() {
                 program_id,
                 &HyperlaneTokenInstruction::Init(Init {
                     mailbox: hyperlane_sealevel_mailbox::id(),
+                    interchain_security_module: None,
+                    decimals: local_decimals,
+                    remote_decimals: 8,
                 })
                 .into_instruction_data()
                 .unwrap(),

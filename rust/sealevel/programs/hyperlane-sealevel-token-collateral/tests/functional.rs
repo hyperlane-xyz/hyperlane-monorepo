@@ -328,6 +328,8 @@ async fn initialize_hyperlane_token(
             &HyperlaneTokenInstruction::Init(Init {
                 mailbox: hyperlane_sealevel_mailbox::id(),
                 interchain_security_module: None,
+                decimals: LOCAL_DECIMALS,
+                remote_decimals: REMOTE_DECIMALS,
             })
             .into_instruction_data()
             .unwrap(),

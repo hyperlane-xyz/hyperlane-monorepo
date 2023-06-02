@@ -8,7 +8,12 @@ use solana_program::pubkey::Pubkey;
 pub struct Init {
     /// The address of the mailbox contract.
     pub mailbox: Pubkey,
+    /// The interchain security module.
     pub interchain_security_module: Option<Pubkey>,
+    /// The local decimals.
+    pub decimals: u8,
+    /// The remote decimals.
+    pub remote_decimals: u8,
 }
 
 /// Transfers `amount_or_id` token to `recipient` on `destination` domain.
