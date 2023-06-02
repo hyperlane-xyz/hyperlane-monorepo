@@ -38,14 +38,30 @@ use crate::{
 };
 
 /// Seeds relating to the PDA account with information about this warp route.
+/// For convenience in getting the account metas required for handling messages,
+/// this is the same as the `HANDLE_ACCOUNT_METAS_PDA_SEEDS` in the message
+/// recipient interface.
 #[macro_export]
 macro_rules! hyperlane_token_pda_seeds {
     () => {{
-        &[b"hyperlane_token", b"-", b"token"]
+        &[
+            b"hyperlane_message_recipient",
+            b"-",
+            b"handle",
+            b"-",
+            b"account_metas",
+        ]
     }};
 
     ($bump_seed:expr) => {{
-        &[b"hyperlane_token", b"-", b"token", &[$bump_seed]]
+        &[
+            b"hyperlane_message_recipient",
+            b"-",
+            b"handle",
+            b"-",
+            b"account_metas",
+            &[$bump_seed],
+        ]
     }};
 }
 
@@ -82,6 +98,7 @@ where
     /// Returns (AccountMetas, whether recipient wallet must be writeable)
     fn transfer_out_account_metas(
         program_id: &Pubkey,
+        token: &HyperlaneToken<Self>,
         token_message: &TokenMessage,
     ) -> Result<(Vec<SerializableAccountMeta>, bool), ProgramError>;
 }
@@ -474,25 +491,32 @@ where
         Ok(())
     }
 
+    /// Gets the account metas required by the `TransferFromRemote` instruction.
+    ///
+    /// Accounts:
+    /// 0.   [] The token PDA, which is the PDA with the seeds `HANDLE_ACCOUNT_METAS_PDA_SEEDS`.
     pub fn transfer_from_remote_account_metas(
         program_id: &Pubkey,
-        _accounts: &[AccountInfo],
+        accounts: &[AccountInfo],
         transfer: TransferFromRemote,
     ) -> Result<Vec<SerializableAccountMeta>, ProgramError> {
+        let accounts_iter = &mut accounts.iter();
+
         let mut message_reader = std::io::Cursor::new(transfer.message);
         let message = TokenMessage::read_from(&mut message_reader)
             .map_err(|_err| ProgramError::from(Error::TODO))?;
 
-        let (token_key, _token_bump) =
-            Pubkey::find_program_address(hyperlane_token_pda_seeds!(), program_id);
+        // Account 0: Token account.
+        let token_account_info = next_account_info(accounts_iter)?;
+        let token = HyperlaneToken::verify_account_and_fetch_inner(program_id, token_account_info)?;
 
         let (transfer_out_account_metas, writeable_recipient) =
-            T::transfer_out_account_metas(program_id, &message)?;
+            T::transfer_out_account_metas(program_id, &token, &message)?;
 
         let mut accounts = vec![
             AccountMeta::new_readonly(solana_program::system_program::id(), false).into(),
             AccountMeta::new_readonly(spl_noop::id(), false).into(),
-            AccountMeta::new_readonly(token_key, false).into(),
+            AccountMeta::new_readonly(*token_account_info.key, false).into(),
             AccountMeta {
                 pubkey: Pubkey::new_from_array(message.recipient().into()),
                 is_signer: false,

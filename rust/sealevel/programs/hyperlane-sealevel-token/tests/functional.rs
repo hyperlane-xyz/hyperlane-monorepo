@@ -322,8 +322,6 @@ async fn test_initialize() {
             program_id,
             &HyperlaneTokenInstruction::TransferRemote(TransferRemote {
                 destination_domain: remote_domain,
-                /// TODO imply this from Router
-                destination_program_id: H256::random(),
                 recipient: H256::random(),
                 amount_or_id: 69u64.into(),
             })

@@ -310,6 +310,7 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
 
     fn transfer_out_account_metas(
         program_id: &Pubkey,
+        _token: &HyperlaneToken<Self>,
         token_message: &TokenMessage,
     ) -> Result<(Vec<SerializableAccountMeta>, bool), ProgramError> {
         let (mint_account_key, _mint_bump) =

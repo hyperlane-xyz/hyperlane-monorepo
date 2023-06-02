@@ -176,6 +176,7 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
 
     fn transfer_out_account_metas(
         program_id: &Pubkey,
+        _token: &HyperlaneToken<Self>,
         _token_message: &TokenMessage,
     ) -> Result<(Vec<SerializableAccountMeta>, bool), ProgramError> {
         let (native_collateral_key, _native_collateral_bump) = Pubkey::find_program_address(

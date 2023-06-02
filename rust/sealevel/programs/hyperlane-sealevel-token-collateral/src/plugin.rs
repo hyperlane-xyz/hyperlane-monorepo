@@ -7,6 +7,7 @@ use hyperlane_sealevel_token_lib::{
 use serializable_account_meta::SerializableAccountMeta;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
+    instruction::AccountMeta,
     program::{get_return_data, invoke, invoke_signed},
     program_error::ProgramError,
     pubkey::Pubkey,
@@ -398,34 +399,34 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
         Ok(())
     }
 
+    /// Returns the accounts required for `transfer_out`.
     fn transfer_out_account_metas(
-        _program_id: &Pubkey,
-        _token_message: &TokenMessage,
+        program_id: &Pubkey,
+        token: &HyperlaneToken<Self>,
+        token_message: &TokenMessage,
     ) -> Result<(Vec<SerializableAccountMeta>, bool), ProgramError> {
-        // let (mint_account_key, _mint_bump) =
-        //     Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), program_id);
+        let ata_payer_account_key = Pubkey::create_program_address(
+            hyperlane_token_ata_payer_pda_seeds!(token.plugin_data.ata_payer_bump),
+            program_id,
+        )?;
 
-        // let (ata_payer_account_key, _ata_payer_bump) =
-        //     Pubkey::find_program_address(hyperlane_token_ata_payer_pda_seeds!(), program_id);
+        let recipient_associated_token_account = get_associated_token_address_with_program_id(
+            &Pubkey::new_from_array(token_message.recipient().into()),
+            &token.plugin_data.mint,
+            &token.plugin_data.spl_token_program,
+        );
 
-        // let recipient_associated_token_account = get_associated_token_address_with_program_id(
-        //     &Pubkey::new_from_array(token_message.recipient().into()),
-        //     &mint_account_key,
-        //     &spl_token_2022::id(),
-        // );
-
-        // Ok((
-        //     vec![
-        //         AccountMeta::new_readonly(spl_token_2022::id(), false).into(),
-        //         AccountMeta::new_readonly(spl_associated_token_account::id(), false).into(),
-        //         AccountMeta::new(mint_account_key, false).into(),
-        //         AccountMeta::new(recipient_associated_token_account, false).into(),
-        //         AccountMeta::new(ata_payer_account_key, false).into(),
-        //     ],
-        //     // The recipient does not need to be writeable
-        //     false,
-        // ))
-
-        Ok((vec![], false))
+        Ok((
+            vec![
+                AccountMeta::new_readonly(token.plugin_data.spl_token_program, false).into(),
+                AccountMeta::new_readonly(spl_associated_token_account::id(), false).into(),
+                AccountMeta::new(token.plugin_data.mint, false).into(),
+                AccountMeta::new(recipient_associated_token_account, false).into(),
+                AccountMeta::new(ata_payer_account_key, false).into(),
+                AccountMeta::new(token.plugin_data.escrow, false).into(),
+            ],
+            // The recipient does not need to be writeable
+            false,
+        ))
     }
 }
