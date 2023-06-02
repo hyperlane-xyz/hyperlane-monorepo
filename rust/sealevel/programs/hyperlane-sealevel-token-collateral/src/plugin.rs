@@ -6,24 +6,17 @@ use hyperlane_sealevel_token_lib::{
 use serializable_account_meta::SerializableAccountMeta;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
-    // instruction::AccountMeta,
     program::{get_return_data, invoke, invoke_signed},
     program_error::ProgramError,
-    program_pack::Pack as _,
     pubkey::Pubkey,
     rent::Rent,
-    system_instruction,
-    sysvar,
+    system_instruction, sysvar,
 };
 use spl_associated_token_account::{
     get_associated_token_address_with_program_id,
     instruction::create_associated_token_account_idempotent,
 };
 use spl_token_2022::instruction::{get_account_data_size, initialize_account, transfer_checked};
-
-// TODO make these easily configurable?
-pub const REMOTE_DECIMALS: u8 = 18;
-pub const DECIMALS: u8 = 8;
 
 /// Seeds relating to the PDA account that acts both as the mint
 /// *and* the mint authority.
@@ -54,15 +47,12 @@ macro_rules! hyperlane_token_ata_payer_pda_seeds {
 /// out when transferring in from a remote chain.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Default)]
 pub struct CollateralPlugin {
+    /// The SPL token program, i.e. either SPL token program or the 2022 version.
+    pub spl_token_program: Pubkey,
     pub mint: Pubkey,
     pub escrow: Pubkey,
     pub escrow_bump: u8,
     pub ata_payer_bump: u8,
-}
-
-impl CollateralPlugin {
-    // TODO: what about spl_token
-    pub const MINT_ACCOUNT_SIZE: usize = spl_token_2022::state::Mint::LEN;
 }
 
 impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
@@ -70,7 +60,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
     ///
     /// Accounts:
     /// 0. [] The mint.
-    /// 1. [executable] The SPL token 2022 program.
+    /// 1. [executable] The SPL token program for the mint, i.e. either SPL token program or the 2022 version.
     /// 2. [executable] The Rent sysvar program.
     /// 3. [writable] The escrow PDA account.
     /// 4. [writable] The ATA payer PDA account.
@@ -81,14 +71,17 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
         payer_account_info: &'a AccountInfo<'b>,
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
     ) -> Result<Self, ProgramError> {
-        println!("CollateralPlugin initialize?");
-
         // Account 0: The mint.
         let mint_account_info = next_account_info(accounts_iter)?;
 
-        // Account 1: The SPL token 2022 program.
-        let spl_token_2022_account_info = next_account_info(accounts_iter)?;
-        if spl_token_2022_account_info.key != &spl_token_2022::id() {
+        // Account 1: The SPL token program.
+        // This can either be the original SPL token program or the 2022 version.
+        // This is saved in the HyperlaneToken plugin data so that future interactions
+        // are done with the correct SPL token program.
+        let spl_token_account_info = next_account_info(accounts_iter)?;
+        if spl_token_account_info.key != &spl_token_2022::id()
+            && spl_token_account_info.key != &spl_token::id()
+        {
             return Err(ProgramError::IncorrectProgramId);
         }
 
@@ -106,12 +99,10 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
             return Err(ProgramError::IncorrectProgramId);
         }
 
-        let spl_token_2022_id = spl_token_2022::id();
-
         // Get the required account size for the escrow PDA.
         invoke(
             &get_account_data_size(
-                &spl_token_2022_id,
+                spl_token_account_info.key,
                 mint_account_info.key,
                 // No additional extensions
                 &[],
@@ -121,7 +112,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
         let account_data_size: u64 = get_return_data()
             .ok_or(ProgramError::InvalidArgument)
             .and_then(|(returning_pubkey, data)| {
-                if returning_pubkey != spl_token_2022_id {
+                if &returning_pubkey != spl_token_account_info.key {
                     return Err(ProgramError::InvalidArgument);
                 }
                 let data: [u8; 8] = data
@@ -138,7 +129,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
                 escrow_account_info.key,
                 Rent::default().minimum_balance(account_data_size.try_into().unwrap()),
                 account_data_size,
-                &spl_token_2022_id,
+                spl_token_account_info.key,
             ),
             &[payer_account_info.clone(), escrow_account_info.clone()],
             &[hyperlane_token_escrow_pda_seeds!(escrow_bump)],
@@ -147,7 +138,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
         // And initialize the escrow account.
         invoke(
             &initialize_account(
-                &spl_token_2022_id,
+                &spl_token_account_info.key,
                 escrow_account_info.key,
                 mint_account_info.key,
                 escrow_account_info.key,
@@ -187,6 +178,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
         )?;
 
         Ok(Self {
+            spl_token_program: *spl_token_account_info.key,
             mint: *mint_account_info.key,
             escrow: escrow_key,
             escrow_bump,
@@ -198,7 +190,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
     /// Burns the tokens from the sender's associated token account.
     ///
     /// Accounts:
-    /// 0. [executable] The spl_token_2022 program.
+    /// 0. [executable] The SPL token program for the mint.
     /// 1. [] The mint.
     /// 2. [writeable] The token sender's associated token account, from which tokens will be sent.
     /// 3. [] The escrow PDA account.
@@ -209,14 +201,12 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
         amount: u64,
     ) -> Result<(), ProgramError> {
-        let spl_token_2022_id = spl_token_2022::id();
-
-        // Account 0: SPL token 2022 program.
-        let spl_token_2022_account_info = next_account_info(accounts_iter)?;
-        if spl_token_2022_account_info.key != &spl_token_2022_id {
+        // Account 0: SPL token program.
+        let spl_token_account_info = next_account_info(accounts_iter)?;
+        if spl_token_account_info.key != &token.plugin_data.spl_token_program {
             return Err(ProgramError::IncorrectProgramId);
         }
-        if !spl_token_2022_account_info.executable {
+        if !spl_token_account_info.executable {
             return Err(ProgramError::InvalidAccountData);
         }
 
@@ -225,7 +215,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
         if mint_account_info.key != &token.plugin_data.mint {
             return Err(ProgramError::IncorrectProgramId);
         }
-        if mint_account_info.owner != &spl_token_2022_id {
+        if mint_account_info.owner != spl_token_account_info.key {
             return Err(ProgramError::InvalidAccountData);
         }
 
@@ -234,7 +224,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
         let expected_sender_associated_token_key = get_associated_token_address_with_program_id(
             sender_wallet_account_info.key,
             mint_account_info.key,
-            &spl_token_2022_id,
+            spl_token_account_info.key,
         );
         if sender_ata_account_info.key != &expected_sender_associated_token_key {
             return Err(ProgramError::IncorrectProgramId);
@@ -247,7 +237,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
         }
 
         let transfer_instruction = transfer_checked(
-            &spl_token_2022_id,
+            spl_token_account_info.key,
             sender_ata_account_info.key,
             mint_account_info.key,
             escrow_account_info.key,
@@ -255,7 +245,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
             // Multisignatures not supported at the moment.
             &[],
             amount,
-            DECIMALS,
+            token.decimals,
         )?;
 
         // Sender wallet is expected to have signed this transaction.
@@ -276,7 +266,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
     /// result of a transfer to this chain from a remote chain.
     ///
     /// Accounts:
-    /// 0. [executable] SPL token 2022 program.
+    /// 0. [executable] SPL token for the mint.
     /// 1. [executable] SPL associated token account.
     /// 2. [writeable] Mint account.
     /// 3. [writeable] Recipient associated token account.
@@ -290,14 +280,12 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
         amount: u64,
     ) -> Result<(), ProgramError> {
-        let spl_token_2022_id = spl_token_2022::id();
-
-        // Account 0: SPL token 2022 program
-        let spl_token_2022_account_info = next_account_info(accounts_iter)?;
-        if spl_token_2022_account_info.key != &spl_token_2022_id {
+        // Account 0: SPL token program.
+        let spl_token_account_info = next_account_info(accounts_iter)?;
+        if spl_token_account_info.key != &token.plugin_data.spl_token_program {
             return Err(ProgramError::IncorrectProgramId);
         }
-        if !spl_token_2022_account_info.executable {
+        if !spl_token_account_info.executable {
             return Err(ProgramError::InvalidAccountData);
         }
 
@@ -322,7 +310,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
             get_associated_token_address_with_program_id(
                 recipient_wallet_account_info.key,
                 mint_account_info.key,
-                &spl_token_2022_id,
+                spl_token_account_info.key,
             );
         if recipient_ata_account_info.key != &expected_recipient_associated_token_account_key {
             return Err(ProgramError::IncorrectProgramId);
@@ -352,7 +340,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
                 ata_payer_account_info.key,
                 recipient_wallet_account_info.key,
                 mint_account_info.key,
-                &spl_token_2022_id,
+                spl_token_account_info.key,
             ),
             &[
                 ata_payer_account_info.clone(),
@@ -360,7 +348,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
                 recipient_wallet_account_info.clone(),
                 mint_account_info.clone(),
                 system_program_account_info.clone(),
-                spl_token_2022_account_info.clone(),
+                spl_token_account_info.clone(),
             ],
             &[ata_payer_seeds],
         )?;
@@ -374,14 +362,14 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
         }
 
         let transfer_instruction = transfer_checked(
-            &spl_token_2022_id,
+            spl_token_account_info.key,
             escrow_account_info.key,
             mint_account_info.key,
             recipient_ata_account_info.key,
             escrow_account_info.key,
             &[],
             amount,
-            DECIMALS,
+            token.decimals,
         )?;
 
         invoke_signed(
