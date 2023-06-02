@@ -48,22 +48,12 @@ export function getValidatorCloudAgentKeys(
   );
 }
 
-export function getRelayerCloudAgentKeys(
-  agentConfig: AgentConfig,
-): Array<CloudAgentKey> {
-  const relayer = agentConfig.relayer;
-  if (!relayer) return [];
-  return relayer.contextChainNames.map((chainName) =>
-    getCloudAgentKey(relayer, Role.Relayer, chainName),
-  );
-}
-
 export function getAllCloudAgentKeys(
   agentConfig: AgentConfig,
 ): Array<CloudAgentKey> {
   const keys = [];
   if ((agentConfig.relayer?.rolesWithKeys ?? []).includes(Role.Relayer))
-    keys.push(...getRelayerCloudAgentKeys(agentConfig));
+    keys.push(getCloudAgentKey(agentConfig.relayer!, Role.Relayer));
   if ((agentConfig.validators?.rolesWithKeys ?? []).includes(Role.Validator))
     keys.push(...getValidatorCloudAgentKeys(agentConfig));
   for (const role of agentConfig.other.rolesWithKeys) {

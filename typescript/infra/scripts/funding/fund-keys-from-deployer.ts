@@ -8,7 +8,6 @@ import {
   AllChains,
   ChainName,
   Chains,
-  CoreChainName,
   HyperlaneIgp,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
@@ -268,7 +267,7 @@ class ContextFunder {
       keys.map((key) => key.chainName!).filter((chain) => chain !== undefined),
     );
 
-    this.chains = Array.from(uniqueChains) as ChainName[];
+    this.chains = Array.from(uniqueChains);
     this.igp = HyperlaneIgp.fromEnvironment(
       deployEnvToSdkEnv[this.environment],
       multiProvider,
@@ -294,7 +293,7 @@ class ContextFunder {
         // references newer chains.
         return (
           parsed.chainName === undefined ||
-          AllChains.includes(parsed.chainName as CoreChainName)
+          (AllChains as string[]).includes(parsed.chainName)
         );
       })
       .map((idAndAddress: any) =>
@@ -304,8 +303,7 @@ class ContextFunder {
         ),
       );
 
-    // TODO: Why do we need to cast here?
-    const context = keys[0].context as Contexts;
+    const context = keys[0].context;
     // Ensure all keys have the same context, just to be safe
     for (const key of keys) {
       if (key.context !== context) {
@@ -401,26 +399,14 @@ class ContextFunder {
   }
 
   private getChainKeys() {
-    const entries = AllChains.map((c) => {
-      return [c, []];
-    });
-    const chainKeys: ChainMap<BaseCloudAgentKey[]> =
-      Object.fromEntries(entries);
+    const chainKeys: ChainMap<BaseCloudAgentKey[]> = Object.fromEntries(
+      // init with empty arrays
+      AllChains.map((c) => [c, []]),
+    );
     for (const role of this.rolesToFund) {
       const keys = this.getKeysWithRole(role);
       for (const chain of this.chains) {
-        if (role === Role.Relayer) {
-          // Relayer keys should not be funded on the origin chain
-          for (const remote of this.chains) {
-            chainKeys[remote] = chainKeys[remote].concat(
-              keys.filter(
-                (_) => _.chainName !== remote && _.chainName === chain,
-              ),
-            );
-          }
-        } else {
-          chainKeys[chain] = chainKeys[chain].concat(keys);
-        }
+        chainKeys[chain] = [...chainKeys[chain], ...keys];
       }
     }
     return chainKeys;
