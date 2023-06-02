@@ -1748,6 +1748,7 @@ dependencies = [
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
  "hyperlane-sealevel-token-lib",
+ "hyperlane-test-utils",
  "num-derive",
  "num-traits",
  "serializable-account-meta",

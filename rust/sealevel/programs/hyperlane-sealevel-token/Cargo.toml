@@ -37,23 +37,17 @@ features = ["no-entrypoint"]
 git = "https://github.com/tkporter/eclipse-program-library"
 branch = "trevor/steven/eclipse-1.14.13/with-tlv-lib"
 
-# FIXME Should we actually use 2022 here or try normal token program?
 [dependencies.spl-token-2022]
 version = "=0.5.0"
 features = ["no-entrypoint"]
 git = "https://github.com/tkporter/eclipse-program-library"
 branch = "trevor/steven/eclipse-1.14.13/with-tlv-lib"
 
-# [dev-dependencies]
-# base64 = "0.13"
-# itertools =  "0.10.1"
-# log = "0.4"
-# testing_logger = "=0.1.1"
-
 [dev-dependencies]
 solana-program-test = "=1.14.13"
 solana-sdk = "=1.14.13"
 hyperlane-sealevel-ism-rubber-stamp = { path = "../ism/rubber-stamp" }
+hyperlane-test-utils = { path = "../../libraries/test-utils" }
 
 [lib]
 crate-type = ["cdylib", "lib"]
