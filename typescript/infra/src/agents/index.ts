@@ -65,15 +65,19 @@ export abstract class AgentHelmManager {
 
   abstract userIdentifier(index?: number): string;
 
-  async runHelmCommand(action: HelmCommand): Promise<void> {
+  async runHelmCommand(action: HelmCommand, dryRun?: boolean): Promise<void> {
+    const cmd = ['helm', action];
+    if (dryRun) cmd.push('--dry-run');
+
     if (action == HelmCommand.Remove) {
-      const cmd = ['helm', action, this.helmReleaseName, this.namespace];
+      if (dryRun) cmd.push('--dry-run');
+      cmd.push(this.helmReleaseName, this.namespace);
       await execCmd(cmd, {}, false, true);
       return;
     }
 
     const values = helmifyValues(await this.helmValues());
-    if (action == HelmCommand.InstallOrUpgrade) {
+    if (action == HelmCommand.InstallOrUpgrade && !dryRun) {
       // Delete secrets to avoid them being stale
       const cmd = [
         'kubectl',
@@ -92,17 +96,14 @@ export abstract class AgentHelmManager {
     }
 
     await buildHelmChartDependencies(this.helmChartPath);
-
-    const cmd = [
-      'helm',
-      action,
+    cmd.push(
       this.helmReleaseName,
       this.helmChartPath,
       '--create-namespace',
       '--namespace',
       this.namespace,
       ...values,
-    ];
+    );
     if (action == HelmCommand.UpgradeDiff) {
       cmd.push(
         `| kubectl diff --namespace ${this.namespace} --field-manager="Go-http-client" -f - || true`,

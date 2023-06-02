@@ -22,6 +22,7 @@ export class AgentCli {
   envConfig!: EnvironmentConfig;
   agentConfig!: RootAgentConfig;
   initialized = false;
+  dryRun = false;
 
   public async runHelmCommand(command: HelmCommand) {
     await this.init();
@@ -48,19 +49,27 @@ export class AgentCli {
     }
 
     await Promise.all(
-      Object.values(managers).map((m) => m.runHelmCommand(command)),
+      Object.values(managers).map((m) =>
+        m.runHelmCommand(command, this.dryRun),
+      ),
     );
   }
 
-  protected async init(argv?: GetConfigsArgv & { role: Role[] }) {
+  protected async init(
+    argv?: GetConfigsArgv & { role: Role[]; 'dry-run'?: boolean },
+  ) {
     if (this.initialized) return;
-    if (!argv) argv = await withAgentRole(withContext(getArgs())).argv;
+    if (!argv)
+      argv = await withAgentRole(withContext(getArgs()))
+        .describe('dry-run', 'Run through the steps without making any changes')
+        .boolean('dry-run').argv;
 
     const { envConfig, agentConfig } = await getConfigsBasedOnArgs(argv);
     await assertCorrectKubeContext(envConfig);
     this.roles = argv.role;
     this.envConfig = envConfig;
     this.agentConfig = agentConfig;
+    this.dryRun = argv['dry-run'] || false;
     this.initialized = true;
   }
 }
