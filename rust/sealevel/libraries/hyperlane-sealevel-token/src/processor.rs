@@ -248,12 +248,6 @@ where
         accounts: &[AccountInfo],
         xfer: TransferRemote,
     ) -> ProgramResult {
-        // The amount denominated in the local decimals.
-        let local_amount: u64 = xfer
-            .amount_or_id
-            .try_into()
-            .map_err(|_| Error::IntegerOverflow)?;
-
         let accounts_iter = &mut accounts.iter();
 
         // Account 0: System program.
@@ -322,6 +316,15 @@ where
         // Similarly defer to the checks in the Mailbox to ensure account validity.
         let dispatched_message_pda = next_account_info(accounts_iter)?;
 
+        // The amount denominated in the local decimals.
+        let local_amount: u64 = xfer
+            .amount_or_id
+            .try_into()
+            .map_err(|_| Error::IntegerOverflow)?;
+        // Convert to the remote number of decimals, which is universally understood
+        // by the remote routers as the number of decimals used by the message amount.
+        let remote_amount = token.local_amount_to_remote_amount(local_amount)?;
+
         // Transfer `local_amount` of tokens in...
         T::transfer_in(
             program_id,
@@ -335,9 +338,7 @@ where
             return Err(ProgramError::from(Error::ExtraneousAccount));
         }
 
-        // Convert to the remote number of decimals, which is universally understood
-        // by the remote routers as the number of decimals used by the message amount.
-        let remote_amount = token.local_amount_to_remote_amount(local_amount)?;
+        // The token message body, which specifies the remote_amount.
         let token_transfer_message =
             TokenMessage::new(xfer.recipient, remote_amount, vec![]).to_vec();
 

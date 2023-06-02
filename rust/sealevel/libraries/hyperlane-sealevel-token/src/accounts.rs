@@ -144,7 +144,7 @@ impl<T> HyperlaneRouterAccessControl for HyperlaneToken<T> {}
 
 impl<T> HyperlaneRouterMessageRecipient for HyperlaneToken<T> {}
 
-fn convert_decimals(amount: U256, from_decimals: u8, to_decimals: u8) -> Option<U256> {
+pub fn convert_decimals(amount: U256, from_decimals: u8, to_decimals: u8) -> Option<U256> {
     if from_decimals > to_decimals {
         let divisor = U256::from(10u64).checked_pow(U256::from(from_decimals - to_decimals));
         divisor.and_then(|d| amount.checked_div(d))

@@ -2,7 +2,7 @@
 //! strictly in unit tests. This includes CPIs, like creating
 //! new PDA accounts.
 
-use hyperlane_core::{Encode, HyperlaneMessage, H256};
+use hyperlane_core::{Encode, HyperlaneMessage, H256, U256};
 use solana_program::{
     instruction::{AccountMeta, Instruction},
     program_pack::Pack,
@@ -29,7 +29,7 @@ use hyperlane_sealevel_token_collateral::{
     processor::process_instruction,
 };
 use hyperlane_sealevel_token_lib::{
-    accounts::{HyperlaneToken, HyperlaneTokenAccount},
+    accounts::{convert_decimals, HyperlaneToken, HyperlaneTokenAccount},
     hyperlane_token_pda_seeds,
     instruction::{Init, TransferRemote},
     message::TokenMessage,
@@ -49,9 +49,10 @@ use spl_token_2022::{
 /// There are 1e9 lamports in one SOL.
 const ONE_SOL_IN_LAMPORTS: u64 = 1000000000;
 const LOCAL_DOMAIN: u32 = 1234;
-const REMOTE_DOMAIN: u32 = 4321;
 const LOCAL_DECIMALS: u8 = 8;
 const LOCAL_DECIMALS_U32: u32 = LOCAL_DECIMALS as u32;
+const REMOTE_DOMAIN: u32 = 4321;
+const REMOTE_DECIMALS: u8 = 18;
 
 async fn setup_client() -> (BanksClient, Keypair) {
     let program_id = hyperlane_sealevel_token_collateral::id();
@@ -446,6 +447,8 @@ async fn test_initialize() {
             mailbox: mailbox_accounts.program,
             mailbox_process_authority: hyperlane_token_accounts.mailbox_process_authority,
             dispatch_authority_bump: hyperlane_token_accounts.dispatch_authority_bump,
+            decimals: LOCAL_DECIMALS,
+            remote_decimals: REMOTE_DECIMALS,
             owner: Some(payer.pubkey()),
             interchain_security_module: None,
             remote_routers: HashMap::new(),
@@ -549,8 +552,10 @@ async fn test_transfer_remote() {
     );
 
     let remote_token_recipient = H256::random();
-    // Tranfser 69 tokens.
+    // Transfer 69 tokens.
     let transfer_amount = 69 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let remote_transfer_amount =
+        convert_decimals(transfer_amount.into(), LOCAL_DECIMALS, REMOTE_DECIMALS).unwrap();
 
     let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
     let mut transaction = Transaction::new_with_payer(
@@ -642,7 +647,8 @@ async fn test_transfer_remote() {
         sender: program_id.to_bytes().into(),
         destination: REMOTE_DOMAIN,
         recipient: remote_router,
-        body: TokenMessage::new(remote_token_recipient, transfer_amount.into(), vec![]).to_vec(),
+        // Expect the remote_transfer_amount to be in the message.
+        body: TokenMessage::new(remote_token_recipient, remote_transfer_amount, vec![]).to_vec(),
     };
 
     assert_eq!(
@@ -658,7 +664,7 @@ async fn test_transfer_remote() {
 
 async fn transfer_from_remote(
     initial_escrow_balance: u64,
-    transfer_amount: u64,
+    remote_transfer_amount: U256,
     sender_override: Option<H256>,
     origin_override: Option<u32>,
 ) -> Result<(BanksClient, HyperlaneTokenAccounts, Pubkey), BanksClientError> {
@@ -727,7 +733,7 @@ async fn transfer_from_remote(
         sender: sender_override.unwrap_or(remote_router),
         destination: LOCAL_DOMAIN,
         recipient: program_id.to_bytes().into(),
-        body: TokenMessage::new(recipient, transfer_amount.into(), vec![]).to_vec(),
+        body: TokenMessage::new(recipient, remote_transfer_amount, vec![]).to_vec(),
     };
 
     let (processed_message_account_key, _processed_message_account_bump) =
@@ -800,10 +806,16 @@ async fn transfer_from_remote(
 #[tokio::test]
 async fn test_transfer_from_remote() {
     let initial_escrow_balance = 100 * 10u64.pow(LOCAL_DECIMALS_U32);
-    let transfer_amount = 69 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let local_transfer_amount = 69 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let remote_transfer_amount = convert_decimals(
+        local_transfer_amount.into(),
+        LOCAL_DECIMALS,
+        REMOTE_DECIMALS,
+    )
+    .unwrap();
 
     let (mut banks_client, hyperlane_token_accounts, recipient_associated_token_account) =
-        transfer_from_remote(initial_escrow_balance, transfer_amount, None, None)
+        transfer_from_remote(initial_escrow_balance, remote_transfer_amount, None, None)
             .await
             .unwrap();
 
@@ -811,7 +823,7 @@ async fn test_transfer_from_remote() {
     assert_balance(
         &mut banks_client,
         &recipient_associated_token_account,
-        transfer_amount,
+        local_transfer_amount,
     )
     .await;
 
@@ -819,7 +831,7 @@ async fn test_transfer_from_remote() {
     assert_balance(
         &mut banks_client,
         &hyperlane_token_accounts.escrow,
-        initial_escrow_balance - transfer_amount,
+        initial_escrow_balance - local_transfer_amount,
     )
     .await;
 }
@@ -827,12 +839,18 @@ async fn test_transfer_from_remote() {
 #[tokio::test]
 async fn test_transfer_from_remote_errors_if_sender_not_router() {
     let initial_escrow_balance = 100 * 10u64.pow(LOCAL_DECIMALS_U32);
-    let transfer_amount = 69 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let local_transfer_amount = 69 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let remote_transfer_amount = convert_decimals(
+        local_transfer_amount.into(),
+        LOCAL_DECIMALS,
+        REMOTE_DECIMALS,
+    )
+    .unwrap();
 
     // Same remote domain origin, but wrong sender.
     let result = transfer_from_remote(
         initial_escrow_balance,
-        transfer_amount,
+        remote_transfer_amount,
         Some(H256::random()),
         None,
     )
@@ -845,7 +863,7 @@ async fn test_transfer_from_remote_errors_if_sender_not_router() {
     // Wrong remote domain origin, but correct sender.
     let result = transfer_from_remote(
         initial_escrow_balance,
-        transfer_amount,
+        remote_transfer_amount,
         None,
         Some(REMOTE_DOMAIN + 1),
     )
