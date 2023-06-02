@@ -112,7 +112,7 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
                     region.clone(),
                 );
 
-                let signer = AwsSigner::new(client.clone(), id, 0).await?;
+                let signer = AwsSigner::new(client, id, 0).await?;
                 hyperlane_ethereum::Signers::Aws(signer)
             }
             SignerConf::Node => bail!("Node signer"),
