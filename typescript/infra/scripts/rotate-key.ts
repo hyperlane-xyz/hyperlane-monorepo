@@ -7,7 +7,7 @@ import {
 
 async function rotateKey() {
   const argv = await withContext(withKeyRoleAndChain(getArgs())).argv;
-  const agentConfig = await getAgentConfig(argv.context, argv.environment);
+  const agentConfig = getAgentConfig(argv.context, argv.environment);
 
   switch (argv.environment) {
     // TODO: re-implement this when the environments actually get readded

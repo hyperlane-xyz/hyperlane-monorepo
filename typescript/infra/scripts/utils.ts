@@ -125,15 +125,15 @@ export async function getConfigsBasedOnArgs(argv?: {
     ? argv
     : await withContext(getArgs()).argv;
   const envConfig = getEnvironmentConfig(environment);
-  const agentConfig = await getAgentConfig(context, envConfig);
+  const agentConfig = getAgentConfig(context, envConfig);
   return { envConfig, agentConfig, context, environment };
 }
 
 // Gets the agent config of a specific context.
-export async function getAgentConfig(
+export function getAgentConfig(
   context: Contexts,
   environment: EnvironmentConfig | DeployEnvironment,
-): Promise<RootAgentConfig> {
+): RootAgentConfig {
   const coreConfig =
     typeof environment == 'string'
       ? getEnvironmentConfig(environment)
@@ -148,15 +148,15 @@ export async function getAgentConfig(
   return agentConfig;
 }
 
-async function getKeyForRole(
+function getKeyForRole(
   environment: DeployEnvironment,
   context: Contexts,
   chain: ChainName,
   role: Role,
   index?: number,
-): Promise<CloudAgentKey> {
+): CloudAgentKey {
   const environmentConfig = environments[environment];
-  const agentConfig = await getAgentConfig(context, environmentConfig);
+  const agentConfig = getAgentConfig(context, environmentConfig);
   return getCloudAgentKey(agentConfig, role, chain, index);
 }
 
@@ -176,7 +176,7 @@ export async function getMultiProviderForRole(
   await promiseObjAll(
     objMap(txConfigs, async (chain, config) => {
       const provider = await fetchProvider(environment, chain, connectionType);
-      const key = await getKeyForRole(environment, context, chain, role, index);
+      const key = getKeyForRole(environment, context, chain, role, index);
       const signer = await key.getSigner(provider);
       multiProvider.setProvider(chain, provider);
       multiProvider.setSigner(chain, signer);
