@@ -18,11 +18,11 @@ use hyperlane_sealevel_mailbox::{
 };
 use hyperlane_sealevel_token::{
     hyperlane_token_ata_payer_pda_seeds, hyperlane_token_mint_pda_seeds,
-    instruction::Instruction as HyperlaneTokenInstruction, processor::process_instruction,
+    processor::process_instruction,
 };
 use hyperlane_sealevel_token_lib::{
     hyperlane_token_pda_seeds,
-    instruction::{Init, TransferRemote},
+    instruction::{Init, Instruction as HyperlaneTokenInstruction, TransferRemote},
     message::TokenMessage,
 };
 use solana_program_test::*;
@@ -274,6 +274,9 @@ async fn test_initialize() {
                 AccountMeta::new(mailbox_accounts.inbox, false),
                 AccountMeta::new_readonly(process_authority_account_key, false),
                 AccountMeta::new(processed_message_account_key, false),
+                // ISM getter accounts
+                AccountMeta::new_readonly(token_account_key, false),
+                // SPL Noop
                 AccountMeta::new_readonly(spl_noop::id(), false),
                 // ISM
                 AccountMeta::new_readonly(hyperlane_sealevel_ism_rubber_stamp::id(), false),

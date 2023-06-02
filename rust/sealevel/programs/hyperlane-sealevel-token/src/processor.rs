@@ -1,19 +1,16 @@
 //! TODO
 
-use borsh::BorshSerialize;
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_message_recipient_interface::MessageRecipientInstruction;
 use hyperlane_sealevel_token_lib::{
-    instruction::{Init, TransferFromRemote, TransferRemote},
+    instruction::{Init, Instruction as TokenIxn, TransferFromRemote, TransferRemote},
     processor::HyperlaneSealevelToken,
 };
-use serializable_account_meta::SimulationReturnData;
 use solana_program::{
-    account_info::AccountInfo, entrypoint, entrypoint::ProgramResult, msg,
-    program::set_return_data, program_error::ProgramError, pubkey::Pubkey,
+    account_info::AccountInfo, entrypoint, entrypoint::ProgramResult, msg, pubkey::Pubkey,
 };
 
-use crate::{instruction::Instruction as TokenIxn, plugin::SyntheticPlugin};
+use crate::plugin::SyntheticPlugin;
 
 #[cfg(not(feature = "no-entrypoint"))]
 entrypoint!(process_instruction);
@@ -29,18 +26,10 @@ pub fn process_instruction(
     {
         return match message_recipient_instruction {
             MessageRecipientInstruction::InterchainSecurityModule => {
-                // Return None, indicating the default ISM should be used
-                // TODO change this
-                let ism: Option<Pubkey> = None;
-                set_return_data(
-                    &ism.try_to_vec()
-                        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
-                );
-                Ok(())
+                interchain_security_module(program_id, accounts)
             }
             MessageRecipientInstruction::InterchainSecurityModuleAccountMetas => {
-                // No account metas are required, no return data necessary.
-                Ok(())
+                interchain_security_module_account_metas(program_id)
             }
             MessageRecipientInstruction::Handle(handle) => transfer_from_remote(
                 program_id,
@@ -76,6 +65,9 @@ pub fn process_instruction(
         TokenIxn::EnrollRemoteRouter(config) => enroll_remote_router(program_id, accounts, config),
         TokenIxn::EnrollRemoteRouters(configs) => {
             enroll_remote_routers(program_id, accounts, configs)
+        }
+        TokenIxn::SetInterchainSecurityModule(new_ism) => {
+            set_interchain_security_module(program_id, accounts, new_ism)
         }
         TokenIxn::TransferOwnership(new_owner) => {
             transfer_ownership(program_id, accounts, new_owner)
@@ -188,4 +180,35 @@ fn transfer_ownership(
     new_owner: Option<Pubkey>,
 ) -> ProgramResult {
     HyperlaneSealevelToken::<SyntheticPlugin>::transfer_ownership(program_id, accounts, new_owner)
+}
+
+/// Gets the interchain security module, returning it as a serialized Option<Pubkey>.
+///
+/// Accounts:
+/// 0. [] The token PDA account.
+fn interchain_security_module(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+    HyperlaneSealevelToken::<SyntheticPlugin>::interchain_security_module(program_id, accounts)
+}
+
+/// Gets the account metas for getting the interchain security module.
+///
+/// Accounts:
+///   None
+fn interchain_security_module_account_metas(program_id: &Pubkey) -> ProgramResult {
+    HyperlaneSealevelToken::<SyntheticPlugin>::interchain_security_module_account_metas(program_id)
+}
+
+/// Lets the owner set the interchain security module.
+///
+/// Accounts:
+/// 0. [writeable] The token PDA account.
+/// 1. [signer] The access control owner.
+fn set_interchain_security_module(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    new_ism: Option<Pubkey>,
+) -> ProgramResult {
+    HyperlaneSealevelToken::<SyntheticPlugin>::set_interchain_security_module(
+        program_id, accounts, new_ism,
+    )
 }

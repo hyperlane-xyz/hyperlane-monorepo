@@ -2,7 +2,35 @@
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{H256, U256};
-use solana_program::pubkey::Pubkey;
+use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
+use solana_program::{program_error::ProgramError, pubkey::Pubkey};
+
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+pub enum Instruction {
+    /// Initialize the program.
+    Init(Init),
+    /// Transfer tokens to a remote recipient.
+    TransferRemote(TransferRemote),
+    /// Enroll a remote router. Only owner.
+    EnrollRemoteRouter(RemoteRouterConfig),
+    /// Enroll multiple remote routers. Only owner.
+    EnrollRemoteRouters(Vec<RemoteRouterConfig>),
+    /// Set the interchain security module. Only owner.
+    SetInterchainSecurityModule(Option<Pubkey>),
+    /// Transfer ownership of the program. Only owner.
+    TransferOwnership(Option<Pubkey>),
+}
+
+impl Instruction {
+    pub fn from_instruction_data(data: &[u8]) -> Result<Self, ProgramError> {
+        Self::try_from_slice(data).map_err(|_| ProgramError::InvalidInstructionData)
+    }
+
+    pub fn into_instruction_data(self) -> Result<Vec<u8>, ProgramError> {
+        self.try_to_vec()
+            .map_err(|err| ProgramError::BorshIoError(err.to_string()))
+    }
+}
 
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub struct Init {

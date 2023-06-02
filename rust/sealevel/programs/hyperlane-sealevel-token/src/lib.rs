@@ -5,7 +5,6 @@
 #![deny(unsafe_code)]
 
 pub mod error;
-pub mod instruction;
 pub mod plugin;
 pub mod processor;
 
