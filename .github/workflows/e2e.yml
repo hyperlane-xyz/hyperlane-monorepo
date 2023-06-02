@@ -30,7 +30,7 @@ jobs:
           submodules: recursive
 
       - name: remove submodule locks
-        run: git submodule foreach 'test -f yarn.lock && rm yarn.lock || echo "No yarn.lock file in this submodule"'
+        run: git submodule foreach git submodule foreach 'if [ $path != "solidity/lib/forge-std" ]; then rm yarn.lock; fi'
 
       - name: setup rust
         uses: actions-rs/toolchain@v1
