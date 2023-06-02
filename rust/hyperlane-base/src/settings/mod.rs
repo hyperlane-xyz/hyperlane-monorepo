@@ -72,9 +72,6 @@
 //! 5. Arguments passed to the agent on the command line.
 //!    E.g. `--originChainName ethereum`
 
-use once_cell::sync::OnceCell;
-use rusoto_kms::KmsClient;
-
 pub use base::*;
 pub use chains::{ChainConf, ChainConnectionConf, CoreContractAddresses};
 pub use signers::{RawSignerConf, SignerConf};
@@ -89,5 +86,3 @@ pub(crate) mod loader;
 mod signers;
 /// Tracing subscriber management
 pub mod trace;
-
-static KMS_CLIENT: OnceCell<KmsClient> = OnceCell::new();

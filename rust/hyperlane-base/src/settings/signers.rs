@@ -9,8 +9,6 @@ use tracing::instrument;
 use super::aws_credentials::AwsChainCredentialsProvider;
 use hyperlane_core::{config::*, H256};
 
-use crate::settings::KMS_CLIENT;
-
 /// Signer types
 #[derive(Default, Debug, Clone)]
 pub enum SignerConf {
@@ -106,15 +104,13 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
                 ),
             )),
             SignerConf::Aws { id, region } => {
-                let client = KMS_CLIENT.get_or_init(|| {
-                    KmsClient::new_with_client(
-                        rusoto_core::Client::new_with(
-                            AwsChainCredentialsProvider::new(),
-                            HttpClient::new().unwrap(),
-                        ),
-                        region.clone(),
-                    )
-                });
+                let client = KmsClient::new_with_client(
+                    rusoto_core::Client::new_with(
+                        AwsChainCredentialsProvider::new(),
+                        HttpClient::new().unwrap(),
+                    ),
+                    region.clone(),
+                );
 
                 let signer = AwsSigner::new(client, id, 0).await?;
                 hyperlane_ethereum::Signers::Aws(signer)
