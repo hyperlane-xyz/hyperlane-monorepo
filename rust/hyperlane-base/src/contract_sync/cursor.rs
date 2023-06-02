@@ -61,12 +61,12 @@ impl MessageSyncCursor {
         // If we found messages, but did *not* find the message we were looking for,
         // we need to rewind to the block at which we found the last message.
         if !logs.is_empty() && !logs.iter().any(|m| m.0.nonce == self.next_nonce) {
-            debug!(next_nonce=?self.next_nonce, "Target nonce not found, rewinding");
+            warn!(next_nonce=?self.next_nonce, "Target nonce not found, rewinding");
             // If the previous nonce has been synced, rewind to the block number
             // at which it was dispatched. Otherwise, rewind all the way back to the start block.
             if let Some(block_number) = self.retrieve_dispatched_block_number(prev_nonce).await {
                 self.next_block = block_number;
-                debug!(block_number, "Rewound to previous known message");
+                warn!(block_number, "Rewound to previous known message");
             } else {
                 self.next_block = self.start_block;
             }
@@ -96,9 +96,14 @@ impl ForwardMessageSyncCursor {
                 .retrieve_dispatched_block_number(self.0.next_nonce)
                 .await
             {
+                debug!(next_block = block_number, "Fast forwarding next block");
                 // It's possible that eth_getLogs dropped logs from this block, therefore we cannot do block_number + 1.
                 self.0.next_block = block_number;
             }
+            debug!(
+                next_nonce = self.0.next_nonce + 1,
+                "Fast forwarding next nonce"
+            );
             self.0.next_nonce += 1;
         }
 
