@@ -45,6 +45,7 @@ cargo build --release --bin relayer
 
 ### Running local binary against cloud resources (AWS KMS, S3, Postgresql etc)
 
+Building the docker image and upgrading the pod is a **slow** process. To speed up the development cycle, you can run a local binary against cloud resources.
 This workflow is useful for testing local changes against cloud resources. It is also useful for debugging issues in production.
 
 Example of fetching env from pod:
