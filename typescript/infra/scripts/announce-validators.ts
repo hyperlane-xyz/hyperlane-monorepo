@@ -6,7 +6,7 @@ import * as path from 'path';
 import { AllChains, ChainName, HyperlaneCore } from '@hyperlane-xyz/sdk';
 
 import { S3Validator } from '../src/agents/aws/validator';
-import { CheckpointSyncerType } from '../src/config/agent';
+import { CheckpointSyncerType } from '../src/config';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 
 import {
@@ -76,9 +76,8 @@ async function main() {
       console.warn('No validators provided for context');
       return;
     }
-    const { baseOveride, ...validatorChainConfigMap } = agentConfig.validators;
     await Promise.all(
-      Object.entries(validatorChainConfigMap).map(
+      Object.entries(agentConfig.validators.chains).map(
         async ([chain, validatorChainConfig]) => {
           for (const validatorBaseConfig of validatorChainConfig.validators) {
             if (

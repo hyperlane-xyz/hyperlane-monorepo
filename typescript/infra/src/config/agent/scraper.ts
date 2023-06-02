@@ -1,7 +1,6 @@
-import { Contexts } from '../../../config/contexts';
 import { HelmStatefulSetValues } from '../infrastructure';
 
-import { AgentConfig, AgentConfigHelper, ConfigHelper } from './agent';
+import { AgentConfig, AgentConfigHelper } from './agent';
 
 export interface BaseScraperConfig {
   // no configs at this time
@@ -14,22 +13,14 @@ export interface HelmScraperValues extends HelmStatefulSetValues {
   config?: ScraperConfig;
 }
 
-export class ScraperConfigHelper
-  extends AgentConfigHelper
-  implements ConfigHelper<ScraperConfig>
-{
-  readonly #scraperConfig?: BaseScraperConfig;
-
+export class ScraperConfigHelper extends AgentConfigHelper<ScraperConfig> {
   constructor(agentConfig: AgentConfig) {
+    if (!agentConfig.scraper)
+      throw Error('Scraper is not defined for this context');
     super(agentConfig, agentConfig.scraper);
-    this.#scraperConfig = agentConfig.scraper;
   }
 
-  get isDefined(): boolean {
-    return !!this.#scraperConfig && this.context == Contexts.Hyperlane;
-  }
-
-  async buildConfig(): Promise<ScraperConfig | undefined> {
-    return this.isDefined ? undefined : {};
+  async buildConfig(): Promise<ScraperConfig> {
+    return {};
   }
 }

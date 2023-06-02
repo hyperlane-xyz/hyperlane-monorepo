@@ -16,7 +16,7 @@ interface KeyAsAddress {
 }
 
 export function getCloudAgentKey(
-  agentConfig: AgentConfig,
+  agentConfig: BaseAgentConfig,
   role: Role,
   chainName?: ChainName,
   index?: number,
@@ -39,37 +39,38 @@ export function getValidatorCloudAgentKeys(
   agentConfig: AgentConfig,
 ): Array<CloudAgentKey> {
   // For each chainName, create validatorCount keys
-  return agentConfig.contextChainNames.flatMap((chainName) => {
-    if (agentConfig.validators) {
-      return agentConfig.validators[chainName].validators.map((_, index) =>
-        getCloudAgentKey(agentConfig, Role.Validator, chainName, index),
-      );
-    } else {
-      return [];
-    }
-  });
+  if (!agentConfig.validators) return [];
+  const validators = agentConfig.validators;
+  return validators.contextChainNames.flatMap((chainName) =>
+    validators.chains[chainName].validators.map((_, index) =>
+      getCloudAgentKey(validators, Role.Validator, chainName, index),
+    ),
+  );
 }
 
 export function getRelayerCloudAgentKeys(
   agentConfig: AgentConfig,
 ): Array<CloudAgentKey> {
-  return agentConfig.contextChainNames.map((chainName) =>
-    getCloudAgentKey(agentConfig, Role.Relayer, chainName),
+  const relayer = agentConfig.relayer;
+  if (!relayer) return [];
+  return relayer.contextChainNames.map((chainName) =>
+    getCloudAgentKey(relayer, Role.Relayer, chainName),
   );
 }
 
 export function getAllCloudAgentKeys(
-  agentConfig: BaseAgentConfig,
+  agentConfig: AgentConfig,
 ): Array<CloudAgentKey> {
-  return agentConfig.rolesWithKeys.flatMap((role) => {
-    if (role === Role.Validator) {
-      return getValidatorCloudAgentKeys(agentConfig);
-    } else if (role === Role.Relayer) {
-      return getRelayerCloudAgentKeys(agentConfig);
-    } else {
-      return [getCloudAgentKey(agentConfig, role)];
-    }
-  });
+  const keys = [];
+  if ((agentConfig.relayer?.rolesWithKeys ?? []).includes(Role.Relayer))
+    keys.push(...getRelayerCloudAgentKeys(agentConfig));
+  if ((agentConfig.validators?.rolesWithKeys ?? []).includes(Role.Validator))
+    keys.push(...getValidatorCloudAgentKeys(agentConfig));
+  for (const role of agentConfig.other.rolesWithKeys) {
+    if (role == Role.Relayer || role == Role.Validator) continue;
+    keys.push(getCloudAgentKey(agentConfig.other, role));
+  }
+  return keys;
 }
 
 export async function deleteAgentKeys(agentConfig: AgentConfig) {
@@ -77,8 +78,8 @@ export async function deleteAgentKeys(agentConfig: AgentConfig) {
   await Promise.all(keys.map((key) => key.delete()));
   await execCmd(
     `gcloud secrets delete ${addressesIdentifier(
-      agentConfig.runEnv,
-      agentConfig.context,
+      agentConfig.other.runEnv,
+      agentConfig.other.context,
     )} --quiet`,
   );
 }
@@ -93,14 +94,14 @@ export async function createAgentKeysIfNotExists(agentConfig: AgentConfig) {
   );
 
   await persistAddresses(
-    agentConfig.runEnv,
-    agentConfig.context,
+    agentConfig.other.runEnv,
+    agentConfig.other.context,
     keys.map((key) => key.serializeAsAddress()),
   );
 }
 
 export async function rotateKey(
-  agentConfig: AgentConfig,
+  agentConfig: BaseAgentConfig,
   role: Role,
   chainName: ChainName,
 ) {

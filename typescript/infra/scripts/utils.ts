@@ -23,8 +23,11 @@ import { environments } from '../config/environments';
 import { getCurrentKubernetesContext } from '../src/agents';
 import { getCloudAgentKey } from '../src/agents/key-utils';
 import { CloudAgentKey } from '../src/agents/keys';
-import { DeployEnvironment, EnvironmentConfig } from '../src/config';
-import { AgentConfig } from '../src/config';
+import {
+  AgentConfig,
+  DeployEnvironment,
+  EnvironmentConfig,
+} from '../src/config';
 import { fetchProvider } from '../src/config/chain';
 import { EnvironmentNames, deployEnvToSdkEnv } from '../src/config/environment';
 import { Role } from '../src/roles';
@@ -122,7 +125,7 @@ export async function getConfigsBasedOnArgs(argv?: {
     : await withContext(getArgs()).argv;
   const envConfig = getEnvironmentConfig(environment);
   const agentConfig = await getAgentConfig(context, envConfig);
-  return { envConfig, agentConfig };
+  return { envConfig, agentConfig, context, environment };
 }
 
 // Gets the agent config of a specific context.
@@ -141,10 +144,13 @@ export async function getAgentConfig(
         coreConfig.agents,
       )}.`,
     );
-  if (agentConfig.context != context)
-    throw Error(
-      `Agent context ${agentConfig.context} does not match expected context ${context}`,
-    );
+  for (const i of ['other', 'validators', 'relayer', 'scraper'] as const) {
+    const current = agentConfig[i]?.context;
+    if (current != undefined && current != context)
+      throw Error(
+        `${i} context ${current} does not match expected context ${context}`,
+      );
+  }
   return agentConfig;
 }
 
@@ -157,7 +163,19 @@ async function getKeyForRole(
 ): Promise<CloudAgentKey> {
   const environmentConfig = environments[environment];
   const agentConfig = await getAgentConfig(context, environmentConfig);
-  return getCloudAgentKey(agentConfig, role, chain, index);
+  let base;
+  switch (role) {
+    case Role.Validator:
+      base = agentConfig.validators;
+      break;
+    case Role.Relayer:
+      base = agentConfig.relayer;
+      break;
+    case Role.Scraper:
+      base = agentConfig.scraper;
+      break;
+  }
+  return getCloudAgentKey(base ?? agentConfig.other, role, chain, index);
 }
 
 export async function getMultiProviderForRole(

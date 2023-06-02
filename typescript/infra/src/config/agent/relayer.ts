@@ -6,13 +6,7 @@ import { AgentAwsUser } from '../../agents/aws';
 import { Role } from '../../roles';
 import { HelmStatefulSetValues } from '../infrastructure';
 
-import {
-  AgentConfig,
-  AgentConfigHelper,
-  ConfigHelper,
-  KeyConfig,
-  KeyType,
-} from './agent';
+import { AgentConfig, AgentConfigHelper, KeyConfig, KeyType } from './agent';
 
 export type MatchingList = MatchingListElement[];
 
@@ -88,23 +82,17 @@ export interface HelmRelayerChainValues {
   signer: KeyConfig;
 }
 
-export class RelayerConfigHelper
-  extends AgentConfigHelper
-  implements ConfigHelper<RelayerConfig>
-{
-  readonly #relayerConfig?: BaseRelayerConfig;
+export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
+  readonly #relayerConfig: BaseRelayerConfig;
 
   constructor(agentConfig: AgentConfig) {
+    if (!agentConfig.relayer)
+      throw Error('Relayer is not defined for this context');
     super(agentConfig, agentConfig.relayer);
     this.#relayerConfig = agentConfig.relayer;
   }
 
-  get isDefined(): boolean {
-    return !!this.#relayerConfig;
-  }
-
-  async buildConfig(): Promise<RelayerConfig | undefined> {
-    if (!this.isDefined) return undefined;
+  async buildConfig(): Promise<RelayerConfig> {
     const baseConfig = this.#relayerConfig!;
 
     const relayerConfig: RelayerConfig = {

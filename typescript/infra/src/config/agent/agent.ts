@@ -50,10 +50,14 @@ export interface HelmAgentChainOverride
   connection?: Partial<AgentConnection>;
 }
 
-export interface AgentConfig extends BaseAgentConfig {
-  relayer?: WithOverrideableBase<BaseRelayerConfig>;
-  validators?: WithOverrideableBase<ValidatorBaseChainConfigMap>;
-  scraper?: WithOverrideableBase<BaseScraperConfig>;
+export interface AgentConfig {
+  // other is used by non-agent specific configuration (e.g. key-funder)
+  other: BaseAgentConfig;
+  relayer?: BaseAgentConfig & BaseRelayerConfig;
+  validators?: BaseAgentConfig & {
+    chains: ValidatorBaseChainConfigMap;
+  };
+  scraper?: BaseAgentConfig & BaseScraperConfig;
 }
 
 // incomplete common agent configuration
@@ -109,30 +113,9 @@ export interface DockerConfig {
   tag: string;
 }
 
-export type WithOverrideableBase<T> = T & {
-  baseOverride?: Partial<BaseAgentConfig>;
-};
-
-// helper to deal with the broken TS type system that does not handle
-// `{...config, baseOverride: { key: value } }` properly.
-export function overrideBase<T>(
-  config: T,
-  baseOverride: Partial<BaseAgentConfig>,
-): WithOverrideableBase<T> {
-  return {
-    ...config,
-    baseOverride,
-  };
-}
-
-// Helper interface to build configs. Ensures all helpers have a similar interface.
-export interface ConfigHelper<T> {
-  readonly isDefined: boolean;
-
-  buildConfig(): Promise<T | undefined>;
-}
-
-export abstract class AgentConfigHelper implements BaseAgentConfig {
+export abstract class AgentConfigHelper<R = unknown>
+  implements BaseAgentConfig
+{
   readonly rawConfig: AgentConfig;
 
   aws?: AwsConfig;
@@ -146,21 +129,19 @@ export abstract class AgentConfigHelper implements BaseAgentConfig {
   rolesWithKeys: Role[];
   runEnv: DeployEnvironment;
 
-  protected constructor(
-    config: AgentConfig,
-    override: WithOverrideableBase<unknown> = {},
-  ) {
-    this.rawConfig = config;
-    const merged: BaseAgentConfig = { ...config, ...override.baseOverride };
-    this.aws = merged.aws;
-    this.connectionType = merged.connectionType;
-    this.context = merged.context;
-    this.contextChainNames = merged.contextChainNames;
-    this.docker = merged.docker;
-    this.environmentChainNames = merged.environmentChainNames;
-    this.index = merged.index;
-    this.namespace = merged.namespace;
-    this.rolesWithKeys = merged.rolesWithKeys;
-    this.runEnv = merged.runEnv;
+  protected constructor(root: AgentConfig, agent: BaseAgentConfig) {
+    this.rawConfig = root;
+    this.aws = agent.aws;
+    this.connectionType = agent.connectionType;
+    this.context = agent.context;
+    this.contextChainNames = agent.contextChainNames;
+    this.docker = agent.docker;
+    this.environmentChainNames = agent.environmentChainNames;
+    this.index = agent.index;
+    this.namespace = agent.namespace;
+    this.rolesWithKeys = agent.rolesWithKeys;
+    this.runEnv = agent.runEnv;
   }
+
+  abstract buildConfig(): Promise<R>;
 }

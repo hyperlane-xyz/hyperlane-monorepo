@@ -1,16 +1,9 @@
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 
-import { Contexts } from '../../../config/contexts';
 import { ValidatorAgentAwsUser } from '../../agents/aws';
 import { HelmStatefulSetValues } from '../infrastructure';
 
-import {
-  AgentConfig,
-  AgentConfigHelper,
-  ConfigHelper,
-  KeyConfig,
-  KeyType,
-} from './agent';
+import { AgentConfig, AgentConfigHelper, KeyConfig, KeyType } from './agent';
 
 // Validator agents for each chain.
 export type ValidatorBaseChainConfigMap = ChainMap<ValidatorBaseChainConfig>;
@@ -65,24 +58,19 @@ export interface S3CheckpointSyncerConfig {
   region: string;
 }
 
-export class ValidatorConfigHelper
-  extends AgentConfigHelper
-  implements ConfigHelper<Array<ValidatorConfig>>
-{
-  readonly #validatorsConfig?: ValidatorBaseChainConfigMap;
+export class ValidatorConfigHelper extends AgentConfigHelper<
+  Array<ValidatorConfig>
+> {
+  readonly #validatorsConfig: ValidatorBaseChainConfigMap;
 
   constructor(agentConfig: AgentConfig, public readonly chainName: ChainName) {
+    if (!agentConfig.validators)
+      throw Error('Validator is not defined for this context');
     super(agentConfig, agentConfig.validators);
-    this.#validatorsConfig = agentConfig.validators;
+    this.#validatorsConfig = agentConfig.validators.chains;
   }
 
-  get isDefined(): boolean {
-    return !!this.#validatorsConfig && this.context == Contexts.Hyperlane;
-  }
-
-  async buildConfig(): Promise<Array<ValidatorConfig> | undefined> {
-    if (!this.isDefined) return undefined;
-
+  async buildConfig(): Promise<Array<ValidatorConfig>> {
     return Promise.all(
       this.#chainConfig.validators.map(async (val, i) =>
         this.#configForValidator(val, i),
@@ -91,7 +79,7 @@ export class ValidatorConfigHelper
   }
 
   get validators(): ValidatorBaseConfig[] {
-    return this.#validatorsConfig![this.chainName].validators;
+    return this.#validatorsConfig[this.chainName].validators;
   }
 
   async #configForValidator(
@@ -112,8 +100,7 @@ export class ValidatorConfigHelper
       await awsUser.createBucketIfNotExists();
 
       if (this.aws)
-        validator = (await awsUser.createKeyIfNotExists(this.rawConfig))
-          .keyConfig;
+        validator = (await awsUser.createKeyIfNotExists(this)).keyConfig;
     } else {
       console.warn(
         `Validator ${cfg.address}'s checkpoint syncer is not S3-based. Be sure this is a non-k8s-based environment!`,

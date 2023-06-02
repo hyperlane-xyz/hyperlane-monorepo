@@ -7,6 +7,7 @@ import { Contexts } from '../../config/contexts';
 import {
   AgentConfig,
   AgentConfigHelper,
+  BaseAgentConfig,
   CheckpointSyncerType,
   DeployEnvironment,
   HelmRootAgentValues,
@@ -27,7 +28,7 @@ import { keyIdentifier, userIdentifier } from './agent';
 import { AgentAwsUser, ValidatorAgentAwsUser } from './aws';
 import { AgentAwsKey } from './aws/key';
 import { AgentGCPKey } from './gcp';
-import { fetchKeysForChain } from './key-utils';
+import { fetchKeysForChain, getCloudAgentKey } from './key-utils';
 
 const HELM_CHART_PATH = __dirname + '/../../../../rust/helm/hyperlane-agent/';
 if (!fs.existsSync(HELM_CHART_PATH + 'Chart.yaml'))
@@ -226,15 +227,16 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
     const envVars = await super.getEnvVars(undefined, valueDict);
     envVars.HYP_BASE_DB = `/tmp/${this.environment}-${this.role}-db`;
     if (!this.config.aws) {
-      const gcpKeys = (await fetchKeysForChain(
-        this.config,
-        this.config.contextChainNames,
-      )) as Record<string, AgentGCPKey>;
-
-      const keyId = this.keyIdentifier();
       for (const name of this.config.contextChainNames) {
+        const gcpKey = getCloudAgentKey(
+          this.config,
+          this.role,
+          name,
+        ) as AgentGCPKey;
+        if (gcpKey.identifier != this.keyIdentifier())
+          throw Error(`Key identifier mismatch for ${name}`);
         envVars[`HYP_BASE_CHAINS_${name.toUpperCase()}_SIGNER_KEY`] =
-          utils.strip0x(gcpKeys[keyId].privateKey);
+          utils.strip0x(gcpKey.privateKey);
         envVars[`HYP_BASE_CHAINS_${name.toUpperCase()}_SIGNER_TYPE`] = 'hexKey';
       }
     } else {
@@ -252,7 +254,7 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
       envVars.AWS_SECRET_ACCESS_KEY = accessKeys.secretAccessKey;
 
       for (const chainName of this.config.contextChainNames) {
-        const key = new AgentAwsKey(this.config.rawConfig, this.role);
+        const key = new AgentAwsKey(this.config, this.role);
         Object.assign(
           envVars,
           configEnvVars(
@@ -272,13 +274,11 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
 
   async helmValues(): Promise<HelmRootAgentValues> {
     const values = await super.helmValues();
-    values.hyperlane.relayer = this.config.isDefined
-      ? {
-          enabled: true,
-          aws: this.config.requiresAwsCredentials,
-          config: await this.config.buildConfig(),
-        }
-      : { enabled: false, aws: false };
+    values.hyperlane.relayer = {
+      enabled: true,
+      aws: this.config.requiresAwsCredentials,
+      config: await this.config.buildConfig(),
+    };
 
     const signers = await this.config.signers();
     values.hyperlane.relayerChains = this.config.environmentChainNames.map(
@@ -318,12 +318,10 @@ export class ScraperHelmManager extends OmniscientAgentHelmManager {
 
   async helmValues(): Promise<HelmRootAgentValues> {
     const values = await super.helmValues();
-    values.hyperlane.scraper = this.config.isDefined
-      ? {
-          enabled: true,
-          config: await this.config.buildConfig(),
-        }
-      : { enabled: false };
+    values.hyperlane.scraper = {
+      enabled: true,
+      config: await this.config.buildConfig(),
+    };
     // scraper never requires aws credentials
     values.hyperlane.aws = false;
     return values;
@@ -414,18 +412,16 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
 
   async helmValues(): Promise<HelmRootAgentValues> {
     const helmValues = await super.helmValues();
-    helmValues.hyperlane.validator = this.config.isDefined
-      ? {
-          enabled: true,
-          configs: await this.config.buildConfig(),
-        }
-      : { enabled: false };
+    helmValues.hyperlane.validator = {
+      enabled: true,
+      configs: await this.config.buildConfig(),
+    };
 
     return helmValues;
   }
 }
 
-export async function getSecretAwsCredentials(agentConfig: AgentConfig) {
+export async function getSecretAwsCredentials(agentConfig: BaseAgentConfig) {
   return {
     accessKeyId: await fetchGCPSecret(
       `${agentConfig.runEnv}-aws-access-key-id`,

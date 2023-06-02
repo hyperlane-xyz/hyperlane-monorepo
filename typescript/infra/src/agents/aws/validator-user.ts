@@ -8,7 +8,7 @@ import {
 import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../../config/contexts';
-import { AgentConfig, DeployEnvironment } from '../../config';
+import { BaseAgentConfig, DeployEnvironment } from '../../config';
 import { Role } from '../../roles';
 
 import { AgentAwsKey } from './key';
@@ -83,7 +83,7 @@ export class ValidatorAgentAwsUser extends AgentAwsUser {
     await this.adminS3Client.send(cmd);
   }
 
-  key(agentConfig: AgentConfig): AgentAwsKey {
+  key(agentConfig: BaseAgentConfig): AgentAwsKey {
     return new AgentAwsKey(agentConfig, this.role, this.chainName, this.index);
   }
 

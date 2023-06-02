@@ -10,7 +10,7 @@ import { Contexts } from '../../contexts';
 import { chainNames } from './chains';
 import { validators } from './validators';
 
-const hyperlane: AgentConfig = {
+const hyperlaneBase = {
   namespace: 'test',
   runEnv: 'test',
   context: Contexts.Hyperlane,
@@ -21,15 +21,23 @@ const hyperlane: AgentConfig = {
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
   connectionType: AgentConnectionType.Http,
-  validators,
+  rolesWithKeys: ALL_KEY_ROLES,
+} as const;
+
+const hyperlane: AgentConfig = {
+  other: hyperlaneBase,
   relayer: {
+    ...hyperlaneBase,
     gasPaymentEnforcement: [
       {
         type: GasPaymentEnforcementPolicyType.None,
       },
     ],
   },
-  rolesWithKeys: ALL_KEY_ROLES,
+  validators: {
+    ...hyperlaneBase,
+    chains: validators,
+  },
 };
 
 export const agents = {

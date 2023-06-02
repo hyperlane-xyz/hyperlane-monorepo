@@ -5,13 +5,13 @@ import { assertCorrectKubeContext, getConfigsBasedOnArgs } from '../utils';
 import { getHelloWorldConfig } from './utils';
 
 async function main() {
-  const { agentConfig, envConfig } = await getConfigsBasedOnArgs();
+  const { agentConfig, envConfig, context } = await getConfigsBasedOnArgs();
   await assertCorrectKubeContext(envConfig);
-  const kathyConfig = getHelloWorldConfig(envConfig, agentConfig.context).kathy;
+  const kathyConfig = getHelloWorldConfig(envConfig, context).kathy;
 
   await runHelloworldKathyHelmCommand(
     HelmCommand.InstallOrUpgrade,
-    agentConfig,
+    agentConfig.other,
     kathyConfig,
   );
 }

@@ -59,7 +59,7 @@ export class AgentCli {
 
   private async runHelmCommandForValidators(command: HelmCommand) {
     await Promise.all(
-      this.agentConfig.contextChainNames.map((chain) =>
+      (this.agentConfig.validators?.contextChainNames ?? []).map((chain) =>
         new ValidatorHelmManager(this.agentConfig, chain).runHelmCommand(
           command,
         ),

@@ -1,11 +1,11 @@
-import { AgentConfig, EnvironmentConfig } from '../config';
+import { BaseAgentConfig, EnvironmentConfig } from '../config';
 import { KeyFunderConfig } from '../config/funding';
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { execCmd } from '../utils/utils';
 
 export async function runKeyFunderHelmCommand(
   helmCommand: HelmCommand,
-  agentConfig: AgentConfig,
+  agentConfig: BaseAgentConfig,
   keyFunderConfig: KeyFunderConfig,
 ) {
   const values = getKeyFunderHelmValues(agentConfig, keyFunderConfig);
@@ -35,7 +35,7 @@ export async function runKeyFunderHelmCommand(
 }
 
 function getKeyFunderHelmValues(
-  agentConfig: AgentConfig,
+  agentConfig: BaseAgentConfig,
   keyFunderConfig: KeyFunderConfig,
 ) {
   const values = {
