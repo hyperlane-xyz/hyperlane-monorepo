@@ -8,16 +8,15 @@ use solana_program::{
     program_pack::Pack,
     pubkey::Pubkey,
     rent::Rent,
-    system_instruction, system_program,
+    system_instruction,
 };
 use std::collections::HashMap;
 
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_mailbox::{
     accounts::{DispatchedMessage, DispatchedMessageAccount},
-    instruction::{InboxProcess, Init as InitMailbox, Instruction as MailboxInstruction},
-    mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds,
-    mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
+    instruction::{InboxProcess, Instruction as MailboxInstruction},
+    mailbox_dispatched_message_pda_seeds, mailbox_message_dispatch_authority_pda_seeds,
     mailbox_process_authority_pda_seeds, mailbox_processed_message_pda_seeds,
 };
 use hyperlane_sealevel_message_recipient_interface::{
@@ -34,6 +33,10 @@ use hyperlane_sealevel_token_lib::{
     instruction::{Init, TransferRemote},
     message::TokenMessage,
 };
+use hyperlane_test_utils::{
+    assert_token_balance, assert_transaction_error, initialize_mailbox, new_funded_keypair,
+    transfer_lamports,
+};
 use solana_program_test::*;
 use solana_sdk::{
     instruction::InstructionError,
@@ -42,9 +45,7 @@ use solana_sdk::{
     transaction::{Transaction, TransactionError},
 };
 use spl_associated_token_account::instruction::create_associated_token_account_idempotent;
-use spl_token_2022::{
-    extension::StateWithExtensions, instruction::initialize_mint2, state::Account,
-};
+use spl_token_2022::instruction::initialize_mint2;
 
 /// There are 1e9 lamports in one SOL.
 const ONE_SOL_IN_LAMPORTS: u64 = 1000000000;
@@ -93,86 +94,6 @@ async fn setup_client() -> (BanksClient, Keypair) {
     let (banks_client, payer, _recent_blockhash) = program_test.start().await;
 
     (banks_client, payer)
-}
-
-async fn new_funded_keypair(
-    banks_client: &mut BanksClient,
-    payer: &Keypair,
-    lamports: u64,
-) -> Keypair {
-    let keypair = Keypair::new();
-    transfer_lamports(banks_client, payer, &keypair.pubkey(), lamports).await;
-    keypair
-}
-
-async fn transfer_lamports(
-    banks_client: &mut BanksClient,
-    payer: &Keypair,
-    to: &Pubkey,
-    lamports: u64,
-) {
-    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    let mut transaction = Transaction::new_with_payer(
-        &[solana_sdk::system_instruction::transfer(
-            &payer.pubkey(),
-            to,
-            lamports,
-        )],
-        Some(&payer.pubkey()),
-    );
-    transaction.sign(&[payer], recent_blockhash);
-    banks_client.process_transaction(transaction).await.unwrap();
-}
-
-struct MailboxAccounts {
-    program: Pubkey,
-    #[allow(dead_code)]
-    inbox: Pubkey,
-    outbox: Pubkey,
-}
-
-async fn initialize_mailbox(
-    banks_client: &mut BanksClient,
-    mailbox_program_id: &Pubkey,
-    payer: &Keypair,
-    local_domain: u32,
-) -> MailboxAccounts {
-    let (inbox_account, inbox_bump) =
-        Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), mailbox_program_id);
-    let (outbox_account, outbox_bump) =
-        Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), mailbox_program_id);
-
-    let ixn = MailboxInstruction::Init(InitMailbox {
-        local_domain,
-        inbox_bump_seed: inbox_bump,
-        outbox_bump_seed: outbox_bump,
-    });
-    let init_instruction = Instruction {
-        program_id: *mailbox_program_id,
-        data: ixn.into_instruction_data().unwrap(),
-        accounts: vec![
-            AccountMeta::new(system_program::id(), false),
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(inbox_account, false),
-            AccountMeta::new(outbox_account, false),
-        ],
-    };
-
-    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    let mut transaction = Transaction::new_signed_with_payer(
-        &[init_instruction],
-        Some(&payer.pubkey()),
-        &[payer],
-        recent_blockhash,
-    );
-    transaction.sign(&[payer], recent_blockhash);
-    banks_client.process_transaction(transaction).await.unwrap();
-
-    MailboxAccounts {
-        program: *mailbox_program_id,
-        inbox: inbox_account,
-        outbox: outbox_account,
-    }
 }
 
 async fn initialize_mint(
@@ -404,17 +325,6 @@ async fn enroll_remote_router(
     Ok(())
 }
 
-async fn assert_balance(banks_client: &mut BanksClient, account: &Pubkey, expected_balance: u64) {
-    let data = banks_client
-        .get_account(*account)
-        .await
-        .unwrap()
-        .unwrap()
-        .data;
-    let state = StateWithExtensions::<Account>::unpack(&data).unwrap();
-    assert_eq!(state.base.amount, expected_balance);
-}
-
 #[tokio::test]
 async fn test_initialize() {
     let program_id = hyperlane_sealevel_token_collateral::id();
@@ -609,7 +519,7 @@ async fn test_transfer_remote() {
     banks_client.process_transaction(transaction).await.unwrap();
 
     // Verify the token sender's ATA balance is 31 full tokens.
-    assert_balance(
+    assert_token_balance(
         &mut banks_client,
         &token_sender_ata,
         31 * 10u64.pow(LOCAL_DECIMALS_U32),
@@ -617,7 +527,7 @@ async fn test_transfer_remote() {
     .await;
 
     // And that the escrow's balance is 69 tokens.
-    assert_balance(
+    assert_token_balance(
         &mut banks_client,
         &hyperlane_token_accounts.escrow,
         69 * 10u64.pow(LOCAL_DECIMALS_U32),
@@ -822,7 +732,7 @@ async fn test_transfer_from_remote() {
             .unwrap();
 
     // Check that the recipient's ATA got the tokens!
-    assert_balance(
+    assert_token_balance(
         &mut banks_client,
         &recipient_associated_token_account,
         local_transfer_amount,
@@ -830,7 +740,7 @@ async fn test_transfer_from_remote() {
     .await;
 
     // And that the escrow's balance is lower because it was spent in the transfer.
-    assert_balance(
+    assert_token_balance(
         &mut banks_client,
         &hyperlane_token_accounts.escrow,
         initial_escrow_balance - local_transfer_amount,
@@ -1237,16 +1147,4 @@ async fn test_set_interchain_security_module_errors_if_owner_not_signer() {
         result,
         TransactionError::InstructionError(0, InstructionError::InvalidArgument),
     );
-}
-
-fn assert_transaction_error<T>(
-    result: Result<T, BanksClientError>,
-    expected_error: TransactionError,
-) {
-    // BanksClientError doesn't implement Eq, but TransactionError does
-    if let BanksClientError::TransactionError(tx_err) = result.err().unwrap() {
-        assert_eq!(tx_err, expected_error);
-    } else {
-        panic!("expected TransactionError");
-    }
 }

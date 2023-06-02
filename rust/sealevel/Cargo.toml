@@ -18,4 +18,5 @@ members = [
     "libraries/serializable-account-meta",
     "libraries/hyperlane-sealevel-token",
     "libraries/hyperlane-sealevel-connection-client",
+    "libraries/test-utils",
 ]

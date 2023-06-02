@@ -1773,6 +1773,7 @@ dependencies = [
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
  "hyperlane-sealevel-token-lib",
+ "hyperlane-test-utils",
  "num-derive",
  "num-traits",
  "serializable-account-meta",
@@ -1845,6 +1846,17 @@ dependencies = [
  "solana-program-test",
  "solana-sdk",
  "thiserror",
+]
+
+[[package]]
+name = "hyperlane-test-utils"
+version = "0.1.0"
+dependencies = [
+ "hyperlane-sealevel-mailbox",
+ "solana-program",
+ "solana-program-test",
+ "solana-sdk",
+ "spl-token-2022 0.5.0 (git+https://github.com/tkporter/eclipse-program-library?branch=trevor/steven/eclipse-1.14.13/with-tlv-lib)",
 ]
 
 [[package]]
