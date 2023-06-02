@@ -26,6 +26,7 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
+use eyre::{eyre, Result};
 use maplit::hashmap;
 use nix::{
     libc::pid_t,
@@ -149,16 +150,22 @@ fn main() -> ExitCode {
         fs::create_dir_all(&log_dir).expect("Failed to make log dir");
     }
     let build_log = concat_path(&log_dir, "build.log");
-    let hardhat_log = concat_path(&log_dir, "hardhat.stdout.log");
+    let anvil_log = concat_path(&log_dir, "anvil.stdout.log");
 
     let checkpoints_dirs = (0..3).map(|_| tempdir().unwrap()).collect::<Vec<_>>();
     let rocks_db_dir = tempdir().unwrap();
     let relayer_db = concat_path(&rocks_db_dir, "relayer");
+    let validator_dbs = (0..3)
+        .map(|i| concat_path(&rocks_db_dir, format!("validator{i}")))
+        .collect::<Vec<_>>();
 
     let common_env = hashmap! {
         "RUST_BACKTRACE" => "full",
         "HYP_BASE_TRACING_FMT" => "pretty",
         "HYP_BASE_TRACING_LEVEL" => "debug",
+        "HYP_BASE_CHAINS_TEST1_INDEX_CHUNK" => "1",
+        "HYP_BASE_CHAINS_TEST2_INDEX_CHUNK" => "1",
+        "HYP_BASE_CHAINS_TEST3_INDEX_CHUNK" => "1",
     };
 
     let relayer_env = hashmap! {
@@ -194,6 +201,7 @@ fn main() -> ExitCode {
             "HYP_BASE_CHAINS_TEST2_CONNECTION_TYPE" => "httpFallback",
             "HYP_BASE_CHAINS_TEST3_CONNECTION_URL" => "http://127.0.0.1:8545",
             "HYP_BASE_METRICS" => metrics_port,
+            "HYP_BASE_DB" => validator_dbs[i].to_str().unwrap(),
             "HYP_VALIDATOR_ORIGINCHAINNAME" => originchainname,
             "HYP_VALIDATOR_VALIDATOR_KEY" => VALIDATOR_KEYS[i],
             "HYP_VALIDATOR_REORGPERIOD" => "0",
@@ -227,6 +235,9 @@ fn main() -> ExitCode {
             .join(", ")
     );
     println!("Relayer DB in {}", relayer_db.display());
+    (0..3).for_each(|i| {
+        println!("Validator {} DB in {}", i + 1, validator_dbs[i].display());
+    });
 
     let build_cmd = {
         let build_log = make_static(build_log.to_str().unwrap().into());
@@ -292,16 +303,14 @@ fn main() -> ExitCode {
     state.build_log = build_log;
     state.log_all = log_all;
 
-    println!("Launching hardhat...");
-    let mut node = Command::new("yarn");
-    node.args(["hardhat", "node"])
-        .current_dir("../typescript/infra");
+    println!("Launching anvil...");
+    let mut node = Command::new("anvil");
     if log_all {
         // TODO: should we log this? It seems way too verbose to be useful
         // node.stdout(Stdio::piped());
         node.stdout(Stdio::null());
     } else {
-        node.stdout(append_to(hardhat_log));
+        node.stdout(append_to(anvil_log));
     }
     let node = node.spawn().expect("Failed to start node");
     state.node = Some(node);
@@ -351,25 +360,7 @@ fn main() -> ExitCode {
     state.watchers.push(scraper_stderr);
     state.scraper = Some(scraper);
 
-    for (i, validator_env) in validator_envs.iter().enumerate() {
-        let (validator, validator_stdout, validator_stderr) = run_agent(
-            "validator",
-            &common_env
-                .clone()
-                .into_iter()
-                .chain(validator_env.clone())
-                .collect(),
-            &[],
-            make_static(format!("VAL{}", 1 + i)),
-            log_all,
-            &log_dir,
-        );
-        state.watchers.push(validator_stdout);
-        state.watchers.push(validator_stderr);
-        state.validators.push(validator);
-    }
-
-    // Send half the kathy messages before the relayer comes up
+    // Send half the kathy messages before starting the agents
     let mut kathy = Command::new("yarn");
     kathy
         .arg("kathy")
@@ -387,6 +378,24 @@ fn main() -> ExitCode {
     state.watchers.push(kathy_stdout);
     state.watchers.push(kathy_stderr);
     kathy.wait().unwrap();
+
+    for (i, validator_env) in validator_envs.iter().enumerate() {
+        let (validator, validator_stdout, validator_stderr) = run_agent(
+            "validator",
+            &common_env
+                .clone()
+                .into_iter()
+                .chain(validator_env.clone())
+                .collect(),
+            &[],
+            make_static(format!("VAL{}", 1 + i)),
+            log_all,
+            &log_dir,
+        );
+        state.watchers.push(validator_stdout);
+        state.watchers.push(validator_stderr);
+        state.validators.push(validator);
+    }
 
     let (relayer, relayer_stdout, relayer_stderr) = run_agent(
         "relayer",
@@ -412,6 +421,7 @@ fn main() -> ExitCode {
             &(kathy_messages / 2).to_string(),
             "--timeout",
             "1000",
+            "--mineforever",
         ])
         .current_dir("../typescript/infra")
         .stdout(Stdio::piped())
@@ -425,36 +435,19 @@ fn main() -> ExitCode {
     let loop_start = Instant::now();
     // give things a chance to fully start.
     sleep(Duration::from_secs(5));
-    let mut kathy_done = false;
     while RUNNING.fetch_and(true, Ordering::Relaxed) {
-        if !kathy_done {
-            // check if kathy has finished
-            match state.kathy.as_mut().unwrap().try_wait().unwrap() {
-                Some(s) if s.success() => {
-                    kathy_done = true;
-                }
-                Some(_) => {
-                    return ExitCode::from(1);
-                }
-                None => {}
-            }
-        }
         if ci_mode {
             // for CI we have to look for the end condition.
             let num_messages_expected = (kathy_messages / 2) as u32 * 2;
-            if kathy_done && termination_invariants_met(num_messages_expected) {
+            if termination_invariants_met(num_messages_expected).unwrap_or(false) {
                 // end condition reached successfully
-                println!("Kathy completed successfully and agent metrics look healthy");
+                println!("Agent metrics look healthy");
                 break;
             } else if (Instant::now() - loop_start).as_secs() > ci_mode_timeout {
                 // we ran out of time
-                eprintln!("CI timeout reached before queues emptied and or kathy finished.");
+                eprintln!("CI timeout reached before queues emptied");
                 return ExitCode::from(1);
             }
-        } else if kathy_done {
-            // when not in CI mode, run until kathy finishes, which should only happen if a
-            // number of rounds is specified.
-            break;
         }
         sleep(Duration::from_secs(5));
     }
@@ -462,37 +455,40 @@ fn main() -> ExitCode {
     ExitCode::from(0)
 }
 
-fn fetch_metric(port: &str, metric: &str, labels: &HashMap<&str, &str>) -> Vec<u32> {
+fn fetch_metric(port: &str, metric: &str, labels: &HashMap<&str, &str>) -> Result<Vec<u32>> {
     let resp = ureq::get(&format!("http://127.0.0.1:{}/metrics", port));
-    resp.call()
-        .unwrap()
-        .into_string()
-        .unwrap()
+    resp.call()?
+        .into_string()?
         .lines()
         .filter(|l| l.starts_with(metric))
         .filter(|l| {
             labels
                 .iter()
-                .all(|(k, v)| l.contains(&format!("{}=\"{}\"", k, v)))
+                .all(|(k, v)| l.contains(&format!("{k}=\"{v}\"")))
         })
-        .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
+        .map(|l| {
+            Ok(l.rsplit_once(' ')
+                .ok_or(eyre!("Unknown metric format"))?
+                .1
+                .parse::<u32>()?)
+        })
         .collect()
 }
 
 /// Use the metrics to check if the relayer queues are empty and the expected
 /// number of messages have been sent.
-fn termination_invariants_met(num_expected_messages: u32) -> bool {
-    let lengths = fetch_metric("9092", "hyperlane_submitter_queue_length", &hashmap! {});
+fn termination_invariants_met(num_expected_messages: u32) -> Result<bool> {
+    let lengths = fetch_metric("9092", "hyperlane_submitter_queue_length", &hashmap! {})?;
     assert!(!lengths.is_empty(), "Could not find queue length metric");
     if lengths.into_iter().any(|n| n != 0) {
         println!("<E2E> Relayer queues not empty");
-        return false;
+        return Ok(false);
     };
 
     // Also ensure the counter is as expected (total number of messages), summed
     // across all mailboxes.
     let msg_processed_count =
-        fetch_metric("9092", "hyperlane_messages_processed_count", &hashmap! {})
+        fetch_metric("9092", "hyperlane_messages_processed_count", &hashmap! {})?
             .iter()
             .sum::<u32>();
     if msg_processed_count != num_expected_messages {
@@ -500,14 +496,14 @@ fn termination_invariants_met(num_expected_messages: u32) -> bool {
             "<E2E> Relayer has {} processed messages, expected {}",
             msg_processed_count, num_expected_messages
         );
-        return false;
+        return Ok(false);
     }
 
     let gas_payment_events_count = fetch_metric(
         "9092",
         "hyperlane_contract_sync_stored_events",
         &hashmap! {"data_type" => "gas_payments"},
-    )
+    )?
     .iter()
     .sum::<u32>();
     // TestSendReceiver randomly breaks gas payments up into
@@ -517,14 +513,14 @@ fn termination_invariants_met(num_expected_messages: u32) -> bool {
             "<E2E> Relayer has {} gas payment events, expected at least {}",
             gas_payment_events_count, num_expected_messages
         );
-        return false;
+        return Ok(false);
     }
 
     let dispatched_messages_scraped = fetch_metric(
         "9093",
         "hyperlane_contract_sync_stored_events",
         &hashmap! {"data_type" => "message_dispatch"},
-    )
+    )?
     .iter()
     .sum::<u32>();
     if dispatched_messages_scraped != num_expected_messages {
@@ -532,29 +528,14 @@ fn termination_invariants_met(num_expected_messages: u32) -> bool {
             "<E2E> Scraper has scraped {} dispatched messages, expected {}",
             dispatched_messages_scraped, num_expected_messages
         );
-        return false;
-    }
-
-    let delivered_messages_scraped = fetch_metric(
-        "9093",
-        "hyperlane_contract_sync_stored_events",
-        &hashmap! {"data_type" => "message_delivery"},
-    )
-    .iter()
-    .sum::<u32>();
-    if delivered_messages_scraped != num_expected_messages {
-        println!(
-            "<E2E> Scraper has scraped {} delivered messages, expected {}",
-            delivered_messages_scraped, num_expected_messages
-        );
-        return false;
+        return Ok(false);
     }
 
     let gas_payments_scraped = fetch_metric(
         "9093",
         "hyperlane_contract_sync_stored_events",
         &hashmap! {"data_type" => "gas_payment"},
-    )
+    )?
     .iter()
     .sum::<u32>();
     // The relayer and scraper should have the same number of gas payments.
@@ -563,9 +544,24 @@ fn termination_invariants_met(num_expected_messages: u32) -> bool {
             "<E2E> Scraper has scraped {} gas payments, expected {}",
             gas_payments_scraped, num_expected_messages
         );
-        false
+        return Ok(false);
+    }
+
+    let delivered_messages_scraped = fetch_metric(
+        "9093",
+        "hyperlane_contract_sync_stored_events",
+        &hashmap! {"data_type" => "message_delivery"},
+    )?
+    .iter()
+    .sum::<u32>();
+    if delivered_messages_scraped != num_expected_messages {
+        println!(
+            "<E2E> Scraper has scraped {} delivered messages, expected {}",
+            delivered_messages_scraped, num_expected_messages
+        );
+        Ok(false)
     } else {
-        true
+        Ok(true)
     }
 }
 

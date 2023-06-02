@@ -2,7 +2,7 @@ use async_trait::async_trait;
 
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    InterchainSecurityModule, H256,
+    InterchainSecurityModule, H256, ModuleType,
 };
 
 use crate::{solana::pubkey::Pubkey, ConnectionConf};
@@ -44,10 +44,8 @@ impl HyperlaneChain for SealevelInterchainSecurityModule {
 
 #[async_trait]
 impl InterchainSecurityModule for SealevelInterchainSecurityModule {
-    async fn module_type(&self) -> ChainResult<u8> {
+    async fn module_type(&self) -> ChainResult<ModuleType> {
         // TODO: actually get this from the chain
-
-        // Legacy multisig
-        Ok(3)
+        Ok(ModuleType::MessageIdMultisig)
     }
 }

@@ -13,7 +13,7 @@ use hyperlane_core::{
     ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, Decode as _, Encode as _,
     HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
     HyperlaneProvider, IndexRange, Indexer, LogMeta, Mailbox, MessageIndexer, TxCostEstimate,
-    TxOutcome, H256, U256,
+    TxOutcome, H256, U256, accumulator::incremental::IncrementalMerkle,
 };
 use jsonrpc_core::futures_util::TryFutureExt;
 use tracing::{debug, error, instrument, trace, warn};
@@ -302,18 +302,9 @@ impl std::fmt::Debug for SealevelMailbox {
 impl Mailbox for SealevelMailbox {
     #[instrument(err, ret, skip(self))]
     async fn count(&self, _maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        // TODO don't duplicate this code, write generic helper function
-        let outbox_account = self
-            .rpc_client
-            .get_account(&self.outbox.0)
-            .await
-            .map_err(ChainCommunicationError::from_other)?;
-        let outbox = contract::OutboxAccount::fetch(&mut outbox_account.data.as_ref())
-            .map_err(ChainCommunicationError::from_other)?
-            .into_inner();
+        let tree = self.tree(_maybe_lag).await?;
 
-        outbox
-            .tree
+            tree
             .count()
             .try_into()
             .map_err(ChainCommunicationError::from_other)
@@ -340,7 +331,7 @@ impl Mailbox for SealevelMailbox {
     }
 
     #[instrument(err, ret, skip(self))]
-    async fn latest_checkpoint(&self, lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
+    async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
         assert!(
             lag.is_none(),
             "Sealevel does not support querying point-in-time"
@@ -355,9 +346,21 @@ impl Mailbox for SealevelMailbox {
             .map_err(ChainCommunicationError::from_other)?
             .into_inner();
 
-        let root = outbox.tree.root();
-        let count: u32 = outbox
-            .tree
+        Ok(outbox.tree)
+    }
+
+    #[instrument(err, ret, skip(self))]
+    async fn latest_checkpoint(&self, lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
+        assert!(
+            lag.is_none(),
+            "Sealevel does not support querying point-in-time"
+        );
+
+        let tree = self.tree(lag).await?;
+
+        let root = tree.root();
+        let count: u32 = 
+            tree
             .count()
             .try_into()
             .map_err(ChainCommunicationError::from_other)?;

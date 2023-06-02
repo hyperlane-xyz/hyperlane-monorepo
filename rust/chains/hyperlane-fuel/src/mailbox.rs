@@ -4,6 +4,7 @@ use std::num::NonZeroU64;
 
 use async_trait::async_trait;
 use fuels::prelude::{Bech32ContractId, WalletUnlocked};
+use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use tracing::instrument;
 
 use hyperlane_core::{
@@ -78,6 +79,11 @@ impl Mailbox for FuelMailbox {
             .await
             .map(|r| r.value)
             .map_err(ChainCommunicationError::from_other)
+    }
+
+    #[instrument(level = "debug", err, ret, skip(self))]
+    async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
+        todo!()
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]

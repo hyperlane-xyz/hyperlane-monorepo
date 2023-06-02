@@ -135,7 +135,7 @@ impl SerialSubmitter {
     }
 }
 
-#[instrument(skip_all)]
+#[instrument(skip_all, fields(%domain))]
 async fn receive_task(
     domain: HyperlaneDomain,
     mut rx: mpsc::UnboundedReceiver<Box<DynPendingOperation>>,
@@ -152,7 +152,7 @@ async fn receive_task(
     bail!("Submitter receive channel was closed")
 }
 
-#[instrument(skip_all)]
+#[instrument(skip_all, fields(%domain))]
 async fn prepare_task(
     domain: HyperlaneDomain,
     prepare_queue: OpQueue,
@@ -200,7 +200,7 @@ async fn prepare_task(
     }
 }
 
-#[instrument(skip_all)]
+#[instrument(skip_all, fields(%domain))]
 async fn submit_task(
     domain: HyperlaneDomain,
     mut rx_submit: mpsc::Receiver<Box<DynPendingOperation>>,
@@ -234,7 +234,7 @@ async fn submit_task(
     bail!("Internal submitter channel was closed");
 }
 
-#[instrument(skip_all)]
+#[instrument(skip_all, fields(%domain))]
 async fn confirm_task(
     domain: HyperlaneDomain,
     prepare_queue: OpQueue,

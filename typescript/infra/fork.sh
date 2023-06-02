@@ -17,7 +17,7 @@ else
   exit 1
 fi
 
-anvil --fork-url $RPC_URL --block-time 3 --silent > /dev/null &
+anvil --fork-url $RPC_URL --block-time 1 --silent > /dev/null &
 ANVIL_PID=$!
 
 while ! cast bn &> /dev/null; do
