@@ -80,8 +80,9 @@ export function withContext<T>(args: yargs.Argv<T>) {
 
 export function withAgentRole<T>(args: yargs.Argv<T>) {
   return args
-    .describe('role', 'agent role or comma seperated list of roles')
-    .coerce('role', (role: string): Role[] => role.split(',').map(assertRole))
+    .describe('role', 'agent roles')
+    .array('role')
+    .coerce('role', (role: string[]): Role[] => role.map(assertRole))
     .demandOption('role')
     .alias('r', 'role');
 }
