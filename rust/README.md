@@ -66,6 +66,7 @@ Configure additional env variables appropriately:
 HYP_BASE_DB=/tmp/fuji-validator-db
 CONFIG_FILES=./config/testnet_config.json
 HYP_BASE_TRACING_FMT=pretty
+DATABASE_URL=<READ_REPLICA_POSTGRES_URL> # for scraper
 ```
 
 Run binary with env copied from pod:
