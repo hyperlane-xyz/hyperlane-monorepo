@@ -140,24 +140,15 @@ fn transfer_from_remote(
     HyperlaneSealevelToken::<SyntheticPlugin>::transfer_from_remote(program_id, accounts, transfer)
 }
 
+/// Gets the account metas required for the `TransferFromRemote` instruction.
 fn transfer_from_remote_account_metas(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     transfer: TransferFromRemote,
 ) -> ProgramResult {
-    let account_metas =
-        HyperlaneSealevelToken::<SyntheticPlugin>::transfer_from_remote_account_metas(
-            program_id, accounts, transfer,
-        )?;
-    // Wrap it in the SimulationReturnData because serialized account_metas
-    // may end with zero byte(s), which are incorrectly truncated as
-    // simulated transaction return data.
-    // See `SimulationReturnData` for details.
-    let bytes = SimulationReturnData::new(account_metas)
-        .try_to_vec()
-        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
-    set_return_data(&bytes[..]);
-    Ok(())
+    HyperlaneSealevelToken::<SyntheticPlugin>::transfer_from_remote_account_metas(
+        program_id, accounts, transfer,
+    )
 }
 
 /// Enrolls a remote router.

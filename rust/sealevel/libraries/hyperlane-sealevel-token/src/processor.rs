@@ -491,7 +491,8 @@ where
         Ok(())
     }
 
-    /// Gets the account metas required by the `TransferFromRemote` instruction.
+    /// Gets the account metas required by the `TransferFromRemote` instruction,
+    /// serializes them, and sets them as return data.
     ///
     /// Accounts:
     /// 0.   [] The token PDA, which is the PDA with the seeds `HANDLE_ACCOUNT_METAS_PDA_SEEDS`.
@@ -499,7 +500,7 @@ where
         program_id: &Pubkey,
         accounts: &[AccountInfo],
         transfer: TransferFromRemote,
-    ) -> Result<Vec<SerializableAccountMeta>, ProgramError> {
+    ) -> ProgramResult {
         let accounts_iter = &mut accounts.iter();
 
         let mut message_reader = std::io::Cursor::new(transfer.message);
@@ -513,7 +514,7 @@ where
         let (transfer_out_account_metas, writeable_recipient) =
             T::transfer_out_account_metas(program_id, &token, &message)?;
 
-        let mut accounts = vec![
+        let mut accounts: Vec<SerializableAccountMeta> = vec![
             AccountMeta::new_readonly(solana_program::system_program::id(), false).into(),
             AccountMeta::new_readonly(spl_noop::id(), false).into(),
             AccountMeta::new_readonly(*token_account_info.key, false).into(),
@@ -526,7 +527,16 @@ where
         ];
         accounts.extend(transfer_out_account_metas);
 
-        Ok(accounts)
+        // Wrap it in the SimulationReturnData because serialized account_metas
+        // may end with zero byte(s), which are incorrectly truncated as
+        // simulated transaction return data.
+        // See `SimulationReturnData` for details.
+        let bytes = SimulationReturnData::new(accounts)
+            .try_to_vec()
+            .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+        set_return_data(&bytes[..]);
+
+        Ok(())
     }
 
     /// Enrolls a remote router.
@@ -652,7 +662,8 @@ where
         Ok(())
     }
 
-    /// Gets the account metas required to get the ISM.
+    /// Gets the account metas required to get the ISM, serializes them,
+    /// and sets them as return data.
     ///
     /// Accounts:
     ///   None

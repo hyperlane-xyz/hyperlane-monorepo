@@ -208,6 +208,12 @@ struct TokenInit {
     mailbox: Pubkey,
     #[arg(value_enum)]
     token_type: TokenType,
+    #[arg(long, short)]
+    interchain_security_module: Option<Pubkey>,
+    #[arg(long, short, default_value_t = 9)]
+    decimals: u8,
+    #[arg(long, short, default_value_t = 18)]
+    remote_decimals: u8,
 }
 
 #[derive(Args)]
@@ -526,6 +532,9 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
 
             let ixn = HtInstruction::Init(HtInit {
                 mailbox: init.mailbox,
+                interchain_security_module: init.interchain_security_module,
+                decimals: init.decimals,
+                remote_decimals: init.remote_decimals,
             });
 
             // Accounts:

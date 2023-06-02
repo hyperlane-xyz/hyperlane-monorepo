@@ -1,16 +1,13 @@
 //! Program processor.
 
-use borsh::BorshSerialize;
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_message_recipient_interface::MessageRecipientInstruction;
 use hyperlane_sealevel_token_lib::{
     instruction::{Init, TransferFromRemote, TransferRemote},
     processor::HyperlaneSealevelToken,
 };
-use serializable_account_meta::SimulationReturnData;
 use solana_program::{
-    account_info::AccountInfo, entrypoint, entrypoint::ProgramResult, msg,
-    program::set_return_data, program_error::ProgramError, pubkey::Pubkey,
+    account_info::AccountInfo, entrypoint, entrypoint::ProgramResult, msg, pubkey::Pubkey,
 };
 
 use crate::{instruction::Instruction as TokenIxn, plugin::CollateralPlugin};
@@ -154,19 +151,9 @@ fn transfer_from_remote_account_metas(
     accounts: &[AccountInfo],
     transfer: TransferFromRemote,
 ) -> ProgramResult {
-    let account_metas =
-        HyperlaneSealevelToken::<CollateralPlugin>::transfer_from_remote_account_metas(
-            program_id, accounts, transfer,
-        )?;
-    // Wrap it in the SimulationReturnData because serialized account_metas
-    // may end with zero byte(s), which are incorrectly truncated as
-    // simulated transaction return data.
-    // See `SimulationReturnData` for details.
-    let bytes = SimulationReturnData::new(account_metas)
-        .try_to_vec()
-        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
-    set_return_data(&bytes[..]);
-    Ok(())
+    HyperlaneSealevelToken::<CollateralPlugin>::transfer_from_remote_account_metas(
+        program_id, accounts, transfer,
+    )
 }
 
 /// Enrolls a remote router.
