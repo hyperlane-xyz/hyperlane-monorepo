@@ -73,30 +73,29 @@ export abstract class AgentHelmManager {
     }
 
     const values = helmifyValues(await this.helmValues());
-    // if (action == HelmCommand.InstallOrUpgrade) {
-    //   // Delete secrets to avoid them being stale
-    //   const cmd = [
-    //     'kubectl',
-    //     'delete',
-    //     'secrets',
-    //     '--namespace',
-    //     this.namespace,
-    //     '--selector',
-    //     `app.kubernetes.io/instance=${this.helmReleaseName}`,
-    //   ];
-    //   try {
-    //     await execCmd(cmd, {}, false, false);
-    //   } catch (e) {
-    //     console.error(e);
-    //   }
-    // }
+    if (action == HelmCommand.InstallOrUpgrade) {
+      // Delete secrets to avoid them being stale
+      const cmd = [
+        'kubectl',
+        'delete',
+        'secrets',
+        '--namespace',
+        this.namespace,
+        '--selector',
+        `app.kubernetes.io/instance=${this.helmReleaseName}`,
+      ];
+      try {
+        await execCmd(cmd, {}, false, false);
+      } catch (e) {
+        console.error(e);
+      }
+    }
 
     await buildHelmChartDependencies(this.helmChartPath);
 
     const cmd = [
       'helm',
       action,
-      '--dry-run',
       this.helmReleaseName,
       this.helmChartPath,
       '--create-namespace',
