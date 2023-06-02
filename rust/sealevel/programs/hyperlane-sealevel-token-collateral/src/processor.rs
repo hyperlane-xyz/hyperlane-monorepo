@@ -3,14 +3,14 @@
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_message_recipient_interface::MessageRecipientInstruction;
 use hyperlane_sealevel_token_lib::{
-    instruction::{Init, TransferFromRemote, TransferRemote},
+    instruction::{Init, Instruction as TokenIxn, TransferFromRemote, TransferRemote},
     processor::HyperlaneSealevelToken,
 };
 use solana_program::{
     account_info::AccountInfo, entrypoint, entrypoint::ProgramResult, msg, pubkey::Pubkey,
 };
 
-use crate::{instruction::Instruction as TokenIxn, plugin::CollateralPlugin};
+use crate::plugin::CollateralPlugin;
 
 #[cfg(not(feature = "no-entrypoint"))]
 entrypoint!(process_instruction);

@@ -24,13 +24,12 @@ use hyperlane_sealevel_message_recipient_interface::{
 };
 use hyperlane_sealevel_token_collateral::{
     hyperlane_token_ata_payer_pda_seeds, hyperlane_token_escrow_pda_seeds,
-    instruction::Instruction as HyperlaneTokenInstruction, plugin::CollateralPlugin,
-    processor::process_instruction,
+    plugin::CollateralPlugin, processor::process_instruction,
 };
 use hyperlane_sealevel_token_lib::{
     accounts::{convert_decimals, HyperlaneToken, HyperlaneTokenAccount},
     hyperlane_token_pda_seeds,
-    instruction::{Init, TransferRemote},
+    instruction::{Init, Instruction as HyperlaneTokenInstruction, TransferRemote},
     message::TokenMessage,
 };
 use hyperlane_test_utils::{

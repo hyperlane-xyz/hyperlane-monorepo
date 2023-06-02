@@ -4,7 +4,6 @@
 // #![deny(missing_docs)] // FIXME
 #![deny(unsafe_code)]
 
-pub mod instruction;
 pub mod plugin;
 pub mod processor;
 
