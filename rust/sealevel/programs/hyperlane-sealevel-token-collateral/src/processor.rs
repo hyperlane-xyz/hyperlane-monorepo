@@ -1,4 +1,4 @@
-//! TODO
+//! Program processor.
 
 use borsh::BorshSerialize;
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
@@ -18,6 +18,7 @@ use crate::{instruction::Instruction as TokenIxn, plugin::CollateralPlugin};
 #[cfg(not(feature = "no-entrypoint"))]
 entrypoint!(process_instruction);
 
+/// Processes an instruction.
 pub fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -89,8 +90,8 @@ pub fn process_instruction(
 /// 1. [writable] The token PDA account.
 /// 2. [writable] The dispatch authority PDA account.
 /// 3. [signer] The payer and access control owner of the program.
-/// 4. [] The mint.
-/// 5. [executable] The SPL token 2022 program.
+/// 4. [executable] The SPL token program for the mint, i.e. either SPL token program or the 2022 version.
+/// 5. [] The mint.
 /// 6. [executable] The Rent sysvar program.
 /// 7. [writable] The escrow PDA account.
 /// 8. [writable] The ATA payer PDA account.

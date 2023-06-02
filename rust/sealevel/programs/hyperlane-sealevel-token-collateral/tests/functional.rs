@@ -272,8 +272,8 @@ async fn initialize_hyperlane_token(
                 // 1. [writable] The token PDA account.
                 // 2. [writable] The dispatch authority PDA account.
                 // 3. [signer] The payer.
-                // 4. [] The mint.
-                // 5. [executable] The SPL token program for the mint.
+                // 4. [executable] The SPL token program for the mint, i.e. either SPL token program or the 2022 version.
+                // 5. [] The mint.
                 // 6. [executable] The Rent sysvar program.
                 // 7. [writable] The escrow PDA account.
                 // 8. [writable] The ATA payer PDA account.
@@ -281,8 +281,8 @@ async fn initialize_hyperlane_token(
                 AccountMeta::new(token_account_key, false),
                 AccountMeta::new(dispatch_authority_key, false),
                 AccountMeta::new_readonly(payer.pubkey(), true),
-                AccountMeta::new(*mint, false),
                 AccountMeta::new_readonly(*spl_token_program, false),
+                AccountMeta::new(*mint, false),
                 AccountMeta::new_readonly(solana_program::sysvar::rent::id(), false),
                 AccountMeta::new(escrow_account_key, false),
                 AccountMeta::new(ata_payer_account_key, false),

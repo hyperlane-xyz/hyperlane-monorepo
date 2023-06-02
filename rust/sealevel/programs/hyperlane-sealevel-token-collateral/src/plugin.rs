@@ -1,4 +1,5 @@
-use crate::error::Error;
+//! A plugin for the Hyperlane token program that escrows SPL tokens as collateral.
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_sealevel_token_lib::{
     accounts::HyperlaneToken, message::TokenMessage, processor::HyperlaneSealevelTokenPlugin,
@@ -31,6 +32,8 @@ macro_rules! hyperlane_token_escrow_pda_seeds {
     }};
 }
 
+/// Seeds relating to the PDA account that acts as the payer for
+/// ATA creation.
 #[macro_export]
 macro_rules! hyperlane_token_ata_payer_pda_seeds {
     () => {{
@@ -49,9 +52,13 @@ macro_rules! hyperlane_token_ata_payer_pda_seeds {
 pub struct CollateralPlugin {
     /// The SPL token program, i.e. either SPL token program or the 2022 version.
     pub spl_token_program: Pubkey,
+    /// The mint.
     pub mint: Pubkey,
+    /// The escrow PDA account.
     pub escrow: Pubkey,
+    /// The escrow PDA bump seed.
     pub escrow_bump: u8,
+    /// The ATA payer PDA bump seed.
     pub ata_payer_bump: u8,
 }
 
@@ -59,8 +66,8 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
     /// Initializes the plugin.
     ///
     /// Accounts:
-    /// 0. [] The mint.
-    /// 1. [executable] The SPL token program for the mint, i.e. either SPL token program or the 2022 version.
+    /// 0. [executable] The SPL token program for the mint, i.e. either SPL token program or the 2022 version.
+    /// 1. [] The mint.
     /// 2. [executable] The Rent sysvar program.
     /// 3. [writable] The escrow PDA account.
     /// 4. [writable] The ATA payer PDA account.
@@ -71,10 +78,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
         payer_account_info: &'a AccountInfo<'b>,
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
     ) -> Result<Self, ProgramError> {
-        // Account 0: The mint.
-        let mint_account_info = next_account_info(accounts_iter)?;
-
-        // Account 1: The SPL token program.
+        // Account 0: The SPL token program.
         // This can either be the original SPL token program or the 2022 version.
         // This is saved in the HyperlaneToken plugin data so that future interactions
         // are done with the correct SPL token program.
@@ -83,6 +87,12 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
             && spl_token_account_info.key != &spl_token::id()
         {
             return Err(ProgramError::IncorrectProgramId);
+        }
+
+        // Account 1: The mint.
+        let mint_account_info = next_account_info(accounts_iter)?;
+        if mint_account_info.owner != spl_token_account_info.key {
+            return Err(ProgramError::IllegalOwner);
         }
 
         // Account 2: The Rent sysvar program.
@@ -358,7 +368,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
         let ata_payer_lamports = ata_payer_account_info.lamports();
         let ata_payer_rent_exemption_requirement = Rent::default().minimum_balance(0);
         if ata_payer_lamports < ata_payer_rent_exemption_requirement {
-            return Err(ProgramError::from(Error::AtaBalanceTooLow));
+            return Err(ProgramError::AccountNotRentExempt);
         }
 
         let transfer_instruction = transfer_checked(
