@@ -9,7 +9,7 @@ interface IInterchainSecurityModule {
         LEGACY_MULTISIG,
         MERKLE_ROOT_MULTISIG,
         MESSAGE_ID_MULTISIG,
-        OPTIMISM
+        POLYGON
     }
 
     /**

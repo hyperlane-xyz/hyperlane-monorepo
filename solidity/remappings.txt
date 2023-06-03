@@ -3,4 +3,4 @@ forge-std/=lib/forge-std/src/
 @openzeppelin=../node_modules/@openzeppelin
 @eth-optimism=../node_modules/@eth-optimism
 @arbitrum=../node_modules/@arbitrum
-fx-portal=../node_modules/@maticnetwork/fx-portal
+@maticnetwork/fx-portal=../node_modules/@maticnetwork/fx-portal
