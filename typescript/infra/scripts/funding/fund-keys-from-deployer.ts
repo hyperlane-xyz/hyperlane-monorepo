@@ -243,6 +243,7 @@ async function main() {
   }
 
   await submitMetrics(metricsRegister, 'key-funder');
+  console.log(await metricsRegister.metrics());
 
   if (failureOccurred) {
     error('At least one failure occurred when funding');
@@ -252,7 +253,6 @@ async function main() {
 
 // Funds keys for a single context
 class ContextFunder {
-  public readonly chains: ChainName[];
   igp: HyperlaneIgp;
 
   constructor(
@@ -263,11 +263,6 @@ class ContextFunder {
     public readonly rolesToFund: Role[],
     public readonly skipIgpClaim: boolean,
   ) {
-    const uniqueChains = new Set(
-      keys.map((key) => key.chainName!).filter((chain) => chain !== undefined),
-    );
-
-    this.chains = Array.from(uniqueChains);
     this.igp = HyperlaneIgp.fromEnvironment(
       deployEnvToSdkEnv[this.environment],
       multiProvider,
@@ -346,7 +341,7 @@ class ContextFunder {
     rolesToFund: Role[],
     skipIgpClaim: boolean,
   ) {
-    const agentConfig = await getAgentConfig(context, environment);
+    const agentConfig = getAgentConfig(context, environment);
     const keys = getAllCloudAgentKeys(agentConfig);
     await Promise.all(keys.map((key) => key.fetch()));
     return new ContextFunder(
@@ -364,29 +359,28 @@ class ContextFunder {
   async fund(): Promise<boolean> {
     let failureOccurred = false;
 
-    const promises = Object.entries(this.getChainKeys()).map(
-      async ([chain, keys]) => {
-        if (keys.length > 0) {
-          if (!this.skipIgpClaim) {
-            failureOccurred ||= await gracefullyHandleError(
-              () => this.attemptToClaimFromIgp(chain),
-              chain,
-              'Error claiming from IGP',
-            );
-          }
-
+    const chainKeys = this.getChainKeys();
+    const promises = Object.entries(chainKeys).map(async ([chain, keys]) => {
+      if (keys.length > 0) {
+        if (!this.skipIgpClaim) {
           failureOccurred ||= await gracefullyHandleError(
-            () => this.bridgeIfL2(chain),
+            () => this.attemptToClaimFromIgp(chain),
             chain,
-            'Error bridging to L2',
+            'Error claiming from IGP',
           );
         }
-        for (const key of keys) {
-          const failure = await this.attemptToFundKey(key, chain);
-          failureOccurred ||= failure;
-        }
-      },
-    );
+
+        failureOccurred ||= await gracefullyHandleError(
+          () => this.bridgeIfL2(chain),
+          chain,
+          'Error bridging to L2',
+        );
+      }
+      for (const key of keys) {
+        const failure = await this.attemptToFundKey(key, chain);
+        failureOccurred ||= failure;
+      }
+    });
 
     try {
       await Promise.all(promises);
@@ -405,8 +399,18 @@ class ContextFunder {
     );
     for (const role of this.rolesToFund) {
       const keys = this.getKeysWithRole(role);
-      for (const chain of this.chains) {
-        chainKeys[chain] = [...chainKeys[chain], ...keys];
+      for (const key of keys) {
+        if (key.role == Role.Relayer || key.role == Role.Kathy) {
+          const chains = getAgentConfig(
+            key.context,
+            key.environment,
+          ).contextChainNames;
+          for (const chain of chains) {
+            chainKeys[chain].push(key);
+          }
+        } else {
+          throw Error(`Unsupported role ${role}`);
+        }
       }
     }
     return chainKeys;
