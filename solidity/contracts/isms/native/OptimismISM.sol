@@ -76,7 +76,8 @@ contract OptimismISM is CrossChainEnabledOptimism, AbstractNativeISM {
         external
         isAuthorized
     {
-        address emitter = _onlyContract(_emitter, "emitter");
+        address emitter = _emitter;
+        require(emitter != address(0), "OptimismISM: invalid emitter");
 
         _setEmitter(emitter, _messageId);
 

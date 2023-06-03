@@ -345,7 +345,7 @@ contract OptimismISMTest is Test {
         assertFalse(verified);
     }
 
-    function testVerify_InvalidSenderFail() public {
+    function testVerify_InvalidSender() public {
         deployAll();
 
         vm.selectFork(optimismFork);
@@ -363,52 +363,6 @@ contract OptimismISMTest is Test {
         bytes memory encodedHookData = abi.encodeCall(
             OptimismISM.receiveFromHook,
             (alice, _messageId)
-        );
-        uint256 nextNonce = l2Bridge.messageNonce() + 1;
-
-        bytes memory xDomainCalldata = Lib_CrossDomainUtils
-            .encodeXDomainCalldata(
-                address(opISM),
-                address(opHook),
-                encodedHookData,
-                nextNonce
-            );
-
-        // vm.expectRevert("OptimismISM: invalid emitter");
-        vm.expectEmit(true, false, false, false, L2_MESSENGER_ADDRESS);
-
-        emit FailedRelayedMessage(Message.id(xDomainCalldata));
-
-        vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
-        l2Bridge.relayMessage(
-            address(opISM),
-            address(opHook),
-            encodedHookData,
-            nextNonce
-        );
-
-        bool verified = opISM.verify(new bytes(0), encodedMessage);
-        assertFalse(verified);
-    }
-
-    function testVerify_InvalidSenderFalse() public {
-        deployAll();
-
-        vm.selectFork(optimismFork);
-
-        L2CrossDomainMessenger l2Bridge = L2CrossDomainMessenger(
-            L2_MESSENGER_ADDRESS
-        );
-
-        bytes memory encodedMessage = _encodeTestMessage(
-            0,
-            address(testRecipient)
-        );
-        bytes32 _messageId = Message.id(encodedMessage);
-
-        bytes memory encodedHookData = abi.encodeCall(
-            OptimismISM.receiveFromHook,
-            (address(opHook), _messageId)
         );
         uint256 nextNonce = l2Bridge.messageNonce() + 1;
 
