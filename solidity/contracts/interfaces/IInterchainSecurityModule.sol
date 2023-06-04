@@ -6,6 +6,7 @@ interface IInterchainSecurityModule {
         UNUSED,
         ROUTING,
         AGGREGATION,
+        OPTIMISTIC,
         LEGACY_MULTISIG,
         MERKLE_ROOT_MULTISIG,
         MESSAGE_ID_MULTISIG
