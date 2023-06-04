@@ -1,3 +1,7 @@
+//! A plugin for the Hyperlane token program that mints synthetic
+//! tokens upon receiving a transfer from a remote chain, and burns
+//! synthetic tokens when transferring out to a remote chain.
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_sealevel_token_lib::{
     accounts::HyperlaneToken, message::TokenMessage, processor::HyperlaneSealevelTokenPlugin,
@@ -49,8 +53,11 @@ macro_rules! hyperlane_token_ata_payer_pda_seeds {
 /// synthetic tokens when transferring out to a remote chain.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Default)]
 pub struct SyntheticPlugin {
+    /// The mint / mint authority PDA account.
     pub mint: Pubkey,
+    /// The bump seed for the mint / mint authority PDA account.
     pub mint_bump: u8,
+    /// The bump seed for the ATA payer PDA account.
     pub ata_payer_bump: u8,
 }
 
