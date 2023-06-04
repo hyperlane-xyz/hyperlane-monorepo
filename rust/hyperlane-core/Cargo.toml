@@ -35,6 +35,7 @@ thiserror.workspace = true
 
 lazy_static = { workspace = true }
 primitive-types = { version = "*", features = ["impl-borsh", "impl-serde"] }
+derive_more.workspace = true
 
 [dev-dependencies]
 config.workspace = true
