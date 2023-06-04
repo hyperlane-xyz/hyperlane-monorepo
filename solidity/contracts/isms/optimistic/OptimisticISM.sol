@@ -17,10 +17,18 @@ import {IOptimisticIsm} from "../../interfaces/isms/IOptimisticIsm.sol";
  * interchain messages.
  */
 abstract contract OptimisticIsm is IOptimisticIsm, AccessControl {
+    // ============ Constants ============
+
+    // solhint-disable-next-line const-name-snakecase
+    uint8 public constant moduleType =
+        uint8(IInterchainSecurityModule.Types.OPTIMISTIC);
+
     // Could have used OZ Owner's library, but since we already use AccessControl
     // We can just use that one here too
     bytes32 public constant OWNER_ROLE = keccak256("OWNER_ROLE");
     bytes32 public constant WATCHER_ROLE = keccak256("WATCHER_ROLE");
+
+    // ============ Immutable state ============
 
     address private immutable owner;
 
@@ -30,17 +38,19 @@ abstract contract OptimisticIsm is IOptimisticIsm, AccessControl {
     // The fraud window before a message can be delivered
     uint256 private immutable fraudWindow;
 
+    // ============ Private state ============
+
     address private submoduleAddress;
     address[] private watchers;
 
     // Mapping for which watcher marked a submodule as compomised
-    mapping(address => mapping(address => bool)) public watcherSubmoduleFlag;
+    mapping(address => mapping(address => bool)) private watcherSubmoduleFlag;
     // How many times a submodule was flagged
-    mapping(address => uint256) public submoduleFlagCount;
+    mapping(address => uint256) private submoduleFlagCount;
     // The time the message was pre-verified
-    mapping(bytes32 => uint256) public preverifiedTimestamps;
+    mapping(bytes32 => uint256) private preverifiedTimestamps;
     // Mapping of messages that are marked as fraudulent
-    mapping(bytes32 => bool) public fraudulentMessages;
+    mapping(bytes32 => bool) private fraudulentMessages;
 
     // ============ Modifier Functions ============
 
@@ -82,6 +92,7 @@ abstract contract OptimisticIsm is IOptimisticIsm, AccessControl {
 
     function preVerify(bytes calldata _metadata, bytes calldata _message)
         external
+        onlyWatchers
         returns (bool)
     {
         require(
@@ -94,12 +105,12 @@ abstract contract OptimisticIsm is IOptimisticIsm, AccessControl {
         return true;
     }
 
-    function markFraudulent(bytes32 _id) external {
+    function markFraudulent(bytes32 _id) external onlyWatchers {
         delete preverifiedTimestamps[_id];
         fraudulentMessages[_id] = true;
     }
 
-    function markCompromised(address _submodule) external {
+    function markCompromised(address _submodule) external onlyWatchers {
         require(
             watcherSubmoduleFlag[submodule][msg.sender] == false,
             "Watcher already flagged that submodule"
@@ -123,8 +134,9 @@ abstract contract OptimisticIsm is IOptimisticIsm, AccessControl {
      * @param _message Formatted Hyperlane message (see Message.sol).
      */
     function verify(bytes calldata _metadata, bytes calldata _message)
-        public
+        external
         view
+        onlyWatchers
         returns (bool)
     {
         bytes32 _id = Message.id(_message);
