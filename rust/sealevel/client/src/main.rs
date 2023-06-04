@@ -20,15 +20,16 @@ use hyperlane_sealevel_mailbox::{
 };
 use hyperlane_sealevel_recipient_echo::ID as RECIPIENT_ECHO_PROG_ID;
 use hyperlane_sealevel_token::{
-    hyperlane_token_ata_payer_pda_seeds, hyperlane_token_mint_pda_seeds,
-    instruction::Instruction as HtInstruction, plugin::SyntheticPlugin,
+    hyperlane_token_ata_payer_pda_seeds, hyperlane_token_mint_pda_seeds, plugin::SyntheticPlugin,
     spl_associated_token_account::get_associated_token_address_with_program_id, spl_token_2022,
     ID as HYPERLANE_TOKEN_PROG_ID,
 };
 use hyperlane_sealevel_token_lib::{
     accounts::HyperlaneTokenAccount,
     hyperlane_token_pda_seeds,
-    instruction::{Init as HtInit, TransferRemote as HtTransferRemote},
+    instruction::{
+        Init as HtInit, Instruction as HtInstruction, TransferRemote as HtTransferRemote,
+    },
 };
 use hyperlane_sealevel_token_native::{
     hyperlane_token_native_collateral_pda_seeds, plugin::NativePlugin,

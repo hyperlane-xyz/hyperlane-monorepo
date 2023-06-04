@@ -49,9 +49,9 @@ macro_rules! hyperlane_token_ata_payer_pda_seeds {
 /// synthetic tokens when transferring out to a remote chain.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Default)]
 pub struct SyntheticPlugin {
-    mint: Pubkey,
-    mint_bump: u8,
-    ata_payer_bump: u8,
+    pub mint: Pubkey,
+    pub mint_bump: u8,
+    pub ata_payer_bump: u8,
 }
 
 impl SyntheticPlugin {
