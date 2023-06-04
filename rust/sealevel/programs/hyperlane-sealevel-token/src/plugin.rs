@@ -114,6 +114,9 @@ impl SyntheticPlugin {
 
 impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
     /// Initializes the plugin.
+    /// Note this will create a PDA account that will serve as the mint,
+    /// so the transaction calling this instruction must include a subsequent
+    /// instruction initializing the mint with the SPL token 2022 program.
     ///
     /// Accounts:
     /// 0. [writable] The mint / mint authority PDA account.
