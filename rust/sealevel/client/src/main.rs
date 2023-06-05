@@ -605,7 +605,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                         &mint_account,
                         &mint_account,
                         None,
-                        8, // Local decimals
+                        init.decimals,
                     )
                     .unwrap(),
                 );
