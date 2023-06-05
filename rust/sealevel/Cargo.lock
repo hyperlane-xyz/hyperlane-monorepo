@@ -1720,6 +1720,7 @@ name = "hyperlane-sealevel-multisig-ism-message-id"
 version = "0.1.0"
 dependencies = [
  "access-control",
+ "account-utils",
  "borsh",
  "ecdsa-signature",
  "hex",
