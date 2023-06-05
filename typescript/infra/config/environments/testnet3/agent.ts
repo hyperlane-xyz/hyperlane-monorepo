@@ -35,7 +35,7 @@ const contextBase = {
 const roleBase = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    tag: '40cc4a6-20230420-080111',
+    tag: '2deb9b8-20230602-205342',
   },
   connectionType: AgentConnectionType.HttpFallback,
 } as const;
@@ -62,12 +62,15 @@ const hyperlane: RootAgentConfig = {
   relayer: {
     ...roleBase,
     blacklist: [
-      ...releaseCandidateHelloworldMatchingList,
+      // ...releaseCandidateHelloworldMatchingList,
+      // {
+      //   // In an effort to reduce some giant retry queues that resulted
+      //   // from spam txs to the old TestRecipient before we were charging for
+      //   // gas, we blacklist the old TestRecipient address.
+      //   recipientAddress: '0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE',
+      // },
       {
-        // In an effort to reduce some giant retry queues that resulted
-        // from spam txs to the old TestRecipient before we were charging for
-        // gas, we blacklist the old TestRecipient address.
-        recipientAddress: '0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE',
+        senderAddress: '*',
       },
     ],
     gasPaymentEnforcement,
@@ -87,10 +90,6 @@ const releaseCandidate: RootAgentConfig = {
   rolesWithKeys: [Role.Relayer, Role.Kathy],
   relayer: {
     ...roleBase,
-    docker: {
-      repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-      tag: '2deb9b8-20230602-205342',
-    },
     whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
     transactionGasLimit: 750000,
