@@ -58,7 +58,7 @@ fn categorize_client_response<R>(
             }
         }
         Err(JsonRpcError(e)) => {
-            let msg = e.message.to_ascii_lowercase().replace("_", " ");
+            let msg = e.message.to_ascii_lowercase().replace('_', " ");
             if e.code == 429
                 || msg.contains("429")
                 || msg.contains("rate limit")
