@@ -74,6 +74,10 @@ const hyperlane: RootAgentConfig = {
   },
   validators: {
     ...roleBase,
+    docker: {
+      repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
+      tag: '40cc4a6-20230420-080111',
+    },
     chains: validators,
   },
   scraper: {
