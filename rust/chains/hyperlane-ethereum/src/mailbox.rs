@@ -9,12 +9,14 @@ use async_trait::async_trait;
 use ethers::abi::AbiEncode;
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
+use hyperlane_core::accumulator::incremental::IncrementalMerkle;
+use hyperlane_core::accumulator::TREE_DEPTH;
 use tracing::instrument;
 
 use hyperlane_core::{
     utils::fmt_bytes, ChainCommunicationError, ChainResult, Checkpoint, ContractLocator,
     HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProtocolError, HyperlaneProvider, Indexer, LogMeta, Mailbox, MailboxIndexer,
+    HyperlaneProtocolError, HyperlaneProvider, Indexer, LogMeta, Mailbox, MessageIndexer,
     RawHyperlaneMessage, TxCostEstimate, TxOutcome, H160, H256, U256,
 };
 
@@ -23,6 +25,9 @@ use crate::contracts::i_mailbox::{IMailbox as EthereumMailboxInternal, ProcessCa
 use crate::trait_builder::BuildableWithProvider;
 use crate::tx::{fill_tx_gas_params, report_tx};
 use crate::EthereumProvider;
+
+/// derived from `forge inspect Mailbox storage --pretty`
+const MERKLE_TREE_CONTRACT_SLOT: u32 = 152;
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
 where
@@ -33,13 +38,13 @@ where
     }
 }
 
-pub struct MailboxIndexerBuilder {
+pub struct MessageIndexerBuilder {
     pub finality_blocks: u32,
 }
 
 #[async_trait]
-impl BuildableWithProvider for MailboxIndexerBuilder {
-    type Output = Box<dyn MailboxIndexer>;
+impl BuildableWithProvider for MessageIndexerBuilder {
+    type Output = Box<dyn MessageIndexer>;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
@@ -54,7 +59,28 @@ impl BuildableWithProvider for MailboxIndexerBuilder {
     }
 }
 
-#[derive(Debug)]
+pub struct DeliveryIndexerBuilder {
+    pub finality_blocks: u32,
+}
+
+#[async_trait]
+impl BuildableWithProvider for DeliveryIndexerBuilder {
+    type Output = Box<dyn Indexer<H256>>;
+
+    async fn build_with_provider<M: Middleware + 'static>(
+        &self,
+        provider: M,
+        locator: &ContractLocator,
+    ) -> Self::Output {
+        Box::new(EthereumMailboxIndexer::new(
+            Arc::new(provider),
+            locator,
+            self.finality_blocks,
+        ))
+    }
+}
+
+#[derive(Debug, Clone)]
 /// Struct that retrieves event data for an Ethereum mailbox
 pub struct EthereumMailboxIndexer<M>
 where
@@ -81,13 +107,7 @@ where
             finality_blocks,
         }
     }
-}
 
-#[async_trait]
-impl<M> Indexer for EthereumMailboxIndexer<M>
-where
-    M: Middleware + 'static,
-{
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         Ok(self
@@ -101,12 +121,16 @@ where
 }
 
 #[async_trait]
-impl<M> MailboxIndexer for EthereumMailboxIndexer<M>
+impl<M> Indexer<HyperlaneMessage> for EthereumMailboxIndexer<M>
 where
     M: Middleware + 'static,
 {
+    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+        self.get_finalized_block_number().await
+    }
+
     #[instrument(err, skip(self))]
-    async fn fetch_sorted_messages(
+    async fn fetch_logs(
         &self,
         from: u32,
         to: u32,
@@ -125,13 +149,34 @@ where
         events.sort_by(|a, b| a.0.nonce.cmp(&b.0.nonce));
         Ok(events)
     }
+}
+
+#[async_trait]
+impl<M> MessageIndexer for EthereumMailboxIndexer<M>
+where
+    M: Middleware + 'static,
+{
+    #[instrument(err, skip(self))]
+    async fn fetch_count_at_tip(&self) -> ChainResult<(u32, u32)> {
+        let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self as _).await?;
+        let base_call = self.contract.count();
+        let call_at_tip = base_call.block(u64::from(tip));
+        let count = call_at_tip.call().await?;
+        Ok((count, tip))
+    }
+}
+
+#[async_trait]
+impl<M> Indexer<H256> for EthereumMailboxIndexer<M>
+where
+    M: Middleware + 'static,
+{
+    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+        self.get_finalized_block_number().await
+    }
 
     #[instrument(err, skip(self))]
-    async fn fetch_delivered_messages(
-        &self,
-        from: u32,
-        to: u32,
-    ) -> ChainResult<Vec<(H256, LogMeta)>> {
+    async fn fetch_logs(&self, from: u32, to: u32) -> ChainResult<Vec<(H256, LogMeta)>> {
         Ok(self
             .contract
             .process_id_filter()
@@ -144,7 +189,6 @@ where
             .collect())
     }
 }
-
 pub struct MailboxBuilder {}
 
 #[async_trait]
@@ -292,6 +336,67 @@ where
             root: root.into(),
             index,
         })
+    }
+
+    #[instrument(level = "debug", err, ret, skip(self))]
+    #[allow(clippy::needless_range_loop)]
+    async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
+        let lag = lag.map(|v| v.get()).unwrap_or(0).into();
+
+        // use consistent block for all storage slot or view calls to prevent
+        // race conditions where tree contents change between calls
+        let fixed_block_number = self
+            .provider
+            .get_block_number()
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .saturating_sub(lag)
+            .into();
+
+        let expected_root = self
+            .contract
+            .root()
+            .block(fixed_block_number)
+            .call()
+            .await?
+            .into();
+
+        // TODO: migrate to single contract view call once mailbox is upgraded
+        // see https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/2250
+        // let branch = self.contract.branch().block(block_number).call().await;
+
+        let mut branch = [H256::zero(); TREE_DEPTH];
+
+        for index in 0..TREE_DEPTH {
+            let slot = U256::from(MERKLE_TREE_CONTRACT_SLOT) + index;
+            let mut location = [0u8; 32];
+            slot.to_big_endian(&mut location);
+
+            branch[index] = self
+                .provider
+                .get_storage_at(
+                    self.contract.address(),
+                    location.into(),
+                    Some(fixed_block_number),
+                )
+                .await
+                .map_err(ChainCommunicationError::from_other)?;
+        }
+
+        let count = self
+            .contract
+            .count()
+            .block(fixed_block_number)
+            .call()
+            .await? as usize;
+
+        let tree = IncrementalMerkle::new(branch, count);
+
+        // validate tree built from storage slot lookups matches expected
+        // result from root() view call at consistent block
+        assert_eq!(tree.root(), expected_root);
+
+        Ok(tree)
     }
 
     #[instrument(err, ret, skip(self))]

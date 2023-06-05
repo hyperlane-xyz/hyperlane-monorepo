@@ -9,7 +9,7 @@ version.workspace = true
 
 [dependencies]
 prometheus = "0.13"
-ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-02-10-01" }
+ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-06-01" }
 derive_builder = "0.12"
 derive-new = "0.5"
 async-trait = { version = "0.1", default-features = false }
