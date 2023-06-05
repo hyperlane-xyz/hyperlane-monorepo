@@ -6,7 +6,7 @@ use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint,
     entrypoint::ProgramResult,
-    program::{invoke, invoke_signed},
+    program::invoke,
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
@@ -183,6 +183,7 @@ fn process_announce(
     create_replay_protection_account(
         program_id,
         payer_info,
+        system_program_info,
         replay_protection_info,
         replay_id,
         replay_protection_bump_seed,
@@ -314,6 +315,7 @@ fn update_validator_storage_locations<'a>(
 fn create_replay_protection_account<'a>(
     program_id: &Pubkey,
     payer_info: &AccountInfo<'a>,
+    system_program_info: &AccountInfo<'a>,
     replay_protection_info: &AccountInfo<'a>,
     replay_id: [u8; 32],
     replay_protection_bump_seed: u8,
@@ -322,19 +324,14 @@ fn create_replay_protection_account<'a>(
     let replay_protection_account_size = replay_protection_account.size();
 
     // Create the account.
-    invoke_signed(
-        &system_instruction::create_account(
-            payer_info.key,
-            replay_protection_info.key,
-            Rent::default().minimum_balance(replay_protection_account_size),
-            replay_protection_account_size.try_into().unwrap(),
-            program_id,
-        ),
-        &[payer_info.clone(), replay_protection_info.clone()],
-        &[replay_protection_pda_seeds!(
-            replay_id,
-            replay_protection_bump_seed
-        )],
+    create_pda_account(
+        payer_info,
+        &Rent::get()?,
+        replay_protection_account_size,
+        program_id,
+        system_program_info,
+        replay_protection_info,
+        replay_protection_pda_seeds!(replay_id, replay_protection_bump_seed),
     )?;
 
     Ok(())
