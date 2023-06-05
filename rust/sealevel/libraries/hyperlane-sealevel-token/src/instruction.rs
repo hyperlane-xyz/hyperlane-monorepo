@@ -2,20 +2,52 @@
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{H256, U256};
-use solana_program::pubkey::Pubkey;
+use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
+use solana_program::{program_error::ProgramError, pubkey::Pubkey};
+
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+pub enum Instruction {
+    /// Initialize the program.
+    Init(Init),
+    /// Transfer tokens to a remote recipient.
+    TransferRemote(TransferRemote),
+    /// Enroll a remote router. Only owner.
+    EnrollRemoteRouter(RemoteRouterConfig),
+    /// Enroll multiple remote routers. Only owner.
+    EnrollRemoteRouters(Vec<RemoteRouterConfig>),
+    /// Set the interchain security module. Only owner.
+    SetInterchainSecurityModule(Option<Pubkey>),
+    /// Transfer ownership of the program. Only owner.
+    TransferOwnership(Option<Pubkey>),
+}
+
+impl Instruction {
+    pub fn from_instruction_data(data: &[u8]) -> Result<Self, ProgramError> {
+        Self::try_from_slice(data).map_err(|_| ProgramError::InvalidInstructionData)
+    }
+
+    pub fn into_instruction_data(self) -> Result<Vec<u8>, ProgramError> {
+        self.try_to_vec()
+            .map_err(|err| ProgramError::BorshIoError(err.to_string()))
+    }
+}
 
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub struct Init {
     /// The address of the mailbox contract.
     pub mailbox: Pubkey,
+    /// The interchain security module.
+    pub interchain_security_module: Option<Pubkey>,
+    /// The local decimals.
+    pub decimals: u8,
+    /// The remote decimals.
+    pub remote_decimals: u8,
 }
 
 /// Transfers `amount_or_id` token to `recipient` on `destination` domain.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub struct TransferRemote {
     pub destination_domain: u32,
-    /// TODO imply this from Router
-    pub destination_program_id: H256,
     pub recipient: H256,
     pub amount_or_id: U256,
 }

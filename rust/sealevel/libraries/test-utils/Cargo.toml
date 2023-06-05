@@ -1,0 +1,22 @@
+[package]
+name = "hyperlane-test-utils"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+no-entrypoint = []
+
+[dependencies]
+hyperlane-sealevel-mailbox = { path = "../../programs/mailbox", features = ["no-entrypoint"] }
+solana-program = "=1.14.13"
+solana-program-test = "=1.14.13"
+solana-sdk = "=1.14.13"
+
+[dependencies.spl-token-2022]
+version = "=0.5.0"
+features = ["no-entrypoint"]
+git = "https://github.com/tkporter/eclipse-program-library"
+branch = "trevor/steven/eclipse-1.14.13/with-tlv-lib"
+
+[lib]
+crate-type = ["cdylib", "lib"]

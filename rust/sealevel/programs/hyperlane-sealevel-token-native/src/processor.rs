@@ -1,23 +1,21 @@
-//! TODO
+//! Program processor.
 
-use borsh::BorshSerialize;
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_message_recipient_interface::MessageRecipientInstruction;
 use hyperlane_sealevel_token_lib::{
-    instruction::{Init, TransferFromRemote, TransferRemote},
+    instruction::{Init, Instruction as TokenIxn, TransferFromRemote, TransferRemote},
     processor::HyperlaneSealevelToken,
 };
-use serializable_account_meta::SimulationReturnData;
 use solana_program::{
-    account_info::AccountInfo, entrypoint, entrypoint::ProgramResult, msg,
-    program::set_return_data, program_error::ProgramError, pubkey::Pubkey,
+    account_info::AccountInfo, entrypoint, entrypoint::ProgramResult, msg, pubkey::Pubkey,
 };
 
-use crate::{instruction::Instruction as TokenIxn, plugin::NativePlugin};
+use crate::plugin::NativePlugin;
 
 #[cfg(not(feature = "no-entrypoint"))]
 entrypoint!(process_instruction);
 
+/// Processes an instruction.
 pub fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -29,18 +27,10 @@ pub fn process_instruction(
     {
         return match message_recipient_instruction {
             MessageRecipientInstruction::InterchainSecurityModule => {
-                // Return None, indicating the default ISM should be used
-                // TODO change this
-                let ism: Option<Pubkey> = None;
-                set_return_data(
-                    &ism.try_to_vec()
-                        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
-                );
-                Ok(())
+                interchain_security_module(program_id, accounts)
             }
             MessageRecipientInstruction::InterchainSecurityModuleAccountMetas => {
-                // No account metas are required, no return data necessary.
-                Ok(())
+                interchain_security_module_account_metas(program_id)
             }
             MessageRecipientInstruction::Handle(handle) => transfer_from_remote(
                 program_id,
@@ -80,6 +70,9 @@ pub fn process_instruction(
         TokenIxn::TransferOwnership(new_owner) => {
             transfer_ownership(program_id, accounts, new_owner)
         }
+        TokenIxn::SetInterchainSecurityModule(new_ism) => {
+            set_interchain_security_module(program_id, accounts, new_ism)
+        }
     }
     .map_err(|err| {
         msg!("{}", err);
@@ -104,13 +97,17 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
 /// then dispatches a message to the remote recipient.
 ///
 /// Accounts:
-/// 0. [executable] The spl_noop program.
-/// 1. [] The token PDA account.
-/// 2. [executable] The mailbox program.
-/// 3. [writeable] The mailbox outbox account.
-/// 4. [signer] The token sender.
-/// 5. [executable] The system program.
-/// 6. [writeable] The native token collateral PDA account.
+/// 0.   [executable] The system program.
+/// 1.   [executable] The spl_noop program.
+/// 2.   [] The token PDA account.
+/// 3.   [executable] The mailbox program.
+/// 4.   [writeable] The mailbox outbox account.
+/// 5.   [] Message dispatch authority.
+/// 6.   [signer] The token sender and mailbox payer.
+/// 7.   [signer] Unique message account.
+/// 8.   [writeable] Message storage PDA.
+/// 9.   [executable] The system program.
+/// 10.  [writeable] The native token collateral PDA account.
 fn transfer_remote(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -120,13 +117,13 @@ fn transfer_remote(
 }
 
 /// Accounts:
-/// 0. [signer] mailbox authority
-/// 1. [executable] system_program
-/// 2. [executable] spl_noop
-/// 3. [] hyperlane_token storage
-/// 4. [] recipient wallet address
-/// 5. [executable] The system program.
-/// 6. [writeable] The native token collateral PDA account.
+/// 0.   [signer] Mailbox processor authority specific to this program.
+/// 1.   [executable] system_program
+/// 2.   [executable] spl_noop
+/// 3.   [] hyperlane_token storage
+/// 4.   [writeable] recipient wallet address
+/// 5.   [executable] The system program.
+/// 6.   [writeable] The native token collateral PDA account.
 fn transfer_from_remote(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -140,18 +137,9 @@ fn transfer_from_remote_account_metas(
     accounts: &[AccountInfo],
     transfer: TransferFromRemote,
 ) -> ProgramResult {
-    let account_metas = HyperlaneSealevelToken::<NativePlugin>::transfer_from_remote_account_metas(
+    HyperlaneSealevelToken::<NativePlugin>::transfer_from_remote_account_metas(
         program_id, accounts, transfer,
-    )?;
-    // Wrap it in the SimulationReturnData because serialized account_metas
-    // may end with zero byte(s), which are incorrectly truncated as
-    // simulated transaction return data.
-    // See `SimulationReturnData` for details.
-    let bytes = SimulationReturnData::new(account_metas)
-        .try_to_vec()
-        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
-    set_return_data(&bytes[..]);
-    Ok(())
+    )
 }
 
 /// Enrolls a remote router.
@@ -191,4 +179,35 @@ fn transfer_ownership(
     new_owner: Option<Pubkey>,
 ) -> ProgramResult {
     HyperlaneSealevelToken::<NativePlugin>::transfer_ownership(program_id, accounts, new_owner)
+}
+
+/// Gets the interchain security module, returning it as a serialized Option<Pubkey>.
+///
+/// Accounts:
+/// 0. [] The token PDA account.
+fn interchain_security_module(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+    HyperlaneSealevelToken::<NativePlugin>::interchain_security_module(program_id, accounts)
+}
+
+/// Gets the account metas for getting the interchain security module.
+///
+/// Accounts:
+///   None
+fn interchain_security_module_account_metas(program_id: &Pubkey) -> ProgramResult {
+    HyperlaneSealevelToken::<NativePlugin>::interchain_security_module_account_metas(program_id)
+}
+
+/// Lets the owner set the interchain security module.
+///
+/// Accounts:
+/// 0. [writeable] The token PDA account.
+/// 1. [signer] The access control owner.
+fn set_interchain_security_module(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    new_ism: Option<Pubkey>,
+) -> ProgramResult {
+    HyperlaneSealevelToken::<NativePlugin>::set_interchain_security_module(
+        program_id, accounts, new_ism,
+    )
 }

@@ -13,6 +13,9 @@ pub enum Error {
 
     #[error("Associated token account balance is too low")]
     AtaBalanceTooLow = 3,
+
+    #[error("Integer overflow")]
+    IntegerOverflow = 4,
     // #[error("Hyperlane message is malformatted")]
     // MalformattedHyperlaneMessage = 2,
     // #[error("Unsupported message version")]

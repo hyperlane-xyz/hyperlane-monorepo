@@ -20,15 +20,16 @@ use hyperlane_sealevel_mailbox::{
 };
 use hyperlane_sealevel_recipient_echo::ID as RECIPIENT_ECHO_PROG_ID;
 use hyperlane_sealevel_token::{
-    hyperlane_token_ata_payer_pda_seeds, hyperlane_token_mint_pda_seeds,
-    instruction::Instruction as HtInstruction, plugin::SyntheticPlugin,
+    hyperlane_token_ata_payer_pda_seeds, hyperlane_token_mint_pda_seeds, plugin::SyntheticPlugin,
     spl_associated_token_account::get_associated_token_address_with_program_id, spl_token_2022,
     ID as HYPERLANE_TOKEN_PROG_ID,
 };
 use hyperlane_sealevel_token_lib::{
     accounts::HyperlaneTokenAccount,
     hyperlane_token_pda_seeds,
-    instruction::{Init as HtInit, TransferRemote as HtTransferRemote},
+    instruction::{
+        Init as HtInit, Instruction as HtInstruction, TransferRemote as HtTransferRemote,
+    },
 };
 use hyperlane_sealevel_token_native::{
     hyperlane_token_native_collateral_pda_seeds, plugin::NativePlugin,
@@ -208,6 +209,12 @@ struct TokenInit {
     mailbox: Pubkey,
     #[arg(value_enum)]
     token_type: TokenType,
+    #[arg(long, short)]
+    interchain_security_module: Option<Pubkey>,
+    #[arg(long, short, default_value_t = 9)]
+    decimals: u8,
+    #[arg(long, short, default_value_t = 18)]
+    remote_decimals: u8,
 }
 
 #[derive(Args)]
@@ -526,6 +533,9 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
 
             let ixn = HtInstruction::Init(HtInit {
                 mailbox: init.mailbox,
+                interchain_security_module: init.interchain_security_module,
+                decimals: init.decimals,
+                remote_decimals: init.remote_decimals,
             });
 
             // Accounts:
@@ -595,7 +605,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                         &mint_account,
                         &mint_account,
                         None,
-                        8, // Local decimals
+                        init.decimals,
                     )
                     .unwrap(),
                 );
@@ -756,7 +766,6 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
 
             let ixn = HtInstruction::TransferRemote(HtTransferRemote {
                 destination_domain: xfer.destination_domain,
-                destination_program_id: xfer.destination_token_program_id.to_bytes().into(),
                 recipient: xfer.recipient.to_bytes().into(),
                 amount_or_id: xfer.amount.into(),
             });
