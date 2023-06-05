@@ -85,6 +85,10 @@ const releaseCandidate: RootAgentConfig = {
   rolesWithKeys: [Role.Relayer, Role.Kathy],
   relayer: {
     ...roleBase,
+    docker: {
+      repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
+      tag: '2deb9b8-20230602-205342',
+    },
     whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
     transactionGasLimit: 750000,
