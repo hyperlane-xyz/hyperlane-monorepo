@@ -401,7 +401,7 @@ where
     /// 1.   [executable] system_program
     /// 2.   [executable] spl_noop
     /// 3.   [] hyperlane_token storage
-    /// 4.   [] recipient wallet address
+    /// 4.   [depends on plugin] recipient wallet address
     /// 5..N [??..??] Plugin-specific accounts.
     pub fn transfer_from_remote(
         program_id: &Pubkey,

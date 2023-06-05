@@ -96,13 +96,17 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
 /// then dispatches a message to the remote recipient.
 ///
 /// Accounts:
-/// 0. [executable] The spl_noop program.
-/// 1. [] The token PDA account.
-/// 2. [executable] The mailbox program.
-/// 3. [writeable] The mailbox outbox account.
-/// 4. [signer] The token sender.
-/// 5. [executable] The system program.
-/// 6. [writeable] The native token collateral PDA account.
+/// 0.   [executable] The system program.
+/// 1.   [executable] The spl_noop program.
+/// 2.   [] The token PDA account.
+/// 3.   [executable] The mailbox program.
+/// 4.   [writeable] The mailbox outbox account.
+/// 5.   [] Message dispatch authority.
+/// 6.   [signer] The token sender and mailbox payer.
+/// 7.   [signer] Unique message account.
+/// 8.   [writeable] Message storage PDA.
+/// 9.   [executable] The system program.
+/// 10.  [writeable] The native token collateral PDA account.
 fn transfer_remote(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -112,13 +116,13 @@ fn transfer_remote(
 }
 
 /// Accounts:
-/// 0. [signer] Mailbox process authority specific to this program.
-/// 1. [executable] system_program
-/// 2. [executable] spl_noop
-/// 3. [] hyperlane_token storage
-/// 4. [] recipient wallet address
-/// 5. [executable] The system program.
-/// 6. [writeable] The native token collateral PDA account.
+/// 0.   [signer] Mailbox processor authority specific to this program.
+/// 1.   [executable] system_program
+/// 2.   [executable] spl_noop
+/// 3.   [] hyperlane_token storage
+/// 4.   [writeable] recipient wallet address
+/// 5.   [executable] The system program.
+/// 6.   [writeable] The native token collateral PDA account.
 fn transfer_from_remote(
     program_id: &Pubkey,
     accounts: &[AccountInfo],

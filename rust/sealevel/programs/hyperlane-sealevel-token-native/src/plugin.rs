@@ -35,7 +35,7 @@ macro_rules! hyperlane_token_native_collateral_pda_seeds {
 /// native tokens out to recipients when receiving from a remote chain.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Default)]
 pub struct NativePlugin {
-    native_collateral_bump: u8,
+    pub native_collateral_bump: u8,
 }
 
 impl NativePlugin {
@@ -50,9 +50,8 @@ impl NativePlugin {
             hyperlane_token_native_collateral_pda_seeds!(token.plugin_data.native_collateral_bump);
         let expected_native_collateral_key =
             Pubkey::create_program_address(native_collateral_seeds, program_id)?;
-        if native_collateral_account_info.key != &expected_native_collateral_key
-            || native_collateral_account_info.owner != program_id
-        {
+
+        if native_collateral_account_info.key != &expected_native_collateral_key {
             return Err(ProgramError::InvalidArgument);
         }
         Ok(())

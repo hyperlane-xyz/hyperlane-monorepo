@@ -69,7 +69,16 @@ pub async fn initialize_mailbox(
     }
 }
 
-// ========= Token utils =========
+// ========= Balance utils =========
+
+pub async fn assert_lamports(
+    banks_client: &mut BanksClient,
+    account: &Pubkey,
+    expected_lamports: u64,
+) {
+    let account = banks_client.get_account(*account).await.unwrap().unwrap();
+    assert_eq!(account.lamports, expected_lamports);
+}
 
 pub async fn assert_token_balance(
     banks_client: &mut BanksClient,
