@@ -22,6 +22,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "account-utils"
+version = "0.1.0"
+dependencies = [
+ "solana-program",
+ "solana-program-test",
+ "solana-sdk",
+]
+
+[[package]]
 name = "adler"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1678,6 +1687,7 @@ name = "hyperlane-sealevel-mailbox"
 version = "0.1.0"
 dependencies = [
  "access-control",
+ "account-utils",
  "base64 0.13.1",
  "borsh",
  "bs58",
@@ -1710,6 +1720,7 @@ name = "hyperlane-sealevel-multisig-ism-message-id"
 version = "0.1.0"
 dependencies = [
  "access-control",
+ "account-utils",
  "borsh",
  "ecdsa-signature",
  "hex",
@@ -1740,6 +1751,7 @@ dependencies = [
 name = "hyperlane-sealevel-token"
 version = "0.1.0"
 dependencies = [
+ "account-utils",
  "borsh",
  "bs58",
  "hyperlane-core",
@@ -1766,6 +1778,7 @@ dependencies = [
 name = "hyperlane-sealevel-token-collateral"
 version = "0.1.0"
 dependencies = [
+ "account-utils",
  "borsh",
  "bs58",
  "hyperlane-core",
@@ -1793,6 +1806,7 @@ name = "hyperlane-sealevel-token-lib"
 version = "0.1.0"
 dependencies = [
  "access-control",
+ "account-utils",
  "borsh",
  "bs58",
  "hyperlane-core",
@@ -1816,6 +1830,7 @@ dependencies = [
 name = "hyperlane-sealevel-token-native"
 version = "0.1.0"
 dependencies = [
+ "account-utils",
  "borsh",
  "bs58",
  "hyperlane-core",
@@ -1840,6 +1855,7 @@ dependencies = [
 name = "hyperlane-sealevel-validator-announce"
 version = "0.1.0"
 dependencies = [
+ "account-utils",
  "borsh",
  "ecdsa-signature",
  "hex",

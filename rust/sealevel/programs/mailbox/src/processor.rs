@@ -14,10 +14,10 @@ use solana_program::{
     program::{get_return_data, invoke, invoke_signed, set_return_data},
     program_error::ProgramError,
     pubkey::Pubkey,
-    system_instruction,
     sysvar::{clock::Clock, rent::Rent, Sysvar},
 };
 
+use account_utils::create_pda_account;
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
 };
@@ -80,8 +80,10 @@ pub fn process_instruction(
 /// 3. [writable] The outbox PDA account.
 fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramResult {
     // On chain create appears to use realloc which is limited to 1024 byte increments.
-    let mailbox_size = 2048;
+    let mailbox_size: usize = 2048;
     let accounts_iter = &mut accounts.iter();
+
+    let rent = Rent::get()?;
 
     // Account 0: The system program.
     let system_program = next_account_info(accounts_iter)?;
@@ -102,16 +104,15 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
     if &inbox_key != inbox_account.key {
         return Err(ProgramError::InvalidArgument);
     }
-    invoke_signed(
-        &system_instruction::create_account(
-            payer_account.key,
-            inbox_account.key,
-            Rent::default().minimum_balance(mailbox_size.try_into().unwrap()),
-            mailbox_size,
-            program_id,
-        ),
-        &[payer_account.clone(), inbox_account.clone()],
-        &[mailbox_inbox_pda_seeds!(inbox_bump)],
+    // Create the inbox PDA account.
+    create_pda_account(
+        payer_account,
+        &rent,
+        mailbox_size,
+        program_id,
+        system_program,
+        inbox_account,
+        mailbox_inbox_pda_seeds!(inbox_bump),
     )?;
 
     // Account 3: The outbox PDA account.
@@ -121,16 +122,15 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
     if &outbox_key != outbox_account.key {
         return Err(ProgramError::InvalidArgument);
     }
-    invoke_signed(
-        &system_instruction::create_account(
-            payer_account.key,
-            outbox_account.key,
-            Rent::default().minimum_balance(mailbox_size.try_into().unwrap()),
-            mailbox_size,
-            program_id,
-        ),
-        &[payer_account.clone(), outbox_account.clone()],
-        &[mailbox_outbox_pda_seeds!(outbox_bump)],
+    // Create the outbox PDA account.
+    create_pda_account(
+        payer_account,
+        &rent,
+        mailbox_size,
+        program_id,
+        system_program,
+        outbox_account,
+        mailbox_outbox_pda_seeds!(inbox_bump),
     )?;
 
     let inbox = Inbox {
@@ -345,19 +345,14 @@ fn inbox_process(
     ));
     let processed_message_account_data_size = processed_message_account_data.size();
     // Mark the message as delivered by creating the processed message account.
-    invoke_signed(
-        &system_instruction::create_account(
-            payer_account.key,
-            processed_message_account.key,
-            Rent::default().minimum_balance(processed_message_account_data_size),
-            processed_message_account_data_size.try_into().unwrap(),
-            program_id,
-        ),
-        &[payer_account.clone(), processed_message_account.clone()],
-        &[mailbox_processed_message_pda_seeds!(
-            message_id,
-            expected_processed_message_bump
-        )],
+    create_pda_account(
+        payer_account,
+        &Rent::get()?,
+        processed_message_account_data_size,
+        program_id,
+        system_program,
+        processed_message_account,
+        mailbox_processed_message_pda_seeds!(message_id, expected_processed_message_bump),
     )?;
     // Write the processed message data to the processed message account.
     processed_message_account_data.store(processed_message_account, false)?;
@@ -392,7 +387,6 @@ fn inbox_process(
     };
     invoke(&noop_cpi_log, &[])?;
 
-    // TODO maybe remove?
     msg!("Hyperlane inbox processed message {:?}", message_id);
 
     Ok(())
@@ -692,19 +686,14 @@ fn outbox_dispatch(
         encoded_message,
     ));
     let dispatched_message_account_size: usize = dispatched_message_account.size();
-    invoke_signed(
-        &system_instruction::create_account(
-            payer_account.key,
-            dispatched_message_pda.key,
-            Rent::default().minimum_balance(dispatched_message_account_size),
-            dispatched_message_account_size.try_into().unwrap(),
-            program_id,
-        ),
-        &[payer_account.clone(), dispatched_message_pda.clone()],
-        &[mailbox_dispatched_message_pda_seeds!(
-            unique_message_account.key,
-            dispatched_message_bump
-        )],
+    create_pda_account(
+        payer_account,
+        &Rent::get()?,
+        dispatched_message_account_size,
+        program_id,
+        system_program_account,
+        dispatched_message_pda,
+        mailbox_dispatched_message_pda_seeds!(unique_message_account.key, dispatched_message_bump),
     )?;
     dispatched_message_account.store(dispatched_message_pda, false)?;
 

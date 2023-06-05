@@ -1,3 +1,4 @@
+use account_utils::create_pda_account;
 use ecdsa_signature::EcdsaSignature;
 use hyperlane_core::{Announcement, Signable};
 use hyperlane_sealevel_mailbox::accounts::SizedData;
@@ -5,11 +6,12 @@ use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint,
     entrypoint::ProgramResult,
-    program::{invoke, invoke_signed},
+    program::invoke,
     program_error::ProgramError,
     pubkey::Pubkey,
+    rent::Rent,
     system_instruction,
-    sysvar::rent::Rent,
+    sysvar::Sysvar,
 };
 
 use crate::{
@@ -93,16 +95,14 @@ pub fn process_init(
     };
     let validator_announce_account = ValidatorAnnounceAccount::from(validator_announce);
     let validator_announce_account_size = validator_announce_account.size();
-    invoke_signed(
-        &system_instruction::create_account(
-            payer_info.key,
-            validator_announce_info.key,
-            Rent::default().minimum_balance(validator_announce_account_size),
-            validator_announce_account_size.try_into().unwrap(),
-            program_id,
-        ),
-        &[payer_info.clone(), validator_announce_info.clone()],
-        &[validator_announce_pda_seeds!(validator_announce_bump_seed)],
+    create_pda_account(
+        payer_info,
+        &Rent::get()?,
+        validator_announce_account_size,
+        program_id,
+        system_program_info,
+        validator_announce_info,
+        validator_announce_pda_seeds!(validator_announce_bump_seed),
     )?;
 
     // Store the validator_announce_account.
@@ -174,6 +174,7 @@ fn process_announce(
     update_validator_storage_locations(
         program_id,
         payer_info,
+        system_program_info,
         validator_storage_locations_info,
         &announcement,
     )?;
@@ -182,6 +183,7 @@ fn process_announce(
     create_replay_protection_account(
         program_id,
         payer_info,
+        system_program_info,
         replay_protection_info,
         replay_id,
         replay_protection_bump_seed,
@@ -200,6 +202,7 @@ fn process_announce(
 fn update_validator_storage_locations<'a>(
     program_id: &Pubkey,
     payer_info: &AccountInfo<'a>,
+    system_program_info: &AccountInfo<'a>,
     validator_storage_locations_info: &AccountInfo<'a>,
     announcement: &AnnounceInstruction,
 ) -> Result<(), ProgramError> {
@@ -264,19 +267,17 @@ fn update_validator_storage_locations<'a>(
             let validator_storage_locations_size = validator_storage_locations_account.size();
 
             // Create the account.
-            invoke_signed(
-                &system_instruction::create_account(
-                    payer_info.key,
-                    validator_storage_locations_info.key,
-                    Rent::default().minimum_balance(validator_storage_locations_size),
-                    validator_storage_locations_size.try_into().unwrap(),
-                    program_id,
-                ),
-                &[payer_info.clone(), validator_storage_locations_info.clone()],
-                &[validator_storage_locations_pda_seeds!(
+            create_pda_account(
+                payer_info,
+                &Rent::get()?,
+                validator_storage_locations_size,
+                program_id,
+                system_program_info,
+                validator_storage_locations_info,
+                validator_storage_locations_pda_seeds!(
                     announcement.validator,
                     validator_storage_locations_bump_seed
-                )],
+                ),
             )?;
 
             (
@@ -288,7 +289,7 @@ fn update_validator_storage_locations<'a>(
     // Because it's possible that a realloc needs to occur, ensure the account
     // would be rent-exempt.
     let existing_serialized_size = validator_storage_locations_info.data_len();
-    let required_rent = Rent::default().minimum_balance(new_serialized_size);
+    let required_rent = Rent::get()?.minimum_balance(new_serialized_size);
     let lamports = validator_storage_locations_info.lamports();
     if lamports < required_rent {
         invoke(
@@ -314,6 +315,7 @@ fn update_validator_storage_locations<'a>(
 fn create_replay_protection_account<'a>(
     program_id: &Pubkey,
     payer_info: &AccountInfo<'a>,
+    system_program_info: &AccountInfo<'a>,
     replay_protection_info: &AccountInfo<'a>,
     replay_id: [u8; 32],
     replay_protection_bump_seed: u8,
@@ -322,19 +324,14 @@ fn create_replay_protection_account<'a>(
     let replay_protection_account_size = replay_protection_account.size();
 
     // Create the account.
-    invoke_signed(
-        &system_instruction::create_account(
-            payer_info.key,
-            replay_protection_info.key,
-            Rent::default().minimum_balance(replay_protection_account_size),
-            replay_protection_account_size.try_into().unwrap(),
-            program_id,
-        ),
-        &[payer_info.clone(), replay_protection_info.clone()],
-        &[replay_protection_pda_seeds!(
-            replay_id,
-            replay_protection_bump_seed
-        )],
+    create_pda_account(
+        payer_info,
+        &Rent::get()?,
+        replay_protection_account_size,
+        program_id,
+        system_program_info,
+        replay_protection_info,
+        replay_protection_pda_seeds!(replay_id, replay_protection_bump_seed),
     )?;
 
     Ok(())

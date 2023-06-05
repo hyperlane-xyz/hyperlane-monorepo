@@ -1,17 +1,18 @@
 use hyperlane_core::{Checkpoint, Decode, HyperlaneMessage, IsmType};
 
 use access_control::AccessControl;
+use account_utils::create_pda_account;
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint,
     entrypoint::ProgramResult,
     instruction::AccountMeta,
-    program::{invoke_signed, set_return_data},
+    program::set_return_data,
     program_error::ProgramError,
     pubkey::Pubkey,
-    system_instruction,
-    sysvar::rent::Rent,
+    rent::Rent,
+    sysvar::Sysvar,
 };
 
 use hyperlane_sealevel_mailbox::accounts::SizedData;
@@ -215,16 +216,14 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
         owner: Some(*owner_account.key),
     });
     let access_control_account_data_size = access_control_account.size();
-    invoke_signed(
-        &system_instruction::create_account(
-            owner_account.key,
-            access_control_pda_account.key,
-            Rent::default().minimum_balance(access_control_account_data_size),
-            access_control_account_data_size as u64,
-            program_id,
-        ),
-        &[owner_account.clone(), access_control_pda_account.clone()],
-        &[access_control_pda_seeds!(access_control_pda_bump_seed)],
+    create_pda_account(
+        owner_account,
+        &Rent::get()?,
+        access_control_account_data_size,
+        program_id,
+        system_program_account,
+        access_control_pda_account,
+        access_control_pda_seeds!(access_control_pda_bump_seed),
     )?;
 
     // Store the access control data.
@@ -430,16 +429,14 @@ fn set_validators_and_threshold(
             }
 
             // Create the domain PDA account.
-            invoke_signed(
-                &system_instruction::create_account(
-                    owner_account.key,
-                    domain_pda_account.key,
-                    Rent::default().minimum_balance(domain_pda_size),
-                    domain_pda_size as u64,
-                    program_id,
-                ),
-                &[owner_account.clone(), domain_pda_account.clone()],
-                &[domain_data_pda_seeds!(config.domain, domain_pda_bump)],
+            create_pda_account(
+                owner_account,
+                &Rent::get()?,
+                domain_pda_size,
+                program_id,
+                system_program_account,
+                domain_pda_account,
+                domain_data_pda_seeds!(config.domain, domain_pda_bump),
             )?;
 
             domain_pda_bump

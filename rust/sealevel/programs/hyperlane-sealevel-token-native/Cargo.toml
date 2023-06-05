@@ -7,6 +7,7 @@ edition = "2021"
 no-entrypoint = []
 
 [dependencies]
+account-utils = { path = "../../libraries/account-utils" }
 bs58 = "=0.4.0" # FIXME remove
 hyperlane-core = { path = "../../hyperlane-core" }
 hyperlane-sealevel-token-lib = { path = "../../libraries/hyperlane-sealevel-token" }

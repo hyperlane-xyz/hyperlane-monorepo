@@ -11,6 +11,7 @@ members = [
     "programs/hyperlane-sealevel-token-native",
     "programs/validator-announce",
     "libraries/access-control",
+    "libraries/account-utils",
     "libraries/ecdsa-signature",
     "libraries/interchain-security-module-interface",
     "libraries/message-recipient-interface",

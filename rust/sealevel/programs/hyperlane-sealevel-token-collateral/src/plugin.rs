@@ -1,5 +1,6 @@
 //! A plugin for the Hyperlane token program that escrows SPL tokens as collateral.
 
+use account_utils::{create_pda_account, verify_rent_exempt};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_sealevel_token_lib::{
     accounts::HyperlaneToken, message::TokenMessage, processor::HyperlaneSealevelTokenPlugin,
@@ -12,7 +13,7 @@ use solana_program::{
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
-    system_instruction, sysvar,
+    sysvar::{self, Sysvar},
 };
 use spl_associated_token_account::{
     get_associated_token_address_with_program_id,
@@ -78,17 +79,6 @@ impl CollateralPlugin {
         }
         Ok(())
     }
-
-    fn verify_ata_payer_is_rent_exempt(
-        ata_payer_account_info: &AccountInfo,
-    ) -> Result<(), ProgramError> {
-        let lamports = ata_payer_account_info.lamports();
-        let rent_exemption_requirement = Rent::default().minimum_balance(0);
-        if lamports < rent_exemption_requirement {
-            return Err(ProgramError::AccountNotRentExempt);
-        }
-        Ok(())
-    }
 }
 
 impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
@@ -102,7 +92,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
     /// 4. [writable] The ATA payer PDA account.
     fn initialize<'a, 'b>(
         program_id: &Pubkey,
-        _system_program: &'a AccountInfo<'b>,
+        system_program: &'a AccountInfo<'b>,
         _token_account_info: &'a AccountInfo<'b>,
         payer_account_info: &'a AccountInfo<'b>,
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
@@ -161,17 +151,17 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
                 Ok(u64::from_le_bytes(data))
             })?;
 
+        let rent = Rent::get()?;
+
         // Create escrow PDA owned by the SPL token program.
-        invoke_signed(
-            &system_instruction::create_account(
-                payer_account_info.key,
-                escrow_account_info.key,
-                Rent::default().minimum_balance(account_data_size.try_into().unwrap()),
-                account_data_size,
-                spl_token_account_info.key,
-            ),
-            &[payer_account_info.clone(), escrow_account_info.clone()],
-            &[hyperlane_token_escrow_pda_seeds!(escrow_bump)],
+        create_pda_account(
+            payer_account_info,
+            &rent,
+            account_data_size.try_into().unwrap(),
+            spl_token_account_info.key,
+            system_program,
+            escrow_account_info,
+            hyperlane_token_escrow_pda_seeds!(escrow_bump),
         )?;
 
         // And initialize the escrow account.
@@ -201,19 +191,17 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
         // Create the ATA payer.
         // This is a separate PDA because the ATA program requires
         // the payer to have no data in it.
-        invoke_signed(
-            &system_instruction::create_account(
-                payer_account_info.key,
-                ata_payer_account_info.key,
-                Rent::default().minimum_balance(0),
-                0,
-                // Grant ownership to the system program so that the ATA program
-                // can call into the system program with the ATA payer as the
-                // payer.
-                &solana_program::system_program::id(),
-            ),
-            &[payer_account_info.clone(), ata_payer_account_info.clone()],
-            &[hyperlane_token_ata_payer_pda_seeds!(ata_payer_bump)],
+        create_pda_account(
+            payer_account_info,
+            &rent,
+            0,
+            // Grant ownership to the system program so that the ATA program
+            // can call into the system program with the ATA payer as the
+            // payer.
+            &solana_program::system_program::id(),
+            system_program,
+            ata_payer_account_info,
+            hyperlane_token_ata_payer_pda_seeds!(ata_payer_bump),
         )?;
 
         Ok(Self {
@@ -391,7 +379,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
 
         // After potentially paying for the ATA creation, we need to make sure
         // the ATA payer still meets the rent-exemption requirements!
-        Self::verify_ata_payer_is_rent_exempt(ata_payer_account_info)?;
+        verify_rent_exempt(ata_payer_account_info, &Rent::get()?)?;
 
         let transfer_instruction = transfer_checked(
             spl_token_account_info.key,

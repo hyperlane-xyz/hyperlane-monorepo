@@ -7,6 +7,7 @@ edition = "2021"
 no-entrypoint = []
 
 [dependencies]
+account-utils = { path = "../../libraries/account-utils" }
 borsh = "0.9"
 solana-program = "=1.14.13"
 ecdsa-signature = { path = "../../libraries/ecdsa-signature" }

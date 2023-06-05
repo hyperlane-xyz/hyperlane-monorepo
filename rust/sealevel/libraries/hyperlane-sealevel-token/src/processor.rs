@@ -1,6 +1,7 @@
 //! TODO
 
 use access_control::AccessControl;
+use account_utils::create_pda_account;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{Decode, Encode as _, H256};
 use hyperlane_sealevel_connection_client::{
@@ -23,7 +24,7 @@ use solana_program::{
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
-    system_instruction,
+    sysvar::Sysvar,
 };
 use std::collections::HashMap;
 
@@ -195,32 +196,28 @@ where
             return Err(ProgramError::from(Error::ExtraneousAccount));
         }
 
+        let rent = Rent::get()?;
+
         // Create token account PDA
-        invoke_signed(
-            &system_instruction::create_account(
-                payer_account.key,
-                token_account.key,
-                Rent::default().minimum_balance(token_account_size),
-                token_account_size.try_into().unwrap(),
-                program_id,
-            ),
-            &[payer_account.clone(), token_account.clone()],
-            &[hyperlane_token_pda_seeds!(token_bump)],
+        create_pda_account(
+            payer_account,
+            &rent,
+            token_account_size,
+            program_id,
+            system_program,
+            token_account,
+            hyperlane_token_pda_seeds!(token_bump),
         )?;
 
         // Create dispatch authority PDA
-        invoke_signed(
-            &system_instruction::create_account(
-                payer_account.key,
-                dispatch_authority_account.key,
-                Rent::default().minimum_balance(0),
-                0,
-                program_id,
-            ),
-            &[payer_account.clone(), dispatch_authority_account.clone()],
-            &[mailbox_message_dispatch_authority_pda_seeds!(
-                dispatch_authority_bump
-            )],
+        create_pda_account(
+            payer_account,
+            &rent,
+            0,
+            program_id,
+            system_program,
+            dispatch_authority_account,
+            mailbox_message_dispatch_authority_pda_seeds!(dispatch_authority_bump),
         )?;
 
         let token: HyperlaneToken<T> = HyperlaneToken {

@@ -2,6 +2,7 @@
 //! tokens upon receiving a transfer from a remote chain, and burns
 //! synthetic tokens when transferring out to a remote chain.
 
+use account_utils::{create_pda_account, verify_rent_exempt};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_sealevel_token_lib::{
     accounts::HyperlaneToken, message::TokenMessage, processor::HyperlaneSealevelTokenPlugin,
@@ -15,7 +16,7 @@ use solana_program::{
     program_pack::Pack as _,
     pubkey::Pubkey,
     rent::Rent,
-    system_instruction,
+    sysvar::Sysvar,
 };
 use spl_associated_token_account::{
     get_associated_token_address_with_program_id,
@@ -99,17 +100,6 @@ impl SyntheticPlugin {
         }
         Ok(())
     }
-
-    fn verify_ata_payer_is_rent_exempt(
-        ata_payer_account_info: &AccountInfo,
-    ) -> Result<(), ProgramError> {
-        let lamports = ata_payer_account_info.lamports();
-        let rent_exemption_requirement = Rent::default().minimum_balance(0);
-        if lamports < rent_exemption_requirement {
-            return Err(ProgramError::AccountNotRentExempt);
-        }
-        Ok(())
-    }
 }
 
 impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
@@ -123,7 +113,7 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
     /// 1. [writable] The ATA payer PDA account.
     fn initialize<'a, 'b>(
         program_id: &Pubkey,
-        _system_program: &'a AccountInfo<'b>,
+        system_program: &'a AccountInfo<'b>,
         _token_account: &'a AccountInfo<'b>,
         payer_account: &'a AccountInfo<'b>,
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
@@ -136,18 +126,18 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
             return Err(ProgramError::InvalidArgument);
         }
 
+        let rent = Rent::get()?;
+
         // Create mint / mint authority PDA.
-        // Grant ownership to the SPL token program.
-        invoke_signed(
-            &system_instruction::create_account(
-                payer_account.key,
-                mint_account.key,
-                Rent::default().minimum_balance(Self::MINT_ACCOUNT_SIZE),
-                Self::MINT_ACCOUNT_SIZE.try_into().unwrap(),
-                &spl_token_2022::id(),
-            ),
-            &[payer_account.clone(), mint_account.clone()],
-            &[hyperlane_token_mint_pda_seeds!(mint_bump)],
+        // Grant ownership to the SPL token 2022 program.
+        create_pda_account(
+            payer_account,
+            &rent,
+            Self::MINT_ACCOUNT_SIZE,
+            &spl_token_2022::id(),
+            system_program,
+            mint_account,
+            hyperlane_token_mint_pda_seeds!(mint_bump),
         )?;
 
         // Account 1: ATA payer.
@@ -161,19 +151,17 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
         // Create the ATA payer.
         // This is a separate PDA because the ATA program requires
         // the payer to have no data in it.
-        invoke_signed(
-            &system_instruction::create_account(
-                payer_account.key,
-                ata_payer_account.key,
-                Rent::default().minimum_balance(0),
-                0,
-                // Grant ownership to the system program so that the ATA program
-                // can call into the system program with the ATA payer as the
-                // payer.
-                &solana_program::system_program::id(),
-            ),
-            &[payer_account.clone(), ata_payer_account.clone()],
-            &[hyperlane_token_ata_payer_pda_seeds!(ata_payer_bump)],
+        create_pda_account(
+            payer_account,
+            &rent,
+            0,
+            // Grant ownership to the system program so that the ATA program
+            // can call into the system program with the ATA payer as the
+            // payer.
+            &solana_program::system_program::id(),
+            system_program,
+            ata_payer_account,
+            hyperlane_token_ata_payer_pda_seeds!(ata_payer_bump),
         )?;
 
         Ok(Self {
@@ -311,7 +299,7 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
 
         // After potentially paying for the ATA creation, we need to make sure
         // the ATA payer still meets the rent-exemption requirements.
-        Self::verify_ata_payer_is_rent_exempt(ata_payer_account)?;
+        verify_rent_exempt(recipient_ata, &Rent::get()?)?;
 
         let mint_ixn = mint_to_checked(
             &spl_token_2022::id(),

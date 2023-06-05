@@ -25,11 +25,10 @@ use hyperlane_sealevel_token_lib::{
 };
 use hyperlane_test_utils::{
     assert_token_balance, assert_transaction_error, initialize_mailbox, new_funded_keypair,
-    transfer_lamports,
+    transfer_lamports, MailboxAccounts,
 };
 use solana_program::{
     instruction::{AccountMeta, Instruction},
-    program_pack::Pack,
     pubkey::Pubkey,
 };
 use solana_program_test::*;
@@ -49,8 +48,6 @@ const LOCAL_DECIMALS: u8 = 8;
 const LOCAL_DECIMALS_U32: u32 = LOCAL_DECIMALS as u32;
 const REMOTE_DOMAIN: u32 = 4321;
 const REMOTE_DECIMALS: u8 = 18;
-// Same for spl_token_2022 and spl_token
-const MINT_ACCOUNT_LEN: usize = spl_token_2022::state::Mint::LEN;
 
 async fn setup_client() -> (BanksClient, Keypair) {
     let program_id = hyperlane_sealevel_token::id();
@@ -307,9 +304,10 @@ async fn transfer_from_remote(
 ) -> Result<
     (
         BanksClient,
+        Keypair,
+        MailboxAccounts,
         HyperlaneTokenAccounts,
         Pubkey,
-        HyperlaneMessage,
     ),
     BanksClientError,
 > {
@@ -428,16 +426,16 @@ async fn transfer_from_remote(
 
     Ok((
         banks_client,
+        payer,
+        mailbox_accounts,
         hyperlane_token_accounts,
         recipient_associated_token_account,
-        message,
     ))
 }
 
 // Tests when the SPL token is the 2022 version
 #[tokio::test]
 async fn test_transfer_from_remote() {
-    let initial_escrow_balance = 100 * 10u64.pow(LOCAL_DECIMALS_U32);
     let local_transfer_amount = 69 * 10u64.pow(LOCAL_DECIMALS_U32);
     let remote_transfer_amount = convert_decimals(
         local_transfer_amount.into(),
@@ -446,10 +444,15 @@ async fn test_transfer_from_remote() {
     )
     .unwrap();
 
-    let (mut banks_client, hyperlane_token_accounts, recipient_associated_token_account, _) =
-        transfer_from_remote(remote_transfer_amount, None, None, None)
-            .await
-            .unwrap();
+    let (
+        mut banks_client,
+        _payer,
+        _mailbox_accounts,
+        _hyperlane_token_accounts,
+        recipient_associated_token_account,
+    ) = transfer_from_remote(remote_transfer_amount, None, None, None)
+        .await
+        .unwrap();
 
     // Check that the recipient's ATA got the tokens!
     assert_token_balance(
@@ -462,7 +465,6 @@ async fn test_transfer_from_remote() {
 
 #[tokio::test]
 async fn test_transfer_from_remote_errors_if_sender_not_router() {
-    let initial_escrow_balance = 100 * 10u64.pow(LOCAL_DECIMALS_U32);
     let local_transfer_amount = 69 * 10u64.pow(LOCAL_DECIMALS_U32);
     let remote_transfer_amount = convert_decimals(
         local_transfer_amount.into(),
@@ -492,7 +494,6 @@ async fn test_transfer_from_remote_errors_if_sender_not_router() {
 async fn test_transfer_from_remote_errors_if_process_authority_not_signer() {
     let program_id = hyperlane_sealevel_token::id();
     let mailbox_program_id = hyperlane_sealevel_mailbox::id();
-    let spl_token_program_id = spl_token_2022::id();
 
     let (mut banks_client, payer) = setup_client().await;
 
@@ -577,40 +578,18 @@ async fn test_transfer_from_remote_errors_if_process_authority_not_signer() {
     );
 }
 
-async fn test_transfer_remote(spl_token_program_id: Pubkey) {
+#[tokio::test]
+async fn test_transfer_remote() {
     let program_id = hyperlane_sealevel_token::id();
     let mailbox_program_id = hyperlane_sealevel_mailbox::id();
 
-    let (mut banks_client, payer) = setup_client().await;
-
-    let mailbox_accounts =
-        initialize_mailbox(&mut banks_client, &mailbox_program_id, &payer, LOCAL_DOMAIN).await;
-
-    let hyperlane_token_accounts =
-        initialize_hyperlane_token(&program_id, &mut banks_client, &payer)
-            .await
-            .unwrap();
-
-    // Enroll the remote router
-    let remote_router = H256::random();
-    enroll_remote_router(
-        &mut banks_client,
-        &program_id,
-        &payer,
-        &hyperlane_token_accounts.token,
-        REMOTE_DOMAIN,
-        remote_router,
-    )
-    .await
-    .unwrap();
-
-    let token_sender = new_funded_keypair(&mut banks_client, &payer, ONE_SOL_IN_LAMPORTS).await;
+    let token_sender = Keypair::new();
     let token_sender_pubkey = token_sender.pubkey();
 
     // Mint 100 tokens to the token sender's ATA.
     // We do this by just faking a transfer from remote.
     let sender_initial_balance = 100 * 10u64.pow(LOCAL_DECIMALS_U32);
-    let (mut banks_client, hyperlane_token_accounts, token_sender_ata, transfer_from_message) =
+    let (mut banks_client, payer, mailbox_accounts, hyperlane_token_accounts, token_sender_ata) =
         transfer_from_remote(
             // The amount of remote tokens is expected
             convert_decimals(
@@ -625,6 +604,28 @@ async fn test_transfer_remote(spl_token_program_id: Pubkey) {
         )
         .await
         .unwrap();
+
+    // Give the token_sender a SOL balance to pay tx fees.
+    transfer_lamports(
+        &mut banks_client,
+        &payer,
+        &token_sender_pubkey,
+        ONE_SOL_IN_LAMPORTS,
+    )
+    .await;
+
+    // Enroll the remote router
+    let remote_router = H256::random();
+    enroll_remote_router(
+        &mut banks_client,
+        &program_id,
+        &payer,
+        &hyperlane_token_accounts.token,
+        REMOTE_DOMAIN,
+        remote_router,
+    )
+    .await
+    .unwrap();
 
     // Call transfer_remote
     let unique_message_account_keypair = Keypair::new();
@@ -737,7 +738,6 @@ async fn test_transfer_remote(spl_token_program_id: Pubkey) {
 #[tokio::test]
 async fn test_enroll_remote_router() {
     let program_id = hyperlane_sealevel_token::id();
-    let spl_token_program_id = spl_token_2022::id();
 
     let (mut banks_client, payer) = setup_client().await;
 
@@ -778,7 +778,6 @@ async fn test_enroll_remote_router() {
 #[tokio::test]
 async fn test_enroll_remote_router_errors_if_not_signed_by_owner() {
     let program_id = hyperlane_sealevel_token::id();
-    let spl_token_program_id = spl_token_2022::id();
 
     let (mut banks_client, payer) = setup_client().await;
 
@@ -837,7 +836,6 @@ async fn test_enroll_remote_router_errors_if_not_signed_by_owner() {
 #[tokio::test]
 async fn test_transfer_ownership() {
     let program_id = hyperlane_sealevel_token::id();
-    let spl_token_program_id = spl_token_2022::id();
 
     let (mut banks_client, payer) = setup_client().await;
 
@@ -882,7 +880,6 @@ async fn test_transfer_ownership() {
 #[tokio::test]
 async fn test_transfer_ownership_errors_if_owner_not_signer() {
     let program_id = hyperlane_sealevel_token::id();
-    let spl_token_program_id = spl_token_2022::id();
 
     let (mut banks_client, payer) = setup_client().await;
 
@@ -921,7 +918,6 @@ async fn test_transfer_ownership_errors_if_owner_not_signer() {
 #[tokio::test]
 async fn test_set_interchain_security_module() {
     let program_id = hyperlane_sealevel_token::id();
-    let spl_token_program_id = spl_token_2022::id();
 
     let (mut banks_client, payer) = setup_client().await;
 
@@ -967,7 +963,6 @@ async fn test_set_interchain_security_module() {
 #[tokio::test]
 async fn test_set_interchain_security_module_errors_if_owner_not_signer() {
     let program_id = hyperlane_sealevel_token::id();
-    let spl_token_program_id = spl_token_2022::id();
 
     let (mut banks_client, payer) = setup_client().await;
 
