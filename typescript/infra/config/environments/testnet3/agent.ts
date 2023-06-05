@@ -22,6 +22,8 @@ const interchainQueriesMatchingList = routerMatchingList(
   interchainQueryRouters,
 );
 
+const repo = 'gcr.io/abacus-labs-dev/hyperlane-agent';
+
 const contextBase = {
   namespace: environment,
   runEnv: environment,
@@ -33,10 +35,6 @@ const contextBase = {
 } as const;
 
 const roleBase = {
-  docker: {
-    repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    tag: '2deb9b8-20230602-205342',
-  },
   connectionType: AgentConnectionType.HttpFallback,
 } as const;
 
@@ -61,6 +59,10 @@ const hyperlane: RootAgentConfig = {
   rolesWithKeys: ALL_KEY_ROLES,
   relayer: {
     ...roleBase,
+    docker: {
+      repo,
+      tag: '2deb9b8-20230602-205342',
+    },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
       {
@@ -75,13 +77,17 @@ const hyperlane: RootAgentConfig = {
   validators: {
     ...roleBase,
     docker: {
-      repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
+      repo,
       tag: '40cc4a6-20230420-080111',
     },
     chains: validators,
   },
   scraper: {
     ...roleBase,
+    docker: {
+      repo,
+      tag: '40cc4a6-20230420-080111',
+    },
   },
 };
 
@@ -91,6 +97,10 @@ const releaseCandidate: RootAgentConfig = {
   rolesWithKeys: [Role.Relayer, Role.Kathy],
   relayer: {
     ...roleBase,
+    docker: {
+      repo,
+      tag: '2deb9b8-20230602-205342',
+    },
     whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
     transactionGasLimit: 750000,
