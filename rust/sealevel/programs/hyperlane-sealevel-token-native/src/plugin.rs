@@ -1,3 +1,7 @@
+//! A plugin for the Hyperlane token program that transfers native
+//! tokens in from a sender when sending to a remote chain, and transfers
+//! native tokens out to recipients when receiving from a remote chain.
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_sealevel_token_lib::{
     accounts::HyperlaneToken, message::TokenMessage, processor::HyperlaneSealevelTokenPlugin,
@@ -35,6 +39,7 @@ macro_rules! hyperlane_token_native_collateral_pda_seeds {
 /// native tokens out to recipients when receiving from a remote chain.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Default)]
 pub struct NativePlugin {
+    /// The bump seed for the native collateral PDA account.
     pub native_collateral_bump: u8,
 }
 

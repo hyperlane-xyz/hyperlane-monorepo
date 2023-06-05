@@ -1,4 +1,4 @@
-//! TODO
+//! Program processor.
 
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_message_recipient_interface::MessageRecipientInstruction;
@@ -15,6 +15,7 @@ use crate::plugin::NativePlugin;
 #[cfg(not(feature = "no-entrypoint"))]
 entrypoint!(process_instruction);
 
+/// Processes an instruction.
 pub fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],

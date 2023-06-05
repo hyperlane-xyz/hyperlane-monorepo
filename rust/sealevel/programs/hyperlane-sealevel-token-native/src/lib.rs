@@ -1,7 +1,7 @@
-//! TODO
+//! Hyperlane token program for native tokens.
 
-// #![deny(warnings)] // FIXME
-// #![deny(missing_docs)] // FIXME
+#![deny(warnings)]
+#![deny(missing_docs)]
 #![deny(unsafe_code)]
 
 pub mod plugin;
