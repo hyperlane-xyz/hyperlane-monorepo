@@ -10,7 +10,7 @@ use tokio::{
 };
 use tracing::{debug, info_span, instrument, instrument::Instrumented, trace, Instrument};
 
-use hyperlane_base::{db::HyperlaneDB, CoreMetrics};
+use hyperlane_base::{db::HyperlaneRocksDB, CoreMetrics};
 use hyperlane_core::{HyperlaneDomain, HyperlaneMessage};
 
 use crate::msg::pending_operation::DynPendingOperation;
@@ -22,7 +22,7 @@ use super::pending_message::*;
 /// for to the appropriate destination.
 #[derive(new)]
 pub struct MessageProcessor {
-    db: HyperlaneDB,
+    db: HyperlaneRocksDB,
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,
     metrics: MessageProcessorMetrics,
@@ -60,9 +60,9 @@ impl MessageProcessor {
         tokio::spawn(async move { self.main_loop().await }).instrument(span)
     }
 
-    #[instrument(ret, err, skip(self), level = "info")]
+    #[instrument(ret, err, skip(self), level = "info", fields(domain=%self.domain()))]
     async fn main_loop(mut self) -> Result<()> {
-        // Forever, scan HyperlaneDB looking for new messages to send. When criteria are
+        // Forever, scan HyperlaneRocksDB looking for new messages to send. When criteria are
         // satisfied or the message is disqualified, push the message onto
         // self.tx_msg and then continue the scan at the next highest
         // nonce.
@@ -80,7 +80,7 @@ impl MessageProcessor {
     fn try_get_unprocessed_message(&mut self) -> Result<Option<HyperlaneMessage>> {
         loop {
             // First, see if we can find the message so we can update the gauge.
-            if let Some(message) = self.db.message_by_nonce(self.message_nonce)? {
+            if let Some(message) = self.db.retrieve_message_by_nonce(self.message_nonce)? {
                 // Update the latest nonce gauges
                 self.metrics
                     .max_last_known_message_nonce_gauge
@@ -90,7 +90,11 @@ impl MessageProcessor {
                 }
 
                 // If this message has already been processed, on to the next one.
-                if !self.db.retrieve_message_processed(self.message_nonce)? {
+                if !self
+                    .db
+                    .retrieve_processed_by_nonce(&self.message_nonce)?
+                    .unwrap_or(false)
+                {
                     return Ok(Some(message));
                 } else {
                     debug!(nonce=?self.message_nonce, "Message already marked as processed in DB");
@@ -121,6 +125,13 @@ impl MessageProcessor {
             // Skip if the message is blacklisted
             if self.blacklist.msg_matches(&msg, false) {
                 debug!(?msg, blacklist=?self.blacklist, "Message blacklisted, skipping");
+                self.message_nonce += 1;
+                return Ok(());
+            }
+
+            // Skip if the message is intended for this origin
+            if destination == self.domain().id() {
+                debug!(?msg, "Message destined for self, skipping");
                 self.message_nonce += 1;
                 return Ok(());
             }

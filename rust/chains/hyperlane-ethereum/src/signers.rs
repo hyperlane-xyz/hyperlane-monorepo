@@ -12,7 +12,7 @@ pub enum Signers {
     /// A wallet instantiated with a locally stored private key
     Local(LocalWallet),
     /// A signer using a key stored in aws kms
-    Aws(AwsSigner<'static>),
+    Aws(AwsSigner),
 }
 
 impl From<LocalWallet> for Signers {
@@ -21,8 +21,8 @@ impl From<LocalWallet> for Signers {
     }
 }
 
-impl From<AwsSigner<'static>> for Signers {
-    fn from(s: AwsSigner<'static>) -> Self {
+impl From<AwsSigner> for Signers {
+    fn from(s: AwsSigner) -> Self {
         Signers::Aws(s)
     }
 }

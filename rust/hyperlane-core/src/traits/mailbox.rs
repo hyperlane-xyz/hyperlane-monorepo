@@ -5,8 +5,8 @@ use async_trait::async_trait;
 use auto_impl::auto_impl;
 
 use crate::{
-    traits::TxOutcome, utils::domain_hash, ChainResult, Checkpoint, HyperlaneContract,
-    HyperlaneMessage, TxCostEstimate, H256, U256,
+    accumulator::incremental::IncrementalMerkle, traits::TxOutcome, utils::domain_hash,
+    ChainResult, Checkpoint, HyperlaneContract, HyperlaneMessage, TxCostEstimate, H256, U256,
 };
 
 /// Interface for the Mailbox chain contract. Allows abstraction over different
@@ -18,6 +18,12 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
     fn domain_hash(&self) -> H256 {
         domain_hash(self.address(), self.domain().id())
     }
+
+    /// Return the incremental merkle tree in storage
+    ///
+    /// - `lag` is how far behind the current block to query, if not specified
+    ///   it will query at the latest block.
+    async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle>;
 
     /// Gets the current leaf count of the merkle tree
     ///

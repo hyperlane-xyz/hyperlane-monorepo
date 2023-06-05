@@ -1,4 +1,5 @@
 pub use cursor::*;
+pub use db::*;
 pub use deployed::*;
 pub use encode::*;
 pub use indexer::*;
@@ -12,6 +13,7 @@ pub use signing::*;
 pub use validator_announce::*;
 
 mod cursor;
+mod db;
 mod deployed;
 mod encode;
 mod indexer;

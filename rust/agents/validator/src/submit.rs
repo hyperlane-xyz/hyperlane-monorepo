@@ -1,25 +1,31 @@
 use std::num::NonZeroU64;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use std::vec;
 
 use eyre::Result;
+use hyperlane_base::db::HyperlaneRocksDB;
+use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use prometheus::IntGauge;
-use tokio::{task::JoinHandle, time::sleep};
-use tracing::{debug, error, info, info_span, instrument::Instrumented, warn, Instrument};
+use tokio::time::sleep;
+use tracing::instrument;
+use tracing::{debug, info};
 
 use hyperlane_base::{CheckpointSyncer, CoreMetrics};
+
 use hyperlane_core::{
-    Announcement, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox, ValidatorAnnounce,
-    H256, U256,
+    Checkpoint, CheckpointWithMessageId, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneSigner, HyperlaneSignerExt, Mailbox,
 };
 
+#[derive(Clone)]
 pub(crate) struct ValidatorSubmitter {
     interval: Duration,
     reorg_period: Option<NonZeroU64>,
     signer: Arc<dyn HyperlaneSigner>,
     mailbox: Arc<dyn Mailbox>,
-    validator_announce: Arc<dyn ValidatorAnnounce>,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
+    message_db: HyperlaneRocksDB,
     metrics: ValidatorSubmitterMetrics,
 }
 
@@ -28,89 +34,105 @@ impl ValidatorSubmitter {
         interval: Duration,
         reorg_period: u64,
         mailbox: Arc<dyn Mailbox>,
-        validator_announce: Arc<dyn ValidatorAnnounce>,
         signer: Arc<dyn HyperlaneSigner>,
         checkpoint_syncer: Arc<dyn CheckpointSyncer>,
+        message_db: HyperlaneRocksDB,
         metrics: ValidatorSubmitterMetrics,
     ) -> Self {
         Self {
             reorg_period: NonZeroU64::new(reorg_period),
             interval,
             mailbox,
-            validator_announce,
             signer,
             checkpoint_syncer,
+            message_db,
             metrics,
         }
     }
 
-    pub(crate) fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
-        let span = info_span!("ValidatorSubmitter");
-        tokio::spawn(async move { self.main_task().await }).instrument(span)
-    }
-
-    async fn announce_task(&self) -> Result<()> {
-        // Sign and post the validator announcement
-        let announcement = Announcement {
-            validator: self.signer.eth_address(),
+    pub(crate) fn checkpoint(&self, tree: &IncrementalMerkle) -> Checkpoint {
+        Checkpoint {
+            root: tree.root(),
+            index: tree.index(),
             mailbox_address: self.mailbox.address(),
             mailbox_domain: self.mailbox.domain().id(),
-            storage_location: self.checkpoint_syncer.announcement_location(),
-        };
-        let signed_announcement = self.signer.sign(announcement.clone()).await?;
-        self.checkpoint_syncer
-            .write_announcement(&signed_announcement)
-            .await?;
-
-        // Ensure that the validator has announced themselves before we enter
-        // the main validator submit loop. This is to avoid a situation in
-        // which the validator is signing checkpoints but has not announced
-        // their locations, which makes them functionally unusable.
-        let validators: [H256; 1] = [self.signer.eth_address().into()];
-        loop {
-            info!("Checking for validator announcement");
-            if let Some(locations) = self
-                .validator_announce
-                .get_announced_storage_locations(&validators)
-                .await?
-                .first()
-            {
-                if locations.contains(&self.checkpoint_syncer.announcement_location()) {
-                    info!("Validator has announced signature storage location");
-                    break;
-                }
-                info!("Validator has not announced signature storage location");
-                let balance_delta = self
-                    .validator_announce
-                    .announce_tokens_needed(signed_announcement.clone())
-                    .await?;
-                if balance_delta > U256::zero() {
-                    warn!(
-                        tokens_needed=%balance_delta,
-                        validator_address=?announcement.validator,
-                        "Please send tokens to the validator address to announce",
-                    );
-                } else {
-                    let outcome = self
-                        .validator_announce
-                        .announce(signed_announcement.clone(), None)
-                        .await?;
-                    if !outcome.executed {
-                        error!(
-                            hash=?outcome.txid,
-                            "Transaction attempting to announce validator reverted"
-                        );
-                    }
-                }
-            }
-            sleep(self.interval).await;
         }
-        Ok(())
     }
 
-    async fn main_task(self) -> Result<()> {
-        self.announce_task().await?;
+    #[instrument(err, skip(self), fields(domain=%self.mailbox.domain()))]
+    pub(crate) async fn checkpoint_submitter(
+        self,
+        mut tree: IncrementalMerkle,
+        target_checkpoint: Option<Checkpoint>,
+    ) -> Result<()> {
+        let mut checkpoint_queue = vec![];
 
+        let mut reached_target = false;
+
+        while !reached_target {
+            let correctness_checkpoint = if let Some(c) = target_checkpoint {
+                c
+            } else {
+                // lag by reorg period to match message indexing
+                let latest_checkpoint = self.mailbox.latest_checkpoint(self.reorg_period).await?;
+                self.metrics
+                    .latest_checkpoint_observed
+                    .set(latest_checkpoint.index as i64);
+                latest_checkpoint
+            };
+
+            // ingest available messages from DB
+            while let Some(message) = self
+                .message_db
+                .retrieve_message_by_nonce(tree.count() as u32)?
+            {
+                debug!(index = message.nonce, "Ingesting leaf to tree");
+                let message_id = message.id();
+                tree.ingest(message_id);
+
+                let checkpoint = self.checkpoint(&tree);
+
+                checkpoint_queue.push(CheckpointWithMessageId {
+                    checkpoint,
+                    message_id,
+                });
+
+                // compare against every queued checkpoint to prevent ingesting past target
+                if checkpoint == correctness_checkpoint {
+                    debug!(
+                        index = checkpoint.index,
+                        "Reached tree consistency, signing queued checkpoints"
+                    );
+
+                    // drain and sign all checkpoints in the queue
+                    for queued_checkpoint in checkpoint_queue.drain(..) {
+                        let signed_checkpoint = self.signer.sign(queued_checkpoint).await?;
+                        self.checkpoint_syncer
+                            .write_checkpoint(&signed_checkpoint)
+                            .await?;
+                        info!(index = queued_checkpoint.index, "Signed checkpoint");
+                    }
+
+                    self.metrics
+                        .latest_checkpoint_processed
+                        .set(checkpoint.index as i64);
+
+                    // break out of submitter loop if target checkpoint is reached
+                    reached_target = target_checkpoint.is_some();
+                    break;
+                }
+            }
+
+            sleep(self.interval).await;
+        }
+
+        // TODO: remove this once validator is tolerant of tasks exiting
+        loop {
+            sleep(Duration::from_secs(u64::MAX)).await;
+        }
+    }
+
+    pub(crate) async fn legacy_checkpoint_submitter(self) -> Result<()> {
         // Ensure that the mailbox has > 0 messages before we enter the main
         // validator submit loop. This is to avoid an underflow / reverted
         // call when we invoke the `mailbox.latest_checkpoint()` method,
@@ -129,7 +151,7 @@ impl ValidatorSubmitter {
 
         if let Some(current_index) = current_index {
             self.metrics
-                .latest_checkpoint_processed
+                .legacy_latest_checkpoint_processed
                 .set(current_index as i64);
         }
 
@@ -150,13 +172,12 @@ impl ValidatorSubmitter {
             true
         };
 
-        info!(current_index = current_index, "Starting Validator");
         loop {
             // Check the latest checkpoint
             let latest_checkpoint = self.mailbox.latest_checkpoint(self.reorg_period).await?;
 
             self.metrics
-                .latest_checkpoint_observed
+                .legacy_latest_checkpoint_observed
                 .set(latest_checkpoint.index as i64);
 
             // Occasional info to make it clear to a validator operator whether things are
@@ -189,10 +210,10 @@ impl ValidatorSubmitter {
                 current_index = Some(latest_checkpoint.index);
 
                 self.checkpoint_syncer
-                    .write_checkpoint(&signed_checkpoint)
+                    .legacy_write_checkpoint(&signed_checkpoint)
                     .await?;
                 self.metrics
-                    .latest_checkpoint_processed
+                    .legacy_latest_checkpoint_processed
                     .set(signed_checkpoint.value.index as i64);
             }
 
@@ -201,15 +222,24 @@ impl ValidatorSubmitter {
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct ValidatorSubmitterMetrics {
     latest_checkpoint_observed: IntGauge,
     latest_checkpoint_processed: IntGauge,
+    legacy_latest_checkpoint_observed: IntGauge,
+    legacy_latest_checkpoint_processed: IntGauge,
 }
 
 impl ValidatorSubmitterMetrics {
     pub fn new(metrics: &CoreMetrics, mailbox_chain: &HyperlaneDomain) -> Self {
         let chain_name = mailbox_chain.name();
         Self {
+            legacy_latest_checkpoint_observed: metrics
+                .latest_checkpoint()
+                .with_label_values(&["legacy_validator_observed", chain_name]),
+            legacy_latest_checkpoint_processed: metrics
+                .latest_checkpoint()
+                .with_label_values(&["legacy_validator_processed", chain_name]),
             latest_checkpoint_observed: metrics
                 .latest_checkpoint()
                 .with_label_values(&["validator_observed", chain_name]),

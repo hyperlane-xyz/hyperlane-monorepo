@@ -103,6 +103,21 @@ where
     }
 }
 
+impl<M> EthereumProvider<M>
+where
+    M: Middleware + 'static,
+{
+    #[instrument(err, skip(self))]
+    async fn get_storage_at(&self, address: H256, location: H256) -> ChainResult<H256> {
+        let storage = self
+            .provider
+            .get_storage_at(H160::from(address), location, None)
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+        Ok(storage)
+    }
+}
+
 /// Builder for hyperlane providers.
 pub struct HyperlaneProviderBuilder {}
 

@@ -27,8 +27,6 @@ impl TypedDB {
             .as_bytes()
             .iter()
             .chain(b"_")
-            .chain(&domain.id().to_be_bytes())
-            .chain(b"_")
             .copied()
             .collect();
         Self { domain_prefix, db }
