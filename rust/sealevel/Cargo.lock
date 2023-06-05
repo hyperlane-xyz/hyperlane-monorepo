@@ -1687,6 +1687,7 @@ name = "hyperlane-sealevel-mailbox"
 version = "0.1.0"
 dependencies = [
  "access-control",
+ "account-utils",
  "base64 0.13.1",
  "borsh",
  "bs58",

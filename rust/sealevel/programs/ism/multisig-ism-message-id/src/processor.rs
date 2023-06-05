@@ -10,8 +10,8 @@ use solana_program::{
     program::{invoke_signed, set_return_data},
     program_error::ProgramError,
     pubkey::Pubkey,
+    rent::Rent,
     system_instruction,
-    sysvar::rent::Rent,
 };
 
 use hyperlane_sealevel_mailbox::accounts::SizedData;

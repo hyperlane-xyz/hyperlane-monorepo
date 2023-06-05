@@ -3,8 +3,8 @@ use solana_program::{
     program::{invoke, invoke_signed},
     program_error::ProgramError,
     pubkey::Pubkey,
+    rent::Rent,
     system_instruction,
-    sysvar::rent::Rent,
 };
 
 /// Creates associated token account using Program Derived Address for the given seeds.
