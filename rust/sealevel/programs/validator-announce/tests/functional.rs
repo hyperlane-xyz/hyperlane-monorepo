@@ -1,4 +1,4 @@
-use hyperlane_core::{Announcement, Signable, H160};
+use hyperlane_core::{Announcement, H160};
 
 use std::str::FromStr;
 
@@ -239,7 +239,6 @@ async fn assert_successful_announcement(
     banks_client: &mut BanksClient,
     program_id: Pubkey,
     validator_storage_locations_key: Pubkey,
-    validator_storage_locations_bump_seed: u8,
     replay_protection_key: Pubkey,
     expected_validator_storage_locations: ValidatorStorageLocations,
 ) {
@@ -301,7 +300,7 @@ async fn test_announce() {
     .await;
 
     let mailbox = get_test_mailbox();
-    let (validator_announce_key, validator_announce_bump_seed) =
+    let (validator_announce_key, _validator_announce_bump_seed) =
         initialize(&mut banks_client, &payer, mailbox)
             .await
             .unwrap();
@@ -334,7 +333,6 @@ async fn test_announce() {
         &mut banks_client,
         program_id,
         validator_storage_locations_key,
-        validator_storage_locations_bump_seed,
         replay_protection_key,
         ValidatorStorageLocations {
             bump_seed: validator_storage_locations_bump_seed,
@@ -384,7 +382,6 @@ async fn test_announce() {
         &mut banks_client,
         program_id,
         validator_storage_locations_key,
-        validator_storage_locations_bump_seed,
         replay_protection_key,
         ValidatorStorageLocations {
             bump_seed: validator_storage_locations_bump_seed,
