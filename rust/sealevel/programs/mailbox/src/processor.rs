@@ -387,7 +387,6 @@ fn inbox_process(
     };
     invoke(&noop_cpi_log, &[])?;
 
-    // TODO maybe remove?
     msg!("Hyperlane inbox processed message {:?}", message_id);
 
     Ok(())

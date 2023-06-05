@@ -1750,6 +1750,7 @@ dependencies = [
 name = "hyperlane-sealevel-token"
 version = "0.1.0"
 dependencies = [
+ "account-utils",
  "borsh",
  "bs58",
  "hyperlane-core",
@@ -1803,6 +1804,7 @@ name = "hyperlane-sealevel-token-lib"
 version = "0.1.0"
 dependencies = [
  "access-control",
+ "account-utils",
  "borsh",
  "bs58",
  "hyperlane-core",
