@@ -20,12 +20,8 @@ function identifier(
   const prefix = `${context}-${environment}-${isKey ? 'key-' : ''}`;
   switch (role) {
     case Role.Validator:
-      if (index === undefined) {
-        throw Error('Expected index for validator key');
-      }
-      if (!chainName) {
-        throw Error('Expected chainName for relayer key');
-      }
+      if (!chainName) throw Error('Expected chainName for validator key');
+      if (index === undefined) throw Error('Expected index for validator key');
       return `${prefix}${chainName}-${role}-${index}`;
     default:
       return `${prefix}${role}`;
