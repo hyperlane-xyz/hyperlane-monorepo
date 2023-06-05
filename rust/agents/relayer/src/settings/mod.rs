@@ -246,7 +246,11 @@ impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
             #[allow(deprecated)]
             raw.originchainname
         }
-        .map(|s| s.split(',').map(str::to_owned).collect::<Vec<_>>());
+        .map(|s| {
+            s.split(',')
+                .map(str::to_ascii_lowercase)
+                .collect::<Vec<_>>()
+        });
 
         if origin_chain_names.is_some() {
             warn!(
@@ -259,7 +263,11 @@ impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
             #[allow(deprecated)]
             raw.destinationchainnames
         }
-        .map(|r| r.split(',').map(str::to_owned).collect::<Vec<_>>());
+        .map(|r| {
+            r.split(',')
+                .map(str::to_ascii_lowercase)
+                .collect::<Vec<_>>()
+        });
 
         if destination_chain_names.is_some() {
             warn!(
@@ -268,10 +276,11 @@ impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
             );
         }
 
-        if let Some(relay_chain_names) = raw
-            .relaychains
-            .map(|r| r.split(',').map(str::to_owned).collect::<Vec<_>>())
-        {
+        if let Some(relay_chain_names) = raw.relaychains.map(|r| {
+            r.split(',')
+                .map(str::to_ascii_lowercase)
+                .collect::<Vec<_>>()
+        }) {
             if origin_chain_names.is_some() {
                 err.push(
                     cwp + "originchainname",
