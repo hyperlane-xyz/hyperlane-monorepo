@@ -34,7 +34,6 @@ thiserror.workspace = true
 # version determined by ethers-rs
 primitive-types = "*"
 lazy_static = "*"
-derive_more.workspace = true
 
 [dev-dependencies]
 config.workspace = true
