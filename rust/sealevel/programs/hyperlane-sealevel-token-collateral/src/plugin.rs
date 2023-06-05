@@ -63,6 +63,34 @@ pub struct CollateralPlugin {
     pub ata_payer_bump: u8,
 }
 
+impl CollateralPlugin {
+    fn verify_ata_payer_account_info(
+        program_id: &Pubkey,
+        token: &HyperlaneToken<Self>,
+        ata_payer_account_info: &AccountInfo,
+    ) -> Result<(), ProgramError> {
+        let ata_payer_seeds: &[&[u8]] =
+            hyperlane_token_ata_payer_pda_seeds!(token.plugin_data.ata_payer_bump);
+        let expected_ata_payer_account =
+            Pubkey::create_program_address(ata_payer_seeds, program_id)?;
+        if ata_payer_account_info.key != &expected_ata_payer_account {
+            return Err(ProgramError::InvalidArgument);
+        }
+        Ok(())
+    }
+
+    fn verify_ata_payer_is_rent_exempt(
+        ata_payer_account_info: &AccountInfo,
+    ) -> Result<(), ProgramError> {
+        let lamports = ata_payer_account_info.lamports();
+        let rent_exemption_requirement = Rent::default().minimum_balance(0);
+        if lamports < rent_exemption_requirement {
+            return Err(ProgramError::AccountNotRentExempt);
+        }
+        Ok(())
+    }
+}
+
 impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
     /// Initializes the plugin.
     ///
@@ -332,12 +360,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
 
         // Account 4: ATA payer PDA account
         let ata_payer_account_info = next_account_info(accounts_iter)?;
-        let ata_payer_seeds: &[&[u8]] =
-            hyperlane_token_ata_payer_pda_seeds!(token.plugin_data.ata_payer_bump);
-        let expected_ata_payer_key = Pubkey::create_program_address(ata_payer_seeds, program_id)?;
-        if ata_payer_account_info.key != &expected_ata_payer_key {
-            return Err(ProgramError::IncorrectProgramId);
-        }
+        Self::verify_ata_payer_account_info(program_id, token, ata_payer_account_info)?;
 
         // Account 5: Escrow account.
         let escrow_account_info = next_account_info(accounts_iter)?;
@@ -361,16 +384,14 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
                 system_program_account_info.clone(),
                 spl_token_account_info.clone(),
             ],
-            &[ata_payer_seeds],
+            &[hyperlane_token_ata_payer_pda_seeds!(
+                token.plugin_data.ata_payer_bump
+            )],
         )?;
 
         // After potentially paying for the ATA creation, we need to make sure
         // the ATA payer still meets the rent-exemption requirements!
-        let ata_payer_lamports = ata_payer_account_info.lamports();
-        let ata_payer_rent_exemption_requirement = Rent::default().minimum_balance(0);
-        if ata_payer_lamports < ata_payer_rent_exemption_requirement {
-            return Err(ProgramError::AccountNotRentExempt);
-        }
+        Self::verify_ata_payer_is_rent_exempt(ata_payer_account_info)?;
 
         let transfer_instruction = transfer_checked(
             spl_token_account_info.key,

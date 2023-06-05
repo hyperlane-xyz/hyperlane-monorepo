@@ -151,7 +151,6 @@ pub fn convert_decimals(amount: U256, from_decimals: u8, to_decimals: u8) -> Opt
     } else if from_decimals < to_decimals {
         let multiplier = U256::from(10u64).checked_pow(U256::from(to_decimals - from_decimals));
         multiplier.and_then(|m| amount.checked_mul(m))
-        // amount.checked_mul(U256::from(10u64).checked_pow(U256::from(to_decimals - from_decimals)))
     } else {
         Some(amount)
     }

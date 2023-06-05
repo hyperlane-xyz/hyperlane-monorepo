@@ -455,9 +455,9 @@ where
         // and that the sender is the remote router for the origin.
         token.ensure_valid_router_message(process_authority_account, xfer.origin, &xfer.sender)?;
 
-        // The amount denominated in the local decimals.
+        // The amount denominated in the remote decimals.
         let remote_amount = message.amount();
-        // Convert to the local number of decimal.
+        // Convert to the local number of decimals.
         let local_amount: u64 = token.remote_amount_to_local_amount(remote_amount)?;
 
         // Transfer the `local_amount` of tokens out.

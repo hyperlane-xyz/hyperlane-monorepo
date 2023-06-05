@@ -4,7 +4,6 @@
 #![deny(missing_docs)]
 #![deny(unsafe_code)]
 
-pub mod error;
 pub mod plugin;
 pub mod processor;
 
