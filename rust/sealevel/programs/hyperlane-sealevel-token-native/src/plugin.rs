@@ -2,6 +2,7 @@
 //! tokens in from a sender when sending to a remote chain, and transfers
 //! native tokens out to recipients when receiving from a remote chain.
 
+use account_utils::create_pda_account;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_sealevel_token_lib::{
     accounts::HyperlaneToken, message::TokenMessage, processor::HyperlaneSealevelTokenPlugin,
@@ -15,6 +16,7 @@ use solana_program::{
     pubkey::Pubkey,
     rent::Rent,
     system_instruction,
+    sysvar::Sysvar,
 };
 
 /// Seeds relating to the PDA account that holds native collateral.
@@ -81,7 +83,7 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
     /// 0. [writable] The native collateral PDA account.
     fn initialize<'a, 'b>(
         program_id: &Pubkey,
-        _system_program: &'a AccountInfo<'b>,
+        system_program: &'a AccountInfo<'b>,
         _token_account: &'a AccountInfo<'b>,
         payer_account: &'a AccountInfo<'b>,
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
@@ -98,18 +100,14 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
 
         // Create native collateral PDA account.
         // Assign ownership to the system program so it can transfer tokens.
-        invoke_signed(
-            &system_instruction::create_account(
-                payer_account.key,
-                native_collateral_account.key,
-                Rent::default().minimum_balance(0),
-                0,
-                &solana_program::system_program::id(),
-            ),
-            &[payer_account.clone(), native_collateral_account.clone()],
-            &[hyperlane_token_native_collateral_pda_seeds!(
-                native_collateral_bump
-            )],
+        create_pda_account(
+            payer_account,
+            &Rent::get()?,
+            0,
+            &solana_program::system_program::id(),
+            system_program,
+            native_collateral_account,
+            hyperlane_token_native_collateral_pda_seeds!(native_collateral_bump),
         )?;
 
         Ok(Self {
