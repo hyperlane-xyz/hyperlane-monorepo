@@ -66,3 +66,11 @@ pub fn create_pda_account<'a>(
         )
     }
 }
+
+/// Returns Ok() if the account is rent exempt, Err() otherwise.
+pub fn verify_rent_exempt<'a>(account: &AccountInfo<'a>, rent: &Rent) -> Result<(), ProgramError> {
+    if !rent.is_exempt(account.lamports(), account.data_len()) {
+        return Err(ProgramError::AccountNotRentExempt);
+    }
+    Ok(())
+}

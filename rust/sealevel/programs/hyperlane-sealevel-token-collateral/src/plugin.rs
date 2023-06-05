@@ -1,6 +1,6 @@
 //! A plugin for the Hyperlane token program that escrows SPL tokens as collateral.
 
-use account_utils::create_pda_account;
+use account_utils::{create_pda_account, verify_rent_exempt};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_sealevel_token_lib::{
     accounts::HyperlaneToken, message::TokenMessage, processor::HyperlaneSealevelTokenPlugin,
@@ -76,17 +76,6 @@ impl CollateralPlugin {
             Pubkey::create_program_address(ata_payer_seeds, program_id)?;
         if ata_payer_account_info.key != &expected_ata_payer_account {
             return Err(ProgramError::InvalidArgument);
-        }
-        Ok(())
-    }
-
-    fn verify_ata_payer_is_rent_exempt(
-        ata_payer_account_info: &AccountInfo,
-    ) -> Result<(), ProgramError> {
-        let lamports = ata_payer_account_info.lamports();
-        let rent_exemption_requirement = Rent::default().minimum_balance(0);
-        if lamports < rent_exemption_requirement {
-            return Err(ProgramError::AccountNotRentExempt);
         }
         Ok(())
     }
@@ -390,7 +379,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
 
         // After potentially paying for the ATA creation, we need to make sure
         // the ATA payer still meets the rent-exemption requirements!
-        Self::verify_ata_payer_is_rent_exempt(ata_payer_account_info)?;
+        verify_rent_exempt(ata_payer_account_info, &Rent::get()?)?;
 
         let transfer_instruction = transfer_checked(
             spl_token_account_info.key,

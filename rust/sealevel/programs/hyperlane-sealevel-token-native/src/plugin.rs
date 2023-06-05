@@ -2,7 +2,7 @@
 //! tokens in from a sender when sending to a remote chain, and transfers
 //! native tokens out to recipients when receiving from a remote chain.
 
-use account_utils::create_pda_account;
+use account_utils::{create_pda_account, verify_rent_exempt};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_sealevel_token_lib::{
     accounts::HyperlaneToken, message::TokenMessage, processor::HyperlaneSealevelTokenPlugin,
@@ -60,17 +60,6 @@ impl NativePlugin {
 
         if native_collateral_account_info.key != &expected_native_collateral_key {
             return Err(ProgramError::InvalidArgument);
-        }
-        Ok(())
-    }
-
-    fn verify_native_collateral_account_is_rent_exempt(
-        native_collateral_account_info: &AccountInfo,
-    ) -> Result<(), ProgramError> {
-        let lamports = native_collateral_account_info.lamports();
-        let rent_exemption_requirement = Rent::default().minimum_balance(0);
-        if lamports < rent_exemption_requirement {
-            return Err(ProgramError::AccountNotRentExempt);
         }
         Ok(())
     }
@@ -182,7 +171,7 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
         )?;
 
         // Ensure the native collateral account is still rent exempt.
-        Self::verify_native_collateral_account_is_rent_exempt(native_collateral_account)?;
+        verify_rent_exempt(native_collateral_account, &Rent::get()?)?;
 
         Ok(())
     }

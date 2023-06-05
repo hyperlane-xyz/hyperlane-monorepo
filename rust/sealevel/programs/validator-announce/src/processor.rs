@@ -289,7 +289,7 @@ fn update_validator_storage_locations<'a>(
     // Because it's possible that a realloc needs to occur, ensure the account
     // would be rent-exempt.
     let existing_serialized_size = validator_storage_locations_info.data_len();
-    let required_rent = Rent::default().minimum_balance(new_serialized_size);
+    let required_rent = Rent::get()?.minimum_balance(new_serialized_size);
     let lamports = validator_storage_locations_info.lamports();
     if lamports < required_rent {
         invoke(
