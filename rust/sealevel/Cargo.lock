@@ -1777,6 +1777,7 @@ dependencies = [
 name = "hyperlane-sealevel-token-collateral"
 version = "0.1.0"
 dependencies = [
+ "account-utils",
  "borsh",
  "bs58",
  "hyperlane-core",
