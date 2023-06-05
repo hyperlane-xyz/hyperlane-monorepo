@@ -3,20 +3,23 @@
 use access_control::AccessControl;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{Decode, Encode as _, H256};
-use hyperlane_sealevel_connection_client::router::{
-    HyperlaneRouterAccessControl, HyperlaneRouterDispatch, HyperlaneRouterMessageRecipient,
-    RemoteRouterConfig,
+use hyperlane_sealevel_connection_client::{
+    router::{
+        HyperlaneRouterAccessControl, HyperlaneRouterDispatch, HyperlaneRouterMessageRecipient,
+        RemoteRouterConfig,
+    },
+    HyperlaneConnectionClient, HyperlaneConnectionClientSetterAccessControl,
 };
 use hyperlane_sealevel_mailbox::{
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
     mailbox_process_authority_pda_seeds,
 };
-use serializable_account_meta::SerializableAccountMeta;
+use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
     instruction::{AccountMeta, Instruction},
-    program::invoke_signed,
+    program::{invoke_signed, set_return_data},
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
@@ -34,19 +37,31 @@ use crate::{
     message::TokenMessage,
 };
 
-// TODO make these easily configurable?
-pub const REMOTE_DECIMALS: u8 = 18;
-pub const DECIMALS: u8 = 8;
-
 /// Seeds relating to the PDA account with information about this warp route.
+/// For convenience in getting the account metas required for handling messages,
+/// this is the same as the `HANDLE_ACCOUNT_METAS_PDA_SEEDS` in the message
+/// recipient interface.
 #[macro_export]
 macro_rules! hyperlane_token_pda_seeds {
     () => {{
-        &[b"hyperlane_token", b"-", b"token"]
+        &[
+            b"hyperlane_message_recipient",
+            b"-",
+            b"handle",
+            b"-",
+            b"account_metas",
+        ]
     }};
 
     ($bump_seed:expr) => {{
-        &[b"hyperlane_token", b"-", b"token", &[$bump_seed]]
+        &[
+            b"hyperlane_message_recipient",
+            b"-",
+            b"handle",
+            b"-",
+            b"account_metas",
+            &[$bump_seed],
+        ]
     }};
 }
 
@@ -83,6 +98,7 @@ where
     /// Returns (AccountMetas, whether recipient wallet must be writeable)
     fn transfer_out_account_metas(
         program_id: &Pubkey,
+        token: &HyperlaneToken<Self>,
         token_message: &TokenMessage,
     ) -> Result<(Vec<SerializableAccountMeta>, bool), ProgramError>;
 }
@@ -121,9 +137,10 @@ where
         let accounts_iter = &mut accounts.iter();
 
         // Account 0: System program
+        let system_program_id = solana_program::system_program::id();
         let system_program = next_account_info(accounts_iter)?;
-        if system_program.key != &solana_program::system_program::id() {
-            return Err(ProgramError::InvalidArgument);
+        if system_program.key != &system_program_id {
+            return Err(ProgramError::IncorrectProgramId);
         }
 
         // Account 1: Token storage account
@@ -131,7 +148,10 @@ where
         let (token_key, token_bump) =
             Pubkey::find_program_address(hyperlane_token_pda_seeds!(), program_id);
         if &token_key != token_account.key {
-            return Err(ProgramError::InvalidArgument);
+            return Err(ProgramError::IncorrectProgramId);
+        }
+        if !token_account.data_is_empty() || token_account.owner != &system_program_id {
+            return Err(ProgramError::AccountAlreadyInitialized);
         }
 
         // Account 2: Dispatch authority PDA.
@@ -141,7 +161,12 @@ where
             program_id,
         );
         if *dispatch_authority_account.key != dispatch_authority_key {
-            return Err(ProgramError::InvalidArgument);
+            return Err(ProgramError::IncorrectProgramId);
+        }
+        if !dispatch_authority_account.data_is_empty()
+            || dispatch_authority_account.owner != &system_program_id
+        {
+            return Err(ProgramError::AccountAlreadyInitialized);
         }
 
         // Account 3: Payer
@@ -204,6 +229,9 @@ where
             mailbox_process_authority,
             dispatch_authority_bump,
             owner: Some(*payer_account.key),
+            interchain_security_module: init.interchain_security_module,
+            decimals: init.decimals,
+            remote_decimals: init.remote_decimals,
             remote_routers: HashMap::new(),
             plugin_data,
         };
@@ -232,8 +260,6 @@ where
         accounts: &[AccountInfo],
         xfer: TransferRemote,
     ) -> ProgramResult {
-        let amount: u64 = xfer.amount_or_id.try_into().map_err(|_| Error::TODO)?;
-
         let accounts_iter = &mut accounts.iter();
 
         // Account 0: System program.
@@ -302,15 +328,31 @@ where
         // Similarly defer to the checks in the Mailbox to ensure account validity.
         let dispatched_message_pda = next_account_info(accounts_iter)?;
 
-        // Transfer tokens in...
-        T::transfer_in(program_id, &*token, sender_wallet, accounts_iter, amount)?;
+        // The amount denominated in the local decimals.
+        let local_amount: u64 = xfer
+            .amount_or_id
+            .try_into()
+            .map_err(|_| Error::IntegerOverflow)?;
+        // Convert to the remote number of decimals, which is universally understood
+        // by the remote routers as the number of decimals used by the message amount.
+        let remote_amount = token.local_amount_to_remote_amount(local_amount)?;
+
+        // Transfer `local_amount` of tokens in...
+        T::transfer_in(
+            program_id,
+            &*token,
+            sender_wallet,
+            accounts_iter,
+            local_amount,
+        )?;
 
         if accounts_iter.next().is_some() {
             return Err(ProgramError::from(Error::ExtraneousAccount));
         }
 
+        // The token message body, which specifies the remote_amount.
         let token_transfer_message =
-            TokenMessage::new(xfer.recipient, xfer.amount_or_id, vec![]).to_vec();
+            TokenMessage::new(xfer.recipient, remote_amount, vec![]).to_vec();
 
         // Dispatch the message.
         token.dispatch(
@@ -341,7 +383,7 @@ where
         let event = Event::new(EventSentTransferRemote {
             destination: xfer.destination_domain,
             recipient: xfer.recipient,
-            amount: xfer.amount_or_id,
+            amount: remote_amount,
         });
         let event_data = event.to_noop_cpi_ixn_data().map_err(|_| Error::TODO)?;
         let noop_cpi_log = Instruction {
@@ -359,23 +401,18 @@ where
     /// 1.   [executable] system_program
     /// 2.   [executable] spl_noop
     /// 3.   [] hyperlane_token storage
-    /// 4.   [] recipient wallet address
+    /// 4.   [depends on plugin] recipient wallet address
     /// 5..N [??..??] Plugin-specific accounts.
     pub fn transfer_from_remote(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
         xfer: TransferFromRemote,
     ) -> ProgramResult {
+        let accounts_iter = &mut accounts.iter();
+
         let mut message_reader = std::io::Cursor::new(xfer.message);
         let message = TokenMessage::read_from(&mut message_reader)
             .map_err(|_err| ProgramError::from(Error::TODO))?;
-        // FIXME we must account for decimals of the mint not only the raw amount value during
-        // transfer. Wormhole accounts for this with some extra care taken to round/truncate properly -
-        // we should do the same.
-        let amount = message.amount().try_into().map_err(|_| Error::TODO)?;
-        // FIXME validate message fields?
-
-        let accounts_iter = &mut accounts.iter();
 
         // Account 0: Mailbox authority
         // This is verified further below.
@@ -418,13 +455,19 @@ where
         // and that the sender is the remote router for the origin.
         token.ensure_valid_router_message(process_authority_account, xfer.origin, &xfer.sender)?;
 
+        // The amount denominated in the remote decimals.
+        let remote_amount = message.amount();
+        // Convert to the local number of decimals.
+        let local_amount: u64 = token.remote_amount_to_local_amount(remote_amount)?;
+
+        // Transfer the `local_amount` of tokens out.
         T::transfer_out(
             program_id,
             &*token,
             system_program,
             recipient_wallet,
             accounts_iter,
-            amount,
+            local_amount,
         )?;
 
         if accounts_iter.next().is_some() {
@@ -435,7 +478,7 @@ where
             origin: xfer.origin,
             // Note: assuming recipient not recipient ata is the correct "recipient" to log.
             recipient: H256::from(recipient_wallet.key.to_bytes()),
-            amount: message.amount(),
+            amount: remote_amount,
         });
         let event_data = event.to_noop_cpi_ixn_data().map_err(|_| Error::TODO)?;
         let noop_cpi_log = Instruction {
@@ -448,25 +491,33 @@ where
         Ok(())
     }
 
+    /// Gets the account metas required by the `TransferFromRemote` instruction,
+    /// serializes them, and sets them as return data.
+    ///
+    /// Accounts:
+    /// 0.   [] The token PDA, which is the PDA with the seeds `HANDLE_ACCOUNT_METAS_PDA_SEEDS`.
     pub fn transfer_from_remote_account_metas(
         program_id: &Pubkey,
-        _accounts: &[AccountInfo],
+        accounts: &[AccountInfo],
         transfer: TransferFromRemote,
-    ) -> Result<Vec<SerializableAccountMeta>, ProgramError> {
+    ) -> ProgramResult {
+        let accounts_iter = &mut accounts.iter();
+
         let mut message_reader = std::io::Cursor::new(transfer.message);
         let message = TokenMessage::read_from(&mut message_reader)
             .map_err(|_err| ProgramError::from(Error::TODO))?;
 
-        let (token_key, _token_bump) =
-            Pubkey::find_program_address(hyperlane_token_pda_seeds!(), program_id);
+        // Account 0: Token account.
+        let token_account_info = next_account_info(accounts_iter)?;
+        let token = HyperlaneToken::verify_account_and_fetch_inner(program_id, token_account_info)?;
 
         let (transfer_out_account_metas, writeable_recipient) =
-            T::transfer_out_account_metas(program_id, &message)?;
+            T::transfer_out_account_metas(program_id, &token, &message)?;
 
-        let mut accounts = vec![
+        let mut accounts: Vec<SerializableAccountMeta> = vec![
             AccountMeta::new_readonly(solana_program::system_program::id(), false).into(),
             AccountMeta::new_readonly(spl_noop::id(), false).into(),
-            AccountMeta::new_readonly(token_key, false).into(),
+            AccountMeta::new_readonly(*token_account_info.key, false).into(),
             AccountMeta {
                 pubkey: Pubkey::new_from_array(message.recipient().into()),
                 is_signer: false,
@@ -476,7 +527,16 @@ where
         ];
         accounts.extend(transfer_out_account_metas);
 
-        Ok(accounts)
+        // Wrap it in the SimulationReturnData because serialized account_metas
+        // may end with zero byte(s), which are incorrectly truncated as
+        // simulated transaction return data.
+        // See `SimulationReturnData` for details.
+        let bytes = SimulationReturnData::new(accounts)
+            .try_to_vec()
+            .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+        set_return_data(&bytes[..]);
+
+        Ok(())
     }
 
     /// Enrolls a remote router.
@@ -567,22 +627,86 @@ where
 
         // Account 0: Token account
         let token_account = next_account_info(accounts_iter)?;
-        let mut token =
-            HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow_mut()[..])?.into_inner();
-        let token_seeds: &[&[u8]] = hyperlane_token_pda_seeds!(token.bump);
-        let expected_token_key = Pubkey::create_program_address(token_seeds, program_id)?;
-        if token_account.key != &expected_token_key {
-            return Err(ProgramError::InvalidArgument);
-        }
-        if token_account.owner != program_id {
-            return Err(ProgramError::IncorrectProgramId);
-        }
+        let mut token = HyperlaneToken::verify_account_and_fetch_inner(program_id, token_account)?;
 
         // Account 1: Owner
         let owner_account = next_account_info(accounts_iter)?;
 
         // This errors if owner_account is not really the owner.
         token.transfer_ownership(owner_account, new_owner)?;
+
+        // Store the updated token account.
+        HyperlaneTokenAccount::<T>::from(token).store(token_account, true)?;
+
+        Ok(())
+    }
+
+    /// Gets the interchain security module.
+    ///
+    /// Accounts:
+    /// 0. [] The token PDA account.
+    pub fn interchain_security_module(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+    ) -> ProgramResult {
+        let accounts_iter = &mut accounts.iter();
+
+        // Account 0: Token account
+        let token_account = next_account_info(accounts_iter)?;
+        let token = HyperlaneToken::<T>::verify_account_and_fetch_inner(program_id, token_account)?;
+
+        // Set the return data to the serialized Option<Pubkey> representing
+        // the ISM.
+        token.set_interchain_security_module_return_data();
+
+        Ok(())
+    }
+
+    /// Gets the account metas required to get the ISM, serializes them,
+    /// and sets them as return data.
+    ///
+    /// Accounts:
+    ///   None
+    pub fn interchain_security_module_account_metas(program_id: &Pubkey) -> ProgramResult {
+        let (token_key, _token_bump) =
+            Pubkey::find_program_address(hyperlane_token_pda_seeds!(), program_id);
+
+        let account_metas: Vec<SerializableAccountMeta> =
+            vec![AccountMeta::new_readonly(token_key, false).into()];
+
+        // Wrap it in the SimulationReturnData because serialized account_metas
+        // may end with zero byte(s), which are incorrectly truncated as
+        // simulated transaction return data.
+        // See `SimulationReturnData` for details.
+        let bytes = SimulationReturnData::new(account_metas)
+            .try_to_vec()
+            .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+        set_return_data(&bytes[..]);
+
+        Ok(())
+    }
+
+    /// Lets the owner set the interchain security module.
+    ///
+    /// Accounts:
+    /// 0. [writeable] The token PDA account.
+    /// 1. [signer] The access control owner.
+    pub fn set_interchain_security_module(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+        ism: Option<Pubkey>,
+    ) -> ProgramResult {
+        let accounts_iter = &mut accounts.iter();
+
+        // Account 0: Token account
+        let token_account = next_account_info(accounts_iter)?;
+        let mut token = HyperlaneToken::verify_account_and_fetch_inner(program_id, token_account)?;
+
+        // Account 1: Owner
+        let owner_account = next_account_info(accounts_iter)?;
+
+        // This errors if owner_account is not really the owner.
+        token.set_interchain_security_module_only_owner(owner_account, ism)?;
 
         // Store the updated token account.
         HyperlaneTokenAccount::<T>::from(token).store(token_account, true)?;

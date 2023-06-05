@@ -60,7 +60,7 @@ impl MessageProcessor {
         tokio::spawn(async move { self.main_loop().await }).instrument(span)
     }
 
-    #[instrument(ret, err, skip(self), level = "info")]
+    #[instrument(ret, err, skip(self), level = "info", fields(domain=%self.domain()))]
     async fn main_loop(mut self) -> Result<()> {
         // Forever, scan HyperlaneRocksDB looking for new messages to send. When criteria are
         // satisfied or the message is disqualified, push the message onto
@@ -128,6 +128,16 @@ impl MessageProcessor {
                 self.message_nonce += 1;
                 return Ok(());
             }
+
+            // Skip if the message is intended for this origin
+            // TODO: Add this back, maybe
+            /*
+            if destination == self.domain().id() {
+                debug!(?msg, "Message destined for self, skipping");
+                self.message_nonce += 1;
+                return Ok(());
+            }
+            */
 
             // Skip if the message is intended for a destination we do not service
             if !self.send_channels.contains_key(&destination) {

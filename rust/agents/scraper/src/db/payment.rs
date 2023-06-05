@@ -42,7 +42,6 @@ impl ScraperDb {
             .collect_vec();
 
         debug_assert!(!models.is_empty());
-        debug!(payments = models.len(), "Writing gas payments to database");
         trace!(?models, "Writing gas payments to database");
 
         Insert::many(models)
@@ -63,7 +62,11 @@ impl ScraperDb {
             .exec(&self.0)
             .await?;
         let payment_count_after = self.payments_count(domain).await?;
-        Ok(payment_count_after - payment_count_before)
+        let difference = payment_count_after.saturating_sub(payment_count_before);
+        if difference > 0 {
+            debug!(payments = difference, "Wrote new gas payments to database");
+        }
+        Ok(difference)
     }
 
     async fn payments_count(&self, domain: u32) -> Result<u64> {

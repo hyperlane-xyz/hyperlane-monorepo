@@ -7,7 +7,7 @@ import {IMultisigIsm} from "../interfaces/isms/IMultisigIsm.sol";
 contract TestMultisigIsm is IMultisigIsm {
     // solhint-disable-next-line const-name-snakecase
     uint8 public constant moduleType =
-        uint8(IInterchainSecurityModule.Types.MULTISIG);
+        uint8(IInterchainSecurityModule.Types.MERKLE_ROOT_MULTISIG);
 
     bool public accept;
 

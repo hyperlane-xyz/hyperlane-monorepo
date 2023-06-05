@@ -1,4 +1,7 @@
-use crate::error::Error;
+//! A plugin for the Hyperlane token program that mints synthetic
+//! tokens upon receiving a transfer from a remote chain, and burns
+//! synthetic tokens when transferring out to a remote chain.
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_sealevel_token_lib::{
     accounts::HyperlaneToken, message::TokenMessage, processor::HyperlaneSealevelTokenPlugin,
@@ -20,10 +23,6 @@ use spl_associated_token_account::{
 };
 use spl_token_2022::instruction::{burn_checked, mint_to_checked};
 
-// TODO make these easily configurable?
-pub const REMOTE_DECIMALS: u8 = 18;
-pub const DECIMALS: u8 = 8;
-
 /// Seeds relating to the PDA account that acts both as the mint
 /// *and* the mint authority.
 #[macro_export]
@@ -37,6 +36,7 @@ macro_rules! hyperlane_token_mint_pda_seeds {
     }};
 }
 
+/// Seeds relating to the PDA account that acts as the ATA payer.
 #[macro_export]
 macro_rules! hyperlane_token_ata_payer_pda_seeds {
     () => {{
@@ -53,17 +53,70 @@ macro_rules! hyperlane_token_ata_payer_pda_seeds {
 /// synthetic tokens when transferring out to a remote chain.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Default)]
 pub struct SyntheticPlugin {
-    mint: Pubkey,
-    mint_bump: u8,
-    ata_payer_bump: u8,
+    /// The mint / mint authority PDA account.
+    pub mint: Pubkey,
+    /// The bump seed for the mint / mint authority PDA account.
+    pub mint_bump: u8,
+    /// The bump seed for the ATA payer PDA account.
+    pub ata_payer_bump: u8,
 }
 
 impl SyntheticPlugin {
     const MINT_ACCOUNT_SIZE: usize = spl_token_2022::state::Mint::LEN;
+
+    /// Returns Ok(()) if the mint account info is valid.
+    /// Errors if the key or owner is incorrect.
+    fn verify_mint_account_info(
+        program_id: &Pubkey,
+        token: &HyperlaneToken<Self>,
+        mint_account_info: &AccountInfo,
+    ) -> Result<(), ProgramError> {
+        let mint_seeds: &[&[u8]] = hyperlane_token_mint_pda_seeds!(token.plugin_data.mint_bump);
+        let expected_mint_key = Pubkey::create_program_address(mint_seeds, program_id)?;
+        if mint_account_info.key != &expected_mint_key {
+            return Err(ProgramError::InvalidArgument);
+        }
+        if *mint_account_info.key != token.plugin_data.mint {
+            return Err(ProgramError::InvalidArgument);
+        }
+        if mint_account_info.owner != &spl_token_2022::id() {
+            return Err(ProgramError::IncorrectProgramId);
+        }
+        return Ok(());
+    }
+
+    fn verify_ata_payer_account_info(
+        program_id: &Pubkey,
+        token: &HyperlaneToken<Self>,
+        ata_payer_account_info: &AccountInfo,
+    ) -> Result<(), ProgramError> {
+        let ata_payer_seeds: &[&[u8]] =
+            hyperlane_token_ata_payer_pda_seeds!(token.plugin_data.ata_payer_bump);
+        let expected_ata_payer_account =
+            Pubkey::create_program_address(ata_payer_seeds, program_id)?;
+        if ata_payer_account_info.key != &expected_ata_payer_account {
+            return Err(ProgramError::InvalidArgument);
+        }
+        Ok(())
+    }
+
+    fn verify_ata_payer_is_rent_exempt(
+        ata_payer_account_info: &AccountInfo,
+    ) -> Result<(), ProgramError> {
+        let lamports = ata_payer_account_info.lamports();
+        let rent_exemption_requirement = Rent::default().minimum_balance(0);
+        if lamports < rent_exemption_requirement {
+            return Err(ProgramError::AccountNotRentExempt);
+        }
+        Ok(())
+    }
 }
 
 impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
     /// Initializes the plugin.
+    /// Note this will create a PDA account that will serve as the mint,
+    /// so the transaction calling this instruction must include a subsequent
+    /// instruction initializing the mint with the SPL token 2022 program.
     ///
     /// Accounts:
     /// 0. [writable] The mint / mint authority PDA account.
@@ -152,20 +205,7 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
 
         // 1. The mint / mint authority.
         let mint_account = next_account_info(accounts_iter)?;
-        let mint_seeds: &[&[u8]] = hyperlane_token_mint_pda_seeds!(token.plugin_data.mint_bump);
-        let expected_mint_key = Pubkey::create_program_address(mint_seeds, program_id)?;
-        if mint_account.key != &expected_mint_key {
-            return Err(ProgramError::InvalidArgument);
-        }
-        if *mint_account.key != token.plugin_data.mint {
-            return Err(ProgramError::InvalidArgument);
-        }
-        if mint_account.owner != &spl_token_2022::id() {
-            return Err(ProgramError::IncorrectProgramId);
-        }
-        if mint_account.owner != &spl_token_2022::id() {
-            return Err(ProgramError::IncorrectProgramId);
-        }
+        Self::verify_mint_account_info(program_id, token, mint_account)?;
 
         // 2. The sender's associated token account.
         let sender_ata = next_account_info(accounts_iter)?;
@@ -185,7 +225,7 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
             sender_wallet.key,
             &[sender_wallet.key],
             amount,
-            DECIMALS,
+            token.decimals,
         )?;
         // Sender wallet is expected to have signed this transaction
         invoke(
@@ -230,14 +270,7 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
 
         // Account 2: Mint account
         let mint_account = next_account_info(accounts_iter)?;
-        let mint_seeds: &[&[u8]] = hyperlane_token_mint_pda_seeds!(token.plugin_data.mint_bump);
-        let expected_mint_key = Pubkey::create_program_address(mint_seeds, program_id)?;
-        if mint_account.key != &expected_mint_key {
-            return Err(ProgramError::InvalidArgument);
-        }
-        if mint_account.owner != &spl_token_2022::id() {
-            return Err(ProgramError::IncorrectProgramId);
-        }
+        Self::verify_mint_account_info(program_id, token, mint_account)?;
 
         // Account 3: Recipient associated token account
         let recipient_ata = next_account_info(accounts_iter)?;
@@ -253,13 +286,7 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
 
         // Account 4: ATA payer PDA account
         let ata_payer_account = next_account_info(accounts_iter)?;
-        let ata_payer_seeds: &[&[u8]] =
-            hyperlane_token_ata_payer_pda_seeds!(token.plugin_data.ata_payer_bump);
-        let expected_ata_payer_account =
-            Pubkey::create_program_address(ata_payer_seeds, program_id)?;
-        if ata_payer_account.key != &expected_ata_payer_account {
-            return Err(ProgramError::InvalidArgument);
-        }
+        Self::verify_ata_payer_account_info(program_id, token, ata_payer_account)?;
 
         // Create and init (this does both) associated token account if necessary.
         invoke_signed(
@@ -277,16 +304,14 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
                 system_program.clone(),
                 spl_token_2022.clone(),
             ],
-            &[ata_payer_seeds, mint_seeds],
+            &[hyperlane_token_ata_payer_pda_seeds!(
+                token.plugin_data.ata_payer_bump
+            )],
         )?;
 
         // After potentially paying for the ATA creation, we need to make sure
-        // the ATA payer still meets the rent-exemption requirements!
-        let ata_payer_lamports = ata_payer_account.lamports();
-        let ata_payer_rent_exemption_requirement = Rent::default().minimum_balance(0);
-        if ata_payer_lamports < ata_payer_rent_exemption_requirement {
-            return Err(ProgramError::from(Error::AtaBalanceTooLow));
-        }
+        // the ATA payer still meets the rent-exemption requirements.
+        Self::verify_ata_payer_is_rent_exempt(ata_payer_account)?;
 
         let mint_ixn = mint_to_checked(
             &spl_token_2022::id(),
@@ -295,7 +320,7 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
             mint_account.key,
             &[],
             amount,
-            DECIMALS,
+            token.decimals,
         )?;
         invoke_signed(
             &mint_ixn,
@@ -312,17 +337,17 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
 
     fn transfer_out_account_metas(
         program_id: &Pubkey,
+        token: &HyperlaneToken<Self>,
         token_message: &TokenMessage,
     ) -> Result<(Vec<SerializableAccountMeta>, bool), ProgramError> {
-        let (mint_account_key, _mint_bump) =
-            Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), program_id);
-
-        let (ata_payer_account_key, _ata_payer_bump) =
-            Pubkey::find_program_address(hyperlane_token_ata_payer_pda_seeds!(), program_id);
+        let ata_payer_account_key = Pubkey::create_program_address(
+            hyperlane_token_ata_payer_pda_seeds!(token.plugin_data.ata_payer_bump),
+            program_id,
+        )?;
 
         let recipient_associated_token_account = get_associated_token_address_with_program_id(
             &Pubkey::new_from_array(token_message.recipient().into()),
-            &mint_account_key,
+            &token.plugin_data.mint,
             &spl_token_2022::id(),
         );
 
@@ -330,7 +355,7 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
             vec![
                 AccountMeta::new_readonly(spl_token_2022::id(), false).into(),
                 AccountMeta::new_readonly(spl_associated_token_account::id(), false).into(),
-                AccountMeta::new(mint_account_key, false).into(),
+                AccountMeta::new(token.plugin_data.mint, false).into(),
                 AccountMeta::new(recipient_associated_token_account, false).into(),
                 AccountMeta::new(ata_payer_account_key, false).into(),
             ],

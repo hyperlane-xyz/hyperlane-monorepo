@@ -11,6 +11,7 @@ import {IRoutingIsm} from "../../interfaces/isms/IRoutingIsm.sol";
 abstract contract AbstractRoutingIsm is IRoutingIsm {
     // ============ Constants ============
 
+    // solhint-disable-next-line const-name-snakecase
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.ROUTING);
 

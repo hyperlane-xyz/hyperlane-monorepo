@@ -38,6 +38,9 @@ jobs:
           toolchain: stable
           profile: minimal
 
+      - name: Install Foundry
+        uses: onbjerg/foundry-toolchain@v1
+
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:

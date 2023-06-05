@@ -80,9 +80,9 @@ impl ScraperDb {
             Ok(Some(HyperlaneMessage {
                 // We do not write version to the DB.
                 version: 0,
-                origin: message.origin.try_into()?,
-                nonce: message.nonce.try_into()?,
-                destination: message.destination.try_into()?,
+                origin: message.origin as u32,
+                destination: message.destination as u32,
+                nonce: message.nonce as u32,
                 sender: bytes_to_address(message.sender)?,
                 recipient: bytes_to_address(message.recipient)?,
                 body: message.msg_body.unwrap_or(Vec::new()),
@@ -154,10 +154,6 @@ impl ScraperDb {
             .collect_vec();
 
         debug_assert!(!models.is_empty());
-        debug!(
-            deliveries = models.len(),
-            "Writing delivered messages to database"
-        );
         trace!(?models, "Writing delivered messages to database");
 
         Insert::many(models)
@@ -172,7 +168,14 @@ impl ScraperDb {
             .exec(&self.0)
             .await?;
         let deliveries_count_after = self.deliveries_count(domain, destination_mailbox).await?;
-        Ok(deliveries_count_after - deliveries_count_before)
+        let difference = deliveries_count_after.saturating_sub(deliveries_count_before);
+        if difference > 0 {
+            debug!(
+                messages = difference,
+                "Wrote new delivered messages to database"
+            );
+        }
+        Ok(difference)
     }
 
     async fn dispatched_messages_count(&self, domain: u32, origin_mailbox: Vec<u8>) -> Result<u64> {
@@ -218,7 +221,6 @@ impl ScraperDb {
             .collect_vec();
 
         debug_assert!(!models.is_empty());
-        debug!(messages = models.len(), "Writing messages to database");
         trace!(?models, "Writing messages to database");
 
         Insert::many(models)
@@ -243,6 +245,10 @@ impl ScraperDb {
         let messages_count_after = self
             .dispatched_messages_count(domain, origin_mailbox)
             .await?;
-        Ok(messages_count_after - messages_count_before)
+        let difference = messages_count_after.saturating_sub(messages_count_before);
+        if difference > 0 {
+            debug!(messages = difference, "Wrote new messages to database");
+        }
+        Ok(difference)
     }
 }

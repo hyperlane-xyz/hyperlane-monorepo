@@ -1,11 +1,9 @@
-//! TODO
+//! Hyperlane Token program for synthetic tokens.
 
-// #![deny(warnings)] // FIXME
-// #![deny(missing_docs)] // FIXME
+#![deny(warnings)]
+#![deny(missing_docs)]
 #![deny(unsafe_code)]
 
-pub mod error;
-pub mod instruction;
 pub mod plugin;
 pub mod processor;
 

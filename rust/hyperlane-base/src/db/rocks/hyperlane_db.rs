@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use eyre::Result;
 use paste::paste;
 use tokio::time::sleep;
-use tracing::{debug, trace};
+use tracing::{debug, trace, instrument};
 
 use hyperlane_core::{
     HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage, HyperlaneMessageStore,
@@ -213,6 +213,7 @@ impl HyperlaneRocksDB {
 #[async_trait]
 impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneRocksDB {
     /// Store a list of dispatched messages and their associated metadata.
+    #[instrument(skip_all)]
     async fn store_logs(&self, messages: &[(HyperlaneMessage, LogMeta)]) -> Result<u32> {
         let mut stored = 0;
         for (message, meta) in messages {
@@ -221,6 +222,9 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneRocksDB {
                 stored += 1;
             }
         }
+        if stored > 0 {
+            debug!(messages = stored, "Wrote new messages to database");
+        }
         Ok(stored)
     }
 }
@@ -228,12 +232,16 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneRocksDB {
 #[async_trait]
 impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneRocksDB {
     /// Store a list of interchain gas payments and their associated metadata.
+    #[instrument(skip_all)]
     async fn store_logs(&self, payments: &[(InterchainGasPayment, LogMeta)]) -> Result<u32> {
         let mut new = 0;
         for (payment, meta) in payments {
             if self.process_gas_payment(*payment, meta)? {
                 new += 1;
             }
+        }
+        if new > 0 {
+            debug!(payments = new, "Wrote new gas payments to database");
         }
         Ok(new)
     }
