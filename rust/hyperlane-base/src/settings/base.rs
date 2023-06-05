@@ -240,14 +240,14 @@ impl Settings {
     }
 
     /// Try to get the chain configuration for the given domain.
-    pub fn chain_setup(&self, domain: &HyperlaneDomain) -> eyre::Result<&ChainConf> {
+    pub fn chain_setup(&self, domain: &HyperlaneDomain) -> Result<&ChainConf> {
         self.chains
             .get(domain.name())
             .ok_or_else(|| eyre!("No chain setup found for {domain}"))
     }
 
     /// Try to get the domain for a given chain by name.
-    pub fn lookup_domain(&self, chain_name: &str) -> eyre::Result<HyperlaneDomain> {
+    pub fn lookup_domain(&self, chain_name: &str) -> Result<HyperlaneDomain> {
         self.chains
             .get(&chain_name.to_ascii_lowercase())
             .ok_or_else(|| eyre!("No chain setup found for {chain_name}"))
@@ -255,7 +255,7 @@ impl Settings {
     }
 
     /// Create the core metrics from the settings given the name of the agent.
-    pub fn metrics(&self, name: &str) -> eyre::Result<Arc<CoreMetrics>> {
+    pub fn metrics(&self, name: &str) -> Result<Arc<CoreMetrics>> {
         Ok(Arc::new(CoreMetrics::new(
             name,
             self.metrics_port,
