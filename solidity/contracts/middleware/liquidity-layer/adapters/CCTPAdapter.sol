@@ -6,7 +6,6 @@ import {Router} from "../../../Router.sol";
 import {ITokenMessenger} from "../interfaces/circle/ITokenMessenger.sol";
 import {ICircleMessageTransmitter} from "../interfaces/circle/ICircleMessageTransmitter.sol";
 import {ILiquidityLayerAdapterV2} from "../interfaces/ILiquidityLayerAdapterV2.sol";
-import {ILiquidityLayerMessageRecipient} from "../../../interfaces/ILiquidityLayerMessageRecipient.sol";
 
 import {TypeCasts} from "../../../libs/TypeCasts.sol";
 
