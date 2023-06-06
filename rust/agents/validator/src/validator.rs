@@ -105,14 +105,17 @@ impl BaseAgent for Validator {
     async fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
         self.announce().await.expect("Failed to announce validator");
 
-        // Ensure that the mailbox has > 0 messages before we enter the main
-        // validator submit loop. This is to avoid an underflow / reverted
-        // call when we invoke the `mailbox.latest_checkpoint()` method,
-        // which returns the **index** of the last element in the tree
-        // rather than just the size.  See
-        // https://github.com/hyperlane-network/hyperlane-monorepo/issues/575 for
-        // more details.
-        while self.mailbox.count(NonZeroU64::new(self.reorg_period)).await.expect("Failed to get count of mailbox") == 0 {
+        let reorg_period = NonZeroU64::new(self.reorg_period);
+
+        // Ensure that the mailbox has count > 0 before we begin indexing
+        // messages or submitting checkpoints.
+        while self
+            .mailbox
+            .count(reorg_period)
+            .await
+            .expect("Failed to get count of mailbox")
+            == 0
+        {
             info!("Waiting for first message to mailbox");
             sleep(self.interval).await;
         }
@@ -164,22 +167,21 @@ impl Validator {
             .tree(lag)
             .await
             .expect("failed to get mailbox tree");
-        let mut tasks = vec![];
+        assert!(tip_tree.count() > 0, "mailbox tree is empty");
+        let backfill_target = submitter.checkpoint(&tip_tree);
 
         let legacy_submitter = submitter.clone();
+        let backfill_submitter = submitter.clone();
 
-        if tip_tree.count() > 0 {
-            let backfill_target = submitter.checkpoint(&tip_tree);
-            let backfill_submitter = submitter.clone();
-            tasks.push(
-                tokio::spawn(async move {
-                    backfill_submitter
-                        .checkpoint_submitter(empty_tree, Some(backfill_target))
-                        .await
-                })
-                .instrument(info_span!("BackfillCheckpointSubmitter")),
-            );
-        }
+        let mut tasks = vec![];
+        tasks.push(
+            tokio::spawn(async move {
+                backfill_submitter
+                    .checkpoint_submitter(empty_tree, Some(backfill_target))
+                    .await
+            })
+            .instrument(info_span!("BackfillCheckpointSubmitter")),
+        );
 
         tasks.push(
             tokio::spawn(async move { submitter.checkpoint_submitter(tip_tree, None).await })
@@ -234,6 +236,7 @@ impl Validator {
                         validator_address=?announcement.validator,
                         "Please send tokens to the validator address to announce",
                     );
+                    sleep(self.interval).await;
                 } else {
                     let outcome = self
                         .validator_announce
@@ -247,7 +250,6 @@ impl Validator {
                     }
                 }
             }
-            sleep(self.interval).await;
         }
         Ok(())
     }
