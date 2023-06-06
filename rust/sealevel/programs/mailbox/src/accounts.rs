@@ -9,7 +9,7 @@ use solana_program::{
     account_info::AccountInfo, clock::Slot, program_error::ProgramError, pubkey::Pubkey,
 };
 
-use crate::error::Error;
+use crate::{error::Error, mailbox_inbox_pda_seeds};
 
 pub trait SizedData {
     fn size(&self) -> usize;
@@ -148,6 +148,28 @@ impl SizedData for Inbox {
         // 32 byte default_ism
         // 8 byte processed_count
         4 + 1 + 32 + 8
+    }
+}
+
+impl Inbox {
+    pub fn verify_account_and_fetch_inner<'a>(
+        program_id: &Pubkey,
+        inbox_account_info: &AccountInfo<'a>,
+    ) -> Result<Self, ProgramError> {
+        let inbox =
+            InboxAccount::fetch(&mut &inbox_account_info.data.borrow_mut()[..])?.into_inner();
+        let expected_inbox_key = Pubkey::create_program_address(
+            mailbox_inbox_pda_seeds!(inbox.inbox_bump_seed),
+            program_id,
+        )?;
+        if inbox_account_info.key != &expected_inbox_key {
+            return Err(ProgramError::InvalidArgument);
+        }
+        if inbox_account_info.owner != program_id {
+            return Err(ProgramError::IllegalOwner);
+        }
+
+        Ok(*inbox)
     }
 }
 
