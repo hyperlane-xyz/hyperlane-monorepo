@@ -58,10 +58,10 @@ impl InterchainSecurityModuleInstruction {
         let mut buf = vec![];
         match self {
             InterchainSecurityModuleInstruction::Type => {
-                buf.extend_from_slice(&TYPE_DISCRIMINATOR_SLICE[..]);
+                buf.extend_from_slice(TYPE_DISCRIMINATOR_SLICE);
             }
             InterchainSecurityModuleInstruction::Verify(instruction) => {
-                buf.extend_from_slice(&VERIFY_DISCRIMINATOR_SLICE[..]);
+                buf.extend_from_slice(VERIFY_DISCRIMINATOR_SLICE);
                 buf.extend_from_slice(
                     &instruction
                         .try_to_vec()
@@ -69,7 +69,7 @@ impl InterchainSecurityModuleInstruction {
                 );
             }
             InterchainSecurityModuleInstruction::VerifyAccountMetas(instruction) => {
-                buf.extend_from_slice(&VERIFY_ACCOUNT_METAS_DISCRIMINATOR_SLICE[..]);
+                buf.extend_from_slice(VERIFY_ACCOUNT_METAS_DISCRIMINATOR_SLICE);
                 buf.extend_from_slice(
                     &instruction
                         .try_to_vec()

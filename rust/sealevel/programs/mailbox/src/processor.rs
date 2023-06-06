@@ -462,11 +462,8 @@ fn get_recipient_ism(
     default_ism: Pubkey,
 ) -> Result<Pubkey, ProgramError> {
     let get_ism = MessageRecipientInstruction::InterchainSecurityModule;
-    let get_ism_instruction = Instruction::new_with_bytes(
-        recipient_program_id.clone(),
-        &get_ism.encode()?,
-        account_metas,
-    );
+    let get_ism_instruction =
+        Instruction::new_with_bytes(*recipient_program_id, &get_ism.encode()?, account_metas);
     invoke(&get_ism_instruction, &account_infos)?;
 
     // Default to the default ISM.

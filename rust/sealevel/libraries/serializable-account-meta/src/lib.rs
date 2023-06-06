@@ -19,12 +19,12 @@ impl From<AccountMeta> for SerializableAccountMeta {
     }
 }
 
-impl Into<AccountMeta> for SerializableAccountMeta {
-    fn into(self) -> AccountMeta {
-        AccountMeta {
-            pubkey: self.pubkey,
-            is_signer: self.is_signer,
-            is_writable: self.is_writable,
+impl From<SerializableAccountMeta> for AccountMeta {
+    fn from(serializable_account_meta: SerializableAccountMeta) -> Self {
+        Self {
+            pubkey: serializable_account_meta.pubkey,
+            is_signer: serializable_account_meta.is_signer,
+            is_writable: serializable_account_meta.is_writable,
         }
     }
 }

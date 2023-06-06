@@ -83,7 +83,8 @@ impl SyntheticPlugin {
         if mint_account_info.owner != &spl_token_2022::id() {
             return Err(ProgramError::IncorrectProgramId);
         }
-        return Ok(());
+
+        Ok(())
     }
 
     fn verify_ata_payer_account_info(
@@ -166,7 +167,7 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
 
         Ok(Self {
             mint: mint_key,
-            mint_bump: mint_bump,
+            mint_bump,
             ata_payer_bump,
         })
     }

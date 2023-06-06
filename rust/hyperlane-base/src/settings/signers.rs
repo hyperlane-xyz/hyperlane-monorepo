@@ -155,10 +155,8 @@ impl BuildableWithSignerConf for hyperlane_sealevel::solana::signer::keypair::Ke
                 let secret = SecretKey::from_bytes(key.as_bytes())
                     .context("Invalid sealevel ed25519 secret key")?;
                 let public = PublicKey::from(&secret);
-                let keypair =
-                    Keypair::from_bytes(&ed25519_dalek::Keypair { secret, public }.to_bytes()[..])
-                        .context("Unable to create Keypair")?;
-                keypair
+                Keypair::from_bytes(&ed25519_dalek::Keypair { secret, public }.to_bytes()[..])
+                    .context("Unable to create Keypair")?
             }
             SignerConf::Aws { .. } => bail!("Aws signer is not supported by fuel"),
             SignerConf::Node => bail!("Node signer is not supported by fuel"),

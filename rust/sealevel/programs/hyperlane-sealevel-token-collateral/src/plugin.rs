@@ -167,7 +167,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
         // And initialize the escrow account.
         invoke(
             &initialize_account(
-                &spl_token_account_info.key,
+                spl_token_account_info.key,
                 escrow_account_info.key,
                 mint_account_info.key,
                 escrow_account_info.key,
