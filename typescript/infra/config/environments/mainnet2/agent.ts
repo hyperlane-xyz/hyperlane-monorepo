@@ -34,10 +34,6 @@ const contextBase = {
   },
 } as const;
 
-const roleBase = {
-  connectionType: AgentConnectionType.HttpFallback,
-} as const;
-
 const gasPaymentEnforcement: GasPaymentEnforcementConfig[] = [
   {
     type: GasPaymentEnforcementPolicyType.None,
@@ -57,7 +53,7 @@ const hyperlane: RootAgentConfig = {
   context: Contexts.Hyperlane,
   rolesWithKeys: ALL_KEY_ROLES,
   relayer: {
-    ...roleBase,
+    connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
       tag: '2deb9b8-20230602-205342',
@@ -75,7 +71,6 @@ const hyperlane: RootAgentConfig = {
     gasPaymentEnforcement,
   },
   validators: {
-    ...roleBase,
     docker: {
       repo,
       tag: '40cc4a6-20230420-080111',
@@ -84,7 +79,7 @@ const hyperlane: RootAgentConfig = {
     chains: validators,
   },
   scraper: {
-    ...roleBase,
+    connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
       tag: '40cc4a6-20230420-080111',
@@ -97,7 +92,7 @@ const releaseCandidate: RootAgentConfig = {
   context: Contexts.ReleaseCandidate,
   rolesWithKeys: [Role.Relayer, Role.Kathy],
   relayer: {
-    ...roleBase,
+    connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
       tag: '2deb9b8-20230602-205342',
