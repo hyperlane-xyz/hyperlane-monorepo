@@ -227,15 +227,15 @@ fn inbox_process(
     }
 
     // Account 4: Processed message PDA.
-    let processed_message_info = next_account_info(accounts_iter)?;
+    let processed_message_account_info = next_account_info(accounts_iter)?;
     let (expected_processed_message_key, expected_processed_message_bump) =
         Pubkey::find_program_address(mailbox_processed_message_pda_seeds!(message_id), program_id);
-    if processed_message_info.key != &expected_processed_message_key {
+    if processed_message_account_info.key != &expected_processed_message_key {
         return Err(ProgramError::InvalidArgument);
     }
     // If the processed message account already exists, then the message
     // has been processed already.
-    if verify_account_uninitialized(processed_message_info).is_err() {
+    if verify_account_uninitialized(processed_message_account_info).is_err() {
         return Err(Error::DuplicateMessage.into());
     }
 
@@ -353,11 +353,11 @@ fn inbox_process(
         processed_message_account_data_size,
         program_id,
         system_program_info,
-        processed_message_info,
+        processed_message_account_info,
         mailbox_processed_message_pda_seeds!(message_id, expected_processed_message_bump),
     )?;
     // Write the processed message data to the processed message account.
-    processed_message_account_data.store(processed_message_info, false)?;
+    processed_message_account_data.store(processed_message_account_info, false)?;
 
     // Increment the processed count and store the updated Inbox account.
     inbox.processed_count += 1;
@@ -411,34 +411,24 @@ fn inbox_get_recipient_ism(
     let accounts_iter = &mut accounts.iter();
 
     // Account 0: Inbox PDA.
-    let inbox_account = next_account_info(accounts_iter)?;
-    let inbox = InboxAccount::fetch(&mut &inbox_account.data.borrow()[..])?.into_inner();
-    let expected_inbox_key = Pubkey::create_program_address(
-        mailbox_inbox_pda_seeds!(inbox.inbox_bump_seed),
-        program_id,
-    )?;
-    if inbox_account.key != &expected_inbox_key {
-        return Err(ProgramError::InvalidArgument);
-    }
-    if inbox_account.owner != program_id {
-        return Err(ProgramError::IncorrectProgramId);
-    }
+    let inbox_info = next_account_info(accounts_iter)?;
+    let inbox = Inbox::verify_account_and_fetch_inner(program_id, inbox_info)?;
 
     // Account 1: The recipient program.
-    let recipient_account = next_account_info(accounts_iter)?;
-    if &recipient != recipient_account.key || !recipient_account.executable {
+    let recipient_info = next_account_info(accounts_iter)?;
+    if &recipient != recipient_info.key || !recipient_info.executable {
         return Err(ProgramError::InvalidArgument);
     }
 
     // Account 2..N: The accounts required to make the CPI into the recipient program.
     let mut account_infos = vec![];
     let mut account_metas = vec![];
-    for account in accounts_iter {
-        account_infos.push(account.clone());
+    for account_info in accounts_iter {
+        account_infos.push(account_info.clone());
         account_metas.push(AccountMeta {
-            pubkey: *account.key,
-            is_signer: account.is_signer,
-            is_writable: account.is_writable,
+            pubkey: *account_info.key,
+            is_signer: account_info.is_signer,
+            is_writable: account_info.is_writable,
         });
     }
 
@@ -464,12 +454,14 @@ fn get_recipient_ism(
     account_metas: Vec<AccountMeta>,
     default_ism: Pubkey,
 ) -> Result<Pubkey, ProgramError> {
-    let get_ism = MessageRecipientInstruction::InterchainSecurityModule;
-    let get_ism_instruction =
-        Instruction::new_with_bytes(*recipient_program_id, &get_ism.encode()?, account_metas);
+    let get_ism_instruction = Instruction::new_with_bytes(
+        *recipient_program_id,
+        &MessageRecipientInstruction::InterchainSecurityModule.encode()?,
+        account_metas,
+    );
     invoke(&get_ism_instruction, &account_infos)?;
 
-    // Default to the default ISM.
+    // Default to the default ISM if there is no return data or Option::None was returned.
     let ism = if let Some((returning_program_id, returned_data)) = get_return_data() {
         if &returning_program_id != recipient_program_id {
             return Err(ProgramError::InvalidAccountData);
@@ -502,37 +494,17 @@ fn inbox_set_default_ism(
     let accounts_iter = &mut accounts.iter();
 
     // Account 0: Inbox PDA account.
-    let inbox_account = next_account_info(accounts_iter)?;
-    let mut inbox = InboxAccount::fetch(&mut &inbox_account.data.borrow_mut()[..])?.into_inner();
-    let expected_inbox_key = Pubkey::create_program_address(
-        mailbox_inbox_pda_seeds!(inbox.inbox_bump_seed),
-        program_id,
-    )?;
-    if inbox_account.key != &expected_inbox_key {
-        return Err(ProgramError::InvalidArgument);
-    }
-    if inbox_account.owner != program_id {
-        return Err(ProgramError::IncorrectProgramId);
-    }
+    let inbox_info = next_account_info(accounts_iter)?;
+    let mut inbox = Inbox::verify_account_and_fetch_inner(program_id, inbox_info)?;
 
     // Account 1: Outbox PDA account.
-    let outbox_account = next_account_info(accounts_iter)?;
-    let outbox = OutboxAccount::fetch(&mut &outbox_account.data.borrow_mut()[..])?.into_inner();
-    let expected_outbox_key = Pubkey::create_program_address(
-        mailbox_outbox_pda_seeds!(outbox.outbox_bump_seed),
-        program_id,
-    )?;
-    if outbox_account.key != &expected_outbox_key {
-        return Err(ProgramError::InvalidArgument);
-    }
-    if outbox_account.owner != program_id {
-        return Err(ProgramError::IncorrectProgramId);
-    }
+    let outbox_info = next_account_info(accounts_iter)?;
+    let outbox = Outbox::verify_account_and_fetch_inner(program_id, outbox_info)?;
 
     // Account 2: The owner of the Mailbox.
-    let owner_account = next_account_info(accounts_iter)?;
+    let owner_info = next_account_info(accounts_iter)?;
     // Errors if the owner account isn't correct or isn't a signer.
-    outbox.ensure_owner_signer(owner_account)?;
+    outbox.ensure_owner_signer(owner_info)?;
 
     if accounts_iter.next().is_some() {
         return Err(ProgramError::from(Error::ExtraneousAccount));
@@ -541,7 +513,7 @@ fn inbox_set_default_ism(
     // Set the new default ISM.
     inbox.default_ism = ism.program_id;
     // Store the updated inbox.
-    InboxAccount::from(inbox).store(inbox_account, true)?;
+    InboxAccount::from(inbox).store(inbox_info, false)?;
 
     Ok(())
 }
@@ -551,6 +523,8 @@ fn inbox_set_default_ism(
 /// the PDA for the sending program with the seeds `mailbox_message_dispatch_authority_pda_seeds!()`.
 /// in order for the sender field of the message to be set to the sending program
 /// ID. Otherwise, the sender field of the message is set to the message sender signer.
+///
+/// Sets the ID of the message as return data.
 ///
 /// Accounts:
 ///
@@ -570,28 +544,18 @@ fn outbox_dispatch(
     let accounts_iter = &mut accounts.iter();
 
     // Account 0: Outbox PDA.
-    let outbox_account = next_account_info(accounts_iter)?;
-    let mut outbox = OutboxAccount::fetch(&mut &outbox_account.data.borrow_mut()[..])?.into_inner();
-    let expected_outbox_key = Pubkey::create_program_address(
-        mailbox_outbox_pda_seeds!(outbox.outbox_bump_seed),
-        program_id,
-    )?;
-    if outbox_account.key != &expected_outbox_key || outbox_account.owner != program_id {
-        return Err(ProgramError::IncorrectProgramId);
-    }
-    if !outbox_account.is_writable {
-        return Err(ProgramError::InvalidArgument);
-    }
+    let outbox_info = next_account_info(accounts_iter)?;
+    let mut outbox = Outbox::verify_account_and_fetch_inner(program_id, outbox_info)?;
 
     // Account 1: Message sender signer.
-    let sender_signer = next_account_info(accounts_iter)?;
-    if !sender_signer.is_signer {
+    let sender_signer_info = next_account_info(accounts_iter)?;
+    if !sender_signer_info.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
     }
     // If the sender signer key differs from the specified dispatch.sender,
     // we need to confirm that the sender signer has the authority to sign
     // on behalf of the dispatch.sender!
-    if *sender_signer.key != dispatch.sender {
+    if *sender_signer_info.key != dispatch.sender {
         // TODO would be great to have the bump in here...
         // Maybe shove it into the data of the sender_signer?
         let (expected_signer_key, _expected_signer_bump) = Pubkey::find_program_address(
@@ -600,53 +564,48 @@ fn outbox_dispatch(
         );
         // If the sender_signer isn't the expected dispatch authority for the
         // specified dispatch.sender, fail.
-        if expected_signer_key != *sender_signer.key {
+        if expected_signer_key != *sender_signer_info.key {
             return Err(ProgramError::MissingRequiredSignature);
         }
     }
 
     // Account 2: System program.
-    let system_program_account = next_account_info(accounts_iter)?;
-    if system_program_account.key != &solana_program::system_program::id() {
+    let system_program_info = next_account_info(accounts_iter)?;
+    if system_program_info.key != &solana_program::system_program::id() {
         return Err(ProgramError::InvalidArgument);
     }
 
     // Account 3: SPL Noop program.
-    let spl_noop = next_account_info(accounts_iter)?;
-    if spl_noop.key != &spl_noop::id() || !spl_noop.executable {
+    let spl_noop_info = next_account_info(accounts_iter)?;
+    if spl_noop_info.key != &spl_noop::id() || !spl_noop_info.executable {
         return Err(ProgramError::InvalidArgument);
     }
 
     // Account 4: Payer.
-    let payer_account = next_account_info(accounts_iter)?;
-    if !payer_account.is_signer {
+    let payer_info = next_account_info(accounts_iter)?;
+    if !payer_info.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
     }
 
     // Account 5: Unique message account.
     // Uniqueness is enforced by making sure the message storage PDA based on
     // this unique message account is empty, which is done next.
-    let unique_message_account = next_account_info(accounts_iter)?;
-    if !unique_message_account.is_signer {
+    let unique_message_account_info = next_account_info(accounts_iter)?;
+    if !unique_message_account_info.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
     }
 
     // Account 6: Dispatched message PDA.
-    let dispatched_message_pda = next_account_info(accounts_iter)?;
+    let dispatched_message_account_info = next_account_info(accounts_iter)?;
     let (dispatched_message_key, dispatched_message_bump) = Pubkey::find_program_address(
-        mailbox_dispatched_message_pda_seeds!(unique_message_account.key),
+        mailbox_dispatched_message_pda_seeds!(unique_message_account_info.key),
         program_id,
     );
-    if dispatched_message_key != *dispatched_message_pda.key {
+    if dispatched_message_key != *dispatched_message_account_info.key {
         return Err(ProgramError::IncorrectProgramId);
     }
     // Make sure an account can't be written to that already exists.
-    if !dispatched_message_pda.data_is_empty()
-        || *dispatched_message_pda.owner != solana_program::system_program::id()
-        || dispatched_message_pda.lamports() != 0
-    {
-        return Err(ProgramError::InvalidArgument);
-    }
+    verify_account_uninitialized(dispatched_message_account_info)?;
 
     if accounts_iter.next().is_some() {
         return Err(ProgramError::from(Error::ExtraneousAccount));
@@ -682,51 +641,49 @@ fn outbox_dispatch(
     let dispatched_message_account = DispatchedMessageAccount::from(DispatchedMessage::new(
         message.nonce,
         Clock::get()?.slot,
-        *unique_message_account.key,
+        *unique_message_account_info.key,
         encoded_message,
     ));
     let dispatched_message_account_size: usize = dispatched_message_account.size();
     create_pda_account(
-        payer_account,
+        payer_info,
         &Rent::get()?,
         dispatched_message_account_size,
         program_id,
-        system_program_account,
-        dispatched_message_pda,
-        mailbox_dispatched_message_pda_seeds!(unique_message_account.key, dispatched_message_bump),
+        system_program_info,
+        dispatched_message_account_info,
+        mailbox_dispatched_message_pda_seeds!(
+            unique_message_account_info.key,
+            dispatched_message_bump
+        ),
     )?;
-    dispatched_message_account.store(dispatched_message_pda, false)?;
+    dispatched_message_account.store(dispatched_message_account_info, false)?;
 
     // Log the message using the SPL Noop program.
     let noop_cpi_log = Instruction {
-        program_id: *spl_noop.key,
+        program_id: *spl_noop_info.key,
         accounts: vec![],
-        data: dispatched_message_pda.data.borrow().to_vec(),
+        data: dispatched_message_account_info.data.borrow().to_vec(),
     };
     invoke(&noop_cpi_log, &[])?;
 
     // Store the Outbox with the new updates.
-    OutboxAccount::from(outbox).store(outbox_account, true)?;
+    OutboxAccount::from(outbox).store(outbox_info, true)?;
 
     set_return_data(id.as_ref());
     Ok(())
 }
 
+/// Gets the number of dispatched messages as little endian encoded return data.
+///
+/// Accounts:
+/// 0. [] Outbox PDA account.
 fn outbox_get_count(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
-    let outbox_account = next_account_info(accounts_iter)?;
-    let outbox = OutboxAccount::fetch(&mut &outbox_account.data.borrow_mut()[..])?.into_inner();
-    let expected_outbox_key = Pubkey::create_program_address(
-        mailbox_outbox_pda_seeds!(outbox.outbox_bump_seed),
-        program_id,
-    )?;
-    if outbox_account.key != &expected_outbox_key {
-        return Err(ProgramError::InvalidArgument);
-    }
-    if outbox_account.owner != program_id {
-        return Err(ProgramError::IncorrectProgramId);
-    }
+    // Account 0: Outbox PDA.
+    let outbox_info = next_account_info(accounts_iter)?;
+    let outbox = Outbox::verify_account_and_fetch_inner(program_id, outbox_info)?;
 
     if accounts_iter.next().is_some() {
         return Err(ProgramError::from(Error::ExtraneousAccount));
@@ -741,21 +698,15 @@ fn outbox_get_count(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramRes
     Ok(())
 }
 
+/// Gets the latest checkpoint as return data.
+///
+/// Accounts:
+/// 0. [] Outbox PDA account.
 fn outbox_get_latest_checkpoint(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
-    let outbox_account = next_account_info(accounts_iter)?;
-    let outbox = OutboxAccount::fetch(&mut &outbox_account.data.borrow_mut()[..])?.into_inner();
-    let expected_outbox_key = Pubkey::create_program_address(
-        mailbox_outbox_pda_seeds!(outbox.outbox_bump_seed),
-        program_id,
-    )?;
-    if outbox_account.key != &expected_outbox_key {
-        return Err(ProgramError::InvalidArgument);
-    }
-    if outbox_account.owner != program_id {
-        return Err(ProgramError::IncorrectProgramId);
-    }
+    let outbox_info = next_account_info(accounts_iter)?;
+    let outbox = Outbox::verify_account_and_fetch_inner(program_id, outbox_info)?;
 
     if accounts_iter.next().is_some() {
         return Err(ProgramError::from(Error::ExtraneousAccount));
@@ -775,21 +726,16 @@ fn outbox_get_latest_checkpoint(program_id: &Pubkey, accounts: &[AccountInfo]) -
     Ok(())
 }
 
+/// Gets the root as return data.
+///
+/// Accounts:
+/// 0. [] Outbox PDA account.
 fn outbox_get_root(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
-    let outbox_account = next_account_info(accounts_iter)?;
-    let outbox = OutboxAccount::fetch(&mut &outbox_account.data.borrow_mut()[..])?.into_inner();
-    let expected_outbox_key = Pubkey::create_program_address(
-        mailbox_outbox_pda_seeds!(outbox.outbox_bump_seed),
-        program_id,
-    )?;
-    if outbox_account.key != &expected_outbox_key {
-        return Err(ProgramError::InvalidArgument);
-    }
-    if outbox_account.owner != program_id {
-        return Err(ProgramError::IncorrectProgramId);
-    }
+    // Account 0: Outbox PDA.
+    let outbox_info = next_account_info(accounts_iter)?;
+    let outbox = Outbox::verify_account_and_fetch_inner(program_id, outbox_info)?;
 
     if accounts_iter.next().is_some() {
         return Err(ProgramError::from(Error::ExtraneousAccount));
@@ -808,18 +754,8 @@ fn get_owner(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
     // Account 0: Outbox PDA.
-    let outbox_account = next_account_info(accounts_iter)?;
-    let outbox = OutboxAccount::fetch(&mut &outbox_account.data.borrow_mut()[..])?.into_inner();
-    let expected_outbox_key = Pubkey::create_program_address(
-        mailbox_outbox_pda_seeds!(outbox.outbox_bump_seed),
-        program_id,
-    )?;
-    if outbox_account.key != &expected_outbox_key {
-        return Err(ProgramError::InvalidArgument);
-    }
-    if outbox_account.owner != program_id {
-        return Err(ProgramError::IncorrectProgramId);
-    }
+    let outbox_info = next_account_info(accounts_iter)?;
+    let outbox = Outbox::verify_account_and_fetch_inner(program_id, outbox_info)?;
 
     set_return_data(
         &outbox
@@ -843,26 +779,16 @@ fn transfer_ownership(
     let accounts_iter = &mut accounts.iter();
 
     // Account 0: Outbox PDA.
-    let outbox_account = next_account_info(accounts_iter)?;
-    let mut outbox = OutboxAccount::fetch(&mut &outbox_account.data.borrow_mut()[..])?.into_inner();
-    let expected_outbox_key = Pubkey::create_program_address(
-        mailbox_outbox_pda_seeds!(outbox.outbox_bump_seed),
-        program_id,
-    )?;
-    if outbox_account.key != &expected_outbox_key {
-        return Err(ProgramError::InvalidArgument);
-    }
-    if outbox_account.owner != program_id {
-        return Err(ProgramError::IncorrectProgramId);
-    }
+    let outbox_info = next_account_info(accounts_iter)?;
+    let mut outbox = Outbox::verify_account_and_fetch_inner(program_id, outbox_info)?;
 
     // Account 1: Current owner.
-    let owner_account = next_account_info(accounts_iter)?;
+    let owner_info = next_account_info(accounts_iter)?;
     // Errors if the owner_account is not the actual owner or is not a signer.
-    outbox.transfer_ownership(owner_account, new_owner)?;
+    outbox.transfer_ownership(owner_info, new_owner)?;
 
     // Store the updated outbox.
-    OutboxAccount::from(outbox).store(outbox_account, false)?;
+    OutboxAccount::from(outbox).store(outbox_info, false)?;
 
     Ok(())
 }

@@ -9,7 +9,7 @@ use solana_program::{
     account_info::AccountInfo, clock::Slot, program_error::ProgramError, pubkey::Pubkey,
 };
 
-use crate::{error::Error, mailbox_inbox_pda_seeds};
+use crate::{error::Error, mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds};
 
 pub trait SizedData {
     fn size(&self) -> usize;
@@ -201,6 +201,28 @@ impl AccessControl for Outbox {
     fn set_owner(&mut self, owner: Option<Pubkey>) -> Result<(), ProgramError> {
         self.owner = owner;
         Ok(())
+    }
+}
+
+impl Outbox {
+    pub fn verify_account_and_fetch_inner(
+        program_id: &Pubkey,
+        outbox_account_info: &AccountInfo,
+    ) -> Result<Self, ProgramError> {
+        let outbox =
+            OutboxAccount::fetch(&mut &outbox_account_info.data.borrow_mut()[..])?.into_inner();
+        let expected_outbox_key = Pubkey::create_program_address(
+            mailbox_outbox_pda_seeds!(outbox.outbox_bump_seed),
+            program_id,
+        )?;
+        if outbox_account_info.key != &expected_outbox_key {
+            return Err(ProgramError::InvalidArgument);
+        }
+        if outbox_account_info.owner != program_id {
+            return Err(ProgramError::IllegalOwner);
+        }
+
+        Ok(*outbox)
     }
 }
 
