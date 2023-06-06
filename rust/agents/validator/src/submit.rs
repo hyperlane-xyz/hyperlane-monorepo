@@ -6,6 +6,7 @@ use std::vec;
 use eyre::Result;
 use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
+use hyperlane_ethereum::singleton_signer::SingletonSignerSender;
 use prometheus::IntGauge;
 use tokio::time::sleep;
 use tracing::instrument;
@@ -22,7 +23,7 @@ use hyperlane_core::{
 pub(crate) struct ValidatorSubmitter {
     interval: Duration,
     reorg_period: Option<NonZeroU64>,
-    signer: Arc<dyn HyperlaneSigner>,
+    signer: SingletonSignerSender,
     mailbox: Arc<dyn Mailbox>,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
     message_db: HyperlaneRocksDB,
@@ -34,7 +35,7 @@ impl ValidatorSubmitter {
         interval: Duration,
         reorg_period: u64,
         mailbox: Arc<dyn Mailbox>,
-        signer: Arc<dyn HyperlaneSigner>,
+        signer: SingletonSignerSender,
         checkpoint_syncer: Arc<dyn CheckpointSyncer>,
         message_db: HyperlaneRocksDB,
         metrics: ValidatorSubmitterMetrics,
