@@ -7,6 +7,8 @@ import {ITokenMessenger} from "../interfaces/circle/ITokenMessenger.sol";
 import {ICircleMessageTransmitter} from "../interfaces/circle/ICircleMessageTransmitter.sol";
 import {ILiquidityLayerAdapterV2} from "../interfaces/ILiquidityLayerAdapterV2.sol";
 
+import {TypeCasts} from "../../../libs/TypeCasts.sol";
+
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -19,11 +21,11 @@ contract CCTPAdapter is ILiquidityLayerAdapterV2, Router {
     /// @notice The Circle MessageTransmitter contract.
     ICircleMessageTransmitter public circleMessageTransmitter;
 
-    /// @notice The LiquidityLayerRouterV2 contract.
-    address public liquidityLayerRouterV2;
-
     /// @notice The USDC token address.
     address public token;
+
+    /// @notice Circle BridgeAdapterType. This would set to "Circle".
+    string public bridge;
 
     string public constant TOKEN_SYMBOL = "USDC";
 
@@ -50,32 +52,42 @@ contract CCTPAdapter is ILiquidityLayerAdapterV2, Router {
      * @param _owner The new owner.
      * @param _tokenMessenger The TokenMessenger contract.
      * @param _circleMessageTransmitter The Circle MessageTransmitter contract.
-     * @param _liquidityLayerRouterV2 The LiquidityLayerRouterV2 contract.
      * @param _token The USDC token address.
+     * @param _bridge The Circle token bridge ID. (This would be set to "Circle".)
+     * @param _mailbox The address of the mailbox contract.
+     * @param _interchainGasPaymaster The address of the interchain gas paymaster contract.
+     * @param _interchainSecurityModule The address of the interchain security module contract.
      */
     function initialize(
         address _owner,
         address _tokenMessenger,
         address _circleMessageTransmitter,
-        address _liquidityLayerRouterV2,
-        address _token
+        address _token,
+        string calldata _bridge,
+        address _mailbox,
+        address _interchainGasPaymaster,
+        address _interchainSecurityModule
     ) external initializer {
-        __Ownable_init();
-        _transferOwnership(_owner);
+        __HyperlaneConnectionClient_initialize(
+            _mailbox,
+            _interchainGasPaymaster,
+            _interchainSecurityModule,
+            _owner
+        );
 
         tokenMessenger = ITokenMessenger(_tokenMessenger);
         circleMessageTransmitter = ICircleMessageTransmitter(
             _circleMessageTransmitter
         );
-        liquidityLayerRouterV2 = _liquidityLayerRouterV2;
         token = _token;
+        bridge = _bridge;
     }
 
     function transferRemote(
         uint32 _destinationDomain,
         bytes32 _recipientAddress,
         uint256 _amount
-    ) external override returns (bytes memory _adapterData) {
+    ) external override returns (bytes32) {
         _mustHaveRemoteRouter(_destinationDomain);
         uint32 _circleDomain = hyperlaneDomainToCircleDomain[
             _destinationDomain
@@ -96,7 +108,21 @@ contract CCTPAdapter is ILiquidityLayerAdapterV2, Router {
         );
 
         emit BridgedToken(_nonce);
-        return abi.encode(_nonce, TOKEN_SYMBOL);
+
+        bytes memory _adapterData = abi.encode(_nonce, TOKEN_SYMBOL);
+        // The user's message "wrapped" required by this middleware
+        bytes memory _messageWithEmptyMetadata = abi.encode(
+            TypeCasts.addressToBytes32(msg.sender),
+            _recipientAddress, // The "user" recipient
+            _amount, // The amount of the tokens sent over the bridge
+            bridge, // The destination token bridge ID
+            _adapterData, // The adapter-specific data
+            bytes("") // Empty "user" message
+            // TODO : remove hanling of user message in the router because it will only be handled by the ICARouter
+        );
+
+        // Dispatch the _messageWithEmptyMetadata to the destination's LiquidityLayerRouter.
+        return _dispatch(_destinationDomain, _messageWithEmptyMetadata);
     }
 
     // token transfer is already handled by the CCTPIsm
