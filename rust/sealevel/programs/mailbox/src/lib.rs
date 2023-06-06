@@ -15,6 +15,3 @@ pub use spl_noop;
 
 // FIXME Read these in at compile time? And don't use harcoded test keys.
 solana_program::declare_id!("692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1");
-
-// FIXME set a sane default
-pub(crate) static DEFAULT_ISM: &str = "F6dVnLFioQ8hKszqPsmjWPwHn2dJfebgMfztWrzL548V";

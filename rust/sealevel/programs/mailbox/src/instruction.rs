@@ -38,8 +38,7 @@ impl Instruction {
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub struct Init {
     pub local_domain: u32,
-    pub inbox_bump_seed: u8,
-    pub outbox_bump_seed: u8,
+    pub default_ism: Pubkey,
 }
 
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]

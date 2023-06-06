@@ -1,6 +1,6 @@
 //! Hyperlane Sealevel Mailbox data account layouts.
 
-use std::{io::Read, str::FromStr as _};
+use std::io::Read;
 
 use access_control::AccessControl;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -9,7 +9,7 @@ use solana_program::{
     account_info::AccountInfo, clock::Slot, program_error::ProgramError, pubkey::Pubkey,
 };
 
-use crate::{error::Error, DEFAULT_ISM};
+use crate::error::Error;
 
 pub trait SizedData {
     fn size(&self) -> usize;
@@ -133,7 +133,7 @@ where
 
 pub type InboxAccount = AccountData<Inbox>;
 
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Default)]
 pub struct Inbox {
     pub local_domain: u32,
     pub inbox_bump_seed: u8,
@@ -148,17 +148,6 @@ impl SizedData for Inbox {
         // 32 byte default_ism
         // 8 byte processed_count
         4 + 1 + 32 + 8
-    }
-}
-
-impl Default for Inbox {
-    fn default() -> Self {
-        Self {
-            local_domain: 0,
-            inbox_bump_seed: 0,
-            default_ism: Pubkey::from_str(DEFAULT_ISM).unwrap(),
-            processed_count: 0,
-        }
     }
 }
 

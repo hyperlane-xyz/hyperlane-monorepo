@@ -1872,6 +1872,7 @@ dependencies = [
 name = "hyperlane-test-utils"
 version = "0.1.0"
 dependencies = [
+ "hyperlane-sealevel-ism-rubber-stamp",
  "hyperlane-sealevel-mailbox",
  "solana-program",
  "solana-program-test",

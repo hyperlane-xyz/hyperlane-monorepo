@@ -2,7 +2,10 @@
 
 use access_control::AccessControl;
 use borsh::{BorshDeserialize, BorshSerialize};
-use hyperlane_core::{Decode, Encode, HyperlaneMessage, H256};
+use hyperlane_core::{
+    accumulator::incremental::IncrementalMerkle as MerkleTree, Decode, Encode, HyperlaneMessage,
+    H256,
+};
 #[cfg(not(feature = "no-entrypoint"))]
 use solana_program::entrypoint;
 use solana_program::{
@@ -17,7 +20,7 @@ use solana_program::{
     sysvar::{clock::Clock, rent::Rent, Sysvar},
 };
 
-use account_utils::create_pda_account;
+use account_utils::{create_pda_account, verify_account_uninitialized};
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
 };
@@ -102,10 +105,13 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
     if &inbox_key != inbox_info.key {
         return Err(ProgramError::InvalidArgument);
     }
+    verify_account_uninitialized(inbox_info)?;
+
     let inbox_account = InboxAccount::from(Inbox {
         local_domain: init.local_domain,
         inbox_bump_seed: inbox_bump,
-        ..Default::default()
+        default_ism: init.default_ism,
+        processed_count: 0,
     });
 
     // Create the inbox PDA account.
@@ -128,11 +134,13 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
     if &outbox_key != outbox_info.key {
         return Err(ProgramError::InvalidArgument);
     }
+    verify_account_uninitialized(outbox_info)?;
+
     let outbox_account = OutboxAccount::from(Outbox {
         local_domain: init.local_domain,
         outbox_bump_seed: outbox_bump,
         owner: Some(*payer_info.key),
-        ..Default::default()
+        tree: MerkleTree::default(),
     });
 
     // Create the outbox PDA account.

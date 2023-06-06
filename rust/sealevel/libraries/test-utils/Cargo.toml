@@ -8,6 +8,7 @@ no-entrypoint = []
 
 [dependencies]
 hyperlane-sealevel-mailbox = { path = "../../programs/mailbox", features = ["no-entrypoint"] }
+hyperlane-sealevel-ism-rubber-stamp = { path = "../../programs/ism/rubber-stamp" }
 solana-program = "=1.14.13"
 solana-program-test = "=1.14.13"
 solana-sdk = "=1.14.13"

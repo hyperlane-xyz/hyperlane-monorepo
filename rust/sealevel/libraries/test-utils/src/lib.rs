@@ -31,15 +31,14 @@ pub async fn initialize_mailbox(
     payer: &Keypair,
     local_domain: u32,
 ) -> MailboxAccounts {
-    let (inbox_account, inbox_bump) =
+    let (inbox_account, _inbox_bump) =
         Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), mailbox_program_id);
-    let (outbox_account, outbox_bump) =
+    let (outbox_account, _outbox_bump) =
         Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), mailbox_program_id);
 
     let ixn = MailboxInstruction::Init(InitMailbox {
         local_domain,
-        inbox_bump_seed: inbox_bump,
-        outbox_bump_seed: outbox_bump,
+        default_ism: hyperlane_sealevel_ism_rubber_stamp::id(),
     });
     let init_instruction = Instruction {
         program_id: *mailbox_program_id,

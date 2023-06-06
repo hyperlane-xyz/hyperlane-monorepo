@@ -4,7 +4,7 @@ use solana_program::{
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
-    system_instruction,
+    system_instruction, system_program,
 };
 
 /// Creates associated token account using Program Derived Address for the given seeds.
@@ -73,4 +73,13 @@ pub fn verify_rent_exempt<'a>(account: &AccountInfo<'a>, rent: &Rent) -> Result<
         return Err(ProgramError::AccountNotRentExempt);
     }
     Ok(())
+}
+
+/// Returns Ok if the account data is empty and the owner is the system program.
+/// Returns Err otherwise.
+pub fn verify_account_uninitialized(account: &AccountInfo) -> Result<(), ProgramError> {
+    if account.data_is_empty() && account.owner == &system_program::id() {
+        return Ok(());
+    }
+    Err(ProgramError::AccountAlreadyInitialized)
 }
