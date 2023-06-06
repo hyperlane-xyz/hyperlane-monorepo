@@ -9,6 +9,7 @@ members = [
     "programs/hyperlane-sealevel-token",
     "programs/hyperlane-sealevel-token-collateral",
     "programs/hyperlane-sealevel-token-native",
+    "programs/test-send-receiver",
     "programs/validator-announce",
     "libraries/access-control",
     "libraries/account-utils",

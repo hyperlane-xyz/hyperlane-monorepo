@@ -1695,6 +1695,7 @@ dependencies = [
  "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-ism-rubber-stamp",
  "hyperlane-sealevel-message-recipient-interface",
+ "hyperlane-test-send-receiver",
  "hyperlane-test-utils",
  "itertools",
  "log",
@@ -1870,6 +1871,16 @@ dependencies = [
  "solana-program-test",
  "solana-sdk",
  "thiserror",
+]
+
+[[package]]
+name = "hyperlane-test-send-receiver"
+version = "0.1.0"
+dependencies = [
+ "borsh",
+ "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-message-recipient-interface",
+ "solana-program",
 ]
 
 [[package]]

@@ -601,7 +601,7 @@ fn outbox_dispatch(
         program_id,
     );
     if dispatched_message_key != *dispatched_message_account_info.key {
-        return Err(ProgramError::IncorrectProgramId);
+        return Err(ProgramError::InvalidArgument);
     }
     // Make sure an account can't be written to that already exists.
     verify_account_uninitialized(dispatched_message_account_info)?;
