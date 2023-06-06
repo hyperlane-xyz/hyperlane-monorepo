@@ -243,7 +243,6 @@ async function main() {
   }
 
   await submitMetrics(metricsRegister, 'key-funder');
-  console.log(await metricsRegister.metrics());
 
   if (failureOccurred) {
     error('At least one failure occurred when funding');
