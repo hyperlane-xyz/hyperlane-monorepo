@@ -79,74 +79,74 @@ pub fn process_instruction(
 /// 2. [writable] The inbox PDA account.
 /// 3. [writable] The outbox PDA account.
 fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramResult {
-    // On chain create appears to use realloc which is limited to 1024 byte increments.
-    let mailbox_size: usize = 2048;
     let accounts_iter = &mut accounts.iter();
 
     let rent = Rent::get()?;
 
     // Account 0: The system program.
-    let system_program = next_account_info(accounts_iter)?;
-    if system_program.key != &solana_program::system_program::ID {
+    let system_program_info = next_account_info(accounts_iter)?;
+    if system_program_info.key != &solana_program::system_program::id() {
         return Err(ProgramError::InvalidArgument);
     }
 
     // Account 1: The payer account and owner of the Mailbox.
-    let payer_account = next_account_info(accounts_iter)?;
-    if !payer_account.is_signer {
+    let payer_info = next_account_info(accounts_iter)?;
+    if !payer_info.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
     }
 
     // Account 2: The inbox PDA account.
-    let inbox_account = next_account_info(accounts_iter)?;
+    let inbox_info = next_account_info(accounts_iter)?;
     let (inbox_key, inbox_bump) =
         Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), program_id);
-    if &inbox_key != inbox_account.key {
+    if &inbox_key != inbox_info.key {
         return Err(ProgramError::InvalidArgument);
     }
-    // Create the inbox PDA account.
-    create_pda_account(
-        payer_account,
-        &rent,
-        mailbox_size,
-        program_id,
-        system_program,
-        inbox_account,
-        mailbox_inbox_pda_seeds!(inbox_bump),
-    )?;
-
-    // Account 3: The outbox PDA account.
-    let outbox_account = next_account_info(accounts_iter)?;
-    let (outbox_key, outbox_bump) =
-        Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), program_id);
-    if &outbox_key != outbox_account.key {
-        return Err(ProgramError::InvalidArgument);
-    }
-    // Create the outbox PDA account.
-    create_pda_account(
-        payer_account,
-        &rent,
-        mailbox_size,
-        program_id,
-        system_program,
-        outbox_account,
-        mailbox_outbox_pda_seeds!(inbox_bump),
-    )?;
-
-    let inbox = Inbox {
+    let inbox_account = InboxAccount::from(Inbox {
         local_domain: init.local_domain,
         inbox_bump_seed: inbox_bump,
         ..Default::default()
-    };
-    InboxAccount::from(inbox).store(inbox_account, true)?;
+    });
 
-    let outbox = Outbox {
+    // Create the inbox PDA account.
+    create_pda_account(
+        payer_info,
+        &rent,
+        inbox_account.size(),
+        program_id,
+        system_program_info,
+        inbox_info,
+        mailbox_inbox_pda_seeds!(inbox_bump),
+    )?;
+    // Store the inbox account.
+    inbox_account.store(inbox_info, false)?;
+
+    // Account 3: The outbox PDA account.
+    let outbox_info = next_account_info(accounts_iter)?;
+    let (outbox_key, outbox_bump) =
+        Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), program_id);
+    if &outbox_key != outbox_info.key {
+        return Err(ProgramError::InvalidArgument);
+    }
+    let outbox_account = OutboxAccount::from(Outbox {
         local_domain: init.local_domain,
         outbox_bump_seed: outbox_bump,
-        owner: Some(*payer_account.key),
+        owner: Some(*payer_info.key),
         ..Default::default()
-    };
-    OutboxAccount::from(outbox).store(outbox_account, true)?;
+    });
+
+    // Create the outbox PDA account.
+    create_pda_account(
+        payer_info,
+        &rent,
+        outbox_account.size(),
+        program_id,
+        system_program_info,
+        outbox_info,
+        mailbox_outbox_pda_seeds!(inbox_bump),
+    )?;
+    // Store the outbox account.
+    outbox_account.store(outbox_info, false)?;
 
     Ok(())
 }

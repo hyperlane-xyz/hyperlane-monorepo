@@ -141,6 +141,16 @@ pub struct Inbox {
     pub processed_count: u64,
 }
 
+impl SizedData for Inbox {
+    fn size(&self) -> usize {
+        // 4 byte local_domain
+        // 1 byte inbox_bump_seed
+        // 32 byte default_ism
+        // 8 byte processed_count
+        4 + 1 + 32 + 8
+    }
+}
+
 impl Default for Inbox {
     fn default() -> Self {
         Self {
@@ -160,6 +170,16 @@ pub struct Outbox {
     pub outbox_bump_seed: u8,
     pub owner: Option<Pubkey>,
     pub tree: MerkleTree,
+}
+
+impl SizedData for Outbox {
+    fn size(&self) -> usize {
+        // 4 byte local_domain
+        // 1 byte outbox_bump_seed
+        // 33 byte owner (1 byte enum variant, 32 byte pubkey)
+        // 1032 byte tree (32 * 32 = 1024 byte branch, 8 byte count)
+        4 + 1 + 33 + 1032
+    }
 }
 
 impl AccessControl for Outbox {
