@@ -95,15 +95,13 @@ impl MessageRecipientInstruction {
         let mut buf = vec![];
         match self {
             MessageRecipientInstruction::InterchainSecurityModule => {
-                buf.extend_from_slice(&INTERCHAIN_SECURITY_MODULE_DISCRIMINATOR_SLICE[..]);
+                buf.extend_from_slice(INTERCHAIN_SECURITY_MODULE_DISCRIMINATOR_SLICE);
             }
             MessageRecipientInstruction::InterchainSecurityModuleAccountMetas => {
-                buf.extend_from_slice(
-                    &INTERCHAIN_SECURITY_MODULE_ACCOUNT_METAS_DISCRIMINATOR_SLICE[..],
-                );
+                buf.extend_from_slice(INTERCHAIN_SECURITY_MODULE_ACCOUNT_METAS_DISCRIMINATOR_SLICE);
             }
             MessageRecipientInstruction::Handle(instruction) => {
-                buf.extend_from_slice(&HANDLE_DISCRIMINATOR_SLICE[..]);
+                buf.extend_from_slice(HANDLE_DISCRIMINATOR_SLICE);
                 buf.extend_from_slice(
                     &instruction
                         .try_to_vec()
@@ -111,7 +109,7 @@ impl MessageRecipientInstruction {
                 );
             }
             MessageRecipientInstruction::HandleAccountMetas(instruction) => {
-                buf.extend_from_slice(&HANDLE_ACCOUNT_METAS_DISCRIMINATOR_SLICE[..]);
+                buf.extend_from_slice(HANDLE_ACCOUNT_METAS_DISCRIMINATOR_SLICE);
                 buf.extend_from_slice(
                     &instruction
                         .try_to_vec()

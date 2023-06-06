@@ -10,10 +10,10 @@ use std::{
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, Decode as _, Encode as _,
-    HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProvider, IndexRange, Indexer, LogMeta, Mailbox, MessageIndexer, TxCostEstimate,
-    TxOutcome, H256, U256, accumulator::incremental::IncrementalMerkle,
+    accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
+    ContractLocator, Decode as _, Encode as _, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, IndexRange, Indexer, LogMeta, Mailbox,
+    MessageIndexer, TxCostEstimate, TxOutcome, H256, U256,
 };
 use jsonrpc_core::futures_util::TryFutureExt;
 use tracing::{debug, error, instrument, trace, warn};
@@ -304,8 +304,7 @@ impl Mailbox for SealevelMailbox {
     async fn count(&self, _maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
         let tree = self.tree(_maybe_lag).await?;
 
-            tree
-            .count()
+        tree.count()
             .try_into()
             .map_err(ChainCommunicationError::from_other)
     }
@@ -359,8 +358,7 @@ impl Mailbox for SealevelMailbox {
         let tree = self.tree(lag).await?;
 
         let root = tree.root();
-        let count: u32 = 
-            tree
+        let count: u32 = tree
             .count()
             .try_into()
             .map_err(ChainCommunicationError::from_other)?;

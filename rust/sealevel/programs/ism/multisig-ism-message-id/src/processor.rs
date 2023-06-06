@@ -281,7 +281,7 @@ fn verify_account_metas(
     let message = HyperlaneMessage::read_from(&mut &message_bytes[..])
         .map_err(|_| ProgramError::InvalidArgument)?;
     let (domain_pda_key, _) =
-        Pubkey::find_program_address(domain_data_pda_seeds!(message.origin), &program_id);
+        Pubkey::find_program_address(domain_data_pda_seeds!(message.origin), program_id);
 
     Ok(vec![AccountMeta::new_readonly(domain_pda_key, false).into()])
 }
@@ -317,7 +317,7 @@ fn get_validators_and_threshold_account_metas(
     domain: u32,
 ) -> Result<Vec<SerializableAccountMeta>, ProgramError> {
     let (domain_pda_key, _) =
-        Pubkey::find_program_address(domain_data_pda_seeds!(domain), &program_id);
+        Pubkey::find_program_address(domain_data_pda_seeds!(domain), program_id);
 
     Ok(vec![AccountMeta::new_readonly(domain_pda_key, false).into()])
 }

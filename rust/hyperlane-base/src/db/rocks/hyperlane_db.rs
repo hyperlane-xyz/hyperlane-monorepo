@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use eyre::Result;
 use paste::paste;
 use tokio::time::sleep;
-use tracing::{debug, trace, instrument};
+use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
     HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage, HyperlaneMessageStore,

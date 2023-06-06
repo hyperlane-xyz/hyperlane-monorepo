@@ -43,7 +43,7 @@ impl Decode for TokenMessage {
 
         Ok(Self {
             recipient,
-            amount_or_id: U256::from(amount_or_id),
+            amount_or_id,
             metadata,
         })
     }

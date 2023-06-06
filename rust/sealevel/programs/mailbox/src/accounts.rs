@@ -80,9 +80,7 @@ where
     }
 
     pub fn fetch(buf: &mut &[u8]) -> Result<Self, ProgramError> {
-        Ok(Self::from(
-            Self::fetch_data(buf)?.unwrap_or_else(|| Box::<T>::default()),
-        ))
+        Ok(Self::from(Self::fetch_data(buf)?.unwrap_or_default()))
     }
 
     // Optimisically write then realloc on failure.

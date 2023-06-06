@@ -43,13 +43,11 @@ impl MultisigIsmInstruction {
         let mut buf = vec![];
         match self {
             MultisigIsmInstruction::ValidatorsAndThreshold(message) => {
-                buf.extend_from_slice(&VALIDATORS_AND_THRESHOLD_DISCRIMINATOR_SLICE[..]);
+                buf.extend_from_slice(VALIDATORS_AND_THRESHOLD_DISCRIMINATOR_SLICE);
                 buf.extend_from_slice(&message[..]);
             }
             MultisigIsmInstruction::ValidatorsAndThresholdAccountMetas(message) => {
-                buf.extend_from_slice(
-                    &VALIDATORS_AND_THRESHOLD_ACCOUNT_METAS_DISCRIMINATOR_SLICE[..],
-                );
+                buf.extend_from_slice(VALIDATORS_AND_THRESHOLD_ACCOUNT_METAS_DISCRIMINATOR_SLICE);
                 buf.extend_from_slice(&message[..]);
             }
         }

@@ -9,8 +9,8 @@ use async_trait::async_trait;
 use ethers::abi::AbiEncode;
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
-use hyperlane_core::accumulator::TREE_DEPTH;
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
+use hyperlane_core::accumulator::TREE_DEPTH;
 use tracing::instrument;
 
 use hyperlane_core::{

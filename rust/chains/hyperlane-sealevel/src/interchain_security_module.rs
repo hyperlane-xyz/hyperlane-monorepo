@@ -2,7 +2,7 @@ use async_trait::async_trait;
 
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    InterchainSecurityModule, H256, ModuleType,
+    InterchainSecurityModule, ModuleType, H256,
 };
 
 use crate::{solana::pubkey::Pubkey, ConnectionConf};

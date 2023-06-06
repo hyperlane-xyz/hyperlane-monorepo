@@ -131,10 +131,10 @@ where
     }
     pub fn from_noop_cpi_ixn_data(data: &[u8]) -> Result<Self, EventError> {
         let mut data_iter = data.iter();
-        let version = data_iter.next().ok_or_else(|| EventError)?;
+        let version = data_iter.next().ok_or(EventError)?;
         let header_len = match version {
             0 => {
-                let label_len = usize::from(*data_iter.next().ok_or_else(|| EventError)?);
+                let label_len = usize::from(*data_iter.next().ok_or(EventError)?);
                 let expected_label = <D as EventLabel>::event_label();
                 if label_len != expected_label.len() {
                     return Err(EventError);

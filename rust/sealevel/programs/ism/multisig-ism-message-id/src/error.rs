@@ -29,9 +29,9 @@ pub enum Error {
     InvalidMetadata = 10,
 }
 
-impl Into<Error> for MultisigIsmError {
-    fn into(self) -> Error {
-        match self {
+impl From<MultisigIsmError> for Error {
+    fn from(err: MultisigIsmError) -> Self {
+        match err {
             MultisigIsmError::InvalidSignature => Error::InvalidSignature,
             MultisigIsmError::ThresholdNotMet => Error::ThresholdNotMet,
         }

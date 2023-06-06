@@ -13,7 +13,7 @@ use hyperlane_sealevel_connection_client::{
 };
 use hyperlane_sealevel_mailbox::accounts::AccountData;
 use solana_program::{account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey};
-use std::{collections::HashMap, fmt::Debug};
+use std::{cmp::Ordering, collections::HashMap, fmt::Debug};
 
 use crate::hyperlane_token_pda_seeds;
 
@@ -145,14 +145,16 @@ impl<T> HyperlaneRouterAccessControl for HyperlaneToken<T> {}
 impl<T> HyperlaneRouterMessageRecipient for HyperlaneToken<T> {}
 
 pub fn convert_decimals(amount: U256, from_decimals: u8, to_decimals: u8) -> Option<U256> {
-    if from_decimals > to_decimals {
-        let divisor = U256::from(10u64).checked_pow(U256::from(from_decimals - to_decimals));
-        divisor.and_then(|d| amount.checked_div(d))
-    } else if from_decimals < to_decimals {
-        let multiplier = U256::from(10u64).checked_pow(U256::from(to_decimals - from_decimals));
-        multiplier.and_then(|m| amount.checked_mul(m))
-    } else {
-        Some(amount)
+    match from_decimals.cmp(&to_decimals) {
+        Ordering::Greater => {
+            let divisor = U256::from(10u64).checked_pow(U256::from(from_decimals - to_decimals));
+            divisor.and_then(|d| amount.checked_div(d))
+        }
+        Ordering::Less => {
+            let multiplier = U256::from(10u64).checked_pow(U256::from(to_decimals - from_decimals));
+            multiplier.and_then(|m| amount.checked_mul(m))
+        }
+        Ordering::Equal => Some(amount),
     }
 }
 
