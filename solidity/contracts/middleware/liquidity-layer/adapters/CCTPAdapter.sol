@@ -23,7 +23,9 @@ contract CCTPAdapter is ILiquidityLayerAdapterV2, Router {
 
     /// @notice The USDC token address.
     address public token;
-    string public constant BRIDGE_ID = "CCTP"; // TODO : FIX
+
+    /// @notice Circle BridgeAdapterType. This would set to "Circle".
+    string public bridge;
 
     string public constant TOKEN_SYMBOL = "USDC";
 
@@ -60,6 +62,7 @@ contract CCTPAdapter is ILiquidityLayerAdapterV2, Router {
         address _tokenMessenger,
         address _circleMessageTransmitter,
         address _token,
+        string calldata _bridge,
         address _mailbox,
         address _interchainGasPaymaster,
         address _interchainSecurityModule
@@ -76,6 +79,7 @@ contract CCTPAdapter is ILiquidityLayerAdapterV2, Router {
             _circleMessageTransmitter
         );
         token = _token;
+        bridge = _bridge;
     }
 
     function transferRemote(
@@ -110,7 +114,7 @@ contract CCTPAdapter is ILiquidityLayerAdapterV2, Router {
             TypeCasts.addressToBytes32(msg.sender),
             _recipientAddress, // The "user" recipient
             _amount, // The amount of the tokens sent over the bridge
-            BRIDGE_ID, // The destination token bridge ID
+            bridge, // The destination token bridge ID
             _adapterData, // The adapter-specific data
             bytes("") // Empty "user" message
             // TODO : remove hanling of user message in the router because it will only be handled by the ICARouter
