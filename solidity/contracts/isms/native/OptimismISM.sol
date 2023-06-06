@@ -4,7 +4,7 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
-import {IOptimismMessageHook} from "../../interfaces/hooks/IOptimismMessageHook.sol";
+import {OptimismMessageHook} from "../../hooks/OptimismMessageHook.sol";
 import {Message} from "../../libs/Message.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {AbstractNativeISM} from "./AbstractNativeISM.sol";
@@ -33,7 +33,7 @@ contract OptimismISM is CrossChainEnabledOptimism, AbstractNativeISM {
     // ============ Public Storage ============
 
     // Hook deployed on L1 responsible for sending message via the Optimism bridge
-    IOptimismMessageHook public l1Hook;
+    OptimismMessageHook public l1Hook;
 
     // ============ Modifiers ============
 
@@ -63,7 +63,7 @@ contract OptimismISM is CrossChainEnabledOptimism, AbstractNativeISM {
      * @param _hook Address of the hook.
      */
     function setOptimismHook(address _hook) external onlyOwner {
-        l1Hook = IOptimismMessageHook(_onlyContract(_hook, "hook"));
+        l1Hook = OptimismMessageHook(_onlyContract(_hook, "hook"));
     }
 
     /**

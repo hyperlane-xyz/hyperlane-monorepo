@@ -14,7 +14,7 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 // ============ Internal Imports ============
-import {IOptimismMessageHook} from "../interfaces/hooks/IOptimismMessageHook.sol";
+import {IMessageHook} from "../interfaces/hooks/IMessageHook.sol";
 import {OptimismISM} from "../isms/native/OptimismISM.sol";
 
 // ============ External Imports ============
@@ -26,7 +26,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * @notice Message hook to inform the Optimism ISM of messages published through
  * the native Optimism bridge.
  */
-contract OptimismMessageHook is IOptimismMessageHook {
+contract OptimismMessageHook is IMessageHook {
     // ============ Constants ============
 
     // Domain of chain on which the optimism ISM is deployed
@@ -51,25 +51,26 @@ contract OptimismMessageHook is IOptimismMessageHook {
             _destinationDomain != 0,
             "OptimismHook: invalid destination domain"
         );
+        require(_ism != address(0), "OptimismHook: invalid ISM");
         destinationDomain = _destinationDomain;
 
         l1Messenger = ICrossDomainMessenger(
-            _onlyContract(_messenger, "crossDomainMessenger")
+            _onlyContract(_messenger, "CrossDomainMessenger")
         );
-        ism = OptimismISM(_onlyContract(_ism, "optimismISM"));
+        ism = OptimismISM(_ism);
     }
 
     // ============ External Functions ============
 
     /**
      * @notice Hook to inform the optimism ISM of messages published through.
-     * @dev anyone can call this function, that's why we to send msg.sender
+     * @dev anyone can call this function, that's why we need to send msg.sender
      * @param _destination The destination domain of the message.
      * @param _messageId The message ID.
      * @return gasOverhead The gas overhead for the function call on L2.
      */
     function postDispatch(uint32 _destination, bytes32 _messageId)
-        external
+        public
         payable
         override
         returns (uint256)
@@ -85,8 +86,6 @@ contract OptimismMessageHook is IOptimismMessageHook {
         );
 
         l1Messenger.sendMessage(address(ism), _payload, GAS_LIMIT);
-
-        emit OptimismMessagePublished(msg.sender, _messageId);
 
         // calling the receiveFromHook function is ~25k gas but we get 1.92m gas from Optimism
         return 0;
