@@ -1,13 +1,11 @@
 import fs from 'fs';
 
-import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
-import { utils } from '@hyperlane-xyz/utils';
+import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import {
   AgentConfigHelper,
   AgentContextConfig,
-  CheckpointSyncerType,
   DeployEnvironment,
   HelmRootAgentValues,
   RelayerConfigHelper,
@@ -24,19 +22,13 @@ import {
 } from '../utils/helm';
 import { execCmd } from '../utils/utils';
 
-import { keyIdentifier, userIdentifier } from './agent';
-import { AgentAwsUser, ValidatorAgentAwsUser } from './aws';
-import { AgentAwsKey } from './aws/key';
 import { AgentGCPKey } from './gcp';
-import { fetchKeysForChain, getCloudAgentKey } from './key-utils';
 
 const HELM_CHART_PATH = __dirname + '/../../../../rust/helm/hyperlane-agent/';
 if (!fs.existsSync(HELM_CHART_PATH + 'Chart.yaml'))
   console.warn(
     `Could not find helm chart at ${HELM_CHART_PATH}; the relative path may have changed.`,
   );
-
-export type AgentEnvVars = Record<string, string | number | boolean>;
 
 export abstract class AgentHelmManager {
   abstract readonly role: Role;
@@ -60,10 +52,6 @@ export abstract class AgentHelmManager {
   get namespace(): string {
     return this.config.namespace;
   }
-
-  abstract keyIdentifier(index?: number): string;
-
-  abstract userIdentifier(index?: number): string;
 
   async runHelmCommand(action: HelmCommand, dryRun?: boolean): Promise<void> {
     const cmd = ['helm', action];
@@ -112,28 +100,6 @@ export abstract class AgentHelmManager {
     await execCmd(cmd, {}, false, true);
   }
 
-  async getEnvVars(
-    index?: number,
-    valueDict?: HelmRootAgentValues,
-  ): Promise<AgentEnvVars> {
-    if (!valueDict) valueDict = await this.helmValues();
-    const envVars: AgentEnvVars = {};
-    const rpcEndpoints = await this.getSecretRpcEndpoints();
-    const quorumRpcEndpoints = await this.getSecretRpcEndpoints(true);
-    for (const chain of valueDict.hyperlane.chains) {
-      const name = chain.name.toUpperCase();
-      envVars[`HYP_BASE_CHAINS_${name}_CONNECTION_URL`] =
-        rpcEndpoints[chain.name];
-      envVars[`HYP_BASE_CHAINS_${name}_CONNECTION_URLS`] =
-        quorumRpcEndpoints[chain.name];
-    }
-
-    // Base vars from config map
-    envVars.HYP_BASE_METRICS = 9090;
-    envVars.HYP_BASE_TRACING_LEVEL = 'info';
-    return envVars;
-  }
-
   async helmValues(): Promise<HelmRootAgentValues> {
     return {
       image: {
@@ -166,30 +132,9 @@ export abstract class AgentHelmManager {
       return false;
     }
   }
-
-  private async getSecretRpcEndpoints(
-    quorum = false,
-  ): Promise<ChainMap<string>> {
-    return Object.fromEntries(
-      await Promise.all(
-        this.config.contextChainNames.map(async (chainName) => [
-          chainName,
-          await getSecretRpcEndpoint(this.environment, chainName, quorum),
-        ]),
-      ),
-    );
-  }
 }
 
 abstract class OmniscientAgentHelmManager extends AgentHelmManager {
-  keyIdentifier(): string {
-    return keyIdentifier(this.environment, this.context, this.role);
-  }
-
-  userIdentifier(): string {
-    return userIdentifier(this.environment, this.context, this.role);
-  }
-
   get helmReleaseName(): string {
     const parts = ['omniscient', this.role];
     // For backward compatibility reasons, don't include the context
@@ -220,56 +165,6 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
   constructor(config: RootAgentConfig) {
     super();
     this.config = new RelayerConfigHelper(config);
-  }
-
-  async getEnvVars(): Promise<AgentEnvVars> {
-    const valueDict = await this.helmValues();
-    const envVars = await super.getEnvVars(undefined, valueDict);
-    envVars.HYP_BASE_DB = `/tmp/${this.environment}-${this.role}-db`;
-    if (!this.config.aws) {
-      for (const name of this.config.contextChainNames) {
-        const gcpKey = getCloudAgentKey(
-          this.config,
-          this.role,
-          name,
-        ) as AgentGCPKey;
-        if (gcpKey.identifier != this.keyIdentifier())
-          throw Error(`Key identifier mismatch for ${name}`);
-        envVars[`HYP_BASE_CHAINS_${name.toUpperCase()}_SIGNER_KEY`] =
-          utils.strip0x(gcpKey.privateKey);
-        envVars[`HYP_BASE_CHAINS_${name.toUpperCase()}_SIGNER_TYPE`] = 'hexKey';
-      }
-    } else {
-      // AWS keys
-      const user = new AgentAwsUser(
-        this.environment,
-        this.context,
-        this.role,
-        this.config.aws.region,
-      );
-
-      const accessKeys = await user.getAccessKeys();
-
-      envVars.AWS_ACCESS_KEY_ID = accessKeys.accessKeyId;
-      envVars.AWS_SECRET_ACCESS_KEY = accessKeys.secretAccessKey;
-
-      for (const chainName of this.config.contextChainNames) {
-        const key = new AgentAwsKey(this.config, this.role);
-        Object.assign(
-          envVars,
-          configEnvVars(
-            key.keyConfig,
-            `CHAINS_${chainName.toUpperCase()}_SIGNER_`,
-          ),
-        );
-      }
-    }
-
-    Object.assign(
-      envVars,
-      configEnvVars(valueDict.hyperlane.relayer?.config ?? {}),
-    );
-    return envVars;
   }
 
   async helmValues(): Promise<HelmRootAgentValues> {
@@ -303,19 +198,6 @@ export class ScraperHelmManager extends OmniscientAgentHelmManager {
       throw Error('Context does not support scraper');
   }
 
-  async getEnvVars(): Promise<AgentEnvVars> {
-    const valueDict = await this.helmValues();
-    const envVars = await super.getEnvVars(undefined, valueDict);
-    Object.assign(
-      envVars,
-      configEnvVars(valueDict.hyperlane.scraper?.config ?? {}),
-    );
-
-    // TODO: this is a secret that needs to be fetched
-    envVars.HYP_BASE_DB = '?TODO?';
-    return envVars;
-  }
-
   async helmValues(): Promise<HelmRootAgentValues> {
     const values = await super.helmValues();
     values.hyperlane.scraper = {
@@ -345,69 +227,6 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
 
   get length(): number {
     return this.config.validators.length;
-  }
-
-  keyIdentifier(index = 0): string {
-    return keyIdentifier(
-      this.environment,
-      this.context,
-      this.role,
-      this.chainName,
-      index,
-    );
-  }
-
-  userIdentifier(index = 0): string {
-    return userIdentifier(
-      this.environment,
-      this.context,
-      this.role,
-      this.chainName,
-      index,
-    );
-  }
-
-  async getEnvVars(index = 0): Promise<AgentEnvVars> {
-    const valueDict = await this.helmValues();
-    const envVars = await super.getEnvVars(index, valueDict);
-    envVars.HYP_BASE_DB = `/tmp/${this.environment}-${this.role}-${this.chainName}-${index}-db`;
-    if (!this.config.aws) {
-      const gcpKeys = (await fetchKeysForChain(
-        this.config.rawConfig,
-        this.chainName,
-      )) as Record<string, AgentGCPKey>;
-
-      const privateKey = gcpKeys[this.keyIdentifier(index)].privateKey;
-
-      envVars.HYP_BASE_VALIDATOR_KEY = utils.strip0x(privateKey);
-      envVars.HYP_BASE_VALIDATOR_TYPE = 'hexKey';
-    } else {
-      // AWS keys
-      const checkpointSyncer = this.config.validators[index].checkpointSyncer;
-      if (checkpointSyncer.type != CheckpointSyncerType.S3)
-        throw Error(
-          'Expected S3 checkpoint syncer for validator with AWS keys',
-        );
-
-      const user = new ValidatorAgentAwsUser(
-        this.environment,
-        this.context,
-        this.chainName,
-        index,
-        checkpointSyncer.region,
-        checkpointSyncer.bucket,
-      );
-      const accessKeys = await user.getAccessKeys();
-      envVars.AWS_ACCESS_KEY_ID = accessKeys.accessKeyId;
-      envVars.AWS_SECRET_ACCESS_KEY = accessKeys.secretAccessKey;
-    }
-
-    Object.assign(
-      envVars,
-      (valueDict.hyperlane.validator?.configs ?? [])[index],
-    );
-
-    return envVars;
   }
 
   async helmValues(): Promise<HelmRootAgentValues> {
@@ -465,28 +284,6 @@ export async function getSecretDeployerKey(
   const key = new AgentGCPKey(environment, context, Role.Deployer, chainName);
   await key.fetch();
   return key.privateKey;
-}
-
-// Recursively converts a config object into environment variables than can
-// be parsed by rust. For example, a config of { foo: { bar: { baz: 420 }, boo: 421 } } will
-// be: HYP_FOO_BAR_BAZ=420 and HYP_FOO_BOO=421
-function configEnvVars(
-  config: Record<string, any>,
-  key_name_prefix = '',
-): AgentEnvVars {
-  const envVars: AgentEnvVars = {};
-  for (const key of Object.keys(config)) {
-    const value = config[key];
-    if (typeof value === 'object') {
-      Object.assign(
-        envVars,
-        configEnvVars(value, `${key_name_prefix}${key.toUpperCase()}_`),
-      );
-    } else {
-      envVars[`HYP_BASE_${key_name_prefix}${key.toUpperCase()}`] = config[key];
-    }
-  }
-  return envVars;
 }
 
 export async function getCurrentKubernetesContext(): Promise<string> {
