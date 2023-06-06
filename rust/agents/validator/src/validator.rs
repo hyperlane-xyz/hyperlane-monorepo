@@ -6,6 +6,7 @@ use eyre::Result;
 use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_base::MessageContractSync;
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
+use hyperlane_ethereum::singleton_signer::{SingletonSignerReceiver, SingletonSignerSender};
 use std::num::NonZeroU64;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument};
@@ -33,7 +34,7 @@ pub struct Validator {
     message_sync: Arc<MessageContractSync>,
     mailbox: Arc<dyn Mailbox>,
     validator_announce: Arc<dyn ValidatorAnnounce>,
-    signer: Arc<dyn HyperlaneSigner>,
+    receiver: SingletonSignerReceiver,
     reorg_period: u64,
     interval: Duration,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
@@ -58,12 +59,13 @@ impl BaseAgent for Validator {
         let db = DB::from_path(&settings.db)?;
         let msg_db = HyperlaneRocksDB::new(&settings.origin_chain, db);
 
-        let signer = settings
+        let inner = settings
             .validator
             // Intentionally using hyperlane_ethereum for the validator's signer
             .build::<hyperlane_ethereum::Signers>()
-            .await
-            .map(|validator| Arc::new(validator) as Arc<dyn HyperlaneSigner>)?;
+            .await?;
+        let receiver = hyperlane_ethereum::singleton_signer::SingletonSignerReceiver::new(inner);
+
         let core = settings.build_hyperlane_core(metrics.clone());
         let checkpoint_syncer = settings.checkpoint_syncer.build(None)?.into();
 
@@ -94,7 +96,7 @@ impl BaseAgent for Validator {
             mailbox: mailbox.into(),
             message_sync,
             validator_announce: validator_announce.into(),
-            signer,
+            receiver,
             reorg_period: settings.reorg_period,
             interval: settings.interval,
             checkpoint_syncer,
@@ -103,9 +105,14 @@ impl BaseAgent for Validator {
 
     #[allow(clippy::async_yields_async)]
     async fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
-        self.announce().await.expect("Failed to announce validator");
-
         let mut tasks = vec![];
+
+        tasks.push(
+            tokio::spawn(async move { self.receiver.run().await })
+            .instrument(info_span!("SingletonSigner")),
+        );
+        
+        self.announce().await.expect("Failed to announce validator");
 
         tasks.push(self.run_message_sync().await);
         for checkpoint_sync_task in self.run_checkpoint_submitters().await {
@@ -139,7 +146,7 @@ impl Validator {
             self.interval,
             self.reorg_period,
             self.mailbox.clone(),
-            self.signer.clone(),
+            self.receiver.signer.clone(),
             self.checkpoint_syncer.clone(),
             self.db.clone(),
             ValidatorSubmitterMetrics::new(&self.core.metrics, &self.origin_chain),
@@ -182,14 +189,16 @@ impl Validator {
     }
 
     async fn announce(&self) -> Result<()> {
+        let signer = self.receiver.signer.clone();
+
         // Sign and post the validator announcement
         let announcement = Announcement {
-            validator: self.signer.eth_address(),
+            validator: signer.eth_address(),
             mailbox_address: self.mailbox.address(),
             mailbox_domain: self.mailbox.domain().id(),
             storage_location: self.checkpoint_syncer.announcement_location(),
         };
-        let signed_announcement = self.signer.sign(announcement.clone()).await?;
+        let signed_announcement = signer.sign(announcement.clone()).await?;
         self.checkpoint_syncer
             .write_announcement(&signed_announcement)
             .await?;
@@ -198,7 +207,7 @@ impl Validator {
         // the main validator submit loop. This is to avoid a situation in
         // which the validator is signing checkpoints but has not announced
         // their locations, which makes them functionally unusable.
-        let validators: [H256; 1] = [self.signer.eth_address().into()];
+        let validators: [H256; 1] = [signer.eth_address().into()];
         loop {
             info!("Checking for validator announcement");
             if let Some(locations) = self
