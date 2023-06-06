@@ -6,14 +6,7 @@ import {ISpecifiesInterchainSecurityModule} from "../../interfaces/IInterchainSe
 import {ICircleMessageTransmitter} from "./interfaces/circle/ICircleMessageTransmitter.sol";
 import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
 
-/**
- * @title A contract that acts as both the ISM and the recipient of a cross-chain message from CCTPAdapter
- */
-contract CCTPIsm is
-    IInterchainSecurityModule,
-    ISpecifiesInterchainSecurityModule,
-    IMessageRecipient
-{
+contract CCTPIsm is IInterchainSecurityModule {
     ICircleMessageTransmitter public cctpMessageTransmitter;
 
     constructor(ICircleMessageTransmitter _cctpMessageTransmitter) {
@@ -26,7 +19,7 @@ contract CCTPIsm is
 
     /**
      * @notice Calls `ICircleMessageTransmitter.receiveMessage(_message, _attestation)`, which verifies the attestation
-     * and sends tokens to recipient address.
+     * and sends tokens to the recipient address.
      */
     function verify(bytes calldata _metadata, bytes calldata _message)
         external
@@ -35,21 +28,5 @@ contract CCTPIsm is
         // TODO: need to get attestation data from metadata
         // bytes memory attestation = _metadata.attestation();
         return cctpMessageTransmitter.receiveMessage(_message, _metadata);
-    }
-
-    function interchainSecurityModule()
-        external
-        view
-        returns (IInterchainSecurityModule)
-    {
-        return IInterchainSecurityModule(address(this));
-    }
-
-    function handle(
-        uint32 _origin,
-        bytes32 _sender,
-        bytes calldata _data
-    ) external virtual override {
-        // do nothing
     }
 }
