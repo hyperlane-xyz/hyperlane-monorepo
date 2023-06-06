@@ -99,14 +99,13 @@ contract CCTPAdapter is ILiquidityLayerAdapterV2, Router {
         return abi.encode(_nonce, TOKEN_SYMBOL);
     }
 
-    // This contract is only a Router to be aware of remote router addresses,
-    // and doesn't actually send/handle Hyperlane messages directly
+    // token transfer is already handled by the CCTPIsm
     function _handle(
         uint32, // origin
         bytes32, // sender
         bytes calldata // message
     ) internal pure override {
-        revert("No messages expected");
+        // do nothing
     }
 
     function addDomain(uint32 _hyperlaneDomain, uint32 _circleDomain)
