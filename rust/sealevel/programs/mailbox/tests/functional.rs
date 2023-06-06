@@ -67,27 +67,20 @@ async fn test_initialize() {
         .await
         .unwrap();
 
-    // Check that the outbox account was created.
-    let outbox_account = banks_client
-        .get_account(mailbox_accounts.outbox)
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(outbox_account.owner, program_id);
-    let outbox = OutboxAccount::fetch(&mut &outbox_account.data[..])
-        .unwrap()
-        .into_inner();
-    assert_eq!(
-        *outbox,
+    // Make sure the outbox account was created.
+    assert_outbox(
+        &mut banks_client,
+        mailbox_accounts.outbox,
         Outbox {
             local_domain: LOCAL_DOMAIN,
             outbox_bump_seed: mailbox_accounts.outbox_bump_seed,
             owner: Some(payer.pubkey()),
             tree: MerkleTree::default(),
-        }
-    );
+        },
+    )
+    .await;
 
-    // Check that the inbox account was created.
+    // Make sure the inbox account was created.
     let inbox_account = banks_client
         .get_account(mailbox_accounts.inbox)
         .await
@@ -181,6 +174,61 @@ async fn dispatch_from_payer(
     ))
 }
 
+async fn assert_dispatched_message(
+    banks_client: &mut BanksClient,
+    dispatch_tx_signature: Signature,
+    dispatch_unique_account_pubkey: Pubkey,
+    dispatched_message_account_key: Pubkey,
+    expected_message: &HyperlaneMessage,
+) {
+    // Get the slot of the tx
+    let dispatch_tx_status = banks_client
+        .get_transaction_status(dispatch_tx_signature)
+        .await
+        .unwrap()
+        .unwrap();
+    let dispatch_slot = dispatch_tx_status.slot;
+
+    // Get the dispatched message account
+    let dispatched_message_account = banks_client
+        .get_account(dispatched_message_account_key)
+        .await
+        .unwrap()
+        .unwrap();
+    let dispatched_message =
+        DispatchedMessageAccount::fetch(&mut &dispatched_message_account.data[..])
+            .unwrap()
+            .into_inner();
+    assert_eq!(
+        *dispatched_message,
+        DispatchedMessage::new(
+            expected_message.nonce,
+            dispatch_slot,
+            dispatch_unique_account_pubkey,
+            expected_message.to_vec(),
+        ),
+    );
+}
+
+async fn assert_outbox(
+    banks_client: &mut BanksClient,
+    outbox_pubkey: Pubkey,
+    expected_outbox: Outbox,
+) {
+    // Check that the outbox account was updated.
+    let outbox_account = banks_client
+        .get_account(outbox_pubkey)
+        .await
+        .unwrap()
+        .unwrap();
+
+    let outbox = OutboxAccount::fetch(&mut &outbox_account.data[..])
+        .unwrap()
+        .into_inner();
+
+    assert_eq!(*outbox, expected_outbox,);
+}
+
 #[tokio::test]
 async fn test_dispatch_from_eoa() {
     let program_id = hyperlane_sealevel_mailbox::id();
@@ -219,31 +267,82 @@ async fn test_dispatch_from_eoa() {
         body: message_body,
     };
 
-    // Get the slot of the tx
-    let dispatch_tx_status = banks_client
-        .get_transaction_status(dispatch_tx_signature)
-        .await
-        .unwrap()
-        .unwrap();
-    let dispatch_slot = dispatch_tx_status.slot;
+    assert_dispatched_message(
+        &mut banks_client,
+        dispatch_tx_signature,
+        dispatch_unique_keypair.pubkey(),
+        dispatched_message_account_key,
+        &expected_message,
+    )
+    .await;
 
-    // Get the dispatched message account
-    let dispatched_message_account = banks_client
-        .get_account(dispatched_message_account_key)
+    let mut expected_tree = MerkleTree::default();
+    expected_tree.ingest(expected_message.id());
+
+    // Make sure the outbox account was updated.
+    assert_outbox(
+        &mut banks_client,
+        mailbox_accounts.outbox,
+        Outbox {
+            local_domain: LOCAL_DOMAIN,
+            outbox_bump_seed: mailbox_accounts.outbox_bump_seed,
+            owner: Some(payer.pubkey()),
+            tree: expected_tree,
+        },
+    )
+    .await;
+
+    // Dispatch another so we can make sure the nonce is incremented correctly
+    let recipient = H256::random();
+    let message_body = vec![69, 42, 0];
+    let outbox_dispatch = OutboxDispatch {
+        sender: payer.pubkey(),
+        destination_domain: REMOTE_DOMAIN,
+        recipient,
+        message_body: message_body.clone(),
+    };
+
+    let (dispatch_tx_signature, dispatch_unique_keypair, dispatched_message_account_key) =
+        dispatch_from_payer(
+            &mut banks_client,
+            &payer,
+            &mailbox_accounts,
+            outbox_dispatch,
+        )
         .await
-        .unwrap()
         .unwrap();
-    let dispatched_message =
-        DispatchedMessageAccount::fetch(&mut &dispatched_message_account.data[..])
-            .unwrap()
-            .into_inner();
-    assert_eq!(
-        *dispatched_message,
-        DispatchedMessage::new(
-            0, // nonce
-            dispatch_slot,
-            dispatch_unique_keypair.pubkey(),
-            expected_message.to_vec(),
-        ),
-    );
+
+    let expected_message = HyperlaneMessage {
+        version: 0,
+        nonce: 1,
+        origin: LOCAL_DOMAIN,
+        sender: payer.pubkey().to_bytes().into(),
+        destination: REMOTE_DOMAIN,
+        recipient: recipient,
+        body: message_body,
+    };
+
+    assert_dispatched_message(
+        &mut banks_client,
+        dispatch_tx_signature,
+        dispatch_unique_keypair.pubkey(),
+        dispatched_message_account_key,
+        &expected_message,
+    )
+    .await;
+
+    expected_tree.ingest(expected_message.id());
+
+    // Make sure the outbox account was updated.
+    assert_outbox(
+        &mut banks_client,
+        mailbox_accounts.outbox,
+        Outbox {
+            local_domain: LOCAL_DOMAIN,
+            outbox_bump_seed: mailbox_accounts.outbox_bump_seed,
+            owner: Some(payer.pubkey()),
+            tree: expected_tree,
+        },
+    )
+    .await;
 }
