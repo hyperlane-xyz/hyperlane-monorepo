@@ -24,6 +24,7 @@ contract CCTPAdapter is ILiquidityLayerAdapterV2, Router {
 
     /// @notice The USDC token address.
     address public token;
+    string public constant BRIDGE_ID = "CCTP"; // TODO : FIX
 
     string public constant TOKEN_SYMBOL = "USDC";
 
@@ -51,6 +52,7 @@ contract CCTPAdapter is ILiquidityLayerAdapterV2, Router {
      * @param _tokenMessenger The TokenMessenger contract.
      * @param _circleMessageTransmitter The Circle MessageTransmitter contract.
      * @param _token The USDC token address.
+     * @param _bridge The destination token bridge ID.
      * @param _mailbox The address of the mailbox contract.
      * @param _interchainGasPaymaster The address of the interchain gas paymaster contract.
      * @param _interchainSecurityModule The address of the interchain security module contract.
@@ -82,7 +84,7 @@ contract CCTPAdapter is ILiquidityLayerAdapterV2, Router {
         uint32 _destinationDomain,
         bytes32 _recipientAddress,
         uint256 _amount
-    ) external override returns (bytes memory _adapterData) {
+    ) external override returns (bytes32) {
         _mustHaveRemoteRouter(_destinationDomain);
         uint32 _circleDomain = hyperlaneDomainToCircleDomain[
             _destinationDomain
@@ -103,7 +105,21 @@ contract CCTPAdapter is ILiquidityLayerAdapterV2, Router {
         );
 
         emit BridgedToken(_nonce);
-        return abi.encode(_nonce, TOKEN_SYMBOL);
+
+        bytes memory _adapterData = abi.encode(_nonce, TOKEN_SYMBOL);
+        // The user's message "wrapped" required by this middleware
+        bytes memory _messageWithEmptyMetadata = abi.encode(
+            TypeCasts.addressToBytes32(msg.sender),
+            _recipientAddress, // The "user" recipient
+            _amount, // The amount of the tokens sent over the bridge
+            BRIDGE_ID, // The destination token bridge ID
+            _adapterData, // The adapter-specific data
+            bytes("") // Empty "user" message
+            // TODO : remove hanling of user message in the router because it will only be handled by the ICARouter
+        );
+
+        // Dispatch the _messageWithEmptyMetadata to the destination's LiquidityLayerRouter.
+        return _dispatch(_destinationDomain, _messageWithEmptyMetadata);
     }
 
     // This contract is only a Router to be aware of remote router addresses,
