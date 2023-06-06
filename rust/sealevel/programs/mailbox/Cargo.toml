@@ -32,6 +32,10 @@ base64 = "0.13"
 itertools =  "0.10.1"
 log = "0.4"
 testing_logger = "=0.1.1"
+solana-program-test = "=1.14.13"
+solana-sdk = "=1.14.13"
+hyperlane-test-utils = { path = "../../libraries/test-utils" }
+hyperlane-sealevel-ism-rubber-stamp = { path = "../ism/rubber-stamp" }
 
 [lib]
 crate-type = ["cdylib", "lib"]

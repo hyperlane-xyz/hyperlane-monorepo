@@ -133,7 +133,7 @@ where
 
 pub type InboxAccount = AccountData<Inbox>;
 
-#[derive(BorshSerialize, BorshDeserialize, Debug, Default)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Default, PartialEq, Eq)]
 pub struct Inbox {
     pub local_domain: u32,
     pub inbox_bump_seed: u8,
@@ -175,7 +175,7 @@ impl Inbox {
 
 pub type OutboxAccount = AccountData<Outbox>;
 
-#[derive(BorshSerialize, BorshDeserialize, Debug, Default)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Default, PartialEq, Eq)]
 pub struct Outbox {
     pub local_domain: u32,
     pub outbox_bump_seed: u8,

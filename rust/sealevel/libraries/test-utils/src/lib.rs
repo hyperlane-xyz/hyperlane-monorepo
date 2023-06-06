@@ -22,7 +22,9 @@ use hyperlane_sealevel_mailbox::{
 pub struct MailboxAccounts {
     pub program: Pubkey,
     pub inbox: Pubkey,
+    pub inbox_bump_seed: u8,
     pub outbox: Pubkey,
+    pub outbox_bump_seed: u8,
 }
 
 pub async fn initialize_mailbox(
@@ -30,10 +32,10 @@ pub async fn initialize_mailbox(
     mailbox_program_id: &Pubkey,
     payer: &Keypair,
     local_domain: u32,
-) -> MailboxAccounts {
-    let (inbox_account, _inbox_bump) =
+) -> Result<MailboxAccounts, BanksClientError> {
+    let (inbox_account, inbox_bump) =
         Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), mailbox_program_id);
-    let (outbox_account, _outbox_bump) =
+    let (outbox_account, outbox_bump) =
         Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), mailbox_program_id);
 
     let ixn = MailboxInstruction::Init(InitMailbox {
@@ -52,20 +54,21 @@ pub async fn initialize_mailbox(
     };
 
     let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    let mut transaction = Transaction::new_signed_with_payer(
+    let transaction = Transaction::new_signed_with_payer(
         &[init_instruction],
         Some(&payer.pubkey()),
         &[payer],
         recent_blockhash,
     );
-    transaction.sign(&[payer], recent_blockhash);
-    banks_client.process_transaction(transaction).await.unwrap();
+    banks_client.process_transaction(transaction).await?;
 
-    MailboxAccounts {
+    Ok(MailboxAccounts {
         program: *mailbox_program_id,
         inbox: inbox_account,
+        inbox_bump_seed: inbox_bump,
         outbox: outbox_account,
-    }
+        outbox_bump_seed: outbox_bump,
+    })
 }
 
 // ========= Balance utils =========
@@ -113,15 +116,16 @@ pub async fn transfer_lamports(
     lamports: u64,
 ) {
     let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    let mut transaction = Transaction::new_with_payer(
+    let transaction = Transaction::new_signed_with_payer(
         &[solana_sdk::system_instruction::transfer(
             &payer.pubkey(),
             to,
             lamports,
         )],
         Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
     );
-    transaction.sign(&[payer], recent_blockhash);
     banks_client.process_transaction(transaction).await.unwrap();
 }
 

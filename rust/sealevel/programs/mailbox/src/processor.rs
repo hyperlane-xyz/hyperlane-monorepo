@@ -527,7 +527,6 @@ fn inbox_set_default_ism(
 /// Sets the ID of the message as return data.
 ///
 /// Accounts:
-///
 /// 0. [writeable] Outbox PDA.
 /// 1. [signer] Message sender signer.
 /// 2. [executable] System program.
@@ -962,7 +961,8 @@ mod test {
             Epoch::default(),
         );
 
-        let ism_account_key = Pubkey::from_str(crate::DEFAULT_ISM).unwrap();
+        // let ism_account_key = Pubkey::from_str(crate::DEFAULT_ISM).unwrap();
+        let ism_account_key = Pubkey::new_unique();
         let mut ism_account_lamports = 0;
         let mut ism_account_data = vec![0_u8; 1024];
         let ism_account = AccountInfo::new(

@@ -44,15 +44,16 @@ async fn new_funded_keypair(
 ) -> Keypair {
     let keypair = Keypair::new();
     let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    let mut transaction = Transaction::new_with_payer(
+    let transaction = Transaction::new_signed_with_payer(
         &[solana_sdk::system_instruction::transfer(
             &payer.pubkey(),
             &keypair.pubkey(),
             lamports,
         )],
         Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
     );
-    transaction.sign(&[payer], recent_blockhash);
     banks_client.process_transaction(transaction).await.unwrap();
     keypair
 }
@@ -66,7 +67,7 @@ async fn initialize(
     let (access_control_pda_key, _access_control_pda_bump_seed) =
         Pubkey::find_program_address(access_control_pda_seeds!(), &program_id);
 
-    let mut transaction = Transaction::new_with_payer(
+    let transaction = Transaction::new_signed_with_payer(
         &[Instruction::new_with_borsh(
             program_id,
             &MultisigIsmProgramInstruction::Initialize,
@@ -77,8 +78,9 @@ async fn initialize(
             ],
         )],
         Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
     );
-    transaction.sign(&[payer], recent_blockhash);
     banks_client.process_transaction(transaction).await?;
 
     Ok((access_control_pda_key, _access_control_pda_bump_seed))
@@ -96,7 +98,7 @@ async fn set_validators_and_threshold(
     let (domain_data_pda_key, domain_data_pda_bump_seed) =
         Pubkey::find_program_address(domain_data_pda_seeds!(domain), &program_id);
 
-    let mut transaction = Transaction::new_with_payer(
+    let transaction = Transaction::new_signed_with_payer(
         &[Instruction::new_with_borsh(
             program_id,
             &MultisigIsmProgramInstruction::SetValidatorsAndThreshold(Domained {
@@ -111,8 +113,9 @@ async fn set_validators_and_threshold(
             ],
         )],
         Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
     );
-    transaction.sign(&[payer], recent_blockhash);
     banks_client.process_transaction(transaction).await.unwrap();
 
     Ok((domain_data_pda_key, domain_data_pda_bump_seed))
@@ -267,7 +270,7 @@ async fn test_set_validators_and_threshold_creates_pda_account() {
         threshold: 1,
     };
 
-    let mut transaction = Transaction::new_with_payer(
+    let transaction = Transaction::new_signed_with_payer(
         &[Instruction::new_with_borsh(
             program_id,
             &MultisigIsmProgramInstruction::SetValidatorsAndThreshold(Domained {
@@ -281,8 +284,9 @@ async fn test_set_validators_and_threshold_creates_pda_account() {
             ],
         )],
         Some(&payer.pubkey()),
+        &[&payer],
+        recent_blockhash,
     );
-    transaction.sign(&[&payer], recent_blockhash);
     banks_client.process_transaction(transaction).await.unwrap();
 
     let domain_data_account_data = banks_client
