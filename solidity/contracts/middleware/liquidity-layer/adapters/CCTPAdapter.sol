@@ -109,27 +109,10 @@ contract CCTPAdapter is ILiquidityLayerAdapterV2, Router {
     // This contract is only a Router to be aware of remote router addresses,
     // and doesn't actually send/handle Hyperlane messages directly
     function _handle(
-        uint32 _origin, // origin
+        uint32, // origin
         bytes32, // sender
-        bytes calldata _message // message
+        bytes calldata // message
     ) internal pure override {
-        // Decode the message with metadata, "unwrapping" the user's message body
-        (
-            bytes32 _originalSender,
-            bytes32 _userRecipientAddress,
-            uint256 _amount,
-            string memory _bridge,
-            bytes memory _adapterData,
-            bytes memory _userMessageBody
-        ) = abi.decode(
-                _message,
-                (bytes32, bytes32, uint256, string, bytes, bytes)
-            );
-
-        ILiquidityLayerMessageRecipient _userRecipient = ILiquidityLayerMessageRecipient(
-                TypeCasts.bytes32ToAddress(_userRecipientAddress)
-            );
-
         revert("No messages expected");
     }
 
