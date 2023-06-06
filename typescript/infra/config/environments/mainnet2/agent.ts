@@ -60,13 +60,16 @@ const hyperlane: RootAgentConfig = {
     ...roleBase,
     docker: {
       repo,
-      tag: '40cc4a6-20230420-080111',
+      tag: '2deb9b8-20230602-205342',
     },
     blacklist: [
-      ...releaseCandidateHelloworldMatchingList,
+      // ...releaseCandidateHelloworldMatchingList,
+      // {
+      //   originDomain: 137,
+      //   recipientAddress: '0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE',
+      // },
       {
-        originDomain: 137,
-        recipientAddress: '0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE',
+        senderAddress: '*',
       },
     ],
     gasPaymentEnforcement,
