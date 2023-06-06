@@ -399,16 +399,12 @@ class ContextFunder {
     for (const role of this.rolesToFund) {
       const keys = this.getKeysWithRole(role);
       for (const key of keys) {
-        if (key.role == Role.Relayer || key.role == Role.Kathy) {
-          const chains = getAgentConfig(
-            key.context,
-            key.environment,
-          ).contextChainNames;
-          for (const chain of chains) {
-            chainKeys[chain].push(key);
-          }
-        } else {
-          throw Error(`Unsupported role ${role}`);
+        const chains = getAgentConfig(
+          key.context,
+          key.environment,
+        ).contextChainNames;
+        for (const chain of chains) {
+          chainKeys[chain].push(key);
         }
       }
     }
