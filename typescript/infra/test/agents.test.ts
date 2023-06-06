@@ -41,7 +41,6 @@ describe('ReadOnlyCloudAgentKey', () => {
           addressZero,
         );
 
-        console.log(testKey);
         expect(readOnly.environment).to.eq(testKey.environment);
         expect(readOnly.context).to.eq(testKey.context);
         expect(readOnly.role).to.eq(testKey.role);
