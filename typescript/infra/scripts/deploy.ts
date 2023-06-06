@@ -1,15 +1,7 @@
 import path from 'path';
 
 import {
-  TestQuerySender__factory,
-  TestRecipient__factory,
-  TestTokenRecipient__factory,
-} from '@hyperlane-xyz/core';
-import {
   ChainMap,
-  ChainName,
-  HyperlaneAddresses,
-  HyperlaneAgentAddresses,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
   HyperlaneIgp,
@@ -19,30 +11,19 @@ import {
   InterchainAccountDeployer,
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
-  MultiProvider,
-  buildAgentConfig,
   objMap,
-  promiseObjAll,
-  serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
 
-import {
-  DeployEnvironment,
-  deployEnvToSdkEnv,
-} from '../src/config/environment';
+import { deployEnvToSdkEnv } from '../src/config/environment';
+import { deployWithArtifacts } from '../src/deployment/deploy';
+import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
+import { TestRecipientDeployer } from '../src/deployment/testcontracts/testrecipient';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
-import {
-  readJSON,
-  readJSONAtPath,
-  writeJSON,
-  writeJsonAtPath,
-  writeMergedJSONAtPath,
-} from '../src/utils/utils';
+import { readJSON } from '../src/utils/utils';
 
 import {
   Modules,
   SDK_MODULES,
-  getAgentConfigDirectory,
   getArgs,
   getContractAddressesSdkFilepath,
   getEnvironmentConfig,
@@ -154,157 +135,6 @@ async function main() {
       : undefined;
 
   await deployWithArtifacts(config, deployer, cache, fork, agentConfig);
-}
-
-const TEST_QUERY_SENDER_FACTORIES = {
-  TestQuerySender: new TestQuerySender__factory(),
-};
-
-type TestQuerySenderConfig = { queryRouterAddress: string };
-
-class TestQuerySenderDeployer extends HyperlaneDeployer<
-  TestQuerySenderConfig,
-  typeof TEST_QUERY_SENDER_FACTORIES
-> {
-  constructor(multiProvider: MultiProvider, protected igp: HyperlaneIgp) {
-    super(multiProvider, TEST_QUERY_SENDER_FACTORIES);
-  }
-
-  async deployContracts(chain: ChainName, config: TestQuerySenderConfig) {
-    const TestQuerySender = await this.deployContract(
-      chain,
-      'TestQuerySender',
-      [],
-      [
-        config.queryRouterAddress,
-        this.igp.getContracts(chain).interchainGasPaymaster.address,
-      ],
-    );
-    return {
-      TestQuerySender,
-    };
-  }
-}
-
-const TEST_RECIPIENT_DEPLOYER_FACTORIES = {
-  TestRecipient: new TestRecipient__factory(),
-  TestTokenRecipient: new TestTokenRecipient__factory(),
-};
-
-class TestRecipientDeployer extends HyperlaneDeployer<
-  never,
-  typeof TEST_RECIPIENT_DEPLOYER_FACTORIES
-> {
-  constructor(multiProvider: MultiProvider) {
-    super(multiProvider, TEST_RECIPIENT_DEPLOYER_FACTORIES);
-  }
-
-  async deployContracts(chain: ChainName) {
-    const TestRecipient = await this.deployContract(chain, 'TestRecipient', []);
-    const TestTokenRecipient = await this.deployContract(
-      chain,
-      'TestTokenRecipient',
-      [],
-    );
-    return {
-      TestRecipient,
-      TestTokenRecipient,
-    };
-  }
-}
-
-async function deployWithArtifacts<Config>(
-  configMap: ChainMap<Config>,
-  deployer: HyperlaneDeployer<Config, any>,
-  cache: {
-    addresses: string;
-    verification: string;
-    read: boolean;
-    write: boolean;
-  },
-  fork?: ChainName,
-  agentConfig?: {
-    multiProvider: MultiProvider;
-    addresses: string;
-    environment: DeployEnvironment;
-  },
-) {
-  if (cache.read) {
-    let addressesMap = {};
-    try {
-      addressesMap = readJSONAtPath(cache.addresses);
-    } catch (e) {
-      console.error('Failed to load cached addresses');
-    }
-
-    deployer.cacheAddressesMap(addressesMap);
-  }
-
-  try {
-    if (fork) {
-      await deployer.deployContracts(fork, configMap[fork]);
-    } else {
-      await deployer.deploy(configMap);
-    }
-  } catch (e) {
-    console.error('Failed to deploy contracts', e);
-  }
-
-  if (cache.write) {
-    // cache addresses of deployed contracts
-    writeMergedJSONAtPath(
-      cache.addresses,
-      serializeContractsMap(deployer.deployedContracts),
-    );
-
-    let savedVerification = {};
-    try {
-      savedVerification = readJSONAtPath(cache.verification);
-    } catch (e) {
-      console.error('Failed to load cached verification inputs');
-    }
-
-    // cache verification inputs
-    const inputs =
-      deployer.mergeWithExistingVerificationInputs(savedVerification);
-    writeJsonAtPath(cache.verification, inputs);
-  }
-  if (agentConfig) {
-    await writeAgentConfig(
-      agentConfig.addresses,
-      agentConfig.multiProvider,
-      agentConfig.environment,
-    );
-  }
-}
-
-async function writeAgentConfig(
-  addressesPath: string,
-  multiProvider: MultiProvider,
-  environment: DeployEnvironment,
-) {
-  let addresses: ChainMap<HyperlaneAddresses<any>> = {};
-  try {
-    addresses = readJSONAtPath(addressesPath);
-  } catch (e) {
-    console.error('Failed to load cached addresses');
-  }
-  // Write agent config indexing from the deployed or latest block numbers.
-  // For non-net-new deployments, these changes will need to be
-  // reverted manually.
-  const startBlocks = await promiseObjAll(
-    objMap(addresses, (chain, _) =>
-      multiProvider.getProvider(chain).getBlockNumber(),
-    ),
-  );
-  const agentConfig = buildAgentConfig(
-    multiProvider.getKnownChainNames(),
-    multiProvider,
-    addresses as unknown as ChainMap<HyperlaneAgentAddresses>,
-    startBlocks,
-  );
-  const sdkEnv = deployEnvToSdkEnv[environment];
-  writeJSON(getAgentConfigDirectory(), `${sdkEnv}_config.json`, agentConfig);
 }
 
 main()
