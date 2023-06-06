@@ -52,7 +52,6 @@ contract CCTPAdapter is ILiquidityLayerAdapterV2, Router {
      * @param _tokenMessenger The TokenMessenger contract.
      * @param _circleMessageTransmitter The Circle MessageTransmitter contract.
      * @param _token The USDC token address.
-     * @param _bridge The destination token bridge ID.
      * @param _mailbox The address of the mailbox contract.
      * @param _interchainGasPaymaster The address of the interchain gas paymaster contract.
      * @param _interchainSecurityModule The address of the interchain security module contract.

@@ -7,5 +7,5 @@ interface ILiquidityLayerAdapterV2 {
         uint32 _destinationDomain,
         bytes32 _recipientAddress,
         uint256 _amount
-    ) external returns (bytes32); // should this be bytes32 messageId like in TokenRouter?
+    ) external returns (bytes32);
 }
