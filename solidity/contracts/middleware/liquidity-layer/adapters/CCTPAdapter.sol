@@ -6,6 +6,9 @@ import {Router} from "../../../Router.sol";
 import {ITokenMessenger} from "../interfaces/circle/ITokenMessenger.sol";
 import {ICircleMessageTransmitter} from "../interfaces/circle/ICircleMessageTransmitter.sol";
 import {ILiquidityLayerAdapterV2} from "../interfaces/ILiquidityLayerAdapterV2.sol";
+import {ILiquidityLayerMessageRecipient} from "../../../interfaces/ILiquidityLayerMessageRecipient.sol";
+
+import {TypeCasts} from "../../../libs/TypeCasts.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -18,9 +21,6 @@ contract CCTPAdapter is ILiquidityLayerAdapterV2, Router {
 
     /// @notice The Circle MessageTransmitter contract.
     ICircleMessageTransmitter public circleMessageTransmitter;
-
-    /// @notice The LiquidityLayerRouterV2 contract.
-    address public liquidityLayerRouterV2;
 
     /// @notice The USDC token address.
     address public token;
@@ -50,24 +50,31 @@ contract CCTPAdapter is ILiquidityLayerAdapterV2, Router {
      * @param _owner The new owner.
      * @param _tokenMessenger The TokenMessenger contract.
      * @param _circleMessageTransmitter The Circle MessageTransmitter contract.
-     * @param _liquidityLayerRouterV2 The LiquidityLayerRouterV2 contract.
      * @param _token The USDC token address.
+     * @param _mailbox The address of the mailbox contract.
+     * @param _interchainGasPaymaster The address of the interchain gas paymaster contract.
+     * @param _interchainSecurityModule The address of the interchain security module contract.
      */
     function initialize(
         address _owner,
         address _tokenMessenger,
         address _circleMessageTransmitter,
-        address _liquidityLayerRouterV2,
-        address _token
+        address _token,
+        address _mailbox,
+        address _interchainGasPaymaster,
+        address _interchainSecurityModule
     ) external initializer {
-        __Ownable_init();
-        _transferOwnership(_owner);
+        __HyperlaneConnectionClient_initialize(
+            _mailbox,
+            _interchainGasPaymaster,
+            _interchainSecurityModule,
+            _owner
+        );
 
         tokenMessenger = ITokenMessenger(_tokenMessenger);
         circleMessageTransmitter = ICircleMessageTransmitter(
             _circleMessageTransmitter
         );
-        liquidityLayerRouterV2 = _liquidityLayerRouterV2;
         token = _token;
     }
 
@@ -102,10 +109,27 @@ contract CCTPAdapter is ILiquidityLayerAdapterV2, Router {
     // This contract is only a Router to be aware of remote router addresses,
     // and doesn't actually send/handle Hyperlane messages directly
     function _handle(
-        uint32, // origin
+        uint32 _origin, // origin
         bytes32, // sender
-        bytes calldata // message
+        bytes calldata _message // message
     ) internal pure override {
+        // Decode the message with metadata, "unwrapping" the user's message body
+        (
+            bytes32 _originalSender,
+            bytes32 _userRecipientAddress,
+            uint256 _amount,
+            string memory _bridge,
+            bytes memory _adapterData,
+            bytes memory _userMessageBody
+        ) = abi.decode(
+                _message,
+                (bytes32, bytes32, uint256, string, bytes, bytes)
+            );
+
+        ILiquidityLayerMessageRecipient _userRecipient = ILiquidityLayerMessageRecipient(
+                TypeCasts.bytes32ToAddress(_userRecipientAddress)
+            );
+
         revert("No messages expected");
     }
 
