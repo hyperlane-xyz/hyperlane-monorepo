@@ -37,8 +37,8 @@ use hyperlane_sealevel_message_recipient_interface::{
 };
 use hyperlane_sealevel_test_ism::{test_ism_storage_pda_seeds, TestIsmError, TestIsmInstruction};
 use hyperlane_sealevel_test_send_receiver::{
-    test_send_receiver_storage_pda_seeds, IsmReturnDataMode, TestSendReceiverError,
-    TestSendReceiverInstruction,
+    program::{IsmReturnDataMode, TestSendReceiverError, TestSendReceiverInstruction},
+    test_client::TestSendReceiverTestClient,
 };
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 
@@ -47,7 +47,7 @@ use hyperlane_test_utils::{assert_transaction_error, initialize_mailbox, Mailbox
 const LOCAL_DOMAIN: u32 = 13775;
 const REMOTE_DOMAIN: u32 = 69420;
 
-async fn setup_client() -> (BanksClient, Keypair) {
+async fn setup_client() -> (BanksClient, Keypair, TestSendReceiverTestClient) {
     let program_id = hyperlane_sealevel_mailbox::id();
     let mut program_test = ProgramTest::new(
         "hyperlane_sealevel_mailbox",
@@ -81,115 +81,32 @@ async fn setup_client() -> (BanksClient, Keypair) {
     program_test.add_program(
         "hyperlane_sealevel_test_send_receiver",
         hyperlane_sealevel_test_send_receiver::id(),
-        processor!(hyperlane_sealevel_test_send_receiver::process_instruction),
+        processor!(hyperlane_sealevel_test_send_receiver::program::process_instruction),
     );
 
     let (mut banks_client, payer, _recent_blockhash) = program_test.start().await;
 
+    let mut test_send_receiver =
+        TestSendReceiverTestClient::new(banks_client.clone(), clone_keypair(&payer));
+
     init_test_ism(&mut banks_client, &payer).await;
 
-    init_test_send_receiver(&mut banks_client, &payer).await;
-    set_test_send_receiver_ism(
-        &mut banks_client,
-        &payer,
-        Some(hyperlane_sealevel_test_ism::id()),
-        IsmReturnDataMode::EncodeOption,
-    )
-    .await;
+    test_send_receiver.init().await.unwrap();
+    test_send_receiver
+        .set_ism(
+            Some(hyperlane_sealevel_test_ism::id()),
+            IsmReturnDataMode::EncodeOption,
+        )
+        .await
+        .unwrap();
 
-    (banks_client, payer)
+    (banks_client, payer, test_send_receiver)
 }
 
-async fn init_test_send_receiver(banks_client: &mut BanksClient, payer: &Keypair) {
-    let program_id = hyperlane_sealevel_test_send_receiver::id();
-
-    let (storage_pda_key, _storage_pda_bump) =
-        Pubkey::find_program_address(test_send_receiver_storage_pda_seeds!(), &program_id);
-
-    let instruction = Instruction {
-        program_id,
-        data: TestSendReceiverInstruction::Init.try_to_vec().unwrap(),
-        accounts: vec![
-            // 0. [executable] System program.
-            // 1. [signer] Payer.
-            // 2. [writeable] Storage PDA.
-            AccountMeta::new_readonly(system_program::id(), false),
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(storage_pda_key, false),
-        ],
-    };
-
-    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    let transaction = Transaction::new_signed_with_payer(
-        &[instruction],
-        Some(&payer.pubkey()),
-        &[payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(transaction).await.unwrap();
-}
-
-async fn set_test_send_receiver_ism(
-    banks_client: &mut BanksClient,
-    payer: &Keypair,
-    ism: Option<Pubkey>,
-    ism_return_data_mode: IsmReturnDataMode,
-) {
-    let program_id = hyperlane_sealevel_test_send_receiver::id();
-
-    let (storage_pda_key, _storage_pda_bump) =
-        Pubkey::find_program_address(test_send_receiver_storage_pda_seeds!(), &program_id);
-
-    let instruction = Instruction {
-        program_id,
-        data: TestSendReceiverInstruction::SetInterchainSecurityModule(ism, ism_return_data_mode)
-            .try_to_vec()
-            .unwrap(),
-        accounts: vec![
-            // 0. [writeable] Storage PDA.
-            AccountMeta::new(storage_pda_key, false),
-        ],
-    };
-
-    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    let transaction = Transaction::new_signed_with_payer(
-        &[instruction],
-        Some(&payer.pubkey()),
-        &[payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(transaction).await.unwrap();
-}
-
-async fn set_test_send_receiver_fail_handle(
-    banks_client: &mut BanksClient,
-    payer: &Keypair,
-    fail_handle: bool,
-) {
-    let program_id = hyperlane_sealevel_test_send_receiver::id();
-
-    let (storage_pda_key, _storage_pda_bump) =
-        Pubkey::find_program_address(test_send_receiver_storage_pda_seeds!(), &program_id);
-
-    let instruction = Instruction {
-        program_id,
-        data: TestSendReceiverInstruction::SetFailHandle(fail_handle)
-            .try_to_vec()
-            .unwrap(),
-        accounts: vec![
-            // 0. [writeable] Storage PDA.
-            AccountMeta::new(storage_pda_key, false),
-        ],
-    };
-
-    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    let transaction = Transaction::new_signed_with_payer(
-        &[instruction],
-        Some(&payer.pubkey()),
-        &[payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(transaction).await.unwrap();
+// Hack to get around the absence of a Clone implementation in solana-sdk 1.14.13.
+fn clone_keypair(keypair: &Keypair) -> Keypair {
+    let serialized = keypair.to_bytes();
+    Keypair::from_bytes(&serialized).unwrap()
 }
 
 async fn init_test_ism(banks_client: &mut BanksClient, payer: &Keypair) {
@@ -249,7 +166,7 @@ async fn set_test_ism_accept(banks_client: &mut BanksClient, payer: &Keypair, ac
 #[tokio::test]
 async fn test_initialize() {
     let program_id = hyperlane_sealevel_mailbox::id();
-    let (mut banks_client, payer) = setup_client().await;
+    let (mut banks_client, payer, _) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
         .await
@@ -293,7 +210,7 @@ async fn test_initialize() {
 #[tokio::test]
 async fn test_initialize_errors_if_called_twice() {
     let program_id = hyperlane_sealevel_mailbox::id();
-    let (mut banks_client, payer) = setup_client().await;
+    let (mut banks_client, payer, _) = setup_client().await;
 
     initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
         .await
@@ -486,7 +403,7 @@ async fn assert_outbox(
 #[tokio::test]
 async fn test_dispatch_from_eoa() {
     let program_id = hyperlane_sealevel_mailbox::id();
-    let (mut banks_client, payer) = setup_client().await;
+    let (mut banks_client, payer, _) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
         .await
@@ -605,7 +522,7 @@ async fn test_dispatch_from_eoa() {
 async fn test_dispatch_from_program() {
     let program_id = hyperlane_sealevel_mailbox::id();
     let test_sender_receiver_program_id = hyperlane_sealevel_test_send_receiver::id();
-    let (mut banks_client, payer) = setup_client().await;
+    let (mut banks_client, payer, _) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
         .await
@@ -673,7 +590,7 @@ async fn test_dispatch_from_program() {
 #[tokio::test]
 async fn test_dispatch_errors_if_message_too_large() {
     let program_id = hyperlane_sealevel_mailbox::id();
-    let (mut banks_client, payer) = setup_client().await;
+    let (mut banks_client, payer, _) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
         .await
@@ -708,7 +625,7 @@ async fn test_dispatch_errors_if_message_too_large() {
 #[tokio::test]
 async fn test_dispatch_returns_message_id() {
     let program_id = hyperlane_sealevel_mailbox::id();
-    let (mut banks_client, payer) = setup_client().await;
+    let (mut banks_client, payer, _) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
         .await
@@ -1044,23 +961,20 @@ async fn process(
 #[tokio::test]
 async fn test_get_recipient_ism_when_specified() {
     let program_id = hyperlane_sealevel_mailbox::id();
-    let (mut banks_client, payer) = setup_client().await;
+    let (mut banks_client, payer, mut test_send_receiver) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
         .await
         .unwrap();
 
-    let recipient_id = hyperlane_sealevel_test_send_receiver::id();
+    let recipient_id = test_send_receiver.id();
 
     let ism = Some(Pubkey::new_unique());
 
-    set_test_send_receiver_ism(
-        &mut banks_client,
-        &payer,
-        ism,
-        IsmReturnDataMode::EncodeOption,
-    )
-    .await;
+    test_send_receiver
+        .set_ism(ism, IsmReturnDataMode::EncodeOption)
+        .await
+        .unwrap();
 
     let recipient_ism =
         get_recipient_ism(&mut banks_client, &payer, &mailbox_accounts, recipient_id)
@@ -1072,23 +986,20 @@ async fn test_get_recipient_ism_when_specified() {
 #[tokio::test]
 async fn test_get_recipient_ism_when_option_none_returned() {
     let program_id = hyperlane_sealevel_mailbox::id();
-    let (mut banks_client, payer) = setup_client().await;
+    let (mut banks_client, payer, mut test_send_receiver) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
         .await
         .unwrap();
 
-    let recipient_id = hyperlane_sealevel_test_send_receiver::id();
+    let recipient_id = test_send_receiver.id();
 
     let ism = None;
 
-    set_test_send_receiver_ism(
-        &mut banks_client,
-        &payer,
-        ism,
-        IsmReturnDataMode::EncodeOption,
-    )
-    .await;
+    test_send_receiver
+        .set_ism(ism, IsmReturnDataMode::EncodeOption)
+        .await
+        .unwrap();
 
     let recipient_ism =
         get_recipient_ism(&mut banks_client, &payer, &mailbox_accounts, recipient_id)
@@ -1101,24 +1012,24 @@ async fn test_get_recipient_ism_when_option_none_returned() {
 #[tokio::test]
 async fn test_get_recipient_ism_when_no_return_data() {
     let program_id = hyperlane_sealevel_mailbox::id();
-    let (mut banks_client, payer) = setup_client().await;
+    let (mut banks_client, payer, mut test_send_receiver) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
         .await
         .unwrap();
 
-    let recipient_id = hyperlane_sealevel_test_send_receiver::id();
+    let recipient_id = test_send_receiver.id();
 
     let ism = None;
 
-    set_test_send_receiver_ism(
-        &mut banks_client,
-        &payer,
-        ism,
-        // Return nothing!
-        IsmReturnDataMode::ReturnNothing,
-    )
-    .await;
+    test_send_receiver
+        .set_ism(
+            ism,
+            // Return nothing!
+            IsmReturnDataMode::ReturnNothing,
+        )
+        .await
+        .unwrap();
 
     let recipient_ism =
         get_recipient_ism(&mut banks_client, &payer, &mailbox_accounts, recipient_id)
@@ -1129,26 +1040,26 @@ async fn test_get_recipient_ism_when_no_return_data() {
 }
 
 #[tokio::test]
-async fn test_get_recipient_ism_errors_with_malformmated_recipient_ism_return_data() {
+async fn test_get_recipient_ism_errors_with_malformatted_recipient_ism_return_data() {
     let program_id = hyperlane_sealevel_mailbox::id();
-    let (mut banks_client, payer) = setup_client().await;
+    let (mut banks_client, payer, mut test_send_receiver) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
         .await
         .unwrap();
 
-    let recipient_id = hyperlane_sealevel_test_send_receiver::id();
+    let recipient_id = test_send_receiver.id();
 
     let ism = None;
 
-    set_test_send_receiver_ism(
-        &mut banks_client,
-        &payer,
-        ism,
-        // Return some malformmated data
-        IsmReturnDataMode::ReturnMalformmatedData,
-    )
-    .await;
+    test_send_receiver
+        .set_ism(
+            ism,
+            // Return some malformmated data
+            IsmReturnDataMode::ReturnMalformmatedData,
+        )
+        .await
+        .unwrap();
 
     let result =
         get_recipient_ism(&mut banks_client, &payer, &mailbox_accounts, recipient_id).await;
@@ -1215,7 +1126,7 @@ async fn assert_message_not_processed(
 #[tokio::test]
 async fn test_process_successful_verify_and_handle() {
     let program_id = hyperlane_sealevel_mailbox::id();
-    let (mut banks_client, payer) = setup_client().await;
+    let (mut banks_client, payer, _) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
         .await
@@ -1288,7 +1199,7 @@ async fn test_process_successful_verify_and_handle() {
 #[tokio::test]
 async fn test_process_errors_if_message_already_processed() {
     let program_id = hyperlane_sealevel_mailbox::id();
-    let (mut banks_client, payer) = setup_client().await;
+    let (mut banks_client, payer, _) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
         .await
@@ -1306,7 +1217,7 @@ async fn test_process_errors_if_message_already_processed() {
         body: vec![0, 1, 2, 3, 4, 5, 6, 7, 8],
     };
 
-    let (process_tx_signature, processed_message_account_key) = process(
+    process(
         &mut banks_client,
         &payer,
         &mailbox_accounts,
@@ -1336,7 +1247,7 @@ async fn test_process_errors_if_message_already_processed() {
 #[tokio::test]
 async fn test_process_errors_if_ism_verify_fails() {
     let program_id = hyperlane_sealevel_mailbox::id();
-    let (mut banks_client, payer) = setup_client().await;
+    let (mut banks_client, payer, _) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
         .await
@@ -1379,7 +1290,7 @@ async fn test_process_errors_if_ism_verify_fails() {
 #[tokio::test]
 async fn test_process_errors_if_recipient_handle_fails() {
     let program_id = hyperlane_sealevel_mailbox::id();
-    let (mut banks_client, payer) = setup_client().await;
+    let (mut banks_client, payer, mut test_send_receiver) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
         .await
@@ -1387,7 +1298,7 @@ async fn test_process_errors_if_recipient_handle_fails() {
 
     let recipient_id = hyperlane_sealevel_test_send_receiver::id();
 
-    set_test_send_receiver_fail_handle(&mut banks_client, &payer, true).await;
+    test_send_receiver.set_fail_handle(true).await.unwrap();
 
     let message = HyperlaneMessage {
         version: 0,
@@ -1422,7 +1333,7 @@ async fn test_process_errors_if_recipient_handle_fails() {
 #[tokio::test]
 async fn test_process_errors_if_incorrect_destination_domain() {
     let program_id = hyperlane_sealevel_mailbox::id();
-    let (mut banks_client, payer) = setup_client().await;
+    let (mut banks_client, payer, _) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
         .await
@@ -1464,7 +1375,7 @@ async fn test_process_errors_if_incorrect_destination_domain() {
 #[tokio::test]
 async fn test_process_errors_if_wrong_message_version() {
     let program_id = hyperlane_sealevel_mailbox::id();
-    let (mut banks_client, payer) = setup_client().await;
+    let (mut banks_client, payer, _) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
         .await
@@ -1505,13 +1416,11 @@ async fn test_process_errors_if_wrong_message_version() {
 #[tokio::test]
 async fn test_process_errors_if_recipient_not_a_program() {
     let program_id = hyperlane_sealevel_mailbox::id();
-    let (mut banks_client, payer) = setup_client().await;
+    let (mut banks_client, payer, _) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
         .await
         .unwrap();
-
-    let recipient_id = hyperlane_sealevel_test_send_receiver::id();
 
     let message = HyperlaneMessage {
         version: 1,

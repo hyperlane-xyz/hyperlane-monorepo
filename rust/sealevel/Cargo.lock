@@ -1774,8 +1774,11 @@ dependencies = [
  "borsh",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
+ "hyperlane-test-utils",
  "serializable-account-meta",
  "solana-program",
+ "solana-program-test",
+ "solana-sdk",
 ]
 
 [[package]]

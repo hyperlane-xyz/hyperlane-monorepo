@@ -5,6 +5,7 @@ edition = "2021"
 
 [features]
 no-entrypoint = []
+test-client = ["dep:solana-program-test", "dep:solana-sdk", "dep:hyperlane-test-utils"]
 
 [dependencies]
 account-utils = { path = "../../libraries/account-utils" }
@@ -13,6 +14,10 @@ solana-program = "=1.14.13"
 serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
 hyperlane-sealevel-mailbox = { path = "../mailbox", features = ["no-entrypoint"] }
 hyperlane-sealevel-message-recipient-interface = { path = "../../libraries/message-recipient-interface" }
+
+solana-program-test = { version = "=1.14.13", optional = true }
+solana-sdk = { version = "=1.14.13", optional = true }
+hyperlane-test-utils = { path = "../../libraries/test-utils", optional = true }
 
 [lib]
 crate-type = ["cdylib", "lib"]

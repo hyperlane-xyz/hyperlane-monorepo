@@ -7,6 +7,7 @@ use solana_program_test::*;
 use solana_sdk::{
     signature::Signer,
     signer::keypair::Keypair,
+    signers::Signers,
     transaction::{Transaction, TransactionError},
 };
 
@@ -119,18 +120,14 @@ pub async fn transfer_lamports(
     to: &Pubkey,
     lamports: u64,
 ) {
-    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    let transaction = Transaction::new_signed_with_payer(
-        &[solana_sdk::system_instruction::transfer(
-            &payer.pubkey(),
-            to,
-            lamports,
-        )],
-        Some(&payer.pubkey()),
+    process_instruction(
+        banks_client,
+        solana_sdk::system_instruction::transfer(&payer.pubkey(), to, lamports),
+        payer,
         &[payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(transaction).await.unwrap();
+    )
+    .await
+    .unwrap();
 }
 
 pub fn assert_transaction_error<T>(
@@ -143,4 +140,20 @@ pub fn assert_transaction_error<T>(
     } else {
         panic!("expected TransactionError");
     }
+}
+
+pub async fn process_instruction<T: Signers>(
+    banks_client: &mut BanksClient,
+    instruction: Instruction,
+    payer: &Keypair,
+    signers: &T,
+) -> Result<(), BanksClientError> {
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &[instruction],
+        Some(&payer.pubkey()),
+        signers,
+        recent_blockhash,
+    );
+    banks_client.process_transaction(transaction).await
 }
