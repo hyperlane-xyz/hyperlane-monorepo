@@ -58,6 +58,7 @@ mod rpc_clients;
 
 mod signers;
 
+#[cfg(not(doctest))]
 mod singleton_signer;
 
 mod config;
