@@ -12,7 +12,7 @@ import {
   TOKEN_EXCHANGE_RATE_DECIMALS,
   TOKEN_EXCHANGE_RATE_SCALE,
 } from '../../src/config/gas-oracle';
-import { getEnvironment, getEnvironmentConfig } from '../utils';
+import { getArgs, getEnvironmentConfig } from '../utils';
 
 import { prettyTokenExchangeRate } from './utils';
 
@@ -22,7 +22,7 @@ import { prettyTokenExchangeRate } from './utils';
 async function main() {
   const tokenPriceGetter = CoinGeckoTokenPriceGetter.withDefaultCoinGecko();
 
-  const environment = await getEnvironment();
+  const { environment } = await getArgs().argv;
   const coreEnvConfig = getEnvironmentConfig(environment);
   const multiProvider = await coreEnvConfig.getMultiProvider();
 

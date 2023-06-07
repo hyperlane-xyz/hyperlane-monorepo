@@ -6,7 +6,7 @@ import {
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 
-export const factories = {
+export const TEST_QUERY_SENDER_FACTORIES = {
   TestQuerySender: new TestQuerySender__factory(),
 };
 
@@ -14,11 +14,12 @@ type TestQuerySenderConfig = { queryRouterAddress: string };
 
 export class TestQuerySenderDeployer extends HyperlaneDeployer<
   TestQuerySenderConfig,
-  typeof factories
+  typeof TEST_QUERY_SENDER_FACTORIES
 > {
   constructor(multiProvider: MultiProvider, protected igp: HyperlaneIgp) {
-    super(multiProvider, factories);
+    super(multiProvider, TEST_QUERY_SENDER_FACTORIES);
   }
+
   async deployContracts(chain: ChainName, config: TestQuerySenderConfig) {
     const TestQuerySender = await this.deployContract(
       chain,

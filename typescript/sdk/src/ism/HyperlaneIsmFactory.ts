@@ -99,7 +99,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     const signer = this.multiProvider.getSigner(chain);
     let address: string;
     if (config.type === ModuleType.LEGACY_MULTISIG) {
-      if (process.env.CI !== 'true') {
+      if (
+        process.env.CI !== 'true' &&
+        process.env.ALLOW_LEGACY_MULTISIG_ISM !== 'true'
+      ) {
         throw new Error(
           'Legacy multisig ISM is being deprecated, do not deploy',
         );

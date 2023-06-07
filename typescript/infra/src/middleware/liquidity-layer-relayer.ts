@@ -1,11 +1,11 @@
-import { AgentConfig, EnvironmentConfig } from '../config';
+import { AgentContextConfig, EnvironmentConfig } from '../config';
 import { LiquidityLayerRelayerConfig } from '../config/middleware';
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { execCmd } from '../utils/utils';
 
 export async function runLiquidityLayerRelayerHelmCommand(
   helmCommand: HelmCommand,
-  agentConfig: AgentConfig,
+  agentConfig: AgentContextConfig,
   relayerConfig: LiquidityLayerRelayerConfig,
 ) {
   const values = getLiquidityLayerRelayerHelmValues(agentConfig, relayerConfig);
@@ -35,7 +35,7 @@ export async function runLiquidityLayerRelayerHelmCommand(
 }
 
 function getLiquidityLayerRelayerHelmValues(
-  agentConfig: AgentConfig,
+  agentConfig: AgentContextConfig,
   relayerConfig: LiquidityLayerRelayerConfig,
 ) {
   const values = {

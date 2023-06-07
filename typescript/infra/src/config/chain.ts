@@ -35,7 +35,7 @@ export async function fetchProvider(
   const rpcData = await getSecretRpcEndpoint(environment, chainName, !single);
   switch (connectionType) {
     case AgentConnectionType.Http: {
-      return buildProvider({ url: rpcData, retry: defaultRetry });
+      return buildProvider({ url: rpcData[0], retry: defaultRetry });
     }
     case AgentConnectionType.HttpQuorum: {
       return new providers.FallbackProvider(

@@ -1,17 +1,17 @@
 import { Contexts } from '../../config/contexts';
 import { AgentAwsUser } from '../agents/aws';
-import { KEY_ROLE_ENUM } from '../agents/roles';
-import { AgentConfig } from '../config';
+import { AgentContextConfig } from '../config';
 import {
   HelloWorldKathyConfig,
   HelloWorldKathyRunMode,
 } from '../config/helloworld';
+import { Role } from '../roles';
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { execCmd } from '../utils/utils';
 
 export async function runHelloworldKathyHelmCommand(
   helmCommand: HelmCommand,
-  agentConfig: AgentConfig,
+  agentConfig: AgentContextConfig,
   kathyConfig: HelloWorldKathyConfig,
 ) {
   // If using AWS keys, ensure the Kathy user and key has been created
@@ -19,7 +19,7 @@ export async function runHelloworldKathyHelmCommand(
     const awsUser = new AgentAwsUser(
       agentConfig.runEnv,
       agentConfig.context,
-      KEY_ROLE_ENUM.Kathy,
+      Role.Kathy,
       agentConfig.aws.region,
     );
     await awsUser.createIfNotExists();
@@ -49,7 +49,7 @@ function getHelmReleaseName(context: Contexts): string {
 }
 
 function getHelloworldKathyHelmValues(
-  agentConfig: AgentConfig,
+  agentConfig: AgentContextConfig,
   kathyConfig: HelloWorldKathyConfig,
 ) {
   const cycleOnce =

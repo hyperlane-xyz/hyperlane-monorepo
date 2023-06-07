@@ -96,7 +96,7 @@ impl<M> InterchainSecurityModule for EthereumInterchainSecurityModule<M>
 where
     M: Middleware + 'static,
 {
-    #[instrument(err, ret)]
+    #[instrument]
     async fn module_type(&self) -> ChainResult<ModuleType> {
         let module = self.contract.module_type().call().await?;
         if let Some(module_type) = ModuleType::from_u8(module) {

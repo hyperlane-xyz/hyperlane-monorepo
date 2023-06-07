@@ -20,11 +20,11 @@ import { ethers } from 'ethers';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
 
-import { AgentConfig, AwsKeyConfig, KeyType } from '../../config/agent';
+import { AgentContextConfig, AwsKeyConfig, KeyType } from '../../config/agent';
+import { Role } from '../../roles';
 import { getEthereumAddress, sleep } from '../../utils/utils';
 import { keyIdentifier } from '../agent';
 import { CloudAgentKey } from '../keys';
-import { KEY_ROLE_ENUM } from '../roles';
 
 interface UnfetchedKey {
   fetched: false;
@@ -43,8 +43,8 @@ export class AgentAwsKey extends CloudAgentKey {
   public remoteKey: RemoteKey = { fetched: false };
 
   constructor(
-    agentConfig: AgentConfig,
-    role: KEY_ROLE_ENUM,
+    agentConfig: AgentContextConfig,
+    role: Role,
     chainName?: ChainName,
     index?: number,
   ) {
@@ -272,7 +272,9 @@ export class AgentAwsKey extends CloudAgentKey {
     }
 
     const command = new CreateKeyCommand({
-      Description: `${this.environment} ${this.chainName} ${this.role}`,
+      Description: `${this.environment} ${this.chainName ?? 'omniscient'} ${
+        this.role
+      }`,
       KeyUsage: KeyUsageType.SIGN_VERIFY,
       Origin: OriginType.AWS_KMS,
       BypassPolicyLockoutSafetyCheck: false,
