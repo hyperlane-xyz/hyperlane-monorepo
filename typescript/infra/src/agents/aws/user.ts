@@ -10,14 +10,14 @@ import {
 import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../../config/contexts';
-import { AgentConfig, DeployEnvironment } from '../../config';
+import { AgentContextConfig, DeployEnvironment } from '../../config';
+import { Role } from '../../roles';
 import {
   fetchGCPSecret,
   gcpSecretExists,
   setGCPSecret,
 } from '../../utils/gcloud';
 import { userIdentifier } from '../agent';
-import { KEY_ROLE_ENUM } from '../roles';
 
 import { AgentAwsKey } from './key';
 
@@ -29,7 +29,7 @@ export class AgentAwsUser {
   constructor(
     public readonly environment: DeployEnvironment,
     public readonly context: Contexts,
-    public readonly role: KEY_ROLE_ENUM,
+    public readonly role: Role,
     public readonly region: string,
     public readonly chainName?: ChainName,
   ) {
@@ -77,16 +77,21 @@ export class AgentAwsUser {
     accessKeyId: string;
     secretAccessKey: string;
   }> {
-    return {
-      accessKeyId: await fetchGCPSecret(this.accessKeyIdSecretName, false),
-      secretAccessKey: await fetchGCPSecret(
-        this.secretAccessKeySecretName,
-        false,
-      ),
-    };
+    const accessKeyId = await fetchGCPSecret(this.accessKeyIdSecretName, false);
+    if (typeof accessKeyId != 'string')
+      throw Error('Expected accessKeyId to be a string');
+
+    const secretAccessKey = await fetchGCPSecret(
+      this.secretAccessKeySecretName,
+      false,
+    );
+    if (typeof secretAccessKey != 'string')
+      throw Error('Expected secretAccessKey to be a string');
+
+    return { accessKeyId, secretAccessKey };
   }
 
-  async createAndSaveAccessKey() {
+  async createAndSaveAccessKey(): Promise<void> {
     const cmd = new CreateAccessKeyCommand({
       UserName: this.userName,
     });
@@ -106,11 +111,13 @@ export class AgentAwsUser {
     );
   }
 
-  key(agentConfig: AgentConfig): AgentAwsKey {
+  key(agentConfig: AgentContextConfig): AgentAwsKey {
     return new AgentAwsKey(agentConfig, this.role, this.chainName);
   }
 
-  async createKeyIfNotExists(agentConfig: AgentConfig) {
+  async createKeyIfNotExists(
+    agentConfig: AgentContextConfig,
+  ): Promise<AgentAwsKey> {
     const key = this.key(agentConfig);
     await key.createIfNotExists();
     await key.putKeyPolicy(this.arn);
@@ -153,15 +160,12 @@ export class AgentAwsUser {
   }
 
   get tags(): Record<string, string> {
-    let tags: Record<string, string> = {
+    const tags: Record<string, string> = {
       environment: this.environment,
       role: this.role,
     };
     if (this.chainName !== undefined) {
-      tags = {
-        ...tags,
-        chain: this.chainName,
-      };
+      tags.chain = this.chainName;
     }
     return tags;
   }

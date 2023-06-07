@@ -1,9 +1,9 @@
 import { createAgentKeysIfNotExists } from '../src/agents/key-utils';
 
-import { getContextAgentConfig } from './utils';
+import { getConfigsBasedOnArgs } from './utils';
 
 async function main() {
-  const agentConfig = await getContextAgentConfig();
+  const { agentConfig } = await getConfigsBasedOnArgs();
   return createAgentKeysIfNotExists(agentConfig);
 }
 
