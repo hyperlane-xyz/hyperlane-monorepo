@@ -39,6 +39,10 @@ solana_program::declare_id!("FZ8hyduJy4GQAfBu9zEiuQtk429Gjc6inwHgEW5MvsEm");
 #[cfg(not(feature = "no-entrypoint"))]
 entrypoint!(process_instruction);
 
+pub enum TestSendReceiverError {
+    HandleFailed = 6942069,
+}
+
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 pub enum IsmReturnDataMode {
     EncodeOption,
@@ -56,6 +60,7 @@ impl Default for IsmReturnDataMode {
 pub struct TestSendReceiverStorage {
     pub ism: Option<Pubkey>,
     pub ism_return_data_mode: IsmReturnDataMode,
+    pub fail_handle: bool,
 }
 
 pub type TestSendReceiverStorageAccount = AccountData<TestSendReceiverStorage>;
@@ -64,7 +69,8 @@ impl SizedData for TestSendReceiverStorage {
     fn size(&self) -> usize {
         // 1 + 32 for ism
         // 1 for ism_return_data_mode
-        1 + 32 + 1
+        // 1 for fail_handle
+        1 + 32 + 1 + 1
     }
 }
 
@@ -85,6 +91,7 @@ pub enum TestSendReceiverInstruction {
     Init,
     Dispatch(OutboxDispatch),
     SetInterchainSecurityModule(Option<Pubkey>, IsmReturnDataMode),
+    SetFailHandle(bool),
 }
 
 pub fn process_instruction(
@@ -98,31 +105,13 @@ pub fn process_instruction(
                 get_interchain_security_module(program_id, accounts)
             }
             MessageRecipientInstruction::InterchainSecurityModuleAccountMetas => {
-                let (storage_pda_key, _storage_pda_bump) = Pubkey::find_program_address(
-                    test_send_receiver_storage_pda_seeds!(),
-                    program_id,
-                );
-
-                let account_metas: Vec<SerializableAccountMeta> =
-                    vec![AccountMeta::new_readonly(storage_pda_key, false).into()];
-
-                // Wrap it in the SimulationReturnData because serialized account_metas
-                // may end with zero byte(s), which are incorrectly truncated as
-                // simulated transaction return data.
-                // See `SimulationReturnData` for details.
-                let bytes = SimulationReturnData::new(account_metas)
-                    .try_to_vec()
-                    .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
-                set_return_data(&bytes[..]);
-
-                Ok(())
+                set_account_meta_return_data(program_id)
             }
             MessageRecipientInstruction::Handle(instruction) => {
                 handle(program_id, accounts, instruction)
             }
             MessageRecipientInstruction::HandleAccountMetas(_) => {
-                // No additional accounts required!
-                Ok(())
+                set_account_meta_return_data(program_id)
             }
         };
     }
@@ -136,6 +125,9 @@ pub fn process_instruction(
         }
         TestSendReceiverInstruction::SetInterchainSecurityModule(ism, ism_return_data_mode) => {
             set_interchain_security_module(program_id, accounts, ism, ism_return_data_mode)
+        }
+        TestSendReceiverInstruction::SetFailHandle(fail_handle) => {
+            set_fail_handle(program_id, accounts, fail_handle)
         }
     }
 }
@@ -172,6 +164,7 @@ fn init(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let storage_account = TestSendReceiverStorageAccount::from(TestSendReceiverStorage {
         ism: None,
         ism_return_data_mode: IsmReturnDataMode::EncodeOption,
+        fail_handle: false,
     });
     create_pda_account(
         payer_info,
@@ -181,7 +174,11 @@ fn init(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
         system_program_info,
         storage_info,
         test_send_receiver_storage_pda_seeds!(storage_pda_bump_seed),
-    )
+    )?;
+    // Store it
+    storage_account.store(storage_info, false)?;
+
+    Ok(())
 }
 
 /// Dispatches a message using the dispatch authority.
@@ -264,12 +261,19 @@ fn dispatch(
     )
 }
 
+/// Handles a message.
+///
+/// Accounts:
+/// 0. [writeable] Process authority specific to this program.
+/// 1. [] Storage PDA account.
 pub fn handle(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     handle: HandleInstruction,
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
+
+    // Account 0: Process authority specific to this program.
     let process_authority = next_account_info(accounts_iter)?;
     let (expected_process_authority_key, _expected_process_authority_bump) =
         Pubkey::find_program_address(
@@ -282,10 +286,20 @@ pub fn handle(
     if !process_authority.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
     }
-    if accounts_iter.next().is_some() {
-        return Err(ProgramError::InvalidArgument);
+
+    // Account 1: Storage PDA account.
+    let storage_info = next_account_info(accounts_iter)?;
+    let storage =
+        TestSendReceiverStorageAccount::fetch(&mut &storage_info.data.borrow()[..])?.into_inner();
+
+    if storage.fail_handle {
+        return Err(ProgramError::Custom(
+            TestSendReceiverError::HandleFailed as u32,
+        ));
     }
-    msg!("hyperlane-sealevel-recipient-echo: {:?}", handle);
+
+    msg!("hyperlane-sealevel-test-send-receiver: {:?}", handle);
+
     Ok(())
 }
 
@@ -342,6 +356,48 @@ fn get_interchain_security_module(_program_id: &Pubkey, accounts: &[AccountInfo]
             set_return_data(&[0x00, 0x01, 0x02, 0x03]);
         }
     }
+
+    Ok(())
+}
+
+/// Accounts:
+/// 0. [writeable] Storage PDA account.
+fn set_fail_handle(
+    _program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    fail_handle: bool,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: Storage PDA account.
+    // Not bothering with validity checks because this is a test program
+    let storage_info = next_account_info(accounts_iter)?;
+    let mut storage =
+        TestSendReceiverStorageAccount::fetch(&mut &storage_info.data.borrow()[..])?.into_inner();
+
+    storage.fail_handle = fail_handle;
+
+    // Store it
+    TestSendReceiverStorageAccount::from(storage).store(storage_info, false)?;
+
+    Ok(())
+}
+
+fn set_account_meta_return_data(program_id: &Pubkey) -> ProgramResult {
+    let (storage_pda_key, _storage_pda_bump) =
+        Pubkey::find_program_address(test_send_receiver_storage_pda_seeds!(), program_id);
+
+    let account_metas: Vec<SerializableAccountMeta> =
+        vec![AccountMeta::new_readonly(storage_pda_key, false).into()];
+
+    // Wrap it in the SimulationReturnData because serialized account_metas
+    // may end with zero byte(s), which are incorrectly truncated as
+    // simulated transaction return data.
+    // See `SimulationReturnData` for details.
+    let bytes = SimulationReturnData::new(account_metas)
+        .try_to_vec()
+        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+    set_return_data(&bytes[..]);
 
     Ok(())
 }

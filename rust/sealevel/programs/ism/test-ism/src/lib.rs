@@ -25,7 +25,7 @@ use solana_program::{
 };
 
 // FIXME Read these in at compile time? And don't use harcoded test keys.
-solana_program::declare_id!("F6dVnLFioQ8hKszqPsmjWPwHn2dJfebgMfztWrzL548V");
+solana_program::declare_id!("CWVYdRomCv3bksSsRTuds9SRR5y17Ft5nPqhaXjp4tnb");
 
 #[cfg(not(feature = "no-entrypoint"))]
 entrypoint!(process_instruction);
@@ -33,7 +33,7 @@ entrypoint!(process_instruction);
 const ISM_TYPE: IsmType = IsmType::None;
 
 pub enum TestIsmError {
-    VerifyNotAccepted = 1,
+    VerifyNotAccepted = 69420,
 }
 
 /// The PDA seeds relating to storage
@@ -136,7 +136,11 @@ fn init(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
         system_program_info,
         storage_info,
         test_ism_storage_pda_seeds!(storage_pda_bump_seed),
-    )
+    )?;
+    // Store it
+    storage_account.store(storage_info, false)?;
+
+    Ok(())
 }
 
 /// Accounts:

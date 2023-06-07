@@ -36,7 +36,8 @@ solana-program-test = "=1.14.13"
 solana-sdk = "=1.14.13"
 hyperlane-test-utils = { path = "../../libraries/test-utils" }
 hyperlane-sealevel-ism-rubber-stamp = { path = "../ism/rubber-stamp" }
-hyperlane-test-send-receiver = { path = "../test-send-receiver" }
+hyperlane-sealevel-test-ism = { path = "../ism/test-ism" }
+hyperlane-sealevel-test-send-receiver = { path = "../test-send-receiver" }
 
 [lib]
 crate-type = ["cdylib", "lib"]

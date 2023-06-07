@@ -209,7 +209,7 @@ fn inbox_process(
 
     // Verify the message's destination matches the inbox's local domain.
     if inbox.local_domain != message.destination {
-        return Err(ProgramError::InvalidArgument);
+        return Err(Error::IncorrectDestinationDomain.into());
     }
 
     // Account 3: Process authority account that is specific to the
@@ -236,7 +236,7 @@ fn inbox_process(
     // If the processed message account already exists, then the message
     // has been processed already.
     if verify_account_uninitialized(processed_message_account_info).is_err() {
-        return Err(Error::DuplicateMessage.into());
+        return Err(Error::MessageAlreadyProcessed.into());
     }
 
     let spl_noop_id = spl_noop::id();

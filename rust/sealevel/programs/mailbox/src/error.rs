@@ -14,7 +14,7 @@ pub enum Error {
     #[error("Incorrect destination domain")]
     IncorrectDestinationDomain = 4,
     #[error("Message has already been processed")]
-    DuplicateMessage = 5,
+    MessageAlreadyProcessed = 5,
     #[error("Unused account(s) provided")]
     ExtraneousAccount = 6,
     #[error("Transaction log budget exceeded so cannot emit event")]

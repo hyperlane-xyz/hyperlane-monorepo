@@ -1,5 +1,5 @@
 [package]
-name = "hyperlane-test-send-receiver"
+name = "hyperlane-sealevel-test-send-receiver"
 version = "0.1.0"
 edition = "2021"
 
