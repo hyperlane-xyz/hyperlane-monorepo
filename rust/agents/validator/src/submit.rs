@@ -133,18 +133,6 @@ impl ValidatorSubmitter {
     }
 
     pub(crate) async fn legacy_checkpoint_submitter(self) -> Result<()> {
-        // Ensure that the mailbox has > 0 messages before we enter the main
-        // validator submit loop. This is to avoid an underflow / reverted
-        // call when we invoke the `mailbox.latest_checkpoint()` method,
-        // which returns the **index** of the last element in the tree
-        // rather than just the size.  See
-        // https://github.com/hyperlane-network/hyperlane-monorepo/issues/575 for
-        // more details.
-        while self.mailbox.count(self.reorg_period).await? == 0 {
-            info!("Waiting for first message to mailbox");
-            sleep(self.interval).await;
-        }
-
         // current_index will be None if the validator cannot find
         // a previously signed checkpoint
         let mut current_index = self.checkpoint_syncer.latest_index().await?;
