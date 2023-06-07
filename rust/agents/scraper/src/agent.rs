@@ -152,7 +152,7 @@ impl BaseAgent for Scraper {
     }
 
     #[allow(clippy::async_yields_async)]
-    async fn run(&self) -> Instrumented<JoinHandle<eyre::Result<()>>> {
+    async fn run(self) -> Instrumented<JoinHandle<eyre::Result<()>>> {
         let mut tasks = Vec::with_capacity(self.scrapers.len());
         for domain in self.scrapers.keys() {
             tasks.push(self.scrape(*domain).await);
