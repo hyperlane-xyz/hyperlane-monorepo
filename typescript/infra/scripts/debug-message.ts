@@ -10,7 +10,7 @@ import { utils } from '@hyperlane-xyz/utils';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { assertChain } from '../src/utils/utils';
 
-import { getArgs, getEnvironment } from './utils';
+import { getArgs } from './utils';
 
 async function main() {
   const argv = await getArgs()
@@ -35,14 +35,12 @@ async function main() {
     .describe('origin-chain', 'The chain of the dispatching transaction')
     .demandOption('origin-chain').argv;
 
-  const environment = await getEnvironment();
-
   // Intentionally use public RPC providers to avoid requiring access to our GCP secrets
   // to run this script
   const multiProvider = new MultiProvider();
 
   const core = HyperlaneCore.fromEnvironment(
-    deployEnvToSdkEnv[environment],
+    deployEnvToSdkEnv[argv.environment],
     multiProvider,
   );
 

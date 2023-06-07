@@ -3,14 +3,10 @@ import { HyperlaneCore, objMap } from '@hyperlane-xyz/sdk';
 import { CheckpointStatus, S3Validator } from '../src/agents/aws/validator';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 
-import {
-  getEnvironment,
-  getEnvironmentConfig,
-  getValidatorsByChain,
-} from './utils';
+import { getArgs, getEnvironmentConfig, getValidatorsByChain } from './utils';
 
 async function main() {
-  const environment = await getEnvironment();
+  const { environment } = await getArgs().argv;
   const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
   const core = HyperlaneCore.fromEnvironment(

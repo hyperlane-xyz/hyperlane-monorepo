@@ -8,7 +8,6 @@ import {
   AllChains,
   ChainName,
   Chains,
-  CoreChainName,
   HyperlaneIgp,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
@@ -22,22 +21,17 @@ import {
   BaseCloudAgentKey,
   ReadOnlyCloudAgentKey,
 } from '../../src/agents/keys';
-import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { DeployEnvironment } from '../../src/config';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { ContextAndRoles, ContextAndRolesMap } from '../../src/config/funding';
+import { Role } from '../../src/roles';
 import { submitMetrics } from '../../src/utils/metrics';
 import {
   assertContext,
   assertRole,
   readJSONAtPath,
 } from '../../src/utils/utils';
-import {
-  assertEnvironment,
-  getAgentConfig,
-  getArgs,
-  getEnvironmentConfig,
-} from '../utils';
+import { getAgentConfig, getArgs, getEnvironmentConfig } from '../utils';
 
 type L2Chain =
   | Chains.optimism
@@ -175,9 +169,9 @@ const igpClaimThresholdPerChain: ChainMap<string> = {
 // context provided in --contexts-and-roles, which requires the appropriate credentials.
 //
 // Example usage:
-//   ts-node ./scripts/funding/fund-keys-from-deployer.ts -e testnet2 --context hyperlane --contexts-and-roles hyperlane=relayer
+//   ts-node ./scripts/funding/fund-keys-from-deployer.ts -e testnet3 --context hyperlane --contexts-and-roles rc=relayer
 async function main() {
-  const argv = await getArgs()
+  const { environment, ...argv } = await getArgs()
     .string('f')
     .array('f')
     .alias('f', 'address-files')
@@ -208,12 +202,11 @@ async function main() {
     .describe('skip-igp-claim', 'If true, never claims funds from the IGP')
     .default('skip-igp-claim', false).argv;
 
-  const environment = assertEnvironment(argv.e as string);
   constMetricLabels.hyperlane_deployment = environment;
   const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider(
     Contexts.Hyperlane, // Always fund from the hyperlane context
-    KEY_ROLE_ENUM.Deployer, // Always fund from the deployer
+    Role.Deployer, // Always fund from the deployer
     argv.connectionType,
   );
 
@@ -259,7 +252,6 @@ async function main() {
 
 // Funds keys for a single context
 class ContextFunder {
-  public readonly chains: ChainName[];
   igp: HyperlaneIgp;
 
   constructor(
@@ -267,14 +259,9 @@ class ContextFunder {
     public readonly multiProvider: MultiProvider,
     public readonly keys: BaseCloudAgentKey[],
     public readonly context: Contexts,
-    public readonly rolesToFund: KEY_ROLE_ENUM[],
+    public readonly rolesToFund: Role[],
     public readonly skipIgpClaim: boolean,
   ) {
-    const uniqueChains = new Set(
-      keys.map((key) => key.chainName!).filter((chain) => chain !== undefined),
-    );
-
-    this.chains = Array.from(uniqueChains) as ChainName[];
     this.igp = HyperlaneIgp.fromEnvironment(
       deployEnvToSdkEnv[this.environment],
       multiProvider,
@@ -300,7 +287,7 @@ class ContextFunder {
         // references newer chains.
         return (
           parsed.chainName === undefined ||
-          AllChains.includes(parsed.chainName as CoreChainName)
+          (AllChains as string[]).includes(parsed.chainName)
         );
       })
       .map((idAndAddress: any) =>
@@ -310,8 +297,7 @@ class ContextFunder {
         ),
       );
 
-    // TODO: Why do we need to cast here?
-    const context = keys[0].context as Contexts;
+    const context = keys[0].context;
     // Ensure all keys have the same context, just to be safe
     for (const key of keys) {
       if (key.context !== context) {
@@ -351,10 +337,10 @@ class ContextFunder {
     environment: DeployEnvironment,
     multiProvider: MultiProvider,
     context: Contexts,
-    rolesToFund: KEY_ROLE_ENUM[],
+    rolesToFund: Role[],
     skipIgpClaim: boolean,
   ) {
-    const agentConfig = await getAgentConfig(context);
+    const agentConfig = getAgentConfig(context, environment);
     const keys = getAllCloudAgentKeys(agentConfig);
     await Promise.all(keys.map((key) => key.fetch()));
     return new ContextFunder(
@@ -372,29 +358,28 @@ class ContextFunder {
   async fund(): Promise<boolean> {
     let failureOccurred = false;
 
-    const promises = Object.entries(this.getChainKeys()).map(
-      async ([chain, keys]) => {
-        if (keys.length > 0) {
-          if (!this.skipIgpClaim) {
-            failureOccurred ||= await gracefullyHandleError(
-              () => this.attemptToClaimFromIgp(chain),
-              chain,
-              'Error claiming from IGP',
-            );
-          }
-
+    const chainKeys = this.getChainKeys();
+    const promises = Object.entries(chainKeys).map(async ([chain, keys]) => {
+      if (keys.length > 0) {
+        if (!this.skipIgpClaim) {
           failureOccurred ||= await gracefullyHandleError(
-            () => this.bridgeIfL2(chain),
+            () => this.attemptToClaimFromIgp(chain),
             chain,
-            'Error bridging to L2',
+            'Error claiming from IGP',
           );
         }
-        for (const key of keys) {
-          const failure = await this.attemptToFundKey(key, chain);
-          failureOccurred ||= failure;
-        }
-      },
-    );
+
+        failureOccurred ||= await gracefullyHandleError(
+          () => this.bridgeIfL2(chain),
+          chain,
+          'Error bridging to L2',
+        );
+      }
+      for (const key of keys) {
+        const failure = await this.attemptToFundKey(key, chain);
+        failureOccurred ||= failure;
+      }
+    });
 
     try {
       await Promise.all(promises);
@@ -407,25 +392,19 @@ class ContextFunder {
   }
 
   private getChainKeys() {
-    const entries = AllChains.map((c) => {
-      return [c, []];
-    });
-    const chainKeys: ChainMap<BaseCloudAgentKey[]> =
-      Object.fromEntries(entries);
+    const chainKeys: ChainMap<BaseCloudAgentKey[]> = Object.fromEntries(
+      // init with empty arrays
+      AllChains.map((c) => [c, []]),
+    );
     for (const role of this.rolesToFund) {
       const keys = this.getKeysWithRole(role);
-      for (const chain of this.chains) {
-        if (role === KEY_ROLE_ENUM.Relayer) {
-          // Relayer keys should not be funded on the origin chain
-          for (const remote of this.chains) {
-            chainKeys[remote] = chainKeys[remote].concat(
-              keys.filter(
-                (_) => _.chainName !== remote && _.chainName === chain,
-              ),
-            );
-          }
-        } else {
-          chainKeys[chain] = chainKeys[chain].concat(keys);
+      for (const key of keys) {
+        const chains = getAgentConfig(
+          key.context,
+          key.environment,
+        ).contextChainNames;
+        for (const chain of chains) {
+          chainKeys[chain].push(key);
         }
       }
     }
@@ -536,12 +515,9 @@ class ContextFunder {
     return delta.gt(minDelta) ? delta : BigNumber.from(0);
   }
 
-  private getDesiredBalanceForRole(
-    chain: ChainName,
-    role: KEY_ROLE_ENUM,
-  ): BigNumber {
+  private getDesiredBalanceForRole(chain: ChainName, role: Role): BigNumber {
     const desiredBalanceEther =
-      role === KEY_ROLE_ENUM.Kathy && desiredKathyBalancePerChain[chain]
+      role === Role.Kathy && desiredKathyBalancePerChain[chain]
         ? desiredKathyBalancePerChain[chain]
         : desiredBalancePerChain[chain];
     let desiredBalance = ethers.utils.parseEther(desiredBalanceEther);
@@ -691,7 +667,7 @@ class ContextFunder {
       );
   }
 
-  private getKeysWithRole(role: KEY_ROLE_ENUM) {
+  private getKeysWithRole(role: Role) {
     return this.keys.filter((k) => k.role === role);
   }
 }
@@ -746,7 +722,7 @@ function parseContextAndRoles(str: string): ContextAndRoles {
   }
 
   // For now, restrict the valid roles we think are reasonable to want to fund
-  const validRoles = new Set([KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy]);
+  const validRoles = new Set([Role.Relayer, Role.Kathy]);
   for (const role of roles) {
     if (!validRoles.has(role)) {
       throw Error(
