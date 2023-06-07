@@ -1753,6 +1753,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-test-ism"
+version = "0.1.0"
+dependencies = [
+ "account-utils",
+ "borsh",
+ "hyperlane-core",
+ "hyperlane-sealevel-interchain-security-module-interface",
+ "hyperlane-sealevel-mailbox",
+ "serializable-account-meta",
+ "solana-program",
+]
+
+[[package]]
 name = "hyperlane-sealevel-token"
 version = "0.1.0"
 dependencies = [

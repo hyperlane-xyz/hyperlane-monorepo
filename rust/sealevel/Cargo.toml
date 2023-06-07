@@ -6,6 +6,7 @@ members = [
     "programs/recipient/echo",
     "programs/ism/rubber-stamp",
     "programs/ism/multisig-ism-message-id",
+    "programs/ism/test-ism",
     "programs/hyperlane-sealevel-token",
     "programs/hyperlane-sealevel-token-collateral",
     "programs/hyperlane-sealevel-token-native",
