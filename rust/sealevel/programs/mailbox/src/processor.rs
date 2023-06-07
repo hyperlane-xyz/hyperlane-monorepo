@@ -466,12 +466,18 @@ fn get_recipient_ism(
         if &returning_program_id != recipient_program_id {
             return Err(ProgramError::InvalidAccountData);
         }
-        // If the recipient program returned data, use that as the ISM.
-        // If they returned an encoded Option::<Pubkey>::None, then use
-        // the default ISM.
-        Option::<Pubkey>::try_from_slice(&returned_data[..])
-            .map_err(|err| ProgramError::BorshIoError(err.to_string()))?
-            .unwrap_or(default_ism)
+        // It's possible for the Some above to match but there is no return data.
+        // We just want to default to the default ISM in that case.
+        if returned_data.is_empty() {
+            default_ism
+        } else {
+            // If the recipient program returned data, use that as the ISM.
+            // If they returned an encoded Option::<Pubkey>::None, then use
+            // the default ISM.
+            Option::<Pubkey>::try_from_slice(&returned_data[..])
+                .map_err(|err| ProgramError::BorshIoError(err.to_string()))?
+                .unwrap_or(default_ism)
+        }
     } else {
         // If no return data, default to the default ISM.
         default_ism

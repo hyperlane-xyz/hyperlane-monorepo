@@ -7,8 +7,10 @@ edition = "2021"
 no-entrypoint = []
 
 [dependencies]
+account-utils = { path = "../../libraries/account-utils" }
 borsh = "0.9"
 solana-program = "=1.14.13"
+serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
 hyperlane-sealevel-mailbox = { path = "../mailbox", features = ["no-entrypoint"] }
 hyperlane-sealevel-message-recipient-interface = { path = "../../libraries/message-recipient-interface" }
 

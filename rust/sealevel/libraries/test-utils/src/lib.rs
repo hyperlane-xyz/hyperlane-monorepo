@@ -25,6 +25,7 @@ pub struct MailboxAccounts {
     pub inbox_bump_seed: u8,
     pub outbox: Pubkey,
     pub outbox_bump_seed: u8,
+    pub default_ism: Pubkey,
 }
 
 pub async fn initialize_mailbox(
@@ -38,9 +39,11 @@ pub async fn initialize_mailbox(
     let (outbox_account, outbox_bump) =
         Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), mailbox_program_id);
 
+    let default_ism = hyperlane_sealevel_ism_rubber_stamp::id();
+
     let ixn = MailboxInstruction::Init(InitMailbox {
         local_domain,
-        default_ism: hyperlane_sealevel_ism_rubber_stamp::id(),
+        default_ism,
     });
     let init_instruction = Instruction {
         program_id: *mailbox_program_id,
@@ -68,6 +71,7 @@ pub async fn initialize_mailbox(
         inbox_bump_seed: inbox_bump,
         outbox: outbox_account,
         outbox_bump_seed: outbox_bump,
+        default_ism,
     })
 }
 

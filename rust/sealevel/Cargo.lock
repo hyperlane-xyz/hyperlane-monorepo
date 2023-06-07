@@ -1877,9 +1877,11 @@ dependencies = [
 name = "hyperlane-test-send-receiver"
 version = "0.1.0"
 dependencies = [
+ "account-utils",
  "borsh",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
+ "serializable-account-meta",
  "solana-program",
 ]
 
