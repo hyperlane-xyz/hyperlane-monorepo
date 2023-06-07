@@ -1762,8 +1762,11 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-mailbox",
+ "hyperlane-test-utils",
  "serializable-account-meta",
  "solana-program",
+ "solana-program-test",
+ "solana-sdk",
 ]
 
 [[package]]
@@ -1779,6 +1782,7 @@ dependencies = [
  "solana-program",
  "solana-program-test",
  "solana-sdk",
+ "spl-noop",
 ]
 
 [[package]]

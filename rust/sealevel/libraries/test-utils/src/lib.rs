@@ -5,7 +5,7 @@ use solana_program::{
 };
 use solana_program_test::*;
 use solana_sdk::{
-    signature::Signer,
+    signature::{Signature, Signer},
     signer::keypair::Keypair,
     signers::Signers,
     transaction::{Transaction, TransactionError},
@@ -57,14 +57,7 @@ pub async fn initialize_mailbox(
         ],
     };
 
-    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    let transaction = Transaction::new_signed_with_payer(
-        &[init_instruction],
-        Some(&payer.pubkey()),
-        &[payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(transaction).await?;
+    process_instruction(banks_client, init_instruction, payer, &[payer]).await?;
 
     Ok(MailboxAccounts {
         program: *mailbox_program_id,
@@ -147,7 +140,7 @@ pub async fn process_instruction<T: Signers>(
     instruction: Instruction,
     payer: &Keypair,
     signers: &T,
-) -> Result<(), BanksClientError> {
+) -> Result<Signature, BanksClientError> {
     let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
     let transaction = Transaction::new_signed_with_payer(
         &[instruction],
@@ -155,5 +148,8 @@ pub async fn process_instruction<T: Signers>(
         signers,
         recent_blockhash,
     );
-    banks_client.process_transaction(transaction).await
+    let signature = transaction.signatures[0];
+    banks_client.process_transaction(transaction).await?;
+
+    Ok(signature)
 }

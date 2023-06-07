@@ -830,7 +830,7 @@ mod test {
         where
             W: std::io::Write,
         {
-            writer.write_all(&self.root.as_ref())?;
+            writer.write_all(self.root.as_ref())?;
             writer.write_all(&self.index.to_be_bytes())?;
             writer.write_all(&self.leaf_index.to_be_bytes())?;
             for signature in &self.signatures {
@@ -1101,7 +1101,7 @@ mod test {
             body: "Hello, World!".bytes().collect(),
         };
         let dispatch = OutboxDispatch {
-            sender: sender.clone(),
+            sender,
             destination_domain: hyperlane_message.destination,
             recipient: hyperlane_message.recipient,
             message_body: hyperlane_message.body.clone(),
