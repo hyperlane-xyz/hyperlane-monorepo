@@ -65,8 +65,7 @@ impl<S: HyperlaneSigner> HyperlaneSignerExt for S {
 /// A type that can be signed. The signature will be of a hash of select
 /// contents defined by `signing_hash`.
 #[async_trait]
-#[auto_impl(&, Box, Arc)]
-pub trait Signable {
+pub trait Signable: Sized {
     /// A hash of the contents.
     /// The EIP-191 compliant version of this hash is signed by validators.
     fn signing_hash(&self) -> H256;
@@ -79,7 +78,7 @@ pub trait Signable {
 
 /// A signed type. Contains the original value and the signature.
 #[derive(Clone, Eq, PartialEq, Deserialize)]
-pub struct SignedType<T: Signable + Sized> {
+pub struct SignedType<T: Signable> {
     /// The value which was signed
     #[serde(alias = "checkpoint")]
     #[serde(alias = "announcement")]
