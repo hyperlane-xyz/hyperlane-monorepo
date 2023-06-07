@@ -37,8 +37,8 @@ pub struct SingletonSignerHandle {
 
 impl fmt::Debug for SingletonSignerHandle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("SingletonSignerHandle")
-            .field("address", &self.address)
+        f.debug_tuple("SingletonSignerHandle")
+            .field(&self.address)
             .finish()
     }
 }
