@@ -1,63 +1,88 @@
+use std::fmt;
+
 use async_trait::async_trait;
 use ethers_core::types::Signature;
+use thiserror::Error;
+use tokio::sync::{mpsc, oneshot};
+use tracing::warn;
 
-use eyre::Result;
-
-use hyperlane_core::{
-    HyperlaneSigner, HyperlaneSignerError, H160, H256,
-};
+use hyperlane_core::{HyperlaneSigner, HyperlaneSignerError, H160, H256};
 
 use crate::Signers;
 
-type Callback = tokio::sync::oneshot::Sender<Signature>;
+type Callback = oneshot::Sender<Result<Signature, HyperlaneSignerError>>;
 type SignHashWithCallback = (H256, Callback);
 
-#[derive(Debug)]
-pub struct SingletonSignerReceiver {
+/// A wrapper around a signer that uses channels to ensure that only one call is
+/// made at a time. Mostly useful for the AWS signers.
+pub struct SingletonSigner {
     inner: Signers,
-    rx: tokio::sync::mpsc::UnboundedReceiver<SignHashWithCallback>,
-    pub signer: SingletonSignerSender,
+    rx: mpsc::UnboundedReceiver<SignHashWithCallback>,
 }
 
-#[derive(Debug, Clone)]
-pub struct SingletonSignerSender {
+impl fmt::Debug for SingletonSigner {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("SingletonSigner").field(&self.inner).finish()
+    }
+}
+
+#[derive(Clone)]
+pub struct SingletonSignerHandle {
     address: H160,
-    tx: tokio::sync::mpsc::UnboundedSender<SignHashWithCallback>,
+    tx: mpsc::UnboundedSender<SignHashWithCallback>,
+}
+
+impl fmt::Debug for SingletonSignerHandle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SingletonSignerHandle")
+            .field("address", &self.address)
+            .finish()
+    }
 }
 
 #[async_trait]
-impl HyperlaneSigner for SingletonSignerSender {
+impl HyperlaneSigner for SingletonSignerHandle {
     fn eth_address(&self) -> H160 {
         self.address
     }
 
     async fn sign_hash(&self, hash: &H256) -> Result<Signature, HyperlaneSignerError> {
-        let (tx, rx) = tokio::sync::oneshot::channel();
-        match self.tx.send((hash.clone(), tx)) {
-            Ok(_) => (),
-            Err(err) => return Err(HyperlaneSignerError::from(Box::new(err) as Box<_>)),
-        }
-        rx.await
-            .map_err(|err| HyperlaneSignerError::from(Box::new(err) as Box<_>))
+        let (tx, rx) = oneshot::channel();
+        let task = (hash.clone(), tx);
+        self.tx.send(task).map_err(SingletonSignerError::from)?;
+        rx.await.map_err(SingletonSignerError::from)?
     }
 }
 
-impl SingletonSignerReceiver {
-    pub fn new(inner: Signers) -> Self {
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<SignHashWithCallback>();
-        let signer = SingletonSignerSender {
-            address: inner.eth_address(),
-            tx,
-        };
-        Self { inner, rx, signer }
+impl SingletonSigner {
+    pub fn new(inner: Signers) -> (Self, SingletonSignerHandle) {
+        let (tx, rx) = mpsc::unbounded_channel::<SignHashWithCallback>();
+        let address = inner.eth_address();
+        (Self { inner, rx }, SingletonSignerHandle { address, tx })
     }
 
-    pub async fn run(&mut self) -> Result<()> {
+    /// Run this signer's event loop.
+    pub async fn run(mut self) {
         while let Some((hash, tx)) = self.rx.recv().await {
-            let signature = self.inner.sign_hash(&hash).await?;
-            tx.send(signature);
+            if let Err(_) = tx.send(self.inner.sign_hash(&hash).await) {
+                warn!(
+                    "Failed to send signature back to the validator because the channel was closed"
+                );
+            }
         }
+    }
+}
 
-        Ok(())
+#[derive(Error, Debug)]
+enum SingletonSignerError {
+    #[error("Error sending task to singleton signer {0}")]
+    ChannelSendError(#[from] mpsc::error::SendError<SignHashWithCallback>),
+    #[error("Error receiving response from singleton signer {0}")]
+    ChannelRecvError(#[from] oneshot::error::RecvError),
+}
+
+impl From<SingletonSignerError> for HyperlaneSignerError {
+    fn from(e: SingletonSignerError) -> Self {
+        Self::from(Box::new(e) as Box<_>)
     }
 }

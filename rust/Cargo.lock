@@ -2869,7 +2869,6 @@ dependencies = [
  "ethers-core",
  "ethers-prometheus",
  "ethers-signers",
- "eyre",
  "hex 0.4.3",
  "hyperlane-core",
  "num",
