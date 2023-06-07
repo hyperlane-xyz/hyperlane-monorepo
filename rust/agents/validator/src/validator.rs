@@ -102,6 +102,19 @@ impl BaseAgent for Validator {
 
     #[allow(clippy::async_yields_async)]
     async fn run(mut self) -> Instrumented<JoinHandle<Result<()>>> {
+        let mut tasks = vec![];
+
+        if let Some(signer_instance) = self.signer_instance.take() {
+            tasks.push(
+                tokio::spawn(async move {
+                    signer_instance.run().await;
+                    Ok(())
+                })
+                .instrument(info_span!("SingletonSigner")),
+            );
+        }
+
+        // announce the validator after spawning the signer task
         self.announce().await.expect("Failed to announce validator");
 
         let reorg_period = NonZeroU64::new(self.reorg_period);
@@ -117,18 +130,6 @@ impl BaseAgent for Validator {
         {
             info!("Waiting for first message to mailbox");
             sleep(self.interval).await;
-        }
-
-        let mut tasks = vec![];
-
-        if let Some(signer_instance) = self.signer_instance.take() {
-            tasks.push(
-                tokio::spawn(async move {
-                    signer_instance.run().await;
-                    Ok(())
-                })
-                .instrument(info_span!("SingletonSigner")),
-            );
         }
 
         tasks.push(self.run_message_sync().await);
