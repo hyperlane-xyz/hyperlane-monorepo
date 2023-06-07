@@ -161,10 +161,10 @@ impl Validator {
         );
 
         let empty_tree = IncrementalMerkle::default();
-        let lag = NonZeroU64::new(self.reorg_period);
+        let reorg_period = NonZeroU64::new(self.reorg_period);
         let tip_tree = self
             .mailbox
-            .tree(lag)
+            .tree(reorg_period)
             .await
             .expect("failed to get mailbox tree");
         assert!(tip_tree.count() > 0, "mailbox tree is empty");
