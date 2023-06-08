@@ -29,6 +29,7 @@ use hyperlane_sealevel_validator_announce::{
     replay_protection_pda_seeds, validator_announce_pda_seeds,
     validator_storage_locations_pda_seeds,
 };
+use hyperlane_test_utils::validator_announce_id;
 
 // The Ethereum mailbox & domain chosen for easy testing
 const TEST_MAILBOX: &str = "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70";
@@ -95,7 +96,7 @@ async fn initialize(
     payer: &Keypair,
     mailbox: Pubkey,
 ) -> Result<(Pubkey, u8), BanksClientError> {
-    let program_id = hyperlane_sealevel_validator_announce::id();
+    let program_id = validator_announce_id();
 
     let (validator_announce_key, validator_announce_bump_seed) =
         Pubkey::find_program_address(validator_announce_pda_seeds!(), &program_id);
@@ -124,7 +125,7 @@ async fn initialize(
 
 #[tokio::test]
 async fn test_initialize() {
-    let program_id = hyperlane_sealevel_validator_announce::id();
+    let program_id = validator_announce_id();
     let (mut banks_client, payer, _recent_blockhash) = ProgramTest::new(
         "hyperlane_sealevel_validator_announce",
         program_id,
@@ -163,7 +164,7 @@ async fn test_initialize() {
 
 #[tokio::test]
 async fn test_initialize_errors_if_called_twice() {
-    let program_id = hyperlane_sealevel_validator_announce::id();
+    let program_id = validator_announce_id();
     let (mut banks_client, payer, _recent_blockhash) = ProgramTest::new(
         "hyperlane_sealevel_validator_announce",
         program_id,
@@ -294,7 +295,7 @@ async fn assert_successful_announcement(
 
 #[tokio::test]
 async fn test_announce() {
-    let program_id = hyperlane_sealevel_validator_announce::id();
+    let program_id = validator_announce_id();
     let (mut banks_client, payer, _recent_blockhash) = ProgramTest::new(
         "hyperlane_sealevel_validator_announce",
         program_id,
