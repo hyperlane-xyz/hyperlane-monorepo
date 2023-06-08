@@ -942,6 +942,8 @@ pub(crate) mod contract {
         pub message: Vec<u8>,
     }
 
+    const DISCRIMINATOR_LENGTH: usize = 8;
+
     /// First 8 bytes of `hash::hashv(&[b"hyperlane-message-recipient:handle-account-metas"])`
     pub const HANDLE_ACCOUNT_METAS_DISCRIMINATOR: [u8; DISCRIMINATOR_LENGTH] =
         [194, 141, 30, 82, 241, 41, 169, 52];
