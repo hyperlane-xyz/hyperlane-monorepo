@@ -10,13 +10,13 @@ import { LiquidityLayerConfig } from '@hyperlane-xyz/sdk/dist/middleware/liquidi
 
 import { readJSON, sleep } from '../../src/utils/utils';
 import {
-  getEnvironment,
+  getArgs,
   getEnvironmentConfig,
   getEnvironmentDirectory,
 } from '../utils';
 
 async function check() {
-  const environment = await getEnvironment();
+  const { environment } = await getArgs().argv;
   const config = getEnvironmentConfig(environment);
 
   if (config.liquidityLayerConfig === undefined) {

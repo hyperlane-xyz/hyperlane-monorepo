@@ -2,30 +2,22 @@ import { assert } from 'console';
 import { ethers } from 'ethers';
 import { readFileSync } from 'fs';
 import * as path from 'path';
-import yargs from 'yargs';
 
 import { AllChains, ChainName, HyperlaneCore } from '@hyperlane-xyz/sdk';
 
 import { S3Validator } from '../src/agents/aws/validator';
-import { CheckpointSyncerType } from '../src/config/agent';
+import { CheckpointSyncerType } from '../src/config';
 import { deployEnvToSdkEnv } from '../src/config/environment';
-import { assertContext } from '../src/utils/utils';
 
 import {
-  assertEnvironment,
-  getContextAgentConfig,
+  getAgentConfig,
   getEnvironmentConfig,
+  getArgs as getRootArgs,
+  withContext,
 } from './utils';
 
 function getArgs() {
-  return yargs(process.argv.slice(2))
-    .describe('environment', 'deploy environment')
-    .coerce('environment', assertEnvironment)
-    .demandOption('environment')
-    .alias('e', 'environment')
-    .describe('context', 'deploy context')
-    .coerce('context', assertContext)
-    .alias('c', 'context')
+  return withContext(getRootArgs())
     .describe('chain', 'chain on which to register')
     .choices('chain', AllChains)
     .describe(
@@ -79,13 +71,13 @@ async function main() {
       throw new Error(`Unknown location type %{location}`);
     }
   } else {
-    const agentConfig = await getContextAgentConfig(config, context);
+    const agentConfig = getAgentConfig(context, config);
     if (agentConfig.validators == undefined) {
       console.warn('No validators provided for context');
       return;
     }
     await Promise.all(
-      Object.entries(agentConfig.validators).map(
+      Object.entries(agentConfig.validators.chains).map(
         async ([chain, validatorChainConfig]) => {
           for (const validatorBaseConfig of validatorChainConfig.validators) {
             if (
