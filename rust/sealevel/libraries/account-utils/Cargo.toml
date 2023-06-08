@@ -7,7 +7,14 @@ edition = "2021"
 no-entrypoint = []
 
 [dependencies]
+borsh = "0.9"
 solana-program = "=1.14.13"
+
+[dependencies.spl-type-length-value]
+version = "0.1.0"
+git = "https://github.com/tkporter/eclipse-program-library"
+branch = "trevor/steven/eclipse-1.14.13/with-tlv-lib"
+features = ["borsh"]
 
 [dev-dependencies]
 solana-program-test = "=1.14.13"

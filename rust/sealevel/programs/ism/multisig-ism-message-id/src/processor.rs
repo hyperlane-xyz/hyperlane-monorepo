@@ -1,7 +1,7 @@
 use hyperlane_core::{Checkpoint, CheckpointWithMessageId, Decode, HyperlaneMessage, IsmType};
 
 use access_control::AccessControl;
-use account_utils::create_pda_account;
+use account_utils::{create_pda_account, DiscriminatorDecode};
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
@@ -158,7 +158,7 @@ pub fn process_instruction(
         };
     }
 
-    match Instruction::try_from(instruction_data)? {
+    match Instruction::decode(instruction_data)? {
         // Initializes the program.
         Instruction::Initialize => initialize(program_id, accounts),
         // Sets the validators and threshold for a given domain.
@@ -537,6 +537,7 @@ fn transfer_ownership(
 pub mod test {
     use super::*;
 
+    use account_utils::DiscriminatorEncode;
     use ecdsa_signature::EcdsaSignature;
     use hyperlane_core::{Encode, HyperlaneMessage, H160};
     use hyperlane_sealevel_interchain_security_module_interface::{
@@ -748,7 +749,7 @@ pub mod test {
             &program_id,
             &accounts,
             Instruction::TransferOwnership(Some(new_owner_key))
-                .try_to_vec()
+                .encode()
                 .unwrap()
                 .as_slice(),
         );
@@ -761,7 +762,7 @@ pub mod test {
             &program_id,
             &accounts,
             Instruction::TransferOwnership(Some(new_owner_key))
-                .try_to_vec()
+                .encode()
                 .unwrap()
                 .as_slice(),
         )
@@ -784,7 +785,7 @@ pub mod test {
             &program_id,
             &accounts,
             Instruction::TransferOwnership(Some(new_owner_key))
-                .try_to_vec()
+                .encode()
                 .unwrap()
                 .as_slice(),
         );

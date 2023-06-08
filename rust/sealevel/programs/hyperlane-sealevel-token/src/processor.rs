@@ -1,5 +1,6 @@
 //! Program processor.
 
+use account_utils::DiscriminatorDecode;
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_message_recipient_interface::MessageRecipientInstruction;
 use hyperlane_sealevel_token_lib::{
@@ -56,11 +57,7 @@ pub fn process_instruction(
     }
 
     // Otherwise, try decoding a "normal" token instruction
-    let token_instruction = TokenIxn::from_instruction_data(instruction_data).map_err(|err| {
-        msg!("{}", err);
-        err
-    })?;
-    match token_instruction {
+    match TokenIxn::decode(instruction_data)? {
         TokenIxn::Init(init) => initialize(program_id, accounts, init),
         TokenIxn::TransferRemote(xfer) => transfer_remote(program_id, accounts, xfer),
         TokenIxn::EnrollRemoteRouter(config) => enroll_remote_router(program_id, accounts, config),

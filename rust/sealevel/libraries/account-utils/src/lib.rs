@@ -6,6 +6,7 @@ use solana_program::{
     rent::Rent,
     system_instruction, system_program,
 };
+use spl_type_length_value::discriminator::Discriminator;
 
 /// Creates associated token account using Program Derived Address for the given seeds.
 /// Required to allow PDAs to be created even if they already have a lamport balance.
@@ -83,3 +84,41 @@ pub fn verify_account_uninitialized(account: &AccountInfo) -> Result<(), Program
     }
     Err(ProgramError::AccountAlreadyInitialized)
 }
+
+pub const PROGRAM_INSTRUCTION_DISCRIMINATOR: [u8; Discriminator::LENGTH] = [1, 1, 1, 1, 1, 1, 1, 1];
+
+pub trait DiscriminatorData: Sized {
+    const DISCRIMINATOR_LENGTH: usize = Discriminator::LENGTH;
+
+    const DISCRIMINATOR: [u8; Discriminator::LENGTH];
+    const DISCRIMINATOR_SLICE: &'static [u8] = &Self::DISCRIMINATOR;
+}
+
+pub trait DiscriminatorEncode: DiscriminatorData + borsh::BorshSerialize {
+    fn encode(self) -> Result<Vec<u8>, ProgramError> {
+        let mut buf = vec![];
+        buf.extend_from_slice(Self::DISCRIMINATOR_SLICE);
+        buf.extend_from_slice(
+            &self
+                .try_to_vec()
+                .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
+        );
+        Ok(buf)
+    }
+}
+
+// Auto-implement
+impl<T> DiscriminatorEncode for T where T: DiscriminatorData + borsh::BorshSerialize {}
+
+pub trait DiscriminatorDecode: DiscriminatorData + borsh::BorshDeserialize {
+    fn decode(data: &[u8]) -> Result<Self, ProgramError> {
+        let (discriminator, rest) = data.split_at(Discriminator::LENGTH);
+        if discriminator != Self::DISCRIMINATOR_SLICE {
+            return Err(ProgramError::InvalidInstructionData);
+        }
+        Self::try_from_slice(rest).map_err(|_| ProgramError::InvalidInstructionData)
+    }
+}
+
+// Auto-implement
+impl<T> DiscriminatorDecode for T where T: DiscriminatorData + borsh::BorshDeserialize {}

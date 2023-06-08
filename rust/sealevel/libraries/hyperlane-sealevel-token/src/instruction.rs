@@ -1,9 +1,10 @@
 //! TODO
 
+use account_utils::{DiscriminatorData, PROGRAM_INSTRUCTION_DISCRIMINATOR};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{H256, U256};
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
-use solana_program::{program_error::ProgramError, pubkey::Pubkey};
+use solana_program::pubkey::Pubkey;
 
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub enum Instruction {
@@ -21,15 +22,8 @@ pub enum Instruction {
     TransferOwnership(Option<Pubkey>),
 }
 
-impl Instruction {
-    pub fn from_instruction_data(data: &[u8]) -> Result<Self, ProgramError> {
-        Self::try_from_slice(data).map_err(|_| ProgramError::InvalidInstructionData)
-    }
-
-    pub fn into_instruction_data(self) -> Result<Vec<u8>, ProgramError> {
-        self.try_to_vec()
-            .map_err(|err| ProgramError::BorshIoError(err.to_string()))
-    }
+impl DiscriminatorData for Instruction {
+    const DISCRIMINATOR: [u8; Self::DISCRIMINATOR_LENGTH] = PROGRAM_INSTRUCTION_DISCRIMINATOR;
 }
 
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]

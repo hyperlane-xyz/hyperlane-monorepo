@@ -760,7 +760,7 @@ pub(crate) mod contract {
 
     pub static COMPUTE_BUDGET: &str = "ComputeBudget111111111111111111111111111111";
 
-    pub const DISPATCHED_MESSAGE_DISCRIMINATOR: &[u8; 8] = b"DISPATCH";
+    pub const DISPATCHED_MESSAGE_DISCRIMINATOR: &[u8; DISCRIMINATOR_LENGTH] = b"DISPATCH";
 
     pub trait Data: BorshDeserialize + BorshSerialize + Default {}
     impl<T> Data for T where T: BorshDeserialize + BorshSerialize + Default {}
@@ -920,7 +920,7 @@ pub(crate) mod contract {
     }
 
     /// First 8 bytes of `hash::hashv(&[b"hyperlane-message-recipient:interchain-security-module-account-metas"])`
-    const INTERCHAIN_SECURITY_MODULE_ACCOUNT_METAS_DISCRIMINATOR: [u8; 8] =
+    const INTERCHAIN_SECURITY_MODULE_ACCOUNT_METAS_DISCRIMINATOR: [u8; DISCRIMINATOR_LENGTH] =
         [190, 214, 218, 129, 67, 97, 4, 76];
     const INTERCHAIN_SECURITY_MODULE_ACCOUNT_METAS_DISCRIMINATOR_SLICE: &[u8] =
         &INTERCHAIN_SECURITY_MODULE_ACCOUNT_METAS_DISCRIMINATOR;
@@ -942,8 +942,11 @@ pub(crate) mod contract {
         pub message: Vec<u8>,
     }
 
+    const DISCRIMINATOR_LENGTH: usize = 8;
+
     /// First 8 bytes of `hash::hashv(&[b"hyperlane-message-recipient:handle-account-metas"])`
-    pub const HANDLE_ACCOUNT_METAS_DISCRIMINATOR: [u8; 8] = [194, 141, 30, 82, 241, 41, 169, 52];
+    pub const HANDLE_ACCOUNT_METAS_DISCRIMINATOR: [u8; DISCRIMINATOR_LENGTH] =
+        [194, 141, 30, 82, 241, 41, 169, 52];
     pub const HANDLE_ACCOUNT_METAS_DISCRIMINATOR_SLICE: &[u8] = &HANDLE_ACCOUNT_METAS_DISCRIMINATOR;
 
     /// Seeds for the PDA that's expected to be passed into the `HandleAccountMetas`
@@ -1113,7 +1116,7 @@ pub(crate) mod contract {
 
     #[derive(Debug, Default)]
     pub struct DispatchedMessage {
-        pub discriminator: [u8; 8],
+        pub discriminator: [u8; DISCRIMINATOR_LENGTH],
         pub nonce: u32,
         pub slot: Slot,
         pub unique_message_pubkey: Pubkey,
@@ -1150,7 +1153,7 @@ pub(crate) mod contract {
 
     impl BorshDeserialize for DispatchedMessage {
         fn deserialize(reader: &mut &[u8]) -> std::io::Result<Self> {
-            let mut discriminator = [0u8; 8];
+            let mut discriminator = [0u8; DISCRIMINATOR_LENGTH];
             reader.read_exact(&mut discriminator)?;
             if &discriminator != DISPATCHED_MESSAGE_DISCRIMINATOR {
                 return Err(std::io::Error::new(
@@ -1162,7 +1165,7 @@ pub(crate) mod contract {
             let mut nonce = [0u8; 4];
             reader.read_exact(&mut nonce)?;
 
-            let mut slot = [0u8; 8];
+            let mut slot = [0u8; DISCRIMINATOR_LENGTH];
             reader.read_exact(&mut slot)?;
 
             let mut unique_message_pubkey = [0u8; 32];
@@ -1201,11 +1204,12 @@ pub(crate) mod contract {
     }
 
     /// First 8 bytes of `hash::hashv(&[b"hyperlane-interchain-security-module:type"])`
-    const TYPE_DISCRIMINATOR: [u8; 8] = [105, 97, 97, 88, 63, 124, 106, 18];
+    const TYPE_DISCRIMINATOR: [u8; DISCRIMINATOR_LENGTH] = [105, 97, 97, 88, 63, 124, 106, 18];
     const TYPE_DISCRIMINATOR_SLICE: &[u8] = &TYPE_DISCRIMINATOR;
 
     /// First 8 bytes of `hash::hashv(&[b"hyperlane-interchain-security-module:verify-account-metas"])`
-    const VERIFY_ACCOUNT_METAS_DISCRIMINATOR: [u8; 8] = [200, 65, 157, 12, 89, 255, 131, 216];
+    const VERIFY_ACCOUNT_METAS_DISCRIMINATOR: [u8; DISCRIMINATOR_LENGTH] =
+        [200, 65, 157, 12, 89, 255, 131, 216];
     const VERIFY_ACCOUNT_METAS_DISCRIMINATOR_SLICE: &[u8] = &VERIFY_ACCOUNT_METAS_DISCRIMINATOR;
 
     /// Seeds for the PDA that's expected to be passed into the `VerifyAccountMetas`

@@ -2,6 +2,7 @@
 //! strictly in unit tests. This includes CPIs, like creating
 //! new PDA accounts.
 
+use account_utils::DiscriminatorEncode;
 use borsh::BorshDeserialize;
 use solana_program::{
     instruction::{AccountMeta, Instruction},
@@ -68,9 +69,9 @@ async fn initialize(
         Pubkey::find_program_address(access_control_pda_seeds!(), &program_id);
 
     let transaction = Transaction::new_signed_with_payer(
-        &[Instruction::new_with_borsh(
+        &[Instruction::new_with_bytes(
             program_id,
-            &MultisigIsmProgramInstruction::Initialize,
+            &MultisigIsmProgramInstruction::Initialize.encode().unwrap(),
             vec![
                 AccountMeta::new_readonly(payer.pubkey(), true),
                 AccountMeta::new(access_control_pda_key, false),
@@ -99,12 +100,14 @@ async fn set_validators_and_threshold(
         Pubkey::find_program_address(domain_data_pda_seeds!(domain), &program_id);
 
     let transaction = Transaction::new_signed_with_payer(
-        &[Instruction::new_with_borsh(
+        &[Instruction::new_with_bytes(
             program_id,
             &MultisigIsmProgramInstruction::SetValidatorsAndThreshold(Domained {
                 domain,
                 data: validators_and_threshold.clone(),
-            }),
+            })
+            .encode()
+            .unwrap(),
             vec![
                 AccountMeta::new_readonly(payer.pubkey(), true),
                 AccountMeta::new_readonly(access_control_pda_key, false),
@@ -271,12 +274,14 @@ async fn test_set_validators_and_threshold_creates_pda_account() {
     };
 
     let transaction = Transaction::new_signed_with_payer(
-        &[Instruction::new_with_borsh(
+        &[Instruction::new_with_bytes(
             program_id,
             &MultisigIsmProgramInstruction::SetValidatorsAndThreshold(Domained {
                 domain,
                 data: validators_and_threshold.clone(),
-            }),
+            })
+            .encode()
+            .unwrap(),
             vec![
                 AccountMeta::new_readonly(payer.pubkey(), true),
                 AccountMeta::new_readonly(access_control_pda_key, false),

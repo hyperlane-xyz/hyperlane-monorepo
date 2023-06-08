@@ -2,6 +2,7 @@
 //! strictly in unit tests. This includes CPIs, like creating
 //! new PDA accounts.
 
+use account_utils::DiscriminatorEncode;
 use hyperlane_core::{Encode, HyperlaneMessage, H256, U256};
 use solana_program::{
     instruction::{AccountMeta, Instruction},
@@ -271,7 +272,7 @@ async fn initialize_hyperlane_token(
                 decimals: LOCAL_DECIMALS,
                 remote_decimals: REMOTE_DECIMALS,
             })
-            .into_instruction_data()
+            .encode()
             .unwrap(),
             vec![
                 // 0. [executable] The system program.
@@ -330,7 +331,7 @@ async fn enroll_remote_router(
                 domain,
                 router: Some(router),
             })
-            .into_instruction_data()
+            .encode()
             .unwrap(),
             vec![
                 AccountMeta::new(*token_account, false),
@@ -546,7 +547,7 @@ async fn test_transfer_remote(spl_token_program_id: Pubkey) {
                 recipient: remote_token_recipient,
                 amount_or_id: transfer_amount.into(),
             })
-            .into_instruction_data()
+            .encode()
             .unwrap(),
             // 0.   [executable] The system program.
             // 1.   [executable] The spl_noop program.
@@ -1143,7 +1144,7 @@ async fn test_enroll_remote_router_errors_if_not_signed_by_owner() {
                 domain: REMOTE_DOMAIN,
                 router: Some(H256::random()),
             })
-            .into_instruction_data()
+            .encode()
             .unwrap(),
             vec![
                 AccountMeta::new(hyperlane_token_accounts.token, false),
@@ -1194,7 +1195,7 @@ async fn test_transfer_ownership() {
         &[Instruction::new_with_bytes(
             program_id,
             &HyperlaneTokenInstruction::TransferOwnership(new_owner)
-                .into_instruction_data()
+                .encode()
                 .unwrap(),
             vec![
                 AccountMeta::new(hyperlane_token_accounts.token, false),
@@ -1253,7 +1254,7 @@ async fn test_transfer_ownership_errors_if_owner_not_signer() {
         &[Instruction::new_with_bytes(
             program_id,
             &HyperlaneTokenInstruction::TransferOwnership(new_owner)
-                .into_instruction_data()
+                .encode()
                 .unwrap(),
             vec![
                 AccountMeta::new(hyperlane_token_accounts.token, false),
@@ -1306,7 +1307,7 @@ async fn test_set_interchain_security_module() {
         &[Instruction::new_with_bytes(
             program_id,
             &HyperlaneTokenInstruction::SetInterchainSecurityModule(new_ism)
-                .into_instruction_data()
+                .encode()
                 .unwrap(),
             vec![
                 AccountMeta::new(hyperlane_token_accounts.token, false),
@@ -1365,7 +1366,7 @@ async fn test_set_interchain_security_module_errors_if_owner_not_signer() {
         &[Instruction::new_with_bytes(
             program_id,
             &HyperlaneTokenInstruction::SetInterchainSecurityModule(new_ism)
-                .into_instruction_data()
+                .encode()
                 .unwrap(),
             vec![
                 AccountMeta::new(hyperlane_token_accounts.token, false),
