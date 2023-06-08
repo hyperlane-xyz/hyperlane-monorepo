@@ -1,0 +1,21 @@
+[package]
+name = "cli"
+edition.workspace = true
+license-file.workspace = true
+version.workspace = true
+
+[dependencies]
+anyhow = "1.0"
+clap = { version = "4.2", features = ["derive", "string"] }
+hex = "0.4"
+strum_macros.workspace = true
+strum.workspace = true
+ethers.workspace = true
+tokio.workspace = true
+ethers-providers.workspace = true
+serde_json.workspace = true
+hyperlane-ethereum = {path = "../chains/hyperlane-ethereum"}
+hyperlane-core = {path = "../hyperlane-core"}
+
+[dev-dependencies]
+tempfile = "3.6"

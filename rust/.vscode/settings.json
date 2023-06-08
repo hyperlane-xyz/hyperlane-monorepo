@@ -2,4 +2,7 @@
   "files.exclude": {
     "target": true,
   },
+  "rust-analyzer.linkedProjects": [
+    "./cli/Cargo.toml"
+  ],
 }
