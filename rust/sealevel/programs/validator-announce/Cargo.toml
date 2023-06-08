@@ -20,7 +20,6 @@ thiserror = "1.0"
 solana-program-test = "=1.14.13"
 solana-sdk = "=1.14.13"
 hex = "0.4.3"
-hyperlane-test-utils = { path = "../../libraries/test-utils" }
 
 [lib]
 crate-type = ["cdylib", "lib"]

@@ -20,7 +20,6 @@ use hyperlane_sealevel_mailbox::accounts::SizedData;
 use crate::{
     accounts::{AccessControlAccount, AccessControlData, DomainData, DomainDataAccount},
     error::Error,
-    id,
     instruction::{Domained, Instruction, ValidatorsAndThreshold},
     metadata::MultisigIsmMessageIdMetadata,
 };
@@ -337,7 +336,7 @@ fn validators_and_threshold(
 
     // Account 0: The PDA relating to the provided domain.
     let domain_pda_account = next_account_info(accounts_iter)?;
-    if *domain_pda_account.owner != id() {
+    if domain_pda_account.owner != program_id {
         return Err(Error::ProgramIdNotOwner.into());
     }
 
@@ -402,7 +401,7 @@ fn set_validators_and_threshold(
                 return Err(Error::AccountOutOfOrder.into());
             }
             // Extra sanity check that the owner of the PDA account is this program
-            if *domain_pda_account.owner != id() {
+            if domain_pda_account.owner != program_id {
                 return Err(Error::ProgramIdNotOwner.into());
             }
 
@@ -497,7 +496,7 @@ fn access_control_data(
         return Err(Error::AccountOutOfOrder.into());
     }
     // Extra sanity check that the owner of the PDA account is this program
-    if *access_control_pda_account.owner != id() {
+    if access_control_pda_account.owner != program_id {
         return Err(Error::ProgramIdNotOwner.into());
     }
 
@@ -545,8 +544,13 @@ pub mod test {
     };
     use multisig_ism::test_data::{get_multisig_ism_test_data, MultisigIsmTestData};
     use solana_program::stake_history::Epoch;
+    use std::str::FromStr;
 
     const ORIGIN_DOMAIN: u32 = 1234u32;
+
+    fn id() -> Pubkey {
+        Pubkey::from_str("2YjtZDiUoptoSsA5eVrDCcX6wxNK6YoEVW7y82x5Z2fw").unwrap()
+    }
 
     #[test]
     fn test_verify() {

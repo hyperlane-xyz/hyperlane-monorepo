@@ -75,12 +75,6 @@ pub async fn initialize_mailbox(
     })
 }
 
-// ========= Other programs =========
-
-pub fn validator_announce_id() -> Pubkey {
-    Pubkey::from_str("DH43ae1LwemXAboWwSh8zc9pG8j72gKUEXNi57w8fEnn").unwrap()
-}
-
 // ========= Balance utils =========
 
 pub async fn assert_lamports(

@@ -1945,7 +1945,6 @@ dependencies = [
  "hex",
  "hyperlane-core",
  "hyperlane-sealevel-mailbox",
- "hyperlane-test-utils",
  "serializable-account-meta",
  "solana-program",
  "solana-program-test",

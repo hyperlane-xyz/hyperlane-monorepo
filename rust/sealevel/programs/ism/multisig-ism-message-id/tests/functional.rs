@@ -37,6 +37,13 @@ use solana_sdk::{
     signer::keypair::Keypair,
     transaction::{Transaction, TransactionError},
 };
+use std::str::FromStr;
+
+// 2YjtZDiUoptoSsA5eVrDCcX6wxNK6YoEVW7y82x5Z2fw
+
+pub fn multisig_ism_message_id_id() -> Pubkey {
+    Pubkey::from_str("2YjtZDiUoptoSsA5eVrDCcX6wxNK6YoEVW7y82x5Z2fw").unwrap()
+}
 
 async fn new_funded_keypair(
     banks_client: &mut BanksClient,
@@ -126,7 +133,7 @@ async fn set_validators_and_threshold(
 
 #[tokio::test]
 async fn test_initialize() {
-    let program_id = hyperlane_sealevel_multisig_ism_message_id::id();
+    let program_id = multisig_ism_message_id_id();
     let (mut banks_client, payer, recent_blockhash) = ProgramTest::new(
         "hyperlane_sealevel_ism_multisig_ism",
         program_id,
@@ -164,7 +171,7 @@ async fn test_initialize() {
 
 #[tokio::test]
 async fn test_initialize_errors_if_called_twice() {
-    let program_id = hyperlane_sealevel_multisig_ism_message_id::id();
+    let program_id = multisig_ism_message_id_id();
     let (mut banks_client, payer, recent_blockhash) = ProgramTest::new(
         "hyperlane_sealevel_ism_multisig_ism",
         program_id,
@@ -209,7 +216,7 @@ async fn test_initialize_errors_if_called_twice() {
 
 #[tokio::test]
 async fn test_set_validators_and_threshold_creates_pda_account() {
-    let program_id = hyperlane_sealevel_multisig_ism_message_id::id();
+    let program_id = multisig_ism_message_id_id();
     let (mut banks_client, payer, recent_blockhash) = ProgramTest::new(
         "hyperlane_sealevel_ism_multisig_ism",
         program_id,
@@ -390,7 +397,7 @@ async fn test_set_validators_and_threshold_creates_pda_account() {
 
 #[tokio::test]
 async fn test_ism_verify() {
-    let program_id = hyperlane_sealevel_multisig_ism_message_id::id();
+    let program_id = multisig_ism_message_id_id();
     let (mut banks_client, payer, recent_blockhash) = ProgramTest::new(
         "hyperlane_sealevel_ism_multisig_ism",
         program_id,
@@ -510,7 +517,7 @@ async fn test_ism_verify() {
 
 #[tokio::test]
 async fn test_ism_type() {
-    let program_id = hyperlane_sealevel_multisig_ism_message_id::id();
+    let program_id = multisig_ism_message_id_id();
     let (mut banks_client, payer, recent_blockhash) = ProgramTest::new(
         "hyperlane_sealevel_ism_multisig_ism",
         program_id,

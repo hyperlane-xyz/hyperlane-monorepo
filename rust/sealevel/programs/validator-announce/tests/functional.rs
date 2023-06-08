@@ -29,11 +29,14 @@ use hyperlane_sealevel_validator_announce::{
     replay_protection_pda_seeds, validator_announce_pda_seeds,
     validator_storage_locations_pda_seeds,
 };
-use hyperlane_test_utils::validator_announce_id;
 
 // The Ethereum mailbox & domain chosen for easy testing
 const TEST_MAILBOX: &str = "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70";
 const TEST_DOMAIN: u32 = 1;
+
+fn validator_announce_id() -> Pubkey {
+    Pubkey::from_str("DH43ae1LwemXAboWwSh8zc9pG8j72gKUEXNi57w8fEnn").unwrap()
+}
 
 fn get_test_mailbox() -> Pubkey {
     let mailbox_bytes = hex::decode(TEST_MAILBOX).unwrap();
