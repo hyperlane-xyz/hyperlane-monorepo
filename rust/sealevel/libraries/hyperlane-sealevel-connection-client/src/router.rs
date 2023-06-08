@@ -81,6 +81,9 @@ pub trait HyperlaneRouterAccessControl: HyperlaneRouter + AccessControl {
     }
 }
 
+// Auto-implement
+impl<T> HyperlaneRouterAccessControl for T where T: HyperlaneRouter + AccessControl {}
+
 /// The Hyperlane router pattern with a helper function to dispatch messages
 /// to remote routers.
 pub trait HyperlaneRouterDispatch: HyperlaneRouter + HyperlaneConnectionClient {
@@ -115,6 +118,9 @@ pub trait HyperlaneRouterDispatch: HyperlaneRouter + HyperlaneConnectionClient {
     }
 }
 
+// Auto-implement
+impl<T> HyperlaneRouterDispatch for T where T: HyperlaneRouter + HyperlaneConnectionClient {}
+
 /// The Hyperlane router pattern with a helper function to ensure messages
 /// come only via the Mailbox & from an enrolled remote router.
 pub trait HyperlaneRouterMessageRecipient:
@@ -136,6 +142,12 @@ pub trait HyperlaneRouterMessageRecipient:
         // Now make sure the sender is really a remote router.
         self.only_remote_router(origin, sender)
     }
+}
+
+// Auto-implement
+impl<T> HyperlaneRouterMessageRecipient for T where
+    T: HyperlaneRouter + HyperlaneConnectionClientRecipient
+{
 }
 
 /// A default implementation of `HyperlaneRouter` for `HashMap<u32, H256>`.
