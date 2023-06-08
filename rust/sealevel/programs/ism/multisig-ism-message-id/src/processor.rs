@@ -1,4 +1,4 @@
-use hyperlane_core::{Checkpoint, Decode, HyperlaneMessage, IsmType};
+use hyperlane_core::{Checkpoint, CheckpointWithMessageId, Decode, HyperlaneMessage, IsmType};
 
 use access_control::AccessControl;
 use account_utils::create_pda_account;
@@ -250,11 +250,13 @@ fn verify(
     let validators_and_threshold = validators_and_threshold(program_id, accounts, message.origin)?;
 
     let multisig_ism = MultisigIsm::new(
-        Checkpoint {
-            mailbox_address: metadata.origin_mailbox,
-            mailbox_domain: message.origin,
-            root: metadata.merkle_root,
-            index: message.nonce,
+        CheckpointWithMessageId {
+            checkpoint: Checkpoint {
+                mailbox_address: metadata.origin_mailbox,
+                mailbox_domain: message.origin,
+                root: metadata.merkle_root,
+                index: message.nonce,
+            },
             message_id: message.id(),
         },
         metadata.validator_signatures,
