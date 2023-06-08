@@ -427,7 +427,6 @@ pub async fn assert_processed_message(
     expected_message: &HyperlaneMessage,
     expected_sequence: u64,
 ) {
-    println!("process_tx_signature {}", process_tx_signature);
     // Get the slot of the tx
     let process_tx_status = banks_client
         .get_transaction_status(process_tx_signature)
