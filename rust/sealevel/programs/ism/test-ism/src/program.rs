@@ -73,7 +73,7 @@ pub fn process_instruction(
             }
             InterchainSecurityModuleInstruction::Type => {
                 set_return_data(
-                    &(ISM_TYPE as u32)
+                    &SimulationReturnData::new(ISM_TYPE as u32)
                         .try_to_vec()
                         .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
                 );

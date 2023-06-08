@@ -385,7 +385,7 @@ fn main() {
 
     let client = RpcClient::new(url);
     let payer = read_keypair_file(keypair_path).unwrap();
-    let commitment = CommitmentConfig::confirmed();
+    let commitment = CommitmentConfig::processed();
 
     let mut instructions = vec![];
     if cli.compute_budget != DEFAULT_INSTRUCTION_COMPUTE_UNIT_LIMIT {

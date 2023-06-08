@@ -3120,6 +3120,8 @@ dependencies = [
  "jsonrpc-core",
  "lazy_static",
  "log",
+ "num-traits",
+ "rand 0.7.3",
  "reqwest",
  "semver",
  "serde",

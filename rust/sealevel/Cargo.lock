@@ -1699,6 +1699,7 @@ dependencies = [
  "borsh",
  "hyperlane-core",
  "hyperlane-sealevel-interchain-security-module-interface",
+ "serializable-account-meta",
  "solana-program",
 ]
 
