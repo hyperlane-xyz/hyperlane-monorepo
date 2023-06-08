@@ -31,7 +31,8 @@ use hyperlane_sealevel_test_send_receiver::{
 };
 
 use hyperlane_test_utils::{
-    assert_transaction_error, initialize_mailbox, new_funded_keypair, process_instruction,
+    assert_transaction_error, initialize_mailbox, mailbox_id, new_funded_keypair,
+    process_instruction,
 };
 
 use crate::utils::{
@@ -48,7 +49,7 @@ async fn setup_client() -> (
     TestSendReceiverTestClient,
     TestIsmTestClient,
 ) {
-    let program_id = hyperlane_sealevel_mailbox::id();
+    let program_id = mailbox_id();
     let mut program_test = ProgramTest::new(
         "hyperlane_sealevel_mailbox",
         program_id,
@@ -57,7 +58,7 @@ async fn setup_client() -> (
 
     program_test.add_program("spl_noop", spl_noop::id(), processor!(spl_noop::noop));
 
-    let mailbox_program_id = hyperlane_sealevel_mailbox::id();
+    let mailbox_program_id = mailbox_id();
     program_test.add_program(
         "hyperlane_sealevel_mailbox",
         mailbox_program_id,
@@ -111,7 +112,7 @@ fn clone_keypair(keypair: &Keypair) -> Keypair {
 
 #[tokio::test]
 async fn test_initialize() {
-    let program_id = hyperlane_sealevel_mailbox::id();
+    let program_id = mailbox_id();
     let (mut banks_client, payer, _, _) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
@@ -155,7 +156,7 @@ async fn test_initialize() {
 
 #[tokio::test]
 async fn test_initialize_errors_if_called_twice() {
-    let program_id = hyperlane_sealevel_mailbox::id();
+    let program_id = mailbox_id();
     let (mut banks_client, payer, _, _) = setup_client().await;
 
     initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
@@ -173,7 +174,7 @@ async fn test_initialize_errors_if_called_twice() {
 
 #[tokio::test]
 async fn test_dispatch_from_eoa() {
-    let program_id = hyperlane_sealevel_mailbox::id();
+    let program_id = mailbox_id();
     let (mut banks_client, payer, _, _) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
@@ -291,7 +292,7 @@ async fn test_dispatch_from_eoa() {
 
 #[tokio::test]
 async fn test_dispatch_from_program() {
-    let program_id = hyperlane_sealevel_mailbox::id();
+    let program_id = mailbox_id();
     let (mut banks_client, payer, mut test_send_receiver, _) = setup_client().await;
     let test_sender_receiver_program_id = test_send_receiver.id();
 
@@ -355,7 +356,7 @@ async fn test_dispatch_from_program() {
 
 #[tokio::test]
 async fn test_dispatch_errors_if_message_too_large() {
-    let program_id = hyperlane_sealevel_mailbox::id();
+    let program_id = mailbox_id();
     let (mut banks_client, payer, _, _) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
@@ -390,7 +391,7 @@ async fn test_dispatch_errors_if_message_too_large() {
 
 #[tokio::test]
 async fn test_dispatch_returns_message_id() {
-    let program_id = hyperlane_sealevel_mailbox::id();
+    let program_id = mailbox_id();
     let (mut banks_client, payer, _, _) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
@@ -467,7 +468,7 @@ async fn test_dispatch_returns_message_id() {
 
 #[tokio::test]
 async fn test_get_recipient_ism_when_specified() {
-    let program_id = hyperlane_sealevel_mailbox::id();
+    let program_id = mailbox_id();
     let (mut banks_client, payer, mut test_send_receiver, _) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
@@ -492,7 +493,7 @@ async fn test_get_recipient_ism_when_specified() {
 
 #[tokio::test]
 async fn test_get_recipient_ism_when_option_none_returned() {
-    let program_id = hyperlane_sealevel_mailbox::id();
+    let program_id = mailbox_id();
     let (mut banks_client, payer, mut test_send_receiver, _) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
@@ -518,7 +519,7 @@ async fn test_get_recipient_ism_when_option_none_returned() {
 
 #[tokio::test]
 async fn test_get_recipient_ism_when_no_return_data() {
-    let program_id = hyperlane_sealevel_mailbox::id();
+    let program_id = mailbox_id();
     let (mut banks_client, payer, mut test_send_receiver, _) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
@@ -548,7 +549,7 @@ async fn test_get_recipient_ism_when_no_return_data() {
 
 #[tokio::test]
 async fn test_get_recipient_ism_errors_with_malformatted_recipient_ism_return_data() {
-    let program_id = hyperlane_sealevel_mailbox::id();
+    let program_id = mailbox_id();
     let (mut banks_client, payer, mut test_send_receiver, _) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
@@ -581,7 +582,7 @@ async fn test_get_recipient_ism_errors_with_malformatted_recipient_ism_return_da
 
 #[tokio::test]
 async fn test_process_successful_verify_and_handle() {
-    let program_id = hyperlane_sealevel_mailbox::id();
+    let program_id = mailbox_id();
     let (mut banks_client, payer, _, _) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
@@ -654,7 +655,7 @@ async fn test_process_successful_verify_and_handle() {
 
 #[tokio::test]
 async fn test_process_errors_if_message_already_processed() {
-    let program_id = hyperlane_sealevel_mailbox::id();
+    let program_id = mailbox_id();
     let (mut banks_client, payer, _, _) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
@@ -702,7 +703,7 @@ async fn test_process_errors_if_message_already_processed() {
 
 #[tokio::test]
 async fn test_process_errors_if_ism_verify_fails() {
-    let program_id = hyperlane_sealevel_mailbox::id();
+    let program_id = mailbox_id();
     let (mut banks_client, payer, _, mut test_ism) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
@@ -745,7 +746,7 @@ async fn test_process_errors_if_ism_verify_fails() {
 
 #[tokio::test]
 async fn test_process_errors_if_recipient_handle_fails() {
-    let program_id = hyperlane_sealevel_mailbox::id();
+    let program_id = mailbox_id();
     let (mut banks_client, payer, mut test_send_receiver, _) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
@@ -788,7 +789,7 @@ async fn test_process_errors_if_recipient_handle_fails() {
 
 #[tokio::test]
 async fn test_process_errors_if_incorrect_destination_domain() {
-    let program_id = hyperlane_sealevel_mailbox::id();
+    let program_id = mailbox_id();
     let (mut banks_client, payer, _, _) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
@@ -830,7 +831,7 @@ async fn test_process_errors_if_incorrect_destination_domain() {
 
 #[tokio::test]
 async fn test_process_errors_if_wrong_message_version() {
-    let program_id = hyperlane_sealevel_mailbox::id();
+    let program_id = mailbox_id();
     let (mut banks_client, payer, _, _) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
@@ -871,7 +872,7 @@ async fn test_process_errors_if_wrong_message_version() {
 
 #[tokio::test]
 async fn test_process_errors_if_recipient_not_a_program() {
-    let program_id = hyperlane_sealevel_mailbox::id();
+    let program_id = mailbox_id();
     let (mut banks_client, payer, _, _) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
@@ -904,7 +905,7 @@ async fn test_process_errors_if_recipient_not_a_program() {
 
 #[tokio::test]
 async fn test_inbox_set_default_ism() {
-    let program_id = hyperlane_sealevel_mailbox::id();
+    let program_id = mailbox_id();
     let (mut banks_client, payer, _, _) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
@@ -949,7 +950,7 @@ async fn test_inbox_set_default_ism() {
 
 #[tokio::test]
 async fn test_inbox_set_default_ism_errors_if_owner_not_signer() {
-    let program_id = hyperlane_sealevel_mailbox::id();
+    let program_id = mailbox_id();
     let (mut banks_client, payer, _, _) = setup_client().await;
 
     let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)

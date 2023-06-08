@@ -55,6 +55,7 @@ impl Default for IsmReturnDataMode {
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, Default)]
 pub struct TestSendReceiverStorage {
+    pub mailbox: Pubkey,
     pub ism: Option<Pubkey>,
     pub ism_return_data_mode: IsmReturnDataMode,
     pub fail_handle: bool,
@@ -64,10 +65,11 @@ pub type TestSendReceiverStorageAccount = AccountData<TestSendReceiverStorage>;
 
 impl SizedData for TestSendReceiverStorage {
     fn size(&self) -> usize {
+        // 32 for mailbox
         // 1 + 32 for ism
         // 1 for ism_return_data_mode
         // 1 for fail_handle
-        1 + 32 + 1 + 1
+        32 + 1 + 32 + 1 + 1
     }
 }
 
@@ -85,7 +87,7 @@ macro_rules! test_send_receiver_storage_pda_seeds {
 
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 pub enum TestSendReceiverInstruction {
-    Init,
+    Init(Pubkey),
     Dispatch(OutboxDispatch),
     SetInterchainSecurityModule(Option<Pubkey>, IsmReturnDataMode),
     SetFailHandle(bool),
@@ -116,7 +118,7 @@ pub fn process_instruction(
     let instruction = TestSendReceiverInstruction::try_from_slice(instruction_data)
         .map_err(|_| ProgramError::InvalidInstructionData)?;
     match instruction {
-        TestSendReceiverInstruction::Init => init(program_id, accounts),
+        TestSendReceiverInstruction::Init(mailbox) => init(program_id, accounts, mailbox),
         TestSendReceiverInstruction::Dispatch(outbox_dispatch) => {
             dispatch(program_id, accounts, outbox_dispatch)
         }
@@ -135,7 +137,7 @@ pub fn process_instruction(
 /// 0. [executable] System program.
 /// 1. [signer] Payer.
 /// 2. [writeable] Storage PDA.
-fn init(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+fn init(program_id: &Pubkey, accounts: &[AccountInfo], mailbox: Pubkey) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
     // Account 0: System program.
@@ -159,6 +161,7 @@ fn init(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     }
 
     let storage_account = TestSendReceiverStorageAccount::from(TestSendReceiverStorage {
+        mailbox,
         ism: None,
         ism_return_data_mode: IsmReturnDataMode::EncodeOption,
         fail_handle: false,
@@ -272,10 +275,17 @@ pub fn handle(
 
     // Account 0: Process authority specific to this program.
     let process_authority = next_account_info(accounts_iter)?;
+
+    // Account 1: Storage PDA account.
+    let storage_info = next_account_info(accounts_iter)?;
+    let storage =
+        TestSendReceiverStorageAccount::fetch(&mut &storage_info.data.borrow()[..])?.into_inner();
+
+    // Verify the process authority
     let (expected_process_authority_key, _expected_process_authority_bump) =
         Pubkey::find_program_address(
             mailbox_process_authority_pda_seeds!(program_id),
-            &hyperlane_sealevel_mailbox::id(),
+            &storage.mailbox,
         );
     if process_authority.key != &expected_process_authority_key {
         return Err(ProgramError::InvalidArgument);
@@ -283,11 +293,6 @@ pub fn handle(
     if !process_authority.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
     }
-
-    // Account 1: Storage PDA account.
-    let storage_info = next_account_info(accounts_iter)?;
-    let storage =
-        TestSendReceiverStorageAccount::fetch(&mut &storage_info.data.borrow()[..])?.into_inner();
 
     if storage.fail_handle {
         return Err(ProgramError::Custom(

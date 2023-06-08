@@ -11,7 +11,7 @@ use hyperlane_sealevel_mailbox::{
     instruction::OutboxDispatch, mailbox_dispatched_message_pda_seeds,
     mailbox_message_dispatch_authority_pda_seeds,
 };
-use hyperlane_test_utils::{process_instruction, MailboxAccounts};
+use hyperlane_test_utils::{mailbox_id, process_instruction, MailboxAccounts};
 
 use crate::{
     id,
@@ -39,7 +39,9 @@ impl TestSendReceiverTestClient {
 
         let instruction = Instruction {
             program_id,
-            data: TestSendReceiverInstruction::Init.try_to_vec().unwrap(),
+            data: TestSendReceiverInstruction::Init(mailbox_id())
+                .try_to_vec()
+                .unwrap(),
             accounts: vec![
                 // 0. [executable] System program.
                 // 1. [signer] Payer.

@@ -34,8 +34,8 @@ use hyperlane_sealevel_token_lib::{
     message::TokenMessage,
 };
 use hyperlane_test_utils::{
-    assert_token_balance, assert_transaction_error, initialize_mailbox, new_funded_keypair,
-    transfer_lamports,
+    assert_token_balance, assert_transaction_error, initialize_mailbox, mailbox_id,
+    new_funded_keypair, transfer_lamports,
 };
 use solana_program_test::*;
 use solana_sdk::{
@@ -85,7 +85,7 @@ async fn setup_client() -> (BanksClient, Keypair) {
 
     program_test.add_program("spl_noop", spl_noop::id(), processor!(spl_noop::noop));
 
-    let mailbox_program_id = hyperlane_sealevel_mailbox::id();
+    let mailbox_program_id = mailbox_id();
     program_test.add_program(
         "hyperlane_sealevel_mailbox",
         mailbox_program_id,
@@ -247,7 +247,7 @@ async fn initialize_hyperlane_token(
     let (mailbox_process_authority_key, _mailbox_process_authority_bump) =
         Pubkey::find_program_address(
             mailbox_process_authority_pda_seeds!(program_id),
-            &hyperlane_sealevel_mailbox::id(),
+            &mailbox_id(),
         );
 
     let (token_account_key, token_account_bump_seed) =
@@ -267,7 +267,7 @@ async fn initialize_hyperlane_token(
         &[Instruction::new_with_bytes(
             *program_id,
             &HyperlaneTokenInstruction::Init(Init {
-                mailbox: hyperlane_sealevel_mailbox::id(),
+                mailbox: mailbox_id(),
                 interchain_security_module: None,
                 decimals: LOCAL_DECIMALS,
                 remote_decimals: REMOTE_DECIMALS,
@@ -350,7 +350,7 @@ async fn enroll_remote_router(
 #[tokio::test]
 async fn test_initialize() {
     let program_id = hyperlane_sealevel_token_collateral::id();
-    let mailbox_program_id = hyperlane_sealevel_mailbox::id();
+    let mailbox_program_id = mailbox_id();
     let spl_token_program_id = spl_token_2022::id();
 
     let (mut banks_client, payer) = setup_client().await;
@@ -471,7 +471,7 @@ async fn test_initialize_errors_if_called_twice() {
 
 async fn test_transfer_remote(spl_token_program_id: Pubkey) {
     let program_id = hyperlane_sealevel_token_collateral::id();
-    let mailbox_program_id = hyperlane_sealevel_mailbox::id();
+    let mailbox_program_id = mailbox_id();
 
     let (mut banks_client, payer) = setup_client().await;
 
@@ -661,7 +661,7 @@ async fn transfer_from_remote(
     spl_token_program_id: Pubkey,
 ) -> Result<(BanksClient, HyperlaneTokenAccounts, Pubkey), BanksClientError> {
     let program_id = hyperlane_sealevel_token_collateral::id();
-    let mailbox_program_id = hyperlane_sealevel_mailbox::id();
+    let mailbox_program_id = mailbox_id();
 
     let (mut banks_client, payer) = setup_client().await;
 
@@ -933,7 +933,7 @@ async fn test_transfer_from_remote_errors_if_sender_not_router() {
 #[tokio::test]
 async fn test_transfer_from_remote_errors_if_process_authority_not_signer() {
     let program_id = hyperlane_sealevel_token_collateral::id();
-    let mailbox_program_id = hyperlane_sealevel_mailbox::id();
+    let mailbox_program_id = mailbox_id();
     let spl_token_program_id = spl_token_2022::id();
 
     let (mut banks_client, payer) = setup_client().await;

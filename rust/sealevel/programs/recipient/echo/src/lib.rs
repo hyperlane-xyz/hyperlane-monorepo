@@ -4,12 +4,13 @@
 //! Note that a real recipient must define the format for its message and that format is specific
 //! to that recipient.
 
+// TODO just remove this entire program
+
 #![deny(warnings)]
 // #![deny(missing_docs)] // FIXME
 #![deny(unsafe_code)]
 
 use borsh::ser::BorshSerialize;
-use hyperlane_sealevel_mailbox::mailbox_process_authority_pda_seeds;
 use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
 };
@@ -59,20 +60,23 @@ pub fn process_instruction(
 }
 
 pub fn handle(
-    program_id: &Pubkey,
+    _program_id: &Pubkey,
     accounts: &[AccountInfo],
     handle: HandleInstruction,
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
     let process_authority = next_account_info(accounts_iter)?;
-    let (expected_process_authority_key, _expected_process_authority_bump) =
-        Pubkey::find_program_address(
-            mailbox_process_authority_pda_seeds!(program_id),
-            &hyperlane_sealevel_mailbox::id(),
-        );
-    if process_authority.key != &expected_process_authority_key {
-        return Err(ProgramError::InvalidArgument);
-    }
+
+    // Just not gonna do any kind of validation here, this is just a test program.
+
+    // let (expected_process_authority_key, _expected_process_authority_bump) =
+    //     Pubkey::find_program_address(
+    //         mailbox_process_authority_pda_seeds!(program_id),
+    //         &hyperlane_sealevel_mailbox::id(),
+    //     );
+    // if process_authority.key != &expected_process_authority_key {
+    //     return Err(ProgramError::InvalidArgument);
+    // }
     if !process_authority.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
     }

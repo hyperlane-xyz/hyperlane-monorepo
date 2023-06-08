@@ -16,7 +16,7 @@ use hyperlane_sealevel_mailbox::{
     },
     mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds,
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
-    mailbox_processed_message_pda_seeds, spl_noop, ID as MAILBOX_PROG_ID,
+    mailbox_processed_message_pda_seeds, spl_noop,
 };
 use hyperlane_sealevel_multisig_ism_message_id::{
     access_control_pda_seeds as multisig_ism_message_id_access_control_pda_seeds,
@@ -128,6 +128,9 @@ enum MailboxSubCmd {
     Receive(Inbox),
     Delivered(Delivered),
 }
+
+// TODO fix
+const MAILBOX_PROG_ID: Pubkey = Pubkey::new_from_array([1u8; 32]);
 
 #[derive(Args)]
 struct Init {
@@ -429,7 +432,7 @@ fn main() {
         HyperlaneSealevelCmd::ValidatorAnnounce(cmd) => process_validator_announce_cmd(ctx, cmd),
         HyperlaneSealevelCmd::MultisigIsmMessageId(cmd) => {
             process_multisig_ism_message_id_cmd(ctx, cmd)
-        },
+        }
         HyperlaneSealevelCmd::Deploy(cmd) => process_deploy_cmd(ctx, cmd),
     }
 }
@@ -1116,7 +1119,6 @@ fn process_deploy_cmd(_ctx: Context, cmd: DeployCmd) {
     match cmd.cmd {
         DeploySubCmd::Core(_core) => {
             // First deploy the Mailbox
-            
         }
     }
 }
@@ -1124,4 +1126,3 @@ fn process_deploy_cmd(_ctx: Context, cmd: DeployCmd) {
 // fn deploy_mailbox() {
 
 // }
-
