@@ -77,7 +77,7 @@ pub async fn get_account_metas(
             .map(|serializable_account_meta| serializable_account_meta.into())
             .collect()
     })
-    .unwrap_or_else(|| vec![]);
+    .unwrap_or_else(Vec::new);
 
     Ok(account_metas)
 }
