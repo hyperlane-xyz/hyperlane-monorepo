@@ -11,3 +11,7 @@ optimizer_runs = 999_999
 
 [profile.ci]
 verbosity = 4
+
+[rpc_endpoints]
+mainnet = "https://rpc.ankr.com/eth"
+arbitrum = "https://arbitrum.api.onfinality.io/public"
