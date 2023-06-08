@@ -961,8 +961,9 @@ async fn test_set_interchain_security_module_errors_if_owner_not_signer() {
             ],
         )],
         Some(&non_owner.pubkey()),
+        &[&non_owner],
+        recent_blockhash,
     );
-    transaction.sign(&[&non_owner], recent_blockhash);
     let result = banks_client.process_transaction(transaction).await;
 
     assert_transaction_error(

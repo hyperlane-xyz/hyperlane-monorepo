@@ -10,7 +10,7 @@ use {
     ed25519_dalek::Signer as DalekSigner,
     // ed25519_dalek_bip32::Error as Bip32Error,
     // hmac::Hmac,
-    // rand::{rngs::OsRng, CryptoRng, RngCore},
+    rand::{rngs::OsRng, CryptoRng, RngCore},
     std::{
         error,
         fs::{self, File, OpenOptions},
@@ -26,7 +26,6 @@ use {
 pub struct Keypair(ed25519_dalek::Keypair);
 
 impl Keypair {
-    /*
     /// Constructs a new, random `Keypair` using a caller-provided RNG
     pub fn generate<R>(csprng: &mut R) -> Self
     where
@@ -40,7 +39,6 @@ impl Keypair {
         let mut rng = OsRng::default();
         Self::generate(&mut rng)
     }
-    */
 
     /// Recovers a `Keypair` from a byte array
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, ed25519_dalek::SignatureError> {

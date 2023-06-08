@@ -8,6 +8,7 @@
 use borsh::BorshSerialize;
 use hyperlane_core::IsmType;
 use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
+use serializable_account_meta::SimulationReturnData;
 use solana_program::{
     account_info::AccountInfo, entrypoint, entrypoint::ProgramResult, msg,
     program::set_return_data, program_error::ProgramError, pubkey::Pubkey,
@@ -37,7 +38,7 @@ pub fn process_instruction(
         }
         InterchainSecurityModuleInstruction::Type => {
             set_return_data(
-                &(ISM_TYPE as u32)
+                &SimulationReturnData::new(ISM_TYPE as u32)
                     .try_to_vec()
                     .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
             );

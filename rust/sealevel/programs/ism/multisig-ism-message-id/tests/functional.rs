@@ -531,5 +531,8 @@ async fn test_ism_type() {
         .return_data
         .unwrap()
         .data;
-    assert_eq!(type_bytes[0] as u32, IsmType::MessageIdMultisig as u32);
+    let type_u32 = SimulationReturnData::<u32>::try_from_slice(type_bytes.as_slice())
+        .unwrap()
+        .return_data;
+    assert_eq!(type_u32, IsmType::MessageIdMultisig as u32);
 }

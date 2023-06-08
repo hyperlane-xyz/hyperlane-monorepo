@@ -532,8 +532,9 @@ impl ChainConf {
 
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
+                let keypair = self.sealevel_signer().await.context(ctx)?;
                 let ism = Box::new(h_sealevel::SealevelInterchainSecurityModule::new(
-                    conf, locator,
+                    conf, locator, keypair,
                 ));
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
@@ -558,7 +559,8 @@ impl ChainConf {
 
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
-                let ism = Box::new(h_sealevel::SealevelMultisigIsm::new(conf, locator));
+                let keypair = self.sealevel_signer().await.context(ctx)?;
+                let ism = Box::new(h_sealevel::SealevelMultisigIsm::new(conf, locator, keypair));
                 Ok(ism as Box<dyn MultisigIsm>)
             }
         }

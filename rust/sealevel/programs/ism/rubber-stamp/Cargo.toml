@@ -10,6 +10,7 @@ no-entrypoint = []
 borsh = "0.9"
 solana-program = "=1.14.13"
 hyperlane-core = { path = "../../../hyperlane-core" }
+serializable-account-meta = { path = "../../../libraries/serializable-account-meta" }
 hyperlane-sealevel-interchain-security-module-interface = { path = "../../../libraries/interchain-security-module-interface" }
 
 [lib]
