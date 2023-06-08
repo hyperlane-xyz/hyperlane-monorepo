@@ -33,8 +33,8 @@ contract OptimismMessageHook is IMessageHook {
     uint32 public immutable destinationDomain;
     // Messenger used to send messages from L1 -> L2
     ICrossDomainMessenger public immutable l1Messenger;
-    // Optimism ISM to verify messages
-    OptimismISM public immutable ism;
+    // address for Optimism ISM to verify messages
+    address public immutable ism;
     // Gas limit for sending messages to L2
     // First 1.92e6 gas is provided by Optimism, see more here:
     // https://community.optimism.io/docs/developers/bridge/messaging/#for-l1-%E2%87%92-l2-transactions
@@ -57,7 +57,7 @@ contract OptimismMessageHook is IMessageHook {
         l1Messenger = ICrossDomainMessenger(
             _onlyContract(_messenger, "CrossDomainMessenger")
         );
-        ism = OptimismISM(_ism);
+        ism = _ism;
     }
 
     // ============ External Functions ============
@@ -81,13 +81,13 @@ contract OptimismMessageHook is IMessageHook {
         );
 
         bytes memory _payload = abi.encodeCall(
-            OptimismISM.receiveFromHook,
+            OptimismISM.verifyMessageId,
             (msg.sender, _messageId)
         );
 
-        l1Messenger.sendMessage(address(ism), _payload, GAS_LIMIT);
+        l1Messenger.sendMessage(ism, _payload, GAS_LIMIT);
 
-        // calling the receiveFromHook function is ~25k gas but we get 1.92m gas from Optimism
+        // calling the verifyMessageId function is ~25k gas but we get 1.92m gas from Optimism
         return 0;
     }
 

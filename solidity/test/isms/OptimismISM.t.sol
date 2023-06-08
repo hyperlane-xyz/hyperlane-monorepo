@@ -16,7 +16,9 @@ import {Lib_CrossDomainUtils} from "@eth-optimism/contracts/libraries/bridge/Lib
 import {AddressAliasHelper} from "@eth-optimism/contracts/standards/AddressAliasHelper.sol";
 import {ICrossDomainMessenger} from "@eth-optimism/contracts/libraries/bridge/ICrossDomainMessenger.sol";
 import {ICanonicalTransactionChain} from "@eth-optimism/contracts/L1/rollup/ICanonicalTransactionChain.sol";
-import {L2CrossDomainMessenger} from "@eth-optimism/contracts/L2/messaging/L2CrossDomainMessenger.sol";
+import {L2CrossDomainMessenger} from "@eth-optimism/contracts-bedrock/contracts/L2/L2CrossDomainMessenger.sol";
+import {Encoding} from "@eth-optimism/contracts-bedrock/contracts/libraries/Encoding.sol";
+import {Hashing} from "@eth-optimism/contracts-bedrock/contracts/libraries/Hashing.sol";
 
 contract OptimismISMTest is Test {
     uint256 internal mainnetFork;
@@ -58,7 +60,7 @@ contract OptimismISMTest is Test {
 
     event FailedRelayedMessage(bytes32 indexed msgHash);
 
-    event ReceivedMessage(address indexed emitter, bytes32 indexed messageId);
+    event ReceivedMessage(address indexed sender, bytes32 indexed messageId);
 
     error NotCrossChainCall();
 
@@ -101,7 +103,13 @@ contract OptimismISMTest is Test {
         deployOptimismHook();
 
         vm.selectFork(optimismFork);
+
         opISM.setOptimismHook(address(opHook));
+        // for sending value
+        vm.deal(
+            AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS),
+            1e18
+        );
     }
 
     ///////////////////////////////////////////////////////////////////
@@ -122,14 +130,12 @@ contract OptimismISMTest is Test {
         bytes32 messageId = Message.id(encodedMessage);
 
         bytes memory encodedHookData = abi.encodeCall(
-            OptimismISM.receiveFromHook,
+            OptimismISM.verifyMessageId,
             (address(this), messageId)
         );
 
         uint40 nonce = ICanonicalTransactionChain(L1_CANNONICAL_CHAIN)
             .getQueueLength();
-
-        // console.log("another nonce: ", l1Messenger.messageNonce());
 
         vm.expectEmit(true, true, true, false, L1_MESSENGER_ADDRESS);
         emit SentMessage(
@@ -156,56 +162,103 @@ contract OptimismISMTest is Test {
         opHook.postDispatch(11, messageId);
     }
 
-    /* ============ ISM.receiveFromHook ============ */
+    /* ============ ISM.verifyMessageId ============ */
 
-    function testReceiveFromHook() public {
+    function testverifyMessageId() public {
         deployAll();
 
         vm.selectFork(optimismFork);
 
-        bytes32 _messageId = Message.id(
+        bytes32 messageId = Message.id(
             _encodeTestMessage(0, address(testRecipient))
         );
 
         bytes memory encodedHookData = abi.encodeCall(
-            OptimismISM.receiveFromHook,
-            (address(this), _messageId)
+            OptimismISM.verifyMessageId,
+            (address(this), messageId)
         );
-        uint256 nextNonce = l2Messenger.messageNonce() + 1;
-        console.log("MessageNonce: ", l2Messenger.messageNonce());
 
-        bytes memory xDomainCalldata = Lib_CrossDomainUtils
-            .encodeXDomainCalldata(
-                address(opISM),
-                address(opHook),
-                encodedHookData,
-                139885
-            );
+        (uint240 nonce, uint16 verison) = Encoding.decodeVersionedNonce(
+            l2Messenger.messageNonce()
+        );
+        uint256 versionedNonce = Encoding.encodeVersionedNonce(
+            nonce + 1,
+            verison
+        );
+
+        bytes32 versionedHash = Hashing.hashCrossDomainMessageV1(
+            versionedNonce,
+            address(opHook),
+            address(opISM),
+            0,
+            DEFAULT_GAS_LIMIT,
+            encodedHookData
+        );
 
         vm.startPrank(
             AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS)
         );
-        console.log(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
 
-        // vm.expectEmit(true, true, false, false, address(opISM));
-        // emit ReceivedMessage(address(this), _messageId);
+        vm.expectEmit(true, true, false, false, address(opISM));
+        emit ReceivedMessage(address(this), messageId);
 
-        // vm.expectEmit(true, false, false, false, L2_MESSENGER_ADDRESS);
-        // emit RelayedMessage(Message.id(xDomainCalldata));
+        vm.expectEmit(true, false, false, false, L2_MESSENGER_ADDRESS);
+        emit RelayedMessage(versionedHash);
 
         l2Messenger.relayMessage(
-            address(opISM),
+            versionedNonce,
             address(opHook),
-            encodedHookData,
-            nextNonce
+            address(opISM),
+            0,
+            DEFAULT_GAS_LIMIT,
+            encodedHookData
         );
 
-        assertEq(opISM.receivedEmitters(_messageId, address(this)), true);
+        assertEq(opISM.verifiedMessageIds(messageId, address(this)), true);
 
         vm.stopPrank();
     }
 
-    function testReceiveFromHook_NotAuthorized() public {
+    // function testverifyMessageId_WithValue() public {
+    //     // this would fail
+    //     deployAll();
+
+    //     vm.selectFork(optimismFork);
+
+    //     bytes32 messageId = Message.id(
+    //         _encodeTestMessage(0, address(testRecipient))
+    //     );
+
+    //     bytes memory encodedHookData = abi.encodeCall(
+    //         OptimismISM.verifyMessageId,
+    //         (address(this), messageId)
+    //     );
+
+    //     (uint240 nonce, uint16 verison) =
+    //         Encoding.decodeVersionedNonce(l2Messenger.messageNonce());
+    //     uint256 versionedNonce = Encoding.encodeVersionedNonce(nonce + 1, verison);
+
+    //     vm.startPrank(
+    //         AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS)
+    //     );
+
+    //     l2Messenger.relayMessage{value: 1e18} (
+    //         versionedNonce,
+    //         address(opHook),
+    //         address(opISM),
+    //         1e18,
+    //         DEFAULT_GAS_LIMIT,
+    //         encodedHookData
+    //     );
+
+    //     assertEq(opISM.verifiedMessageIds(messageId, address(this)), true);
+    //     assertEq(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS), 0);
+    //     assertEq(address(this).balance, 1e18);
+
+    //     vm.stopPrank();
+    // }
+
+    function testverifyMessageId_NotAuthorized() public {
         deployAll();
 
         vm.selectFork(optimismFork);
@@ -218,18 +271,18 @@ contract OptimismISMTest is Test {
 
         // needs to be called by the cannonical messenger on Optimism
         vm.expectRevert(NotCrossChainCall.selector);
-        opISM.receiveFromHook(address(opHook), _messageId);
+        opISM.verifyMessageId(address(opHook), _messageId);
 
         // set the xDomainMessageSender storage slot as alice
-        bytes32 key = bytes32(uint256(4));
+        bytes32 key = bytes32(uint256(204));
         bytes32 value = TypeCasts.addressToBytes32(alice);
         vm.store(address(l2Messenger), key, value);
 
         vm.startPrank(L2_MESSENGER_ADDRESS);
 
         // needs to be called by the authorized hook contract on Ethereum
-        vm.expectRevert("OptimismISM: caller is not the owner");
-        opISM.receiveFromHook(address(opHook), _messageId);
+        vm.expectRevert("OptimismISM: sender is not the hook");
+        opISM.verifyMessageId(address(opHook), _messageId);
     }
 
     /* ============ ISM.verify ============ */
@@ -246,17 +299,26 @@ contract OptimismISMTest is Test {
         bytes32 _messageId = Message.id(encodedMessage);
 
         bytes memory encodedHookData = abi.encodeCall(
-            OptimismISM.receiveFromHook,
+            OptimismISM.verifyMessageId,
             (address(this), _messageId)
         );
-        uint256 nextNonce = l2Messenger.messageNonce() + 1;
+
+        (uint240 nonce, uint16 verison) = Encoding.decodeVersionedNonce(
+            l2Messenger.messageNonce()
+        );
+        uint256 versionedNonce = Encoding.encodeVersionedNonce(
+            nonce + 1,
+            verison
+        );
 
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
         l2Messenger.relayMessage(
-            address(opISM),
+            versionedNonce,
             address(opHook),
-            encodedHookData,
-            nextNonce
+            address(opISM),
+            0,
+            DEFAULT_GAS_LIMIT,
+            encodedHookData
         );
 
         bool verified = opISM.verify(new bytes(0), encodedMessage);
@@ -275,17 +337,26 @@ contract OptimismISMTest is Test {
         bytes32 _messageId = Message.id(encodedMessage);
 
         bytes memory encodedHookData = abi.encodeCall(
-            OptimismISM.receiveFromHook,
+            OptimismISM.verifyMessageId,
             (address(this), _messageId)
         );
-        uint256 nextNonce = l2Messenger.messageNonce() + 1;
+
+        (uint240 nonce, uint16 verison) = Encoding.decodeVersionedNonce(
+            l2Messenger.messageNonce()
+        );
+        uint256 versionedNonce = Encoding.encodeVersionedNonce(
+            nonce + 1,
+            verison
+        );
 
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
         l2Messenger.relayMessage(
-            address(opISM),
+            versionedNonce,
             address(opHook),
-            encodedHookData,
-            nextNonce
+            address(opISM),
+            0,
+            DEFAULT_GAS_LIMIT,
+            encodedHookData
         );
 
         bytes memory invalidMessage = _encodeTestMessage(0, address(this));
@@ -306,17 +377,26 @@ contract OptimismISMTest is Test {
         bytes32 _messageId = Message.id(invalidMessage);
 
         bytes memory encodedHookData = abi.encodeCall(
-            OptimismISM.receiveFromHook,
+            OptimismISM.verifyMessageId,
             (address(this), _messageId)
         );
-        uint256 nextNonce = l2Messenger.messageNonce() + 1;
+
+        (uint240 nonce, uint16 verison) = Encoding.decodeVersionedNonce(
+            l2Messenger.messageNonce()
+        );
+        uint256 versionedNonce = Encoding.encodeVersionedNonce(
+            nonce + 1,
+            verison
+        );
 
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
         l2Messenger.relayMessage(
-            address(opISM),
+            versionedNonce,
             address(opHook),
-            encodedHookData,
-            nextNonce
+            address(opISM),
+            0,
+            DEFAULT_GAS_LIMIT,
+            encodedHookData
         );
 
         bool verified = opISM.verify(new bytes(0), encodedMessage);
@@ -335,17 +415,26 @@ contract OptimismISMTest is Test {
         bytes32 _messageId = Message.id(encodedMessage);
 
         bytes memory encodedHookData = abi.encodeCall(
-            OptimismISM.receiveFromHook,
+            OptimismISM.verifyMessageId,
             (alice, _messageId)
         );
-        uint256 nextNonce = l2Messenger.messageNonce() + 1;
+
+        (uint240 nonce, uint16 verison) = Encoding.decodeVersionedNonce(
+            l2Messenger.messageNonce()
+        );
+        uint256 versionedNonce = Encoding.encodeVersionedNonce(
+            nonce + 1,
+            verison
+        );
 
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
         l2Messenger.relayMessage(
-            address(opISM),
+            versionedNonce,
             address(opHook),
-            encodedHookData,
-            nextNonce
+            address(opISM),
+            0,
+            DEFAULT_GAS_LIMIT,
+            encodedHookData
         );
 
         bool verified = opISM.verify(new bytes(0), encodedMessage);

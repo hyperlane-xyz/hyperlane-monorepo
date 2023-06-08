@@ -26,24 +26,20 @@ contract OptimismISM is CrossChainEnabledOptimism, AbstractNativeISM {
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.OPTIMISM);
 
-    // Optimism's native CrossDomainMessenger deployed on L2
-    // @dev Only allowed to call `receiveFromHook`.
-    ICrossDomainMessenger public immutable l2Messenger;
-
     // ============ Public Storage ============
 
-    // Hook deployed on L1 responsible for sending message via the Optimism bridge
-    OptimismMessageHook public l1Hook;
+    // Address for Hook on L1 responsible for sending message via the Optimism bridge
+    address public l1Hook;
 
     // ============ Modifiers ============
 
     /**
-     * @notice Check if sender is authorized to message `receiveFromHook`.
+     * @notice Check if sender is authorized to message `verifyMessageId`.
      */
     modifier isAuthorized() {
         require(
-            _crossChainSender() == address(l1Hook),
-            "OptimismISM: caller is not the owner"
+            _crossChainSender() == l1Hook,
+            "OptimismISM: sender is not the hook"
         );
         _;
     }
@@ -51,50 +47,33 @@ contract OptimismISM is CrossChainEnabledOptimism, AbstractNativeISM {
     // ============ Constructor ============
 
     constructor(address _l2Messenger) CrossChainEnabledOptimism(_l2Messenger) {
-        l2Messenger = ICrossDomainMessenger(
-            _onlyContract(_l2Messenger, "l2Messenger")
+        require(
+            Address.isContract(_l2Messenger),
+            "OptimismISM: invalid L2Messenger"
         );
+    }
+
+    // ============ Initializer ============
+
+    function setOptimismHook(address _l1Hook) external initializer {
+        require(_l1Hook != address(0), "OptimismISM: invalid l1Hook");
+        l1Hook = _l1Hook;
     }
 
     // ============ External Functions ============
 
     /**
-     * @notice Set the hook responsible for sending messages from L1.
-     * @param _hook Address of the hook.
-     */
-    function setOptimismHook(address _hook) external onlyOwner {
-        l1Hook = OptimismMessageHook(_onlyContract(_hook, "hook"));
-    }
-
-    /**
      * @notice Receive a message from the L2 messenger.
      * @dev Only callable by the L2 messenger.
-     * @param _emitter Address of the emitter.
+     * @param _sender Address of the sender.
      * @param _messageId Hyperlane ID for the message.
      */
-    function receiveFromHook(address _emitter, bytes32 _messageId)
+    function verifyMessageId(address _sender, bytes32 _messageId)
         external
         isAuthorized
     {
-        address emitter = _emitter;
-        require(emitter != address(0), "OptimismISM: invalid emitter");
+        verifiedMessageIds[_messageId][_sender] = true;
 
-        _setEmitter(emitter, _messageId);
-
-        emit ReceivedMessage(emitter, _messageId);
-    }
-
-    // ============ Internal Functions ============
-
-    function _onlyContract(address _contract, string memory _type)
-        internal
-        view
-        returns (address)
-    {
-        require(
-            Address.isContract(_contract),
-            string.concat("OptimismISM: invalid ", _type)
-        );
-        return _contract;
+        emit ReceivedMessage(_sender, _messageId);
     }
 }

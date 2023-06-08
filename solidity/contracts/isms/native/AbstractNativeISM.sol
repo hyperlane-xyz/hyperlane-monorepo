@@ -10,22 +10,26 @@ import {TypeCasts} from "../../libs/TypeCasts.sol";
 // ============ External Imports ============
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
  * @title ArbtractNativeISM
  * @notice Uses the native bridges to verify interchain messages.
  */
-abstract contract AbstractNativeISM is IInterchainSecurityModule, Ownable {
+abstract contract AbstractNativeISM is
+    IInterchainSecurityModule,
+    Initializable
+{
     // ============ Public Storage ============
 
-    // mapping to check if the specific messageID from a specific emitter has been received
+    // mapping to check if the specific messageID from a specific sender has been received
     // @dev anyone can send an untrusted messageId, so need to check for that while verifying
-    mapping(bytes32 => mapping(address => bool)) public receivedEmitters;
+    mapping(bytes32 => mapping(address => bool)) public verifiedMessageIds;
 
     // ============ Events ============
 
-    event ReceivedMessage(address indexed emitter, bytes32 indexed messageId);
+    event ReceivedMessage(address indexed sender, bytes32 indexed messageId);
 
     // ============ External Functions ============
 
@@ -40,12 +44,6 @@ abstract contract AbstractNativeISM is IInterchainSecurityModule, Ownable {
         bytes32 _messageId = Message.id(_message);
         address _messageSender = Message.senderAddress(_message);
 
-        return receivedEmitters[_messageId][_messageSender];
-    }
-
-    // ============ Internal Functions ============
-
-    function _setEmitter(address _emitter, bytes32 _messageId) internal {
-        receivedEmitters[_messageId][_emitter] = true;
+        return verifiedMessageIds[_messageId][_messageSender];
     }
 }
