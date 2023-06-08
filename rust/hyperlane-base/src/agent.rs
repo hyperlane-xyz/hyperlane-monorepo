@@ -43,7 +43,7 @@ pub trait BaseAgent: Send + Sync + Debug {
 
     /// Start running this agent.
     #[allow(clippy::async_yields_async)]
-    async fn run(&self) -> Instrumented<JoinHandle<Result<()>>>;
+    async fn run(self) -> Instrumented<JoinHandle<Result<()>>>;
 }
 
 /// Call this from `main` to fully initialize and run the agent for its entire
