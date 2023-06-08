@@ -81,7 +81,8 @@ async fn send_transaction_with_instruction(
     let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
     let transaction = Transaction::new_signed_with_payer(
         &[instruction],
-        Some(&payer.pubkey()) & [payer],
+        Some(&payer.pubkey()),
+        &[payer],
         recent_blockhash,
     );
     banks_client.process_transaction(transaction).await?;
