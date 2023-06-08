@@ -1678,7 +1678,6 @@ dependencies = [
  "borsh",
  "hyperlane-core",
  "hyperlane-sealevel-interchain-security-module-interface",
- "hyperlane-sealevel-mailbox",
  "solana-program",
 ]
 
@@ -1693,7 +1692,30 @@ dependencies = [
  "bs58",
  "hyperlane-core",
  "hyperlane-sealevel-interchain-security-module-interface",
+ "hyperlane-sealevel-message-recipient-interface",
+ "itertools",
+ "log",
+ "num-derive",
+ "num-traits",
+ "serializable-account-meta",
+ "solana-program",
+ "spl-noop",
+ "thiserror",
+]
+
+[[package]]
+name = "hyperlane-sealevel-mailbox-test"
+version = "0.1.0"
+dependencies = [
+ "access-control",
+ "account-utils",
+ "base64 0.13.1",
+ "borsh",
+ "bs58",
+ "hyperlane-core",
+ "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-ism-rubber-stamp",
+ "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
  "hyperlane-sealevel-test-ism",
  "hyperlane-sealevel-test-send-receiver",
@@ -1707,7 +1729,6 @@ dependencies = [
  "solana-program-test",
  "solana-sdk",
  "spl-noop",
- "testing_logger",
  "thiserror",
 ]
 
@@ -4761,15 +4782,6 @@ checksum = "633c1a546cee861a1a6d0dc69ebeca693bf4296661ba7852b9d21d159e0506df"
 dependencies = [
  "libc",
  "winapi",
-]
-
-[[package]]
-name = "testing_logger"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d92b727cb45d33ae956f7f46b966b25f1bc712092aeef9dba5ac798fc89f720"
-dependencies = [
- "log",
 ]
 
 [[package]]
