@@ -2,7 +2,10 @@
 
 use access_control::AccessControl;
 use borsh::{BorshDeserialize, BorshSerialize};
-use hyperlane_core::{Decode, Encode, HyperlaneMessage, H256};
+use hyperlane_core::{
+    accumulator::incremental::IncrementalMerkle as MerkleTree, Decode, Encode, HyperlaneMessage,
+    H256,
+};
 #[cfg(not(feature = "no-entrypoint"))]
 use solana_program::entrypoint;
 use solana_program::{
@@ -17,7 +20,7 @@ use solana_program::{
     sysvar::{clock::Clock, rent::Rent, Sysvar},
 };
 
-use account_utils::create_pda_account;
+use account_utils::{create_pda_account, verify_account_uninitialized};
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
 };
@@ -33,8 +36,8 @@ use crate::{
     },
     error::Error,
     instruction::{
-        InboxProcess, InboxSetDefaultModule, Init, Instruction as MailboxIxn, OutboxDispatch,
-        MAX_MESSAGE_BODY_BYTES, VERSION,
+        InboxProcess, Init, Instruction as MailboxIxn, OutboxDispatch, MAX_MESSAGE_BODY_BYTES,
+        VERSION,
     },
     mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds,
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
@@ -52,7 +55,7 @@ pub fn process_instruction(
     match MailboxIxn::from_instruction_data(instruction_data)? {
         MailboxIxn::Init(init) => initialize(program_id, accounts, init),
         MailboxIxn::InboxProcess(process) => inbox_process(program_id, accounts, process),
-        MailboxIxn::InboxSetDefaultModule(ism) => inbox_set_default_ism(program_id, accounts, ism),
+        MailboxIxn::InboxSetDefaultIsm(ism) => inbox_set_default_ism(program_id, accounts, ism),
         MailboxIxn::InboxGetRecipientIsm(recipient) => {
             inbox_get_recipient_ism(program_id, accounts, recipient)
         }
@@ -79,74 +82,79 @@ pub fn process_instruction(
 /// 2. [writable] The inbox PDA account.
 /// 3. [writable] The outbox PDA account.
 fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramResult {
-    // On chain create appears to use realloc which is limited to 1024 byte increments.
-    let mailbox_size: usize = 2048;
     let accounts_iter = &mut accounts.iter();
 
     let rent = Rent::get()?;
 
     // Account 0: The system program.
-    let system_program = next_account_info(accounts_iter)?;
-    if system_program.key != &solana_program::system_program::ID {
+    let system_program_info = next_account_info(accounts_iter)?;
+    if system_program_info.key != &solana_program::system_program::id() {
         return Err(ProgramError::InvalidArgument);
     }
 
     // Account 1: The payer account and owner of the Mailbox.
-    let payer_account = next_account_info(accounts_iter)?;
-    if !payer_account.is_signer {
+    let payer_info = next_account_info(accounts_iter)?;
+    if !payer_info.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
     }
 
     // Account 2: The inbox PDA account.
-    let inbox_account = next_account_info(accounts_iter)?;
+    let inbox_info = next_account_info(accounts_iter)?;
     let (inbox_key, inbox_bump) =
         Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), program_id);
-    if &inbox_key != inbox_account.key {
+    if &inbox_key != inbox_info.key {
         return Err(ProgramError::InvalidArgument);
     }
-    // Create the inbox PDA account.
-    create_pda_account(
-        payer_account,
-        &rent,
-        mailbox_size,
-        program_id,
-        system_program,
-        inbox_account,
-        mailbox_inbox_pda_seeds!(inbox_bump),
-    )?;
+    verify_account_uninitialized(inbox_info)?;
 
-    // Account 3: The outbox PDA account.
-    let outbox_account = next_account_info(accounts_iter)?;
-    let (outbox_key, outbox_bump) =
-        Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), program_id);
-    if &outbox_key != outbox_account.key {
-        return Err(ProgramError::InvalidArgument);
-    }
-    // Create the outbox PDA account.
-    create_pda_account(
-        payer_account,
-        &rent,
-        mailbox_size,
-        program_id,
-        system_program,
-        outbox_account,
-        mailbox_outbox_pda_seeds!(inbox_bump),
-    )?;
-
-    let inbox = Inbox {
+    let inbox_account = InboxAccount::from(Inbox {
         local_domain: init.local_domain,
         inbox_bump_seed: inbox_bump,
-        ..Default::default()
-    };
-    InboxAccount::from(inbox).store(inbox_account, true)?;
+        default_ism: init.default_ism,
+        processed_count: 0,
+    });
 
-    let outbox = Outbox {
+    // Create the inbox PDA account.
+    create_pda_account(
+        payer_info,
+        &rent,
+        inbox_account.size(),
+        program_id,
+        system_program_info,
+        inbox_info,
+        mailbox_inbox_pda_seeds!(inbox_bump),
+    )?;
+    // Store the inbox account.
+    inbox_account.store(inbox_info, false)?;
+
+    // Account 3: The outbox PDA account.
+    let outbox_info = next_account_info(accounts_iter)?;
+    let (outbox_key, outbox_bump) =
+        Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), program_id);
+    if &outbox_key != outbox_info.key {
+        return Err(ProgramError::InvalidArgument);
+    }
+    verify_account_uninitialized(outbox_info)?;
+
+    let outbox_account = OutboxAccount::from(Outbox {
         local_domain: init.local_domain,
         outbox_bump_seed: outbox_bump,
-        owner: Some(*payer_account.key),
-        ..Default::default()
-    };
-    OutboxAccount::from(outbox).store(outbox_account, true)?;
+        owner: Some(*payer_info.key),
+        tree: MerkleTree::default(),
+    });
+
+    // Create the outbox PDA account.
+    create_pda_account(
+        payer_info,
+        &rent,
+        outbox_account.size(),
+        program_id,
+        system_program_info,
+        outbox_info,
+        mailbox_outbox_pda_seeds!(inbox_bump),
+    )?;
+    // Store the outbox account.
+    outbox_account.store(outbox_info, false)?;
 
     Ok(())
 }
@@ -156,15 +164,15 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
 // Accounts:
 // 0.      [signer] Payer account. This pays for the creation of the processed message PDA.
 // 1.      [executable] The system program.
-// 2.      [writable] Inbox PDA
-// 3.      [] Mailbox process authority for the message recipient.
+// 2.      [writable] Inbox PDA account.
+// 3.      [] Mailbox process authority specific to the message recipient.
 // 4.      [writable] Processed message PDA.
 // 5..N    [??] Accounts required to invoke the recipient's InterchainSecurityModule instruction.
 // N+1.    [executable] SPL noop
 // N+2.    [executable] ISM
-// N+2..M. [??] ISM accounts, if present
-// M+1.    [executable] Recipient program
-// M+2..K. [??] Recipient accounts
+// N+2..M. [??] Accounts required to invoke the ISM's Verify instruction.
+// M+1.    [executable] Recipient program.
+// M+2..K. [??] Accounts required to invoke the recipient's Handle instruction.
 fn inbox_process(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -172,157 +180,151 @@ fn inbox_process(
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter().peekable();
 
+    // Decode the message bytes.
     let message = HyperlaneMessage::read_from(&mut std::io::Cursor::new(&process.message))
         .map_err(|_| ProgramError::from(Error::MalformattedHyperlaneMessage))?;
     let message_id = message.id();
 
+    // Require the message version to match what we expect.
     if message.version != VERSION {
         return Err(ProgramError::from(Error::UnsupportedMessageVersion));
     }
     let recipient_program_id = Pubkey::new_from_array(message.recipient.0);
 
     // Account 0: Payer account.
-    let payer_account = next_account_info(accounts_iter)?;
-    if !payer_account.is_signer {
+    let payer_info = next_account_info(accounts_iter)?;
+    if !payer_info.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
     }
 
     // Account 1: The system program.
-    let system_program = next_account_info(accounts_iter)?;
-    if system_program.key != &solana_program::system_program::ID {
+    let system_program_info = next_account_info(accounts_iter)?;
+    if system_program_info.key != &solana_program::system_program::id() {
         return Err(ProgramError::InvalidArgument);
     }
 
     // Account 2: Inbox PDA.
-    let inbox_account = next_account_info(accounts_iter)?;
-    let mut inbox = InboxAccount::fetch(&mut &inbox_account.data.borrow_mut()[..])?.into_inner();
-    let expected_inbox_key = Pubkey::create_program_address(
-        mailbox_inbox_pda_seeds!(inbox.inbox_bump_seed),
-        program_id,
-    )?;
-    if inbox_account.key != &expected_inbox_key {
-        return Err(ProgramError::InvalidArgument);
-    }
-    if inbox_account.owner != program_id {
-        return Err(ProgramError::IncorrectProgramId);
-    }
+    let inbox_info = next_account_info(accounts_iter)?;
+    let mut inbox = Inbox::verify_account_and_fetch_inner(program_id, inbox_info)?;
 
     // Verify the message's destination matches the inbox's local domain.
     if inbox.local_domain != message.destination {
-        return Err(ProgramError::InvalidArgument);
+        return Err(Error::IncorrectDestinationDomain.into());
     }
 
     // Account 3: Process authority account that is specific to the
     // message recipient.
-    let process_authority_account = next_account_info(accounts_iter)?;
+    let process_authority_info = next_account_info(accounts_iter)?;
     // TODO make this create_program_address and take the bump seed in
-    // as an input.
+    // as an input?
     let (expected_process_authority_key, expected_process_authority_bump) =
         Pubkey::find_program_address(
             mailbox_process_authority_pda_seeds!(&recipient_program_id),
             program_id,
         );
-    if process_authority_account.key != &expected_process_authority_key {
+    if process_authority_info.key != &expected_process_authority_key {
         return Err(ProgramError::InvalidArgument);
     }
 
     // Account 4: Processed message PDA.
-    let processed_message_account = next_account_info(accounts_iter)?;
+    let processed_message_account_info = next_account_info(accounts_iter)?;
     let (expected_processed_message_key, expected_processed_message_bump) =
         Pubkey::find_program_address(mailbox_processed_message_pda_seeds!(message_id), program_id);
-    if processed_message_account.key != &expected_processed_message_key {
+    if processed_message_account_info.key != &expected_processed_message_key {
         return Err(ProgramError::InvalidArgument);
     }
     // If the processed message account already exists, then the message
     // has been processed already.
-    if processed_message_account.owner != &solana_program::system_program::id()
-        || !processed_message_account.data_is_empty()
-    {
-        return Err(Error::DuplicateMessage.into());
+    if verify_account_uninitialized(processed_message_account_info).is_err() {
+        return Err(Error::MessageAlreadyProcessed.into());
     }
 
     let spl_noop_id = spl_noop::id();
 
     // Accounts 5..N: the accounts required for getting the ISM the recipient wants to use.
-    let mut get_ism_accounts = vec![];
+    let mut get_ism_infos = vec![];
     let mut get_ism_account_metas = vec![];
     loop {
-        // Expect there to always be a new account as we loop through it
-        // because there are accounts after the ISM accounts that are expected.
-        let next_account = accounts_iter.peek().ok_or(ProgramError::InvalidArgument)?;
-        // We expect the account after this list of accounts to be the SPL noop.
-        if next_account.key == &spl_noop_id {
+        // We expect there to always be a new account as we loop through
+        // and use the SPL noop account ID as a marker for the end of the
+        // accounts required for getting the ISM.
+        let next_info = accounts_iter.peek().ok_or(ProgramError::InvalidArgument)?;
+        if next_info.key == &spl_noop_id {
             break;
         }
 
-        let account = next_account_info(accounts_iter)?;
+        let account_info = next_account_info(accounts_iter)?;
         let meta = AccountMeta {
-            pubkey: *account.key,
-            is_signer: account.is_signer,
-            is_writable: account.is_writable,
+            pubkey: *account_info.key,
+            is_signer: account_info.is_signer,
+            is_writable: account_info.is_writable,
         };
 
-        get_ism_accounts.push(account.clone());
+        get_ism_infos.push(account_info.clone());
         get_ism_account_metas.push(meta);
     }
 
     // Call into the recipient program to get the ISM to use.
     let ism = get_recipient_ism(
         &recipient_program_id,
-        get_ism_accounts,
+        get_ism_infos,
         get_ism_account_metas,
         inbox.default_ism,
     )?;
 
     // Account N: SPL Noop program.
-    let spl_noop = next_account_info(accounts_iter)?;
-    if spl_noop.key != &spl_noop_id || !spl_noop.executable {
+    let spl_noop_info = next_account_info(accounts_iter)?;
+    if spl_noop_info.key != &spl_noop_id || !spl_noop_info.executable {
         return Err(ProgramError::InvalidArgument);
     }
 
     // Account N+1: The ISM.
-    let ism_account = next_account_info(accounts_iter)?;
-    if &ism != ism_account.key {
-        return Err(ProgramError::from(Error::AccountOutOfOrder));
+    let ism_info = next_account_info(accounts_iter)?;
+    if &ism != ism_info.key {
+        return Err(ProgramError::InvalidArgument);
     }
 
     // Account N+2..M: The accounts required for ISM verification.
-    let mut ism_verify_accounts = vec![];
+    let mut ism_verify_infos = vec![];
     let mut ism_verify_account_metas = vec![];
     loop {
-        // Expect there to always be a new account as we loop through it
-        // because there are accounts after the ISM accounts that are expected.
-        let next_account = accounts_iter.peek().ok_or(ProgramError::InvalidArgument)?;
-        if next_account.key == &recipient_program_id {
+        // We expect there to always be a new account as we loop through
+        // and use the recipient program ID as a marker for the end of the
+        // accounts required for ISM verification.
+        let next_info = accounts_iter.peek().ok_or(ProgramError::InvalidArgument)?;
+        if next_info.key == &recipient_program_id {
             break;
         }
 
-        let info = next_account_info(accounts_iter)?;
+        let account_info = next_account_info(accounts_iter)?;
         let meta = AccountMeta {
-            pubkey: *info.key,
-            is_signer: info.is_signer,
-            is_writable: info.is_writable,
+            pubkey: *account_info.key,
+            is_signer: account_info.is_signer,
+            is_writable: account_info.is_writable,
         };
-        ism_verify_accounts.push(info.clone());
+        ism_verify_infos.push(account_info.clone());
         ism_verify_account_metas.push(meta);
     }
 
     // Account M+1: The recipient program.
-    let recipient_account = next_account_info(accounts_iter)?;
-    if &recipient_program_id != recipient_account.key || !recipient_account.executable {
-        return Err(ProgramError::from(Error::AccountOutOfOrder));
+    let recipient_info = next_account_info(accounts_iter)?;
+    if &recipient_program_id != recipient_info.key {
+        return Err(ProgramError::InvalidArgument);
+    }
+    if !recipient_info.executable {
+        return Err(ProgramError::InvalidAccountData);
     }
 
     // Account M+2..K: The accounts required for the recipient program handler.
-    let mut recp_accounts = vec![process_authority_account.clone()];
-    let mut recp_account_metas = vec![AccountMeta {
-        pubkey: *process_authority_account.key,
+    let mut recipient_infos = vec![process_authority_info.clone()];
+    let mut recipient_account_metas = vec![AccountMeta {
+        pubkey: *process_authority_info.key,
         is_signer: true,
         is_writable: false,
     }];
     for account_info in accounts_iter {
-        recp_accounts.push(account_info.clone());
-        recp_account_metas.push(AccountMeta {
+        recipient_infos.push(account_info.clone());
+        recipient_account_metas.push(AccountMeta {
             pubkey: *account_info.key,
             is_signer: account_info.is_signer,
             is_writable: account_info.is_writable,
@@ -336,44 +338,45 @@ fn inbox_process(
     });
     let verify =
         Instruction::new_with_bytes(ism, &verify_instruction.encode()?, ism_verify_account_metas);
-    invoke(&verify, &ism_verify_accounts)?;
+    invoke(&verify, &ism_verify_infos)?;
 
+    // Mark the message as delivered by creating the processed message account.
     let processed_message_account_data = ProcessedMessageAccount::from(ProcessedMessage::new(
         inbox.processed_count,
         message_id,
         Clock::get()?.slot,
     ));
     let processed_message_account_data_size = processed_message_account_data.size();
-    // Mark the message as delivered by creating the processed message account.
     create_pda_account(
-        payer_account,
+        payer_info,
         &Rent::get()?,
         processed_message_account_data_size,
         program_id,
-        system_program,
-        processed_message_account,
+        system_program_info,
+        processed_message_account_info,
         mailbox_processed_message_pda_seeds!(message_id, expected_processed_message_bump),
     )?;
     // Write the processed message data to the processed message account.
-    processed_message_account_data.store(processed_message_account, false)?;
+    processed_message_account_data.store(processed_message_account_info, false)?;
+
     // Increment the processed count and store the updated Inbox account.
     inbox.processed_count += 1;
-    InboxAccount::from(inbox).store(inbox_account, false)?;
+    InboxAccount::from(inbox).store(inbox_info, false)?;
 
     // Now call into the recipient program with the verified message!
-    let recp_ixn = MessageRecipientInstruction::Handle(HandleInstruction::new(
-        message.origin,
-        message.sender,
-        message.body,
-    ));
-    let recieve = Instruction::new_with_bytes(
+    let handle_intruction = Instruction::new_with_bytes(
         recipient_program_id,
-        &recp_ixn.encode()?,
-        recp_account_metas,
+        &MessageRecipientInstruction::Handle(HandleInstruction::new(
+            message.origin,
+            message.sender,
+            message.body,
+        ))
+        .encode()?,
+        recipient_account_metas,
     );
     invoke_signed(
-        &recieve,
-        &recp_accounts,
+        &handle_intruction,
+        &recipient_infos,
         &[mailbox_process_authority_pda_seeds!(
             &recipient_program_id,
             expected_process_authority_bump
@@ -408,34 +411,24 @@ fn inbox_get_recipient_ism(
     let accounts_iter = &mut accounts.iter();
 
     // Account 0: Inbox PDA.
-    let inbox_account = next_account_info(accounts_iter)?;
-    let inbox = InboxAccount::fetch(&mut &inbox_account.data.borrow()[..])?.into_inner();
-    let expected_inbox_key = Pubkey::create_program_address(
-        mailbox_inbox_pda_seeds!(inbox.inbox_bump_seed),
-        program_id,
-    )?;
-    if inbox_account.key != &expected_inbox_key {
-        return Err(ProgramError::InvalidArgument);
-    }
-    if inbox_account.owner != program_id {
-        return Err(ProgramError::IncorrectProgramId);
-    }
+    let inbox_info = next_account_info(accounts_iter)?;
+    let inbox = Inbox::verify_account_and_fetch_inner(program_id, inbox_info)?;
 
     // Account 1: The recipient program.
-    let recipient_account = next_account_info(accounts_iter)?;
-    if &recipient != recipient_account.key || !recipient_account.executable {
+    let recipient_info = next_account_info(accounts_iter)?;
+    if &recipient != recipient_info.key || !recipient_info.executable {
         return Err(ProgramError::InvalidArgument);
     }
 
     // Account 2..N: The accounts required to make the CPI into the recipient program.
     let mut account_infos = vec![];
     let mut account_metas = vec![];
-    for account in accounts_iter {
-        account_infos.push(account.clone());
+    for account_info in accounts_iter {
+        account_infos.push(account_info.clone());
         account_metas.push(AccountMeta {
-            pubkey: *account.key,
-            is_signer: account.is_signer,
-            is_writable: account.is_writable,
+            pubkey: *account_info.key,
+            is_signer: account_info.is_signer,
+            is_writable: account_info.is_writable,
         });
     }
 
@@ -461,22 +454,30 @@ fn get_recipient_ism(
     account_metas: Vec<AccountMeta>,
     default_ism: Pubkey,
 ) -> Result<Pubkey, ProgramError> {
-    let get_ism = MessageRecipientInstruction::InterchainSecurityModule;
-    let get_ism_instruction =
-        Instruction::new_with_bytes(*recipient_program_id, &get_ism.encode()?, account_metas);
+    let get_ism_instruction = Instruction::new_with_bytes(
+        *recipient_program_id,
+        &MessageRecipientInstruction::InterchainSecurityModule.encode()?,
+        account_metas,
+    );
     invoke(&get_ism_instruction, &account_infos)?;
 
-    // Default to the default ISM.
+    // Default to the default ISM if there is no return data or Option::None was returned.
     let ism = if let Some((returning_program_id, returned_data)) = get_return_data() {
         if &returning_program_id != recipient_program_id {
             return Err(ProgramError::InvalidAccountData);
         }
-        // If the recipient program returned data, use that as the ISM.
-        // If they returned an encoded Option::<Pubkey>::None, then use
-        // the default ISM.
-        Option::<Pubkey>::try_from_slice(&returned_data[..])
-            .map_err(|err| ProgramError::BorshIoError(err.to_string()))?
-            .unwrap_or(default_ism)
+        // It's possible for the Some above to match but there is no return data.
+        // We just want to default to the default ISM in that case.
+        if returned_data.is_empty() {
+            default_ism
+        } else {
+            // If the recipient program returned data, use that as the ISM.
+            // If they returned an encoded Option::<Pubkey>::None, then use
+            // the default ISM.
+            Option::<Pubkey>::try_from_slice(&returned_data[..])
+                .map_err(|err| ProgramError::BorshIoError(err.to_string()))?
+                .unwrap_or(default_ism)
+        }
     } else {
         // If no return data, default to the default ISM.
         default_ism
@@ -494,51 +495,31 @@ fn get_recipient_ism(
 fn inbox_set_default_ism(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
-    ism: InboxSetDefaultModule,
+    ism: Pubkey,
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
     // Account 0: Inbox PDA account.
-    let inbox_account = next_account_info(accounts_iter)?;
-    let mut inbox = InboxAccount::fetch(&mut &inbox_account.data.borrow_mut()[..])?.into_inner();
-    let expected_inbox_key = Pubkey::create_program_address(
-        mailbox_inbox_pda_seeds!(inbox.inbox_bump_seed),
-        program_id,
-    )?;
-    if inbox_account.key != &expected_inbox_key {
-        return Err(ProgramError::InvalidArgument);
-    }
-    if inbox_account.owner != program_id {
-        return Err(ProgramError::IncorrectProgramId);
-    }
+    let inbox_info = next_account_info(accounts_iter)?;
+    let mut inbox = Inbox::verify_account_and_fetch_inner(program_id, inbox_info)?;
 
     // Account 1: Outbox PDA account.
-    let outbox_account = next_account_info(accounts_iter)?;
-    let outbox = OutboxAccount::fetch(&mut &outbox_account.data.borrow_mut()[..])?.into_inner();
-    let expected_outbox_key = Pubkey::create_program_address(
-        mailbox_outbox_pda_seeds!(outbox.outbox_bump_seed),
-        program_id,
-    )?;
-    if outbox_account.key != &expected_outbox_key {
-        return Err(ProgramError::InvalidArgument);
-    }
-    if outbox_account.owner != program_id {
-        return Err(ProgramError::IncorrectProgramId);
-    }
+    let outbox_info = next_account_info(accounts_iter)?;
+    let outbox = Outbox::verify_account_and_fetch_inner(program_id, outbox_info)?;
 
     // Account 2: The owner of the Mailbox.
-    let owner_account = next_account_info(accounts_iter)?;
+    let owner_info = next_account_info(accounts_iter)?;
     // Errors if the owner account isn't correct or isn't a signer.
-    outbox.ensure_owner_signer(owner_account)?;
+    outbox.ensure_owner_signer(owner_info)?;
 
     if accounts_iter.next().is_some() {
         return Err(ProgramError::from(Error::ExtraneousAccount));
     }
 
     // Set the new default ISM.
-    inbox.default_ism = ism.program_id;
+    inbox.default_ism = ism;
     // Store the updated inbox.
-    InboxAccount::from(inbox).store(inbox_account, true)?;
+    InboxAccount::from(inbox).store(inbox_info, false)?;
 
     Ok(())
 }
@@ -549,8 +530,9 @@ fn inbox_set_default_ism(
 /// in order for the sender field of the message to be set to the sending program
 /// ID. Otherwise, the sender field of the message is set to the message sender signer.
 ///
-/// Accounts:
+/// Sets the ID of the message as return data.
 ///
+/// Accounts:
 /// 0. [writeable] Outbox PDA.
 /// 1. [signer] Message sender signer.
 /// 2. [executable] System program.
@@ -567,28 +549,18 @@ fn outbox_dispatch(
     let accounts_iter = &mut accounts.iter();
 
     // Account 0: Outbox PDA.
-    let outbox_account = next_account_info(accounts_iter)?;
-    let mut outbox = OutboxAccount::fetch(&mut &outbox_account.data.borrow_mut()[..])?.into_inner();
-    let expected_outbox_key = Pubkey::create_program_address(
-        mailbox_outbox_pda_seeds!(outbox.outbox_bump_seed),
-        program_id,
-    )?;
-    if outbox_account.key != &expected_outbox_key || outbox_account.owner != program_id {
-        return Err(ProgramError::IncorrectProgramId);
-    }
-    if !outbox_account.is_writable {
-        return Err(ProgramError::InvalidArgument);
-    }
+    let outbox_info = next_account_info(accounts_iter)?;
+    let mut outbox = Outbox::verify_account_and_fetch_inner(program_id, outbox_info)?;
 
     // Account 1: Message sender signer.
-    let sender_signer = next_account_info(accounts_iter)?;
-    if !sender_signer.is_signer {
+    let sender_signer_info = next_account_info(accounts_iter)?;
+    if !sender_signer_info.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
     }
     // If the sender signer key differs from the specified dispatch.sender,
     // we need to confirm that the sender signer has the authority to sign
     // on behalf of the dispatch.sender!
-    if *sender_signer.key != dispatch.sender {
+    if *sender_signer_info.key != dispatch.sender {
         // TODO would be great to have the bump in here...
         // Maybe shove it into the data of the sender_signer?
         let (expected_signer_key, _expected_signer_bump) = Pubkey::find_program_address(
@@ -597,53 +569,48 @@ fn outbox_dispatch(
         );
         // If the sender_signer isn't the expected dispatch authority for the
         // specified dispatch.sender, fail.
-        if expected_signer_key != *sender_signer.key {
+        if expected_signer_key != *sender_signer_info.key {
             return Err(ProgramError::MissingRequiredSignature);
         }
     }
 
     // Account 2: System program.
-    let system_program_account = next_account_info(accounts_iter)?;
-    if system_program_account.key != &solana_program::system_program::id() {
+    let system_program_info = next_account_info(accounts_iter)?;
+    if system_program_info.key != &solana_program::system_program::id() {
         return Err(ProgramError::InvalidArgument);
     }
 
     // Account 3: SPL Noop program.
-    let spl_noop = next_account_info(accounts_iter)?;
-    if spl_noop.key != &spl_noop::id() || !spl_noop.executable {
+    let spl_noop_info = next_account_info(accounts_iter)?;
+    if spl_noop_info.key != &spl_noop::id() || !spl_noop_info.executable {
         return Err(ProgramError::InvalidArgument);
     }
 
     // Account 4: Payer.
-    let payer_account = next_account_info(accounts_iter)?;
-    if !payer_account.is_signer {
+    let payer_info = next_account_info(accounts_iter)?;
+    if !payer_info.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
     }
 
     // Account 5: Unique message account.
     // Uniqueness is enforced by making sure the message storage PDA based on
     // this unique message account is empty, which is done next.
-    let unique_message_account = next_account_info(accounts_iter)?;
-    if !unique_message_account.is_signer {
+    let unique_message_account_info = next_account_info(accounts_iter)?;
+    if !unique_message_account_info.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
     }
 
     // Account 6: Dispatched message PDA.
-    let dispatched_message_pda = next_account_info(accounts_iter)?;
+    let dispatched_message_account_info = next_account_info(accounts_iter)?;
     let (dispatched_message_key, dispatched_message_bump) = Pubkey::find_program_address(
-        mailbox_dispatched_message_pda_seeds!(unique_message_account.key),
+        mailbox_dispatched_message_pda_seeds!(unique_message_account_info.key),
         program_id,
     );
-    if dispatched_message_key != *dispatched_message_pda.key {
-        return Err(ProgramError::IncorrectProgramId);
-    }
-    // Make sure an account can't be written to that already exists.
-    if !dispatched_message_pda.data_is_empty()
-        || *dispatched_message_pda.owner != solana_program::system_program::id()
-        || dispatched_message_pda.lamports() != 0
-    {
+    if dispatched_message_key != *dispatched_message_account_info.key {
         return Err(ProgramError::InvalidArgument);
     }
+    // Make sure an account can't be written to that already exists.
+    verify_account_uninitialized(dispatched_message_account_info)?;
 
     if accounts_iter.next().is_some() {
         return Err(ProgramError::from(Error::ExtraneousAccount));
@@ -679,51 +646,49 @@ fn outbox_dispatch(
     let dispatched_message_account = DispatchedMessageAccount::from(DispatchedMessage::new(
         message.nonce,
         Clock::get()?.slot,
-        *unique_message_account.key,
+        *unique_message_account_info.key,
         encoded_message,
     ));
     let dispatched_message_account_size: usize = dispatched_message_account.size();
     create_pda_account(
-        payer_account,
+        payer_info,
         &Rent::get()?,
         dispatched_message_account_size,
         program_id,
-        system_program_account,
-        dispatched_message_pda,
-        mailbox_dispatched_message_pda_seeds!(unique_message_account.key, dispatched_message_bump),
+        system_program_info,
+        dispatched_message_account_info,
+        mailbox_dispatched_message_pda_seeds!(
+            unique_message_account_info.key,
+            dispatched_message_bump
+        ),
     )?;
-    dispatched_message_account.store(dispatched_message_pda, false)?;
+    dispatched_message_account.store(dispatched_message_account_info, false)?;
 
     // Log the message using the SPL Noop program.
     let noop_cpi_log = Instruction {
-        program_id: *spl_noop.key,
+        program_id: *spl_noop_info.key,
         accounts: vec![],
-        data: dispatched_message_pda.data.borrow().to_vec(),
+        data: dispatched_message_account_info.data.borrow().to_vec(),
     };
     invoke(&noop_cpi_log, &[])?;
 
     // Store the Outbox with the new updates.
-    OutboxAccount::from(outbox).store(outbox_account, true)?;
+    OutboxAccount::from(outbox).store(outbox_info, true)?;
 
     set_return_data(id.as_ref());
     Ok(())
 }
 
+/// Gets the number of dispatched messages as little endian encoded return data.
+///
+/// Accounts:
+/// 0. [] Outbox PDA account.
 fn outbox_get_count(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
-    let outbox_account = next_account_info(accounts_iter)?;
-    let outbox = OutboxAccount::fetch(&mut &outbox_account.data.borrow_mut()[..])?.into_inner();
-    let expected_outbox_key = Pubkey::create_program_address(
-        mailbox_outbox_pda_seeds!(outbox.outbox_bump_seed),
-        program_id,
-    )?;
-    if outbox_account.key != &expected_outbox_key {
-        return Err(ProgramError::InvalidArgument);
-    }
-    if outbox_account.owner != program_id {
-        return Err(ProgramError::IncorrectProgramId);
-    }
+    // Account 0: Outbox PDA.
+    let outbox_info = next_account_info(accounts_iter)?;
+    let outbox = Outbox::verify_account_and_fetch_inner(program_id, outbox_info)?;
 
     if accounts_iter.next().is_some() {
         return Err(ProgramError::from(Error::ExtraneousAccount));
@@ -738,21 +703,15 @@ fn outbox_get_count(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramRes
     Ok(())
 }
 
+/// Gets the latest checkpoint as return data.
+///
+/// Accounts:
+/// 0. [] Outbox PDA account.
 fn outbox_get_latest_checkpoint(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
-    let outbox_account = next_account_info(accounts_iter)?;
-    let outbox = OutboxAccount::fetch(&mut &outbox_account.data.borrow_mut()[..])?.into_inner();
-    let expected_outbox_key = Pubkey::create_program_address(
-        mailbox_outbox_pda_seeds!(outbox.outbox_bump_seed),
-        program_id,
-    )?;
-    if outbox_account.key != &expected_outbox_key {
-        return Err(ProgramError::InvalidArgument);
-    }
-    if outbox_account.owner != program_id {
-        return Err(ProgramError::IncorrectProgramId);
-    }
+    let outbox_info = next_account_info(accounts_iter)?;
+    let outbox = Outbox::verify_account_and_fetch_inner(program_id, outbox_info)?;
 
     if accounts_iter.next().is_some() {
         return Err(ProgramError::from(Error::ExtraneousAccount));
@@ -772,21 +731,16 @@ fn outbox_get_latest_checkpoint(program_id: &Pubkey, accounts: &[AccountInfo]) -
     Ok(())
 }
 
+/// Gets the root as return data.
+///
+/// Accounts:
+/// 0. [] Outbox PDA account.
 fn outbox_get_root(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
-    let outbox_account = next_account_info(accounts_iter)?;
-    let outbox = OutboxAccount::fetch(&mut &outbox_account.data.borrow_mut()[..])?.into_inner();
-    let expected_outbox_key = Pubkey::create_program_address(
-        mailbox_outbox_pda_seeds!(outbox.outbox_bump_seed),
-        program_id,
-    )?;
-    if outbox_account.key != &expected_outbox_key {
-        return Err(ProgramError::InvalidArgument);
-    }
-    if outbox_account.owner != program_id {
-        return Err(ProgramError::IncorrectProgramId);
-    }
+    // Account 0: Outbox PDA.
+    let outbox_info = next_account_info(accounts_iter)?;
+    let outbox = Outbox::verify_account_and_fetch_inner(program_id, outbox_info)?;
 
     if accounts_iter.next().is_some() {
         return Err(ProgramError::from(Error::ExtraneousAccount));
@@ -805,18 +759,8 @@ fn get_owner(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
     // Account 0: Outbox PDA.
-    let outbox_account = next_account_info(accounts_iter)?;
-    let outbox = OutboxAccount::fetch(&mut &outbox_account.data.borrow_mut()[..])?.into_inner();
-    let expected_outbox_key = Pubkey::create_program_address(
-        mailbox_outbox_pda_seeds!(outbox.outbox_bump_seed),
-        program_id,
-    )?;
-    if outbox_account.key != &expected_outbox_key {
-        return Err(ProgramError::InvalidArgument);
-    }
-    if outbox_account.owner != program_id {
-        return Err(ProgramError::IncorrectProgramId);
-    }
+    let outbox_info = next_account_info(accounts_iter)?;
+    let outbox = Outbox::verify_account_and_fetch_inner(program_id, outbox_info)?;
 
     set_return_data(
         &outbox
@@ -840,471 +784,16 @@ fn transfer_ownership(
     let accounts_iter = &mut accounts.iter();
 
     // Account 0: Outbox PDA.
-    let outbox_account = next_account_info(accounts_iter)?;
-    let mut outbox = OutboxAccount::fetch(&mut &outbox_account.data.borrow_mut()[..])?.into_inner();
-    let expected_outbox_key = Pubkey::create_program_address(
-        mailbox_outbox_pda_seeds!(outbox.outbox_bump_seed),
-        program_id,
-    )?;
-    if outbox_account.key != &expected_outbox_key {
-        return Err(ProgramError::InvalidArgument);
-    }
-    if outbox_account.owner != program_id {
-        return Err(ProgramError::IncorrectProgramId);
-    }
+    let outbox_info = next_account_info(accounts_iter)?;
+    let mut outbox = Outbox::verify_account_and_fetch_inner(program_id, outbox_info)?;
 
     // Account 1: Current owner.
-    let owner_account = next_account_info(accounts_iter)?;
+    let owner_info = next_account_info(accounts_iter)?;
     // Errors if the owner_account is not the actual owner or is not a signer.
-    outbox.transfer_ownership(owner_account, new_owner)?;
+    outbox.transfer_ownership(owner_info, new_owner)?;
 
     // Store the updated outbox.
-    OutboxAccount::from(outbox).store(outbox_account, false)?;
+    OutboxAccount::from(outbox).store(outbox_info, false)?;
 
     Ok(())
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    use std::str::FromStr;
-
-    use hyperlane_core::{accumulator::incremental::IncrementalMerkle as MerkleTree, Encode};
-    use itertools::Itertools as _;
-    use solana_program::clock::Epoch;
-
-    struct SyscallStubs {}
-    impl solana_program::program_stubs::SyscallStubs for SyscallStubs {
-        fn sol_log(&self, message: &str) {
-            log::info!("{}", message);
-        }
-        fn sol_log_data(&self, fields: &[&[u8]]) {
-            log::info!("data: {}", fields.iter().map(base64::encode).join(" "));
-        }
-    }
-
-    struct ExampleMetadata {
-        // Depends on which ISM is used.
-        pub root: H256,
-        pub index: u32,
-        pub leaf_index: u32,
-        pub signatures: Vec<H256>,
-    }
-    impl Encode for ExampleMetadata {
-        fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
-        where
-            W: std::io::Write,
-        {
-            writer.write_all(&self.root.as_ref())?;
-            writer.write_all(&self.index.to_be_bytes())?;
-            writer.write_all(&self.leaf_index.to_be_bytes())?;
-            for signature in &self.signatures {
-                writer.write_all(signature.as_ref())?;
-            }
-            Ok(32 + 4 + 4 + (32 * 32) + (self.signatures.len() * 32))
-        }
-    }
-
-    fn setup_logging() {
-        solana_program::program_stubs::set_syscall_stubs(Box::new(SyscallStubs {}));
-        testing_logger::setup();
-    }
-
-    // Now that the Clock sysvar is used in inbox_process, this test also doesn't work!
-    // Need to move over to functional tests.
-    #[ignore]
-    #[test]
-    fn test_inbox_process() {
-        setup_logging();
-
-        let recipient_program_id = Pubkey::new_from_array([42; 32]);
-
-        let message = HyperlaneMessage {
-            version: VERSION,
-            nonce: 1,
-            origin: u32::MAX,
-            sender: H256::repeat_byte(69),
-            destination: u32::MAX,
-            recipient: H256::from(recipient_program_id.to_bytes()),
-            body: "Hello, World!".bytes().collect(),
-        };
-        let mut encoded_message = vec![];
-        message.write_to(&mut encoded_message).unwrap();
-        let message_id = message.id();
-
-        let local_domain = u32::MAX;
-        let mailbox_program_id = Pubkey::new_unique();
-        let system_program_id = solana_program::system_program::id();
-
-        let payer = Pubkey::new_unique();
-        let mut payer_account_lamports = 1000000000;
-        let mut payer_account_data = vec![];
-        let payer_account = AccountInfo::new(
-            &payer,
-            true,
-            false,
-            &mut payer_account_lamports,
-            &mut payer_account_data,
-            &system_program_id,
-            false,
-            Epoch::default(),
-        );
-
-        let (inbox_account_key, inbox_bump_seed) =
-            Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), &mailbox_program_id);
-        let mut inbox_account_lamports = 0;
-        let mut inbox_account_data = vec![0_u8; 2048];
-        let inbox_account = AccountInfo::new(
-            &inbox_account_key,
-            false,
-            true,
-            &mut inbox_account_lamports,
-            &mut inbox_account_data,
-            &mailbox_program_id,
-            false,
-            Epoch::default(),
-        );
-        let inbox_init_data = Inbox {
-            local_domain,
-            inbox_bump_seed,
-            ..Default::default()
-        };
-        InboxAccount::from(inbox_init_data)
-            .store(&inbox_account, false)
-            .unwrap();
-
-        let (process_authority_account_key, _process_authority_bump_seed) =
-            Pubkey::find_program_address(
-                mailbox_process_authority_pda_seeds!(recipient_program_id),
-                &mailbox_program_id,
-            );
-        let mut process_authority_account_lamports = 0;
-        let mut process_authority_account_data = vec![];
-        let process_authority_account = AccountInfo::new(
-            // Public key of the account
-            &process_authority_account_key,
-            // Was the transaction signed by this account's public key?
-            false,
-            // Is the account writable?
-            false,
-            // The lamports in the account. Modifiable by programs.
-            &mut process_authority_account_lamports,
-            // The data held in this account. Modifiable by programs.
-            &mut process_authority_account_data,
-            // Program that owns this account.
-            &mailbox_program_id,
-            // This account's data contains a loaded program (and is now read-only).
-            false,
-            // The epoch at which this account will next owe rent.
-            Epoch::default(),
-        );
-
-        let (processed_message_account_key, _processed_message_bump_seed) =
-            Pubkey::find_program_address(
-                mailbox_processed_message_pda_seeds!(message_id),
-                &mailbox_program_id,
-            );
-        let mut processed_message_account_lamports = 0;
-        let mut processed_message_account_data = vec![];
-        let processed_message_account = AccountInfo::new(
-            // Public key of the account
-            &processed_message_account_key,
-            false,
-            true,
-            &mut processed_message_account_lamports,
-            &mut processed_message_account_data,
-            &system_program_id,
-            false,
-            Epoch::default(),
-        );
-
-        let mut spl_noop_lamports = 0;
-        let mut spl_noop_data = vec![];
-        let spl_noop_id = spl_noop::id();
-        let spl_noop_account = AccountInfo::new(
-            &spl_noop_id,
-            false,
-            false,
-            &mut spl_noop_lamports,
-            &mut spl_noop_data,
-            &system_program_id,
-            true,
-            Epoch::default(),
-        );
-
-        let ism_account_key = Pubkey::from_str(crate::DEFAULT_ISM).unwrap();
-        let mut ism_account_lamports = 0;
-        let mut ism_account_data = vec![0_u8; 1024];
-        let ism_account = AccountInfo::new(
-            &ism_account_key,
-            false,
-            false,
-            &mut ism_account_lamports,
-            &mut ism_account_data,
-            &mailbox_program_id,
-            true,
-            Epoch::default(),
-        );
-
-        let mut recp_account_lamports = 0;
-        let mut recp_account_data = vec![0_u8; 1024];
-        let recp_account = AccountInfo::new(
-            &recipient_program_id,
-            false,
-            false,
-            &mut recp_account_lamports,
-            &mut recp_account_data,
-            &mailbox_program_id,
-            true,
-            Epoch::default(),
-        );
-        // Assume no recpient data accounts for now.
-
-        let metadata = ExampleMetadata {
-            root: Default::default(),
-            index: 1,
-            signatures: vec![],
-            leaf_index: message.nonce,
-        };
-        let mut encoded_metadata = vec![];
-        metadata.write_to(&mut encoded_metadata).unwrap();
-
-        let accounts = [
-            payer_account,
-            inbox_account,
-            process_authority_account,
-            processed_message_account,
-            spl_noop_account,
-            ism_account,
-            recp_account,
-        ];
-        let inbox_process = InboxProcess {
-            metadata: encoded_metadata,
-            message: encoded_message,
-        };
-        let instruction_data = MailboxIxn::InboxProcess(inbox_process)
-            .into_instruction_data()
-            .unwrap();
-
-        // TODO check that the message hasn't yet been delivered
-
-        process_instruction(&mailbox_program_id, &accounts, &instruction_data).unwrap();
-        testing_logger::validate(|logs| {
-            assert_eq!(logs.len(), 5);
-            assert_eq!(logs[0].level, log::Level::Info);
-            assert_eq!(
-                logs[0].body,
-                "SyscallStubs: sol_invoke_signed() not available"
-            );
-            assert_eq!(logs[1].level, log::Level::Info);
-            assert_eq!(
-                logs[1].body,
-                "SyscallStubs: sol_invoke_signed() not available"
-            );
-            assert_eq!(logs[2].level, log::Level::Info);
-            assert_eq!(
-                logs[2].body,
-                "SyscallStubs: sol_invoke_signed() not available"
-            );
-            assert_eq!(logs[3].level, log::Level::Info);
-            assert_eq!(
-                logs[3].body,
-                "SyscallStubs: sol_invoke_signed() not available"
-            );
-            assert_eq!(logs[4].level, log::Level::Info);
-            assert_eq!(
-                logs[4].body,
-                format!("Hyperlane inbox processed message {:?}", message.id()),
-            );
-        });
-        // Should check for message delivery here
-    }
-
-    // TODO: this is ignored because Dispatch now creates a PDA for outbound messages,
-    // which must be done in a functional test.
-    // Move this to a functional test!
-    #[ignore]
-    #[test]
-    fn test_outbox_dispatch() {
-        setup_logging();
-
-        let local_domain = u32::MAX;
-        let mailbox_program_id = Pubkey::new_unique();
-
-        let (outbox_account_key, outbox_bump_seed) =
-            Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), &mailbox_program_id);
-        let mut outbox_account_lamports = 0;
-        let mut outbox_account_data = vec![0_u8; 2048];
-        let outbox_account = AccountInfo::new(
-            &outbox_account_key,
-            false,
-            true,
-            &mut outbox_account_lamports,
-            &mut outbox_account_data,
-            &mailbox_program_id,
-            false,
-            Epoch::default(),
-        );
-        let outbox_init_data = Outbox {
-            local_domain,
-            outbox_bump_seed,
-            ..Default::default()
-        };
-        OutboxAccount::from(outbox_init_data)
-            .store(&outbox_account, false)
-            .unwrap();
-
-        let sender = Pubkey::new_from_array([6; 32]);
-        let hyperlane_message = HyperlaneMessage {
-            version: VERSION,
-            nonce: 0,
-            origin: u32::MAX,
-            sender: H256(sender.to_bytes()),
-            destination: u32::MAX,
-            recipient: H256([9; 32]),
-            body: "Hello, World!".bytes().collect(),
-        };
-        let dispatch = OutboxDispatch {
-            sender: sender.clone(),
-            destination_domain: hyperlane_message.destination,
-            recipient: hyperlane_message.recipient,
-            message_body: hyperlane_message.body.clone(),
-        };
-        let instruction_data = MailboxIxn::OutboxDispatch(dispatch)
-            .into_instruction_data()
-            .unwrap();
-
-        let system_program_id = solana_program::system_program::id();
-
-        let mut sender_account_lamports = 0;
-        let mut sender_account_data = vec![];
-        let sender_account = AccountInfo::new(
-            &sender,
-            true,
-            false,
-            &mut sender_account_lamports,
-            &mut sender_account_data,
-            &system_program_id,
-            false,
-            Epoch::default(),
-        );
-
-        let mut system_program_lamports = 0;
-        let mut system_program_data = vec![];
-        let system_program_account = AccountInfo::new(
-            &system_program_id,
-            false,
-            false,
-            &mut system_program_lamports,
-            &mut system_program_data,
-            &system_program_id,
-            true,
-            Epoch::default(),
-        );
-
-        let mut spl_noop_lamports = 0;
-        let mut spl_noop_data = vec![];
-        let spl_noop_id = spl_noop::id();
-        let spl_noop_account = AccountInfo::new(
-            &spl_noop_id,
-            false,
-            false,
-            &mut spl_noop_lamports,
-            &mut spl_noop_data,
-            &system_program_id,
-            true,
-            Epoch::default(),
-        );
-
-        let payer = Pubkey::new_from_array([69; 32]);
-        let mut payer_account_lamports = 1000000000;
-        let mut payer_account_data = vec![];
-        let payer_account = AccountInfo::new(
-            &payer,
-            true,
-            false,
-            &mut payer_account_lamports,
-            &mut payer_account_data,
-            &system_program_id,
-            false,
-            Epoch::default(),
-        );
-
-        let unique_message_account_pubkey = Pubkey::new_from_array([22; 32]);
-        let mut unique_message_account_lamports = 0;
-        let mut unique_message_account_data = vec![];
-        let unique_message_account = AccountInfo::new(
-            &unique_message_account_pubkey,
-            true,
-            false,
-            &mut unique_message_account_lamports,
-            &mut unique_message_account_data,
-            &system_program_id,
-            false,
-            Epoch::default(),
-        );
-
-        let (dispatched_message_account_pubkey, _dispatched_message_bump) =
-            Pubkey::find_program_address(
-                mailbox_dispatched_message_pda_seeds!(unique_message_account.key),
-                &mailbox_program_id,
-            );
-        let mut dispatched_message_account_lamports = 0;
-        let mut dispatched_message_account_data = vec![];
-        let dispatched_message_account = AccountInfo::new(
-            &dispatched_message_account_pubkey,
-            false,
-            true,
-            &mut dispatched_message_account_lamports,
-            &mut dispatched_message_account_data,
-            &system_program_id,
-            false,
-            Epoch::default(),
-        );
-
-        let accounts = vec![
-            outbox_account,
-            sender_account,
-            system_program_account,
-            spl_noop_account,
-            payer_account,
-            unique_message_account,
-            dispatched_message_account,
-        ];
-        let outbox = OutboxAccount::fetch(&mut &accounts[0].data.borrow_mut()[..])
-            .unwrap()
-            .into_inner();
-        assert_eq!(outbox.tree.count(), 0);
-        assert_eq!(outbox.tree.root(), MerkleTree::default().root());
-
-        process_instruction(&mailbox_program_id, &accounts, &instruction_data).unwrap();
-
-        let mut formatted = vec![];
-        hyperlane_message.write_to(&mut formatted).unwrap();
-
-        testing_logger::validate(|logs| {
-            assert_eq!(logs.len(), 2);
-            assert_eq!(logs[0].level, log::Level::Info);
-            assert_eq!(
-                logs[0].body,
-                format!("data = {}", bs58::encode(&formatted).into_string()),
-            );
-            assert_eq!(logs[1].level, log::Level::Info);
-            assert_eq!(
-                logs[1].body,
-                "SyscallStubs: sol_invoke_signed() not available"
-            );
-        });
-        let outbox = OutboxAccount::fetch(&mut &accounts[0].data.borrow_mut()[..])
-            .unwrap()
-            .into_inner();
-        assert_eq!(outbox.tree.count(), 1);
-        assert_eq!(
-            outbox.tree.root(),
-            // TODO confirm this is accurate
-            H256::from_str("0xeb8a682022a127228200c65404f0be85f8d5827712f112d7b92928cdbdbcc073")
-                .unwrap()
-        );
-    }
 }

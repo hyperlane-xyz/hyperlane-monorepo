@@ -5,8 +5,9 @@ use solana_program::{
 };
 use solana_program_test::*;
 use solana_sdk::{
-    signature::Signer,
+    signature::{Signature, Signer},
     signer::keypair::Keypair,
+    signers::Signers,
     transaction::{Transaction, TransactionError},
 };
 
@@ -22,7 +23,10 @@ use hyperlane_sealevel_mailbox::{
 pub struct MailboxAccounts {
     pub program: Pubkey,
     pub inbox: Pubkey,
+    pub inbox_bump_seed: u8,
     pub outbox: Pubkey,
+    pub outbox_bump_seed: u8,
+    pub default_ism: Pubkey,
 }
 
 pub async fn initialize_mailbox(
@@ -30,16 +34,17 @@ pub async fn initialize_mailbox(
     mailbox_program_id: &Pubkey,
     payer: &Keypair,
     local_domain: u32,
-) -> MailboxAccounts {
+) -> Result<MailboxAccounts, BanksClientError> {
     let (inbox_account, inbox_bump) =
         Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), mailbox_program_id);
     let (outbox_account, outbox_bump) =
         Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), mailbox_program_id);
 
+    let default_ism = hyperlane_sealevel_ism_rubber_stamp::id();
+
     let ixn = MailboxInstruction::Init(InitMailbox {
         local_domain,
-        inbox_bump_seed: inbox_bump,
-        outbox_bump_seed: outbox_bump,
+        default_ism,
     });
     let init_instruction = Instruction {
         program_id: *mailbox_program_id,
@@ -52,21 +57,16 @@ pub async fn initialize_mailbox(
         ],
     };
 
-    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    let mut transaction = Transaction::new_signed_with_payer(
-        &[init_instruction],
-        Some(&payer.pubkey()),
-        &[payer],
-        recent_blockhash,
-    );
-    transaction.sign(&[payer], recent_blockhash);
-    banks_client.process_transaction(transaction).await.unwrap();
+    process_instruction(banks_client, init_instruction, payer, &[payer]).await?;
 
-    MailboxAccounts {
+    Ok(MailboxAccounts {
         program: *mailbox_program_id,
         inbox: inbox_account,
+        inbox_bump_seed: inbox_bump,
         outbox: outbox_account,
-    }
+        outbox_bump_seed: outbox_bump,
+        default_ism,
+    })
 }
 
 // ========= Balance utils =========
@@ -113,17 +113,14 @@ pub async fn transfer_lamports(
     to: &Pubkey,
     lamports: u64,
 ) {
-    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    let mut transaction = Transaction::new_with_payer(
-        &[solana_sdk::system_instruction::transfer(
-            &payer.pubkey(),
-            to,
-            lamports,
-        )],
-        Some(&payer.pubkey()),
-    );
-    transaction.sign(&[payer], recent_blockhash);
-    banks_client.process_transaction(transaction).await.unwrap();
+    process_instruction(
+        banks_client,
+        solana_sdk::system_instruction::transfer(&payer.pubkey(), to, lamports),
+        payer,
+        &[payer],
+    )
+    .await
+    .unwrap();
 }
 
 pub fn assert_transaction_error<T>(
@@ -136,4 +133,23 @@ pub fn assert_transaction_error<T>(
     } else {
         panic!("expected TransactionError");
     }
+}
+
+pub async fn process_instruction<T: Signers>(
+    banks_client: &mut BanksClient,
+    instruction: Instruction,
+    payer: &Keypair,
+    signers: &T,
+) -> Result<Signature, BanksClientError> {
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &[instruction],
+        Some(&payer.pubkey()),
+        signers,
+        recent_blockhash,
+    );
+    let signature = transaction.signatures[0];
+    banks_client.process_transaction(transaction).await?;
+
+    Ok(signature)
 }

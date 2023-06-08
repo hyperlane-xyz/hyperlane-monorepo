@@ -423,15 +423,6 @@ impl Mailbox for SealevelMailbox {
             .as_ref()
             .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
 
-        let inbox_account = self
-            .rpc_client
-            .get_account(&self.inbox.0)
-            .await
-            .map_err(ChainCommunicationError::from_other)?;
-        let inbox = contract::InboxAccount::fetch(&mut inbox_account.data.as_ref())
-            .map_err(ChainCommunicationError::from_other)?
-            .into_inner();
-
         let mut instructions = Vec::with_capacity(1);
         let commitment = CommitmentConfig::finalized();
 
@@ -876,7 +867,7 @@ pub(crate) mod contract {
     pub enum Instruction {
         Init(Init),
         InboxProcess(InboxProcess),
-        InboxSetDefaultModule(InboxSetDefaultModule),
+        InboxSetDefaultIsm(Pubkey),
         InboxGetRecipientIsm(Pubkey),
         OutboxDispatch(OutboxDispatch),
         OutboxGetCount,
@@ -916,13 +907,6 @@ pub(crate) mod contract {
     pub struct InboxProcess {
         pub metadata: Vec<u8>, // Encoded Multi-Signature ISM data, or similar.
         pub message: Vec<u8>,  // Encoded HyperlaneMessage
-    }
-
-    #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
-    pub struct InboxSetDefaultModule {
-        pub local_domain: u32,
-        pub program_id: Pubkey,
-        pub accounts: Vec<Pubkey>,
     }
 
     pub enum MessageRecipientInstruction {

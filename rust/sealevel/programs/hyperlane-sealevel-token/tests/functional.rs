@@ -126,7 +126,7 @@ async fn initialize_hyperlane_token(
         Pubkey::find_program_address(hyperlane_token_ata_payer_pda_seeds!(), &program_id);
 
     let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    let mut transaction = Transaction::new_with_payer(
+    let transaction = Transaction::new_signed_with_payer(
         &[
             Instruction::new_with_bytes(
                 *program_id,
@@ -163,8 +163,9 @@ async fn initialize_hyperlane_token(
             .unwrap(),
         ],
         Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
     );
-    transaction.sign(&[payer], recent_blockhash);
     banks_client.process_transaction(transaction).await?;
 
     Ok(HyperlaneTokenAccounts {
@@ -190,7 +191,7 @@ async fn enroll_remote_router(
 ) -> Result<(), BanksClientError> {
     let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
     // Enroll the remote router
-    let mut transaction = Transaction::new_with_payer(
+    let transaction = Transaction::new_signed_with_payer(
         &[Instruction::new_with_bytes(
             *program_id,
             &HyperlaneTokenInstruction::EnrollRemoteRouter(RemoteRouterConfig {
@@ -205,8 +206,9 @@ async fn enroll_remote_router(
             ],
         )],
         Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
     );
-    transaction.sign(&[payer], recent_blockhash);
     banks_client.process_transaction(transaction).await?;
 
     Ok(())
@@ -220,7 +222,9 @@ async fn test_initialize() {
     let (mut banks_client, payer) = setup_client().await;
 
     let mailbox_accounts =
-        initialize_mailbox(&mut banks_client, &mailbox_program_id, &payer, LOCAL_DOMAIN).await;
+        initialize_mailbox(&mut banks_client, &mailbox_program_id, &payer, LOCAL_DOMAIN)
+            .await
+            .unwrap();
 
     let hyperlane_token_accounts =
         initialize_hyperlane_token(&program_id, &mut banks_client, &payer)
@@ -317,7 +321,9 @@ async fn transfer_from_remote(
     let (mut banks_client, payer) = setup_client().await;
 
     let mailbox_accounts =
-        initialize_mailbox(&mut banks_client, &mailbox_program_id, &payer, LOCAL_DOMAIN).await;
+        initialize_mailbox(&mut banks_client, &mailbox_program_id, &payer, LOCAL_DOMAIN)
+            .await
+            .unwrap();
 
     let hyperlane_token_accounts =
         initialize_hyperlane_token(&program_id, &mut banks_client, &payer)
@@ -373,7 +379,7 @@ async fn transfer_from_remote(
         );
 
     let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    let mut transaction = Transaction::new_with_payer(
+    let transaction = Transaction::new_signed_with_payer(
         &[Instruction::new_with_borsh(
             mailbox_program_id,
             &MailboxInstruction::InboxProcess(InboxProcess {
@@ -420,8 +426,9 @@ async fn transfer_from_remote(
             ],
         )],
         Some(&payer.pubkey()),
+        &[&payer],
+        recent_blockhash,
     );
-    transaction.sign(&[&payer], recent_blockhash);
     banks_client.process_transaction(transaction).await?;
 
     Ok((
@@ -498,7 +505,9 @@ async fn test_transfer_from_remote_errors_if_process_authority_not_signer() {
     let (mut banks_client, payer) = setup_client().await;
 
     let _mailbox_accounts =
-        initialize_mailbox(&mut banks_client, &mailbox_program_id, &payer, LOCAL_DOMAIN).await;
+        initialize_mailbox(&mut banks_client, &mailbox_program_id, &payer, LOCAL_DOMAIN)
+            .await
+            .unwrap();
 
     let hyperlane_token_accounts =
         initialize_hyperlane_token(&program_id, &mut banks_client, &payer)
@@ -530,7 +539,7 @@ async fn test_transfer_from_remote_errors_if_process_authority_not_signer() {
 
     let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
     // Try calling directly into the message handler, skipping the mailbox.
-    let mut transaction = Transaction::new_with_payer(
+    let transaction = Transaction::new_signed_with_payer(
         &[Instruction::new_with_bytes(
             program_id,
             &MessageRecipientInstruction::Handle(HandleInstruction {
@@ -568,8 +577,9 @@ async fn test_transfer_from_remote_errors_if_process_authority_not_signer() {
             ],
         )],
         Some(&payer.pubkey()),
+        &[&payer],
+        recent_blockhash,
     );
-    transaction.sign(&[&payer], recent_blockhash);
     let result = banks_client.process_transaction(transaction).await;
 
     assert_transaction_error(
@@ -641,7 +651,7 @@ async fn test_transfer_remote() {
         convert_decimals(transfer_amount.into(), LOCAL_DECIMALS, REMOTE_DECIMALS).unwrap();
 
     let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    let mut transaction = Transaction::new_with_payer(
+    let transaction = Transaction::new_signed_with_payer(
         &[Instruction::new_with_bytes(
             program_id,
             &HyperlaneTokenInstruction::TransferRemote(TransferRemote {
@@ -679,8 +689,6 @@ async fn test_transfer_remote() {
             ],
         )],
         Some(&token_sender_pubkey),
-    );
-    transaction.sign(
         &[&token_sender, &unique_message_account_keypair],
         recent_blockhash,
     );
@@ -809,7 +817,7 @@ async fn test_enroll_remote_router_errors_if_not_signed_by_owner() {
     // owner account, but the owner isn't a signer:
     let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
     // Enroll the remote router
-    let mut transaction = Transaction::new_with_payer(
+    let transaction = Transaction::new_signed_with_payer(
         &[Instruction::new_with_bytes(
             program_id,
             &HyperlaneTokenInstruction::EnrollRemoteRouter(RemoteRouterConfig {
@@ -824,8 +832,9 @@ async fn test_enroll_remote_router_errors_if_not_signed_by_owner() {
             ],
         )],
         Some(&non_owner.pubkey()),
+        &[&non_owner],
+        recent_blockhash,
     );
-    transaction.sign(&[&non_owner], recent_blockhash);
     let result = banks_client.process_transaction(transaction).await;
     assert_transaction_error(
         result,
@@ -848,7 +857,7 @@ async fn test_transfer_ownership() {
 
     // Transfer ownership
     let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    let mut transaction = Transaction::new_with_payer(
+    let transaction = Transaction::new_signed_with_payer(
         &[Instruction::new_with_bytes(
             program_id,
             &HyperlaneTokenInstruction::TransferOwnership(new_owner)
@@ -860,8 +869,9 @@ async fn test_transfer_ownership() {
             ],
         )],
         Some(&payer.pubkey()),
+        &[&payer],
+        recent_blockhash,
     );
-    transaction.sign(&[&payer], recent_blockhash);
     banks_client.process_transaction(transaction).await.unwrap();
 
     // Verify the new owner is set
@@ -893,7 +903,7 @@ async fn test_transfer_ownership_errors_if_owner_not_signer() {
 
     // Try transferring ownership using the mint authority key
     let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    let mut transaction = Transaction::new_with_payer(
+    let transaction = Transaction::new_signed_with_payer(
         &[Instruction::new_with_bytes(
             program_id,
             &HyperlaneTokenInstruction::TransferOwnership(new_owner)
@@ -905,8 +915,9 @@ async fn test_transfer_ownership_errors_if_owner_not_signer() {
             ],
         )],
         Some(&non_owner.pubkey()),
+        &[&non_owner],
+        recent_blockhash,
     );
-    transaction.sign(&[&non_owner], recent_blockhash);
     let result = banks_client.process_transaction(transaction).await;
 
     assert_transaction_error(
@@ -931,7 +942,7 @@ async fn test_set_interchain_security_module() {
     // Set the ISM
     // Transfer ownership
     let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    let mut transaction = Transaction::new_with_payer(
+    let transaction = Transaction::new_signed_with_payer(
         &[Instruction::new_with_bytes(
             program_id,
             &HyperlaneTokenInstruction::SetInterchainSecurityModule(new_ism)
@@ -943,8 +954,9 @@ async fn test_set_interchain_security_module() {
             ],
         )],
         Some(&payer.pubkey()),
+        &[&payer],
+        recent_blockhash,
     );
-    transaction.sign(&[&payer], recent_blockhash);
     banks_client.process_transaction(transaction).await.unwrap();
 
     // Verify the new ISM is set
@@ -976,7 +988,7 @@ async fn test_set_interchain_security_module_errors_if_owner_not_signer() {
 
     // Try setting the ISM using the mint authority key
     let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    let mut transaction = Transaction::new_with_payer(
+    let transaction = Transaction::new_signed_with_payer(
         &[Instruction::new_with_bytes(
             program_id,
             &HyperlaneTokenInstruction::SetInterchainSecurityModule(new_ism)
@@ -988,8 +1000,9 @@ async fn test_set_interchain_security_module_errors_if_owner_not_signer() {
             ],
         )],
         Some(&non_owner.pubkey()),
+        &[&non_owner],
+        recent_blockhash,
     );
-    transaction.sign(&[&non_owner], recent_blockhash);
     let result = banks_client.process_transaction(transaction).await;
 
     assert_transaction_error(

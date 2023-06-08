@@ -1,12 +1,12 @@
 [package]
-name = "hyperlane-sealevel-mailbox"
+name = "hyperlane-sealevel-mailbox-test"
 version = "0.1.0"
 edition = "2021"
 
 [features]
 no-entrypoint = []
 
-[dependencies]
+[dev-dependencies]
 hyperlane-core = { path = "../../hyperlane-core" }
 borsh = "0.9"
 num-derive = "0.3"
@@ -16,21 +16,27 @@ thiserror = "1.0"
 access-control = { path = "../../libraries/access-control" }
 account-utils = { path = "../../libraries/account-utils" }
 serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
+hyperlane-sealevel-mailbox = { path = "../mailbox" }
 hyperlane-sealevel-message-recipient-interface = { path = "../../libraries/message-recipient-interface" }
 hyperlane-sealevel-interchain-security-module-interface = { path = "../../libraries/interchain-security-module-interface" }
 
 bs58 = "=0.4.0" # FIXME remove
 
-[dependencies.spl-noop]
+base64 = "0.13"
+itertools =  "0.10.1"
+log = "0.4"
+solana-program-test = "=1.14.13"
+solana-sdk = "=1.14.13"
+hyperlane-test-utils = { path = "../../libraries/test-utils" }
+hyperlane-sealevel-ism-rubber-stamp = { path = "../ism/rubber-stamp" }
+hyperlane-sealevel-test-ism = { path = "../ism/test-ism", features = ["test-client"] }
+hyperlane-sealevel-test-send-receiver = { path = "../test-send-receiver", features = ["test-client"] }
+
+[dev-dependencies.spl-noop]
 version = "=0.1.3"
 features = ["no-entrypoint"]
 git = "https://github.com/tkporter/eclipse-program-library"
 branch = "trevor/steven/eclipse-1.14.13/with-tlv-lib"
-
-[dev-dependencies]
-base64 = "0.13"
-itertools =  "0.10.1"
-log = "0.4"
 
 [lib]
 crate-type = ["cdylib", "lib"]

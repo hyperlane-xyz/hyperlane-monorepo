@@ -1,6 +1,6 @@
 //! Hyperlane Sealevel Mailbox data account layouts.
 
-use std::{io::Read, str::FromStr as _};
+use std::io::Read;
 
 use access_control::AccessControl;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -9,7 +9,7 @@ use solana_program::{
     account_info::AccountInfo, clock::Slot, program_error::ProgramError, pubkey::Pubkey,
 };
 
-use crate::{error::Error, DEFAULT_ISM};
+use crate::{error::Error, mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds};
 
 pub trait SizedData {
     fn size(&self) -> usize;
@@ -133,7 +133,7 @@ where
 
 pub type InboxAccount = AccountData<Inbox>;
 
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Default, PartialEq, Eq)]
 pub struct Inbox {
     pub local_domain: u32,
     pub inbox_bump_seed: u8,
@@ -141,25 +141,56 @@ pub struct Inbox {
     pub processed_count: u64,
 }
 
-impl Default for Inbox {
-    fn default() -> Self {
-        Self {
-            local_domain: 0,
-            inbox_bump_seed: 0,
-            default_ism: Pubkey::from_str(DEFAULT_ISM).unwrap(),
-            processed_count: 0,
+impl SizedData for Inbox {
+    fn size(&self) -> usize {
+        // 4 byte local_domain
+        // 1 byte inbox_bump_seed
+        // 32 byte default_ism
+        // 8 byte processed_count
+        4 + 1 + 32 + 8
+    }
+}
+
+impl Inbox {
+    pub fn verify_account_and_fetch_inner<'a>(
+        program_id: &Pubkey,
+        inbox_account_info: &AccountInfo<'a>,
+    ) -> Result<Self, ProgramError> {
+        let inbox =
+            InboxAccount::fetch(&mut &inbox_account_info.data.borrow_mut()[..])?.into_inner();
+        let expected_inbox_key = Pubkey::create_program_address(
+            mailbox_inbox_pda_seeds!(inbox.inbox_bump_seed),
+            program_id,
+        )?;
+        if inbox_account_info.key != &expected_inbox_key {
+            return Err(ProgramError::InvalidArgument);
         }
+        if inbox_account_info.owner != program_id {
+            return Err(ProgramError::IllegalOwner);
+        }
+
+        Ok(*inbox)
     }
 }
 
 pub type OutboxAccount = AccountData<Outbox>;
 
-#[derive(BorshSerialize, BorshDeserialize, Debug, Default)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Default, PartialEq, Eq)]
 pub struct Outbox {
     pub local_domain: u32,
     pub outbox_bump_seed: u8,
     pub owner: Option<Pubkey>,
     pub tree: MerkleTree,
+}
+
+impl SizedData for Outbox {
+    fn size(&self) -> usize {
+        // 4 byte local_domain
+        // 1 byte outbox_bump_seed
+        // 33 byte owner (1 byte enum variant, 32 byte pubkey)
+        // 1032 byte tree (32 * 32 = 1024 byte branch, 8 byte count)
+        4 + 1 + 33 + 1032
+    }
 }
 
 impl AccessControl for Outbox {
@@ -170,6 +201,28 @@ impl AccessControl for Outbox {
     fn set_owner(&mut self, owner: Option<Pubkey>) -> Result<(), ProgramError> {
         self.owner = owner;
         Ok(())
+    }
+}
+
+impl Outbox {
+    pub fn verify_account_and_fetch_inner(
+        program_id: &Pubkey,
+        outbox_account_info: &AccountInfo,
+    ) -> Result<Self, ProgramError> {
+        let outbox =
+            OutboxAccount::fetch(&mut &outbox_account_info.data.borrow_mut()[..])?.into_inner();
+        let expected_outbox_key = Pubkey::create_program_address(
+            mailbox_outbox_pda_seeds!(outbox.outbox_bump_seed),
+            program_id,
+        )?;
+        if outbox_account_info.key != &expected_outbox_key {
+            return Err(ProgramError::InvalidArgument);
+        }
+        if outbox_account_info.owner != program_id {
+            return Err(ProgramError::IllegalOwner);
+        }
+
+        Ok(*outbox)
     }
 }
 
@@ -326,6 +379,42 @@ mod test {
     use super::*;
 
     use solana_program::pubkey::Pubkey;
+
+    #[test]
+    fn test_outbox_ser_deser() {
+        let outbox = Outbox {
+            local_domain: 420,
+            outbox_bump_seed: 69,
+            owner: Some(Pubkey::new_unique()),
+            tree: MerkleTree::default(),
+        };
+
+        let mut serialized = vec![];
+        outbox.serialize(&mut serialized).unwrap();
+
+        let deserialized = Outbox::deserialize(&mut serialized.as_slice()).unwrap();
+
+        assert_eq!(outbox, deserialized);
+        assert_eq!(serialized.len(), outbox.size());
+    }
+
+    #[test]
+    fn test_inbox_ser_deser() {
+        let inbox = Inbox {
+            local_domain: 420,
+            inbox_bump_seed: 69,
+            default_ism: Pubkey::new_unique(),
+            processed_count: 69696969,
+        };
+
+        let mut serialized = vec![];
+        inbox.serialize(&mut serialized).unwrap();
+
+        let deserialized = Inbox::deserialize(&mut serialized.as_slice()).unwrap();
+
+        assert_eq!(inbox, deserialized);
+        assert_eq!(serialized.len(), inbox.size());
+    }
 
     #[test]
     fn test_dispatched_message_ser_deser() {

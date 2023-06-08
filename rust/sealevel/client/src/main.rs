@@ -107,6 +107,8 @@ struct Init {
     program_id: Pubkey,
     #[arg(long, short, default_value_t = ECLIPSE_DOMAIN)]
     local_domain: u32,
+    #[arg(long, short, default_value_t = DEFAULT_ISM_PROG_ID)]
+    default_ism: Pubkey,
 }
 
 #[derive(Args)]
@@ -380,8 +382,7 @@ fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
 
             let ixn = MailboxInstruction::Init(InitMailbox {
                 local_domain: init.local_domain,
-                inbox_bump_seed: inbox_bump,
-                outbox_bump_seed: outbox_bump,
+                default_ism: init.default_ism,
             });
             let init_instruction = Instruction {
                 program_id: init.program_id,

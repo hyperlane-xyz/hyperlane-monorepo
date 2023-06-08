@@ -23,7 +23,7 @@ pub enum Error {
     // #[error("Incorrect destination domain")]
     // IncorrectDestinationDomain = 4,
     // #[error("Message has already been processed")]
-    // DuplicateMessage = 5,
+    // MessageAlreadyProcessed = 5,
     // #[error("Transaction log budget exceeded so cannot emit event")]
     // LogBudgetExceeded = 7,
     // #[error("Message is larger than the maximum allowed")]

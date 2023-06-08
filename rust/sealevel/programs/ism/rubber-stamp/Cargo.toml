@@ -10,7 +10,6 @@ no-entrypoint = []
 borsh = "0.9"
 solana-program = "=1.14.13"
 hyperlane-core = { path = "../../../hyperlane-core" }
-hyperlane-sealevel-mailbox = { path = "../../mailbox", features = ["no-entrypoint"] }
 hyperlane-sealevel-interchain-security-module-interface = { path = "../../../libraries/interchain-security-module-interface" }
 
 [lib]

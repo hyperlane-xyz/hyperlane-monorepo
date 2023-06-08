@@ -14,7 +14,7 @@ pub const MAX_MESSAGE_BODY_BYTES: usize = 2 * 2_usize.pow(10);
 pub enum Instruction {
     Init(Init),
     InboxProcess(InboxProcess),
-    InboxSetDefaultModule(InboxSetDefaultModule),
+    InboxSetDefaultIsm(Pubkey),
     InboxGetRecipientIsm(Pubkey),
     OutboxDispatch(OutboxDispatch),
     OutboxGetCount,
@@ -38,8 +38,7 @@ impl Instruction {
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub struct Init {
     pub local_domain: u32,
-    pub inbox_bump_seed: u8,
-    pub outbox_bump_seed: u8,
+    pub default_ism: Pubkey,
 }
 
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
@@ -56,10 +55,4 @@ pub struct OutboxDispatch {
 pub struct InboxProcess {
     pub metadata: Vec<u8>, // Encoded Multi-Signature ISM data, or similar.
     pub message: Vec<u8>,  // Encoded HyperlaneMessage
-}
-
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
-pub struct InboxSetDefaultModule {
-    pub program_id: Pubkey,
-    pub accounts: Vec<Pubkey>,
 }
