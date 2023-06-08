@@ -6,6 +6,7 @@ use account_utils::DiscriminatorEncode;
 use borsh::BorshDeserialize;
 use solana_program::{
     instruction::{AccountMeta, Instruction},
+    pubkey,
     pubkey::Pubkey,
 };
 
@@ -37,12 +38,9 @@ use solana_sdk::{
     signer::keypair::Keypair,
     transaction::{Transaction, TransactionError},
 };
-use std::str::FromStr;
-
-// 2YjtZDiUoptoSsA5eVrDCcX6wxNK6YoEVW7y82x5Z2fw
 
 pub fn multisig_ism_message_id_id() -> Pubkey {
-    Pubkey::from_str("2YjtZDiUoptoSsA5eVrDCcX6wxNK6YoEVW7y82x5Z2fw").unwrap()
+    pubkey!("2YjtZDiUoptoSsA5eVrDCcX6wxNK6YoEVW7y82x5Z2fw")
 }
 
 async fn new_funded_keypair(

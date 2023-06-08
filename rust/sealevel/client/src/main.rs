@@ -24,13 +24,11 @@ use hyperlane_sealevel_multisig_ism_message_id::{
     instruction::{
         Domained, Instruction as MultisigIsmMessageIdInstruction, ValidatorsAndThreshold,
     },
-    ID as MULTISIG_ISM_MESSAGE_ID_PROG_ID,
 };
 use hyperlane_sealevel_recipient_echo::ID as RECIPIENT_ECHO_PROG_ID;
 use hyperlane_sealevel_token::{
     hyperlane_token_ata_payer_pda_seeds, hyperlane_token_mint_pda_seeds, plugin::SyntheticPlugin,
     spl_associated_token_account::get_associated_token_address_with_program_id, spl_token_2022,
-    ID as HYPERLANE_TOKEN_PROG_ID,
 };
 use hyperlane_sealevel_token_lib::{
     accounts::HyperlaneTokenAccount,
@@ -50,12 +48,13 @@ use hyperlane_sealevel_validator_announce::{
         Instruction as ValidatorAnnounceInstruction,
     },
     replay_protection_pda_seeds, validator_announce_pda_seeds,
-    validator_storage_locations_pda_seeds, ID as VALIDATOR_ANNOUNCE_PROG_ID,
+    validator_storage_locations_pda_seeds,
 };
 
 use solana_clap_utils::input_validators::{is_keypair, is_url, normalize_to_url_if_moniker};
 use solana_cli_config::{Config, CONFIG_FILE};
 use solana_client::rpc_client::RpcClient;
+use solana_program::pubkey;
 use solana_sdk::{
     commitment_config::CommitmentConfig,
     compute_budget::ComputeBudgetInstruction,
@@ -129,8 +128,11 @@ enum MailboxSubCmd {
     Delivered(Delivered),
 }
 
-// TODO fix
-const MAILBOX_PROG_ID: Pubkey = Pubkey::new_from_array([1u8; 32]);
+const MAILBOX_PROG_ID: Pubkey = pubkey!("692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1");
+const HYPERLANE_TOKEN_PROG_ID: Pubkey = pubkey!("3MzUPjP5LEkiHH82nEAe28Xtz9ztuMqWc8UmuKxrpVQH");
+const MULTISIG_ISM_MESSAGE_ID_PROG_ID: Pubkey =
+    pubkey!("2YjtZDiUoptoSsA5eVrDCcX6wxNK6YoEVW7y82x5Z2fw");
+const VALIDATOR_ANNOUNCE_PROG_ID: Pubkey = pubkey!("DH43ae1LwemXAboWwSh8zc9pG8j72gKUEXNi57w8fEnn");
 
 #[derive(Args)]
 struct Init {

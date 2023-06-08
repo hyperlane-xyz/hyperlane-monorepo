@@ -5,6 +5,7 @@ use std::str::FromStr;
 use borsh::BorshSerialize;
 use solana_program::{
     instruction::{AccountMeta, Instruction},
+    pubkey,
     pubkey::Pubkey,
     system_program,
 };
@@ -35,7 +36,7 @@ const TEST_MAILBOX: &str = "00000000000000000000000035231d4c2d8b8adcb5617a638a0c
 const TEST_DOMAIN: u32 = 1;
 
 fn validator_announce_id() -> Pubkey {
-    Pubkey::from_str("DH43ae1LwemXAboWwSh8zc9pG8j72gKUEXNi57w8fEnn").unwrap()
+    pubkey!("DH43ae1LwemXAboWwSh8zc9pG8j72gKUEXNi57w8fEnn")
 }
 
 fn get_test_mailbox() -> Pubkey {

@@ -1,5 +1,6 @@
 use solana_program::{
     instruction::{AccountMeta, Instruction},
+    pubkey,
     pubkey::Pubkey,
     system_program,
 };
@@ -11,8 +12,6 @@ use solana_sdk::{
     transaction::{Transaction, TransactionError},
 };
 
-use std::str::FromStr;
-
 use spl_token_2022::{extension::StateWithExtensions, state::Account};
 
 use hyperlane_sealevel_mailbox::{
@@ -23,7 +22,7 @@ use hyperlane_sealevel_mailbox::{
 // ========= Mailbox =========
 
 pub fn mailbox_id() -> Pubkey {
-    Pubkey::from_str("692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1").unwrap()
+    pubkey!("692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1")
 }
 
 pub struct MailboxAccounts {

@@ -6,6 +6,7 @@ use account_utils::DiscriminatorEncode;
 use hyperlane_core::{Encode, HyperlaneMessage, H256, U256};
 use solana_program::{
     instruction::{AccountMeta, Instruction},
+    pubkey,
     pubkey::Pubkey,
 };
 use std::collections::HashMap;
@@ -52,8 +53,12 @@ const LOCAL_DECIMALS_U32: u32 = LOCAL_DECIMALS as u32;
 const REMOTE_DOMAIN: u32 = 4321;
 const REMOTE_DECIMALS: u8 = 18;
 
+fn hyperlane_sealevel_token_native_id() -> Pubkey {
+    pubkey!("CGn8yNtSD3aTTqJfYhUb6s1aVTN75NzwtsFKo1e83aga")
+}
+
 async fn setup_client() -> (BanksClient, Keypair) {
-    let program_id = hyperlane_sealevel_token_native::id();
+    let program_id = hyperlane_sealevel_token_native_id();
     let mut program_test = ProgramTest::new(
         "hyperlane_sealevel_token_native",
         program_id,
@@ -188,7 +193,7 @@ async fn enroll_remote_router(
 
 #[tokio::test]
 async fn test_initialize() {
-    let program_id = hyperlane_sealevel_token_native::id();
+    let program_id = hyperlane_sealevel_token_native_id();
     let mailbox_program_id = mailbox_id();
 
     let (mut banks_client, payer) = setup_client().await;
@@ -242,7 +247,7 @@ async fn test_initialize() {
 
 #[tokio::test]
 async fn test_initialize_errors_if_called_twice() {
-    let program_id = hyperlane_sealevel_token_native::id();
+    let program_id = hyperlane_sealevel_token_native_id();
 
     let (mut banks_client, payer) = setup_client().await;
 
@@ -264,7 +269,7 @@ async fn test_initialize_errors_if_called_twice() {
 
 #[tokio::test]
 async fn test_transfer_remote() {
-    let program_id = hyperlane_sealevel_token_native::id();
+    let program_id = hyperlane_sealevel_token_native_id();
     let mailbox_program_id = mailbox_id();
 
     let (mut banks_client, payer) = setup_client().await;
@@ -436,7 +441,7 @@ async fn transfer_from_remote(
     sender_override: Option<H256>,
     origin_override: Option<u32>,
 ) -> Result<(BanksClient, HyperlaneTokenAccounts, Pubkey), BanksClientError> {
-    let program_id = hyperlane_sealevel_token_native::id();
+    let program_id = hyperlane_sealevel_token_native_id();
     let mailbox_program_id = mailbox_id();
 
     let (mut banks_client, payer) = setup_client().await;
@@ -629,7 +634,7 @@ async fn test_transfer_from_remote_errors_if_sender_not_router() {
 
 #[tokio::test]
 async fn test_transfer_from_remote_errors_if_process_authority_not_signer() {
-    let program_id = hyperlane_sealevel_token_native::id();
+    let program_id = hyperlane_sealevel_token_native_id();
     let mailbox_program_id = mailbox_id();
 
     let (mut banks_client, payer) = setup_client().await;
@@ -707,7 +712,7 @@ async fn test_transfer_from_remote_errors_if_process_authority_not_signer() {
 
 #[tokio::test]
 async fn test_enroll_remote_router() {
-    let program_id = hyperlane_sealevel_token_native::id();
+    let program_id = hyperlane_sealevel_token_native_id();
 
     let (mut banks_client, payer) = setup_client().await;
 
@@ -747,7 +752,7 @@ async fn test_enroll_remote_router() {
 
 #[tokio::test]
 async fn test_enroll_remote_router_errors_if_not_signed_by_owner() {
-    let program_id = hyperlane_sealevel_token_native::id();
+    let program_id = hyperlane_sealevel_token_native_id();
 
     let (mut banks_client, payer) = setup_client().await;
 
@@ -806,7 +811,7 @@ async fn test_enroll_remote_router_errors_if_not_signed_by_owner() {
 
 #[tokio::test]
 async fn test_transfer_ownership() {
-    let program_id = hyperlane_sealevel_token_native::id();
+    let program_id = hyperlane_sealevel_token_native_id();
 
     let (mut banks_client, payer) = setup_client().await;
 
@@ -851,7 +856,7 @@ async fn test_transfer_ownership() {
 
 #[tokio::test]
 async fn test_transfer_ownership_errors_if_owner_not_signer() {
-    let program_id = hyperlane_sealevel_token_native::id();
+    let program_id = hyperlane_sealevel_token_native_id();
 
     let (mut banks_client, payer) = setup_client().await;
 
@@ -890,7 +895,7 @@ async fn test_transfer_ownership_errors_if_owner_not_signer() {
 
 #[tokio::test]
 async fn test_set_interchain_security_module() {
-    let program_id = hyperlane_sealevel_token_native::id();
+    let program_id = hyperlane_sealevel_token_native_id();
 
     let (mut banks_client, payer) = setup_client().await;
 
@@ -936,7 +941,7 @@ async fn test_set_interchain_security_module() {
 
 #[tokio::test]
 async fn test_set_interchain_security_module_errors_if_owner_not_signer() {
-    let program_id = hyperlane_sealevel_token_native::id();
+    let program_id = hyperlane_sealevel_token_native_id();
 
     let (mut banks_client, payer) = setup_client().await;
 

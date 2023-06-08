@@ -7,6 +7,7 @@ use hyperlane_core::{Encode, HyperlaneMessage, H256, U256};
 use solana_program::{
     instruction::{AccountMeta, Instruction},
     program_pack::Pack,
+    pubkey,
     pubkey::Pubkey,
     rent::Rent,
     system_instruction,
@@ -57,8 +58,12 @@ const REMOTE_DECIMALS: u8 = 18;
 // Same for spl_token_2022 and spl_token
 const MINT_ACCOUNT_LEN: usize = spl_token_2022::state::Mint::LEN;
 
+fn hyperlane_sealevel_token_collateral_id() -> Pubkey {
+    pubkey!("G8t1qe3YnYvhi1zS9ioUXuVFkwhBgvfHaLJt5X6PF18z")
+}
+
 async fn setup_client() -> (BanksClient, Keypair) {
-    let program_id = hyperlane_sealevel_token_collateral::id();
+    let program_id = hyperlane_sealevel_token_collateral_id();
     let mut program_test = ProgramTest::new(
         "hyperlane_sealevel_token_collateral",
         program_id,
@@ -349,7 +354,7 @@ async fn enroll_remote_router(
 
 #[tokio::test]
 async fn test_initialize() {
-    let program_id = hyperlane_sealevel_token_collateral::id();
+    let program_id = hyperlane_sealevel_token_collateral_id();
     let mailbox_program_id = mailbox_id();
     let spl_token_program_id = spl_token_2022::id();
 
@@ -430,7 +435,7 @@ async fn test_initialize() {
 
 #[tokio::test]
 async fn test_initialize_errors_if_called_twice() {
-    let program_id = hyperlane_sealevel_token_collateral::id();
+    let program_id = hyperlane_sealevel_token_collateral_id();
     let spl_token_program_id = spl_token_2022::id();
 
     let (mut banks_client, payer) = setup_client().await;
@@ -470,7 +475,7 @@ async fn test_initialize_errors_if_called_twice() {
 }
 
 async fn test_transfer_remote(spl_token_program_id: Pubkey) {
-    let program_id = hyperlane_sealevel_token_collateral::id();
+    let program_id = hyperlane_sealevel_token_collateral_id();
     let mailbox_program_id = mailbox_id();
 
     let (mut banks_client, payer) = setup_client().await;
@@ -660,7 +665,7 @@ async fn transfer_from_remote(
     origin_override: Option<u32>,
     spl_token_program_id: Pubkey,
 ) -> Result<(BanksClient, HyperlaneTokenAccounts, Pubkey), BanksClientError> {
-    let program_id = hyperlane_sealevel_token_collateral::id();
+    let program_id = hyperlane_sealevel_token_collateral_id();
     let mailbox_program_id = mailbox_id();
 
     let (mut banks_client, payer) = setup_client().await;
@@ -932,7 +937,7 @@ async fn test_transfer_from_remote_errors_if_sender_not_router() {
 
 #[tokio::test]
 async fn test_transfer_from_remote_errors_if_process_authority_not_signer() {
-    let program_id = hyperlane_sealevel_token_collateral::id();
+    let program_id = hyperlane_sealevel_token_collateral_id();
     let mailbox_program_id = mailbox_id();
     let spl_token_program_id = spl_token_2022::id();
 
@@ -1039,7 +1044,7 @@ async fn test_transfer_from_remote_errors_if_process_authority_not_signer() {
 
 #[tokio::test]
 async fn test_enroll_remote_router() {
-    let program_id = hyperlane_sealevel_token_collateral::id();
+    let program_id = hyperlane_sealevel_token_collateral_id();
     let spl_token_program_id = spl_token_2022::id();
 
     let (mut banks_client, payer) = setup_client().await;
@@ -1093,7 +1098,7 @@ async fn test_enroll_remote_router() {
 
 #[tokio::test]
 async fn test_enroll_remote_router_errors_if_not_signed_by_owner() {
-    let program_id = hyperlane_sealevel_token_collateral::id();
+    let program_id = hyperlane_sealevel_token_collateral_id();
     let spl_token_program_id = spl_token_2022::id();
 
     let (mut banks_client, payer) = setup_client().await;
@@ -1164,7 +1169,7 @@ async fn test_enroll_remote_router_errors_if_not_signed_by_owner() {
 
 #[tokio::test]
 async fn test_transfer_ownership() {
-    let program_id = hyperlane_sealevel_token_collateral::id();
+    let program_id = hyperlane_sealevel_token_collateral_id();
     let spl_token_program_id = spl_token_2022::id();
 
     let (mut banks_client, payer) = setup_client().await;
@@ -1223,7 +1228,7 @@ async fn test_transfer_ownership() {
 
 #[tokio::test]
 async fn test_transfer_ownership_errors_if_owner_not_signer() {
-    let program_id = hyperlane_sealevel_token_collateral::id();
+    let program_id = hyperlane_sealevel_token_collateral_id();
     let spl_token_program_id = spl_token_2022::id();
 
     let (mut banks_client, payer) = setup_client().await;
@@ -1275,7 +1280,7 @@ async fn test_transfer_ownership_errors_if_owner_not_signer() {
 
 #[tokio::test]
 async fn test_set_interchain_security_module() {
-    let program_id = hyperlane_sealevel_token_collateral::id();
+    let program_id = hyperlane_sealevel_token_collateral_id();
     let spl_token_program_id = spl_token_2022::id();
 
     let (mut banks_client, payer) = setup_client().await;
@@ -1335,7 +1340,7 @@ async fn test_set_interchain_security_module() {
 
 #[tokio::test]
 async fn test_set_interchain_security_module_errors_if_owner_not_signer() {
-    let program_id = hyperlane_sealevel_token_collateral::id();
+    let program_id = hyperlane_sealevel_token_collateral_id();
     let spl_token_program_id = spl_token_2022::id();
 
     let (mut banks_client, payer) = setup_client().await;
