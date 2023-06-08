@@ -2,7 +2,7 @@
 //! Useful for use in unit & integration tests, which can't import from
 //! each other.
 
-use hyperlane_core::{Checkpoint, CheckpointWithMessageId, HyperlaneMessage, Signable, H160, H256};
+use hyperlane_core::{Checkpoint, CheckpointWithMessageId, HyperlaneMessage, H160, H256};
 use std::str::FromStr;
 
 pub struct MultisigIsmTestData {
