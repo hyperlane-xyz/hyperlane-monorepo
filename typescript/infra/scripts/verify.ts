@@ -54,10 +54,10 @@ async function main() {
   await execCmd(`solc-select use ${matches[1]}`);
   await execCmd(`solc ${sourcePath}`);
 
-  const apiKeys: ChainMap<string> = await fetchGCPSecret(
+  const apiKeys: ChainMap<string> = (await fetchGCPSecret(
     'explorer-api-keys',
     true,
-  );
+  )) as any;
 
   const verifier = new ContractVerifier(
     verification,

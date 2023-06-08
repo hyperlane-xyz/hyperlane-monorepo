@@ -1,25 +1,24 @@
 import { HelloWorldChecker } from '@hyperlane-xyz/helloworld';
 
 import { Contexts } from '../../config/contexts';
-import { KEY_ROLE_ENUM } from '../../src/agents/roles';
+import { Role } from '../../src/roles';
 import {
-  getContext,
-  getEnvironment,
+  getArgs,
   getEnvironmentConfig,
   getRouterConfig,
+  withContext,
 } from '../utils';
 
 import { getApp } from './utils';
 
 async function main() {
-  const environment = await getEnvironment();
+  const { environment, context } = await withContext(getArgs()).argv;
   const coreConfig = getEnvironmentConfig(environment);
-  const context = await getContext();
   const multiProvider = await coreConfig.getMultiProvider();
   const app = await getApp(
     coreConfig,
     context,
-    KEY_ROLE_ENUM.Deployer,
+    Role.Deployer,
     Contexts.Hyperlane, // Owner should always be from the hyperlane context
   );
   const configMap = await getRouterConfig(environment, multiProvider, true);
