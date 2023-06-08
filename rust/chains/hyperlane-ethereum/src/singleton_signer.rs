@@ -70,7 +70,7 @@ impl SingletonSigner {
         while let Some((hash, tx)) = self.rx.recv().await {
             if tx.send(self.inner.sign_hash(&hash).await).is_err() {
                 warn!(
-                    "Failed to send signature back to the validator because the channel was closed"
+                    "Failed to send signature back to the signer handle because the channel was closed"
                 );
             }
         }

@@ -59,8 +59,7 @@ impl BaseAgent for Validator {
         let msg_db = HyperlaneRocksDB::new(&settings.origin_chain, db);
 
         // Intentionally using hyperlane_ethereum for the validator's signer
-        let (signer_instance, signer_handle) =
-            SingletonSigner::new(settings.validator.build().await?);
+        let (signer_instance, signer) = SingletonSigner::new(settings.validator.build().await?);
 
         let core = settings.build_hyperlane_core(metrics.clone());
         let checkpoint_syncer = settings.checkpoint_syncer.build(None)?.into();
@@ -92,7 +91,7 @@ impl BaseAgent for Validator {
             mailbox: mailbox.into(),
             message_sync,
             validator_announce: validator_announce.into(),
-            signer: signer_handle,
+            signer,
             signer_instance: Some(Box::new(signer_instance)),
             reorg_period: settings.reorg_period,
             interval: settings.interval,
