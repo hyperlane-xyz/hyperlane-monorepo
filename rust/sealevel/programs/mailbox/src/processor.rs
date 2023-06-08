@@ -36,8 +36,8 @@ use crate::{
     },
     error::Error,
     instruction::{
-        InboxProcess, InboxSetDefaultModule, Init, Instruction as MailboxIxn, OutboxDispatch,
-        MAX_MESSAGE_BODY_BYTES, VERSION,
+        InboxProcess, Init, Instruction as MailboxIxn, OutboxDispatch, MAX_MESSAGE_BODY_BYTES,
+        VERSION,
     },
     mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds,
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
@@ -55,7 +55,7 @@ pub fn process_instruction(
     match MailboxIxn::from_instruction_data(instruction_data)? {
         MailboxIxn::Init(init) => initialize(program_id, accounts, init),
         MailboxIxn::InboxProcess(process) => inbox_process(program_id, accounts, process),
-        MailboxIxn::InboxSetDefaultModule(ism) => inbox_set_default_ism(program_id, accounts, ism),
+        MailboxIxn::InboxSetDefaultIsm(ism) => inbox_set_default_ism(program_id, accounts, ism),
         MailboxIxn::InboxGetRecipientIsm(recipient) => {
             inbox_get_recipient_ism(program_id, accounts, recipient)
         }
@@ -495,7 +495,7 @@ fn get_recipient_ism(
 fn inbox_set_default_ism(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
-    ism: InboxSetDefaultModule,
+    ism: Pubkey,
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
@@ -517,7 +517,7 @@ fn inbox_set_default_ism(
     }
 
     // Set the new default ISM.
-    inbox.default_ism = ism.program_id;
+    inbox.default_ism = ism;
     // Store the updated inbox.
     InboxAccount::from(inbox).store(inbox_info, false)?;
 

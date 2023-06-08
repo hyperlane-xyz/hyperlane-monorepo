@@ -1,4 +1,4 @@
-use borsh::{BorshDeserialize};
+use borsh::BorshDeserialize;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle as MerkleTree, HyperlaneMessage, H256,
 };
@@ -12,20 +12,16 @@ use solana_program_test::*;
 use solana_sdk::{
     instruction::InstructionError,
     message::Message,
-    signature::{Signer},
+    signature::Signer,
     signer::keypair::Keypair,
     transaction::{Transaction, TransactionError},
 };
 
-
 use hyperlane_sealevel_mailbox::{
-    accounts::{
-        Inbox, InboxAccount, Outbox,
-    },
+    accounts::{Inbox, InboxAccount, Outbox},
     error::Error as MailboxError,
     instruction::{Instruction as MailboxInstruction, OutboxDispatch},
     mailbox_dispatched_message_pda_seeds,
-    processor::process_instruction,
 };
 
 use hyperlane_sealevel_test_ism::{program::TestIsmError, test_client::TestIsmTestClient};
@@ -34,14 +30,15 @@ use hyperlane_sealevel_test_send_receiver::{
     test_client::TestSendReceiverTestClient,
 };
 
-
-use hyperlane_test_utils::{assert_transaction_error, initialize_mailbox};
+use hyperlane_test_utils::{
+    assert_transaction_error, initialize_mailbox, new_funded_keypair, process_instruction,
+};
 
 mod utils;
 
 use crate::utils::{
-    assert_dispatched_message, assert_outbox, assert_processed_message, dispatch_from_payer,
-    get_recipient_ism, process, assert_message_not_processed,
+    assert_dispatched_message, assert_inbox, assert_message_not_processed, assert_outbox,
+    assert_processed_message, dispatch_from_payer, get_recipient_ism, process,
 };
 
 const LOCAL_DOMAIN: u32 = 13775;
@@ -57,7 +54,7 @@ async fn setup_client() -> (
     let mut program_test = ProgramTest::new(
         "hyperlane_sealevel_mailbox",
         program_id,
-        processor!(process_instruction),
+        processor!(hyperlane_sealevel_mailbox::processor::process_instruction),
     );
 
     program_test.add_program("spl_noop", spl_noop::id(), processor!(spl_noop::noop));
@@ -905,4 +902,107 @@ async fn test_process_errors_if_recipient_not_a_program() {
     assert_transaction_error(result, TransactionError::ProgramAccountNotFound);
 
     assert_message_not_processed(&mut banks_client, &mailbox_accounts, message.id()).await;
+}
+
+#[tokio::test]
+async fn test_inbox_set_default_ism() {
+    let program_id = hyperlane_sealevel_mailbox::id();
+    let (mut banks_client, payer, _, _) = setup_client().await;
+
+    let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
+        .await
+        .unwrap();
+
+    let new_default_ism = Pubkey::new_unique();
+
+    // Set the default ISM to the test ISM
+    let instruction = Instruction {
+        program_id: mailbox_accounts.program,
+        data: MailboxInstruction::InboxSetDefaultIsm(new_default_ism)
+            .into_instruction_data()
+            .unwrap(),
+        accounts: vec![
+            // 0. [writeable] - The Inbox PDA account.
+            // 1. [] - The Outbox PDA account.
+            // 2. [signer] - The owner of the Mailbox.
+            AccountMeta::new(mailbox_accounts.inbox, false),
+            AccountMeta::new_readonly(mailbox_accounts.outbox, false),
+            AccountMeta::new(payer.pubkey(), true),
+        ],
+    };
+
+    process_instruction(&mut banks_client, instruction, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Make sure the inbox account was updated.
+    assert_inbox(
+        &mut banks_client,
+        mailbox_accounts.inbox,
+        Inbox {
+            local_domain: LOCAL_DOMAIN,
+            inbox_bump_seed: mailbox_accounts.inbox_bump_seed,
+            default_ism: new_default_ism,
+            processed_count: 0,
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn test_inbox_set_default_ism_errors_if_owner_not_signer() {
+    let program_id = hyperlane_sealevel_mailbox::id();
+    let (mut banks_client, payer, _, _) = setup_client().await;
+
+    let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
+        .await
+        .unwrap();
+
+    let new_default_ism = Pubkey::new_unique();
+
+    let non_owner = new_funded_keypair(&mut banks_client, &payer, 1000000000).await;
+
+    // Where the payer is a signer but not the owner
+    let instruction = Instruction {
+        program_id: mailbox_accounts.program,
+        data: MailboxInstruction::InboxSetDefaultIsm(new_default_ism)
+            .into_instruction_data()
+            .unwrap(),
+        accounts: vec![
+            // 0. [writeable] - The Inbox PDA account.
+            // 1. [] - The Outbox PDA account.
+            // 2. [signer] - The owner of the Mailbox.
+            AccountMeta::new(mailbox_accounts.inbox, false),
+            AccountMeta::new_readonly(mailbox_accounts.outbox, false),
+            AccountMeta::new_readonly(non_owner.pubkey(), true),
+        ],
+    };
+    let result =
+        process_instruction(&mut banks_client, instruction, &non_owner, &[&non_owner]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
+
+    // Where the owner is correct but not a signer
+    let instruction = Instruction {
+        program_id: mailbox_accounts.program,
+        data: MailboxInstruction::InboxSetDefaultIsm(new_default_ism)
+            .into_instruction_data()
+            .unwrap(),
+        accounts: vec![
+            // 0. [writeable] - The Inbox PDA account.
+            // 1. [] - The Outbox PDA account.
+            // 2. [signer] - The owner of the Mailbox.
+            AccountMeta::new(mailbox_accounts.inbox, false),
+            AccountMeta::new_readonly(mailbox_accounts.outbox, false),
+            AccountMeta::new_readonly(payer.pubkey(), false),
+        ],
+    };
+    let result =
+        process_instruction(&mut banks_client, instruction, &non_owner, &[&non_owner]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::MissingRequiredSignature),
+    );
 }

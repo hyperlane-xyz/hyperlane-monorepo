@@ -1,7 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use hyperlane_core::{
- Encode, HyperlaneMessage, H256,
-};
+use hyperlane_core::{Encode, HyperlaneMessage, H256};
 
 use solana_program::{
     instruction::{AccountMeta, Instruction},
@@ -13,7 +11,7 @@ use solana_sdk::{
     message::Message,
     signature::{Signature, Signer},
     signer::keypair::Keypair,
-    transaction::{Transaction},
+    transaction::Transaction,
 };
 
 use hyperlane_sealevel_interchain_security_module_interface::{
@@ -21,7 +19,7 @@ use hyperlane_sealevel_interchain_security_module_interface::{
 };
 use hyperlane_sealevel_mailbox::{
     accounts::{
-        DispatchedMessage, DispatchedMessageAccount, Outbox, OutboxAccount,
+        DispatchedMessage, DispatchedMessageAccount, Inbox, InboxAccount, Outbox, OutboxAccount,
         ProcessedMessage, ProcessedMessageAccount,
     },
     instruction::{InboxProcess, Instruction as MailboxInstruction, OutboxDispatch},
@@ -34,7 +32,7 @@ use hyperlane_sealevel_message_recipient_interface::{
 };
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 
-use hyperlane_test_utils::{ MailboxAccounts};
+use hyperlane_test_utils::MailboxAccounts;
 
 pub async fn dispatch_from_payer(
     banks_client: &mut BanksClient,
@@ -145,6 +143,24 @@ pub async fn assert_outbox(
     assert_eq!(*outbox, expected_outbox,);
 }
 
+pub async fn assert_inbox(
+    banks_client: &mut BanksClient,
+    inbox_pubkey: Pubkey,
+    expected_inbox: Inbox,
+) {
+    // Check that the inbox account was updated.
+    let inbox_account = banks_client
+        .get_account(inbox_pubkey)
+        .await
+        .unwrap()
+        .unwrap();
+
+    let inbox = InboxAccount::fetch(&mut &inbox_account.data[..])
+        .unwrap()
+        .into_inner();
+
+    assert_eq!(*inbox, expected_inbox,);
+}
 
 /// Simulates an instruction, and attempts to deserialize it into a T.
 /// If no return data at all was returned, returns Ok(None).
@@ -374,8 +390,7 @@ pub async fn process(
 
     // Get the account metas required for the ISM.Verify instruction.
     let ism_verify_account_metas =
-        get_ism_verify_account_metas(banks_client, payer, ism, metadata, encoded_message)
-            .await?;
+        get_ism_verify_account_metas(banks_client, payer, ism, metadata, encoded_message).await?;
     accounts.extend(ism_verify_account_metas);
 
     // The recipient.
@@ -404,7 +419,6 @@ pub async fn process(
 
     Ok((tx_signature, processed_message_account_key))
 }
-
 
 pub async fn assert_processed_message(
     banks_client: &mut BanksClient,

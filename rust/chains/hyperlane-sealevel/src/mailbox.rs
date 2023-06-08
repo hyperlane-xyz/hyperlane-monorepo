@@ -867,7 +867,7 @@ pub(crate) mod contract {
     pub enum Instruction {
         Init(Init),
         InboxProcess(InboxProcess),
-        InboxSetDefaultModule(InboxSetDefaultModule),
+        InboxSetDefaultIsm(Pubkey),
         InboxGetRecipientIsm(Pubkey),
         OutboxDispatch(OutboxDispatch),
         OutboxGetCount,
@@ -907,13 +907,6 @@ pub(crate) mod contract {
     pub struct InboxProcess {
         pub metadata: Vec<u8>, // Encoded Multi-Signature ISM data, or similar.
         pub message: Vec<u8>,  // Encoded HyperlaneMessage
-    }
-
-    #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
-    pub struct InboxSetDefaultModule {
-        pub local_domain: u32,
-        pub program_id: Pubkey,
-        pub accounts: Vec<Pubkey>,
     }
 
     pub enum MessageRecipientInstruction {
