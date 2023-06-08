@@ -381,6 +381,42 @@ mod test {
     use solana_program::pubkey::Pubkey;
 
     #[test]
+    fn test_outbox_ser_deser() {
+        let outbox = Outbox {
+            local_domain: 420,
+            outbox_bump_seed: 69,
+            owner: Some(Pubkey::new_unique()),
+            tree: MerkleTree::default(),
+        };
+
+        let mut serialized = vec![];
+        outbox.serialize(&mut serialized).unwrap();
+
+        let deserialized = Outbox::deserialize(&mut serialized.as_slice()).unwrap();
+
+        assert_eq!(outbox, deserialized);
+        assert_eq!(serialized.len(), outbox.size());
+    }
+
+    #[test]
+    fn test_inbox_ser_deser() {
+        let inbox = Inbox {
+            local_domain: 420,
+            inbox_bump_seed: 69,
+            default_ism: Pubkey::new_unique(),
+            processed_count: 69696969,
+        };
+
+        let mut serialized = vec![];
+        inbox.serialize(&mut serialized).unwrap();
+
+        let deserialized = Inbox::deserialize(&mut serialized.as_slice()).unwrap();
+
+        assert_eq!(inbox, deserialized);
+        assert_eq!(serialized.len(), inbox.size());
+    }
+
+    #[test]
     fn test_dispatched_message_ser_deser() {
         let dispatched_message = DispatchedMessage::new(
             420,
