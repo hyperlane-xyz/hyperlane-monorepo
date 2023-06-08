@@ -90,10 +90,28 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum HyperlaneSealevelCmd {
+    Deploy(DeployCmd),
     Mailbox(MailboxCmd),
     Token(TokenCmd),
     ValidatorAnnounce(ValidatorAnnounceCmd),
     MultisigIsmMessageId(MultisigIsmMessageIdCmd),
+}
+
+#[derive(Args)]
+struct DeployCmd {
+    #[command(subcommand)]
+    cmd: DeploySubCmd,
+}
+
+#[derive(Subcommand)]
+enum DeploySubCmd {
+    Core(DeployCore),
+}
+
+#[derive(Args)]
+struct DeployCore {
+    #[arg(long)]
+    local_domain: u32,
 }
 
 #[derive(Args)]
@@ -411,7 +429,8 @@ fn main() {
         HyperlaneSealevelCmd::ValidatorAnnounce(cmd) => process_validator_announce_cmd(ctx, cmd),
         HyperlaneSealevelCmd::MultisigIsmMessageId(cmd) => {
             process_multisig_ism_message_id_cmd(ctx, cmd)
-        }
+        },
+        HyperlaneSealevelCmd::Deploy(cmd) => process_deploy_cmd(ctx, cmd),
     }
 }
 
@@ -1092,3 +1111,17 @@ fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: MultisigIsmMessage
         }
     }
 }
+
+fn process_deploy_cmd(_ctx: Context, cmd: DeployCmd) {
+    match cmd.cmd {
+        DeploySubCmd::Core(_core) => {
+            // First deploy the Mailbox
+            
+        }
+    }
+}
+
+// fn deploy_mailbox() {
+
+// }
+
