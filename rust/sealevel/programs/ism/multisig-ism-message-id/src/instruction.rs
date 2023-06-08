@@ -1,3 +1,4 @@
+use account_utils::{DiscriminatorData, PROGRAM_INSTRUCTION_DISCRIMINATOR};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H160;
 use solana_program::{program_error::ProgramError, pubkey::Pubkey};
@@ -34,6 +35,10 @@ pub enum Instruction {
     /// 0. `[signer]` The current access control owner.
     /// 1. `[]` The access control PDA account.
     TransferOwnership(Option<Pubkey>),
+}
+
+impl DiscriminatorData for Instruction {
+    const DISCRIMINATOR: [u8; Self::DISCRIMINATOR_LENGTH] = PROGRAM_INSTRUCTION_DISCRIMINATOR;
 }
 
 impl TryFrom<&[u8]> for Instruction {

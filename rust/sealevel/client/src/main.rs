@@ -3,7 +3,7 @@
 // #![deny(missing_docs)] // FIXME
 #![deny(unsafe_code)]
 
-use borsh::BorshSerialize;
+use account_utils::DiscriminatorEncode;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use hyperlane_core::H160;
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
@@ -633,7 +633,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
 
             let init_instruction = Instruction {
                 program_id: init.program_id,
-                data: ixn.into_instruction_data().unwrap(),
+                data: ixn.encode().unwrap(),
                 accounts,
             };
             ctx.instructions.push(init_instruction);
@@ -878,7 +878,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
             eprintln!("accounts={:#?}", accounts); // FIXME remove
             let xfer_instruction = Instruction {
                 program_id: xfer.program_id,
-                data: ixn.into_instruction_data().unwrap(),
+                data: ixn.encode().unwrap(),
                 accounts,
             };
             ctx.instructions.push(xfer_instruction);
@@ -895,7 +895,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
 
             let instruction = Instruction {
                 program_id: enroll.program_id,
-                data: enroll_instruction.into_instruction_data().unwrap(),
+                data: enroll_instruction.encode().unwrap(),
                 accounts: vec![
                     AccountMeta::new(token_account, false),
                     AccountMeta::new_readonly(ctx.payer.pubkey(), true),
@@ -1043,7 +1043,7 @@ fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: MultisigIsmMessage
 
             let init_instruction = Instruction {
                 program_id: init.program_id,
-                data: ixn.try_to_vec().unwrap(),
+                data: ixn.encode().unwrap(),
                 accounts,
             };
             ctx.instructions.push(init_instruction);
@@ -1083,7 +1083,7 @@ fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: MultisigIsmMessage
 
             let set_instruction = Instruction {
                 program_id: set_config.program_id,
-                data: ixn.try_to_vec().unwrap(),
+                data: ixn.encode().unwrap(),
                 accounts,
             };
             ctx.instructions.push(set_instruction);

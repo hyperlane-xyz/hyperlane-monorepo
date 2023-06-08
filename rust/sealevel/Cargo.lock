@@ -25,9 +25,11 @@ dependencies = [
 name = "account-utils"
 version = "0.1.0"
 dependencies = [
+ "borsh",
  "solana-program",
  "solana-program-test",
  "solana-sdk",
+ "spl-type-length-value",
 ]
 
 [[package]]
@@ -1648,6 +1650,7 @@ dependencies = [
 name = "hyperlane-sealevel-client"
 version = "0.1.0"
 dependencies = [
+ "account-utils",
  "borsh",
  "clap 4.0.26",
  "hex",
