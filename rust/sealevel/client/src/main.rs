@@ -3,10 +3,10 @@
 // #![deny(missing_docs)] // FIXME
 #![deny(unsafe_code)]
 
+use borsh::BorshSerialize;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use hyperlane_core::H160;
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
-use hyperlane_sealevel_ism_rubber_stamp::ID as DEFAULT_ISM_PROG_ID;
 use hyperlane_sealevel_mailbox::{
     accounts::{InboxAccount, OutboxAccount},
     hyperlane_core::{message::HyperlaneMessage, types::H256, Encode},
@@ -17,6 +17,14 @@ use hyperlane_sealevel_mailbox::{
     mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds,
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
     mailbox_processed_message_pda_seeds, spl_noop, ID as MAILBOX_PROG_ID,
+};
+use hyperlane_sealevel_multisig_ism_message_id::{
+    access_control_pda_seeds as multisig_ism_message_id_access_control_pda_seeds,
+    domain_data_pda_seeds as multisig_ism_message_id_domain_data_pda_seeds,
+    instruction::{
+        Domained, Instruction as MultisigIsmMessageIdInstruction, ValidatorsAndThreshold,
+    },
+    ID as MULTISIG_ISM_MESSAGE_ID_PROG_ID,
 };
 use hyperlane_sealevel_recipient_echo::ID as RECIPIENT_ECHO_PROG_ID;
 use hyperlane_sealevel_token::{
@@ -44,6 +52,7 @@ use hyperlane_sealevel_validator_announce::{
     replay_protection_pda_seeds, validator_announce_pda_seeds,
     validator_storage_locations_pda_seeds, ID as VALIDATOR_ANNOUNCE_PROG_ID,
 };
+
 use solana_clap_utils::input_validators::{is_keypair, is_url, normalize_to_url_if_moniker};
 use solana_cli_config::{Config, CONFIG_FILE};
 use solana_client::rpc_client::RpcClient;
@@ -84,6 +93,7 @@ enum HyperlaneSealevelCmd {
     Mailbox(MailboxCmd),
     Token(TokenCmd),
     ValidatorAnnounce(ValidatorAnnounceCmd),
+    MultisigIsmMessageId(MultisigIsmMessageIdCmd),
 }
 
 #[derive(Args)]
@@ -107,7 +117,7 @@ struct Init {
     program_id: Pubkey,
     #[arg(long, short, default_value_t = ECLIPSE_DOMAIN)]
     local_domain: u32,
-    #[arg(long, short, default_value_t = DEFAULT_ISM_PROG_ID)]
+    #[arg(long, short, default_value_t = MULTISIG_ISM_MESSAGE_ID_PROG_ID)]
     default_ism: Pubkey,
 }
 
@@ -145,7 +155,7 @@ struct Inbox {
     nonce: u32,
     #[arg(long, short, default_value_t = MAILBOX_PROG_ID)]
     program_id: Pubkey,
-    #[arg(long, default_value_t = DEFAULT_ISM_PROG_ID)]
+    #[arg(long, default_value_t = MULTISIG_ISM_MESSAGE_ID_PROG_ID)]
     ism: Pubkey,
 }
 
@@ -295,6 +305,36 @@ struct ValidatorAnnounceQuery {
     validator: H160,
 }
 
+#[derive(Args)]
+struct MultisigIsmMessageIdCmd {
+    #[command(subcommand)]
+    cmd: MultisigIsmMessageIdSubCmd,
+}
+
+#[derive(Subcommand)]
+enum MultisigIsmMessageIdSubCmd {
+    Init(MultisigIsmMessageIdInit),
+    SetValidatorsAndThreshold(MultisigIsmMessageIdSetValidatorsAndThreshold),
+}
+
+#[derive(Args)]
+struct MultisigIsmMessageIdInit {
+    #[arg(long, short, default_value_t = MULTISIG_ISM_MESSAGE_ID_PROG_ID)]
+    program_id: Pubkey,
+}
+
+#[derive(Args)]
+struct MultisigIsmMessageIdSetValidatorsAndThreshold {
+    #[arg(long, short, default_value_t = MULTISIG_ISM_MESSAGE_ID_PROG_ID)]
+    program_id: Pubkey,
+    #[arg(long)]
+    domain: u32,
+    #[arg(long)]
+    validators: Vec<H160>,
+    #[arg(long)]
+    threshold: u8,
+}
+
 struct Context {
     client: RpcClient,
     payer: Keypair,
@@ -369,6 +409,9 @@ fn main() {
         HyperlaneSealevelCmd::Mailbox(cmd) => process_mailbox_cmd(ctx, cmd),
         HyperlaneSealevelCmd::Token(cmd) => process_token_cmd(ctx, cmd),
         HyperlaneSealevelCmd::ValidatorAnnounce(cmd) => process_validator_announce_cmd(ctx, cmd),
+        HyperlaneSealevelCmd::MultisigIsmMessageId(cmd) => {
+            process_multisig_ism_message_id_cmd(ctx, cmd)
+        }
     }
 }
 
@@ -974,6 +1017,78 @@ fn process_validator_announce_cmd(mut ctx: Context, cmd: ValidatorAnnounceCmd) {
             } else {
                 println!("Validator not yet announced");
             }
+        }
+    }
+}
+
+fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: MultisigIsmMessageIdCmd) {
+    match cmd.cmd {
+        MultisigIsmMessageIdSubCmd::Init(init) => {
+            let (access_control_pda_key, _access_control_pda_bump) = Pubkey::find_program_address(
+                multisig_ism_message_id_access_control_pda_seeds!(),
+                &init.program_id,
+            );
+
+            let ixn = MultisigIsmMessageIdInstruction::Initialize;
+
+            // Accounts:
+            // 0. `[signer]` The new owner and payer of the access control PDA.
+            // 1. `[writable]` The access control PDA account.
+            // 2. `[executable]` The system program account.
+            let accounts = vec![
+                AccountMeta::new(ctx.payer.pubkey(), true),
+                AccountMeta::new(access_control_pda_key, false),
+                AccountMeta::new_readonly(system_program::id(), false),
+            ];
+
+            let init_instruction = Instruction {
+                program_id: init.program_id,
+                data: ixn.try_to_vec().unwrap(),
+                accounts,
+            };
+            ctx.instructions.push(init_instruction);
+
+            ctx.send_transaction(&[&ctx.payer]);
+        }
+        MultisigIsmMessageIdSubCmd::SetValidatorsAndThreshold(set_config) => {
+            let (access_control_pda_key, _access_control_pda_bump) = Pubkey::find_program_address(
+                multisig_ism_message_id_access_control_pda_seeds!(),
+                &set_config.program_id,
+            );
+
+            let (domain_data_pda_key, _domain_data_pda_bump) = Pubkey::find_program_address(
+                multisig_ism_message_id_domain_data_pda_seeds!(set_config.domain),
+                &set_config.program_id,
+            );
+
+            let ixn = MultisigIsmMessageIdInstruction::SetValidatorsAndThreshold(Domained {
+                domain: set_config.domain,
+                data: ValidatorsAndThreshold {
+                    validators: set_config.validators,
+                    threshold: set_config.threshold,
+                },
+            });
+
+            // Accounts:
+            // 0. `[signer]` The access control owner and payer of the domain PDA.
+            // 1. `[]` The access control PDA account.
+            // 2. `[writable]` The PDA relating to the provided domain.
+            // 3. `[executable]` OPTIONAL - The system program account. Required if creating the domain PDA.
+            let accounts = vec![
+                AccountMeta::new(ctx.payer.pubkey(), true),
+                AccountMeta::new_readonly(access_control_pda_key, false),
+                AccountMeta::new(domain_data_pda_key, false),
+                AccountMeta::new_readonly(system_program::id(), false),
+            ];
+
+            let set_instruction = Instruction {
+                program_id: set_config.program_id,
+                data: ixn.try_to_vec().unwrap(),
+                accounts,
+            };
+            ctx.instructions.push(set_instruction);
+
+            ctx.send_transaction(&[&ctx.payer]);
         }
     }
 }

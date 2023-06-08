@@ -47,7 +47,8 @@ build_programs() {
     # hyperlane sealevel programs
     build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_mailbox.so" "${TARGET_DIR}/../programs/mailbox"
     build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_validator_announce.so" "${TARGET_DIR}/../programs/validator-announce"
-    build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_ism_rubber_stamp.so" "${TARGET_DIR}/../programs/ism"
+    build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_ism_rubber_stamp.so" "${TARGET_DIR}/../programs/ism/rubber-stamp"
+    build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_multisig_ism_message_id.so" "${TARGET_DIR}/../programs/ism/multisig-ism-message-id"
     build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_token.so" "${TARGET_DIR}/../programs/hyperlane-sealevel-token"
     build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_token_native.so" "${TARGET_DIR}/../programs/hyperlane-sealevel-token-native"
     build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_recipient_echo.so" "${TARGET_DIR}/../programs/recipient"
@@ -59,6 +60,24 @@ build_spl_token_cli() {
         cargo build
         popd
     fi
+}
+
+setup_multisig_ism_message_id() {
+    set +e
+    # init the contract
+    # it's possible the contract deploy hasn't reached finality, so just retry till it works
+    while ! "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" multisig-ism-message-id init; do
+        sleep 3
+    done
+
+    # Set the validators and threshold
+    # This may fail until the previous init command reaches finality,
+    # just retry till it succeeds
+    while ! "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" multisig-ism-message-id set-validators-and-threshold --domain "${CHAIN_ID}" --validators 0x70997970c51812dc3a010c7d01b50e0d17dc79c8 --threshold 1; do
+        sleep 3
+    done
+
+    set -e
 }
 
 announce_validator() {
@@ -118,6 +137,8 @@ token_init() {
 
 test_token() {
     local -r is_native_xfer="${1}"
+
+    setup_multisig_ism_message_id
 
     mailbox_init
 
@@ -266,6 +287,7 @@ main() {
     solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_validator_announce.so"
     solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_recipient_echo.so"
     solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_ism_rubber_stamp.so"
+    solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_multisig_ism_message_id.so"
 
     case "${1}" in
         "mailbox")

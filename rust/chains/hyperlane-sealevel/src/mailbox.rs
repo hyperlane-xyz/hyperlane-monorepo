@@ -58,6 +58,10 @@ fn signature_to_txn_hash(signature: &Signature) -> H256 {
     H256::from(crate::solana::hash::hash(signature.as_ref()).to_bytes())
 }
 
+// The max amount of compute units for a transaction.
+// TODO: consider a more sane value and/or use IGP gas payments instead.
+const PROCESS_COMPUTE_UNITS: u32 = 1_400_000;
+
 /// A reference to a Mailbox contract on some Sealevel chain
 pub struct SealevelMailbox {
     program_id: Pubkey,
@@ -423,7 +427,12 @@ impl Mailbox for SealevelMailbox {
             .as_ref()
             .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
 
-        let mut instructions = Vec::with_capacity(1);
+        let mut instructions = Vec::with_capacity(2);
+        // Set the compute unit limit.
+        instructions.push(contract::ComputeBudgetInstruction::set_compute_unit_limit(
+            PROCESS_COMPUTE_UNITS,
+        ));
+
         let commitment = CommitmentConfig::finalized();
 
         let (process_authority_key, _process_authority_bump) = Pubkey::try_find_program_address(
@@ -771,12 +780,17 @@ pub(crate) mod contract {
     use borsh::{BorshDeserialize, BorshSerialize};
     use hyperlane_core::accumulator::incremental::IncrementalMerkle as MerkleTree;
 
-    use crate::solana::{clock::Slot, instruction::AccountMeta};
+    use crate::solana::{
+        clock::Slot,
+        instruction::{AccountMeta, Instruction as SolanaInstruction},
+    };
 
     pub static DEFAULT_ISM: &'static str = "6TCwgXydobJUEqabm7e6SL4FMdiFDvp1pmYoL6xXmRJq";
 
     pub static SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
     pub static SPL_NOOP: &str = "GpiNbGLpyroc8dFKPhK55eQhhvWn3XUaXJFp5fk5aXUs";
+
+    pub static COMPUTE_BUDGET: &str = "ComputeBudget111111111111111111111111111111";
 
     pub const DISPATCHED_MESSAGE_DISCRIMINATOR: &[u8; 8] = b"DISPATCH";
 
@@ -1255,6 +1269,53 @@ pub(crate) mod contract {
             }
 
             Ok(buf)
+        }
+    }
+
+    // Compute Budget Instructions
+    #[derive(BorshDeserialize, BorshSerialize, Clone, Debug, PartialEq, Eq)]
+    pub enum ComputeBudgetInstruction {
+        /// Deprecated
+        RequestUnitsDeprecated {
+            /// Units to request
+            units: u32,
+            /// Additional fee to add
+            additional_fee: u32,
+        },
+        /// Request a specific transaction-wide program heap region size in bytes.
+        /// The value requested must be a multiple of 1024. This new heap region
+        /// size applies to each program executed in the transaction, including all
+        /// calls to CPIs.
+        RequestHeapFrame(u32),
+        /// Set a specific compute unit limit that the transaction is allowed to consume.
+        SetComputeUnitLimit(u32),
+        /// Set a compute unit price in "micro-lamports" to pay a higher transaction
+        /// fee for higher transaction prioritization.
+        SetComputeUnitPrice(u64),
+    }
+
+    impl ComputeBudgetInstruction {
+        /// Create a `ComputeBudgetInstruction::RequestHeapFrame` `Instruction`
+        pub fn request_heap_frame(bytes: u32) -> SolanaInstruction {
+            SolanaInstruction::new_with_borsh(Self::id(), &Self::RequestHeapFrame(bytes), vec![])
+        }
+
+        /// Create a `ComputeBudgetInstruction::SetComputeUnitLimit` `Instruction`
+        pub fn set_compute_unit_limit(units: u32) -> SolanaInstruction {
+            SolanaInstruction::new_with_borsh(Self::id(), &Self::SetComputeUnitLimit(units), vec![])
+        }
+
+        /// Create a `ComputeBudgetInstruction::SetComputeUnitPrice` `Instruction`
+        pub fn set_compute_unit_price(micro_lamports: u64) -> SolanaInstruction {
+            SolanaInstruction::new_with_borsh(
+                Self::id(),
+                &Self::SetComputeUnitPrice(micro_lamports),
+                vec![],
+            )
+        }
+
+        fn id() -> Pubkey {
+            Pubkey::from_str(COMPUTE_BUDGET).unwrap()
         }
     }
 }
