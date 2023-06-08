@@ -1655,6 +1655,7 @@ dependencies = [
  "hyperlane-sealevel-connection-client",
  "hyperlane-sealevel-ism-rubber-stamp",
  "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-multisig-ism-message-id",
  "hyperlane-sealevel-recipient-echo",
  "hyperlane-sealevel-token",
  "hyperlane-sealevel-token-lib",
