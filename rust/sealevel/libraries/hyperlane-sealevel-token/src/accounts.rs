@@ -4,10 +4,7 @@ use access_control::AccessControl;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{H256, U256};
 use hyperlane_sealevel_connection_client::{
-    router::{
-        HyperlaneRouter, HyperlaneRouterAccessControl, HyperlaneRouterDispatch,
-        HyperlaneRouterMessageRecipient, RemoteRouterConfig,
-    },
+    router::{HyperlaneRouter, RemoteRouterConfig},
     HyperlaneConnectionClient, HyperlaneConnectionClientRecipient, HyperlaneConnectionClientSetter,
     HyperlaneConnectionClientSetterAccessControl,
 };
@@ -137,12 +134,6 @@ impl<T> HyperlaneRouter for HyperlaneToken<T> {
         self.remote_routers.enroll_remote_router(config);
     }
 }
-
-impl<T> HyperlaneRouterDispatch for HyperlaneToken<T> {}
-
-impl<T> HyperlaneRouterAccessControl for HyperlaneToken<T> {}
-
-impl<T> HyperlaneRouterMessageRecipient for HyperlaneToken<T> {}
 
 pub fn convert_decimals(amount: U256, from_decimals: u8, to_decimals: u8) -> Option<U256> {
     match from_decimals.cmp(&to_decimals) {
