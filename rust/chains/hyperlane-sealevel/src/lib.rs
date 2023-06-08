@@ -23,6 +23,7 @@ mod mailbox;
 mod multisig_ism;
 mod provider;
 mod trait_builder;
+mod utils;
 mod validator_announce;
 
 /// Kludge to implement Debug for RpcClient.

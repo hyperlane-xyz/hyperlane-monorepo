@@ -25,6 +25,7 @@ generic-array = { version = "0.14.5", default-features = false, features = ["ser
 Inflector = { workspace = true }
 jsonrpc-core = "18.0.0"
 lazy_static = { workspace = true }
+num-traits = { workspace = true }
 log = "0.4.17"
 semver = "1.0.10"
 serde_bytes = "0.11"
@@ -33,6 +34,7 @@ serde_json = "1.0"
 sha2 = "0.10.0"
 tokio = { workspace = true, features = ["full"] }
 url = { workspace = true }
+rand = "*"
 # auto-resolve zstd version to avoid dependency conflicts
 zstd = "*"
 

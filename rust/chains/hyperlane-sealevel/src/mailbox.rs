@@ -42,6 +42,7 @@ use crate::{
             UiReturnDataEncoding, UiTransaction, UiTransactionReturnData, UiTransactionStatusMeta,
         },
     },
+    utils::{get_account_metas, simulate_instruction},
     /*make_provider,*/ ConnectionConf, SealevelProvider,
 };
 
@@ -116,41 +117,14 @@ impl SealevelMailbox {
         &self,
         instruction: Instruction,
     ) -> ChainResult<Option<T>> {
-        let commitment = CommitmentConfig::finalized();
-        let (recent_blockhash, _) = self
-            .rpc_client
-            .get_latest_blockhash_with_commitment(commitment)
-            .await
-            .map_err(ChainCommunicationError::from_other)?;
-        let payer = self
-            .payer
-            .as_ref()
-            .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
-        let return_data = self
-            .rpc_client
-            .simulate_transaction(&Transaction::new_unsigned(Message::new_with_blockhash(
-                &[instruction],
-                Some(&payer.pubkey()),
-                &recent_blockhash,
-            )))
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .value
-            .return_data;
-
-        if let Some(return_data) = return_data {
-            let bytes = match return_data.data.1 {
-                UiReturnDataEncoding::Base64 => base64::decode(return_data.data.0)
-                    .map_err(ChainCommunicationError::from_other)?,
-            };
-
-            let decoded_data =
-                T::try_from_slice(bytes.as_slice()).map_err(ChainCommunicationError::from_other)?;
-
-            return Ok(Some(decoded_data));
-        }
-
-        Ok(None)
+        simulate_instruction(
+            &self.rpc_client,
+            self.payer
+                .as_ref()
+                .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
+            instruction,
+        )
+        .await
     }
 
     /// Simulates an Instruction that will return a list of AccountMetas.
@@ -158,20 +132,14 @@ impl SealevelMailbox {
         &self,
         instruction: Instruction,
     ) -> ChainResult<Vec<AccountMeta>> {
-        // If there's no data at all, default to an empty vec.
-        let account_metas = self
-            .simulate_instruction::<SimulationReturnData<Vec<SerializableAccountMeta>>>(instruction)
-            .await?
-            .map(|serializable_account_metas| {
-                serializable_account_metas
-                    .return_data
-                    .into_iter()
-                    .map(|serializable_account_meta| serializable_account_meta.into())
-                    .collect()
-            })
-            .unwrap_or_else(|| vec![]);
-
-        Ok(account_metas)
+        get_account_metas(
+            &self.rpc_client,
+            self.payer
+                .as_ref()
+                .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
+            instruction,
+        )
+        .await
     }
 
     /// Gets the recipient ISM given a recipient program id and the ISM getter account metas.
