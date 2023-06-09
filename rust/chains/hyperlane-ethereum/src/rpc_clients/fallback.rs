@@ -52,11 +52,17 @@ struct PrioritizedProviders<T> {
 
 /// A provider that bundles multiple providers and attempts to call the first,
 /// then the second, and so on until a response is received.
-pub struct FallbackProvider<T>(Arc<PrioritizedProviders<T>>);
+pub struct FallbackProvider<T> {
+    inner: Arc<PrioritizedProviders<T>>,
+    max_block_time: Duration,
+}
 
 impl<T> Clone for FallbackProvider<T> {
     fn clone(&self) -> Self {
-        Self(self.0.clone())
+        Self {
+            inner: self.inner.clone(),
+            max_block_time: self.max_block_time.clone(),
+        }
     }
 }
 
@@ -68,12 +74,12 @@ where
         write!(
             f,
             "FallbackProvider {{ chain_name: {}, hosts: [{}] }}",
-            self.0
+            self.inner
                 .providers
                 .get(0)
                 .map(|v| v.chain_name())
                 .unwrap_or("None"),
-            self.0
+            self.inner
                 .providers
                 .iter()
                 .map(|v| v.node_host())
@@ -100,12 +106,14 @@ impl<T> FallbackProvider<T> {
 #[derive(Debug, Clone)]
 pub struct FallbackProviderBuilder<T> {
     providers: Vec<T>,
+    max_block_time: Duration,
 }
 
 impl<T> Default for FallbackProviderBuilder<T> {
     fn default() -> Self {
         Self {
             providers: Vec::new(),
+            max_block_time: MAX_BLOCK_TIME,
         }
     }
 }
@@ -124,6 +132,11 @@ impl<T> FallbackProviderBuilder<T> {
         self
     }
 
+    pub fn with_max_block_time(mut self, max_block_time: Duration) -> Self {
+        self.max_block_time = max_block_time;
+        self
+    }
+
     /// Create a fallback provider.
     pub fn build(self) -> FallbackProvider<T> {
         let provider_count = self.providers.len();
@@ -136,7 +149,10 @@ impl<T> FallbackProviderBuilder<T> {
                     .collect(),
             ),
         };
-        FallbackProvider(Arc::new(prioritized_providers))
+        FallbackProvider {
+            inner: Arc::new(prioritized_providers),
+            max_block_time: self.max_block_time,
+        }
     }
 }
 
@@ -164,13 +180,13 @@ where
     let now = Instant::now();
     if now
         .duration_since(priority.last_block_height.1)
-        .le(&MAX_BLOCK_TIME)
+        .le(&fallback_provider.max_block_time)
     {
         // Do nothing, it's too early to tell if the provider has stalled
         return Ok(());
     }
 
-    let provider = &fallback_provider.0.providers[priority.index];
+    let provider = &fallback_provider.inner.providers[priority.index];
     let current_block_height: u64 = provider
         .request(BLOCK_NUMBER_RPC, ())
         .await
@@ -191,7 +207,7 @@ async fn deprioritize_provider<C>(
     C: JsonRpcClient,
 {
     // De-prioritize the current provider by moving it to the end of the queue
-    let mut priorities = fallback_provider.0.priorities.write().await;
+    let mut priorities = fallback_provider.inner.priorities.write().await;
     priorities.retain(|&p| p.index != priority.index);
     priorities.push(*priority);
     // Free the write lock
@@ -204,7 +220,7 @@ async fn update_last_seen_block<C>(
 ) where
     C: JsonRpcClient,
 {
-    let mut priorities = fallback_provider.0.priorities.write().await;
+    let mut priorities = fallback_provider.inner.priorities.write().await;
     // Get provider position in the up-to-date priorities vec
     if let Some(position) = priorities.iter().position(|p| p.index == provider_index) {
         priorities[position] =
@@ -219,7 +235,7 @@ async fn take_priorities_snapshot<C>(
 where
     C: JsonRpcClient,
 {
-    let read_lock = fallback_provider.0.priorities.read().await;
+    let read_lock = fallback_provider.inner.priorities.read().await;
     (*read_lock).clone()
     // Free the read lock
 }
@@ -249,7 +265,7 @@ where
             }
             let priorities_snapshot = take_priorities_snapshot(self).await;
             for (idx, priority) in priorities_snapshot.iter().enumerate() {
-                let provider = &self.0.providers[priority.index];
+                let provider = &self.inner.providers[priority.index];
                 let fut = match params {
                     Value::Null => provider.request(method, ()),
                     _ => provider.request(method, &params),
@@ -287,9 +303,55 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::borrow::Borrow;
+
     use super::*;
-    use ethers::providers::MockProvider;
+    use ethers::providers::{MockError, MockProvider};
+
     use ethers_core::types::{U256, U64};
+    use reqwest::Error as ReqwestError;
+
+    #[derive(Debug)]
+    // TODO: store requests to avoid depending on MockProvider
+    struct ProviderMock(MockProvider);
+    impl ProviderMock {
+        fn new() -> Self {
+            Self(MockProvider::new())
+        }
+
+        fn push<T: Serialize + Send + Sync, K: Borrow<T>>(&self, data: K) -> Result<(), MockError> {
+            self.0.push(data)
+        }
+    }
+
+    #[async_trait]
+    impl JsonRpcClient for ProviderMock {
+        type Error = HttpClientError;
+
+        /// Pushes the `(method, params)` to the back of the `requests` queue,
+        /// pops the responses from the back of the `responses` queue
+        async fn request<T: Serialize + Send + Sync + Debug, R: DeserializeOwned>(
+            &self,
+            method: &str,
+            params: T,
+        ) -> Result<R, Self::Error> {
+            sleep(Duration::from_millis(10)).await;
+            serde_json::from_str("0").map_err(|e| HttpClientError::SerdeJson {
+                err: e,
+                text: "".to_owned(),
+            })
+        }
+    }
+
+    impl PrometheusJsonRpcClientConfigExt for ProviderMock {
+        fn node_host(&self) -> &str {
+            todo!()
+        }
+
+        fn chain_name(&self) -> &str {
+            todo!()
+        }
+    }
 
     #[tokio::test]
     async fn test_one_stalled_provider() {
@@ -298,14 +360,22 @@ mod tests {
         let num = 5u64;
         let value = U256::from(42);
         let mut providers = vec![
-            MockProvider::new(),
-            MockProvider::new(),
-            MockProvider::new(),
+            ProviderMock::new(),
+            ProviderMock::new(),
+            ProviderMock::new(),
         ];
         // providers[0].assert_request(method, data)
-        providers[0].push(128).unwrap();
-        providers[0].push(128).unwrap();
-        let fallback_provider = fallback_provider_builder.add_providers(providers).build();
+        providers[0].push(U64::from(0)).unwrap();
+        // providers[0].push(128).unwrap();
+        let fallback_provider = fallback_provider_builder
+            .add_providers(providers)
+            .with_max_block_time(Duration::from_secs(0))
+            .build();
+        let x: u64 = fallback_provider
+            .request(BLOCK_NUMBER_RPC, ())
+            .await
+            .unwrap();
+        println!("{}", x);
 
         // Set the MAX_BLOCK_TIME to zero
         // sleep for 0.01s

@@ -35,6 +35,7 @@ const METHODS_TO_NOT_RETRY_ON_INSUFFICIENT_FUNDS: &[&str] =
 /// Caller is responsible for adding a log span with additional context.
 fn categorize_client_response<R>(
     method: &str,
+    // TODO: Make this generic over `ProviderError` to support non-HTTP clients
     resp: Result<R, HttpClientError>,
 ) -> CategorizedResponse<R> {
     use CategorizedResponse::*;
