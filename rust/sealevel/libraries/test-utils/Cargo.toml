@@ -17,7 +17,7 @@ solana-sdk = "=1.14.13"
 version = "=0.5.0"
 features = ["no-entrypoint"]
 git = "https://github.com/tkporter/eclipse-program-library"
-branch = "trevor/steven/eclipse-1.14.13/with-tlv-lib"
+rev = "2f7e864"
 
 [lib]
 crate-type = ["cdylib", "lib"]

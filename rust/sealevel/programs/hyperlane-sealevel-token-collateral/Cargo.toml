@@ -25,25 +25,25 @@ thiserror = "1.0"
 version = "=1.1.2"
 features = ["no-entrypoint"]
 git = "https://github.com/tkporter/eclipse-program-library"
-branch = "trevor/steven/eclipse-1.14.13/with-tlv-lib"
+rev = "2f7e864"
 
 [dependencies.spl-noop]
 version = "=0.1.3"
 features = ["no-entrypoint"]
 git = "https://github.com/tkporter/eclipse-program-library"
-branch = "trevor/steven/eclipse-1.14.13/with-tlv-lib"
+rev = "2f7e864"
 [dependencies.spl-token]
 version = "=3.5.0"
 features = ["no-entrypoint"]
 git = "https://github.com/tkporter/eclipse-program-library"
-branch = "trevor/steven/eclipse-1.14.13/with-tlv-lib"
+rev = "2f7e864"
 
 # FIXME Should we actually use 2022 here or try normal token program?
 [dependencies.spl-token-2022]
 version = "=0.5.0"
 features = ["no-entrypoint"]
 git = "https://github.com/tkporter/eclipse-program-library"
-branch = "trevor/steven/eclipse-1.14.13/with-tlv-lib"
+rev = "2f7e864"
 
 [dev-dependencies]
 solana-program-test = "=1.14.13"
