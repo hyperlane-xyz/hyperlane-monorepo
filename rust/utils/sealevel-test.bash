@@ -12,6 +12,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TEST_KEYS_DIR="${SCRIPT_DIR}/../config/sealevel/test-keys"
 KEYPAIR="${TEST_KEYS_DIR}/test_deployer-keypair.json"
 TARGET_DIR="${SCRIPT_DIR}/../sealevel/target"
+SEALEVEL_DIR="${SCRIPT_DIR}/../sealevel"
 DEPLOY_DIR="${TARGET_DIR}/deploy"
 BIN_DIR="${TARGET_DIR}/debug"
 SPL_TOKEN="${ECLIPSE_PROGRAM_LIBRARY_DIR}/target/debug/spl-token"
@@ -66,9 +67,9 @@ setup_multisig_ism_message_id() {
     set +e
     # init the contract
     # it's possible the contract deploy hasn't reached finality, so just retry till it works
-    while ! "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" multisig-ism-message-id init; do
-        sleep 3
-    done
+    # while ! "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" multisig-ism-message-id init; do
+    #     sleep 3
+    # done
 
     # Set the validators and threshold
     # This may fail until the previous init command reaches finality,
@@ -83,7 +84,7 @@ setup_multisig_ism_message_id() {
 announce_validator() {
     set +e
     # init the validator announce contract
-    "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" validator-announce init
+    # "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" validator-announce init
 
     # announce the validator
     # This may fail until the previous init command reaches finality,
@@ -97,9 +98,9 @@ announce_validator() {
 
 mailbox_init() {
     set +e
-    while ! "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox init; do
-        sleep 3
-    done
+    # while ! "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox init; do
+    #     sleep 3
+    # done
 
     while "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox query | grep -q 'Not yet created'; do
         sleep 3
@@ -281,13 +282,15 @@ main() {
     solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/spl_token_2022.so"
     solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/spl_associated_token_account.so"
 
+    "${BIN_DIR}/hyperlane-sealevel-client" --url http://localhost:8899 --compute-budget 200000 deploy core --local-domain 13375 --artifact-name local-e2e --use-existing-keys --artifacts-dir "${SEALEVEL_DIR}/artifacts" --built-so-dir "${DEPLOY_DIR}"
+
     solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_token.so"
     solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_token_native.so"
-    solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_mailbox.so"
-    solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_validator_announce.so"
+    # solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_mailbox.so"
+    # solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_validator_announce.so"
     solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_recipient_echo.so"
     solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_ism_rubber_stamp.so"
-    solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_multisig_ism_message_id.so"
+    # solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_multisig_ism_message_id.so"
 
     case "${1}" in
         "mailbox")

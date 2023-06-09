@@ -50,6 +50,7 @@ use hyperlane_sealevel_validator_announce::{
     replay_protection_pda_seeds, validator_announce_pda_seeds,
     validator_storage_locations_pda_seeds,
 };
+use serde::Serialize;
 
 use solana_clap_utils::input_validators::{is_keypair, is_url, normalize_to_url_if_moniker};
 use solana_cli_config::{Config, CONFIG_FILE};
@@ -122,6 +123,14 @@ enum DeploySubCmd {
 struct DeployCore {
     #[arg(long)]
     local_domain: u32,
+    #[arg(long)]
+    artifact_name: Option<String>,
+    #[arg(long)]
+    use_existing_keys: bool,
+    #[arg(long)]
+    artifacts_dir: PathBuf,
+    #[arg(long)]
+    built_so_dir: PathBuf,
 }
 
 #[derive(Args)]
@@ -1089,15 +1098,24 @@ fn process_deploy_cmd(mut ctx: Context, cmd: DeployCmd) {
     match cmd.cmd {
         DeploySubCmd::Core(core) => {
             // First deploy the Mailbox
-            let artifacts_dir = create_new_artifacts_directory();
+            let artifacts_dir =
+                create_new_artifacts_directory(&core.artifacts_dir, core.artifact_name.clone());
             let key_dir = create_new_key_directory(&artifacts_dir);
             let log_file = create_new_log_file(&artifacts_dir);
 
-            let ism_program_id = deploy_multisig_ism_message_id(&mut ctx, &key_dir, &log_file);
+            let ism_program_id = deploy_multisig_ism_message_id(
+                &mut ctx,
+                core.use_existing_keys,
+                &key_dir,
+                &core.built_so_dir,
+                &log_file,
+            );
 
             let mailbox_program_id = deploy_mailbox(
                 &mut ctx,
+                core.use_existing_keys,
                 &key_dir,
+                &core.built_so_dir,
                 &log_file,
                 core.local_domain,
                 ism_program_id,
@@ -1105,23 +1123,35 @@ fn process_deploy_cmd(mut ctx: Context, cmd: DeployCmd) {
 
             let validator_announce_program_id = deploy_validator_announce(
                 &mut ctx,
+                core.use_existing_keys,
                 &key_dir,
+                &core.built_so_dir,
                 &log_file,
                 mailbox_program_id,
                 core.local_domain,
             );
+
+            let program_ids = CoreProgramIds {
+                mailbox: mailbox_program_id.to_string(),
+                validator_announce: validator_announce_program_id.to_string(),
+                multisig_ism_message_id: ism_program_id.to_string(),
+            };
+            write_program_ids(&artifacts_dir, program_ids);
         }
     }
 }
 
 fn deploy_multisig_ism_message_id(
     ctx: &mut Context,
+    use_existing_key: bool,
     key_dir: &PathBuf,
+    built_so_dir: &PathBuf,
     log_file: impl AsRef<Path>,
 ) -> Pubkey {
     let (keypair, keypair_path) = create_and_write_keypair(
         key_dir,
         "hyperlane_sealevel_multisig_ism_message_id-keypair.json",
+        use_existing_key,
     );
     let program_id = keypair.pubkey();
 
@@ -1129,7 +1159,10 @@ fn deploy_multisig_ism_message_id(
         &ctx.payer,
         &ctx.payer_path,
         keypair_path.to_str().unwrap(),
-        "../target/deploy/hyperlane_sealevel_multisig_ism_message_id.so",
+        built_so_dir
+            .join("hyperlane_sealevel_multisig_ism_message_id.so")
+            .to_str()
+            .unwrap(),
         &ctx.client.url(),
         log_file,
     );
@@ -1157,20 +1190,28 @@ fn deploy_multisig_ism_message_id(
 
 fn deploy_mailbox(
     ctx: &mut Context,
+    use_existing_key: bool,
     key_dir: &PathBuf,
+    built_so_dir: &PathBuf,
     log_file: impl AsRef<Path>,
     local_domain: u32,
     default_ism: Pubkey,
 ) -> Pubkey {
-    let (keypair, keypair_path) =
-        create_and_write_keypair(key_dir, "hyperlane_sealevel_mailbox-keypair.json");
+    let (keypair, keypair_path) = create_and_write_keypair(
+        key_dir,
+        "hyperlane_sealevel_mailbox-keypair.json",
+        use_existing_key,
+    );
     let program_id = keypair.pubkey();
 
     deploy_program(
         &ctx.payer,
         &ctx.payer_path,
         keypair_path.to_str().unwrap(),
-        "../target/deploy/hyperlane_sealevel_mailbox.so",
+        built_so_dir
+            .join("hyperlane_sealevel_mailbox.so")
+            .to_str()
+            .unwrap(),
         &ctx.client.url(),
         log_file,
     );
@@ -1197,7 +1238,9 @@ fn deploy_mailbox(
 
 fn deploy_validator_announce(
     ctx: &mut Context,
+    use_existing_key: bool,
     key_dir: &PathBuf,
+    built_so_dir: &PathBuf,
     log_file: impl AsRef<Path>,
     mailbox_program_id: Pubkey,
     local_domain: u32,
@@ -1205,6 +1248,7 @@ fn deploy_validator_announce(
     let (keypair, keypair_path) = create_and_write_keypair(
         key_dir,
         "hyperlane_sealevel_validator_announce-keypair.json",
+        use_existing_key,
     );
     let program_id = keypair.pubkey();
 
@@ -1212,7 +1256,10 @@ fn deploy_validator_announce(
         &ctx.payer,
         &ctx.payer_path,
         keypair_path.to_str().unwrap(),
-        "../target/deploy/hyperlane_sealevel_validator_announce.so",
+        built_so_dir
+            .join("hyperlane_sealevel_validator_announce.so")
+            .to_str()
+            .unwrap(),
         &ctx.client.url(),
         log_file,
     );
@@ -1235,6 +1282,24 @@ fn deploy_validator_announce(
     println!("Initialized ValidatorAnnounce");
 
     program_id
+}
+
+#[derive(Debug, Serialize)]
+struct CoreProgramIds {
+    mailbox: String,
+    validator_announce: String,
+    multisig_ism_message_id: String,
+}
+
+fn write_program_ids(artifacts_dir: &PathBuf, program_ids: CoreProgramIds) {
+    let json = serde_json::to_string_pretty(&program_ids).unwrap();
+    let path = artifacts_dir.join("program-ids.json");
+
+    println!("Writing program IDs to {}:\n{}", path.display(), json);
+
+    let mut file = File::create(path.clone()).expect("Failed to create keypair file");
+    file.write_all(json.as_bytes())
+        .expect("Failed to write program IDs to file");
 }
 
 fn deploy_program(
@@ -1268,31 +1333,21 @@ fn deploy_program(
     );
 }
 
-// fn deploy_mailbox() {
-//     let _keypair = Keypair::new();
-
-//     build_cmd(
-//         cmd: &[&str],
-//         log: impl AsRef<Path>,
-//         log_all: bool,
-//         wd: Option<&str>,
-//         env: Option<&HashMap<&str, &str>>,
-//         assert_success: bool,
-//     )
-// }
-
-fn create_new_artifacts_directory() -> PathBuf {
-    let ts = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap();
-    let path = PathBuf::from(&format!("./artifacts/{}", ts.as_secs()));
+fn create_new_artifacts_directory(dir: &PathBuf, artifact_name: Option<String>) -> PathBuf {
+    let path = dir.join(artifact_name.unwrap_or_else(|| {
+        SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            .to_string()
+    }));
     std::fs::create_dir_all(path.clone()).expect("Failed to create artifacts directory");
     path
 }
 
 fn create_new_log_file(artifacts_dir: &PathBuf) -> PathBuf {
     let path = artifacts_dir.join("deploy-logs.txt");
-    let mut file = File::create(path.clone()).expect("Failed to create keypair file");
+    let file = File::create(path.clone()).expect("Failed to create keypair file");
     path
 }
 
@@ -1302,10 +1357,23 @@ fn create_new_key_directory(artifacts_dir: &PathBuf) -> PathBuf {
     path
 }
 
-fn create_and_write_keypair(key_dir: &PathBuf, key_name: &str) -> (Keypair, PathBuf) {
-    let keypair = Keypair::new();
+fn create_and_write_keypair(
+    key_dir: &PathBuf,
+    key_name: &str,
+    use_existing_key: bool,
+) -> (Keypair, PathBuf) {
     let path = key_dir.join(key_name);
 
+    if use_existing_key {
+        if let Ok(file) = File::open(path.clone()) {
+            println!("Using existing key at path {}", path.display());
+            let keypair_bytes: Vec<u8> = serde_json::from_reader(file).unwrap();
+            let keypair = Keypair::from_bytes(&keypair_bytes[..]).unwrap();
+            return (keypair, path);
+        }
+    }
+
+    let keypair = Keypair::new();
     let keypair_json = serde_json::to_string(&keypair.to_bytes()[..]).unwrap();
 
     let mut file = File::create(path.clone()).expect("Failed to create keypair file");
