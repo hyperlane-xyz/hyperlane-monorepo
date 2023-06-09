@@ -185,8 +185,6 @@ async fn deprioritize_provider(
     priority: &PrioritizedProviderInner,
 ) {
     // De-prioritize the current provider by moving it to the end of the queue
-    // TODO: if two errors occur in the same iteration, the wrong provider will
-    // be moved to the end of the queue
     let mut priorities = fallback_provider.0.priorities.write().await;
     priorities.retain(|&p| p.index != priority.index);
     priorities.push(*priority);
@@ -235,7 +233,7 @@ impl JsonRpcClient for HttpFallbackProvider {
             if !errors.is_empty() {
                 sleep(Duration::from_millis(100)).await;
             }
-            let priorities_snapshot = take_priorities_snapshot(&self).await;
+            let priorities_snapshot = take_priorities_snapshot(self).await;
             for (idx, priority) in priorities_snapshot.iter().enumerate() {
                 let provider = &self.0.providers[priority.index];
                 let fut = match params {
@@ -243,7 +241,7 @@ impl JsonRpcClient for HttpFallbackProvider {
                     _ => provider.request(method, &params),
                 };
                 let resp = fut.await;
-                handle_stalled_provider(&self, priority).await?;
+                handle_stalled_provider(self, priority).await?;
 
                 match categorize_client_response(method, resp) {
                     IsOk(v) => {
