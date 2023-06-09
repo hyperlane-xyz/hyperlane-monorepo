@@ -2,7 +2,13 @@
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H256;
-use solana_program::{program_error::ProgramError, pubkey::Pubkey};
+use solana_program::{
+    instruction::{AccountMeta, Instruction as SolanaInstruction},
+    program_error::ProgramError,
+    pubkey::Pubkey,
+};
+
+use crate::{mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds};
 
 /// Hyperlane mailbox protocol version.
 pub const VERSION: u8 = 0;
@@ -55,4 +61,35 @@ pub struct OutboxDispatch {
 pub struct InboxProcess {
     pub metadata: Vec<u8>, // Encoded Multi-Signature ISM data, or similar.
     pub message: Vec<u8>,  // Encoded HyperlaneMessage
+}
+
+/// Creates an Init instruction.
+pub fn init_instruction(
+    program_id: Pubkey,
+    local_domain: u32,
+    default_ism: Pubkey,
+    payer: Pubkey,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (inbox_account, _inbox_bump) =
+        Pubkey::try_find_program_address(mailbox_inbox_pda_seeds!(), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+    let (outbox_account, _outbox_bump) =
+        Pubkey::try_find_program_address(mailbox_outbox_pda_seeds!(), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+
+    let instruction = SolanaInstruction {
+        program_id,
+        data: Instruction::Init(Init {
+            local_domain,
+            default_ism,
+        })
+        .into_instruction_data()?,
+        accounts: vec![
+            AccountMeta::new(solana_program::system_program::id(), false),
+            AccountMeta::new(payer, true),
+            AccountMeta::new(inbox_account, false),
+            AccountMeta::new(outbox_account, false),
+        ],
+    };
+    Ok(instruction)
 }

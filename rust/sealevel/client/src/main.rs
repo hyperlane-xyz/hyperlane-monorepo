@@ -53,7 +53,7 @@ use hyperlane_sealevel_validator_announce::{
 
 use solana_clap_utils::input_validators::{is_keypair, is_url, normalize_to_url_if_moniker};
 use solana_cli_config::{Config, CONFIG_FILE};
-use solana_client::rpc_client::RpcClient;
+use solana_client::{rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig};
 use solana_program::pubkey;
 use solana_sdk::{
     commitment_config::CommitmentConfig,
@@ -65,6 +65,17 @@ use solana_sdk::{
     system_program,
     transaction::Transaction,
 };
+
+use std::{
+    fs::File,
+    io::Write,
+    path::{Path, PathBuf},
+    time::SystemTime,
+};
+
+mod cmd_utils;
+use crate::cmd_utils::build_cmd;
+
 // Note: from solana_program_runtime::compute_budget
 const DEFAULT_INSTRUCTION_COMPUTE_UNIT_LIMIT: u32 = 200_000;
 const MAX_COMPUTE_UNIT_LIMIT: u32 = 1_400_000;
@@ -361,6 +372,7 @@ struct MultisigIsmMessageIdSetValidatorsAndThreshold {
 struct Context {
     client: RpcClient,
     payer: Keypair,
+    payer_path: String,
     commitment: CommitmentConfig,
     instructions: Vec<Instruction>,
 }
@@ -377,14 +389,14 @@ impl Context {
 
         let signature = self
             .client
-            .send_transaction(&txn)
-            .map_err(|err| {
-                eprintln!("{:#?}", err);
-                err
-            })
-            .unwrap();
-        self.client
-            .confirm_transaction_with_spinner(&signature, &recent_blockhash, self.commitment)
+            .send_and_confirm_transaction_with_spinner_and_config(
+                &txn,
+                self.commitment,
+                RpcSendTransactionConfig {
+                    preflight_commitment: Some(self.commitment.commitment),
+                    ..RpcSendTransactionConfig::default()
+                },
+            )
             .map_err(|err| {
                 eprintln!("{:#?}", err);
                 err
@@ -407,7 +419,7 @@ fn main() {
     is_keypair(&keypair_path).unwrap();
 
     let client = RpcClient::new(url);
-    let payer = read_keypair_file(keypair_path).unwrap();
+    let payer = read_keypair_file(keypair_path.clone()).unwrap();
     let commitment = CommitmentConfig::processed();
 
     let mut instructions = vec![];
@@ -425,6 +437,7 @@ fn main() {
     let ctx = Context {
         client,
         payer,
+        payer_path: keypair_path,
         commitment,
         instructions,
     };
@@ -442,30 +455,16 @@ fn main() {
 fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
     match cmd.cmd {
         MailboxSubCmd::Init(init) => {
-            let (inbox_account, inbox_bump) =
-                Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), &init.program_id);
-            let (outbox_account, outbox_bump) =
-                Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), &init.program_id);
+            let instruction = hyperlane_sealevel_mailbox::instruction::init_instruction(
+                init.program_id,
+                init.local_domain,
+                init.default_ism,
+                ctx.payer.pubkey(),
+            )
+            .unwrap();
 
-            let ixn = MailboxInstruction::Init(InitMailbox {
-                local_domain: init.local_domain,
-                default_ism: init.default_ism,
-            });
-            let init_instruction = Instruction {
-                program_id: init.program_id,
-                data: ixn.into_instruction_data().unwrap(),
-                accounts: vec![
-                    AccountMeta::new(system_program::id(), false),
-                    AccountMeta::new(ctx.payer.pubkey(), true),
-                    AccountMeta::new(inbox_account, false),
-                    AccountMeta::new(outbox_account, false),
-                ],
-            };
-            ctx.instructions.push(init_instruction);
+            ctx.instructions.push(instruction);
             ctx.send_transaction(&[&ctx.payer]);
-
-            println!("inbox=({}, {})", inbox_account, inbox_bump);
-            println!("outbox=({}, {})", outbox_account, outbox_bump);
         }
         MailboxSubCmd::Query(query) => {
             let (inbox_account, inbox_bump) =
@@ -935,29 +934,14 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
 fn process_validator_announce_cmd(mut ctx: Context, cmd: ValidatorAnnounceCmd) {
     match cmd.cmd {
         ValidatorAnnounceSubCmd::Init(init) => {
-            let (validator_announce_account, _validator_announce_bump) =
-                Pubkey::find_program_address(validator_announce_pda_seeds!(), &init.program_id);
-
-            let ixn = ValidatorAnnounceInstruction::Init(ValidatorAnnounceInitInstruction {
-                mailbox: init.mailbox_id,
-                local_domain: init.local_domain,
-            });
-
-            // Accounts:
-            // 0. [signer] The payer.
-            // 1. [executable] The system program.
-            // 2. [writable] The ValidatorAnnounce PDA account.
-            let accounts = vec![
-                AccountMeta::new_readonly(ctx.payer.pubkey(), true),
-                AccountMeta::new_readonly(system_program::id(), false),
-                AccountMeta::new(validator_announce_account, false),
-            ];
-
-            let init_instruction = Instruction {
-                program_id: init.program_id,
-                data: ixn.into_instruction_data().unwrap(),
-                accounts,
-            };
+            let init_instruction =
+                hyperlane_sealevel_validator_announce::instruction::init_instruction(
+                    init.program_id,
+                    ctx.payer.pubkey(),
+                    init.mailbox_id,
+                    init.local_domain,
+                )
+                .unwrap();
             ctx.instructions.push(init_instruction);
 
             ctx.send_transaction(&[&ctx.payer]);
@@ -1048,28 +1032,12 @@ fn process_validator_announce_cmd(mut ctx: Context, cmd: ValidatorAnnounceCmd) {
 fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: MultisigIsmMessageIdCmd) {
     match cmd.cmd {
         MultisigIsmMessageIdSubCmd::Init(init) => {
-            let (access_control_pda_key, _access_control_pda_bump) = Pubkey::find_program_address(
-                multisig_ism_message_id_access_control_pda_seeds!(),
-                &init.program_id,
-            );
-
-            let ixn = MultisigIsmMessageIdInstruction::Initialize;
-
-            // Accounts:
-            // 0. `[signer]` The new owner and payer of the access control PDA.
-            // 1. `[writable]` The access control PDA account.
-            // 2. `[executable]` The system program account.
-            let accounts = vec![
-                AccountMeta::new(ctx.payer.pubkey(), true),
-                AccountMeta::new(access_control_pda_key, false),
-                AccountMeta::new_readonly(system_program::id(), false),
-            ];
-
-            let init_instruction = Instruction {
-                program_id: init.program_id,
-                data: ixn.encode().unwrap(),
-                accounts,
-            };
+            let init_instruction =
+                hyperlane_sealevel_multisig_ism_message_id::instruction::init_instruction(
+                    init.program_id,
+                    ctx.payer.pubkey(),
+                )
+                .unwrap();
             ctx.instructions.push(init_instruction);
 
             ctx.send_transaction(&[&ctx.payer]);
@@ -1117,14 +1085,233 @@ fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: MultisigIsmMessage
     }
 }
 
-fn process_deploy_cmd(_ctx: Context, cmd: DeployCmd) {
+fn process_deploy_cmd(mut ctx: Context, cmd: DeployCmd) {
     match cmd.cmd {
-        DeploySubCmd::Core(_core) => {
+        DeploySubCmd::Core(core) => {
             // First deploy the Mailbox
+            let artifacts_dir = create_new_artifacts_directory();
+            let key_dir = create_new_key_directory(&artifacts_dir);
+            let log_file = create_new_log_file(&artifacts_dir);
+
+            let ism_program_id = deploy_multisig_ism_message_id(&mut ctx, &key_dir, &log_file);
+
+            let mailbox_program_id = deploy_mailbox(
+                &mut ctx,
+                &key_dir,
+                &log_file,
+                core.local_domain,
+                ism_program_id,
+            );
+
+            let validator_announce_program_id = deploy_validator_announce(
+                &mut ctx,
+                &key_dir,
+                &log_file,
+                mailbox_program_id,
+                core.local_domain,
+            );
         }
     }
 }
 
-// fn deploy_mailbox() {
+fn deploy_multisig_ism_message_id(
+    ctx: &mut Context,
+    key_dir: &PathBuf,
+    log_file: impl AsRef<Path>,
+) -> Pubkey {
+    let (keypair, keypair_path) = create_and_write_keypair(
+        key_dir,
+        "hyperlane_sealevel_multisig_ism_message_id-keypair.json",
+    );
+    let program_id = keypair.pubkey();
 
+    deploy_program(
+        &ctx.payer,
+        &ctx.payer_path,
+        keypair_path.to_str().unwrap(),
+        "../target/deploy/hyperlane_sealevel_multisig_ism_message_id.so",
+        &ctx.client.url(),
+        log_file,
+    );
+
+    println!(
+        "Deployed Multisig ISM Message ID at program ID {}",
+        program_id
+    );
+
+    // Initialize
+    let instruction = hyperlane_sealevel_multisig_ism_message_id::instruction::init_instruction(
+        program_id,
+        ctx.payer.pubkey(),
+    )
+    .unwrap();
+
+    ctx.instructions.push(instruction);
+    ctx.send_transaction(&[&ctx.payer]);
+    ctx.instructions.clear();
+
+    println!("Initialized Multisig ISM Message ID ");
+
+    program_id
+}
+
+fn deploy_mailbox(
+    ctx: &mut Context,
+    key_dir: &PathBuf,
+    log_file: impl AsRef<Path>,
+    local_domain: u32,
+    default_ism: Pubkey,
+) -> Pubkey {
+    let (keypair, keypair_path) =
+        create_and_write_keypair(key_dir, "hyperlane_sealevel_mailbox-keypair.json");
+    let program_id = keypair.pubkey();
+
+    deploy_program(
+        &ctx.payer,
+        &ctx.payer_path,
+        keypair_path.to_str().unwrap(),
+        "../target/deploy/hyperlane_sealevel_mailbox.so",
+        &ctx.client.url(),
+        log_file,
+    );
+
+    println!("Deployed Mailbox at program ID {}", program_id);
+
+    // Initialize
+    let instruction = hyperlane_sealevel_mailbox::instruction::init_instruction(
+        program_id,
+        local_domain,
+        default_ism,
+        ctx.payer.pubkey(),
+    )
+    .unwrap();
+
+    ctx.instructions.push(instruction);
+    ctx.send_transaction(&[&ctx.payer]);
+    ctx.instructions.clear();
+
+    println!("Initialized Mailbox");
+
+    program_id
+}
+
+fn deploy_validator_announce(
+    ctx: &mut Context,
+    key_dir: &PathBuf,
+    log_file: impl AsRef<Path>,
+    mailbox_program_id: Pubkey,
+    local_domain: u32,
+) -> Pubkey {
+    let (keypair, keypair_path) = create_and_write_keypair(
+        key_dir,
+        "hyperlane_sealevel_validator_announce-keypair.json",
+    );
+    let program_id = keypair.pubkey();
+
+    deploy_program(
+        &ctx.payer,
+        &ctx.payer_path,
+        keypair_path.to_str().unwrap(),
+        "../target/deploy/hyperlane_sealevel_validator_announce.so",
+        &ctx.client.url(),
+        log_file,
+    );
+
+    println!("Deployed ValidatorAnnounce at program ID {}", program_id);
+
+    // Initialize
+    let instruction = hyperlane_sealevel_validator_announce::instruction::init_instruction(
+        program_id,
+        ctx.payer.pubkey(),
+        mailbox_program_id,
+        local_domain,
+    )
+    .unwrap();
+
+    ctx.instructions.push(instruction);
+    ctx.send_transaction(&[&ctx.payer]);
+    ctx.instructions.clear();
+
+    println!("Initialized ValidatorAnnounce");
+
+    program_id
+}
+
+fn deploy_program(
+    payer: &Keypair,
+    payer_path: &str,
+    program_keypair_path: &str,
+    program_path: &str,
+    url: &str,
+    log_file: impl AsRef<Path>,
+) {
+    build_cmd(
+        &[
+            "solana",
+            "--url",
+            url,
+            "-k",
+            payer_path,
+            "program",
+            "deploy",
+            program_path,
+            "--upgrade-authority",
+            payer.pubkey().to_string().as_str(),
+            "--program-id",
+            program_keypair_path,
+        ],
+        log_file,
+        true,
+        None,
+        None,
+        true,
+    );
+}
+
+// fn deploy_mailbox() {
+//     let _keypair = Keypair::new();
+
+//     build_cmd(
+//         cmd: &[&str],
+//         log: impl AsRef<Path>,
+//         log_all: bool,
+//         wd: Option<&str>,
+//         env: Option<&HashMap<&str, &str>>,
+//         assert_success: bool,
+//     )
 // }
+
+fn create_new_artifacts_directory() -> PathBuf {
+    let ts = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap();
+    let path = PathBuf::from(&format!("./artifacts/{}", ts.as_secs()));
+    std::fs::create_dir_all(path.clone()).expect("Failed to create artifacts directory");
+    path
+}
+
+fn create_new_log_file(artifacts_dir: &PathBuf) -> PathBuf {
+    let path = artifacts_dir.join("deploy-logs.txt");
+    let mut file = File::create(path.clone()).expect("Failed to create keypair file");
+    path
+}
+
+fn create_new_key_directory(artifacts_dir: &PathBuf) -> PathBuf {
+    let path = artifacts_dir.join("keys");
+    std::fs::create_dir_all(path.clone()).expect("Failed to create keys directory");
+    path
+}
+
+fn create_and_write_keypair(key_dir: &PathBuf, key_name: &str) -> (Keypair, PathBuf) {
+    let keypair = Keypair::new();
+    let path = key_dir.join(key_name);
+
+    let keypair_json = serde_json::to_string(&keypair.to_bytes()[..]).unwrap();
+
+    let mut file = File::create(path.clone()).expect("Failed to create keypair file");
+    file.write_all(keypair_json.as_bytes())
+        .expect("Failed to write keypair to file");
+    println!("Wrote keypair {} to {}", keypair.pubkey(), path.display());
+
+    (keypair, path)
+}

@@ -1666,6 +1666,8 @@ dependencies = [
  "hyperlane-sealevel-validator-announce",
  "lazy_static",
  "pretty_env_logger",
+ "serde",
+ "serde_json",
  "solana-clap-utils",
  "solana-cli-config",
  "solana-client",
