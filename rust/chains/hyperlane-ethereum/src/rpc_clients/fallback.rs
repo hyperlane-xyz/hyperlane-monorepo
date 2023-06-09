@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
 use async_trait::async_trait;
-use ethers::providers::{Http, JsonRpcClient, ProviderError};
+use ethers::providers::{Http, HttpClientError, JsonRpcClient, ProviderError};
 use ethers_core::types::U64;
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
@@ -12,14 +12,12 @@ use thiserror::Error;
 use tokio::time::sleep;
 use tracing::{instrument, warn_span};
 
-use ethers_prometheus::json_rpc_client::PrometheusJsonRpcClient;
+use ethers_prometheus::json_rpc_client::PrometheusJsonRpcClientConfigExt;
 
 use crate::rpc_clients::{categorize_client_response, CategorizedResponse};
 
 const MAX_BLOCK_TIME: Duration = Duration::from_secs(2 * 60);
 const BLOCK_NUMBER_RPC: &str = "eth_blockNumber";
-
-type HttpFallbackProvider = FallbackProvider<PrometheusJsonRpcClient<Http>>;
 
 #[derive(Clone, Copy)]
 struct PrioritizedProviderInner {
@@ -62,7 +60,10 @@ impl<T> Clone for FallbackProvider<T> {
     }
 }
 
-impl Debug for HttpFallbackProvider {
+impl<C> Debug for FallbackProvider<C>
+where
+    C: JsonRpcClient + PrometheusJsonRpcClientConfigExt,
+{
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -153,10 +154,13 @@ impl From<FallbackError> for ProviderError {
     }
 }
 
-async fn handle_stalled_provider(
-    fallback_provider: &HttpFallbackProvider,
+async fn handle_stalled_provider<C>(
+    fallback_provider: &FallbackProvider<C>,
     priority: &PrioritizedProviderInner,
-) -> Result<(), <HttpFallbackProvider as JsonRpcClient>::Error> {
+) -> Result<(), ProviderError>
+where
+    C: JsonRpcClient,
+{
     let now = Instant::now();
     if now
         .duration_since(priority.last_block_height.1)
@@ -180,10 +184,12 @@ async fn handle_stalled_provider(
     Ok(())
 }
 
-async fn deprioritize_provider(
-    fallback_provider: &HttpFallbackProvider,
+async fn deprioritize_provider<C>(
+    fallback_provider: &FallbackProvider<C>,
     priority: &PrioritizedProviderInner,
-) {
+) where
+    C: JsonRpcClient,
+{
     // De-prioritize the current provider by moving it to the end of the queue
     let mut priorities = fallback_provider.0.priorities.write().await;
     priorities.retain(|&p| p.index != priority.index);
@@ -191,11 +197,13 @@ async fn deprioritize_provider(
     // Free the write lock
 }
 
-async fn update_last_seen_block(
-    fallback_provider: &HttpFallbackProvider,
+async fn update_last_seen_block<C>(
+    fallback_provider: &FallbackProvider<C>,
     provider_index: usize,
     current_block_height: u64,
-) {
+) where
+    C: JsonRpcClient,
+{
     let mut priorities = fallback_provider.0.priorities.write().await;
     // Get provider position in the up-to-date priorities vec
     if let Some(position) = priorities.iter().position(|p| p.index == provider_index) {
@@ -205,9 +213,12 @@ async fn update_last_seen_block(
     // Free the write lock
 }
 
-async fn take_priorities_snapshot(
-    fallback_provider: &HttpFallbackProvider,
-) -> Vec<PrioritizedProviderInner> {
+async fn take_priorities_snapshot<C>(
+    fallback_provider: &FallbackProvider<C>,
+) -> Vec<PrioritizedProviderInner>
+where
+    C: JsonRpcClient,
+{
     let read_lock = fallback_provider.0.priorities.read().await;
     (*read_lock).clone()
     // Free the read lock
@@ -215,7 +226,10 @@ async fn take_priorities_snapshot(
 
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-impl JsonRpcClient for HttpFallbackProvider {
+impl<C> JsonRpcClient for FallbackProvider<C>
+where
+    C: JsonRpcClient<Error = HttpClientError> + PrometheusJsonRpcClientConfigExt,
+{
     type Error = ProviderError;
 
     #[instrument]
@@ -271,27 +285,33 @@ impl JsonRpcClient for HttpFallbackProvider {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use ethers::providers::MockProvider;
-//     use ethers_core::types::{U256, U64};
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ethers::providers::MockProvider;
+    use ethers_core::types::{U256, U64};
 
-//     #[tokio::test]
-//     async fn test_quorum() {
-//         let fallback_provider_builder = FallbackProviderBuilder::default();
+    #[tokio::test]
+    async fn test_one_stalled_provider() {
+        let fallback_provider_builder = FallbackProviderBuilder::default();
 
-//         let num = 5u64;
-//         let value = U256::from(42);
-//         let mut providers = vec![
-//             MockProvider::new(),
-//             MockProvider::new(),
-//             MockProvider::new(),
-//         ];
-//         fallback_provider_builder.add_providers(providers);
-//         let provider = fallback_provider_builder.build();
+        let num = 5u64;
+        let value = U256::from(42);
+        let mut providers = vec![
+            MockProvider::new(),
+            MockProvider::new(),
+            MockProvider::new(),
+        ];
+        // providers[0].assert_request(method, data)
+        providers[0].push(128).unwrap();
+        providers[0].push(128).unwrap();
+        let fallback_provider = fallback_provider_builder.add_providers(providers).build();
 
-//         // Mock responses (possibly by pushing valid items of one type that will fail to deserialize as T in `request::<T>()`)
-//         // Ideally just mock error responses
-//     }
-// }
+        // Set the MAX_BLOCK_TIME to zero
+        // sleep for 0.01s
+        // mock response to be block no zero
+        // call anything, expect provider to be deprioritized
+        // check that by only expecting `assert_request` to succeed
+        // on the last provider
+    }
+}
