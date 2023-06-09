@@ -21,15 +21,19 @@ CHAIN_ID="13375"
 # Ensure that the solar-eclipse `solana` binary is used
 alias solana="${SOLAR_ECLIPSE_DIR}/target/debug/solana"
 
-# first arg = path to .so file
-# second arg = path to directory to build program in if the .so file doesn't exist
-build_and_copy_program() {
+build_program() {
     if [ ! -e $1 ]; then
         # .so file doesn't exist, build it
         pushd "${2}"
         cargo build-sbf --arch sbf
         popd
     fi
+}
+
+# first arg = path to .so file
+# second arg = path to directory to build program in if the .so file doesn't exist
+build_and_copy_program() {
+    build_program $1 $2
 
     # essentially cp, but -u won't copy if the source is older than the destination.
     # used as a workaround to prevent copying to the same destination as the source
@@ -38,21 +42,19 @@ build_and_copy_program() {
 
 build_programs() {
     # token programs
-    build_and_copy_program "${ECLIPSE_PROGRAM_LIBRARY_DIR}/target/deploy/spl_token.so" "${ECLIPSE_PROGRAM_LIBRARY_DIR}/token/program"
-    build_and_copy_program "${ECLIPSE_PROGRAM_LIBRARY_DIR}/target/deploy/spl_token_2022.so" "${ECLIPSE_PROGRAM_LIBRARY_DIR}/token/program-2020"
-    build_and_copy_program "${ECLIPSE_PROGRAM_LIBRARY_DIR}/target/deploy/spl_associated_token_account.so" "${ECLIPSE_PROGRAM_LIBRARY_DIR}/associated-token-account/program"
+    build_program "${ECLIPSE_PROGRAM_LIBRARY_DIR}/target/deploy/spl_token.so" "${ECLIPSE_PROGRAM_LIBRARY_DIR}/token/program"
+    build_program "${ECLIPSE_PROGRAM_LIBRARY_DIR}/target/deploy/spl_token_2022.so" "${ECLIPSE_PROGRAM_LIBRARY_DIR}/token/program-2020"
+    build_program "${ECLIPSE_PROGRAM_LIBRARY_DIR}/target/deploy/spl_associated_token_account.so" "${ECLIPSE_PROGRAM_LIBRARY_DIR}/associated-token-account/program"
 
     # noop
-    build_and_copy_program "${ECLIPSE_PROGRAM_LIBRARY_DIR}/account-compression/target/deploy/spl_noop.so" "${ECLIPSE_PROGRAM_LIBRARY_DIR}/account-compression/programs/noop"
+    build_program "${ECLIPSE_PROGRAM_LIBRARY_DIR}/account-compression/target/deploy/spl_noop.so" "${ECLIPSE_PROGRAM_LIBRARY_DIR}/account-compression/programs/noop"
 
     # hyperlane sealevel programs
     build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_mailbox.so" "${TARGET_DIR}/../programs/mailbox"
     build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_validator_announce.so" "${TARGET_DIR}/../programs/validator-announce"
-    build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_ism_rubber_stamp.so" "${TARGET_DIR}/../programs/ism/rubber-stamp"
     build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_multisig_ism_message_id.so" "${TARGET_DIR}/../programs/ism/multisig-ism-message-id"
     build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_token.so" "${TARGET_DIR}/../programs/hyperlane-sealevel-token"
     build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_token_native.so" "${TARGET_DIR}/../programs/hyperlane-sealevel-token-native"
-    build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_recipient_echo.so" "${TARGET_DIR}/../programs/recipient"
 }
 
 build_spl_token_cli() {
@@ -277,20 +279,10 @@ main() {
     # copy the keys into the deploy dir
     cp ${TEST_KEYS_DIR}/*.json ${TARGET_DIR}/deploy/
 
-    solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/spl_noop.so"
-    solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/spl_token.so"
-    solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/spl_token_2022.so"
-    solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/spl_associated_token_account.so"
-
     "${BIN_DIR}/hyperlane-sealevel-client" --url http://localhost:8899 --compute-budget 200000 deploy core --local-domain 13375 --artifact-name local-e2e --use-existing-keys --artifacts-dir "${SEALEVEL_DIR}/artifacts" --built-so-dir "${DEPLOY_DIR}"
 
     solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_token.so"
     solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_token_native.so"
-    # solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_mailbox.so"
-    # solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_validator_announce.so"
-    solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_recipient_echo.so"
-    solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_ism_rubber_stamp.so"
-    # solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_multisig_ism_message_id.so"
 
     case "${1}" in
         "mailbox")
