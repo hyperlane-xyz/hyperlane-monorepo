@@ -75,6 +75,7 @@ contract OptimismMessageHook is IMessageHook {
         override
         returns (uint256)
     {
+        require(msg.value == 0, "OptimismHook: no value allowed");
         require(
             _destination == destinationDomain,
             "OptimismHook: invalid destination domain"
