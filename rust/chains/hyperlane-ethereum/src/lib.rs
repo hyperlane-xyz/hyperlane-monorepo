@@ -51,7 +51,7 @@ mod validator_announce;
 
 /// Generated contract bindings.
 #[cfg(not(doctest))]
-mod contracts;
+pub mod contracts;
 
 /// Ethers JSONRPC Client implementations
 mod rpc_clients;

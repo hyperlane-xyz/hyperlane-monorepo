@@ -2,6 +2,8 @@ use std::fmt;
 use std::fmt::{Debug, Display, Formatter};
 use std::marker::PhantomData;
 
+use eyre::{Report, Result};
+
 use serde::de::{Error, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
@@ -16,12 +18,43 @@ use hyperlane_core::{HyperlaneMessage, H160, H256};
 /// - wildcard "*"
 /// - single value in decimal or hex (must start with `0x`) format
 /// - list of values in decimal or hex format
-#[derive(Debug, Deserialize, Default, Clone)]
+#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 #[serde(transparent)]
-pub struct MatchingList(Option<Vec<ListElement>>);
+pub struct MatchingList(pub Option<Vec<MatchItem>>);
+
+impl MatchingList {
+    /// Create a new [MatchingList] from a list of elements.
+    /// - `elements`: The list of elements to use.
+    #[allow(dead_code)] // False positive, due being in both bin and lib?
+    pub fn from_elements(elements: Vec<MatchItem>) -> Self {
+        // What is the significance of MatchingList(None) vs MatchingList(Some(empty vec))?
+        // Implementing this scenrio as MatchingList(None) for now, potentially revisit later.
+        Self(if elements.is_empty() {
+            None
+        } else {
+            Some(elements)
+        })
+    }
+
+    /// Check if a message matches any of the rules.
+    /// - `default`: What to return if the the matching list is empty.
+    pub fn msg_matches(&self, msg: &HyperlaneMessage, default: bool) -> bool {
+        self.matches(msg.into(), default)
+    }
+
+    /// Check if a message matches any of the rules.
+    /// - `default`: What to return if the the matching list is empty.
+    fn matches(&self, info: MatchInfo, default: bool) -> bool {
+        if let Some(rules) = &self.0 {
+            matches_any_rule(rules.iter(), info)
+        } else {
+            default
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
-enum Filter<T> {
+pub enum Filter<T> {
     Wildcard,
     Enumerated(Vec<T>),
 }
@@ -32,8 +65,36 @@ impl<T> Default for Filter<T> {
     }
 }
 
+// Cannot do generic Filter<T> as underlying conversion methods are not from Traits.
+// Could create a macro for implementations, but overkill for now.
+#[allow(dead_code)] // False positive, due being in both bin and lib?
+impl Filter<u32> {
+    pub fn from_csv(csv: &str) -> Result<Self> {
+        let items = csv_to_u32_vec(csv)?;
+
+        Ok(if items.is_empty() {
+            Filter::Wildcard
+        } else {
+            Filter::Enumerated(items)
+        })
+    }
+}
+
+#[allow(dead_code)] // False positive, due being in both bin and lib?
+impl Filter<H256> {
+    pub fn from_csv(csv: &str) -> Result<Self> {
+        let items: Vec<H256> = csv_to_h160_vec(csv)?.iter().map(|h| H256::from(*h)).collect();
+
+        Ok(if items.is_empty() {
+            Filter::Wildcard
+        } else {
+            Filter::Enumerated(items)
+        })
+    }
+}
+
 impl<T: PartialEq> Filter<T> {
-    fn matches(&self, v: &T) -> bool {
+    pub fn matches(&self, v: &T) -> bool {
         match self {
             Filter::Wildcard => true,
             Filter::Enumerated(list) => list.iter().any(|i| i == v),
@@ -157,20 +218,42 @@ impl<'de> Deserialize<'de> for Filter<H256> {
     }
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, PartialEq)]
 #[serde(tag = "type")]
-struct ListElement {
+pub struct MatchItem {
     #[serde(default, rename = "originDomain")]
-    origin_domain: Filter<u32>,
+    pub origin_domain: Filter<u32>,
+
     #[serde(default, rename = "senderAddress")]
-    sender_address: Filter<H256>,
+    pub sender_address: Filter<H256>,
+
     #[serde(default, rename = "destinationDomain")]
-    destination_domain: Filter<u32>,
+    pub destination_domain: Filter<u32>,
+
     #[serde(default, rename = "recipientAddress")]
-    recipient_address: Filter<H256>,
+    pub recipient_address: Filter<H256>,
 }
 
-impl Display for ListElement {
+impl MatchItem {
+    #[allow(dead_code)] // False positive, due being in both bin and lib?
+    pub fn from_csv(csv: &str) -> Result<Self> {
+        let item = csv.split(':').collect::<Vec<_>>();
+        if item.len() != 4 {
+            return Err(Report::msg(format!(
+                "Invalid format; need four ':' separated items: '{csv}'"
+            )));
+        }
+
+        Ok(Self {
+            origin_domain: Filter::<u32>::from_csv(item[0])?,
+            sender_address: Filter::<H256>::from_csv(item[1])?,
+            destination_domain: Filter::<u32>::from_csv(item[2])?,
+            recipient_address: Filter::<H256>::from_csv(item[3])?,
+        })
+    }
+}
+
+impl Display for MatchItem {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -202,25 +285,7 @@ impl<'a> From<&'a HyperlaneMessage> for MatchInfo<'a> {
     }
 }
 
-impl MatchingList {
-    /// Check if a message matches any of the rules.
-    /// - `default`: What to return if the the matching list is empty.
-    pub fn msg_matches(&self, msg: &HyperlaneMessage, default: bool) -> bool {
-        self.matches(msg.into(), default)
-    }
-
-    /// Check if a message matches any of the rules.
-    /// - `default`: What to return if the the matching list is empty.
-    fn matches(&self, info: MatchInfo, default: bool) -> bool {
-        if let Some(rules) = &self.0 {
-            matches_any_rule(rules.iter(), info)
-        } else {
-            default
-        }
-    }
-}
-
-fn matches_any_rule<'a>(mut rules: impl Iterator<Item = &'a ListElement>, info: MatchInfo) -> bool {
+fn matches_any_rule<'a>(mut rules: impl Iterator<Item = &'a MatchItem>, info: MatchInfo) -> bool {
     rules.any(|rule| {
         rule.origin_domain.matches(&info.src_domain)
             && rule.sender_address.matches(info.src_addr)
@@ -254,6 +319,40 @@ fn parse_addr<E: Error>(addr_str: &str) -> Result<H256, E> {
         addr_str.parse::<H256>()
     }
     .map_err(to_serde_err)
+}
+
+fn csv_to_u32_vec(csv: &str) -> Result<Vec<u32>> {
+    let csv = csv.trim();
+
+    if csv == "*" || csv.is_empty() {
+        Ok(vec![])
+    } else {
+        csv.split(',')
+            .map(|s| {
+                let s = s.trim();
+                let radix = if s.starts_with("0x") { 16 } else { 10 };
+                let s = s.trim_start_matches("0x");
+                u32::from_str_radix(s, radix)
+                    .map_err(|_| Report::msg(format!("Error parsing '{s}' in '{csv}'")))
+            })
+            .collect::<Result<Vec<_>, _>>()
+    }
+}
+
+pub fn csv_to_h160_vec(csv: &str) -> Result<Vec<H160>> {
+    let csv = csv.trim();
+
+    if csv == "*" || csv.is_empty() {
+        Ok(vec![])
+    } else {
+        csv.split(',')
+            .map(|s| {
+                let s = s.trim().trim_start_matches("0x");
+                s.parse::<H160>()
+                    .map_err(|_| Report::msg(format!("Error parsing '{s}' in '{csv}'")))
+            })
+            .collect::<Result<Vec<_>, _>>()
+    }
 }
 
 #[cfg(test)]

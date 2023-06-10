@@ -11,6 +11,14 @@ contract MockMailbox is Versioned {
     using TypeCasts for bytes32;
     // Domain of chain on which the contract is deployed
 
+    // ============ Events ============
+    event Dispatch(
+        address indexed sender,
+        uint32 indexed destinationDomain,
+        bytes32 indexed recipientAddress,
+        bytes messageBody
+    );
+
     // ============ Constants ============
     uint32 public immutable localDomain;
     uint256 public constant MAX_MESSAGE_BODY_BYTES = 2 * 2**10;
@@ -60,8 +68,17 @@ contract MockMailbox is Versioned {
             _recipientAddress.bytes32ToAddress(),
             _messageBody
         );
+
+        emit Dispatch(
+            msg.sender,
+            _destinationDomain,
+            _recipientAddress,
+            _messageBody
+        );
+
         outboundNonce++;
-        return bytes32(0);
+        uint256 id = outboundNonce - 1;
+        return bytes32(id);
     }
 
     function addInboundMessage(
@@ -128,6 +145,7 @@ contract MockMailbox is Versioned {
             if (address(_val) != address(0)) {
                 return _val;
             }
+            // solhint-disable-next-line no-empty-blocks
         } catch {}
         return defaultIsm;
     }

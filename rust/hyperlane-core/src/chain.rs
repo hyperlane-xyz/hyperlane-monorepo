@@ -66,6 +66,8 @@ impl From<&'_ Address> for H160 {
     EnumIter,
     PartialEq,
     Eq,
+    PartialOrd,
+    Ord,
     Debug,
     Clone,
     Copy,

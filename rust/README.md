@@ -115,7 +115,7 @@ are merged. Auto-redeploys will be implemented at some future date.
   - generate documentation and open it in a web browser
 - `cargo build`
   - compile the project
-- `cargo run --example example`
+- `cargo run`
   - run the default executable for the current project
 - `cargo test`
   - run the tests

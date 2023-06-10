@@ -1,0 +1,44 @@
+[package]
+name = "cli"
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license-file.workspace = true
+publish.workspace = true
+version.workspace = true
+default-run = "hl"
+
+[dependencies]
+clap = { version = "4.3.3", features = ["derive"] } 
+color-eyre.workspace = true
+
+# There is a version clash, ethers.workspace is on version 1.0.2.
+# That version is incompatible with ethers-contract-abigen version
+# 2.0.7 that this crate uses. Other code is also incompatible with 1.0.2.
+# There are two versions in this crate, which causes complications.
+# (Particularly with as their types are not treated as the same.)
+# TODO: Resolve version clash, by updating ethers.workspace to 2.0.7?
+# ethers.workspace = true
+ethers = "2.0.7"
+tokio = { workspace = true, features = ["macros"] }
+hyperlane-core = { path = "../hyperlane-core" }
+hyperlane-base = { path = "../hyperlane-base" }
+hyperlane-ethereum = { path = "../chains/hyperlane-ethereum" }
+hyperlane-hex = { path = "../utils/hex", package = "hex" }
+hex = "0.4.3"
+serde.workspace = true
+serde_json = "1.0.97"
+relayer = { package = "relayer", path = "../agents/relayer" }
+strum.workspace = true
+itertools.workspace = true
+
+[build-dependencies]
+# See note above on ethers versions.
+ethers-contract-abigen = "2.0.7"
+color-eyre.workspace = true
+
+[features]
+default = ["color-eyre", "oneline-errors"]
+oneline-errors = ["hyperlane-base/oneline-errors"]
+color-eyre = ["hyperlane-base/color-eyre"]
+test-utils = ["hyperlane-base/test-utils"]

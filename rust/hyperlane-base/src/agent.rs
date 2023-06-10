@@ -50,6 +50,21 @@ pub trait BaseAgent: Send + Sync + Debug {
 /// lifecycle. This assumes only a single agent is being run. This will
 /// initialize the metrics server and tracing as well.
 pub async fn agent_main<A: BaseAgent>() -> Result<()> {
+    setup_error_handling()?;
+
+    let settings = A::Settings::new()?;
+    let core_settings: &Settings = settings.as_ref();
+
+    let metrics = settings.as_ref().metrics(A::AGENT_NAME)?;
+    core_settings.tracing.start_tracing(&metrics)?;
+    let agent = A::from_settings(settings, metrics.clone()).await?;
+    metrics.run_http_server();
+
+    agent.run().await.await?
+}
+
+/// Setup handling of errors to show enhanced error formatting.
+pub fn setup_error_handling() -> Result<(), Report> {
     if env::var("ONELINE_BACKTRACES")
         .map(|v| v.to_lowercase())
         .as_deref()
@@ -62,17 +77,8 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
     } else {
         #[cfg(feature = "color_eyre")]
         color_eyre::install()?;
-    }
-
-    let settings = A::Settings::new()?;
-    let core_settings: &Settings = settings.as_ref();
-
-    let metrics = settings.as_ref().metrics(A::AGENT_NAME)?;
-    core_settings.tracing.start_tracing(&metrics)?;
-    let agent = A::from_settings(settings, metrics.clone()).await?;
-    metrics.run_http_server();
-
-    agent.run().await.await?
+    };
+    Ok(())
 }
 
 /// Utility to run multiple tasks and shutdown if any one task ends.
