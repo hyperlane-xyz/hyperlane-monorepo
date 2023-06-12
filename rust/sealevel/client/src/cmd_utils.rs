@@ -82,15 +82,15 @@ pub(crate) fn deploy_program(
 
 pub(crate) fn create_new_file(parent_dir: &PathBuf, name: &str) -> PathBuf {
     let path = parent_dir.join(name);
-    let file = File::create(path.clone())
-        .expect(format!("Failed to create file {}", path.display()).as_str());
+    let _file = File::create(path.clone())
+        .unwrap_or_else(|_| panic!("Failed to create file {}", path.display()));
     path
 }
 
 pub(crate) fn create_new_directory(parent_dir: &PathBuf, name: &str) -> PathBuf {
     let path = parent_dir.join(name);
     std::fs::create_dir_all(path.clone())
-        .expect(format!("Failed to create directory {}", path.display()).as_str());
+        .unwrap_or_else(|_| panic!("Failed to create directory {}", path.display()));
     path
 }
 

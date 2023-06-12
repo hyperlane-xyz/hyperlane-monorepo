@@ -120,16 +120,16 @@ async fn initialize_hyperlane_token(
         );
 
     let (token_account_key, token_account_bump_seed) =
-        Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &program_id);
+        Pubkey::find_program_address(hyperlane_token_pda_seeds!(), program_id);
 
     let (dispatch_authority_key, dispatch_authority_seed) =
-        Pubkey::find_program_address(mailbox_message_dispatch_authority_pda_seeds!(), &program_id);
+        Pubkey::find_program_address(mailbox_message_dispatch_authority_pda_seeds!(), program_id);
 
     let (mint_account_key, mint_account_bump_seed) =
-        Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
+        Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), program_id);
 
     let (ata_payer_account_key, ata_payer_account_bump_seed) =
-        Pubkey::find_program_address(hyperlane_token_ata_payer_pda_seeds!(), &program_id);
+        Pubkey::find_program_address(hyperlane_token_ata_payer_pda_seeds!(), program_id);
 
     let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
     let transaction = Transaction::new_signed_with_payer(
@@ -274,7 +274,7 @@ async fn test_initialize() {
         .unwrap()
         .unwrap();
     assert_eq!(mint_account.owner, spl_token_2022::id());
-    assert!(mint_account.data.len() > 0);
+    assert!(!mint_account.data.is_empty());
 
     // Verify the ATA payer account was created.
     let ata_payer_account = banks_client
@@ -357,7 +357,7 @@ async fn transfer_from_remote(
     .await
     .unwrap();
 
-    let recipient_pubkey = recipient_wallet.unwrap_or_else(|| Pubkey::new_unique());
+    let recipient_pubkey = recipient_wallet.unwrap_or_else(Pubkey::new_unique);
     let recipient: H256 = recipient_pubkey.to_bytes().into();
 
     let recipient_associated_token_account =

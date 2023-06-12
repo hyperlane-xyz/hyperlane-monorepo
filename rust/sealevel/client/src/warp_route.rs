@@ -1,5 +1,5 @@
-use clap::ValueEnum;
-use hyperlane_core::{H160, H256};
+
+
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs::File, path::PathBuf};
 
@@ -7,7 +7,7 @@ use solana_client::rpc_client::RpcClient;
 use solana_program::{instruction::Instruction, program_error::ProgramError};
 use solana_sdk::{
     pubkey::Pubkey,
-    signature::{Keypair, Signer},
+    signature::{Signer},
 };
 
 use hyperlane_sealevel_token_lib::instruction::Init;
@@ -15,7 +15,7 @@ use hyperlane_sealevel_token_lib::instruction::Init;
 use crate::{
     cmd_utils::{create_and_write_keypair, create_new_directory, deploy_program},
     core::{read_core_program_ids, CoreProgramIds},
-    Context, WarpRouteCmd, WarpRouteDeploy, WarpRouteSubCmd,
+    Context, WarpRouteCmd, WarpRouteSubCmd,
 };
 
 // {
@@ -160,7 +160,7 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
 
                 let chain_config = chain_configs
                     .get(&chain_name)
-                    .expect(format!("Chain config not found for chain: {}", chain_name).as_str());
+                    .unwrap_or_else(|| panic!("Chain config not found for chain: {}", chain_name));
 
                 deploy_warp_route(
                     &mut ctx,
@@ -180,7 +180,7 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
 fn deploy_warp_route(
     ctx: &mut Context,
     key_dir: &PathBuf,
-    warp_route_dir: &PathBuf,
+    _warp_route_dir: &PathBuf,
     environments_dir: &PathBuf,
     environment: &str,
     built_so_dir: &PathBuf,
@@ -227,10 +227,10 @@ fn deploy_warp_route(
         TokenType::Native => {
             println!("Deploying native token");
         }
-        TokenType::Synthetic(token_metadata) => {
+        TokenType::Synthetic(_token_metadata) => {
             println!("Deploying synthetic token");
         }
-        TokenType::Collateral(collateral_info) => {
+        TokenType::Collateral(_collateral_info) => {
             println!("Deploying collateral token");
         }
     }
@@ -238,9 +238,9 @@ fn deploy_warp_route(
 
 fn init_warp_route(
     ctx: &mut Context,
-    client: &RpcClient,
+    _client: &RpcClient,
     core_program_ids: &CoreProgramIds,
-    chain_config: &ChainMetadata,
+    _chain_config: &ChainMetadata,
     token_config: &TokenConfig,
     program_id: Pubkey,
 ) -> Result<Instruction, ProgramError> {
@@ -252,7 +252,7 @@ fn init_warp_route(
         remote_decimals: token_config.decimal_metadata.remote_decimals(),
     };
 
-    let init_instructions = match &token_config.token_type {
+    let _init_instructions = match &token_config.token_type {
         TokenType::Native => hyperlane_sealevel_token_native::instruction::init_instruction(
             program_id,
             ctx.payer.pubkey(),

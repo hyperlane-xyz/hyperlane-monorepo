@@ -1,19 +1,18 @@
 use serde::{Deserialize, Serialize};
 
 use solana_program::pubkey::Pubkey;
-use solana_sdk::signature::{Keypair, Signer};
+use solana_sdk::signature::{Signer};
 
 use std::{
     fs::File,
     io::Write,
     path::{Path, PathBuf},
     str::FromStr,
-    time::SystemTime,
 };
 
 use crate::{
     cmd_utils::{
-        build_cmd, create_and_write_keypair, create_new_directory, create_new_file, deploy_program,
+        create_and_write_keypair, create_new_directory, create_new_file, deploy_program,
     },
     Context, DeployCmd, DeploySubCmd,
 };
@@ -250,7 +249,7 @@ fn write_program_ids(dir: &PathBuf, program_ids: CoreProgramIds) {
 
     println!("Writing program IDs to {}:\n{}", path.display(), json);
 
-    let mut file = File::create(path.clone()).expect("Failed to create keypair file");
+    let mut file = File::create(path).expect("Failed to create keypair file");
     file.write_all(json.as_bytes())
         .expect("Failed to write program IDs to file");
 }
@@ -263,7 +262,7 @@ pub(crate) fn read_core_program_ids(
         .join(environment)
         .join("core")
         .join("program-ids.json");
-    let file = File::open(path.clone()).expect("Failed to open program IDs file");
+    let file = File::open(path).expect("Failed to open program IDs file");
 
     let pretty_program_ids: PrettyCoreProgramIds =
         serde_json::from_reader(file).expect("Failed to read program IDs file");

@@ -141,10 +141,10 @@ async fn test_initialize() {
     .await;
 
     let (access_control_pda_key, access_control_pda_bump_seed) = initialize(
-        program_id.clone(),
+        program_id,
         &mut banks_client,
         &payer,
-        recent_blockhash.clone(),
+        recent_blockhash,
     )
     .await
     .unwrap();
@@ -179,10 +179,10 @@ async fn test_initialize_errors_if_called_twice() {
     .await;
 
     initialize(
-        program_id.clone(),
+        program_id,
         &mut banks_client,
         &payer,
-        recent_blockhash.clone(),
+        recent_blockhash,
     )
     .await
     .unwrap();
@@ -191,7 +191,7 @@ async fn test_initialize_errors_if_called_twice() {
     // instruction data is the same and the recent blockhash is the same
     let new_payer = new_funded_keypair(&mut banks_client, &payer, 1000000).await;
     let result = initialize(
-        program_id.clone(),
+        program_id,
         &mut banks_client,
         &new_payer,
         recent_blockhash,
@@ -224,10 +224,10 @@ async fn test_set_validators_and_threshold_creates_pda_account() {
     .await;
 
     let (access_control_pda_key, _) = initialize(
-        program_id.clone(),
+        program_id,
         &mut banks_client,
         &payer,
-        recent_blockhash.clone(),
+        recent_blockhash,
     )
     .await
     .unwrap();
@@ -240,10 +240,10 @@ async fn test_set_validators_and_threshold_creates_pda_account() {
     };
 
     let (domain_data_pda_key, domain_data_pda_bump_seed) = set_validators_and_threshold(
-        program_id.clone(),
+        program_id,
         &mut banks_client,
         &payer,
-        recent_blockhash.clone(),
+        recent_blockhash,
         access_control_pda_key,
         domain,
         validators_and_threshold.clone(),
@@ -405,10 +405,10 @@ async fn test_ism_verify() {
     .await;
 
     let (access_control_pda_key, _) = initialize(
-        program_id.clone(),
+        program_id,
         &mut banks_client,
         &payer,
-        recent_blockhash.clone(),
+        recent_blockhash,
     )
     .await
     .unwrap();
@@ -427,10 +427,10 @@ async fn test_ism_verify() {
     };
 
     set_validators_and_threshold(
-        program_id.clone(),
+        program_id,
         &mut banks_client,
         &payer,
-        recent_blockhash.clone(),
+        recent_blockhash,
         access_control_pda_key,
         origin_domain,
         validators_and_threshold.clone(),

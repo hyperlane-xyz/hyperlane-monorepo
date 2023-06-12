@@ -581,7 +581,7 @@ pub mod test {
         let init_domain_data = DomainData {
             bump_seed: domain_pda_bump_seed,
             validators_and_threshold: ValidatorsAndThreshold {
-                validators: validators.clone(),
+                validators,
                 threshold: 2,
             },
         };
@@ -664,7 +664,7 @@ pub mod test {
                         EcdsaSignature::from_bytes(&hex::decode("c75dca903d963f30f169ba99c2554572108474c097bd40c2a29fbcf4739fdb564e795fce8e0ae3b860dfd4e0b3f93420ccb6454e87fa3235c8754a5437a78f781b").unwrap()).unwrap(),
                     ],
                 }.to_vec(),
-                message: message_bytes.clone(),
+                message: message_bytes,
             }).encode().unwrap().as_slice(),
         );
         assert!(result.is_ok());

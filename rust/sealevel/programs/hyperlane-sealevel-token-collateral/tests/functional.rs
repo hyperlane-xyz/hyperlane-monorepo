@@ -162,9 +162,9 @@ async fn mint_to(
     amount: u64,
 ) {
     let mint_instruction = spl_token_2022::instruction::mint_to(
-        &spl_token_program_id,
+        spl_token_program_id,
         mint,
-        &recipient_account,
+        recipient_account,
         &mint_authority.pubkey(),
         &[],
         amount,
@@ -192,7 +192,7 @@ async fn create_and_mint_to_ata(
 ) -> Pubkey {
     let recipient_associated_token_account =
         spl_associated_token_account::get_associated_token_address_with_program_id(
-            &recipient_wallet,
+            recipient_wallet,
             mint,
             spl_token_program_id,
         );
@@ -422,7 +422,7 @@ async fn test_initialize() {
         .unwrap()
         .unwrap();
     assert_eq!(escrow_account.owner, spl_token_2022::id());
-    assert!(escrow_account.data.len() > 0);
+    assert!(!escrow_account.data.is_empty());
 
     // Verify the ATA payer account was created.
     let ata_payer_account = banks_client

@@ -290,7 +290,7 @@ async fn assert_successful_announcement(
         .unwrap();
     assert_eq!(replay_protection_account.owner, program_id);
 
-    assert!(validator_storage_locations_account.data.len() > 0);
+    assert!(!validator_storage_locations_account.data.is_empty());
     let replay_protection =
         ReplayProtectionAccount::fetch_data(&mut &validator_storage_locations_account.data[..])
             .unwrap();
