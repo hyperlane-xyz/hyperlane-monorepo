@@ -45,9 +45,13 @@ impl Signer for Signers {
                     signer.sign_message(message).await
                 };
 
+                // TODO: specifically retry on dispatch errors
+
                 let retry_strategy = ExponentialBackoff::from_millis(100)
                     .map(jitter) // add jitter to delays
                     .take(10);    // limit to 3 retries
+
+                // TODO: coerce error type
 
                 Retry::spawn(retry_strategy, action).await
             }
