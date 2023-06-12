@@ -31,5 +31,5 @@ ethers-prometheus = { path = "../../ethers-prometheus", features = ["serde"] }
 num-traits.workspace = true
 
 [build-dependencies]
-abigen = { path = "../../utils/abigen", features = ["ethers", "fuels"] }
+abigen = { path = "../../utils/abigen", features = ["ethers"] }
 hyperlane-core = { path = "../../hyperlane-core", features = ["test-utils"] }
