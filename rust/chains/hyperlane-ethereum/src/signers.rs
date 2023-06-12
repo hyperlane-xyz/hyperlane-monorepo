@@ -6,6 +6,9 @@ use ethers_signers::{AwsSigner, AwsSignerError, LocalWallet, Signer, WalletError
 
 use hyperlane_core::{HyperlaneSigner, HyperlaneSignerError, H160, H256};
 
+use tokio_retry::Retry;
+use tokio_retry::strategy::{ExponentialBackoff, jitter};
+
 /// Ethereum-supported signer types
 #[derive(Debug, Clone)]
 pub enum Signers {
@@ -37,7 +40,17 @@ impl Signer for Signers {
     ) -> Result<Signature, Self::Error> {
         match self {
             Signers::Local(signer) => Ok(signer.sign_message(message).await?),
-            Signers::Aws(signer) => Ok(signer.sign_message(message).await?),
+            Signers::Aws(signer) => {
+                let action = || async {
+                    signer.sign_message(message).await
+                };
+
+                let retry_strategy = ExponentialBackoff::from_millis(100)
+                    .map(jitter) // add jitter to delays
+                    .take(10);    // limit to 3 retries
+
+                Retry::spawn(retry_strategy, action).await
+            }
         }
     }
 
