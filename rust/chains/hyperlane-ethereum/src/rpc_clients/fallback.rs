@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
 use async_trait::async_trait;
-use ethers::providers::{Http, HttpClientError, JsonRpcClient, ProviderError};
+use ethers::providers::{HttpClientError, JsonRpcClient, ProviderError};
 use ethers_core::types::U64;
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
@@ -61,7 +61,7 @@ impl<T> Clone for FallbackProvider<T> {
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
-            max_block_time: self.max_block_time.clone(),
+            max_block_time: self.max_block_time,
         }
     }
 }
@@ -132,6 +132,7 @@ impl<T> FallbackProviderBuilder<T> {
         self
     }
 
+    #[cfg(test)]
     pub fn with_max_block_time(mut self, max_block_time: Duration) -> Self {
         self.max_block_time = max_block_time;
         self
@@ -192,7 +193,8 @@ where
         .await
         .map(|r: U64| r.as_u64())
         .unwrap_or(priority.last_block_height.0);
-    if current_block_height > priority.last_block_height.0 {
+    if current_block_height == priority.last_block_height.0 {
+        // The `max_block_time` elapsed but the block number returned by the provider is still the same
         deprioritize_provider(fallback_provider, priority).await;
     } else {
         update_last_seen_block(fallback_provider, priority.index, current_block_height).await
@@ -272,27 +274,13 @@ where
                 };
                 let resp = fut.await;
                 handle_stalled_provider(self, priority).await?;
+                let _span =
+                    warn_span!("request_with_fallback", provider_index=%idx, ?provider).entered();
 
                 match categorize_client_response(method, resp) {
-                    IsOk(v) => {
-                        let _span =
-                            warn_span!("request_with_fallback", provider_index=%idx, ?provider)
-                                .entered();
-                        return Ok(serde_json::from_value(v)?);
-                    }
-                    RetryableErr(e) | RateLimitErr(e) => {
-                        deprioritize_provider(self, priority).await;
-                        let _span =
-                            warn_span!("request_with_fallback", provider_index=%idx, ?provider)
-                                .entered();
-                        errors.push(e.into())
-                    }
-                    NonRetryableErr(e) => {
-                        let _span =
-                            warn_span!("request_with_fallback", provider_index=%idx, ?provider)
-                                .entered();
-                        return Err(e.into());
-                    }
+                    IsOk(v) => return Ok(serde_json::from_value(v)?),
+                    RetryableErr(e) | RateLimitErr(e) => errors.push(e.into()),
+                    NonRetryableErr(e) => return Err(e.into()),
                 }
             }
         }
@@ -303,25 +291,41 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::borrow::Borrow;
-
     use super::*;
-    use ethers::providers::{MockError, MockProvider};
-
-    use ethers_core::types::{U256, U64};
-    use reqwest::Error as ReqwestError;
+    use std::sync::Mutex;
 
     #[derive(Debug)]
-    // TODO: store requests to avoid depending on MockProvider
-    struct ProviderMock(MockProvider);
+    struct ProviderMock {
+        // Store requests as tuples of (method, params)
+        // Even if the tests were single-threaded, need the arc-mutex
+        // for interior mutability in `JsonRpcClient::request`
+        requests: Arc<Mutex<Vec<(String, String)>>>,
+    }
+
     impl ProviderMock {
         fn new() -> Self {
-            Self(MockProvider::new())
+            Self {
+                requests: Arc::new(Mutex::new(vec![])),
+            }
         }
 
-        fn push<T: Serialize + Send + Sync, K: Borrow<T>>(&self, data: K) -> Result<(), MockError> {
-            self.0.push(data)
+        fn push<T: Send + Sync + Serialize + Debug>(&self, method: &str, params: T) {
+            self.requests
+                .lock()
+                .unwrap()
+                .push((method.to_owned(), format!("{:?}", params)));
         }
+
+        fn requests(&self) -> Vec<(String, String)> {
+            self.requests.lock().unwrap().clone()
+        }
+    }
+
+    fn dummy_return_value<R: DeserializeOwned>() -> Result<R, HttpClientError> {
+        serde_json::from_str("0").map_err(|e| HttpClientError::SerdeJson {
+            err: e,
+            text: "".to_owned(),
+        })
     }
 
     #[async_trait]
@@ -330,16 +334,14 @@ mod tests {
 
         /// Pushes the `(method, params)` to the back of the `requests` queue,
         /// pops the responses from the back of the `responses` queue
-        async fn request<T: Serialize + Send + Sync + Debug, R: DeserializeOwned>(
+        async fn request<T: Debug + Serialize + Send + Sync, R: DeserializeOwned>(
             &self,
             method: &str,
             params: T,
         ) -> Result<R, Self::Error> {
+            self.push(method, params);
             sleep(Duration::from_millis(10)).await;
-            serde_json::from_str("0").map_err(|e| HttpClientError::SerdeJson {
-                err: e,
-                text: "".to_owned(),
-            })
+            dummy_return_value()
         }
     }
 
@@ -353,35 +355,58 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_one_stalled_provider() {
-        let fallback_provider_builder = FallbackProviderBuilder::default();
+    async fn get_call_counts(fallback_provider: &FallbackProvider<ProviderMock>) -> Vec<usize> {
+        fallback_provider
+            .inner
+            .priorities
+            .read()
+            .await
+            .iter()
+            .map(|p| {
+                let provider = &fallback_provider.inner.providers[p.index];
+                provider.requests().len()
+            })
+            .collect()
+    }
 
-        let num = 5u64;
-        let value = U256::from(42);
-        let mut providers = vec![
+    #[tokio::test]
+    async fn test_first_provider_is_attempted() {
+        let fallback_provider_builder = FallbackProviderBuilder::default();
+        let providers = vec![
             ProviderMock::new(),
             ProviderMock::new(),
             ProviderMock::new(),
         ];
-        // providers[0].assert_request(method, data)
-        providers[0].push(U64::from(0)).unwrap();
-        // providers[0].push(128).unwrap();
+        let fallback_provider = fallback_provider_builder.add_providers(providers).build();
+        fallback_provider
+            .request::<_, u64>(BLOCK_NUMBER_RPC, ())
+            .await
+            .unwrap();
+        let provider_call_count: Vec<_> = get_call_counts(&fallback_provider).await;
+        assert_eq!(provider_call_count, vec![1, 0, 0]);
+    }
+
+    #[tokio::test]
+    async fn test_one_stalled_provider() {
+        let fallback_provider_builder = FallbackProviderBuilder::default();
+        let providers = vec![
+            ProviderMock::new(),
+            ProviderMock::new(),
+            ProviderMock::new(),
+        ];
         let fallback_provider = fallback_provider_builder
             .add_providers(providers)
             .with_max_block_time(Duration::from_secs(0))
             .build();
-        let x: u64 = fallback_provider
-            .request(BLOCK_NUMBER_RPC, ())
+        fallback_provider
+            .request::<_, u64>(BLOCK_NUMBER_RPC, ())
             .await
             .unwrap();
-        println!("{}", x);
 
-        // Set the MAX_BLOCK_TIME to zero
-        // sleep for 0.01s
-        // mock response to be block no zero
-        // call anything, expect provider to be deprioritized
-        // check that by only expecting `assert_request` to succeed
-        // on the last provider
+        let provider_call_count: Vec<_> = get_call_counts(&fallback_provider).await;
+        assert_eq!(provider_call_count, vec![0, 0, 2]);
     }
+
+    // TODO: make `categorize_client_response` generic over `ProviderError` to allow testing
+    // two stalled providers (so that the for loop in `request` doesn't stop after the first provider)
 }
