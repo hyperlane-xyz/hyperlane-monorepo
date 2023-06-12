@@ -67,12 +67,6 @@ build_spl_token_cli() {
 
 setup_multisig_ism_message_id() {
     set +e
-    # init the contract
-    # it's possible the contract deploy hasn't reached finality, so just retry till it works
-    # while ! "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" multisig-ism-message-id init; do
-    #     sleep 3
-    # done
-
     # Set the validators and threshold
     # This may fail until the previous init command reaches finality,
     # just retry till it succeeds
@@ -85,9 +79,6 @@ setup_multisig_ism_message_id() {
 
 announce_validator() {
     set +e
-    # init the validator announce contract
-    # "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" validator-announce init
-
     # announce the validator
     # This may fail until the previous init command reaches finality,
     # just retry till it succeeds
@@ -100,10 +91,6 @@ announce_validator() {
 
 mailbox_init() {
     set +e
-    # while ! "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox init; do
-    #     sleep 3
-    # done
-
     while "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox query | grep -q 'Not yet created'; do
         sleep 3
     done
@@ -126,11 +113,6 @@ token_init() {
     local -r token_type="${1}"
     local -r program_id="${2}"
 
-    set +e
-    while ! "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" token init "${token_type}" --program-id "${program_id}"; do
-        sleep 3
-    done
-
     while "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" token query "${token_type}" --program-id "${program_id}" | grep -q 'Not yet created'; do
         sleep 3
     done
@@ -144,6 +126,8 @@ test_token() {
     setup_multisig_ism_message_id
 
     mailbox_init
+
+    "${BIN_DIR}/hyperlane-sealevel-client" --compute-budget 200000 warp-route deploy --warp-route-name testwarproute --environment local-e2e --environments-dir "${SEALEVEL_DIR}/environments" --built-so-dir "${DEPLOY_DIR}" --token-config-file "${SEALEVEL_DIR}/client/src/test-warp-route-token-config.json" --chain-config-file "${SEALEVEL_DIR}/client/src/test-warp-route-chain-config.json" --ata-payer-funding-amount 1000000000
 
     local token_type=""
     local program_id=""
@@ -251,7 +235,7 @@ test_token() {
 
     # Wait for token transfer message to appear in inbox.
     # This ID was manually gotten from running the Relayer and observing the logs - fragile, I know!
-    while "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox delivered --message-id 0x0f2c21e554389e78a88b8d198f5a33b35b66a7fe0e59be82d352fff83a5c9764 | grep -q 'Message not delivered'
+    while "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox delivered --message-id 0xbacfe0c091894423458e1fc28f03e2c130c592c5ce1550a69c0289671a3d6628 | grep -q 'Message not delivered'
     do
         sleep 3
     done
@@ -279,7 +263,7 @@ main() {
     # copy the keys into the deploy dir
     cp ${TEST_KEYS_DIR}/*.json ${TARGET_DIR}/deploy/
 
-    "${BIN_DIR}/hyperlane-sealevel-client" --url http://localhost:8899 --compute-budget 200000 deploy core --local-domain 13375 --artifact-name local-e2e --use-existing-keys --artifacts-dir "${SEALEVEL_DIR}/artifacts" --built-so-dir "${DEPLOY_DIR}"
+    "${BIN_DIR}/hyperlane-sealevel-client" --compute-budget 200000 deploy core --local-domain 13375 --environment local-e2e --use-existing-keys --environments-dir "${SEALEVEL_DIR}/environments" --built-so-dir "${DEPLOY_DIR}" --chain test1
 
     solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_token.so"
     solana -ul -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_token_native.so"
