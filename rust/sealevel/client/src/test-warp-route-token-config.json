@@ -1,43 +1,19 @@
 {
-  "solana-test-validator": {
-    "type": "collateral",
-    "token": "0xb4fbf271143f4fbf7b91a5ded31805e42b2208d6",
-    "owner": "0x5bA371aeA18734Cb7195650aFdfCa4f9251aa513",
-    "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
-    "interchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1",
-    "decimals": 18
+  "test1": {
+    "type": "native",
+    "owner": "0x",
+    "mailbox": "692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1",
+    "interchainGasPaymaster": "0x",
+    "decimals": 9
   },
-  "alfajores": {
+  "test2": {
     "type": "synthetic",
-    "owner": "0x5bA371aeA18734Cb7195650aFdfCa4f9251aa513",
-    "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
-    "interchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1",
-    "decimals": 18,
+    "owner": "0x",
+    "mailbox": "692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1",
+    "interchainGasPaymaster": "0x",
+    "decimals": 9,
     "name": "Foo",
     "symbol": "FOO",
-    "totalSupply": "0",
-    "existingDeployment": "0x"
-  },
-  "fuji": {
-    "type": "synthetic",
-    "owner": "0x5bA371aeA18734Cb7195650aFdfCa4f9251aa513",
-    "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
-    "interchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1",
-    "decimals": 18,
-    "name": "Foo",
-    "symbol": "FOO",
-    "totalSupply": "0",
-    "existingDeployment": "0x"
-  },
-  "moonbasealpha": {
-    "type": "synthetic",
-    "owner": "0x5bA371aeA18734Cb7195650aFdfCa4f9251aa513",
-    "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
-    "interchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1",
-    "decimals": 18,
-    "name": "Foo",
-    "symbol": "FOO",
-    "totalSupply": "0",
-    "existingDeployment": "0x"
+    "totalSupply": "0"
   }
 }

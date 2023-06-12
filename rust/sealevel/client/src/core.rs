@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use solana_program::pubkey::Pubkey;
-use solana_sdk::signature::{Signer};
+use solana_sdk::signature::Signer;
 
 use std::{
     fs::File,
@@ -11,9 +11,7 @@ use std::{
 };
 
 use crate::{
-    cmd_utils::{
-        create_and_write_keypair, create_new_directory, create_new_file, deploy_program,
-    },
+    cmd_utils::{create_and_write_keypair, create_new_directory, create_new_file, deploy_program},
     Context, DeployCmd, DeploySubCmd,
 };
 
@@ -21,9 +19,10 @@ pub(crate) fn process_deploy_cmd(mut ctx: Context, cmd: DeployCmd) {
     match cmd.cmd {
         DeploySubCmd::Core(core) => {
             let environments_dir = create_new_directory(&core.environments_dir, &core.environment);
-            let artifacts_dir = create_new_directory(&environments_dir, "core");
-            let key_dir = create_new_directory(&artifacts_dir, "keys");
-            let log_file = create_new_file(&artifacts_dir, "deploy-logs.txt");
+            let chain_dir = create_new_directory(&environments_dir, &core.chain);
+            let core_dir = create_new_directory(&chain_dir, "core");
+            let key_dir = create_new_directory(&core_dir, "keys");
+            let log_file = create_new_file(&core_dir, "deploy-logs.txt");
 
             let ism_program_id = deploy_multisig_ism_message_id(
                 &mut ctx,
@@ -58,7 +57,7 @@ pub(crate) fn process_deploy_cmd(mut ctx: Context, cmd: DeployCmd) {
                 validator_announce: validator_announce_program_id,
                 multisig_ism_message_id: ism_program_id,
             };
-            write_program_ids(&artifacts_dir, program_ids);
+            write_program_ids(&core_dir, program_ids);
         }
     }
 }
@@ -241,11 +240,11 @@ impl From<CoreProgramIds> for PrettyCoreProgramIds {
     }
 }
 
-fn write_program_ids(dir: &PathBuf, program_ids: CoreProgramIds) {
+fn write_program_ids(core_dir: &PathBuf, program_ids: CoreProgramIds) {
     let pretty_program_ids = PrettyCoreProgramIds::from(program_ids);
 
     let json = serde_json::to_string_pretty(&pretty_program_ids).unwrap();
-    let path = dir.join("program-ids.json");
+    let path = core_dir.join("program-ids.json");
 
     println!("Writing program IDs to {}:\n{}", path.display(), json);
 
@@ -257,9 +256,11 @@ fn write_program_ids(dir: &PathBuf, program_ids: CoreProgramIds) {
 pub(crate) fn read_core_program_ids(
     environments_dir: &PathBuf,
     environment: &str,
+    chain: &str,
 ) -> CoreProgramIds {
     let path = environments_dir
         .join(environment)
+        .join(chain)
         .join("core")
         .join("program-ids.json");
     let file = File::open(path).expect("Failed to open program IDs file");

@@ -10,10 +10,7 @@ use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_mailbox::{
     accounts::{InboxAccount, OutboxAccount},
     hyperlane_core::{message::HyperlaneMessage, types::H256, Encode},
-    instruction::{
-        InboxProcess, Instruction as MailboxInstruction, OutboxDispatch,
-        VERSION,
-    },
+    instruction::{InboxProcess, Instruction as MailboxInstruction, OutboxDispatch, VERSION},
     mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds,
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
     mailbox_processed_message_pda_seeds, spl_noop,
@@ -50,7 +47,6 @@ use hyperlane_sealevel_validator_announce::{
     validator_storage_locations_pda_seeds,
 };
 
-
 use solana_clap_utils::input_validators::{is_keypair, is_url, normalize_to_url_if_moniker};
 use solana_cli_config::{Config, CONFIG_FILE};
 use solana_client::{rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig};
@@ -66,10 +62,7 @@ use solana_sdk::{
     transaction::Transaction,
 };
 
-use std::{
-    io::Write,
-    path::{PathBuf},
-};
+use std::{io::Write, path::PathBuf};
 
 mod cmd_utils;
 mod r#core;
@@ -77,7 +70,7 @@ mod warp_route;
 
 pub(crate) use crate::core::*;
 
-use crate::{warp_route::process_warp_route_cmd};
+use crate::warp_route::process_warp_route_cmd;
 
 // Note: from solana_program_runtime::compute_budget
 const DEFAULT_INSTRUCTION_COMPUTE_UNIT_LIMIT: u32 = 200_000;
@@ -136,6 +129,8 @@ pub(crate) struct WarpRouteDeploy {
     token_config_file: PathBuf,
     #[arg(long)]
     chain_config_file: PathBuf,
+    #[arg(long)]
+    ata_payer_funding_amount: Option<u64>,
 }
 
 #[derive(Args)]
@@ -155,6 +150,8 @@ struct DeployCore {
     local_domain: u32,
     #[arg(long)]
     environment: String,
+    #[arg(long)]
+    chain: String,
     #[arg(long)]
     use_existing_keys: bool,
     #[arg(long)]

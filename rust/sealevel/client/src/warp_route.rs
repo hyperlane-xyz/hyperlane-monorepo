@@ -1,14 +1,11 @@
-
-
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs::File, path::PathBuf};
 
 use solana_client::rpc_client::RpcClient;
 use solana_program::{instruction::Instruction, program_error::ProgramError};
-use solana_sdk::{
-    pubkey::Pubkey,
-    signature::{Signer},
-};
+use solana_sdk::{pubkey::Pubkey, signature::Signer};
+
+use hyperlane_sealevel_token::{hyperlane_token_mint_pda_seeds, spl_token, spl_token_2022};
 
 use hyperlane_sealevel_token_lib::instruction::Init;
 
@@ -87,10 +84,26 @@ struct TokenMetadata {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
+enum SplTokenProgramType {
+    Token,
+    Token2022,
+}
+
+impl SplTokenProgramType {
+    fn program_id(&self) -> Pubkey {
+        match &self {
+            SplTokenProgramType::Token => spl_token::id(),
+            SplTokenProgramType::Token2022 => spl_token_2022::id(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 struct CollateralInfo {
     #[serde(rename = "token")]
     mint: String,
-    spl_token_program: Option<String>,
+    spl_token_program: Option<SplTokenProgramType>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -171,6 +184,7 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                     &deploy.built_so_dir,
                     chain_config,
                     &token_config,
+                    deploy.ata_payer_funding_amount,
                 );
             }
         }
@@ -186,6 +200,7 @@ fn deploy_warp_route(
     built_so_dir: &PathBuf,
     chain_config: &ChainMetadata,
     token_config: &TokenConfig,
+    ata_payer_funding_amount: Option<u64>,
 ) {
     println!(
         "Attempting deploy on chain: {}\nToken config: {:?}",
@@ -194,7 +209,12 @@ fn deploy_warp_route(
 
     let (keypair, keypair_path) = create_and_write_keypair(
         key_dir,
-        format!("{}-keypair.json", token_config.token_type.program_name()).as_str(),
+        format!(
+            "{}-{}.json",
+            token_config.token_type.program_name(),
+            chain_config.name
+        )
+        .as_str(),
         true,
     );
     let program_id = keypair.pubkey();
@@ -212,7 +232,7 @@ fn deploy_warp_route(
         "/",
     );
 
-    let core_program_ids = read_core_program_ids(environments_dir, environment);
+    let core_program_ids = read_core_program_ids(environments_dir, environment, &chain_config.name);
     init_warp_route(
         ctx,
         &chain_config.client(),
@@ -220,6 +240,7 @@ fn deploy_warp_route(
         chain_config,
         token_config,
         program_id,
+        ata_payer_funding_amount,
     )
     .unwrap();
 
@@ -243,7 +264,8 @@ fn init_warp_route(
     _chain_config: &ChainMetadata,
     token_config: &TokenConfig,
     program_id: Pubkey,
-) -> Result<Instruction, ProgramError> {
+    ata_payer_funding_amount: Option<u64>,
+) -> Result<(), ProgramError> {
     let init = Init {
         mailbox: core_program_ids.mailbox,
         // TODO take in as arg?
@@ -252,34 +274,84 @@ fn init_warp_route(
         remote_decimals: token_config.decimal_metadata.remote_decimals(),
     };
 
-    let _init_instructions = match &token_config.token_type {
-        TokenType::Native => hyperlane_sealevel_token_native::instruction::init_instruction(
-            program_id,
-            ctx.payer.pubkey(),
-            init,
-        )?,
-        TokenType::Synthetic(_token_metadata) => {
-            hyperlane_sealevel_token::instruction::init_instruction(
+    let mut init_instructions = match &token_config.token_type {
+        TokenType::Native => vec![
+            hyperlane_sealevel_token_native::instruction::init_instruction(
                 program_id,
                 ctx.payer.pubkey(),
                 init,
-            )?
+            )?,
+        ],
+        TokenType::Synthetic(_token_metadata) => {
+            let decimals = init.decimals;
+
+            let mut instructions = vec![hyperlane_sealevel_token::instruction::init_instruction(
+                program_id,
+                ctx.payer.pubkey(),
+                init,
+            )?];
+
+            let (mint_account, _mint_bump) =
+                Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
+            instructions.push(
+                spl_token_2022::instruction::initialize_mint2(
+                    &spl_token_2022::id(),
+                    &mint_account,
+                    &mint_account,
+                    None,
+                    decimals,
+                )
+                .unwrap(),
+            );
+
+            if let Some(ata_payer_funding_amount) = ata_payer_funding_amount {
+                let (ata_payer_account, _ata_payer_bump) = Pubkey::find_program_address(
+                    hyperlane_sealevel_token::hyperlane_token_ata_payer_pda_seeds!(),
+                    &program_id,
+                );
+                instructions.push(solana_program::system_instruction::transfer(
+                    &ctx.payer.pubkey(),
+                    &ata_payer_account,
+                    ata_payer_funding_amount,
+                ));
+            }
+
+            instructions
         }
         TokenType::Collateral(collateral_info) => {
-            hyperlane_sealevel_token_collateral::instruction::init_instruction(
-                program_id,
-                ctx.payer.pubkey(),
-                init,
-                collateral_info
-                    .spl_token_program
-                    .as_ref()
-                    .expect("Cannot initalize collateral warp route without SPL token program")
-                    .parse()
-                    .unwrap(),
-                collateral_info.mint.parse().unwrap(),
-            )?
+            let mut instructions = vec![
+                hyperlane_sealevel_token_collateral::instruction::init_instruction(
+                    program_id,
+                    ctx.payer.pubkey(),
+                    init,
+                    collateral_info
+                        .spl_token_program
+                        .as_ref()
+                        .expect("Cannot initalize collateral warp route without SPL token program")
+                        .program_id(),
+                    collateral_info.mint.parse().expect("Invalid mint address"),
+                )?,
+            ];
+
+            if let Some(ata_payer_funding_amount) = ata_payer_funding_amount {
+                let (ata_payer_account, _ata_payer_bump) = Pubkey::find_program_address(
+                    hyperlane_sealevel_token_collateral::hyperlane_token_ata_payer_pda_seeds!(),
+                    &program_id,
+                );
+                instructions.push(solana_program::system_instruction::transfer(
+                    &ctx.payer.pubkey(),
+                    &ata_payer_account,
+                    ata_payer_funding_amount,
+                ));
+            }
+
+            instructions
         }
     };
 
-    todo!()
+    ctx.instructions.append(&mut init_instructions);
+    ctx.send_transaction(&[&ctx.payer]);
+    ctx.instructions.clear();
+
+    Ok(())
 }

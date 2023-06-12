@@ -141,8 +141,7 @@ mod test {
                 None => {
                     assert!(signature_result.is_err());
                     assert!(
-                        signature_result.unwrap_err()
-                            == EcdsaSignatureError::InvalidRecoveryId
+                        signature_result.unwrap_err() == EcdsaSignatureError::InvalidRecoveryId
                     );
                 }
             }
