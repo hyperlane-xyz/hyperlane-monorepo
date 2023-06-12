@@ -13,6 +13,7 @@ hyperlane-sealevel-multisig-ism-message-id = { path = "../programs/ism/multisig-
 hyperlane-sealevel-mailbox = { path = "../programs/mailbox" }
 hyperlane-sealevel-recipient-echo = { path = "../programs/recipient/echo" }
 hyperlane-sealevel-token = { path = "../programs/hyperlane-sealevel-token" }
+hyperlane-sealevel-token-collateral = { path = "../programs/hyperlane-sealevel-token-collateral" }
 hyperlane-sealevel-token-native = { path = "../programs/hyperlane-sealevel-token-native" }
 hyperlane-sealevel-token-lib = { path = "../libraries/hyperlane-sealevel-token" }
 hyperlane-sealevel-connection-client = { path = "../libraries/hyperlane-sealevel-connection-client" }

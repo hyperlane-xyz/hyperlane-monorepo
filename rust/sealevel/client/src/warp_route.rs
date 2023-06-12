@@ -4,13 +4,17 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs::File, path::PathBuf};
 
 use solana_client::rpc_client::RpcClient;
+use solana_program::{instruction::Instruction, program_error::ProgramError};
 use solana_sdk::{
     pubkey::Pubkey,
     signature::{Keypair, Signer},
 };
 
+use hyperlane_sealevel_token_lib::instruction::Init;
+
 use crate::{
     cmd_utils::{create_and_write_keypair, create_new_directory, deploy_program},
+    core::{read_core_program_ids, CoreProgramIds},
     Context, WarpRouteCmd, WarpRouteDeploy, WarpRouteSubCmd,
 };
 
@@ -47,6 +51,12 @@ use crate::{
 struct DecimalMetadata {
     decimals: u8,
     remote_decimals: Option<u8>,
+}
+
+impl DecimalMetadata {
+    fn remote_decimals(&self) -> u8 {
+        self.remote_decimals.unwrap_or(self.decimals)
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -118,9 +128,7 @@ impl ChainMetadata {
     fn client(&self) -> RpcClient {
         RpcClient::new(self.public_rpc_urls[0].http.clone())
     }
-}
 
-impl ChainMetadata {
     fn domain_id(&self) -> u32 {
         self.domain_id.unwrap_or(self.chain_id)
     }
@@ -158,6 +166,8 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                     &mut ctx,
                     &keys_dir,
                     &warp_route_dir,
+                    &deploy.environments_dir,
+                    &deploy.environment,
                     &deploy.built_so_dir,
                     chain_config,
                     &token_config,
@@ -171,6 +181,8 @@ fn deploy_warp_route(
     ctx: &mut Context,
     key_dir: &PathBuf,
     warp_route_dir: &PathBuf,
+    environments_dir: &PathBuf,
+    environment: &str,
     built_so_dir: &PathBuf,
     chain_config: &ChainMetadata,
     token_config: &TokenConfig,
@@ -200,6 +212,17 @@ fn deploy_warp_route(
         "/",
     );
 
+    let core_program_ids = read_core_program_ids(environments_dir, environment);
+    init_warp_route(
+        ctx,
+        &chain_config.client(),
+        &core_program_ids,
+        chain_config,
+        token_config,
+        program_id,
+    )
+    .unwrap();
+
     match &token_config.token_type {
         TokenType::Native => {
             println!("Deploying native token");
@@ -216,20 +239,47 @@ fn deploy_warp_route(
 fn init_warp_route(
     ctx: &mut Context,
     client: &RpcClient,
+    core_program_ids: &CoreProgramIds,
     chain_config: &ChainMetadata,
     token_config: &TokenConfig,
-) {
-    // let init_instructions = match &token_config.token_type {
-    //     TokenType::Native => {
-    //         hyperlane_sealevel_token_native::instruction::init_instruction(
+    program_id: Pubkey,
+) -> Result<Instruction, ProgramError> {
+    let init = Init {
+        mailbox: core_program_ids.mailbox,
+        // TODO take in as arg?
+        interchain_security_module: None,
+        decimals: token_config.decimal_metadata.decimals,
+        remote_decimals: token_config.decimal_metadata.remote_decimals(),
+    };
 
-    //         )
-    //     }
-    //     TokenType::Synthetic(token_metadata) => {
-    //         println!("Deploying synthetic token");
-    //     }
-    //     TokenType::Collateral(collateral_info) => {
-    //         println!("Deploying collateral token");
-    //     }
-    // };
+    let init_instructions = match &token_config.token_type {
+        TokenType::Native => hyperlane_sealevel_token_native::instruction::init_instruction(
+            program_id,
+            ctx.payer.pubkey(),
+            init,
+        )?,
+        TokenType::Synthetic(_token_metadata) => {
+            hyperlane_sealevel_token::instruction::init_instruction(
+                program_id,
+                ctx.payer.pubkey(),
+                init,
+            )?
+        }
+        TokenType::Collateral(collateral_info) => {
+            hyperlane_sealevel_token_collateral::instruction::init_instruction(
+                program_id,
+                ctx.payer.pubkey(),
+                init,
+                collateral_info
+                    .spl_token_program
+                    .as_ref()
+                    .expect("Cannot initalize collateral warp route without SPL token program")
+                    .parse()
+                    .unwrap(),
+                collateral_info.mint.parse().unwrap(),
+            )?
+        }
+    };
+
+    todo!()
 }

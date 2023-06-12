@@ -7,6 +7,7 @@ use std::{
     fs::File,
     io::Write,
     path::{Path, PathBuf},
+    str::FromStr,
     time::SystemTime,
 };
 
@@ -54,9 +55,9 @@ pub(crate) fn process_deploy_cmd(mut ctx: Context, cmd: DeployCmd) {
             );
 
             let program_ids = CoreProgramIds {
-                mailbox: mailbox_program_id.to_string(),
-                validator_announce: validator_announce_program_id.to_string(),
-                multisig_ism_message_id: ism_program_id.to_string(),
+                mailbox: mailbox_program_id,
+                validator_announce: validator_announce_program_id,
+                multisig_ism_message_id: ism_program_id,
             };
             write_program_ids(&artifacts_dir, program_ids);
         }
@@ -206,20 +207,66 @@ fn deploy_validator_announce(
     program_id
 }
 
-#[derive(Debug, Serialize)]
-struct CoreProgramIds {
+#[derive(Debug)]
+pub(crate) struct CoreProgramIds {
+    pub mailbox: Pubkey,
+    pub validator_announce: Pubkey,
+    pub multisig_ism_message_id: Pubkey,
+}
+
+impl From<PrettyCoreProgramIds> for CoreProgramIds {
+    fn from(program_ids: PrettyCoreProgramIds) -> Self {
+        Self {
+            mailbox: Pubkey::from_str(program_ids.mailbox.as_str()).unwrap(),
+            validator_announce: Pubkey::from_str(program_ids.validator_announce.as_str()).unwrap(),
+            multisig_ism_message_id: Pubkey::from_str(program_ids.multisig_ism_message_id.as_str())
+                .unwrap(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct PrettyCoreProgramIds {
     mailbox: String,
     validator_announce: String,
     multisig_ism_message_id: String,
 }
 
-fn write_program_ids(artifacts_dir: &PathBuf, program_ids: CoreProgramIds) {
-    let json = serde_json::to_string_pretty(&program_ids).unwrap();
-    let path = artifacts_dir.join("program-ids.json");
+impl From<CoreProgramIds> for PrettyCoreProgramIds {
+    fn from(program_ids: CoreProgramIds) -> Self {
+        Self {
+            mailbox: program_ids.mailbox.to_string(),
+            validator_announce: program_ids.validator_announce.to_string(),
+            multisig_ism_message_id: program_ids.multisig_ism_message_id.to_string(),
+        }
+    }
+}
+
+fn write_program_ids(dir: &PathBuf, program_ids: CoreProgramIds) {
+    let pretty_program_ids = PrettyCoreProgramIds::from(program_ids);
+
+    let json = serde_json::to_string_pretty(&pretty_program_ids).unwrap();
+    let path = dir.join("program-ids.json");
 
     println!("Writing program IDs to {}:\n{}", path.display(), json);
 
     let mut file = File::create(path.clone()).expect("Failed to create keypair file");
     file.write_all(json.as_bytes())
         .expect("Failed to write program IDs to file");
+}
+
+pub(crate) fn read_core_program_ids(
+    environments_dir: &PathBuf,
+    environment: &str,
+) -> CoreProgramIds {
+    let path = environments_dir
+        .join(environment)
+        .join("core")
+        .join("program-ids.json");
+    let file = File::open(path.clone()).expect("Failed to open program IDs file");
+
+    let pretty_program_ids: PrettyCoreProgramIds =
+        serde_json::from_reader(file).expect("Failed to read program IDs file");
+
+    CoreProgramIds::from(pretty_program_ids)
 }

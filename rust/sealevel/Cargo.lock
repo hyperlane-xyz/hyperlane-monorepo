@@ -1661,6 +1661,7 @@ dependencies = [
  "hyperlane-sealevel-multisig-ism-message-id",
  "hyperlane-sealevel-recipient-echo",
  "hyperlane-sealevel-token",
+ "hyperlane-sealevel-token-collateral",
  "hyperlane-sealevel-token-lib",
  "hyperlane-sealevel-token-native",
  "hyperlane-sealevel-validator-announce",
