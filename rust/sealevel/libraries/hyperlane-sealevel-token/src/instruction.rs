@@ -1,10 +1,18 @@
 //! TODO
 
-use account_utils::{DiscriminatorData, PROGRAM_INSTRUCTION_DISCRIMINATOR};
+use account_utils::{DiscriminatorData, DiscriminatorEncode, PROGRAM_INSTRUCTION_DISCRIMINATOR};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{H256, U256};
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
-use solana_program::pubkey::Pubkey;
+use solana_program::{
+    instruction::{AccountMeta, Instruction as SolanaInstruction},
+    program_error::ProgramError,
+    pubkey::Pubkey,
+};
+
+use hyperlane_sealevel_mailbox::mailbox_message_dispatch_authority_pda_seeds;
+
+use crate::hyperlane_token_pda_seeds;
 
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub enum Instruction {
@@ -151,4 +159,42 @@ where
         let ixn_data = bs58::decode(data).into_vec().map_err(|_err| EventError)?;
         Self::from_noop_cpi_ixn_data(&ixn_data)
     }
+}
+
+/// Gets an instruction to initialize the program. This provides only the
+/// account metas required by the library, and consuming programs are expected
+/// to add the accounts for their own use.
+pub fn init_instruction(
+    program_id: Pubkey,
+    payer: Pubkey,
+    init: Init,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (token_key, _token_bump) =
+        Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &program_id);
+
+    let (dispatch_authority_key, _dispatch_authority_bump) =
+        Pubkey::find_program_address(mailbox_message_dispatch_authority_pda_seeds!(), &program_id);
+
+    let ixn = Instruction::Init(init);
+
+    // Accounts:
+    // 0.   [executable] The system program.
+    // 1.   [writable] The token PDA account.
+    // 2.   [writable] The dispatch authority PDA account.
+    // 3.   [signer] The payer and access control owner.
+    // 4..N [??..??] Plugin-specific accounts.
+    let accounts = vec![
+        AccountMeta::new_readonly(solana_program::system_program::id(), false),
+        AccountMeta::new(token_key, false),
+        AccountMeta::new(dispatch_authority_key, false),
+        AccountMeta::new(payer, true),
+    ];
+
+    let instruction = SolanaInstruction {
+        program_id,
+        data: ixn.encode()?,
+        accounts,
+    };
+
+    Ok(instruction)
 }
