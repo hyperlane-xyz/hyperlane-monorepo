@@ -62,7 +62,7 @@ use solana_sdk::{
     transaction::Transaction,
 };
 
-use std::{io::Write, path::PathBuf};
+use std::path::PathBuf;
 
 mod cmd_utils;
 mod r#core;

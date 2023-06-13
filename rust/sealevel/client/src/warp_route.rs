@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs::File, path::PathBuf};
 
 use solana_client::rpc_client::RpcClient;
-use solana_program::{instruction::Instruction, program_error::ProgramError};
+use solana_program::program_error::ProgramError;
 use solana_sdk::{pubkey::Pubkey, signature::Signer};
 
 use hyperlane_sealevel_token::{hyperlane_token_mint_pda_seeds, spl_token, spl_token_2022};
@@ -142,6 +142,7 @@ impl ChainMetadata {
         RpcClient::new(self.public_rpc_urls[0].http.clone())
     }
 
+    #[allow(dead_code)]
     fn domain_id(&self) -> u32 {
         self.domain_id.unwrap_or(self.chain_id)
     }
@@ -165,9 +166,16 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
             let warp_route_dir = create_new_directory(&artifacts_dir, &deploy.warp_route_name);
             let keys_dir = create_new_directory(&warp_route_dir, "keys");
 
+            let mut program_ids = HashMap::new();
+
             for (chain_name, token_config) in token_configs {
-                if token_config.existing_deployment.is_some() {
-                    println!("Skipping existing deployment on chain: {}", chain_name);
+                if let Some(existing_deployment) = token_config.existing_deployment {
+                    program_ids.insert(chain_name.clone(), existing_deployment.clone());
+
+                    println!(
+                        "Skipping existing deployment on chain: {} at address {}",
+                        chain_name, existing_deployment
+                    );
                     continue;
                 }
 
@@ -175,7 +183,7 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                     .get(&chain_name)
                     .unwrap_or_else(|| panic!("Chain config not found for chain: {}", chain_name));
 
-                deploy_warp_route(
+                let program_id = deploy_warp_route(
                     &mut ctx,
                     &keys_dir,
                     &warp_route_dir,
@@ -186,7 +194,11 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                     &token_config,
                     deploy.ata_payer_funding_amount,
                 );
+
+                program_ids.insert(chain_name, program_id.to_string());
             }
+
+            write_program_ids(&warp_route_dir, program_ids);
         }
     }
 }
@@ -201,7 +213,7 @@ fn deploy_warp_route(
     chain_config: &ChainMetadata,
     token_config: &TokenConfig,
     ata_payer_funding_amount: Option<u64>,
-) {
+) -> Pubkey {
     println!(
         "Attempting deploy on chain: {}\nToken config: {:?}",
         chain_config.name, token_config
@@ -255,6 +267,8 @@ fn deploy_warp_route(
             println!("Deploying collateral token");
         }
     }
+
+    program_id
 }
 
 fn init_warp_route(
@@ -354,4 +368,10 @@ fn init_warp_route(
     ctx.instructions.clear();
 
     Ok(())
+}
+
+fn write_program_ids(warp_route_dir: &PathBuf, pretty_program_ids: HashMap<String, String>) {
+    let program_ids_file = warp_route_dir.join("program-ids.json");
+    let program_ids_file = File::create(program_ids_file).unwrap();
+    serde_json::to_writer_pretty(program_ids_file, &pretty_program_ids).unwrap();
 }

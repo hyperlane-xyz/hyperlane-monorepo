@@ -1,5 +1,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{ChainCommunicationError, ChainResult};
+use tracing::instrument;
 
 use crate::{
     contract::{SerializableAccountMeta, SimulationReturnData},
@@ -18,6 +19,7 @@ use crate::{
 /// If no return data at all was returned, returns Ok(None).
 /// If some return data was returned but deserialization was unsuccesful,
 /// an Err is returned.
+#[instrument(skip(rpc_client, payer))]
 pub async fn simulate_instruction<T: BorshDeserialize + BorshSerialize>(
     rpc_client: &RpcClient,
     payer: &Keypair,
@@ -28,16 +30,21 @@ pub async fn simulate_instruction<T: BorshDeserialize + BorshSerialize>(
         .get_latest_blockhash_with_commitment(commitment)
         .await
         .map_err(ChainCommunicationError::from_other)?;
-    let return_data = rpc_client
+    let l = rpc_client
         .simulate_transaction(&Transaction::new_unsigned(Message::new_with_blockhash(
-            &[instruction],
+            &[instruction.clone()],
             Some(&payer.pubkey()),
             &recent_blockhash,
         )))
         .await
-        .map_err(ChainCommunicationError::from_other)?
-        .value
-        .return_data;
+        .map_err(ChainCommunicationError::from_other)?;
+    tracing::warn!(
+        "simulate_transaction instruction {:?} res {:?} payer.pubkey() {:?}",
+        instruction,
+        l,
+        payer.pubkey()
+    );
+    let return_data = l.value.return_data;
 
     tracing::warn!("return data {:?}", return_data);
 

@@ -156,6 +156,8 @@ impl SealevelMailbox {
         ];
         accounts.extend(ism_getter_account_metas);
 
+        warn!("accounts={:?}", accounts);
+
         let instruction = Instruction::new_with_borsh(
             self.program_id,
             &contract::Instruction::InboxGetRecipientIsm(recipient_program_id),
@@ -188,7 +190,8 @@ impl SealevelMailbox {
             &instruction
                 .encode()
                 .map_err(ChainCommunicationError::from_other)?,
-            vec![AccountMeta::new(account_metas_pda_key, false)],
+            vec![],
+            // vec![AccountMeta::new(account_metas_pda_key, false)],
         );
 
         self.get_account_metas(instruction).await
