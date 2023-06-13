@@ -43,7 +43,7 @@ use crate::{
         },
     },
     utils::{get_account_metas, simulate_instruction},
-    /*make_provider,*/ ConnectionConf, SealevelProvider,
+    ConnectionConf, SealevelProvider,
 };
 
 use crate::RpcClientWithDebug;
@@ -155,8 +155,6 @@ impl SealevelMailbox {
             AccountMeta::new_readonly(recipient_program_id, false),
         ];
         accounts.extend(ism_getter_account_metas);
-
-        warn!("accounts={:?}", accounts);
 
         let instruction = Instruction::new_with_borsh(
             self.program_id,
