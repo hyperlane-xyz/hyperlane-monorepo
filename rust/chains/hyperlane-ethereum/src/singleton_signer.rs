@@ -63,7 +63,14 @@ impl SingletonSigner {
     pub fn new(inner: Signers) -> (Self, SingletonSignerHandle) {
         let (tx, rx) = mpsc::unbounded_channel::<SignTask>();
         let address = inner.eth_address();
-        (Self { inner, rx, retries: 5 }, SingletonSignerHandle { address, tx })
+        (
+            Self {
+                inner,
+                rx,
+                retries: 5,
+            },
+            SingletonSignerHandle { address, tx },
+        )
     }
 
     /// Change default (5) retries for signing
