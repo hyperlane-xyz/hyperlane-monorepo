@@ -75,8 +75,7 @@ export function withContext<T>(args: yargs.Argv<T>) {
   return args
     .describe('context', 'deploy context')
     .coerce('context', assertContext)
-    .demandOption('context')
-    .alias('c', 'context');
+    .demandOption('context');
 }
 
 export function withAgentRole<T>(args: yargs.Argv<T>) {
