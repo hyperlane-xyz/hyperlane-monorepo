@@ -47,8 +47,8 @@ rev = "2f7e864"
 [dev-dependencies]
 solana-program-test = "=1.14.13"
 solana-sdk = "=1.14.13"
-hyperlane-sealevel-ism-rubber-stamp = { path = "../ism/rubber-stamp" }
 hyperlane-test-utils = { path = "../../libraries/test-utils" }
+hyperlane-sealevel-test-ism = { path = "../ism/test-ism", features = ["no-entrypoint"] }
 
 [lib]
 crate-type = ["cdylib", "lib"]

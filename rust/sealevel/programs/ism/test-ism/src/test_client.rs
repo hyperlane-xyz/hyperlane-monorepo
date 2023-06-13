@@ -7,7 +7,7 @@ use solana_program::{
 use solana_program_test::*;
 use solana_sdk::{signature::Signer, signer::keypair::Keypair};
 
-use hyperlane_test_utils::process_instruction;
+use hyperlane_test_transaction_utils::process_instruction;
 
 use crate::{id, program::TestIsmInstruction, test_ism_storage_pda_seeds};
 

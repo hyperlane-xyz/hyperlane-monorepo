@@ -45,7 +45,7 @@ pub async fn initialize_mailbox(
     let (outbox_account, outbox_bump) =
         Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), mailbox_program_id);
 
-    let default_ism = hyperlane_sealevel_ism_rubber_stamp::id();
+    let default_ism = hyperlane_sealevel_test_ism::id();
 
     let ixn = MailboxInstruction::Init(InitMailbox {
         local_domain,

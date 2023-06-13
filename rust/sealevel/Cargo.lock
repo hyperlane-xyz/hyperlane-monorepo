@@ -1656,7 +1656,6 @@ dependencies = [
  "hex",
  "hyperlane-core",
  "hyperlane-sealevel-connection-client",
- "hyperlane-sealevel-ism-rubber-stamp",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-multisig-ism-message-id",
  "hyperlane-sealevel-token",
@@ -1698,17 +1697,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hyperlane-sealevel-ism-rubber-stamp"
-version = "0.1.0"
-dependencies = [
- "borsh",
- "hyperlane-core",
- "hyperlane-sealevel-interchain-security-module-interface",
- "serializable-account-meta",
- "solana-program",
-]
-
-[[package]]
 name = "hyperlane-sealevel-mailbox"
 version = "0.1.0"
 dependencies = [
@@ -1741,7 +1729,6 @@ dependencies = [
  "bs58",
  "hyperlane-core",
  "hyperlane-sealevel-interchain-security-module-interface",
- "hyperlane-sealevel-ism-rubber-stamp",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
  "hyperlane-sealevel-test-ism",
@@ -1800,7 +1787,7 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-mailbox",
- "hyperlane-test-utils",
+ "hyperlane-test-transaction-utils",
  "serializable-account-meta",
  "solana-program",
  "solana-program-test",
@@ -1832,9 +1819,9 @@ dependencies = [
  "bs58",
  "hyperlane-core",
  "hyperlane-sealevel-connection-client",
- "hyperlane-sealevel-ism-rubber-stamp",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
+ "hyperlane-sealevel-test-ism",
  "hyperlane-sealevel-token-lib",
  "hyperlane-test-utils",
  "num-derive",
@@ -1859,9 +1846,9 @@ dependencies = [
  "bs58",
  "hyperlane-core",
  "hyperlane-sealevel-connection-client",
- "hyperlane-sealevel-ism-rubber-stamp",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
+ "hyperlane-sealevel-test-ism",
  "hyperlane-sealevel-token-lib",
  "hyperlane-test-utils",
  "num-derive",
@@ -1911,9 +1898,9 @@ dependencies = [
  "bs58",
  "hyperlane-core",
  "hyperlane-sealevel-connection-client",
- "hyperlane-sealevel-ism-rubber-stamp",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
+ "hyperlane-sealevel-test-ism",
  "hyperlane-sealevel-token-lib",
  "hyperlane-test-utils",
  "num-derive",
@@ -1945,11 +1932,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-test-transaction-utils"
+version = "0.1.0"
+dependencies = [
+ "solana-program",
+ "solana-program-test",
+ "solana-sdk",
+]
+
+[[package]]
 name = "hyperlane-test-utils"
 version = "0.1.0"
 dependencies = [
- "hyperlane-sealevel-ism-rubber-stamp",
  "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-test-ism",
+ "hyperlane-test-transaction-utils",
  "solana-program",
  "solana-program-test",
  "solana-sdk",

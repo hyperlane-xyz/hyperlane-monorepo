@@ -86,9 +86,9 @@ async fn setup_client() -> (BanksClient, Keypair) {
 
     // This serves as the default ISM on the Mailbox
     program_test.add_program(
-        "hyperlane_sealevel_ism_rubber_stamp",
-        hyperlane_sealevel_ism_rubber_stamp::id(),
-        processor!(hyperlane_sealevel_ism_rubber_stamp::process_instruction),
+        "hyperlane_sealevel_test_ism",
+        hyperlane_sealevel_test_ism::id(),
+        processor!(hyperlane_sealevel_test_ism::program::process_instruction),
     );
 
     let (banks_client, payer, _recent_blockhash) = program_test.start().await;
@@ -406,7 +406,7 @@ async fn transfer_from_remote(
                 // Noop
                 AccountMeta::new_readonly(spl_noop::id(), false),
                 // ISM
-                AccountMeta::new_readonly(hyperlane_sealevel_ism_rubber_stamp::id(), false),
+                AccountMeta::new_readonly(mailbox_accounts.default_ism, false),
                 // Recipient
                 AccountMeta::new_readonly(program_id, false),
                 // Recipient.handle accounts

@@ -65,14 +65,6 @@ async fn setup_client() -> (
         processor!(hyperlane_sealevel_mailbox::processor::process_instruction),
     );
 
-    // This serves as the default ISM on the Mailbox
-    // TODO remove this in favor of test-ism here and everywhere else
-    program_test.add_program(
-        "hyperlane_sealevel_ism_rubber_stamp",
-        hyperlane_sealevel_ism_rubber_stamp::id(),
-        processor!(hyperlane_sealevel_ism_rubber_stamp::process_instruction),
-    );
-
     program_test.add_program(
         "hyperlane_sealevel_test_ism",
         hyperlane_sealevel_test_ism::id(),
