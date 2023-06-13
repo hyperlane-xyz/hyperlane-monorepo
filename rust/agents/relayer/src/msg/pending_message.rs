@@ -300,6 +300,28 @@ impl PendingOperation for PendingMessage {
 }
 
 impl PendingMessage {
+    /// Constructor that tries reading the retry count from the HyperlaneDB in order to recompute the `next_attempt_after`.
+    /// In case of failure, behaves like `Self::new(...)`.
+    pub fn from_persisted_retries(message: HyperlaneMessage, ctx: Arc<MessageContext>) -> Self {
+        let mut pm = Self::new(message, ctx);
+        if let Some(num_retries) = pm
+            .ctx
+            .origin_db
+            .retrieve_pending_message_data_by_message_id(&message.id())
+        {
+            let next_attempt_after =
+                PendingMessage::calculate_msg_backoff(num_retries).map(|dur| Instant::now() + dur);
+            pm.num_retries = num_retries;
+            pm.next_attempt_after = next_attempt_after;
+        } else {
+            info!(
+                "Failed to read retry count from HyperlaneDB for message {}. Defaulting to the regular `PendingMessage` constructor.",
+                message.id()
+            );
+        }
+        Ok(pm)
+    }
+
     fn on_reprepare(&mut self) -> PendingOperationResult {
         self.inc_attempts();
         self.submitted = false;
@@ -330,15 +352,30 @@ impl PendingMessage {
 
     fn reset_attempts(&mut self) {
         self.num_retries = 0;
+        self.persist_retries();
         self.next_attempt_after = None;
         self.last_attempted_at = Instant::now();
     }
 
     fn inc_attempts(&mut self) {
         self.num_retries += 1;
+        self.persist_retries();
         self.last_attempted_at = Instant::now();
         self.next_attempt_after = PendingMessage::calculate_msg_backoff(self.num_retries)
             .map(|dur| self.last_attempted_at + dur);
+    }
+
+    fn persist_retries(&self) {
+        if let Err(e) = self
+            .ctx
+            .origin_db
+            .store_pending_message_data_by_message_id(&self.message.id(), &self.num_retries)
+        {
+            warn!(
+                "Failed to persist retry count for message {}",
+                self.message.id()
+            );
+        }
     }
 
     /// Get duration we should wait before re-attempting to deliver a message

@@ -153,7 +153,10 @@ impl MessageProcessor {
             debug!(%msg, "Sending message to submitter");
 
             // Finally, build the submit arg and dispatch it to the submitter.
-            let pending_msg = PendingMessage::new(msg, self.destination_ctxs[&destination].clone());
+            let pending_msg = PendingMessage::from_persisted_retries(
+                msg,
+                self.destination_ctxs[&destination].clone(),
+            );
             self.send_channels[&destination].send(Box::new(pending_msg.into()))?;
             self.message_nonce += 1;
         } else {
