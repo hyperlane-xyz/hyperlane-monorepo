@@ -246,11 +246,42 @@ macro_rules! spawn_sync_task {
     }
 }
 impl Scraper {
-    spawn_sync_task!(
-        build_message_indexer,
-        forward_message_sync_cursor,
-        "message_dispatch"
-    );
+    async fn build_message_indexer(
+        &self,
+        domain: HyperlaneDomain,
+        metrics: Arc<CoreMetrics>,
+        contract_sync_metrics: Arc<ContractSyncMetrics>,
+        db: HyperlaneSqlDb,
+        index_settings: IndexSettings,
+    ) -> Instrumented<JoinHandle<eyre::Result<()>>> {
+        let sync = self
+            .as_ref()
+            .settings
+            .build_message_indexer(
+                &domain,
+                &metrics.clone(),
+                &contract_sync_metrics.clone(),
+                Arc::new(db.clone()),
+            )
+            .await
+            .unwrap();
+        let latest_nonce = self
+            .scrapers
+            .get(&domain.id())
+            .unwrap()
+            .db
+            .last_message_nonce()
+            .await
+            .unwrap_or(None)
+            .unwrap_or(0);
+        let cursor = sync
+            .forward_message_sync_cursor(index_settings.clone(), latest_nonce.saturating_sub(1))
+            .await;
+        tokio::spawn(async move { sync.sync("message_dispatch", cursor).await }).instrument(
+            info_span!("ChainContractSync", chain=%domain.name(), event="message_dispatch"),
+        )
+    }
+
     spawn_sync_task!(
         build_delivery_indexer,
         rate_limited_cursor,
