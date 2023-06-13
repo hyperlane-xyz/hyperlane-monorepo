@@ -68,7 +68,21 @@ impl SingletonSigner {
     /// Run this signer's event loop.
     pub async fn run(mut self) {
         while let Some((hash, tx)) = self.rx.recv().await {
-            if tx.send(self.inner.sign_hash(&hash).await).is_err() {
+            // retry 5 times
+            let mut retries = 5;
+            let res = loop {
+                match self.inner.sign_hash(&hash).await {
+                    Ok(res) => break Ok(res),
+                    Err(err) => {
+                        warn!("Error signing hash: {}", err);
+                        if retries == 0 {
+                            break Err(err);
+                        }
+                        retries -= 1;
+                    }
+                }
+            };
+            if tx.send(res).is_err() {
                 warn!(
                     "Failed to send signature back to the signer handle because the channel was closed"
                 );
