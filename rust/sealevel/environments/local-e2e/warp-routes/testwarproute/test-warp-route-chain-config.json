@@ -1,16 +1,16 @@
 {
-  "test1": {
+  "sealeveltest1": {
     "chainId": 13375,
-    "name": "test1",
+    "name": "sealeveltest1",
     "publicRpcUrls": [
       {
         "http": "http://localhost:8899"
       }
     ]
   },
-  "test2": {
-    "chainId": 13375,
-    "name": "test2",
+  "sealeveltest2": {
+    "chainId": 13376,
+    "name": "sealeveltest2",
     "publicRpcUrls": [
       {
         "http": "http://localhost:8899"

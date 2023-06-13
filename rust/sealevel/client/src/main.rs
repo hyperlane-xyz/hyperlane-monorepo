@@ -17,6 +17,7 @@ use hyperlane_sealevel_mailbox::{
 };
 use hyperlane_sealevel_multisig_ism_message_id::{
     access_control_pda_seeds as multisig_ism_message_id_access_control_pda_seeds,
+    accounts::AccessControlAccount,
     domain_data_pda_seeds as multisig_ism_message_id_domain_data_pda_seeds,
     instruction::{
         Domained, Instruction as MultisigIsmMessageIdInstruction, ValidatorsAndThreshold,
@@ -385,6 +386,7 @@ struct MultisigIsmMessageIdCmd {
 enum MultisigIsmMessageIdSubCmd {
     Init(MultisigIsmMessageIdInit),
     SetValidatorsAndThreshold(MultisigIsmMessageIdSetValidatorsAndThreshold),
+    Query(MultisigIsmMessageIdInit),
 }
 
 #[derive(Args)]
@@ -511,8 +513,12 @@ fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
 
             let accounts = ctx
                 .client
-                .get_multiple_accounts(&[inbox_account, outbox_account])
-                .unwrap();
+                .get_multiple_accounts_with_commitment(
+                    &[inbox_account, outbox_account],
+                    ctx.commitment,
+                )
+                .unwrap()
+                .value;
             println!("mailbox={}", query.program_id);
             println!("--------------------------------");
             println!("Inbox: {}, bump={}", inbox_account, inbox_bump);
@@ -1118,6 +1124,23 @@ fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: MultisigIsmMessage
             ctx.instructions.push(set_instruction);
 
             ctx.send_transaction(&[&ctx.payer]);
+        }
+        MultisigIsmMessageIdSubCmd::Query(query) => {
+            let (access_control_pda_key, _access_control_pda_bump) = Pubkey::find_program_address(
+                multisig_ism_message_id_access_control_pda_seeds!(),
+                &query.program_id,
+            );
+
+            let accounts = ctx
+                .client
+                .get_multiple_accounts_with_commitment(&[access_control_pda_key], ctx.commitment)
+                .unwrap()
+                .value;
+            let access_control =
+                AccessControlAccount::fetch(&mut &accounts[0].as_ref().unwrap().data[..])
+                    .unwrap()
+                    .into_inner();
+            println!("Access control: {:#?}", access_control);
         }
     }
 }

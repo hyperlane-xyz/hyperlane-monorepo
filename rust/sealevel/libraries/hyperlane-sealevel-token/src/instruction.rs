@@ -170,10 +170,14 @@ pub fn init_instruction(
     init: Init,
 ) -> Result<SolanaInstruction, ProgramError> {
     let (token_key, _token_bump) =
-        Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &program_id);
+        Pubkey::try_find_program_address(hyperlane_token_pda_seeds!(), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
 
-    let (dispatch_authority_key, _dispatch_authority_bump) =
-        Pubkey::find_program_address(mailbox_message_dispatch_authority_pda_seeds!(), &program_id);
+    let (dispatch_authority_key, _dispatch_authority_bump) = Pubkey::try_find_program_address(
+        mailbox_message_dispatch_authority_pda_seeds!(),
+        &program_id,
+    )
+    .ok_or(ProgramError::InvalidSeeds)?;
 
     let ixn = Instruction::Init(init);
 
@@ -188,6 +192,35 @@ pub fn init_instruction(
         AccountMeta::new(token_key, false),
         AccountMeta::new(dispatch_authority_key, false),
         AccountMeta::new(payer, true),
+    ];
+
+    let instruction = SolanaInstruction {
+        program_id,
+        data: ixn.encode()?,
+        accounts,
+    };
+
+    Ok(instruction)
+}
+
+/// Enrolls remote routers.
+pub fn enroll_remote_routers_instruction(
+    program_id: Pubkey,
+    owner_payer: Pubkey,
+    configs: Vec<RemoteRouterConfig>,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (token_key, _token_bump) =
+        Pubkey::try_find_program_address(hyperlane_token_pda_seeds!(), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+
+    let ixn = Instruction::EnrollRemoteRouters(configs);
+
+    // Accounts:
+    // 0. [writeable] The token PDA account.
+    // 1. [signer] The owner.
+    let accounts = vec![
+        AccountMeta::new(token_key, false),
+        AccountMeta::new(owner_payer, true),
     ];
 
     let instruction = SolanaInstruction {

@@ -1,47 +1,21 @@
+use hyperlane_core::H256;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs::File, path::PathBuf};
+use std::{collections::HashMap, fs::File, path::PathBuf, str::FromStr};
 
 use solana_client::rpc_client::RpcClient;
 use solana_program::program_error::ProgramError;
 use solana_sdk::{pubkey::Pubkey, signature::Signer};
 
-use hyperlane_sealevel_token::{hyperlane_token_mint_pda_seeds, spl_token, spl_token_2022};
+use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 
-use hyperlane_sealevel_token_lib::instruction::Init;
+use hyperlane_sealevel_token::{hyperlane_token_mint_pda_seeds, spl_token, spl_token_2022};
+use hyperlane_sealevel_token_lib::instruction::{enroll_remote_routers_instruction, Init};
 
 use crate::{
     cmd_utils::{create_and_write_keypair, create_new_directory, deploy_program},
     core::{read_core_program_ids, CoreProgramIds},
     Context, WarpRouteCmd, WarpRouteSubCmd,
 };
-
-// {
-//     "goerli": {
-//       "type": "collateral",
-//       "token": "0xb4fbf271143f4fbf7b91a5ded31805e42b2208d6",
-//       "owner": "0x5bA371aeA18734Cb7195650aFdfCa4f9251aa513",
-//       "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
-//       "interchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1"
-//     },
-//     "alfajores": {
-//       "type": "synthetic",
-//       "owner": "0x5bA371aeA18734Cb7195650aFdfCa4f9251aa513",
-//       "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
-//       "interchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1"
-//     },
-//     "fuji": {
-//       "type": "synthetic",
-//       "owner": "0x5bA371aeA18734Cb7195650aFdfCa4f9251aa513",
-//       "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
-//       "interchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1"
-//     },
-//     "moonbasealpha": {
-//       "type": "synthetic",
-//       "owner": "0x5bA371aeA18734Cb7195650aFdfCa4f9251aa513",
-//       "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
-//       "interchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1"
-//     }
-//   }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -142,7 +116,6 @@ impl ChainMetadata {
         RpcClient::new(self.public_rpc_urls[0].http.clone())
     }
 
-    #[allow(dead_code)]
     fn domain_id(&self) -> u32 {
         self.domain_id.unwrap_or(self.chain_id)
     }
@@ -166,22 +139,31 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
             let warp_route_dir = create_new_directory(&artifacts_dir, &deploy.warp_route_name);
             let keys_dir = create_new_directory(&warp_route_dir, "keys");
 
-            let mut program_ids = HashMap::new();
+            let mut program_ids: HashMap<String, String> = HashMap::new();
+            let mut routers: HashMap<u32, H256> = HashMap::new();
 
-            for (chain_name, token_config) in token_configs {
-                if let Some(existing_deployment) = token_config.existing_deployment {
+            for (chain_name, token_config) in token_configs.iter() {
+                let chain_config = chain_configs
+                    .get(chain_name)
+                    .unwrap_or_else(|| panic!("Chain config not found for chain: {}", chain_name));
+
+                if let Some(existing_deployment) = &token_config.existing_deployment {
                     program_ids.insert(chain_name.clone(), existing_deployment.clone());
 
+                    let existing_h256 = if existing_deployment.starts_with("0x") {
+                        H256::from_str(&existing_deployment).unwrap()
+                    } else {
+                        let pubkey = Pubkey::from_str(&existing_deployment).unwrap();
+                        H256::from_slice(&pubkey.to_bytes()[..])
+                    };
+                    routers.insert(chain_config.domain_id(), existing_h256);
+
                     println!(
-                        "Skipping existing deployment on chain: {} at address {}",
-                        chain_name, existing_deployment
+                        "Skipping existing deployment on chain: {} at address {} ({})",
+                        chain_name, existing_deployment, existing_h256,
                     );
                     continue;
                 }
-
-                let chain_config = chain_configs
-                    .get(&chain_name)
-                    .unwrap_or_else(|| panic!("Chain config not found for chain: {}", chain_name));
 
                 let program_id = deploy_warp_route(
                     &mut ctx,
@@ -191,11 +173,55 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                     &deploy.environment,
                     &deploy.built_so_dir,
                     chain_config,
-                    &token_config,
+                    token_config,
                     deploy.ata_payer_funding_amount,
                 );
 
-                program_ids.insert(chain_name, program_id.to_string());
+                program_ids.insert(chain_name.clone(), program_id.to_string());
+                routers.insert(
+                    chain_config.domain_id(),
+                    H256::from_slice(&program_id.to_bytes()[..]),
+                );
+            }
+
+            // Now enroll routers
+            for (chain_name, token_config) in token_configs {
+                if token_config.existing_deployment.is_some() {
+                    continue;
+                }
+
+                let chain_config = chain_configs
+                    .get(&chain_name)
+                    .unwrap_or_else(|| panic!("Chain config not found for chain: {}", chain_name));
+
+                let domain_id = chain_config.domain_id();
+
+                let routers_to_enroll = routers
+                    .iter()
+                    .filter(|(router_domain_id, _)| *router_domain_id != &domain_id)
+                    .map(|(domain, router)| RemoteRouterConfig {
+                        domain: *domain,
+                        router: Some(router.clone()),
+                    })
+                    .collect::<Vec<RemoteRouterConfig>>();
+
+                let program_id: Pubkey = program_ids.get(&chain_name).unwrap().parse().unwrap();
+
+                println!(
+                    "Enrolling routers for chain: {}, program_id {}, routers: {:?}",
+                    chain_name, program_id, routers_to_enroll
+                );
+
+                ctx.instructions.push(
+                    enroll_remote_routers_instruction(
+                        program_id,
+                        ctx.payer.pubkey(),
+                        routers_to_enroll,
+                    )
+                    .unwrap(),
+                );
+                ctx.send_transaction(&[&ctx.payer]);
+                ctx.instructions.clear();
             }
 
             write_program_ids(&warp_route_dir, program_ids);
@@ -307,6 +333,7 @@ fn init_warp_route(
 
             let (mint_account, _mint_bump) =
                 Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
+            // TODO: Also set Metaplex metadata?
             instructions.push(
                 spl_token_2022::instruction::initialize_mint2(
                     &spl_token_2022::id(),

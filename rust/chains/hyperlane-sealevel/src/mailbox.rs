@@ -190,8 +190,7 @@ impl SealevelMailbox {
             &instruction
                 .encode()
                 .map_err(ChainCommunicationError::from_other)?,
-            vec![],
-            // vec![AccountMeta::new(account_metas_pda_key, false)],
+            vec![AccountMeta::new(account_metas_pda_key, false)],
         );
 
         self.get_account_metas(instruction).await

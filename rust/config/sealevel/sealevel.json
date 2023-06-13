@@ -14,7 +14,27 @@
       "finalityBlocks": "0",
       "connection": {
         "type": "http",
-        "url": "https://api.devnet.solana.com"
+        "url": "http://localhost:8899"
+      },
+      "index": {
+        "from": "1",
+        "mode": "sequence"
+      }
+    },
+    "sealeveltest2": {
+      "name": "SealevelTest2",
+      "domain": "13376",
+      "addresses": {
+        "mailbox": "9tCUWNjpqcf3NUSrtp7vquYVCwbEByvLjZUrhG5dgvhj",
+        "interchainGasPaymaster": "FixmeFixmeFixmeFixmeFixmeFixmeFixmeFixmeFixm",
+        "validatorAnnounce": "3Uo5j2Bti9aZtrDqJmAyuwiFaJFPFoNL5yxTpVCNcUhb"
+      },
+      "signer": null,
+      "protocol": "sealevel",
+      "finalityBlocks": "0",
+      "connection": {
+        "type": "http",
+        "url": "http://localhost:8899"
       },
       "index": {
         "from": "1",

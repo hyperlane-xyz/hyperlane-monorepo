@@ -1,12 +1,12 @@
 {
-  "test1": {
+  "sealeveltest1": {
     "type": "native",
     "owner": "0x",
     "mailbox": "692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1",
     "interchainGasPaymaster": "0x",
     "decimals": 9
   },
-  "test2": {
+  "sealeveltest2": {
     "type": "synthetic",
     "owner": "0x",
     "mailbox": "692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1",
