@@ -32,7 +32,7 @@ pub async fn simulate_instruction<T: BorshDeserialize + BorshSerialize>(
         .map_err(ChainCommunicationError::from_other)?;
     let return_data = rpc_client
         .simulate_transaction(&Transaction::new_unsigned(Message::new_with_blockhash(
-            &[instruction.clone()],
+            &[instruction],
             Some(&payer.pubkey()),
             &recent_blockhash,
         )))

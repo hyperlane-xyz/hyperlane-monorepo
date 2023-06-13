@@ -1659,7 +1659,6 @@ dependencies = [
  "hyperlane-sealevel-ism-rubber-stamp",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-multisig-ism-message-id",
- "hyperlane-sealevel-recipient-echo",
  "hyperlane-sealevel-token",
  "hyperlane-sealevel-token-collateral",
  "hyperlane-sealevel-token-lib",
@@ -1790,16 +1789,6 @@ dependencies = [
  "solana-program-test",
  "solana-sdk",
  "thiserror",
-]
-
-[[package]]
-name = "hyperlane-sealevel-recipient-echo"
-version = "0.1.0"
-dependencies = [
- "borsh",
- "hyperlane-sealevel-mailbox",
- "hyperlane-sealevel-message-recipient-interface",
- "solana-program",
 ]
 
 [[package]]

@@ -12,12 +12,12 @@ use std::{
 
 use crate::{
     cmd_utils::{create_and_write_keypair, create_new_directory, create_new_file, deploy_program},
-    Context, DeployCmd, DeploySubCmd,
+    Context, CoreCmd, CoreSubCmd,
 };
 
-pub(crate) fn process_deploy_cmd(mut ctx: Context, cmd: DeployCmd) {
+pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
     match cmd.cmd {
-        DeploySubCmd::Core(core) => {
+        CoreSubCmd::Deploy(core) => {
             let environments_dir = create_new_directory(&core.environments_dir, &core.environment);
             let chain_dir = create_new_directory(&environments_dir, &core.chain);
             let core_dir = create_new_directory(&chain_dir, "core");

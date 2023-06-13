@@ -4,7 +4,6 @@ members = [
     "client",
     "programs/mailbox",
     "programs/mailbox-test",
-    "programs/recipient/echo",
     "programs/ism/rubber-stamp",
     "programs/ism/multisig-ism-message-id",
     "programs/ism/test-ism",

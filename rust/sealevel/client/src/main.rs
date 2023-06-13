@@ -23,7 +23,6 @@ use hyperlane_sealevel_multisig_ism_message_id::{
         Domained, Instruction as MultisigIsmMessageIdInstruction, ValidatorsAndThreshold,
     },
 };
-use hyperlane_sealevel_recipient_echo::ID as RECIPIENT_ECHO_PROG_ID;
 use hyperlane_sealevel_token::{
     hyperlane_token_ata_payer_pda_seeds, hyperlane_token_mint_pda_seeds, plugin::SyntheticPlugin,
     spl_associated_token_account::get_associated_token_address_with_program_id, spl_token_2022,
@@ -97,7 +96,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum HyperlaneSealevelCmd {
-    Deploy(DeployCmd),
+    Core(CoreCmd),
     Mailbox(MailboxCmd),
     Token(TokenCmd),
     ValidatorAnnounce(ValidatorAnnounceCmd),
@@ -135,18 +134,18 @@ pub(crate) struct WarpRouteDeploy {
 }
 
 #[derive(Args)]
-struct DeployCmd {
+struct CoreCmd {
     #[command(subcommand)]
-    cmd: DeploySubCmd,
+    cmd: CoreSubCmd,
 }
 
 #[derive(Subcommand)]
-enum DeploySubCmd {
-    Core(DeployCore),
+enum CoreSubCmd {
+    Deploy(CoreDeploy),
 }
 
 #[derive(Args)]
-struct DeployCore {
+struct CoreDeploy {
     #[arg(long)]
     local_domain: u32,
     #[arg(long)]
@@ -202,7 +201,7 @@ struct Query {
 struct Outbox {
     #[arg(long, short, default_value_t = ECLIPSE_DOMAIN)]
     destination: u32,
-    #[arg(long, short, default_value_t = RECIPIENT_ECHO_PROG_ID)]
+    #[arg(long, short)]
     recipient: Pubkey,
     #[arg(long, short, default_value = "Hello, World!")]
     message: String,
@@ -218,7 +217,7 @@ struct Inbox {
     local_domain: u32,
     #[arg(long, short, default_value_t = ECLIPSE_DOMAIN)]
     origin: u32,
-    #[arg(long, short, default_value_t = RECIPIENT_ECHO_PROG_ID)]
+    #[arg(long, short)]
     recipient: Pubkey,
     #[arg(long, short, default_value = "Hello, World!")]
     message: String,
@@ -486,7 +485,7 @@ fn main() {
         HyperlaneSealevelCmd::MultisigIsmMessageId(cmd) => {
             process_multisig_ism_message_id_cmd(ctx, cmd)
         }
-        HyperlaneSealevelCmd::Deploy(cmd) => process_deploy_cmd(ctx, cmd),
+        HyperlaneSealevelCmd::Core(cmd) => process_core_cmd(ctx, cmd),
         HyperlaneSealevelCmd::WarpRoute(cmd) => process_warp_route_cmd(ctx, cmd),
     }
 }
@@ -770,8 +769,9 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
 
             let accounts = ctx
                 .client
-                .get_multiple_accounts(&accounts_to_query)
-                .unwrap();
+                .get_multiple_accounts_with_commitment(&accounts_to_query, ctx.commitment)
+                .unwrap()
+                .value;
             println!("hyperlane-sealevel-token={}", query.program_id);
             println!("--------------------------------");
             println!(
@@ -1144,297 +1144,3 @@ fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: MultisigIsmMessage
         }
     }
 }
-
-// fn process_deploy_cmd(mut ctx: Context, cmd: DeployCmd) {
-//     match cmd.cmd {
-//         DeploySubCmd::Core(core) => {
-//             // First deploy the Mailbox
-//             let artifacts_dir =
-//                 create_new_artifacts_directory(&core.artifacts_dir, core.artifact_name.clone());
-//             let key_dir = create_new_subdirectory(&artifacts_dir, "keys");
-//             let log_file = create_new_log_file(&artifacts_dir);
-
-//             let ism_program_id = deploy_multisig_ism_message_id(
-//                 &mut ctx,
-//                 core.use_existing_keys,
-//                 &key_dir,
-//                 &core.built_so_dir,
-//                 &log_file,
-//             );
-
-//             let mailbox_program_id = deploy_mailbox(
-//                 &mut ctx,
-//                 core.use_existing_keys,
-//                 &key_dir,
-//                 &core.built_so_dir,
-//                 &log_file,
-//                 core.local_domain,
-//                 ism_program_id,
-//             );
-
-//             let validator_announce_program_id = deploy_validator_announce(
-//                 &mut ctx,
-//                 core.use_existing_keys,
-//                 &key_dir,
-//                 &core.built_so_dir,
-//                 &log_file,
-//                 mailbox_program_id,
-//                 core.local_domain,
-//             );
-
-//             let program_ids = CoreProgramIds {
-//                 mailbox: mailbox_program_id.to_string(),
-//                 validator_announce: validator_announce_program_id.to_string(),
-//                 multisig_ism_message_id: ism_program_id.to_string(),
-//             };
-//             write_program_ids(&artifacts_dir, program_ids);
-//         }
-//     }
-// }
-
-// fn deploy_multisig_ism_message_id(
-//     ctx: &mut Context,
-//     use_existing_key: bool,
-//     key_dir: &PathBuf,
-//     built_so_dir: &PathBuf,
-//     log_file: impl AsRef<Path>,
-// ) -> Pubkey {
-//     let (keypair, keypair_path) = create_and_write_keypair(
-//         key_dir,
-//         "hyperlane_sealevel_multisig_ism_message_id-keypair.json",
-//         use_existing_key,
-//     );
-//     let program_id = keypair.pubkey();
-
-//     deploy_program(
-//         &ctx.payer,
-//         &ctx.payer_path,
-//         keypair_path.to_str().unwrap(),
-//         built_so_dir
-//             .join("hyperlane_sealevel_multisig_ism_message_id.so")
-//             .to_str()
-//             .unwrap(),
-//         &ctx.client.url(),
-//         log_file,
-//     );
-
-//     println!(
-//         "Deployed Multisig ISM Message ID at program ID {}",
-//         program_id
-//     );
-
-//     // Initialize
-//     let instruction = hyperlane_sealevel_multisig_ism_message_id::instruction::init_instruction(
-//         program_id,
-//         ctx.payer.pubkey(),
-//     )
-//     .unwrap();
-
-//     ctx.instructions.push(instruction);
-//     ctx.send_transaction(&[&ctx.payer]);
-//     ctx.instructions.clear();
-
-//     println!("Initialized Multisig ISM Message ID ");
-
-//     program_id
-// }
-
-// fn deploy_mailbox(
-//     ctx: &mut Context,
-//     use_existing_key: bool,
-//     key_dir: &PathBuf,
-//     built_so_dir: &PathBuf,
-//     log_file: impl AsRef<Path>,
-//     local_domain: u32,
-//     default_ism: Pubkey,
-// ) -> Pubkey {
-//     let (keypair, keypair_path) = create_and_write_keypair(
-//         key_dir,
-//         "hyperlane_sealevel_mailbox-keypair.json",
-//         use_existing_key,
-//     );
-//     let program_id = keypair.pubkey();
-
-//     deploy_program(
-//         &ctx.payer,
-//         &ctx.payer_path,
-//         keypair_path.to_str().unwrap(),
-//         built_so_dir
-//             .join("hyperlane_sealevel_mailbox.so")
-//             .to_str()
-//             .unwrap(),
-//         &ctx.client.url(),
-//         log_file,
-//     );
-
-//     println!("Deployed Mailbox at program ID {}", program_id);
-
-//     // Initialize
-//     let instruction = hyperlane_sealevel_mailbox::instruction::init_instruction(
-//         program_id,
-//         local_domain,
-//         default_ism,
-//         ctx.payer.pubkey(),
-//     )
-//     .unwrap();
-
-//     ctx.instructions.push(instruction);
-//     ctx.send_transaction(&[&ctx.payer]);
-//     ctx.instructions.clear();
-
-//     println!("Initialized Mailbox");
-
-//     program_id
-// }
-
-// fn deploy_validator_announce(
-//     ctx: &mut Context,
-//     use_existing_key: bool,
-//     key_dir: &PathBuf,
-//     built_so_dir: &PathBuf,
-//     log_file: impl AsRef<Path>,
-//     mailbox_program_id: Pubkey,
-//     local_domain: u32,
-// ) -> Pubkey {
-//     let (keypair, keypair_path) = create_and_write_keypair(
-//         key_dir,
-//         "hyperlane_sealevel_validator_announce-keypair.json",
-//         use_existing_key,
-//     );
-//     let program_id = keypair.pubkey();
-
-//     deploy_program(
-//         &ctx.payer,
-//         &ctx.payer_path,
-//         keypair_path.to_str().unwrap(),
-//         built_so_dir
-//             .join("hyperlane_sealevel_validator_announce.so")
-//             .to_str()
-//             .unwrap(),
-//         &ctx.client.url(),
-//         log_file,
-//     );
-
-//     println!("Deployed ValidatorAnnounce at program ID {}", program_id);
-
-//     // Initialize
-//     let instruction = hyperlane_sealevel_validator_announce::instruction::init_instruction(
-//         program_id,
-//         ctx.payer.pubkey(),
-//         mailbox_program_id,
-//         local_domain,
-//     )
-//     .unwrap();
-
-//     ctx.instructions.push(instruction);
-//     ctx.send_transaction(&[&ctx.payer]);
-//     ctx.instructions.clear();
-
-//     println!("Initialized ValidatorAnnounce");
-
-//     program_id
-// }
-
-// #[derive(Debug, Serialize)]
-// struct CoreProgramIds {
-//     mailbox: String,
-//     validator_announce: String,
-//     multisig_ism_message_id: String,
-// }
-
-// fn write_program_ids(artifacts_dir: &PathBuf, program_ids: CoreProgramIds) {
-//     let json = serde_json::to_string_pretty(&program_ids).unwrap();
-//     let path = artifacts_dir.join("program-ids.json");
-
-//     println!("Writing program IDs to {}:\n{}", path.display(), json);
-
-//     let mut file = File::create(path.clone()).expect("Failed to create keypair file");
-//     file.write_all(json.as_bytes())
-//         .expect("Failed to write program IDs to file");
-// }
-
-// pub(crate) fn deploy_program(
-//     payer: &Keypair,
-//     payer_path: &str,
-//     program_keypair_path: &str,
-//     program_path: &str,
-//     url: &str,
-//     log_file: impl AsRef<Path>,
-// ) {
-//     build_cmd(
-//         &[
-//             "solana",
-//             "--url",
-//             url,
-//             "-k",
-//             payer_path,
-//             "program",
-//             "deploy",
-//             program_path,
-//             "--upgrade-authority",
-//             payer.pubkey().to_string().as_str(),
-//             "--program-id",
-//             program_keypair_path,
-//         ],
-//         log_file,
-//         true,
-//         None,
-//         None,
-//         true,
-//     );
-// }
-
-// pub(crate) fn create_new_artifacts_directory(
-//     dir: &PathBuf,
-//     artifact_name: Option<String>,
-// ) -> PathBuf {
-//     let path = dir.join(artifact_name.unwrap_or_else(|| {
-//         SystemTime::now()
-//             .duration_since(SystemTime::UNIX_EPOCH)
-//             .unwrap()
-//             .as_secs()
-//             .to_string()
-//     }));
-//     std::fs::create_dir_all(path.clone()).expect("Failed to create artifacts directory");
-//     path
-// }
-
-// pub(crate) fn create_new_log_file(artifacts_dir: &PathBuf) -> PathBuf {
-//     let path = artifacts_dir.join("deploy-logs.txt");
-//     let file = File::create(path.clone()).expect("Failed to create keypair file");
-//     path
-// }
-
-// pub(crate) fn create_new_subdirectory(parent_dir: &PathBuf, name: &str) -> PathBuf {
-//     let path = parent_dir.join(name);
-//     std::fs::create_dir_all(path.clone())
-//         .expect(format!("Failed to create directory {}", path.display()).as_str());
-//     path
-// }
-
-// pub(crate) fn create_and_write_keypair(
-//     key_dir: &PathBuf,
-//     key_name: &str,
-//     use_existing_key: bool,
-// ) -> (Keypair, PathBuf) {
-//     let path = key_dir.join(key_name);
-
-//     if use_existing_key {
-//         if let Ok(file) = File::open(path.clone()) {
-//             println!("Using existing key at path {}", path.display());
-//             let keypair_bytes: Vec<u8> = serde_json::from_reader(file).unwrap();
-//             let keypair = Keypair::from_bytes(&keypair_bytes[..]).unwrap();
-//             return (keypair, path);
-//         }
-//     }
-
-//     let keypair = Keypair::new();
-//     let keypair_json = serde_json::to_string(&keypair.to_bytes()[..]).unwrap();
-
-//     let mut file = File::create(path.clone()).expect("Failed to create keypair file");
-//     file.write_all(keypair_json.as_bytes())
-//         .expect("Failed to write keypair to file");
-//     println!("Wrote keypair {} to {}", keypair.pubkey(), path.display());
-
-//     (keypair, path)
-// }
