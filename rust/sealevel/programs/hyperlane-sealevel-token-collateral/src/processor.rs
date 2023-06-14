@@ -107,7 +107,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
 /// 6.   [signer] The token sender and mailbox payer.
 /// 7.   [signer] Unique message account.
 /// 8.   [writeable] Message storage PDA.
-/// 9.   [executable] The spl_token_2022 program.
+/// 9.   [executable] The SPL token program for the mint.
 /// 10.  [] The mint.
 /// 11.  [writeable] The token sender's associated token account, from which tokens will be sent.
 /// 12.  [] The escrow PDA account.
