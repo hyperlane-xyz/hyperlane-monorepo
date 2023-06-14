@@ -17,7 +17,7 @@ This only needs to be done once when initially setting things up.
 1. Clone the `solar-eclipse` repo, which is the Eclipse fork of the Solana repo. This is needed to run the local Solana network. Check out the `steven/hyperlane-fix-deps` branch:
 
 ```
-git clone git@github.com:Eclipse-Laboratories-Inc/solar-eclipse –branch steven/hyperlane-fix-deps
+git clone git@github.com:Eclipse-Laboratories-Inc/solar-eclipse --branch steven/hyperlane-fix-deps
 ```
 
 2. `cd` into the repo and build the `solana-test-validator` using the local `cargo` script (which ensures the correct version is used):
@@ -28,12 +28,12 @@ git clone git@github.com:Eclipse-Laboratories-Inc/solar-eclipse –branch steven
 
 ### Check out `eclipse-program-library`
 
-This is the eclipse fork of the `solana-program-library`. This contains "SPL" programs that are commonly used programs - stuff like the token program, etc.
+This is a fork (with some dependency fixes) of the eclipse fork of the `solana-program-library`. This contains "SPL" programs that are commonly used programs - stuff like the token program, etc.
 
-1. Check out the branch `steven/eclipse-1.14.13`:
+1. Check out the branch `trevor/steven/eclipse-1.14.13/with-tlv-lib`:
 
 ```
-git clone git@github.com:Eclipse-Laboratories-Inc/eclipse-program-library –branch steven/eclipse-1.14.13
+git clone git@github.com:tkporter/eclipse-program-library.git --branch trevor/steven/eclipse-1.14.13/with-tlv-lib
 ```
 
 ### Build the required SPL programs and Hyperlane programs
