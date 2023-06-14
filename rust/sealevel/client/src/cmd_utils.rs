@@ -80,14 +80,14 @@ pub(crate) fn deploy_program(
     );
 }
 
-pub(crate) fn create_new_file(parent_dir: &PathBuf, name: &str) -> PathBuf {
+pub(crate) fn create_new_file(parent_dir: &Path, name: &str) -> PathBuf {
     let path = parent_dir.join(name);
     let _file = File::create(path.clone())
         .unwrap_or_else(|_| panic!("Failed to create file {}", path.display()));
     path
 }
 
-pub(crate) fn create_new_directory(parent_dir: &PathBuf, name: &str) -> PathBuf {
+pub(crate) fn create_new_directory(parent_dir: &Path, name: &str) -> PathBuf {
     let path = parent_dir.join(name);
     std::fs::create_dir_all(path.clone())
         .unwrap_or_else(|_| panic!("Failed to create directory {}", path.display()));
@@ -95,7 +95,7 @@ pub(crate) fn create_new_directory(parent_dir: &PathBuf, name: &str) -> PathBuf 
 }
 
 pub(crate) fn create_and_write_keypair(
-    key_dir: &PathBuf,
+    key_dir: &Path,
     key_name: &str,
     use_existing_key: bool,
 ) -> (Keypair, PathBuf) {

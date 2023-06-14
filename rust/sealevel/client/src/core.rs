@@ -3,12 +3,7 @@ use serde::{Deserialize, Serialize};
 use solana_program::pubkey::Pubkey;
 use solana_sdk::signature::Signer;
 
-use std::{
-    fs::File,
-    io::Write,
-    path::{Path, PathBuf},
-    str::FromStr,
-};
+use std::{fs::File, io::Write, path::Path, str::FromStr};
 
 use crate::{
     cmd_utils::{create_and_write_keypair, create_new_directory, create_new_file, deploy_program},
@@ -65,8 +60,8 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
 fn deploy_multisig_ism_message_id(
     ctx: &mut Context,
     use_existing_key: bool,
-    key_dir: &PathBuf,
-    built_so_dir: &PathBuf,
+    key_dir: &Path,
+    built_so_dir: &Path,
     log_file: impl AsRef<Path>,
 ) -> Pubkey {
     let (keypair, keypair_path) = create_and_write_keypair(
@@ -112,8 +107,8 @@ fn deploy_multisig_ism_message_id(
 fn deploy_mailbox(
     ctx: &mut Context,
     use_existing_key: bool,
-    key_dir: &PathBuf,
-    built_so_dir: &PathBuf,
+    key_dir: &Path,
+    built_so_dir: &Path,
     log_file: impl AsRef<Path>,
     local_domain: u32,
     default_ism: Pubkey,
@@ -160,8 +155,8 @@ fn deploy_mailbox(
 fn deploy_validator_announce(
     ctx: &mut Context,
     use_existing_key: bool,
-    key_dir: &PathBuf,
-    built_so_dir: &PathBuf,
+    key_dir: &Path,
+    built_so_dir: &Path,
     log_file: impl AsRef<Path>,
     mailbox_program_id: Pubkey,
     local_domain: u32,
@@ -240,7 +235,7 @@ impl From<CoreProgramIds> for PrettyCoreProgramIds {
     }
 }
 
-fn write_program_ids(core_dir: &PathBuf, program_ids: CoreProgramIds) {
+fn write_program_ids(core_dir: &Path, program_ids: CoreProgramIds) {
     let pretty_program_ids = PrettyCoreProgramIds::from(program_ids);
 
     let json = serde_json::to_string_pretty(&pretty_program_ids).unwrap();
@@ -254,7 +249,7 @@ fn write_program_ids(core_dir: &PathBuf, program_ids: CoreProgramIds) {
 }
 
 pub(crate) fn read_core_program_ids(
-    environments_dir: &PathBuf,
+    environments_dir: &Path,
     environment: &str,
     chain: &str,
 ) -> CoreProgramIds {

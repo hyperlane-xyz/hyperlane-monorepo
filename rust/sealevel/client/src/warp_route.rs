@@ -1,6 +1,6 @@
 use hyperlane_core::H256;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs::File, path::PathBuf, str::FromStr};
+use std::{collections::HashMap, fs::File, path::Path, str::FromStr};
 
 use solana_client::rpc_client::RpcClient;
 use solana_program::program_error::ProgramError;
@@ -168,7 +168,6 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                 let program_id = deploy_warp_route(
                     &mut ctx,
                     &keys_dir,
-                    &warp_route_dir,
                     &deploy.environments_dir,
                     &deploy.environment,
                     &deploy.built_so_dir,
@@ -229,13 +228,13 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn deploy_warp_route(
     ctx: &mut Context,
-    key_dir: &PathBuf,
-    _warp_route_dir: &PathBuf,
-    environments_dir: &PathBuf,
+    key_dir: &Path,
+    environments_dir: &Path,
     environment: &str,
-    built_so_dir: &PathBuf,
+    built_so_dir: &Path,
     chain_config: &ChainMetadata,
     token_config: &TokenConfig,
     ata_payer_funding_amount: Option<u64>,
@@ -397,7 +396,7 @@ fn init_warp_route(
     Ok(())
 }
 
-fn write_program_ids(warp_route_dir: &PathBuf, pretty_program_ids: HashMap<String, String>) {
+fn write_program_ids(warp_route_dir: &Path, pretty_program_ids: HashMap<String, String>) {
     let program_ids_file = warp_route_dir.join("program-ids.json");
     let program_ids_file = File::create(program_ids_file).unwrap();
     serde_json::to_writer_pretty(program_ids_file, &pretty_program_ids).unwrap();
