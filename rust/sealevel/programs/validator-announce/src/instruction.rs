@@ -1,6 +1,13 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H160;
-use solana_program::{keccak, program_error::ProgramError, pubkey::Pubkey};
+use solana_program::{
+    instruction::{AccountMeta, Instruction as SolanaInstruction},
+    keccak,
+    program_error::ProgramError,
+    pubkey::Pubkey,
+};
+
+use crate::validator_announce_pda_seeds;
 
 /// Instructions for the ValidatorAnnounce program.
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -44,4 +51,38 @@ impl AnnounceInstruction {
         hasher.hash(self.storage_location.as_bytes());
         hasher.result().to_bytes()
     }
+}
+
+pub fn init_instruction(
+    program_id: Pubkey,
+    payer: Pubkey,
+    mailbox_program_id: Pubkey,
+    local_domain: u32,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (validator_announce_account, _validator_announce_bump) =
+        Pubkey::try_find_program_address(validator_announce_pda_seeds!(), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+
+    let ixn = Instruction::Init(InitInstruction {
+        mailbox: mailbox_program_id,
+        local_domain,
+    });
+
+    // Accounts:
+    // 0. [signer] The payer.
+    // 1. [executable] The system program.
+    // 2. [writable] The ValidatorAnnounce PDA account.
+    let accounts = vec![
+        AccountMeta::new_readonly(payer, true),
+        AccountMeta::new_readonly(solana_program::system_program::id(), false),
+        AccountMeta::new(validator_announce_account, false),
+    ];
+
+    let instruction = SolanaInstruction {
+        program_id,
+        data: ixn.into_instruction_data()?,
+        accounts,
+    };
+
+    Ok(instruction)
 }

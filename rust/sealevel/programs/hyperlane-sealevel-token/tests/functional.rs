@@ -7,9 +7,8 @@ use hyperlane_core::{Encode, HyperlaneMessage, H256, U256};
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_mailbox::{
     accounts::{DispatchedMessage, DispatchedMessageAccount},
-    instruction::{InboxProcess, Instruction as MailboxInstruction},
     mailbox_dispatched_message_pda_seeds, mailbox_message_dispatch_authority_pda_seeds,
-    mailbox_process_authority_pda_seeds, mailbox_processed_message_pda_seeds,
+    mailbox_process_authority_pda_seeds,
 };
 use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
@@ -25,11 +24,12 @@ use hyperlane_sealevel_token_lib::{
     message::TokenMessage,
 };
 use hyperlane_test_utils::{
-    assert_token_balance, assert_transaction_error, initialize_mailbox, new_funded_keypair,
-    transfer_lamports, MailboxAccounts,
+    assert_token_balance, assert_transaction_error, initialize_mailbox, mailbox_id,
+    new_funded_keypair, process, transfer_lamports, MailboxAccounts,
 };
 use solana_program::{
     instruction::{AccountMeta, Instruction},
+    pubkey,
     pubkey::Pubkey,
 };
 use solana_program_test::*;
@@ -50,8 +50,12 @@ const LOCAL_DECIMALS_U32: u32 = LOCAL_DECIMALS as u32;
 const REMOTE_DOMAIN: u32 = 4321;
 const REMOTE_DECIMALS: u8 = 18;
 
+fn hyperlane_sealevel_token_id() -> Pubkey {
+    pubkey!("3MzUPjP5LEkiHH82nEAe28Xtz9ztuMqWc8UmuKxrpVQH")
+}
+
 async fn setup_client() -> (BanksClient, Keypair) {
-    let program_id = hyperlane_sealevel_token::id();
+    let program_id = hyperlane_sealevel_token_id();
     let mut program_test = ProgramTest::new(
         "hyperlane_sealevel_token",
         program_id,
@@ -72,7 +76,7 @@ async fn setup_client() -> (BanksClient, Keypair) {
 
     program_test.add_program("spl_noop", spl_noop::id(), processor!(spl_noop::noop));
 
-    let mailbox_program_id = hyperlane_sealevel_mailbox::id();
+    let mailbox_program_id = mailbox_id();
     program_test.add_program(
         "hyperlane_sealevel_mailbox",
         mailbox_program_id,
@@ -81,9 +85,9 @@ async fn setup_client() -> (BanksClient, Keypair) {
 
     // This serves as the default ISM on the Mailbox
     program_test.add_program(
-        "hyperlane_sealevel_ism_rubber_stamp",
-        hyperlane_sealevel_ism_rubber_stamp::id(),
-        processor!(hyperlane_sealevel_ism_rubber_stamp::process_instruction),
+        "hyperlane_sealevel_test_ism",
+        hyperlane_sealevel_test_ism::id(),
+        processor!(hyperlane_sealevel_test_ism::program::process_instruction),
     );
 
     let (banks_client, payer, _recent_blockhash) = program_test.start().await;
@@ -111,20 +115,20 @@ async fn initialize_hyperlane_token(
     let (mailbox_process_authority_key, _mailbox_process_authority_bump) =
         Pubkey::find_program_address(
             mailbox_process_authority_pda_seeds!(program_id),
-            &hyperlane_sealevel_mailbox::id(),
+            &mailbox_id(),
         );
 
     let (token_account_key, token_account_bump_seed) =
-        Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &program_id);
+        Pubkey::find_program_address(hyperlane_token_pda_seeds!(), program_id);
 
     let (dispatch_authority_key, dispatch_authority_seed) =
-        Pubkey::find_program_address(mailbox_message_dispatch_authority_pda_seeds!(), &program_id);
+        Pubkey::find_program_address(mailbox_message_dispatch_authority_pda_seeds!(), program_id);
 
     let (mint_account_key, mint_account_bump_seed) =
-        Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
+        Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), program_id);
 
     let (ata_payer_account_key, ata_payer_account_bump_seed) =
-        Pubkey::find_program_address(hyperlane_token_ata_payer_pda_seeds!(), &program_id);
+        Pubkey::find_program_address(hyperlane_token_ata_payer_pda_seeds!(), program_id);
 
     let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
     let transaction = Transaction::new_signed_with_payer(
@@ -132,7 +136,7 @@ async fn initialize_hyperlane_token(
             Instruction::new_with_bytes(
                 *program_id,
                 &HyperlaneTokenInstruction::Init(Init {
-                    mailbox: hyperlane_sealevel_mailbox::id(),
+                    mailbox: mailbox_id(),
                     interchain_security_module: None,
                     decimals: LOCAL_DECIMALS,
                     remote_decimals: REMOTE_DECIMALS,
@@ -217,8 +221,8 @@ async fn enroll_remote_router(
 
 #[tokio::test]
 async fn test_initialize() {
-    let program_id = hyperlane_sealevel_token::id();
-    let mailbox_program_id = hyperlane_sealevel_mailbox::id();
+    let program_id = hyperlane_sealevel_token_id();
+    let mailbox_program_id = mailbox_id();
 
     let (mut banks_client, payer) = setup_client().await;
 
@@ -269,7 +273,7 @@ async fn test_initialize() {
         .unwrap()
         .unwrap();
     assert_eq!(mint_account.owner, spl_token_2022::id());
-    assert!(mint_account.data.len() > 0);
+    assert!(!mint_account.data.is_empty());
 
     // Verify the ATA payer account was created.
     let ata_payer_account = banks_client
@@ -282,7 +286,7 @@ async fn test_initialize() {
 
 #[tokio::test]
 async fn test_initialize_errors_if_called_twice() {
-    let program_id = hyperlane_sealevel_token::id();
+    let program_id = hyperlane_sealevel_token_id();
 
     let (mut banks_client, payer) = setup_client().await;
 
@@ -316,8 +320,8 @@ async fn transfer_from_remote(
     ),
     BanksClientError,
 > {
-    let program_id = hyperlane_sealevel_token::id();
-    let mailbox_program_id = hyperlane_sealevel_mailbox::id();
+    let program_id = hyperlane_sealevel_token_id();
+    let mailbox_program_id = mailbox_id();
 
     let (mut banks_client, payer) = setup_client().await;
 
@@ -352,7 +356,7 @@ async fn transfer_from_remote(
     .await
     .unwrap();
 
-    let recipient_pubkey = recipient_wallet.unwrap_or_else(|| Pubkey::new_unique());
+    let recipient_pubkey = recipient_wallet.unwrap_or_else(Pubkey::new_unique);
     let recipient: H256 = recipient_pubkey.to_bytes().into();
 
     let recipient_associated_token_account =
@@ -373,64 +377,14 @@ async fn transfer_from_remote(
         body: TokenMessage::new(recipient, remote_transfer_amount, vec![]).to_vec(),
     };
 
-    let (processed_message_account_key, _processed_message_account_bump) =
-        Pubkey::find_program_address(
-            mailbox_processed_message_pda_seeds!(message.id()),
-            &mailbox_program_id,
-        );
-
-    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    let transaction = Transaction::new_signed_with_payer(
-        &[Instruction::new_with_borsh(
-            mailbox_program_id,
-            &MailboxInstruction::InboxProcess(InboxProcess {
-                metadata: vec![],
-                message: message.to_vec(),
-            }),
-            vec![
-                AccountMeta::new_readonly(payer.pubkey(), true),
-                AccountMeta::new_readonly(solana_program::system_program::id(), false),
-                AccountMeta::new(mailbox_accounts.inbox, false),
-                AccountMeta::new_readonly(
-                    hyperlane_token_accounts.mailbox_process_authority,
-                    false,
-                ),
-                AccountMeta::new(processed_message_account_key, false),
-                // Accounts required to get recipient's ISM
-                AccountMeta::new(hyperlane_token_accounts.token, false),
-                // Noop
-                AccountMeta::new_readonly(spl_noop::id(), false),
-                // ISM
-                AccountMeta::new_readonly(hyperlane_sealevel_ism_rubber_stamp::id(), false),
-                // Recipient
-                AccountMeta::new_readonly(program_id, false),
-                // Recipient.handle accounts
-                // 0. [signer] Mailbox process authority specific to this program. (implied)
-                // 1. [executable] system_program
-                // 2. [executable] spl_noop
-                // 3. [] hyperlane_token storage
-                // 4. [] recipient wallet address
-                // 5. [executable] SPL token 2022 program
-                // 6. [executable] SPL associated token account
-                // 7. [writeable] Mint account
-                // 8. [writeable] Recipient associated token account
-                // 9. [writeable] ATA payer PDA account.
-                AccountMeta::new_readonly(solana_program::system_program::id(), false),
-                AccountMeta::new_readonly(spl_noop::id(), false),
-                AccountMeta::new_readonly(hyperlane_token_accounts.token, false),
-                AccountMeta::new_readonly(recipient_pubkey, false),
-                AccountMeta::new_readonly(spl_token_2022::id(), false),
-                AccountMeta::new_readonly(spl_associated_token_account::id(), false),
-                AccountMeta::new(hyperlane_token_accounts.mint, false),
-                AccountMeta::new(recipient_associated_token_account, false),
-                AccountMeta::new(hyperlane_token_accounts.ata_payer, false),
-            ],
-        )],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(transaction).await?;
+    process(
+        &mut banks_client,
+        &payer,
+        &mailbox_accounts,
+        vec![],
+        &message,
+    )
+    .await?;
 
     Ok((
         banks_client,
@@ -500,8 +454,8 @@ async fn test_transfer_from_remote_errors_if_sender_not_router() {
 
 #[tokio::test]
 async fn test_transfer_from_remote_errors_if_process_authority_not_signer() {
-    let program_id = hyperlane_sealevel_token::id();
-    let mailbox_program_id = hyperlane_sealevel_mailbox::id();
+    let program_id = hyperlane_sealevel_token_id();
+    let mailbox_program_id = mailbox_id();
 
     let (mut banks_client, payer) = setup_client().await;
 
@@ -591,8 +545,8 @@ async fn test_transfer_from_remote_errors_if_process_authority_not_signer() {
 
 #[tokio::test]
 async fn test_transfer_remote() {
-    let program_id = hyperlane_sealevel_token::id();
-    let mailbox_program_id = hyperlane_sealevel_mailbox::id();
+    let program_id = hyperlane_sealevel_token_id();
+    let mailbox_program_id = mailbox_id();
 
     let token_sender = Keypair::new();
     let token_sender_pubkey = token_sender.pubkey();
@@ -746,7 +700,7 @@ async fn test_transfer_remote() {
 
 #[tokio::test]
 async fn test_enroll_remote_router() {
-    let program_id = hyperlane_sealevel_token::id();
+    let program_id = hyperlane_sealevel_token_id();
 
     let (mut banks_client, payer) = setup_client().await;
 
@@ -786,7 +740,7 @@ async fn test_enroll_remote_router() {
 
 #[tokio::test]
 async fn test_enroll_remote_router_errors_if_not_signed_by_owner() {
-    let program_id = hyperlane_sealevel_token::id();
+    let program_id = hyperlane_sealevel_token_id();
 
     let (mut banks_client, payer) = setup_client().await;
 
@@ -845,7 +799,7 @@ async fn test_enroll_remote_router_errors_if_not_signed_by_owner() {
 
 #[tokio::test]
 async fn test_transfer_ownership() {
-    let program_id = hyperlane_sealevel_token::id();
+    let program_id = hyperlane_sealevel_token_id();
 
     let (mut banks_client, payer) = setup_client().await;
 
@@ -890,7 +844,7 @@ async fn test_transfer_ownership() {
 
 #[tokio::test]
 async fn test_transfer_ownership_errors_if_owner_not_signer() {
-    let program_id = hyperlane_sealevel_token::id();
+    let program_id = hyperlane_sealevel_token_id();
 
     let (mut banks_client, payer) = setup_client().await;
 
@@ -929,7 +883,7 @@ async fn test_transfer_ownership_errors_if_owner_not_signer() {
 
 #[tokio::test]
 async fn test_set_interchain_security_module() {
-    let program_id = hyperlane_sealevel_token::id();
+    let program_id = hyperlane_sealevel_token_id();
 
     let (mut banks_client, payer) = setup_client().await;
 
@@ -975,7 +929,7 @@ async fn test_set_interchain_security_module() {
 
 #[tokio::test]
 async fn test_set_interchain_security_module_errors_if_owner_not_signer() {
-    let program_id = hyperlane_sealevel_token::id();
+    let program_id = hyperlane_sealevel_token_id();
 
     let (mut banks_client, payer) = setup_client().await;
 

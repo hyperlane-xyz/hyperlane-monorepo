@@ -43,7 +43,7 @@ use crate::{
         },
     },
     utils::{get_account_metas, simulate_instruction},
-    /*make_provider,*/ ConnectionConf, SealevelProvider,
+    ConnectionConf, SealevelProvider,
 };
 
 use crate::RpcClientWithDebug;
@@ -756,7 +756,7 @@ pub(crate) mod contract {
     pub static DEFAULT_ISM: &'static str = "6TCwgXydobJUEqabm7e6SL4FMdiFDvp1pmYoL6xXmRJq";
 
     pub static SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
-    pub static SPL_NOOP: &str = "GpiNbGLpyroc8dFKPhK55eQhhvWn3XUaXJFp5fk5aXUs";
+    pub static SPL_NOOP: &str = "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV";
 
     pub static COMPUTE_BUDGET: &str = "ComputeBudget111111111111111111111111111111";
 

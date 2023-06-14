@@ -8,11 +8,10 @@ borsh = "0.9"
 clap = { version = "4", features = ["derive"] }
 account-utils = { path = "../libraries/account-utils" }
 hyperlane-core = { path = "../hyperlane-core" }
-hyperlane-sealevel-ism-rubber-stamp = { path = "../programs/ism/rubber-stamp" }
 hyperlane-sealevel-multisig-ism-message-id = { path = "../programs/ism/multisig-ism-message-id" }
 hyperlane-sealevel-mailbox = { path = "../programs/mailbox" }
-hyperlane-sealevel-recipient-echo = { path = "../programs/recipient/echo" }
 hyperlane-sealevel-token = { path = "../programs/hyperlane-sealevel-token" }
+hyperlane-sealevel-token-collateral = { path = "../programs/hyperlane-sealevel-token-collateral" }
 hyperlane-sealevel-token-native = { path = "../programs/hyperlane-sealevel-token-native" }
 hyperlane-sealevel-token-lib = { path = "../libraries/hyperlane-sealevel-token" }
 hyperlane-sealevel-connection-client = { path = "../libraries/hyperlane-sealevel-connection-client" }
@@ -25,3 +24,5 @@ solana-clap-utils = "=1.14.13"
 solana-program = "=1.14.13"
 solana-sdk = "=1.14.13"
 hex = "0.4.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"

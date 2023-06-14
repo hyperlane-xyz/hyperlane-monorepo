@@ -1,11 +1,15 @@
-use account_utils::{DiscriminatorData, PROGRAM_INSTRUCTION_DISCRIMINATOR};
+use account_utils::{DiscriminatorData, DiscriminatorEncode, PROGRAM_INSTRUCTION_DISCRIMINATOR};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H160;
-use solana_program::{program_error::ProgramError, pubkey::Pubkey};
+use solana_program::{
+    instruction::{AccountMeta, Instruction as SolanaInstruction},
+    program_error::ProgramError,
+    pubkey::Pubkey,
+};
 
 use std::collections::HashSet;
 
-use crate::error::Error;
+use crate::{access_control_pda_seeds, error::Error};
 
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub enum Instruction {
@@ -85,6 +89,35 @@ impl ValidatorsAndThreshold {
 
         Ok(())
     }
+}
+
+pub fn init_instruction(
+    program_id: Pubkey,
+    payer: Pubkey,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (access_control_pda_key, _access_control_pda_bump) =
+        Pubkey::try_find_program_address(access_control_pda_seeds!(), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+
+    let ixn = Instruction::Initialize;
+
+    // Accounts:
+    // 0. `[signer]` The new owner and payer of the access control PDA.
+    // 1. `[writable]` The access control PDA account.
+    // 2. `[executable]` The system program account.
+    let accounts = vec![
+        AccountMeta::new(payer, true),
+        AccountMeta::new(access_control_pda_key, false),
+        AccountMeta::new_readonly(solana_program::system_program::id(), false),
+    ];
+
+    let instruction = SolanaInstruction {
+        program_id,
+        data: ixn.encode()?,
+        accounts,
+    };
+
+    Ok(instruction)
 }
 
 #[cfg(test)]

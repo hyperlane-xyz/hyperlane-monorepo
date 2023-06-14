@@ -10,27 +10,22 @@ use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_mailbox::{
     accounts::{InboxAccount, OutboxAccount},
     hyperlane_core::{message::HyperlaneMessage, types::H256, Encode},
-    instruction::{
-        InboxProcess, Init as InitMailbox, Instruction as MailboxInstruction, OutboxDispatch,
-        VERSION,
-    },
+    instruction::{InboxProcess, Instruction as MailboxInstruction, OutboxDispatch, VERSION},
     mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds,
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
-    mailbox_processed_message_pda_seeds, spl_noop, ID as MAILBOX_PROG_ID,
+    mailbox_processed_message_pda_seeds, spl_noop,
 };
 use hyperlane_sealevel_multisig_ism_message_id::{
     access_control_pda_seeds as multisig_ism_message_id_access_control_pda_seeds,
+    accounts::AccessControlAccount,
     domain_data_pda_seeds as multisig_ism_message_id_domain_data_pda_seeds,
     instruction::{
         Domained, Instruction as MultisigIsmMessageIdInstruction, ValidatorsAndThreshold,
     },
-    ID as MULTISIG_ISM_MESSAGE_ID_PROG_ID,
 };
-use hyperlane_sealevel_recipient_echo::ID as RECIPIENT_ECHO_PROG_ID;
 use hyperlane_sealevel_token::{
     hyperlane_token_ata_payer_pda_seeds, hyperlane_token_mint_pda_seeds, plugin::SyntheticPlugin,
     spl_associated_token_account::get_associated_token_address_with_program_id, spl_token_2022,
-    ID as HYPERLANE_TOKEN_PROG_ID,
 };
 use hyperlane_sealevel_token_lib::{
     accounts::HyperlaneTokenAccount,
@@ -46,16 +41,16 @@ use hyperlane_sealevel_validator_announce::{
     accounts::ValidatorStorageLocationsAccount,
     instruction::{
         AnnounceInstruction as ValidatorAnnounceAnnounceInstruction,
-        InitInstruction as ValidatorAnnounceInitInstruction,
         Instruction as ValidatorAnnounceInstruction,
     },
     replay_protection_pda_seeds, validator_announce_pda_seeds,
-    validator_storage_locations_pda_seeds, ID as VALIDATOR_ANNOUNCE_PROG_ID,
+    validator_storage_locations_pda_seeds,
 };
 
 use solana_clap_utils::input_validators::{is_keypair, is_url, normalize_to_url_if_moniker};
 use solana_cli_config::{Config, CONFIG_FILE};
-use solana_client::rpc_client::RpcClient;
+use solana_client::{rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig};
+use solana_program::pubkey;
 use solana_sdk::{
     commitment_config::CommitmentConfig,
     compute_budget::ComputeBudgetInstruction,
@@ -66,6 +61,17 @@ use solana_sdk::{
     system_program,
     transaction::Transaction,
 };
+
+use std::path::PathBuf;
+
+mod cmd_utils;
+mod r#core;
+mod warp_route;
+
+pub(crate) use crate::core::*;
+
+use crate::warp_route::process_warp_route_cmd;
+
 // Note: from solana_program_runtime::compute_budget
 const DEFAULT_INSTRUCTION_COMPUTE_UNIT_LIMIT: u32 = 200_000;
 const MAX_COMPUTE_UNIT_LIMIT: u32 = 1_400_000;
@@ -90,10 +96,68 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum HyperlaneSealevelCmd {
+    Core(CoreCmd),
     Mailbox(MailboxCmd),
     Token(TokenCmd),
     ValidatorAnnounce(ValidatorAnnounceCmd),
     MultisigIsmMessageId(MultisigIsmMessageIdCmd),
+    WarpRoute(WarpRouteCmd),
+}
+
+#[derive(Args)]
+pub(crate) struct WarpRouteCmd {
+    #[command(subcommand)]
+    cmd: WarpRouteSubCmd,
+}
+
+#[derive(Subcommand)]
+pub(crate) enum WarpRouteSubCmd {
+    Deploy(WarpRouteDeploy),
+}
+
+#[derive(Args)]
+pub(crate) struct WarpRouteDeploy {
+    #[arg(long)]
+    environment: String,
+    #[arg(long)]
+    environments_dir: PathBuf,
+    #[arg(long)]
+    built_so_dir: PathBuf,
+    #[arg(long)]
+    warp_route_name: String,
+    #[arg(long)]
+    token_config_file: PathBuf,
+    #[arg(long)]
+    chain_config_file: PathBuf,
+    #[arg(long)]
+    ata_payer_funding_amount: Option<u64>,
+}
+
+#[derive(Args)]
+struct CoreCmd {
+    #[command(subcommand)]
+    cmd: CoreSubCmd,
+}
+
+#[derive(Subcommand)]
+enum CoreSubCmd {
+    Deploy(CoreDeploy),
+}
+
+#[derive(Args)]
+struct CoreDeploy {
+    #[arg(long)]
+    local_domain: u32,
+    #[arg(long)]
+    environment: String,
+    #[arg(long)]
+    chain: String,
+    #[arg(long)]
+    use_existing_keys: bool,
+    #[arg(long)]
+    environments_dir: PathBuf,
+    #[arg(long)]
+    built_so_dir: PathBuf,
 }
 
 #[derive(Args)]
@@ -110,6 +174,12 @@ enum MailboxSubCmd {
     Receive(Inbox),
     Delivered(Delivered),
 }
+
+const MAILBOX_PROG_ID: Pubkey = pubkey!("692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1");
+const HYPERLANE_TOKEN_PROG_ID: Pubkey = pubkey!("3MzUPjP5LEkiHH82nEAe28Xtz9ztuMqWc8UmuKxrpVQH");
+const MULTISIG_ISM_MESSAGE_ID_PROG_ID: Pubkey =
+    pubkey!("2YjtZDiUoptoSsA5eVrDCcX6wxNK6YoEVW7y82x5Z2fw");
+const VALIDATOR_ANNOUNCE_PROG_ID: Pubkey = pubkey!("DH43ae1LwemXAboWwSh8zc9pG8j72gKUEXNi57w8fEnn");
 
 #[derive(Args)]
 struct Init {
@@ -131,7 +201,7 @@ struct Query {
 struct Outbox {
     #[arg(long, short, default_value_t = ECLIPSE_DOMAIN)]
     destination: u32,
-    #[arg(long, short, default_value_t = RECIPIENT_ECHO_PROG_ID)]
+    #[arg(long, short)]
     recipient: Pubkey,
     #[arg(long, short, default_value = "Hello, World!")]
     message: String,
@@ -147,7 +217,7 @@ struct Inbox {
     local_domain: u32,
     #[arg(long, short, default_value_t = ECLIPSE_DOMAIN)]
     origin: u32,
-    #[arg(long, short, default_value_t = RECIPIENT_ECHO_PROG_ID)]
+    #[arg(long, short)]
     recipient: Pubkey,
     #[arg(long, short, default_value = "Hello, World!")]
     message: String,
@@ -315,6 +385,7 @@ struct MultisigIsmMessageIdCmd {
 enum MultisigIsmMessageIdSubCmd {
     Init(MultisigIsmMessageIdInit),
     SetValidatorsAndThreshold(MultisigIsmMessageIdSetValidatorsAndThreshold),
+    Query(MultisigIsmMessageIdInit),
 }
 
 #[derive(Args)]
@@ -335,9 +406,10 @@ struct MultisigIsmMessageIdSetValidatorsAndThreshold {
     threshold: u8,
 }
 
-struct Context {
+pub(crate) struct Context {
     client: RpcClient,
     payer: Keypair,
+    payer_path: String,
     commitment: CommitmentConfig,
     instructions: Vec<Instruction>,
 }
@@ -352,16 +424,16 @@ impl Context {
             recent_blockhash,
         );
 
-        let signature = self
+        let _signature = self
             .client
-            .send_transaction(&txn)
-            .map_err(|err| {
-                eprintln!("{:#?}", err);
-                err
-            })
-            .unwrap();
-        self.client
-            .confirm_transaction_with_spinner(&signature, &recent_blockhash, self.commitment)
+            .send_and_confirm_transaction_with_spinner_and_config(
+                &txn,
+                self.commitment,
+                RpcSendTransactionConfig {
+                    preflight_commitment: Some(self.commitment.commitment),
+                    ..RpcSendTransactionConfig::default()
+                },
+            )
             .map_err(|err| {
                 eprintln!("{:#?}", err);
                 err
@@ -384,7 +456,7 @@ fn main() {
     is_keypair(&keypair_path).unwrap();
 
     let client = RpcClient::new(url);
-    let payer = read_keypair_file(keypair_path).unwrap();
+    let payer = read_keypair_file(keypair_path.clone()).unwrap();
     let commitment = CommitmentConfig::processed();
 
     let mut instructions = vec![];
@@ -402,6 +474,7 @@ fn main() {
     let ctx = Context {
         client,
         payer,
+        payer_path: keypair_path,
         commitment,
         instructions,
     };
@@ -412,36 +485,24 @@ fn main() {
         HyperlaneSealevelCmd::MultisigIsmMessageId(cmd) => {
             process_multisig_ism_message_id_cmd(ctx, cmd)
         }
+        HyperlaneSealevelCmd::Core(cmd) => process_core_cmd(ctx, cmd),
+        HyperlaneSealevelCmd::WarpRoute(cmd) => process_warp_route_cmd(ctx, cmd),
     }
 }
 
 fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
     match cmd.cmd {
         MailboxSubCmd::Init(init) => {
-            let (inbox_account, inbox_bump) =
-                Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), &init.program_id);
-            let (outbox_account, outbox_bump) =
-                Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), &init.program_id);
+            let instruction = hyperlane_sealevel_mailbox::instruction::init_instruction(
+                init.program_id,
+                init.local_domain,
+                init.default_ism,
+                ctx.payer.pubkey(),
+            )
+            .unwrap();
 
-            let ixn = MailboxInstruction::Init(InitMailbox {
-                local_domain: init.local_domain,
-                default_ism: init.default_ism,
-            });
-            let init_instruction = Instruction {
-                program_id: init.program_id,
-                data: ixn.into_instruction_data().unwrap(),
-                accounts: vec![
-                    AccountMeta::new(system_program::id(), false),
-                    AccountMeta::new(ctx.payer.pubkey(), true),
-                    AccountMeta::new(inbox_account, false),
-                    AccountMeta::new(outbox_account, false),
-                ],
-            };
-            ctx.instructions.push(init_instruction);
+            ctx.instructions.push(instruction);
             ctx.send_transaction(&[&ctx.payer]);
-
-            println!("inbox=({}, {})", inbox_account, inbox_bump);
-            println!("outbox=({}, {})", outbox_account, outbox_bump);
         }
         MailboxSubCmd::Query(query) => {
             let (inbox_account, inbox_bump) =
@@ -451,8 +512,12 @@ fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
 
             let accounts = ctx
                 .client
-                .get_multiple_accounts(&[inbox_account, outbox_account])
-                .unwrap();
+                .get_multiple_accounts_with_commitment(
+                    &[inbox_account, outbox_account],
+                    ctx.commitment,
+                )
+                .unwrap()
+                .value;
             println!("mailbox={}", query.program_id);
             println!("--------------------------------");
             println!("Inbox: {}, bump={}", inbox_account, inbox_bump);
@@ -704,8 +769,9 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
 
             let accounts = ctx
                 .client
-                .get_multiple_accounts(&accounts_to_query)
-                .unwrap();
+                .get_multiple_accounts_with_commitment(&accounts_to_query, ctx.commitment)
+                .unwrap()
+                .value;
             println!("hyperlane-sealevel-token={}", query.program_id);
             println!("--------------------------------");
             println!(
@@ -911,29 +977,14 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
 fn process_validator_announce_cmd(mut ctx: Context, cmd: ValidatorAnnounceCmd) {
     match cmd.cmd {
         ValidatorAnnounceSubCmd::Init(init) => {
-            let (validator_announce_account, _validator_announce_bump) =
-                Pubkey::find_program_address(validator_announce_pda_seeds!(), &init.program_id);
-
-            let ixn = ValidatorAnnounceInstruction::Init(ValidatorAnnounceInitInstruction {
-                mailbox: init.mailbox_id,
-                local_domain: init.local_domain,
-            });
-
-            // Accounts:
-            // 0. [signer] The payer.
-            // 1. [executable] The system program.
-            // 2. [writable] The ValidatorAnnounce PDA account.
-            let accounts = vec![
-                AccountMeta::new_readonly(ctx.payer.pubkey(), true),
-                AccountMeta::new_readonly(system_program::id(), false),
-                AccountMeta::new(validator_announce_account, false),
-            ];
-
-            let init_instruction = Instruction {
-                program_id: init.program_id,
-                data: ixn.into_instruction_data().unwrap(),
-                accounts,
-            };
+            let init_instruction =
+                hyperlane_sealevel_validator_announce::instruction::init_instruction(
+                    init.program_id,
+                    ctx.payer.pubkey(),
+                    init.mailbox_id,
+                    init.local_domain,
+                )
+                .unwrap();
             ctx.instructions.push(init_instruction);
 
             ctx.send_transaction(&[&ctx.payer]);
@@ -1024,28 +1075,12 @@ fn process_validator_announce_cmd(mut ctx: Context, cmd: ValidatorAnnounceCmd) {
 fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: MultisigIsmMessageIdCmd) {
     match cmd.cmd {
         MultisigIsmMessageIdSubCmd::Init(init) => {
-            let (access_control_pda_key, _access_control_pda_bump) = Pubkey::find_program_address(
-                multisig_ism_message_id_access_control_pda_seeds!(),
-                &init.program_id,
-            );
-
-            let ixn = MultisigIsmMessageIdInstruction::Initialize;
-
-            // Accounts:
-            // 0. `[signer]` The new owner and payer of the access control PDA.
-            // 1. `[writable]` The access control PDA account.
-            // 2. `[executable]` The system program account.
-            let accounts = vec![
-                AccountMeta::new(ctx.payer.pubkey(), true),
-                AccountMeta::new(access_control_pda_key, false),
-                AccountMeta::new_readonly(system_program::id(), false),
-            ];
-
-            let init_instruction = Instruction {
-                program_id: init.program_id,
-                data: ixn.encode().unwrap(),
-                accounts,
-            };
+            let init_instruction =
+                hyperlane_sealevel_multisig_ism_message_id::instruction::init_instruction(
+                    init.program_id,
+                    ctx.payer.pubkey(),
+                )
+                .unwrap();
             ctx.instructions.push(init_instruction);
 
             ctx.send_transaction(&[&ctx.payer]);
@@ -1089,6 +1124,23 @@ fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: MultisigIsmMessage
             ctx.instructions.push(set_instruction);
 
             ctx.send_transaction(&[&ctx.payer]);
+        }
+        MultisigIsmMessageIdSubCmd::Query(query) => {
+            let (access_control_pda_key, _access_control_pda_bump) = Pubkey::find_program_address(
+                multisig_ism_message_id_access_control_pda_seeds!(),
+                &query.program_id,
+            );
+
+            let accounts = ctx
+                .client
+                .get_multiple_accounts_with_commitment(&[access_control_pda_key], ctx.commitment)
+                .unwrap()
+                .value;
+            let access_control =
+                AccessControlAccount::fetch(&mut &accounts[0].as_ref().unwrap().data[..])
+                    .unwrap()
+                    .into_inner();
+            println!("Access control: {:#?}", access_control);
         }
     }
 }

@@ -6,6 +6,7 @@ use account_utils::DiscriminatorEncode;
 use borsh::BorshDeserialize;
 use solana_program::{
     instruction::{AccountMeta, Instruction},
+    pubkey,
     pubkey::Pubkey,
 };
 
@@ -37,6 +38,10 @@ use solana_sdk::{
     signer::keypair::Keypair,
     transaction::{Transaction, TransactionError},
 };
+
+pub fn multisig_ism_message_id_id() -> Pubkey {
+    pubkey!("2YjtZDiUoptoSsA5eVrDCcX6wxNK6YoEVW7y82x5Z2fw")
+}
 
 async fn new_funded_keypair(
     banks_client: &mut BanksClient,
@@ -126,7 +131,7 @@ async fn set_validators_and_threshold(
 
 #[tokio::test]
 async fn test_initialize() {
-    let program_id = hyperlane_sealevel_multisig_ism_message_id::id();
+    let program_id = multisig_ism_message_id_id();
     let (mut banks_client, payer, recent_blockhash) = ProgramTest::new(
         "hyperlane_sealevel_ism_multisig_ism",
         program_id,
@@ -135,14 +140,10 @@ async fn test_initialize() {
     .start()
     .await;
 
-    let (access_control_pda_key, access_control_pda_bump_seed) = initialize(
-        program_id.clone(),
-        &mut banks_client,
-        &payer,
-        recent_blockhash.clone(),
-    )
-    .await
-    .unwrap();
+    let (access_control_pda_key, access_control_pda_bump_seed) =
+        initialize(program_id, &mut banks_client, &payer, recent_blockhash)
+            .await
+            .unwrap();
 
     let access_control_account_data = banks_client
         .get_account(access_control_pda_key)
@@ -164,7 +165,7 @@ async fn test_initialize() {
 
 #[tokio::test]
 async fn test_initialize_errors_if_called_twice() {
-    let program_id = hyperlane_sealevel_multisig_ism_message_id::id();
+    let program_id = multisig_ism_message_id_id();
     let (mut banks_client, payer, recent_blockhash) = ProgramTest::new(
         "hyperlane_sealevel_ism_multisig_ism",
         program_id,
@@ -173,25 +174,14 @@ async fn test_initialize_errors_if_called_twice() {
     .start()
     .await;
 
-    initialize(
-        program_id.clone(),
-        &mut banks_client,
-        &payer,
-        recent_blockhash.clone(),
-    )
-    .await
-    .unwrap();
+    initialize(program_id, &mut banks_client, &payer, recent_blockhash)
+        .await
+        .unwrap();
 
     // Create a new payer as a hack to get a new tx ID, because the
     // instruction data is the same and the recent blockhash is the same
     let new_payer = new_funded_keypair(&mut banks_client, &payer, 1000000).await;
-    let result = initialize(
-        program_id.clone(),
-        &mut banks_client,
-        &new_payer,
-        recent_blockhash,
-    )
-    .await;
+    let result = initialize(program_id, &mut banks_client, &new_payer, recent_blockhash).await;
 
     // BanksClientError doesn't implement Eq, but TransactionError does
     if let BanksClientError::TransactionError(tx_err) = result.err().unwrap() {
@@ -209,7 +199,7 @@ async fn test_initialize_errors_if_called_twice() {
 
 #[tokio::test]
 async fn test_set_validators_and_threshold_creates_pda_account() {
-    let program_id = hyperlane_sealevel_multisig_ism_message_id::id();
+    let program_id = multisig_ism_message_id_id();
     let (mut banks_client, payer, recent_blockhash) = ProgramTest::new(
         "hyperlane_sealevel_ism_multisig_ism",
         program_id,
@@ -218,14 +208,10 @@ async fn test_set_validators_and_threshold_creates_pda_account() {
     .start()
     .await;
 
-    let (access_control_pda_key, _) = initialize(
-        program_id.clone(),
-        &mut banks_client,
-        &payer,
-        recent_blockhash.clone(),
-    )
-    .await
-    .unwrap();
+    let (access_control_pda_key, _) =
+        initialize(program_id, &mut banks_client, &payer, recent_blockhash)
+            .await
+            .unwrap();
 
     let domain: u32 = 1234;
 
@@ -235,10 +221,10 @@ async fn test_set_validators_and_threshold_creates_pda_account() {
     };
 
     let (domain_data_pda_key, domain_data_pda_bump_seed) = set_validators_and_threshold(
-        program_id.clone(),
+        program_id,
         &mut banks_client,
         &payer,
-        recent_blockhash.clone(),
+        recent_blockhash,
         access_control_pda_key,
         domain,
         validators_and_threshold.clone(),
@@ -390,7 +376,7 @@ async fn test_set_validators_and_threshold_creates_pda_account() {
 
 #[tokio::test]
 async fn test_ism_verify() {
-    let program_id = hyperlane_sealevel_multisig_ism_message_id::id();
+    let program_id = multisig_ism_message_id_id();
     let (mut banks_client, payer, recent_blockhash) = ProgramTest::new(
         "hyperlane_sealevel_ism_multisig_ism",
         program_id,
@@ -399,14 +385,10 @@ async fn test_ism_verify() {
     .start()
     .await;
 
-    let (access_control_pda_key, _) = initialize(
-        program_id.clone(),
-        &mut banks_client,
-        &payer,
-        recent_blockhash.clone(),
-    )
-    .await
-    .unwrap();
+    let (access_control_pda_key, _) =
+        initialize(program_id, &mut banks_client, &payer, recent_blockhash)
+            .await
+            .unwrap();
 
     let MultisigIsmTestData {
         message,
@@ -422,10 +404,10 @@ async fn test_ism_verify() {
     };
 
     set_validators_and_threshold(
-        program_id.clone(),
+        program_id,
         &mut banks_client,
         &payer,
-        recent_blockhash.clone(),
+        recent_blockhash,
         access_control_pda_key,
         origin_domain,
         validators_and_threshold.clone(),
@@ -510,7 +492,7 @@ async fn test_ism_verify() {
 
 #[tokio::test]
 async fn test_ism_type() {
-    let program_id = hyperlane_sealevel_multisig_ism_message_id::id();
+    let program_id = multisig_ism_message_id_id();
     let (mut banks_client, payer, recent_blockhash) = ProgramTest::new(
         "hyperlane_sealevel_ism_multisig_ism",
         program_id,

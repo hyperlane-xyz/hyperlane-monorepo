@@ -133,7 +133,7 @@ mod test {
                     assert_eq!(
                         signature,
                         EcdsaSignature {
-                            serialized_rs: rs.into(),
+                            serialized_rs: rs,
                             recovery_id: decoded_recovery_id,
                         }
                     );
@@ -141,8 +141,7 @@ mod test {
                 None => {
                     assert!(signature_result.is_err());
                     assert!(
-                        signature_result.unwrap_err()
-                            == EcdsaSignatureError::InvalidRecoveryId.into()
+                        signature_result.unwrap_err() == EcdsaSignatureError::InvalidRecoveryId
                     );
                 }
             }

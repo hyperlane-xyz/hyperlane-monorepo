@@ -16,7 +16,7 @@ use crate::{
 
 /// Simulates an instruction, and attempts to deserialize it into a T.
 /// If no return data at all was returned, returns Ok(None).
-/// If some return data was returned but deserialization was unsuccesful,
+/// If some return data was returned but deserialization was unsuccessful,
 /// an Err is returned.
 pub async fn simulate_instruction<T: BorshDeserialize + BorshSerialize>(
     rpc_client: &RpcClient,
@@ -38,8 +38,6 @@ pub async fn simulate_instruction<T: BorshDeserialize + BorshSerialize>(
         .map_err(ChainCommunicationError::from_other)?
         .value
         .return_data;
-
-    tracing::warn!("return data {:?}", return_data);
 
     if let Some(return_data) = return_data {
         let bytes = match return_data.data.1 {

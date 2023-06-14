@@ -4,8 +4,6 @@ members = [
     "client",
     "programs/mailbox",
     "programs/mailbox-test",
-    "programs/recipient/echo",
-    "programs/ism/rubber-stamp",
     "programs/ism/multisig-ism-message-id",
     "programs/ism/test-ism",
     "programs/hyperlane-sealevel-token",
@@ -23,4 +21,5 @@ members = [
     "libraries/hyperlane-sealevel-token",
     "libraries/hyperlane-sealevel-connection-client",
     "libraries/test-utils",
+    "libraries/test-transaction-utils",
 ]

@@ -151,7 +151,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
         program_id,
         system_program_info,
         outbox_info,
-        mailbox_outbox_pda_seeds!(inbox_bump),
+        mailbox_outbox_pda_seeds!(outbox_bump),
     )?;
     // Store the outbox account.
     outbox_account.store(outbox_info, false)?;

@@ -405,7 +405,7 @@ mod test {
             &announce_instruction,
             &ValidatorAnnounce {
                 local_domain: 2,
-                ..validator_announce.clone()
+                ..validator_announce
             },
         )
         .is_err());

@@ -5,6 +5,7 @@ use std::str::FromStr;
 use borsh::BorshSerialize;
 use solana_program::{
     instruction::{AccountMeta, Instruction},
+    pubkey,
     pubkey::Pubkey,
     system_program,
 };
@@ -33,6 +34,10 @@ use hyperlane_sealevel_validator_announce::{
 // The Ethereum mailbox & domain chosen for easy testing
 const TEST_MAILBOX: &str = "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70";
 const TEST_DOMAIN: u32 = 1;
+
+fn validator_announce_id() -> Pubkey {
+    pubkey!("DH43ae1LwemXAboWwSh8zc9pG8j72gKUEXNi57w8fEnn")
+}
 
 fn get_test_mailbox() -> Pubkey {
     let mailbox_bytes = hex::decode(TEST_MAILBOX).unwrap();
@@ -95,7 +100,7 @@ async fn initialize(
     payer: &Keypair,
     mailbox: Pubkey,
 ) -> Result<(Pubkey, u8), BanksClientError> {
-    let program_id = hyperlane_sealevel_validator_announce::id();
+    let program_id = validator_announce_id();
 
     let (validator_announce_key, validator_announce_bump_seed) =
         Pubkey::find_program_address(validator_announce_pda_seeds!(), &program_id);
@@ -124,7 +129,7 @@ async fn initialize(
 
 #[tokio::test]
 async fn test_initialize() {
-    let program_id = hyperlane_sealevel_validator_announce::id();
+    let program_id = validator_announce_id();
     let (mut banks_client, payer, _recent_blockhash) = ProgramTest::new(
         "hyperlane_sealevel_validator_announce",
         program_id,
@@ -163,7 +168,7 @@ async fn test_initialize() {
 
 #[tokio::test]
 async fn test_initialize_errors_if_called_twice() {
-    let program_id = hyperlane_sealevel_validator_announce::id();
+    let program_id = validator_announce_id();
     let (mut banks_client, payer, _recent_blockhash) = ProgramTest::new(
         "hyperlane_sealevel_validator_announce",
         program_id,
@@ -285,7 +290,7 @@ async fn assert_successful_announcement(
         .unwrap();
     assert_eq!(replay_protection_account.owner, program_id);
 
-    assert!(validator_storage_locations_account.data.len() > 0);
+    assert!(!validator_storage_locations_account.data.is_empty());
     let replay_protection =
         ReplayProtectionAccount::fetch_data(&mut &validator_storage_locations_account.data[..])
             .unwrap();
@@ -294,7 +299,7 @@ async fn assert_successful_announcement(
 
 #[tokio::test]
 async fn test_announce() {
-    let program_id = hyperlane_sealevel_validator_announce::id();
+    let program_id = validator_announce_id();
     let (mut banks_client, payer, _recent_blockhash) = ProgramTest::new(
         "hyperlane_sealevel_validator_announce",
         program_id,
