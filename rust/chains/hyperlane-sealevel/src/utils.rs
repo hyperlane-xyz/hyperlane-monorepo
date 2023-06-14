@@ -1,6 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{ChainCommunicationError, ChainResult};
-use tracing::instrument;
 
 use crate::{
     contract::{SerializableAccountMeta, SimulationReturnData},
@@ -19,7 +18,6 @@ use crate::{
 /// If no return data at all was returned, returns Ok(None).
 /// If some return data was returned but deserialization was unsuccessful,
 /// an Err is returned.
-#[instrument(skip(rpc_client, payer))]
 pub async fn simulate_instruction<T: BorshDeserialize + BorshSerialize>(
     rpc_client: &RpcClient,
     payer: &Keypair,
