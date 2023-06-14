@@ -364,7 +364,7 @@ impl<T> RateLimitedContractSyncCursor<T> {
                     // we retrieved a new tip value, go ahead and update.
                     self.last_tip_update = Instant::now();
                     self.tip = tip;
-                    return Ok(None);
+                    Ok(None)
                 }
                 Err(e) => {
                     warn!(error = %e, "Failed to get next block range because we could not get the current tip");
@@ -392,8 +392,8 @@ where
         };
 
         let rate_limit = self.get_rate_limit().await?;
-        if rate_limit.is_some() {
-            return Ok((CursorAction::Sleep(rate_limit.unwrap()), eta));
+        if let Some(rate_limit) = rate_limit {
+            return Ok((CursorAction::Sleep(rate_limit), eta));
         } else {
             self.from = to + 1;
             return Ok((CursorAction::Query((from, to)), eta));
