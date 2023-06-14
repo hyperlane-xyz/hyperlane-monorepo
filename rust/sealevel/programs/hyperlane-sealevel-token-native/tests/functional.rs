@@ -14,9 +14,8 @@ use std::collections::HashMap;
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_mailbox::{
     accounts::{DispatchedMessage, DispatchedMessageAccount},
-    instruction::{InboxProcess, Instruction as MailboxInstruction},
     mailbox_dispatched_message_pda_seeds, mailbox_message_dispatch_authority_pda_seeds,
-    mailbox_process_authority_pda_seeds, mailbox_processed_message_pda_seeds,
+    mailbox_process_authority_pda_seeds,
 };
 use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
@@ -33,7 +32,7 @@ use hyperlane_sealevel_token_native::{
 };
 use hyperlane_test_utils::{
     assert_lamports, assert_transaction_error, initialize_mailbox, mailbox_id, new_funded_keypair,
-    transfer_lamports,
+    process, transfer_lamports,
 };
 use solana_program_test::*;
 use solana_sdk::{
@@ -499,58 +498,14 @@ async fn transfer_from_remote(
         body: TokenMessage::new(recipient, remote_transfer_amount, vec![]).to_vec(),
     };
 
-    let (processed_message_account_key, _processed_message_account_bump) =
-        Pubkey::find_program_address(
-            mailbox_processed_message_pda_seeds!(message.id()),
-            &mailbox_program_id,
-        );
-
-    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    let transaction = Transaction::new_signed_with_payer(
-        &[Instruction::new_with_borsh(
-            mailbox_program_id,
-            &MailboxInstruction::InboxProcess(InboxProcess {
-                metadata: vec![],
-                message: message.to_vec(),
-            }),
-            vec![
-                AccountMeta::new_readonly(payer.pubkey(), true),
-                AccountMeta::new_readonly(solana_program::system_program::id(), false),
-                AccountMeta::new(mailbox_accounts.inbox, false),
-                AccountMeta::new_readonly(
-                    hyperlane_token_accounts.mailbox_process_authority,
-                    false,
-                ),
-                AccountMeta::new(processed_message_account_key, false),
-                // Accounts required to get recipient's ISM
-                AccountMeta::new(hyperlane_token_accounts.token, false),
-                // Noop
-                AccountMeta::new_readonly(spl_noop::id(), false),
-                // ISM
-                AccountMeta::new_readonly(mailbox_accounts.default_ism, false),
-                // Recipient
-                AccountMeta::new_readonly(program_id, false),
-                // Recipient.handle accounts
-                // 0.   [signer] Mailbox processor authority specific to this program. (implied)
-                // 1.   [executable] system_program
-                // 2.   [executable] spl_noop
-                // 3.   [] hyperlane_token storage
-                // 4.   [writeable] recipient wallet address
-                // 5.   [executable] The system program.
-                // 6.   [writeable] The native token collateral PDA account.
-                AccountMeta::new_readonly(solana_program::system_program::id(), false),
-                AccountMeta::new_readonly(spl_noop::id(), false),
-                AccountMeta::new_readonly(hyperlane_token_accounts.token, false),
-                AccountMeta::new(recipient_pubkey, false),
-                AccountMeta::new_readonly(solana_program::system_program::id(), false),
-                AccountMeta::new(hyperlane_token_accounts.native_collateral, false),
-            ],
-        )],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(transaction).await?;
+    process(
+        &mut banks_client,
+        &payer,
+        &mailbox_accounts,
+        vec![],
+        &message,
+    )
+    .await?;
 
     Ok((banks_client, hyperlane_token_accounts, recipient_pubkey))
 }

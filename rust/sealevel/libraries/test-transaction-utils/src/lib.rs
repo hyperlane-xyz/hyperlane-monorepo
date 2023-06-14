@@ -1,6 +1,4 @@
-use solana_program::{
-    instruction::Instruction,
-};
+use solana_program::instruction::Instruction;
 use solana_program_test::*;
 use solana_sdk::{
     signature::{Signature, Signer},

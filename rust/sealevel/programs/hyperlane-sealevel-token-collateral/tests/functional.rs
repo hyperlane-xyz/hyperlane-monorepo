@@ -17,9 +17,8 @@ use std::collections::HashMap;
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_mailbox::{
     accounts::{DispatchedMessage, DispatchedMessageAccount},
-    instruction::{InboxProcess, Instruction as MailboxInstruction},
     mailbox_dispatched_message_pda_seeds, mailbox_message_dispatch_authority_pda_seeds,
-    mailbox_process_authority_pda_seeds, mailbox_processed_message_pda_seeds,
+    mailbox_process_authority_pda_seeds,
 };
 use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
@@ -36,7 +35,7 @@ use hyperlane_sealevel_token_lib::{
 };
 use hyperlane_test_utils::{
     assert_token_balance, assert_transaction_error, initialize_mailbox, mailbox_id,
-    new_funded_keypair, transfer_lamports,
+    new_funded_keypair, process, transfer_lamports,
 };
 use solana_program_test::*;
 use solana_sdk::{
@@ -747,66 +746,14 @@ async fn transfer_from_remote(
         body: TokenMessage::new(recipient, remote_transfer_amount, vec![]).to_vec(),
     };
 
-    let (processed_message_account_key, _processed_message_account_bump) =
-        Pubkey::find_program_address(
-            mailbox_processed_message_pda_seeds!(message.id()),
-            &mailbox_program_id,
-        );
-
-    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    let transaction = Transaction::new_signed_with_payer(
-        &[Instruction::new_with_borsh(
-            mailbox_program_id,
-            &MailboxInstruction::InboxProcess(InboxProcess {
-                metadata: vec![],
-                message: message.to_vec(),
-            }),
-            vec![
-                AccountMeta::new_readonly(payer.pubkey(), true),
-                AccountMeta::new_readonly(solana_program::system_program::id(), false),
-                AccountMeta::new(mailbox_accounts.inbox, false),
-                AccountMeta::new_readonly(
-                    hyperlane_token_accounts.mailbox_process_authority,
-                    false,
-                ),
-                AccountMeta::new(processed_message_account_key, false),
-                // Accounts required to get recipient's ISM
-                AccountMeta::new(hyperlane_token_accounts.token, false),
-                // Noop
-                AccountMeta::new_readonly(spl_noop::id(), false),
-                // ISM
-                AccountMeta::new_readonly(mailbox_accounts.default_ism, false),
-                // Recipient
-                AccountMeta::new_readonly(program_id, false),
-                // Recipient.handle accounts
-                // 0. [signer] mailbox authority (implied)
-                // 1. [executable] system_program
-                // 2. [executable] spl_noop
-                // 3. [] hyperlane_token storage
-                // 4. [] recipient wallet address
-                // 5. [executable] SPL token for the mint.
-                // 6. [executable] SPL associated token account.
-                // 7. [writeable] Mint account.
-                // 8. [writeable] Recipient associated token account.
-                // 9. [writeable] ATA payer PDA account.
-                // 10. [writeable] Escrow account.
-                AccountMeta::new_readonly(solana_program::system_program::id(), false),
-                AccountMeta::new_readonly(spl_noop::id(), false),
-                AccountMeta::new_readonly(hyperlane_token_accounts.token, false),
-                AccountMeta::new_readonly(recipient_pubkey, false),
-                AccountMeta::new_readonly(spl_token_program_id, false),
-                AccountMeta::new_readonly(spl_associated_token_account::id(), false),
-                AccountMeta::new(mint, false),
-                AccountMeta::new(recipient_associated_token_account, false),
-                AccountMeta::new(hyperlane_token_accounts.ata_payer, false),
-                AccountMeta::new(hyperlane_token_accounts.escrow, false),
-            ],
-        )],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(transaction).await?;
+    process(
+        &mut banks_client,
+        &payer,
+        &mailbox_accounts,
+        vec![],
+        &message,
+    )
+    .await?;
 
     Ok((
         banks_client,

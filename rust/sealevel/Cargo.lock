@@ -1944,12 +1944,18 @@ dependencies = [
 name = "hyperlane-test-utils"
 version = "0.1.0"
 dependencies = [
+ "borsh",
+ "hyperlane-core",
+ "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-message-recipient-interface",
  "hyperlane-sealevel-test-ism",
  "hyperlane-test-transaction-utils",
+ "serializable-account-meta",
  "solana-program",
  "solana-program-test",
  "solana-sdk",
+ "spl-noop",
  "spl-token-2022 0.5.0 (git+https://github.com/tkporter/eclipse-program-library?rev=2f7e864)",
 ]
 

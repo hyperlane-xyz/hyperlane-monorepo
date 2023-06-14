@@ -31,13 +31,13 @@ use hyperlane_sealevel_test_send_receiver::{
 };
 
 use hyperlane_test_utils::{
-    assert_transaction_error, initialize_mailbox, mailbox_id, new_funded_keypair,
-    process_instruction,
+    assert_transaction_error, clone_keypair, get_recipient_ism, initialize_mailbox, mailbox_id,
+    new_funded_keypair, process, process_instruction,
 };
 
 use crate::utils::{
     assert_dispatched_message, assert_inbox, assert_message_not_processed, assert_outbox,
-    assert_processed_message, dispatch_from_payer, get_recipient_ism, process,
+    assert_processed_message, dispatch_from_payer,
 };
 
 const LOCAL_DOMAIN: u32 = 13775;
@@ -79,8 +79,7 @@ async fn setup_client() -> (
 
     let (banks_client, payer, _recent_blockhash) = program_test.start().await;
 
-    let mut test_ism = TestIsmTestClient::new(banks_client.clone(), clone_keypair(&payer));
-    test_ism.init().await.unwrap();
+    let test_ism = TestIsmTestClient::new(banks_client.clone(), clone_keypair(&payer));
 
     let mut test_send_receiver =
         TestSendReceiverTestClient::new(banks_client.clone(), clone_keypair(&payer));
@@ -94,12 +93,6 @@ async fn setup_client() -> (
         .unwrap();
 
     (banks_client, payer, test_send_receiver, test_ism)
-}
-
-// Hack to get around the absence of a Clone implementation in solana-sdk 1.14.13.
-fn clone_keypair(keypair: &Keypair) -> Keypair {
-    let serialized = keypair.to_bytes();
-    Keypair::from_bytes(&serialized).unwrap()
 }
 
 #[tokio::test]
@@ -140,7 +133,7 @@ async fn test_initialize() {
         Inbox {
             local_domain: LOCAL_DOMAIN,
             inbox_bump_seed: mailbox_accounts.inbox_bump_seed,
-            default_ism: hyperlane_sealevel_ism_rubber_stamp::id(),
+            default_ism: hyperlane_sealevel_test_ism::id(),
             processed_count: 0,
         }
     );

@@ -151,9 +151,9 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                     program_ids.insert(chain_name.clone(), existing_deployment.clone());
 
                     let existing_h256 = if existing_deployment.starts_with("0x") {
-                        H256::from_str(&existing_deployment).unwrap()
+                        H256::from_str(existing_deployment).unwrap()
                     } else {
-                        let pubkey = Pubkey::from_str(&existing_deployment).unwrap();
+                        let pubkey = Pubkey::from_str(existing_deployment).unwrap();
                         H256::from_slice(&pubkey.to_bytes()[..])
                     };
                     routers.insert(chain_config.domain_id(), existing_h256);
@@ -201,7 +201,7 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                     .filter(|(router_domain_id, _)| *router_domain_id != &domain_id)
                     .map(|(domain, router)| RemoteRouterConfig {
                         domain: *domain,
-                        router: Some(router.clone()),
+                        router: Some(*router),
                     })
                     .collect::<Vec<RemoteRouterConfig>>();
 
