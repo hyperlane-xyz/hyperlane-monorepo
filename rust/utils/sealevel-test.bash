@@ -133,6 +133,11 @@ test_token() {
 }
 
 main() {
+    if [ "${1}" = "build-only" ]; then
+        build_programs true
+        exit 0
+    fi
+
     # build the client
     pushd "${SCRIPT_DIR}/../sealevel/client"
     cargo build
@@ -150,8 +155,8 @@ main() {
     # copy the keys into the deploy dir
     cp ${TEST_KEYS_DIR}/*.json ${TARGET_DIR}/deploy/
 
-    "${BIN_DIR}/hyperlane-sealevel-client" --compute-budget 200000 -k "${KEYPAIR}" deploy core --local-domain "${CHAIN_ID}" --environment local-e2e --use-existing-keys --environments-dir "${SEALEVEL_DIR}/environments" --built-so-dir "${DEPLOY_DIR}" --chain sealeveltest1
-    "${BIN_DIR}/hyperlane-sealevel-client" --compute-budget 200000 -k "${KEYPAIR}" deploy core --local-domain "${REMOTE_CHAIN_ID}" --environment local-e2e --use-existing-keys --environments-dir "${SEALEVEL_DIR}/environments" --built-so-dir "${DEPLOY_DIR}" --chain sealeveltest2
+    "${BIN_DIR}/hyperlane-sealevel-client" --compute-budget 200000 -k "${KEYPAIR}" core deploy --local-domain "${CHAIN_ID}" --environment local-e2e --use-existing-keys --environments-dir "${SEALEVEL_DIR}/environments" --built-so-dir "${DEPLOY_DIR}" --chain sealeveltest1
+    "${BIN_DIR}/hyperlane-sealevel-client" --compute-budget 200000 -k "${KEYPAIR}" core deploy --local-domain "${REMOTE_CHAIN_ID}" --environment local-e2e --use-existing-keys --environments-dir "${SEALEVEL_DIR}/environments" --built-so-dir "${DEPLOY_DIR}" --chain sealeveltest2
 
     test_token true
 }
