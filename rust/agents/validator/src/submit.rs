@@ -57,7 +57,7 @@ impl ValidatorSubmitter {
         }
     }
 
-    #[instrument(err, skip(self), fields(domain=%self.mailbox.domain()))]
+    #[instrument(err, skip(self, tree), fields(domain=%self.mailbox.domain()))]
     pub(crate) async fn checkpoint_submitter(
         self,
         mut tree: IncrementalMerkle,
