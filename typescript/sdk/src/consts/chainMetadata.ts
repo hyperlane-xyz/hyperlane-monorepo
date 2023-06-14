@@ -5,7 +5,7 @@ import { z } from 'zod';
 import type { types } from '@hyperlane-xyz/utils';
 
 import type { RetryProviderOptions } from '../providers/RetryProvider';
-import { ChainName } from '../types';
+import { ChainMap, ChainName } from '../types';
 import { objMap } from '../utils/objects';
 import { chainMetadataToWagmiChain } from '../utils/wagmi';
 
@@ -16,6 +16,7 @@ export enum ExplorerFamily {
   Blockscout = 'blockscout',
   Other = 'other',
 }
+
 export type ExplorerFamilyType = `${ExplorerFamily}`;
 
 /**
@@ -715,7 +716,7 @@ export const test3: ChainMetadata = {
  * NOTE: When adding chains here, consider also adding the
  * corresponding chain logo images in the /sdk/logos/* folders
  */
-export const chainMetadata = {
+export const chainMetadata: ChainMap<ChainMetadata> = {
   alfajores,
   arbitrum,
   arbitrumgoerli,
@@ -737,16 +738,16 @@ export const chainMetadata = {
   test1,
   test2,
   test3,
-} as Record<ChainName, ChainMetadata>;
+};
 
 // For convenient use in wagmi-based apps
-export const wagmiChainMetadata: Record<ChainName, WagmiChain> = objMap(
+export const wagmiChainMetadata: ChainMap<WagmiChain> = objMap(
   chainMetadata,
   (_, metadata) => chainMetadataToWagmiChain(metadata),
 );
 
 export const chainIdToMetadata = Object.values(chainMetadata).reduce<
-  Record<number, ChainMetadata>
+  ChainMap<ChainMetadata>
 >((result, chain) => {
   result[chain.chainId] = chain;
   return result;

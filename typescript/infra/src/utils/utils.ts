@@ -13,7 +13,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
-import { ALL_KEY_ROLES, KEY_ROLE_ENUM } from '../agents/roles';
+import { Role } from '../roles';
 
 export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -73,12 +73,14 @@ export function getEthereumAddress(publicKey: Buffer): string {
 }
 
 export function execCmd(
-  cmd: string,
+  cmd: string | string[],
   execOptions: any = {},
   rejectWithOutput = false,
   pipeOutput = false,
 ): Promise<[string, string]> {
   return new Promise((resolve, reject) => {
+    if (Array.isArray(cmd)) cmd = cmd.join(' ');
+
     if (process.env.VERBOSE === 'true') {
       console.debug('$ ' + cmd);
       pipeOutput = true;
@@ -198,8 +200,8 @@ export function readJSON(directory: string, filename: string) {
 }
 
 export function assertRole(roleStr: string) {
-  const role = roleStr as KEY_ROLE_ENUM;
-  if (!ALL_KEY_ROLES.includes(role)) {
+  const role = roleStr as Role;
+  if (!Object.values(Role).includes(role)) {
     throw Error(`Invalid role ${role}`);
   }
   return role;
