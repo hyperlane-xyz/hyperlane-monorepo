@@ -70,7 +70,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '40cc4a6-20230420-080111',
+      tag: '497db63-20230614-174455',
     },
     connectionType: AgentConnectionType.HttpQuorum,
     chains: validators,
