@@ -86,7 +86,7 @@ impl<M> RoutingIsm for EthereumRoutingIsm<M>
 where
     M: Middleware + 'static,
 {
-    #[instrument(err, ret)]
+    #[instrument(err)]
     async fn route(&self, message: &HyperlaneMessage) -> ChainResult<H256> {
         let ism = self
             .contract

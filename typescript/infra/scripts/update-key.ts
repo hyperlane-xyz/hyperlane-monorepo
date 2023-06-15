@@ -1,17 +1,15 @@
 import {
-  getContextAgentConfig,
-  getEnvironment,
-  getKeyRoleAndChainArgs,
+  getAgentConfig,
+  getArgs,
+  withContext,
+  withKeyRoleAndChain,
 } from './utils';
 
 async function rotateKey() {
-  const args = getKeyRoleAndChainArgs();
-  const argv = await args.argv;
+  const argv = await withKeyRoleAndChain(withContext(getArgs())).argv;
+  const agentConfig = getAgentConfig(argv.context, argv.environment);
 
-  const environment = await getEnvironment();
-  const agentConfig = await getContextAgentConfig();
-
-  switch (environment) {
+  switch (argv.environment) {
     // TODO: Reimplement this when the environments get readded
     case 'test': {
       console.log("I don't do anything");
