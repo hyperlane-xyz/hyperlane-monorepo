@@ -104,7 +104,8 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
           liquidityLayerRouter: contracts.circleBridgeAdapter,
         }),
       ) as unknown as HyperlaneContractsMap<LiquidityLayerFactories>,
-      {},
+      configMap,
+      additionalRouters,
     );
 
     this.logger(`Enroll PortalAdapters with each other`);

@@ -115,7 +115,6 @@ export abstract class HyperlaneRouterDeployer<
           return current !== expected ? [remoteDomain, expected] : undefined;
         }),
       );
-
       const entries = enrollEntries.filter(
         (entry): entry is [number, string] => entry !== undefined,
       );
