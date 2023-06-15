@@ -3,7 +3,7 @@ import {
   Mailbox__factory,
   Router,
 } from '@hyperlane-xyz/core';
-import { utils } from '@hyperlane-xyz/utils';
+import { types, utils } from '@hyperlane-xyz/utils';
 
 import {
   HyperlaneContracts,
@@ -15,6 +15,7 @@ import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { moduleCanCertainlyVerify } from '../ism/HyperlaneIsmFactory';
 import { RouterConfig } from '../router/types';
 import { ChainMap } from '../types';
+import { objFilter, objMap, objMerge } from '../utils/objects';
 
 export abstract class HyperlaneRouterDeployer<
   Config extends RouterConfig,
@@ -82,31 +83,39 @@ export abstract class HyperlaneRouterDeployer<
   }
 
   async enrollRemoteRouters(
-    contractsMap: HyperlaneContractsMap<Factories>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
     _: ChainMap<Config>,
+    additionalRouters: ChainMap<types.Address> = {},
   ): Promise<void> {
     this.logger(
       `Enrolling deployed routers with each other (if not already)...`,
     );
 
     // Make all routers aware of each other.
-    const deployedChains = Object.keys(contractsMap);
-    for (const [chain, contracts] of Object.entries(contractsMap)) {
-      // only enroll chains which are deployed
-      const deployedRemoteChains = this.multiProvider
+
+    // Routers that were deployed.
+    const deployedRouters: ChainMap<types.Address> = objMap(
+      deployedContractsMap,
+      (_, contracts) => this.router(contracts).address,
+    );
+    // All routers, including those that were deployed and those with existing deployments.
+    const allRouters = objMerge(deployedRouters, additionalRouters);
+
+    const allChains = Object.keys(allRouters);
+    for (const [chain, contracts] of Object.entries(deployedContractsMap)) {
+      const allRemoteChains = this.multiProvider
         .getRemoteChains(chain)
-        .filter((c) => deployedChains.includes(c));
+        .filter((c) => allChains.includes(c));
 
       const enrollEntries = await Promise.all(
-        deployedRemoteChains.map(async (remote) => {
+        allRemoteChains.map(async (remote) => {
           const remoteDomain = this.multiProvider.getDomainId(remote);
           const current = await this.router(contracts).routers(remoteDomain);
-          const expected = utils.addressToBytes32(
-            this.router(contractsMap[remote]).address,
-          );
+          const expected = utils.addressToBytes32(allRouters[remote]);
           return current !== expected ? [remoteDomain, expected] : undefined;
         }),
       );
+
       const entries = enrollEntries.filter(
         (entry): entry is [number, string] => entry !== undefined,
       );
@@ -151,12 +160,29 @@ export abstract class HyperlaneRouterDeployer<
   async deploy(
     configMap: ChainMap<Config>,
   ): Promise<HyperlaneContractsMap<Factories>> {
-    const contractsMap = await super.deploy(configMap);
+    // Only deploy on chains that don't have existing deployments.
+    const configMapToDeploy = objFilter(
+      configMap,
+      (_chainName, config): config is Config => !config.existingDeployment,
+    );
+    const existingDeployments: ChainMap<types.Address> = objMap(
+      objFilter(
+        configMap,
+        (_chainName, config): config is Config => !!config.existingDeployment,
+      ),
+      (_, config) => config.existingDeployment!,
+    );
 
-    await this.enrollRemoteRouters(contractsMap, configMap);
-    await this.initConnectionClients(contractsMap, configMap);
-    await this.transferOwnership(contractsMap, configMap);
+    const deployedContractsMap = await super.deploy(configMapToDeploy);
 
-    return contractsMap;
+    await this.enrollRemoteRouters(
+      deployedContractsMap,
+      configMap,
+      existingDeployments,
+    );
+    await this.initConnectionClients(deployedContractsMap, configMap);
+    await this.transferOwnership(deployedContractsMap, configMap);
+
+    return deployedContractsMap;
   }
 }
