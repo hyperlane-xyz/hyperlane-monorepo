@@ -74,7 +74,7 @@ impl HyperlaneRocksDB {
     /// - `nonce` --> `id`
     /// - `id` --> `message`
     /// - `nonce` --> `dispatched block number`
-    fn store_message(
+    pub fn store_message(
         &self,
         message: &HyperlaneMessage,
         dispatched_block_number: u64,
@@ -313,4 +313,10 @@ make_store_and_retrieve!(pub, processed_by_nonce, NONCE_PROCESSED, u32, bool);
 make_store_and_retrieve!(pub(self), processed_by_gas_payment_meta, GAS_PAYMENT_META_PROCESSED, InterchainGasPaymentMeta, bool);
 make_store_and_retrieve!(pub(self), interchain_gas_expenditure_data_by_message_id, GAS_EXPENDITURE_FOR_MESSAGE_ID, H256, InterchainGasExpenditureData);
 make_store_and_retrieve!(pub(self), interchain_gas_payment_data_by_message_id, GAS_PAYMENT_FOR_MESSAGE_ID, H256, InterchainGasPaymentData);
-make_store_and_retrieve!(pub(self), pending_message_data_by_message_id, PENDING_MESSAGE_DATA_FOR_MESSAGE_ID, H256, u32);
+make_store_and_retrieve!(
+    pub,
+    pending_message_data_by_message_id,
+    PENDING_MESSAGE_DATA_FOR_MESSAGE_ID,
+    H256,
+    u32
+);

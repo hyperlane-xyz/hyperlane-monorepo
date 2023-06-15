@@ -5,12 +5,12 @@ use std::time::{Duration, Instant};
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::{Context, Result};
-use hyperlane_base::db::HyperlaneRocksDB;
+use hyperlane_base::db::{DbError, HyperlaneRocksDB};
 use prometheus::{IntCounter, IntGauge};
 use tracing::{debug, error, info, instrument, trace, warn};
 
 use hyperlane_base::CoreMetrics;
-use hyperlane_core::{HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, U256};
+use hyperlane_core::{HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, H256, U256};
 
 use super::{
     gas_payment::GasPaymentEnforcer,
@@ -303,23 +303,30 @@ impl PendingMessage {
     /// Constructor that tries reading the retry count from the HyperlaneDB in order to recompute the `next_attempt_after`.
     /// In case of failure, behaves like `Self::new(...)`.
     pub fn from_persisted_retries(message: HyperlaneMessage, ctx: Arc<MessageContext>) -> Self {
+        fn log_db_read_error(maybe_error: Option<DbError>, message_id: &H256) {
+            let mut log_message = format!("Failed to read retry count from HyperlaneDB for message {}. Defaulting to the regular `PendingMessage` constructor.", message_id);
+            if let Some(error) = maybe_error {
+                log_message.push_str(&format!(" Error: {}", error));
+            }
+            info!(log_message);
+        }
+
         let mut pm = Self::new(message, ctx);
-        if let Some(num_retries) = pm
+        match pm
             .ctx
             .origin_db
-            .retrieve_pending_message_data_by_message_id(&message.id())
+            .retrieve_pending_message_data_by_message_id(&pm.message.id())
         {
-            let next_attempt_after =
-                PendingMessage::calculate_msg_backoff(num_retries).map(|dur| Instant::now() + dur);
-            pm.num_retries = num_retries;
-            pm.next_attempt_after = next_attempt_after;
-        } else {
-            info!(
-                "Failed to read retry count from HyperlaneDB for message {}. Defaulting to the regular `PendingMessage` constructor.",
-                message.id()
-            );
+            Ok(Some(num_retries)) => {
+                let next_attempt_after = PendingMessage::calculate_msg_backoff(num_retries)
+                    .map(|dur| Instant::now() + dur);
+                pm.num_retries = num_retries;
+                pm.next_attempt_after = next_attempt_after;
+            }
+            Ok(None) => log_db_read_error(None, &pm.message.id()),
+            Err(e) => log_db_read_error(Some(e), &pm.message.id()),
         }
-        Ok(pm)
+        pm
     }
 
     fn on_reprepare(&mut self) -> PendingOperationResult {
@@ -371,16 +378,18 @@ impl PendingMessage {
             .origin_db
             .store_pending_message_data_by_message_id(&self.message.id(), &self.num_retries)
         {
-            warn!(
-                "Failed to persist retry count for message {}",
-                self.message.id()
+            trace!(
+                "No persisted retry count for message {}. Hyperlane DB error: {}",
+                self.message.id(),
+                e
             );
         }
     }
 
     /// Get duration we should wait before re-attempting to deliver a message
     /// given the number of retries.
-    fn calculate_msg_backoff(num_retries: u32) -> Option<Duration> {
+    /// `pub(crate)` for testing purposes
+    pub(crate) fn calculate_msg_backoff(num_retries: u32) -> Option<Duration> {
         Some(Duration::from_secs(match num_retries {
             i if i < 1 => return None,
             // wait 10s for the first few attempts; this prevents thrashing
@@ -396,8 +405,8 @@ impl PendingMessage {
 
 #[derive(Debug)]
 pub struct MessageSubmissionMetrics {
-    last_known_nonce: IntGauge,
-    messages_processed: IntCounter,
+    pub last_known_nonce: IntGauge,
+    pub messages_processed: IntCounter,
 }
 
 impl MessageSubmissionMetrics {
