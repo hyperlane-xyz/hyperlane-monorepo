@@ -19,6 +19,7 @@ type SignTask = (H256, Callback);
 /// made at a time. Mostly useful for the AWS signers.
 pub struct SingletonSigner {
     inner: Signers,
+    retries: usize,
     rx: mpsc::UnboundedReceiver<SignTask>,
 }
 
@@ -62,13 +63,38 @@ impl SingletonSigner {
     pub fn new(inner: Signers) -> (Self, SingletonSignerHandle) {
         let (tx, rx) = mpsc::unbounded_channel::<SignTask>();
         let address = inner.eth_address();
-        (Self { inner, rx }, SingletonSignerHandle { address, tx })
+        (
+            Self {
+                inner,
+                rx,
+                retries: 5,
+            },
+            SingletonSignerHandle { address, tx },
+        )
+    }
+
+    /// Change default (5) retries for signing
+    pub fn config_retries(&mut self, retries: usize) {
+        self.retries = retries;
     }
 
     /// Run this signer's event loop.
     pub async fn run(mut self) {
         while let Some((hash, tx)) = self.rx.recv().await {
-            if tx.send(self.inner.sign_hash(&hash).await).is_err() {
+            let mut retries = self.retries;
+            let res = loop {
+                match self.inner.sign_hash(&hash).await {
+                    Ok(res) => break Ok(res),
+                    Err(err) => {
+                        warn!("Error signing hash: {}", err);
+                        if retries == 0 {
+                            break Err(err);
+                        }
+                        retries -= 1;
+                    }
+                }
+            };
+            if tx.send(res).is_err() {
                 warn!(
                     "Failed to send signature back to the signer handle because the channel was closed"
                 );
