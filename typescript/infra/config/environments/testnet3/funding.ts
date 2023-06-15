@@ -23,5 +23,5 @@ export const keyFunderConfig: KeyFunderConfig = {
     [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy],
     [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
   },
-  connectionType: AgentConnectionType.Http,
+  connectionType: AgentConnectionType.HttpQuorum,
 };
