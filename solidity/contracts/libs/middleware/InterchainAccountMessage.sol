@@ -11,7 +11,9 @@ import {TypeCasts} from "../TypeCasts.sol";
  * [  64:????] Calls, abi encoded
  */
 library InterchainAccountMessage {
-    using TypeCasts for bytes32;
+    uint256 private constant OWNER_OFFSET = 0;
+    uint256 private constant ISM_OFFSET = 32;
+    uint256 private constant CALLS_OFFSET = 64;
 
     /**
      * @notice Returns formatted (packed) InterchainAccountMessage
@@ -90,6 +92,10 @@ library InterchainAccountMessage {
      * @return The ISM encoded in the message
      */
     function ism(bytes calldata _message) internal pure returns (address) {
-        return address(bytes20(_message[44:64]));
+        return address(bytes20(_message[ISM_OFFSET:CALLS_OFFSET]));
+    }
+
+    function owner(bytes calldata _message) internal pure returns (bytes32) {
+        return bytes32(_message[OWNER_OFFSET:ISM_OFFSET]);
     }
 }
