@@ -30,6 +30,8 @@ git clone git@github.com:Eclipse-Laboratories-Inc/solar-eclipse --branch steven/
 
 This is a fork (with some dependency fixes) of the eclipse fork of the `solana-program-library`. This contains "SPL" programs that are commonly used programs - stuff like the token program, etc.
 
+Note these instructions previously required a different remote and branch - make sure to move to this remote & branch if you ahven't already!
+
 1. Check out the branch `trevor/steven/eclipse-1.14.13/with-tlv-lib`:
 
 ```

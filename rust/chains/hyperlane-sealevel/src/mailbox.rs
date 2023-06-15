@@ -310,9 +310,13 @@ impl Mailbox for SealevelMailbox {
 
         let outbox_account = self
             .rpc_client
-            .get_account(&self.outbox.0)
+            .get_account_with_commitment(&self.outbox.0, CommitmentConfig::finalized())
             .await
-            .map_err(ChainCommunicationError::from_other)?;
+            .map_err(ChainCommunicationError::from_other)?
+            .value
+            .ok_or_else(|| {
+                ChainCommunicationError::from_other_str("Could not find account data")
+            })?;
         let outbox = contract::OutboxAccount::fetch(&mut outbox_account.data.as_ref())
             .map_err(ChainCommunicationError::from_other)?
             .into_inner();
@@ -571,7 +575,7 @@ impl SealevelMailboxIndexer {
     async fn get_message_with_nonce(&self, nonce: u32) -> ChainResult<(HyperlaneMessage, LogMeta)> {
         let target_message_account_bytes = &[
             &DISPATCHED_MESSAGE_DISCRIMINATOR[..],
-            &nonce.to_be_bytes()[..],
+            &nonce.to_le_bytes()[..],
         ]
         .concat();
         let target_message_account_bytes = base64::encode(target_message_account_bytes);
@@ -1143,8 +1147,8 @@ pub(crate) mod contract {
     impl BorshSerialize for DispatchedMessage {
         fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
             writer.write_all(DISPATCHED_MESSAGE_DISCRIMINATOR)?;
-            writer.write_all(&self.nonce.to_be_bytes())?;
-            writer.write_all(&self.slot.to_be_bytes())?;
+            writer.write_all(&self.nonce.to_le_bytes())?;
+            writer.write_all(&self.slot.to_le_bytes())?;
             writer.write_all(&self.unique_message_pubkey.to_bytes())?;
             writer.write_all(&self.encoded_message)?;
             Ok(())
