@@ -3,10 +3,10 @@ import { types } from '@hyperlane-xyz/utils';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
-export type AgentSigner = {
+export interface AgentSigner {
   key: string;
   type: string; // TODO
-};
+}
 
 export enum AgentConnectionType {
   Http = 'http',
@@ -24,35 +24,40 @@ export type AgentConnection =
   | { type: AgentConnectionType.HttpQuorum; urls: string }
   | { type: AgentConnectionType.HttpFallback; urls: string };
 
-export type HyperlaneAgentAddresses = {
+export interface HyperlaneAgentAddresses {
   mailbox: types.Address;
   interchainGasPaymaster: types.Address;
   validatorAnnounce: types.Address;
-};
+}
 
-export type AgentChainSetupBase = {
+export enum AgentProtocol {
+  Ethereum = 'ethereum',
+  Fuel = 'fuel',
+}
+
+export interface AgentChainSetupBase {
   name: ChainName;
   domain: number;
   signer?: AgentSigner;
   finalityBlocks: number;
   addresses: HyperlaneAgentAddresses;
-  protocol: 'ethereum' | 'fuel';
+  protocol: AgentProtocol;
   connection?: AgentConnection;
   index?: { from: number };
-};
+}
 
 export interface AgentChainSetup extends AgentChainSetupBase {
   signer: AgentSigner;
   connection: AgentConnection;
 }
 
-export type AgentConfig = {
+export interface AgentConfig {
   chains: Partial<ChainMap<AgentChainSetupBase>>;
   tracing?: {
     level?: string;
     fmt?: 'json';
   };
-};
+}
 
 export function buildAgentConfig(
   chains: ChainName[],
@@ -74,7 +79,7 @@ export function buildAgentConfig(
         interchainGasPaymaster: addresses[chain].interchainGasPaymaster,
         validatorAnnounce: addresses[chain].validatorAnnounce,
       },
-      protocol: 'ethereum',
+      protocol: AgentProtocol.Ethereum,
       finalityBlocks: metadata.blocks?.reorgPeriod ?? 1,
     };
 

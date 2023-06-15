@@ -43,6 +43,38 @@ cargo build --release --bin relayer
 ./target/release/relayer
 ```
 
+### Running local binary against cloud resources (AWS KMS, S3, Postgresql etc)
+
+Building the docker image and upgrading the pod is a **slow** process. To speed up the development cycle, you can run a local binary against cloud resources.
+This workflow is useful for testing local changes against cloud resources. It is also useful for debugging issues in production.
+
+Example of fetching env from pod:
+
+```bash
+kubectl exec fuji-hyperlane-agent-validator-0 --namespace testnet3 -c agent -- printenv > ./config/validator.fuji.env
+```
+
+Copy directory (rocks DB) from pod to local:
+
+```bash
+kubectl cp testnet3/fuji-hyperlane-agent-validator-0:/usr/share/hyperlane /tmp/fuji-validator-db
+```
+
+Configure additional env variables appropriately:
+
+```bash
+HYP_BASE_DB=/tmp/fuji-validator-db
+CONFIG_FILES=./config/testnet_config.json
+HYP_BASE_TRACING_FMT=pretty
+DATABASE_URL=<READ_REPLICA_POSTGRES_URL> # for scraper
+```
+
+Run binary with env copied from pod:
+
+```bash
+env $(cat ./config/validator.fuji.env | grep -v "#" | xargs) ./target/debug/validator
+```
+
 #### Automated E2E Test
 
 To perform an automated e2e test of the agents locally, from within the `hyperlane-monorepo/rust` directory, run:

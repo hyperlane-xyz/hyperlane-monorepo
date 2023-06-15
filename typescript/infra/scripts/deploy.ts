@@ -15,25 +15,26 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { deployEnvToSdkEnv } from '../src/config/environment';
-import { deployWithArtifacts } from '../src/deploy';
-import { TestQuerySenderDeployer } from '../src/testcontracts/testquerysender';
-import { TestRecipientDeployer } from '../src/testcontracts/testrecipient';
+import { deployWithArtifacts } from '../src/deployment/deploy';
+import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
+import { TestRecipientDeployer } from '../src/deployment/testcontracts/testrecipient';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 import { readJSON } from '../src/utils/utils';
 
 import {
   Modules,
   SDK_MODULES,
-  getArgsWithModuleAndFork,
+  getArgs,
   getContractAddressesSdkFilepath,
   getEnvironmentConfig,
   getEnvironmentDirectory,
   getModuleDirectory,
   getRouterConfig,
+  withModuleAndFork,
 } from './utils';
 
 async function main() {
-  const { module, fork, environment } = await getArgsWithModuleAndFork().argv;
+  const { module, fork, environment } = await withModuleAndFork(getArgs()).argv;
   const envConfig = getEnvironmentConfig(environment);
   const multiProvider = await envConfig.getMultiProvider();
 

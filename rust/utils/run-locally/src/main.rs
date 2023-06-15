@@ -163,6 +163,9 @@ fn main() -> ExitCode {
         "RUST_BACKTRACE" => "full",
         "HYP_BASE_TRACING_FMT" => "pretty",
         "HYP_BASE_TRACING_LEVEL" => "debug",
+        "HYP_BASE_CHAINS_TEST1_INDEX_CHUNK" => "1",
+        "HYP_BASE_CHAINS_TEST2_INDEX_CHUNK" => "1",
+        "HYP_BASE_CHAINS_TEST3_INDEX_CHUNK" => "1",
     };
 
     let relayer_env = hashmap! {
@@ -314,17 +317,30 @@ fn main() -> ExitCode {
 
     sleep(Duration::from_secs(10));
 
+    let deploy_env = hashmap! {"ALLOW_LEGACY_MULTISIG_ISM" => "true"};
     println!("Deploying hyperlane ism contracts...");
-    build_cmd(&["yarn", "deploy-ism"], Some("../typescript/infra"), None);
+    build_cmd(
+        &["yarn", "deploy-ism"],
+        Some("../typescript/infra"),
+        Some(&deploy_env),
+    );
 
     println!("Rebuilding sdk...");
     build_cmd(&["yarn", "build"], Some("../typescript/sdk"), None);
 
     println!("Deploying hyperlane core contracts...");
-    build_cmd(&["yarn", "deploy-core"], Some("../typescript/infra"), None);
+    build_cmd(
+        &["yarn", "deploy-core"],
+        Some("../typescript/infra"),
+        Some(&deploy_env),
+    );
 
     println!("Deploying hyperlane igp contracts...");
-    build_cmd(&["yarn", "deploy-igp"], Some("../typescript/infra"), None);
+    build_cmd(
+        &["yarn", "deploy-igp"],
+        Some("../typescript/infra"),
+        Some(&deploy_env),
+    );
 
     if !is_ci_env {
         // Follow-up 'yarn hardhat node' invocation with 'yarn prettier' to fixup
@@ -357,7 +373,29 @@ fn main() -> ExitCode {
     state.watchers.push(scraper_stderr);
     state.scraper = Some(scraper);
 
-    // Send half the kathy messages before starting the agents
+    let mut validator_iter = validator_envs.iter();
+
+    // spawn 1st validator before any messages have been sent to test empty mailbox
+    let validator1_env = validator_iter.next().unwrap();
+    let (validator, validator_stdout, validator_stderr) = run_agent(
+        "validator",
+        &common_env
+            .clone()
+            .into_iter()
+            .chain(validator1_env.clone())
+            .collect(),
+        &[],
+        "VAL1",
+        log_all,
+        &log_dir,
+    );
+    state.watchers.push(validator_stdout);
+    state.watchers.push(validator_stderr);
+    state.validators.push(validator);
+
+    sleep(Duration::from_secs(5));
+
+    // Send half the kathy messages before starting the rest of the agents
     let mut kathy = Command::new("yarn");
     kathy
         .arg("kathy")
@@ -376,7 +414,8 @@ fn main() -> ExitCode {
     state.watchers.push(kathy_stderr);
     kathy.wait().unwrap();
 
-    for (i, validator_env) in validator_envs.iter().enumerate() {
+    // spawn the rest of the validators
+    for (i, validator_env) in validator_iter.enumerate() {
         let (validator, validator_stdout, validator_stderr) = run_agent(
             "validator",
             &common_env

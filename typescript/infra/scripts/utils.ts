@@ -23,19 +23,15 @@ import { environments } from '../config/environments';
 import { getCurrentKubernetesContext } from '../src/agents';
 import { getCloudAgentKey } from '../src/agents/key-utils';
 import { CloudAgentKey } from '../src/agents/keys';
-import { KEY_ROLE_ENUM } from '../src/agents/roles';
-import { DeployEnvironment, EnvironmentConfig } from '../src/config';
+import {
+  DeployEnvironment,
+  EnvironmentConfig,
+  RootAgentConfig,
+} from '../src/config';
 import { fetchProvider } from '../src/config/chain';
 import { EnvironmentNames, deployEnvToSdkEnv } from '../src/config/environment';
-import { assertContext } from '../src/utils/utils';
-
-export function getArgsWithContext() {
-  return getArgs()
-    .describe('context', 'deploy context')
-    .coerce('context', assertContext)
-    .demandOption('context')
-    .alias('c', 'context');
-}
+import { Role } from '../src/roles';
+import { assertContext, assertRole } from '../src/utils/utils';
 
 export enum Modules {
   ISM_FACTORY = 'ism',
@@ -47,6 +43,7 @@ export enum Modules {
   TEST_QUERY_SENDER = 'testquerysender',
   TEST_RECIPIENT = 'testrecipient',
 }
+
 export const SDK_MODULES = [
   Modules.ISM_FACTORY,
   Modules.CORE,
@@ -54,22 +51,6 @@ export const SDK_MODULES = [
   Modules.INTERCHAIN_ACCOUNTS,
   Modules.INTERCHAIN_QUERY_SYSTEM,
 ];
-
-export function getArgsWithModule() {
-  return getArgs()
-    .string('module')
-    .choices('module', Object.values(Modules))
-    .demandOption('module')
-    .alias('m', 'module');
-}
-
-export function getArgsWithModuleAndFork() {
-  return getArgsWithModule()
-    .string('fork')
-    .describe('fork', 'network to fork')
-    .choices('fork', Object.values(Chains))
-    .alias('f', 'fork');
-}
 
 export function getArgs() {
   return yargs(process.argv.slice(2))
@@ -79,9 +60,48 @@ export function getArgs() {
     .alias('e', 'environment');
 }
 
-export async function getEnvironmentFromArgs(): Promise<string> {
-  const argv = await getArgs().argv;
-  return argv.environment!;
+export function withModuleAndFork<T>(args: yargs.Argv<T>) {
+  return args
+    .choices('module', Object.values(Modules))
+    .demandOption('module')
+    .alias('m', 'module')
+
+    .describe('fork', 'network to fork')
+    .choices('fork', Object.values(Chains))
+    .alias('f', 'fork');
+}
+
+export function withContext<T>(args: yargs.Argv<T>) {
+  return args
+    .describe('context', 'deploy context')
+    .coerce('context', assertContext)
+    .demandOption('context');
+}
+
+export function withAgentRole<T>(args: yargs.Argv<T>) {
+  return args
+    .describe('role', 'agent roles')
+    .array('role')
+    .coerce('role', (role: string[]): Role[] => role.map(assertRole))
+    .demandOption('role')
+    .alias('r', 'role');
+}
+
+export function withKeyRoleAndChain<T>(args: yargs.Argv<T>) {
+  return args
+    .describe('role', 'key role')
+    .choices('role', Object.values(Role))
+    .demandOption('role')
+    .alias('r', 'role')
+
+    .describe('chain', 'chain name')
+    .choices('chain', AllChains)
+    .demandOption('chain')
+    .alias('c', 'chain')
+
+    .describe('index', 'index of role')
+    .number('index')
+    .alias('i', 'index');
 }
 
 export function assertEnvironment(env: string): DeployEnvironment {
@@ -97,52 +117,46 @@ export function getEnvironmentConfig(environment: DeployEnvironment) {
   return environments[environment];
 }
 
-export async function getEnvironment() {
-  return assertEnvironment(await getEnvironmentFromArgs());
-}
-
-export async function getContext(defaultContext?: string): Promise<Contexts> {
-  const argv = await getArgsWithContext().argv;
-  // @ts-ignore
-  return assertContext(argv.context! || defaultContext!);
-}
-
-// Gets the agent config for the context that has been specified via yargs.
-export async function getContextAgentConfig(
-  EnvironmentConfig?: EnvironmentConfig,
-  defaultContext?: string,
-) {
-  return getAgentConfig(await getContext(defaultContext), EnvironmentConfig);
+export async function getConfigsBasedOnArgs(argv?: {
+  environment: DeployEnvironment;
+  context: Contexts;
+}) {
+  const { environment, context } = argv
+    ? argv
+    : await withContext(getArgs()).argv;
+  const envConfig = getEnvironmentConfig(environment);
+  const agentConfig = getAgentConfig(context, envConfig);
+  return { envConfig, agentConfig, context, environment };
 }
 
 // Gets the agent config of a specific context.
-export async function getAgentConfig(
+export function getAgentConfig(
   context: Contexts,
-  EnvironmentConfig?: EnvironmentConfig,
-) {
-  const coreConfig = EnvironmentConfig
-    ? EnvironmentConfig
-    : getEnvironmentConfig(await getEnvironment());
+  environment: EnvironmentConfig | DeployEnvironment,
+): RootAgentConfig {
+  const coreConfig =
+    typeof environment == 'string'
+      ? getEnvironmentConfig(environment)
+      : environment;
   const agentConfig = coreConfig.agents[context];
-  if (!agentConfig) {
+  if (!agentConfig)
     throw Error(
       `Invalid context ${context} for environment, must be one of ${Object.keys(
         coreConfig.agents,
       )}.`,
     );
-  }
   return agentConfig;
 }
 
-async function getKeyForRole(
+function getKeyForRole(
   environment: DeployEnvironment,
   context: Contexts,
   chain: ChainName,
-  role: KEY_ROLE_ENUM,
+  role: Role,
   index?: number,
-): Promise<CloudAgentKey> {
+): CloudAgentKey {
   const environmentConfig = environments[environment];
-  const agentConfig = await getAgentConfig(context, environmentConfig);
+  const agentConfig = getAgentConfig(context, environmentConfig);
   return getCloudAgentKey(agentConfig, role, chain, index);
 }
 
@@ -150,7 +164,7 @@ export async function getMultiProviderForRole(
   txConfigs: ChainMap<ChainMetadata>,
   environment: DeployEnvironment,
   context: Contexts,
-  role: KEY_ROLE_ENUM,
+  role: Role,
   index?: number,
   connectionType?: AgentConnectionType,
 ): Promise<MultiProvider> {
@@ -162,7 +176,7 @@ export async function getMultiProviderForRole(
   await promiseObjAll(
     objMap(txConfigs, async (chain, config) => {
       const provider = await fetchProvider(environment, chain, connectionType);
-      const key = await getKeyForRole(environment, context, chain, role, index);
+      const key = getKeyForRole(environment, context, chain, role, index);
       const signer = await key.getSigner(provider);
       multiProvider.setProvider(chain, provider);
       multiProvider.setSigner(chain, signer);
@@ -201,21 +215,6 @@ export function getModuleDirectory(
 
 export function getAgentConfigDirectory() {
   return path.join('../../', 'rust', 'config');
-}
-
-export function getKeyRoleAndChainArgs() {
-  return getArgs()
-    .alias('r', 'role')
-    .describe('r', 'key role')
-    .choices('r', Object.values(KEY_ROLE_ENUM))
-    .require('r')
-    .alias('c', 'chain')
-    .describe('c', 'chain name')
-    .choices('c', AllChains)
-    .require('c')
-    .alias('i', 'index')
-    .describe('i', 'index of role')
-    .number('i');
 }
 
 export async function assertCorrectKubeContext(coreConfig: EnvironmentConfig) {

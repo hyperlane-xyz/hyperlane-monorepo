@@ -15,7 +15,10 @@ interface IamCondition {
 // and don't necessarily want to use gcloud from within k8s.
 // See tryGCPSecretFromEnvVariable for details on how to override via environment
 // variables.
-export async function fetchGCPSecret(secretName: string, parseJson = true) {
+export async function fetchGCPSecret(
+  secretName: string,
+  parseJson = true,
+): Promise<unknown> {
   let output: string;
 
   const envVarOverride = tryGCPSecretFromEnvVariable(secretName);
