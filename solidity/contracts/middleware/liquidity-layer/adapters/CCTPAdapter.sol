@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
-import {Router} from "../../../Router.sol";
+import {GasRouter} from "../../../GasRouter.sol";
 
 import {ITokenMessenger} from "../interfaces/circle/ITokenMessenger.sol";
 import {ICircleMessageTransmitter} from "../interfaces/circle/ICircleMessageTransmitter.sol";
@@ -12,7 +12,7 @@ import {TypeCasts} from "../../../libs/TypeCasts.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-contract CCTPAdapter is ILiquidityLayerAdapterV2, Router {
+contract CCTPAdapter is ILiquidityLayerAdapterV2, GasRouter {
     using SafeERC20 for IERC20;
 
     /// @notice The TokenMessenger contract.
@@ -118,7 +118,7 @@ contract CCTPAdapter is ILiquidityLayerAdapterV2, Router {
             bridge, // The destination token bridge ID
             _adapterData, // The adapter-specific data
             bytes("") // Empty "user" message
-            // TODO : remove hanling of user message in the router because it will only be handled by the ICARouter
+            // TODO : remove handling of user message in the router because it will only be handled by the ICARouter
         );
 
         // Dispatch the _messageWithEmptyMetadata to the destination's LiquidityLayerRouter.
@@ -132,6 +132,33 @@ contract CCTPAdapter is ILiquidityLayerAdapterV2, Router {
         bytes calldata // message
     ) internal pure override {
         // do nothing
+    }
+
+    function quoteGasPayment(uint32 _destinationDomain)
+        external
+        view
+        override(GasRouter, ILiquidityLayerAdapterV2)
+        returns (uint256 _gasPayment)
+    {
+        return
+            interchainGasPaymaster.quoteGasPayment(
+                _destinationDomain,
+                destinationGas[_destinationDomain]
+            );
+    }
+
+    function payForGas(
+        bytes32 _messageId,
+        uint32 _destinationDomain,
+        uint256 _gasAmount,
+        address _refundAddress
+    ) external payable override {
+        interchainGasPaymaster.payForGas{value: msg.value}(
+            _messageId,
+            _destinationDomain,
+            _gasAmount,
+            _refundAddress
+        );
     }
 
     function addDomain(uint32 _hyperlaneDomain, uint32 _circleDomain)
