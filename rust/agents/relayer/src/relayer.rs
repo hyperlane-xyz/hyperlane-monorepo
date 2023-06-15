@@ -234,7 +234,7 @@ impl BaseAgent for Relayer {
     }
 
     #[allow(clippy::async_yields_async)]
-    async fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
+    async fn run(self) -> Instrumented<JoinHandle<Result<()>>> {
         let mut tasks = vec![];
 
         // send channels by destination chain
