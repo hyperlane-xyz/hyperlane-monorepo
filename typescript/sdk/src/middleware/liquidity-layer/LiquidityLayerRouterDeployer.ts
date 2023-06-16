@@ -86,10 +86,10 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
   async enrollRemoteRouters(
     contractsMap: HyperlaneContractsMap<LiquidityLayerFactories>,
     configMap: ChainMap<LiquidityLayerConfig>,
-    additionalRouters: ChainMap<types.Address>,
+    foreignRouters: ChainMap<types.Address>,
   ): Promise<void> {
     this.logger(`Enroll LiquidityLayerRouters with each other`);
-    await super.enrollRemoteRouters(contractsMap, configMap, additionalRouters);
+    await super.enrollRemoteRouters(contractsMap, configMap, foreignRouters);
 
     this.logger(`Enroll CircleBridgeAdapters with each other`);
     // Hack to allow use of super.enrollRemoteRouters
@@ -105,7 +105,7 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
         }),
       ) as unknown as HyperlaneContractsMap<LiquidityLayerFactories>,
       configMap,
-      additionalRouters,
+      foreignRouters,
     );
 
     this.logger(`Enroll PortalAdapters with each other`);
@@ -122,7 +122,7 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
         }),
       ) as unknown as HyperlaneContractsMap<LiquidityLayerFactories>,
       configMap,
-      additionalRouters,
+      foreignRouters,
     );
   }
 

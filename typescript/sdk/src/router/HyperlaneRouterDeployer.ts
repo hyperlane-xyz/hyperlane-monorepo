@@ -85,7 +85,7 @@ export abstract class HyperlaneRouterDeployer<
   async enrollRemoteRouters(
     deployedContractsMap: HyperlaneContractsMap<Factories>,
     _: ChainMap<Config>,
-    additionalRouters: ChainMap<types.Address> = {},
+    foreignRouters: ChainMap<types.Address> = {},
   ): Promise<void> {
     this.logger(
       `Enrolling deployed routers with each other (if not already)...`,
@@ -99,7 +99,7 @@ export abstract class HyperlaneRouterDeployer<
       (_, contracts) => this.router(contracts).address,
     );
     // All routers, including those that were deployed and those with existing deployments.
-    const allRouters = objMerge(deployedRouters, additionalRouters);
+    const allRouters = objMerge(deployedRouters, foreignRouters);
 
     const allChains = Object.keys(allRouters);
     for (const [chain, contracts] of Object.entries(deployedContractsMap)) {
@@ -159,17 +159,17 @@ export abstract class HyperlaneRouterDeployer<
   async deploy(
     configMap: ChainMap<Config>,
   ): Promise<HyperlaneContractsMap<Factories>> {
-    // Only deploy on chains that don't have existing deployments.
+    // Only deploy on chains that don't have foreign deployments.
     const configMapToDeploy = objFilter(
       configMap,
-      (_chainName, config): config is Config => !config.existingDeployment,
+      (_chainName, config): config is Config => !config.foreignDeployment,
     );
-    const existingDeployments: ChainMap<types.Address> = objMap(
-      objFilter(
-        configMap,
-        (_chainName, config): config is Config => !!config.existingDeployment,
-      ),
-      (_, config) => config.existingDeployment!,
+
+    // Create a map of chains that have foreign deployments.
+    const foreignDeployments: ChainMap<types.Address> = objFilter(
+      objMap(configMap, (_, config) => config.foreignDeployment),
+      (_chainName, foreignDeployment): foreignDeployment is string =>
+        foreignDeployment !== undefined,
     );
 
     const deployedContractsMap = await super.deploy(configMapToDeploy);
@@ -177,7 +177,7 @@ export abstract class HyperlaneRouterDeployer<
     await this.enrollRemoteRouters(
       deployedContractsMap,
       configMap,
-      existingDeployments,
+      foreignDeployments,
     );
     await this.initConnectionClients(deployedContractsMap, configMap);
     await this.transferOwnership(deployedContractsMap, configMap);
