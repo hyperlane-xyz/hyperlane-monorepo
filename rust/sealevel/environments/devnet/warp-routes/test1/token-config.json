@@ -1,12 +1,9 @@
 {
-  "sealeveltest1": {
+  "solana-devnet": {
     "type": "native",
-    "owner": "0x",
-    "mailbox": "692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1",
-    "interchainGasPaymaster": "0x",
     "decimals": 9
   },
-  "sealeveltest2": {
+  "solana-devnet-1": {
     "type": "synthetic",
     "owner": "0x",
     "mailbox": "692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1",
@@ -15,5 +12,8 @@
     "name": "Warp Route Test",
     "symbol": "WRT",
     "totalSupply": "0"
+  },
+  "fuji": {
+    "type": "synthetic"
   }
 }

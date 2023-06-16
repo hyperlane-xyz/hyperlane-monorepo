@@ -1,7 +1,7 @@
 use borsh::BorshDeserialize;
 use hyperlane_core::H256;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs::File, path::Path};
+use std::{collections::HashMap, fs::File, path::Path, str::FromStr};
 
 use solana_client::{client_error::ClientError, rpc_client::RpcClient};
 use solana_program::program_error::ProgramError;
@@ -90,15 +90,30 @@ struct CollateralInfo {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
+struct OptionalConnectionClientConfig {
+    mailbox: Option<String>,
+    interchain_gas_paymaster: Option<String>,
+    interchain_security_module: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct OptionalOwnableConfig {
+    owner: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 struct TokenConfig {
     #[serde(flatten)]
     token_type: TokenType,
-    owner: String,
-    mailbox: String,
-    interchain_gas_paymaster: String,
     foreign_deployment: Option<String>,
     #[serde(flatten)]
     decimal_metadata: DecimalMetadata,
+    #[serde(flatten)]
+    ownable: OptionalOwnableConfig,
+    #[serde(flatten)]
+    connection_client: OptionalConnectionClientConfig,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -171,6 +186,10 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                 let chain_config = chain_configs
                     .get(chain_name)
                     .unwrap_or_else(|| panic!("Chain config not found for chain: {}", chain_name));
+
+                if token_config.ownable.owner.is_some() {
+                    println!("WARNING: Ownership transfer is not yet supported in this deploy tooling, ownership is granted to the payer account");
+                }
 
                 let program_id = deploy_warp_route(
                     &mut ctx,
@@ -380,10 +399,22 @@ fn init_warp_route(
     program_id: Pubkey,
     ata_payer_funding_amount: Option<u64>,
 ) -> Result<(), ProgramError> {
+    // If the Mailbox was provided as configuration, use that. Otherwise, default to
+    // the Mailbox found in the core program ids.
+    let mailbox = token_config
+        .connection_client
+        .mailbox
+        .as_ref()
+        .map(|s| Pubkey::from_str(s).unwrap())
+        .unwrap_or(core_program_ids.mailbox);
+
     let init = Init {
-        mailbox: core_program_ids.mailbox,
-        // TODO take in as arg?
-        interchain_security_module: None,
+        mailbox,
+        interchain_security_module: token_config
+            .connection_client
+            .interchain_security_module
+            .as_ref()
+            .map(|s| Pubkey::from_str(s).unwrap()),
         decimals: token_config.decimal_metadata.decimals,
         remote_decimals: token_config.decimal_metadata.remote_decimals(),
     };
