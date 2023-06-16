@@ -386,7 +386,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn modifying_pending_messages_writes_to_db() {
+    async fn test_full_pending_message_persistence_flow() {
         test_utils::run_test_db(|db| async move {
             let origin_domain = dummy_domain(0, "dummy_origin_domain");
             let destination_domain = dummy_domain(1, "dummy_destination_domain");
