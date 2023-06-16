@@ -54,13 +54,15 @@ abstract contract AbstractCcipReadIsm is ICcipReadIsm, AbstractMultisigIsm {
             AbstractCcipReadIsm.ccipReadCallback.selector,
             extraData
         );
+        // solhint-disable-next-line unreachable-code
         return true;
     }
 
-    function ccipReadCallback(
-        bytes calldata response,
-        bytes calldata _extraData
-    ) external view returns (bool) {
+    function ccipReadCallback(bytes calldata response, bytes calldata)
+        external
+        view
+        returns (bool)
+    {
         // TODO: magic numbers
         uint256 metadataOffset = uint256(bytes32(response[0:32]));
         uint256 messageOffset = uint256(bytes32(response[33:64]));
@@ -72,7 +74,21 @@ abstract contract AbstractCcipReadIsm is ICcipReadIsm, AbstractMultisigIsm {
             );
     }
 
-    // ============ Public Functions ============
+    // ============ Internal Functions ============
+
+    /**
+     * @notice Returns the digest to be used for signature verification.
+     * @param _message Formatted Hyperlane message (see Message.sol).
+     * @return digest The digest to be signed by validators
+     */
+    function digest(bytes calldata, bytes calldata _message)
+        internal
+        pure
+        override
+        returns (bytes32)
+    {
+        return keccak256(_message.body());
+    }
 
     /**
      * @notice Returns the signature at a given index from the metadata.
@@ -88,22 +104,5 @@ abstract contract AbstractCcipReadIsm is ICcipReadIsm, AbstractMultisigIsm {
         returns (bytes memory)
     {
         return CcipReadIsmMetadata.signatureAt(_metadata, _index);
-    }
-
-    // ============ Internal Functions ============
-
-    /**
-     * @notice Returns the digest to be used for signature verification.
-     * @param _metadata ABI encoded module metadata
-     * @param _message Formatted Hyperlane message (see Message.sol).
-     * @return digest The digest to be signed by validators
-     */
-    function digest(bytes calldata _metadata, bytes calldata _message)
-        internal
-        pure
-        override
-        returns (bytes32)
-    {
-        return keccak256(_message.body());
     }
 }

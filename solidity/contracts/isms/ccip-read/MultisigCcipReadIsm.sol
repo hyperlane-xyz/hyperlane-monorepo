@@ -11,11 +11,11 @@ import {CcipReadIsmMetadata} from "../../libs/isms/CcipReadIsmMetadata.sol";
 import {AbstractCcipReadIsm} from "./AbstractCcipReadIsm.sol";
 
 /**
- * @title MultiSigCcipReadIsm
+ * @title MultisigCcipReadIsm
  * @notice Manages an ownable set of validators that ECDSA sign checkpoints to
  * reach a quorum.
  */
-contract MultiSigCcipReadIsm is AbstractCcipReadIsm, Ownable {
+contract MultisigCcipReadIsm is AbstractCcipReadIsm, Ownable {
     // ============ Libraries ============
 
     using EnumerableSet for EnumerableSet.AddressSet;
