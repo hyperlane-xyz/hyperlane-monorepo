@@ -1,9 +1,11 @@
+use hyperlane_core::H256;
 use std::{
     collections::HashMap,
     fs::File,
     io::Write,
     path::{Path, PathBuf},
     process::{Command, Stdio},
+    str::FromStr,
 };
 
 use solana_client::{client_error::ClientError, rpc_client::RpcClient};
@@ -84,10 +86,7 @@ pub(crate) fn deploy_program_idempotent(
             log_file,
         );
     } else {
-        println!(
-            "Program {} already deployed",
-            program_keypair.pubkey().to_string()
-        );
+        println!("Program {} already deployed", program_keypair.pubkey());
     }
 
     Ok(())
@@ -163,4 +162,13 @@ pub(crate) fn create_and_write_keypair(
     println!("Wrote keypair {} to {}", keypair.pubkey(), path.display());
 
     (keypair, path)
+}
+
+pub(crate) fn hex_or_base58_to_h256(string: &str) -> H256 {
+    if string.starts_with("0x") {
+        H256::from_str(string).unwrap()
+    } else {
+        let pubkey = Pubkey::from_str(string).unwrap();
+        H256::from_slice(&pubkey.to_bytes()[..])
+    }
 }

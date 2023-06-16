@@ -1,7 +1,7 @@
 use borsh::BorshDeserialize;
 use hyperlane_core::H256;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs::File, path::Path, str::FromStr};
+use std::{collections::HashMap, fs::File, path::Path};
 
 use solana_client::{client_error::ClientError, rpc_client::RpcClient};
 use solana_program::program_error::ProgramError;
@@ -19,6 +19,7 @@ use hyperlane_sealevel_token_lib::{
 use crate::{
     cmd_utils::{
         account_exists, create_and_write_keypair, create_new_directory, deploy_program_idempotent,
+        hex_or_base58_to_h256,
     },
     core::{read_core_program_ids, CoreProgramIds},
     Context, WarpRouteCmd, WarpRouteSubCmd,
@@ -146,31 +147,30 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
             let warp_route_dir = create_new_directory(&artifacts_dir, &deploy.warp_route_name);
             let keys_dir = create_new_directory(&warp_route_dir, "keys");
 
-            let mut program_ids: HashMap<String, String> = HashMap::new();
-            let mut routers: HashMap<u32, H256> = HashMap::new();
+            let foreign_deployments = token_configs
+                .iter()
+                .filter(|(_, token_config)| token_config.foreign_deployment.is_some())
+                .map(|(chain_name, token_config)| {
+                    let chain_config = chain_configs.get(chain_name).unwrap();
+                    (
+                        chain_config.domain_id(),
+                        hex_or_base58_to_h256(token_config.foreign_deployment.as_ref().unwrap()),
+                    )
+                })
+                .collect::<HashMap<u32, H256>>();
 
-            for (chain_name, token_config) in token_configs.iter() {
+            let mut routers: HashMap<u32, H256> = foreign_deployments;
+
+            let token_configs_to_deploy = token_configs
+                .into_iter()
+                .filter(|(_, token_config)| token_config.foreign_deployment.is_none())
+                .collect::<HashMap<_, _>>();
+
+            // Deploy to chains that don't have a foreign deployment
+            for (chain_name, token_config) in token_configs_to_deploy.iter() {
                 let chain_config = chain_configs
                     .get(chain_name)
                     .unwrap_or_else(|| panic!("Chain config not found for chain: {}", chain_name));
-
-                if let Some(foreign_deployment) = &token_config.foreign_deployment {
-                    program_ids.insert(chain_name.clone(), foreign_deployment.clone());
-
-                    let foreign_h256 = if foreign_deployment.starts_with("0x") {
-                        H256::from_str(foreign_deployment).unwrap()
-                    } else {
-                        let pubkey = Pubkey::from_str(foreign_deployment).unwrap();
-                        H256::from_slice(&pubkey.to_bytes()[..])
-                    };
-                    routers.insert(chain_config.domain_id(), foreign_h256);
-
-                    println!(
-                        "Skipping foreign deployment on chain: {} at address {} ({})",
-                        chain_name, foreign_deployment, foreign_h256,
-                    );
-                    continue;
-                }
 
                 let program_id = deploy_warp_route(
                     &mut ctx,
@@ -183,7 +183,6 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                     deploy.ata_payer_funding_amount,
                 );
 
-                program_ids.insert(chain_name.clone(), program_id.to_string());
                 routers.insert(
                     chain_config.domain_id(),
                     H256::from_slice(&program_id.to_bytes()[..]),
@@ -191,17 +190,14 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
             }
 
             // Now enroll routers
-            for (chain_name, token_config) in token_configs {
-                if token_config.foreign_deployment.is_some() {
-                    continue;
-                }
-
+            for (chain_name, _) in token_configs_to_deploy {
                 let chain_config = chain_configs
                     .get(&chain_name)
                     .unwrap_or_else(|| panic!("Chain config not found for chain: {}", chain_name));
 
                 let domain_id = chain_config.domain_id();
-                let program_id: Pubkey = program_ids.get(&chain_name).unwrap().parse().unwrap();
+                let program_id: Pubkey =
+                    Pubkey::new_from_array(*routers.get(&domain_id).unwrap().as_fixed_bytes());
 
                 let enrolled_routers = get_routers(&chain_config.client(), &program_id).unwrap();
 
@@ -225,8 +221,7 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                     .filter(|(domain, router_config)| {
                         enrolled_routers.get(domain) != router_config.router.as_ref()
                     })
-                    .map(|(_, router_config)| router_config.clone())
-                    .collect::<Vec<RemoteRouterConfig>>();
+                    .map(|(_, router_config)| router_config.clone());
 
                 // Routers to remove
                 let routers_to_unenroll = enrolled_routers
@@ -235,13 +230,11 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                     .map(|(domain, _)| RemoteRouterConfig {
                         domain: *domain,
                         router: None,
-                    })
-                    .collect::<Vec<RemoteRouterConfig>>();
+                    });
 
                 // All router config changes
                 let router_configs = routers_to_enroll
-                    .into_iter()
-                    .chain(routers_to_unenroll.into_iter())
+                    .chain(routers_to_unenroll)
                     .collect::<Vec<RemoteRouterConfig>>();
 
                 println!(
@@ -261,7 +254,21 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                 ctx.instructions.clear();
             }
 
-            write_program_ids(&warp_route_dir, program_ids);
+            let routers_by_name: HashMap<String, H256> = routers
+                .iter()
+                .map(|(domain_id, router)| {
+                    (
+                        chain_configs
+                            .iter()
+                            .find(|(_, chain_config)| chain_config.domain_id() == *domain_id)
+                            .unwrap()
+                            .0
+                            .clone(),
+                        *router,
+                    )
+                })
+                .collect::<HashMap<String, H256>>();
+            write_program_ids(&warp_route_dir, &routers_by_name);
         }
     }
 }
@@ -471,8 +478,27 @@ fn get_routers(client: &RpcClient, program_id: &Pubkey) -> Result<HashMap<u32, H
     Ok(token_data.remote_routers)
 }
 
-fn write_program_ids(warp_route_dir: &Path, pretty_program_ids: HashMap<String, String>) {
+#[derive(Serialize, Deserialize)]
+struct SerializedProgramId {
+    hex: String,
+    base58: String,
+}
+
+fn write_program_ids(warp_route_dir: &Path, routers: &HashMap<String, H256>) {
+    let serialized_program_ids = routers
+        .iter()
+        .map(|(chain_name, router)| {
+            (
+                chain_name.clone(),
+                SerializedProgramId {
+                    hex: router.to_string(),
+                    base58: Pubkey::new_from_array(router.to_fixed_bytes()).to_string(),
+                },
+            )
+        })
+        .collect::<HashMap<String, SerializedProgramId>>();
+
     let program_ids_file = warp_route_dir.join("program-ids.json");
     let program_ids_file = File::create(program_ids_file).unwrap();
-    serde_json::to_writer_pretty(program_ids_file, &pretty_program_ids).unwrap();
+    serde_json::to_writer_pretty(program_ids_file, &serialized_program_ids).unwrap();
 }
