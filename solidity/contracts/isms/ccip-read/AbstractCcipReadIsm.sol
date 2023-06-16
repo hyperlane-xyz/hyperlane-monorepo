@@ -22,7 +22,7 @@ error OffchainLookup(
 );
 
 /**
- * @title CcipReadIsm
+ * @title AbstractCcipReadIsm
  * @notice Manages an ownable set of validators that ECDSA sign checkpoints to
  * reach a quorum.
  */
