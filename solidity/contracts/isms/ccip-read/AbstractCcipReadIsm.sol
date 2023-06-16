@@ -39,9 +39,14 @@ abstract contract AbstractCcipReadIsm is ICcipReadIsm, AbstractMultisigIsm {
 
     // ============ Mutable Storage ============
 
+    /// @notice The URLs to query for offchain data from.
     string[] public offchainUrls;
-    bytes public offchainExtraData;
+
+    /// @notice Parameters to query for offchain data with.
     bytes public offchainCallData;
+
+    /// @notice Data to pass back to the callback function.
+    bytes public offchainExtraData;
 
     // ============ Events ============
 
@@ -52,16 +57,16 @@ abstract contract AbstractCcipReadIsm is ICcipReadIsm, AbstractMultisigIsm {
     event OffchainUrlsUpdated(string[] urls);
 
     /**
-     * @notice Emitted when the offchain extraData is updated
-     * @param extraData the new extraData
-     */
-    event OffchainExtraDataUpdated(bytes extraData);
-
-    /**
      * @notice Emitted when the offchain callData is updated
      * @param callData the new callData
      */
     event OffchainCallDataUpdated(bytes callData);
+
+    /**
+     * @notice Emitted when the offchain extraData is updated
+     * @param extraData the new extraData
+     */
+    event OffchainExtraDataUpdated(bytes extraData);
 
     // ============ External Functions ============
 
