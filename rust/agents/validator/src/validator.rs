@@ -1,24 +1,22 @@
+use std::num::NonZeroU64;
 use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
 use eyre::Result;
-use hyperlane_base::db::HyperlaneRocksDB;
-use hyperlane_base::MessageContractSync;
-use hyperlane_core::accumulator::incremental::IncrementalMerkle;
-use std::num::NonZeroU64;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument};
 
 use hyperlane_base::{
-    db::DB, run_all, BaseAgent, CheckpointSyncer, ContractSyncMetrics, CoreMetrics,
-    HyperlaneAgentCore,
+    db::{HyperlaneRocksDB, DB},
+    run_all, BaseAgent, CheckpointSyncer, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
+    MessageContractSync,
 };
-
 use hyperlane_core::{
-    Announcement, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSigner,
-    HyperlaneSignerExt, Mailbox, ValidatorAnnounce, H256, U256,
+    accumulator::incremental::IncrementalMerkle, Announcement, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox, ValidatorAnnounce, H256, U256,
 };
+use hyperlane_ethereum::{SingletonSigner, SingletonSignerHandle};
 
 use crate::{
     settings::ValidatorSettings, submit::ValidatorSubmitter, submit::ValidatorSubmitterMetrics,
@@ -33,7 +31,9 @@ pub struct Validator {
     message_sync: Arc<MessageContractSync>,
     mailbox: Arc<dyn Mailbox>,
     validator_announce: Arc<dyn ValidatorAnnounce>,
-    signer: Arc<dyn HyperlaneSigner>,
+    signer: SingletonSignerHandle,
+    // temporary holder until `run` is called
+    signer_instance: Option<Box<SingletonSigner>>,
     reorg_period: u64,
     interval: Duration,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
@@ -58,12 +58,9 @@ impl BaseAgent for Validator {
         let db = DB::from_path(&settings.db)?;
         let msg_db = HyperlaneRocksDB::new(&settings.origin_chain, db);
 
-        let signer = settings
-            .validator
-            // Intentionally using hyperlane_ethereum for the validator's signer
-            .build::<hyperlane_ethereum::Signers>()
-            .await
-            .map(|validator| Arc::new(validator) as Arc<dyn HyperlaneSigner>)?;
+        // Intentionally using hyperlane_ethereum for the validator's signer
+        let (signer_instance, signer) = SingletonSigner::new(settings.validator.build().await?);
+
         let core = settings.build_hyperlane_core(metrics.clone());
         let checkpoint_syncer = settings.checkpoint_syncer.build(None)?.into();
 
@@ -95,6 +92,7 @@ impl BaseAgent for Validator {
             message_sync,
             validator_announce: validator_announce.into(),
             signer,
+            signer_instance: Some(Box::new(signer_instance)),
             reorg_period: settings.reorg_period,
             interval: settings.interval,
             checkpoint_syncer,
@@ -102,7 +100,20 @@ impl BaseAgent for Validator {
     }
 
     #[allow(clippy::async_yields_async)]
-    async fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
+    async fn run(mut self) -> Instrumented<JoinHandle<Result<()>>> {
+        let mut tasks = vec![];
+
+        if let Some(signer_instance) = self.signer_instance.take() {
+            tasks.push(
+                tokio::spawn(async move {
+                    signer_instance.run().await;
+                    Ok(())
+                })
+                .instrument(info_span!("SingletonSigner")),
+            );
+        }
+
+        // announce the validator after spawning the signer task
         self.announce().await.expect("Failed to announce validator");
 
         let reorg_period = NonZeroU64::new(self.reorg_period);
@@ -119,8 +130,6 @@ impl BaseAgent for Validator {
             info!("Waiting for first message to mailbox");
             sleep(self.interval).await;
         }
-
-        let mut tasks = vec![];
 
         tasks.push(self.run_message_sync().await);
         for checkpoint_sync_task in self.run_checkpoint_submitters().await {
