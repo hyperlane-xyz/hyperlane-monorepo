@@ -10,7 +10,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 use tokio::time::sleep;
-use tracing::{instrument, warn_span};
+use tracing::{info, instrument, warn_span};
 
 use ethers_prometheus::json_rpc_client::PrometheusJsonRpcClientConfigExt;
 
@@ -102,6 +102,70 @@ impl<T> FallbackProvider<T> {
     }
 }
 
+impl<C> FallbackProvider<C>
+where
+    C: JsonRpcClient,
+{
+    async fn handle_stalled_provider(
+        &self,
+        priority: &PrioritizedProviderInner,
+        provider: &C,
+    ) -> Result<(), ProviderError> {
+        let now = Instant::now();
+        if now
+            .duration_since(priority.last_block_height.1)
+            .le(&self.max_block_time)
+        {
+            // Do nothing, it's too early to tell if the provider has stalled
+            return Ok(());
+        }
+
+        let current_block_height: u64 = provider
+            .request(BLOCK_NUMBER_RPC, ())
+            .await
+            .map(|r: U64| r.as_u64())
+            .unwrap_or(priority.last_block_height.0);
+        if !(current_block_height > priority.last_block_height.0) {
+            // The `max_block_time` elapsed but the block number returned by the provider is still the same
+            self.deprioritize_provider(priority, provider).await;
+        } else {
+            self.update_last_seen_block(priority.index, current_block_height)
+                .await;
+        }
+        Ok(())
+    }
+
+    async fn deprioritize_provider(&self, priority: &PrioritizedProviderInner, provider: &C) {
+        // De-prioritize the current provider by moving it to the end of the queue
+        let mut priorities = self.inner.priorities.write().await;
+        priorities.retain(|&p| p.index != priority.index);
+        priorities.push(*priority);
+
+        info!(
+            provider_index=%priority.index,
+            ?provider,
+            "Deprioritizing an inner provider in FallbackProvider",
+        );
+        // Free the write lock
+    }
+
+    async fn update_last_seen_block(&self, provider_index: usize, current_block_height: u64) {
+        let mut priorities = self.inner.priorities.write().await;
+        // Get provider position in the up-to-date priorities vec
+        if let Some(position) = priorities.iter().position(|p| p.index == provider_index) {
+            priorities[position] =
+                PrioritizedProviderInner::from_block_height(provider_index, current_block_height);
+        }
+        // Free the write lock
+    }
+
+    async fn take_priorities_snapshot(&self) -> Vec<PrioritizedProviderInner> {
+        let read_lock = self.inner.priorities.read().await;
+        (*read_lock).clone()
+        // Free the read lock
+    }
+}
+
 /// Builder to create a new fallback provider.
 #[derive(Debug, Clone)]
 pub struct FallbackProviderBuilder<T> {
@@ -171,77 +235,6 @@ impl From<FallbackError> for ProviderError {
     }
 }
 
-async fn handle_stalled_provider<C>(
-    fallback_provider: &FallbackProvider<C>,
-    priority: &PrioritizedProviderInner,
-) -> Result<(), ProviderError>
-where
-    C: JsonRpcClient,
-{
-    let now = Instant::now();
-    if now
-        .duration_since(priority.last_block_height.1)
-        .le(&fallback_provider.max_block_time)
-    {
-        // Do nothing, it's too early to tell if the provider has stalled
-        return Ok(());
-    }
-
-    let provider = &fallback_provider.inner.providers[priority.index];
-    let current_block_height: u64 = provider
-        .request(BLOCK_NUMBER_RPC, ())
-        .await
-        .map(|r: U64| r.as_u64())
-        .unwrap_or(priority.last_block_height.0);
-    if current_block_height == priority.last_block_height.0 {
-        // The `max_block_time` elapsed but the block number returned by the provider is still the same
-        deprioritize_provider(fallback_provider, priority).await;
-    } else {
-        update_last_seen_block(fallback_provider, priority.index, current_block_height).await
-    }
-    Ok(())
-}
-
-async fn deprioritize_provider<C>(
-    fallback_provider: &FallbackProvider<C>,
-    priority: &PrioritizedProviderInner,
-) where
-    C: JsonRpcClient,
-{
-    // De-prioritize the current provider by moving it to the end of the queue
-    let mut priorities = fallback_provider.inner.priorities.write().await;
-    priorities.retain(|&p| p.index != priority.index);
-    priorities.push(*priority);
-    // Free the write lock
-}
-
-async fn update_last_seen_block<C>(
-    fallback_provider: &FallbackProvider<C>,
-    provider_index: usize,
-    current_block_height: u64,
-) where
-    C: JsonRpcClient,
-{
-    let mut priorities = fallback_provider.inner.priorities.write().await;
-    // Get provider position in the up-to-date priorities vec
-    if let Some(position) = priorities.iter().position(|p| p.index == provider_index) {
-        priorities[position] =
-            PrioritizedProviderInner::from_block_height(provider_index, current_block_height);
-    }
-    // Free the write lock
-}
-
-async fn take_priorities_snapshot<C>(
-    fallback_provider: &FallbackProvider<C>,
-) -> Vec<PrioritizedProviderInner>
-where
-    C: JsonRpcClient,
-{
-    let read_lock = fallback_provider.inner.priorities.read().await;
-    (*read_lock).clone()
-    // Free the read lock
-}
-
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl<C> JsonRpcClient for FallbackProvider<C>
@@ -265,7 +258,7 @@ where
             if !errors.is_empty() {
                 sleep(Duration::from_millis(100)).await;
             }
-            let priorities_snapshot = take_priorities_snapshot(self).await;
+            let priorities_snapshot = self.take_priorities_snapshot().await;
             for (idx, priority) in priorities_snapshot.iter().enumerate() {
                 let provider = &self.inner.providers[priority.index];
                 let fut = match params {
@@ -273,9 +266,9 @@ where
                     _ => provider.request(method, &params),
                 };
                 let resp = fut.await;
-                handle_stalled_provider(self, priority).await?;
+                self.handle_stalled_provider(priority, provider).await?;
                 let _span =
-                    warn_span!("request_with_fallback", provider_index=%idx, ?provider).entered();
+                    warn_span!("request_with_fallback", fallback_count=%idx, provider_index=%priority.index, ?provider).entered();
 
                 match categorize_client_response(method, resp) {
                     IsOk(v) => return Ok(serde_json::from_value(v)?),
