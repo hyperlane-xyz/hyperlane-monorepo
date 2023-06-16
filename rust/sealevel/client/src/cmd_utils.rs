@@ -6,7 +6,12 @@ use std::{
     process::{Command, Stdio},
 };
 
-use solana_sdk::signature::{Keypair, Signer};
+use solana_client::{client_error::ClientError, rpc_client::RpcClient};
+use solana_sdk::{
+    commitment_config::CommitmentConfig,
+    pubkey::Pubkey,
+    signature::{Keypair, Signer},
+};
 
 /// Open a file in append mode, or create it if it does not exist.
 fn append_to(p: impl AsRef<Path>) -> File {
@@ -47,6 +52,45 @@ pub fn build_cmd(
             cmd.join(" ")
         );
     }
+}
+
+pub(crate) fn account_exists(client: &RpcClient, account: &Pubkey) -> Result<bool, ClientError> {
+    // Using `get_account_with_commitment` instead of `get_account` so we get Ok(None) when the account
+    // doesn't exist, rather than an error
+    let exists = client
+        .get_account_with_commitment(account, CommitmentConfig::processed())?
+        .value
+        .is_some();
+    Ok(exists)
+}
+
+pub(crate) fn deploy_program_idempotent(
+    payer: &Keypair,
+    payer_path: &str,
+    program_keypair: &Keypair,
+    program_keypair_path: &str,
+    program_path: &str,
+    url: &str,
+    log_file: impl AsRef<Path>,
+) -> Result<(), ClientError> {
+    let client = RpcClient::new(url.to_string());
+    if !account_exists(&client, &program_keypair.pubkey())? {
+        deploy_program(
+            payer,
+            payer_path,
+            program_keypair_path,
+            program_path,
+            url,
+            log_file,
+        );
+    } else {
+        println!(
+            "Program {} already deployed",
+            program_keypair.pubkey().to_string()
+        );
+    }
+
+    Ok(())
 }
 
 pub(crate) fn deploy_program(

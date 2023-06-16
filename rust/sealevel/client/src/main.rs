@@ -440,6 +440,31 @@ impl Context {
             })
             .unwrap();
     }
+
+    fn send_transaction_with_client<T: Signers>(&self, client: &RpcClient, signers: &T) {
+        let recent_blockhash = client.get_latest_blockhash().unwrap();
+        let txn = Transaction::new_signed_with_payer(
+            &self.instructions,
+            Some(&self.payer.pubkey()),
+            signers,
+            recent_blockhash,
+        );
+
+        let _signature = client
+            .send_and_confirm_transaction_with_spinner_and_config(
+                &txn,
+                self.commitment,
+                RpcSendTransactionConfig {
+                    preflight_commitment: Some(self.commitment.commitment),
+                    ..RpcSendTransactionConfig::default()
+                },
+            )
+            .map_err(|err| {
+                eprintln!("{:#?}", err);
+                err
+            })
+            .unwrap();
+    }
 }
 
 fn main() {
