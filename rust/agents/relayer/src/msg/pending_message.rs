@@ -297,6 +297,11 @@ impl PendingOperation for PendingMessage {
     fn _next_attempt_after(&self) -> Option<Instant> {
         self.next_attempt_after
     }
+
+    #[cfg(test)]
+    fn set_retries(&mut self, retries: u32) {
+        self.set_retries(retries);
+    }
 }
 
 impl PendingMessage {
@@ -358,18 +363,21 @@ impl PendingMessage {
     }
 
     fn reset_attempts(&mut self) {
-        self.num_retries = 0;
-        self.persist_retries();
+        self.set_retries(0);
         self.next_attempt_after = None;
         self.last_attempted_at = Instant::now();
     }
 
     fn inc_attempts(&mut self) {
-        self.num_retries += 1;
-        self.persist_retries();
+        self.set_retries(self.num_retries + 1);
         self.last_attempted_at = Instant::now();
         self.next_attempt_after = PendingMessage::calculate_msg_backoff(self.num_retries)
             .map(|dur| self.last_attempted_at + dur);
+    }
+
+    fn set_retries(&mut self, retries: u32) {
+        self.num_retries = retries;
+        self.persist_retries();
     }
 
     fn persist_retries(&self) {

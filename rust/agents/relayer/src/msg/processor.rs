@@ -213,7 +213,7 @@ mod test {
 
     use super::*;
     use hyperlane_base::{
-        db::{test_utils, HyperlaneRocksDB, DB},
+        db::{test_utils, HyperlaneRocksDB},
         ChainConf, Settings,
     };
     use hyperlane_test::mocks::{MockMailboxContract, MockValidatorAnnounceContract};
@@ -340,19 +340,30 @@ mod test {
         }
     }
 
-    async fn run_processor_with_persisted_messages(
-        db: DB,
+    /// Only adds database entries to the pending message prefix if the message's
+    /// retry count is greater than zero
+    fn persist_retried_messages(
         retries: &Vec<u32>,
-    ) -> Vec<Box<DynPendingOperation>> {
-        let origin_domain = dummy_domain(0, "dummy_origin_domain");
-        let destination_domain = dummy_domain(1, "dummy_destination_domain");
-        let db = HyperlaneRocksDB::new(&origin_domain, db);
+        db: &HyperlaneRocksDB,
+        destination_domain: &HyperlaneDomain,
+    ) {
         let mut nonce = 0;
         retries.iter().for_each(|num_retries| {
             let message = dummy_hyperlane_message(&destination_domain, nonce);
             add_db_entry(&db, &message, *num_retries);
             nonce += 1;
         });
+    }
+
+    /// Runs the processor and returns the first `num_operations` to arrive on the
+    /// receiving end of the channel.
+    /// A default timeout is used for all `n` operations to arrive, otherwise the function panics.
+    async fn get_first_n_operations_from_processor(
+        origin_domain: &HyperlaneDomain,
+        destination_domain: &HyperlaneDomain,
+        db: &HyperlaneRocksDB,
+        num_operations: usize,
+    ) -> Vec<Box<DynPendingOperation>> {
         let (message_processor, mut receive_channel) =
             dummy_message_processor(&origin_domain, &destination_domain, &db);
 
@@ -361,7 +372,7 @@ mod test {
         let pending_message_accumulator = async {
             while let Some(pm) = receive_channel.recv().await {
                 pending_messages.push(pm);
-                if pending_messages.len() == retries.len() {
+                if pending_messages.len() == num_operations {
                     break;
                 }
             }
@@ -375,16 +386,50 @@ mod test {
     }
 
     #[tokio::test]
-    async fn message_processor_works_with_retried_pending_message() {
+    async fn modifying_pending_messages_writes_to_db() {
         test_utils::run_test_db(|db| async move {
-            let msg_retries = vec![3, 0, 10];
-            let pending_messages = run_processor_with_persisted_messages(db, &msg_retries).await;
-            msg_retries
+            let origin_domain = dummy_domain(0, "dummy_origin_domain");
+            let destination_domain = dummy_domain(1, "dummy_destination_domain");
+            let db = HyperlaneRocksDB::new(&origin_domain, db);
+
+            // Assume the message syncer stored some new messages in HyperlaneDB
+            let msg_retries = vec![0, 0, 0];
+            persist_retried_messages(&msg_retries, &db, &destination_domain);
+
+            // Run parser to load the messages in memory
+            let pending_messages = get_first_n_operations_from_processor(
+                &origin_domain,
+                &destination_domain,
+                &db,
+                msg_retries.len(),
+            )
+            .await;
+
+            // Set some retry counts. This should update HyperlaneDB entries too.
+            let msg_retries_to_set = vec![3, 0, 10];
+            pending_messages
+                .into_iter()
+                .enumerate()
+                .for_each(|(i, mut pm)| pm.set_retries(msg_retries_to_set[i]));
+
+            // Run parser again
+            let pending_messages = get_first_n_operations_from_processor(
+                &origin_domain,
+                &destination_domain,
+                &db,
+                msg_retries.len(),
+            )
+            .await;
+
+            // Expect the HyperlaneDB entry to have been updated, so the `OpQueue` in the submitter
+            // can be accurately reconstructed on restart.
+            // If the retry counts were correctly persisted, the backoffs will have the expected value.
+            pending_messages
                 .iter()
-                .zip(pending_messages.iter())
-                .for_each(|(retries, pm)| {
+                .zip(msg_retries_to_set.iter())
+                .for_each(|(pm, expected_retries)| {
                     // Round up the actuall backoff because it was calculated with an `Instant::now()` that was a fraction of a second ago
-                    let expected_backoff = PendingMessage::calculate_msg_backoff(*retries)
+                    let expected_backoff = PendingMessage::calculate_msg_backoff(*expected_retries)
                         .map(|b| b.as_secs_f32().round());
                     let actual_backoff = pm._next_attempt_after().map(|instant| {
                         instant.duration_since(Instant::now()).as_secs_f32().round()
