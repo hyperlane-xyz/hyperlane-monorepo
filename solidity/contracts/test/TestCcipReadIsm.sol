@@ -23,7 +23,7 @@ contract TestCcipReadIsm is AbstractCcipReadIsm {
         offchainCallData = _offchainCallData;
     }
 
-    function validatorsAndThreshold(bytes calldata _message)
+    function validatorsAndThreshold(bytes calldata)
         public
         view
         virtual

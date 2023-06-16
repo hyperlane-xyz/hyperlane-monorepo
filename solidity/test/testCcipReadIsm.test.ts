@@ -14,7 +14,7 @@ describe('TestCcipReadIsm', () => {
 
   it('emits the right OffchainLookup message', async () => {
     try {
-      await ism.ccipRead('0x');
+      await ism.getOffchainVerifyInfo('0x');
       assert.fail('No revert');
     } catch (e: any) {
       expect(e.errorName).to.eql('OffchainLookup');

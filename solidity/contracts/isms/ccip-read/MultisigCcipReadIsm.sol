@@ -12,8 +12,8 @@ import {AbstractCcipReadIsm} from "./AbstractCcipReadIsm.sol";
 
 /**
  * @title MultisigCcipReadIsm
- * @notice Manages an ownable set of validators that ECDSA sign checkpoints to
- * reach a quorum.
+ * @notice Manages an ownable set of validators that must ECDSA payloads before
+ * messages will be accepted
  */
 contract MultisigCcipReadIsm is AbstractCcipReadIsm, Ownable {
     // ============ Libraries ============
@@ -153,6 +153,35 @@ contract MultisigCcipReadIsm is AbstractCcipReadIsm, Ownable {
     {
         EnumerableSet.AddressSet storage _validatorSet = validatorSet[_domain];
         return _validatorSet.contains(_address);
+    }
+
+    /**
+     * @notice Sets the offchain URLs to be used in the CCIP Read flow
+     * @dev Reverts if the array is of length 0
+     * @param urls The new offchain URLs
+     */
+    function setOffchainUrls(string[] calldata urls) external onlyOwner {
+        require(urls.length > 0, "!length");
+        offchainUrls = urls;
+        emit OffchainUrlsUpdated(urls);
+    }
+
+    /**
+     * @notice Sets the offchain callData to be used in the CCIP Read flow
+     * @param callData The new offchain callData
+     */
+    function setOffchainCallData(bytes callData) external onlyOwner {
+        offchainCallData = callData;
+        emit OffchainCallDataUpdated(callData);
+    }
+
+    /**
+     * @notice Sets the offchain extraData to be used in the CCIP Read flow
+     * @param extraData The new offchain extraData
+     */
+    function setOffchainExtraData(bytes extraData) external onlyOwner {
+        offchainCallData = callData;
+        emit OffchainExtraDataUpdated(extraData);
     }
 
     // ============ Public Functions ============

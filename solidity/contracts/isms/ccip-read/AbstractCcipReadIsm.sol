@@ -23,8 +23,7 @@ error OffchainLookup(
 
 /**
  * @title AbstractCcipReadIsm
- * @notice Manages an ownable set of validators that ECDSA sign checkpoints to
- * reach a quorum.
+ * @notice An ISM that allows arbitrary payloads to be submitted and verified on chain.
  */
 abstract contract AbstractCcipReadIsm is ICcipReadIsm, AbstractMultisigIsm {
     // ============ Libraries ============
@@ -41,24 +40,58 @@ abstract contract AbstractCcipReadIsm is ICcipReadIsm, AbstractMultisigIsm {
     // ============ Mutable Storage ============
 
     string[] public offchainUrls;
-    bytes public extraData;
+    bytes public offchainExtraData;
     bytes public offchainCallData;
+
+    // ============ Events ============
+
+    /**
+     * @notice Emitted when the offchain URLs are updated
+     * @param urls the new URLs
+     */
+    event OffchainUrlsUpdated(string[] urls);
+
+    /**
+     * @notice Emitted when the offchain extraData is updated
+     * @param extraData the new extraData
+     */
+    event OffchainExtraDataUpdated(bytes extraData);
+
+    /**
+     * @notice Emitted when the offchain callData is updated
+     * @param callData the new callData
+     */
+    event OffchainCallDataUpdated(bytes callData);
 
     // ============ External Functions ============
 
-    function ccipRead(bytes calldata) external view returns (bool) {
+    /**
+     * @notice Reverts with the data needed to query information offchain
+     * and be submitted via verifyWithProof
+     * @dev See https://eips.ethereum.org/EIPS/eip-3668 for more information
+     * @return bool Ignored
+     */
+    function getOffchainVerifyInfo(bytes calldata)
+        external
+        view
+        returns (bool)
+    {
         revert OffchainLookup(
             address(this),
             offchainUrls,
             offchainCallData,
-            AbstractCcipReadIsm.ccipReadCallback.selector,
-            extraData
+            AbstractCcipReadIsm.verifyWithProof.selector,
+            offchainExtraData
         );
-        // solhint-disable-next-line unreachable-code
         return true;
     }
 
-    function ccipReadCallback(bytes calldata response, bytes calldata)
+    /**
+     * @notice Function to be called with the result of the offchain read
+     * @param response the offchain result
+     * @return bool
+     */
+    function verifyWithProof(bytes calldata response, bytes calldata)
         external
         view
         returns (bool)
