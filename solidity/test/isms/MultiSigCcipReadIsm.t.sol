@@ -5,18 +5,18 @@ import "forge-std/Test.sol";
 
 import {IMultisigIsm} from "../../contracts/interfaces/isms/IMultisigIsm.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
-import {CcipReadIsm} from "../../contracts/isms/CcipReadIsm.sol";
+import {MultisigCcipReadIsm} from "../../contracts/isms/ccip-read/MultisigCcipReadIsm.sol";
 import {CheckpointLib} from "../../contracts/libs/CheckpointLib.sol";
 import {StaticMOfNAddressSetFactory} from "../../contracts/libs/StaticMOfNAddressSetFactory.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {MOfNTestUtils} from "./IsmTestUtils.sol";
 
-contract CcipReadIsmTest is Test {
+contract MultisigCcipReadIsmTest is Test {
     using Message for bytes;
 
     uint32 constant ORIGIN = 11;
-    CcipReadIsm ism;
+    MultisigCcipReadIsm ism;
     TestMailbox mailbox;
 
     using Message for bytes;
@@ -66,7 +66,7 @@ contract CcipReadIsmTest is Test {
             keys[i] = key;
             addresses[i] = vm.addr(key);
         }
-        ism = new CcipReadIsm();
+        ism = new MultisigCcipReadIsm();
 
         address[][] memory wrapped = new address[][](1);
         wrapped[0] = addresses;
