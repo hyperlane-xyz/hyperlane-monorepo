@@ -46,7 +46,7 @@ abstract contract AbstractCcipReadIsm is ICcipReadIsm, AbstractMultisigIsm {
 
     // ============ External Functions ============
 
-    function ccipRead(bytes calldata message) external view returns (bool) {
+    function ccipRead(bytes calldata) external view returns (bool) {
         revert OffchainLookup(
             address(this),
             offchainUrls,
@@ -57,11 +57,10 @@ abstract contract AbstractCcipReadIsm is ICcipReadIsm, AbstractMultisigIsm {
         return true;
     }
 
-    function ccipReadCallback(bytes calldata response, bytes calldata extraData)
-        external
-        view
-        returns (bool)
-    {
+    function ccipReadCallback(
+        bytes calldata response,
+        bytes calldata _extraData
+    ) external view returns (bool) {
         // TODO: magic numbers
         uint256 metadataOffset = uint256(bytes32(response[0:32]));
         uint256 messageOffset = uint256(bytes32(response[33:64]));
@@ -101,7 +100,7 @@ abstract contract AbstractCcipReadIsm is ICcipReadIsm, AbstractMultisigIsm {
      */
     function digest(bytes calldata _metadata, bytes calldata _message)
         internal
-        view
+        pure
         override
         returns (bytes32)
     {
