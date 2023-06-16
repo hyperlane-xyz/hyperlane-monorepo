@@ -65,6 +65,12 @@ impl HyperlaneSqlDb {
         &self.domain
     }
 
+    pub async fn last_message_nonce(&self) -> Result<Option<u32>> {
+        self.db
+            .last_message_nonce(self.domain.id(), &self.mailbox_address)
+            .await
+    }
+
     /// Takes a list of txn and block hashes and ensure they are all in the
     /// database. If any are not it will fetch the data and insert them.
     ///
