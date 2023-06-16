@@ -125,8 +125,8 @@ where
             .await
             .map(|r: U64| r.as_u64())
             .unwrap_or(priority.last_block_height.0);
-        if !(current_block_height > priority.last_block_height.0) {
-            // The `max_block_time` elapsed but the block number returned by the provider is still the same
+        if current_block_height <= priority.last_block_height.0 {
+            // The `max_block_time` elapsed but the block number returned by the provider has not increased
             self.deprioritize_provider(priority, provider).await;
         } else {
             self.update_last_seen_block(priority.index, current_block_height)
