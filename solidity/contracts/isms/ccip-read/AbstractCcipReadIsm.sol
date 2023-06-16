@@ -1,20 +1,12 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-// ============ External Imports ============
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-
 // ============ Internal Imports ============
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {ICcipReadIsm} from "../../interfaces/isms/ICcipReadIsm.sol";
 import {Message} from "../../libs/Message.sol";
 import {AbstractMultisigIsm} from "../multisig/AbstractMultisigIsm.sol";
-import {IMultisigIsm} from "../../interfaces/isms/IMultisigIsm.sol";
 import {CcipReadIsmMetadata} from "../../libs/isms/CcipReadIsmMetadata.sol";
-import {MerkleLib} from "../../libs/Merkle.sol";
-import {LegacyCheckpointLib} from "../../libs/LegacyCheckpointLib.sol";
 
 /// @param sender the address of the contract making the call, usually address(this)
 /// @param urls the URLs to query for offchain data
