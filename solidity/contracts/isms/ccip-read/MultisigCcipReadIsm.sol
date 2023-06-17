@@ -168,20 +168,23 @@ contract MultisigCcipReadIsm is AbstractCcipReadIsm, Ownable {
 
     /**
      * @notice Sets the offchain callData to be used in the CCIP Read flow
-     * @param callData The new offchain callData
+     * @param _callData The new offchain callData
      */
-    function setOffchainCallData(bytes callData) external onlyOwner {
-        offchainCallData = callData;
-        emit OffchainCallDataUpdated(callData);
+    function setOffchainCallData(bytes calldata _callData) external onlyOwner {
+        offchainCallData = _callData;
+        emit OffchainCallDataUpdated(_callData);
     }
 
     /**
      * @notice Sets the offchain extraData to be used in the CCIP Read flow
-     * @param extraData The new offchain extraData
+     * @param _extraData The new offchain extraData
      */
-    function setOffchainExtraData(bytes extraData) external onlyOwner {
-        offchainCallData = callData;
-        emit OffchainExtraDataUpdated(extraData);
+    function setOffchainExtraData(bytes calldata _extraData)
+        external
+        onlyOwner
+    {
+        offchainExtraData = _extraData;
+        emit OffchainExtraDataUpdated(_extraData);
     }
 
     // ============ Public Functions ============
@@ -256,5 +259,35 @@ contract MultisigCcipReadIsm is AbstractCcipReadIsm, Ownable {
         require(_validator != address(0), "zero address");
         require(validatorSet[_domain].add(_validator), "already enrolled");
         emit ValidatorEnrolled(_domain, _validator, validatorCount(_domain));
+    }
+
+    /**
+     * @notice Returns the digest to be used for signature verification.
+     * @param _message Formatted Hyperlane message (see Message.sol).
+     * @return digest The digest to be signed by validators
+     */
+    function digest(bytes calldata, bytes calldata _message)
+        internal
+        pure
+        override
+        returns (bytes32)
+    {
+        return keccak256(_message.body());
+    }
+
+    /**
+     * @notice Returns the signature at a given index from the metadata.
+     * @param _metadata ABI encoded module metadata
+     * @param _index The index of the signature to return
+     * @return signature Packed encoding of signature (65 bytes)
+     */
+    function signatureAt(bytes calldata _metadata, uint256 _index)
+        internal
+        pure
+        virtual
+        override
+        returns (bytes memory)
+    {
+        return CcipReadIsmMetadata.signatureAt(_metadata, _index);
     }
 }
