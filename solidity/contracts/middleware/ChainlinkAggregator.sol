@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
-import {Router} from "../Router.sol";
-
 import {AggregatorV3Interface} from "../interfaces/chainlink/AggregatorV3Interface.sol";
+import {HyperlaneConnectionClient} from "../HyperlaneConnectionClient.sol";
 
 import {TypeCasts} from "../libs/TypeCasts.sol";
 
-contract ChainlinkAggregator is Router, AggregatorV3Interface {
+contract ChainlinkAggregator is
+    HyperlaneConnectionClient,
+    AggregatorV3Interface
+{
     address public priceFeed;
 
     // Used for s_oracles[a].role, where a is an address, to track the purpose
@@ -79,7 +81,7 @@ contract ChainlinkAggregator is Router, AggregatorV3Interface {
         address _owner,
         address _priceFeed,
         uint8 _decimals
-    ) external initializer onlyOwner {
+    ) external initializer {
         __HyperlaneConnectionClient_initialize(
             _mailbox,
             _interchainGasPaymaster,
@@ -251,13 +253,14 @@ contract ChainlinkAggregator is Router, AggregatorV3Interface {
         );
     }
 
-    // Handles a message from an enrolled remote LiquidityLayerRouter
-    function _handle(
-        uint32 _origin,
-        bytes32, // _sender, unused
+    function handle(
+        uint32,
+        bytes32,
         bytes calldata _message
-    ) internal override {
+    ) external onlyMailbox {
         ReportData memory r;
+
+        r.hotVars = s_hotVars; // cache read from storage
 
         bytes32 rawObservers;
         (r.rawReportContext, rawObservers, r.observations) = abi.decode(
@@ -267,10 +270,11 @@ contract ChainlinkAggregator is Router, AggregatorV3Interface {
 
         uint40 epochAndRound = uint40(uint256(r.rawReportContext));
 
+        require(r.hotVars.latestEpochAndRound < epochAndRound, "stale report");
+
         // Copy observer identities in bytes32 rawObservers to bytes r.observers
         r.observers = new bytes(r.observations.length);
         for (uint8 i = 0; i < r.observations.length; i++) {
-            uint8 observerIdx = uint8(rawObservers[i]);
             r.observers[i] = rawObservers[i];
         }
 
