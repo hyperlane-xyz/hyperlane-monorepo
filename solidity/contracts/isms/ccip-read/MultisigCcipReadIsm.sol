@@ -160,7 +160,7 @@ contract MultisigCcipReadIsm is AbstractCcipReadIsm, Ownable {
      * @dev Reverts if the array is of length 0
      * @param urls The new offchain URLs
      */
-    function setOffchainUrls(string[] calldata urls) external onlyOwner {
+    function setOffchainUrls(string[] memory urls) external onlyOwner {
         require(urls.length > 0, "!length");
         offchainUrls = urls;
         emit OffchainUrlsUpdated(urls);
