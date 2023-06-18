@@ -11,10 +11,10 @@ use tokio::{
 use tracing::{debug, info_span, instrument, instrument::Instrumented, trace, Instrument};
 
 use hyperlane_base::{db::HyperlaneRocksDB, CoreMetrics};
-use hyperlane_core::{HyperlaneDomain, HyperlaneMessage};
+use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, MatchingList};
 
+use crate::merkle_tree_builder::MerkleTreeBuilder;
 use crate::msg::pending_operation::DynPendingOperation;
-use crate::{merkle_tree_builder::MerkleTreeBuilder, settings::matching_list::MatchingList};
 
 use super::pending_message::*;
 

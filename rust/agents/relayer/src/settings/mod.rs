@@ -9,11 +9,7 @@ use tracing::warn;
 
 use hyperlane_base::{decl_settings, Settings};
 use hyperlane_core::config::*;
-use hyperlane_core::{HyperlaneDomain, U256};
-
-use crate::settings::matching_list::MatchingList;
-
-pub mod matching_list;
+use hyperlane_core::{HyperlaneDomain, MatchingList, U256};
 
 /// Config for a GasPaymentEnforcementPolicy
 #[derive(Debug, Clone, Default)]

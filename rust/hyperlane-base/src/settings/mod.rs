@@ -81,6 +81,8 @@ pub(crate) mod aws_credentials;
 mod base;
 /// Chain configuration
 pub mod chains;
+/// Client configuration
+pub mod clients;
 pub(crate) mod loader;
 /// Signer configuration
 mod signers;

@@ -64,4 +64,12 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
     /// Get the calldata for a transaction to process a message with a proof
     /// against the provided signed checkpoint
     fn process_calldata(&self, message: &HyperlaneMessage, metadata: &[u8]) -> Vec<u8>;
+
+    /// Dispatch a message
+    async fn dispatch(
+        &self,
+        destination_domain: u32,
+        recipient_address: H256,
+        message_body: Vec<u8>,
+    ) -> ChainResult<TxOutcome>;
 }

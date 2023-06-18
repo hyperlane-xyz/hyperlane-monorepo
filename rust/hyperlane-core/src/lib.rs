@@ -10,6 +10,7 @@ extern crate core;
 pub use chain::*;
 pub use error::{ChainCommunicationError, ChainResult, HyperlaneProtocolError};
 pub use identifiers::HyperlaneIdentifier;
+pub use matching_list::*;
 pub use traits::*;
 pub use types::*;
 
@@ -32,6 +33,8 @@ mod types;
 
 mod chain;
 mod error;
+
+mod matching_list;
 
 /// Enum for validity of a list of messages
 #[derive(Debug)]

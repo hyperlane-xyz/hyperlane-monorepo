@@ -116,6 +116,79 @@ pub enum KnownHyperlaneDomain {
     FuelTest1 = 13374,
 }
 
+impl HyperlaneDomain {
+    pub fn from_domain_id(
+        domain_id: i32,
+        domain_protocol: HyperlaneDomainProtocol,
+    ) -> HyperlaneDomain {
+        match domain_id {
+            id if id == KnownHyperlaneDomain::Ethereum as i32 => {
+                HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum)
+            }
+            id if id == KnownHyperlaneDomain::Goerli as i32 => {
+                HyperlaneDomain::Known(KnownHyperlaneDomain::Goerli)
+            }
+            id if id == KnownHyperlaneDomain::Sepolia as i32 => {
+                HyperlaneDomain::Known(KnownHyperlaneDomain::Sepolia)
+            }
+            id if id == KnownHyperlaneDomain::Polygon as i32 => {
+                HyperlaneDomain::Known(KnownHyperlaneDomain::Polygon)
+            }
+            id if id == KnownHyperlaneDomain::Mumbai as i32 => {
+                HyperlaneDomain::Known(KnownHyperlaneDomain::Mumbai)
+            }
+            id if id == KnownHyperlaneDomain::Avalanche as i32 => {
+                HyperlaneDomain::Known(KnownHyperlaneDomain::Avalanche)
+            }
+            id if id == KnownHyperlaneDomain::Fuji as i32 => {
+                HyperlaneDomain::Known(KnownHyperlaneDomain::Fuji)
+            }
+            id if id == KnownHyperlaneDomain::Arbitrum as i32 => {
+                HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)
+            }
+            id if id == KnownHyperlaneDomain::ArbitrumGoerli as i32 => {
+                HyperlaneDomain::Known(KnownHyperlaneDomain::ArbitrumGoerli)
+            }
+            id if id == KnownHyperlaneDomain::Optimism as i32 => {
+                HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism)
+            }
+            id if id == KnownHyperlaneDomain::OptimismGoerli as i32 => {
+                HyperlaneDomain::Known(KnownHyperlaneDomain::OptimismGoerli)
+            }
+            id if id == KnownHyperlaneDomain::BinanceSmartChain as i32 => {
+                HyperlaneDomain::Known(KnownHyperlaneDomain::BinanceSmartChain)
+            }
+            id if id == KnownHyperlaneDomain::BinanceSmartChainTestnet as i32 => {
+                HyperlaneDomain::Known(KnownHyperlaneDomain::BinanceSmartChainTestnet)
+            }
+            id if id == KnownHyperlaneDomain::Celo as i32 => {
+                HyperlaneDomain::Known(KnownHyperlaneDomain::Celo)
+            }
+            id if id == KnownHyperlaneDomain::Alfajores as i32 => {
+                HyperlaneDomain::Known(KnownHyperlaneDomain::Alfajores)
+            }
+            id if id == KnownHyperlaneDomain::Moonbeam as i32 => {
+                HyperlaneDomain::Known(KnownHyperlaneDomain::Moonbeam)
+            }
+            id if id == KnownHyperlaneDomain::MoonbaseAlpha as i32 => {
+                HyperlaneDomain::Known(KnownHyperlaneDomain::MoonbaseAlpha)
+            }
+            id if id == KnownHyperlaneDomain::Gnosis as i32 => {
+                HyperlaneDomain::Known(KnownHyperlaneDomain::Gnosis)
+            }
+            id if id == KnownHyperlaneDomain::Zksync2Testnet as i32 => {
+                HyperlaneDomain::Known(KnownHyperlaneDomain::Zksync2Testnet)
+            }
+            _ => HyperlaneDomain::Unknown {
+                domain_id: domain_id as u32,
+                domain_name: "Unknown".to_string(),
+                domain_type: HyperlaneDomainType::Unknown,
+                domain_protocol,
+            },
+        }
+    }
+}
+
 #[derive(Clone)]
 pub enum HyperlaneDomain {
     Known(KnownHyperlaneDomain),

@@ -1,0 +1,7 @@
+[
+  {
+    "senderAddress": "*",
+    "destinationDomain": ["80001"],
+    "recipientAddress": "*"
+  }
+]

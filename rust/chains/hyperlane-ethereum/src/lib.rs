@@ -63,6 +63,8 @@ mod singleton_signer;
 
 mod config;
 
+mod middleware;
+
 fn extract_fn_map(abi: &'static Lazy<abi::Abi>) -> HashMap<Vec<u8>, &'static str> {
     abi.functions()
         .map(|f| (f.selector().to_vec(), f.name.as_str()))

@@ -483,6 +483,22 @@ where
 
         AbiEncode::encode(process_call)
     }
+
+    async fn dispatch(
+        &self,
+        destination_domain: u32,
+        recipient_address: H256,
+        message_body: Vec<u8>,
+    ) -> ChainResult<TxOutcome> {
+        let message_body_bytes = ethers::core::types::Bytes::from(message_body);
+        let contract_call = self.contract.dispatch(
+            destination_domain,
+            recipient_address.into(),
+            message_body_bytes,
+        );
+        let receipt = report_tx(contract_call).await?;
+        Ok(receipt.into())
+    }
 }
 
 pub struct EthereumMailboxAbi;

@@ -11,6 +11,7 @@ members = [
     "ethers-prometheus",
     "hyperlane-base",
     "hyperlane-core",
+    "hyperlane-cli",
     "hyperlane-test",
     "utils/abigen",
     "utils/backtrace-oneline",

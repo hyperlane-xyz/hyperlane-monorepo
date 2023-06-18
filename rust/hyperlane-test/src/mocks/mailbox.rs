@@ -57,6 +57,13 @@ mock! {
             message: &HyperlaneMessage,
             metadata: &[u8],
         ) -> Vec<u8> {}
+
+        pub fn dispatch(
+            &self,
+            destination_domain: u32,
+            recipient_address: H256,
+            message_body: Vec<u8>
+        ) -> ChainResult<TxOutcome> {}
     }
 }
 
@@ -111,6 +118,15 @@ impl Mailbox for MockMailboxContract {
 
     fn process_calldata(&self, message: &HyperlaneMessage, metadata: &[u8]) -> Vec<u8> {
         self.process_calldata(message, metadata)
+    }
+
+    async fn dispatch(
+        &self,
+        destination_domain: u32,
+        recipient_address: H256,
+        message_body: Vec<u8>,
+    ) -> ChainResult<TxOutcome> {
+        self.dispatch(destination_domain, recipient_address, message_body)
     }
 }
 

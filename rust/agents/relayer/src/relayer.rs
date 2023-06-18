@@ -21,7 +21,7 @@ use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
 };
-use hyperlane_core::{HyperlaneDomain, InterchainGasPayment, U256};
+use hyperlane_core::{HyperlaneDomain, InterchainGasPayment, MatchingList, U256};
 
 use crate::msg::pending_message::MessageSubmissionMetrics;
 use crate::{
@@ -34,7 +34,7 @@ use crate::{
         processor::{MessageProcessor, MessageProcessorMetrics},
         serial_submitter::{SerialSubmitter, SerialSubmitterMetrics},
     },
-    settings::{matching_list::MatchingList, RelayerSettings},
+    settings::RelayerSettings,
 };
 
 #[derive(Debug, Hash, PartialEq, Eq, Copy, Clone)]

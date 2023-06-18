@@ -145,6 +145,15 @@ impl Mailbox for FuelMailbox {
     fn process_calldata(&self, message: &HyperlaneMessage, metadata: &[u8]) -> Vec<u8> {
         todo!()
     }
+
+    async fn dispatch(
+        &self,
+        destination_domain: u32,
+        recipient_address: H256,
+        message_body: Vec<u8>,
+    ) -> ChainResult<TxOutcome> {
+        todo!()
+    }
 }
 
 /// Struct that retrieves event data for a Fuel Mailbox contract

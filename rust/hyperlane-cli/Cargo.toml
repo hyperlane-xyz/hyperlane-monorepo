@@ -1,0 +1,29 @@
+[package]
+name = "hyperlane-cli"
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license-file.workspace = true
+publish.workspace = true
+version.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ethers.workspace = true
+url.workspace = true
+eyre.workspace = true
+tokio = { workspace = true, features = ["full"] }
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+colored = "2"
+clap = { version = "4.3.4", features = ["derive"] }
+cli-table = "0.4"
+textwrap = "0.16.0"
+
+
+hyperlane-base = { path = "../hyperlane-base" }
+hyperlane-core = { path = "../hyperlane-core" }
+hyperlane-ethereum = { path = "../chains/hyperlane-ethereum" }

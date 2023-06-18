@@ -19,6 +19,7 @@ use ethers_prometheus::middleware::{
 };
 use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator};
 
+use crate::middleware::client::ClientMiddleware;
 use crate::{signers::Signers, ConnectionConf, FallbackProvider, RetryingProvider};
 
 // This should be whatever the prometheus scrape interval is
@@ -135,6 +136,29 @@ pub trait BuildableWithProvider {
                 self.wrap_with_metrics(ws, locator, signer, middleware_metrics)
                     .await?
             }
+        })
+    }
+
+    /// Create a client connection that is wrapped with a signer and a logging middleware.
+    /// Intended to be used by clients rather than agents.
+    async fn build_client_connection_conf(
+        &self,
+        conf: &ConnectionConf,
+        locator: &ContractLocator,
+        signer: Option<Signers>,
+    ) -> ChainResult<Self::Output> {
+        Ok(match conf {
+            ConnectionConf::Http { url } => {
+                let http_client = Client::builder()
+                    .timeout(HTTP_CLIENT_TIMEOUT)
+                    .build()
+                    .map_err(EthereumProviderConnectionError::from)?;
+                let http_client = Http::new_with_client(url.clone(), http_client);
+                let http_provider = Provider::new(http_client);
+                let provider = Arc::new(ClientMiddleware::new(http_provider));
+                self.wrap_with_signer(provider, locator, signer).await?
+            }
+            _ => todo!(),
         })
     }
 
