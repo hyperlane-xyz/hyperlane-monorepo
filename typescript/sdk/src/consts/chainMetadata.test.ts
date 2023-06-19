@@ -1,10 +1,15 @@
 import { expect } from 'chai';
 
-import { ChainMetadata, isValidChainMetadata } from './chainMetadata';
+import {
+  ChainMetadata,
+  ProtocolType,
+  isValidChainMetadata,
+} from './chainMetadata';
 
 const minimalSchema: ChainMetadata = {
   chainId: 5,
   name: 'goerli',
+  type: ProtocolType.Ethereum,
   publicRpcUrls: [{ http: 'https://foobar.com' }],
 };
 

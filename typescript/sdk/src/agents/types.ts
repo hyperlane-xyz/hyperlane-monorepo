@@ -1,5 +1,6 @@
 import { types } from '@hyperlane-xyz/utils';
 
+import { ProtocolType } from '../consts/chainMetadata';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
@@ -30,18 +31,13 @@ export interface HyperlaneAgentAddresses {
   validatorAnnounce: types.Address;
 }
 
-export enum AgentProtocol {
-  Ethereum = 'ethereum',
-  Fuel = 'fuel',
-}
-
 export interface AgentChainSetupBase {
   name: ChainName;
   domain: number;
   signer?: AgentSigner;
   finalityBlocks: number;
   addresses: HyperlaneAgentAddresses;
-  protocol: AgentProtocol;
+  protocol: ProtocolType;
   connection?: AgentConnection;
   index?: { from: number };
 }
@@ -79,7 +75,7 @@ export function buildAgentConfig(
         interchainGasPaymaster: addresses[chain].interchainGasPaymaster,
         validatorAnnounce: addresses[chain].validatorAnnounce,
       },
-      protocol: AgentProtocol.Ethereum,
+      protocol: metadata.type,
       finalityBlocks: metadata.blocks?.reorgPeriod ?? 1,
     };
 
