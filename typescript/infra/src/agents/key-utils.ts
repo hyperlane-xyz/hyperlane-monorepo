@@ -1,4 +1,4 @@
-import { ChainName, chainMetadata } from '@hyperlane-xyz/sdk';
+import { ChainName, ProtocolType, chainMetadata } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import {
