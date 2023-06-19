@@ -1,17 +1,16 @@
-use borsh::BorshDeserialize;
 use hyperlane_core::H256;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs::File, path::Path, str::FromStr};
 
 use solana_client::{client_error::ClientError, rpc_client::RpcClient};
 use solana_program::program_error::ProgramError;
-use solana_sdk::{pubkey::Pubkey, signature::Signer};
+use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey, signature::Signer};
 
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 
 use hyperlane_sealevel_token::{hyperlane_token_mint_pda_seeds, spl_token, spl_token_2022};
 use hyperlane_sealevel_token_lib::{
-    accounts::HyperlaneToken,
+    accounts::HyperlaneTokenAccount,
     hyperlane_token_pda_seeds,
     instruction::{enroll_remote_routers_instruction, Init},
 };
@@ -61,7 +60,7 @@ impl TokenType {
 struct TokenMetadata {
     name: String,
     symbol: String,
-    total_supply: String,
+    total_supply: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -136,7 +135,10 @@ pub struct ChainMetadata {
 
 impl ChainMetadata {
     fn client(&self) -> RpcClient {
-        RpcClient::new(self.public_rpc_urls[0].http.clone())
+        RpcClient::new_with_commitment(
+            self.public_rpc_urls[0].http.clone(),
+            CommitmentConfig::confirmed(),
+        )
     }
 
     fn domain_id(&self) -> u32 {
@@ -256,21 +258,28 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                     .chain(routers_to_unenroll)
                     .collect::<Vec<RemoteRouterConfig>>();
 
-                println!(
-                    "Enrolling routers for chain: {}, program_id {}, routers: {:?}",
-                    chain_name, program_id, router_configs,
-                );
+                if !router_configs.is_empty() {
+                    println!(
+                        "Enrolling routers for chain: {}, program_id {}, routers: {:?}",
+                        chain_name, program_id, router_configs,
+                    );
 
-                ctx.instructions.push(
-                    enroll_remote_routers_instruction(
-                        program_id,
-                        ctx.payer.pubkey(),
-                        router_configs,
-                    )
-                    .unwrap(),
-                );
-                ctx.send_transaction_with_client(&chain_config.client(), &[&ctx.payer]);
-                ctx.instructions.clear();
+                    ctx.instructions.push(
+                        enroll_remote_routers_instruction(
+                            program_id,
+                            ctx.payer.pubkey(),
+                            router_configs,
+                        )
+                        .unwrap(),
+                    );
+                    ctx.send_transaction_with_client(&chain_config.client(), &[&ctx.payer]);
+                    ctx.instructions.clear();
+                } else {
+                    println!(
+                        "No router changes for chain: {}, program_id {}",
+                        chain_name, program_id
+                    );
+                }
             }
 
             let routers_by_name: HashMap<String, H256> = routers
@@ -502,9 +511,17 @@ fn init_warp_route(
     Ok(())
 }
 
-fn get_routers(client: &RpcClient, program_id: &Pubkey) -> Result<HashMap<u32, H256>, ClientError> {
-    let account = client.get_account(program_id)?;
-    let token_data = HyperlaneToken::<()>::try_from_slice(&account.data[..]).unwrap();
+fn get_routers(
+    client: &RpcClient,
+    token_program_id: &Pubkey,
+) -> Result<HashMap<u32, H256>, ClientError> {
+    let (token_pda, _token_bump) =
+        Pubkey::find_program_address(hyperlane_token_pda_seeds!(), token_program_id);
+
+    let account = client.get_account(&token_pda)?;
+    let token_data = HyperlaneTokenAccount::<()>::fetch(&mut &account.data[..])
+        .unwrap()
+        .into_inner();
 
     Ok(token_data.remote_routers)
 }
@@ -522,7 +539,7 @@ fn write_program_ids(warp_route_dir: &Path, routers: &HashMap<String, H256>) {
             (
                 chain_name.clone(),
                 SerializedProgramId {
-                    hex: router.to_string(),
+                    hex: format!("0x{}", hex::encode(router)),
                     base58: Pubkey::new_from_array(router.to_fixed_bytes()).to_string(),
                 },
             )
