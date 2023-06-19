@@ -4,25 +4,23 @@ use std::time::{Duration, Instant};
 use std::vec;
 
 use eyre::Result;
-use hyperlane_base::db::HyperlaneRocksDB;
-use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use prometheus::IntGauge;
 use tokio::time::sleep;
 use tracing::instrument;
 use tracing::{debug, info};
 
-use hyperlane_base::{CheckpointSyncer, CoreMetrics};
-
+use hyperlane_base::{db::HyperlaneRocksDB, CheckpointSyncer, CoreMetrics};
 use hyperlane_core::{
-    Checkpoint, CheckpointWithMessageId, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneSigner, HyperlaneSignerExt, Mailbox,
+    accumulator::incremental::IncrementalMerkle, Checkpoint, CheckpointWithMessageId,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSignerExt, Mailbox,
 };
+use hyperlane_ethereum::SingletonSignerHandle;
 
 #[derive(Clone)]
 pub(crate) struct ValidatorSubmitter {
     interval: Duration,
     reorg_period: Option<NonZeroU64>,
-    signer: Arc<dyn HyperlaneSigner>,
+    signer: SingletonSignerHandle,
     mailbox: Arc<dyn Mailbox>,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
     message_db: HyperlaneRocksDB,
@@ -34,7 +32,7 @@ impl ValidatorSubmitter {
         interval: Duration,
         reorg_period: u64,
         mailbox: Arc<dyn Mailbox>,
-        signer: Arc<dyn HyperlaneSigner>,
+        signer: SingletonSignerHandle,
         checkpoint_syncer: Arc<dyn CheckpointSyncer>,
         message_db: HyperlaneRocksDB,
         metrics: ValidatorSubmitterMetrics,
@@ -59,7 +57,7 @@ impl ValidatorSubmitter {
         }
     }
 
-    #[instrument(err, skip(self), fields(domain=%self.mailbox.domain()))]
+    #[instrument(err, skip(self, tree), fields(domain=%self.mailbox.domain()))]
     pub(crate) async fn checkpoint_submitter(
         self,
         mut tree: IncrementalMerkle,
@@ -99,19 +97,36 @@ impl ValidatorSubmitter {
 
                 // compare against every queued checkpoint to prevent ingesting past target
                 if checkpoint == correctness_checkpoint {
-                    debug!(
-                        index = checkpoint.index,
-                        "Reached tree consistency, signing queued checkpoints"
-                    );
+                    debug!(index = checkpoint.index, "Reached tree consistency");
 
                     // drain and sign all checkpoints in the queue
                     for queued_checkpoint in checkpoint_queue.drain(..) {
+                        let existing = self
+                            .checkpoint_syncer
+                            .fetch_checkpoint(queued_checkpoint.index)
+                            .await?;
+                        if existing.is_some() {
+                            debug!(
+                                index = queued_checkpoint.index,
+                                "Checkpoint already submitted"
+                            );
+                            continue;
+                        }
+
                         let signed_checkpoint = self.signer.sign(queued_checkpoint).await?;
                         self.checkpoint_syncer
                             .write_checkpoint(&signed_checkpoint)
                             .await?;
-                        info!(index = queued_checkpoint.index, "Signed checkpoint");
+                        debug!(
+                            index = queued_checkpoint.index,
+                            "Signed and submitted checkpoint"
+                        );
+
+                        // small sleep before signing next checkpoint to avoid rate limiting
+                        sleep(Duration::from_millis(100)).await;
                     }
+
+                    info!(index = checkpoint.index, "Signed all queued checkpoints");
 
                     self.metrics
                         .latest_checkpoint_processed
@@ -133,18 +148,6 @@ impl ValidatorSubmitter {
     }
 
     pub(crate) async fn legacy_checkpoint_submitter(self) -> Result<()> {
-        // Ensure that the mailbox has > 0 messages before we enter the main
-        // validator submit loop. This is to avoid an underflow / reverted
-        // call when we invoke the `mailbox.latest_checkpoint()` method,
-        // which returns the **index** of the last element in the tree
-        // rather than just the size.  See
-        // https://github.com/hyperlane-network/hyperlane-monorepo/issues/575 for
-        // more details.
-        while self.mailbox.count(self.reorg_period).await? == 0 {
-            info!("Waiting for first message to mailbox");
-            sleep(self.interval).await;
-        }
-
         // current_index will be None if the validator cannot find
         // a previously signed checkpoint
         let mut current_index = self.checkpoint_syncer.latest_index().await?;
