@@ -54,7 +54,7 @@
       "finalityBlocks": "0",
       "connection": {
         "type": "http",
-        "url": "http://localhost:8899"
+        "url": "http://api.devnet.solana.com"
       },
       "index": {
         "from": "1",
@@ -74,7 +74,7 @@
       "finalityBlocks": "0",
       "connection": {
         "type": "http",
-        "url": "http://localhost:8899"
+        "url": "http://api.devnet.solana.com"
       },
       "index": {
         "from": "1",
