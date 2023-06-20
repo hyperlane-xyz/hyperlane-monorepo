@@ -1,4 +1,4 @@
-import { PopulatedTransaction } from 'ethers';
+import { BigNumber, PopulatedTransaction } from 'ethers';
 import { formatEther } from 'ethers/lib/utils';
 
 import {
@@ -45,9 +45,22 @@ async function main() {
       const toKey = getCloudAgentKey(agentConfig, Role.Relayer);
       await toKey.fetch();
 
-      const chainsForEnv = Object.keys(envConfig.chainMetadataConfigs);
-      for (const chain of chainsForEnv) {
-        await transfer(chain, agentConfig, igp, multiProvider, toKey);
+      const chainsForEnv = Object.keys(envConfig.chainMetadataConfigs).filter(
+        (chain) => chainMetadata[chain].protocol == ProtocolType.Ethereum,
+      );
+      for (const originChain of chainsForEnv) {
+        const fromKey = new OldRelayerAwsKey(agentConfig, originChain);
+        await fromKey.fetch();
+        for (const chain of chainsForEnv) {
+          await transfer(
+            chain,
+            agentConfig,
+            igp,
+            multiProvider,
+            fromKey,
+            toKey,
+          );
+        }
       }
     }
   }
@@ -58,18 +71,18 @@ async function transfer(
   agentConfig: AgentContextConfig,
   igp: HyperlaneIgp,
   multiProvider: MultiProvider,
+  fromKey: CloudAgentKey,
   toKey: CloudAgentKey,
 ) {
   if (chainMetadata[chain].protocol != ProtocolType.Ethereum) return;
-  const fromKey = new OldRelayerAwsKey(agentConfig, chain);
   const logCtx: any = {
+    chain,
     from: fromKey.identifier,
+    fromKey: fromKey.address,
     to: toKey.identifier,
     toKey: toKey.address,
   };
   console.log('Processing key', logCtx);
-  await fromKey.fetch();
-  logCtx.fromKey = fromKey.address;
 
   const igpContract = igp.getContracts(chain).interchainGasPaymaster;
 
@@ -109,7 +122,7 @@ async function transfer(
     .getBalance(fromKey.address);
   const transferTx: PopulatedTransaction = {
     to: toKey.address,
-    value: currentBalance,
+    value: BigNumber.from(0),
   };
   const gasToTransfer = await multiProvider.estimateGas(chain, transferTx);
   const costToTransfer = gasToTransfer.mul(gasPrice);
