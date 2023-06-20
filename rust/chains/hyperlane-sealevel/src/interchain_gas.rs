@@ -1,17 +1,12 @@
 use async_trait::async_trait;
 use hyperlane_core::{
-    ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneProvider, IndexRange, Indexer, InterchainGasPaymaster,
-    InterchainGasPayment, LogMeta, H256,
+    ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneProvider, IndexRange, Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta,
+    H256,
 };
 use tracing::{info, instrument};
 
-use crate::{
-    solana::{
-        pubkey::Pubkey,
-    },
-    ConnectionConf, SealevelProvider,
-};
+use crate::{solana::pubkey::Pubkey, ConnectionConf, SealevelProvider};
 
 /// A reference to an IGP contract on some Sealevel chain
 #[derive(Debug)]
@@ -53,11 +48,13 @@ impl InterchainGasPaymaster for SealevelInterchainGasPaymaster {}
 
 /// Struct that retrieves event data for a Sealevel IGP contract
 #[derive(Debug)]
-pub struct SealevelInterchainGasPaymasterIndexer {
-}
+pub struct SealevelInterchainGasPaymasterIndexer {}
 
 impl SealevelInterchainGasPaymasterIndexer {
-    pub fn new(_conf: &ConnectionConf, _locator: ContractLocator /*TODO don't need?*/) -> Self {
+    pub fn new(
+        _conf: &ConnectionConf,
+        _locator: ContractLocator, /*TODO don't need?*/
+    ) -> Self {
         Self {}
     }
 }

@@ -114,7 +114,6 @@ pub enum KnownHyperlaneDomain {
 
     /// Fuel1 local chain
     FuelTest1 = 13374,
-
     // TODO: re-add once we deploy solanadevnet with a new domain ID.
     // /// Sealevel local chain.
     // SealevelTest1 = 13375,
