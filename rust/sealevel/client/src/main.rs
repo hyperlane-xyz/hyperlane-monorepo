@@ -62,7 +62,7 @@ use solana_sdk::{
     transaction::Transaction,
 };
 
-use std::path::PathBuf;
+use std::{path::PathBuf, str::FromStr};
 
 mod cmd_utils;
 mod r#core;
@@ -320,7 +320,7 @@ struct TokenTransferRemote {
     destination_domain: u32,
     #[arg(long, short = 't', default_value_t = HYPERLANE_TOKEN_PROG_ID)]
     destination_token_program_id: Pubkey,
-    recipient: Pubkey,
+    recipient: String,
     #[arg(value_enum)]
     token_type: TokenType,
 }
@@ -881,6 +881,13 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
             is_keypair(&xfer.sender).unwrap();
             let sender = read_keypair_file(xfer.sender).unwrap();
 
+            let recipient = if xfer.recipient.starts_with("0x") {
+                H256::from_str(&xfer.recipient).unwrap()
+            } else {
+                let pubkey = Pubkey::from_str(&xfer.recipient).unwrap();
+                H256::from_slice(&pubkey.to_bytes()[..])
+            };
+
             let (token_account, _token_bump) =
                 Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &xfer.program_id);
             let (dispatch_authority_account, _dispatch_authority_bump) =
@@ -901,7 +908,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
 
             let ixn = HtInstruction::TransferRemote(HtTransferRemote {
                 destination_domain: xfer.destination_domain,
-                recipient: xfer.recipient.to_bytes().into(),
+                recipient,
                 amount_or_id: xfer.amount.into(),
             });
 
