@@ -3,6 +3,7 @@ import {
   DeletePublicAccessBlockCommand,
   GetPublicAccessBlockCommand,
   ListBucketsCommand,
+  PublicAccessBlockConfiguration,
   PutBucketPolicyCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
@@ -97,8 +98,21 @@ export class ValidatorAgentAwsUser extends AgentAwsUser {
     const getCmd = new GetPublicAccessBlockCommand({
       Bucket: this.bucket,
     });
-    const { PublicAccessBlockConfiguration: configuration } =
-      await this.adminS3Client.send(getCmd);
+    let configuration: PublicAccessBlockConfiguration | undefined = undefined;
+    try {
+      const { PublicAccessBlockConfiguration } = await this.adminS3Client.send(
+        getCmd,
+      );
+      configuration = PublicAccessBlockConfiguration;
+    } catch (e) {
+      if (
+        e instanceof Error &&
+        e.message.includes('NoSuchPublicAccessBlockConfiguration')
+      ) {
+        // No public access block exists
+        return;
+      }
+    }
     const blockExists =
       configuration?.BlockPublicAcls ||
       configuration?.BlockPublicPolicy ||

@@ -40,7 +40,6 @@ export class AgentAwsUser {
   // Gets API access keys and saves them in GCP secret manager if they do not already exist.
   // Populates `this._arn` with the ARN of the user.
   async createIfNotExists() {
-    console.log('in createIfNotExists');
     const users = await this.getUsers();
     const match = users.find((user) => user.UserName === this.userName);
     if (match) {
@@ -48,9 +47,7 @@ export class AgentAwsUser {
     } else {
       this._arn = await this.create();
     }
-    console.log('this._arn', this._arn);
     if (!(await this.accessKeysExist())) {
-      console.log('about to create and save access key');
       await this.createAndSaveAccessKey();
     }
   }

@@ -74,7 +74,7 @@ const hyperlane: RootAgentConfig = {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: 'd71a0c6-20230620-103106',
+      tag: '29b6bd2-20230620-134737',
     },
     chains: validators,
   },
@@ -95,7 +95,7 @@ const releaseCandidate: RootAgentConfig = {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: '2deb9b8-20230602-205342',
+      tag: '29b6bd2-20230620-134737',
     },
     whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,

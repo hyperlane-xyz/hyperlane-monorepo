@@ -19,18 +19,31 @@ interface KeyAsAddress {
   address: string;
 }
 
-// export function getRelayerCloudAgentKeys(
-//   agentConfig: AgentContextConfig,
-// ) {
-//   // Ethereum key
-//   let ethereumKey = getCloudAgentKey(agentConfig, Role.Relayer);
+export function getRelayerCloudAgentKeys(
+  agentConfig: AgentContextConfig,
+): Array<CloudAgentKey> {
+  const keys = [];
 
-//   // All other chains require a unique key
-//   let nonEthereumChains = agentConfig.contextChainNames.filter(
-//     (chainName) => chainMetadata[chainName].type !== ProtocolType.Ethereum
-//   );
-//   let otherKeys = nonEthereumChains.map((chainName) => getCloudAgentKey(agentConfig, Role.Relayer, chainName));
-// }
+  const isAws = !!agentConfig.aws;
+  if (isAws) {
+    keys.push(new AgentAwsKey(agentConfig, Role.Relayer));
+    let nonEthereumChains = agentConfig.contextChainNames.find(
+      (chainName) => chainMetadata[chainName].type !== ProtocolType.Ethereum,
+    );
+    // If there are any non-ethereum chains, we also want hex keys.
+    if (nonEthereumChains) {
+      keys.push(
+        new AgentGCPKey(agentConfig.runEnv, agentConfig.context, Role.Relayer),
+      );
+    }
+  } else {
+    keys.push(
+      new AgentGCPKey(agentConfig.runEnv, agentConfig.context, Role.Relayer),
+    );
+  }
+
+  return keys;
+}
 
 export function getCloudAgentKey(
   agentConfig: AgentContextConfig,
@@ -76,7 +89,7 @@ export function getAllCloudAgentKeys(
 ): Array<CloudAgentKey> {
   const keys = [];
   if ((agentConfig.rolesWithKeys ?? []).includes(Role.Relayer))
-    keys.push(getCloudAgentKey(agentConfig, Role.Relayer));
+    keys.push(...getRelayerCloudAgentKeys(agentConfig));
   if ((agentConfig.rolesWithKeys ?? []).includes(Role.Validator))
     keys.push(...getValidatorCloudAgentKeys(agentConfig));
   for (const role of agentConfig.rolesWithKeys) {
