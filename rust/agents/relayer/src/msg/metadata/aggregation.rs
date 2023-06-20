@@ -1,6 +1,10 @@
 use async_trait::async_trait;
-use futures_util::future::{join_all, try_join_all};
-use std::ops::Deref;
+use ethers::types::Res;
+use futures_util::{
+    future::{join_all, try_join, try_join_all},
+    FutureExt,
+};
+use std::{ops::Deref, ptr::metadata};
 
 use derive_new::new;
 use eyre::Context;
@@ -70,18 +74,27 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         const CTX: &str = "When fetching RoutingIsm metadata";
         let ism = self.build_aggregation_ism(ism_address).await.context(CTX)?;
         let (modules, threshold) = ism.modules_and_threshold(message).await.context(CTX)?;
-        let metadatas = join_all(
-            modules
-                .iter()
-                .map(|ism_address| self.base.build(*ism_address, message)),
-        )
+        let sub_isms: Vec<_> = join_all(modules.iter().map(|ism_address| {
+            try_join(
+                self.base.build(*ism_address, message),
+                self.base.build_ism(*ism_address),
+            )
+        }))
+        .await
+        .into_iter()
+        .filter_map(|r| match r.ok() {
+            Some((Some(metadata), ism)) => Some((metadata, ism)),
+            _ => None,
+        })
+        .collect();
+
+        let metadatas_and_gas_costs = join_all(sub_isms.iter().map(|(metadata, ism)| async {
+            let gas_cost = ism.dry_run_verify(message, metadata).await;
+            (metadata, gas_cost)
+        }))
         .await;
-        // Vec<Result<Option<Vec<u8>>, Report>>
-        // Vec<Option<Vec<u8>>>
-        let mut filtered_metadatas: Vec<_> = metadatas
-            .into_iter()
-            .filter_map(|m| m.ok().and_then(|meta| meta))
-            .collect();
+        // Filter this to only keep the non-none gas costs
+        // Then sort by gas cost
 
         let filtered_builders_count = filtered_metadatas.len();
         if filtered_builders_count < (threshold as usize) {

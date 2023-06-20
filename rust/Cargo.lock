@@ -2837,6 +2837,7 @@ dependencies = [
  "ethers-contract",
  "ethers-prometheus",
  "ethers-signers",
+ "futures-util",
  "hex 0.4.3",
  "hyperlane-core",
  "num",
