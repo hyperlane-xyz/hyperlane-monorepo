@@ -441,17 +441,6 @@ contract OffchainAggregator is HyperlaneConnectionClient {
         bytes calldata _report
     ) external {
         uint256 initialGas = gasleft(); // This line must come first
-        // Make sure the transmit message-length matches the inputs. Otherwise, the
-        // transmitter could append an arbitrarily long (up to gas-block limit)
-        // string of 0 bytes, which we would reimburse at a rate of 16 gas/byte, but
-        // which would only cost the transmitter 4 gas/byte. (Appendix G of the
-        // yellow paper, p. 25, for G_txdatazero and EIP 2028 for G_txdatanonzero.)
-        // This could amount to reimbursement profit of 36 million gas, given a 3MB
-        // zero tail.
-        require(
-            msg.data.length == expectedMsgDataLength(_report, _rs, _ss),
-            "transmit message too long"
-        );
         ReportData memory r; // Relieves stack pressure
         {
             r.hotVars = s_hotVars; // cache read from storage
