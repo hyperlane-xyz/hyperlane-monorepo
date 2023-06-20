@@ -37,8 +37,8 @@ interface IPortalTokenBridge {
         bytes32 module;
         uint8 action;
         uint16 chainId;
-        uint16 senderChainID;
-        bytes32 senderAddress;
+        uint16 emitterChainID;
+        bytes32 emitterAddress;
     }
 
     struct UpgradeContract {
