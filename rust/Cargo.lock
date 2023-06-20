@@ -2042,7 +2042,7 @@ dependencies = [
 [[package]]
 name = "fixed-hash"
 version = "0.8.0"
-source = "git+ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix#05ef0bec2de0fed8c5306dcb4fa28e81efde0638"
+source = "git+https://github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix#05ef0bec2de0fed8c5306dcb4fa28e81efde0638"
 dependencies = [
  "byteorder",
  "rand 0.8.5",
@@ -3200,7 +3200,7 @@ dependencies = [
 [[package]]
 name = "impl-borsh"
 version = "0.1.0"
-source = "git+ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix#05ef0bec2de0fed8c5306dcb4fa28e81efde0638"
+source = "git+https://github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix#05ef0bec2de0fed8c5306dcb4fa28e81efde0638"
 dependencies = [
  "borsh 0.9.3",
 ]
@@ -3217,7 +3217,7 @@ dependencies = [
 [[package]]
 name = "impl-codec"
 version = "0.6.0"
-source = "git+ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix#05ef0bec2de0fed8c5306dcb4fa28e81efde0638"
+source = "git+https://github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix#05ef0bec2de0fed8c5306dcb4fa28e81efde0638"
 dependencies = [
  "parity-scale-codec",
 ]
@@ -3234,7 +3234,7 @@ dependencies = [
 [[package]]
 name = "impl-rlp"
 version = "0.3.0"
-source = "git+ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix#05ef0bec2de0fed8c5306dcb4fa28e81efde0638"
+source = "git+https://github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix#05ef0bec2de0fed8c5306dcb4fa28e81efde0638"
 dependencies = [
  "rlp",
 ]
@@ -3251,7 +3251,7 @@ dependencies = [
 [[package]]
 name = "impl-serde"
 version = "0.4.0"
-source = "git+ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix#05ef0bec2de0fed8c5306dcb4fa28e81efde0638"
+source = "git+https://github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix#05ef0bec2de0fed8c5306dcb4fa28e81efde0638"
 dependencies = [
  "serde",
 ]
@@ -4391,13 +4391,13 @@ dependencies = [
 [[package]]
 name = "primitive-types"
 version = "0.12.1"
-source = "git+ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix#05ef0bec2de0fed8c5306dcb4fa28e81efde0638"
+source = "git+https://github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix#05ef0bec2de0fed8c5306dcb4fa28e81efde0638"
 dependencies = [
- "fixed-hash 0.8.0 (git+ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix)",
+ "fixed-hash 0.8.0 (git+https://github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix)",
  "impl-borsh",
- "impl-codec 0.6.0 (git+ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix)",
- "impl-rlp 0.3.0 (git+ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix)",
- "impl-serde 0.4.0 (git+ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix)",
+ "impl-codec 0.6.0 (git+https://github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix)",
+ "impl-rlp 0.3.0 (git+https://github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix)",
+ "impl-serde 0.4.0 (git+https://github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix)",
  "scale-info",
  "uint",
 ]
@@ -4815,7 +4815,7 @@ dependencies = [
 [[package]]
 name = "rlp"
 version = "0.5.2"
-source = "git+ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix#05ef0bec2de0fed8c5306dcb4fa28e81efde0638"
+source = "git+https://github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix#05ef0bec2de0fed8c5306dcb4fa28e81efde0638"
 dependencies = [
  "bytes",
  "rustc-hex",
