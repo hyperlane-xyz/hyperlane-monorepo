@@ -93,12 +93,7 @@ contract CCTPAdapter is ILiquidityLayerAdapterV2, GasRouter {
             _destinationDomain
         ];
 
-        // Approve the token to Circle. We assume that the LiquidityLayerRouterV2
-        // has already transferred the token to this contract.
-        require(
-            IERC20(token).approve(address(tokenMessenger), _amount),
-            "!approval"
-        );
+        IERC20(token).transferFrom(msg.sender, address(this), _amount);
 
         uint64 _nonce = tokenMessenger.depositForBurn(
             _amount,
