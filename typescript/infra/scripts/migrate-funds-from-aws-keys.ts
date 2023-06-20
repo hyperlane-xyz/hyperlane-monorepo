@@ -4,7 +4,6 @@ import { formatEther } from 'ethers/lib/utils';
 import {
   AgentConnectionType,
   ChainName,
-  Chains,
   HyperlaneIgp,
   MultiProvider,
   ProtocolType,
@@ -14,7 +13,7 @@ import {
 import { Contexts } from '../config/contexts';
 import { AgentAwsKey } from '../src/agents/aws';
 import { getCloudAgentKey } from '../src/agents/key-utils';
-import { BaseAgentKey } from '../src/agents/keys';
+import { CloudAgentKey } from '../src/agents/keys';
 import { AgentContextConfig } from '../src/config';
 import {
   DeployEnvironment,
@@ -44,8 +43,10 @@ async function main() {
       );
 
       const toKey = getCloudAgentKey(agentConfig, Role.Relayer);
+      await toKey.fetch();
 
-      for (const chain of Object.values(Chains)) {
+      const chainsForEnv = Object.keys(envConfig.chainMetadataConfigs);
+      for (const chain of chainsForEnv) {
         await transfer(chain, agentConfig, igp, multiProvider, toKey);
       }
     }
@@ -53,14 +54,22 @@ async function main() {
 }
 
 async function transfer(
-  chain: Chains,
+  chain: ChainName,
   agentConfig: AgentContextConfig,
   igp: HyperlaneIgp,
   multiProvider: MultiProvider,
-  toKey: BaseAgentKey,
+  toKey: CloudAgentKey,
 ) {
   if (chainMetadata[chain].protocol != ProtocolType.Ethereum) return;
   const fromKey = new OldRelayerAwsKey(agentConfig, chain);
+  const logCtx: any = {
+    from: fromKey.identifier,
+    to: toKey.identifier,
+    toKey: toKey.address,
+  };
+  console.log('Processing key', logCtx);
+  await fromKey.fetch();
+  logCtx.fromKey = fromKey.address;
 
   const igpContract = igp.getContracts(chain).interchainGasPaymaster;
 
@@ -78,6 +87,7 @@ async function transfer(
     // only claim if the cost to do so is less than the balance we are claiming
     // await multiProvider.sendTransaction(chain, claimIgpFundsTx);
     console.log('Claimed IGP funds', {
+      ...logCtx,
       igpAddress: igpContract.address,
       igpBalance: formatEther(igpBalance),
       cost: formatEther(costToClaimIgpFunds),
@@ -87,6 +97,7 @@ async function transfer(
     gasPrice = await multiProvider.getProvider(chain).getGasPrice();
   } else {
     console.log('IGP balance too low to claim', {
+      ...logCtx,
       igpAddress: igpContract.address,
       igpBalance: formatEther(igpBalance),
       cost: formatEther(costToClaimIgpFunds),
@@ -104,7 +115,7 @@ async function transfer(
   const costToTransfer = gasToTransfer.mul(gasPrice);
   if (costToTransfer.gt(currentBalance)) {
     console.log('Not enough funds to transfer', {
-      address: fromKey.address,
+      ...logCtx,
       balance: formatEther(currentBalance),
     });
     return;
@@ -113,6 +124,7 @@ async function transfer(
   transferTx.gasLimit = gasToTransfer;
   // await multiProvider.sendTransaction(chain, transferTx);
   console.log('Transferred funds', {
+    ...logCtx,
     originalBalance: formatEther(currentBalance),
     finalBalance: formatEther(
       await multiProvider.getProvider(chain).getBalance(fromKey.address),
@@ -120,9 +132,10 @@ async function transfer(
     destinationBalance: formatEther(
       await multiProvider.getProvider(chain).getBalance(toKey.address),
     ),
-    gas: costToTransfer,
+    cost: formatEther(costToTransfer),
     transferTx,
   });
+  // await fromKey.delete();
 }
 
 class OldRelayerAwsKey extends AgentAwsKey {
@@ -131,7 +144,7 @@ class OldRelayerAwsKey extends AgentAwsKey {
   }
 
   get identifier(): string {
-    return `${this.context}-${this.environment}-key-${this.chainName}-${this.role}`;
+    return `alias/${this.context}-${this.environment}-key-${this.chainName}-${this.role}`;
   }
 }
 
