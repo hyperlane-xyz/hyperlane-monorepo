@@ -19,6 +19,19 @@ interface KeyAsAddress {
   address: string;
 }
 
+// export function getRelayerCloudAgentKeys(
+//   agentConfig: AgentContextConfig,
+// ) {
+//   // Ethereum key
+//   let ethereumKey = getCloudAgentKey(agentConfig, Role.Relayer);
+
+//   // All other chains require a unique key
+//   let nonEthereumChains = agentConfig.contextChainNames.filter(
+//     (chainName) => chainMetadata[chainName].type !== ProtocolType.Ethereum
+//   );
+//   let otherKeys = nonEthereumChains.map((chainName) => getCloudAgentKey(agentConfig, Role.Relayer, chainName));
+// }
+
 export function getCloudAgentKey(
   agentConfig: AgentContextConfig,
   role: Role,
@@ -29,7 +42,7 @@ export function getCloudAgentKey(
   // The deployer is always GCP-based
   isAws = isAws && role !== Role.Deployer;
   let isSealevel =
-    !!chainName && chainMetadata[chainName].type != ProtocolType.Sealevel;
+    !!chainName && chainMetadata[chainName].type === ProtocolType.Sealevel;
   // Sealevel chains should use GCP-based hex keys for relayers
   isAws = isAws && !(isSealevel && role == Role.Relayer);
   if (isAws) {

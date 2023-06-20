@@ -1,3 +1,5 @@
+import { sleep } from '@hyperlane-xyz/utils/dist/src/utils';
+
 import {
   AgentHelmManager,
   RelayerHelmManager,
@@ -32,7 +34,8 @@ export class AgentCli {
     for (const role of this.roles) {
       switch (role) {
         case Role.Validator:
-          for (const chain of this.agentConfig.contextChainNames) {
+          for (const chain of ['solanadevnet']) {
+            //this.agentConfig.contextChainNames) {
             const key = `${role}-${chain}`;
             managers[key] = new ValidatorHelmManager(this.agentConfig, chain);
           }
@@ -47,6 +50,9 @@ export class AgentCli {
           throw new Error(`Invalid role ${role}`);
       }
     }
+
+    console.log('managers', managers);
+    await sleep(3000);
 
     await Promise.all(
       Object.values(managers).map((m) =>

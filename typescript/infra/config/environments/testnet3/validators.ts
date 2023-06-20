@@ -310,4 +310,37 @@ export const validators: ValidatorBaseChainConfigMap = {
       },
     ],
   },
+  solanadevnet: {
+    interval: 5,
+    reorgPeriod: 0,
+    validators: [
+      {
+        address: '0xec0f73dbc5b1962a20f7dcbe07c98414025b0c43',
+        name: s3BucketName('solanadevnet', 0),
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('solanadevnet', 0),
+          region: s3BucketRegion,
+        },
+      },
+      {
+        address: '0x9c20a149dfa09ea9f77f5a7ca09ed44f9c025133',
+        name: s3BucketName('solanadevnet', 1),
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('solanadevnet', 1),
+          region: s3BucketRegion,
+        },
+      },
+      {
+        address: '0x967c5ecdf2625ae86580bd203b630abaaf85cd62',
+        name: s3BucketName('solanadevnet', 2),
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('solanadevnet', 2),
+          region: s3BucketRegion,
+        },
+      },
+    ],
+  },
 };

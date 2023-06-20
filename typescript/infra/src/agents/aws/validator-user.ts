@@ -1,5 +1,7 @@
 import {
   CreateBucketCommand,
+  DeletePublicAccessBlockCommand,
+  GetPublicAccessBlockCommand,
   ListBucketsCommand,
   PutBucketPolicyCommand,
   S3Client,
@@ -53,6 +55,10 @@ export class ValidatorAgentAwsUser extends AgentAwsUser {
   }
 
   async putBucketAccessPolicy() {
+    // First ensure there is no public access block, which
+    // will prevent the following put bocket policy command.
+    await this.removePublicAccessBlock();
+
     const policy = {
       Statement: [
         // Make the bucket publicly readable
@@ -81,6 +87,30 @@ export class ValidatorAgentAwsUser extends AgentAwsUser {
       Policy: JSON.stringify(policy),
     });
     await this.adminS3Client.send(cmd);
+  }
+
+  async removePublicAccessBlock() {
+    // By default, a public access block is placed on all buckets,
+    // which prevents the bucket from being made publicly readable by a bucket access policy.
+    // This ensures the block is removed.
+
+    const getCmd = new GetPublicAccessBlockCommand({
+      Bucket: this.bucket,
+    });
+    const { PublicAccessBlockConfiguration: configuration } =
+      await this.adminS3Client.send(getCmd);
+    const blockExists =
+      configuration?.BlockPublicAcls ||
+      configuration?.BlockPublicPolicy ||
+      configuration?.IgnorePublicAcls ||
+      configuration?.RestrictPublicBuckets ||
+      false;
+    if (blockExists) {
+      const deleteCmd = new DeletePublicAccessBlockCommand({
+        Bucket: this.bucket,
+      });
+      await this.adminS3Client.send(deleteCmd);
+    }
   }
 
   key(agentConfig: AgentContextConfig): AgentAwsKey {

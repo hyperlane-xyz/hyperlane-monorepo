@@ -189,4 +189,13 @@ export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
       '0xdf181fcc11dfac5d01467e4547101a856dd5aa04',
     ],
   },
+  solanadevnet: {
+    type: ModuleType.LEGACY_MULTISIG,
+    threshold: 2,
+    validators: [
+      '0xec0f73dbc5b1962a20f7dcbe07c98414025b0c43',
+      '0x9c20a149dfa09ea9f77f5a7ca09ed44f9c025133',
+      '0x967c5ecdf2625ae86580bd203b630abaaf85cd62',
+    ],
+  },
 };
