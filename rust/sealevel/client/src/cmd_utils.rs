@@ -1,4 +1,4 @@
-use hyperlane_core::{H256, H160};
+use hyperlane_core::{H160, H256};
 use std::{
     collections::HashMap,
     fs::File,
