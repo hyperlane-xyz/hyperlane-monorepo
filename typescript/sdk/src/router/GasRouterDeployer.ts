@@ -1,4 +1,5 @@
 import { GasRouter } from '@hyperlane-xyz/core';
+import { types } from '@hyperlane-xyz/utils';
 
 import {
   HyperlaneContracts,
@@ -19,8 +20,9 @@ export abstract class GasRouterDeployer<
   async enrollRemoteRouters(
     contractsMap: HyperlaneContractsMap<Factories>,
     configMap: ChainMap<Config>,
+    foreignRouters: ChainMap<types.Address> = {},
   ): Promise<void> {
-    await super.enrollRemoteRouters(contractsMap, configMap);
+    await super.enrollRemoteRouters(contractsMap, configMap, foreignRouters);
 
     this.logger(`Setting enrolled router destination gas...`);
     for (const [chain, contracts] of Object.entries(contractsMap)) {
