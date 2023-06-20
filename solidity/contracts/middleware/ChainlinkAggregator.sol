@@ -1,16 +1,34 @@
-// SPDX-License-Identifier: Apache-2.0
+// Note: copied from https://github.com/smartcontractkit/libocr/tree/master/contract and
+// modified to be compatible as a Hyperlane client
+
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {AggregatorV3Interface} from "../interfaces/chainlink/AggregatorV3Interface.sol";
 import {HyperlaneConnectionClient} from "../HyperlaneConnectionClient.sol";
 
-import {TypeCasts} from "../libs/TypeCasts.sol";
+/**
+  * @notice Onchain verification of reports from the offchain reporting protocol
 
-contract ChainlinkAggregator is
-    HyperlaneConnectionClient,
-    AggregatorV3Interface
-{
-    address public priceFeed;
+  * @dev For details on its operation, see the offchain reporting protocol design
+  * @dev doc, which refers to this contract as simply the "contract".
+*/
+contract OffchainAggregator is HyperlaneConnectionClient {
+    // Note: https://github.com/smartcontractkit/libocr/blob/master/contract/AggregatorInterface.sol
+    event AnswerUpdated(
+        int256 indexed current,
+        uint256 indexed roundId,
+        uint256 updatedAt
+    );
+    event NewRound(
+        uint256 indexed roundId,
+        address indexed startedBy,
+        uint256 startedAt
+    );
+
+    // Note: https://github.com/smartcontractkit/libocr/blob/master/contract/OffchainAggregatorBilling.sol
+
+    // Maximum number of oracles the offchain reporting protocol is designed for
+    uint256 internal constant maxNumOracles = 31;
 
     // Used for s_oracles[a].role, where a is an address, to track the purpose
     // of the address, or to indicate that the address is unset.
@@ -31,6 +49,23 @@ contract ChainlinkAggregator is
         Role role; // Role of the address which mapped to this struct
     }
 
+    mapping(address => Oracle) /* signer OR transmitter address */
+        internal s_oracles;
+
+    // s_signers contains the signing address of each oracle
+    address[] internal s_signers;
+
+    // s_transmitters contains the transmission address of each oracle,
+    // i.e. the address the oracle actually sends transactions to the contract from
+    address[] internal s_transmitters;
+
+    // Note: https://github.com/smartcontractkit/libocr/blob/master/contract/OffchainAggregator.sol
+
+    uint256 private constant maxUint32 = (1 << 32) - 1;
+
+    // Storing these fields used on the hot path in a HotVars variable reduces the
+    // retrieval of all of them to a single SLOAD. If any further fields are
+    // added, make sure that storage of the struct still takes at most 32 bytes.
     struct HotVars {
         // Provides 128 bits of security against 2nd pre-image attacks, but only
         // 64 bits against collisions. This is acceptable, since a malicious owner has
@@ -48,14 +83,6 @@ contract ChainlinkAggregator is
     }
     HotVars internal s_hotVars;
 
-    struct ReportData {
-        HotVars hotVars; // Only read from storage once
-        bytes observers; // ith element is the index of the ith observer
-        int192[] observations; // ith element is the ith observation
-        bytes vs; // jth element is the v component of the jth signature
-        bytes32 rawReportContext;
-    }
-
     // Transmission records the median answer from the transmit transaction at
     // time timestamp
     struct Transmission {
@@ -65,7 +92,34 @@ contract ChainlinkAggregator is
     mapping(uint32 => Transmission) /* aggregator round ID */
         internal s_transmissions;
 
-    event PriceFeedSet(address indexed feed);
+    // incremented each time a new config is posted. This count is incorporated
+    // into the config digest, to prevent replay attacks.
+    uint32 internal s_configCount;
+    uint32 internal s_latestConfigBlockNumber; // makes it easier for offchain systems
+    // to extract config from logs.
+
+    // Lowest answer the system is allowed to report in response to transmissions
+    int192 public immutable minAnswer;
+    // Highest answer the system is allowed to report in response to transmissions
+    int192 public immutable maxAnswer;
+
+    /*
+     * @param _minAnswer lowest answer the median of a report is allowed to be
+     * @param _maxAnswer highest answer the median of a report is allowed to be
+     * @param _decimals answers are stored in fixed-point format, with this many digits of precision
+     * @param _description short human-readable description of observable this contract's answers pertain to
+     */
+    constructor(
+        int192 _minAnswer,
+        int192 _maxAnswer,
+        uint8 _decimals,
+        string memory _description
+    ) {
+        decimals = _decimals;
+        s_description = _description;
+        minAnswer = _minAnswer;
+        maxAnswer = _maxAnswer;
+    }
 
     /**
      * @notice Initializes the Router contract with Hyperlane core contracts and the address of the interchain security module.
@@ -78,9 +132,7 @@ contract ChainlinkAggregator is
         address _mailbox,
         address _interchainGasPaymaster,
         address _interchainSecurityModule,
-        address _owner,
-        address _priceFeed,
-        uint8 _decimals
+        address _owner
     ) external initializer {
         __HyperlaneConnectionClient_initialize(
             _mailbox,
@@ -88,17 +140,424 @@ contract ChainlinkAggregator is
             _interchainSecurityModule,
             _owner
         );
-        priceFeed = _priceFeed;
-        emit PriceFeedSet(_priceFeed);
-
-        decimals = _decimals;
     }
 
-    // Public functions
+    /*
+     * Versioning
+     */
+    function typeAndVersion() external pure virtual returns (string memory) {
+        return "OffchainAggregator 4.0.0";
+    }
 
-    function setPriceFeed(address _feed) external onlyOwner {
-        priceFeed = _feed;
-        emit PriceFeedSet(_feed);
+    /*
+     * Config logic
+     */
+
+    /**
+     * @notice triggers a new run of the offchain reporting protocol
+     * @param previousConfigBlockNumber block in which the previous config was set, to simplify historic analysis
+     * @param configCount ordinal number of this config setting among all config settings over the life of this contract
+     * @param signers ith element is address ith oracle uses to sign a report
+     * @param transmitters ith element is address ith oracle uses to transmit a report via the transmit method
+     * @param threshold maximum number of faulty/dishonest oracles the protocol can tolerate while still working correctly
+     * @param encodedConfigVersion version of the serialization format used for "encoded" parameter
+     * @param encoded serialized data used by oracles to configure their offchain operation
+     */
+    event ConfigSet(
+        uint32 previousConfigBlockNumber,
+        uint64 configCount,
+        address[] signers,
+        address[] transmitters,
+        uint8 threshold,
+        uint64 encodedConfigVersion,
+        bytes encoded
+    );
+
+    // Reverts transaction if config args are invalid
+    modifier checkConfigValid(
+        uint256 _numSigners,
+        uint256 _numTransmitters,
+        uint256 _threshold
+    ) {
+        require(_numSigners <= maxNumOracles, "too many signers");
+        require(_threshold > 0, "threshold must be positive");
+        require(
+            _numSigners == _numTransmitters,
+            "oracle addresses out of registration"
+        );
+        require(
+            _numSigners > 3 * _threshold,
+            "faulty-oracle threshold too high"
+        );
+        _;
+    }
+
+    /**
+     * @notice sets offchain reporting protocol configuration incl. participating oracles
+     * @param _signers addresses with which oracles sign the reports
+     * @param _transmitters addresses oracles use to transmit the reports
+     * @param _threshold number of faulty oracles the system can tolerate
+     * @param _encodedConfigVersion version number for offchainEncoding schema
+     * @param _encoded encoded off-chain oracle configuration
+     */
+    function setConfig(
+        address[] calldata _signers,
+        address[] calldata _transmitters,
+        uint8 _threshold,
+        uint64 _encodedConfigVersion,
+        bytes calldata _encoded
+    )
+        external
+        checkConfigValid(_signers.length, _transmitters.length, _threshold)
+        onlyOwner
+    {
+        while (s_signers.length != 0) {
+            // remove any old signer/transmitter addresses
+            uint256 lastIdx = s_signers.length - 1;
+            address signer = s_signers[lastIdx];
+            address transmitter = s_transmitters[lastIdx];
+            delete s_oracles[signer];
+            delete s_oracles[transmitter];
+            s_signers.pop();
+            s_transmitters.pop();
+        }
+
+        for (uint256 i = 0; i < _signers.length; i++) {
+            // add new signer/transmitter addresses
+            require(
+                s_oracles[_signers[i]].role == Role.Unset,
+                "repeated signer address"
+            );
+            s_oracles[_signers[i]] = Oracle(uint8(i), Role.Signer);
+            require(
+                s_oracles[_transmitters[i]].role == Role.Unset,
+                "repeated transmitter address"
+            );
+            s_oracles[_transmitters[i]] = Oracle(uint8(i), Role.Transmitter);
+            s_signers.push(_signers[i]);
+            s_transmitters.push(_transmitters[i]);
+        }
+        s_hotVars.threshold = _threshold;
+        uint32 previousConfigBlockNumber = s_latestConfigBlockNumber;
+        s_latestConfigBlockNumber = uint32(block.number);
+        s_configCount += 1;
+        uint64 configCount = s_configCount;
+        {
+            s_hotVars.latestConfigDigest = configDigestFromConfigData(
+                address(this),
+                configCount,
+                _signers,
+                _transmitters,
+                _threshold,
+                _encodedConfigVersion,
+                _encoded
+            );
+            s_hotVars.latestEpochAndRound = 0;
+        }
+        emit ConfigSet(
+            previousConfigBlockNumber,
+            configCount,
+            _signers,
+            _transmitters,
+            _threshold,
+            _encodedConfigVersion,
+            _encoded
+        );
+    }
+
+    function configDigestFromConfigData(
+        address _contractAddress,
+        uint64 _configCount,
+        address[] calldata _signers,
+        address[] calldata _transmitters,
+        uint8 _threshold,
+        uint64 _encodedConfigVersion,
+        bytes calldata _encodedConfig
+    ) internal pure returns (bytes16) {
+        return
+            bytes16(
+                keccak256(
+                    abi.encode(
+                        _contractAddress,
+                        _configCount,
+                        _signers,
+                        _transmitters,
+                        _threshold,
+                        _encodedConfigVersion,
+                        _encodedConfig
+                    )
+                )
+            );
+    }
+
+    /**
+   * @notice information about current offchain reporting protocol configuration
+
+   * @return configCount ordinal number of current config, out of all configs applied to this contract so far
+   * @return blockNumber block at which this config was set
+   * @return configDigest domain-separation tag for current config (see configDigestFromConfigData)
+   */
+    function latestConfigDetails()
+        external
+        view
+        returns (
+            uint32 configCount,
+            uint32 blockNumber,
+            bytes16 configDigest
+        )
+    {
+        return (
+            s_configCount,
+            s_latestConfigBlockNumber,
+            s_hotVars.latestConfigDigest
+        );
+    }
+
+    /**
+   * @return list of addresses permitted to transmit reports to this contract
+
+   * @dev The list will match the order used to specify the transmitter during setConfig
+   */
+    function transmitters() external view returns (address[] memory) {
+        return s_transmitters;
+    }
+
+    /*
+     * Transmission logic
+     */
+
+    /**
+     * @notice indicates that a new report was transmitted
+     * @param aggregatorRoundId the round to which this report was assigned
+     * @param answer median of the observations attached this report
+     * @param transmitter address from which the report was transmitted
+     * @param observations observations transmitted with this report
+     * @param rawReportContext signature-replay-prevention domain-separation tag
+     */
+    event NewTransmission(
+        uint32 indexed aggregatorRoundId,
+        int192 answer,
+        address transmitter,
+        int192[] observations,
+        bytes observers,
+        bytes32 rawReportContext
+    );
+
+    // decodeReport is used to check that the solidity and go code are using the
+    // same format. See TestOffchainAggregator.testDecodeReport and TestReportParsing
+    function decodeReport(bytes memory _report)
+        internal
+        pure
+        returns (
+            bytes32 rawReportContext,
+            bytes32 rawObservers,
+            int192[] memory observations
+        )
+    {
+        (rawReportContext, rawObservers, observations) = abi.decode(
+            _report,
+            (bytes32, bytes32, int192[])
+        );
+    }
+
+    // Used to relieve stack pressure in transmit
+    struct ReportData {
+        HotVars hotVars; // Only read from storage once
+        bytes observers; // ith element is the index of the ith observer
+        int192[] observations; // ith element is the ith observation
+        bytes vs; // jth element is the v component of the jth signature
+        bytes32 rawReportContext;
+    }
+
+    /*
+   * @notice details about the most recent report
+
+   * @return configDigest domain separation tag for the latest report
+   * @return epoch epoch in which the latest report was generated
+   * @return round OCR round in which the latest report was generated
+   * @return latestAnswer median value from latest report
+   * @return latestTimestamp when the latest report was transmitted
+   */
+    function latestTransmissionDetails()
+        external
+        view
+        returns (
+            bytes16 configDigest,
+            uint32 epoch,
+            uint8 round,
+            int192 latestAnswer,
+            uint64 latestTimestamp
+        )
+    {
+        require(msg.sender == tx.origin, "Only callable by EOA");
+        return (
+            s_hotVars.latestConfigDigest,
+            uint32(s_hotVars.latestEpochAndRound >> 8),
+            uint8(s_hotVars.latestEpochAndRound),
+            s_transmissions[s_hotVars.latestAggregatorRoundId].answer,
+            s_transmissions[s_hotVars.latestAggregatorRoundId].timestamp
+        );
+    }
+
+    // The constant-length components of the msg.data sent to transmit.
+    // See the "If we wanted to call sam" example on for example reasoning
+    // https://solidity.readthedocs.io/en/v0.7.2/abi-spec.html
+    uint16 private constant TRANSMIT_MSGDATA_CONSTANT_LENGTH_COMPONENT =
+        4 + // function selector
+            32 + // word containing start location of abiencoded _report value
+            32 + // word containing location start of abiencoded  _rs value
+            32 + // word containing start location of abiencoded _ss value
+            32 + // _rawVs value
+            32 + // word containing length of _report
+            32 + // word containing length _rs
+            32 + // word containing length of _ss
+            0; // placeholder
+
+    function expectedMsgDataLength(
+        bytes calldata _report,
+        bytes32[] calldata _rs,
+        bytes32[] calldata _ss
+    ) private pure returns (uint256 length) {
+        // calldata will never be big enough to make this overflow
+        return
+            uint256(TRANSMIT_MSGDATA_CONSTANT_LENGTH_COMPONENT) +
+            _report.length + // one byte pure entry in _report
+            _rs.length *
+            32 + // 32 bytes per entry in _rs
+            _ss.length *
+            32 + // 32 bytes per entry in _ss
+            0; // placeholder
+    }
+
+    /**
+     * @notice transmit is called to post a new report to the contract
+     * @param _report serialized report, which the signatures are signing. See parsing code below for format. The ith element of the observers component must be the index in s_signers of the address for the ith signature
+     */
+    function transmit(
+        uint32,
+        bytes32,
+        // NOTE: If these parameters are changed, expectedMsgDataLength and/or
+        // TRANSMIT_MSGDATA_CONSTANT_LENGTH_COMPONENT need to be changed accordingly
+        bytes calldata _report
+    ) external {
+        uint256 initialGas = gasleft(); // This line must come first
+        // Make sure the transmit message-length matches the inputs. Otherwise, the
+        // transmitter could append an arbitrarily long (up to gas-block limit)
+        // string of 0 bytes, which we would reimburse at a rate of 16 gas/byte, but
+        // which would only cost the transmitter 4 gas/byte. (Appendix G of the
+        // yellow paper, p. 25, for G_txdatazero and EIP 2028 for G_txdatanonzero.)
+        // This could amount to reimbursement profit of 36 million gas, given a 3MB
+        // zero tail.
+        require(
+            msg.data.length == expectedMsgDataLength(_report, _rs, _ss),
+            "transmit message too long"
+        );
+        ReportData memory r; // Relieves stack pressure
+        {
+            r.hotVars = s_hotVars; // cache read from storage
+
+            bytes32 rawObservers;
+            (r.rawReportContext, rawObservers, r.observations) = abi.decode(
+                _report,
+                (bytes32, bytes32, int192[])
+            );
+
+            // rawReportContext consists of:
+            // 11-byte zero padding
+            // 16-byte configDigest
+            // 4-byte epoch
+            // 1-byte round
+
+            bytes16 configDigest = bytes16(r.rawReportContext << 88);
+            require(
+                r.hotVars.latestConfigDigest == configDigest,
+                "configDigest mismatch"
+            );
+
+            uint40 epochAndRound = uint40(uint256(r.rawReportContext));
+
+            // direct numerical comparison works here, because
+            //
+            //   ((e,r) <= (e',r')) implies (epochAndRound <= epochAndRound')
+            //
+            // because alphabetic ordering implies e <= e', and if e = e', then r<=r',
+            // so e*256+r <= e'*256+r', because r, r' < 256
+            require(
+                r.hotVars.latestEpochAndRound < epochAndRound,
+                "stale report"
+            );
+
+            require(
+                r.observations.length <= maxNumOracles,
+                "num observations out of bounds"
+            );
+            require(
+                r.observations.length > 2 * r.hotVars.threshold,
+                "too few values to trust median"
+            );
+
+            // Copy observer identities in bytes32 rawObservers to bytes r.observers
+            r.observers = new bytes(r.observations.length);
+            bool[maxNumOracles] memory seen;
+            for (uint8 i = 0; i < r.observations.length; i++) {
+                uint8 observerIdx = uint8(rawObservers[i]);
+                require(!seen[observerIdx], "observer index repeated");
+                seen[observerIdx] = true;
+                r.observers[i] = rawObservers[i];
+            }
+
+            Oracle memory transmitter = s_oracles[msg.sender];
+            require( // Check that sender is authorized to report
+                transmitter.role == Role.Transmitter &&
+                    msg.sender == s_transmitters[transmitter.index],
+                "unauthorized transmitter"
+            );
+            // record epochAndRound here, so that we don't have to carry the local
+            // variable in transmit. The change is reverted if something fails later.
+            r.hotVars.latestEpochAndRound = epochAndRound;
+        }
+
+        {
+            // Check the report contents, and record the result
+            for (uint256 i = 0; i < r.observations.length - 1; i++) {
+                bool inOrder = r.observations[i] <= r.observations[i + 1];
+                require(inOrder, "observations not sorted");
+            }
+
+            int192 median = r.observations[r.observations.length / 2];
+            require(
+                minAnswer <= median && median <= maxAnswer,
+                "median is out of min-max range"
+            );
+            r.hotVars.latestAggregatorRoundId++;
+            s_transmissions[r.hotVars.latestAggregatorRoundId] = Transmission(
+                median,
+                uint64(block.timestamp)
+            );
+
+            emit NewTransmission(
+                r.hotVars.latestAggregatorRoundId,
+                median,
+                msg.sender,
+                r.observations,
+                r.observers,
+                r.rawReportContext
+            );
+            // Emit these for backwards compatability with offchain consumers
+            // that only support legacy events
+            emit NewRound(
+                r.hotVars.latestAggregatorRoundId,
+                address(0x0), // use zero address since we don't have anybody "starting" the round here
+                block.timestamp
+            );
+            emit AnswerUpdated(
+                median,
+                r.hotVars.latestAggregatorRoundId,
+                block.timestamp
+            );
+        }
+        s_hotVars = r.hotVars;
+        assert(initialGas < maxUint32);
     }
 
     /*
@@ -162,25 +621,19 @@ contract ChainlinkAggregator is
     /**
      * @return answers are stored in fixed-point format, with this many digits of precision
      */
-    uint8 public override decimals;
+    uint8 public immutable decimals;
 
     /**
      * @notice aggregator contract version
      */
-    uint256 public constant override version = 4;
+    uint256 public constant version = 4;
 
     string internal s_description;
 
     /**
      * @notice human-readable description of observable this contract is reporting on
      */
-    function description()
-        public
-        view
-        virtual
-        override
-        returns (string memory)
-    {
+    function description() public view virtual returns (string memory) {
         return s_description;
     }
 
@@ -197,7 +650,6 @@ contract ChainlinkAggregator is
         public
         view
         virtual
-        override
         returns (
             uint80 roundId,
             int256 answer,
@@ -229,7 +681,6 @@ contract ChainlinkAggregator is
         public
         view
         virtual
-        override
         returns (
             uint80 roundId,
             int256 answer,
@@ -251,75 +702,5 @@ contract ChainlinkAggregator is
             transmission.timestamp,
             roundId
         );
-    }
-
-    function handle(
-        uint32,
-        bytes32,
-        bytes calldata _message
-    ) external onlyMailbox {
-        ReportData memory r;
-
-        r.hotVars = s_hotVars; // cache read from storage
-
-        bytes32 rawObservers;
-        (r.rawReportContext, rawObservers, r.observations) = abi.decode(
-            _message,
-            (bytes32, bytes32, int192[])
-        );
-
-        uint40 epochAndRound = uint40(uint256(r.rawReportContext));
-
-        require(r.hotVars.latestEpochAndRound < epochAndRound, "stale report");
-
-        // Copy observer identities in bytes32 rawObservers to bytes r.observers
-        r.observers = new bytes(r.observations.length);
-        for (uint8 i = 0; i < r.observations.length; i++) {
-            r.observers[i] = rawObservers[i];
-        }
-
-        // record epochAndRound here, so that we don't have to carry the local
-        // variable in transmit. The change is reverted if something fails later.
-        r.hotVars.latestEpochAndRound = epochAndRound;
-
-        // Check the report contents, and record the result
-        for (uint256 i = 0; i < r.observations.length - 1; i++) {
-            bool inOrder = r.observations[i] <= r.observations[i + 1];
-            require(inOrder, "observations not sorted");
-        }
-
-        int192 median = r.observations[r.observations.length / 2];
-        // require(
-        //     minAnswer <= median && median <= maxAnswer,
-        //     "median is out of min-max range"
-        // );
-        r.hotVars.latestAggregatorRoundId++;
-        s_transmissions[r.hotVars.latestAggregatorRoundId] = Transmission(
-            median,
-            uint64(block.timestamp)
-        );
-
-        emit NewTransmission(
-            r.hotVars.latestAggregatorRoundId,
-            median,
-            msg.sender,
-            r.observations,
-            r.observers,
-            r.rawReportContext
-        );
-        // Emit these for backwards compatability with offchain consumers
-        // that only support legacy events
-        emit NewRound(
-            r.hotVars.latestAggregatorRoundId,
-            address(0x0), // use zero address since we don't have anybody "starting" the round here
-            block.timestamp
-        );
-        emit AnswerUpdated(
-            median,
-            r.hotVars.latestAggregatorRoundId,
-            block.timestamp
-        );
-
-        s_hotVars = r.hotVars;
     }
 }
