@@ -54,7 +54,7 @@
       "finalityBlocks": "0",
       "connection": {
         "type": "http",
-        "url": "http://api.devnet.solana.com"
+        "url": "https://api.devnet.solana.com"
       },
       "index": {
         "from": "1",
@@ -65,16 +65,16 @@
       "name": "solanadevnet1",
       "domain": "13376",
       "addresses": {
-        "mailbox": "9tCUWNjpqcf3NUSrtp7vquYVCwbEByvLjZUrhG5dgvhj",
+        "mailbox": "AWgqPcY1vjHRoFLHNgs15fdvy4bqEakHmYXW78B8GgYk",
         "interchainGasPaymaster": "FixmeFixmeFixmeFixmeFixmeFixmeFixmeFixmeFixm",
-        "validatorAnnounce": "3Uo5j2Bti9aZtrDqJmAyuwiFaJFPFoNL5yxTpVCNcUhb"
+        "validatorAnnounce": "4JRZrYJnXJn6KPSCG4tA6GBomP2zwQv8bD65anWnHmNz"
       },
       "signer": null,
       "protocol": "sealevel",
       "finalityBlocks": "0",
       "connection": {
         "type": "http",
-        "url": "http://api.devnet.solana.com"
+        "url": "https://api.devnet.solana.com"
       },
       "index": {
         "from": "1",
