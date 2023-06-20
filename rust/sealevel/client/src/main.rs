@@ -400,7 +400,7 @@ struct MultisigIsmMessageIdSetValidatorsAndThreshold {
     program_id: Pubkey,
     #[arg(long)]
     domain: u32,
-    #[arg(long)]
+    #[arg(long, value_delimiter = ',')]
     validators: Vec<H160>,
     #[arg(long)]
     threshold: u8,

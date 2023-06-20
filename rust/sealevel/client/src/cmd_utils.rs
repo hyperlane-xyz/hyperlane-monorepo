@@ -1,4 +1,4 @@
-use hyperlane_core::H256;
+use hyperlane_core::{H160, H256};
 use std::{
     collections::HashMap,
     fs::File,
@@ -166,7 +166,11 @@ pub(crate) fn create_and_write_keypair(
 
 pub(crate) fn hex_or_base58_to_h256(string: &str) -> H256 {
     if string.starts_with("0x") {
-        H256::from_str(string).unwrap()
+        match string.len() {
+            66 => H256::from_str(string).unwrap(),
+            42 => H160::from_str(string).unwrap().into(),
+            _ => panic!("Invalid hex string"),
+        }
     } else {
         let pubkey = Pubkey::from_str(string).unwrap();
         H256::from_slice(&pubkey.to_bytes()[..])

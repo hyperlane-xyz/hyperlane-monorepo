@@ -1,20 +1,12 @@
 use async_trait::async_trait;
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneProvider, IndexRange, Indexer, InterchainGasPaymaster,
-    InterchainGasPayment, LogMeta, H256,
+    ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneProvider, IndexRange, Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta,
+    H256,
 };
 use tracing::{info, instrument};
 
-use crate::{
-    solana::{
-        commitment_config::CommitmentConfig,
-        pubkey::Pubkey, /*, nonblocking_rpc_client::RpcClient*/
-    },
-    ConnectionConf, SealevelProvider,
-};
-
-use crate::RpcClientWithDebug;
+use crate::{solana::pubkey::Pubkey, ConnectionConf, SealevelProvider};
 
 /// A reference to an IGP contract on some Sealevel chain
 #[derive(Debug)]
@@ -56,20 +48,14 @@ impl InterchainGasPaymaster for SealevelInterchainGasPaymaster {}
 
 /// Struct that retrieves event data for a Sealevel IGP contract
 #[derive(Debug)]
-pub struct SealevelInterchainGasPaymasterIndexer {
-    rpc_client: RpcClientWithDebug,
-}
+pub struct SealevelInterchainGasPaymasterIndexer {}
 
 impl SealevelInterchainGasPaymasterIndexer {
-    pub fn new(conf: &ConnectionConf, _locator: ContractLocator /*TODO don't need?*/) -> Self {
-        // let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
-        // let domain = locator.domain;
-        let rpc_client = RpcClientWithDebug::new(conf.url.to_string());
-        Self {
-            // program_id,
-            rpc_client,
-            // domain,
-        }
+    pub fn new(
+        _conf: &ConnectionConf,
+        _locator: ContractLocator, /*TODO don't need?*/
+    ) -> Self {
+        Self {}
     }
 }
 
@@ -80,21 +66,14 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
         &self,
         _range: IndexRange,
     ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
-        // TODO implement this
-        info!("Reporting no gas payments");
+        info!("Gas payment indexing not implemented for Sealevel");
         Ok(vec![])
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        let height = self
-            .rpc_client
-            .get_slot_with_commitment(CommitmentConfig::finalized())
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .try_into()
-            // FIXME solana block height is u64...
-            .expect("sealevel block height exceeds u32::MAX");
-        Ok(height)
+        // As a workaround to avoid gas payment indexing on Sealevel,
+        // we pretend the block number is 1.
+        Ok(1)
     }
 }
