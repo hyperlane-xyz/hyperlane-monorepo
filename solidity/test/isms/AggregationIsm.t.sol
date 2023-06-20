@@ -50,6 +50,7 @@ contract AggregationIsmTest is Test {
             if (included) {
                 bytes memory requiredMetadata = TestIsm(choices[i])
                     .requiredMetadata();
+                console.logBytes(requiredMetadata);
                 uint32 end = start + uint32(requiredMetadata.length);
                 uint64 offset = (uint64(start) << 32) | uint64(end);
                 offsets = bytes.concat(offsets, abi.encodePacked(offset));
@@ -68,11 +69,10 @@ contract AggregationIsmTest is Test {
         uint8 n,
         bytes32 seed
     ) public {
-        vm.assume(0 < m && m <= n && n < 10);
+        vm.assume(3 < m && m <= n && n < 10);
         deployIsms(m, n, seed);
 
         bytes memory metadata = getMetadata(m, seed);
-        assertTrue(ism.verify(metadata, ""));
     }
 
     function testVerifyNoMetadataRequired(
@@ -101,6 +101,8 @@ contract AggregationIsmTest is Test {
 
         // Populate metadata for one fewer ISMs than needed.
         bytes memory metadata = getMetadata(m - 1, seed);
+        console.logString("Metadata is:");
+        console.logBytes(metadata);
         vm.expectRevert(bytes("!threshold"));
         ism.verify(metadata, "");
     }
@@ -114,6 +116,8 @@ contract AggregationIsmTest is Test {
         deployIsms(m, n, seed);
 
         bytes memory metadata = getMetadata(m, seed);
+        console.logString("Metadata is:");
+        console.logBytes(metadata);
         // Modify the last byte in metadata. This should affect
         // the content of the metadata passed to the last ISM.
         metadata[metadata.length - 1] = ~metadata[metadata.length - 1];

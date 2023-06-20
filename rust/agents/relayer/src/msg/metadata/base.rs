@@ -13,11 +13,12 @@ use hyperlane_base::{
 };
 use hyperlane_core::accumulator::merkle::Proof;
 use hyperlane_core::{
-    Checkpoint, HyperlaneDomain, HyperlaneMessage, ModuleType, MultisigIsm, RoutingIsm,
-    ValidatorAnnounce, H160, H256,
+    AggregationIsm, Checkpoint, HyperlaneDomain, HyperlaneMessage, ModuleType, MultisigIsm,
+    RoutingIsm, ValidatorAnnounce, H160, H256,
 };
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
+use crate::msg::metadata::aggregation::AggregationIsmMetadataBuilder;
 use crate::msg::metadata::multisig::{
     LegacyMultisigMetadataBuilder, MerkleRootMultisigMetadataBuilder,
     MessageIdMultisigMetadataBuilder,
@@ -87,6 +88,7 @@ impl MetadataBuilder for BaseMetadataBuilder {
             }
             ModuleType::MessageIdMultisig => Box::new(MessageIdMultisigMetadataBuilder::new(base)),
             ModuleType::Routing => Box::new(RoutingIsmMetadataBuilder::new(base)),
+            ModuleType::Aggregation => Box::new(AggregationIsmMetadataBuilder::new(base)),
             _ => return Err(MetadataBuilderError::UnsupportedModuleType(module_type).into()),
         };
         metadata_builder
@@ -147,6 +149,12 @@ impl BaseMetadataBuilder {
     pub async fn build_multisig_ism(&self, address: H256) -> Result<Box<dyn MultisigIsm>> {
         self.destination_chain_setup
             .build_multisig_ism(address, &self.metrics)
+            .await
+    }
+
+    pub async fn build_aggregation_ism(&self, address: H256) -> Result<Box<dyn AggregationIsm>> {
+        self.destination_chain_setup
+            .build_aggregation_ism(address, &self.metrics)
             .await
     }
 
