@@ -137,15 +137,6 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
     }
 }
 
-pub struct NullMetadataBuilder {}
-
-#[async_trait]
-impl MetadataBuilder for NullMetadataBuilder {
-    async fn build(&self, _ism_address: H256, _message: &HyperlaneMessage) -> Result<Option<Vec<u8>>> {
-        Ok(None)
-    }
-}
-
 /// Orders `signatures` by the signers according to the `desired_order`.
 /// Returns a Vec of the signature raw bytes in the correct order.
 /// Panics if any signers in `signatures` are not present in `desired_order`
