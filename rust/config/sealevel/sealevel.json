@@ -42,7 +42,7 @@
       }
     },
     "solanadevnet": {
-      "name": "SolanaDevnet",
+      "name": "solanadevnet",
       "domain": "13375",
       "addresses": {
         "mailbox": "692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1",
@@ -62,7 +62,7 @@
       }
     },
     "solanadevnet1": {
-      "name": "SolanaDevnet1",
+      "name": "solanadevnet1",
       "domain": "13376",
       "addresses": {
         "mailbox": "9tCUWNjpqcf3NUSrtp7vquYVCwbEByvLjZUrhG5dgvhj",
