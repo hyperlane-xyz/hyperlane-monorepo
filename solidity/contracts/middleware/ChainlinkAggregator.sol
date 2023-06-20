@@ -4,6 +4,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
+import "forge-std/console.sol";
+
 import {HyperlaneConnectionClient} from "../HyperlaneConnectionClient.sol";
 
 /**
@@ -12,7 +14,7 @@ import {HyperlaneConnectionClient} from "../HyperlaneConnectionClient.sol";
   * @dev For details on its operation, see the offchain reporting protocol design
   * @dev doc, which refers to this contract as simply the "contract".
 */
-contract OffchainAggregator is HyperlaneConnectionClient {
+contract ChainlinkAggregator is HyperlaneConnectionClient {
     // Note: https://github.com/smartcontractkit/libocr/blob/master/contract/AggregatorInterface.sol
     event AnswerUpdated(
         int256 indexed current,
@@ -399,48 +401,15 @@ contract OffchainAggregator is HyperlaneConnectionClient {
         );
     }
 
-    // The constant-length components of the msg.data sent to transmit.
-    // See the "If we wanted to call sam" example on for example reasoning
-    // https://solidity.readthedocs.io/en/v0.7.2/abi-spec.html
-    uint16 private constant TRANSMIT_MSGDATA_CONSTANT_LENGTH_COMPONENT =
-        4 + // function selector
-            32 + // word containing start location of abiencoded _report value
-            32 + // word containing location start of abiencoded  _rs value
-            32 + // word containing start location of abiencoded _ss value
-            32 + // _rawVs value
-            32 + // word containing length of _report
-            32 + // word containing length _rs
-            32 + // word containing length of _ss
-            0; // placeholder
-
-    function expectedMsgDataLength(
-        bytes calldata _report,
-        bytes32[] calldata _rs,
-        bytes32[] calldata _ss
-    ) private pure returns (uint256 length) {
-        // calldata will never be big enough to make this overflow
-        return
-            uint256(TRANSMIT_MSGDATA_CONSTANT_LENGTH_COMPONENT) +
-            _report.length + // one byte pure entry in _report
-            _rs.length *
-            32 + // 32 bytes per entry in _rs
-            _ss.length *
-            32 + // 32 bytes per entry in _ss
-            0; // placeholder
-    }
-
     /**
      * @notice transmit is called to post a new report to the contract
      * @param _report serialized report, which the signatures are signing. See parsing code below for format. The ith element of the observers component must be the index in s_signers of the address for the ith signature
      */
-    function transmit(
+    function handle(
         uint32,
         bytes32,
-        // NOTE: If these parameters are changed, expectedMsgDataLength and/or
-        // TRANSMIT_MSGDATA_CONSTANT_LENGTH_COMPONENT need to be changed accordingly
         bytes calldata _report
-    ) external {
-        uint256 initialGas = gasleft(); // This line must come first
+    ) public onlyMailbox {
         ReportData memory r; // Relieves stack pressure
         {
             r.hotVars = s_hotVars; // cache read from storage
@@ -457,11 +426,11 @@ contract OffchainAggregator is HyperlaneConnectionClient {
             // 4-byte epoch
             // 1-byte round
 
-            bytes16 configDigest = bytes16(r.rawReportContext << 88);
-            require(
-                r.hotVars.latestConfigDigest == configDigest,
-                "configDigest mismatch"
-            );
+            // bytes16 configDigest = bytes16(r.rawReportContext << 88);
+            // require(
+            //     r.hotVars.latestConfigDigest == configDigest,
+            //     "configDigest mismatch"
+            // );
 
             uint40 epochAndRound = uint40(uint256(r.rawReportContext));
 
@@ -495,12 +464,6 @@ contract OffchainAggregator is HyperlaneConnectionClient {
                 r.observers[i] = rawObservers[i];
             }
 
-            Oracle memory transmitter = s_oracles[msg.sender];
-            require( // Check that sender is authorized to report
-                transmitter.role == Role.Transmitter &&
-                    msg.sender == s_transmitters[transmitter.index],
-                "unauthorized transmitter"
-            );
             // record epochAndRound here, so that we don't have to carry the local
             // variable in transmit. The change is reverted if something fails later.
             r.hotVars.latestEpochAndRound = epochAndRound;
@@ -546,7 +509,6 @@ contract OffchainAggregator is HyperlaneConnectionClient {
             );
         }
         s_hotVars = r.hotVars;
-        assert(initialGas < maxUint32);
     }
 
     /*
