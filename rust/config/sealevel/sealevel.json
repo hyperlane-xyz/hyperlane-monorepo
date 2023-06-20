@@ -41,7 +41,7 @@
         "mode": "sequence"
       }
     },
-    "solana-devnet": {
+    "solanadevnet": {
       "name": "SolanaDevnet",
       "domain": "13375",
       "addresses": {
@@ -61,7 +61,7 @@
         "mode": "sequence"
       }
     },
-    "solana-devnet-1": {
+    "solanadevnet1": {
       "name": "SolanaDevnet1",
       "domain": "13376",
       "addresses": {
