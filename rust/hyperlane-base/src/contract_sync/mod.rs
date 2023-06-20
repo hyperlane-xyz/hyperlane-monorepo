@@ -4,11 +4,12 @@ use derive_new::new;
 
 use cursor::*;
 use hyperlane_core::{
-    utils::fmt_sync_time, ContractSyncCursor, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
-    HyperlaneMessageStore, HyperlaneWatermarkedLogStore, Indexer, MessageIndexer,
+    utils::fmt_sync_time, ContractSyncCursor, CursorAction, HyperlaneDomain, HyperlaneLogStore,
+    HyperlaneMessage, HyperlaneMessageStore, HyperlaneWatermarkedLogStore, Indexer, MessageIndexer,
 };
 pub use metrics::ContractSyncMetrics;
 use std::fmt::Debug;
+use tokio::time::sleep;
 use tracing::{debug, info};
 
 use crate::chains::IndexSettings;
@@ -58,29 +59,32 @@ where
             .with_label_values(&[label, chain_name]);
 
         loop {
-            let Ok((from, to, eta)) = cursor.next_range().await else { continue };
-            debug!(from, to, "Looking for for events in block range");
+            indexed_height.set(cursor.latest_block() as i64);
+            let Ok((action, eta)) = cursor.next_action().await else { continue };
+            match action {
+                CursorAction::Query((from, to)) => {
+                    debug!(from, to, "Looking for for events in block range");
 
-            let logs = self.indexer.fetch_logs(from, to).await?;
+                    let logs = self.indexer.fetch_logs(from, to).await?;
 
-            info!(
-                from,
-                to,
-                num_logs = logs.len(),
-                estimated_time_to_sync = fmt_sync_time(eta),
-                "Found log(s) in block range"
-            );
-            // Store deliveries
-            let stored = self.db.store_logs(&logs).await?;
-            // Report amount of deliveries stored into db
-            stored_logs.inc_by(stored as u64);
-            // We check the value of the current gauge to avoid overwriting a higher value
-            // when using a ForwardBackwardMessageSyncCursor
-            if to as i64 > indexed_height.get() {
-                indexed_height.set(to as i64);
+                    info!(
+                        from,
+                        to,
+                        num_logs = logs.len(),
+                        estimated_time_to_sync = fmt_sync_time(eta),
+                        "Found log(s) in block range"
+                    );
+                    // Store deliveries
+                    let stored = self.db.store_logs(&logs).await?;
+                    // Report amount of deliveries stored into db
+                    stored_logs.inc_by(stored as u64);
+                    // Update cursor
+                    cursor.update(logs).await?;
+                }
+                CursorAction::Sleep(duration) => {
+                    sleep(duration).await;
+                }
             }
-            // Update cursor
-            cursor.update(logs).await?;
         }
     }
 }
@@ -123,6 +127,7 @@ impl MessageContractSync {
     pub async fn forward_message_sync_cursor(
         &self,
         index_settings: IndexSettings,
+        next_nonce: u32,
     ) -> Box<dyn ContractSyncCursor<HyperlaneMessage>> {
         let forward_data = MessageSyncCursor::new(
             self.indexer.clone(),
@@ -130,7 +135,7 @@ impl MessageContractSync {
             index_settings.chunk_size,
             index_settings.from,
             index_settings.from,
-            0,
+            next_nonce,
         );
         Box::new(ForwardMessageSyncCursor::new(forward_data))
     }

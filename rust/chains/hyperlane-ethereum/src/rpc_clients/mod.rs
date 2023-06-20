@@ -58,7 +58,7 @@ fn categorize_client_response<R>(
             }
         }
         Err(JsonRpcError(e)) => {
-            let msg = e.message.to_ascii_lowercase();
+            let msg = e.message.to_ascii_lowercase().replace('_', " ");
             if e.code == 429
                 || msg.contains("429")
                 || msg.contains("rate limit")
@@ -79,7 +79,7 @@ fn categorize_client_response<R>(
                 || (METHODS_TO_NOT_RETRY_ON_UNDERPRICED.contains(&method)
                     && msg.contains("underpriced"))
                 || (METHODS_TO_NOT_RETRY_ON_INSUFFICIENT_FUNDS.contains(&method)
-                    && msg.contains("insufficient funds"))
+                    && (msg.contains("insufficient funds") || msg.contains("insufficient balance")))
             {
                 // We don't want to retry errors that are probably not going to work if we keep
                 // retrying them or that indicate an error in higher-order logic and not

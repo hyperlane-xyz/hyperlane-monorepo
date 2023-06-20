@@ -3923,11 +3923,11 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/core@1.3.4, @hyperlane-xyz/core@workspace:solidity":
+"@hyperlane-xyz/core@1.3.5, @hyperlane-xyz/core@workspace:solidity":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/core@workspace:solidity"
   dependencies:
-    "@hyperlane-xyz/utils": 1.3.4
+    "@hyperlane-xyz/utils": 1.3.5
     "@nomiclabs/hardhat-ethers": ^2.2.1
     "@nomiclabs/hardhat-waffle": ^2.0.3
     "@openzeppelin/contracts": ^4.8.0
@@ -3961,14 +3961,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/helloworld@npm:1.3.4":
-  version: 1.3.4
-  resolution: "@hyperlane-xyz/helloworld@npm:1.3.4"
+"@hyperlane-xyz/helloworld@npm:1.3.5":
+  version: 1.3.5
+  resolution: "@hyperlane-xyz/helloworld@npm:1.3.5"
   dependencies:
-    "@hyperlane-xyz/sdk": 1.3.4
+    "@hyperlane-xyz/sdk": 1.3.5
     "@openzeppelin/contracts-upgradeable": ^4.8.0
     ethers: ^5.7.2
-  checksum: f915dfef6d8ba9b67a0d2095463ef67af9501cc222a84ba34e36fe650a9cbd335314cf6e9322bb45c34ec905d121c3f748bb0edc51a1d7c8f68363531c308758
+  checksum: b496586c2702fbcbeab718087f3bf24eeab75ef81d87cebec963dfde2c91a9390eaf452dad9e2bc3ba6d15aa52d318a5fcda0ba73c3d3adaf407ec158d78405d
   languageName: node
   linkType: hard
 
@@ -4053,9 +4053,9 @@ __metadata:
     "@gnosis.pm/safe-core-sdk": ^2.3.2
     "@gnosis.pm/safe-ethers-lib": ^1.4.0
     "@gnosis.pm/safe-service-client": ^1.2.0
-    "@hyperlane-xyz/helloworld": 1.3.4
-    "@hyperlane-xyz/sdk": 1.3.4
-    "@hyperlane-xyz/utils": 1.3.4
+    "@hyperlane-xyz/helloworld": 1.3.5
+    "@hyperlane-xyz/sdk": 1.3.5
+    "@hyperlane-xyz/utils": 1.3.5
     "@nomiclabs/hardhat-ethers": ^2.2.1
     "@nomiclabs/hardhat-etherscan": ^3.0.3
     "@nomiclabs/hardhat-waffle": ^2.0.3
@@ -4098,12 +4098,12 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/sdk@1.3.4, @hyperlane-xyz/sdk@workspace:typescript/sdk":
+"@hyperlane-xyz/sdk@1.3.5, @hyperlane-xyz/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/sdk@workspace:typescript/sdk"
   dependencies:
-    "@hyperlane-xyz/core": 1.3.4
-    "@hyperlane-xyz/utils": 1.3.4
+    "@hyperlane-xyz/core": 1.3.5
+    "@hyperlane-xyz/utils": 1.3.5
     "@nomiclabs/hardhat-ethers": ^2.2.1
     "@nomiclabs/hardhat-waffle": ^2.0.3
     "@types/coingecko-api": ^1.0.10
@@ -4146,7 +4146,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/utils@1.3.4, @hyperlane-xyz/utils@workspace:typescript/utils":
+"@hyperlane-xyz/utils@1.3.5, @hyperlane-xyz/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/utils@workspace:typescript/utils"
   dependencies:

@@ -21,6 +21,7 @@ use crate::merkle_tree_builder::MerkleTreeBuilder;
 use crate::msg::metadata::multisig::{
     LegacyMultisigMetadataBuilder, MerkleRootMultisigMetadataBuilder,
     MessageIdMultisigMetadataBuilder,
+    // NullMetadataBuilder,
 };
 use crate::msg::metadata::RoutingIsmMetadataBuilder;
 
@@ -87,6 +88,7 @@ impl MetadataBuilder for BaseMetadataBuilder {
             }
             ModuleType::MessageIdMultisig => Box::new(MessageIdMultisigMetadataBuilder::new(base)),
             ModuleType::Routing => Box::new(RoutingIsmMetadataBuilder::new(base)),
+            // ModuleType::NullMetadata => Box::new(NullMetadataBuilder::new(base)),
             _ => return Err(MetadataBuilderError::UnsupportedModuleType(module_type).into()),
         };
         metadata_builder

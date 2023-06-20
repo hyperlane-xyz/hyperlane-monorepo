@@ -291,7 +291,7 @@ impl<M> Mailbox for EthereumMailbox<M>
 where
     M: Middleware + 'static,
 {
-    #[instrument(level = "debug", err, ret, skip(self))]
+    #[instrument(skip(self))]
     async fn count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
         let base_call = self.contract.count();
         let call_with_lag = if let Some(lag) = maybe_lag {
@@ -309,12 +309,12 @@ where
         Ok(count)
     }
 
-    #[instrument(level = "debug", err, ret, skip(self))]
+    #[instrument(skip(self))]
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
         Ok(self.contract.delivered(id.into()).call().await?)
     }
 
-    #[instrument(level = "debug", err, ret, skip(self))]
+    #[instrument(skip(self))]
     async fn latest_checkpoint(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
         let base_call = self.contract.latest_checkpoint();
         let call_with_lag = match maybe_lag {
@@ -338,7 +338,7 @@ where
         })
     }
 
-    #[instrument(level = "debug", err, ret, skip(self))]
+    #[instrument(skip(self))]
     #[allow(clippy::needless_range_loop)]
     async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
         let lag = lag.map(|v| v.get()).unwrap_or(0).into();
@@ -399,12 +399,12 @@ where
         Ok(tree)
     }
 
-    #[instrument(err, ret, skip(self))]
+    #[instrument(skip(self))]
     async fn default_ism(&self) -> ChainResult<H256> {
         Ok(self.contract.default_ism().call().await?.into())
     }
 
-    #[instrument(err, ret, skip(self))]
+    #[instrument(skip(self))]
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
         Ok(self
             .contract
@@ -414,7 +414,7 @@ where
             .into())
     }
 
-    #[instrument(err, ret, skip(self), fields(metadata=%fmt_bytes(metadata)))]
+    #[instrument(skip(self), fields(metadata=%fmt_bytes(metadata)))]
     async fn process(
         &self,
         message: &HyperlaneMessage,
@@ -428,7 +428,7 @@ where
         Ok(receipt.into())
     }
 
-    #[instrument(err, ret, skip(self), fields(msg=%message, metadata=%fmt_bytes(metadata)))]
+    #[instrument(skip(self), fields(msg=%message, metadata=%fmt_bytes(metadata)))]
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,

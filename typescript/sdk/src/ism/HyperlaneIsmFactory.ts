@@ -99,7 +99,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     const signer = this.multiProvider.getSigner(chain);
     let address: string;
     if (config.type === ModuleType.LEGACY_MULTISIG) {
-      if (process.env.CI !== 'true') {
+      if (
+        process.env.CI !== 'true' &&
+        process.env.ALLOW_LEGACY_MULTISIG_ISM !== 'true'
+      ) {
         throw new Error(
           'Legacy multisig ISM is being deprecated, do not deploy',
         );
@@ -110,8 +113,14 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
         .deploy();
       await this.multiProvider.handleTx(chain, multisig.deployTransaction);
       const originDomain = this.multiProvider.getDomainId(origin!);
-      await multisig.enrollValidators([originDomain], [config.validators]);
-      await multisig.setThreshold(originDomain, config.threshold);
+      await this.multiProvider.handleTx(
+        chain,
+        multisig.enrollValidators([originDomain], [config.validators]),
+      );
+      await this.multiProvider.handleTx(
+        chain,
+        multisig.setThreshold(originDomain, config.threshold),
+      );
       address = multisig.address;
     } else {
       const multisigIsmFactory =
@@ -160,7 +169,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
       moduleAddress,
       this.multiProvider.getSigner(chain),
     );
-    await routingIsm.transferOwnership(config.owner);
+    await this.multiProvider.handleTx(
+      chain,
+      await routingIsm.transferOwnership(config.owner),
+    );
     const address = dispatchLogs[0].args['module'];
     return IRoutingIsm__factory.connect(address, signer);
   }

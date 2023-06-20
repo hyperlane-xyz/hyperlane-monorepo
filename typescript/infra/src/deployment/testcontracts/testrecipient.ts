@@ -8,17 +8,17 @@ import {
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 
-export const factories = {
+export const TEST_RECIPIENT_DEPLOYER_FACTORIES = {
   TestRecipient: new TestRecipient__factory(),
   TestTokenRecipient: new TestTokenRecipient__factory(),
 };
 
 export class TestRecipientDeployer extends HyperlaneDeployer<
-  any,
-  typeof factories
+  never,
+  typeof TEST_RECIPIENT_DEPLOYER_FACTORIES
 > {
   constructor(multiProvider: MultiProvider) {
-    super(multiProvider, factories);
+    super(multiProvider, TEST_RECIPIENT_DEPLOYER_FACTORIES);
   }
 
   async deployContracts(chain: ChainName) {
