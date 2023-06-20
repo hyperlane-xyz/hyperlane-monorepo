@@ -9,7 +9,7 @@ import {
 const minimalSchema: ChainMetadata = {
   chainId: 5,
   name: 'goerli',
-  type: ProtocolType.Ethereum,
+  protocol: ProtocolType.Ethereum,
   publicRpcUrls: [{ http: 'https://foobar.com' }],
 };
 

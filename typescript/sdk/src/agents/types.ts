@@ -75,7 +75,7 @@ export function buildAgentConfig(
         interchainGasPaymaster: addresses[chain].interchainGasPaymaster,
         validatorAnnounce: addresses[chain].validatorAnnounce,
       },
-      protocol: metadata.type,
+      protocol: metadata.protocol,
       finalityBlocks: metadata.blocks?.reorgPeriod ?? 1,
     };
 

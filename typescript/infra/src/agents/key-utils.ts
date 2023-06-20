@@ -29,7 +29,7 @@ export function getCloudAgentKey(
   // The deployer is always GCP-based
   isAws = isAws && role !== Role.Deployer;
   let isSealevel =
-    !!chainName && chainMetadata[chainName].type != ProtocolType.Sealevel;
+    !!chainName && chainMetadata[chainName].protocol === ProtocolType.Sealevel;
   // Sealevel chains should use GCP-based hex keys for relayers
   isAws = isAws && !(isSealevel && role == Role.Relayer);
   if (isAws) {
