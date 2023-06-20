@@ -325,7 +325,7 @@ mod test {
     fn add_db_entry(db: &HyperlaneRocksDB, msg: &HyperlaneMessage, retry_count: u32) {
         db.store_message(&msg, Default::default()).unwrap();
         if retry_count > 0 {
-            db.store_pending_message_data_by_message_id(&msg.id(), &retry_count)
+            db.store_pending_message_retry_count_by_message_id(&msg.id(), &retry_count)
                 .unwrap();
         }
     }

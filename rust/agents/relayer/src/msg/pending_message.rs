@@ -312,15 +312,17 @@ impl PendingMessage {
             let mut log_message = format!("Failed to read retry count from HyperlaneDB for message {}. Defaulting to the regular `PendingMessage` constructor.", message_id);
             if let Some(error) = maybe_error {
                 log_message.push_str(&format!(" Error: {}", error));
+                info!(log_message);
+            } else {
+                trace!(log_message);
             }
-            info!(log_message);
         }
 
         let mut pm = Self::new(message, ctx);
         match pm
             .ctx
             .origin_db
-            .retrieve_pending_message_data_by_message_id(&pm.message.id())
+            .retrieve_pending_message_retry_count_by_message_id(&pm.message.id())
         {
             Ok(Some(num_retries)) => {
                 let next_attempt_after = PendingMessage::calculate_msg_backoff(num_retries)
@@ -384,10 +386,10 @@ impl PendingMessage {
         if let Err(e) = self
             .ctx
             .origin_db
-            .store_pending_message_data_by_message_id(&self.message.id(), &self.num_retries)
+            .store_pending_message_retry_count_by_message_id(&self.message.id(), &self.num_retries)
         {
-            trace!(
-                "No persisted retry count for message {}. Hyperlane DB error: {}",
+            info!(
+                "Persisting the `num_retries` failed for message {}. Hyperlane DB error: {}",
                 self.message.id(),
                 e
             );

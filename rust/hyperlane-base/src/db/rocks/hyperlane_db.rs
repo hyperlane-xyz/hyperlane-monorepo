@@ -28,7 +28,8 @@ const NONCE_PROCESSED: &str = "nonce_processed_";
 const GAS_PAYMENT_FOR_MESSAGE_ID: &str = "gas_payment_for_message_id_v2_";
 const GAS_PAYMENT_META_PROCESSED: &str = "gas_payment_meta_processed_v2_";
 const GAS_EXPENDITURE_FOR_MESSAGE_ID: &str = "gas_expenditure_for_message_id_v2_";
-const PENDING_MESSAGE_DATA_FOR_MESSAGE_ID: &str = "pending_message_data_for_message_id_";
+const PENDING_MESSAGE_RETRY_COUNT_FOR_MESSAGE_ID: &str =
+    "pending_message_retry_count_for_message_id_";
 const LATEST_INDEXED_GAS_PAYMENT_BLOCK: &str = "latest_indexed_gas_payment_block";
 
 type DbResult<T> = std::result::Result<T, DbError>;
@@ -315,8 +316,8 @@ make_store_and_retrieve!(pub(self), interchain_gas_expenditure_data_by_message_i
 make_store_and_retrieve!(pub(self), interchain_gas_payment_data_by_message_id, GAS_PAYMENT_FOR_MESSAGE_ID, H256, InterchainGasPaymentData);
 make_store_and_retrieve!(
     pub,
-    pending_message_data_by_message_id,
-    PENDING_MESSAGE_DATA_FOR_MESSAGE_ID,
+    pending_message_retry_count_by_message_id,
+    PENDING_MESSAGE_RETRY_COUNT_FOR_MESSAGE_ID,
     H256,
     u32
 );
