@@ -54,9 +54,11 @@ contract OptimismMessageHook is IMessageHook {
         require(_ism != address(0), "OptimismHook: invalid ISM");
         destinationDomain = _destinationDomain;
 
-        l1Messenger = ICrossDomainMessenger(
-            _onlyContract(_messenger, "CrossDomainMessenger")
+        require(
+            Address.isContract(_messenger),
+            "OptimismHook: invalid messenger"
         );
+        l1Messenger = ICrossDomainMessenger(_messenger);
         ism = _ism;
     }
 
@@ -90,19 +92,5 @@ contract OptimismMessageHook is IMessageHook {
 
         // calling the verifyMessageId function is ~25k gas but we get 1.92m gas from Optimism
         return 0;
-    }
-
-    // ============ Internal Functions ============
-
-    function _onlyContract(address _contract, string memory _type)
-        internal
-        view
-        returns (address)
-    {
-        require(
-            Address.isContract(_contract),
-            string.concat("OptimismHook: invalid ", _type)
-        );
-        return _contract;
     }
 }

@@ -24,11 +24,12 @@ contract OptimismISM is CrossChainEnabledOptimism, AbstractNativeISM {
 
     // solhint-disable-next-line const-name-snakecase
     uint8 public constant moduleType =
-        uint8(IInterchainSecurityModule.Types.OPTIMISM);
+        uint8(IInterchainSecurityModule.Types.NULL);
 
     // ============ Public Storage ============
 
     // Address for Hook on L1 responsible for sending message via the Optimism bridge
+    // @dev check https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/2381 for updates to native
     address public l1Hook;
 
     // ============ Modifiers ============

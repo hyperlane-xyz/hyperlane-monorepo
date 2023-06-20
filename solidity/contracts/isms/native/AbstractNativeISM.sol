@@ -16,6 +16,8 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 /**
  * @title ArbtractNativeISM
  * @notice Uses the native bridges to verify interchain messages.
+ * @dev In the future, the hook might be moved inside the Mailbox which doesn't require storage mappings for senders.
+ *      for more details see https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/2381
  */
 abstract contract AbstractNativeISM is
     IInterchainSecurityModule,

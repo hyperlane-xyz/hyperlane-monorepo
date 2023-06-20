@@ -89,7 +89,7 @@ contract OptimismISMTest is Test {
         vm.makePersistent(address(opHook));
     }
 
-    function deployOptimsimISM() public {
+    function deployOptimismISM() public {
         vm.selectFork(optimismFork);
 
         l2Messenger = L2CrossDomainMessenger(L2_MESSENGER_ADDRESS);
@@ -99,7 +99,7 @@ contract OptimismISMTest is Test {
     }
 
     function deployAll() public {
-        deployOptimsimISM();
+        deployOptimismISM();
         deployOptimismHook();
 
         vm.selectFork(optimismFork);
