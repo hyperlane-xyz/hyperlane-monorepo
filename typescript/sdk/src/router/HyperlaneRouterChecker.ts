@@ -8,8 +8,10 @@ import { ChainName } from '../types';
 
 import { RouterApp } from './RouterApps';
 import {
+  ConnectionClientConfig,
   ConnectionClientViolation,
   ConnectionClientViolationType,
+  OwnableConfig,
   RouterConfig,
 } from './types';
 
@@ -33,7 +35,7 @@ export class HyperlaneRouterChecker<
     const router = this.app.router(this.app.getContracts(chain));
 
     const checkConnectionClientProperty = async (
-      property: keyof RouterConfig,
+      property: keyof (ConnectionClientConfig & OwnableConfig),
       violationType: ConnectionClientViolationType,
     ) => {
       const actual = await router[property]();

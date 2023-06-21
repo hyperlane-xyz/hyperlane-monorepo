@@ -1,7 +1,6 @@
 import { BigNumberish } from 'ethers';
 
-import { ChainMap, chainMetadata } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/sdk/dist/consts/chainMetadata';
+import { ChainMap, ProtocolType, chainMetadata } from '@hyperlane-xyz/sdk';
 
 import { AgentAwsUser } from '../../agents/aws';
 import { Role } from '../../roles';
@@ -139,7 +138,7 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
         this.contextChainNames.map((name) => {
           const chain = chainMetadata[name];
           // Sealevel chains always use hex keys
-          if (!!chain && chain.type == ProtocolType.Sealevel) {
+          if (chain?.protocol == ProtocolType.Sealevel) {
             return [name, { type: KeyType.Hex }];
           } else {
             return [name, awsKey];
