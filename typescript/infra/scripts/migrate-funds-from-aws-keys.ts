@@ -20,7 +20,7 @@ import { Role } from '../src/roles';
 import { getAgentConfig, getEnvironmentConfig } from './utils';
 
 // const ENVIRONMENTS: DeployEnvironment[] = ['mainnet2', 'testnet3'];
-const ENVIRONMENTS: DeployEnvironment[] = ['testnet3'];
+// const ENVIRONMENTS: DeployEnvironment[] = ['testnet3'];
 
 const L2Chains: ChainName[] = [
   Chains.optimism,
@@ -30,13 +30,25 @@ const L2Chains: ChainName[] = [
 ];
 
 async function main() {
-  for (const ctx of Object.values(Contexts)) {
-    for (const env of ENVIRONMENTS) {
-      await transferForEnv(ctx, env);
-    }
-  }
+  // for (const ctx of Object.values(Contexts)) {
+  //   for (const env of ENVIRONMENTS) {
+  //     await transferForEnv(ctx, env);
+  //   }
+  // }
+  const envConfig = getEnvironmentConfig('testnet3');
+  const agentConfig = getAgentConfig(Contexts.Hyperlane, envConfig);
+  const multiProvider = await envConfig.getMultiProvider(
+    Contexts.Hyperlane,
+    Role.Relayer,
+    AgentConnectionType.Http,
+  );
+  const from = new OldRelayerAwsKey(agentConfig, Chains.fuji);
+  const to = getCloudAgentKey(agentConfig, Role.Relayer);
+  await Promise.all([from.fetch(), to.fetch()]);
+  await transfer(Chains.optimismgoerli, agentConfig, multiProvider, from, to);
 }
 
+// @ts-ignore
 async function transferForEnv(ctx: Contexts, env: DeployEnvironment) {
   const envConfig = getEnvironmentConfig(env);
   const agentConfig = getAgentConfig(ctx, envConfig);
@@ -119,21 +131,23 @@ async function transfer(
 
   transferTx.value = initialBalance.sub(costToTransfer);
   transferTx.gasLimit = gasToTransfer;
-  transferTx.gasPrice = gasPrice;
+  transferTx.maxFeePerGas = gasPrice;
 
-  await multiProvider.sendTransaction(chain, transferTx);
-  const [finalBalance, finalDestBalance] = await Promise.all([
-    multiProvider.getProvider(chain).getBalance(fromKey.address),
-    multiProvider.getProvider(chain).getBalance(toKey.address),
-  ]);
+  let receipt;
+  try {
+    receipt = await multiProvider.sendTransaction(chain, transferTx);
+  } catch (err) {
+    delete transferTx.maxFeePerGas;
+    transferTx.gasPrice = gasPrice;
+    receipt = await multiProvider.sendTransaction(chain, transferTx);
+  }
   console.log('Transferred funds', {
     ...logCtx,
     initialBalance: formatEther(initialBalance),
-    finalBalance: formatEther(finalBalance),
-    finalDestBalance: formatEther(finalDestBalance),
     transferred: formatEther(transferTx.value),
     cost: formatEther(costToTransfer),
     transferTx,
+    receipt,
   });
 }
 
