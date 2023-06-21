@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use ethers::providers::Middleware;
 use tracing::{instrument, warn};
 
-use futures_util::future::{try_join, try_join_all};
+use futures_util::future::try_join;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType, RawHyperlaneMessage,

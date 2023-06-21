@@ -1,10 +1,6 @@
 use async_trait::async_trait;
-use ethers::types::Res;
-use futures_util::{
-    future::{join_all, try_join, try_join_all},
-    FutureExt,
-};
-use std::{ops::Deref, ptr::metadata};
+use futures_util::future::{join_all, try_join};
+use std::ops::Deref;
 
 use derive_new::new;
 use eyre::Context;
@@ -74,6 +70,7 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         const CTX: &str = "When fetching RoutingIsm metadata";
         let ism = self.build_aggregation_ism(ism_address).await.context(CTX)?;
         let (modules, threshold) = ism.modules_and_threshold(message).await.context(CTX)?;
+        let threshold = threshold as usize;
         let sub_isms: Vec<_> = join_all(modules.iter().map(|ism_address| {
             try_join(
                 self.base.build(*ism_address, message),
@@ -83,29 +80,36 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         .await
         .into_iter()
         .filter_map(|r| match r.ok() {
-            Some((Some(metadata), ism)) => Some((metadata, ism)),
+            Some((Some(meta), ism)) => Some((meta, ism)),
             _ => None,
         })
         .collect();
 
-        let metadatas_and_gas_costs = join_all(sub_isms.iter().map(|(metadata, ism)| async {
-            let gas_cost = ism.dry_run_verify(message, metadata).await;
-            (metadata, gas_cost)
-        }))
-        .await;
-        // Filter this to only keep the non-none gas costs
-        // Then sort by gas cost
+        // send view / dryrun txs to see which ism will succeed
+        let mut metas_and_gas: Vec<_> =
+            join_all(sub_isms.into_iter().map(|(meta, ism)| async move {
+                let gas = ism.dry_run_verify(message, &meta).await;
+                (meta, gas)
+            }))
+            .await
+            .into_iter()
+            .filter_map(|(meta, gast_result)| gast_result.ok().flatten().map(|gc| (meta, gc)))
+            .collect();
 
-        let filtered_builders_count = filtered_metadatas.len();
-        if filtered_builders_count < (threshold as usize) {
-            info!("Could not fetch metadata: Only found {filtered_builders_count} of the {threshold} required ISM metadata pieces");
+        let metas_and_gas_count = metas_and_gas.len();
+        if metas_and_gas_count < threshold {
+            info!("Could not fetch metadata: Only found {metas_and_gas_count} of the {threshold} required ISM metadata pieces");
             return Ok(None);
         }
-
-        // send view / dryrun txs to see which ism will succeed
+        metas_and_gas.sort_by(|(_, gas_1), (_, gas_2)| gas_1.partial_cmp(gas_2).unwrap());
+        let mut cheapest_metas = metas_and_gas[..threshold]
+            .to_vec()
+            .into_iter()
+            .map(|(meta, _)| meta)
+            .collect();
 
         // then bundle the metadata into a single byte array
-        Ok(Some(Self::format_metadata(&mut filtered_metadatas)))
+        Ok(Some(Self::format_metadata(&mut cheapest_metas)))
     }
 }
 
