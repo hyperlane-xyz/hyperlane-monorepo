@@ -4,7 +4,6 @@ import { formatEther } from 'ethers/lib/utils';
 import {
   AgentConnectionType,
   ChainName,
-  HyperlaneIgp,
   MultiProvider,
   ProtocolType,
   chainMetadata,
@@ -14,11 +13,7 @@ import { Contexts } from '../config/contexts';
 import { AgentAwsKey } from '../src/agents/aws';
 import { getCloudAgentKey } from '../src/agents/key-utils';
 import { CloudAgentKey } from '../src/agents/keys';
-import { AgentContextConfig } from '../src/config';
-import {
-  DeployEnvironment,
-  deployEnvToSdkEnv,
-} from '../src/config/environment';
+import { AgentContextConfig, DeployEnvironment } from '../src/config';
 import { Role } from '../src/roles';
 
 import { getAgentConfig, getEnvironmentConfig } from './utils';
@@ -44,10 +39,6 @@ async function transferForEnv(ctx: Contexts, env: DeployEnvironment) {
     Role.Relayer,
     AgentConnectionType.Http,
   );
-  const igp = HyperlaneIgp.fromEnvironment(
-    deployEnvToSdkEnv[env],
-    multiProvider,
-  );
 
   const toKey = getCloudAgentKey(agentConfig, Role.Relayer);
   await toKey.fetch();
@@ -60,9 +51,13 @@ async function transferForEnv(ctx: Contexts, env: DeployEnvironment) {
       const fromKey = new OldRelayerAwsKey(agentConfig, originChain);
       await fromKey.fetch();
       for (const chain of chainsForEnv) {
-        await transfer(chain, agentConfig, igp, multiProvider, fromKey, toKey);
+        await transfer(chain, agentConfig, multiProvider, fromKey, toKey);
       }
       // await fromKey.delete();
+      console.log('Deleted key', {
+        from: fromKey.identifier,
+        fromKey: fromKey.address,
+      });
     } catch (err) {
       console.error('Error transferring funds', {
         ctx,
@@ -77,7 +72,6 @@ async function transferForEnv(ctx: Contexts, env: DeployEnvironment) {
 async function transfer(
   chain: ChainName,
   agentConfig: AgentContextConfig,
-  igp: HyperlaneIgp,
   multiProvider: MultiProvider,
   fromKey: CloudAgentKey,
   toKey: CloudAgentKey,
@@ -92,69 +86,38 @@ async function transfer(
   };
   console.log('Processing key', logCtx);
 
-  const igpContract = igp.getContracts(chain).interchainGasPaymaster;
-
-  const igpBalance = await multiProvider
-    .getProvider(chain)
-    .getBalance(igpContract.address);
-  const claimIgpFundsTx = await igpContract.populateTransaction.claim();
-  const gasToClaimIgpFunds = await multiProvider.estimateGas(
-    chain,
-    claimIgpFundsTx,
-  );
-  let gasPrice = await multiProvider.getProvider(chain).getGasPrice();
-  const costToClaimIgpFunds = gasPrice.mul(gasToClaimIgpFunds);
-  if (igpBalance.gt(costToClaimIgpFunds)) {
-    // only claim if the cost to do so is less than the balance we are claiming
-    // await multiProvider.sendTransaction(chain, claimIgpFundsTx);
-    console.log('Claimed IGP funds', {
-      ...logCtx,
-      igpAddress: igpContract.address,
-      igpBalance: formatEther(igpBalance),
-      cost: formatEther(costToClaimIgpFunds),
-      tx: claimIgpFundsTx,
-    });
-    // update gas price since we might have waited a while
-    gasPrice = await multiProvider.getProvider(chain).getGasPrice();
-  } else {
-    console.log('IGP balance too low to claim', {
-      ...logCtx,
-      igpAddress: igpContract.address,
-      igpBalance: formatEther(igpBalance),
-      cost: formatEther(costToClaimIgpFunds),
-    });
-  }
-
-  const currentBalance = await multiProvider
-    .getProvider(chain)
-    .getBalance(fromKey.address);
   const transferTx: PopulatedTransaction = {
     to: toKey.address,
     value: BigNumber.from(0),
   };
-  const gasToTransfer = await multiProvider.estimateGas(chain, transferTx);
+  const [gasPrice, gasToTransfer, initialBalance] = await Promise.all([
+    multiProvider.getProvider(chain).getGasPrice(),
+    multiProvider.estimateGas(chain, transferTx),
+    multiProvider.getProvider(chain).getBalance(fromKey.address),
+  ]);
   const costToTransfer = gasToTransfer.mul(gasPrice);
-  if (costToTransfer.gt(currentBalance)) {
+  if (costToTransfer.gt(initialBalance)) {
     console.log('Not enough funds to transfer', {
       ...logCtx,
-      balance: formatEther(currentBalance),
+      balance: formatEther(initialBalance),
     });
     return;
   }
-  transferTx.value = currentBalance.sub(costToTransfer);
+  transferTx.value = initialBalance.sub(costToTransfer);
   transferTx.gasLimit = gasToTransfer;
   transferTx.gasPrice = gasPrice;
 
   // await multiProvider.sendTransaction(chain, transferTx);
+  const [finalBalance, finalDestBalance] = await Promise.all([
+    multiProvider.getProvider(chain).getBalance(fromKey.address),
+    multiProvider.getProvider(chain).getBalance(toKey.address),
+  ]);
   console.log('Transferred funds', {
     ...logCtx,
-    originalBalance: formatEther(currentBalance),
-    finalBalance: formatEther(
-      await multiProvider.getProvider(chain).getBalance(fromKey.address),
-    ),
-    destinationBalance: formatEther(
-      await multiProvider.getProvider(chain).getBalance(toKey.address),
-    ),
+    initialBalance: formatEther(initialBalance),
+    finalBalance: formatEther(finalBalance),
+    finalDestBalance: formatEther(finalDestBalance),
+    transferred: formatEther(transferTx.value),
     cost: formatEther(costToTransfer),
     transferTx,
   });
