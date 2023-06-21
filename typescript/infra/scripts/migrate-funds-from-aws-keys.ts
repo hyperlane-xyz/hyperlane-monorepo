@@ -49,17 +49,27 @@ async function main() {
         (chain) => chainMetadata[chain].protocol == ProtocolType.Ethereum,
       );
       for (const originChain of chainsForEnv) {
-        const fromKey = new OldRelayerAwsKey(agentConfig, originChain);
-        await fromKey.fetch();
-        for (const chain of chainsForEnv) {
-          await transfer(
-            chain,
-            agentConfig,
-            igp,
-            multiProvider,
-            fromKey,
-            toKey,
-          );
+        try {
+          const fromKey = new OldRelayerAwsKey(agentConfig, originChain);
+          await fromKey.fetch();
+          for (const chain of chainsForEnv) {
+            await transfer(
+              chain,
+              agentConfig,
+              igp,
+              multiProvider,
+              fromKey,
+              toKey,
+            );
+          }
+          await fromKey.delete();
+        } catch (err) {
+          console.error('Error transferring funds', {
+            ctx,
+            env,
+            originChain,
+            err,
+          });
         }
       }
     }
@@ -148,7 +158,6 @@ async function transfer(
     cost: formatEther(costToTransfer),
     transferTx,
   });
-  // await fromKey.delete();
 }
 
 class OldRelayerAwsKey extends AgentAwsKey {
