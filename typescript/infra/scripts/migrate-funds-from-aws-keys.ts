@@ -23,7 +23,8 @@ import { Role } from '../src/roles';
 
 import { getAgentConfig, getEnvironmentConfig } from './utils';
 
-const ENVIRONMENTS: DeployEnvironment[] = ['mainnet2', 'testnet3'];
+// const ENVIRONMENTS: DeployEnvironment[] = ['mainnet2', 'testnet3'];
+const ENVIRONMENTS: DeployEnvironment[] = ['testnet3'];
 
 async function main() {
   for (const ctx of Object.values(Contexts)) {
@@ -61,7 +62,7 @@ async function transferForEnv(ctx: Contexts, env: DeployEnvironment) {
       for (const chain of chainsForEnv) {
         await transfer(chain, agentConfig, igp, multiProvider, fromKey, toKey);
       }
-      await fromKey.delete();
+      // await fromKey.delete();
     } catch (err) {
       console.error('Error transferring funds', {
         ctx,
@@ -142,6 +143,8 @@ async function transfer(
   }
   transferTx.value = currentBalance.sub(costToTransfer);
   transferTx.gasLimit = gasToTransfer;
+  transferTx.gasPrice = gasPrice;
+
   // await multiProvider.sendTransaction(chain, transferTx);
   console.log('Transferred funds', {
     ...logCtx,
