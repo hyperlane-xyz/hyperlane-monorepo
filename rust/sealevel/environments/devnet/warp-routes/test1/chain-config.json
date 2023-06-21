@@ -8,9 +8,9 @@
       }
     ]
   },
-  "solanadevnet-1": {
+  "solanadevnet1": {
     "chainId": 13376,
-    "name": "solanadevnet-1",
+    "name": "solanadevnet1",
     "publicRpcUrls": [
       {
         "http": "https://api.devnet.solana.com"
