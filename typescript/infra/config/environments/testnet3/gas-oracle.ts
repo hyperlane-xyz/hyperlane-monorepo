@@ -55,7 +55,8 @@ const chainTokenRarity: ChainMap<Rarity> = {
   moonbasealpha: Rarity.Common,
   optimismgoerli: Rarity.Mythic,
   arbitrumgoerli: Rarity.Mythic,
-  solanadevnet: Rarity.Rare,
+  solanadevnet: Rarity.Common,
+  solanadevnet1: Rarity.Common,
 };
 
 // Gets the "value" of a testnet chain

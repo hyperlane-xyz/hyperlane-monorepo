@@ -97,7 +97,28 @@ const releaseCandidate: RootAgentConfig = {
       repo,
       tag: '29b6bd2-20230620-134737',
     },
-    whitelist: releaseCandidateHelloworldMatchingList,
+    whitelist: [
+      ...releaseCandidateHelloworldMatchingList,
+      // TODO add solanadevnet1
+      {
+        originDomain: '*',
+        senderAddress: '*',
+        destinationDomain: [
+          chainMetadata.solanadevnet.chainId,
+          chainMetadata.solanadevnet1.chainId,
+        ],
+        recipientAddress: '*',
+      },
+      {
+        originDomain: [
+          chainMetadata.solanadevnet.chainId,
+          chainMetadata.solanadevnet1.chainId,
+        ],
+        senderAddress: '*',
+        destinationDomain: [chainMetadata.fuji.chainId],
+        recipientAddress: '*',
+      },
+    ],
     gasPaymentEnforcement,
     transactionGasLimit: 750000,
     // Skipping arbitrum because the gas price estimates are inclusive of L1

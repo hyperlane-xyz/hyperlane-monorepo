@@ -17,6 +17,7 @@ export const testnetConfigs: ChainMap<ChainMetadata> = {
   optimismgoerli: chainMetadata.optimismgoerli,
   arbitrumgoerli: chainMetadata.arbitrumgoerli,
   solanadevnet: chainMetadata.solanadevnet,
+  solanadevnet1: chainMetadata.solanadevnet1,
 };
 
 export type TestnetChains = keyof typeof testnetConfigs;

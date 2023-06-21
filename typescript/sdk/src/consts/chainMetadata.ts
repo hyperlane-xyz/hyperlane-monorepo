@@ -711,6 +711,26 @@ export const solanadevnet: ChainMetadata = {
   isTestnet: true,
 };
 
+export const solanadevnet1: ChainMetadata = {
+  chainId: 13376,
+  name: Chains.solanadevnet1,
+  type: ProtocolType.Sealevel,
+  displayName: 'Solana Devnet',
+  nativeToken: {
+    decimals: 9,
+    name: 'Solana',
+    symbol: 'SOL',
+  },
+  publicRpcUrls: [{ http: 'https://api.devnet.solana.com' }],
+  blockExplorers: [],
+  blocks: {
+    confirmations: 0,
+    reorgPeriod: 0,
+    estimateBlockTime: 0.4,
+  },
+  isTestnet: true,
+};
+
 export const test1: ChainMetadata = {
   chainId: 13371,
   name: Chains.test1,
@@ -788,6 +808,7 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   test2,
   test3,
   solanadevnet,
+  solanadevnet1,
 };
 
 // For convenient use in wagmi-based apps
