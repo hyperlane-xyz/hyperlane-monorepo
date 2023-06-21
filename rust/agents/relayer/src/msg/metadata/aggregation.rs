@@ -32,7 +32,7 @@ impl AggregationIsmMetadataBuilder {
         // Initialize the range tuple part of the buffer, so the actual metadatas can
         // simply be appended to it
         let mut buffer = vec![0; range_tuples_size];
-        for (index, metadata) in metadatas.into_iter().enumerate() {
+        for (index, metadata) in metadatas.iter_mut().enumerate() {
             let range_start = buffer.len();
             // Append the ism metadata as-is, since it's already encoded
             buffer.append(metadata);
@@ -85,6 +85,9 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         })
         .collect();
 
+        let sub_isms_count = sub_isms.len();
+        info!("Aggregation - sub-isms found: {sub_isms_count}");
+
         // send view / dryrun txs to see which ism will succeed
         let mut metas_and_gas: Vec<_> =
             join_all(sub_isms.into_iter().map(|(meta, ism)| async move {
@@ -98,13 +101,13 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
 
         let metas_and_gas_count = metas_and_gas.len();
         if metas_and_gas_count < threshold {
-            info!("Could not fetch metadata: Only found {metas_and_gas_count} of the {threshold} required ISM metadata pieces");
+            info!("Could not fetch all metadata: Found {metas_and_gas_count} of the {threshold} required ISM metadata pieces");
             return Ok(None);
         }
         metas_and_gas.sort_by(|(_, gas_1), (_, gas_2)| gas_1.partial_cmp(gas_2).unwrap());
         let mut cheapest_metas = metas_and_gas[..threshold]
-            .to_vec()
-            .into_iter()
+            .iter()
+            .cloned()
             .map(|(meta, _)| meta)
             .collect();
 

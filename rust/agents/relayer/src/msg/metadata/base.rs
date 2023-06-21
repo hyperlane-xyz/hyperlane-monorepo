@@ -18,12 +18,11 @@ use hyperlane_core::{
 };
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
-use crate::msg::metadata::aggregation::AggregationIsmMetadataBuilder;
 use crate::msg::metadata::multisig::{
     LegacyMultisigMetadataBuilder, MerkleRootMultisigMetadataBuilder,
     MessageIdMultisigMetadataBuilder,
 };
-use crate::msg::metadata::RoutingIsmMetadataBuilder;
+use crate::msg::metadata::{AggregationIsmMetadataBuilder, RoutingIsmMetadataBuilder};
 
 #[derive(Debug, thiserror::Error)]
 pub enum MetadataBuilderError {
