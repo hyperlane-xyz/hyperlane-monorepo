@@ -28,50 +28,47 @@ const ENVIRONMENTS: DeployEnvironment[] = ['mainnet2', 'testnet3'];
 async function main() {
   for (const ctx of Object.values(Contexts)) {
     for (const env of ENVIRONMENTS) {
-      const envConfig = getEnvironmentConfig(env);
-      const agentConfig = getAgentConfig(ctx, envConfig);
+      await transferForEnv(ctx, env);
+    }
+  }
+}
 
-      // always fund from the current context and relayer role to the new relayer key
-      const multiProvider = await envConfig.getMultiProvider(
-        ctx,
-        Role.Relayer,
-        AgentConnectionType.Http,
-      );
-      const igp = HyperlaneIgp.fromEnvironment(
-        deployEnvToSdkEnv[env],
-        multiProvider,
-      );
+async function transferForEnv(ctx: Contexts, env: DeployEnvironment) {
+  const envConfig = getEnvironmentConfig(env);
+  const agentConfig = getAgentConfig(ctx, envConfig);
 
-      const toKey = getCloudAgentKey(agentConfig, Role.Relayer);
-      await toKey.fetch();
+  // always fund from the current context and relayer role to the new relayer key
+  const multiProvider = await envConfig.getMultiProvider(
+    ctx,
+    Role.Relayer,
+    AgentConnectionType.Http,
+  );
+  const igp = HyperlaneIgp.fromEnvironment(
+    deployEnvToSdkEnv[env],
+    multiProvider,
+  );
 
-      const chainsForEnv = Object.keys(envConfig.chainMetadataConfigs).filter(
-        (chain) => chainMetadata[chain].protocol == ProtocolType.Ethereum,
-      );
-      for (const originChain of chainsForEnv) {
-        try {
-          const fromKey = new OldRelayerAwsKey(agentConfig, originChain);
-          await fromKey.fetch();
-          for (const chain of chainsForEnv) {
-            await transfer(
-              chain,
-              agentConfig,
-              igp,
-              multiProvider,
-              fromKey,
-              toKey,
-            );
-          }
-          await fromKey.delete();
-        } catch (err) {
-          console.error('Error transferring funds', {
-            ctx,
-            env,
-            originChain,
-            err,
-          });
-        }
+  const toKey = getCloudAgentKey(agentConfig, Role.Relayer);
+  await toKey.fetch();
+
+  const chainsForEnv = Object.keys(envConfig.chainMetadataConfigs).filter(
+    (chain) => chainMetadata[chain].protocol == ProtocolType.Ethereum,
+  );
+  for (const originChain of chainsForEnv) {
+    try {
+      const fromKey = new OldRelayerAwsKey(agentConfig, originChain);
+      await fromKey.fetch();
+      for (const chain of chainsForEnv) {
+        await transfer(chain, agentConfig, igp, multiProvider, fromKey, toKey);
       }
+      await fromKey.delete();
+    } catch (err) {
+      console.error('Error transferring funds', {
+        ctx,
+        env,
+        originChain,
+        err,
+      });
     }
   }
 }
