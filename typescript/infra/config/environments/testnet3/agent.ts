@@ -99,7 +99,7 @@ const releaseCandidate: RootAgentConfig = {
     },
     whitelist: [
       ...releaseCandidateHelloworldMatchingList,
-      // TODO add solanadevnet1
+      // Whitelist all traffic to solanadevnet and solanadevnet1
       {
         originDomain: '*',
         senderAddress: '*',
@@ -109,6 +109,7 @@ const releaseCandidate: RootAgentConfig = {
         ],
         recipientAddress: '*',
       },
+      // Whitelist all traffic from solanadevnet and solanadevnet1 to fuji
       {
         originDomain: [
           chainMetadata.solanadevnet.chainId,
@@ -120,12 +121,9 @@ const releaseCandidate: RootAgentConfig = {
       },
     ],
     gasPaymentEnforcement: [
+      // Don't require gas payments from solanadevnet or solanadevnet1
       {
         type: GasPaymentEnforcementPolicyType.None,
-        // To continue relaying interchain query callbacks, we whitelist
-        // all messages between interchain query routers.
-        // This whitelist will become more strict with
-        // https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/1605
         matchingList: [
           {
             originDomain: [
