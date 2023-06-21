@@ -715,7 +715,7 @@ export const solanadevnet1: ChainMetadata = {
   chainId: 13376,
   name: Chains.solanadevnet1,
   protocol: ProtocolType.Sealevel,
-  displayName: 'Solana Devnet',
+  displayName: 'Solana Devnet 1',
   nativeToken: {
     decimals: 9,
     name: 'Solana',
