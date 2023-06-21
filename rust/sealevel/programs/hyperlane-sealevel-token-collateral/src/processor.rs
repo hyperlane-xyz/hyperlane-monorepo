@@ -108,9 +108,9 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
 /// 7.   [signer] Unique message account.
 /// 8.   [writeable] Message storage PDA.
 /// 9.   [executable] The SPL token program for the mint.
-/// 10.  [] The mint.
+/// 10.  [writeable] The mint.
 /// 11.  [writeable] The token sender's associated token account, from which tokens will be sent.
-/// 12.  [] The escrow PDA account.
+/// 12.  [writeable] The escrow PDA account.
 fn transfer_remote(
     program_id: &Pubkey,
     accounts: &[AccountInfo],

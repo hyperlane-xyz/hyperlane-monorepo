@@ -218,9 +218,9 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
     ///
     /// Accounts:
     /// 0. [executable] The SPL token program for the mint.
-    /// 1. [] The mint.
+    /// 1. [writeable] The mint.
     /// 2. [writeable] The token sender's associated token account, from which tokens will be sent.
-    /// 3. [] The escrow PDA account.
+    /// 3. [writeable] The escrow PDA account.
     fn transfer_in<'a, 'b>(
         _program_id: &Pubkey,
         token: &HyperlaneToken<Self>,

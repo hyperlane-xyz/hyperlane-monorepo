@@ -563,9 +563,9 @@ async fn test_transfer_remote(spl_token_program_id: Pubkey) {
             // 7.   [signer] Unique message account.
             // 8.   [writeable] Message storage PDA.
             // 9.   [executable] The spl_token_2022 program.
-            // 10.  [] The mint.
+            // 10.  [writeable] The mint.
             // 11.  [writeable] The token sender's associated token account, from which tokens will be sent.
-            // 12.  [] The escrow PDA account.
+            // 12.  [writeable] The escrow PDA account.
             vec![
                 AccountMeta::new_readonly(solana_program::system_program::id(), false),
                 AccountMeta::new_readonly(spl_noop::id(), false),

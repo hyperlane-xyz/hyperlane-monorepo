@@ -27,6 +27,9 @@ use hyperlane_sealevel_token::{
     hyperlane_token_ata_payer_pda_seeds, hyperlane_token_mint_pda_seeds, plugin::SyntheticPlugin,
     spl_associated_token_account::get_associated_token_address_with_program_id, spl_token_2022,
 };
+use hyperlane_sealevel_token_collateral::{
+    hyperlane_token_escrow_pda_seeds, plugin::CollateralPlugin,
+};
 use hyperlane_sealevel_token_lib::{
     accounts::HyperlaneTokenAccount,
     hyperlane_token_pda_seeds,
@@ -37,6 +40,7 @@ use hyperlane_sealevel_token_lib::{
 use hyperlane_sealevel_token_native::{
     hyperlane_token_native_collateral_pda_seeds, plugin::NativePlugin,
 };
+
 use hyperlane_sealevel_validator_announce::{
     accounts::ValidatorStorageLocationsAccount,
     instruction::{
@@ -281,6 +285,7 @@ enum TokenSubCmd {
 enum TokenType {
     Native,
     Synthetic,
+    Collateral,
 }
 
 #[derive(Args)]
@@ -717,6 +722,10 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                         ata_payer_account, ata_payer_bump,
                     );
                 }
+                TokenType::Collateral => {
+                    // TODO implement this - for now, the warp route deployment tooling is sufficient
+                    unimplemented!()
+                }
             }
 
             println!("init.program_id {}", init.program_id);
@@ -790,6 +799,13 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                     accounts_to_query.push(mint_account);
                     accounts_to_query.push(ata_payer_account);
                 }
+                TokenType::Collateral => {
+                    let (escrow_account, _escrow_bump) = Pubkey::find_program_address(
+                        hyperlane_token_escrow_pda_seeds!(),
+                        &query.program_id,
+                    );
+                    accounts_to_query.push(escrow_account);
+                }
             }
 
             let accounts = ctx
@@ -816,6 +832,14 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                     }
                     TokenType::Synthetic => {
                         match HyperlaneTokenAccount::<SyntheticPlugin>::fetch(
+                            &mut info.data.as_ref(),
+                        ) {
+                            Ok(token) => println!("{:#?}", token.into_inner()),
+                            Err(err) => println!("Failed to deserialize account data: {}", err),
+                        }
+                    }
+                    TokenType::Collateral => {
+                        match HyperlaneTokenAccount::<CollateralPlugin>::fetch(
                             &mut info.data.as_ref(),
                         ) {
                             Ok(token) => println!("{:#?}", token.into_inner()),
@@ -873,6 +897,17 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                     println!(
                         "ATA payer account: {}, bump={}",
                         ata_payer_account, ata_payer_bump,
+                    );
+                }
+                TokenType::Collateral => {
+                    let (escrow_account, escrow_bump) = Pubkey::find_program_address(
+                        hyperlane_token_escrow_pda_seeds!(),
+                        &query.program_id,
+                    );
+
+                    println!(
+                        "escrow_account (key, bump)=({}, {})",
+                        escrow_account, escrow_bump,
                     );
                 }
             }
@@ -969,6 +1004,36 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                         AccountMeta::new_readonly(spl_token_2022::id(), false),
                         AccountMeta::new(mint_account, false),
                         AccountMeta::new(sender_associated_token_account, false),
+                    ]);
+                }
+                TokenType::Collateral => {
+                    // 5. [executable] The SPL token program for the mint.
+                    // 6. [writeable] The mint.
+                    // 7. [writeable] The token sender's associated token account, from which tokens will be sent.
+                    // 8. [writeable] The escrow PDA account.
+                    let fetched_token_account = ctx
+                        .client
+                        .get_account_with_commitment(&token_account, ctx.commitment)
+                        .unwrap()
+                        .value
+                        .unwrap();
+                    let token = HyperlaneTokenAccount::<CollateralPlugin>::fetch(
+                        &mut &fetched_token_account.data[..],
+                    )
+                    .unwrap()
+                    .into_inner();
+
+                    let sender_associated_token_account =
+                        get_associated_token_address_with_program_id(
+                            &sender.pubkey(),
+                            &token.plugin_data.mint,
+                            &token.plugin_data.spl_token_program,
+                        );
+                    accounts.extend([
+                        AccountMeta::new_readonly(token.plugin_data.spl_token_program, false),
+                        AccountMeta::new(token.plugin_data.mint, false),
+                        AccountMeta::new(sender_associated_token_account, false),
+                        AccountMeta::new(token.plugin_data.escrow, false),
                     ]);
                 }
             }
