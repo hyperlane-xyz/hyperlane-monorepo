@@ -12,6 +12,7 @@ import {
   AgentConfigHelper,
   AgentContextConfig,
   DeployEnvironment,
+  DockerConfig,
   HelmRootAgentValues,
   RelayerConfigHelper,
   RootAgentConfig,
@@ -106,10 +107,11 @@ export abstract class AgentHelmManager {
   }
 
   async helmValues(): Promise<HelmRootAgentValues> {
+    const dockerImage = this.dockerImage();
     return {
       image: {
-        repository: this.config.docker.repo,
-        tag: this.config.docker.tag,
+        repository: dockerImage.repo,
+        tag: dockerImage.tag,
       },
       hyperlane: {
         runEnv: this.environment,
@@ -125,7 +127,7 @@ export abstract class AgentHelmManager {
   }
 
   connectionType(chain: ChainName): AgentConnectionType {
-    if (chainMetadata[chain].type == ProtocolType.Sealevel) {
+    if (chainMetadata[chain].protocol == ProtocolType.Sealevel) {
       return AgentConnectionType.Http;
     }
 
@@ -144,6 +146,10 @@ export abstract class AgentHelmManager {
     } catch (error) {
       return false;
     }
+  }
+
+  dockerImage(): DockerConfig {
+    return this.config.dockerImage();
   }
 }
 
@@ -168,6 +174,10 @@ abstract class MultichainAgentHelmManager extends AgentHelmManager {
     // in the name of the helm release if the context is the default "hyperlane"
     if (this.context != Contexts.Hyperlane) parts.push(this.context);
     return parts.join('-');
+  }
+
+  dockerImage(): DockerConfig {
+    return this.config.dockerImage(this.chainName);
   }
 }
 

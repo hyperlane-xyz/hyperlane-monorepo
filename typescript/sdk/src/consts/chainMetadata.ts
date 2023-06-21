@@ -694,7 +694,7 @@ export const gnosis: ChainMetadata = {
 export const solanadevnet: ChainMetadata = {
   chainId: 13375,
   name: Chains.solanadevnet,
-  type: ProtocolType.Sealevel,
+  protocol: ProtocolType.Sealevel,
   displayName: 'Solana Devnet',
   nativeToken: {
     decimals: 9,
@@ -714,7 +714,7 @@ export const solanadevnet: ChainMetadata = {
 export const solanadevnet1: ChainMetadata = {
   chainId: 13376,
   name: Chains.solanadevnet1,
-  type: ProtocolType.Sealevel,
+  protocol: ProtocolType.Sealevel,
   displayName: 'Solana Devnet',
   nativeToken: {
     decimals: 9,

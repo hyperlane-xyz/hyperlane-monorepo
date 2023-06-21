@@ -28,7 +28,8 @@ export function getRelayerCloudAgentKeys(
   if (isAws) {
     keys.push(new AgentAwsKey(agentConfig, Role.Relayer));
     let nonEthereumChains = agentConfig.contextChainNames.find(
-      (chainName) => chainMetadata[chainName].type !== ProtocolType.Ethereum,
+      (chainName) =>
+        chainMetadata[chainName].protocol !== ProtocolType.Ethereum,
     );
     // If there are any non-ethereum chains, we also want hex keys.
     if (nonEthereumChains) {
@@ -51,14 +52,8 @@ export function getCloudAgentKey(
   chainName?: ChainName,
   index?: number,
 ): CloudAgentKey {
-  let isAws = !!agentConfig.aws;
   // The deployer is always GCP-based
-  isAws = isAws && role !== Role.Deployer;
-  const isSealevel =
-    !!chainName && chainMetadata[chainName].protocol === ProtocolType.Sealevel;
-  // Sealevel chains should use GCP-based hex keys for relayers
-  isAws = isAws && !(isSealevel && role == Role.Relayer);
-  if (isAws) {
+  if (!!agentConfig.aws && role !== Role.Deployer) {
     return new AgentAwsKey(agentConfig, role, chainName, index);
   } else {
     return new AgentGCPKey(

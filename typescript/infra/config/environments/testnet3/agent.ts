@@ -74,7 +74,15 @@ const hyperlane: RootAgentConfig = {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: '29b6bd2-20230620-134737',
+      tag: '2deb9b8-20230602-205342',
+    },
+    chainDockerOverrides: {
+      [chainMetadata.solanadevnet.name]: {
+        tag: '29b6bd2-20230620-134737',
+      },
+      [chainMetadata.solanadevnet1.name]: {
+        tag: '29b6bd2-20230620-134737',
+      },
     },
     chains: validators,
   },
