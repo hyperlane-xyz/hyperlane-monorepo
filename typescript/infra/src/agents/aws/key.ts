@@ -13,6 +13,7 @@ import {
   ListAliasesCommandOutput,
   OriginType,
   PutKeyPolicyCommand,
+  ScheduleKeyDeletionCommand,
   UpdateAliasCommand,
 } from '@aws-sdk/client-kms';
 import { KmsEthersSigner } from 'aws-kms-ethers-signer';
@@ -111,7 +112,13 @@ export class AgentAwsKey extends CloudAgentKey {
   }
 
   async delete() {
-    throw Error('Not implemented yet');
+    const client = await this.getClient();
+    await client.send(
+      new ScheduleKeyDeletionCommand({
+        KeyId: await this.getId(),
+        PendingWindowInDays: 30,
+      }),
+    );
   }
 
   // Allows the `userArn` to use the key
