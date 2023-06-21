@@ -61,6 +61,7 @@ build_programs() {
     build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_multisig_ism_message_id.so" "${TARGET_DIR}/../programs/ism/multisig-ism-message-id" "${force_build}"
     build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_token.so" "${TARGET_DIR}/../programs/hyperlane-sealevel-token" "${force_build}"
     build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_token_native.so" "${TARGET_DIR}/../programs/hyperlane-sealevel-token-native" "${force_build}"
+    build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_token_collateral.so" "${TARGET_DIR}/../programs/hyperlane-sealevel-token-collateral" "${force_build}"
 }
 
 build_spl_token_cli() {
