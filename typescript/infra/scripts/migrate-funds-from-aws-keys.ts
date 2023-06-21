@@ -4,6 +4,7 @@ import { formatEther } from 'ethers/lib/utils';
 import {
   AgentConnectionType,
   ChainName,
+  Chains,
   MultiProvider,
   ProtocolType,
   chainMetadata,
@@ -20,6 +21,13 @@ import { getAgentConfig, getEnvironmentConfig } from './utils';
 
 // const ENVIRONMENTS: DeployEnvironment[] = ['mainnet2', 'testnet3'];
 const ENVIRONMENTS: DeployEnvironment[] = ['testnet3'];
+
+const L2Chains: ChainName[] = [
+  Chains.optimism,
+  Chains.optimismgoerli,
+  Chains.arbitrum,
+  Chains.arbitrumgoerli,
+];
 
 async function main() {
   for (const ctx of Object.values(Contexts)) {
@@ -53,7 +61,7 @@ async function transferForEnv(ctx: Contexts, env: DeployEnvironment) {
       for (const chain of chainsForEnv) {
         await transfer(chain, agentConfig, multiProvider, fromKey, toKey);
       }
-      // await fromKey.delete();
+      await fromKey.delete();
       console.log('Deleted key', {
         from: fromKey.identifier,
         fromKey: fromKey.address,
@@ -95,7 +103,8 @@ async function transfer(
     multiProvider.estimateGas(chain, transferTx),
     multiProvider.getProvider(chain).getBalance(fromKey.address),
   ]);
-  const costToTransfer = gasToTransfer.mul(gasPrice);
+
+  let costToTransfer = gasToTransfer.mul(gasPrice);
   if (costToTransfer.gt(initialBalance)) {
     console.log('Not enough funds to transfer', {
       ...logCtx,
@@ -103,11 +112,16 @@ async function transfer(
     });
     return;
   }
+
+  if (L2Chains.includes(chain))
+    // L2 chains have a gateway fee
+    costToTransfer = costToTransfer.mul(3).div(2);
+
   transferTx.value = initialBalance.sub(costToTransfer);
   transferTx.gasLimit = gasToTransfer;
   transferTx.gasPrice = gasPrice;
 
-  // await multiProvider.sendTransaction(chain, transferTx);
+  await multiProvider.sendTransaction(chain, transferTx);
   const [finalBalance, finalDestBalance] = await Promise.all([
     multiProvider.getProvider(chain).getBalance(fromKey.address),
     multiProvider.getProvider(chain).getBalance(toKey.address),
