@@ -119,7 +119,27 @@ const releaseCandidate: RootAgentConfig = {
         recipientAddress: '*',
       },
     ],
-    gasPaymentEnforcement,
+    gasPaymentEnforcement: [
+      {
+        type: GasPaymentEnforcementPolicyType.None,
+        // To continue relaying interchain query callbacks, we whitelist
+        // all messages between interchain query routers.
+        // This whitelist will become more strict with
+        // https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/1605
+        matchingList: [
+          {
+            originDomain: [
+              chainMetadata.solanadevnet.chainId,
+              chainMetadata.solanadevnet1.chainId,
+            ],
+            senderAddress: '*',
+            destinationDomain: [chainMetadata.fuji.chainId],
+            recipientAddress: '*',
+          },
+        ],
+      },
+      ...gasPaymentEnforcement,
+    ],
     transactionGasLimit: 750000,
     // Skipping arbitrum because the gas price estimates are inclusive of L1
     // fees which leads to wildly off predictions.
