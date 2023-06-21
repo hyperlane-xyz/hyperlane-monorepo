@@ -1,6 +1,11 @@
 import fs from 'fs';
 
-import { ChainName } from '@hyperlane-xyz/sdk';
+import {
+  AgentConnectionType,
+  ChainName,
+  ProtocolType,
+  chainMetadata,
+} from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import {
@@ -113,10 +118,18 @@ export abstract class AgentHelmManager {
         chains: this.config.environmentChainNames.map((name) => ({
           name,
           disabled: !this.config.contextChainNames.includes(name),
-          connection: { type: this.config.connectionType },
+          connection: { type: this.connectionType(name) },
         })),
       },
     };
+  }
+
+  connectionType(chain: ChainName): AgentConnectionType {
+    if (chainMetadata[chain].type == ProtocolType.Sealevel) {
+      return AgentConnectionType.Http;
+    }
+
+    return this.config.connectionType;
   }
 
   async doesAgentReleaseExist() {
