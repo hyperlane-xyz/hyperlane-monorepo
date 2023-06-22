@@ -12,7 +12,7 @@ import { owners } from './owners';
 export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
   const defaultIsm: AggregationIsmConfig = {
     type: ModuleType.AGGREGATION,
-    modules: [merkleRootMultisig, messageIdMultisig],
+    modules: [merkleRootMultisig(local), messageIdMultisig(local)],
     threshold: 1,
   };
 
