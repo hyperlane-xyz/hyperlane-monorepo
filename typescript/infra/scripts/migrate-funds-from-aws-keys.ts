@@ -55,7 +55,7 @@ async function transferForEnv(ctx: Contexts, env: DeployEnvironment) {
   // always transfer to the main hyperlane context
   const toKey = getCloudAgentKey(
     getAgentConfig(Contexts.Hyperlane, envConfig),
-    Role.Relayer,
+    Role.Deployer,
   );
   await toKey.fetch();
 
