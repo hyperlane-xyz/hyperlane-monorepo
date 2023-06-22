@@ -175,8 +175,12 @@ async function transfer(
     maxPriorityFeePerGas: formatEther(feeData.maxPriorityFeePerGas ?? 0),
     transferTx,
   });
-  const receipt = await signer.sendTransaction(transferTx);
-
+  const response = await signer.sendTransaction(transferTx);
+  console.log('Transfer sent', {
+    ...logCtx,
+    response,
+  });
+  const receipt = await provider.waitForTransaction(response.hash);
   console.log('Transferred funds', {
     ...logCtx,
     receipt,
