@@ -12,7 +12,7 @@ use ethers::prelude::{abi, Lazy, Middleware};
 pub use self::{
     config::*, interchain_gas::*, interchain_security_module::*, mailbox::*, multisig_ism::*,
     provider::*, routing_ism::*, rpc_clients::*, signers::*, singleton_signer::*, trait_builder::*,
-    validator_announce::*,
+    validator_announce::*, ccip_read_ism::*
 };
 
 #[cfg(not(doctest))]
@@ -44,6 +44,10 @@ mod multisig_ism;
 /// RoutingIsm abi
 #[cfg(not(doctest))]
 mod routing_ism;
+
+/// CcipReadIsm abi
+#[cfg(not(doctest))]
+mod ccip_read_ism;
 
 /// ValidatorAnnounce abi
 #[cfg(not(doctest))]

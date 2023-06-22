@@ -11,6 +11,7 @@ pub use provider::*;
 pub use routing_ism::*;
 pub use signing::*;
 pub use validator_announce::*;
+pub use ccip_read_ism::*;
 
 mod cursor;
 mod db;
@@ -23,6 +24,7 @@ mod mailbox;
 mod multisig_ism;
 mod provider;
 mod routing_ism;
+mod ccip_read_ism;
 mod signing;
 mod validator_announce;
 
