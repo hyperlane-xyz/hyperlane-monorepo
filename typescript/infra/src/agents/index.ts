@@ -149,7 +149,7 @@ export abstract class AgentHelmManager {
   }
 
   dockerImage(): DockerConfig {
-    return this.config.dockerImage();
+    return this.config.docker;
   }
 }
 
@@ -177,7 +177,7 @@ abstract class MultichainAgentHelmManager extends AgentHelmManager {
   }
 
   dockerImage(): DockerConfig {
-    return this.config.dockerImage(this.chainName);
+    return this.config.dockerImageForChain(this.chainName);
   }
 }
 

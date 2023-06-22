@@ -21,6 +21,7 @@ export {
   mainnetChainsMetadata,
   testnetChainsMetadata,
   wagmiChainMetadata,
+  getDomainId,
 } from './consts/chainMetadata';
 export {
   AllChains,

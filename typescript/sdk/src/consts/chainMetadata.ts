@@ -692,10 +692,12 @@ export const gnosis: ChainMetadata = {
 };
 
 export const solanadevnet: ChainMetadata = {
-  chainId: 13375,
+  chainId: 1399811151,
+  domainId: 13375, // TODO change after next deployment
   name: Chains.solanadevnet,
   protocol: ProtocolType.Sealevel,
   displayName: 'Solana Devnet',
+  displayNameShort: 'Sol Devnet',
   nativeToken: {
     decimals: 9,
     name: 'Solana',
@@ -704,7 +706,7 @@ export const solanadevnet: ChainMetadata = {
   publicRpcUrls: [{ http: 'https://api.devnet.solana.com' }],
   blockExplorers: [],
   blocks: {
-    confirmations: 0,
+    confirmations: 1,
     reorgPeriod: 0,
     estimateBlockTime: 0.4,
   },
@@ -712,10 +714,12 @@ export const solanadevnet: ChainMetadata = {
 };
 
 export const solanadevnet1: ChainMetadata = {
-  chainId: 13376,
+  chainId: 1399811152,
+  domainId: 13376, // TODO change after next deployment
   name: Chains.solanadevnet1,
   protocol: ProtocolType.Sealevel,
   displayName: 'Solana Devnet 1',
+  displayNameShort: 'Sol Devnet 1',
   nativeToken: {
     decimals: 9,
     name: 'Solana',
@@ -724,7 +728,7 @@ export const solanadevnet1: ChainMetadata = {
   publicRpcUrls: [{ http: 'https://api.devnet.solana.com' }],
   blockExplorers: [],
   blocks: {
-    confirmations: 0,
+    confirmations: 1,
     reorgPeriod: 0,
     estimateBlockTime: 0.4,
   },
@@ -833,4 +837,8 @@ export const testnetChainsMetadata: Array<ChainMetadata> = Testnets.map(
 
 export function isValidChainMetadata(c: ChainMetadata): boolean {
   return ChainMetadataSchema.safeParse(c).success;
+}
+
+export function getDomainId(chainMetadata: ChainMetadata): number {
+  return chainMetadata.domainId ?? chainMetadata.chainId;
 }

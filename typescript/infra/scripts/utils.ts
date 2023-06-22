@@ -32,7 +32,7 @@ import {
 import { fetchProvider } from '../src/config/chain';
 import { EnvironmentNames, deployEnvToSdkEnv } from '../src/config/environment';
 import { Role } from '../src/roles';
-import { assertContext, assertRole } from '../src/utils/utils';
+import { assertContext, assertRole, coerceProtocol } from '../src/utils/utils';
 
 export enum Modules {
   ISM_FACTORY = 'ism',
@@ -85,18 +85,6 @@ export function withProtocol<T>(args: yargs.Argv<T>) {
     .default('protocol', ProtocolType.Ethereum)
     .coerce('protocol', coerceProtocol)
     .demandOption('protocol');
-}
-
-function coerceProtocol(protocolStr: string): ProtocolType {
-  const protocol = protocolStr as ProtocolType;
-  if (Object.values(ProtocolType).includes(protocol)) {
-    return protocol;
-  }
-  throw new Error(
-    `Invalid protocol ${protocolStr}, must be one of ${Object.values(
-      ProtocolType,
-    )}`,
-  );
 }
 
 export function withAgentRole<T>(args: yargs.Argv<T>) {

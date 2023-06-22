@@ -1,4 +1,8 @@
-import { AgentConnectionType, chainMetadata } from '@hyperlane-xyz/sdk';
+import {
+  AgentConnectionType,
+  chainMetadata,
+  getDomainId,
+} from '@hyperlane-xyz/sdk';
 
 import {
   GasPaymentEnforcementPolicyType,
@@ -112,19 +116,19 @@ const releaseCandidate: RootAgentConfig = {
         originDomain: '*',
         senderAddress: '*',
         destinationDomain: [
-          chainMetadata.solanadevnet.chainId,
-          chainMetadata.solanadevnet1.chainId,
+          getDomainId(chainMetadata.solanadevnet),
+          getDomainId(chainMetadata.solanadevnet1),
         ],
         recipientAddress: '*',
       },
       // Whitelist all traffic from solanadevnet and solanadevnet1 to fuji
       {
         originDomain: [
-          chainMetadata.solanadevnet.chainId,
-          chainMetadata.solanadevnet1.chainId,
+          getDomainId(chainMetadata.solanadevnet),
+          getDomainId(chainMetadata.solanadevnet1),
         ],
         senderAddress: '*',
-        destinationDomain: [chainMetadata.fuji.chainId],
+        destinationDomain: [getDomainId(chainMetadata.fuji)],
         recipientAddress: '*',
       },
     ],
@@ -135,11 +139,11 @@ const releaseCandidate: RootAgentConfig = {
         matchingList: [
           {
             originDomain: [
-              chainMetadata.solanadevnet.chainId,
-              chainMetadata.solanadevnet1.chainId,
+              getDomainId(chainMetadata.solanadevnet),
+              getDomainId(chainMetadata.solanadevnet1),
             ],
             senderAddress: '*',
-            destinationDomain: [chainMetadata.fuji.chainId],
+            destinationDomain: [getDomainId(chainMetadata.fuji)],
             recipientAddress: '*',
           },
         ],

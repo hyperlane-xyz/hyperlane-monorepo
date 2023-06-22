@@ -175,9 +175,9 @@ export abstract class AgentConfigHelper<R = unknown>
 
   abstract buildConfig(): Promise<R>;
 
-  // If the provided chain has an override, return the override, otherwise return the default
-  dockerImage(chainName?: ChainName): DockerConfig {
-    if (chainName && this.chainDockerOverrides?.[chainName]) {
+  // If the provided chain has an override, return the override, otherwise return the default.
+  dockerImageForChain(chainName: ChainName): DockerConfig {
+    if (this.chainDockerOverrides?.[chainName]) {
       return {
         ...this.docker,
         ...this.chainDockerOverrides[chainName],

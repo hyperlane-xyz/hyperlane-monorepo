@@ -98,7 +98,7 @@ export class ValidatorAgentAwsUser extends AgentAwsUser {
     const getCmd = new GetPublicAccessBlockCommand({
       Bucket: this.bucket,
     });
-    let configuration: PublicAccessBlockConfiguration | undefined = undefined;
+    let configuration: PublicAccessBlockConfiguration | undefined;
     try {
       const { PublicAccessBlockConfiguration } = await this.adminS3Client.send(
         getCmd,

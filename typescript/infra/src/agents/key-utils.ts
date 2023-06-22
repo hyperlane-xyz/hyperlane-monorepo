@@ -22,30 +22,28 @@ interface KeyAsAddress {
 export function getRelayerCloudAgentKeys(
   agentConfig: AgentContextConfig,
 ): Array<CloudAgentKey> {
-  const keys = [];
+  if (!agentConfig.aws) {
+    return [
+      new AgentGCPKey(agentConfig.runEnv, agentConfig.context, Role.Relayer),
+    ];
+  }
 
-  const isAws = !!agentConfig.aws;
-  if (isAws) {
-    keys.push(new AgentAwsKey(agentConfig, Role.Relayer));
-    let nonEthereumChains = agentConfig.contextChainNames.find(
-      (chainName) =>
-        chainMetadata[chainName].protocol !== ProtocolType.Ethereum,
-    );
-    // If there are any non-ethereum chains, we also want hex keys.
-    if (nonEthereumChains) {
-      keys.push(
-        new AgentGCPKey(agentConfig.runEnv, agentConfig.context, Role.Relayer),
-      );
-    }
-  } else {
+  const keys = [];
+  keys.push(new AgentAwsKey(agentConfig, Role.Relayer));
+  let nonEthereumChains = agentConfig.contextChainNames.find(
+    (chainName) => chainMetadata[chainName].protocol !== ProtocolType.Ethereum,
+  );
+  // If there are any non-ethereum chains, we also want hex keys.
+  if (nonEthereumChains) {
     keys.push(
       new AgentGCPKey(agentConfig.runEnv, agentConfig.context, Role.Relayer),
     );
   }
-
   return keys;
 }
 
+// If getting all keys for relayers or validators, it's recommended to use
+// `getRelayerCloudAgentKeys` or `getValidatorCloudAgentKeys` instead.
 export function getCloudAgentKey(
   agentConfig: AgentContextConfig,
   role: Role,

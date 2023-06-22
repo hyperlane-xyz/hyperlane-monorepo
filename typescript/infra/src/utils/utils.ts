@@ -9,6 +9,7 @@ import {
   AllChains,
   ChainName,
   CoreChainName,
+  ProtocolType,
   objMerge,
 } from '@hyperlane-xyz/sdk';
 
@@ -226,6 +227,18 @@ export function assertContext(contextStr: string): Contexts {
     )}. ${
       contextStr === undefined ? ' Did you specify --context <context>?' : ''
     }`,
+  );
+}
+
+export function coerceProtocol(protocolStr: string): ProtocolType {
+  const protocol = protocolStr as ProtocolType;
+  if (Object.values(ProtocolType).includes(protocol)) {
+    return protocol;
+  }
+  throw new Error(
+    `Invalid protocol ${protocolStr}, must be one of ${Object.values(
+      ProtocolType,
+    )}`,
   );
 }
 
