@@ -40,12 +40,12 @@ async function main() {
 
   // const envConfig = getEnvironmentConfig('testnet3');
   // const agentConfig = getAgentConfig(Contexts.Hyperlane, envConfig);
-  // const from = new OldRelayerAwsKey(agentConfig, Chains.fuji);
+  // const from = new OldRelayerAwsKey(agentConfig, Chains.mumbai);
   // const to = getCloudAgentKey(agentConfig, Role.Relayer);
-  // const provider = await fetchProvider('testnet3', Chains.optimismgoerli);
+  // const provider = await fetchProvider('testnet3', Chains.bsctestnet);
   //
   // await Promise.all([from.fetch(), to.fetch()]);
-  // await transfer(Chains.optimismgoerli, agentConfig, provider, from, to);
+  // await transfer(Chains.bsctestnet, agentConfig, provider, from, to);
 }
 
 async function transferForEnv(ctx: Contexts, env: DeployEnvironment) {
@@ -165,6 +165,7 @@ async function transfer(
     return;
   }
 
+  // transferTx.value = BigNumber.from(1);
   transferTx.value = initialBalance.sub(costToTransfer);
   transferTx.gasLimit = gasToTransfer;
 
@@ -173,7 +174,7 @@ async function transfer(
     initialBalance: formatEther(initialBalance),
     transferring: formatEther(transferTx.value),
     cost: formatEther(costToTransfer),
-    gas: formatEther(gasToTransfer),
+    gas: gasToTransfer.toNumber(),
     gasPrice: formatEther(feeData.gasPrice ?? 0),
     maxFeePerGas: formatEther(feeData.maxFeePerGas ?? 0),
     maxPriorityFeePerGas: formatEther(feeData.maxPriorityFeePerGas ?? 0),
@@ -184,7 +185,18 @@ async function transfer(
     ...logCtx,
     response,
   });
-  const receipt = await provider.waitForTransaction(response.hash);
+
+  let receipt;
+  do {
+    console.debug('Waiting for receipt');
+    try {
+      const r = await provider.waitForTransaction(response.hash, 3, 60 * 1000);
+      if (r) receipt = r;
+    } catch (err) {
+      console.error('Error getting receipt', { err });
+    }
+  } while (!receipt);
+
   console.log('Transferred funds', {
     ...logCtx,
     receipt,
