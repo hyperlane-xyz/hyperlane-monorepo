@@ -9,9 +9,14 @@ import {Message} from "../../libs/Message.sol";
 import {CheckpointLib} from "../../libs/CheckpointLib.sol";
 
 /**
- * @title AbstractMessageIdMultisigIsm
- * @notice Provides abstract logic for verifying signatures on a message ID.
- * @dev Implement and use if you want fastest and cheapest security.
+ * @title `AbstractMessageIdMultisigIsm` — multi-sig ISM for the censorship-friendly validators.
+ * @notice This ISM minimizes gas/performance overhead of the checkpoints verification by compromising on the censorship resistance.
+ * For censorship resistance consider using `AbstractMerkleRootMultisigIsm`.
+ * If the validators (`validatorsAndThreshold`) skip messages by not sign checkpoints for them,
+ * the relayers will not be able to aggregate a quorum of signatures sufficient to deliver these messages via this ISM.
+ * Integrations are free to choose the trade-off between the censorship resistance and the gas/processing overhead.
+ * @dev Provides the default implementation of verifying signatures over a checkpoint related to a specific message ID.
+ * This abstract contract can be customized to change the `validatorsAndThreshold()` (static or dynamic).
  */
 abstract contract AbstractMessageIdMultisigIsm is AbstractMultisigIsm {
     // ============ Constants ============
@@ -23,12 +28,10 @@ abstract contract AbstractMessageIdMultisigIsm is AbstractMultisigIsm {
     /**
      * @inheritdoc AbstractMultisigIsm
      */
-    function digest(bytes calldata _metadata, bytes calldata _message)
-        internal
-        pure
-        override
-        returns (bytes32)
-    {
+    function digest(
+        bytes calldata _metadata,
+        bytes calldata _message
+    ) internal pure override returns (bytes32) {
         return
             CheckpointLib.digest(
                 Message.origin(_message),
@@ -42,13 +45,10 @@ abstract contract AbstractMessageIdMultisigIsm is AbstractMultisigIsm {
     /**
      * @inheritdoc AbstractMultisigIsm
      */
-    function signatureAt(bytes calldata _metadata, uint256 _index)
-        internal
-        pure
-        virtual
-        override
-        returns (bytes memory)
-    {
+    function signatureAt(
+        bytes calldata _metadata,
+        uint256 _index
+    ) internal pure virtual override returns (bytes memory) {
         return MessageIdMultisigIsmMetadata.signatureAt(_metadata, _index);
     }
 }
