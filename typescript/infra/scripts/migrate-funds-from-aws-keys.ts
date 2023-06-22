@@ -1,11 +1,11 @@
-import { BigNumber, PopulatedTransaction } from 'ethers';
+import { TransactionRequest } from '@ethersproject/abstract-provider/src.ts';
+import { Provider } from '@ethersproject/providers';
+import { BigNumber } from 'ethers';
 import { formatEther } from 'ethers/lib/utils';
 
 import {
-  AgentConnectionType,
   ChainName,
   Chains,
-  MultiProvider,
   ProtocolType,
   chainMetadata,
 } from '@hyperlane-xyz/sdk';
@@ -15,6 +15,7 @@ import { AgentAwsKey } from '../src/agents/aws';
 import { getCloudAgentKey } from '../src/agents/key-utils';
 import { CloudAgentKey } from '../src/agents/keys';
 import { AgentContextConfig } from '../src/config';
+import { fetchProvider } from '../src/config/chain';
 import { Role } from '../src/roles';
 
 import { getAgentConfig, getEnvironmentConfig } from './utils';
@@ -37,22 +38,12 @@ async function main() {
   // }
   const envConfig = getEnvironmentConfig('testnet3');
   const agentConfig = getAgentConfig(Contexts.Hyperlane, envConfig);
-  const multiProvider = await envConfig.getMultiProvider(
-    Contexts.Hyperlane,
-    Role.Relayer,
-    AgentConnectionType.Http,
-  );
   const from = new OldRelayerAwsKey(agentConfig, Chains.fuji);
   const to = getCloudAgentKey(agentConfig, Role.Relayer);
+  const provider = await fetchProvider('testnet3', Chains.optimismgoerli);
+
   await Promise.all([from.fetch(), to.fetch()]);
-  await transfer(
-    Chains.fuji,
-    Chains.optimismgoerli,
-    agentConfig,
-    multiProvider,
-    from,
-    to,
-  );
+  await transfer(Chains.optimismgoerli, agentConfig, provider, from, to);
 }
 
 // async function transferForEnv(ctx: Contexts, env: DeployEnvironment) {
@@ -96,14 +87,14 @@ async function main() {
 // }
 
 async function transfer(
-  signerChain: ChainName,
   chain: ChainName,
   agentConfig: AgentContextConfig,
-  multiProvider: MultiProvider,
+  provider: Provider,
   fromKey: CloudAgentKey,
   toKey: CloudAgentKey,
 ) {
   if (chainMetadata[chain].protocol != ProtocolType.Ethereum) return;
+  const signer = await fromKey.getSigner(provider);
   const logCtx: any = {
     chain,
     from: fromKey.identifier,
@@ -113,19 +104,19 @@ async function transfer(
   };
   console.log('Processing key', logCtx);
 
-  const transferTx: PopulatedTransaction = {
+  const transferTx: TransactionRequest = {
     from: fromKey.address,
     to: toKey.address,
     value: BigNumber.from(0),
   };
 
   console.debug('Estimating gas');
-  const gasToTransfer = await multiProvider.estimateGas(chain, transferTx);
+  const gasToTransfer = await provider.estimateGas(transferTx);
 
   console.debug('Getting gas price');
   const [gasPrice, initialBalance] = await Promise.all([
-    multiProvider.getProvider(chain).getGasPrice(),
-    multiProvider.getProvider(chain).getBalance(fromKey.address),
+    provider.getGasPrice(),
+    provider.getBalance(fromKey.address),
   ]);
 
   let costToTransfer = gasToTransfer.mul(gasPrice);
@@ -148,16 +139,7 @@ async function transfer(
   // transferTx.maxFeePerGas = gasPrice;
 
   console.debug('Sending transaction');
-  const preparedTx = await multiProvider.prepareTx(
-    signerChain,
-    transferTx,
-    fromKey.address,
-  );
-
-  // const receipt = await multiProvider.sendTransaction(chain, transferTx);
-  const receipt = await multiProvider
-    .getSigner(chain)
-    .sendTransaction(preparedTx);
+  const receipt = await signer.sendTransaction(transferTx);
 
   // let receipt;
   // try {
@@ -173,8 +155,7 @@ async function transfer(
     initialBalance: formatEther(initialBalance),
     transferred: formatEther(transferTx.value),
     cost: formatEther(costToTransfer),
-    // transferTx,
-    preparedTx,
+    transferTx,
     receipt,
   });
 }
