@@ -20,19 +20,20 @@ pub struct AggregationIsmMetadataBuilder {
 }
 
 impl AggregationIsmMetadataBuilder {
-    fn format_metadata(metadatas: &mut Vec<Vec<u8>>) -> Vec<u8> {
+    // also need to pass a vec of the indexes corresponding to the chosen metas
+    fn format_metadata(metadatas: &mut [(usize, Vec<u8>)], ism_count: usize) -> Vec<u8> {
         // See test solidity implementation of this fn at `AggregationIsm.t.sol:getMetadata(...)`
         fn encode_byte_index(i: usize) -> [u8; 4] {
             (i as u32).to_be_bytes()
         }
-        let range_tuples_size = METADATA_RANGE_SIZE * 2 * metadatas.len();
+        let range_tuples_size = METADATA_RANGE_SIZE * 2 * ism_count;
         //  Format of metadata:
         //  [????:????] Metadata start/end uint32 ranges, packed as uint64
         //  [????:????] ISM metadata, packed encoding
         // Initialize the range tuple part of the buffer, so the actual metadatas can
         // simply be appended to it
         let mut buffer = vec![0; range_tuples_size];
-        for (index, metadata) in metadatas.iter_mut().enumerate() {
+        for (index, metadata) in metadatas.iter_mut() {
             let range_start = buffer.len();
             // Append the ism metadata as-is, since it's already encoded
             buffer.append(metadata);
@@ -40,7 +41,7 @@ impl AggregationIsmMetadataBuilder {
 
             // The new tuple starts at the end of the previous ones.
             // See `AggregationIsmMetadata.sol:_metadataRange()` as well.
-            let encoded_range_start = METADATA_RANGE_SIZE * 2 * index;
+            let encoded_range_start = METADATA_RANGE_SIZE * 2 * (*index);
             // Overwrite the 0-initialized range tuple
             buffer.splice(
                 encoded_range_start..(encoded_range_start + METADATA_RANGE_SIZE * 2),
@@ -50,28 +51,36 @@ impl AggregationIsmMetadataBuilder {
         buffer
     }
 
-    fn n_cheapest_metas(mut metas_and_gas: Vec<(Vec<u8>, U256)>, n: usize) -> Vec<Vec<u8>> {
-        metas_and_gas.sort_by(|(_, gas_1), (_, gas_2)| gas_1.cmp(gas_2));
-        metas_and_gas[..n]
+    fn n_cheapest_metas(
+        mut metas_and_gas: Vec<(usize, Vec<u8>, U256)>,
+        n: usize,
+    ) -> Vec<(usize, Vec<u8>)> {
+        metas_and_gas.sort_by(|(_, _, gas_1), (_, _, gas_2)| gas_1.cmp(gas_2));
+        let mut cheapest: Vec<_> = metas_and_gas[..n].into();
+        cheapest.sort_by(|(index_1, _, _), (index_2, _, _)| index_1.cmp(index_2));
+        cheapest
             .iter()
             .cloned()
-            .map(|(meta, _)| meta)
+            .map(|(index, meta, _)| (index, meta))
             .collect()
     }
 
     async fn cheapest_valid_metas(
-        sub_isms: Vec<(Vec<u8>, Box<dyn InterchainSecurityModule>)>,
+        sub_isms: Vec<(usize, Vec<u8>, Box<dyn InterchainSecurityModule>)>,
         message: &HyperlaneMessage,
         threshold: usize,
-    ) -> eyre::Result<Option<Vec<Vec<u8>>>> {
-        let metas_and_gas: Vec<_> = join_all(sub_isms.into_iter().map(|(meta, ism)| async move {
-            let gas = ism.dry_run_verify(message, &meta).await;
-            (meta, gas)
-        }))
-        .await
-        .into_iter()
-        .filter_map(|(meta, gast_result)| gast_result.ok().flatten().map(|gc| (meta, gc)))
-        .collect();
+    ) -> eyre::Result<Option<Vec<(usize, Vec<u8>)>>> {
+        let metas_and_gas: Vec<_> =
+            join_all(sub_isms.into_iter().map(|(index, meta, ism)| async move {
+                let gas = ism.dry_run_verify(message, &meta).await;
+                (index, meta, gas)
+            }))
+            .await
+            .into_iter()
+            .filter_map(|(index, meta, gast_result)| {
+                gast_result.ok().flatten().map(|gc| (index, meta, gc))
+            })
+            .collect();
 
         let metas_and_gas_count = metas_and_gas.len();
         if metas_and_gas_count < threshold {
@@ -111,15 +120,18 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         }))
         .await
         .into_iter()
-        .filter_map(|r| match r {
-            Ok((Some(meta), ism)) => Some((meta, ism)),
+        .enumerate()
+        .filter_map(|(i, r)| match r {
+            Ok((Some(meta), ism)) => Some((i, meta, ism)),
             _ => None,
         })
         .collect();
 
         Self::cheapest_valid_metas(sub_isms, message, threshold)
             .await
-            .map(|maybe_proofs| maybe_proofs.map(|mut proofs| Self::format_metadata(&mut proofs)))
+            .map(|maybe_proofs| {
+                maybe_proofs.map(|mut proofs| Self::format_metadata(&mut proofs, modules.len()))
+            })
     }
 }
 
@@ -130,30 +142,68 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_format_metadata_works_correctly() {
+    fn test_format_n_of_n_metadata_works_correctly() {
         let mut metadatas = vec![
-            Vec::from_hex("290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563")
-                .unwrap(),
-            Vec::from_hex("510e4e770828ddbf7f7b00ab00a9f6adaf81c0dc9cc85f1f8249c256942d61d9")
-                .unwrap(),
-            Vec::from_hex("356e5a2cc1eba076e650ac7473fccc37952b46bc2e419a200cec0c451dce2336")
-                .unwrap(),
-            Vec::from_hex("b903bd7696740696b2b18bd1096a2873bb8ad0c2e7f25b00a0431014edb3f539")
-                .unwrap(),
+            (
+                0,
+                Vec::from_hex("290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563")
+                    .unwrap(),
+            ),
+            (
+                1,
+                Vec::from_hex("510e4e770828ddbf7f7b00ab00a9f6adaf81c0dc9cc85f1f8249c256942d61d9")
+                    .unwrap(),
+            ),
+            (
+                2,
+                Vec::from_hex("356e5a2cc1eba076e650ac7473fccc37952b46bc2e419a200cec0c451dce2336")
+                    .unwrap(),
+            ),
         ];
-        let expected = Vec::from_hex("00000020000000400000004000000060000000600000008000000080000000a0290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563510e4e770828ddbf7f7b00ab00a9f6adaf81c0dc9cc85f1f8249c256942d61d9356e5a2cc1eba076e650ac7473fccc37952b46bc2e419a200cec0c451dce2336b903bd7696740696b2b18bd1096a2873bb8ad0c2e7f25b00a0431014edb3f539").unwrap();
+        let expected = Vec::from_hex("000000180000003800000038000000580000005800000078290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563510e4e770828ddbf7f7b00ab00a9f6adaf81c0dc9cc85f1f8249c256942d61d9356e5a2cc1eba076e650ac7473fccc37952b46bc2e419a200cec0c451dce2336").unwrap();
         assert_eq!(
-            AggregationIsmMetadataBuilder::format_metadata(&mut metadatas),
+            AggregationIsmMetadataBuilder::format_metadata(&mut metadatas, 3),
+            expected
+        );
+    }
+
+    #[test]
+    fn test_format_n_of_m_metadata_works_correctly() {
+        let mut metadatas = vec![
+            (
+                0,
+                Vec::from_hex("290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563")
+                    .unwrap(),
+            ),
+            (
+                1,
+                Vec::from_hex("510e4e770828ddbf7f7b00ab00a9f6adaf81c0dc9cc85f1f8249c256942d61d9")
+                    .unwrap(),
+            ),
+            (
+                2,
+                Vec::from_hex("356e5a2cc1eba076e650ac7473fccc37952b46bc2e419a200cec0c451dce2336")
+                    .unwrap(),
+            ),
+            (
+                4,
+                Vec::from_hex("f2e59013a0a379837166b59f871b20a8a0d101d1c355ea85d35329360e69c000")
+                    .unwrap(),
+            ),
+        ];
+        let expected = Vec::from_hex("000000280000004800000048000000680000006800000088000000000000000000000088000000a8290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563510e4e770828ddbf7f7b00ab00a9f6adaf81c0dc9cc85f1f8249c256942d61d9356e5a2cc1eba076e650ac7473fccc37952b46bc2e419a200cec0c451dce2336f2e59013a0a379837166b59f871b20a8a0d101d1c355ea85d35329360e69c000").unwrap();
+        assert_eq!(
+            AggregationIsmMetadataBuilder::format_metadata(&mut metadatas, 5),
             expected
         );
     }
 
     #[test]
     fn test_format_empty_metadata_works_correctly() {
-        let mut metadatas = vec![Vec::from_hex("").unwrap()];
+        let mut metadatas = vec![(0, Vec::from_hex("").unwrap())];
         let expected = Vec::from_hex("0000000800000008").unwrap();
         assert_eq!(
-            AggregationIsmMetadataBuilder::format_metadata(&mut metadatas),
+            AggregationIsmMetadataBuilder::format_metadata(&mut metadatas, 1),
             expected
         );
     }
@@ -161,13 +211,13 @@ mod test {
     #[test]
     fn test_n_cheapest_metas_works() {
         let metas_and_gas = vec![
-            (vec![3], U256::from_dec_str("3").unwrap()),
-            (vec![2], U256::from_dec_str("2").unwrap()),
-            (vec![1], U256::from_dec_str("1").unwrap()),
+            (3, vec![], U256::from_dec_str("3").unwrap()),
+            (2, vec![], U256::from_dec_str("2").unwrap()),
+            (1, vec![], U256::from_dec_str("1").unwrap()),
         ];
         assert_eq!(
             AggregationIsmMetadataBuilder::n_cheapest_metas(metas_and_gas, 2),
-            vec![vec![1], vec![2]]
+            vec![(1, vec![]), (2, vec![])]
         )
     }
 }
