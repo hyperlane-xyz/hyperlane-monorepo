@@ -52,7 +52,11 @@ async function transferForEnv(ctx: Contexts, env: DeployEnvironment) {
   const envConfig = getEnvironmentConfig(env);
   const agentConfig = getAgentConfig(ctx, envConfig);
 
-  const toKey = getCloudAgentKey(agentConfig, Role.Relayer);
+  // always transfer to the main hyperlane context
+  const toKey = getCloudAgentKey(
+    getAgentConfig(Contexts.Hyperlane, envConfig),
+    Role.Relayer,
+  );
   await toKey.fetch();
 
   const chainsForEnv = Object.keys(envConfig.chainMetadataConfigs).filter(
