@@ -74,11 +74,11 @@ async function transferForEnv(ctx: Contexts, env: DeployEnvironment) {
       for (const chain of chainsForEnv) {
         await transfer(chain, agentConfig, providers[chain], fromKey, toKey);
       }
-      await fromKey.delete();
-      console.log('Deleted key', {
-        from: fromKey.identifier,
-        fromKey: fromKey.address,
-      });
+      // await fromKey.delete();
+      // console.log('Deleted key', {
+      //   from: fromKey.identifier,
+      //   fromKey: fromKey.address,
+      // });
     } catch (err) {
       console.error('Error transferring funds', {
         ctx,
@@ -123,6 +123,20 @@ async function transfer(
     provider.getFeeData(),
   ]);
 
+  // Polygon needs a max priority fee >= 30 gwei
+  if (
+    feeData.maxPriorityFeePerGas &&
+    feeData.maxFeePerGas &&
+    (chain == Chains.polygon || chain == Chains.mumbai)
+  ) {
+    const actual = feeData.maxPriorityFeePerGas ?? BigNumber.from(0);
+    const min = BigNumber.from(30e9);
+    if (actual.lt(min)) {
+      feeData.maxPriorityFeePerGas = min;
+      feeData.maxFeePerGas = feeData.maxFeePerGas.add(min.sub(actual));
+    }
+  }
+
   let costToTransfer;
   if (feeData.maxFeePerGas && feeData.maxPriorityFeePerGas) {
     costToTransfer = feeData.maxFeePerGas.mul(gasToTransfer);
@@ -150,19 +164,21 @@ async function transfer(
   transferTx.value = initialBalance.sub(costToTransfer);
   transferTx.gasLimit = gasToTransfer;
 
-  console.debug('Sending transaction');
-  const receipt = await signer.sendTransaction(transferTx);
-
-  console.log('Transferred funds', {
+  console.debug('Sending transaction', {
     ...logCtx,
     initialBalance: formatEther(initialBalance),
-    transferred: formatEther(transferTx.value),
+    transferring: formatEther(transferTx.value),
     cost: formatEther(costToTransfer),
-    transferTx,
     gas: formatEther(gasToTransfer),
     gasPrice: formatEther(feeData.gasPrice ?? 0),
     maxFeePerGas: formatEther(feeData.maxFeePerGas ?? 0),
     maxPriorityFeePerGas: formatEther(feeData.maxPriorityFeePerGas ?? 0),
+    transferTx,
+  });
+  const receipt = await signer.sendTransaction(transferTx);
+
+  console.log('Transferred funds', {
+    ...logCtx,
     receipt,
   });
 }
