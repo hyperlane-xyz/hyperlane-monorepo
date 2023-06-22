@@ -72,24 +72,32 @@ async function transferForEnv(ctx: Contexts, env: DeployEnvironment) {
   );
 
   for (const relayerOriginChain of chainsForEnv) {
-    try {
-      const fromKey = new OldRelayerAwsKey(agentConfig, relayerOriginChain);
-      await fromKey.fetch();
-      for (const chain of chainsForEnv) {
-        await transfer(chain, agentConfig, providers[chain], fromKey, toKey);
+    let errorOccured = false;
+    const fromKey = new OldRelayerAwsKey(agentConfig, relayerOriginChain);
+    await fromKey.fetch();
+    // start all the promises and then wait for them to finish
+    const promises = chainsForEnv.map((chain) =>
+      transfer(chain, agentConfig, providers[chain], fromKey, toKey),
+    );
+    for (const p of promises) {
+      try {
+        await p;
+      } catch (err) {
+        errorOccured = true;
+        console.error('Error transferring funds', {
+          ctx,
+          env,
+          relayerOriginChain,
+          err,
+        });
       }
+    }
+    if (!errorOccured) {
       // await fromKey.delete();
       // console.log('Deleted key', {
       //   from: fromKey.identifier,
       //   fromKey: fromKey.address,
       // });
-    } catch (err) {
-      console.error('Error transferring funds', {
-        ctx,
-        env,
-        relayerOriginChain,
-        err,
-      });
     }
   }
 }
@@ -188,12 +196,12 @@ async function transfer(
 
   let receipt;
   do {
-    console.debug('Waiting for receipt');
+    console.debug('Waiting for receipt', logCtx);
     try {
       const r = await provider.waitForTransaction(response.hash, 3, 60 * 1000);
       if (r) receipt = r;
     } catch (err) {
-      console.error('Error getting receipt', { err });
+      console.error('Error getting receipt', { ...logCtx, err });
     }
   } while (!receipt);
 
