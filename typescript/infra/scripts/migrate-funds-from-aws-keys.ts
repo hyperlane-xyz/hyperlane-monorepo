@@ -93,11 +93,11 @@ async function transferForEnv(ctx: Contexts, env: DeployEnvironment) {
       }
     }
     if (!errorOccurred) {
-      // await fromKey.delete();
-      // console.log('Deleted key', {
-      //   from: fromKey.identifier,
-      //   fromKey: fromKey.address,
-      // });
+      await fromKey.delete();
+      console.log('Deleted key', {
+        from: fromKey.identifier,
+        fromKey: fromKey.address,
+      });
     }
   }
 }
