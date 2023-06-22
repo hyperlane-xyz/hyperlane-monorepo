@@ -129,14 +129,14 @@ contract ChainlinkAggregatorTest is Test {
     }
 
     function testHandleValidMessage() public {
-        vm.expectEmit(true, false, false, true);
-        emit AnswerUpdated(171957000000, 1, 1);
-
         testEnvironment.mailboxes(originDomain).dispatch(
             destinationDomain,
             TypeCasts.addressToBytes32(address(aggregator)),
             validReport
         );
+
+        vm.expectEmit(true, false, false, true);
+        emit AnswerUpdated(171957000000, 1, 1);
         testEnvironment.processNextPendingMessage();
 
         (, int256 answer, , , ) = aggregator.latestRoundData();
