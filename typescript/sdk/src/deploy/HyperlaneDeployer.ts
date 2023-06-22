@@ -82,6 +82,7 @@ export abstract class HyperlaneDeployer<
       const signerAddress = await this.multiProvider.getSignerAddress(chain);
       const fromString = signerUrl || signerAddress;
       this.logger(`Deploying to ${chain} from ${fromString}`);
+      this.logger('test123');
       this.startingBlockNumbers[chain] = await this.multiProvider
         .getProvider(chain)
         .getBlockNumber();

@@ -36,12 +36,18 @@ import { assertContext, assertRole } from '../src/utils/utils';
 export enum Modules {
   ISM_FACTORY = 'ism',
   CORE = 'core',
+  HOOK = 'hook',
   INTERCHAIN_GAS_PAYMASTER = 'igp',
   INTERCHAIN_ACCOUNTS = 'ica',
   INTERCHAIN_QUERY_SYSTEM = 'iqs',
   LIQUIDITY_LAYER = 'll',
   TEST_QUERY_SENDER = 'testquerysender',
   TEST_RECIPIENT = 'testrecipient',
+}
+
+export enum Sides {
+  ISM = 'ism',
+  HOOK = 'hook',
 }
 
 export const SDK_MODULES = [
@@ -68,7 +74,11 @@ export function withModuleAndFork<T>(args: yargs.Argv<T>) {
 
     .describe('fork', 'network to fork')
     .choices('fork', Object.values(Chains))
-    .alias('f', 'fork');
+    .alias('f', 'fork')
+
+    .describe('side', 'l1 or l2 side (only for hook)')
+    .choices('side', Object.values(Sides))
+    .alias('s', 'side');
 }
 
 export function withContext<T>(args: yargs.Argv<T>) {

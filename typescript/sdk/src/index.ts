@@ -76,6 +76,10 @@ export * as verificationUtils from './deploy/verify/utils';
 export { HyperlaneIgp } from './gas/HyperlaneIgp';
 export { HyperlaneIgpChecker } from './gas/HyperlaneIgpChecker';
 export { HyperlaneIgpDeployer } from './gas/HyperlaneIgpDeployer';
+export {
+  HyperlaneMessageHookDeployer,
+  HyperlaneNoMetadataIsmDeployer,
+} from './hook/HyperlaneHookDeployer';
 export { CoinGeckoTokenPriceGetter } from './gas/token-prices';
 export {
   GasOracleContractType,

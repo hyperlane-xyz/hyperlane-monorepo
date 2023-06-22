@@ -1,0 +1,10 @@
+{
+  "test1": {
+    "optimismISM": "0x70e0bA845a1A0F2DA3359C97E0285013525FFC49",
+    "optimismMessageHook": "0xfB12F7170FF298CDed84C793dAb9aBBEcc01E798"
+  },
+  "test2": {
+    "optimismISM": "0xb7278A61aa25c888815aFC32Ad3cC52fF24fE575",
+    "optimismMessageHook": "0x9d4454B023096f34B160D6B654540c56A1F81688"
+  }
+}
