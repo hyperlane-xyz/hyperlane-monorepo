@@ -72,7 +72,7 @@ async function transferForEnv(ctx: Contexts, env: DeployEnvironment) {
   );
 
   for (const relayerOriginChain of chainsForEnv) {
-    let errorOccured = false;
+    let errorOccurred = false;
     const fromKey = new OldRelayerAwsKey(agentConfig, relayerOriginChain);
     await fromKey.fetch();
     // start all the promises and then wait for them to finish
@@ -83,7 +83,7 @@ async function transferForEnv(ctx: Contexts, env: DeployEnvironment) {
       try {
         await p;
       } catch (err) {
-        errorOccured = true;
+        errorOccurred = true;
         console.error('Error transferring funds', {
           ctx,
           env,
@@ -92,7 +92,7 @@ async function transferForEnv(ctx: Contexts, env: DeployEnvironment) {
         });
       }
     }
-    if (!errorOccured) {
+    if (!errorOccurred) {
       // await fromKey.delete();
       // console.log('Deleted key', {
       //   from: fromKey.identifier,
@@ -126,10 +126,10 @@ async function transfer(
     value: BigNumber.from(0),
   };
 
-  console.debug('Estimating gas');
+  console.debug('Estimating gas', logCtx);
   const gasToTransfer = await provider.estimateGas(transferTx);
 
-  console.debug('Getting gas price');
+  console.debug('Getting gas price', logCtx);
   const [initialBalance, feeData] = await Promise.all([
     provider.getBalance(fromKey.address),
     provider.getFeeData(),
@@ -205,10 +205,14 @@ async function transfer(
     }
   } while (!receipt);
 
-  console.log('Transferred funds', {
-    ...logCtx,
-    receipt,
-  });
+  if (!receipt.status) {
+    throw Error('Transfer failed: ' + JSON.stringify({ ...logCtx, receipt }));
+  } else {
+    console.log('Transferred funds', {
+      ...logCtx,
+      receipt,
+    });
+  }
 }
 
 class OldRelayerAwsKey extends AgentAwsKey {
