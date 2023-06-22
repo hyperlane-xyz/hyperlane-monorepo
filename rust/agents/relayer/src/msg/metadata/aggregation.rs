@@ -6,7 +6,7 @@ use derive_new::new;
 use eyre::Context;
 use tracing::{info, instrument};
 
-use hyperlane_core::{HyperlaneMessage, H256};
+use hyperlane_core::{HyperlaneMessage, InterchainSecurityModule, H256, U256};
 
 use super::{BaseMetadataBuilder, MetadataBuilder};
 
@@ -49,6 +49,37 @@ impl AggregationIsmMetadataBuilder {
         }
         buffer
     }
+
+    fn n_cheapest_metas(mut metas_and_gas: Vec<(Vec<u8>, U256)>, n: usize) -> Vec<Vec<u8>> {
+        metas_and_gas.sort_by(|(_, gas_1), (_, gas_2)| gas_1.cmp(gas_2));
+        metas_and_gas[..n]
+            .iter()
+            .cloned()
+            .map(|(meta, _)| meta)
+            .collect()
+    }
+
+    async fn cheapest_valid_metas(
+        sub_isms: Vec<(Vec<u8>, Box<dyn InterchainSecurityModule>)>,
+        message: &HyperlaneMessage,
+        threshold: usize,
+    ) -> eyre::Result<Option<Vec<Vec<u8>>>> {
+        let metas_and_gas: Vec<_> = join_all(sub_isms.into_iter().map(|(meta, ism)| async move {
+            let gas = ism.dry_run_verify(message, &meta).await;
+            (meta, gas)
+        }))
+        .await
+        .into_iter()
+        .filter_map(|(meta, gast_result)| gast_result.ok().flatten().map(|gc| (meta, gc)))
+        .collect();
+
+        let metas_and_gas_count = metas_and_gas.len();
+        if metas_and_gas_count < threshold {
+            info!("Could not fetch all metadata: Found {metas_and_gas_count} of the {threshold} required ISM metadata pieces");
+            return Ok(None);
+        }
+        Ok(Some(Self::n_cheapest_metas(metas_and_gas, threshold)))
+    }
 }
 
 impl Deref for AggregationIsmMetadataBuilder {
@@ -71,6 +102,7 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         let ism = self.build_aggregation_ism(ism_address).await.context(CTX)?;
         let (modules, threshold) = ism.modules_and_threshold(message).await.context(CTX)?;
         let threshold = threshold as usize;
+
         let sub_isms: Vec<_> = join_all(modules.iter().map(|ism_address| {
             try_join(
                 self.base.build(*ism_address, message),
@@ -79,40 +111,15 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         }))
         .await
         .into_iter()
-        .filter_map(|r| match r.ok() {
-            Some((Some(meta), ism)) => Some((meta, ism)),
+        .filter_map(|r| match r {
+            Ok((Some(meta), ism)) => Some((meta, ism)),
             _ => None,
         })
         .collect();
 
-        let sub_isms_count = sub_isms.len();
-        info!("Aggregation - sub-isms found: {sub_isms_count}");
-
-        // send view / dryrun txs to see which ism will succeed
-        let mut metas_and_gas: Vec<_> =
-            join_all(sub_isms.into_iter().map(|(meta, ism)| async move {
-                let gas = ism.dry_run_verify(message, &meta).await;
-                (meta, gas)
-            }))
+        Self::cheapest_valid_metas(sub_isms, message, threshold)
             .await
-            .into_iter()
-            .filter_map(|(meta, gast_result)| gast_result.ok().flatten().map(|gc| (meta, gc)))
-            .collect();
-
-        let metas_and_gas_count = metas_and_gas.len();
-        if metas_and_gas_count < threshold {
-            info!("Could not fetch all metadata: Found {metas_and_gas_count} of the {threshold} required ISM metadata pieces");
-            return Ok(None);
-        }
-        metas_and_gas.sort_by(|(_, gas_1), (_, gas_2)| gas_1.partial_cmp(gas_2).unwrap());
-        let mut cheapest_metas = metas_and_gas[..threshold]
-            .iter()
-            .cloned()
-            .map(|(meta, _)| meta)
-            .collect();
-
-        // then bundle the metadata into a single byte array
-        Ok(Some(Self::format_metadata(&mut cheapest_metas)))
+            .map(|maybe_proofs| maybe_proofs.map(|mut proofs| Self::format_metadata(&mut proofs)))
     }
 }
 
@@ -149,5 +156,18 @@ mod test {
             AggregationIsmMetadataBuilder::format_metadata(&mut metadatas),
             expected
         );
+    }
+
+    #[test]
+    fn test_n_cheapest_metas_works() {
+        let metas_and_gas = vec![
+            (vec![3], U256::from_dec_str("3").unwrap()),
+            (vec![2], U256::from_dec_str("2").unwrap()),
+            (vec![1], U256::from_dec_str("1").unwrap()),
+        ];
+        assert_eq!(
+            AggregationIsmMetadataBuilder::n_cheapest_metas(metas_and_gas, 2),
+            vec![vec![1], vec![2]]
+        )
     }
 }
