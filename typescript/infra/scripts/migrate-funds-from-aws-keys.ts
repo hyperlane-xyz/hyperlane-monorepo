@@ -114,16 +114,26 @@ async function transfer(
   const gasToTransfer = await provider.estimateGas(transferTx);
 
   console.debug('Getting gas price');
-  const [gasPrice, initialBalance] = await Promise.all([
-    provider.getGasPrice(),
+  const [initialBalance, feeData] = await Promise.all([
     provider.getBalance(fromKey.address),
+    provider.getFeeData(),
   ]);
 
-  let costToTransfer = gasToTransfer.mul(gasPrice);
+  let costToTransfer;
+  if (feeData.maxFeePerGas && feeData.maxPriorityFeePerGas) {
+    costToTransfer = feeData.maxFeePerGas.mul(gasToTransfer);
+    transferTx.maxFeePerGas = feeData.maxFeePerGas;
+    transferTx.maxPriorityFeePerGas = feeData.maxPriorityFeePerGas;
+  } else {
+    const gasPrice = feeData.gasPrice ?? (await provider.getGasPrice());
+    costToTransfer = gasToTransfer.mul(gasPrice);
+    transferTx.gasPrice = gasPrice;
+  }
 
-  if (L2Chains.includes(chain))
-    // L2 chains have a gateway fee
-    costToTransfer = costToTransfer.mul(2);
+  if (L2Chains.includes(chain)) {
+    // 25% extra for l1 security fees
+    costToTransfer = costToTransfer.mul(5).div(4);
+  }
 
   if (costToTransfer.gt(initialBalance)) {
     console.log('Not enough funds to transfer', {
@@ -156,6 +166,10 @@ async function transfer(
     transferred: formatEther(transferTx.value),
     cost: formatEther(costToTransfer),
     transferTx,
+    gas: formatEther(gasToTransfer),
+    gasPrice: formatEther(feeData.gasPrice ?? 0),
+    maxFeePerGas: formatEther(feeData.maxFeePerGas ?? 0),
+    maxPriorityFeePerGas: formatEther(feeData.maxPriorityFeePerGas ?? 0),
     receipt,
   });
 }
