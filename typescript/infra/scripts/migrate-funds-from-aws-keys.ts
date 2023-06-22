@@ -21,7 +21,7 @@ import { Role } from '../src/roles';
 
 import { getAgentConfig, getEnvironmentConfig } from './utils';
 
-const ENVIRONMENTS: DeployEnvironment[] = ['mainnet2'];
+const ENVIRONMENTS: DeployEnvironment[] = ['testnet3', 'mainnet2'];
 
 const L2Chains: ChainName[] = [
   Chains.optimism,
@@ -75,7 +75,7 @@ async function transferForEnv(ctx: Contexts, env: DeployEnvironment) {
     const fromKey = new OldRelayerAwsKey(agentConfig, relayerOriginChain);
     await fromKey.fetch();
     // start all the promises and then wait for them to finish
-    const promises = chainsForEnv.map((chain) =>
+    const promises = [].map((chain) =>
       transfer(chain, agentConfig, providers[chain], fromKey, toKey),
     );
     for (const p of promises) {
@@ -92,8 +92,8 @@ async function transferForEnv(ctx: Contexts, env: DeployEnvironment) {
       }
     }
     if (!errorOccurred) {
-      await fromKey.delete();
-      console.log('Deleted key', {
+      await fromKey.disable();
+      console.log('Disabled key', {
         from: fromKey.identifier,
         fromKey: fromKey.address,
       });

@@ -5,6 +5,7 @@ import {
   DeleteAliasCommand,
   DescribeKeyCommand,
   DescribeKeyCommandOutput,
+  DisableKeyCommand,
   GetPublicKeyCommand,
   KMSClient,
   KeySpec,
@@ -109,6 +110,12 @@ export class AgentAwsKey extends CloudAgentKey {
       await sleep(1000);
     }
     await this.fetch();
+  }
+
+  async disable() {
+    const client = await this.getClient();
+    const args = { KeyId: await this.getId() };
+    await client.send(new DisableKeyCommand(args));
   }
 
   async delete() {
