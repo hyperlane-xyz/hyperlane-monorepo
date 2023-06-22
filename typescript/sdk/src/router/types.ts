@@ -11,7 +11,13 @@ export type OwnableConfig = {
   owner: types.Address;
 };
 
-export type RouterConfig = ConnectionClientConfig & OwnableConfig;
+export type ForeignDeploymentConfig = {
+  foreignDeployment?: types.Address;
+};
+
+export type RouterConfig = ConnectionClientConfig &
+  OwnableConfig &
+  ForeignDeploymentConfig;
 
 export type GasConfig = {
   gas: number;

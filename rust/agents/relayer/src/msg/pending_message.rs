@@ -150,7 +150,7 @@ impl PendingOperation for PendingMessage {
                 .destination_mailbox
                 .recipient_ism(self.message.recipient)
                 .await,
-            "fetching ISM address"
+            "fetching ISM address. Potentially malformed recipient ISM address."
         );
 
         let Some(metadata) = op_try!(

@@ -4,11 +4,12 @@ use derive_new::new;
 
 use cursor::*;
 use hyperlane_core::{
-    utils::fmt_sync_time, ContractSyncCursor, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
-    HyperlaneMessageStore, HyperlaneWatermarkedLogStore, IndexRange, Indexer, MessageIndexer,
+    utils::fmt_sync_time, ContractSyncCursor, CursorAction, HyperlaneDomain, HyperlaneLogStore,
+    HyperlaneMessage, HyperlaneMessageStore, HyperlaneWatermarkedLogStore, Indexer, MessageIndexer,
 };
 pub use metrics::ContractSyncMetrics;
 use std::fmt::Debug;
+use tokio::time::sleep;
 use tracing::{debug, info};
 
 use crate::chains::IndexSettings;
@@ -58,32 +59,31 @@ where
             .with_label_values(&[label, chain_name]);
 
         loop {
-            let Ok((range, eta)) = cursor.next_range().await else { continue };
-            debug!(?range, "Looking for for events in index range");
+            indexed_height.set(cursor.latest_block() as i64);
+            let Ok((action, eta)) = cursor.next_action().await else { continue };
+            match action {
+                CursorAction::Query(range) => {
+                    debug!(?range, "Looking for for events in index range");
 
-            let logs = self.indexer.fetch_logs(range).await?;
+                    let logs = self.indexer.fetch_logs(range).await?;
 
-            if !logs.is_empty() {
-                info!(
-                    ?range,
-                    num_logs = logs.len(),
-                    estimated_time_to_sync = fmt_sync_time(eta),
-                    "Found logs(s) in range"
-                );
-            }
-            // Store deliveries
-            let stored = self.db.store_logs(&logs).await?;
-            // Report amount of deliveries stored into db
-            stored_logs.inc_by(stored as u64);
-            // We check the value of the current gauge to avoid overwriting a higher value
-            // when using a ForwardBackwardMessageSyncCursor
-            if let IndexRange::Blocks(_, to) = range {
-                if to as i64 > indexed_height.get() {
-                    indexed_height.set(to as i64);
+                    info!(
+                        ?range,
+                        num_logs = logs.len(),
+                        estimated_time_to_sync = fmt_sync_time(eta),
+                        "Found log(s) in index range"
+                    );
+                    // Store deliveries
+                    let stored = self.db.store_logs(&logs).await?;
+                    // Report amount of deliveries stored into db
+                    stored_logs.inc_by(stored as u64);
+                    // Update cursor
+                    cursor.update(logs).await?;
+                }
+                CursorAction::Sleep(duration) => {
+                    sleep(duration).await;
                 }
             }
-            // Update cursor
-            cursor.update(logs).await?;
         }
     }
 }
