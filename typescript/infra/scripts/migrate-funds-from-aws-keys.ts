@@ -143,23 +143,12 @@ async function transfer(
     return;
   }
 
-  // transferTx.value = initialBalance.sub(costToTransfer);
-  transferTx.value = BigNumber.from(1);
+  transferTx.value = initialBalance.sub(costToTransfer);
   transferTx.gasLimit = gasToTransfer;
-  // transferTx.maxFeePerGas = gasPrice;
 
   console.debug('Sending transaction');
   const receipt = await signer.sendTransaction(transferTx);
 
-  // let receipt;
-  // try {
-  //   receipt = await multiProvider.sendTransaction(chain, transferTx);
-  // } catch (err) {
-  //   console.debug('Sending transaction failed, retrying with gasPrice', err);
-  //   delete transferTx.maxFeePerGas;
-  //   transferTx.gasPrice = gasPrice;
-  //   receipt = await multiProvider.sendTransaction(chain, transferTx);
-  // }
   console.log('Transferred funds', {
     ...logCtx,
     initialBalance: formatEther(initialBalance),
