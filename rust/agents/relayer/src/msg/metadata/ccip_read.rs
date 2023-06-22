@@ -1,20 +1,36 @@
 use async_trait::async_trait;
 use hyperlane_ethereum::OffchainLookup;
 use reqwest::Client;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::ops::Deref;
+use strum::Display;
 
 use derive_new::new;
 use eyre::Context;
 use tracing::instrument;
 
 use super::{BaseMetadataBuilder, MetadataBuilder};
-use ethers::abi::AbiDecode;
 use ethers::core::utils::hex::decode as hex_decode;
 use ethers::providers::Middleware;
+use ethers::{abi::AbiDecode, prelude::k256::pkcs8::der::Encode};
 use ethers_contract::EthError;
 use hyperlane_core::{ChainCommunicationError, HyperlaneMessage, H256};
 use regex::Regex;
+
+#[derive(Serialize, Deserialize)]
+struct OffchainResponse {
+    metadata: String,
+    message: String,
+}
+
+#[derive(Debug, Display, PartialEq, Eq, Clone)]
+pub enum MetadataTokenLayout {
+    Mailbox,
+    Threshold,
+    Signatures,
+    Validators,
+}
 
 #[derive(Clone, Debug, new)]
 pub struct CcipReadIsmMetadataBuilder {
@@ -81,25 +97,16 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
                 reqwest::get(request_url).await?
             };
 
-            let json = res.json().await?;
+            let json: Result<OffchainResponse, reqwest::Error> = res.json().await;
+
+            match json {
+                Ok(result) => return Ok(Some(result.metadata.to_vec().unwrap())),
+                Err(_err) => {
+                    // let the next URL
+                }
+            }
         }
 
-        println!("{:?}", info.urls);
-
-        // let ism: Result<_, _> = self
-        //     .contract
-        //     .get_offchain_verify_info(RawHyperlaneMessage::from(message).to_vec().into())
-        //     .call()
-        //     .await;
-
-        // match ism {
-        //     Ok(data) => return Err(hyperlane_core::ChainCommunicationError::TransactionTimeout()),
-        //     Err(error) => {
-        //
-        //     }
-        // }
-        panic!("Panic");
-        return Ok(Some(vec![1]));
-        // self.base.build(module, message).await.context(CTX)
+        Ok(None)
     }
 }
