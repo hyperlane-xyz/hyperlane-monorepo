@@ -86,7 +86,7 @@ test_token() {
 
     announce_validator
 
-    "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" --compute-budget 200000 warp-route deploy --warp-route-name testwarproute --environment local-e2e --environments-dir "${SEALEVEL_DIR}/environments" --built-so-dir "${DEPLOY_DIR}" --token-config-file "${SEALEVEL_DIR}/environments/local-e2e/warp-routes/testwarproute/test-warp-route-token-config.json" --chain-config-file "${SEALEVEL_DIR}/environments/local-e2e/warp-routes/testwarproute/test-warp-route-chain-config.json" --ata-payer-funding-amount 1000000000
+    "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" --compute-budget 200000 warp-route deploy --warp-route-name testwarproute --environment local-e2e --environments-dir "${SEALEVEL_DIR}/environments" --built-so-dir "${DEPLOY_DIR}" --token-config-file "${SEALEVEL_DIR}/environments/local-e2e/warp-routes/testwarproute/token-config.json" --chain-config-file "${SEALEVEL_DIR}/environments/local-e2e/warp-routes/chain-config.json" --ata-payer-funding-amount 1000000000
 
     local token_type=""
     local program_id=""

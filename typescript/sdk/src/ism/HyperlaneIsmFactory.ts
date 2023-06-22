@@ -113,8 +113,14 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
         .deploy();
       await this.multiProvider.handleTx(chain, multisig.deployTransaction);
       const originDomain = this.multiProvider.getDomainId(origin!);
-      await multisig.enrollValidators([originDomain], [config.validators]);
-      await multisig.setThreshold(originDomain, config.threshold);
+      await this.multiProvider.handleTx(
+        chain,
+        multisig.enrollValidators([originDomain], [config.validators]),
+      );
+      await this.multiProvider.handleTx(
+        chain,
+        multisig.setThreshold(originDomain, config.threshold),
+      );
       address = multisig.address;
     } else {
       const multisigIsmFactory =
@@ -163,7 +169,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
       moduleAddress,
       this.multiProvider.getSigner(chain),
     );
-    await routingIsm.transferOwnership(config.owner);
+    await this.multiProvider.handleTx(
+      chain,
+      await routingIsm.transferOwnership(config.owner),
+    );
     const address = dispatchLogs[0].args['module'];
     return IRoutingIsm__factory.connect(address, signer);
   }
