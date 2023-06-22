@@ -21,8 +21,7 @@ import { Role } from '../src/roles';
 
 import { getAgentConfig, getEnvironmentConfig } from './utils';
 
-// const ENVIRONMENTS: DeployEnvironment[] = ['mainnet2', 'testnet3'];
-const ENVIRONMENTS: DeployEnvironment[] = ['testnet3'];
+const ENVIRONMENTS: DeployEnvironment[] = ['mainnet2'];
 
 const L2Chains: ChainName[] = [
   Chains.optimism,
@@ -38,14 +37,14 @@ async function main() {
     }
   }
 
-  // const envConfig = getEnvironmentConfig('testnet3');
+  // const envConfig = getEnvironmentConfig('mainnet2');
   // const agentConfig = getAgentConfig(Contexts.Hyperlane, envConfig);
-  // const from = new OldRelayerAwsKey(agentConfig, Chains.mumbai);
-  // const to = getCloudAgentKey(agentConfig, Role.Relayer);
-  // const provider = await fetchProvider('testnet3', Chains.bsctestnet);
+  // const from = new OldRelayerAwsKey(agentConfig, Chains.bsc);
+  // const to = getCloudAgentKey(agentConfig, Role.Deployer);
+  // const provider = await fetchProvider('mainnet2', Chains.optimism);
   //
   // await Promise.all([from.fetch(), to.fetch()]);
-  // await transfer(Chains.bsctestnet, agentConfig, provider, from, to);
+  // await transfer(Chains.optimism, agentConfig, provider, from, to);
 }
 
 async function transferForEnv(ctx: Contexts, env: DeployEnvironment) {
@@ -93,11 +92,11 @@ async function transferForEnv(ctx: Contexts, env: DeployEnvironment) {
       }
     }
     if (!errorOccurred) {
-      await fromKey.delete();
-      console.log('Deleted key', {
-        from: fromKey.identifier,
-        fromKey: fromKey.address,
-      });
+      // await fromKey.delete();
+      // console.log('Deleted key', {
+      //   from: fromKey.identifier,
+      //   fromKey: fromKey.address,
+      // });
     }
   }
 }
@@ -160,7 +159,11 @@ async function transfer(
     transferTx.gasPrice = gasPrice;
   }
 
-  if (L2Chains.includes(chain)) {
+  if (chain == Chains.optimism) {
+    // I give up, the correct way to do this is make a contract call against the gas oracle with an
+    // RLP encoded version of the txn, but this is probably close enough to work most of the time.
+    costToTransfer = costToTransfer.add(BigNumber.from(4e-5 * 1e18));
+  } else if (L2Chains.includes(chain)) {
     // 25% extra for l1 security fees
     costToTransfer = costToTransfer.mul(5).div(4);
   }
