@@ -9,7 +9,7 @@ no-entrypoint = []
 [dependencies]
 access-control = { path = "../access-control" }
 borsh = "0.9"
-hyperlane-core = { path = "../../hyperlane-core" }
+hyperlane-core = { path = "../../../hyperlane-core" }
 hyperlane-sealevel-mailbox = { path = "../../programs/mailbox", features = ["no-entrypoint"] }
 solana-program = "=1.14.13"
 

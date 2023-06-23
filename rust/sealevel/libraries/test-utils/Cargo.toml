@@ -8,7 +8,7 @@ no-entrypoint = []
 
 [dependencies]
 borsh = "0.9"
-hyperlane-core = { path = "../../hyperlane-core" }
+hyperlane-core = { path = "../../../hyperlane-core" }
 hyperlane-sealevel-mailbox = { path = "../../programs/mailbox", features = ["no-entrypoint"] }
 hyperlane-sealevel-test-ism = { path = "../../programs/ism/test-ism", features = ["test-client"] }
 hyperlane-test-transaction-utils = { path = "../test-transaction-utils" }

@@ -7,7 +7,7 @@ edition = "2021"
 no-entrypoint = []
 
 [dependencies]
-hyperlane-core = { path = "../../hyperlane-core" }
+hyperlane-core = { path = "../../../hyperlane-core" }
 borsh = "0.9"
 num-derive = "0.3"
 num-traits = "0.2"

@@ -3,26 +3,17 @@ cargo-features = ["edition2021"]
 [workspace]
 
 members = [
-    "agents/relayer",
-    "agents/scraper",
-    "agents/validator",
-    "chains/hyperlane-ethereum",
-    "chains/hyperlane-fuel",
-    "chains/hyperlane-sealevel",
+    "agents/*",
+    "chains/*",
     "ethers-prometheus",
     "hyperlane-base",
     "hyperlane-core",
     "hyperlane-test",
-    # "sealevel/programs/ism/rubber-stamp",
-    # "sealevel/programs/mailbox",
-    # "sealevel/programs/recipient/echo",
-    "utils/abigen",
-    "utils/backtrace-oneline",
-    "utils/hex",
-    "utils/run-locally",
+    "utils/*",
+    "sealevel/client",
 ]
-# FIXME dependency conflicts between solana and hyperlane
-exclude = [ "sealevel" ]
+# # FIXME dependency conflicts between solana and hyperlane
+# exclude = [ "sealevel" ]
 # exclude = [ "sealevel/hyperlane-core" ]
 
 [workspace.package]
@@ -56,7 +47,7 @@ futures-util = "0.3"
 Inflector = "0.11.4"
 itertools = "0.10"
 lazy_static = "1.4"
-num = {version = "0.4"}
+num = { version = "0.4" }
 num-derive = "0.3"
 num-traits = "0.2"
 paste = "1.0"
@@ -76,7 +67,7 @@ tracing-subscriber = { version = "0.3", default-features = false }
 url = "2.3"
 
 # FIXME patch primitive types to pull in borsh support. Unfortunately crates in parity-common refer
-# to one another with local paths so patching one requires patching most of them.
+#  to one another with local paths so patching one requires patching most of them.
 [patch.crates-io.primitive-types]
 branch = "steven/primitive-types-impl-borsh-uint-version-fix"
 git = "https://github.com/Eclipse-Laboratories-Inc/parity-common"

@@ -15,7 +15,7 @@ solana-program = "=1.14.13"
 account-utils = { path = "../../../libraries/account-utils" }
 access-control = { path = "../../../libraries/access-control" }
 ecdsa-signature = { path = "../../../libraries/ecdsa-signature" }
-hyperlane-core = { path = "../../../hyperlane-core" }
+hyperlane-core = { path = "../../../../hyperlane-core" }
 hyperlane-sealevel-mailbox = { path = "../../mailbox", features = ["no-entrypoint"] }
 hyperlane-sealevel-interchain-security-module-interface = { path = "../../../libraries/interchain-security-module-interface" }
 serializable-account-meta = { path = "../../../libraries/serializable-account-meta" }

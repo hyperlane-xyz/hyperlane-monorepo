@@ -9,7 +9,7 @@ no-entrypoint = []
 [dependencies]
 account-utils = { path = "../../libraries/account-utils" }
 bs58 = "=0.4.0" # FIXME remove
-hyperlane-core = { path = "../../hyperlane-core" }
+hyperlane-core = { path = "../../../hyperlane-core" }
 hyperlane-sealevel-token-lib = { path = "../../libraries/hyperlane-sealevel-token" }
 hyperlane-sealevel-mailbox = { path = "../mailbox", features = ["no-entrypoint"] }
 hyperlane-sealevel-message-recipient-interface = { path = "../../libraries/message-recipient-interface" }

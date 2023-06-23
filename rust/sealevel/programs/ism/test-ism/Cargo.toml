@@ -12,7 +12,7 @@ account-utils = { path = "../../../libraries/account-utils" }
 borsh = "0.9"
 solana-program = "=1.14.13"
 serializable-account-meta = { path = "../../../libraries/serializable-account-meta" }
-hyperlane-core = { path = "../../../hyperlane-core" }
+hyperlane-core = { path = "../../../../hyperlane-core" }
 hyperlane-sealevel-mailbox = { path = "../../mailbox", features = ["no-entrypoint"] }
 hyperlane-sealevel-interchain-security-module-interface = { path = "../../../libraries/interchain-security-module-interface" }
 

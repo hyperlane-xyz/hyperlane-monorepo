@@ -43,6 +43,7 @@ version = "3.2.1"
 features = ["serde"]
 git = "https://github.com/Eclipse-Laboratories-Inc/curve25519-dalek"
 branch = "steven/fix-deps"
+
 [dependencies.reqwest]
 version = "0.11.11"
 default-features = false

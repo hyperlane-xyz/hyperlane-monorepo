@@ -7,7 +7,7 @@ edition = "2021"
 borsh = "0.9"
 clap = { version = "4", features = ["derive"] }
 account-utils = { path = "../libraries/account-utils" }
-hyperlane-core = { path = "../hyperlane-core" }
+hyperlane-core = { path = "../../hyperlane-core" }
 hyperlane-sealevel-multisig-ism-message-id = { path = "../programs/ism/multisig-ism-message-id" }
 hyperlane-sealevel-mailbox = { path = "../programs/mailbox" }
 hyperlane-sealevel-token = { path = "../programs/hyperlane-sealevel-token" }

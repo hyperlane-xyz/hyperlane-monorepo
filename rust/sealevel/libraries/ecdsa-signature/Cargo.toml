@@ -8,7 +8,7 @@ no-entrypoint = []
 
 [dependencies]
 solana-program = "=1.14.13"
-hyperlane-core = { path = "../../hyperlane-core" }
+hyperlane-core = { path = "../../../hyperlane-core" }
 thiserror = "1.0"
 
 [lib]
