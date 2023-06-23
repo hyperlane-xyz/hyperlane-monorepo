@@ -4,7 +4,7 @@
     "optimismMessageHook": "0xfB12F7170FF298CDed84C793dAb9aBBEcc01E798"
   },
   "test2": {
-    "optimismISM": "0xb7278A61aa25c888815aFC32Ad3cC52fF24fE575",
-    "optimismMessageHook": "0x9d4454B023096f34B160D6B654540c56A1F81688"
+    "optimismISM": "0x5eb3Bc0a489C5A8288765d2336659EbCA68FCd00",
+    "optimismMessageHook": "0x2bdCC0de6bE1f7D2ee689a0342D76F52E8EFABa3"
   }
 }

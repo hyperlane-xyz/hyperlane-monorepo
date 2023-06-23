@@ -74,11 +74,7 @@ export function withModuleAndFork<T>(args: yargs.Argv<T>) {
 
     .describe('fork', 'network to fork')
     .choices('fork', Object.values(Chains))
-    .alias('f', 'fork')
-
-    .describe('side', 'l1 or l2 side (only for hook)')
-    .choices('side', Object.values(Sides))
-    .alias('s', 'side');
+    .alias('f', 'fork');
 }
 
 export function withContext<T>(args: yargs.Argv<T>) {
