@@ -1,3 +1,4 @@
+use derive_new::new;
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -19,22 +20,16 @@ use crate::rpc_clients::{categorize_client_response, CategorizedResponse};
 const MAX_BLOCK_TIME: Duration = Duration::from_secs(2 * 60);
 const BLOCK_NUMBER_RPC: &str = "eth_blockNumber";
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, new)]
 struct PrioritizedProviderInner {
     // Index into the `providers` field of `PrioritizedProviders`
     index: usize,
     // Tuple of the block number and the time when it was queried
+    #[new(value = "(0, Instant::now())")]
     last_block_height: (u64, Instant),
 }
 
 impl PrioritizedProviderInner {
-    fn new(index: usize) -> Self {
-        Self {
-            index,
-            last_block_height: (0, Instant::now()),
-        }
-    }
-
     fn from_block_height(index: usize, block_height: u64) -> Self {
         Self {
             index,
@@ -71,21 +66,27 @@ where
     C: JsonRpcClient + PrometheusJsonRpcClientConfigExt,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "FallbackProvider {{ chain_name: {}, hosts: [{}] }}",
-            self.inner
-                .providers
-                .get(0)
-                .map(|v| v.chain_name())
-                .unwrap_or("None"),
-            self.inner
-                .providers
-                .iter()
-                .map(|v| v.node_host())
-                .collect::<Vec<_>>()
-                .join(", ")
-        )
+        f.debug_struct("FallbackProvider")
+            .field(
+                "chain_name",
+                &self
+                    .inner
+                    .providers
+                    .get(0)
+                    .map(|v| v.chain_name())
+                    .unwrap_or("None"),
+            )
+            .field(
+                "hosts",
+                &self
+                    .inner
+                    .providers
+                    .iter()
+                    .map(|v| v.node_host())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            )
+            .finish()
     }
 }
 
@@ -127,7 +128,12 @@ where
             .unwrap_or(priority.last_block_height.0);
         if current_block_height <= priority.last_block_height.0 {
             // The `max_block_time` elapsed but the block number returned by the provider has not increased
-            self.deprioritize_provider(priority, provider).await;
+            self.deprioritize_provider(*priority).await;
+            info!(
+                provider_index=%priority.index,
+                ?provider,
+                "Deprioritizing an inner provider in FallbackProvider",
+            );
         } else {
             self.update_last_seen_block(priority.index, current_block_height)
                 .await;
@@ -135,18 +141,11 @@ where
         Ok(())
     }
 
-    async fn deprioritize_provider(&self, priority: &PrioritizedProviderInner, provider: &C) {
+    async fn deprioritize_provider(&self, priority: PrioritizedProviderInner) {
         // De-prioritize the current provider by moving it to the end of the queue
         let mut priorities = self.inner.priorities.write().await;
         priorities.retain(|&p| p.index != priority.index);
-        priorities.push(*priority);
-
-        info!(
-            provider_index=%priority.index,
-            ?provider,
-            "Deprioritizing an inner provider in FallbackProvider",
-        );
-        // Free the write lock
+        priorities.push(priority);
     }
 
     async fn update_last_seen_block(&self, provider_index: usize, current_block_height: u64) {
@@ -156,13 +155,11 @@ where
             priorities[position] =
                 PrioritizedProviderInner::from_block_height(provider_index, current_block_height);
         }
-        // Free the write lock
     }
 
     async fn take_priorities_snapshot(&self) -> Vec<PrioritizedProviderInner> {
         let read_lock = self.inner.priorities.read().await;
         (*read_lock).clone()
-        // Free the read lock
     }
 }
 
