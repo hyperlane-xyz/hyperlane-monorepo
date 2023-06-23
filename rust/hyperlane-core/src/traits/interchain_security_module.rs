@@ -24,6 +24,8 @@ pub enum ModuleType {
     /// Message ID ISM (cheapest multisig with no batching)
     MessageIdMultisig,
     /// TODO: document
+    Optimism,
+    /// TODO: document
     CcipRead,
 }
 

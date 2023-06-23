@@ -11,8 +11,5 @@ use crate::{ChainResult, HyperlaneContract, HyperlaneMessage};
 #[auto_impl(&, Box, Arc)]
 pub trait CcipReadIsm: HyperlaneContract + Send + Sync + Debug {
     /// Returns the validator and threshold needed to verify message
-    async fn get_offchain_verify_info(
-        &self,
-        message: &HyperlaneMessage,
-    ) -> ChainResult<bool>;
+    async fn get_offchain_verify_info(&self, message: &HyperlaneMessage) -> ChainResult<bool>;
 }
