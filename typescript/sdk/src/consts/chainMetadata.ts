@@ -17,6 +17,12 @@ export enum ExplorerFamily {
   Other = 'other',
 }
 
+export enum ProtocolType {
+  Ethereum = 'ethereum',
+  Sealevel = 'sealevel',
+  Fuel = 'fuel',
+}
+
 export type ExplorerFamilyType = `${ExplorerFamily}`;
 
 /**
@@ -28,6 +34,7 @@ export interface ChainMetadata {
   /** Hyperlane domain, only required if differs from id above */
   domainId?: number;
   name: ChainName;
+  protocol: ProtocolType;
   /** Human-readable name */
   displayName?: string;
   /** Shorter human-readable name */
@@ -91,6 +98,7 @@ export const ChainMetadataSchema = z.object({
   chainId: z.number().positive(),
   domainId: z.number().positive().optional(),
   name: z.string(),
+  protocol: z.string(),
   displayName: z.string().optional(),
   displayNameShort: z.string().optional(),
   nativeToken: z
@@ -174,6 +182,7 @@ export const xDaiToken = { name: 'xDai', symbol: 'xDai', decimals: 18 };
 export const alfajores: ChainMetadata = {
   chainId: 44787,
   name: Chains.alfajores,
+  protocol: ProtocolType.Ethereum,
   displayName: 'Alfajores',
   nativeToken: celoToken,
   publicRpcUrls: [{ http: 'https://alfajores-forno.celo-testnet.org' }],
@@ -202,6 +211,7 @@ export const alfajores: ChainMetadata = {
 export const arbitrum: ChainMetadata = {
   chainId: 42161,
   name: Chains.arbitrum,
+  protocol: ProtocolType.Ethereum,
   displayName: 'Arbitrum',
   nativeToken: etherToken,
   publicRpcUrls: [{ http: 'https://arb1.arbitrum.io/rpc' }],
@@ -226,6 +236,7 @@ export const arbitrum: ChainMetadata = {
 export const arbitrumgoerli: ChainMetadata = {
   chainId: 421613,
   name: Chains.arbitrumgoerli,
+  protocol: ProtocolType.Ethereum,
   displayName: 'Arbitrum Goerli',
   displayNameShort: 'Arb. Goerli',
   nativeToken: etherToken,
@@ -249,6 +260,7 @@ export const arbitrumgoerli: ChainMetadata = {
 export const avalanche: ChainMetadata = {
   chainId: 43114,
   name: Chains.avalanche,
+  protocol: ProtocolType.Ethereum,
   displayName: 'Avalanche',
   nativeToken: avaxToken,
   publicRpcUrls: [
@@ -281,6 +293,7 @@ export const avalanche: ChainMetadata = {
 export const bsc: ChainMetadata = {
   chainId: 56,
   name: Chains.bsc,
+  protocol: ProtocolType.Ethereum,
   displayName: 'Binance Smart Chain',
   displayNameShort: 'Binance',
   nativeToken: bnbToken,
@@ -308,6 +321,7 @@ export const bsc: ChainMetadata = {
 export const bsctestnet: ChainMetadata = {
   chainId: 97,
   name: Chains.bsctestnet,
+  protocol: ProtocolType.Ethereum,
   displayName: 'BSC Testnet',
   nativeToken: bnbToken,
   publicRpcUrls: [{ http: 'https://data-seed-prebsc-1-s3.binance.org:8545' }],
@@ -330,6 +344,7 @@ export const bsctestnet: ChainMetadata = {
 export const celo: ChainMetadata = {
   chainId: 42220,
   name: Chains.celo,
+  protocol: ProtocolType.Ethereum,
   displayName: 'Celo',
   nativeToken: celoToken,
   publicRpcUrls: [{ http: 'https://forno.celo.org' }],
@@ -359,6 +374,7 @@ export const celo: ChainMetadata = {
 export const ethereum: ChainMetadata = {
   chainId: 1,
   name: Chains.ethereum,
+  protocol: ProtocolType.Ethereum,
   displayName: 'Ethereum',
   nativeToken: etherToken,
   publicRpcUrls: [
@@ -390,6 +406,7 @@ export const ethereum: ChainMetadata = {
 export const fuji: ChainMetadata = {
   chainId: 43113,
   name: Chains.fuji,
+  protocol: ProtocolType.Ethereum,
   displayName: 'Fuji',
   nativeToken: avaxToken,
   publicRpcUrls: [
@@ -417,6 +434,7 @@ export const fuji: ChainMetadata = {
 export const goerli: ChainMetadata = {
   chainId: 5,
   name: Chains.goerli,
+  protocol: ProtocolType.Ethereum,
   displayName: 'Goerli',
   nativeToken: etherToken,
   publicRpcUrls: [
@@ -443,6 +461,7 @@ export const goerli: ChainMetadata = {
 export const sepolia: ChainMetadata = {
   chainId: 11155111,
   name: Chains.sepolia,
+  protocol: ProtocolType.Ethereum,
   displayName: 'Sepolia',
   nativeToken: etherToken,
   publicRpcUrls: [
@@ -468,6 +487,7 @@ export const sepolia: ChainMetadata = {
 export const moonbasealpha: ChainMetadata = {
   chainId: 1287,
   name: Chains.moonbasealpha,
+  protocol: ProtocolType.Ethereum,
   displayName: 'Moonbase Alpha',
   displayNameShort: 'Moonbase',
   nativeToken: {
@@ -495,6 +515,7 @@ export const moonbasealpha: ChainMetadata = {
 export const moonbeam: ChainMetadata = {
   chainId: 1284,
   name: Chains.moonbeam,
+  protocol: ProtocolType.Ethereum,
   displayName: 'Moonbeam',
   nativeToken: {
     decimals: 18,
@@ -522,6 +543,7 @@ export const moonbeam: ChainMetadata = {
 export const mumbai: ChainMetadata = {
   chainId: 80001,
   name: Chains.mumbai,
+  protocol: ProtocolType.Ethereum,
   displayName: 'Mumbai',
   nativeToken: maticToken,
   publicRpcUrls: [
@@ -556,6 +578,7 @@ export const mumbai: ChainMetadata = {
 export const optimism: ChainMetadata = {
   chainId: 10,
   name: Chains.optimism,
+  protocol: ProtocolType.Ethereum,
   displayName: 'Optimism',
   nativeToken: etherToken,
   publicRpcUrls: [{ http: 'https://mainnet.optimism.io' }],
@@ -580,6 +603,7 @@ export const optimism: ChainMetadata = {
 export const optimismgoerli: ChainMetadata = {
   chainId: 420,
   name: Chains.optimismgoerli,
+  protocol: ProtocolType.Ethereum,
   displayName: 'Optimism Goerli',
   displayNameShort: 'Opt. Goerli',
   nativeToken: etherToken,
@@ -603,6 +627,7 @@ export const optimismgoerli: ChainMetadata = {
 export const polygon: ChainMetadata = {
   chainId: 137,
   name: Chains.polygon,
+  protocol: ProtocolType.Ethereum,
   displayName: 'Polygon',
   nativeToken: etherToken,
   publicRpcUrls: [
@@ -637,6 +662,7 @@ export const polygon: ChainMetadata = {
 export const gnosis: ChainMetadata = {
   chainId: 100,
   name: Chains.gnosis,
+  protocol: ProtocolType.Ethereum,
   displayName: 'Gnosis',
   nativeToken: xDaiToken,
   publicRpcUrls: [
@@ -668,6 +694,7 @@ export const gnosis: ChainMetadata = {
 export const test1: ChainMetadata = {
   chainId: 13371,
   name: Chains.test1,
+  protocol: ProtocolType.Ethereum,
   displayName: 'Test 1',
   nativeToken: etherToken,
   publicRpcUrls: [{ http: 'http://localhost:8545' }],
@@ -683,6 +710,7 @@ export const test1: ChainMetadata = {
 export const test2: ChainMetadata = {
   chainId: 13372,
   name: Chains.test2,
+  protocol: ProtocolType.Ethereum,
   displayName: 'Test 2',
   nativeToken: etherToken,
   publicRpcUrls: [{ http: 'http://localhost:8545' }],
@@ -698,6 +726,7 @@ export const test2: ChainMetadata = {
 export const test3: ChainMetadata = {
   chainId: 13373,
   name: Chains.test3,
+  protocol: ProtocolType.Ethereum,
   displayName: 'Test 3',
   nativeToken: etherToken,
   publicRpcUrls: [{ http: 'http://localhost:8545' }],

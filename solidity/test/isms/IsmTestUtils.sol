@@ -35,7 +35,7 @@ contract TestIsm is IInterchainSecurityModule {
     bytes public requiredMetadata;
 
     uint8 public constant moduleType =
-        uint8(IInterchainSecurityModule.Types.UNUSED);
+        uint8(IInterchainSecurityModule.Types.NULL);
 
     constructor(bytes memory _requiredMetadata) {
         setRequiredMetadata(_requiredMetadata);
