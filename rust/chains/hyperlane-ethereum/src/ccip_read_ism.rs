@@ -5,16 +5,12 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use ethers::abi::AbiDecode;
-use ethers::core::utils::hex::decode as hex_decode;
 use ethers::providers::Middleware;
-use ethers_contract::EthError;
 use tracing::instrument;
 
 use hyperlane_core::{
-    CcipReadIsm, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi,
-    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
-    RawHyperlaneMessage, H256,
+    CcipReadIsm, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, RawHyperlaneMessage, H256,
 };
 
 pub use crate::contracts::i_ccip_read_ism::{
@@ -99,7 +95,7 @@ where
             .get_offchain_verify_info(RawHyperlaneMessage::from(message).to_vec().into())
             .call()
             .await?;
-        Ok(info.into())
+        Ok(info)
     }
 }
 

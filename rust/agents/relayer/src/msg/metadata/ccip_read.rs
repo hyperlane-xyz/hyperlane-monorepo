@@ -4,17 +4,14 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::ops::Deref;
-use strum::Display;
 
 use derive_new::new;
 use eyre::Context;
 use tracing::instrument;
 
 use super::{BaseMetadataBuilder, MetadataBuilder};
+use ethers::abi::AbiDecode;
 use ethers::core::utils::hex::decode as hex_decode;
-use ethers::providers::Middleware;
-use ethers::{abi::AbiDecode, prelude::k256::pkcs8::der::Encode};
-use ethers_contract::EthError;
 use hyperlane_core::{ChainCommunicationError, HyperlaneMessage, H256};
 use regex::Regex;
 
@@ -22,14 +19,6 @@ use regex::Regex;
 struct OffchainResponse {
     metadata: String,
     message: String,
-}
-
-#[derive(Debug, Display, PartialEq, Eq, Clone)]
-pub enum MetadataTokenLayout {
-    Mailbox,
-    Threshold,
-    Signatures,
-    Validators,
 }
 
 #[derive(Clone, Debug, new)]
@@ -58,7 +47,7 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
         let info_result = ism.get_offchain_verify_info(message).await.context(CTX);
 
         let info: OffchainLookup = match info_result {
-            Ok(a) => panic!("Shouldn't get here"),
+            Ok(_) => panic!("Shouldn't get here"),
             Err(e) => match e.downcast_ref::<ChainCommunicationError>() {
                 Some(err) => {
                     println!("err {:?}", err);
