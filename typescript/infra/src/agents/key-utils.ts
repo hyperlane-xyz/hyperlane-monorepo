@@ -1,4 +1,4 @@
-import { ChainName } from '@hyperlane-xyz/sdk';
+import { ChainName, ProtocolType, chainMetadata } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import {
@@ -25,8 +25,14 @@ export function getCloudAgentKey(
   chainName?: ChainName,
   index?: number,
 ): CloudAgentKey {
-  if (agentConfig.aws && role !== Role.Deployer) {
-    // The deployer is always GCP-based
+  let isAws = !!agentConfig.aws;
+  // The deployer is always GCP-based
+  isAws = isAws && role !== Role.Deployer;
+  const isSealevel =
+    !!chainName && chainMetadata[chainName].protocol === ProtocolType.Sealevel;
+  // Sealevel chains should use GCP-based hex keys for relayers
+  isAws = isAws && !(isSealevel && role == Role.Relayer);
+  if (isAws) {
     return new AgentAwsKey(agentConfig, role, chainName, index);
   } else {
     return new AgentGCPKey(
