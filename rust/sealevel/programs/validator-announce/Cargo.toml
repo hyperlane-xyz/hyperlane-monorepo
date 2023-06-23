@@ -7,19 +7,20 @@ edition = "2021"
 no-entrypoint = []
 
 [dependencies]
-account-utils = { path = "../../libraries/account-utils" }
 borsh.workspace = true
-solana-program = "=1.14.13"
+solana-program.workspace = true
+thiserror.workspace = true
+
+account-utils = { path = "../../libraries/account-utils" }
 ecdsa-signature = { path = "../../libraries/ecdsa-signature" }
 hyperlane-core = { path = "../../../hyperlane-core" }
 hyperlane-sealevel-mailbox = { path = "../mailbox", features = ["no-entrypoint"] }
 serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
-thiserror.workspace = true
 
 [dev-dependencies]
-solana-program-test = "=1.14.13"
-solana-sdk = "=1.14.13"
-hex = "0.4.3"
+hex.workspace = true
+solana-program-test.workspace = true
+solana-sdk.workspace = true
 
 [lib]
 crate-type = ["cdylib", "lib"]

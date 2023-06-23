@@ -7,9 +7,10 @@ edition = "2021"
 no-entrypoint = []
 
 [dependencies]
-solana-program = "=1.14.13"
-hyperlane-core = { path = "../../../hyperlane-core" }
+solana-program.workspace = true
 thiserror.workspace = true
+
+hyperlane-core = { path = "../../../hyperlane-core" }
 
 [lib]
 crate-type = ["cdylib", "lib"]

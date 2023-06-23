@@ -8,14 +8,10 @@ no-entrypoint = []
 
 [dependencies]
 borsh.workspace = true
-solana-program = "=1.14.13"
-hyperlane-core = { path = "../../../hyperlane-core" }
+solana-program.workspace = true
+spl-type-length-value.workspace = true
 
-[dependencies.spl-type-length-value]
-version = "0.1.0"
-git = "https://github.com/tkporter/eclipse-program-library"
-rev = "2f7e864"
-features = ["borsh"]
+hyperlane-core = { path = "../../../hyperlane-core" }
 
 [lib]
 crate-type = ["cdylib", "lib"]

@@ -22,7 +22,7 @@ ethers-providers.workspace = true
 ethers-core.workspace = true
 ethers-contract.workspace = true
 eyre.workspace = true
-hex = "0.4.3"
+hex.workspace = true
 itertools.workspace = true
 num = { workspace = true, features = ["serde"] }
 num-derive.workspace = true

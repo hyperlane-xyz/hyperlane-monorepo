@@ -8,23 +8,25 @@ no-entrypoint = []
 
 [dependencies]
 borsh.workspace = true
-multisig-ism = { path = "../../../libraries/multisig-ism" }
 num-derive.workspace = true
 num-traits.workspace = true
-solana-program = "=1.14.13"
-account-utils = { path = "../../../libraries/account-utils" }
-access-control = { path = "../../../libraries/access-control" }
-ecdsa-signature = { path = "../../../libraries/ecdsa-signature" }
-hyperlane-core = { path = "../../../../hyperlane-core" }
-hyperlane-sealevel-mailbox = { path = "../../mailbox", features = ["no-entrypoint"] }
-hyperlane-sealevel-interchain-security-module-interface = { path = "../../../libraries/interchain-security-module-interface" }
-serializable-account-meta = { path = "../../../libraries/serializable-account-meta" }
+solana-program.workspace = true
 thiserror.workspace = true
 
+access-control = { path = "../../../libraries/access-control" }
+account-utils = { path = "../../../libraries/account-utils" }
+ecdsa-signature = { path = "../../../libraries/ecdsa-signature" }
+hyperlane-core = { path = "../../../../hyperlane-core" }
+hyperlane-sealevel-interchain-security-module-interface = { path = "../../../libraries/interchain-security-module-interface" }
+hyperlane-sealevel-mailbox = { path = "../../mailbox", features = ["no-entrypoint"] }
+multisig-ism = { path = "../../../libraries/multisig-ism" }
+serializable-account-meta = { path = "../../../libraries/serializable-account-meta" }
+
 [dev-dependencies]
-solana-program-test = "=1.14.13"
-solana-sdk = "=1.14.13"
-hex = "0.4.3"
+solana-program-test.workspace = true
+solana-sdk.workspace = true
+hex.workspace = true
+
 multisig-ism = { path = "../../../libraries/multisig-ism", features = ["test-data"] }
 
 [lib]

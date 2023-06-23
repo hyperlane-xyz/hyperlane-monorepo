@@ -8,7 +8,7 @@ no-entrypoint = []
 
 [dependencies]
 borsh.workspace = true
-solana-program = "=1.14.13"
+solana-program.workspace = true
 
 [lib]
 crate-type = ["cdylib", "lib"]

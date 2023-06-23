@@ -8,13 +8,8 @@ no-entrypoint = []
 
 [dependencies]
 borsh.workspace = true
-solana-program = "=1.14.13"
-
-[dependencies.spl-type-length-value]
-version = "0.1.0"
-git = "https://github.com/tkporter/eclipse-program-library"
-rev = "2f7e864"
-features = ["borsh"]
+solana-program.workspace = true
+spl-type-length-value.workspace = true
 
 [lib]
 crate-type = ["cdylib", "lib"]

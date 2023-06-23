@@ -9,20 +9,16 @@ test-data = ["dep:hex"]
 
 [dependencies]
 borsh.workspace = true
-ecdsa-signature = { path = "../ecdsa-signature" }
-solana-program = "=1.14.13"
-hyperlane-core = { path = "../../../hyperlane-core" }
+hex = { workspace = true, optional = true }
+solana-program.workspace = true
+spl-type-length-value.workspace = true
 thiserror.workspace = true
-hex = { version = "0.4.3", optional = true }
 
-[dependencies.spl-type-length-value]
-version = "0.1.0"
-git = "https://github.com/tkporter/eclipse-program-library"
-rev = "2f7e864"
-features = ["borsh"]
+hyperlane-core = { path = "../../../hyperlane-core" }
+ecdsa-signature = { path = "../ecdsa-signature" }
 
 [dev-dependencies]
-hex = "0.4.3"
+hex.workspace = true
 
 [lib]
 crate-type = ["cdylib", "lib"]

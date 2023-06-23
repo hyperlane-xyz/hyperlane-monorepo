@@ -7,53 +7,28 @@ edition = "2021"
 no-entrypoint = []
 
 [dependencies]
-access-control = { path = "../access-control" }
-account-utils = { path = "../account-utils" }
-bs58.workspace = true # FIXME remove
-hyperlane-core = { path = "../../../hyperlane-core" }
-hyperlane-sealevel-mailbox = { path = "../../programs/mailbox", features = ["no-entrypoint"] }
-hyperlane-sealevel-message-recipient-interface = { path = "../message-recipient-interface" }
-hyperlane-sealevel-connection-client = { path = "../hyperlane-sealevel-connection-client" }
-serializable-account-meta = { path = "../serializable-account-meta" }
 borsh.workspace = true
+bs58.workspace = true # FIXME remove
 num-derive.workspace = true
 num-traits.workspace = true
-solana-program = "=1.14.13"
+solana-program.workspace = true
 thiserror.workspace = true
+spl-associated-token-account.workspace = true
+spl-noop.workspace = true
+spl-token.workspace = true
+spl-token-2022.workspace = true # FIXME Should we actually use 2022 here or try normal token program?
 
-[dependencies.spl-associated-token-account]
-version = "=1.1.2"
-features = ["no-entrypoint"]
-git = "https://github.com/tkporter/eclipse-program-library"
-rev = "2f7e864"
-
-[dependencies.spl-noop]
-version = "=0.1.3"
-features = ["no-entrypoint"]
-git = "https://github.com/tkporter/eclipse-program-library"
-rev = "2f7e864"
-[dependencies.spl-token]
-version = "=3.5.0"
-features = ["no-entrypoint"]
-git = "https://github.com/tkporter/eclipse-program-library"
-rev = "2f7e864"
-
-# FIXME Should we actually use 2022 here or try normal token program?
-[dependencies.spl-token-2022]
-version = "=0.5.0"
-features = ["no-entrypoint"]
-git = "https://github.com/tkporter/eclipse-program-library"
-rev = "2f7e864"
-
-# [dev-dependencies]
-# base64 = "0.13"
-# itertools.workspace = true
-# log = "0.4"
-# testing_logger = "=0.1.1"
+access-control = { path = "../access-control" }
+account-utils = { path = "../account-utils" }
+hyperlane-core = { path = "../../../hyperlane-core" }
+hyperlane-sealevel-connection-client = { path = "../hyperlane-sealevel-connection-client" }
+hyperlane-sealevel-mailbox = { path = "../../programs/mailbox", features = ["no-entrypoint"] }
+hyperlane-sealevel-message-recipient-interface = { path = "../message-recipient-interface" }
+serializable-account-meta = { path = "../serializable-account-meta" }
 
 [dev-dependencies]
-solana-program-test = "=1.14.13"
-solana-sdk = "=1.14.13"
+solana-program-test.workspace = true
+solana-sdk.workspace = true
 
 [lib]
 crate-type = ["cdylib", "lib"]
