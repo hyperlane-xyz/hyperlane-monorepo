@@ -9,17 +9,17 @@ no-entrypoint = []
 [dependencies]
 access-control = { path = "../access-control" }
 account-utils = { path = "../account-utils" }
-bs58 = "=0.4.0" # FIXME remove
+bs58.workspace = true # FIXME remove
 hyperlane-core = { path = "../../../hyperlane-core" }
 hyperlane-sealevel-mailbox = { path = "../../programs/mailbox", features = ["no-entrypoint"] }
 hyperlane-sealevel-message-recipient-interface = { path = "../message-recipient-interface" }
 hyperlane-sealevel-connection-client = { path = "../hyperlane-sealevel-connection-client" }
 serializable-account-meta = { path = "../serializable-account-meta" }
-borsh = "0.9"
-num-derive = "0.3"
-num-traits = "0.2"
+borsh.workspace = true
+num-derive.workspace = true
+num-traits.workspace = true
 solana-program = "=1.14.13"
-thiserror = "1.0"
+thiserror.workspace = true
 
 [dependencies.spl-associated-token-account]
 version = "=1.1.2"
@@ -47,7 +47,7 @@ rev = "2f7e864"
 
 # [dev-dependencies]
 # base64 = "0.13"
-# itertools =  "0.10.1"
+# itertools.workspace = true
 # log = "0.4"
 # testing_logger = "=0.1.1"
 

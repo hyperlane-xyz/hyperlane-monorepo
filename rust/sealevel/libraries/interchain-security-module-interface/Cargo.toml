@@ -7,7 +7,7 @@ edition = "2021"
 no-entrypoint = []
 
 [dependencies]
-borsh = "0.9"
+borsh.workspace = true
 solana-program = "=1.14.13"
 
 [dependencies.spl-type-length-value]

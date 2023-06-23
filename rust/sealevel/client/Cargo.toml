@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-borsh = "0.9"
+borsh.workspace = true
 clap = { version = "4", features = ["derive"] }
 account-utils = { path = "../libraries/account-utils" }
 hyperlane-core = { path = "../../hyperlane-core" }
@@ -16,7 +16,7 @@ hyperlane-sealevel-token-native = { path = "../programs/hyperlane-sealevel-token
 hyperlane-sealevel-token-lib = { path = "../libraries/hyperlane-sealevel-token" }
 hyperlane-sealevel-connection-client = { path = "../libraries/hyperlane-sealevel-connection-client" }
 hyperlane-sealevel-validator-announce = { path = "../programs/validator-announce" }
-lazy_static = "1.4"
+lazy_static.workspace = true
 pretty_env_logger = "0.4"
 solana-client = "=1.14.13"
 solana-cli-config = "=1.14.13"
@@ -24,5 +24,5 @@ solana-clap-utils = "=1.14.13"
 solana-program = "=1.14.13"
 solana-sdk = "=1.14.13"
 hex = "0.4.3"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+serde.workspace = true
+serde_json.workspace = true

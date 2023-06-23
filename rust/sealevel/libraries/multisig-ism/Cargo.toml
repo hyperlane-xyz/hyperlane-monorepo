@@ -8,11 +8,11 @@ no-entrypoint = []
 test-data = ["dep:hex"]
 
 [dependencies]
-borsh = "0.9"
+borsh.workspace = true
 ecdsa-signature = { path = "../ecdsa-signature" }
 solana-program = "=1.14.13"
 hyperlane-core = { path = "../../../hyperlane-core" }
-thiserror = "1.0"
+thiserror.workspace = true
 hex = { version = "0.4.3", optional = true }
 
 [dependencies.spl-type-length-value]

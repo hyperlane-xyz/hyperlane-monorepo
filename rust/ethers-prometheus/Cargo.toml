@@ -8,20 +8,20 @@ publish.workspace = true
 version.workspace = true
 
 [dependencies]
-prometheus = "0.13"
-ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-06-01" }
+prometheus.workspace = true
+ethers.workspace = true
 derive_builder = "0.12"
-derive-new = "0.5"
-async-trait = { version = "0.1", default-features = false }
-futures = "0.3"
+derive-new.workspace = true
+async-trait.workspace = true
+futures.workspace = true
 parking_lot = { version = "0.12" }
 maplit = "1.0"
 log = "0.4"
 tokio = { workspace = true, features = ["time", "sync", "parking_lot"] }
 static_assertions.workspace = true
 
-serde = { version = "1.0", features = ["derive"], optional = true }
-serde_json = { version = "1.0", default-features = false }
+serde = { workspace = true, features = ["derive"], optional = true }
+serde_json = { workspace = true }
 
 # enable feature for this crate that is imported by ethers-rs
 primitive-types = { version = "*", features = ["fp-conversion"] }

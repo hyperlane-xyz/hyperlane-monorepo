@@ -7,10 +7,10 @@ edition = "2021"
 no-entrypoint = []
 
 [dependencies]
-borsh = "0.9"
+borsh.workspace = true
 multisig-ism = { path = "../../../libraries/multisig-ism" }
-num-derive = "0.3"
-num-traits = "0.2"
+num-derive.workspace = true
+num-traits.workspace = true
 solana-program = "=1.14.13"
 account-utils = { path = "../../../libraries/account-utils" }
 access-control = { path = "../../../libraries/access-control" }
@@ -19,7 +19,7 @@ hyperlane-core = { path = "../../../../hyperlane-core" }
 hyperlane-sealevel-mailbox = { path = "../../mailbox", features = ["no-entrypoint"] }
 hyperlane-sealevel-interchain-security-module-interface = { path = "../../../libraries/interchain-security-module-interface" }
 serializable-account-meta = { path = "../../../libraries/serializable-account-meta" }
-thiserror = "1.0"
+thiserror.workspace = true
 
 [dev-dependencies]
 solana-program-test = "=1.14.13"

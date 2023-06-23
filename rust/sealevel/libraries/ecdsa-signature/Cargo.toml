@@ -9,7 +9,7 @@ no-entrypoint = []
 [dependencies]
 solana-program = "=1.14.13"
 hyperlane-core = { path = "../../../hyperlane-core" }
-thiserror = "1.0"
+thiserror.workspace = true
 
 [lib]
 crate-type = ["cdylib", "lib"]
