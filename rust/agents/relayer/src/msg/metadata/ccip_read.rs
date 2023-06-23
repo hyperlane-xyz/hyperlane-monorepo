@@ -100,7 +100,11 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
             let json: Result<OffchainResponse, reqwest::Error> = res.json().await;
 
             match json {
-                Ok(result) => return Ok(Some(result.metadata.to_vec().unwrap())),
+                Ok(result) => {
+                    // remove leading 0x which hex_decode doesn't like
+                    let metadata = hex_decode(&result.metadata[2..]).unwrap();
+                    return Ok(Some(metadata));
+                }
                 Err(_err) => {
                     // let the next URL
                 }
