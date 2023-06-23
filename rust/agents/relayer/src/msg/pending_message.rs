@@ -5,12 +5,12 @@ use std::time::{Duration, Instant};
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::{Context, Result};
-use hyperlane_base::db::{DbError, HyperlaneRocksDB};
+use hyperlane_base::db::HyperlaneRocksDB;
 use prometheus::{IntCounter, IntGauge};
 use tracing::{debug, error, info, instrument, trace, warn};
 
 use hyperlane_base::CoreMetrics;
-use hyperlane_core::{HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, H256, U256};
+use hyperlane_core::{HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, U256};
 
 use super::{
     gas_payment::GasPaymentEnforcer,
@@ -308,16 +308,6 @@ impl PendingMessage {
     /// Constructor that tries reading the retry count from the HyperlaneDB in order to recompute the `next_attempt_after`.
     /// In case of failure, behaves like `Self::new(...)`.
     pub fn from_persisted_retries(message: HyperlaneMessage, ctx: Arc<MessageContext>) -> Self {
-        fn log_db_read_error(maybe_error: Option<DbError>, message_id: &H256) {
-            let mut log_message = format!("Failed to read retry count from HyperlaneDB for message {}. Defaulting to the regular `PendingMessage` constructor.", message_id);
-            if let Some(error) = maybe_error {
-                log_message.push_str(&format!(" Error: {}", error));
-                info!(log_message);
-            } else {
-                trace!(log_message);
-            }
-        }
-
         let mut pm = Self::new(message, ctx);
         match pm
             .ctx
@@ -330,8 +320,9 @@ impl PendingMessage {
                 pm.num_retries = num_retries;
                 pm.next_attempt_after = next_attempt_after;
             }
-            Ok(None) => log_db_read_error(None, &pm.message.id()),
-            Err(e) => log_db_read_error(Some(e), &pm.message.id()),
+            r => {
+                info!(message_id = ?pm.message.id(), result = ?r, "Failed to read retry count from HyperlaneDB for message.")
+            }
         }
         pm
     }
@@ -388,11 +379,7 @@ impl PendingMessage {
             .origin_db
             .store_pending_message_retry_count_by_message_id(&self.message.id(), &self.num_retries)
         {
-            info!(
-                "Persisting the `num_retries` failed for message {}. Hyperlane DB error: {}",
-                self.message.id(),
-                e
-            );
+            warn!(message_id = ?self.message.id(), err = %e, "Persisting the `num_retries` failed for message");
         }
     }
 
