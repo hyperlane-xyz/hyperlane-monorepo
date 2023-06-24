@@ -24,10 +24,19 @@ contract TestCcipReadIsm is AbstractCcipReadIsm {
         offchainCallData = _offchainCallData;
     }
 
-    function handle() external {}
+    /**
+     * No-op
+     */
+    function handle() external pure {
+        return;
+    }
 
-    function verify(bytes calldata _metadata, bytes calldata _message)
+    /**
+     * No-op
+     */
+    function verify(bytes calldata, bytes calldata)
         external
+        pure
         returns (bool)
     {
         return true;

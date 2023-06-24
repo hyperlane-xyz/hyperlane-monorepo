@@ -86,6 +86,5 @@ abstract contract AbstractCcipReadIsm is ICcipReadIsm {
             AbstractCcipReadIsm.getOffchainVerifyInfo.selector,
             offchainExtraData
         );
-        return true;
     }
 }
