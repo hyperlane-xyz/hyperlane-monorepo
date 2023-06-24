@@ -7,12 +7,12 @@ use std::ops::Deref;
 
 use derive_new::new;
 use eyre::Context;
-use tracing::instrument;
+use tracing::{info, instrument};
 
 use super::{BaseMetadataBuilder, MetadataBuilder};
 use ethers::abi::AbiDecode;
 use ethers::core::utils::hex::decode as hex_decode;
-use hyperlane_core::{ChainCommunicationError, HyperlaneMessage, H256};
+use hyperlane_core::{HyperlaneMessage, H256};
 use regex::Regex;
 
 #[derive(Serialize, Deserialize)]
@@ -44,31 +44,26 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
     ) -> eyre::Result<Option<Vec<u8>>> {
         const CTX: &str = "When fetching CcipRead metadata";
         let ism = self.build_ccip_read_ism(ism_address).await.context(CTX)?;
-        let info_result = ism.get_offchain_verify_info(message).await.context(CTX);
 
-        let info: OffchainLookup = match info_result {
-            Ok(_) => panic!("Shouldn't get here"),
-            Err(e) => match e.downcast_ref::<ChainCommunicationError>() {
-                Some(err) => {
-                    println!("err {:?}", err);
-                    let regex = Regex::new(r"0x[[:xdigit:]]+").unwrap();
-
-                    if let Some(capture) = regex.captures(&err.to_string()) {
-                        let extracted = &capture[0];
-
-                        let data = hex_decode(extracted.replace("0x", "")).unwrap();
-                        OffchainLookup::decode(data).unwrap()
-                    } else {
-                        panic!("Shouldn't get here");
-                        // Err(hyperlane_core::ChainCommunicationError::TransactionTimeout())
-                    }
+        let response = ism.get_offchain_verify_info(message).await;
+        let info: OffchainLookup = match response {
+            Ok(_) => {
+                info!("incorrectly configured getOffchainVerifyInfo, expected revert");
+                return Ok(None);
+            }
+            Err(raw_error) => {
+                let matching_regex = Regex::new(r"0x[[:xdigit:]]+")?;
+                if let Some(matching) = &matching_regex.captures(&raw_error.to_string()) {
+                    OffchainLookup::decode(hex_decode(&matching[0][2..])?)?
+                } else {
+                    info!("unable to parse custom error out of revert");
+                    return Ok(None);
                 }
-                None => panic!("Shouldn't get here"),
-            },
+            }
         };
 
         for url in info.urls.iter() {
-            let request_url = url
+            let interpolated_url = url
                 .replace("{sender}", &info.sender.to_string())
                 .replace("{data}", &info.call_data.to_string());
             let res = if url.contains("{data}") {
@@ -77,13 +72,13 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
                     "sender": info.sender.to_string(),
                 });
                 Client::new()
-                    .post(request_url)
+                    .post(interpolated_url)
                     .header("Content-Type", "application/json")
                     .json(&body)
                     .send()
                     .await?
             } else {
-                reqwest::get(request_url).await?
+                reqwest::get(interpolated_url).await?
             };
 
             let json: Result<OffchainResponse, reqwest::Error> = res.json().await;
@@ -100,6 +95,7 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
             }
         }
 
+        // metadata endpoints down or payload is invalid
         Ok(None)
     }
 }
