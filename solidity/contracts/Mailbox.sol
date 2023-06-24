@@ -30,8 +30,8 @@ contract Mailbox is
 
     // ============ Constants ============
 
-    // Maximum bytes per message = 2 KiB (somewhat arbitrarily set to begin)
-    uint256 public constant MAX_MESSAGE_BODY_BYTES = 2 * 2**10;
+    // Maximum bytes per message = 3 KiB (somewhat arbitrarily set to begin)
+    uint256 public constant MAX_MESSAGE_BODY_BYTES = 3 * 2**10;
     // Domain of chain on which the contract is deployed
     uint32 public immutable localDomain;
 

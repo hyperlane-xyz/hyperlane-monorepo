@@ -13,7 +13,7 @@ contract MockMailbox is Versioned {
 
     // ============ Constants ============
     uint32 public immutable localDomain;
-    uint256 public constant MAX_MESSAGE_BODY_BYTES = 2 * 2**10;
+    uint256 public constant MAX_MESSAGE_BODY_BYTES = 3 * 2**10;
 
     uint32 public outboundNonce = 0;
     uint32 public inboundUnprocessedNonce = 0;
