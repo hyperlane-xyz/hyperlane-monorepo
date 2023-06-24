@@ -22,7 +22,7 @@ describe('TestCcipReadIsm', () => {
         ism.address,
         ['https://example.com'],
         '0xdeadbeef',
-        '0x0d541afe',
+        '0xbbac9bc8',
         '0x',
       ]);
     }
