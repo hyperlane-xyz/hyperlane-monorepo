@@ -4,6 +4,7 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {ICcipReadIsm} from "../../interfaces/isms/ICcipReadIsm.sol";
+import {IMailbox} from "../../interfaces/IMailbox.sol";
 import {Message} from "../../libs/Message.sol";
 import {AbstractMultisigIsm} from "../multisig/AbstractMultisigIsm.sol";
 
@@ -69,8 +70,8 @@ abstract contract AbstractCcipReadIsm is ICcipReadIsm {
     // ============ External Functions ============
 
     /**
-     * @notice Reverts with the data needed to query information offchain
-     * and be submitted via verifyWithProof
+     * @notice Reverts with the data needed to query information offchain before
+     * mailbox submission
      * @dev See https://eips.ethereum.org/EIPS/eip-3668 for more information
      * @return bool Ignored
      */
@@ -83,7 +84,9 @@ abstract contract AbstractCcipReadIsm is ICcipReadIsm {
             address(this),
             offchainUrls,
             offchainCallData,
-            AbstractCcipReadIsm.getOffchainVerifyInfo.selector,
+            // Note: consumers of getOffchainVerifyInfo should call the destination
+            // chain mailbox.process(_metadata, _message)
+            IMailbox.process.selector,
             offchainExtraData
         );
     }
