@@ -41,9 +41,6 @@ abstract contract AbstractCcipReadIsm is ICcipReadIsm {
     /// @notice The URLs to query for offchain data from.
     string[] public offchainUrls;
 
-    /// @notice Parameters to query for offchain data with.
-    bytes public offchainCallData;
-
     /// @notice Data to pass back to the callback function.
     bytes public offchainExtraData;
 
@@ -54,12 +51,6 @@ abstract contract AbstractCcipReadIsm is ICcipReadIsm {
      * @param urls the new URLs
      */
     event OffchainUrlsUpdated(string[] urls);
-
-    /**
-     * @notice Emitted when the offchain callData is updated
-     * @param callData the new callData
-     */
-    event OffchainCallDataUpdated(bytes callData);
 
     /**
      * @notice Emitted when the offchain extraData is updated
@@ -75,7 +66,7 @@ abstract contract AbstractCcipReadIsm is ICcipReadIsm {
      * @dev See https://eips.ethereum.org/EIPS/eip-3668 for more information
      * @return bool Ignored
      */
-    function getOffchainVerifyInfo(bytes calldata)
+    function getOffchainVerifyInfo(bytes calldata _calldata)
         external
         view
         returns (bool)
@@ -83,7 +74,7 @@ abstract contract AbstractCcipReadIsm is ICcipReadIsm {
         revert OffchainLookup(
             address(this),
             offchainUrls,
-            offchainCallData,
+            _calldata,
             // Note: consumers of getOffchainVerifyInfo should call the destination
             // chain mailbox.process(_metadata, _message)
             IMailbox.process.selector,

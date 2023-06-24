@@ -66,7 +66,7 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
             let interpolated_url = url
                 .replace("{sender}", &info.sender.to_string())
                 .replace("{data}", &info.call_data.to_string());
-            let res = if url.contains("{data}") {
+            let res = if !url.contains("{data}") {
                 let body = json!({
                     "data": info.call_data.to_string(),
                     "sender": info.sender.to_string(),
