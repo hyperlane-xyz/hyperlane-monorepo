@@ -6,7 +6,6 @@ import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityMod
 import {ICcipReadIsm} from "../../interfaces/isms/ICcipReadIsm.sol";
 import {Message} from "../../libs/Message.sol";
 import {AbstractMultisigIsm} from "../multisig/AbstractMultisigIsm.sol";
-import {CcipReadIsmMetadata} from "../../libs/isms/CcipReadIsmMetadata.sol";
 
 /// @param sender the address of the contract making the call, usually address(this)
 /// @param urls the URLs to query for offchain data
@@ -25,11 +24,10 @@ error OffchainLookup(
  * @title AbstractCcipReadIsm
  * @notice An ISM that allows arbitrary payloads to be submitted and verified on chain.
  */
-abstract contract AbstractCcipReadIsm is ICcipReadIsm, AbstractMultisigIsm {
+abstract contract AbstractCcipReadIsm is ICcipReadIsm {
     // ============ Libraries ============
 
     using Message for bytes;
-    using CcipReadIsmMetadata for bytes;
 
     // ============ Constants ============
 
@@ -85,30 +83,9 @@ abstract contract AbstractCcipReadIsm is ICcipReadIsm, AbstractMultisigIsm {
             address(this),
             offchainUrls,
             offchainCallData,
-            AbstractCcipReadIsm.verifyWithProof.selector,
+            AbstractCcipReadIsm.getOffchainVerifyInfo.selector,
             offchainExtraData
         );
         return true;
-    }
-
-    /**
-     * @notice Function to be called with the result of the offchain read
-     * @param response the offchain result
-     * @return bool
-     */
-    function verifyWithProof(bytes calldata response, bytes calldata)
-        external
-        view
-        returns (bool)
-    {
-        // TODO: magic numbers
-        uint256 metadataOffset = uint256(bytes32(response[0:32]));
-        uint256 messageOffset = uint256(bytes32(response[33:64]));
-
-        return
-            verify(
-                response[metadataOffset:messageOffset],
-                response[messageOffset:]
-            );
     }
 }
