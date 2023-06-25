@@ -53,10 +53,10 @@ contract CheckpointFraudProofsTest is Test {
 
         bytes32[32] memory proof = mailbox.proof();
 
-        vm.expectRevert("must prove against cached checkpoint");
+        vm.expectRevert("must prove against stored checkpoint");
         cfp.isFraudulentMessageId(checkpoint, proof, checkpoint.messageId);
 
-        cfp.cacheCheckpoint(address(mailbox));
+        cfp.storeLatestCheckpoint(address(mailbox));
         assertFalse(
             cfp.isFraudulentMessageId(checkpoint, proof, checkpoint.messageId)
         );
@@ -73,10 +73,10 @@ contract CheckpointFraudProofsTest is Test {
 
         bytes32[32] memory proof = mailbox.proof();
 
-        vm.expectRevert("must prove against cached checkpoint");
+        vm.expectRevert("must prove against stored checkpoint");
         cfp.isFraudulentRoot(checkpoint, proof);
 
-        cfp.cacheCheckpoint(address(mailbox));
+        cfp.storeLatestCheckpoint(address(mailbox));
         assertFalse(cfp.isFraudulentRoot(checkpoint, proof));
 
         checkpoint.root = ~checkpoint.root;

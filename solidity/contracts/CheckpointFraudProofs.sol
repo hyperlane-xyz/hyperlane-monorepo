@@ -12,7 +12,7 @@ contract CheckpointFraudProofs {
     // mailbox => root => count
     mapping(address => mapping(bytes32 => uint32)) public indices;
 
-    modifier onlyCached(
+    modifier onlyStoredCheckpoint(
         Checkpoint calldata checkpoint,
         bytes32[TREE_DEPTH] calldata proof,
         bytes32 messageId
@@ -27,13 +27,13 @@ contract CheckpointFraudProofs {
         ];
         require(
             cachedIndex >= checkpoint.index,
-            "must prove against cached checkpoint"
+            "must prove against stored checkpoint"
         );
         _;
     }
 
     // must be called before proving fraud to circumvent race on mailbox insertion and merkle proof construction
-    function cacheCheckpoint(address mailbox) public {
+    function storeLatestCheckpoint(address mailbox) public {
         (bytes32 root, uint32 index) = IMailbox(mailbox).latestCheckpoint();
         indices[mailbox][root] = index;
     }
@@ -57,7 +57,7 @@ contract CheckpointFraudProofs {
     )
         public
         view
-        onlyCached(checkpoint, proof, actualMessageId)
+        onlyStoredCheckpoint(checkpoint, proof, actualMessageId)
         returns (bool)
     {
         return actualMessageId != checkpoint.messageId;
@@ -70,7 +70,7 @@ contract CheckpointFraudProofs {
     )
         public
         view
-        onlyCached(checkpoint, proof, checkpoint.messageId)
+        onlyStoredCheckpoint(checkpoint, proof, checkpoint.messageId)
         returns (bool)
     {
         // modify proof to reconstruct root at checkpoint.index
