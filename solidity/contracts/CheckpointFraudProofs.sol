@@ -7,17 +7,19 @@ import {TypeCasts} from "./libs/TypeCasts.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {IMailbox} from "./interfaces/IMailbox.sol";
 
+import "forge-std/Test.sol";
+
 contract CheckpointFraudProofs {
     // copied from MerkleLib.sol
     uint256 internal constant TREE_DEPTH = 32;
 
     // mailbox => root => count
-    mapping(address => mapping(bytes32 => uint32)) public counts;
+    mapping(address => mapping(bytes32 => uint32)) public indices;
 
     // must be called before proving fraud to circumvent race on mailbox insertion and merkle proof construction
     function cacheCheckpoint(address mailbox) public {
-        (bytes32 root, uint32 count) = IMailbox(mailbox).latestCheckpoint();
-        counts[mailbox][root] = count;
+        (bytes32 root, uint32 index) = IMailbox(mailbox).latestCheckpoint();
+        indices[mailbox][root] = index;
     }
 
     function calculateRoot(
@@ -30,11 +32,11 @@ contract CheckpointFraudProofs {
             proof,
             checkpoint.index
         );
-        uint32 cachedCount = counts[CheckpointLib.mailbox(checkpoint)][
+        uint32 cachedIndex = indices[CheckpointLib.mailbox(checkpoint)][
             calculatedRoot
         ];
         require(
-            cachedCount > checkpoint.index,
+            cachedIndex >= checkpoint.index,
             "must prove against cached checkpoint"
         );
         return calculatedRoot;

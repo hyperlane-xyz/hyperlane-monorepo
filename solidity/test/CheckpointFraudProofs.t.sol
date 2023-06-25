@@ -12,6 +12,7 @@ contract CheckpointFraudProofsTest is Test {
 
     TestMailbox mailbox;
     bytes32 mailboxBytes;
+    Checkpoint latestCheckpoint;
     CheckpointFraudProofs cfp;
 
     function setUp() public {
@@ -26,24 +27,52 @@ contract CheckpointFraudProofsTest is Test {
         msgBody[4] = 0xee;
 
         for (uint256 i = 0; i < msgCount; i++) {
-            mailbox.dispatch(2000, bytes32(0), msgBody);
+            bytes32 messageId = mailbox.dispatch(2000, bytes32(0), msgBody);
+            (bytes32 root, uint32 index) = mailbox.latestCheckpoint();
+            latestCheckpoint = Checkpoint(
+                localDomain,
+                mailboxBytes,
+                root,
+                index,
+                messageId
+            );
         }
 
         cfp = new CheckpointFraudProofs();
     }
 
     function testIsPremature() public {
-        (bytes32 root, uint32 index) = mailbox.latestCheckpoint();
-
-        Checkpoint memory checkpoint = Checkpoint(
-            localDomain,
-            mailboxBytes,
-            root,
-            index,
-            bytes32(0)
-        );
+        Checkpoint memory checkpoint = latestCheckpoint;
         assertFalse(cfp.isPremature(checkpoint));
         checkpoint.index += 1;
         assertTrue(cfp.isPremature(checkpoint));
+    }
+
+    function testIsFraudulentMessageId() public {
+        Checkpoint memory checkpoint = latestCheckpoint;
+
+        bytes32[32] memory proof = mailbox.proof();
+
+        vm.expectRevert("must prove against cached checkpoint");
+        cfp.isFraudulentMessageId(checkpoint, proof, checkpoint.messageId);
+
+        cfp.cacheCheckpoint(address(mailbox));
+        assertFalse(
+            cfp.isFraudulentMessageId(
+                checkpoint,
+                mailbox.proof(),
+                checkpoint.messageId
+            )
+        );
+
+        bytes32 actualMessageId = checkpoint.messageId;
+        checkpoint.messageId = ~checkpoint.messageId;
+        assertTrue(
+            cfp.isFraudulentMessageId(
+                checkpoint,
+                mailbox.proof(),
+                actualMessageId
+            )
+        );
     }
 }
