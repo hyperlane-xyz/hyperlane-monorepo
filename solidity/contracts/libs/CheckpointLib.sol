@@ -4,8 +4,6 @@ pragma solidity >=0.8.0;
 // ============ External Imports ============
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
-import {IMailbox} from "../interfaces/IMailbox.sol";
-
 import {TypeCasts} from "./TypeCasts.sol";
 import {LegacyCheckpointLib} from "./LegacyCheckpointLib.sol";
 
