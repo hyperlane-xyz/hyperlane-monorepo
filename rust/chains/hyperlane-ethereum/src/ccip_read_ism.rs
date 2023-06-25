@@ -10,7 +10,7 @@ use tracing::instrument;
 
 use hyperlane_core::{
     CcipReadIsm, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, RawHyperlaneMessage, H256,
+    HyperlaneDomain, HyperlaneProvider, H256,
 };
 
 pub use crate::contracts::i_ccip_read_ism::{
@@ -89,10 +89,10 @@ where
     M: Middleware + 'static,
 {
     #[instrument(err)]
-    async fn get_offchain_verify_info(&self, message: &HyperlaneMessage) -> ChainResult<bool> {
+    async fn get_offchain_verify_info(&self, message: Vec<u8>) -> ChainResult<bool> {
         let info: bool = self
             .contract
-            .get_offchain_verify_info(RawHyperlaneMessage::from(message).to_vec().into())
+            .get_offchain_verify_info(message.into())
             .call()
             .await?;
         Ok(info)

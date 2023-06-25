@@ -17,8 +17,7 @@ use regex::Regex;
 
 #[derive(Serialize, Deserialize)]
 struct OffchainResponse {
-    metadata: String,
-    message: String,
+    data: String,
 }
 
 #[derive(Clone, Debug, new)]
@@ -45,7 +44,7 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
         const CTX: &str = "When fetching CcipRead metadata";
         let ism = self.build_ccip_read_ism(ism_address).await.context(CTX)?;
 
-        let response = ism.get_offchain_verify_info(message).await;
+        let response = ism.get_offchain_verify_info(message.body.clone()).await;
         let info: OffchainLookup = match response {
             Ok(_) => {
                 info!("incorrectly configured getOffchainVerifyInfo, expected revert");
@@ -86,7 +85,7 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
             match json {
                 Ok(result) => {
                     // remove leading 0x which hex_decode doesn't like
-                    let metadata = hex_decode(&result.metadata[2..]).unwrap();
+                    let metadata = hex_decode(&result.data[2..])?;
                     return Ok(Some(metadata));
                 }
                 Err(_err) => {
