@@ -4,7 +4,18 @@ pragma solidity >=0.8.0;
 // ============ External Imports ============
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
+import {IMailbox} from "../interfaces/IMailbox.sol";
+
+import {TypeCasts} from "./TypeCasts.sol";
 import {LegacyCheckpointLib} from "./LegacyCheckpointLib.sol";
+
+struct Checkpoint {
+    uint32 origin;
+    bytes32 originMailbox;
+    bytes32 root;
+    uint32 index;
+    bytes32 messageId;
+}
 
 library CheckpointLib {
     /**
@@ -36,6 +47,38 @@ library CheckpointLib {
                     )
                 )
             );
+    }
+
+    function digest(Checkpoint calldata checkpoint)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return
+            digest(
+                checkpoint.origin,
+                checkpoint.originMailbox,
+                checkpoint.root,
+                checkpoint.index,
+                checkpoint.messageId
+            );
+    }
+
+    function signer(Checkpoint calldata checkpoint, bytes calldata signature)
+        internal
+        pure
+        returns (address)
+    {
+        bytes32 _digest = digest(checkpoint);
+        return ECDSA.recover(_digest, signature);
+    }
+
+    function mailbox(Checkpoint calldata checkpoint)
+        internal
+        pure
+        returns (address)
+    {
+        return TypeCasts.bytes32ToAddress(checkpoint.originMailbox);
     }
 
     /**

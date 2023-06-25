@@ -141,6 +141,27 @@ library MerkleLib {
         }
     }
 
+    function reconstructRoot(
+        bytes32 _item,
+        bytes32[TREE_DEPTH] memory _branch, // cheaper than calldata indexing
+        uint256 _index
+    ) internal pure returns (bytes32 _current) {
+        _current = _item;
+
+        for (uint256 i = 0; i < TREE_DEPTH; i++) {
+            uint256 _ithBit = (_index >> i) & 0x01;
+            // cheaper than calldata indexing _branch[i*32:(i+1)*32];
+            if (_ithBit == 1) {
+                _current = keccak256(abi.encodePacked(_branch[i], _current));
+            } else {
+                // remove right subtree from proof
+                _current = keccak256(
+                    abi.encodePacked(_current, zeroHashes()[i])
+                );
+            }
+        }
+    }
+
     // keccak256 zero hashes
     bytes32 internal constant Z_0 =
         hex"0000000000000000000000000000000000000000000000000000000000000000";

@@ -25,7 +25,7 @@ interface IInterchainSecurityModule {
      * @param _metadata Off-chain metadata provided by a relayer, specific to
      * the security model encoded by the module (e.g. validator signatures)
      * @param _message Hyperlane encoded interchain message
-     * @return True if the message was verified
+     * @return True if the messagepwas verified
      */
     function verify(bytes calldata _metadata, bytes calldata _message)
         external
