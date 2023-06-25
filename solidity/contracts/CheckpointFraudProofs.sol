@@ -15,8 +15,7 @@ contract CheckpointFraudProofs {
     mapping(address => mapping(bytes32 => uint32)) public counts;
 
     // must be called before proving fraud to circumvent race on mailbox insertion and merkle proof construction
-    function cacheCheckpoint(Checkpoint calldata checkpoint) public {
-        address mailbox = CheckpointLib.mailbox(checkpoint);
+    function cacheCheckpoint(address mailbox) public {
         (bytes32 root, uint32 count) = IMailbox(mailbox).latestCheckpoint();
         counts[mailbox][root] = count;
     }
@@ -79,22 +78,5 @@ contract CheckpointFraudProofs {
             checkpoint.index
         );
         return reconstructedRoot != calculatedRoot;
-    }
-
-    // returns whether validator has signed a fraudulent checkpoint
-    function isValidatorFraud(
-        address validator,
-        Checkpoint calldata checkpoint,
-        bytes32[TREE_DEPTH] calldata proof,
-        bytes calldata signature,
-        bytes32 actualMessageId
-    ) public view returns (bool) {
-        address signer = CheckpointLib.signer(checkpoint, signature);
-        require(validator == signer, "validator must have signed checkpoint");
-
-        return
-            isPremature(checkpoint) ||
-            isFraudulentMessageId(checkpoint, proof, actualMessageId) ||
-            isFraudulentRoot(checkpoint, proof);
     }
 }
