@@ -58,21 +58,28 @@ contract CheckpointFraudProofsTest is Test {
 
         cfp.cacheCheckpoint(address(mailbox));
         assertFalse(
-            cfp.isFraudulentMessageId(
-                checkpoint,
-                mailbox.proof(),
-                checkpoint.messageId
-            )
+            cfp.isFraudulentMessageId(checkpoint, proof, checkpoint.messageId)
         );
 
         bytes32 actualMessageId = checkpoint.messageId;
         checkpoint.messageId = ~checkpoint.messageId;
         assertTrue(
-            cfp.isFraudulentMessageId(
-                checkpoint,
-                mailbox.proof(),
-                actualMessageId
-            )
+            cfp.isFraudulentMessageId(checkpoint, proof, actualMessageId)
         );
+    }
+
+    function testIsFraudulentRoot() public {
+        Checkpoint memory checkpoint = latestCheckpoint;
+
+        bytes32[32] memory proof = mailbox.proof();
+
+        vm.expectRevert("must prove against cached checkpoint");
+        cfp.isFraudulentRoot(checkpoint, proof);
+
+        cfp.cacheCheckpoint(address(mailbox));
+        assertFalse(cfp.isFraudulentRoot(checkpoint, proof));
+
+        checkpoint.root = ~checkpoint.root;
+        assertTrue(cfp.isFraudulentRoot(checkpoint, proof));
     }
 }

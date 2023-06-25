@@ -148,6 +148,8 @@ library MerkleLib {
     ) internal pure returns (bytes32 _current) {
         _current = _item;
 
+        bytes32[TREE_DEPTH] memory _zeroes = zeroHashes();
+
         for (uint256 i = 0; i < TREE_DEPTH; i++) {
             uint256 _ithBit = (_index >> i) & 0x01;
             // cheaper than calldata indexing _branch[i*32:(i+1)*32];
@@ -155,9 +157,7 @@ library MerkleLib {
                 _current = keccak256(abi.encodePacked(_branch[i], _current));
             } else {
                 // remove right subtree from proof
-                _current = keccak256(
-                    abi.encodePacked(_current, zeroHashes()[i])
-                );
+                _current = keccak256(abi.encodePacked(_current, _zeroes[i]));
             }
         }
     }
