@@ -108,7 +108,7 @@ jobs:
         run: yarn workspace @hyperlane-xyz/helloworld run test
 
       - name: token
-        run: yarn workspace @hyperlane-xyz/token run test
+        run: yarn workspace @hyperlane-xyz/hyperlane-token run test
 
       - name: infra
         run: yarn workspace @hyperlane-xyz/infra run test
