@@ -37,7 +37,5 @@ url.workspace = true
 curve25519-dalek.workspace = true
 serde_bytes.workspace = true
 
-
-rand = "*"
-# auto-resolve zstd version to avoid dependency conflicts
-zstd = "*"
+rand = "~0.7.3" # force a match with curve25519-dalek
+zstd = "*" # auto-resolve zstd version to avoid dependency conflicts
