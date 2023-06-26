@@ -39,7 +39,7 @@
     "chai": "^4.3.4",
     "ethereum-waffle": "^3.4.4",
     "ethers": "^5.7.2",
-    "hardhat": "^2.8.4",
+    "hardhat": "^2.16.0",
     "prettier": "^2.4.1",
     "ts-node": "^10.8.0",
     "typescript": "^4.7.2"
