@@ -7,12 +7,12 @@ use hyperlane_core::{
 use num_traits::cast::FromPrimitive;
 use tracing::warn;
 
-use solana::{instruction::Instruction, pubkey::Pubkey, signature::Keypair};
 use crate::{
     contract::{InterchainSecurityModuleInstruction, SimulationReturnData},
     utils::simulate_instruction,
     ConnectionConf, RpcClientWithDebug,
 };
+use solana_sdk::{instruction::Instruction, pubkey::Pubkey, signature::Keypair};
 
 /// A reference to an InterchainSecurityModule contract on some Sealevel chain
 #[derive(Debug)]

@@ -1,15 +1,13 @@
 use async_trait::async_trait;
+use tracing::{info, instrument, warn};
 
 use hyperlane_core::{
     Announcement, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, SignedType, TxOutcome, ValidatorAnnounce, H160, H256, U256,
 };
-use tracing::{info, instrument, warn};
-use solana::{commitment_config::CommitmentConfig, pubkey::Pubkey};
+use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey};
 
-use crate::{
-    validator_storage_locations_pda_seeds, ConnectionConf, RpcClientWithDebug,
-};
+use crate::{validator_storage_locations_pda_seeds, ConnectionConf, RpcClientWithDebug};
 
 /// A reference to a ValidatorAnnounce contract on some Sealevel chain
 #[derive(Debug)]
@@ -131,8 +129,9 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
 
 // Copied from the validator-announce contract
 mod contract {
-    use crate::mailbox::contract::AccountData;
     use borsh::{BorshDeserialize, BorshSerialize};
+
+    use crate::mailbox::contract::AccountData;
 
     /// An account that holds a validator's announced storage locations.
     /// It is a PDA based off the validator's address, and can therefore

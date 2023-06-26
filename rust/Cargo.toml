@@ -13,26 +13,26 @@ members = [
     "hyperlane-base",
     "hyperlane-core",
     "hyperlane-test",
-#    "sealevel/client",
-#    "sealevel/libraries/access-control",
-#    "sealevel/libraries/account-utils",
-#    "sealevel/libraries/ecdsa-signature",
-#    "sealevel/libraries/hyperlane-sealevel-connection-client",
-#    "sealevel/libraries/hyperlane-sealevel-token",
-#    "sealevel/libraries/interchain-security-module-interface",
-#    "sealevel/libraries/message-recipient-interface",
-#    "sealevel/libraries/multisig-ism",
-#    "sealevel/libraries/serializable-account-meta",
-#    "sealevel/libraries/test-transaction-utils",
-#    "sealevel/libraries/test-utils",
-#    "sealevel/programs/hyperlane-sealevel-token",
-#    "sealevel/programs/hyperlane-sealevel-token-native",
-#    "sealevel/programs/ism/multisig-ism-message-id",
-#    "sealevel/programs/ism/test-ism",
-#    "sealevel/programs/mailbox",
-#    "sealevel/programs/mailbox-test",
-#    "sealevel/programs/test-send-receiver",
-#    "sealevel/programs/validator-announce",
+    #    "sealevel/client",
+    #    "sealevel/libraries/access-control",
+    #    "sealevel/libraries/account-utils",
+    #    "sealevel/libraries/ecdsa-signature",
+    #    "sealevel/libraries/hyperlane-sealevel-connection-client",
+    #    "sealevel/libraries/hyperlane-sealevel-token",
+    #    "sealevel/libraries/interchain-security-module-interface",
+    #    "sealevel/libraries/message-recipient-interface",
+    #    "sealevel/libraries/multisig-ism",
+    #    "sealevel/libraries/serializable-account-meta",
+    #    "sealevel/libraries/test-transaction-utils",
+    #    "sealevel/libraries/test-utils",
+    #    "sealevel/programs/hyperlane-sealevel-token",
+    #    "sealevel/programs/hyperlane-sealevel-token-native",
+    #    "sealevel/programs/ism/multisig-ism-message-id",
+    #    "sealevel/programs/ism/test-ism",
+    #    "sealevel/programs/mailbox",
+    #    "sealevel/programs/mailbox-test",
+    #    "sealevel/programs/test-send-receiver",
+    #    "sealevel/programs/validator-announce",
     "utils/abigen",
     "utils/backtrace-oneline",
     "utils/hex",
@@ -97,12 +97,14 @@ serde_bytes = "0.11"
 serde_derive = "1.0"
 serde_json = "1.0"
 sha2 = "0.10"
-solana-clap-utils = "~1.16.1"
-solana-cli-config = "~1.16.1"
-solana-client = "~1.16.1"
-solana-program = "~1.16.1"
-solana-program-test = "~1.16.1"
-solana-sdk = "~1.16"
+solana-account-decoder = "=1.14.19"
+solana-clap-utils = "=1.14.19"
+solana-cli-config = "=1.14.19"
+solana-client = "=1.14.19"
+solana-program-test = "=1.14.19"
+solana-sdk = "=1.14.19"
+solana-transaction-status = "=1.14.19"
+solana-zk-token-sdk = "=1.14.19"
 spl-associated-token-account = { version = "=1.1.3", features = ["no-entrypoint"] }
 spl-noop = { version = "=0.1.3", features = ["no-entrypoint"] }
 spl-token = { version = "=3.5.0", features = ["no-entrypoint"] }
@@ -114,9 +116,14 @@ strum_macros = "0.24"
 thiserror = "1.0"
 tokio = { version = "1", features = ["parking_lot"] }
 tracing = { version = "0.1", features = ["release_max_level_debug"] }
+tracing-error = "0.2"
 tracing-futures = "0.2"
 tracing-subscriber = { version = "0.3", default-features = false }
 url = "2.3"
+
+[patch.crates-io.aes-gcm-siv]
+path = "patches/aes-gcm-siv-0.10"
+version = "0.10.*"
 
 [patch.crates-io.curve25519-dalek]
 branch = "steven/fix-deps"

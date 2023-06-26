@@ -1,10 +1,10 @@
 use async_trait::async_trait;
+
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, MultisigIsm, RawHyperlaneMessage, H256,
 };
-
-use solana::{
+use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
     signature::Keypair,
@@ -137,6 +137,7 @@ impl SealevelMultisigIsm {
 
 mod contract {
     use borsh::{BorshDeserialize, BorshSerialize};
+
     use hyperlane_core::H160;
 
     /// A configuration of a validator set and threshold.

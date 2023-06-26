@@ -9,7 +9,7 @@ use serde::Deserialize;
 use tracing::instrument;
 
 use ed25519_dalek::{PublicKey, SecretKey};
-use hyperlane_sealevel::solana::signer::keypair::Keypair;
+use hyperlane_sealevel::Keypair;
 
 use super::aws_credentials::AwsChainCredentialsProvider;
 use hyperlane_core::{config::*, H256};
@@ -144,7 +144,7 @@ impl BuildableWithSignerConf for fuels::prelude::WalletUnlocked {
 }
 
 #[async_trait]
-impl BuildableWithSignerConf for hyperlane_sealevel::solana::signer::keypair::Keypair {
+impl BuildableWithSignerConf for hyperlane_sealevel::Keypair {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
         Ok(match conf {
             SignerConf::HexKey { key } => {

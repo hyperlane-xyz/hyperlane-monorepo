@@ -611,9 +611,7 @@ impl ChainConf {
         })
     }
 
-    async fn sealevel_signer(
-        &self,
-    ) -> Result<Option<h_sealevel::solana::signer::keypair::Keypair>> {
+    async fn sealevel_signer(&self) -> Result<Option<h_sealevel::Keypair>> {
         self.signer().await
     }
 

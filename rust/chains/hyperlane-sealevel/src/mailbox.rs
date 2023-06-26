@@ -1,44 +1,42 @@
 #![allow(warnings)] // FIXME remove
 
-use std::{
-    collections::HashMap,
-    num::NonZeroU64,
-    str::FromStr as _,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashMap, num::NonZeroU64, str::FromStr as _};
 
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
+use jsonrpc_core::futures_util::TryFutureExt;
+use tracing::{debug, instrument, warn};
+
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     ContractLocator, Decode as _, Encode as _, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, IndexRange, Indexer, LogMeta, Mailbox,
     MessageIndexer, TxCostEstimate, TxOutcome, H256, U256,
 };
-use jsonrpc_core::futures_util::TryFutureExt;
-use tracing::{debug, error, instrument, trace, warn};
-
-use solana::{
+use solana_account_decoder::{UiAccountEncoding, UiDataSliceConfig};
+use solana_client::{
+    nonblocking::rpc_client::RpcClient,
+    rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig, RpcSendTransactionConfig},
+    rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType},
+};
+use solana_sdk::{
     account::Account,
-    account_decoder::{UiAccountEncoding, UiDataSliceConfig},
     commitment_config::CommitmentConfig,
     hash::Hash,
     instruction::{AccountMeta, Instruction},
     message::Message,
-    nonblocking_rpc_client::RpcClient,
     pubkey::Pubkey,
-    rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig, RpcSendTransactionConfig},
-    rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType},
     signature::Signature,
     signer::{keypair::Keypair, Signer as _},
     transaction::{Transaction, VersionedTransaction},
-    transaction_status::{
-        EncodedConfirmedBlock, EncodedTransaction, EncodedTransactionWithStatusMeta,
-        UiInnerInstructions, UiInstruction, UiMessage, UiParsedInstruction,
-        UiReturnDataEncoding, UiTransaction, UiTransactionReturnData, UiTransactionStatusMeta,
-    },
+};
+use solana_transaction_status::{
+    EncodedConfirmedBlock, EncodedTransaction, EncodedTransactionWithStatusMeta,
+    UiInnerInstructions, UiInstruction, UiMessage, UiParsedInstruction, UiReturnDataEncoding,
+    UiTransaction, UiTransactionReturnData, UiTransactionStatusMeta,
 };
 
+use crate::RpcClientWithDebug;
 use crate::{
     mailbox::contract::DispatchedMessageAccount,
     mailbox_inbox_pda_seeds, mailbox_message_storage_pda_seeds, mailbox_outbox_pda_seeds,
@@ -46,8 +44,6 @@ use crate::{
     utils::{get_account_metas, simulate_instruction},
     ConnectionConf, SealevelProvider,
 };
-
-use crate::RpcClientWithDebug;
 
 use self::contract::{
     SerializableAccountMeta, SimulationReturnData, DISPATCHED_MESSAGE_DISCRIMINATOR,
@@ -57,7 +53,7 @@ use self::contract::{
 // transaction rather than a 32 byte transaction hash like ethereum. Hash it here to reduce
 // size - requires more thought to ensure this makes sense to do...
 fn signature_to_txn_hash(signature: &Signature) -> H256 {
-    H256::from(solana::hash::hash(signature.as_ref()).to_bytes())
+    H256::from(solana_sdk::hash::hash(signature.as_ref()).to_bytes())
 }
 
 // The max amount of compute units for a transaction.
@@ -745,18 +741,17 @@ impl HyperlaneAbi for SealevelMailboxAbi {
 // FIXME mostly copypasta from sealevel contracts
 //-------------------------------------------------------------------------------------------------
 pub(crate) mod contract {
-
-    use super::*;
-
-    use std::{collections::HashSet, io::Read};
+    use std::io::Read;
 
     use borsh::{BorshDeserialize, BorshSerialize};
-    use hyperlane_core::accumulator::incremental::IncrementalMerkle as MerkleTree;
 
-    use solana::{
+    use hyperlane_core::accumulator::incremental::IncrementalMerkle as MerkleTree;
+    use solana_sdk::{
         clock::Slot,
         instruction::{AccountMeta, Instruction as SolanaInstruction},
     };
+
+    use super::*;
 
     pub static DEFAULT_ISM: &'static str = "6TCwgXydobJUEqabm7e6SL4FMdiFDvp1pmYoL6xXmRJq";
 

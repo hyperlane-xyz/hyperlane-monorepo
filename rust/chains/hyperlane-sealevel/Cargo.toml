@@ -17,4 +17,7 @@ jsonrpc-core.workspace = true
 url.workspace = true
 base64.workspace = true
 
-solana = { path = "./solana" }
+solana-account-decoder.workspace = true
+solana-sdk.workspace = true
+solana-client.workspace = true
+solana-transaction-status.workspace = true
