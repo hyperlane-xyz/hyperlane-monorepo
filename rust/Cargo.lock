@@ -262,7 +262,7 @@ dependencies = [
  "cc",
  "cfg-if",
  "libc",
- "miniz_oxide 0.6.2",
+ "miniz_oxide",
  "object",
  "rustc-demangle",
 ]
@@ -2052,12 +2052,12 @@ dependencies = [
 
 [[package]]
 name = "flate2"
-version = "1.0.26"
+version = "1.0.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3b9429470923de8e8cbd4d2dc513535400b4b3fef0319fb5c4e1f520a7bef743"
+checksum = "a8a2db397cb1c8772f31494cb8917e48cd1e64f0fa7efac59fbd741a0a8ce841"
 dependencies = [
  "crc32fast",
- "miniz_oxide 0.7.1",
+ "miniz_oxide",
 ]
 
 [[package]]
@@ -3121,7 +3121,7 @@ dependencies = [
  "lazy_static",
  "log",
  "num-traits",
- "rand 0.8.5",
+ "rand 0.7.3",
  "reqwest",
  "semver",
  "serde",
@@ -3601,15 +3601,6 @@ name = "miniz_oxide"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b275950c28b37e794e8c55d88aeb5e139d0ce23fdbbeda68f8d7174abdf9e8fa"
-dependencies = [
- "adler",
-]
-
-[[package]]
-name = "miniz_oxide"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e7810e0be55b428ada41041c41f32c9f1a42817901b4ccf45fa3d4b6561e74c7"
 dependencies = [
  "adler",
 ]
@@ -5535,9 +5526,9 @@ dependencies = [
 
 [[package]]
 name = "serde_bytes"
-version = "0.11.9"
+version = "0.11.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "416bda436f9aab92e02c8e10d49a15ddd339cea90b6e340fe51ed97abb548294"
+checksum = "718dc5fff5b36f99093fc49b280cfc96ce6fc824317783bff5a1fed0c7a64819"
 dependencies = [
  "serde",
 ]
@@ -7175,28 +7166,3 @@ dependencies = [
  "libc",
  "pkg-config",
 ]
-
-[[patch.unused]]
-name = "spl-associated-token-account"
-version = "1.1.2"
-source = "git+https://github.com/tkporter/eclipse-program-library?rev=2f7e864#2f7e8641c6b10effdafd5bc6252353365e25180b"
-
-[[patch.unused]]
-name = "spl-noop"
-version = "0.1.3"
-source = "git+https://github.com/tkporter/eclipse-program-library?rev=2f7e864#2f7e8641c6b10effdafd5bc6252353365e25180b"
-
-[[patch.unused]]
-name = "spl-token"
-version = "3.5.0"
-source = "git+https://github.com/tkporter/eclipse-program-library?rev=2f7e864#2f7e8641c6b10effdafd5bc6252353365e25180b"
-
-[[patch.unused]]
-name = "spl-token-2022"
-version = "0.5.0"
-source = "git+https://github.com/tkporter/eclipse-program-library?rev=2f7e864#2f7e8641c6b10effdafd5bc6252353365e25180b"
-
-[[patch.unused]]
-name = "spl-type-length-value"
-version = "0.1.0"
-source = "git+https://github.com/tkporter/eclipse-program-library?rev=2f7e864#2f7e8641c6b10effdafd5bc6252353365e25180b"
