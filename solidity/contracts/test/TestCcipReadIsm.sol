@@ -15,13 +15,11 @@ contract TestCcipReadIsm is AbstractCcipReadIsm {
     constructor(
         address[] memory _validators,
         uint8 _threshold,
-        string[] memory _offchainUrls,
-        bytes memory _offchainCallData
+        string[] memory _offchainUrls
     ) {
         validators = _validators;
         threshold = _threshold;
         offchainUrls = _offchainUrls;
-        offchainCallData = _offchainCallData;
     }
 
     /**
