@@ -14,11 +14,12 @@ async-trait.workspace = true
 auto_impl = "1.0"
 borsh.workspace = true
 bytes = { version = "1", features = ["serde"] }
+config = { workspace = true, optional = true }
 convert_case = "0.6"
 derive-new.workspace = true
-ethers-providers.workspace = true
-ethers-core.workspace = true
 ethers-contract.workspace = true
+ethers-core.workspace = true
+ethers-providers.workspace = true
 eyre.workspace = true
 hex.workspace = true
 itertools.workspace = true
@@ -42,4 +43,4 @@ walkdir = { version = "2" }
 
 [features]
 default = []
-test-utils = []
+test-utils = ["dep:config"]

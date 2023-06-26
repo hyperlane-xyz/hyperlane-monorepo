@@ -3009,6 +3009,7 @@ dependencies = [
  "auto_impl 1.1.0",
  "borsh 0.9.3",
  "bytes",
+ "config",
  "convert_case 0.6.0",
  "derive-new",
  "derive_more",

@@ -61,6 +61,7 @@ color-eyre = "0.6"
 config = "~0.13.3"
 curve25519-dalek = { version = "~3.2", features = ["serde"] } # Patched down below; this forces a compatible version with the patch
 derive-new = "0.5"
+derive_builder = "0.12"
 derive_more = "0.99"
 ed25519-dalek = { version = "~1.0" } # Patched down below; this forces a compatible version with the patch
 enum_dispatch = "0.3"
@@ -79,9 +80,12 @@ hex = "0.4"
 itertools = "0.10"
 jsonrpc-core = "18.0"
 lazy_static = "1.4"
+log = "0.4"
+maplit = "1.0"
 num = "0.4"
 num-derive = "0.3"
 num-traits = "0.2"
+parking_lot = "0.12"
 paste = "1.0"
 pretty_env_logger = "0.4"
 prometheus = "0.13"
@@ -113,10 +117,6 @@ tracing = { version = "0.1", features = ["release_max_level_debug"] }
 tracing-futures = "0.2"
 tracing-subscriber = { version = "0.3", default-features = false }
 url = "2.3"
-log = "0.4"
-parking_lot = "0.12"
-maplit = "1.0"
-derive_builder = "0.12"
 
 [patch.crates-io.curve25519-dalek]
 branch = "steven/fix-deps"
