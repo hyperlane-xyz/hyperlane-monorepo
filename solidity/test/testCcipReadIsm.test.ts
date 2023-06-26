@@ -9,7 +9,7 @@ describe('TestCcipReadIsm', () => {
   before(async () => {
     const [signer] = await ethers.getSigners();
     const factory = new TestCcipReadIsm__factory(signer);
-    ism = await factory.deploy([], '1', ['https://example.com'], '0xdeadbeef');
+    ism = await factory.deploy([], '1', ['https://example.com']);
   });
 
   it('emits the right OffchainLookup message', async () => {
