@@ -53,7 +53,7 @@
     "build": "hardhat compile && tsc",
     "clean": "hardhat clean && rm -rf dist cache src/types",
     "coverage": "hardhat coverage",
-    "lint": "eslint . --ext .ts",
+    "lint": "solhint contracts/**/*.sol && eslint . --ext .ts",
     "prettier": "prettier --write ./contracts ./src",
     "test": "hardhat test ./src/test/**/*.test.ts",
     "sync": "ts-node scripts/sync-with-template-repo.ts"

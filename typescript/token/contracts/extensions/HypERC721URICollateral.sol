@@ -10,6 +10,7 @@ import {IERC721MetadataUpgradeable} from "@openzeppelin/contracts-upgradeable/to
  * @author Abacus Works
  */
 contract HypERC721URICollateral is HypERC721Collateral {
+    // solhint-disable-next-line no-empty-blocks
     constructor(address erc721) HypERC721Collateral(erc721) {}
 
     /**
