@@ -318,8 +318,6 @@ fn main() -> ExitCode {
     sleep(Duration::from_secs(10));
 
     let deploy_env = hashmap! {"ALLOW_LEGACY_MULTISIG_ISM" => "true"};
-
-    println!("env vars {:?}", deploy_env);
     println!("Deploying hyperlane ism contracts...");
     build_cmd(
         &["yarn", "deploy-ism"],
