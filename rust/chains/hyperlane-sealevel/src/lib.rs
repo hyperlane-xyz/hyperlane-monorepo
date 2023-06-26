@@ -10,12 +10,10 @@ pub use interchain_security_module::*;
 pub use mailbox::*;
 pub use multisig_ism::*;
 pub use provider::*;
+pub use solana;
+use solana::nonblocking_rpc_client::RpcClient;
 pub use trait_builder::*;
 pub use validator_announce::*;
-
-/// Copy pasted code from solana as a stop-gap solution until dependency conflicts are resolved.
-pub mod solana;
-use solana::nonblocking_rpc_client::RpcClient;
 
 mod interchain_gas;
 mod interchain_security_module;
@@ -24,6 +22,7 @@ mod multisig_ism;
 mod provider;
 mod trait_builder;
 mod utils;
+
 mod validator_announce;
 
 /// Kludge to implement Debug for RpcClient.

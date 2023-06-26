@@ -5,9 +5,9 @@ use hyperlane_core::{
     HyperlaneContract, HyperlaneDomain, SignedType, TxOutcome, ValidatorAnnounce, H160, H256, U256,
 };
 use tracing::{info, instrument, warn};
+use solana::{commitment_config::CommitmentConfig, pubkey::Pubkey};
 
 use crate::{
-    solana::{commitment_config::CommitmentConfig, pubkey::Pubkey},
     validator_storage_locations_pda_seeds, ConnectionConf, RpcClientWithDebug,
 };
 

@@ -4,12 +4,13 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, MultisigIsm, RawHyperlaneMessage, H256,
 };
 
+use solana::{
+    instruction::{AccountMeta, Instruction},
+    pubkey::Pubkey,
+    signature::Keypair,
+};
+
 use crate::{
-    solana::{
-        instruction::{AccountMeta, Instruction},
-        pubkey::Pubkey,
-        signature::Keypair,
-    },
     utils::{get_account_metas, simulate_instruction},
     ConnectionConf, RpcClientWithDebug, SealevelProvider,
 };

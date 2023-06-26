@@ -18,30 +18,31 @@ use hyperlane_core::{
 use jsonrpc_core::futures_util::TryFutureExt;
 use tracing::{debug, error, instrument, trace, warn};
 
+use solana::{
+    account::Account,
+    account_decoder::{UiAccountEncoding, UiDataSliceConfig},
+    commitment_config::CommitmentConfig,
+    hash::Hash,
+    instruction::{AccountMeta, Instruction},
+    message::Message,
+    nonblocking_rpc_client::RpcClient,
+    pubkey::Pubkey,
+    rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig, RpcSendTransactionConfig},
+    rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType},
+    signature::Signature,
+    signer::{keypair::Keypair, Signer as _},
+    transaction::{Transaction, VersionedTransaction},
+    transaction_status::{
+        EncodedConfirmedBlock, EncodedTransaction, EncodedTransactionWithStatusMeta,
+        UiInnerInstructions, UiInstruction, UiMessage, UiParsedInstruction,
+        UiReturnDataEncoding, UiTransaction, UiTransactionReturnData, UiTransactionStatusMeta,
+    },
+};
+
 use crate::{
     mailbox::contract::DispatchedMessageAccount,
     mailbox_inbox_pda_seeds, mailbox_message_storage_pda_seeds, mailbox_outbox_pda_seeds,
     mailbox_process_authority_pda_seeds, mailbox_processed_message_pda_seeds,
-    solana::{
-        account::Account,
-        account_decoder::{UiAccountEncoding, UiDataSliceConfig},
-        commitment_config::CommitmentConfig,
-        hash::Hash,
-        instruction::{AccountMeta, Instruction},
-        message::Message,
-        nonblocking_rpc_client::RpcClient,
-        pubkey::Pubkey,
-        rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig, RpcSendTransactionConfig},
-        rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType},
-        signature::Signature,
-        signer::{keypair::Keypair, Signer as _},
-        transaction::{Transaction, VersionedTransaction},
-        transaction_status::{
-            EncodedConfirmedBlock, EncodedTransaction, EncodedTransactionWithStatusMeta,
-            UiInnerInstructions, UiInstruction, UiMessage, UiParsedInstruction,
-            UiReturnDataEncoding, UiTransaction, UiTransactionReturnData, UiTransactionStatusMeta,
-        },
-    },
     utils::{get_account_metas, simulate_instruction},
     ConnectionConf, SealevelProvider,
 };
@@ -56,7 +57,7 @@ use self::contract::{
 // transaction rather than a 32 byte transaction hash like ethereum. Hash it here to reduce
 // size - requires more thought to ensure this makes sense to do...
 fn signature_to_txn_hash(signature: &Signature) -> H256 {
-    H256::from(crate::solana::hash::hash(signature.as_ref()).to_bytes())
+    H256::from(solana::hash::hash(signature.as_ref()).to_bytes())
 }
 
 // The max amount of compute units for a transaction.
@@ -752,7 +753,7 @@ pub(crate) mod contract {
     use borsh::{BorshDeserialize, BorshSerialize};
     use hyperlane_core::accumulator::incremental::IncrementalMerkle as MerkleTree;
 
-    use crate::solana::{
+    use solana::{
         clock::Slot,
         instruction::{AccountMeta, Instruction as SolanaInstruction},
     };

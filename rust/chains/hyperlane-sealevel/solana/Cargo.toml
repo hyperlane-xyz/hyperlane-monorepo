@@ -1,0 +1,40 @@
+[package]
+name = "solana"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+async-trait.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+anyhow.workspace = true
+tracing-futures.workspace = true
+tracing.workspace = true
+
+# FIXME sealevel mailbox contract copypasta deps
+borsh.workspace = true
+
+# FIXME solana copypasta deps
+Inflector.workspace = true
+base64.workspace = true
+bincode.workspace = true
+blake3 = { workspace = true, features = ["digest", "traits-preview"] }
+bs58.workspace = true
+ed25519-dalek.workspace = true
+generic-array.workspace = true
+jsonrpc-core.workspace = true
+lazy_static.workspace = true
+log.workspace = true
+num-traits.workspace = true
+reqwest = { workspace = true, default-features = false, features = ["blocking", "brotli", "deflate", "gzip", "rustls-tls", "json"] }
+semver.workspace = true
+serde_derive.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio = { workspace = true, features = ["full"] }
+url.workspace = true
+curve25519-dalek.workspace = true
+serde_bytes.workspace = true
+
+rand = "~0.7.3" # force a match with curve25519-dalek
+zstd = "*" # auto-resolve zstd version to avoid dependency conflicts

@@ -3080,36 +3080,19 @@ dependencies = [
 name = "hyperlane-sealevel"
 version = "0.1.0"
 dependencies = [
- "Inflector",
  "anyhow",
  "async-trait",
  "base64 0.13.1",
- "bincode",
- "blake3",
  "borsh 0.9.3",
- "bs58",
- "curve25519-dalek",
- "ed25519-dalek",
- "generic-array 0.14.7",
  "hyperlane-core",
  "jsonrpc-core",
- "lazy_static",
- "log",
  "num-traits",
- "rand 0.7.3",
- "reqwest",
- "semver",
  "serde",
- "serde_bytes",
- "serde_derive",
- "serde_json",
- "sha2 0.10.7",
+ "solana",
  "thiserror",
- "tokio",
  "tracing",
  "tracing-futures",
  "url",
- "zstd",
 ]
 
 [[package]]
@@ -5742,6 +5725,41 @@ checksum = "64a4a911eed85daf18834cfaa86a79b7d266ff93ff5ba14005426219480ed662"
 dependencies = [
  "libc",
  "winapi",
+]
+
+[[package]]
+name = "solana"
+version = "0.1.0"
+dependencies = [
+ "Inflector",
+ "anyhow",
+ "async-trait",
+ "base64 0.13.1",
+ "bincode",
+ "blake3",
+ "borsh 0.9.3",
+ "bs58",
+ "curve25519-dalek",
+ "ed25519-dalek",
+ "generic-array 0.14.7",
+ "jsonrpc-core",
+ "lazy_static",
+ "log",
+ "num-traits",
+ "rand 0.7.3",
+ "reqwest",
+ "semver",
+ "serde",
+ "serde_bytes",
+ "serde_derive",
+ "serde_json",
+ "sha2 0.10.7",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-futures",
+ "url",
+ "zstd",
 ]
 
 [[package]]
