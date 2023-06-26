@@ -76,8 +76,8 @@ jobs:
             .yarn/cache
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
-      - name: lint-ts
-        run: yarn lint-ts
+      - name: lint
+        run: yarn lint
 
       - name: prettier
         run: |
@@ -170,9 +170,6 @@ jobs:
 
       - name: Unit tests
         run: yarn workspace @hyperlane-xyz/core run test
-
-      - name: lint
-        run: yarn workspace @hyperlane-xyz/core run lint
 
       - name: Run Slither
         uses: crytic/slither-action@main
