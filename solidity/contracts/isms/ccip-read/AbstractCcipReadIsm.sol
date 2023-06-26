@@ -42,6 +42,7 @@ abstract contract AbstractCcipReadIsm is ICcipReadIsm {
     string[] public offchainUrls;
 
     /// @notice Data to pass back to the callback function.
+    // slither-disable-next-line uninitialized-state
     bytes public offchainExtraData;
 
     // ============ Events ============

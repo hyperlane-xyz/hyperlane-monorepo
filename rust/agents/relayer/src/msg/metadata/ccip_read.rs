@@ -89,12 +89,12 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
                     return Ok(Some(metadata));
                 }
                 Err(_err) => {
-                    // let the next URL
+                    // try the next URL
                 }
             }
         }
 
-        // metadata endpoints down or payload is invalid
+        // No metadata endpoints or endpoints down
         Ok(None)
     }
 }
