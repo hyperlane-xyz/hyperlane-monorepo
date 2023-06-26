@@ -13,8 +13,6 @@ version.workspace = true
 async-trait.workspace = true
 auto_impl = "1.0"
 borsh.workspace = true
-bs58.workspace = true
-config.workspace = true
 bytes = { version = "1", features = ["serde"] }
 convert_case = "0.6"
 derive-new.workspace = true
@@ -38,7 +36,6 @@ primitive-types = { version = "*", features = ["impl-borsh", "impl-serde"] }
 derive_more.workspace = true
 
 [dev-dependencies]
-config.workspace = true
 hyperlane-base = { path = "../hyperlane-base" }
 tokio = { workspace = true, features = ["rt", "time"] }
 walkdir = { version = "2" }

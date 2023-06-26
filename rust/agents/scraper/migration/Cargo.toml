@@ -18,8 +18,6 @@ serde.workspace = true
 time = "0.3"
 tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
 
-hyperlane-core = { path = "../../../hyperlane-core" }
-
 # bin-only deps
 tracing-subscriber.workspace = true
 tracing.workspace = true

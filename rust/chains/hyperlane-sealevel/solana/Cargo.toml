@@ -7,8 +7,6 @@ edition = "2021"
 async-trait.workspace = true
 thiserror.workspace = true
 serde.workspace = true
-anyhow.workspace = true
-tracing-futures.workspace = true
 tracing.workspace = true
 
 # FIXME sealevel mailbox contract copypasta deps
@@ -25,7 +23,6 @@ generic-array.workspace = true
 jsonrpc-core.workspace = true
 lazy_static.workspace = true
 log.workspace = true
-num-traits.workspace = true
 reqwest = { workspace = true, default-features = false, features = ["blocking", "brotli", "deflate", "gzip", "rustls-tls", "json"] }
 semver.workspace = true
 serde_derive.workspace = true

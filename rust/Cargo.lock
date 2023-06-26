@@ -3008,9 +3008,7 @@ dependencies = [
  "async-trait",
  "auto_impl 1.1.0",
  "borsh 0.9.3",
- "bs58",
  "bytes",
- "config",
  "convert_case 0.6.0",
  "derive-new",
  "derive_more",
@@ -3529,7 +3527,6 @@ checksum = "2dffe52ecf27772e601905b7522cb4ef790d2cc203488bbd0e2fe85fcb74566d"
 name = "migration"
 version = "0.1.0"
 dependencies = [
- "hyperlane-core",
  "sea-orm",
  "sea-orm-migration",
  "serde",
@@ -5732,7 +5729,6 @@ name = "solana"
 version = "0.1.0"
 dependencies = [
  "Inflector",
- "anyhow",
  "async-trait",
  "base64 0.13.1",
  "bincode",
@@ -5745,7 +5741,6 @@ dependencies = [
  "jsonrpc-core",
  "lazy_static",
  "log",
- "num-traits",
  "rand 0.7.3",
  "reqwest",
  "semver",
@@ -5757,7 +5752,6 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
- "tracing-futures",
  "url",
  "zstd",
 ]
