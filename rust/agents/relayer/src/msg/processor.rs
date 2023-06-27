@@ -153,7 +153,10 @@ impl MessageProcessor {
             debug!(%msg, "Sending message to submitter");
 
             // Finally, build the submit arg and dispatch it to the submitter.
-            let pending_msg = PendingMessage::new(msg, self.destination_ctxs[&destination].clone());
+            let pending_msg = PendingMessage::from_persisted_retries(
+                msg,
+                self.destination_ctxs[&destination].clone(),
+            );
             self.send_channels[&destination].send(Box::new(pending_msg.into()))?;
             self.message_nonce += 1;
         } else {
@@ -196,5 +199,244 @@ impl MessageProcessorMetrics {
 
     fn get(&self, destination: u32) -> Option<&IntGauge> {
         self.last_known_message_nonce_gauges.get(&destination)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::time::Instant;
+
+    use crate::msg::{
+        gas_payment::GasPaymentEnforcer, metadata::BaseMetadataBuilder,
+        pending_operation::PendingOperation,
+    };
+
+    use super::*;
+    use hyperlane_base::{
+        db::{test_utils, HyperlaneRocksDB},
+        ChainConf, Settings,
+    };
+    use hyperlane_test::mocks::{MockMailboxContract, MockValidatorAnnounceContract};
+    use prometheus::{IntCounter, Registry};
+    use tokio::{
+        sync::mpsc::{self, UnboundedReceiver},
+        time::sleep,
+    };
+
+    fn dummy_processor_metrics(domain_id: u32) -> MessageProcessorMetrics {
+        MessageProcessorMetrics {
+            max_last_known_message_nonce_gauge: IntGauge::new(
+                "dummy_max_last_known_message_nonce_gauge",
+                "help string",
+            )
+            .unwrap(),
+            last_known_message_nonce_gauges: HashMap::from([(
+                domain_id,
+                IntGauge::new("dummy_last_known_message_nonce_gauge", "help string").unwrap(),
+            )]),
+        }
+    }
+
+    fn dummy_submission_metrics() -> MessageSubmissionMetrics {
+        MessageSubmissionMetrics {
+            last_known_nonce: IntGauge::new("last_known_nonce_gauge", "help string").unwrap(),
+            messages_processed: IntCounter::new("message_processed_gauge", "help string").unwrap(),
+        }
+    }
+
+    fn dummy_chain_conf(domain: &HyperlaneDomain) -> ChainConf {
+        ChainConf {
+            domain: domain.clone(),
+            signer: Default::default(),
+            finality_blocks: Default::default(),
+            addresses: Default::default(),
+            connection: Default::default(),
+            metrics_conf: Default::default(),
+            index: Default::default(),
+        }
+    }
+
+    fn dummy_metadata_builder(
+        domain: &HyperlaneDomain,
+        db: &HyperlaneRocksDB,
+    ) -> BaseMetadataBuilder {
+        let mut settings = Settings::default();
+        settings
+            .chains
+            .insert(domain.name().to_owned(), dummy_chain_conf(domain));
+        let destination_chain_conf = settings.chain_setup(domain).unwrap();
+        let core_metrics = CoreMetrics::new("dummy_relayer", 37582, Registry::new()).unwrap();
+        BaseMetadataBuilder::new(
+            destination_chain_conf.clone(),
+            Arc::new(RwLock::new(MerkleTreeBuilder::new(db.clone()))),
+            Arc::new(MockValidatorAnnounceContract::default()),
+            false,
+            Arc::new(core_metrics),
+            5,
+        )
+    }
+
+    fn dummy_message_processor(
+        origin_domain: &HyperlaneDomain,
+        destination_domain: &HyperlaneDomain,
+        db: &HyperlaneRocksDB,
+    ) -> (
+        MessageProcessor,
+        UnboundedReceiver<Box<DynPendingOperation>>,
+    ) {
+        let base_metadata_builder = dummy_metadata_builder(origin_domain, db);
+        let message_context = Arc::new(MessageContext {
+            destination_mailbox: Arc::new(MockMailboxContract::default()),
+            origin_db: db.clone(),
+            metadata_builder: base_metadata_builder,
+            origin_gas_payment_enforcer: Arc::new(GasPaymentEnforcer::new([], db.clone())),
+            transaction_gas_limit: Default::default(),
+            metrics: dummy_submission_metrics(),
+        });
+
+        let (send_channel, receive_channel) = mpsc::unbounded_channel::<Box<DynPendingOperation>>();
+        (
+            MessageProcessor::new(
+                db.clone(),
+                Default::default(),
+                Default::default(),
+                dummy_processor_metrics(origin_domain.id()),
+                Arc::new(RwLock::new(MerkleTreeBuilder::new(db.clone()))),
+                HashMap::from([(destination_domain.id(), send_channel)]),
+                HashMap::from([(destination_domain.id(), message_context)]),
+            ),
+            receive_channel,
+        )
+    }
+
+    fn dummy_hyperlane_message(destination: &HyperlaneDomain, nonce: u32) -> HyperlaneMessage {
+        HyperlaneMessage {
+            version: Default::default(),
+            nonce,
+            // Origin must be different from the destination
+            origin: destination.id() + 1,
+            sender: Default::default(),
+            destination: destination.id(),
+            recipient: Default::default(),
+            body: Default::default(),
+        }
+    }
+
+    fn add_db_entry(db: &HyperlaneRocksDB, msg: &HyperlaneMessage, retry_count: u32) {
+        db.store_message(&msg, Default::default()).unwrap();
+        if retry_count > 0 {
+            db.store_pending_message_retry_count_by_message_id(&msg.id(), &retry_count)
+                .unwrap();
+        }
+    }
+
+    fn dummy_domain(domain_id: u32, name: &str) -> HyperlaneDomain {
+        let test_domain = HyperlaneDomain::new_test_domain(name);
+        HyperlaneDomain::Unknown {
+            domain_id,
+            domain_name: name.to_owned(),
+            domain_type: test_domain.domain_type(),
+            domain_protocol: test_domain.domain_protocol(),
+        }
+    }
+
+    /// Only adds database entries to the pending message prefix if the message's
+    /// retry count is greater than zero
+    fn persist_retried_messages(
+        retries: &Vec<u32>,
+        db: &HyperlaneRocksDB,
+        destination_domain: &HyperlaneDomain,
+    ) {
+        let mut nonce = 0;
+        retries.iter().for_each(|num_retries| {
+            let message = dummy_hyperlane_message(&destination_domain, nonce);
+            add_db_entry(&db, &message, *num_retries);
+            nonce += 1;
+        });
+    }
+
+    /// Runs the processor and returns the first `num_operations` to arrive on the
+    /// receiving end of the channel.
+    /// A default timeout is used for all `n` operations to arrive, otherwise the function panics.
+    async fn get_first_n_operations_from_processor(
+        origin_domain: &HyperlaneDomain,
+        destination_domain: &HyperlaneDomain,
+        db: &HyperlaneRocksDB,
+        num_operations: usize,
+    ) -> Vec<Box<DynPendingOperation>> {
+        let (message_processor, mut receive_channel) =
+            dummy_message_processor(&origin_domain, &destination_domain, &db);
+
+        let process_fut = message_processor.spawn();
+        let mut pending_messages = vec![];
+        let pending_message_accumulator = async {
+            while let Some(pm) = receive_channel.recv().await {
+                pending_messages.push(pm);
+                if pending_messages.len() == num_operations {
+                    break;
+                }
+            }
+        };
+        tokio::select! {
+            _ = process_fut => {},
+            _ = pending_message_accumulator => {},
+            _ = sleep(Duration::from_millis(200)) => { panic!("No PendingMessage received from the processor") }
+        };
+        pending_messages
+    }
+
+    #[tokio::test]
+    async fn test_full_pending_message_persistence_flow() {
+        test_utils::run_test_db(|db| async move {
+            let origin_domain = dummy_domain(0, "dummy_origin_domain");
+            let destination_domain = dummy_domain(1, "dummy_destination_domain");
+            let db = HyperlaneRocksDB::new(&origin_domain, db);
+
+            // Assume the message syncer stored some new messages in HyperlaneDB
+            let msg_retries = vec![0, 0, 0];
+            persist_retried_messages(&msg_retries, &db, &destination_domain);
+
+            // Run parser to load the messages in memory
+            let pending_messages = get_first_n_operations_from_processor(
+                &origin_domain,
+                &destination_domain,
+                &db,
+                msg_retries.len(),
+            )
+            .await;
+
+            // Set some retry counts. This should update HyperlaneDB entries too.
+            let msg_retries_to_set = vec![3, 0, 10];
+            pending_messages
+                .into_iter()
+                .enumerate()
+                .for_each(|(i, mut pm)| pm.set_retries(msg_retries_to_set[i]));
+
+            // Run parser again
+            let pending_messages = get_first_n_operations_from_processor(
+                &origin_domain,
+                &destination_domain,
+                &db,
+                msg_retries.len(),
+            )
+            .await;
+
+            // Expect the HyperlaneDB entry to have been updated, so the `OpQueue` in the submitter
+            // can be accurately reconstructed on restart.
+            // If the retry counts were correctly persisted, the backoffs will have the expected value.
+            pending_messages
+                .iter()
+                .zip(msg_retries_to_set.iter())
+                .for_each(|(pm, expected_retries)| {
+                    // Round up the actuall backoff because it was calculated with an `Instant::now()` that was a fraction of a second ago
+                    let expected_backoff = PendingMessage::calculate_msg_backoff(*expected_retries)
+                        .map(|b| b.as_secs_f32().round());
+                    let actual_backoff = pm._next_attempt_after().map(|instant| {
+                        instant.duration_since(Instant::now()).as_secs_f32().round()
+                    });
+                    assert_eq!(expected_backoff, actual_backoff);
+                });
+        })
+        .await;
     }
 }
