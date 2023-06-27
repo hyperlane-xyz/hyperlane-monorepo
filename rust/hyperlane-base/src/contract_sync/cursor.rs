@@ -12,7 +12,7 @@ use tokio::time::sleep;
 use tracing::{debug, warn};
 
 use hyperlane_core::{
-    ChainResult, ContractSyncCursor, HyperlaneMessage, HyperlaneMessageStore,
+    ChainResult, ContractSyncCursor, CursorAction, HyperlaneMessage, HyperlaneMessageStore,
     HyperlaneWatermarkedLogStore, Indexer, LogMeta, MessageIndexer,
 };
 
@@ -82,7 +82,7 @@ impl MessageSyncCursor {
 pub(crate) struct ForwardMessageSyncCursor(MessageSyncCursor);
 
 impl ForwardMessageSyncCursor {
-    async fn get_next_range(&mut self) -> ChainResult<Option<(u32, u32, Duration)>> {
+    async fn get_next_range(&mut self) -> ChainResult<Option<(u32, u32)>> {
         // Check if any new messages have been inserted into the DB,
         // and update the cursor accordingly.
         while self
@@ -123,7 +123,7 @@ impl ForwardMessageSyncCursor {
                 let from = self.0.next_block;
                 let to = u32::min(tip, from + self.0.chunk_size);
                 self.0.next_block = to + 1;
-                Ok(Some((from, to, Duration::from_secs(0))))
+                Ok(Some((from, to)))
             }
             Ordering::Greater => {
                 // Providers may be internally inconsistent, e.g. RPC request A could hit a node
@@ -137,15 +137,19 @@ impl ForwardMessageSyncCursor {
 
 #[async_trait]
 impl ContractSyncCursor<HyperlaneMessage> for ForwardMessageSyncCursor {
-    async fn next_range(&mut self) -> ChainResult<(u32, u32, Duration)> {
-        loop {
-            if let Some(range) = self.get_next_range().await? {
-                return Ok(range);
-            }
-
+    async fn next_action(&mut self) -> ChainResult<(CursorAction, Duration)> {
+        // TODO: Fix ETA calculation
+        let eta = Duration::from_secs(0);
+        if let Some(range) = self.get_next_range().await? {
+            Ok((CursorAction::Query(range), eta))
+        } else {
             // TODO: Define the sleep time from interval flag
-            sleep(Duration::from_secs(5)).await;
+            Ok((CursorAction::Sleep(Duration::from_secs(5)), eta))
         }
+    }
+
+    fn latest_block(&self) -> u32 {
+        self.0.next_block.saturating_sub(1)
     }
 
     /// If the previous block has been synced, rewind to the block number
@@ -171,7 +175,7 @@ pub(crate) struct BackwardMessageSyncCursor {
 }
 
 impl BackwardMessageSyncCursor {
-    async fn get_next_range(&mut self) -> Option<(u32, u32, Duration)> {
+    async fn get_next_range(&mut self) -> Option<(u32, u32)> {
         // Check if any new messages have been inserted into the DB,
         // and update the cursor accordingly.
         while !self.synced {
@@ -209,7 +213,7 @@ impl BackwardMessageSyncCursor {
         let from = to.saturating_sub(self.cursor.chunk_size);
         self.cursor.next_block = from.saturating_sub(1);
         // TODO: Consider returning a proper ETA for the backwards pass
-        Some((from, to, Duration::from_secs(0)))
+        Some((from, to))
     }
 
     /// If the previous block has been synced, rewind to the block number
@@ -277,22 +281,25 @@ impl ForwardBackwardMessageSyncCursor {
 
 #[async_trait]
 impl ContractSyncCursor<HyperlaneMessage> for ForwardBackwardMessageSyncCursor {
-    async fn next_range(&mut self) -> ChainResult<(u32, u32, Duration)> {
-        loop {
-            // Prioritize forward syncing over backward syncing.
-            if let Some(forward_range) = self.forward.get_next_range().await? {
-                self.direction = SyncDirection::Forward;
-                return Ok(forward_range);
-            }
-
-            if let Some(backward_range) = self.backward.get_next_range().await {
-                self.direction = SyncDirection::Backward;
-                return Ok(backward_range);
-            }
-
-            // TODO: Define the sleep time from interval flag
-            sleep(Duration::from_secs(5)).await;
+    async fn next_action(&mut self) -> ChainResult<(CursorAction, Duration)> {
+        // TODO: Proper ETA for backwards sync
+        let eta = Duration::from_secs(0);
+        // Prioritize forward syncing over backward syncing.
+        if let Some(forward_range) = self.forward.get_next_range().await? {
+            self.direction = SyncDirection::Forward;
+            return Ok((CursorAction::Query(forward_range), eta));
         }
+
+        if let Some(backward_range) = self.backward.get_next_range().await {
+            self.direction = SyncDirection::Backward;
+            return Ok((CursorAction::Query(backward_range), eta));
+        }
+        // TODO: Define the sleep time from interval flag
+        return Ok((CursorAction::Sleep(Duration::from_secs(5)), eta));
+    }
+
+    fn latest_block(&self) -> u32 {
+        self.forward.0.next_block.saturating_sub(1)
     }
 
     async fn update(&mut self, logs: Vec<(HyperlaneMessage, LogMeta)>) -> eyre::Result<()> {
@@ -305,7 +312,7 @@ impl ContractSyncCursor<HyperlaneMessage> for ForwardBackwardMessageSyncCursor {
 
 /// Tool for handling the logic of what the next block range that should be
 /// queried is and also handling rate limiting. Rate limiting is automatically
-/// performed by `next_range`.
+/// performed by `next_action`.
 pub(crate) struct RateLimitedContractSyncCursor<T> {
     indexer: Arc<dyn Indexer<T>>,
     db: Arc<dyn HyperlaneWatermarkedLogStore<T>>,
@@ -340,26 +347,24 @@ impl<T> RateLimitedContractSyncCursor<T> {
 
     /// Wait based on how close we are to the tip and update the tip,
     /// i.e. the highest block we may scrape.
-    async fn rate_limit(&mut self) -> ChainResult<()> {
+    async fn get_rate_limit(&mut self) -> ChainResult<Option<Duration>> {
         if self.from + self.chunk_size < self.tip {
-            // If doing the full chunk wouldn't exceed the already known tip sleep a tiny
-            // bit so that we can catch up relatively quickly.
-            sleep(Duration::from_millis(100)).await;
-            Ok(())
+            // If doing the full chunk wouldn't exceed the already known tip we do not need to rate limit.
+            Ok(None)
         } else {
             // We are within one chunk size of the known tip.
             // If it's been fewer than 30s since the last tip update, sleep for a bit until we're ready to fetch the next tip.
             if let Some(sleep_time) =
                 Duration::from_secs(30).checked_sub(self.last_tip_update.elapsed())
             {
-                sleep(sleep_time).await;
+                return Ok(Some(sleep_time));
             }
             match self.indexer.get_finalized_block_number().await {
                 Ok(tip) => {
                     // we retrieved a new tip value, go ahead and update.
                     self.last_tip_update = Instant::now();
                     self.tip = tip;
-                    Ok(())
+                    Ok(None)
                 }
                 Err(e) => {
                     warn!(error = %e, "Failed to get next block range because we could not get the current tip");
@@ -377,17 +382,26 @@ impl<T> ContractSyncCursor<T> for RateLimitedContractSyncCursor<T>
 where
     T: Send + Debug + 'static,
 {
-    async fn next_range(&mut self) -> ChainResult<(u32, u32, Duration)> {
-        self.rate_limit().await?;
+    async fn next_action(&mut self) -> ChainResult<(CursorAction, Duration)> {
         let to = u32::min(self.tip, self.from + self.chunk_size);
         let from = to.saturating_sub(self.chunk_size);
-        self.from = to + 1;
         let eta = if to < self.tip {
             self.eta_calculator.calculate(from, self.tip)
         } else {
             Duration::from_secs(0)
         };
-        Ok((from, to, eta))
+
+        let rate_limit = self.get_rate_limit().await?;
+        if let Some(rate_limit) = rate_limit {
+            return Ok((CursorAction::Sleep(rate_limit), eta));
+        } else {
+            self.from = to + 1;
+            return Ok((CursorAction::Query((from, to)), eta));
+        }
+    }
+
+    fn latest_block(&self) -> u32 {
+        self.from.saturating_sub(1)
     }
 
     async fn update(&mut self, _: Vec<(T, LogMeta)>) -> eyre::Result<()> {

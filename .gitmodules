@@ -1,8 +1,3 @@
-[submodule "typescript/token"]
-	path = typescript/token
-	url = git@github.com:hyperlane-xyz/hyperlane-token.git
-	branch = main
-[submodule "typescript/helloworld"]
-	path = typescript/helloworld
-	url = git@github.com:hyperlane-xyz/hyperlane-app-template.git
-	branch = main
+[submodule "solidity/lib/forge-std"]
+	path = solidity/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
