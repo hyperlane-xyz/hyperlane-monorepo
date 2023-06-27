@@ -3945,7 +3945,7 @@ __metadata:
     chai: ^4.3.0
     ethereum-waffle: ^3.4.4
     ethers: ^5.7.2
-    hardhat: ^2.16.0
+    hardhat: ^2.16.1
     hardhat-gas-reporter: ^1.0.9
     prettier: ^2.4.1
     prettier-plugin-solidity: ^1.0.0-beta.5
@@ -3977,7 +3977,7 @@ __metadata:
     eslint-config-prettier: ^8.5.0
     ethereum-waffle: ^3.4.4
     ethers: ^5.7.2
-    hardhat: ^2.16.0
+    hardhat: ^2.16.1
     hardhat-gas-reporter: ^1.0.9
     prettier: ^2.4.1
     prettier-plugin-solidity: ^1.0.0-beta.5
@@ -4011,7 +4011,7 @@ __metadata:
     eslint-config-prettier: ^8.5.0
     ethereum-waffle: ^3.4.4
     ethers: ^5.7.2
-    hardhat: ^2.16.0
+    hardhat: ^2.16.1
     hardhat-gas-reporter: ^1.0.9
     prettier: ^2.4.1
     prettier-plugin-solidity: ^1.0.0-beta.5
@@ -4059,7 +4059,7 @@ __metadata:
     dotenv: ^10.0.0
     ethereum-waffle: ^3.4.4
     ethers: ^5.7.2
-    hardhat: ^2.16.0
+    hardhat: ^2.16.1
     prettier: ^2.4.1
     prom-client: ^14.0.1
     prompts: ^2.4.2
@@ -4105,7 +4105,7 @@ __metadata:
     ethereum-waffle: ^3.4.4
     ethers: ^5.7.2
     fs: 0.0.1-security
-    hardhat: ^2.16.0
+    hardhat: ^2.16.1
     mocha: ^9.2.2
     prettier: ^2.4.1
     sinon: ^13.0.2
@@ -11286,9 +11286,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"hardhat@npm:^2.16.0":
-  version: 2.16.0
-  resolution: "hardhat@npm:2.16.0"
+"hardhat@npm:^2.16.1":
+  version: 2.16.1
+  resolution: "hardhat@npm:2.16.1"
   dependencies:
     "@ethersproject/abi": ^5.1.2
     "@metamask/eth-sig-util": ^4.0.0
@@ -11349,7 +11349,7 @@ __metadata:
       optional: true
   bin:
     hardhat: internal/cli/bootstrap.js
-  checksum: dadc1c69f22050fd6cd347dcd66b54eb85c0f20b3b9b959d7e982803421724cf4db765dd6cdb8343af3dde4ddec093f4df2c6cfb64affcaeb36db0f1f70cbeea
+  checksum: 32508ab6463efd796e8805150c182a9b974fcec8e4ab362a95f8bab2b4baf24c4feb48bbee1f3a7165a934f5257e1d3fcfea5764f261404aec23a88066341e48
   languageName: node
   linkType: hard
 
