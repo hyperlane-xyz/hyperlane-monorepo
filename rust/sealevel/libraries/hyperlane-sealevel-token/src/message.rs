@@ -1,6 +1,6 @@
 //! TODO
 
-use hyperlane_core::{Decode, Encode, HyperlaneError, H256, U256};
+use hyperlane_core::{Decode, Encode, H256, HyperlaneProtocolError, U256};
 
 #[derive(Debug)]
 pub struct TokenMessage {
@@ -27,7 +27,7 @@ impl Encode for TokenMessage {
 }
 
 impl Decode for TokenMessage {
-    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneError>
+    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
     where
         R: std::io::Read,
     {

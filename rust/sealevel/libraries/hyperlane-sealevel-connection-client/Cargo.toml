@@ -15,8 +15,6 @@ hyperlane-core = { path = "../../../hyperlane-core" }
 hyperlane-sealevel-mailbox = { path = "../../programs/mailbox", features = ["no-entrypoint"] }
 
 [dev-dependencies]
-solana-program-test.workspace = true
-solana-sdk.workspace = true
 
 [lib]
 crate-type = ["cdylib", "lib"]

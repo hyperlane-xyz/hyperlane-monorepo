@@ -12,8 +12,6 @@ solana-program.workspace = true
 spl-type-length-value.workspace = true
 
 [dev-dependencies]
-solana-program-test.workspace = true
-solana-sdk.workspace = true
 
 [lib]
 crate-type = ["cdylib", "lib"]

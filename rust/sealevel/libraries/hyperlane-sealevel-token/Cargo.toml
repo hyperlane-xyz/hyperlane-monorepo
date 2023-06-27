@@ -27,8 +27,6 @@ hyperlane-sealevel-message-recipient-interface = { path = "../message-recipient-
 serializable-account-meta = { path = "../serializable-account-meta" }
 
 [dev-dependencies]
-solana-program-test.workspace = true
-solana-sdk.workspace = true
 
 [lib]
 crate-type = ["cdylib", "lib"]
