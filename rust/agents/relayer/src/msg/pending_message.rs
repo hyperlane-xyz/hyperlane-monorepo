@@ -402,6 +402,7 @@ impl PendingMessage {
 
 #[derive(Debug)]
 pub struct MessageSubmissionMetrics {
+    // Fields are public for testing purposes
     pub last_known_nonce: IntGauge,
     pub messages_processed: IntCounter,
 }
