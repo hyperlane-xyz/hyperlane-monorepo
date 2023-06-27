@@ -229,7 +229,7 @@ export class MultiProvider {
 
     if (TestChains.includes(name as CoreChainName)) {
       this.providers[name] = new providers.JsonRpcProvider(
-        'http://localhost:8545',
+        'http://localhost:8547',
         31337,
       );
     } else if (publicRpcUrls.length) {

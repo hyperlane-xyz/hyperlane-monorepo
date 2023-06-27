@@ -11,5 +11,12 @@ export const noMetadataIsmFactories = {
   optimismISM: new OptimismISM__factory(),
 };
 
+export const hookFactories = {
+  ...messageHookFactories,
+  ...noMetadataIsmFactories,
+};
+
 export type MessageHookFactories = typeof messageHookFactories;
 export type NoMetadataIsmFactories = typeof noMetadataIsmFactories;
+export type HookFactories = Partial<MessageHookFactories> &
+  Partial<NoMetadataIsmFactories>;

@@ -64,15 +64,36 @@ async function main() {
     config = objMap(envConfig.core, (chain) => true);
     deployer = new HyperlaneIsmFactoryDeployer(multiProvider);
   } else if (module === Modules.CORE) {
-    config = envConfig.core;
+    const hookProvider = new MultiProvider(testConfigs);
+
+    // anvil --fork-url https://rpc.ankr.com/optimism --chain-id 31337 --port 8546
+    const ethForked = new providers.JsonRpcProvider('http://localhost:8546');
+    // anvil --fork-url https://rpc.ankr.com/optimism --chain-id 31337 --port 8547
+    const opForked = new providers.JsonRpcProvider('http://localhost:8547');
+
+    hookProvider.setSigner(
+      'test1',
+      ethForked.getSigner('0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'),
+    );
+    hookProvider.setSigner(
+      'test2',
+      opForked.getSigner('0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'),
+    );
+    hookProvider.setSigner(
+      'test3',
+      ethForked.getSigner('0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'),
+    );
+
+    config['test1'] = envConfig.core.test1;
+    config['test2'] = envConfig.core.test2;
+
+    // config = { ...envConfig.core.test1, ...envConfig.core.test2};
+
     const ismFactory = HyperlaneIsmFactory.fromEnvironment(
       deployEnvToSdkEnv[environment],
-      multiProvider,
+      hookProvider,
     );
-    console.log('config');
-    console.log(config);
-    console.log(multiProvider);
-    deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
+    deployer = new HyperlaneCoreDeployer(hookProvider, ismFactory);
   } else if (module === Modules.HOOK) {
     const hookProvider = new MultiProvider(testConfigs);
 
@@ -103,9 +124,9 @@ async function main() {
       },
     };
     deployer = new HyperlaneHookDeployer(hookProvider);
+    deployer;
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
-    console.log('IGP: ', config);
     deployer = new HyperlaneIgpDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
     config = await getRouterConfig(environment, multiProvider);
@@ -127,8 +148,6 @@ async function main() {
     );
     deployer = new LiquidityLayerDeployer(multiProvider);
   } else if (module === Modules.TEST_RECIPIENT) {
-    console.log('test recipient');
-    console.log(config);
     deployer = new TestRecipientDeployer(multiProvider);
   } else if (module === Modules.TEST_QUERY_SENDER) {
     // TODO: make this more generic
@@ -176,10 +195,6 @@ async function main() {
           multiProvider,
         }
       : undefined;
-  // console.log(
-  //   'actual config: ',
-  //   await await deployWithArtifacts(config, deployer, cache, fork, agentConfig),
-  // );
   await deployWithArtifacts(config, deployer, cache, fork, agentConfig);
 }
 

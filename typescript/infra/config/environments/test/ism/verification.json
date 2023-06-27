@@ -485,6 +485,150 @@
       "address": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
       "constructorArguments": "",
       "isProxy": false
+    },
+    {
+      "name": "MerkleRootMultisigIsmFactory",
+      "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MessageIdMultisigIsmFactory",
+      "address": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "AggregationIsmFactory",
+      "address": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "RoutingIsmFactory",
+      "address": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MerkleRootMultisigIsmFactory",
+      "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MessageIdMultisigIsmFactory",
+      "address": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "AggregationIsmFactory",
+      "address": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "RoutingIsmFactory",
+      "address": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MerkleRootMultisigIsmFactory",
+      "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MessageIdMultisigIsmFactory",
+      "address": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "AggregationIsmFactory",
+      "address": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "RoutingIsmFactory",
+      "address": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MerkleRootMultisigIsmFactory",
+      "address": "0xefc1aB2475ACb7E60499Efb171D173be19928a05",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MessageIdMultisigIsmFactory",
+      "address": "0x870526b7973b56163a6997bB7C886F5E4EA53638",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "AggregationIsmFactory",
+      "address": "0xD49a0e9A4CD5979aE36840f542D2d7f02C4817Be",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "RoutingIsmFactory",
+      "address": "0xe1Fd27F4390DcBE165f4D60DBF821e4B9Bb02dEd",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MerkleRootMultisigIsmFactory",
+      "address": "0xa722bdA6968F50778B973Ae2701e90200C564B49",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MessageIdMultisigIsmFactory",
+      "address": "0xc7cDb7A2E5dDa1B7A0E792Fe1ef08ED20A6F56D4",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "AggregationIsmFactory",
+      "address": "0x967AB65ef14c58bD4DcfFeaAA1ADb40a022140E5",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "RoutingIsmFactory",
+      "address": "0xe1708FA6bb2844D5384613ef0846F9Bc1e8eC55E",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MerkleRootMultisigIsmFactory",
+      "address": "0x572316aC11CB4bc5daf6BDae68f43EA3CCE3aE0e",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MessageIdMultisigIsmFactory",
+      "address": "0x975Ab64F4901Af5f0C96636deA0b9de3419D0c2F",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "AggregationIsmFactory",
+      "address": "0x4593ed9CbE6003e687e5e77368534bb04b162503",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "RoutingIsmFactory",
+      "address": "0xCd7c00Ac6dc51e8dCc773971Ac9221cC582F3b1b",
+      "constructorArguments": "",
+      "isProxy": false
     }
   ],
   "test2": [
@@ -949,6 +1093,150 @@
       "address": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
       "constructorArguments": "",
       "isProxy": false
+    },
+    {
+      "name": "MerkleRootMultisigIsmFactory",
+      "address": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MessageIdMultisigIsmFactory",
+      "address": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "AggregationIsmFactory",
+      "address": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "RoutingIsmFactory",
+      "address": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MerkleRootMultisigIsmFactory",
+      "address": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MessageIdMultisigIsmFactory",
+      "address": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "AggregationIsmFactory",
+      "address": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "RoutingIsmFactory",
+      "address": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MerkleRootMultisigIsmFactory",
+      "address": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MessageIdMultisigIsmFactory",
+      "address": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "AggregationIsmFactory",
+      "address": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "RoutingIsmFactory",
+      "address": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MerkleRootMultisigIsmFactory",
+      "address": "0xc582Bc0317dbb0908203541971a358c44b1F3766",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MessageIdMultisigIsmFactory",
+      "address": "0xB2b580ce436E6F77A5713D80887e14788Ef49c9A",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "AggregationIsmFactory",
+      "address": "0xB377a2EeD7566Ac9fCb0BA673604F9BF875e2Bab",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "RoutingIsmFactory",
+      "address": "0x66F625B8c4c635af8b74ECe2d7eD0D58b4af3C3d",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MerkleRootMultisigIsmFactory",
+      "address": "0x0aec7c174554AF8aEc3680BB58431F6618311510",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MessageIdMultisigIsmFactory",
+      "address": "0x8e264821AFa98DD104eEcfcfa7FD9f8D8B320adA",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "AggregationIsmFactory",
+      "address": "0x871ACbEabBaf8Bed65c22ba7132beCFaBf8c27B5",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "RoutingIsmFactory",
+      "address": "0x6A59CC73e334b018C9922793d96Df84B538E6fD5",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MerkleRootMultisigIsmFactory",
+      "address": "0x8ac87219a0F5639BC01b470F87BA2b26356CB2B9",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MessageIdMultisigIsmFactory",
+      "address": "0x94fFA1C7330845646CE9128450F8e6c3B5e44F86",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "AggregationIsmFactory",
+      "address": "0xCa1D199b6F53Af7387ac543Af8e8a34455BBe5E0",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "RoutingIsmFactory",
+      "address": "0xdF46e54aAadC1d55198A4a8b4674D7a4c927097A",
+      "constructorArguments": "",
+      "isProxy": false
     }
   ],
   "test3": [
@@ -1411,6 +1699,150 @@
     {
       "name": "RoutingIsmFactory",
       "address": "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MerkleRootMultisigIsmFactory",
+      "address": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MessageIdMultisigIsmFactory",
+      "address": "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "AggregationIsmFactory",
+      "address": "0x610178dA211FEF7D417bC0e6FeD39F05609AD788",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "RoutingIsmFactory",
+      "address": "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MerkleRootMultisigIsmFactory",
+      "address": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MessageIdMultisigIsmFactory",
+      "address": "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "AggregationIsmFactory",
+      "address": "0x610178dA211FEF7D417bC0e6FeD39F05609AD788",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "RoutingIsmFactory",
+      "address": "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MerkleRootMultisigIsmFactory",
+      "address": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MessageIdMultisigIsmFactory",
+      "address": "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "AggregationIsmFactory",
+      "address": "0x610178dA211FEF7D417bC0e6FeD39F05609AD788",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "RoutingIsmFactory",
+      "address": "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MerkleRootMultisigIsmFactory",
+      "address": "0x8bCe54ff8aB45CB075b044AE117b8fD91F9351aB",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MessageIdMultisigIsmFactory",
+      "address": "0x74Cf9087AD26D541930BaC724B7ab21bA8F00a27",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "AggregationIsmFactory",
+      "address": "0xefAB0Beb0A557E452b398035eA964948c750b2Fd",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "RoutingIsmFactory",
+      "address": "0xaca81583840B1bf2dDF6CDe824ada250C1936B4D",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MerkleRootMultisigIsmFactory",
+      "address": "0xC1e0A9DB9eA830c52603798481045688c8AE99C2",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MessageIdMultisigIsmFactory",
+      "address": "0x683d9CDD3239E0e01E8dC6315fA50AD92aB71D2d",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "AggregationIsmFactory",
+      "address": "0x1c9fD50dF7a4f066884b58A05D91e4b55005876A",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "RoutingIsmFactory",
+      "address": "0x0fe4223AD99dF788A6Dcad148eB4086E6389cEB6",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MerkleRootMultisigIsmFactory",
+      "address": "0xf5c4a909455C00B99A90d93b48736F3196DB5621",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "MessageIdMultisigIsmFactory",
+      "address": "0xFD2Cf3b56a73c75A7535fFe44EBABe7723c64719",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "AggregationIsmFactory",
+      "address": "0xB22C255250d74B0ADD1bfB936676D2a299BF48Bd",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "RoutingIsmFactory",
+      "address": "0x666D0c3da3dBc946D5128D06115bb4eed4595580",
       "constructorArguments": "",
       "isProxy": false
     }
