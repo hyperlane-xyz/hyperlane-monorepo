@@ -13,8 +13,8 @@ import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/
 contract HypERC20 is ERC20Upgradeable, TokenRouter {
     uint8 private immutable _decimals;
 
-    constructor(uint8 decimals) {
-        _decimals = decimals;
+    constructor(uint8 __decimals) {
+        _decimals = __decimals;
     }
 
     /**
