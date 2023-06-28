@@ -32,7 +32,7 @@ export type SyntheticConfig = TokenMetadata & {
 export type CollateralConfig = {
   type: TokenType.collateral | TokenType.collateralUri;
   token: string;
-};
+} & Partial<ERC20Metadata>;
 export type NativeConfig = {
   type: TokenType.native;
 };
