@@ -91,7 +91,6 @@ contract InterchainAccountRouterTest is Test {
         );
 
         router.initialize(
-            address(proxy),
             address(_mailbox),
             address(_igps),
             address(_ism),

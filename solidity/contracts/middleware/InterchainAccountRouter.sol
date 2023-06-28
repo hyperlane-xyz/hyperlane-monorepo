@@ -109,16 +109,12 @@ contract InterchainAccountRouter is
 
     /**
      * @notice Initializes the contract with HyperlaneConnectionClient contracts
-     * @param _proxy The address of a proxy contract that delegates calls to
-     * this contract. Used by OwnableMulticall for access control.
      * @param _mailbox The address of the mailbox contract
      * @param _interchainGasPaymaster Unused but required by HyperlaneConnectionClient
      * @param _interchainSecurityModule The address of the local ISM contract
      * @param _owner The address with owner privileges
-     * @dev Set proxy to address(0) to use this contract without a proxy.
      */
     function initialize(
-        address _proxy,
         address _mailbox,
         address _interchainGasPaymaster,
         address _interchainSecurityModule,
@@ -132,7 +128,7 @@ contract InterchainAccountRouter is
         );
         require(localDomain == mailbox.localDomain(), "domain mismatch");
 
-        implementation = address(new OwnableMulticall(_proxy));
+        implementation = address(new OwnableMulticall(address(this)));
         // cannot be stored immutably because it is dynamically sized
         bytes memory _bytecode = MinimalProxy.bytecode(implementation);
         bytecodeHash = keccak256(_bytecode);
