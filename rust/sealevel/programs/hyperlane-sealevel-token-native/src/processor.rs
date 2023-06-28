@@ -8,13 +8,13 @@ use hyperlane_sealevel_token_lib::{
     processor::HyperlaneSealevelToken,
 };
 use solana_program::{
-    account_info::AccountInfo, entrypoint, entrypoint::ProgramResult, msg, pubkey::Pubkey,
+    account_info::AccountInfo, entrypoint::ProgramResult, msg, pubkey::Pubkey,
 };
 
 use crate::plugin::NativePlugin;
 
 #[cfg(not(feature = "no-entrypoint"))]
-entrypoint!(process_instruction);
+solana_program::entrypoint!(process_instruction);
 
 /// Processes an instruction.
 pub fn process_instruction(

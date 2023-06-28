@@ -21,7 +21,6 @@ use hyperlane_sealevel_message_recipient_interface::{
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
-    entrypoint,
     entrypoint::ProgramResult,
     instruction::{AccountMeta, Instruction},
     msg,
@@ -34,7 +33,7 @@ use solana_program::{
 };
 
 #[cfg(not(feature = "no-entrypoint"))]
-entrypoint!(process_instruction);
+solana_program::entrypoint!(process_instruction);
 
 pub enum TestSendReceiverError {
     HandleFailed = 6942069,

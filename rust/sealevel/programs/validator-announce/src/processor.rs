@@ -4,7 +4,6 @@ use hyperlane_core::{Announcement, Signable};
 use hyperlane_sealevel_mailbox::accounts::SizedData;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
-    entrypoint,
     entrypoint::ProgramResult,
     program::invoke,
     program_error::ProgramError,
@@ -26,7 +25,7 @@ use crate::{
 };
 
 #[cfg(not(feature = "no-entrypoint"))]
-entrypoint!(process_instruction);
+solana_program::entrypoint!(process_instruction);
 
 pub fn process_instruction(
     program_id: &Pubkey,

@@ -13,26 +13,26 @@ members = [
     "hyperlane-base",
     "hyperlane-core",
     "hyperlane-test",
-    #    "sealevel/client",
+    "sealevel/client",
     "sealevel/libraries/access-control",
     "sealevel/libraries/account-utils",
     "sealevel/libraries/ecdsa-signature",
     "sealevel/libraries/hyperlane-sealevel-connection-client",
     "sealevel/libraries/hyperlane-sealevel-token",
-    #    "sealevel/libraries/interchain-security-module-interface",
-    #    "sealevel/libraries/message-recipient-interface",A
-    #    "sealevel/libraries/multisig-ism",
-    #    "sealevel/libraries/serializable-account-meta",
-    #    "sealevel/libraries/test-transaction-utils",
-    #    "sealevel/libraries/test-utils",
-    #    "sealevel/programs/hyperlane-sealevel-token",
-    #    "sealevel/programs/hyperlane-sealevel-token-native",
-    #    "sealevel/programs/ism/multisig-ism-message-id",
-    #    "sealevel/programs/ism/test-ism",
+    "sealevel/libraries/interchain-security-module-interface",
+    "sealevel/libraries/message-recipient-interface",
+    "sealevel/libraries/multisig-ism",
+    "sealevel/libraries/serializable-account-meta",
+    "sealevel/libraries/test-transaction-utils",
+    "sealevel/libraries/test-utils",
+    "sealevel/programs/hyperlane-sealevel-token",
+    "sealevel/programs/hyperlane-sealevel-token-native",
+    "sealevel/programs/ism/multisig-ism-message-id",
+    "sealevel/programs/ism/test-ism",
     "sealevel/programs/mailbox",
-    #    "sealevel/programs/mailbox-test",
-    #    "sealevel/programs/test-send-receiver",
-    #    "sealevel/programs/validator-announce",
+    "sealevel/programs/mailbox-test",
+    "sealevel/programs/test-send-receiver",
+    "sealevel/programs/validator-announce",
     "utils/abigen",
     "utils/backtrace-oneline",
     "utils/hex",
@@ -102,7 +102,7 @@ solana-clap-utils = "=1.14.13"
 solana-cli-config = "=1.14.13"
 solana-client = "=1.14.13"
 solana-program = "=1.14.13"
-#solana-program-test = { path = "patches/solana-program-test" }
+solana-program-test = "=1.14.13"
 solana-sdk = "=1.14.13"
 solana-transaction-status = "=1.14.13"
 solana-zk-token-sdk = "=1.14.13"
@@ -121,6 +121,7 @@ tracing-error = "0.2"
 tracing-futures = "0.2"
 tracing-subscriber = { version = "0.3", default-features = false }
 url = "2.3"
+ureq = "2.4"
 
 [patch.crates-io]
 aes-gcm-siv = { version = "0.10.*", path = "patches/aes-gcm-siv-0.10" }
@@ -128,6 +129,12 @@ curve25519-dalek = { git = "https://github.com/Eclipse-Laboratories-Inc/curve255
 ed25519-dalek = { git = "https://github.com/Eclipse-Laboratories-Inc/ed25519-dalek", branch = "steven/fix-deps" }
 primitive-types = { git = "https://github.com/Eclipse-Laboratories-Inc/parity-common", branch = "steven/primitive-types-impl-borsh-uint-version-fix" }
 rlp = { git = "https://github.com/Eclipse-Laboratories-Inc/parity-common", branch = "steven/primitive-types-impl-borsh-uint-version-fix" }
+solana-banks-client = { git = "https://github.com/mattiecnvr/solana", branch = "mattie/1.14.13/patched" }
+solana-banks-interface = { git = "https://github.com/mattiecnvr/solana", branch = "mattie/1.14.13/patched" }
+solana-banks-server = { git = "https://github.com/mattiecnvr/solana", branch = "mattie/1.14.13/patched" }
+solana-program = { git = "https://github.com/mattiecnvr/solana", branch = "mattie/1.14.13/patched" }
+solana-program-test = { git = "https://github.com/mattiecnvr/solana", branch = "mattie/1.14.13/patched" }
+solana-sdk = { git = "https://github.com/mattiecnvr/solana", branch = "mattie/1.14.13/patched" }
 spl-associated-token-account = { git = "https://github.com/tkporter/eclipse-program-library", branch = "mattie/eclipse-1.14.13" }
 spl-noop = { git = "https://github.com/tkporter/eclipse-program-library", branch = "mattie/eclipse-1.14.13" }
 spl-token = { git = "https://github.com/tkporter/eclipse-program-library", branch = "mattie/eclipse-1.14.13" }

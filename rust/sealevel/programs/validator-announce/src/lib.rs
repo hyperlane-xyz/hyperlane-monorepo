@@ -1,6 +1,6 @@
 //! A contract for publicly announcing validator storage locations.
 
-// #![deny(warnings)]
+#![deny(warnings)]
 // #![deny(missing_docs)] // FIXME
 #![deny(unsafe_code)]
 

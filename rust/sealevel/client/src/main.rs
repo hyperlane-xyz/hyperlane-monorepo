@@ -7,7 +7,7 @@ use std::{path::PathBuf, str::FromStr};
 
 use account_utils::DiscriminatorEncode;
 use clap::{Args, Parser, Subcommand, ValueEnum};
-use hyperlane_core::{message::HyperlaneMessage, types::H256, Encode, H160};
+use hyperlane_core::{H256, Encode, H160, HyperlaneMessage};
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_mailbox::{
     accounts::{InboxAccount, OutboxAccount},
