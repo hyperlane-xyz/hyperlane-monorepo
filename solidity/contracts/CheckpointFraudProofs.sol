@@ -40,9 +40,12 @@ contract CheckpointFraudProofs {
     }
 
     // returns whether checkpoint.index is greater than or equal to mailbox count
-    function isPremature(
-        Checkpoint calldata checkpoint
-    ) public view onlyLocalCheckpoint(checkpoint) returns (bool) {
+    function isPremature(Checkpoint calldata checkpoint)
+        public
+        view
+        onlyLocalCheckpoint(checkpoint)
+        returns (bool)
+    {
         // count is the number of messages in the mailbox (i.e. the latest index + 1)
         uint32 count = IMailbox(CheckpointLib.mailbox(checkpoint)).count();
 
