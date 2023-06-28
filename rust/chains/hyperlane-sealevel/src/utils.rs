@@ -1,6 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{ChainCommunicationError, ChainResult};
 
+use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
     commitment_config::CommitmentConfig,
@@ -10,8 +11,6 @@ use solana_sdk::{
     transaction::Transaction,
 };
 use solana_transaction_status::UiReturnDataEncoding;
-
-use crate::contract::{SerializableAccountMeta, SimulationReturnData};
 
 /// Simulates an instruction, and attempts to deserialize it into a T.
 /// If no return data at all was returned, returns Ok(None).

@@ -130,8 +130,7 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
 // Copied from the validator-announce contract
 mod contract {
     use borsh::{BorshDeserialize, BorshSerialize};
-
-    use crate::mailbox::contract::AccountData;
+    use hyperlane_sealevel_mailbox::accounts::AccountData;
 
     /// An account that holds a validator's announced storage locations.
     /// It is a PDA based off the validator's address, and can therefore

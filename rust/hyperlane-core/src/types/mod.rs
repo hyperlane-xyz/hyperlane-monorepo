@@ -1,7 +1,7 @@
+use borsh::{BorshDeserialize, BorshSerialize};
 pub use primitive_types::{H128, H160, H256, H512, U128, U256, U512};
 use std::io::{Read, Write};
 use std::ops::Add;
-use borsh::{BorshDeserialize, BorshSerialize};
 
 pub use announcement::*;
 pub use chain_data::*;

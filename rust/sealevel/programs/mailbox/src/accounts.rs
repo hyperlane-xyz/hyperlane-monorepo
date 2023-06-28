@@ -229,7 +229,7 @@ impl Outbox {
 pub type DispatchedMessageAccount = AccountData<DispatchedMessage>;
 
 // TODO change?
-const DISPATCHED_MESSAGE_DISCRIMINATOR: &[u8; 8] = b"DISPATCH";
+pub const DISPATCHED_MESSAGE_DISCRIMINATOR: &[u8; 8] = b"DISPATCH";
 
 #[derive(Debug, Default, Eq, PartialEq)]
 pub struct DispatchedMessage {

@@ -4,20 +4,24 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-hyperlane-core = { path = "../../hyperlane-core" }
-async-trait.workspace = true
-thiserror.workspace = true
-serde.workspace = true
 anyhow.workspace = true
-tracing-futures.workspace = true
-tracing.workspace = true
-num-traits.workspace = true
+async-trait.workspace = true
+base64.workspace = true
 borsh.workspace = true
 jsonrpc-core.workspace = true
-url.workspace = true
-base64.workspace = true
-
+num-traits.workspace = true
+serde.workspace = true
 solana-account-decoder.workspace = true
-solana-sdk.workspace = true
 solana-client.workspace = true
+solana-sdk.workspace = true
 solana-transaction-status.workspace = true
+thiserror.workspace = true
+tracing-futures.workspace = true
+tracing.workspace = true
+url.workspace = true
+
+hyperlane-core = { path = "../../hyperlane-core" }
+hyperlane-sealevel-mailbox = { path = "../../sealevel/programs/mailbox" }
+hyperlane-sealevel-interchain-security-module-interface = { path = "../../sealevel/libraries/interchain-security-module-interface" }
+hyperlane-sealevel-message-recipient-interface = { path = "../../sealevel/libraries/message-recipient-interface" }
+serializable-account-meta = { path = "../../sealevel/libraries/serializable-account-meta" }

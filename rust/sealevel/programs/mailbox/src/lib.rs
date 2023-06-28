@@ -10,5 +10,4 @@ pub mod instruction;
 pub mod pda_seeds;
 pub mod processor;
 
-pub use hyperlane_core;
 pub use spl_noop;

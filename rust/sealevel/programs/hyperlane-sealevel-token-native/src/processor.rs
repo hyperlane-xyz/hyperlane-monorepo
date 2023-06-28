@@ -7,9 +7,7 @@ use hyperlane_sealevel_token_lib::{
     instruction::{Init, Instruction as TokenIxn, TransferFromRemote, TransferRemote},
     processor::HyperlaneSealevelToken,
 };
-use solana_program::{
-    account_info::AccountInfo, entrypoint::ProgramResult, msg, pubkey::Pubkey,
-};
+use solana_program::{account_info::AccountInfo, entrypoint::ProgramResult, msg, pubkey::Pubkey};
 
 use crate::plugin::NativePlugin;
 

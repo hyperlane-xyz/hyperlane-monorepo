@@ -1,6 +1,6 @@
 //! TODO
 
-use hyperlane_core::{Decode, Encode, H256, HyperlaneProtocolError, U256};
+use hyperlane_core::{Decode, Encode, HyperlaneProtocolError, H256, U256};
 
 #[derive(Debug)]
 pub struct TokenMessage {
