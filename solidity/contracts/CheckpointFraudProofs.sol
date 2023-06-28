@@ -9,44 +9,45 @@ contract CheckpointFraudProofs {
     // copied from MerkleLib.sol
     uint256 internal constant TREE_DEPTH = 32;
 
-    // mailbox => root => count
-    mapping(address => mapping(bytes32 => uint32)) public indices;
+    mapping(address => mapping(bytes32 => uint32)) public storedCheckpoint;
 
-    modifier onlyStoredCheckpoint(
-        Checkpoint calldata checkpoint,
-        bytes32[TREE_DEPTH] calldata proof,
-        bytes32 messageId
+    modifier memberOfStoredCheckpoint(
+        bytes32 messageId,
+        address mailbox,
+        uint32 index,
+        bytes32[TREE_DEPTH] calldata proof
     ) {
-        bytes32 calculatedRoot = MerkleLib.branchRoot(
-            messageId,
-            proof,
-            checkpoint.index
-        );
-        uint32 cachedIndex = indices[CheckpointLib.mailbox(checkpoint)][
-            calculatedRoot
-        ];
+        bytes32 root = MerkleLib.branchRoot(messageId, proof, index);
+        uint32 storedIndex = storedCheckpoint[mailbox][root];
         require(
-            cachedIndex >= checkpoint.index,
-            "must prove against stored checkpoint"
+            storedIndex >= index,
+            "message must be member of stored checkpoint"
         );
+        _;
+    }
+
+    modifier onlyLocalCheckpoint(Checkpoint calldata checkpoint) {
+        uint32 mailboxDomain = IMailbox(CheckpointLib.mailbox(checkpoint))
+            .localDomain();
+        require(checkpoint.origin == mailboxDomain, "must be local checkpoint");
         _;
     }
 
     // must be called before proving fraud to circumvent race on mailbox insertion and merkle proof construction
     function storeLatestCheckpoint(address mailbox) public {
         (bytes32 root, uint32 index) = IMailbox(mailbox).latestCheckpoint();
-        indices[mailbox][root] = index;
+        storedCheckpoint[mailbox][root] = index;
     }
 
     // returns whether checkpoint.index is greater than or equal to mailbox count
-    function isPremature(Checkpoint calldata checkpoint)
-        public
-        view
-        returns (bool)
-    {
-        return
-            checkpoint.index >=
-            IMailbox(CheckpointLib.mailbox(checkpoint)).count();
+    function isPremature(
+        Checkpoint calldata checkpoint
+    ) public view onlyLocalCheckpoint(checkpoint) returns (bool) {
+        // count is the number of messages in the mailbox (i.e. the latest index + 1)
+        uint32 count = IMailbox(CheckpointLib.mailbox(checkpoint)).count();
+
+        // index >= count is equivalent to index > latest index
+        return checkpoint.index >= count;
     }
 
     // returns whether actual message ID at checkpoint index on checkpoint.mailbox differs from checkpoint message ID
@@ -57,7 +58,13 @@ contract CheckpointFraudProofs {
     )
         public
         view
-        onlyStoredCheckpoint(checkpoint, proof, actualMessageId)
+        onlyLocalCheckpoint(checkpoint)
+        memberOfStoredCheckpoint(
+            actualMessageId,
+            CheckpointLib.mailbox(checkpoint),
+            checkpoint.index,
+            proof
+        )
         returns (bool)
     {
         return actualMessageId != checkpoint.messageId;
@@ -70,10 +77,18 @@ contract CheckpointFraudProofs {
     )
         public
         view
-        onlyStoredCheckpoint(checkpoint, proof, checkpoint.messageId)
+        onlyLocalCheckpoint(checkpoint)
+        memberOfStoredCheckpoint(
+            checkpoint.messageId,
+            CheckpointLib.mailbox(checkpoint),
+            checkpoint.index,
+            proof
+        )
         returns (bool)
     {
-        // modify proof to reconstruct root at checkpoint.index
+        // proof of checkpoint.messageId at checkpoint.index is the list of siblings from the leaf node to some stored root
+        // once verifying the proof, we can reconstruct the specific root at checkpoint.index by replacing siblings greater
+        // than the index (right subtrees) with zeroes
         bytes32 reconstructedRoot = MerkleLib.reconstructRoot(
             checkpoint.messageId,
             proof,
