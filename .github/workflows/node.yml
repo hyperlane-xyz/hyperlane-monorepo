@@ -18,9 +18,6 @@ jobs:
         with:
           submodules: recursive
 
-      - name: remove submodule locks
-        run: git submodule foreach 'test -f yarn.lock && rm yarn.lock || echo "No yarn.lock file in this submodule"'
-
       - name: yarn-cache
         uses: actions/cache@v3
         with:
@@ -48,10 +45,7 @@ jobs:
           submodules: recursive
       - uses: actions/setup-node@v3
         with:
-          node-version: 16
-
-      - name: remove submodule locks
-        run: git submodule foreach 'test -f yarn.lock && rm yarn.lock || echo "No yarn.lock file in this submodule"'
+          node-version: 18
 
       - name: yarn-cache
         uses: actions/cache@v3
@@ -82,8 +76,8 @@ jobs:
             .yarn/cache
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
-      - name: lint-ts
-        run: yarn lint-ts
+      - name: lint
+        run: yarn lint
 
       - name: prettier
         run: |
@@ -109,6 +103,13 @@ jobs:
 
       - name: sdk
         run: yarn workspace @hyperlane-xyz/sdk run test
+
+      - name: helloworld
+        run: yarn workspace @hyperlane-xyz/helloworld run test
+
+      - name: token
+        run: yarn workspace @hyperlane-xyz/hyperlane-token run test
+
       - name: infra
         run: yarn workspace @hyperlane-xyz/infra run test
 
@@ -170,9 +171,6 @@ jobs:
       - name: Unit tests
         run: yarn workspace @hyperlane-xyz/core run test
 
-      - name: lint
-        run: yarn workspace @hyperlane-xyz/core run lint
-
       - name: Run Slither
         uses: crytic/slither-action@main
         id: slither
@@ -216,3 +214,5 @@ jobs:
 
       - name: Run tests with coverage
         run: yarn workspace @hyperlane-xyz/core run coverage
+        env:
+          NODE_OPTIONS: --max_old_space_size=4096
