@@ -47,6 +47,11 @@ library CheckpointLib {
             );
     }
 
+    /**
+     * @notice Returns the digest validators are expected to sign when signing checkpoints.
+     * @param checkpoint The checkpoint (struct) to hash.
+     * @return The digest of the checkpoint.
+     */
     function digest(Checkpoint calldata checkpoint)
         internal
         pure
@@ -62,6 +67,12 @@ library CheckpointLib {
             );
     }
 
+    /**
+     * @notice Returns the address that signed the checkpoint.
+     * @param checkpoint The checkpoint (struct) to hash.
+     * @param signature The signature on the checkpoint (65 bytes).
+     * @return The address of the signer.
+     */
     function signer(Checkpoint calldata checkpoint, bytes calldata signature)
         internal
         pure
@@ -71,6 +82,11 @@ library CheckpointLib {
         return ECDSA.recover(_digest, signature);
     }
 
+    /**
+     * @notice Returns the mailbox address for the checkpoint.
+     * @param checkpoint The checkpoint (struct).
+     * @return The (20 byte EVM) address of the mailbox.
+     */
     function mailbox(Checkpoint calldata checkpoint)
         internal
         pure
