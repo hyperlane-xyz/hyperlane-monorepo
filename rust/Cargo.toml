@@ -102,7 +102,7 @@ solana-clap-utils = "=1.14.13"
 solana-cli-config = "=1.14.13"
 solana-client = "=1.14.13"
 solana-program = "=1.14.13"
-solana-program-test = "=1.14.13"
+#solana-program-test = { path = "patches/solana-program-test" }
 solana-sdk = "=1.14.13"
 solana-transaction-status = "=1.14.13"
 solana-zk-token-sdk = "=1.14.13"
@@ -128,11 +128,11 @@ curve25519-dalek = { git = "https://github.com/Eclipse-Laboratories-Inc/curve255
 ed25519-dalek = { git = "https://github.com/Eclipse-Laboratories-Inc/ed25519-dalek", branch = "steven/fix-deps" }
 primitive-types = { git = "https://github.com/Eclipse-Laboratories-Inc/parity-common", branch = "steven/primitive-types-impl-borsh-uint-version-fix" }
 rlp = { git = "https://github.com/Eclipse-Laboratories-Inc/parity-common", branch = "steven/primitive-types-impl-borsh-uint-version-fix" }
-spl-associated-token-account = { git = "https://github.com/tkporter/eclipse-program-library", branch = "trevor/steven/eclipse-1.14.13/with-tlv-lib" }
-spl-noop = { git = "https://github.com/tkporter/eclipse-program-library", branch = "trevor/steven/eclipse-1.14.13/with-tlv-lib" }
-spl-token = { git = "https://github.com/tkporter/eclipse-program-library", branch = "trevor/steven/eclipse-1.14.13/with-tlv-lib" }
-spl-token-2022 = { git = "https://github.com/tkporter/eclipse-program-library", branch = "trevor/steven/eclipse-1.14.13/with-tlv-lib" }
-spl-type-length-value = { git = "https://github.com/tkporter/eclipse-program-library", branch = "trevor/steven/eclipse-1.14.13/with-tlv-lib" }
+spl-associated-token-account = { git = "https://github.com/tkporter/eclipse-program-library", branch = "mattie/eclipse-1.14.13" }
+spl-noop = { git = "https://github.com/tkporter/eclipse-program-library", branch = "mattie/eclipse-1.14.13" }
+spl-token = { git = "https://github.com/tkporter/eclipse-program-library", branch = "mattie/eclipse-1.14.13" }
+spl-token-2022 = { git = "https://github.com/tkporter/eclipse-program-library", branch = "mattie/eclipse-1.14.13" }
+spl-type-length-value = { git = "https://github.com/tkporter/eclipse-program-library", branch = "mattie/eclipse-1.14.13" }
 
 # FIXME patch primitive types to pull in borsh support. Unfortunately crates in parity-common refer
 #  to one another with local paths so patching one requires patching most of them.
