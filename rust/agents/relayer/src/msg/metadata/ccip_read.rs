@@ -12,7 +12,7 @@ use tracing::{info, instrument};
 use super::{BaseMetadataBuilder, MetadataBuilder};
 use ethers::abi::AbiDecode;
 use ethers::core::utils::hex::decode as hex_decode;
-use hyperlane_core::{HyperlaneMessage, H256};
+use hyperlane_core::{HyperlaneMessage, RawHyperlaneMessage, H256};
 use regex::Regex;
 
 #[derive(Serialize, Deserialize)]
@@ -44,7 +44,9 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
         const CTX: &str = "When fetching CcipRead metadata";
         let ism = self.build_ccip_read_ism(ism_address).await.context(CTX)?;
 
-        let response = ism.get_offchain_verify_info(message.body.clone()).await;
+        let response = ism
+            .get_offchain_verify_info(RawHyperlaneMessage::from(message).to_vec())
+            .await;
         let info: OffchainLookup = match response {
             Ok(_) => {
                 info!("incorrectly configured getOffchainVerifyInfo, expected revert");
