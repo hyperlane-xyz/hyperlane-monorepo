@@ -120,11 +120,10 @@ tracing = { version = "0.1", features = ["release_max_level_debug"] }
 tracing-error = "0.2"
 tracing-futures = "0.2"
 tracing-subscriber = { version = "0.3", default-features = false }
-url = "2.3"
 ureq = "2.4"
+url = "2.3"
 
 [patch.crates-io]
-aes-gcm-siv = { version = "0.10.*", path = "patches/aes-gcm-siv-0.10" }
 curve25519-dalek = { git = "https://github.com/Eclipse-Laboratories-Inc/curve25519-dalek", branch = "steven/fix-deps" }
 ed25519-dalek = { git = "https://github.com/Eclipse-Laboratories-Inc/ed25519-dalek", branch = "steven/fix-deps" }
 primitive-types = { git = "https://github.com/Eclipse-Laboratories-Inc/parity-common", branch = "steven/primitive-types-impl-borsh-uint-version-fix" }
@@ -135,6 +134,7 @@ solana-banks-server = { git = "https://github.com/mattiecnvr/solana", branch = "
 solana-program = { git = "https://github.com/mattiecnvr/solana", branch = "mattie/1.14.13/patched" }
 solana-program-test = { git = "https://github.com/mattiecnvr/solana", branch = "mattie/1.14.13/patched" }
 solana-sdk = { git = "https://github.com/mattiecnvr/solana", branch = "mattie/1.14.13/patched" }
+solana-zk-token-sdk = { git = "https://github.com/mattiecnvr/solana", branch = "mattie/1.14.13/patched" }
 spl-associated-token-account = { git = "https://github.com/tkporter/eclipse-program-library", branch = "mattie/eclipse-1.14.13" }
 spl-noop = { git = "https://github.com/tkporter/eclipse-program-library", branch = "mattie/eclipse-1.14.13" }
 spl-token = { git = "https://github.com/tkporter/eclipse-program-library", branch = "mattie/eclipse-1.14.13" }
