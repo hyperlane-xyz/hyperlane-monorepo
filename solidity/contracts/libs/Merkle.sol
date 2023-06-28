@@ -141,6 +141,15 @@ library MerkleLib {
         }
     }
 
+    /**
+     * @notice Calculates and returns the merkle root as if the index is
+     * the topmost leaf in the tree.
+     * @param _item Merkle leaf
+     * @param _branch Merkle proof
+     * @param _index Index of `_item` in tree
+     * @dev Replaces siblings greater than the index (right subtrees) with zeroes.
+     * @return _current Calculated merkle root
+     **/
     function reconstructRoot(
         bytes32 _item,
         bytes32[TREE_DEPTH] memory _branch, // cheaper than calldata indexing

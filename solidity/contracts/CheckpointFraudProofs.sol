@@ -9,6 +9,7 @@ contract CheckpointFraudProofs {
     // copied from MerkleLib.sol
     uint256 internal constant TREE_DEPTH = 32;
 
+    // mailbox => root => index
     mapping(address => mapping(bytes32 => uint32)) public storedCheckpoint;
 
     modifier memberOfStoredCheckpoint(
@@ -33,13 +34,22 @@ contract CheckpointFraudProofs {
         _;
     }
 
-    // must be called before proving fraud to circumvent race on mailbox insertion and merkle proof construction
-    function storeLatestCheckpoint(address mailbox) public {
+    /**
+     *  @notice Stores the latest checkpoint of the provided mailbox
+     *  @param mailbox Address of the mailbox to store the latest checkpoint of.
+     *  @dev Must be called before proving fraud to circumvent race on mailbox insertion and merkle proof construction.
+     */
+    function storeLatestCheckpoint(address mailbox) external {
         (bytes32 root, uint32 index) = IMailbox(mailbox).latestCheckpoint();
         storedCheckpoint[mailbox][root] = index;
     }
 
-    // returns whether checkpoint.index is greater than or equal to mailbox count
+    /**
+     *  @notice Checks whether the provided checkpoint is premature (fraud).
+     *  @param checkpoint Checkpoint to check.
+     *  @dev Checks whether checkpoint.index is greater than or equal to mailbox count
+     *  @return Whether the provided checkpoint is premature.
+     */
     function isPremature(Checkpoint calldata checkpoint)
         public
         view
@@ -53,7 +63,14 @@ contract CheckpointFraudProofs {
         return checkpoint.index >= count;
     }
 
-    // returns whether actual message ID at checkpoint index on checkpoint.mailbox differs from checkpoint message ID
+    /**
+     *  @notice Checks whether the provided checkpoint has a fraudulent message ID.
+     *  @param checkpoint Checkpoint to check.
+     *  @param proof Merkle proof of the actual message ID at checkpoint.index on checkpoint.mailbox
+     *  @param actualMessageId Actual message ID at checkpoint.index on checkpoint.mailbox
+     *  @dev Must produce proof of inclusion for actualMessageID against some stored checkpoint.
+     *  @return Whether the provided checkpoint has a fraudulent message ID.
+     */
     function isFraudulentMessageId(
         Checkpoint calldata checkpoint,
         bytes32[TREE_DEPTH] calldata proof,
@@ -73,7 +90,13 @@ contract CheckpointFraudProofs {
         return actualMessageId != checkpoint.messageId;
     }
 
-    // returns whether actual root at checkpoint index on checkpoint.mailbox differs from checkpoint root
+    /**
+     *  @notice Checks whether the provided checkpoint has a fraudulent root.
+     *  @param checkpoint Checkpoint to check.
+     *  @param proof Merkle proof of the checkpoint.messageId at checkpoint.index on checkpoint.mailbox
+     *  @dev Must produce proof of inclusion for checkpoint.messageId against some stored checkpoint.
+     *  @return Whether the provided checkpoint has a fraudulent message ID.
+     */
     function isFraudulentRoot(
         Checkpoint calldata checkpoint,
         bytes32[TREE_DEPTH] calldata proof
