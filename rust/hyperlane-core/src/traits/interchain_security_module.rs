@@ -25,7 +25,7 @@ pub enum ModuleType {
     MessageIdMultisig,
     /// TODO: document
     Optimism,
-    /// TODO: document
+    /// Ccip Read ISM (accepts offchain signature information)
     CcipRead,
 }
 
