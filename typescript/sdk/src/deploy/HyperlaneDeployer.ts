@@ -55,7 +55,7 @@ export abstract class HyperlaneDeployer<
     this.cachedAddresses = addressesMap;
   }
 
-  async checkConfig(configMap: ChainMap<Config>): Promise<void> {
+  async checkConfig(_: ChainMap<Config>): Promise<void> {
     return;
   }
 

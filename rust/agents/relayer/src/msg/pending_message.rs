@@ -297,9 +297,36 @@ impl PendingOperation for PendingMessage {
     fn _next_attempt_after(&self) -> Option<Instant> {
         self.next_attempt_after
     }
+
+    #[cfg(test)]
+    fn set_retries(&mut self, retries: u32) {
+        self.set_retries(retries);
+    }
 }
 
 impl PendingMessage {
+    /// Constructor that tries reading the retry count from the HyperlaneDB in order to recompute the `next_attempt_after`.
+    /// In case of failure, behaves like `Self::new(...)`.
+    pub fn from_persisted_retries(message: HyperlaneMessage, ctx: Arc<MessageContext>) -> Self {
+        let mut pm = Self::new(message, ctx);
+        match pm
+            .ctx
+            .origin_db
+            .retrieve_pending_message_retry_count_by_message_id(&pm.message.id())
+        {
+            Ok(Some(num_retries)) => {
+                let next_attempt_after = PendingMessage::calculate_msg_backoff(num_retries)
+                    .map(|dur| Instant::now() + dur);
+                pm.num_retries = num_retries;
+                pm.next_attempt_after = next_attempt_after;
+            }
+            r => {
+                info!(message_id = ?pm.message.id(), result = ?r, "Failed to read retry count from HyperlaneDB for message.")
+            }
+        }
+        pm
+    }
+
     fn on_reprepare(&mut self) -> PendingOperationResult {
         self.inc_attempts();
         self.submitted = false;
@@ -329,21 +356,37 @@ impl PendingMessage {
     }
 
     fn reset_attempts(&mut self) {
-        self.num_retries = 0;
+        self.set_retries(0);
         self.next_attempt_after = None;
         self.last_attempted_at = Instant::now();
     }
 
     fn inc_attempts(&mut self) {
-        self.num_retries += 1;
+        self.set_retries(self.num_retries + 1);
         self.last_attempted_at = Instant::now();
         self.next_attempt_after = PendingMessage::calculate_msg_backoff(self.num_retries)
             .map(|dur| self.last_attempted_at + dur);
     }
 
+    fn set_retries(&mut self, retries: u32) {
+        self.num_retries = retries;
+        self.persist_retries();
+    }
+
+    fn persist_retries(&self) {
+        if let Err(e) = self
+            .ctx
+            .origin_db
+            .store_pending_message_retry_count_by_message_id(&self.message.id(), &self.num_retries)
+        {
+            warn!(message_id = ?self.message.id(), err = %e, "Persisting the `num_retries` failed for message");
+        }
+    }
+
     /// Get duration we should wait before re-attempting to deliver a message
     /// given the number of retries.
-    fn calculate_msg_backoff(num_retries: u32) -> Option<Duration> {
+    /// `pub(crate)` for testing purposes
+    pub(crate) fn calculate_msg_backoff(num_retries: u32) -> Option<Duration> {
         Some(Duration::from_secs(match num_retries {
             i if i < 1 => return None,
             // wait 10s for the first few attempts; this prevents thrashing
@@ -359,8 +402,9 @@ impl PendingMessage {
 
 #[derive(Debug)]
 pub struct MessageSubmissionMetrics {
-    last_known_nonce: IntGauge,
-    messages_processed: IntCounter,
+    // Fields are public for testing purposes
+    pub last_known_nonce: IntGauge,
+    pub messages_processed: IntCounter,
 }
 
 impl MessageSubmissionMetrics {
