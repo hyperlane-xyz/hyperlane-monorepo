@@ -187,7 +187,6 @@ jobs:
           sarif_file: ${{ steps.slither.outputs.sarif }}
 
   coverage-sol:
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     needs: [yarn-build]
 
@@ -209,10 +208,13 @@ jobs:
       - name: Install Foundry
         uses: onbjerg/foundry-toolchain@v1
 
-      - name: Install dependencies
-        run: sudo apt-get install lcov
-
       - name: Run tests with coverage
         run: yarn workspace @hyperlane-xyz/core run coverage
         env:
           NODE_OPTIONS: --max_old_space_size=4096
+
+      - name: Upload coverage reports to Codecov with GitHub Action
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: solidity/coverage/lcov.info, solidity/lcov.info
