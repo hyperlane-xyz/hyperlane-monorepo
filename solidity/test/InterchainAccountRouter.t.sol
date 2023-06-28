@@ -82,22 +82,17 @@ contract InterchainAccountRouterTest is Test {
 
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
             address(implementation),
-            address(1), // no proxy owner necessary
-            "" // no init data because we need address of proxy first
+            address(1), // no proxy owner necessary for testing
+            abi.encodeWithSelector(
+                InterchainAccountRouter.initialize.selector,
+                address(_mailbox),
+                address(_igps),
+                address(_ism),
+                _owner
+            )
         );
 
-        InterchainAccountRouter router = InterchainAccountRouter(
-            address(proxy)
-        );
-
-        router.initialize(
-            address(_mailbox),
-            address(_igps),
-            address(_ism),
-            _owner
-        );
-
-        return router;
+        return InterchainAccountRouter(address(proxy));
     }
 
     function setUp() public {
