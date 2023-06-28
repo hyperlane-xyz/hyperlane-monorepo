@@ -98,12 +98,11 @@ export class ValidatorAgentAwsUser extends AgentAwsUser {
     const getCmd = new GetPublicAccessBlockCommand({
       Bucket: this.bucket,
     });
-    let configuration: PublicAccessBlockConfiguration | undefined;
+    let accessBlockConfiguration: PublicAccessBlockConfiguration | undefined;
     try {
-      const { PublicAccessBlockConfiguration } = await this.adminS3Client.send(
-        getCmd,
-      );
-      configuration = PublicAccessBlockConfiguration;
+      const { PublicAccessBlockConfiguration: configuration } =
+        await this.adminS3Client.send(getCmd);
+      accessBlockConfiguration = configuration;
     } catch (e) {
       if (
         e instanceof Error &&
@@ -114,10 +113,10 @@ export class ValidatorAgentAwsUser extends AgentAwsUser {
       }
     }
     const blockExists =
-      configuration?.BlockPublicAcls ||
-      configuration?.BlockPublicPolicy ||
-      configuration?.IgnorePublicAcls ||
-      configuration?.RestrictPublicBuckets ||
+      accessBlockConfiguration?.BlockPublicAcls ||
+      accessBlockConfiguration?.BlockPublicPolicy ||
+      accessBlockConfiguration?.IgnorePublicAcls ||
+      accessBlockConfiguration?.RestrictPublicBuckets ||
       false;
     if (blockExists) {
       const deleteCmd = new DeletePublicAccessBlockCommand({
