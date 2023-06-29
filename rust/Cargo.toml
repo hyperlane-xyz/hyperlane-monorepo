@@ -13,6 +13,7 @@ members = [
     "hyperlane-base",
     "hyperlane-core",
     "hyperlane-test",
+    "patches/*",
     "sealevel/client",
     "sealevel/libraries/access-control",
     "sealevel/libraries/account-utils",
@@ -36,6 +37,7 @@ members = [
     "utils/abigen",
     "utils/backtrace-oneline",
     "utils/hex",
+    "utils/patcher",
     "utils/run-locally",
 ]
 
@@ -97,6 +99,7 @@ serde_bytes = "0.11"
 serde_derive = "1.0"
 serde_json = "1.0"
 sha2 = "0.10"
+solana = { path = "patches/solana-1.14.13" } # dependency to force the patched version to be built
 solana-account-decoder = "=1.14.13"
 solana-clap-utils = "=1.14.13"
 solana-cli-config = "=1.14.13"
@@ -122,6 +125,7 @@ tracing-futures = "0.2"
 tracing-subscriber = { version = "0.3", default-features = false }
 ureq = "2.4"
 url = "2.3"
+which = "4.3"
 
 [patch.crates-io]
 curve25519-dalek = { git = "https://github.com/Eclipse-Laboratories-Inc/curve25519-dalek", branch = "steven/fix-deps" }
@@ -135,6 +139,13 @@ solana-program = { git = "https://github.com/mattiecnvr/solana", branch = "matti
 solana-program-test = { git = "https://github.com/mattiecnvr/solana", branch = "mattie/1.14.13/patched" }
 solana-sdk = { git = "https://github.com/mattiecnvr/solana", branch = "mattie/1.14.13/patched" }
 solana-zk-token-sdk = { git = "https://github.com/mattiecnvr/solana", branch = "mattie/1.14.13/patched" }
+#solana-banks-client = { path = "patches/solana-1.14.13/patched/banks-client" }
+#solana-banks-interface = { path = "patches/solana-1.14.13/patched/banks-interface" }
+#solana-banks-server = { path = "patches/solana-1.14.13/patched/banks-server" }
+#solana-program = { path = "patches/solana-1.14.13/patched/sdk/program" }
+#solana-program-test = { path = "patches/solana-1.14.13/patched/program-test" }
+#solana-sdk = { path = "patches/solana-1.14.13/patched/sdk" }
+#solana-zk-token-sdk = { path = "patches/solana-1.14.13/patched/zk-token-sdk" }
 spl-associated-token-account = { git = "https://github.com/tkporter/eclipse-program-library", branch = "mattie/eclipse-1.14.13" }
 spl-noop = { git = "https://github.com/tkporter/eclipse-program-library", branch = "mattie/eclipse-1.14.13" }
 spl-token = { git = "https://github.com/tkporter/eclipse-program-library", branch = "mattie/eclipse-1.14.13" }

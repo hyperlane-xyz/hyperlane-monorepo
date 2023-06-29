@@ -1,0 +1,7 @@
+[package]
+name = "solana"
+version = "1.14.13"
+edition = "2021"
+
+[build-dependencies]
+patcher = { path = "../../utils/patcher" }
