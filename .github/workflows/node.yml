@@ -209,7 +209,7 @@ jobs:
         uses: onbjerg/foundry-toolchain@v1
 
       - name: Run tests with coverage
-        run: yarn workspace @hyperlane-xyz/core run coverage
+        run: yarn coverage
         env:
           NODE_OPTIONS: --max_old_space_size=4096
 
@@ -217,4 +217,3 @@ jobs:
         uses: codecov/codecov-action@v3
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: solidity/coverage/lcov.info, solidity/lcov.info
