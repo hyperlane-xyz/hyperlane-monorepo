@@ -59,6 +59,7 @@ export { TestCoreDeployer } from './core/TestCoreDeployer';
 export { CoreFactories, coreFactories } from './core/contracts';
 export { HyperlaneLifecyleEvent } from './core/events';
 export { CoreConfig, CoreViolationType } from './core/types';
+export { HookConfig } from './hook/types';
 export { HyperlaneAppChecker } from './deploy/HyperlaneAppChecker';
 export { DeployerOptions, HyperlaneDeployer } from './deploy/HyperlaneDeployer';
 export {

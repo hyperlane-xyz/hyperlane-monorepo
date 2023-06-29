@@ -57,6 +57,7 @@
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "scripts": {
     "deploy-core": "ts-node scripts/deploy.ts -e test --context hyperlane -m core",
+    "deploy-core-for-hooks": "ts-node scripts/deploy.ts -e test --context hyperlane -m core -h true",
     "deploy-igp": "ts-node scripts/deploy.ts -e test --context hyperlane -m igp",
     "deploy-ism": "ts-node scripts/deploy.ts -e test --context hyperlane -m ism",
     "deploy-hook": "ts-node scripts/deploy.ts -e test --context hyperlane -m hook",

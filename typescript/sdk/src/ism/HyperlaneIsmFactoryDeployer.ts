@@ -21,7 +21,6 @@ export class HyperlaneIsmFactoryDeployer extends HyperlaneDeployer<
   async deploy(
     config: ChainName[] | ChainMap<boolean>,
   ): Promise<HyperlaneContractsMap<IsmFactoryFactories>> {
-    this.logger('testing deploy opISM');
     if (isObject(config)) {
       return super.deploy(config as ChainMap<boolean>);
     } else {
@@ -34,7 +33,6 @@ export class HyperlaneIsmFactoryDeployer extends HyperlaneDeployer<
   async deployContracts(
     chain: ChainName,
   ): Promise<HyperlaneContracts<IsmFactoryFactories>> {
-    this.logger('testing deployContracts opISM');
     const merkleRootMultisigIsmFactory = await this.deployContract(
       chain,
       'merkleRootMultisigIsmFactory',

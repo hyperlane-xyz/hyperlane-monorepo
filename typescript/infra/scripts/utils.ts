@@ -45,11 +45,6 @@ export enum Modules {
   TEST_RECIPIENT = 'testrecipient',
 }
 
-export enum Sides {
-  ISM = 'ism',
-  HOOK = 'hook',
-}
-
 export const SDK_MODULES = [
   Modules.ISM_FACTORY,
   Modules.CORE,
@@ -82,6 +77,13 @@ export function withContext<T>(args: yargs.Argv<T>) {
     .describe('context', 'deploy context')
     .coerce('context', assertContext)
     .demandOption('context');
+}
+
+export function withHooks<T>(args: yargs.Argv<T>) {
+  return args
+    .describe('hooks', 'hooks to deploy')
+    .boolean('hooks')
+    .alias('h', 'hook');
 }
 
 export function withAgentRole<T>(args: yargs.Argv<T>) {

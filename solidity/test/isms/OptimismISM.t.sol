@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import "forge-std/console.sol";
 
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {Mailbox} from "../../contracts/Mailbox.sol";
@@ -67,8 +66,8 @@ contract OptimismISMTest is Test {
     error NotCrossChainCall();
 
     function setUp() public {
-        mainnetFork = vm.createFork(vm.rpcUrl("mainnet"));
-        optimismFork = vm.createFork(vm.rpcUrl("optimism"));
+        mainnetFork = vm.createFork(vm.rpcUrl("mainnet"), 17_586_909);
+        optimismFork = vm.createFork(vm.rpcUrl("optimism"), 106_233_774);
 
         testRecipient = new TestRecipient();
     }
@@ -120,7 +119,7 @@ contract OptimismISMTest is Test {
 
     /* ============ hook.postDispatch ============ */
 
-    function testPostDispatch() public {
+    function testFork_PostDispatch() public {
         deployAll();
 
         vm.selectFork(mainnetFork);
@@ -151,7 +150,7 @@ contract OptimismISMTest is Test {
         opHook.postDispatch(OPTIMISM_DOMAIN, messageId);
     }
 
-    function testPostDispatch_ChainIDNotSupported() public {
+    function testFork_PostDispatch_RevertWhen_ChainIDNotSupported() public {
         deployAll();
 
         vm.selectFork(mainnetFork);
@@ -166,7 +165,7 @@ contract OptimismISMTest is Test {
 
     /* ============ ISM.verifyMessageId ============ */
 
-    function testVerifyMessageId() public {
+    function testFork_VerifyMessageId() public {
         deployAll();
 
         vm.selectFork(optimismFork);
@@ -181,14 +180,6 @@ contract OptimismISMTest is Test {
             OptimismISM.verifyMessageId,
             (address(this).addressToBytes32(), messageId)
         );
-
-        console.log("encoded message hook data");
-
-        console.logBytes(encodedHookData);
-
-        console.log("selector for verifyMessagId");
-
-        console.logBytes4(OptimismISM.verifyMessageId.selector);
 
         (uint240 nonce, uint16 verison) = Encoding.decodeVersionedNonce(
             l2Messenger.messageNonce()
@@ -217,9 +208,6 @@ contract OptimismISMTest is Test {
         vm.expectEmit(true, false, false, false, L2_MESSENGER_ADDRESS);
         emit RelayedMessage(versionedHash);
 
-        console.logBytes4(l2Messenger.relayMessage.selector);
-        console.log("Nonce: %s", versionedNonce);
-
         l2Messenger.relayMessage(
             versionedNonce,
             address(opHook),
@@ -237,6 +225,7 @@ contract OptimismISMTest is Test {
         vm.stopPrank();
     }
 
+    // will get included in https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/2410
     // function testverifyMessageId_WithValue() public {
     //     // this would fail
     //     deployAll();
@@ -276,7 +265,7 @@ contract OptimismISMTest is Test {
     //     vm.stopPrank();
     // }
 
-    function testVerifyMessageId_NotAuthorized() public {
+    function testFork_VerifyMessageId_RevertWhen_NotAuthorized() public {
         deployAll();
 
         vm.selectFork(optimismFork);
@@ -305,7 +294,7 @@ contract OptimismISMTest is Test {
 
     /* ============ ISM.verify ============ */
 
-    function testVerify() public {
+    function testFork_Verify() public {
         deployAll();
 
         vm.selectFork(optimismFork);
@@ -343,7 +332,8 @@ contract OptimismISMTest is Test {
         assertTrue(verified);
     }
 
-    function testVerify_InvalidMessage_Hyperlane() public {
+    // sending over invalid message
+    function testFork_Verify_RevertWhen_HyperlaneInvalidMessage() public {
         deployAll();
 
         vm.selectFork(optimismFork);
@@ -382,7 +372,8 @@ contract OptimismISMTest is Test {
         assertFalse(verified);
     }
 
-    function testVerify_InvalidMessageID_Optimism() public {
+    // invalid messageID in postDispatch
+    function testFork_Verify_RevertWhen_InvalidOptimismMessageID() public {
         deployAll();
 
         vm.selectFork(optimismFork);
@@ -421,7 +412,7 @@ contract OptimismISMTest is Test {
         assertFalse(verified);
     }
 
-    function testVerify_InvalidSender() public {
+    function testFork_Verify_RevertWhen_InvalidSender() public {
         deployAll();
 
         vm.selectFork(optimismFork);

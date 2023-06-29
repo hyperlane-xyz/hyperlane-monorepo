@@ -8,6 +8,7 @@ import { agents } from './agent';
 import { testConfigs } from './chains';
 import { core } from './core';
 import { storageGasOracleConfig } from './gas-oracle';
+import { hooks } from './hooks';
 import { igp } from './igp';
 import { infra } from './infra';
 import { owners } from './owners';
@@ -18,6 +19,7 @@ export const environment: EnvironmentConfig = {
   agents,
   core,
   igp,
+  hooks,
   owners,
   infra,
   // NOTE: Does not work from hardhat.config.ts

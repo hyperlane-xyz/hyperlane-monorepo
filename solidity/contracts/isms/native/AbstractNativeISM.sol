@@ -47,8 +47,4 @@ abstract contract AbstractNativeISM is
 
         return _messageSender == verifiedMessageIds[_messageId];
     }
-
-    function toggleVerify(bytes32 messageId, bytes32 sender) external {
-        verifiedMessageIds[messageId] = sender;
-    }
 }

@@ -324,7 +324,7 @@ export const bsctestnet: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   displayName: 'BSC Testnet',
   nativeToken: bnbToken,
-  publicRpcUrls: [{ http: 'https://data-seed-prebsc-1-s3.binance.org:8547s' }],
+  publicRpcUrls: [{ http: 'https://data-seed-prebsc-1-s3.binance.org:8545s' }],
   blockExplorers: [
     {
       name: 'BscScan',
@@ -697,7 +697,7 @@ export const test1: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   displayName: 'Test 1',
   nativeToken: etherToken,
-  publicRpcUrls: [{ http: 'http://localhost:8546' }],
+  publicRpcUrls: [{ http: 'http://localhost:8545' }],
   blockExplorers: [],
   blocks: {
     confirmations: 1,
@@ -713,7 +713,7 @@ export const test2: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   displayName: 'Test 2',
   nativeToken: etherToken,
-  publicRpcUrls: [{ http: 'http://localhost:8547' }],
+  publicRpcUrls: [{ http: 'http://localhost:8545' }],
   blockExplorers: [],
   blocks: {
     confirmations: 1,
@@ -729,7 +729,7 @@ export const test3: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   displayName: 'Test 3',
   nativeToken: etherToken,
-  publicRpcUrls: [{ http: 'http://localhost:8547' }],
+  publicRpcUrls: [{ http: 'http://localhost:8545' }],
   blockExplorers: [],
   blocks: {
     confirmations: 1,
