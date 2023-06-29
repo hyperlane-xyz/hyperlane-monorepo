@@ -1,6 +1,5 @@
 import {
   ChainMap,
-  ChainName,
   CoreConfig,
   ModuleType,
   RoutingIsmConfig,
