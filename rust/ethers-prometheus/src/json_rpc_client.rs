@@ -74,7 +74,16 @@ pub struct PrometheusJsonRpcClientConfig {
     pub chain: Option<ChainInfo>,
 }
 
-impl PrometheusJsonRpcClientConfig {
+/// Helper functions for displaying node and chain information
+pub trait PrometheusJsonRpcClientConfigExt {
+    /// The "host" part of the URL this node is connecting to. E.g.
+    /// `avalanche.api.onfinality.io`.
+    fn node_host(&self) -> &str;
+    /// Chain name this RPC client is connected to.
+    fn chain_name(&self) -> &str;
+}
+
+impl PrometheusJsonRpcClientConfigExt for PrometheusJsonRpcClientConfig {
     fn node_host(&self) -> &str {
         self.node
             .as_ref()
@@ -112,20 +121,22 @@ where
 }
 
 impl<C> PrometheusJsonRpcClient<C> {
+    /// The inner RpcClient implementation
+    pub fn inner(&self) -> &C {
+        &self.inner
+    }
+}
+
+impl<C> PrometheusJsonRpcClientConfigExt for PrometheusJsonRpcClient<C> {
     /// The "host" part of the URL this node is connecting to. E.g.
     /// `avalanche.api.onfinality.io`.
-    pub fn node_host(&self) -> &str {
+    fn node_host(&self) -> &str {
         self.config.node_host()
     }
 
     /// Chain name this RPC client is connected to.
-    pub fn chain_name(&self) -> &str {
+    fn chain_name(&self) -> &str {
         self.config.chain_name()
-    }
-
-    /// The inner RpcClient implementation
-    pub fn inner(&self) -> &C {
-        &self.inner
     }
 }
 

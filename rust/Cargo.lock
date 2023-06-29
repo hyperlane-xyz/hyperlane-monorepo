@@ -2835,6 +2835,7 @@ dependencies = [
  "derive-new",
  "ethers",
  "ethers-contract",
+ "ethers-core",
  "ethers-prometheus",
  "ethers-signers",
  "futures-util",
