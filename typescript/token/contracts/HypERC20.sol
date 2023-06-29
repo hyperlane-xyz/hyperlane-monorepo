@@ -31,7 +31,7 @@ contract HypERC20 is ERC20Upgradeable, TokenRouter {
         uint256 _totalSupply,
         string memory _name,
         string memory _symbol
-    ) external initializer {
+    ) external virtual initializer {
         // transfers ownership to `msg.sender`
         __HyperlaneConnectionClient_initialize(
             _mailbox,
@@ -43,7 +43,7 @@ contract HypERC20 is ERC20Upgradeable, TokenRouter {
         _mint(msg.sender, _totalSupply);
     }
 
-    function decimals() public view override returns (uint8) {
+    function decimals() public view virtual override returns (uint8) {
         return _decimals;
     }
 

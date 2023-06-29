@@ -35,7 +35,9 @@ import {
   ERC721EnumerableUpgradeable__factory,
   HypERC20,
   HypERC20Collateral,
+  HypERC20CollateralVotable__factory,
   HypERC20Collateral__factory,
+  HypERC20Votable__factory,
   HypERC20__factory,
   HypERC721,
   HypERC721Collateral,
@@ -89,8 +91,11 @@ export class HypERC20Deployer extends GasRouterDeployer<
   ): Promise<HypERC20Collateral> {
     const router = await this.deployContractFromFactory(
       chain,
-      new HypERC20Collateral__factory(),
-      'HypERC20Collateral',
+      //The changes below are made to choose which collateral contract to be deployed based on the votable config
+      config.votable
+        ? new HypERC20CollateralVotable__factory()
+        : new HypERC20Collateral__factory(),
+      config.votable ? 'HypERC20CollateralVotable' : 'HypERC20Collateral',
       [config.token],
     );
     await this.multiProvider.handleTx(
@@ -123,9 +128,10 @@ export class HypERC20Deployer extends GasRouterDeployer<
   ): Promise<HypERC20> {
     const router = await this.deployContractFromFactory(
       chain,
-      new HypERC20__factory(),
-      'HypERC20',
-      [config.decimals],
+      //The changes below are made to choose which HypERC20 contract to be deployed based on the votable config
+      config.votable ? new HypERC20Votable__factory() : new HypERC20__factory(),
+      config.votable ? 'HypERC20Votable' : 'HypERC20',
+      config.votable ? [config.decimals] : [config.decimals],
     );
     await this.multiProvider.handleTx(
       chain,

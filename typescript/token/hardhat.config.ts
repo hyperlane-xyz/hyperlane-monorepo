@@ -12,6 +12,12 @@ module.exports = {
     compilers: [
       {
         version: '0.8.16',
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 200, // Optimizer runs were added as the HypERC20Votable contract size exceeds the max smart contract size
+          },
+        },
       },
     ],
   },
