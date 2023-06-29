@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use eyre::Result;
 use tracing::{debug, error, trace};
 
-use hyperlane_base::db::HyperlaneDB;
+use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_core::{
     HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment, TxCostEstimate, TxOutcome,
     U256,
@@ -40,13 +40,13 @@ pub struct GasPaymentEnforcer {
     /// policy or another. If a message matches multiple policies'
     /// whitelists, then whichever is first in the list will be used.
     policies: Vec<(Box<dyn GasPaymentPolicy>, MatchingList)>,
-    db: HyperlaneDB,
+    db: HyperlaneRocksDB,
 }
 
 impl GasPaymentEnforcer {
     pub fn new(
         policy_configs: impl IntoIterator<Item = GasPaymentEnforcementConf>,
-        db: HyperlaneDB,
+        db: HyperlaneRocksDB,
     ) -> Self {
         let policies = policy_configs
             .into_iter()
@@ -78,8 +78,8 @@ impl GasPaymentEnforcer {
         tx_cost_estimate: &TxCostEstimate,
     ) -> Result<Option<U256>> {
         let msg_id = message.id();
-        let current_payment = self.db.retrieve_gas_payment_for_message_id(msg_id)?;
-        let current_expenditure = self.db.retrieve_gas_expenditure_for_message_id(msg_id)?;
+        let current_payment = self.db.retrieve_gas_payment_by_message_id(msg_id)?;
+        let current_expenditure = self.db.retrieve_gas_expenditure_by_message_id(msg_id)?;
         for (policy, whitelist) in &self.policies {
             if !whitelist.msg_matches(message, true) {
                 trace!(
@@ -136,8 +136,8 @@ impl GasPaymentEnforcer {
 mod test {
     use std::str::FromStr;
 
-    use hyperlane_base::db::{test_utils, HyperlaneDB};
-    use hyperlane_core::{HyperlaneMessage, TxCostEstimate, H160, H256, U256};
+    use hyperlane_base::db::{test_utils, HyperlaneRocksDB};
+    use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, TxCostEstimate, H160, H256, U256};
 
     use crate::settings::{
         matching_list::MatchingList, GasPaymentEnforcementConf, GasPaymentEnforcementPolicy,
@@ -148,7 +148,10 @@ mod test {
     #[tokio::test]
     async fn test_empty_whitelist() {
         test_utils::run_test_db(|db| async move {
-            let hyperlane_db = HyperlaneDB::new("mailbox", db);
+            let hyperlane_db = HyperlaneRocksDB::new(
+                &HyperlaneDomain::new_test_domain("test_empty_whitelist"),
+                db,
+            );
 
             let enforcer = GasPaymentEnforcer::new(
                 // Require a payment
@@ -181,7 +184,8 @@ mod test {
     async fn test_no_match() {
         #[allow(unused_must_use)]
         test_utils::run_test_db(|db| async move {
-            let hyperlane_db = HyperlaneDB::new("mailbox", db);
+            let hyperlane_db =
+                HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("test_no_match"), db);
             let matching_list = serde_json::from_str(r#"[{"originDomain": 234}]"#).unwrap();
             let enforcer = GasPaymentEnforcer::new(
                 // Require a payment
@@ -208,7 +212,7 @@ mod test {
     #[tokio::test]
     async fn test_non_empty_matching_list() {
         test_utils::run_test_db(|db| async move {
-            let hyperlane_db = HyperlaneDB::new("mailbox", db);
+            let hyperlane_db = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("test_non_empty_matching_list"), db);
 
             let sender_address = "0xaa000000000000000000000000000000000000aa";
             let recipient_address = "0xbb000000000000000000000000000000000000bb";

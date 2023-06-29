@@ -1,8 +1,8 @@
 import { CoreChainName } from '@hyperlane-xyz/sdk';
 
 import {
-  ChainValidatorConfigs,
   CheckpointSyncerType,
+  ValidatorBaseChainConfigMap,
 } from '../../../src/config/agent';
 
 import { environment } from './chains';
@@ -12,7 +12,7 @@ const s3BucketRegion = 'us-east-1';
 const s3BucketName = (chainName: CoreChainName, index: number) =>
   `hyperlane-${environment}-${chainName}-validator-${index}`;
 
-export const validators: ChainValidatorConfigs = {
+export const validators: ValidatorBaseChainConfigMap = {
   celo: {
     interval: 5,
     reorgPeriod: 0,
@@ -143,24 +143,6 @@ export const validators: ChainValidatorConfigs = {
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: s3BucketName('gnosis', 0),
-          region: s3BucketRegion,
-        },
-      },
-      {
-        address: '0x829d6ec129bc7187fb1ed161adcf7939fe0c515f',
-        name: s3BucketName('gnosis', 1),
-        checkpointSyncer: {
-          type: CheckpointSyncerType.S3,
-          bucket: s3BucketName('gnosis', 1),
-          region: s3BucketRegion,
-        },
-      },
-      {
-        address: '0x00009f8935e94bfe52ab3441df3526ab7cc38db1',
-        name: s3BucketName('gnosis', 2),
-        checkpointSyncer: {
-          type: CheckpointSyncerType.S3,
-          bucket: s3BucketName('gnosis', 2),
           region: s3BucketRegion,
         },
       },

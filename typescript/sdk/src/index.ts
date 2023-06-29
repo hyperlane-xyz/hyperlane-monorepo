@@ -12,7 +12,9 @@ export {
   ChainMetadata,
   ChainMetadataSchema,
   ExplorerFamily,
-  RpcPagination,
+  ExplorerFamilyType,
+  ProtocolType,
+  RpcPaginationOptions,
   chainIdToMetadata,
   chainMetadata,
   isValidChainMetadata,
@@ -30,7 +32,10 @@ export {
   TestChains,
   Testnets,
 } from './consts/chains';
-export { hyperlaneEnvironments } from './consts/environments';
+export {
+  hyperlaneContractAddresses,
+  hyperlaneEnvironments,
+} from './consts/environments';
 export { defaultMultisigIsmConfigs } from './consts/multisigIsm';
 export {
   HyperlaneAddresses,
@@ -52,11 +57,7 @@ export { HyperlaneCoreDeployer } from './core/HyperlaneCoreDeployer';
 export { TestCoreApp } from './core/TestCoreApp';
 export { TestCoreDeployer } from './core/TestCoreDeployer';
 export { CoreFactories, coreFactories } from './core/contracts';
-export {
-  AnnotatedDispatch,
-  AnnotatedLifecycleEvent,
-  HyperlaneLifecyleEvent,
-} from './core/events';
+export { HyperlaneLifecyleEvent } from './core/events';
 export { CoreConfig, CoreViolationType } from './core/types';
 export { HyperlaneAppChecker } from './deploy/HyperlaneAppChecker';
 export { DeployerOptions, HyperlaneDeployer } from './deploy/HyperlaneDeployer';
@@ -72,12 +73,6 @@ export {
   VerificationInput,
 } from './deploy/verify/types';
 export * as verificationUtils from './deploy/verify/utils';
-export {
-  Annotated,
-  TSContract,
-  getEvents,
-  queryAnnotatedEvents,
-} from './events';
 export { HyperlaneIgp } from './gas/HyperlaneIgp';
 export { HyperlaneIgpChecker } from './gas/HyperlaneIgpChecker';
 export { HyperlaneIgpDeployer } from './gas/HyperlaneIgpDeployer';
@@ -127,8 +122,15 @@ export {
   InterchainQueryDeployer,
 } from './middleware/query/InterchainQueryDeployer';
 export { interchainQueryFactories } from './middleware/query/contracts';
-export { MultiProvider, providerBuilder } from './providers/MultiProvider';
-export { RetryJsonRpcProvider, RetryProvider } from './providers/RetryProvider';
+export {
+  MultiProvider,
+  ProviderBuilderFn,
+  defaultProviderBuilder,
+} from './providers/MultiProvider';
+export {
+  RetryJsonRpcProvider,
+  RetryProviderOptions,
+} from './providers/RetryProvider';
 export { GasRouterDeployer } from './router/GasRouterDeployer';
 export { HyperlaneRouterChecker } from './router/HyperlaneRouterChecker';
 export { HyperlaneRouterDeployer } from './router/HyperlaneRouterDeployer';

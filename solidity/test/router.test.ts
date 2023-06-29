@@ -9,9 +9,9 @@ import { utils } from '@hyperlane-xyz/utils';
 import {
   TestInterchainGasPaymaster,
   TestInterchainGasPaymaster__factory,
-  TestIsm__factory,
   TestMailbox,
   TestMailbox__factory,
+  TestMultisigIsm__factory,
   TestRouter,
   TestRouter__factory,
 } from '../types';
@@ -86,7 +86,7 @@ describe('Router', async () => {
   describe('when initialized', () => {
     beforeEach(async () => {
       await router.initialize(mailbox.address, igp.address);
-      const ism = await new TestIsm__factory(signer).deploy();
+      const ism = await new TestMultisigIsm__factory(signer).deploy();
       await ism.setAccept(true);
       await mailbox.initialize(signer.address, ism.address);
     });

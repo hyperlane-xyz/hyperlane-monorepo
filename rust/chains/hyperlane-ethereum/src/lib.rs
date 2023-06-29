@@ -11,7 +11,7 @@ use ethers::prelude::{abi, Lazy, Middleware};
 #[cfg(not(doctest))]
 pub use self::{
     config::*, interchain_gas::*, interchain_security_module::*, mailbox::*, multisig_ism::*,
-    provider::*, routing_ism::*, rpc_clients::*, signers::*, trait_builder::*,
+    provider::*, routing_ism::*, rpc_clients::*, signers::*, singleton_signer::*, trait_builder::*,
     validator_announce::*,
 };
 
@@ -57,6 +57,9 @@ mod contracts;
 mod rpc_clients;
 
 mod signers;
+
+#[cfg(not(doctest))]
+mod singleton_signer;
 
 mod config;
 

@@ -1,11 +1,11 @@
-import { AgentConfig, EnvironmentConfig } from '../config';
+import { AgentContextConfig, EnvironmentConfig } from '../config';
 import { LiquidityLayerRelayerConfig } from '../config/middleware';
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { execCmd } from '../utils/utils';
 
 export async function runLiquidityLayerRelayerHelmCommand(
   helmCommand: HelmCommand,
-  agentConfig: AgentConfig,
+  agentConfig: AgentContextConfig,
   relayerConfig: LiquidityLayerRelayerConfig,
 ) {
   const values = getLiquidityLayerRelayerHelmValues(agentConfig, relayerConfig);
@@ -35,7 +35,7 @@ export async function runLiquidityLayerRelayerHelmCommand(
 }
 
 function getLiquidityLayerRelayerHelmValues(
-  agentConfig: AgentConfig,
+  agentConfig: AgentContextConfig,
   relayerConfig: LiquidityLayerRelayerConfig,
 ) {
   const values = {
@@ -59,7 +59,7 @@ function getLiquidityLayerRelayerHelmValues(
 export function getLiquidityLayerRelayerConfig(
   coreConfig: EnvironmentConfig,
 ): LiquidityLayerRelayerConfig {
-  const relayerConfig = coreConfig.liquidityLayerRelayerConfig;
+  const relayerConfig = coreConfig.liquidityLayerConfig?.relayer;
   if (!relayerConfig) {
     throw new Error(
       `Environment ${coreConfig.environment} does not have a LiquidityLayerRelayerConfig config`,

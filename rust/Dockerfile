@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:experimental
 
-FROM rust:1.68 as builder
+FROM rust:1.69 as builder
 WORKDIR /usr/src
 
 # 1a: Prepare for static linking
@@ -26,7 +26,7 @@ RUN \
   --mount=id=cargo,type=cache,sharing=locked,target=/usr/src/target \
   --mount=id=cargo-home-registry,type=cache,sharing=locked,target=/usr/local/cargo/registry \
   --mount=id=cargo-home-git,type=cache,sharing=locked,target=/usr/local/cargo/git \
-    cargo build --release -p validator -p relayer -p scraper && \
+    cargo build --release --bin validator --bin relayer --bin scraper && \
     mkdir -p /release && \
     cp /usr/src/target/release/validator /release && \
     cp /usr/src/target/release/relayer /release && \

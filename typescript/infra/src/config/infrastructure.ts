@@ -1,3 +1,13 @@
+export interface HelmImageValues {
+  repository: string;
+  tag: string;
+}
+
+// This encompasses things like storage and resources for stateful sets.
+export interface HelmStatefulSetValues {
+  enabled: boolean;
+}
+
 interface KubernetesConfig {
   clusterName: string;
 }

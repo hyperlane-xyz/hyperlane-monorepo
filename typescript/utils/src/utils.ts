@@ -213,7 +213,8 @@ export async function retryAsync<T>(
   let saveError;
   for (let i = 0; i < attempts; i++) {
     try {
-      return runner();
+      const result = await runner();
+      return result;
     } catch (error) {
       saveError = error;
       await sleep(baseRetryMs * 2 ** i);

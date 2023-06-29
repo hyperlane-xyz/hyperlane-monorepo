@@ -1,3 +1,5 @@
+import debug from 'debug';
+
 import {
   HyperlaneAddresses,
   HyperlaneContracts,
@@ -17,6 +19,7 @@ export class HyperlaneApp<
   constructor(
     public readonly contractsMap: HyperlaneContractsMap<Factories>,
     public readonly multiProvider: MultiProvider,
+    public readonly logger = debug('hyperlane:App'),
   ) {
     const connectedContractsMap = objMap(contractsMap, (chain, contracts) =>
       connectContracts(contracts, multiProvider.getSignerOrProvider(chain)),

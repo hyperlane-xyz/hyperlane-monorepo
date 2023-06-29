@@ -5,14 +5,14 @@ import {
   LiquidityLayerRouter,
   PortalAdapter,
 } from '@hyperlane-xyz/core';
-import { utils } from '@hyperlane-xyz/utils';
+import { types, utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts, HyperlaneContractsMap } from '../../contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ProxiedRouterDeployer } from '../../router/ProxiedRouterDeployer';
 import { RouterConfig } from '../../router/types';
 import { ChainMap, ChainName } from '../../types';
-import { objMap } from '../../utils/objects';
+import { objFilter, objMap } from '../../utils/objects';
 
 import { LiquidityLayerFactories, liquidityLayerFactories } from './contracts';
 
@@ -86,26 +86,43 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
   async enrollRemoteRouters(
     contractsMap: HyperlaneContractsMap<LiquidityLayerFactories>,
     configMap: ChainMap<LiquidityLayerConfig>,
+    foreignRouters: ChainMap<types.Address>,
   ): Promise<void> {
     this.logger(`Enroll LiquidityLayerRouters with each other`);
-    await super.enrollRemoteRouters(contractsMap, configMap);
+    await super.enrollRemoteRouters(contractsMap, configMap, foreignRouters);
 
     this.logger(`Enroll CircleBridgeAdapters with each other`);
     // Hack to allow use of super.enrollRemoteRouters
     await super.enrollRemoteRouters(
-      objMap(contractsMap, (_, contracts) => ({
-        liquidityLayerRouter: contracts.circleBridgeAdapter,
-      })) as unknown as HyperlaneContractsMap<LiquidityLayerFactories>,
+      objMap(
+        objFilter(
+          contractsMap,
+          (_, c): c is HyperlaneContracts<LiquidityLayerFactories> =>
+            !!c.circleBridgeAdapter,
+        ),
+        (_, contracts) => ({
+          liquidityLayerRouter: contracts.circleBridgeAdapter,
+        }),
+      ) as unknown as HyperlaneContractsMap<LiquidityLayerFactories>,
       configMap,
+      foreignRouters,
     );
 
     this.logger(`Enroll PortalAdapters with each other`);
     // Hack to allow use of super.enrollRemoteRouters
     await super.enrollRemoteRouters(
-      objMap(contractsMap, (_, contracts) => ({
-        liquidityLayerRouter: contracts.portalAdapter,
-      })) as unknown as HyperlaneContractsMap<LiquidityLayerFactories>,
+      objMap(
+        objFilter(
+          contractsMap,
+          (_, c): c is HyperlaneContracts<LiquidityLayerFactories> =>
+            !!c.portalAdapter,
+        ),
+        (_, contracts) => ({
+          liquidityLayerRouter: contracts.portalAdapter,
+        }),
+      ) as unknown as HyperlaneContractsMap<LiquidityLayerFactories>,
       configMap,
+      foreignRouters,
     );
   }
 
@@ -115,6 +132,9 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
     chain: ChainName,
     config: LiquidityLayerConfig,
   ): Promise<HyperlaneContracts<LiquidityLayerFactories>> {
+    // This is just the temp owner for contracts, and HyperlaneRouterDeployer#transferOwnership actually sets the configured owner
+    const deployer = await this.multiProvider.getSignerAddress(chain);
+
     const routerContracts = await super.deployContracts(chain, config);
 
     const bridgeAdapters: Partial<
@@ -125,7 +145,7 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
       bridgeAdapters.circleBridgeAdapter = await this.deployCircleBridgeAdapter(
         chain,
         config.circle,
-        config.owner,
+        deployer,
         routerContracts.liquidityLayerRouter,
       );
     }
@@ -133,7 +153,7 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
       bridgeAdapters.portalAdapter = await this.deployPortalAdapter(
         chain,
         config.portal,
-        config.owner,
+        deployer,
         routerContracts.liquidityLayerRouter,
       );
     }
@@ -173,9 +193,11 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
       this.logger(
         `Set wormhole domain ${wormholeDomain} for hyperlane domain ${hyperlaneDomain}`,
       );
-      await this.multiProvider.handleTx(
-        chain,
-        portalAdapter.addDomain(hyperlaneDomain, wormholeDomain),
+      await this.runIfOwner(chain, portalAdapter, () =>
+        this.multiProvider.handleTx(
+          chain,
+          portalAdapter.addDomain(hyperlaneDomain, wormholeDomain),
+        ),
       );
     }
 
@@ -186,11 +208,13 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
       )
     ) {
       this.logger('Set Portal as LiquidityLayerAdapter on Router');
-      await this.multiProvider.handleTx(
-        chain,
-        router.setLiquidityLayerAdapter(
-          adapterConfig.type,
-          portalAdapter.address,
+      await this.runIfOwner(chain, portalAdapter, () =>
+        this.multiProvider.handleTx(
+          chain,
+          router.setLiquidityLayerAdapter(
+            adapterConfig.type,
+            portalAdapter.address,
+          ),
         ),
       );
     }
@@ -223,9 +247,11 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
       )
     ) {
       this.logger(`Set USDC token contract`);
-      await this.multiProvider.handleTx(
-        chain,
-        circleBridgeAdapter.addToken(adapterConfig.usdcAddress, 'USDC'),
+      await this.runIfOwner(chain, circleBridgeAdapter, () =>
+        this.multiProvider.handleTx(
+          chain,
+          circleBridgeAdapter.addToken(adapterConfig.usdcAddress, 'USDC'),
+        ),
       );
     }
     // Set domain mappings
@@ -242,9 +268,11 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
       this.logger(
         `Set circle domain ${circleDomain} for hyperlane domain ${hyperlaneDomain}`,
       );
-      await this.multiProvider.handleTx(
-        chain,
-        circleBridgeAdapter.addDomain(hyperlaneDomain, circleDomain),
+      await this.runIfOwner(chain, circleBridgeAdapter, () =>
+        this.multiProvider.handleTx(
+          chain,
+          circleBridgeAdapter.addDomain(hyperlaneDomain, circleDomain),
+        ),
       );
     }
 
@@ -255,11 +283,13 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
       )
     ) {
       this.logger('Set Circle as LiquidityLayerAdapter on Router');
-      await this.multiProvider.handleTx(
-        chain,
-        router.setLiquidityLayerAdapter(
-          adapterConfig.type,
-          circleBridgeAdapter.address,
+      await this.runIfOwner(chain, circleBridgeAdapter, () =>
+        this.multiProvider.handleTx(
+          chain,
+          router.setLiquidityLayerAdapter(
+            adapterConfig.type,
+            circleBridgeAdapter.address,
+          ),
         ),
       );
     }

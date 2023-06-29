@@ -3,7 +3,9 @@ use std::{fmt::Debug, str::FromStr, time::Duration};
 use crate::rpc_clients::{categorize_client_response, CategorizedResponse};
 use async_trait::async_trait;
 use ethers::providers::{Http, JsonRpcClient, ProviderError};
-use ethers_prometheus::json_rpc_client::PrometheusJsonRpcClient;
+use ethers_prometheus::json_rpc_client::{
+    PrometheusJsonRpcClient, PrometheusJsonRpcClientConfigExt,
+};
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use thiserror::Error;

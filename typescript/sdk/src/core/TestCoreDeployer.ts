@@ -1,7 +1,7 @@
 import {
   TestInterchainGasPaymaster__factory,
-  TestIsm__factory,
   TestMailbox__factory,
+  TestMultisigIsm__factory,
 } from '@hyperlane-xyz/core';
 
 import { TestChains } from '../consts/chains';
@@ -19,7 +19,7 @@ const testCoreFactories = {
   ...coreFactories,
   mailbox: new TestMailbox__factory(),
   interchainGasPaymaster: new TestInterchainGasPaymaster__factory(),
-  testIsm: new TestIsm__factory(),
+  testIsm: new TestMultisigIsm__factory(),
 };
 
 export class TestCoreDeployer extends HyperlaneCoreDeployer {

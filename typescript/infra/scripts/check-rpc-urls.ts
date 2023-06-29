@@ -1,6 +1,5 @@
-import { JsonRpcProvider } from '@ethersproject/providers';
+import { ethers } from 'ethers';
 
-import { providerBuilder } from '@hyperlane-xyz/sdk';
 import { debug, error } from '@hyperlane-xyz/utils';
 
 import { getSecretRpcEndpoint } from '../src/agents';
@@ -12,15 +11,15 @@ async function main() {
   const config = await getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
   const chains = multiProvider.getKnownChainNames();
-  const providers: [string, JsonRpcProvider][] = [];
+  const providers: [string, ethers.providers.JsonRpcProvider][] = [];
   for (const chain of chains) {
     debug(`Building providers for ${chain}`);
-    const rpcUrl = await getSecretRpcEndpoint(environment, chain, false);
-    providers.push([chain, providerBuilder({ http: rpcUrl })]);
-    const rpcData = await getSecretRpcEndpoint(environment, chain, true);
-    (rpcData as string[]).forEach((url) => {
-      providers.push([chain, providerBuilder({ http: url })]);
-    });
+    const rpcData = [
+      ...(await getSecretRpcEndpoint(environment, chain, false)),
+      ...(await getSecretRpcEndpoint(environment, chain, true)),
+    ];
+    for (const url of rpcData)
+      providers.push([chain, new ethers.providers.StaticJsonRpcProvider(url)]);
   }
   for (const [chain, provider] of providers) {
     debug(`Testing provider for ${chain}: ${provider.connection.url}`);

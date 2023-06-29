@@ -1,11 +1,6 @@
 /// Mock mailbox contract
 pub mod mailbox;
+pub mod validator_announce;
 
-/// Mock indexer
-pub mod indexer;
-
-/// Mock SyncBlockRangeCursor
-pub mod cursor;
-
-pub use indexer::MockIndexer;
 pub use mailbox::MockMailboxContract;
+pub use validator_announce::MockValidatorAnnounceContract;

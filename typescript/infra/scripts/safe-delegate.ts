@@ -3,16 +3,15 @@ import { LedgerSigner } from '@ethersproject/hardware-wallets';
 // code to build, but needs to be removed in order for the code to run.
 import '@ethersproject/hardware-wallets/thirdparty';
 import { SafeDelegateConfig } from '@safe-global/safe-service-client';
-import yargs from 'yargs';
 
 import { AllChains } from '@hyperlane-xyz/sdk';
 
 import { getSafeDelegates, getSafeService } from '../src/utils/safe';
 
-import { getEnvironment, getEnvironmentConfig } from './utils';
+import { getEnvironmentConfig, getArgs as getRootArgs } from './utils';
 
 function getArgs() {
-  return yargs(process.argv.slice(2))
+  return getRootArgs()
     .describe('chain', 'chain of the validator to inspect')
     .choices('chain', AllChains)
     .demandOption('chain')
@@ -28,9 +27,8 @@ function getArgs() {
 }
 
 async function delegate() {
-  const environment = await getEnvironment();
+  const { environment, chain, delegate, safe, action } = await getArgs();
   const config = getEnvironmentConfig(environment);
-  const { chain, delegate, safe, action } = await getArgs();
 
   const multiProvider = await config.getMultiProvider();
 
