@@ -40,7 +40,7 @@ contract HypERC20Votable is
 
         // Initialize ERC20 metadata
         __ERC20_init(_name, _symbol);
-        __ERC20Permit_init("Interchain Token"); // Initializing the ERC20Upgradeable contract
+        __ERC20Permit_init(_name); // Initializing the ERC20Upgradeable contract
         _mint(msg.sender, _totalSupply);
     }
 

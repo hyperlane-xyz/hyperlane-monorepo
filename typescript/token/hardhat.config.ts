@@ -11,11 +11,11 @@ module.exports = {
   solidity: {
     compilers: [
       {
-        version: '0.8.16',
+        version: '0.8.17',
         settings: {
           optimizer: {
             enabled: true,
-            runs: 200, // Optimizer runs were added as the HypERC20Votable contract size exceeds the max smart contract size
+            runs: 999_999,
           },
         },
       },
