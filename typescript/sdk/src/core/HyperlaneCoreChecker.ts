@@ -1,4 +1,4 @@
-import { BigNumber, utils as ethersUtils } from 'ethers';
+import { utils as ethersUtils } from 'ethers';
 
 import { types, utils } from '@hyperlane-xyz/utils';
 
@@ -54,6 +54,11 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     if (config.upgradeTimelockDelay) {
       const timelockController =
         this.app.getContracts(chain).timelockController;
+      if (!timelockController) {
+        // do not check if not deployed
+        return;
+      }
+
       const minDelay = (await timelockController.getMinDelay()).toNumber();
 
       if (minDelay !== config.upgradeTimelockDelay) {
@@ -96,8 +101,10 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
 
     let ownableOverrides: Record<string, types.Address> = {};
     if (config.upgradeTimelockDelay) {
+      const timelockController =
+        this.app.getAddresses(chain).timelockController;
       ownableOverrides = {
-        proxyAdmin: this.app.getAddresses(chain).timelockController,
+        proxyAdmin: timelockController,
       };
     }
     return this.checkOwnership(chain, config.owner, ownableOverrides);
