@@ -47,6 +47,7 @@ jobs:
       - name: ubuntu setup
         if: ${{ matrix.OS == 'ubuntu-latest' }}
         run: |
+          sudo apt-get update -qq
           sudo apt-get install -qq crossbuild-essential-arm64 crossbuild-essential-armhf
           
           # some additional configuration for cross-compilation on linux
@@ -78,5 +79,9 @@ jobs:
           name: ${{ matrix.TARGET }}-${{ needs.prepare.outputs.tag_sha }}-${{ needs.prepare.outputs.tag_date }}
           path: |
             rust/target/${{ matrix.TARGET }}/release/relayer
+            rust/target/${{ matrix.TARGET }}/release/relayer.exe
             rust/target/${{ matrix.TARGET }}/release/scraper
+            rust/target/${{ matrix.TARGET }}/release/scraper.exe
             rust/target/${{ matrix.TARGET }}/release/validator
+            rust/target/${{ matrix.TARGET }}/release/validator.exe
+          if-no-files-found: error
