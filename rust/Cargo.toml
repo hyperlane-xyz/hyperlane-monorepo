@@ -126,6 +126,7 @@ tracing-subscriber = { version = "0.3", default-features = false }
 ureq = "2.4"
 url = "2.3"
 which = "4.3"
+md5 = "0.7"
 
 [patch.crates-io]
 curve25519-dalek = { git = "https://github.com/Eclipse-Laboratories-Inc/curve25519-dalek", branch = "steven/fix-deps" }
