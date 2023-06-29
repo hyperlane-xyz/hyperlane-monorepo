@@ -34,7 +34,7 @@ export type CollateralConfig = {
   votable?: boolean;
   type: TokenType.collateral | TokenType.collateralUri;
   token: string;
-};
+} & Partial<ERC20Metadata>;
 export type NativeConfig = {
   type: TokenType.native;
 };
