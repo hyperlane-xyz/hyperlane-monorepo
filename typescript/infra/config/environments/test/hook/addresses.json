@@ -1,10 +1,10 @@
 {
   "test1": {
     "optimismISM": "0x70e0bA845a1A0F2DA3359C97E0285013525FFC49",
-    "optimismMessageHook": "0x38F6F2caE52217101D7CA2a5eC040014b4164E6C"
+    "optimismMessageHook": "0xfB12F7170FF298CDed84C793dAb9aBBEcc01E798"
   },
   "test2": {
-    "optimismISM": "0xfbC22278A96299D91d41C453234d97b4F5Eb9B2d",
+    "optimismISM": "0x5eb3Bc0a489C5A8288765d2336659EbCA68FCd00",
     "optimismMessageHook": "0x2bdCC0de6bE1f7D2ee689a0342D76F52E8EFABa3"
   }
 }

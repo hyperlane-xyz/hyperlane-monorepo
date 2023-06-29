@@ -18,7 +18,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { testConfigs } from '../config/environments/test/chains';
-// import { testConfigs } from '../config/environments/test/chains';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
@@ -38,11 +37,11 @@ import {
   withModuleAndFork,
 } from './utils';
 
-// type Provider = providers.Provider;
-
 async function main() {
   const { module, fork, environment } = await withModuleAndFork(getArgs()).argv;
   const envConfig = getEnvironmentConfig(environment);
+  console.log('environment: ', deployEnvToSdkEnv[environment]);
+
   const multiProvider = await envConfig.getMultiProvider();
 
   if (fork) {
