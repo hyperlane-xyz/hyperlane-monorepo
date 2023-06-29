@@ -1,3 +1,4 @@
+use std::iter::IntoIterator;
 use std::path::{Path, PathBuf};
 use std::process;
 
@@ -36,6 +37,15 @@ impl Patcher {
         self
     }
 
+    pub fn patch_with_multiple<'a>(
+        &mut self,
+        patch_with: impl IntoIterator<Item = &'a str>,
+    ) -> &mut Self {
+        self.patch_with
+            .extend(patch_with.into_iter().map(Into::into));
+        self
+    }
+
     pub fn working_dir(&mut self, working_dir: impl AsRef<Path>) -> &mut Self {
         self.working_dir = Some(working_dir.as_ref().into());
         self
@@ -65,24 +75,25 @@ impl Patcher {
         let working_dir = self
             .working_dir
             .as_deref()
-            .expect("A clone dir must be specified");
-        let dest_dir_rel = self
-            .dest_dir
-            .clone()
-            .unwrap_or_else(|| "patched".into());
+            .expect("A working dir must be specified")
+            .canonicalize()
+            .unwrap();
+        println!("working_dir: {}", working_dir.display());
+        let dest_dir_rel = self.dest_dir.clone().unwrap_or_else(|| "patched".into());
         let dest_dir = working_dir.join(&dest_dir_rel);
-        let clone_dir = working_dir.join(
-            self.clone_dir
-                .clone()
-                .unwrap_or_else(|| working_dir.join("cloned")),
-        );
+        println!("dest_dir: {}", dest_dir.display());
+        let clone_dir_rel = self
+            .clone_dir
+            .clone()
+            .unwrap_or_else(|| working_dir.join("cloned"));
+        let clone_dir = working_dir.join(&clone_dir_rel);
+        println!("clone_dir: {}", clone_dir.display());
 
         let git = which("git").expect("git must be installed");
         println!("git: {}", git.display());
         if clone_dir.exists() {
             std::fs::remove_dir_all(&clone_dir).expect("Failed to remove old clone dir");
         }
-        println!("clone_dir: {}", clone_dir.display());
         std::fs::create_dir_all(&clone_dir).expect("Failed to create clone dir");
         process::Command::new(&git)
             .args([
@@ -94,15 +105,17 @@ impl Patcher {
                 "--single-branch",
                 "--depth",
                 "1",
+                "--config",
+                "advice.detachedHead=false",
             ])
             .current_dir(&working_dir)
             .status()
             .expect("Failed to checkout tag");
 
         for patch_path in self.patch_with.iter() {
-            let patch_path = working_dir.join(patch_path);
-            assert!(patch_path.is_file());
+            let patch_path = working_dir.join(patch_path).canonicalize().unwrap();
             println!("patch: {}", patch_path.display());
+            assert!(patch_path.is_file());
             process::Command::new(&git)
                 .args(["apply", patch_path.to_str().unwrap()])
                 .current_dir(&clone_dir)
@@ -127,10 +140,5 @@ impl Patcher {
             std::fs::rename(&clone_dir, &dest_dir).expect("Failed to rename repo dir");
             println!("Moved {} to {}", clone_dir.display(), dest_dir.display());
         }
-        std::fs::write(
-            working_dir.join(".gitignore"),
-            format!("{}\n", dest_dir_rel.display()),
-        )
-        .expect("Failed to write .gitignore");
     }
 }

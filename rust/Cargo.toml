@@ -1,7 +1,7 @@
-cargo-features = ["edition2021"]
+# This file is updated by `patch.rs`;
+# changes will be incorporated but will be reformatted and comments will be lost.
 
 [workspace]
-
 members = [
     "agents/relayer",
     "agents/scraper",
@@ -13,7 +13,6 @@ members = [
     "hyperlane-base",
     "hyperlane-core",
     "hyperlane-test",
-    "patches/*",
     "sealevel/client",
     "sealevel/libraries/access-control",
     "sealevel/libraries/account-utils",
@@ -37,7 +36,6 @@ members = [
     "utils/abigen",
     "utils/backtrace-oneline",
     "utils/hex",
-    "utils/patcher",
     "utils/run-locally",
 ]
 
@@ -61,23 +59,15 @@ bs58 = "0.4.0"
 clap = "4"
 color-eyre = "0.6"
 config = "~0.13.3"
-curve25519-dalek = { version = "~3.2", features = ["serde"] } # Patched down below; this forces a compatible version with the patch
 derive-new = "0.5"
 derive_builder = "0.12"
 derive_more = "0.99"
-ed25519-dalek = { version = "~1.0" } # Patched down below; this forces a compatible version with the patch
 enum_dispatch = "0.3"
-ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-06-01" }
-ethers-contract = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-06-01", features = ["legacy"] }
-ethers-core = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-06-01" }
-ethers-providers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-06-01" }
-ethers-signers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-06-01", features = ["aws"] }
 eyre = "0.6"
 fuels = "0.38"
 fuels-code-gen = "0.38"
 futures = "0.3"
 futures-util = "0.3"
-generic-array = { version = "0.14", default-features = false, features = ["serde", "more_lengths"] }
 hex = "0.4"
 itertools = "0.10"
 jsonrpc-core = "18.0"
@@ -94,13 +84,14 @@ prometheus = "0.13"
 reqwest = "0.11"
 rocksdb = "0.20"
 semver = "1.0"
-serde = { version = "1.0", features = ["derive"] }
 serde_bytes = "0.11"
 serde_derive = "1.0"
 serde_json = "1.0"
 sha2 = "0.10"
-solana = { path = "patches/solana-1.14.13" } # dependency to force the patched version to be built
 solana-account-decoder = "=1.14.13"
+solana-banks-client = "=1.14.13"
+solana-banks-interface = "=1.14.13"
+solana-banks-server = "=1.14.13"
 solana-clap-utils = "=1.14.13"
 solana-cli-config = "=1.14.13"
 solana-client = "=1.14.13"
@@ -109,48 +100,211 @@ solana-program-test = "=1.14.13"
 solana-sdk = "=1.14.13"
 solana-transaction-status = "=1.14.13"
 solana-zk-token-sdk = "=1.14.13"
-spl-associated-token-account = { version = "=1.1.2", features = ["no-entrypoint"] }
-spl-noop = { version = "=0.1.3", features = ["no-entrypoint"] }
-spl-token = { version = "=3.5.0", features = ["no-entrypoint"] }
-spl-token-2022 = { version = "=0.5.0", features = ["no-entrypoint"] }
-spl-type-length-value = { version = "=0.1.0", features = ["borsh"] }
 static_assertions = "1.1"
 strum = "0.24"
 strum_macros = "0.24"
 thiserror = "1.0"
-tokio = { version = "1", features = ["parking_lot"] }
-tracing = { version = "0.1", features = ["release_max_level_debug"] }
 tracing-error = "0.2"
 tracing-futures = "0.2"
-tracing-subscriber = { version = "0.3", default-features = false }
 ureq = "2.4"
 url = "2.3"
 which = "4.3"
 
-[patch.crates-io]
-curve25519-dalek = { git = "https://github.com/Eclipse-Laboratories-Inc/curve25519-dalek", branch = "steven/fix-deps" }
-ed25519-dalek = { git = "https://github.com/Eclipse-Laboratories-Inc/ed25519-dalek", branch = "steven/fix-deps" }
-primitive-types = { git = "https://github.com/Eclipse-Laboratories-Inc/parity-common", branch = "steven/primitive-types-impl-borsh-uint-version-fix" }
-rlp = { git = "https://github.com/Eclipse-Laboratories-Inc/parity-common", branch = "steven/primitive-types-impl-borsh-uint-version-fix" }
-solana-banks-client = { git = "https://github.com/mattiecnvr/solana", branch = "mattie/1.14.13/patched" }
-solana-banks-interface = { git = "https://github.com/mattiecnvr/solana", branch = "mattie/1.14.13/patched" }
-solana-banks-server = { git = "https://github.com/mattiecnvr/solana", branch = "mattie/1.14.13/patched" }
-solana-program = { git = "https://github.com/mattiecnvr/solana", branch = "mattie/1.14.13/patched" }
-solana-program-test = { git = "https://github.com/mattiecnvr/solana", branch = "mattie/1.14.13/patched" }
-solana-sdk = { git = "https://github.com/mattiecnvr/solana", branch = "mattie/1.14.13/patched" }
-solana-zk-token-sdk = { git = "https://github.com/mattiecnvr/solana", branch = "mattie/1.14.13/patched" }
-#solana-banks-client = { path = "patches/solana-1.14.13/patched/banks-client" }
-#solana-banks-interface = { path = "patches/solana-1.14.13/patched/banks-interface" }
-#solana-banks-server = { path = "patches/solana-1.14.13/patched/banks-server" }
-#solana-program = { path = "patches/solana-1.14.13/patched/sdk/program" }
-#solana-program-test = { path = "patches/solana-1.14.13/patched/program-test" }
-#solana-sdk = { path = "patches/solana-1.14.13/patched/sdk" }
-#solana-zk-token-sdk = { path = "patches/solana-1.14.13/patched/zk-token-sdk" }
-spl-associated-token-account = { git = "https://github.com/tkporter/eclipse-program-library", branch = "mattie/eclipse-1.14.13" }
-spl-noop = { git = "https://github.com/tkporter/eclipse-program-library", branch = "mattie/eclipse-1.14.13" }
-spl-token = { git = "https://github.com/tkporter/eclipse-program-library", branch = "mattie/eclipse-1.14.13" }
-spl-token-2022 = { git = "https://github.com/tkporter/eclipse-program-library", branch = "mattie/eclipse-1.14.13" }
-spl-type-length-value = { git = "https://github.com/tkporter/eclipse-program-library", branch = "mattie/eclipse-1.14.13" }
+[workspace.dependencies.curve25519-dalek]
+version = "~3.2"
+features = ["serde"]
 
-# FIXME patch primitive types to pull in borsh support. Unfortunately crates in parity-common refer
-#  to one another with local paths so patching one requires patching most of them.
+[workspace.dependencies.ed25519-dalek]
+version = "~1.0"
+features = []
+
+[workspace.dependencies.ethers]
+git = "https://github.com/hyperlane-xyz/ethers-rs"
+tag = "2023-06-01"
+features = []
+
+[workspace.dependencies.ethers-contract]
+git = "https://github.com/hyperlane-xyz/ethers-rs"
+tag = "2023-06-01"
+features = ["legacy"]
+
+[workspace.dependencies.ethers-core]
+git = "https://github.com/hyperlane-xyz/ethers-rs"
+tag = "2023-06-01"
+features = []
+
+[workspace.dependencies.ethers-providers]
+git = "https://github.com/hyperlane-xyz/ethers-rs"
+tag = "2023-06-01"
+features = []
+
+[workspace.dependencies.ethers-signers]
+git = "https://github.com/hyperlane-xyz/ethers-rs"
+tag = "2023-06-01"
+features = ["aws"]
+
+[workspace.dependencies.generic-array]
+version = "0.14"
+features = [
+    "serde",
+    "more_lengths",
+]
+default-features = false
+
+[workspace.dependencies.serde]
+version = "1.0"
+features = ["derive"]
+
+[workspace.dependencies.solana]
+path = "patches/solana-1.14.13"
+features = []
+
+[workspace.dependencies.spl-associated-token-account]
+version = "=1.1.2"
+features = ["no-entrypoint"]
+
+[workspace.dependencies.spl-noop]
+version = "=0.1.3"
+features = ["no-entrypoint"]
+
+[workspace.dependencies.spl-token]
+version = "=3.5.0"
+features = ["no-entrypoint"]
+
+[workspace.dependencies.spl-token-2022]
+version = "=0.5.0"
+features = ["no-entrypoint"]
+
+[workspace.dependencies.spl-type-length-value]
+version = "=0.1.0"
+features = ["borsh"]
+
+[workspace.dependencies.tokio]
+version = "1"
+features = ["parking_lot"]
+
+[workspace.dependencies.tracing]
+version = "0.1"
+features = ["release_max_level_debug"]
+
+[workspace.dependencies.tracing-subscriber]
+version = "0.3"
+features = []
+default-features = false
+
+[patch.crates-io.curve25519-dalek]
+git = "https://github.com/Eclipse-Laboratories-Inc/curve25519-dalek"
+branch = "steven/fix-deps"
+features = []
+
+[patch.crates-io.ed25519-dalek]
+git = "https://github.com/Eclipse-Laboratories-Inc/ed25519-dalek"
+branch = "steven/fix-deps"
+features = []
+
+[patch.crates-io.primitive-types]
+git = "https://github.com/Eclipse-Laboratories-Inc/parity-common"
+branch = "steven/primitive-types-impl-borsh-uint-version-fix"
+features = []
+
+[patch.crates-io.rlp]
+git = "https://github.com/Eclipse-Laboratories-Inc/parity-common"
+branch = "steven/primitive-types-impl-borsh-uint-version-fix"
+features = []
+
+[patch.crates-io.solana-account-decoder]
+version = "=1.14.13"
+path = "patches/solana/account-decoder"
+features = []
+default-features = false
+
+[patch.crates-io.solana-banks-client]
+version = "=1.14.13"
+path = "patches/solana/banks-client"
+features = []
+default-features = false
+
+[patch.crates-io.solana-banks-interface]
+version = "=1.14.13"
+path = "patches/solana/banks-interface"
+features = []
+default-features = false
+
+[patch.crates-io.solana-banks-server]
+version = "=1.14.13"
+path = "patches/solana/banks-server"
+features = []
+default-features = false
+
+[patch.crates-io.solana-clap-utils]
+version = "=1.14.13"
+path = "patches/solana/clap-utils"
+features = []
+default-features = false
+
+[patch.crates-io.solana-cli-config]
+version = "=1.14.13"
+path = "patches/solana/cli-config"
+features = []
+default-features = false
+
+[patch.crates-io.solana-client]
+version = "=1.14.13"
+path = "patches/solana/client"
+features = []
+default-features = false
+
+[patch.crates-io.solana-program]
+version = "=1.14.13"
+path = "patches/solana/sdk/program"
+features = []
+default-features = false
+
+[patch.crates-io.solana-program-test]
+version = "=1.14.13"
+path = "patches/solana/program-test"
+features = []
+default-features = false
+
+[patch.crates-io.solana-sdk]
+version = "=1.14.13"
+path = "patches/solana/sdk"
+features = []
+default-features = false
+
+[patch.crates-io.solana-transaction-status]
+version = "=1.14.13"
+path = "patches/solana/transaction-status"
+features = []
+default-features = false
+
+[patch.crates-io.solana-zk-token-sdk]
+version = "=1.14.13"
+path = "patches/solana/zk-token-sdk"
+features = []
+default-features = false
+
+[patch.crates-io.spl-associated-token-account]
+git = "https://github.com/tkporter/eclipse-program-library"
+branch = "mattie/eclipse-1.14.13"
+features = []
+
+[patch.crates-io.spl-noop]
+git = "https://github.com/tkporter/eclipse-program-library"
+branch = "mattie/eclipse-1.14.13"
+features = []
+
+[patch.crates-io.spl-token]
+git = "https://github.com/tkporter/eclipse-program-library"
+branch = "mattie/eclipse-1.14.13"
+features = []
+
+[patch.crates-io.spl-token-2022]
+git = "https://github.com/tkporter/eclipse-program-library"
+branch = "mattie/eclipse-1.14.13"
+features = []
+
+[patch.crates-io.spl-type-length-value]
+git = "https://github.com/tkporter/eclipse-program-library"
+branch = "mattie/eclipse-1.14.13"
+features = []
