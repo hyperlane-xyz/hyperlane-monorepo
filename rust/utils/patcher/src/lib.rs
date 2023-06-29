@@ -76,10 +76,6 @@ impl Patcher {
             .repo_url
             .as_deref()
             .expect("A repo url must be specified");
-        let tag = self
-            .repo_tag
-            .as_deref()
-            .expect("A repo tag must be specified");
         let working_dir = self
             .working_dir
             .as_deref()
@@ -105,45 +101,49 @@ impl Patcher {
         std::fs::create_dir_all(&clone_dir).expect("Failed to create clone dir");
         assert!(
             process::Command::new(&git)
-                .args([
-                    "clone",
-                    repo_url,
-                    clone_dir.to_str().unwrap(),
-                    "--branch",
-                    tag,
-                    "--single-branch",
-                    "--depth",
-                    "1",
-                    "--config",
-                    "advice.detachedHead=false",
-                ])
+                .args(["init", clone_dir.to_str().unwrap()])
                 .current_dir(&working_dir)
                 .status()
                 .unwrap()
                 .success(),
-            "Failed to checkout tag/branch"
+            "Failed to init git repo"
         );
 
-        if let Some(rev) = &self.repo_rev {
-            assert!(
-                process::Command::new(&git)
-                    .args(["fetch", "origin", rev, "--depth", "1"])
-                    .current_dir(&clone_dir)
-                    .status()
-                    .unwrap()
-                    .success(),
-                "Failed to fetch revision"
-            );
-            assert!(
-                process::Command::new(&git)
-                    .args(["checkout", rev])
-                    .current_dir(&clone_dir)
-                    .status()
-                    .unwrap()
-                    .success(),
-                "Failed to checkout revision"
-            );
+        if self.repo_rev.is_some() && self.repo_tag.is_some() {
+            panic!("A repo tag xor revision must be specified")
         }
+        let (fetch_args, refspec) = if let Some(rev) = self.repo_rev.as_deref() {
+            (
+                vec!["fetch", repo_url, rev, "--no-tags", "--depth", "1"],
+                rev,
+            )
+        } else if let Some(tag) = self.repo_tag.as_deref() {
+            (
+                vec!["fetch", repo_url, "tag", tag, "--no-tags", "--depth", "1"],
+                tag,
+            )
+        } else {
+            panic!("A repo tag or revision must be specified")
+        };
+
+        assert!(
+            process::Command::new(&git)
+                .args(fetch_args)
+                .current_dir(&clone_dir)
+                .status()
+                .unwrap()
+                .success(),
+            "Failed to fetch revision"
+        );
+        assert!(
+            process::Command::new(&git)
+                .args(["checkout", refspec, "--detach"])
+                .current_dir(&clone_dir)
+                .status()
+                .unwrap()
+                .success(),
+            "Failed to checkout revision"
+        );
 
         for patch_path in self.patch_with.iter() {
             let patch_path = working_dir.join(patch_path).canonicalize().unwrap();

@@ -5,7 +5,7 @@
 //! [dependencies]
 //! cargo_toml = "0.15.3"
 //! toml = "0.7.1"
-//! patcher = { path = "utils/patcher", version = "0.1.1" }
+//! patcher = { path = "utils/patcher", version = "0.1.7" }
 //! ```
 
 use std::path::{Path, PathBuf};
@@ -44,7 +44,6 @@ const SPL_CRATES: &[(&str, &str, &str)] = &[
 const SPL_REPO: &str = "https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library.git";
 /// Main branch as of 2023-06-29
 const SPL_REV: &str = "891b4bdad856a6101367ca1b3c1e9bace5ec8986";
-const SPL_BRANCH: &str = "master";
 const SPL_PATCHES: &[&str] = &[
     "spl-steven-fixes.patch",
     "spl-tlv-lib.patch",
@@ -115,7 +114,6 @@ fn patch_spl(manifest: &mut Manifest, patch_dir: &Path) {
 
     patcher::Patcher::default()
         .repo_url(SPL_REPO)
-        .repo_tag(SPL_BRANCH)
         .repo_rev(SPL_REV)
         .patch_with_multiple(SPL_PATCHES.iter().copied())
         .working_dir(&patch_dir)
