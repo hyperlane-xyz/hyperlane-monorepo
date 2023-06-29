@@ -21,6 +21,5 @@ mod settings;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
-    println!("RELAYOOOOOR");
     agent_main::<Relayer>().await
 }

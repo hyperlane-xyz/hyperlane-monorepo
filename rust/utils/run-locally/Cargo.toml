@@ -9,9 +9,7 @@ version.workspace = true
 
 [dependencies]
 ctrlc = "3.2"
-ethers.workspace = true
 tempfile = "3.3"
-tokio.workspace = true
 maplit = "1.0"
 nix = { version = "0.26", default-features = false, features = ["signal"] }
 ureq = { version = "2.4", default-features = false }

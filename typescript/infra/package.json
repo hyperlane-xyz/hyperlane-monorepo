@@ -60,7 +60,7 @@
     "deploy-igp": "ts-node scripts/deploy.ts -e test --context hyperlane -m igp",
     "deploy-ism": "ts-node scripts/deploy.ts -e test --context hyperlane -m ism",
     "deploy-hook": "ts-node scripts/deploy.ts -e test --context hyperlane -m hook",
-    "orchestrate-hook": "ts-node scripts/orchestrate-hook.ts -e test",
+    "orchestrate-hook": "ts-node scripts/orchestrate-hook.ts",
     "build": "tsc",
     "clean": "rm -rf ./dist ./cache",
     "check": "tsc --noEmit",

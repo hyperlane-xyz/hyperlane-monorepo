@@ -297,7 +297,7 @@ fn main() -> ExitCode {
         // don't need to clean in the CI
         build_cmd(&["yarn", "clean"], Some("../"), None);
     }
-    build_cmd(&["yarn", "build"], Some("../"), None);
+    build_cmd(&["yarn", "build:e2e"], Some("../"), None);
 
     let mut state = State::default();
     state.build_log = build_log;

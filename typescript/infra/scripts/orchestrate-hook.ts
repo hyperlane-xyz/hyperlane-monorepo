@@ -1,4 +1,3 @@
-// import type { Chain as WagmiChain } from '@wagmi/chains';
 import debug from 'debug';
 import { providers, utils } from 'ethers';
 import fs from 'fs';
@@ -129,6 +128,8 @@ export async function dispatchMessage(
     );
 
     const mailbox = await new Mailbox__factory(signer).attach(mailboxAddress);
+
+    logger('Mailbox configured: %s', mailbox.address);
 
     const destinationDomain = testConfigs['test2'].chainId;
 

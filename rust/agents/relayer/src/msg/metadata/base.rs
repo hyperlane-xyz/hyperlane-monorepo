@@ -71,19 +71,14 @@ impl MetadataBuilder for BaseMetadataBuilder {
         ism_address: H256,
         message: &HyperlaneMessage,
     ) -> Result<Option<Vec<u8>>> {
-
         const CTX: &str = "When fetching module type";
-        println!("{:?}", CTX);
         let ism = self
             .destination_chain_setup
             .build_ism(ism_address, &self.metrics)
             .await
             .context(CTX)?;
-        println!("{:?}", ism);
         let module_type = ism.module_type().await.context(CTX)?;
         let base = self.clone_with_incremented_depth()?;
-
-        println!("RELAYOOR {:?}", module_type);
 
         let metadata_builder: Box<dyn MetadataBuilder> = match module_type {
             ModuleType::LegacyMultisig => Box::new(LegacyMultisigMetadataBuilder::new(base)),
@@ -93,7 +88,6 @@ impl MetadataBuilder for BaseMetadataBuilder {
             ModuleType::MessageIdMultisig => Box::new(MessageIdMultisigMetadataBuilder::new(base)),
             ModuleType::Null => Box::new(NoMetadataBuilder::new()),
             ModuleType::Routing => Box::new(RoutingIsmMetadataBuilder::new(base)),
-
             _ => return Err(MetadataBuilderError::UnsupportedModuleType(module_type).into()),
         };
         metadata_builder
