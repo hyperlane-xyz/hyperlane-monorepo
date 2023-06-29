@@ -20,7 +20,7 @@ const PATCHES: &[PatchDirective] = &[
         url: "https://github.com/solana-labs/solana.git",
         rev: None,
         tag: Some("v1.14.13"),
-        patches: &["solana-tokio.patch", "solana-aes-gcm-siv.patch"],
+        patches: &["solana-tokio.patch", "solana-aes-gcm-siv.patch", "solana-ed25519-dalek-keypair.patch"],
         crates: &[
             PatchCrateDirective {
                 name: "solana-account-decoder",
@@ -95,13 +95,57 @@ const PATCHES: &[PatchDirective] = &[
             "spl-display-for-pods.patch",
         ],
         crates: &[
-            PatchCrateDirective { name: "spl-associated-token-account", version: "1.1.2", path: "associated-token-account/program" },
-            PatchCrateDirective { name: "spl-noop", version: "0.1.3", path: "account-compression/programs/noop" },
-            PatchCrateDirective { name: "spl-token", version: "3.5.0", path: "token/program" },
-            PatchCrateDirective { name: "spl-token-2022", version: "0.5.0", path: "token/program-2022" },
-            PatchCrateDirective { name: "spl-type-length-value", version: "0.1.0", path: "libraries/type-length-value" }
+            PatchCrateDirective {
+                name: "spl-associated-token-account",
+                version: "1.1.2",
+                path: "associated-token-account/program",
+            },
+            PatchCrateDirective {
+                name: "spl-noop",
+                version: "0.1.3",
+                path: "account-compression/programs/noop",
+            },
+            PatchCrateDirective {
+                name: "spl-token",
+                version: "3.5.0",
+                path: "token/program",
+            },
+            PatchCrateDirective {
+                name: "spl-token-2022",
+                version: "0.5.0",
+                path: "token/program-2022",
+            },
+            PatchCrateDirective {
+                name: "spl-type-length-value",
+                version: "0.1.0",
+                path: "libraries/type-length-value",
+            },
         ],
     },
+    // PatchDirective {
+    //     name: "primitive-types",
+    //     url: "https://github.com/Eclipse-Laboratories-Inc/parity-common.git",
+    //     rev: None,
+    //     tag: Some("master"),
+    //     patches: &["primitive-types-borsh.patch"],
+    //     crates: &[PatchCrateDirective {
+    //         name: "primitive-types",
+    //         version: "0.12.1",
+    //         path: "primitive-types",
+    //     }],
+    // },
+    // PatchDirective {
+    //     name: "curve25519-dalek",
+    //     url: "https://github.com/Eclipse-Laboratories-Inc/curve25519-dalek",
+    //     rev: Some("7529d65506147b6cb24ca6d8f4fc062cac33b395"),
+    //     tag: None,
+    //     patches: &["ed25519-dalek-deps.patch"],
+    //     crates: &[PatchCrateDirective {
+    //         name: "ed25519-dalek",
+    //         version: "3.2.2",
+    //         path: ".",
+    //     }],
+    // },
 ];
 
 struct PatchDirective {
@@ -144,8 +188,15 @@ fn main() {
     manifest.insert_str(0, "# This file is updated by `patch.rs`;\n# changes will be incorporated but will be reformatted and comments will be lost.\n\n");
     std::fs::write("Cargo.toml", manifest).expect("Failed to write Cargo.toml");
 
-    std::fs::write(PathBuf::from(PATCH_DIR).join(".gitignore"), "solana\nspl")
-        .expect("Failed to write .gitignore");
+    std::fs::write(
+        PathBuf::from(PATCH_DIR).join(".gitignore"),
+        PATCHES
+            .into_iter()
+            .map(|p| p.name)
+            .collect::<Vec<_>>()
+            .join("\n"),
+    )
+    .expect("Failed to write .gitignore");
 }
 
 impl PatchDirective {
@@ -173,17 +224,26 @@ impl PatchDirective {
 
         let dir = patch_dir.join(self.name);
         for (_, c) in crates {
-            patch_dep(manifest, c.name, c.version, &dir.join(c.path));
+            patch_dep(manifest, c.name, c.version, dir.join(c.path));
         }
-        for entry in dir.read_dir().unwrap().map(Result::unwrap) {
-            if !entry.file_type().unwrap().is_dir() {
-                std::fs::remove_file(entry.path()).unwrap();
+
+        if self.crates.len() == 1 && self.crates[0].path == "." {
+            // Not a monorepo, probably fine to leave things as they are
+        } else {
+            for entry in dir.read_dir().unwrap().map(Result::unwrap) {
+                if !entry.file_type().unwrap().is_dir() {
+                    std::fs::remove_file(entry.path()).unwrap();
+                }
             }
         }
     }
 }
 
-fn patch_dep(manifest: &mut Manifest, name: &str, version: &str, path: &Path) {
+fn patch_dep(manifest: &mut Manifest, name: &str, version: &str, mut path: PathBuf) {
+    path = path
+        .components()
+        .filter(|c| c.as_os_str().to_str() != Some("."))
+        .collect();
     manifest
         .workspace
         .as_mut()

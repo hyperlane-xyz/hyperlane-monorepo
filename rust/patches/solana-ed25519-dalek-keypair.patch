@@ -1,0 +1,67 @@
+Index: sdk/src/signer/keypair.rs
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/sdk/src/signer/keypair.rs b/sdk/src/signer/keypair.rs
+--- a/sdk/src/signer/keypair.rs	(revision e30bd3d97bf84ffeb1b0eeaf0425f33c70f450d8)
++++ b/sdk/src/signer/keypair.rs	(date 1688079485557)
+@@ -61,14 +61,14 @@
+     }
+
+     /// Gets this `Keypair`'s SecretKey
+-    pub fn secret(&self) -> &ed25519_dalek::SecretKey {
+-        &self.0.secret
++    pub fn secret(&self) -> ed25519_dalek::SecretKey {
++        self.0.secret_key()
+     }
+ }
+
+ impl Signer for Keypair {
+     fn pubkey(&self) -> Pubkey {
+-        Pubkey::new(self.0.public.as_ref())
++        Pubkey::new(self.0.public_key().as_ref())
+     }
+
+     fn try_pubkey(&self) -> Result<Pubkey, SignerError> {
+@@ -159,9 +159,7 @@
+     }
+     let secret = ed25519_dalek::SecretKey::from_bytes(&seed[..ed25519_dalek::SECRET_KEY_LENGTH])
+         .map_err(|e| e.to_string())?;
+-    let public = ed25519_dalek::PublicKey::from(&secret);
+-    let dalek_keypair = ed25519_dalek::Keypair { secret, public };
+-    Ok(Keypair(dalek_keypair))
++    Ok(Keypair(ed25519_dalek::Keypair::from(secret)))
+ }
+
+ /// Generates a Keypair using Bip32 Hierarchical Derivation if derivation-path is provided;
+@@ -181,11 +179,7 @@
+ ) -> Result<Keypair, Bip32Error> {
+     let extended = ed25519_dalek_bip32::ExtendedSecretKey::from_seed(seed)
+         .and_then(|extended| extended.derive(&derivation_path))?;
+-    let extended_public_key = extended.public_key();
+-    Ok(Keypair(ed25519_dalek::Keypair {
+-        secret: extended.secret_key,
+-        public: extended_public_key,
+-    }))
++    Ok(Keypair(ed25519_dalek::Keypair::from(extended.secret_key)))
+ }
+
+ pub fn generate_seed_from_seed_phrase_and_passphrase(
+Index: sdk/src/ed25519_instruction.rs
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/sdk/src/ed25519_instruction.rs b/sdk/src/ed25519_instruction.rs
+--- a/sdk/src/ed25519_instruction.rs	(revision e30bd3d97bf84ffeb1b0eeaf0425f33c70f450d8)
++++ b/sdk/src/ed25519_instruction.rs	(date 1688079283996)
+@@ -28,7 +28,7 @@
+
+ pub fn new_ed25519_instruction(keypair: &ed25519_dalek::Keypair, message: &[u8]) -> Instruction {
+     let signature = keypair.sign(message).to_bytes();
+-    let pubkey = keypair.public.to_bytes();
++    let pubkey = keypair.public_key().to_bytes();
+
+     assert_eq!(pubkey.len(), PUBKEY_SERIALIZED_SIZE);
+     assert_eq!(signature.len(), SIGNATURE_SERIALIZED_SIZE);
