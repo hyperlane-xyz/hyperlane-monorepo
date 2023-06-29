@@ -21,6 +21,8 @@ import {Encoding} from "@eth-optimism/contracts-bedrock/contracts/libraries/Enco
 import {Hashing} from "@eth-optimism/contracts-bedrock/contracts/libraries/Hashing.sol";
 
 contract OptimismISMTest is Test {
+    using TypeCasts for address;
+
     uint256 internal mainnetFork;
     uint256 internal optimismFork;
 
@@ -60,7 +62,7 @@ contract OptimismISMTest is Test {
 
     event FailedRelayedMessage(bytes32 indexed msgHash);
 
-    event ReceivedMessage(address indexed sender, bytes32 indexed messageId);
+    event ReceivedMessage(bytes32 indexed sender, bytes32 indexed messageId);
 
     error NotCrossChainCall();
 
@@ -131,7 +133,7 @@ contract OptimismISMTest is Test {
 
         bytes memory encodedHookData = abi.encodeCall(
             OptimismISM.verifyMessageId,
-            (address(this), messageId)
+            (address(this).addressToBytes32(), messageId)
         );
 
         uint40 nonce = ICanonicalTransactionChain(L1_CANNONICAL_CHAIN)
@@ -164,7 +166,7 @@ contract OptimismISMTest is Test {
 
     /* ============ ISM.verifyMessageId ============ */
 
-    function testverifyMessageId() public {
+    function testVerifyMessageId() public {
         deployAll();
 
         vm.selectFork(optimismFork);
@@ -173,10 +175,20 @@ contract OptimismISMTest is Test {
             _encodeTestMessage(0, address(testRecipient))
         );
 
+        messageId = 0x4f5ed38605c337de8e386ab3e006f759aa58f7e25c065a1bd29115949311fd1e;
+
         bytes memory encodedHookData = abi.encodeCall(
             OptimismISM.verifyMessageId,
-            (address(this), messageId)
+            (address(this).addressToBytes32(), messageId)
         );
+
+        console.log("encoded message hook data");
+
+        console.logBytes(encodedHookData);
+
+        console.log("selector for verifyMessagId");
+
+        console.logBytes4(OptimismISM.verifyMessageId.selector);
 
         (uint240 nonce, uint16 verison) = Encoding.decodeVersionedNonce(
             l2Messenger.messageNonce()
@@ -200,10 +212,13 @@ contract OptimismISMTest is Test {
         );
 
         vm.expectEmit(true, true, false, false, address(opISM));
-        emit ReceivedMessage(address(this), messageId);
+        emit ReceivedMessage(address(this).addressToBytes32(), messageId);
 
         vm.expectEmit(true, false, false, false, L2_MESSENGER_ADDRESS);
         emit RelayedMessage(versionedHash);
+
+        console.logBytes4(l2Messenger.relayMessage.selector);
+        console.log("Nonce: %s", versionedNonce);
 
         l2Messenger.relayMessage(
             versionedNonce,
@@ -214,7 +229,10 @@ contract OptimismISMTest is Test {
             encodedHookData
         );
 
-        assertEq(opISM.verifiedMessageIds(messageId, address(this)), true);
+        assertEq(
+            opISM.verifiedMessageIds(messageId),
+            address(this).addressToBytes32()
+        );
 
         vm.stopPrank();
     }
@@ -258,7 +276,7 @@ contract OptimismISMTest is Test {
     //     vm.stopPrank();
     // }
 
-    function testverifyMessageId_NotAuthorized() public {
+    function testVerifyMessageId_NotAuthorized() public {
         deployAll();
 
         vm.selectFork(optimismFork);
@@ -271,7 +289,7 @@ contract OptimismISMTest is Test {
 
         // needs to be called by the cannonical messenger on Optimism
         vm.expectRevert(NotCrossChainCall.selector);
-        opISM.verifyMessageId(address(opHook), _messageId);
+        opISM.verifyMessageId(address(opHook).addressToBytes32(), _messageId);
 
         // set the xDomainMessageSender storage slot as alice
         bytes32 key = bytes32(uint256(204));
@@ -282,7 +300,7 @@ contract OptimismISMTest is Test {
 
         // needs to be called by the authorized hook contract on Ethereum
         vm.expectRevert("OptimismISM: sender is not the hook");
-        opISM.verifyMessageId(address(opHook), _messageId);
+        opISM.verifyMessageId(address(opHook).addressToBytes32(), _messageId);
     }
 
     /* ============ ISM.verify ============ */
@@ -300,7 +318,7 @@ contract OptimismISMTest is Test {
 
         bytes memory encodedHookData = abi.encodeCall(
             OptimismISM.verifyMessageId,
-            (address(this), _messageId)
+            (address(this).addressToBytes32(), _messageId)
         );
 
         (uint240 nonce, uint16 verison) = Encoding.decodeVersionedNonce(
@@ -338,7 +356,7 @@ contract OptimismISMTest is Test {
 
         bytes memory encodedHookData = abi.encodeCall(
             OptimismISM.verifyMessageId,
-            (address(this), _messageId)
+            (address(this).addressToBytes32(), _messageId)
         );
 
         (uint240 nonce, uint16 verison) = Encoding.decodeVersionedNonce(
@@ -378,7 +396,7 @@ contract OptimismISMTest is Test {
 
         bytes memory encodedHookData = abi.encodeCall(
             OptimismISM.verifyMessageId,
-            (address(this), _messageId)
+            (address(this).addressToBytes32(), _messageId)
         );
 
         (uint240 nonce, uint16 verison) = Encoding.decodeVersionedNonce(
@@ -416,7 +434,7 @@ contract OptimismISMTest is Test {
 
         bytes memory encodedHookData = abi.encodeCall(
             OptimismISM.verifyMessageId,
-            (alice, _messageId)
+            (alice.addressToBytes32(), _messageId)
         );
 
         (uint240 nonce, uint16 verison) = Encoding.decodeVersionedNonce(

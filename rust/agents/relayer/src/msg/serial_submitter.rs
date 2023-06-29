@@ -168,7 +168,7 @@ async fn prepare_task(
         };
         let Some(Reverse(mut op)) = next else {
             // queue is empty so give some time before checking again to prevent burning CPU
-            sleep(Duration::from_millis(200)).await;
+            sleep(Duration::from_millis(2000)).await;
             continue;
         };
         trace!(?op, "Preparing operation");
@@ -184,7 +184,7 @@ async fn prepare_task(
             PendingOperationResult::NotReady => {
                 // none of the operations are ready yet, so wait for a little bit
                 prepare_queue.lock().await.push(Reverse(op));
-                sleep(Duration::from_millis(200)).await;
+                sleep(Duration::from_millis(2000)).await;
             }
             PendingOperationResult::Reprepare => {
                 metrics.ops_failed.inc();

@@ -4530,10 +4530,12 @@ name = "run-locally"
 version = "0.1.0"
 dependencies = [
  "ctrlc",
+ "ethers",
  "eyre",
  "maplit",
  "nix",
  "tempfile",
+ "tokio",
  "ureq",
 ]
 

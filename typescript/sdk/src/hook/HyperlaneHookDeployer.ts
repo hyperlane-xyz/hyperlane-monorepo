@@ -62,6 +62,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
 
       return {
         optimismISM,
+        testRecipient,
       };
     } else if (hookConfig.nativeType === NativeType.HOOK) {
       optimismMessageHook = await this.deployOptimismMessageHook(

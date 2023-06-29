@@ -107,6 +107,7 @@ impl BaseAgent for Relayer {
         let mailboxes = settings
             .build_mailboxes(settings.destination_chains.iter(), &metrics)
             .await?;
+        println!("mailboxes: {:?}", mailboxes);
         let validator_announces = settings
             .build_validator_announces(settings.origin_chains.iter(), &metrics)
             .await?;
@@ -236,6 +237,9 @@ impl BaseAgent for Relayer {
     #[allow(clippy::async_yields_async)]
     async fn run(self) -> Instrumented<JoinHandle<Result<()>>> {
         let mut tasks = vec![];
+
+        println!("inside relayer.run() {:?}", self.destination_chains);
+
 
         // send channels by destination chain
         let mut send_channels = HashMap::with_capacity(self.destination_chains.len());

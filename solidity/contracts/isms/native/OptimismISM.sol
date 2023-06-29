@@ -66,14 +66,14 @@ contract OptimismISM is CrossChainEnabledOptimism, AbstractNativeISM {
     /**
      * @notice Receive a message from the L2 messenger.
      * @dev Only callable by the L2 messenger.
-     * @param _sender Address of the sender.
+     * @param _sender Left-padded address of the sender.
      * @param _messageId Hyperlane ID for the message.
      */
-    function verifyMessageId(address _sender, bytes32 _messageId)
+    function verifyMessageId(bytes32 _sender, bytes32 _messageId)
         external
         isAuthorized
     {
-        verifiedMessageIds[_messageId][_sender] = true;
+        verifiedMessageIds[_messageId] = _sender;
 
         emit ReceivedMessage(_sender, _messageId);
     }

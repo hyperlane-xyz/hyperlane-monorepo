@@ -24,7 +24,7 @@ pub enum ModuleType {
     /// Message ID ISM (cheapest multisig with no batching)
     MessageIdMultisig,
     /// No metadata ISM (no metadata)
-    NoMetadata,
+    Null,
 }
 
 /// Interface for the InterchainSecurityModule chain contract. Allows abstraction over
