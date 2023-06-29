@@ -9,6 +9,7 @@ pub struct Patcher {
     repo_url: Option<String>,
     repo_subdir: Option<String>,
     repo_tag: Option<String>,
+    repo_rev: Option<String>,
     patch_with: Vec<PathBuf>,
     working_dir: Option<PathBuf>,
     clone_dir: Option<PathBuf>,
@@ -26,8 +27,15 @@ impl Patcher {
         self
     }
 
+    /// The tag or branch to clone
     pub fn repo_tag(&mut self, repo_tag: &str) -> &mut Self {
         self.repo_tag = Some(repo_tag.to_string());
+        self
+    }
+
+    /// The revision to clone, avoid this if the repo tag is stable to prevent deeper cloning
+    pub fn repo_rev(&mut self, repo_rev: &str) -> &mut Self {
+        self.repo_rev = Some(repo_rev.to_string());
         self
     }
 
@@ -95,22 +103,47 @@ impl Patcher {
             std::fs::remove_dir_all(&clone_dir).expect("Failed to remove old clone dir");
         }
         std::fs::create_dir_all(&clone_dir).expect("Failed to create clone dir");
-        process::Command::new(&git)
-            .args([
-                "clone",
-                repo_url,
-                clone_dir.to_str().unwrap(),
-                "--branch",
-                tag,
-                "--single-branch",
-                "--depth",
-                "1",
-                "--config",
-                "advice.detachedHead=false",
-            ])
-            .current_dir(&working_dir)
-            .status()
-            .expect("Failed to checkout tag");
+        assert!(
+            process::Command::new(&git)
+                .args([
+                    "clone",
+                    repo_url,
+                    clone_dir.to_str().unwrap(),
+                    "--branch",
+                    tag,
+                    "--single-branch",
+                    "--depth",
+                    "1",
+                    "--config",
+                    "advice.detachedHead=false",
+                ])
+                .current_dir(&working_dir)
+                .status()
+                .unwrap()
+                .success(),
+            "Failed to checkout tag/branch"
+        );
+
+        if let Some(rev) = &self.repo_rev {
+            assert!(
+                process::Command::new(&git)
+                    .args(["fetch", "origin", rev, "--depth", "1"])
+                    .current_dir(&clone_dir)
+                    .status()
+                    .unwrap()
+                    .success(),
+                "Failed to fetch revision"
+            );
+            assert!(
+                process::Command::new(&git)
+                    .args(["checkout", rev])
+                    .current_dir(&clone_dir)
+                    .status()
+                    .unwrap()
+                    .success(),
+                "Failed to checkout revision"
+            );
+        }
 
         for patch_path in self.patch_with.iter() {
             let patch_path = working_dir.join(patch_path).canonicalize().unwrap();
