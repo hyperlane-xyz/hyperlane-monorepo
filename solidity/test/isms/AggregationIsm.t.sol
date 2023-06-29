@@ -72,6 +72,7 @@ contract AggregationIsmTest is Test {
         deployIsms(m, n, seed);
 
         bytes memory metadata = getMetadata(m, seed);
+        assertTrue(ism.verify(metadata, ""));
     }
 
     function testVerifyNoMetadataRequired(
