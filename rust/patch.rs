@@ -13,42 +13,115 @@ use std::path::{Path, PathBuf};
 use cargo_toml::{Dependency, DependencyDetail, Manifest};
 
 const SOLANA_VERSION: &str = "1.14.13";
-const SOLANA_CRATES: &[(&str, &str)] = &[
-    ("solana-account-decoder", "account-decoder"),
-    ("solana-banks-client", "banks-client"),
-    ("solana-banks-interface", "banks-interface"),
-    ("solana-banks-server", "banks-server"),
-    ("solana-clap-utils", "clap-utils"),
-    ("solana-cli-config", "cli-config"),
-    ("solana-client", "client"),
-    ("solana-program", "sdk/program"),
-    ("solana-program-test", "program-test"),
-    ("solana-sdk", "sdk"),
-    ("solana-transaction-status", "transaction-status"),
-    ("solana-zk-token-sdk", "zk-token-sdk"),
-];
-const SOLANA_REPO: &str = "https://github.com/solana-labs/solana.git";
-const SOLANA_PATCHES: &[&str] = &["solana-tokio.patch", "solana-aes-gcm-siv.patch"];
 
-const SPL_CRATES: &[(&str, &str, &str)] = &[
-    (
-        "spl-associated-token-account",
-        "1.1.2",
-        "associated-token-account/program",
-    ),
-    ("spl-noop", "0.1.3", "account-compression/programs/noop"),
-    ("spl-token", "3.5.0", "token/program"),
-    ("spl-token-2022", "0.5.0", "token/program-2022"),
-    ("spl-type-length-value", "0.1.0", "libraries/type-length-value"),
+const PATCHES: &[PatchDirective] = &[
+    PatchDirective {
+        name: "solana",
+        url: "https://github.com/solana-labs/solana.git",
+        rev: None,
+        tag: Some("v1.14.13"),
+        patches: &["solana-tokio.patch", "solana-aes-gcm-siv.patch"],
+        crates: &[
+            PatchCrateDirective {
+                name: "solana-account-decoder",
+                version: SOLANA_VERSION,
+                path: "account-decoder",
+            },
+            PatchCrateDirective {
+                name: "solana-banks-client",
+                version: SOLANA_VERSION,
+                path: "banks-client",
+            },
+            PatchCrateDirective {
+                name: "solana-banks-interface",
+                version: SOLANA_VERSION,
+                path: "banks-interface",
+            },
+            PatchCrateDirective {
+                name: "solana-banks-server",
+                version: SOLANA_VERSION,
+                path: "banks-server",
+            },
+            PatchCrateDirective {
+                name: "solana-clap-utils",
+                version: SOLANA_VERSION,
+                path: "clap-utils",
+            },
+            PatchCrateDirective {
+                name: "solana-cli-config",
+                version: SOLANA_VERSION,
+                path: "cli-config",
+            },
+            PatchCrateDirective {
+                name: "solana-client",
+                version: SOLANA_VERSION,
+                path: "client",
+            },
+            PatchCrateDirective {
+                name: "solana-program",
+                version: SOLANA_VERSION,
+                path: "sdk/program",
+            },
+            PatchCrateDirective {
+                name: "solana-program-test",
+                version: SOLANA_VERSION,
+                path: "program-test",
+            },
+            PatchCrateDirective {
+                name: "solana-sdk",
+                version: SOLANA_VERSION,
+                path: "sdk",
+            },
+            PatchCrateDirective {
+                name: "solana-transaction-status",
+                version: SOLANA_VERSION,
+                path: "transaction-status",
+            },
+            PatchCrateDirective {
+                name: "solana-zk-token-sdk",
+                version: SOLANA_VERSION,
+                path: "zk-token-sdk",
+            },
+        ],
+    },
+    PatchDirective {
+        name: "spl",
+        url: "https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library.git",
+        rev: Some("891b4bdad856a6101367ca1b3c1e9bace5ec8986"),
+        tag: None,
+        patches: &[
+            "spl-steven-fixes.patch",
+            "spl-tlv-lib.patch",
+            "spl-display-for-pods.patch",
+        ],
+        crates: &[
+            PatchCrateDirective { name: "spl-associated-token-account", version: "1.1.2", path: "associated-token-account/program" },
+            PatchCrateDirective { name: "spl-noop", version: "0.1.3", path: "account-compression/programs/noop" },
+            PatchCrateDirective { name: "spl-token", version: "3.5.0", path: "token/program" },
+            PatchCrateDirective { name: "spl-token-2022", version: "0.5.0", path: "token/program-2022" },
+            PatchCrateDirective { name: "spl-type-length-value", version: "0.1.0", path: "libraries/type-length-value" }
+        ],
+    },
 ];
-const SPL_REPO: &str = "https://github.com/Eclipse-Laboratories-Inc/eclipse-program-library.git";
-/// Main branch as of 2023-06-29
-const SPL_REV: &str = "891b4bdad856a6101367ca1b3c1e9bace5ec8986";
-const SPL_PATCHES: &[&str] = &[
-    "spl-steven-fixes.patch",
-    "spl-tlv-lib.patch",
-    "spl-display-for-pods.patch",
-];
+
+struct PatchDirective {
+    /// Name of the monorepo
+    name: &'static str,
+    url: &'static str,
+    rev: Option<&'static str>,
+    tag: Option<&'static str>,
+    patches: &'static [&'static str],
+    crates: &'static [PatchCrateDirective],
+}
+
+struct PatchCrateDirective {
+    /// Name of the crate
+    name: &'static str,
+    /// Version of the crate `x.y.z`
+    version: &'static str,
+    /// Relative path to the monorepo root
+    path: &'static str,
+}
 
 const PATCH_DIR: &str = "patches";
 
@@ -64,8 +137,9 @@ fn main() {
     if !patch_dir.exists() {
         panic!("Patch dir does not exist: {}", patch_dir.display());
     }
-    patch_solana(&mut manifest, &patch_dir);
-    patch_spl(&mut manifest, &patch_dir);
+    for directive in PATCHES {
+        directive.run(&mut manifest, &patch_dir);
+    }
     let mut manifest: String = toml::to_string_pretty(&manifest).unwrap();
     manifest.insert_str(0, "# This file is updated by `patch.rs`;\n# changes will be incorporated but will be reformatted and comments will be lost.\n\n");
     std::fs::write("Cargo.toml", manifest).expect("Failed to write Cargo.toml");
@@ -74,61 +148,37 @@ fn main() {
         .expect("Failed to write .gitignore");
 }
 
-fn patch_solana(manifest: &mut Manifest, patch_dir: &Path) {
-    let solana_crates: std::collections::BTreeMap<&'static str, &'static str> =
-        SOLANA_CRATES.into_iter().copied().collect();
-
-    if solana_crates.len() != SOLANA_CRATES.len() {
-        panic!("Duplicate crate name in SOLANA_CRATES");
-    }
-
-    patcher::Patcher::default()
-        .repo_url(SOLANA_REPO)
-        .repo_tag(&format!("v{SOLANA_VERSION}"))
-        .patch_with_multiple(SOLANA_PATCHES.iter().copied())
-        .working_dir(&patch_dir)
-        .dest_dir("solana")
-        .clone_dir("solana_remote")
-        .run();
-
-    let solana_dir = patch_dir.join("solana");
-    for (dep_name, dep_path) in solana_crates {
-        patch_dep(
-            manifest,
-            dep_name,
-            SOLANA_VERSION,
-            &solana_dir.join(dep_path),
-        );
-    }
-    // remove extra crap from the solana dir
-    for entry in solana_dir.read_dir().unwrap().map(Result::unwrap) {
-        if !entry.file_type().unwrap().is_dir() {
-            std::fs::remove_file(entry.path()).unwrap();
+impl PatchDirective {
+    fn run(&self, manifest: &mut Manifest, patch_dir: &Path) {
+        let crates: std::collections::BTreeMap<_, _> =
+            self.crates.iter().map(|c| (c.name, c)).collect();
+        if crates.len() != self.crates.len() {
+            panic!("Duplicate crate name in {}", self.name);
         }
-    }
-}
 
-fn patch_spl(manifest: &mut Manifest, patch_dir: &Path) {
-    let spl_crates: std::collections::BTreeMap<&'static str, (&'static str, &'static str)> =
-        SPL_CRATES.into_iter().map(|t| (t.0, (t.1, t.2))).collect();
+        let mut patcher = patcher::Patcher::default();
+        if let Some(tag) = self.tag {
+            patcher.repo_tag(tag);
+        }
+        if let Some(rev) = self.rev {
+            patcher.repo_rev(rev);
+        }
+        patcher
+            .repo_url(self.url)
+            .patch_with_multiple(self.patches.iter().copied())
+            .working_dir(patch_dir)
+            .dest_dir(self.name)
+            .clone_dir(format!("{}_remote", self.name))
+            .run();
 
-    patcher::Patcher::default()
-        .repo_url(SPL_REPO)
-        .repo_rev(SPL_REV)
-        .patch_with_multiple(SPL_PATCHES.iter().copied())
-        .working_dir(&patch_dir)
-        .dest_dir("spl")
-        .clone_dir("spl_remote")
-        .run();
-
-    let spl_dir = patch_dir.join("spl");
-    for (dep_name, (dep_version, dep_path)) in spl_crates {
-        patch_dep(manifest, dep_name, dep_version, &spl_dir.join(dep_path));
-    }
-
-    for entry in spl_dir.read_dir().unwrap().map(Result::unwrap) {
-        if !entry.file_type().unwrap().is_dir() {
-            std::fs::remove_file(entry.path()).unwrap();
+        let dir = patch_dir.join(self.name);
+        for (_, c) in crates {
+            patch_dep(manifest, c.name, c.version, &dir.join(c.path));
+        }
+        for entry in dir.read_dir().unwrap().map(Result::unwrap) {
+            if !entry.file_type().unwrap().is_dir() {
+                std::fs::remove_file(entry.path()).unwrap();
+            }
         }
     }
 }
