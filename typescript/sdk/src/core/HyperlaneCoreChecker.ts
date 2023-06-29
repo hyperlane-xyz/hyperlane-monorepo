@@ -54,9 +54,9 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     if (config.upgradeTimelockDelay) {
       const timelockController =
         this.app.getContracts(chain).timelockController;
-      const minDelay = await timelockController.getMinDelay();
+      const minDelay = (await timelockController.getMinDelay()).toNumber();
 
-      if (minDelay != BigNumber.from(config.upgradeTimelockDelay)) {
+      if (minDelay !== config.upgradeTimelockDelay) {
         this.addViolation({
           type: CoreViolationType.TimelockController,
           chain,
@@ -73,7 +73,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
         admin: await timelockController.TIMELOCK_ADMIN_ROLE(),
       };
 
-      for (const [label, role] of Object.values(roles)) {
+      for (const [label, role] of Object.entries(roles)) {
         const ownerHasRole = await timelockController.hasRole(
           role,
           config.owner,
