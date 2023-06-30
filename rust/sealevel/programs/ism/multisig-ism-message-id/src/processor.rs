@@ -133,8 +133,6 @@ pub fn process_instruction(
                 get_validators_and_threshold(program_id, accounts, message.origin)
             }
             MultisigIsmInstruction::ValidatorsAndThresholdAccountMetas(message_bytes) => {
-                // TODO consider de-duping this by just having the instructions pass in
-                // a deserialized HyperlaneMessage
                 let message = HyperlaneMessage::read_from(&mut &message_bytes[..])
                     .map_err(|_| ProgramError::InvalidArgument)?;
                 let account_metas = get_validators_and_threshold_account_metas(

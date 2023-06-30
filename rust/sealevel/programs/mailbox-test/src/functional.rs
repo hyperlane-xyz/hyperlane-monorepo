@@ -807,7 +807,7 @@ async fn test_process_errors_if_incorrect_destination_domain() {
         result,
         TransactionError::InstructionError(
             0,
-            InstructionError::Custom(MailboxError::IncorrectDestinationDomain as u32),
+            InstructionError::Custom(MailboxError::DestinationDomainNotLocalDomain as u32),
         ),
     );
 

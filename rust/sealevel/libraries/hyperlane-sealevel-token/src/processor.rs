@@ -12,7 +12,7 @@ use hyperlane_sealevel_connection_client::{
     HyperlaneConnectionClient, HyperlaneConnectionClientSetterAccessControl,
 };
 use hyperlane_sealevel_mailbox::{
-    mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
+    mailbox_message_dispatch_authority_pda_seeds,
     mailbox_process_authority_pda_seeds,
 };
 use hyperlane_sealevel_message_recipient_interface::HandleInstruction;
@@ -296,17 +296,10 @@ where
         if mailbox_info.key != &token.mailbox {
             return Err(ProgramError::IncorrectProgramId);
         }
-        // TODO supposed to use create_program_address() but we would need to pass in bump seed...
 
-        // Account 3: Mailbox outbox data account
-        // TODO should I be using find_program_address...?
-        // TODO why not just get it from the outbox account data?
+        // Account 3: Mailbox Outbox data account.
+        // No verification is performed here, the Mailbox will do that.
         let mailbox_outbox_account = next_account_info(accounts_iter)?;
-        let (mailbox_outbox, _mailbox_outbox_bump) =
-            Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), &token.mailbox);
-        if mailbox_outbox_account.key != &mailbox_outbox {
-            return Err(ProgramError::InvalidArgument);
-        }
 
         // Account 4: Message dispatch authority
         let dispatch_authority_account = next_account_info(accounts_iter)?;
