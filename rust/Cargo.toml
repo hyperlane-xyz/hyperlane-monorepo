@@ -37,6 +37,7 @@ members = [
     "utils/backtrace-oneline",
     "utils/hex",
     "utils/run-locally",
+    "utils/patcher",
 ]
 
 [workspace.package]
