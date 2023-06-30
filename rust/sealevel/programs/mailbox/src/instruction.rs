@@ -1,4 +1,4 @@
-//! API for Hyperlane Sealevel Mailbox smart contract.
+//! Instructions for the Hyperlane Sealevel Mailbox program.
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H256;
@@ -10,57 +10,83 @@ use solana_program::{
 
 use crate::{mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds};
 
-/// Hyperlane mailbox protocol version.
+/// The current message version.
 pub const VERSION: u8 = 0;
 
 /// Maximum bytes per message = 2 KiB (somewhat arbitrarily set to begin).
 pub const MAX_MESSAGE_BODY_BYTES: usize = 2 * 2_usize.pow(10);
 
+/// Instructions supported by the Mailbox program.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub enum Instruction {
+    /// Initializes the program.
     Init(Init),
+    /// Processes a message.
     InboxProcess(InboxProcess),
+    /// Sets the default ISM.
     InboxSetDefaultIsm(Pubkey),
+    /// Gets the recipient's ISM.
     InboxGetRecipientIsm(Pubkey),
+    /// Dispatches a message.
     OutboxDispatch(OutboxDispatch),
+    /// Gets the number of messages that have been dispatched.
     OutboxGetCount,
+    /// Gets the latest checkpoint.
     OutboxGetLatestCheckpoint,
+    /// Gets the root of the dispatched message merkle tree.
     OutboxGetRoot,
+    /// Gets the owner of the Mailbox.
     GetOwner,
+    /// Transfers ownership of the Mailbox.
     TransferOwnership(Option<Pubkey>),
 }
 
 impl Instruction {
+    /// Deserializes an instruction from a slice.
     pub fn from_instruction_data(data: &[u8]) -> Result<Self, ProgramError> {
         Self::try_from_slice(data).map_err(|_| ProgramError::InvalidInstructionData)
     }
 
+    /// Serializes an instruction into a vector of bytes.
     pub fn into_instruction_data(self) -> Result<Vec<u8>, ProgramError> {
         self.try_to_vec()
             .map_err(|err| ProgramError::BorshIoError(err.to_string()))
     }
 }
 
+/// Instruction data for the Init instruction.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub struct Init {
+    /// The local domain of the Mailbox.
     pub local_domain: u32,
+    /// The default ISM.
     pub default_ism: Pubkey,
 }
 
+/// Instruction data for the OutboxDispatch instruction.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub struct OutboxDispatch {
-    // The sender may not necessarily be the transaction payer so specify separately.
+    /// The sender of the message.
+    /// This is required and not implied because a program uses a dispatch authority PDA
+    /// to sign the CPI on its behalf. Instruction processing logic prevents a program from
+    /// specifying any message sender it wants by requiring the relevant dispatch authority
+    /// to sign the CPI.
     pub sender: Pubkey,
+    /// The destination domain of the message.
     pub destination_domain: u32,
+    /// The remote recipient of the message.
     pub recipient: H256,
+    /// The message body.
     pub message_body: Vec<u8>,
 }
 
-// Note: maximum transaction size is ~1kB, so will need to use accounts for large messages.
+/// Instruction data for the InboxProcess instruction.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub struct InboxProcess {
-    pub metadata: Vec<u8>, // Encoded Multi-Signature ISM data, or similar.
-    pub message: Vec<u8>,  // Encoded HyperlaneMessage
+    /// The metadata required by the ISM to process the message.
+    pub metadata: Vec<u8>,
+    /// The encoded message.
+    pub message: Vec<u8>,
 }
 
 /// Creates an Init instruction.

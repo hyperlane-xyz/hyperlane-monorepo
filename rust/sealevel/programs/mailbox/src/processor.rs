@@ -48,6 +48,7 @@ use crate::{
 #[cfg(not(feature = "no-entrypoint"))]
 entrypoint!(process_instruction);
 
+/// Entrypoint for the Mailbox program.
 pub fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -183,7 +184,7 @@ fn inbox_process(
 
     // Decode the message bytes.
     let message = HyperlaneMessage::read_from(&mut std::io::Cursor::new(&process.message))
-        .map_err(|_| ProgramError::from(Error::MalformattedHyperlaneMessage))?;
+        .map_err(|_| ProgramError::from(Error::DecodeError))?;
     let message_id = message.id();
 
     // Require the message version to match what we expect.
@@ -210,7 +211,7 @@ fn inbox_process(
 
     // Verify the message's destination matches the inbox's local domain.
     if inbox.local_domain != message.destination {
-        return Err(Error::IncorrectDestinationDomain.into());
+        return Err(Error::DestinationDomainNotLocalDomain.into());
     }
 
     // Account 3: Process authority account that is specific to the
@@ -638,7 +639,7 @@ fn outbox_dispatch(
     let mut encoded_message = vec![];
     message
         .write_to(&mut encoded_message)
-        .map_err(|_| ProgramError::from(Error::MalformattedMessage))?;
+        .map_err(|_| ProgramError::from(Error::EncodeError))?;
 
     let id = message.id();
     outbox.tree.ingest(id);

@@ -12,13 +12,19 @@ use solana_program::{
 
 use crate::{mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds};
 
+/// The Inbox account.
 pub type InboxAccount = AccountData<Inbox>;
 
+/// The Inbox account data, which is used when processing messages.
 #[derive(BorshSerialize, BorshDeserialize, Debug, Default, PartialEq, Eq)]
 pub struct Inbox {
+    /// The local domain.
     pub local_domain: u32,
+    /// The bump seed of the inbox PDA.
     pub inbox_bump_seed: u8,
+    /// The default ISM.
     pub default_ism: Pubkey,
+    /// The number of messages processed. Used for easy indexing of processed messages.
     pub processed_count: u64,
 }
 
@@ -33,6 +39,7 @@ impl SizedData for Inbox {
 }
 
 impl Inbox {
+    /// Verifies that the given account is the canonical Inbox PDA and returns the deserialized inner data.
     pub fn verify_account_and_fetch_inner<'a>(
         program_id: &Pubkey,
         inbox_account_info: &AccountInfo<'a>,
@@ -54,13 +61,19 @@ impl Inbox {
     }
 }
 
+/// The Outbox account.
 pub type OutboxAccount = AccountData<Outbox>;
 
+/// The Outbox account data, which is used when dispatching messages.
 #[derive(BorshSerialize, BorshDeserialize, Debug, Default, PartialEq, Eq)]
 pub struct Outbox {
+    /// The local domain.
     pub local_domain: u32,
+    /// The bump seed of the outbox PDA.
     pub outbox_bump_seed: u8,
+    /// The owner of this program, which has privileged permissions.
     pub owner: Option<Pubkey>,
+    /// The merkle tree of dispatched messages.
     pub tree: MerkleTree,
 }
 
@@ -86,6 +99,7 @@ impl AccessControl for Outbox {
 }
 
 impl Outbox {
+    /// Verifies that the given account is the canonical Outbox PDA and returns the deserialized inner data.
     pub fn verify_account_and_fetch_inner(
         program_id: &Pubkey,
         outbox_account_info: &AccountInfo,
@@ -107,20 +121,30 @@ impl Outbox {
     }
 }
 
+/// An account corresponding to a dispatched message.
 pub type DispatchedMessageAccount = AccountData<DispatchedMessage>;
 
+/// A discriminator used to easily identify dispatched message accounts.
+/// This is the first 8 bytes of the account data.
 pub const DISPATCHED_MESSAGE_DISCRIMINATOR: &[u8; 8] = b"DISPATCH";
 
+/// A dispatched message.
 #[derive(Debug, Default, Eq, PartialEq)]
 pub struct DispatchedMessage {
+    /// The discriminator, intended to be set to `DISPATCHED_MESSAGE_DISCRIMINATOR`.
     pub discriminator: [u8; 8],
+    /// The nonce of the message.
     pub nonce: u32,
+    /// The slot in which the message was dispatched.
     pub slot: Slot,
+    /// The unique message pubkey used when the message was dispatched.
     pub unique_message_pubkey: Pubkey,
+    /// The encoded message.
     pub encoded_message: Vec<u8>,
 }
 
 impl DispatchedMessage {
+    /// Creates a new dispatched message.
     pub fn new(
         nonce: u32,
         slot: Slot,
@@ -148,6 +172,7 @@ impl SizedData for DispatchedMessage {
     }
 }
 
+/// For tighter packing and explicit endianness, we implement our own serialization.
 impl BorshSerialize for DispatchedMessage {
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
         writer.write_all(DISPATCHED_MESSAGE_DISCRIMINATOR)?;
@@ -159,6 +184,7 @@ impl BorshSerialize for DispatchedMessage {
     }
 }
 
+/// For tighter packing, explicit endianness, and errors on an invalid discriminator, we implement our own deserialization.
 impl BorshDeserialize for DispatchedMessage {
     fn deserialize(reader: &mut &[u8]) -> std::io::Result<Self> {
         let mut discriminator = [0u8; 8];
@@ -192,19 +218,28 @@ impl BorshDeserialize for DispatchedMessage {
     }
 }
 
+/// An account corresponding to a processed message.
 pub type ProcessedMessageAccount = AccountData<ProcessedMessage>;
 
-const PROCESSED_MESSAGE_DISCRIMINATOR: &[u8; 8] = b"PROCESSD";
+/// A discriminator used to easily identify processed message accounts.
+pub const PROCESSED_MESSAGE_DISCRIMINATOR: &[u8; 8] = b"PROCESSD";
 
+/// A processed message.
 #[derive(Debug, Default, Eq, PartialEq, BorshSerialize)]
 pub struct ProcessedMessage {
+    /// The discriminator, intended to be set to `PROCESSED_MESSAGE_DISCRIMINATOR`.
     pub discriminator: [u8; 8],
+    /// The sequence of the processed message, which increases from 0 for each processed message.
+    /// This way, we can easily index processed messages.
     pub sequence: u64,
+    /// The message ID of the processed message.
     pub message_id: H256,
+    /// The slot in which the message was processed.
     pub slot: Slot,
 }
 
 impl ProcessedMessage {
+    /// Creates a new processed message.
     pub fn new(sequence: u64, message_id: H256, slot: Slot) -> Self {
         Self {
             discriminator: *PROCESSED_MESSAGE_DISCRIMINATOR,
@@ -225,6 +260,7 @@ impl SizedData for ProcessedMessage {
     }
 }
 
+/// To error upon invalid data, we implement our own deserialization.
 impl BorshDeserialize for ProcessedMessage {
     fn deserialize(reader: &mut &[u8]) -> std::io::Result<Self> {
         let mut discriminator = [0u8; 8];
