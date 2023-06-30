@@ -243,8 +243,12 @@ impl PatchDirective {
             .run();
 
         let dir = patch_dir.join(self.name);
+        let colored: std::rc::Rc<std::cell::RefCell<std::collections::HashSet<PathBuf>>> =
+            Default::default();
         for (_, c) in crates {
-            patch_dep(manifest, c.name, c.version, dir.join(c.path));
+            let dep_path = dir.join(c.path);
+            patch_dep(manifest, c.name, c.version, &dep_path);
+            suppress_warnings(&dep_path, colored.clone());
         }
 
         if self.crates.len() == 1 && self.crates[0].path == "." {
@@ -259,8 +263,9 @@ impl PatchDirective {
     }
 }
 
-fn patch_dep(manifest: &mut Manifest, name: &str, version: &str, mut path: PathBuf) {
-    path = path
+fn patch_dep(manifest: &mut Manifest, name: &str, version: &str, path: &Path) {
+    println!("Patching {} to {}", name, version);
+    let path: PathBuf = path
         .components()
         .filter(|c| c.as_os_str().to_str() != Some("."))
         .collect();
@@ -282,4 +287,46 @@ fn patch_dep(manifest: &mut Manifest, name: &str, version: &str, mut path: PathB
                 ..DependencyDetail::default()
             }),
         );
+}
+
+fn suppress_warnings(
+    crate_path: &Path,
+    colored: std::rc::Rc<std::cell::RefCell<std::collections::HashSet<PathBuf>>>,
+) {
+    println!("Suppressing warnings in {}", crate_path.display());
+    let lib_root_path = crate_path.join("src").join("lib.rs");
+    if lib_root_path.is_file() {
+        let raw = std::fs::read_to_string(&lib_root_path).expect("Failed to read lib.rs");
+        let lib_root = raw
+            .lines()
+            .filter(|l| !(l.starts_with("#![") && l.contains("warnings")));
+        let raw = ["#![allow(warnings)]"]
+            .into_iter()
+            .chain(lib_root)
+            .collect::<Vec<&str>>()
+            .join("\n");
+        std::fs::write(lib_root_path, raw).expect("Failed to write lib.rs");
+    }
+    let manifest_path = crate_path.join("Cargo.toml");
+    if manifest_path.is_file() {
+        let dep_paths: Vec<PathBuf> = {
+            // do this in a subscope so we can free up the memory of the manifest
+            let raw = std::fs::read_to_string(&manifest_path).expect("Failed to read Cargo.toml");
+            let manifest = Manifest::from_str(&raw).expect("Failed to parse Cargo.toml");
+            manifest
+                .dependencies
+                .values()
+                .filter_map(|d| d.detail())
+                .filter_map(|d| d.path.as_ref())
+                .filter_map(|p| crate_path.join(p).canonicalize().ok())
+                .filter(|p| colored.borrow_mut().insert(p.clone()))
+                .collect()
+        };
+        for dep_path in dep_paths {
+            if !colored.borrow_mut().insert(dep_path.clone()) {
+                // have not seen it before so recurse
+                suppress_warnings(&dep_path, colored.clone())
+            };
+        }
+    }
 }
