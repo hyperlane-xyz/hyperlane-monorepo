@@ -2,9 +2,11 @@
 
 use account_utils::DiscriminatorDecode;
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
-use hyperlane_sealevel_message_recipient_interface::MessageRecipientInstruction;
+use hyperlane_sealevel_message_recipient_interface::{
+    HandleInstruction, MessageRecipientInstruction,
+};
 use hyperlane_sealevel_token_lib::{
-    instruction::{Init, Instruction as TokenIxn, TransferFromRemote, TransferRemote},
+    instruction::{Init, Instruction as TokenIxn, TransferRemote},
     processor::HyperlaneSealevelToken,
 };
 use solana_program::{
@@ -36,7 +38,7 @@ pub fn process_instruction(
             MessageRecipientInstruction::Handle(handle) => transfer_from_remote(
                 program_id,
                 accounts,
-                TransferFromRemote {
+                HandleInstruction {
                     origin: handle.origin,
                     sender: handle.sender,
                     message: handle.message,
@@ -46,7 +48,7 @@ pub fn process_instruction(
                 transfer_from_remote_account_metas(
                     program_id,
                     accounts,
-                    TransferFromRemote {
+                    HandleInstruction {
                         origin: handle.origin,
                         sender: handle.sender,
                         message: handle.message,
@@ -124,7 +126,7 @@ fn transfer_remote(
 fn transfer_from_remote(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
-    transfer: TransferFromRemote,
+    transfer: HandleInstruction,
 ) -> ProgramResult {
     HyperlaneSealevelToken::<NativePlugin>::transfer_from_remote(program_id, accounts, transfer)
 }
@@ -132,7 +134,7 @@ fn transfer_from_remote(
 fn transfer_from_remote_account_metas(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
-    transfer: TransferFromRemote,
+    transfer: HandleInstruction,
 ) -> ProgramResult {
     HyperlaneSealevelToken::<NativePlugin>::transfer_from_remote_account_metas(
         program_id, accounts, transfer,

@@ -1,4 +1,4 @@
-//! TODO
+//! Processor logic shared by all Hyperlane Sealevel Token programs.
 
 use access_control::AccessControl;
 use account_utils::create_pda_account;
@@ -15,6 +15,7 @@ use hyperlane_sealevel_mailbox::{
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
     mailbox_process_authority_pda_seeds,
 };
+use hyperlane_sealevel_message_recipient_interface::HandleInstruction;
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
@@ -32,8 +33,7 @@ use crate::{
     accounts::{HyperlaneToken, HyperlaneTokenAccount},
     error::Error,
     instruction::{
-        Event, EventReceivedTransferRemote, EventSentTransferRemote, Init, TransferFromRemote,
-        TransferRemote,
+        Event, EventReceivedTransferRemote, EventSentTransferRemote, Init, TransferRemote,
     },
     message::TokenMessage,
 };
@@ -66,11 +66,13 @@ macro_rules! hyperlane_token_pda_seeds {
     }};
 }
 
+/// A plugin that handles token transfers for a Hyperlane Sealevel Token program.
 pub trait HyperlaneSealevelTokenPlugin
 where
     Self:
         BorshSerialize + BorshDeserialize + std::cmp::PartialEq + std::fmt::Debug + Default + Sized,
 {
+    /// Initializes the plugin.
     fn initialize<'a, 'b>(
         program_id: &Pubkey,
         system_program: &'a AccountInfo<'b>,
@@ -79,6 +81,7 @@ where
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
     ) -> Result<Self, ProgramError>;
 
+    /// Transfers tokens into the program.
     fn transfer_in<'a, 'b>(
         program_id: &Pubkey,
         token: &HyperlaneToken<Self>,
@@ -87,6 +90,7 @@ where
         amount: u64,
     ) -> Result<(), ProgramError>;
 
+    /// Transfers tokens out of the program.
     fn transfer_out<'a, 'b>(
         program_id: &Pubkey,
         token: &HyperlaneToken<Self>,
@@ -96,6 +100,7 @@ where
         amount: u64,
     ) -> Result<(), ProgramError>;
 
+    /// Gets the AccountMetas required by the `transfer_out` function.
     /// Returns (AccountMetas, whether recipient wallet must be writeable)
     fn transfer_out_account_metas(
         program_id: &Pubkey,
@@ -104,6 +109,8 @@ where
     ) -> Result<(Vec<SerializableAccountMeta>, bool), ProgramError>;
 }
 
+/// Core functionality of a Hyperlane Sealevel Token program that uses
+/// a plugin to handle token transfers.
 pub struct HyperlaneSealevelToken<
     T: HyperlaneSealevelTokenPlugin
         + BorshDeserialize
@@ -403,7 +410,7 @@ where
     pub fn transfer_from_remote(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
-        xfer: TransferFromRemote,
+        xfer: HandleInstruction,
     ) -> ProgramResult {
         let accounts_iter = &mut accounts.iter();
 
@@ -488,7 +495,7 @@ where
         Ok(())
     }
 
-    /// Gets the account metas required by the `TransferFromRemote` instruction,
+    /// Gets the account metas required by the `HandleInstruction` instruction,
     /// serializes them, and sets them as return data.
     ///
     /// Accounts:
@@ -496,7 +503,7 @@ where
     pub fn transfer_from_remote_account_metas(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
-        transfer: TransferFromRemote,
+        transfer: HandleInstruction,
     ) -> ProgramResult {
         let accounts_iter = &mut accounts.iter();
 

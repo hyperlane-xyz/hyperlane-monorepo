@@ -14,6 +14,7 @@ use std::{cmp::Ordering, collections::HashMap, fmt::Debug};
 
 use crate::hyperlane_token_pda_seeds;
 
+/// HyperlaneToken account data.
 pub type HyperlaneTokenAccount<T> = AccountData<HyperlaneToken<T>>;
 
 /// A PDA account containing the data for a Hyperlane token
@@ -46,6 +47,8 @@ impl<T> HyperlaneToken<T>
 where
     T: BorshSerialize + BorshDeserialize + Default + Debug,
 {
+    /// Deserializes the data from the provided `token_account_info` and returns it.
+    /// Returns an Err if the provided `token_account_info` is not the canonical HyperlaneToken PDA for this program.
     pub fn verify_account_and_fetch_inner<'a>(
         program_id: &Pubkey,
         token_account_info: &AccountInfo<'a>,
@@ -64,11 +67,13 @@ where
         Ok(*token)
     }
 
+    /// Converts a local token amount to a remote token amount, accounting for decimals and types.
     pub fn local_amount_to_remote_amount(&self, amount: u64) -> Result<U256, ProgramError> {
         convert_decimals(amount.into(), self.decimals, self.remote_decimals)
             .ok_or(ProgramError::InvalidArgument)
     }
 
+    /// Converts a remote token amount to a local token amount, accounting for decimals and types.
     pub fn remote_amount_to_local_amount(&self, amount: U256) -> Result<u64, ProgramError> {
         let amount = convert_decimals(amount, self.remote_decimals, self.decimals)
             .ok_or(ProgramError::InvalidArgument)?
@@ -135,6 +140,7 @@ impl<T> HyperlaneRouter for HyperlaneToken<T> {
     }
 }
 
+/// Converts an amount from one decimal representation to another.
 pub fn convert_decimals(amount: U256, from_decimals: u8, to_decimals: u8) -> Option<U256> {
     match from_decimals.cmp(&to_decimals) {
         Ordering::Greater => {
