@@ -12,6 +12,7 @@ version.workspace = true
 async-trait.workspace = true
 derive-new.workspace = true
 ethers-contract.workspace = true
+ethers-core.workspace = true
 ethers-signers.workspace = true
 ethers.workspace = true
 hex = "0.4.3"
