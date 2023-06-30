@@ -32,7 +32,8 @@
   "files": [
     "/dist",
     "/contracts",
-    "/interfaces"
+    "/interfaces",
+    "/docs"
   ],
   "homepage": "https://www.hyperlane.xyz",
   "keywords": [
@@ -47,7 +48,7 @@
     "lint": "solhint contracts/**/*.sol",
     "clean": "hardhat clean && rm -rf ./dist ./cache",
     "coverage": "hardhat coverage && forge coverage --report lcov",
-    "docs": "forge doc --build",
+    "docs": "forge doc",
     "prettier": "prettier --write ./contracts ./test",
     "test": "hardhat test && yarn test:forge",
     "test:forge": "forge test -vvv",
