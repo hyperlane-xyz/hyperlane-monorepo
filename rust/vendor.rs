@@ -10,7 +10,7 @@
 //!
 //! ```cargo
 //! [dependencies]
-//! patcher = { path = "utils/patcher", version = "0.4.16" }
+//! patcher = { path = "utils/patcher", version = "0.5.0" }
 //! ```
 
 use patcher::borrowed::{PatchCrateDirective, PatchDirective, Refspec::*};
@@ -21,6 +21,9 @@ macro_rules! constants {
     };
     (solana_ref) => {
         concat!("v", constants!(solana_ver))
+    };
+    (patch_dir) => {
+        "vendor"
     };
 }
 
@@ -154,12 +157,10 @@ const PATCHES: &[PatchDirective] = &[
     },
 ];
 
-const PATCH_DIR: &str = "patches";
-
 fn main() {
     patcher::patch_workspace(
         std::env::current_dir().unwrap(),
-        PATCH_DIR,
+        constants!(patch_dir),
         PATCHES.into_iter().copied().map(Into::into),
     )
 }

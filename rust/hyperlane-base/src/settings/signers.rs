@@ -8,7 +8,7 @@ use rusoto_kms::KmsClient;
 use serde::Deserialize;
 use tracing::instrument;
 
-use ed25519_dalek::{SecretKey};
+use ed25519_dalek::SecretKey;
 use hyperlane_sealevel::Keypair;
 
 use super::aws_credentials::AwsChainCredentialsProvider;

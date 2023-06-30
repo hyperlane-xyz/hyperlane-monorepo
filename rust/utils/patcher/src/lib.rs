@@ -47,6 +47,7 @@ pub fn patch_workspace(
 ) {
     let workspace_dir = workspace_dir.as_ref().canonicalize().unwrap();
     let patch_dir = patch_dir.as_ref().canonicalize().unwrap();
+    let cargo = which("cargo").expect("cargo must be installed");
 
     // Use `from_str` to prevent Manifest form completing itself since we want to write it back
     // more or less as it was and not with extra information
@@ -64,6 +65,16 @@ pub fn patch_workspace(
     let mut manifest: String = toml::to_string_pretty(&manifest).unwrap();
     manifest.insert_str(0, "# This file is updated by `patch.rs`;\n# changes will be incorporated but will be reformatted and comments will be lost.\n\n");
     fs::write("Cargo.toml", manifest).expect("Failed to write Cargo.toml");
+
+    assert!(
+        process::Command::new(cargo)
+            .args(["fmt"])
+            .current_dir(&workspace_dir)
+            .status()
+            .unwrap()
+            .success(),
+        "Failed to format workspace"
+    );
 }
 
 impl PatchDirective {

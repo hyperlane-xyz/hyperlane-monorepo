@@ -8,3 +8,4 @@
 *.Dockerfile
 Dockerfile
 
+rust/vendor
