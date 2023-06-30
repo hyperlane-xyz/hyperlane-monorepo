@@ -400,7 +400,7 @@ where
 
         let mut message_reader = std::io::Cursor::new(xfer.message);
         let message = TokenMessage::read_from(&mut message_reader)
-            .map_err(|_err| ProgramError::from(Error::TODO))?;
+            .map_err(|_err| ProgramError::from(Error::MessageDecodeError))?;
 
         // Account 0: Mailbox authority
         // This is verified further below.
@@ -480,7 +480,7 @@ where
 
         let mut message_reader = std::io::Cursor::new(transfer.message);
         let message = TokenMessage::read_from(&mut message_reader)
-            .map_err(|_err| ProgramError::from(Error::TODO))?;
+            .map_err(|_err| ProgramError::from(Error::MessageDecodeError))?;
 
         // Account 0: Token account.
         let token_account_info = next_account_info(accounts_iter)?;

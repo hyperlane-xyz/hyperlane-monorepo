@@ -14,9 +14,9 @@ pub enum Error {
     #[error("Integer overflow")]
     IntegerOverflow = 2,
 
-    /// TODO
-    #[error("TODO come back here once you know what to do with events")]
-    TODO = 3,
+    /// A message decoding error occurred.
+    #[error("Message decoding error")]
+    MessageDecodeError = 3,
 }
 
 impl From<Error> for ProgramError {
