@@ -215,12 +215,6 @@ fn main() -> ExitCode {
     sleep(Duration::from_secs(10));
 
     let deploy_env = hashmap! {"ALLOW_LEGACY_MULTISIG_ISM" => "true"};
-    println!("Deploying hyperlane core contracts...");
-    build_cmd(
-        &["yarn", "deploy-core"],
-        Some("../typescript/infra"),
-        Some(&deploy_env),
-    );
 
     println!("Deploying hook contracts...");
     build_cmd(

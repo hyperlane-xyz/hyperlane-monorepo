@@ -79,13 +79,6 @@ export function withContext<T>(args: yargs.Argv<T>) {
     .demandOption('context');
 }
 
-export function withHooks<T>(args: yargs.Argv<T>) {
-  return args
-    .describe('hooks', 'hooks to deploy')
-    .boolean('hooks')
-    .alias('h', 'hook');
-}
-
 export function withAgentRole<T>(args: yargs.Argv<T>) {
   return args
     .describe('role', 'agent roles')

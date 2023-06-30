@@ -47,7 +47,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       [domain],
       [owner, defaultIsmAddress],
     );
-    this.logger('Mailbox address: ', mailbox.address, 'on chain: ', chain);
     return mailbox;
   }
 
@@ -98,18 +97,12 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       .getProvider(chain)
       .getBlockNumber();
 
-    // const ism = await this.deployIsm(chain, config.defaultIsm);
+    const ism = await this.deployIsm(chain, config.defaultIsm);
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
-
-    // default ISM
-    const prodISM =
-      chain === 'test1'
-        ? '0xec48E52D960E54a179f70907bF28b105813877ee'
-        : '0xAab1D11E2063Bae5EB01fa946cA8d2FDe3db05D5';
 
     const mailbox = await this.deployMailbox(
       chain,
-      prodISM,
+      ism,
       proxyAdmin.address,
       config.owner,
     );
