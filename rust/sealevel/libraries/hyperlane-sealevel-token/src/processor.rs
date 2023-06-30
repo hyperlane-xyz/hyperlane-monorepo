@@ -388,10 +388,9 @@ where
     /// Accounts:
     /// 0.   [signer] Mailbox processor authority specific to this program.
     /// 1.   [executable] system_program
-    /// 2.   [executable] spl_noop
-    /// 3.   [] hyperlane_token storage
-    /// 4.   [depends on plugin] recipient wallet address
-    /// 5..N [??..??] Plugin-specific accounts.
+    /// 2.   [] hyperlane_token storage
+    /// 3.   [depends on plugin] recipient wallet address
+    /// 4..N [??..??] Plugin-specific accounts.
     pub fn transfer_from_remote(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -413,13 +412,7 @@ where
             return Err(ProgramError::InvalidArgument);
         }
 
-        // Account 2: SPL Noop program
-        let spl_noop = next_account_info(accounts_iter)?;
-        if spl_noop.key != &spl_noop::id() || !spl_noop.executable {
-            return Err(ProgramError::InvalidArgument);
-        }
-
-        // Account 3: Token account
+        // Account 2: Token account
         let token_account = next_account_info(accounts_iter)?;
         let token =
             HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow_mut()[..])?.into_inner();
@@ -432,7 +425,7 @@ where
             return Err(ProgramError::IncorrectProgramId);
         }
 
-        // Account 4: Recipient wallet
+        // Account 3: Recipient wallet
         let recipient_wallet = next_account_info(accounts_iter)?;
         let expected_recipient = Pubkey::new_from_array(message.recipient().into());
         if recipient_wallet.key != &expected_recipient {
@@ -498,7 +491,6 @@ where
 
         let mut accounts: Vec<SerializableAccountMeta> = vec![
             AccountMeta::new_readonly(solana_program::system_program::id(), false).into(),
-            AccountMeta::new_readonly(spl_noop::id(), false).into(),
             AccountMeta::new_readonly(*token_account_info.key, false).into(),
             AccountMeta {
                 pubkey: Pubkey::new_from_array(message.recipient().into()),

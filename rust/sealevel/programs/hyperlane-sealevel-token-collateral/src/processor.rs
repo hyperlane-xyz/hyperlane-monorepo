@@ -124,15 +124,14 @@ fn transfer_remote(
 // Accounts:
 // 0. [signer] Mailbox process authority specific to this program.
 // 1. [executable] system_program
-// 2. [executable] spl_noop
-// 3. [] hyperlane_token storage
-// 4. [] recipient wallet address
-// 5. [executable] SPL token 2022 program.
-// 6. [executable] SPL associated token account.
-// 7. [writeable] Mint account.
-// 8. [writeable] Recipient associated token account.
-// 9. [writeable] ATA payer PDA account.
-// 10. [writeable] Escrow account.
+// 2. [] hyperlane_token storage
+// 3. [] recipient wallet address
+// 4. [executable] SPL token 2022 program.
+// 5. [executable] SPL associated token account.
+// 6. [writeable] Mint account.
+// 7. [writeable] Recipient associated token account.
+// 8. [writeable] ATA payer PDA account.
+// 9. [writeable] Escrow account.
 fn transfer_from_remote(
     program_id: &Pubkey,
     accounts: &[AccountInfo],

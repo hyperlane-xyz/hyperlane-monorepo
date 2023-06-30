@@ -636,17 +636,15 @@ async fn test_transfer_from_remote_errors_if_process_authority_not_signer() {
                 // Recipient.handle accounts
                 // 0.   [signer] Mailbox processor authority specific to this program.
                 // 1.   [executable] system_program
-                // 2.   [executable] spl_noop
-                // 3.   [] hyperlane_token storage
-                // 4.   [writeable] recipient wallet address
-                // 5.   [executable] The system program.
-                // 6.   [writeable] The native token collateral PDA account.
+                // 2.   [] hyperlane_token storage
+                // 3.   [writeable] recipient wallet address
+                // 4.   [executable] The system program.
+                // 5.   [writeable] The native token collateral PDA account.
                 AccountMeta::new_readonly(
                     hyperlane_token_accounts.mailbox_process_authority,
                     false,
                 ),
                 AccountMeta::new_readonly(solana_program::system_program::id(), false),
-                AccountMeta::new_readonly(spl_noop::id(), false),
                 AccountMeta::new_readonly(hyperlane_token_accounts.token, false),
                 AccountMeta::new(recipient_pubkey, false),
                 AccountMeta::new_readonly(solana_program::system_program::id(), false),
