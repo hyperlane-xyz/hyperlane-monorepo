@@ -47,7 +47,6 @@ const VERIFY_ACCOUNT_METAS_DISCRIMINATOR_SLICE: &[u8] = &VERIFY_ACCOUNT_METAS_DI
 pub const VERIFY_ACCOUNT_METAS_PDA_SEEDS: &[&[u8]] =
     &[b"hyperlane_ism", b"-", b"verify", b"-", b"account_metas"];
 
-// TODO implement hyperlane-core's Encode & Decode?
 impl InterchainSecurityModuleInstruction {
     pub fn encode(&self) -> Result<Vec<u8>, ProgramError> {
         let mut buf = vec![];

@@ -84,7 +84,6 @@ pub const HANDLE_ACCOUNT_METAS_PDA_SEEDS: &[&[u8]] = &[
     b"account_metas",
 ];
 
-// TODO implement hyperlane-core's Encode & Decode?
 impl MessageRecipientInstruction {
     pub fn encode(&self) -> Result<Vec<u8>, ProgramError> {
         let mut buf = vec![];
