@@ -194,7 +194,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
 
     // Ensure the access control PDA account isn't already initialized.
     if let Ok(Some(_)) =
-        AccessControlAccount::fetch_data(&mut &access_control_pda_account.data.borrow_mut()[..])
+        AccessControlAccount::fetch_data(&mut &access_control_pda_account.data.borrow()[..])
     {
         return Err(Error::AlreadyInitialized.into());
     }
@@ -336,9 +336,8 @@ fn validators_and_threshold(
         return Err(Error::ProgramIdNotOwner.into());
     }
 
-    let domain_data =
-        DomainDataAccount::fetch_data(&mut &domain_pda_account.data.borrow_mut()[..])?
-            .ok_or(Error::AccountNotInitialized)?;
+    let domain_data = DomainDataAccount::fetch_data(&mut &domain_pda_account.data.borrow()[..])?
+        .ok_or(Error::AccountNotInitialized)?;
 
     let domain_pda_key = Pubkey::create_program_address(
         domain_data_pda_seeds!(domain, domain_data.bump_seed),
@@ -382,7 +381,7 @@ fn set_validators_and_threshold(
     // Account 2: The PDA relating to the provided domain.
     let domain_pda_account = next_account_info(accounts_iter)?;
 
-    let domain_data = DomainDataAccount::fetch_data(&mut &domain_pda_account.data.borrow_mut()[..]);
+    let domain_data = DomainDataAccount::fetch_data(&mut &domain_pda_account.data.borrow()[..]);
 
     let bump_seed = match domain_data {
         Ok(Some(domain_data)) => {
@@ -479,7 +478,7 @@ fn access_control_data(
     access_control_pda_account: &AccountInfo,
 ) -> Result<AccessControlData, ProgramError> {
     let access_control_data =
-        AccessControlAccount::fetch_data(&mut &access_control_pda_account.data.borrow_mut()[..])?
+        AccessControlAccount::fetch_data(&mut &access_control_pda_account.data.borrow()[..])?
             .ok_or(Error::AccountNotInitialized)?;
     // Confirm the key of the access_control_pda_account is the correct PDA
     // using the stored bump seed.
@@ -769,7 +768,7 @@ pub mod test {
         .unwrap();
 
         let access_control_data =
-            AccessControlAccount::fetch_data(&mut &accounts[1].data.borrow_mut()[..])
+            AccessControlAccount::fetch_data(&mut &accounts[1].data.borrow()[..])
                 .unwrap()
                 .unwrap();
         assert_eq!(

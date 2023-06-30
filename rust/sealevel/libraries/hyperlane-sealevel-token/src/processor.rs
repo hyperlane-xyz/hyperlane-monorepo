@@ -279,7 +279,7 @@ where
         // Account 1: Token storage account
         let token_account = next_account_info(accounts_iter)?;
         let token =
-            HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow_mut()[..])?.into_inner();
+            HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow()[..])?.into_inner();
         let token_seeds: &[&[u8]] = hyperlane_token_pda_seeds!(token.bump);
         let expected_token_key = Pubkey::create_program_address(token_seeds, program_id)?;
         if token_account.key != &expected_token_key {
@@ -415,7 +415,7 @@ where
         // Account 2: Token account
         let token_account = next_account_info(accounts_iter)?;
         let token =
-            HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow_mut()[..])?.into_inner();
+            HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow()[..])?.into_inner();
         let token_seeds: &[&[u8]] = hyperlane_token_pda_seeds!(token.bump);
         let expected_token_key = Pubkey::create_program_address(token_seeds, program_id)?;
         if token_account.key != &expected_token_key {
@@ -528,7 +528,7 @@ where
         // Account 0: Token account
         let token_account = next_account_info(accounts_iter)?;
         let mut token =
-            HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow_mut()[..])?.into_inner();
+            HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow()[..])?.into_inner();
         let token_seeds: &[&[u8]] = hyperlane_token_pda_seeds!(token.bump);
         let expected_token_key = Pubkey::create_program_address(token_seeds, program_id)?;
         if token_account.key != &expected_token_key {
@@ -565,7 +565,7 @@ where
         // Account 0: Token account
         let token_account = next_account_info(accounts_iter)?;
         let mut token =
-            HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow_mut()[..])?.into_inner();
+            HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow()[..])?.into_inner();
         let token_seeds: &[&[u8]] = hyperlane_token_pda_seeds!(token.bump);
         let expected_token_key = Pubkey::create_program_address(token_seeds, program_id)?;
         if token_account.key != &expected_token_key {

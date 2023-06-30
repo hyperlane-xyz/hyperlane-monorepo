@@ -44,8 +44,7 @@ impl Inbox {
         program_id: &Pubkey,
         inbox_account_info: &AccountInfo<'a>,
     ) -> Result<Self, ProgramError> {
-        let inbox =
-            InboxAccount::fetch(&mut &inbox_account_info.data.borrow_mut()[..])?.into_inner();
+        let inbox = InboxAccount::fetch(&mut &inbox_account_info.data.borrow()[..])?.into_inner();
         let expected_inbox_key = Pubkey::create_program_address(
             mailbox_inbox_pda_seeds!(inbox.inbox_bump_seed),
             program_id,
@@ -105,7 +104,7 @@ impl Outbox {
         outbox_account_info: &AccountInfo,
     ) -> Result<Self, ProgramError> {
         let outbox =
-            OutboxAccount::fetch(&mut &outbox_account_info.data.borrow_mut()[..])?.into_inner();
+            OutboxAccount::fetch(&mut &outbox_account_info.data.borrow()[..])?.into_inner();
         let expected_outbox_key = Pubkey::create_program_address(
             mailbox_outbox_pda_seeds!(outbox.outbox_bump_seed),
             program_id,

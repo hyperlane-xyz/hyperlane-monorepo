@@ -53,8 +53,8 @@ where
         program_id: &Pubkey,
         token_account_info: &AccountInfo<'a>,
     ) -> Result<Self, ProgramError> {
-        let token = HyperlaneTokenAccount::fetch(&mut &token_account_info.data.borrow_mut()[..])?
-            .into_inner();
+        let token =
+            HyperlaneTokenAccount::fetch(&mut &token_account_info.data.borrow()[..])?.into_inner();
         let token_seeds: &[&[u8]] = hyperlane_token_pda_seeds!(token.bump);
         let expected_token_key = Pubkey::create_program_address(token_seeds, program_id)?;
         if token_account_info.key != &expected_token_key {
