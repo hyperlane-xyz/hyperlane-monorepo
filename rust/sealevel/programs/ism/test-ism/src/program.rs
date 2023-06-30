@@ -22,7 +22,9 @@ solana_program::entrypoint!(process_instruction);
 
 const ISM_TYPE: IsmType = IsmType::None;
 
+/// Custom errors for the program.
 pub enum TestIsmError {
+    /// The verify instruction was not accepted.
     VerifyNotAccepted = 69420,
 }
 
@@ -38,12 +40,15 @@ macro_rules! test_ism_storage_pda_seeds {
     }};
 }
 
+/// The storage account.
+pub type TestIsmStorageAccount = AccountData<TestIsmStorage>;
+
+/// The storage account's data.
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Default)]
 pub struct TestIsmStorage {
+    /// Whether messages should be accepted / verified.
     pub accept: bool,
 }
-
-pub type TestIsmStorageAccount = AccountData<TestIsmStorage>;
 
 impl SizedData for TestIsmStorage {
     fn size(&self) -> usize {
@@ -52,12 +57,16 @@ impl SizedData for TestIsmStorage {
     }
 }
 
+/// Instructions for the program.
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug)]
 pub enum TestIsmInstruction {
+    /// Initializes the program.
     Init,
+    /// Sets whether messages should be accepted / verified.
     SetAccept(bool),
 }
 
+/// Processes an instruction.
 pub fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
