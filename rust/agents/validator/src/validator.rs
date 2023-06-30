@@ -13,8 +13,9 @@ use hyperlane_base::{
     MessageContractSync,
 };
 use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, Announcement, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox, ValidatorAnnounce, H256, U256,
+    accumulator::incremental::IncrementalMerkle, Announcement, ChainResult, HyperlaneChain,
+    HyperlaneContract, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox, TxOutcome,
+    ValidatorAnnounce, H256, U256,
 };
 use hyperlane_ethereum::{SingletonSigner, SingletonSignerHandle};
 
@@ -204,6 +205,27 @@ impl Validator {
         tasks
     }
 
+    fn log_on_announce_failure(result: ChainResult<TxOutcome>) {
+        match result {
+            Ok(outcome) => {
+                if !outcome.executed {
+                    error!(
+                        hash=?outcome.txid,
+                        gas_used=?outcome.gas_used,
+                        gas_price=?outcome.gas_price,
+                        "Transaction attempting to announce validator reverted"
+                    );
+                }
+            }
+            Err(e) => {
+                error!(
+                    error=?e,
+                    "Failed to announce validator"
+                );
+            }
+        }
+    }
+
     async fn announce(&self) -> Result<()> {
         // Sign and post the validator announcement
         let announcement = Announcement {
@@ -238,7 +260,8 @@ impl Validator {
                 let balance_delta = self
                     .validator_announce
                     .announce_tokens_needed(signed_announcement.clone())
-                    .await?;
+                    .await
+                    .unwrap_or_default();
                 if balance_delta > U256::zero() {
                     warn!(
                         tokens_needed=%balance_delta,
@@ -247,16 +270,11 @@ impl Validator {
                     );
                     sleep(self.interval).await;
                 } else {
-                    let outcome = self
+                    let result = self
                         .validator_announce
                         .announce(signed_announcement.clone(), None)
-                        .await?;
-                    if !outcome.executed {
-                        error!(
-                            hash=?outcome.txid,
-                            "Transaction attempting to announce validator reverted"
-                        );
-                    }
+                        .await;
+                    Self::log_on_announce_failure(result);
                 }
             }
         }
