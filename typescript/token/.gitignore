@@ -7,3 +7,4 @@ coverage/
 coverage.json
 *.swp
 .yarn/install-state.gz
+.yarn/release/*
