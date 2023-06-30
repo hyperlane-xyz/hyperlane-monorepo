@@ -46,6 +46,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     const timelock = await this.deployContract(
       chain,
       'timelockController',
+      // see https://docs.openzeppelin.com/contracts/4.x/api/governance#TimelockController-constructor-uint256-address---address---address-
       // delay, [proposers], [executors], admin
       [delay, [owner], [owner], ethers.constants.AddressZero],
     );

@@ -133,9 +133,7 @@ export abstract class HyperlaneAppChecker<
   ): Promise<void> {
     const ownableContracts = await this.ownables(chain);
     for (const [name, contract] of Object.entries(ownableContracts)) {
-      const expectedOwner = ownableOverrides
-        ? ownableOverrides[name] ?? owner
-        : owner;
+      const expectedOwner = ownableOverrides?.[name] ?? owner;
       const actual = await contract.owner();
       if (!utils.eqAddress(actual, expectedOwner)) {
         const violation: OwnerViolation = {
