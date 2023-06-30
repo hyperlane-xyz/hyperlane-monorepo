@@ -2,6 +2,7 @@ use hyperlane_core::{Announcement, H160};
 
 use std::str::FromStr;
 
+use account_utils::SizedData;
 use borsh::BorshSerialize;
 use solana_program::{
     instruction::{AccountMeta, Instruction},
@@ -17,7 +18,6 @@ use solana_sdk::{
     transaction::{Transaction, TransactionError},
 };
 
-use hyperlane_sealevel_mailbox::accounts::SizedData;
 use hyperlane_sealevel_validator_announce::{
     accounts::{
         ReplayProtection, ReplayProtectionAccount, ValidatorAnnounce, ValidatorAnnounceAccount,

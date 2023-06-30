@@ -1,7 +1,6 @@
-use account_utils::create_pda_account;
+use account_utils::{create_pda_account, SizedData};
 use ecdsa_signature::EcdsaSignature;
 use hyperlane_core::{Announcement, Signable};
-use hyperlane_sealevel_mailbox::accounts::SizedData;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint,

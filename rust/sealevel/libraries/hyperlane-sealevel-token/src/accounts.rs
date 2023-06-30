@@ -1,6 +1,7 @@
 //! Accounts for the Hyperlane token program.
 
 use access_control::AccessControl;
+use account_utils::AccountData;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{H256, U256};
 use hyperlane_sealevel_connection_client::{
@@ -8,7 +9,6 @@ use hyperlane_sealevel_connection_client::{
     HyperlaneConnectionClient, HyperlaneConnectionClientRecipient, HyperlaneConnectionClientSetter,
     HyperlaneConnectionClientSetterAccessControl,
 };
-use hyperlane_sealevel_mailbox::accounts::AccountData;
 use solana_program::{account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey};
 use std::{cmp::Ordering, collections::HashMap, fmt::Debug};
 

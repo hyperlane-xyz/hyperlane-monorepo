@@ -1,10 +1,9 @@
 //! Interchain Security Module used for testing.
 
-use account_utils::create_pda_account;
+use account_utils::{create_pda_account, AccountData, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::IsmType;
 use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
-use hyperlane_sealevel_mailbox::accounts::{AccountData, SizedData};
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},

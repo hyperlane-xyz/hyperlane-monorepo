@@ -1,7 +1,7 @@
 use hyperlane_core::{Checkpoint, CheckpointWithMessageId, Decode, HyperlaneMessage, IsmType};
 
 use access_control::AccessControl;
-use account_utils::{create_pda_account, DiscriminatorDecode};
+use account_utils::{create_pda_account, DiscriminatorDecode, SizedData};
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
@@ -14,8 +14,6 @@ use solana_program::{
     rent::Rent,
     sysvar::Sysvar,
 };
-
-use hyperlane_sealevel_mailbox::accounts::SizedData;
 
 use crate::{
     accounts::{AccessControlAccount, AccessControlData, DomainData, DomainDataAccount},

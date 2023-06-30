@@ -8,10 +8,9 @@
 // #![deny(missing_docs)] // FIXME
 #![deny(unsafe_code)]
 
-use account_utils::create_pda_account;
+use account_utils::{create_pda_account, AccountData, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_sealevel_mailbox::{
-    accounts::{AccountData, SizedData},
     instruction::{Instruction as MailboxInstruction, OutboxDispatch},
     mailbox_message_dispatch_authority_pda_seeds, mailbox_process_authority_pda_seeds,
 };

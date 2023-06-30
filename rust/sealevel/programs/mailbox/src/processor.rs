@@ -1,6 +1,7 @@
 //! Entrypoint, dispatch, and execution for the Hyperlane Sealevel mailbox instruction.
 
 use access_control::AccessControl;
+use account_utils::SizedData;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle as MerkleTree, Decode, Encode, HyperlaneMessage,
@@ -32,7 +33,7 @@ use serializable_account_meta::SimulationReturnData;
 use crate::{
     accounts::{
         DispatchedMessage, DispatchedMessageAccount, Inbox, InboxAccount, Outbox, OutboxAccount,
-        ProcessedMessage, ProcessedMessageAccount, SizedData,
+        ProcessedMessage, ProcessedMessageAccount,
     },
     error::Error,
     instruction::{
