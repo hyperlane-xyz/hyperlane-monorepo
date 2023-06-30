@@ -35,7 +35,8 @@
   },
   "files": [
     "/dist",
-    "/contracts"
+    "/contracts",
+    "/docs"
   ],
   "homepage": "https://www.hyperlane.xyz",
   "keywords": [
@@ -51,7 +52,8 @@
     "url": "https://github.com/hyperlane-xyz/hyperlane-token"
   },
   "scripts": {
-    "clean": "hardhat clean && rm -rf dist cache src/types",
+    "clean": "hardhat clean && rm -rf dist cache src/types && forge clean",
+    "docs": "forge doc",
     "build": "hardhat compile && tsc",
     "coverage": "hardhat coverage",
     "lint": "solhint contracts/**/*.sol && eslint . --ext .ts",
