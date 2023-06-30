@@ -217,8 +217,8 @@ fn inbox_process(
     // Account 3: Process authority account that is specific to the
     // message recipient.
     let process_authority_info = next_account_info(accounts_iter)?;
-    // TODO make this create_program_address and take the bump seed in
-    // as an input?
+    // Future versions / changes should consider requiring the process authority to
+    // store its bump seed as account data.
     let (expected_process_authority_key, expected_process_authority_bump) =
         Pubkey::find_program_address(
             mailbox_process_authority_pda_seeds!(&recipient_program_id),
@@ -563,8 +563,8 @@ fn outbox_dispatch(
     // we need to confirm that the sender signer has the authority to sign
     // on behalf of the dispatch.sender!
     if *sender_signer_info.key != dispatch.sender {
-        // TODO would be great to have the bump in here...
-        // Maybe shove it into the data of the sender_signer?
+        // Future versions / changes should consider requiring the dispatch authority to
+        // store its bump seed as account data.
         let (expected_signer_key, _expected_signer_bump) = Pubkey::find_program_address(
             mailbox_message_dispatch_authority_pda_seeds!(),
             &dispatch.sender,
