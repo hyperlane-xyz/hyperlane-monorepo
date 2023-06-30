@@ -20,6 +20,16 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
       ),
     ),
   };
+
+  if (local === 'arbitrum') {
+    return {
+      owner,
+      defaultIsm,
+      // 7 days in seconds
+      upgradeTimelockDelay: 7 * 24 * 60 * 60,
+    };
+  }
+
   return {
     owner,
     defaultIsm,
