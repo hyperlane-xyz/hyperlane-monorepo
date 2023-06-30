@@ -1,4 +1,4 @@
-# This file is updated by `patch.rs`;
+# This file is updated by `vendor.rs`;
 # changes will be incorporated but will be reformatted and comments will be lost.
 
 [workspace]

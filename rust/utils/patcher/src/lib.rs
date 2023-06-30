@@ -63,7 +63,7 @@ pub fn patch_workspace(
     }
 
     let mut manifest: String = toml::to_string_pretty(&manifest).unwrap();
-    manifest.insert_str(0, "# This file is updated by `patch.rs`;\n# changes will be incorporated but will be reformatted and comments will be lost.\n\n");
+    manifest.insert_str(0, "# This file is updated by `vendor.rs`;\n# changes will be incorporated but will be reformatted and comments will be lost.\n\n");
     fs::write("Cargo.toml", manifest).expect("Failed to write Cargo.toml");
 
     assert!(

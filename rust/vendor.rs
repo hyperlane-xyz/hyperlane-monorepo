@@ -1,6 +1,6 @@
 #!/usr/bin/env rust-script
 //! A rust script to update the patches for this workspace.
-//! Run simply as `./patch.rs` after installing [rust-script](https://rust-script.org/)
+//! Run simply as `./vendor.rs` after installing [rust-script](https://rust-script.org/)
 //! with `cargo install rust-script`.
 //!
 //! I am aware of the generated cargo warnings and have created an issue with the hope that
@@ -10,7 +10,7 @@
 //!
 //! ```cargo
 //! [dependencies]
-//! patcher = { path = "utils/patcher", version = "0.5.0" }
+//! patcher = { path = "utils/patcher", version = "0.5.1" }
 //! ```
 
 use patcher::borrowed::{PatchCrateDirective, PatchDirective, Refspec::*};
