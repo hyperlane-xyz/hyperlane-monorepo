@@ -12,26 +12,27 @@ contract CheckpointFraudProofs {
     // mailbox => root => index
     mapping(address => mapping(bytes32 => uint32)) public storedCheckpoint;
 
-    modifier memberOfStoredCheckpoint(
+    function requireMemberOfStoredCheckpoint(
         bytes32 messageId,
         address mailbox,
         uint32 index,
         bytes32[TREE_DEPTH] calldata proof
-    ) {
+    ) internal view {
         bytes32 root = MerkleLib.branchRoot(messageId, proof, index);
         uint32 storedIndex = storedCheckpoint[mailbox][root];
         require(
             storedIndex >= index,
             "message must be member of stored checkpoint"
         );
-        _;
     }
 
-    modifier onlyLocalCheckpoint(Checkpoint calldata checkpoint) {
+    function requireLocalCheckpoint(Checkpoint calldata checkpoint)
+        internal
+        view
+    {
         uint32 mailboxDomain = IMailbox(CheckpointLib.mailbox(checkpoint))
             .localDomain();
         require(checkpoint.origin == mailboxDomain, "must be local checkpoint");
-        _;
     }
 
     /**
@@ -53,9 +54,10 @@ contract CheckpointFraudProofs {
     function isPremature(Checkpoint calldata checkpoint)
         public
         view
-        onlyLocalCheckpoint(checkpoint)
         returns (bool)
     {
+        requireLocalCheckpoint(checkpoint);
+
         // count is the number of messages in the mailbox (i.e. the latest index + 1)
         uint32 count = IMailbox(CheckpointLib.mailbox(checkpoint)).count();
 
@@ -75,18 +77,15 @@ contract CheckpointFraudProofs {
         Checkpoint calldata checkpoint,
         bytes32[TREE_DEPTH] calldata proof,
         bytes32 actualMessageId
-    )
-        public
-        view
-        onlyLocalCheckpoint(checkpoint)
-        memberOfStoredCheckpoint(
+    ) public view returns (bool) {
+        requireLocalCheckpoint(checkpoint);
+        requireMemberOfStoredCheckpoint(
             actualMessageId,
             CheckpointLib.mailbox(checkpoint),
             checkpoint.index,
             proof
-        )
-        returns (bool)
-    {
+        );
+
         return actualMessageId != checkpoint.messageId;
     }
 
@@ -100,18 +99,15 @@ contract CheckpointFraudProofs {
     function isFraudulentRoot(
         Checkpoint calldata checkpoint,
         bytes32[TREE_DEPTH] calldata proof
-    )
-        public
-        view
-        onlyLocalCheckpoint(checkpoint)
-        memberOfStoredCheckpoint(
+    ) public view returns (bool) {
+        requireLocalCheckpoint(checkpoint);
+        requireMemberOfStoredCheckpoint(
             checkpoint.messageId,
             CheckpointLib.mailbox(checkpoint),
             checkpoint.index,
             proof
-        )
-        returns (bool)
-    {
+        );
+
         // proof of checkpoint.messageId at checkpoint.index is the list of siblings from the leaf node to some stored root
         // once verifying the proof, we can reconstruct the specific root at checkpoint.index by replacing siblings greater
         // than the index (right subtrees) with zeroes
