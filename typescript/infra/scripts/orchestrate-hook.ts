@@ -1,32 +1,12 @@
 import debug from 'debug';
 import { providers, utils } from 'ethers';
-import fs from 'fs';
-import path from 'path';
 
 import { Mailbox__factory } from '@hyperlane-xyz/core';
 import { HyperlaneCore, MultiProvider } from '@hyperlane-xyz/sdk';
+import { getHookAddress } from '@hyperlane-xyz/sdk';
 import { types } from '@hyperlane-xyz/utils';
 
 import { testConfigs } from '../config/environments/test/chains';
-
-interface HookConfig {
-  [network: string]: {
-    [contract: string]: string;
-  };
-}
-
-async function getHookAddress(
-  network: string,
-  key: string,
-): Promise<string | undefined> {
-  const filePath = path.join(
-    __dirname,
-    '../config/environments/test/hook/addresses.json',
-  );
-  const rawData = await fs.promises.readFile(filePath, 'utf-8');
-  const config: HookConfig = JSON.parse(rawData);
-  return config[network]?.[key];
-}
 
 export const forkedL2 = {
   id: 10,

@@ -46,8 +46,6 @@ export async function changeTestAddress(
   if (config[chain]) {
     config[chain][key] = newAddress;
 
-    console.log('entry found!!');
-
     // Write the updated data back to the file
     const updatedData = JSON.stringify(config, null, 2); // The second and third parameters format the JSON data with 2 spaces indentation
     await fs.promises.writeFile(filePath, updatedData, 'utf-8');

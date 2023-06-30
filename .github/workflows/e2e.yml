@@ -19,12 +19,12 @@ defaults:
     working-directory: ./rust
 
 jobs:
-  e2e:
+  common:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/setup-node@v3
         with:
-          node-version: 16
+          node-version: 18
       - uses: actions/checkout@v3
         with:
           submodules: recursive
@@ -53,10 +53,27 @@ jobs:
             .yarn/cache
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
+  e2e:
+    runs-on: ubuntu-latest
+    needs: common
+    steps:
       - name: build test
         run: cargo build --release --bin run-locally
       - name: run test
         run: ./target/release/run-locally
+        env:
+          E2E_CI_MODE: 'true'
+          E2E_CI_TIMEOUT_SEC: '600'
+          E2E_KATHY_MESSAGES: '20'
+
+  hooks:
+    runs-on: ubuntu-latest
+    needs: common
+    steps:
+      - name: build test
+        run: cargo build --release --bin  no_metadata_test
+      - name: run test
+        run: ./target/release/no_metadata_test
         env:
           E2E_CI_MODE: 'true'
           E2E_CI_TIMEOUT_SEC: '600'

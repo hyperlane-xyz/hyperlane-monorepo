@@ -59,7 +59,6 @@ async function main() {
   let config: ChainMap<unknown> = {};
   let deployer: HyperlaneDeployer<any, any>;
 
-  console.log('FULL CONFIG: ', envConfig);
   if (module === Modules.ISM_FACTORY) {
     config = objMap(envConfig.core, (chain) => true);
     deployer = new HyperlaneIsmFactoryDeployer(multiProvider);
@@ -87,11 +86,7 @@ async function main() {
     console.log('OP: ', opMailboxAddress);
 
     await changeTestAddress('test1', 'mailbox', ethMailboxAddress);
-    await changeTestAddress(
-      'test2',
-      'mailbox',
-      '0x35231d4c2D8B8ADcB5617A638A0c4548684c7C70',
-    );
+    await changeTestAddress('test2', 'mailbox', opMailboxAddress);
 
     // anvil --fork-url https://rpc.ankr.com/optimism --chain-id 31337 --port 8546
     const ethForked = new providers.JsonRpcProvider('http://localhost:8546');
