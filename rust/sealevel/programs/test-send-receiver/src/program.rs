@@ -1,12 +1,5 @@
-//! Hyperlane recipient contract that just logs the message data byte vector.
+//! Test message sender and receiver.
 //! **NOT INTENDED FOR USE IN PRODUCTION**
-//!
-//! Note that a real recipient must define the format for its message and that format is specific
-//! to that recipient.
-
-#![deny(warnings)]
-// #![deny(missing_docs)] // FIXME
-#![deny(unsafe_code)]
 
 use account_utils::{create_pda_account, AccountData, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -35,14 +28,21 @@ use solana_program::{
 #[cfg(not(feature = "no-entrypoint"))]
 entrypoint!(process_instruction);
 
+/// Custom errors for the program.
 pub enum TestSendReceiverError {
+    /// The handle instruction failed.
     HandleFailed = 6942069,
 }
 
+/// The mode for returning data when getting the ISM, intended to test
+/// that the Mailbox can handle different ISM getter return data.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 pub enum IsmReturnDataMode {
+    /// Encodes the ISM as an Option<Pubkey>.
     EncodeOption,
+    /// Returns no data.
     ReturnNothing,
+    /// Returns malformatted data.
     ReturnMalformmatedData,
 }
 
@@ -52,15 +52,21 @@ impl Default for IsmReturnDataMode {
     }
 }
 
+/// The storage account.
+pub type TestSendReceiverStorageAccount = AccountData<TestSendReceiverStorage>;
+
+/// The storage account's data.
 #[derive(BorshSerialize, BorshDeserialize, Debug, Default)]
 pub struct TestSendReceiverStorage {
+    /// The mailbox.
     pub mailbox: Pubkey,
+    /// The ISM.
     pub ism: Option<Pubkey>,
+    /// The mode for returning data from the ISM.
     pub ism_return_data_mode: IsmReturnDataMode,
+    /// Whether the handle instruction should fail.
     pub fail_handle: bool,
 }
-
-pub type TestSendReceiverStorageAccount = AccountData<TestSendReceiverStorage>;
 
 impl SizedData for TestSendReceiverStorage {
     fn size(&self) -> usize {
@@ -84,14 +90,20 @@ macro_rules! test_send_receiver_storage_pda_seeds {
     }};
 }
 
+/// Instructions for the program.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 pub enum TestSendReceiverInstruction {
+    /// Initializes the program.
     Init(Pubkey),
+    /// Dispatches a message using the dispatch authority.
     Dispatch(OutboxDispatch),
+    /// Sets the ISM.
     SetInterchainSecurityModule(Option<Pubkey>, IsmReturnDataMode),
+    /// Sets whether the handle instruction should fail.
     SetFailHandle(bool),
 }
 
+/// The program's entrypoint.
 pub fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
