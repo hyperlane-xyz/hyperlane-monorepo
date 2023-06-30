@@ -1,0 +1,198 @@
+Subject: [PATCH] Set uint version for primitive types to ^0.9.5.
+Add borsh serialization support.
+---
+Index: primitive-types/Cargo.toml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/primitive-types/Cargo.toml b/primitive-types/Cargo.toml
+--- a/primitive-types/Cargo.toml	(revision c41d51df8a314150c46cbbff31f8140a35dfb02c)
++++ b/primitive-types/Cargo.toml	(revision 459e0954c61d13ee598e1ab8dd8f5429028e3501)
+@@ -10,8 +10,9 @@
+
+ [dependencies]
+ fixed-hash = { version = "0.8", path = "../fixed-hash", default-features = false }
+-uint = { version = "0.9.5", path = "../uint", default-features = false }
++uint = { version = "0.9.5", default-features = false }
+ impl-serde = { version = "0.4.0", path = "impls/serde", default-features = false, optional = true }
++impl-borsh = { version = "0.1.0", path = "impls/borsh", default-features = false, optional = true }
+ impl-codec = { version = "0.6.0", path = "impls/codec", default-features = false, optional = true }
+ impl-num-traits = { version = "0.1.0", path = "impls/num-traits", default-features = false, optional = true }
+ impl-rlp = { version = "0.3", path = "impls/rlp", default-features = false, optional = true }
+@@ -30,6 +31,7 @@
+ arbitrary = ["fixed-hash/arbitrary", "uint/arbitrary"]
+ fp-conversion = ["std"]
+ num-traits = ["impl-num-traits"]
++borsh = ["impl-borsh"]
+
+ [[test]]
+ name = "scale_info"
+Index: primitive-types/impls/borsh/CHANGELOG.md
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/primitive-types/impls/borsh/CHANGELOG.md b/primitive-types/impls/borsh/CHANGELOG.md
+new file mode 100644
+--- /dev/null	(revision bd07506bb4d172d178ab14dcb2f14380e4e3f3cd)
++++ b/primitive-types/impls/borsh/CHANGELOG.md	(revision bd07506bb4d172d178ab14dcb2f14380e4e3f3cd)
+@@ -0,0 +1,5 @@
++# Changelog
++
++The format is based on [Keep a Changelog].
++
++[Keep a Changelog]: http://keepachangelog.com/en/1.0.0/
+Index: primitive-types/impls/borsh/Cargo.toml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/primitive-types/impls/borsh/Cargo.toml b/primitive-types/impls/borsh/Cargo.toml
+new file mode 100644
+--- /dev/null	(revision bd07506bb4d172d178ab14dcb2f14380e4e3f3cd)
++++ b/primitive-types/impls/borsh/Cargo.toml	(revision bd07506bb4d172d178ab14dcb2f14380e4e3f3cd)
+@@ -0,0 +1,16 @@
++[package]
++name = "impl-borsh"
++version = "0.1.0"
++authors = ["Steven Sloboda <steven@eclipse.builders>"]
++license = "MIT OR Apache-2.0"
++homepage = "https://github.com/paritytech/parity-common"
++description = "Borsh serialization support for uint and fixed hash."
++edition = "2021"
++rust-version = "1.56.1"
++
++[features]
++default = ["std",]
++std = ["borsh/std"]
++
++[dependencies]
++borsh = { version = "0.9.3", default-features = false, features = ["std"] }
+Index: primitive-types/impls/borsh/src/lib.rs
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/primitive-types/impls/borsh/src/lib.rs b/primitive-types/impls/borsh/src/lib.rs
+new file mode 100644
+--- /dev/null	(revision bd07506bb4d172d178ab14dcb2f14380e4e3f3cd)
++++ b/primitive-types/impls/borsh/src/lib.rs	(revision bd07506bb4d172d178ab14dcb2f14380e4e3f3cd)
+@@ -0,0 +1,56 @@
++// Copyright 2022 Parity Technologies
++//
++// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
++// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
++// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
++// option. This file may not be copied, modified, or distributed
++// except according to those terms.
++
++//! Serde serialization support for uint and fixed hash.
++
++#![no_std]
++
++#[macro_use]
++extern crate alloc;
++
++#[cfg(feature = "std")]
++extern crate std;
++
++#[doc(hidden)]
++pub use borsh;
++
++/// Add Borsh serialization support to an integer created by `construct_uint!`.
++#[macro_export]
++macro_rules! impl_uint_borsh {
++    ($name: ident, $len: expr) => {
++        impl $crate::borsh::BorshSerialize for $name {
++            fn serialize<W: std::io::Write>(&self, writer: &mut W) -> Result<(), std::io::Error> {
++                self.0.serialize(writer)
++            }
++        }
++
++        impl $crate::borsh::BorshDeserialize for $name {
++            fn deserialize(buf: &mut &[u8]) -> Result<Self, std::io::Error> {
++                <[u64; $len]>::deserialize(buf).map(|bytes| Self(bytes))
++            }
++        }
++    };
++}
++
++/// Add Borsh serialization support to a fixed-sized hash type created by `construct_fixed_hash!`.
++#[macro_export]
++macro_rules! impl_fixed_hash_borsh {
++    ($name: ident, $len: expr) => {
++        impl $crate::borsh::BorshSerialize for $name {
++            fn serialize<W: std::io::Write>(&self, writer: &mut W) -> Result<(), std::io::Error> {
++                self.0.serialize(writer)
++            }
++        }
++
++        impl $crate::borsh::BorshDeserialize for $name {
++            fn deserialize(buf: &mut &[u8]) -> Result<Self, std::io::Error> {
++                <[u8; $len]>::deserialize(buf).map(|bytes| Self(bytes))
++            }
++        }
++    };
++}
+Index: primitive-types/src/lib.rs
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/primitive-types/src/lib.rs b/primitive-types/src/lib.rs
+--- a/primitive-types/src/lib.rs	(revision c41d51df8a314150c46cbbff31f8140a35dfb02c)
++++ b/primitive-types/src/lib.rs	(revision bd07506bb4d172d178ab14dcb2f14380e4e3f3cd)
+@@ -139,6 +139,21 @@
+ 	impl_fixed_hash_rlp!(H768, 96);
+ }
+
++#[cfg(feature = "impl-borsh")]
++mod borsh {
++	use super::*;
++	use impl_borsh::{impl_fixed_hash_borsh, impl_uint_borsh};
++
++	impl_uint_borsh!(U128, 2);
++	impl_uint_borsh!(U256, 4);
++	impl_uint_borsh!(U512, 8);
++
++	impl_fixed_hash_borsh!(H128, 16);
++	impl_fixed_hash_borsh!(H160, 20);
++	impl_fixed_hash_borsh!(H256, 32);
++	impl_fixed_hash_borsh!(H512, 64);
++}
++
+ impl_fixed_hash_conversions!(H256, H160);
+
+ impl U128 {
+Index: primitive-types/impls/num-traits/Cargo.toml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/primitive-types/impls/num-traits/Cargo.toml b/primitive-types/impls/num-traits/Cargo.toml
+--- a/primitive-types/impls/num-traits/Cargo.toml	(revision bd07506bb4d172d178ab14dcb2f14380e4e3f3cd)
++++ b/primitive-types/impls/num-traits/Cargo.toml	(revision 459e0954c61d13ee598e1ab8dd8f5429028e3501)
+@@ -11,4 +11,4 @@
+ [dependencies]
+ num-traits = { version = "0.2", default-features = false }
+ integer-sqrt = "0.1"
+-uint = { version = "0.9.5", path = "../../../uint", default-features = false }
++uint = { version = "0.9.5", default-features = false }
+Index: primitive-types/impls/serde/Cargo.toml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/primitive-types/impls/serde/Cargo.toml b/primitive-types/impls/serde/Cargo.toml
+--- a/primitive-types/impls/serde/Cargo.toml	(revision bd07506bb4d172d178ab14dcb2f14380e4e3f3cd)
++++ b/primitive-types/impls/serde/Cargo.toml	(revision 459e0954c61d13ee598e1ab8dd8f5429028e3501)
+@@ -19,7 +19,7 @@
+ criterion = "0.3.0"
+ serde_derive = "1.0.101"
+ serde_json = "1.0.41"
+-uint = { version = "0.9.5", path = "../../../uint" }
++uint = "0.9.5"
+
+ [[bench]]
+ name = "impl_serde"

@@ -8,12 +8,17 @@ use which::which;
 pub struct Patcher {
     repo_url: Option<String>,
     repo_subdir: Option<String>,
-    repo_tag: Option<String>,
-    repo_rev: Option<String>,
+    repo_ref: Option<Refspec>,
     patch_with: Vec<PathBuf>,
     working_dir: Option<PathBuf>,
     clone_dir: Option<PathBuf>,
     dest_dir: Option<PathBuf>,
+}
+
+pub enum Refspec {
+    Branch(String),
+    Tag(String),
+    Rev(String),
 }
 
 impl Patcher {
@@ -27,15 +32,8 @@ impl Patcher {
         self
     }
 
-    /// The tag or branch to clone
-    pub fn repo_tag(&mut self, repo_tag: &str) -> &mut Self {
-        self.repo_tag = Some(repo_tag.to_string());
-        self
-    }
-
-    /// The revision to clone, avoid this if the repo tag is stable to prevent deeper cloning
-    pub fn repo_rev(&mut self, repo_rev: &str) -> &mut Self {
-        self.repo_rev = Some(repo_rev.to_string());
+    pub fn repo_ref(&mut self, repo_ref: Refspec) -> &mut Self {
+        self.repo_ref = Some(repo_ref);
         self
     }
 
@@ -109,21 +107,29 @@ impl Patcher {
             "Failed to init git repo"
         );
 
-        if self.repo_rev.is_some() && self.repo_tag.is_some() {
-            panic!("A repo tag xor revision must be specified")
-        }
-        let (fetch_args, refspec) = if let Some(rev) = self.repo_rev.as_deref() {
-            (
-                vec!["fetch", repo_url, rev, "--no-tags", "--depth", "1"],
-                rev,
-            )
-        } else if let Some(tag) = self.repo_tag.as_deref() {
-            (
-                vec!["fetch", repo_url, "tag", tag, "--no-tags", "--depth", "1"],
-                tag,
-            )
-        } else {
-            panic!("A repo tag or revision must be specified")
+        println!("repo_url: {}", repo_url);
+        process::Command::new(&git)
+            .args(["remote", "add", "external", repo_url])
+            .current_dir(&clone_dir)
+            .status()
+            .unwrap();
+
+        let mut _branch_ref = None;
+        let (fetch_args, checkout_args) = match self.repo_ref.as_ref() {
+            Some(Refspec::Branch(branch)) => {
+                _branch_ref = Some(format!("external/{branch}")); (
+                vec!["fetch", "external", branch, "--no-tags", "--depth", "1"],
+                vec!["checkout", _branch_ref.as_deref().unwrap(), "--detach"]
+            )},
+            Some(Refspec::Tag(tag)) => (
+                vec!["fetch", "external", "tag", tag, "--no-tags", "--depth", "1"],
+                vec!["checkout", tag, "--detach"],
+            ),
+            Some(Refspec::Rev(rev)) => (
+                vec!["fetch", "external", rev, "--no-tags", "--depth", "1"],
+                vec!["checkout", rev, "--detach"],
+            ),
+            None => panic!("A repo ref must be specified"),
         };
 
         assert!(
@@ -137,7 +143,7 @@ impl Patcher {
         );
         assert!(
             process::Command::new(&git)
-                .args(["checkout", refspec, "--detach"])
+                .args(checkout_args)
                 .current_dir(&clone_dir)
                 .status()
                 .unwrap()

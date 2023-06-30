@@ -2581,8 +2581,6 @@ dependencies = [
 [[package]]
 name = "fixed-hash"
 version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "835c052cb0c08c1acf6ffd71c022172e18723949c8282f2b9f27efbc51e64534"
 dependencies = [
  "byteorder",
  "rand 0.8.5",
@@ -2593,7 +2591,8 @@ dependencies = [
 [[package]]
 name = "fixed-hash"
 version = "0.8.0"
-source = "git+https://github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix#05ef0bec2de0fed8c5306dcb4fa28e81efde0638"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "835c052cb0c08c1acf6ffd71c022172e18723949c8282f2b9f27efbc51e64534"
 dependencies = [
  "byteorder",
  "rand 0.8.5",
@@ -4149,9 +4148,15 @@ dependencies = [
 [[package]]
 name = "impl-borsh"
 version = "0.1.0"
-source = "git+https://github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix#05ef0bec2de0fed8c5306dcb4fa28e81efde0638"
 dependencies = [
  "borsh 0.9.3",
+]
+
+[[package]]
+name = "impl-codec"
+version = "0.6.0"
+dependencies = [
+ "parity-scale-codec",
 ]
 
 [[package]]
@@ -4164,11 +4169,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "impl-codec"
-version = "0.6.0"
-source = "git+https://github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix#05ef0bec2de0fed8c5306dcb4fa28e81efde0638"
+name = "impl-rlp"
+version = "0.3.0"
 dependencies = [
- "parity-scale-codec",
+ "rlp",
 ]
 
 [[package]]
@@ -4181,18 +4185,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "impl-rlp"
-version = "0.3.0"
-source = "git+https://github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix#05ef0bec2de0fed8c5306dcb4fa28e81efde0638"
-dependencies = [
- "rlp",
-]
-
-[[package]]
 name = "impl-serde"
 version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebc88fc67028ae3db0c853baa36269d398d5f45b6982f95549ff5def78c935cd"
 dependencies = [
  "serde",
 ]
@@ -4200,7 +4194,8 @@ dependencies = [
 [[package]]
 name = "impl-serde"
 version = "0.4.0"
-source = "git+https://github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix#05ef0bec2de0fed8c5306dcb4fa28e81efde0638"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ebc88fc67028ae3db0c853baa36269d398d5f45b6982f95549ff5def78c935cd"
 dependencies = [
  "serde",
 ]
@@ -5712,13 +5707,12 @@ dependencies = [
 [[package]]
 name = "primitive-types"
 version = "0.12.1"
-source = "git+https://github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix#05ef0bec2de0fed8c5306dcb4fa28e81efde0638"
 dependencies = [
- "fixed-hash 0.8.0 (git+https://github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix)",
+ "fixed-hash 0.8.0",
  "impl-borsh",
- "impl-codec 0.6.0 (git+https://github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix)",
- "impl-rlp 0.3.0 (git+https://github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix)",
- "impl-serde 0.4.0 (git+https://github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix)",
+ "impl-codec 0.6.0",
+ "impl-rlp 0.3.0",
+ "impl-serde 0.4.0",
  "scale-info",
  "uint",
 ]
@@ -6268,7 +6262,6 @@ dependencies = [
 [[package]]
 name = "rlp"
 version = "0.5.2"
-source = "git+https://github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix#05ef0bec2de0fed8c5306dcb4fa28e81efde0638"
 dependencies = [
  "bytes",
  "rustc-hex",

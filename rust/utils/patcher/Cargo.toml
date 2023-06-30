@@ -2,7 +2,7 @@
 
 [package]
 name = "patcher"
-version = "0.1.7"
+version = "0.2.10"
 edition = "2021"
 
 

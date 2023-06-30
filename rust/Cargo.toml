@@ -80,8 +80,10 @@ num-traits = "0.2"
 parking_lot = "0.12"
 paste = "1.0"
 pretty_env_logger = "0.4"
+primitive-types = "=0.12.1"
 prometheus = "0.13"
 reqwest = "0.11"
+rlp = "=0.5.2"
 rocksdb = "0.20"
 semver = "1.0"
 serde_bytes = "0.11"
@@ -190,14 +192,16 @@ branch = "main"
 features = []
 
 [patch.crates-io.primitive-types]
-git = "https://github.com/Eclipse-Laboratories-Inc/parity-common"
-branch = "steven/primitive-types-impl-borsh-uint-version-fix"
+version = "=0.12.1"
+path = "patches/parity-common/primitive-types"
 features = []
+default-features = false
 
 [patch.crates-io.rlp]
-git = "https://github.com/Eclipse-Laboratories-Inc/parity-common"
-branch = "steven/primitive-types-impl-borsh-uint-version-fix"
+version = "=0.5.2"
+path = "patches/parity-common/rlp"
 features = []
+default-features = false
 
 [patch.crates-io.solana-account-decoder]
 version = "=1.14.13"
