@@ -1,3 +1,5 @@
+//! Instruction types for the ValidatorAnnounce program.
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H160;
 use solana_program::{
@@ -19,10 +21,12 @@ pub enum Instruction {
 }
 
 impl Instruction {
+    /// Deserializes an instruction from a slice.
     pub fn from_instruction_data(data: &[u8]) -> Result<Self, ProgramError> {
         Self::try_from_slice(data).map_err(|_| ProgramError::InvalidInstructionData)
     }
 
+    /// Serializes an instruction into a byte vector.
     pub fn into_instruction_data(self) -> Result<Vec<u8>, ProgramError> {
         self.try_to_vec()
             .map_err(|err| ProgramError::BorshIoError(err.to_string()))
@@ -32,19 +36,25 @@ impl Instruction {
 /// Init data.
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct InitInstruction {
+    /// The local Mailbox program.
     pub mailbox: Pubkey,
+    /// The local domain.
     pub local_domain: u32,
 }
 
 /// Announcement data.
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct AnnounceInstruction {
+    /// The validator's address.
     pub validator: H160,
+    /// The validator's storage location.
     pub storage_location: String,
+    /// The validator's signature attesting to the storage location.
     pub signature: Vec<u8>,
 }
 
 impl AnnounceInstruction {
+    /// Returns the replay ID for this announcement.
     pub fn replay_id(&self) -> [u8; 32] {
         let mut hasher = keccak::Hasher::default();
         hasher.hash(self.validator.as_bytes());
@@ -53,6 +63,7 @@ impl AnnounceInstruction {
     }
 }
 
+/// Gets an instruction to initialize the program.
 pub fn init_instruction(
     program_id: Pubkey,
     payer: Pubkey,

@@ -1,3 +1,5 @@
+//! Accounts used by the ValidatorAnnounce program.
+
 use account_utils::{AccountData, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::{account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey};
@@ -10,8 +12,11 @@ pub type ValidatorAnnounceAccount = AccountData<ValidatorAnnounce>;
 /// Data used for verifying validator announcements.
 #[derive(BorshSerialize, BorshDeserialize, Debug, Default, Clone, PartialEq, Eq)]
 pub struct ValidatorAnnounce {
+    /// The bump seed used to derive the PDA for this account.
     pub bump_seed: u8,
+    /// The local Mailbox program.
     pub mailbox: Pubkey,
+    /// The local domain.
     pub local_domain: u32,
 }
 
@@ -22,6 +27,7 @@ impl SizedData for ValidatorAnnounce {
 }
 
 impl ValidatorAnnounce {
+    /// Verifies that the provided account info is the expected canonical ValidatorAnnounce PDA account.
     pub fn verify_self_account_info(
         &self,
         program_id: &Pubkey,
@@ -46,7 +52,9 @@ pub type ValidatorStorageLocationsAccount = AccountData<ValidatorStorageLocation
 /// Storage locations for a validator.
 #[derive(BorshSerialize, BorshDeserialize, Debug, Default, Clone, PartialEq, Eq)]
 pub struct ValidatorStorageLocations {
+    /// The bump seed used to derive the PDA for this account.
     pub bump_seed: u8,
+    /// Storage locations for this validator.
     pub storage_locations: Vec<String>,
 }
 
@@ -60,6 +68,8 @@ impl SizedData for ValidatorStorageLocations {
     /// the new storage location to the account data's existing size.
     /// I.e. 4 (for the len of the location) + storage_location.len()
     /// to the AccountInfo's data_len.
+    ///
+    /// This is tested in functional tests.
     fn size(&self) -> usize {
         // 1 byte bump seed
         // 4 byte len of storage_locations
@@ -70,7 +80,7 @@ impl SizedData for ValidatorStorageLocations {
             + self
                 .storage_locations
                 .iter()
-                .map(|s| 4 + s.len())
+                .map(|s| ValidatorStorageLocations::size_increase_for_new_storage_location(s))
                 .sum::<usize>()
     }
 }
@@ -94,6 +104,7 @@ impl ValidatorStorageLocations {
 /// HashMap to tell if a storage location has already been announced.
 pub type ReplayProtectionAccount = AccountData<ReplayProtection>;
 
+/// Empty account data used as a replay protection mechanism.
 #[derive(BorshSerialize, BorshDeserialize, Debug, Default, Clone, PartialEq, Eq)]
 pub struct ReplayProtection(pub ());
 
