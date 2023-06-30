@@ -3,7 +3,7 @@
 use access_control::AccessControl;
 use account_utils::create_pda_account;
 use borsh::{BorshDeserialize, BorshSerialize};
-use hyperlane_core::{Decode, Encode as _, H256};
+use hyperlane_core::{Decode, Encode};
 use hyperlane_sealevel_connection_client::{
     router::{
         HyperlaneRouterAccessControl, HyperlaneRouterDispatch, HyperlaneRouterMessageRecipient,
@@ -12,16 +12,16 @@ use hyperlane_sealevel_connection_client::{
     HyperlaneConnectionClient, HyperlaneConnectionClientSetterAccessControl,
 };
 use hyperlane_sealevel_mailbox::{
-    mailbox_message_dispatch_authority_pda_seeds,
-    mailbox_process_authority_pda_seeds,
+    mailbox_message_dispatch_authority_pda_seeds, mailbox_process_authority_pda_seeds,
 };
 use hyperlane_sealevel_message_recipient_interface::HandleInstruction;
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
-    instruction::{AccountMeta, Instruction},
-    program::{invoke_signed, set_return_data},
+    instruction::AccountMeta,
+    msg,
+    program::set_return_data,
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
@@ -32,9 +32,7 @@ use std::collections::HashMap;
 use crate::{
     accounts::{HyperlaneToken, HyperlaneTokenAccount},
     error::Error,
-    instruction::{
-        Event, EventReceivedTransferRemote, EventSentTransferRemote, Init, TransferRemote,
-    },
+    instruction::{Init, TransferRemote},
     message::TokenMessage,
 };
 
@@ -377,18 +375,12 @@ where
             ],
         )?;
 
-        let event = Event::new(EventSentTransferRemote {
-            destination: xfer.destination_domain,
-            recipient: xfer.recipient,
-            amount: remote_amount,
-        });
-        let event_data = event.to_noop_cpi_ixn_data().map_err(|_| Error::TODO)?;
-        let noop_cpi_log = Instruction {
-            program_id: spl_noop::id(),
-            accounts: vec![],
-            data: event_data,
-        };
-        invoke_signed(&noop_cpi_log, &[], &[token_seeds])?;
+        msg!(
+            "Warp route transfer completed to destination: {}, recipient: {}, remote_amount: {}",
+            xfer.destination_domain,
+            xfer.recipient,
+            remote_amount
+        );
 
         Ok(())
     }
@@ -471,19 +463,12 @@ where
             return Err(ProgramError::from(Error::ExtraneousAccount));
         }
 
-        let event = Event::new(EventReceivedTransferRemote {
-            origin: xfer.origin,
-            // Note: assuming recipient not recipient ata is the correct "recipient" to log.
-            recipient: H256::from(recipient_wallet.key.to_bytes()),
-            amount: remote_amount,
-        });
-        let event_data = event.to_noop_cpi_ixn_data().map_err(|_| Error::TODO)?;
-        let noop_cpi_log = Instruction {
-            program_id: spl_noop::id(),
-            accounts: vec![],
-            data: event_data,
-        };
-        invoke_signed(&noop_cpi_log, &[], &[token_seeds])?;
+        msg!(
+            "Warp route transfer completed from origin: {}, recipient: {}, remote_amount: {}",
+            xfer.origin,
+            recipient_wallet.key,
+            remote_amount
+        );
 
         Ok(())
     }

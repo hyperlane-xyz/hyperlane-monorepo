@@ -1,3 +1,5 @@
+//! Test client for the TestSendReceiver program.
+
 use borsh::BorshSerialize;
 use solana_program::{
     instruction::{AccountMeta, Instruction},
@@ -19,12 +21,14 @@ use crate::{
     test_send_receiver_storage_pda_seeds,
 };
 
+/// Test client for the TestSendReceiver program.
 pub struct TestSendReceiverTestClient {
     banks_client: BanksClient,
     payer: Keypair,
 }
 
 impl TestSendReceiverTestClient {
+    /// Creates a new `TestSendReceiverTestClient`.
     pub fn new(banks_client: BanksClient, payer: Keypair) -> Self {
         Self {
             banks_client,
@@ -32,6 +36,7 @@ impl TestSendReceiverTestClient {
         }
     }
 
+    /// Initializes the TestSendReceiver program.
     pub async fn init(&mut self) -> Result<(), BanksClientError> {
         let program_id = id();
 
@@ -63,6 +68,7 @@ impl TestSendReceiverTestClient {
         Ok(())
     }
 
+    /// Sets the ISM.
     pub async fn set_ism(
         &mut self,
         ism: Option<Pubkey>,
@@ -95,6 +101,7 @@ impl TestSendReceiverTestClient {
         Ok(())
     }
 
+    /// Sets whether the program should fail when handling a message.
     pub async fn set_fail_handle(&mut self, fail_handle: bool) -> Result<(), BanksClientError> {
         let program_id = id();
 
@@ -123,6 +130,7 @@ impl TestSendReceiverTestClient {
         Ok(())
     }
 
+    /// Dispatches a message.
     pub async fn dispatch(
         &mut self,
         mailbox_accounts: &MailboxAccounts,
@@ -195,6 +203,7 @@ impl TestSendReceiverTestClient {
         Pubkey::find_program_address(mailbox_message_dispatch_authority_pda_seeds!(), &program_id)
     }
 
+    /// Returns the program ID.
     pub fn id(&self) -> Pubkey {
         id()
     }

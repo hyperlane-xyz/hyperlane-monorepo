@@ -1,3 +1,5 @@
+//! Test client for the Test ISM program.
+
 use borsh::BorshSerialize;
 use solana_program::{
     instruction::{AccountMeta, Instruction},
@@ -11,12 +13,14 @@ use hyperlane_test_transaction_utils::process_instruction;
 
 use crate::{id, program::TestIsmInstruction, test_ism_storage_pda_seeds};
 
+/// Test client for the Test ISM program.
 pub struct TestIsmTestClient {
     banks_client: BanksClient,
     payer: Keypair,
 }
 
 impl TestIsmTestClient {
+    /// Creates a new `TestIsmTestClient`.
     pub fn new(banks_client: BanksClient, payer: Keypair) -> Self {
         Self {
             banks_client,
@@ -24,6 +28,7 @@ impl TestIsmTestClient {
         }
     }
 
+    /// Initializes the Test ISM program.
     pub async fn init(&mut self) -> Result<(), BanksClientError> {
         let program_id = id();
 
@@ -53,6 +58,7 @@ impl TestIsmTestClient {
         Ok(())
     }
 
+    /// Sets the Test ISM to accept or reject.
     pub async fn set_accept(&mut self, accept: bool) -> Result<(), BanksClientError> {
         let program_id = id();
 
@@ -83,6 +89,7 @@ impl TestIsmTestClient {
         storage_pda_key
     }
 
+    /// Gets the program ID.
     pub fn id(&self) -> Pubkey {
         id()
     }
