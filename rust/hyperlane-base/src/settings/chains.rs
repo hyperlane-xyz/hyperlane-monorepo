@@ -8,7 +8,7 @@ use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
 };
 use hyperlane_core::{
-    config::*, ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol,
+    config::*, CctpIsm, ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol,
     HyperlaneProvider, HyperlaneSigner, Indexer, InterchainGasPaymaster, InterchainGasPayment,
     InterchainSecurityModule, Mailbox, MessageIndexer, MultisigIsm, RoutingIsm, ValidatorAnnounce,
     H160, H256,
@@ -521,6 +521,29 @@ impl ChainConf {
         match &self.connection()? {
             ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(conf, &locator, metrics, h_eth::RoutingIsmBuilder {})
+                    .await
+            }
+
+            ChainConnectionConf::Fuel(_) => todo!(),
+        }
+        .context(ctx)
+    }
+
+    /// Try to convert the chain setting into a CcipRead Ism contract
+    pub async fn build_cctp_ism(
+        &self,
+        address: H256,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn CctpIsm>> {
+        let ctx = "Building Cctp ISM";
+        let locator = ContractLocator {
+            domain: &self.domain,
+            address,
+        };
+
+        match &self.connection()? {
+            ChainConnectionConf::Ethereum(conf) => {
+                self.build_ethereum(conf, &locator, metrics, h_eth::CctpIsmBuilder {})
                     .await
             }
 
