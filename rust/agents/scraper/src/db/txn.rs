@@ -34,21 +34,6 @@ impl ScraperDb {
         Ok(block_id)
     }
 
-    pub async fn retrieve_txn_hash(&self, tx_id: i64) -> Result<Option<Vec<u8>>> {
-        #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-        enum QueryAs {
-            Hash,
-        }
-        let tx_hash = transaction::Entity::find()
-            .filter(transaction::Column::Id.eq(tx_id))
-            .select_only()
-            .column_as(transaction::Column::Hash, QueryAs::Hash)
-            .into_values::<Vec<u8>, QueryAs>()
-            .one(&self.0)
-            .await?;
-        Ok(tx_hash)
-    }
-
     /// Lookup transactions and find their ids. Any transactions which are not
     /// found be excluded from the hashmap.
     pub async fn get_txn_ids(

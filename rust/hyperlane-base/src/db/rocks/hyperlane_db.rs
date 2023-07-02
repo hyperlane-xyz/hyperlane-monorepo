@@ -258,12 +258,6 @@ impl HyperlaneMessageStore for HyperlaneRocksDB {
         let number = self.retrieve_dispatched_block_number_by_nonce(&nonce)?;
         Ok(number)
     }
-
-    /// Retrieve the txn hash of a dispatched transaction.
-    async fn retrieve_dispatched_txn_hash(&self, nonce: u32) -> Result<Option<Vec<u8>>> {
-        let hash = self.retrieve_dispatched_txn_hash_by_nonce(&nonce)?;
-        Ok(hash);
-    }
 }
 
 /// Note that for legacy reasons this watermark may be shared across multiple cursors, some of which may not have anything to do with gas payments
