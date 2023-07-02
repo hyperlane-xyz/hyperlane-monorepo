@@ -60,7 +60,7 @@ contract CheckpointFraudProofs {
      *  @return Whether the provided checkpoint is local.
      */
     function isNonLocal(Checkpoint calldata checkpoint)
-        public
+        external
         view
         returns (bool)
     {
@@ -74,7 +74,7 @@ contract CheckpointFraudProofs {
      *  @return Whether the provided checkpoint is premature.
      */
     function isPremature(Checkpoint calldata checkpoint)
-        public
+        external
         view
         returns (bool)
     {
@@ -99,7 +99,7 @@ contract CheckpointFraudProofs {
         Checkpoint calldata checkpoint,
         bytes32[TREE_DEPTH] calldata proof,
         bytes32 actualMessageId
-    ) public view returns (bool) {
+    ) external view returns (bool) {
         requireLocalCheckpoint(checkpoint);
         requireMemberOfStoredCheckpoint(
             actualMessageId,
@@ -121,7 +121,7 @@ contract CheckpointFraudProofs {
     function isFraudulentRoot(
         Checkpoint calldata checkpoint,
         bytes32[TREE_DEPTH] calldata proof
-    ) public view returns (bool) {
+    ) external view returns (bool) {
         requireLocalCheckpoint(checkpoint);
         requireMemberOfStoredCheckpoint(
             checkpoint.messageId,
