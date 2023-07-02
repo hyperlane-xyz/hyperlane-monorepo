@@ -355,6 +355,19 @@ impl HyperlaneMessageStore for HyperlaneSqlDb {
 
         Ok(self.db.retrieve_block_number(block_id).await?)
     }
+
+    /// Retrieves the txn hash at which the message with the provided nonce was dispatched
+    async fn retrieve_dispatched_txn_hash(&self, nonce: u32) -> Result<Option<Vec<u8>>> {
+        let Some(tx_id) = self
+        .db
+        .retrieve_dispatched_tx_id(self.domain().id(), &self.mailbox_address, nonce)
+        .await?
+        else {
+            return Ok(None);
+        };
+
+        Ok(self.db.retrieve_dispatched_txn_hash(tx_id).await?);
+    }
 }
 
 #[async_trait]

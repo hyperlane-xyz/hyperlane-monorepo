@@ -23,6 +23,8 @@ pub trait HyperlaneMessageStore: HyperlaneLogStore<HyperlaneMessage> {
     async fn retrieve_message_by_nonce(&self, nonce: u32) -> Result<Option<HyperlaneMessage>>;
     /// Gets the block number at which a message was dispatched.
     async fn retrieve_dispatched_block_number(&self, nonce: u32) -> Result<Option<u64>>;
+    /// Gets the txn hash at which a message was dispatched.
+    async fn retrieve_dispatched_txn_hash(&self, nonce: u32) -> Result<Option<Vec<u8>>>;
 }
 
 /// Extension of HyperlaneLogStore trait that supports a high watermark for the highest indexed block number.
