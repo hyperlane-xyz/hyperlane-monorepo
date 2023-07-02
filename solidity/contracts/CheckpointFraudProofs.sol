@@ -30,9 +30,7 @@ contract CheckpointFraudProofs {
         internal
         view
     {
-        uint32 mailboxDomain = IMailbox(CheckpointLib.mailbox(checkpoint))
-            .localDomain();
-        require(checkpoint.origin == mailboxDomain, "must be local checkpoint");
+        require(isLocalCheckpoint(checkpoint), "must be local checkpoint");
     }
 
     /**
@@ -43,6 +41,18 @@ contract CheckpointFraudProofs {
     function storeLatestCheckpoint(address mailbox) external {
         (bytes32 root, uint32 index) = IMailbox(mailbox).latestCheckpoint();
         storedCheckpoint[mailbox][root] = index;
+    }
+
+    /**
+     *  @notice Checks whether the provided checkpoint is local.
+     *  @param checkpoint Checkpoint to check.
+     *  @dev Checks whether checkpoint.origin == checkpoint.mailbox.localDomain()
+     *  @return Whether the provided checkpoint is local.
+     */
+    function isLocalCheckpoint(Checkpoint calldata checkpoint) public view returns (bool) {
+        uint32 mailboxDomain = IMailbox(CheckpointLib.mailbox(checkpoint))
+            .localDomain();
+        return checkpoint.origin == mailboxDomain;
     }
 
     /**

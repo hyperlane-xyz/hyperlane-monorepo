@@ -41,6 +41,13 @@ contract CheckpointFraudProofsTest is Test {
         cfp = new CheckpointFraudProofs();
     }
 
+    function test_isLocal() public {
+        assertTrue(cfp.isLocal(latestCheckpoint));
+        Checkpoint memory checkpoint = latestCheckpoint;
+        checkpoint.origin = remoteDomain;
+        assertFalse(cfp.isLocal(checkpoint));
+    }
+
     function test_isPremature() public {
         assertFalse(cfp.isPremature(latestCheckpoint));
         Checkpoint memory checkpoint = latestCheckpoint;
