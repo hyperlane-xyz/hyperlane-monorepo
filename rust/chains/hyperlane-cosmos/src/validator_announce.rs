@@ -5,6 +5,7 @@ use hyperlane_core::{
     HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H256, U256,
 };
 
+/// A reference to a ValidatorAnnounce contract on some Cosmos chain
 #[derive(Debug)]
 pub struct CosmosValidatorAnnounce {}
 

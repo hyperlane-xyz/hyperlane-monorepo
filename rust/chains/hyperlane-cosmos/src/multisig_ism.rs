@@ -4,6 +4,7 @@ use hyperlane_core::{
     HyperlaneProvider, MultisigIsm, H256,
 };
 
+/// A reference to a MultisigIsm contract on some Cosmos chain
 #[derive(Debug)]
 pub struct CosmosMultisigIsm {}
 

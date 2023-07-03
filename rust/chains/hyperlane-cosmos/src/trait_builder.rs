@@ -1,12 +1,15 @@
 use hyperlane_core::config::{ConfigErrResultExt, ConfigPath, ConfigResult, FromRawConf};
 use url::Url;
 
+/// Cosmos connection configuration
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
     // TODO: more settings?
+    #[allow(dead_code)]
     url: Url,
 }
 
+/// Raw Cosmos connection configuration used for better deserialization errors.
 #[derive(Debug, serde::Deserialize)]
 pub struct RawConnectionConf {
     // TODO: more settings?

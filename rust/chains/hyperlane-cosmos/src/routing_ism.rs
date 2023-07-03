@@ -5,6 +5,7 @@ use hyperlane_core::{
     HyperlaneProvider, RoutingIsm, H256,
 };
 
+/// A reference to a RoutingIsm contract on some Cosmos chain
 #[derive(Debug)]
 pub struct CosmosRoutingIsm {}
 
