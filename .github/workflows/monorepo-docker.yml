@@ -38,8 +38,6 @@ jobs:
         with:
           submodules: recursive
 
-      - name: remove submodule locks
-        run: git submodule foreach 'test -f yarn.lock && rm yarn.lock || echo "No yarn.lock file in this submodule"'
       - name: Generate tag data
         id: taggen
         run: |

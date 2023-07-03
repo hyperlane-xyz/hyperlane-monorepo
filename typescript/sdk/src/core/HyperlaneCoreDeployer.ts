@@ -1,9 +1,15 @@
 import debug from 'debug';
+import { ethers } from 'ethers';
 
-import { Mailbox, ValidatorAnnounce } from '@hyperlane-xyz/core';
+import {
+  Mailbox,
+  TimelockController,
+  TimelockController__factory,
+  ValidatorAnnounce,
+} from '@hyperlane-xyz/core';
 import { types } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts, filterOwnableContracts } from '../contracts';
+import { HyperlaneContracts } from '../contracts';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import {
   HyperlaneIsmFactory,
@@ -30,6 +36,21 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       logger: debug('hyperlane:CoreDeployer'),
       chainTimeoutMs: 1000 * 60 * 10, // 10 minutes
     });
+  }
+
+  async deployTimelock(
+    chain: ChainName,
+    delay: number,
+    owner: types.Address,
+  ): Promise<TimelockController> {
+    const timelock = await this.deployContract(
+      chain,
+      'timelockController',
+      // see https://docs.openzeppelin.com/contracts/4.x/api/governance#TimelockController-constructor-uint256-address---address---address-
+      // delay, [proposers], [executors], admin
+      [delay, [owner], [owner], ethers.constants.AddressZero],
+    );
+    return timelock;
   }
 
   async deployMailbox(
@@ -111,14 +132,36 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       mailbox.address,
     );
 
-    const contracts = {
-      validatorAnnounce,
-      proxyAdmin,
+    let timelockController: TimelockController;
+    if (config.upgradeTimelockDelay) {
+      timelockController = await this.deployTimelock(
+        chain,
+        config.upgradeTimelockDelay,
+        config.owner,
+      );
+      await this.transferOwnershipOfContracts(
+        chain,
+        timelockController.address,
+        { proxyAdmin },
+      );
+      await this.transferOwnershipOfContracts(chain, config.owner, { mailbox });
+    } else {
+      // mock this for consistent serialization
+      timelockController = TimelockController__factory.connect(
+        ethers.constants.AddressZero,
+        this.multiProvider.getProvider(chain),
+      );
+      await this.transferOwnershipOfContracts(chain, config.owner, {
+        mailbox,
+        proxyAdmin,
+      });
+    }
+
+    return {
       mailbox,
+      proxyAdmin,
+      timelockController,
+      validatorAnnounce,
     };
-    // Transfer ownership of all ownable contracts
-    const ownables = await filterOwnableContracts(contracts);
-    await this.transferOwnershipOfContracts(chain, config.owner, ownables);
-    return contracts;
   }
 }
