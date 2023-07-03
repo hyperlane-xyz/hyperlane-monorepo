@@ -1,8 +1,8 @@
 import { CoreChainName, chainMetadata } from '@hyperlane-xyz/sdk';
 
 import {
-  ChainValidatorConfigs,
   CheckpointSyncerType,
+  ValidatorBaseChainConfigMap,
 } from '../../../src/config/agent';
 
 import { environment } from './chains';
@@ -12,7 +12,7 @@ const s3BucketRegion = 'us-east-1';
 const s3BucketName = (chainName: CoreChainName, index: number) =>
   `hyperlane-${environment}-${chainName}-validator-${index}`;
 
-export const validators: ChainValidatorConfigs = {
+export const validators: ValidatorBaseChainConfigMap = {
   alfajores: {
     interval: 5,
     reorgPeriod: chainMetadata.alfajores.blocks!.reorgPeriod!,

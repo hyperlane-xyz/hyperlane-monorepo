@@ -1,4 +1,3 @@
-export { AgentConfig } from './agent';
 export { EnvironmentConfig, DeployEnvironment } from './environment';
 export {
   AllStorageGasOracleConfigs,
@@ -8,3 +7,4 @@ export {
 } from './gas-oracle';
 export { HelloWorldConfig } from './helloworld';
 export { InfrastructureConfig } from './infrastructure';
+export * from './agent';

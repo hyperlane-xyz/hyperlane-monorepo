@@ -68,7 +68,7 @@ Create the name of the service account to use
 The name of the ClusterSecretStore/SecretStore
 */}}
 {{- define "agent-common.secret-store.name" -}}
-{{- default "external-secrets-gcp-cluster-secret-store" .Values.externalSecrets.StoreName }}
+{{- default "external-secrets-gcp-cluster-secret-store" .Values.externalSecrets.storeName }}
 {{- end }}
 
 {{/*

@@ -4,7 +4,6 @@ pragma solidity ^0.8.13;
 import {Router} from "../../../Router.sol";
 
 import {ITokenMessenger} from "../interfaces/circle/ITokenMessenger.sol";
-import {ICircleMessageTransmitter} from "../interfaces/circle/ICircleMessageTransmitter.sol";
 import {ILiquidityLayerAdapterV2} from "../interfaces/ILiquidityLayerAdapterV2.sol";
 
 import {TypeCasts} from "../../../libs/TypeCasts.sol";
@@ -15,19 +14,40 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 contract CCTPAdapter is ILiquidityLayerAdapterV2, Router {
     using SafeERC20 for IERC20;
 
+    /**
+     * @dev Emitted on `transferRemote` when a transfer message is dispatched.
+     * @param destination The identifier of the destination chain.
+     * @param recipient The address of the recipient on the destination chain.
+     * @param amount The amount of tokens burnt on the origin chain.
+     */
+
+    event SentTransferRemote(
+        uint32 indexed destination,
+        bytes32 indexed recipient,
+        uint256 amount
+    );
+
+    /**
+     * @dev Emitted when the amount of gas required to process a CCTP transfer is updated.
+     * @param oldGasAmount The old gas amount.
+     * @param newGasAmount The new gas amount.
+     */
+    event GasAmountSet(
+        uint256 indexed oldGasAmount,
+        uint256 indexed newGasAmount
+    );
+
     /// @notice The TokenMessenger contract.
     ITokenMessenger public tokenMessenger;
 
-    /// @notice The Circle MessageTransmitter contract.
-    ICircleMessageTransmitter public circleMessageTransmitter;
-
-    /// @notice The USDC token address.
+    /// @notice The token address.
     address public token;
 
-    /// @notice Circle BridgeAdapterType. This would set to "Circle".
-    string public bridge;
+    /// @notice The token symbol of the token.
+    string public tokenSymbol;
 
-    string public constant TOKEN_SYMBOL = "USDC";
+    /// @notice The amount of gas required to process a CCTP transfer.
+    uint256 public gasAmount;
 
     /// @notice Hyperlane domain => Circle domain.
     /// ATM, known Circle domains are Ethereum = 0 and Avalanche = 1.
@@ -51,9 +71,9 @@ contract CCTPAdapter is ILiquidityLayerAdapterV2, Router {
     /**
      * @param _owner The new owner.
      * @param _tokenMessenger The TokenMessenger contract.
-     * @param _circleMessageTransmitter The Circle MessageTransmitter contract.
-     * @param _token The USDC token address.
-     * @param _bridge The Circle token bridge ID. (This would be set to "Circle".)
+     * @param _token The token address.
+     * @param _tokenSymbol The token symbol.
+     * @param _gasAmount The amount of gas required to process a CCTP transfer.
      * @param _mailbox The address of the mailbox contract.
      * @param _interchainGasPaymaster The address of the interchain gas paymaster contract.
      * @param _interchainSecurityModule The address of the interchain security module contract.
@@ -61,9 +81,9 @@ contract CCTPAdapter is ILiquidityLayerAdapterV2, Router {
     function initialize(
         address _owner,
         address _tokenMessenger,
-        address _circleMessageTransmitter,
         address _token,
-        string calldata _bridge,
+        string calldata _tokenSymbol,
+        uint256 _gasAmount,
         address _mailbox,
         address _interchainGasPaymaster,
         address _interchainSecurityModule
@@ -76,65 +96,72 @@ contract CCTPAdapter is ILiquidityLayerAdapterV2, Router {
         );
 
         tokenMessenger = ITokenMessenger(_tokenMessenger);
-        circleMessageTransmitter = ICircleMessageTransmitter(
-            _circleMessageTransmitter
-        );
         token = _token;
-        bridge = _bridge;
+        tokenSymbol = _tokenSymbol;
+        gasAmount = _gasAmount;
     }
 
+    /**
+     * @notice Transfers `_amount` token to `_recipientAddress` on `_destinationDomain` chain.
+     * @param _destinationDomain The identifier of the destination chain.
+     * @param _recipientAddress The address of the recipient on the destination chain.
+     * @param _amount The amount of tokens to transfer.
+     * @return messageId The identifier of the dispatched message.
+     */
     function transferRemote(
         uint32 _destinationDomain,
         bytes32 _recipientAddress,
         uint256 _amount
-    ) external override returns (bytes32) {
+    ) external payable override returns (bytes32 messageId) {
         _mustHaveRemoteRouter(_destinationDomain);
         uint32 _circleDomain = hyperlaneDomainToCircleDomain[
             _destinationDomain
         ];
 
-        // Approve the token to Circle. We assume that the LiquidityLayerRouterV2
-        // has already transferred the token to this contract.
-        require(
-            IERC20(token).approve(address(tokenMessenger), _amount),
-            "!approval"
-        );
+        IERC20(token).transferFrom(msg.sender, address(this), _amount);
 
         uint64 _nonce = tokenMessenger.depositForBurn(
             _amount,
             _circleDomain,
-            _recipientAddress, // Mint to the recipient itself. This is different from the CircleBridgeAdapter.
+            _recipientAddress,
             token
         );
 
         emit BridgedToken(_nonce);
 
-        bytes memory _adapterData = abi.encode(_nonce, TOKEN_SYMBOL);
-        // The user's message "wrapped" required by this middleware
-        bytes memory _messageWithEmptyMetadata = abi.encode(
-            TypeCasts.addressToBytes32(msg.sender),
+        bytes memory _message = abi.encode(
             _recipientAddress, // The "user" recipient
             _amount, // The amount of the tokens sent over the bridge
-            bridge, // The destination token bridge ID
-            _adapterData, // The adapter-specific data
-            bytes("") // Empty "user" message
-            // TODO : remove hanling of user message in the router because it will only be handled by the ICARouter
+            TypeCasts.addressToBytes32(msg.sender),
+            _nonce,
+            tokenSymbol
         );
 
-        // Dispatch the _messageWithEmptyMetadata to the destination's LiquidityLayerRouter.
-        return _dispatch(_destinationDomain, _messageWithEmptyMetadata);
+        messageId = _dispatchWithGas(
+            _destinationDomain,
+            _message,
+            gasAmount,
+            msg.value,
+            msg.sender
+        );
+
+        emit SentTransferRemote(_destinationDomain, _recipientAddress, _amount);
     }
 
-    // This contract is only a Router to be aware of remote router addresses,
-    // and doesn't actually send/handle Hyperlane messages directly
+    // token transfer is already handled by the CCTPIsm
     function _handle(
         uint32, // origin
         bytes32, // sender
         bytes calldata // message
     ) internal pure override {
-        revert("No messages expected");
+        // do nothing
     }
 
+    /**
+     * @notice Adds a new mapping between a Hyperlane domain and a Circle domain.
+     * @param _hyperlaneDomain The Hyperlane domain.
+     * @param _circleDomain The Circle domain.
+     */
     function addDomain(uint32 _hyperlaneDomain, uint32 _circleDomain)
         external
         onlyOwner
@@ -142,5 +169,16 @@ contract CCTPAdapter is ILiquidityLayerAdapterV2, Router {
         hyperlaneDomainToCircleDomain[_hyperlaneDomain] = _circleDomain;
 
         emit DomainAdded(_hyperlaneDomain, _circleDomain);
+    }
+
+    /**
+     * @notice Sets the gas amount required to process a CCTP transfer.
+     * @param _gasAmount The new gas amount.
+     */
+    function setGasAmount(uint256 _gasAmount) external onlyOwner {
+        uint256 oldGasAmount = gasAmount;
+        gasAmount = _gasAmount;
+
+        emit GasAmountSet(oldGasAmount, _gasAmount);
     }
 }

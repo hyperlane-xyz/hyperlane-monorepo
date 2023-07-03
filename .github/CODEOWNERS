@@ -17,7 +17,7 @@ rust/ @mattiecnvr @tkporter @asaj
 typescript/sdk @yorhodes @jmrossy
 
 ## Infra
-typescript/infra @tkporter @nambrot @asaj
+typescript/infra @tkporter @asaj @mattiecnvr
 
 ## Submodules
 typescript/token @yorhodes @jmrossy

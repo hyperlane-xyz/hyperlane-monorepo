@@ -97,7 +97,7 @@ impl<M> MultisigIsm for EthereumMultisigIsm<M>
 where
     M: Middleware + 'static,
 {
-    #[instrument(err, ret)]
+    #[instrument(err)]
     async fn validators_and_threshold(
         &self,
         message: &HyperlaneMessage,

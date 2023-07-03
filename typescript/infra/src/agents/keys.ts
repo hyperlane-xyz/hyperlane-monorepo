@@ -4,18 +4,17 @@ import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import { DeployEnvironment } from '../config';
+import { Role } from '../roles';
 import { assertChain, assertContext, assertRole } from '../utils/utils';
 
 import { parseKeyIdentifier } from './agent';
-import { KEY_ROLE_ENUM } from './roles';
 
 // Base class to represent keys used to run Hyperlane agents.
 export abstract class BaseAgentKey {
   constructor(
     public readonly environment: DeployEnvironment,
-    public readonly role: KEY_ROLE_ENUM,
+    public readonly role: Role,
     public readonly chainName?: ChainName,
-    public readonly readonly = true,
   ) {}
 
   abstract get address(): string;
@@ -34,11 +33,11 @@ export abstract class CloudAgentKey extends BaseCloudAgentKey {
   protected constructor(
     public readonly environment: DeployEnvironment,
     public readonly context: Contexts,
-    public readonly role: KEY_ROLE_ENUM,
+    public readonly role: Role,
     public readonly chainName?: ChainName,
     public readonly index?: number,
   ) {
-    super(environment, role, chainName, false);
+    super(environment, role, chainName);
   }
 
   abstract fetch(): Promise<void>;
@@ -67,7 +66,7 @@ export class ReadOnlyCloudAgentKey extends BaseCloudAgentKey {
   constructor(
     public readonly environment: DeployEnvironment,
     public readonly context: Contexts,
-    public readonly role: KEY_ROLE_ENUM,
+    public readonly role: Role,
     public readonly identifier: string,
     public readonly address: string,
     public readonly chainName?: ChainName,

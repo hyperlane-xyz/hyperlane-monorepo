@@ -1,7 +1,9 @@
+use std::time::Duration;
+
 use async_trait::async_trait;
 use ethers::prelude::{AwsSigner, LocalWallet};
 use eyre::{bail, eyre, Context, Report};
-use rusoto_core::{HttpClient, Region};
+use rusoto_core::{HttpClient, HttpConfig, Region};
 use rusoto_kms::KmsClient;
 use serde::Deserialize;
 use tracing::instrument;
@@ -104,10 +106,13 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
                 ),
             )),
             SignerConf::Aws { id, region } => {
+                let mut config = HttpConfig::new();
+                // see https://github.com/hyperium/hyper/issues/2136#issuecomment-589345238
+                config.pool_idle_timeout(Duration::from_secs(20));
                 let client = KmsClient::new_with_client(
                     rusoto_core::Client::new_with(
                         AwsChainCredentialsProvider::new(),
-                        HttpClient::new().unwrap(),
+                        HttpClient::new_with_config(config).unwrap(),
                     ),
                     region.clone(),
                 );
