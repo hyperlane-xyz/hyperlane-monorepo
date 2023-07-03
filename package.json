@@ -21,6 +21,7 @@
     "prettier": "yarn workspaces foreach --verbose --parallel run prettier",
     "lint": "yarn workspaces foreach --verbose --parallel run lint",
     "test": "yarn workspaces foreach --verbose --parallel run test",
+    "coverage": "yarn workspaces foreach --verbose --parallel run coverage",
     "version:check": "yarn version check --interactive",
     "version:prepare": "yarn workspaces foreach --no-private --verbose --topological version --immediate",
     "publish:all": "yarn workspaces foreach --no-private --verbose --topological npm publish --access public"
