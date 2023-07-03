@@ -15,9 +15,10 @@ pub trait SizedData {
     fn size(&self) -> usize;
 }
 
-// FIXME should probably define another trait rather than use Default for this as a valid but
-// uninitialized object in rust is a big no no.
+/// Serializable data intended to be used by `AccountData`.
+/// Consider removing the `Default` binding in the future.
 pub trait Data: BorshDeserialize + BorshSerialize + Default {}
+
 impl<T> Data for T where T: BorshDeserialize + BorshSerialize + Default {}
 
 /// Account data structure wrapper type that handles initialization and (de)serialization.
