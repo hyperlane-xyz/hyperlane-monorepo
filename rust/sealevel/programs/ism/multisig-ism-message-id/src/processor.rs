@@ -1,7 +1,7 @@
 use hyperlane_core::{Checkpoint, CheckpointWithMessageId, Decode, HyperlaneMessage, IsmType};
 
 use access_control::AccessControl;
-use account_utils::{create_pda_account, DiscriminatorDecode};
+use account_utils::{create_pda_account, DiscriminatorDecode, SizedData};
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
@@ -14,8 +14,6 @@ use solana_program::{
     rent::Rent,
     sysvar::Sysvar,
 };
-
-use hyperlane_sealevel_mailbox::accounts::SizedData;
 
 use crate::{
     accounts::{AccessControlAccount, AccessControlData, DomainData, DomainDataAccount},
@@ -135,8 +133,6 @@ pub fn process_instruction(
                 get_validators_and_threshold(program_id, accounts, message.origin)
             }
             MultisigIsmInstruction::ValidatorsAndThresholdAccountMetas(message_bytes) => {
-                // TODO consider de-duping this by just having the instructions pass in
-                // a deserialized HyperlaneMessage
                 let message = HyperlaneMessage::read_from(&mut &message_bytes[..])
                     .map_err(|_| ProgramError::InvalidArgument)?;
                 let account_metas = get_validators_and_threshold_account_metas(
@@ -198,7 +194,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
 
     // Ensure the access control PDA account isn't already initialized.
     if let Ok(Some(_)) =
-        AccessControlAccount::fetch_data(&mut &access_control_pda_account.data.borrow_mut()[..])
+        AccessControlAccount::fetch_data(&mut &access_control_pda_account.data.borrow()[..])
     {
         return Err(Error::AlreadyInitialized.into());
     }
@@ -340,9 +336,8 @@ fn validators_and_threshold(
         return Err(Error::ProgramIdNotOwner.into());
     }
 
-    let domain_data =
-        DomainDataAccount::fetch_data(&mut &domain_pda_account.data.borrow_mut()[..])?
-            .ok_or(Error::AccountNotInitialized)?;
+    let domain_data = DomainDataAccount::fetch_data(&mut &domain_pda_account.data.borrow()[..])?
+        .ok_or(Error::AccountNotInitialized)?;
 
     let domain_pda_key = Pubkey::create_program_address(
         domain_data_pda_seeds!(domain, domain_data.bump_seed),
@@ -386,7 +381,7 @@ fn set_validators_and_threshold(
     // Account 2: The PDA relating to the provided domain.
     let domain_pda_account = next_account_info(accounts_iter)?;
 
-    let domain_data = DomainDataAccount::fetch_data(&mut &domain_pda_account.data.borrow_mut()[..]);
+    let domain_data = DomainDataAccount::fetch_data(&mut &domain_pda_account.data.borrow()[..]);
 
     let bump_seed = match domain_data {
         Ok(Some(domain_data)) => {
@@ -483,7 +478,7 @@ fn access_control_data(
     access_control_pda_account: &AccountInfo,
 ) -> Result<AccessControlData, ProgramError> {
     let access_control_data =
-        AccessControlAccount::fetch_data(&mut &access_control_pda_account.data.borrow_mut()[..])?
+        AccessControlAccount::fetch_data(&mut &access_control_pda_account.data.borrow()[..])?
             .ok_or(Error::AccountNotInitialized)?;
     // Confirm the key of the access_control_pda_account is the correct PDA
     // using the stored bump seed.
@@ -773,7 +768,7 @@ pub mod test {
         .unwrap();
 
         let access_control_data =
-            AccessControlAccount::fetch_data(&mut &accounts[1].data.borrow_mut()[..])
+            AccessControlAccount::fetch_data(&mut &accounts[1].data.borrow()[..])
                 .unwrap()
                 .unwrap();
         assert_eq!(

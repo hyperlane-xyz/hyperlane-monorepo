@@ -1,7 +1,9 @@
-//! TODO
+//! The Hyperlane Token message format.
 
 use hyperlane_core::{Decode, Encode, HyperlaneError, H256, U256};
 
+/// Message contents sent or received by a Hyperlane Token program to indicate
+/// a remote token transfer.
 #[derive(Debug)]
 pub struct TokenMessage {
     recipient: H256,
@@ -50,6 +52,7 @@ impl Decode for TokenMessage {
 }
 
 impl TokenMessage {
+    /// Creates a new token message.
     pub fn new(recipient: H256, amount_or_id: U256, metadata: Vec<u8>) -> Self {
         Self {
             recipient,
@@ -58,18 +61,17 @@ impl TokenMessage {
         }
     }
 
+    /// The recipient of the token transfer.
     pub fn recipient(&self) -> H256 {
         self.recipient
     }
 
+    /// The amount or ID of the token transfer.
     pub fn amount(&self) -> U256 {
         self.amount_or_id
     }
 
-    pub fn token_id(&self) -> U256 {
-        self.amount_or_id
-    }
-
+    /// The metadata of the token transfer.
     pub fn metadata(&self) -> &[u8] {
         &self.metadata
     }

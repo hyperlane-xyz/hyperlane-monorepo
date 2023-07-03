@@ -1,10 +1,9 @@
 //! Interchain Security Module used for testing.
 
-use account_utils::create_pda_account;
+use account_utils::{create_pda_account, AccountData, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::IsmType;
 use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
-use hyperlane_sealevel_mailbox::accounts::{AccountData, SizedData};
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
@@ -23,7 +22,9 @@ solana_program::entrypoint!(process_instruction);
 
 const ISM_TYPE: IsmType = IsmType::None;
 
+/// Custom errors for the program.
 pub enum TestIsmError {
+    /// The verify instruction was not accepted.
     VerifyNotAccepted = 69420,
 }
 
@@ -39,12 +40,15 @@ macro_rules! test_ism_storage_pda_seeds {
     }};
 }
 
+/// The storage account.
+pub type TestIsmStorageAccount = AccountData<TestIsmStorage>;
+
+/// The storage account's data.
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Default)]
 pub struct TestIsmStorage {
+    /// Whether messages should be accepted / verified.
     pub accept: bool,
 }
-
-pub type TestIsmStorageAccount = AccountData<TestIsmStorage>;
 
 impl SizedData for TestIsmStorage {
     fn size(&self) -> usize {
@@ -53,12 +57,16 @@ impl SizedData for TestIsmStorage {
     }
 }
 
+/// Instructions for the program.
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug)]
 pub enum TestIsmInstruction {
+    /// Initializes the program.
     Init,
+    /// Sets whether messages should be accepted / verified.
     SetAccept(bool),
 }
 
+/// Processes an instruction.
 pub fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],

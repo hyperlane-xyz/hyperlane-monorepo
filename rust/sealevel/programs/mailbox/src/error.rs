@@ -1,32 +1,32 @@
-//! Hyperlane Sealevel mailbox contract specific errors.
+//! Hyperlane Sealevel Mailbox custom errors.
 
 use solana_program::program_error::ProgramError;
 
+/// Custom errors type for the Mailbox program.
 #[derive(Copy, Clone, Debug, Eq, thiserror::Error, num_derive::FromPrimitive, PartialEq)]
 #[repr(u32)]
 pub enum Error {
-    #[error("Committed message is malformatted")]
-    MalformattedMessage = 1,
-    #[error("Hyperlane message is malformatted")]
-    MalformattedHyperlaneMessage = 2,
+    /// Some kind of encoding error occurred.
+    #[error("Encoding error")]
+    EncodeError = 1,
+    /// Some kind of decoding error occurred.
+    #[error("Decoding error")]
+    DecodeError = 2,
+    /// The message version is not supported.
     #[error("Unsupported message version")]
     UnsupportedMessageVersion = 3,
-    #[error("Incorrect destination domain")]
-    IncorrectDestinationDomain = 4,
+    /// The destination domain of the message is not the local domain.
+    #[error("Message's destination domain is not the local domain")]
+    DestinationDomainNotLocalDomain = 4,
+    /// The message has already been processed.
     #[error("Message has already been processed")]
     MessageAlreadyProcessed = 5,
+    /// Unused account(s) were provided.
     #[error("Unused account(s) provided")]
     ExtraneousAccount = 6,
-    #[error("Transaction log budget exceeded so cannot emit event")]
-    LogBudgetExceeded = 7,
+    /// The message is too large.
     #[error("Message is larger than the maximum allowed")]
-    MaxMessageSizeExceeded = 8,
-    #[error("Invalid account public key")]
-    InvalidPubkey = 9,
-    #[error("Account not found in the correct order")]
-    AccountOutOfOrder = 10,
-    #[error("Account is read only")]
-    AccountReadOnly = 11,
+    MaxMessageSizeExceeded = 7,
 }
 
 impl From<Error> for ProgramError {

@@ -276,11 +276,80 @@ pub async fn process(
     metadata: Vec<u8>,
     message: &HyperlaneMessage,
 ) -> Result<(Signature, Pubkey), BanksClientError> {
-    let recipient: Pubkey = message.recipient.0.into();
+    let accounts = get_process_account_metas(
+        banks_client,
+        payer,
+        mailbox_accounts,
+        metadata.clone(),
+        message,
+    )
+    .await?;
+
+    process_with_accounts(
+        banks_client,
+        payer,
+        mailbox_accounts,
+        metadata,
+        message,
+        accounts,
+    )
+    .await
+}
+
+pub async fn process_with_accounts(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    mailbox_accounts: &MailboxAccounts,
+    metadata: Vec<u8>,
+    message: &HyperlaneMessage,
+    accounts: Vec<AccountMeta>,
+) -> Result<(Signature, Pubkey), BanksClientError> {
     let mut encoded_message = vec![];
     message.write_to(&mut encoded_message).unwrap();
 
-    let mut instructions = Vec::with_capacity(1);
+    let ixn = MailboxInstruction::InboxProcess(InboxProcess {
+        metadata: metadata.to_vec(),
+        message: encoded_message,
+    });
+    let ixn_data = ixn.into_instruction_data().unwrap();
+
+    let inbox_instruction = Instruction {
+        program_id: mailbox_accounts.program,
+        data: ixn_data,
+        accounts,
+    };
+    let recent_blockhash = banks_client.get_latest_blockhash().await?;
+    let txn = Transaction::new_signed_with_payer(
+        &[inbox_instruction],
+        Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
+    );
+    let tx_signature = txn.signatures[0];
+
+    banks_client.process_transaction(txn).await?;
+
+    Ok((
+        tx_signature,
+        Pubkey::find_program_address(
+            mailbox_processed_message_pda_seeds!(message.id()),
+            &mailbox_accounts.program,
+        )
+        .0,
+    ))
+}
+
+pub async fn get_process_account_metas(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    mailbox_accounts: &MailboxAccounts,
+    metadata: Vec<u8>,
+    message: &HyperlaneMessage,
+) -> Result<Vec<AccountMeta>, BanksClientError> {
+    let mut encoded_message = vec![];
+    message.write_to(&mut encoded_message).unwrap();
+
+    let recipient: Pubkey = message.recipient.0.into();
 
     let (process_authority_key, _process_authority_bump) = Pubkey::find_program_address(
         mailbox_process_authority_pda_seeds!(&recipient),
@@ -305,12 +374,6 @@ pub async fn process(
         ism_getter_account_metas.clone(),
     )
     .await?;
-
-    let ixn = MailboxInstruction::InboxProcess(InboxProcess {
-        metadata: metadata.to_vec(),
-        message: encoded_message.clone(),
-    });
-    let ixn_data = ixn.into_instruction_data().unwrap();
 
     // Craft the accounts for the transaction.
     let mut accounts: Vec<AccountMeta> = vec![
@@ -338,24 +401,7 @@ pub async fn process(
     let handle_account_metas = get_handle_account_metas(banks_client, payer, message).await?;
     accounts.extend(handle_account_metas);
 
-    let inbox_instruction = Instruction {
-        program_id: mailbox_accounts.program,
-        data: ixn_data,
-        accounts,
-    };
-    instructions.push(inbox_instruction);
-    let recent_blockhash = banks_client.get_latest_blockhash().await?;
-    let txn = Transaction::new_signed_with_payer(
-        &instructions,
-        Some(&payer.pubkey()),
-        &[payer],
-        recent_blockhash,
-    );
-    let tx_signature = txn.signatures[0];
-
-    banks_client.process_transaction(txn).await?;
-
-    Ok((tx_signature, processed_message_account_key))
+    Ok(accounts)
 }
 
 // ========= Balance utils =========

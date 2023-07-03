@@ -1,143 +1,31 @@
 //! Hyperlane Sealevel Mailbox data account layouts.
 
+use core::cell::RefMut;
 use std::io::Read;
 
 use access_control::AccessControl;
+use account_utils::{AccountData, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{accumulator::incremental::IncrementalMerkle as MerkleTree, H256};
 use solana_program::{
     account_info::AccountInfo, clock::Slot, program_error::ProgramError, pubkey::Pubkey,
 };
 
-use crate::{error::Error, mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds};
+use crate::{mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds};
 
-pub trait SizedData {
-    fn size(&self) -> usize;
-}
-
-// FIXME should probably define another trait rather than use Default for this as a valid but
-// uninitialized object in rust is a big no no.
-pub trait Data: BorshDeserialize + BorshSerialize + Default {}
-impl<T> Data for T where T: BorshDeserialize + BorshSerialize + Default {}
-
-/// Account data structure wrapper type that handles initialization and (de)serialization.
-///
-/// (De)serialization is done with borsh and the "on-disk" format is as follows:
-/// {
-///     initialized: bool,
-///     data: T,
-/// }
-#[derive(Debug, Default)]
-pub struct AccountData<T> {
-    data: Box<T>,
-}
-
-impl<T> From<T> for AccountData<T> {
-    fn from(data: T) -> Self {
-        Self {
-            data: Box::new(data),
-        }
-    }
-}
-
-impl<T> From<Box<T>> for AccountData<T> {
-    fn from(data: Box<T>) -> Self {
-        Self { data }
-    }
-}
-
-impl<T> SizedData for AccountData<T>
-where
-    T: SizedData,
-{
-    fn size(&self) -> usize {
-        // Add an extra byte for the initialized flag.
-        1 + self.data.size()
-    }
-}
-
-impl<T> AccountData<T>
-where
-    T: Data,
-{
-    pub fn into_inner(self) -> Box<T> {
-        self.data
-    }
-
-    // TODO: better name here?
-    pub fn fetch_data(buf: &mut &[u8]) -> Result<Option<Box<T>>, ProgramError> {
-        if buf.is_empty() {
-            return Ok(None);
-        }
-        // Account data is zero initialized.
-        let initialized = bool::deserialize(buf)?;
-        let data = if initialized {
-            Some(T::deserialize(buf).map(Box::new)?)
-        } else {
-            None
-        };
-        Ok(data)
-    }
-
-    pub fn fetch(buf: &mut &[u8]) -> Result<Self, ProgramError> {
-        Ok(Self::from(Self::fetch_data(buf)?.unwrap_or_default()))
-    }
-
-    // Optimisically write then realloc on failure.
-    // If we serialize and calculate len before realloc we will waste heap space as there is no
-    // free(). Tradeoff between heap usage and compute budget.
-    pub fn store<'a>(
-        &self,
-        account: &AccountInfo<'a>,
-        allow_realloc: bool,
-    ) -> Result<(), ProgramError> {
-        if !account.is_writable || account.executable {
-            return Err(ProgramError::from(Error::AccountReadOnly));
-        }
-        let realloc_increment = 1024;
-        loop {
-            let mut guard = account.try_borrow_mut_data()?;
-            let data = &mut *guard;
-            let data_len = data.len();
-
-            // Create a new slice so that this new slice
-            // is updated to point to the unwritten data during serialization.
-            // Otherwise, if the account `data` is used directly, `data` will be
-            // the account data itself will be updated to point to unwritten data!
-            let mut writable_data: &mut [u8] = &mut data[..];
-
-            match true
-                .serialize(&mut writable_data)
-                .and_then(|_| self.data.serialize(&mut writable_data))
-            {
-                Ok(_) => break,
-                Err(err) => match err.kind() {
-                    std::io::ErrorKind::WriteZero => {
-                        if !allow_realloc {
-                            return Err(ProgramError::BorshIoError(err.to_string()));
-                        }
-                    }
-                    _ => return Err(ProgramError::BorshIoError(err.to_string())),
-                },
-            };
-            drop(guard);
-            if cfg!(target_os = "solana") {
-                account.realloc(data_len + realloc_increment, false)?;
-            } else {
-                panic!("realloc() is only supported on the SVM");
-            }
-        }
-        Ok(())
-    }
-}
-
+/// The Inbox account.
 pub type InboxAccount = AccountData<Inbox>;
 
+/// The Inbox account data, which is used when processing messages.
 #[derive(BorshSerialize, BorshDeserialize, Debug, Default, PartialEq, Eq)]
 pub struct Inbox {
+    /// The local domain.
     pub local_domain: u32,
+    /// The bump seed of the inbox PDA.
     pub inbox_bump_seed: u8,
+    /// The default ISM.
     pub default_ism: Pubkey,
+    /// The number of messages processed. Used for easy indexing of processed messages.
     pub processed_count: u64,
 }
 
@@ -152,12 +40,12 @@ impl SizedData for Inbox {
 }
 
 impl Inbox {
+    /// Verifies that the given account is the canonical Inbox PDA and returns the deserialized inner data.
     pub fn verify_account_and_fetch_inner<'a>(
         program_id: &Pubkey,
         inbox_account_info: &AccountInfo<'a>,
     ) -> Result<Self, ProgramError> {
-        let inbox =
-            InboxAccount::fetch(&mut &inbox_account_info.data.borrow_mut()[..])?.into_inner();
+        let inbox = InboxAccount::fetch(&mut &inbox_account_info.data.borrow()[..])?.into_inner();
         let expected_inbox_key = Pubkey::create_program_address(
             mailbox_inbox_pda_seeds!(inbox.inbox_bump_seed),
             program_id,
@@ -171,15 +59,46 @@ impl Inbox {
 
         Ok(*inbox)
     }
+
+    /// Verifies that the given account is the canonical Inbox PDA, and returns the deserialized inner data
+    /// alongside a RefMut of the account data.
+    /// Intended to be used when the account data's RefMut is required, e.g. as a
+    /// reentrancy guard.
+    pub fn verify_account_and_fetch_inner_with_data_refmut<'a, 'b>(
+        program_id: &'b Pubkey,
+        inbox_account_info: &'b AccountInfo<'a>,
+    ) -> Result<(Self, RefMut<'b, &'a mut [u8]>), ProgramError> {
+        let data_refmut = inbox_account_info.try_borrow_mut_data()?;
+
+        let inbox = InboxAccount::fetch(&mut &data_refmut[..])?.into_inner();
+        let expected_inbox_key = Pubkey::create_program_address(
+            mailbox_inbox_pda_seeds!(inbox.inbox_bump_seed),
+            program_id,
+        )?;
+        if inbox_account_info.key != &expected_inbox_key {
+            return Err(ProgramError::InvalidArgument);
+        }
+        if inbox_account_info.owner != program_id {
+            return Err(ProgramError::IllegalOwner);
+        }
+
+        Ok((*inbox, data_refmut))
+    }
 }
 
+/// The Outbox account.
 pub type OutboxAccount = AccountData<Outbox>;
 
+/// The Outbox account data, which is used when dispatching messages.
 #[derive(BorshSerialize, BorshDeserialize, Debug, Default, PartialEq, Eq)]
 pub struct Outbox {
+    /// The local domain.
     pub local_domain: u32,
+    /// The bump seed of the outbox PDA.
     pub outbox_bump_seed: u8,
+    /// The owner of this program, which has privileged permissions.
     pub owner: Option<Pubkey>,
+    /// The merkle tree of dispatched messages.
     pub tree: MerkleTree,
 }
 
@@ -205,12 +124,13 @@ impl AccessControl for Outbox {
 }
 
 impl Outbox {
+    /// Verifies that the given account is the canonical Outbox PDA and returns the deserialized inner data.
     pub fn verify_account_and_fetch_inner(
         program_id: &Pubkey,
         outbox_account_info: &AccountInfo,
     ) -> Result<Self, ProgramError> {
         let outbox =
-            OutboxAccount::fetch(&mut &outbox_account_info.data.borrow_mut()[..])?.into_inner();
+            OutboxAccount::fetch(&mut &outbox_account_info.data.borrow()[..])?.into_inner();
         let expected_outbox_key = Pubkey::create_program_address(
             mailbox_outbox_pda_seeds!(outbox.outbox_bump_seed),
             program_id,
@@ -226,21 +146,30 @@ impl Outbox {
     }
 }
 
+/// An account corresponding to a dispatched message.
 pub type DispatchedMessageAccount = AccountData<DispatchedMessage>;
 
-// TODO change?
-const DISPATCHED_MESSAGE_DISCRIMINATOR: &[u8; 8] = b"DISPATCH";
+/// A discriminator used to easily identify dispatched message accounts.
+/// This is the first 8 bytes of the account data.
+pub const DISPATCHED_MESSAGE_DISCRIMINATOR: &[u8; 8] = b"DISPATCH";
 
+/// A dispatched message.
 #[derive(Debug, Default, Eq, PartialEq)]
 pub struct DispatchedMessage {
+    /// The discriminator, intended to be set to `DISPATCHED_MESSAGE_DISCRIMINATOR`.
     pub discriminator: [u8; 8],
+    /// The nonce of the message.
     pub nonce: u32,
+    /// The slot in which the message was dispatched.
     pub slot: Slot,
+    /// The unique message pubkey used when the message was dispatched.
     pub unique_message_pubkey: Pubkey,
+    /// The encoded message.
     pub encoded_message: Vec<u8>,
 }
 
 impl DispatchedMessage {
+    /// Creates a new dispatched message.
     pub fn new(
         nonce: u32,
         slot: Slot,
@@ -268,6 +197,7 @@ impl SizedData for DispatchedMessage {
     }
 }
 
+/// For tighter packing and explicit endianness, we implement our own serialization.
 impl BorshSerialize for DispatchedMessage {
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
         writer.write_all(DISPATCHED_MESSAGE_DISCRIMINATOR)?;
@@ -279,6 +209,7 @@ impl BorshSerialize for DispatchedMessage {
     }
 }
 
+/// For tighter packing, explicit endianness, and errors on an invalid discriminator, we implement our own deserialization.
 impl BorshDeserialize for DispatchedMessage {
     fn deserialize(reader: &mut &[u8]) -> std::io::Result<Self> {
         let mut discriminator = [0u8; 8];
@@ -312,19 +243,28 @@ impl BorshDeserialize for DispatchedMessage {
     }
 }
 
+/// An account corresponding to a processed message.
 pub type ProcessedMessageAccount = AccountData<ProcessedMessage>;
 
-const PROCESSED_MESSAGE_DISCRIMINATOR: &[u8; 8] = b"PROCESSD";
+/// A discriminator used to easily identify processed message accounts.
+pub const PROCESSED_MESSAGE_DISCRIMINATOR: &[u8; 8] = b"PROCESSD";
 
+/// A processed message.
 #[derive(Debug, Default, Eq, PartialEq, BorshSerialize)]
 pub struct ProcessedMessage {
+    /// The discriminator, intended to be set to `PROCESSED_MESSAGE_DISCRIMINATOR`.
     pub discriminator: [u8; 8],
+    /// The sequence of the processed message, which increases from 0 for each processed message.
+    /// This way, we can easily index processed messages.
     pub sequence: u64,
+    /// The message ID of the processed message.
     pub message_id: H256,
+    /// The slot in which the message was processed.
     pub slot: Slot,
 }
 
 impl ProcessedMessage {
+    /// Creates a new processed message.
     pub fn new(sequence: u64, message_id: H256, slot: Slot) -> Self {
         Self {
             discriminator: *PROCESSED_MESSAGE_DISCRIMINATOR,
@@ -345,6 +285,7 @@ impl SizedData for ProcessedMessage {
     }
 }
 
+/// To error upon invalid data, we implement our own deserialization.
 impl BorshDeserialize for ProcessedMessage {
     fn deserialize(reader: &mut &[u8]) -> std::io::Result<Self> {
         let mut discriminator = [0u8; 8];

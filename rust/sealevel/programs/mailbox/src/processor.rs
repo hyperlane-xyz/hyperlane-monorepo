@@ -1,6 +1,7 @@
 //! Entrypoint, dispatch, and execution for the Hyperlane Sealevel mailbox instruction.
 
 use access_control::AccessControl;
+use account_utils::SizedData;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle as MerkleTree, Decode, Encode, HyperlaneMessage,
@@ -32,7 +33,7 @@ use serializable_account_meta::SimulationReturnData;
 use crate::{
     accounts::{
         DispatchedMessage, DispatchedMessageAccount, Inbox, InboxAccount, Outbox, OutboxAccount,
-        ProcessedMessage, ProcessedMessageAccount, SizedData,
+        ProcessedMessage, ProcessedMessageAccount,
     },
     error::Error,
     instruction::{
@@ -47,6 +48,7 @@ use crate::{
 #[cfg(not(feature = "no-entrypoint"))]
 entrypoint!(process_instruction);
 
+/// Entrypoint for the Mailbox program.
 pub fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -78,7 +80,7 @@ pub fn process_instruction(
 ///
 /// Accounts:
 /// 0. [executable] The system program.
-/// 1. [writable] The payer account and owner of the Mailbox.
+/// 1. [signer, writable] The payer account and owner of the Mailbox.
 /// 2. [writable] The inbox PDA account.
 /// 3. [writable] The outbox PDA account.
 fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramResult {
@@ -159,7 +161,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
     Ok(())
 }
 
-/// Process a message.
+/// Process a message. Non-reentrant through the use of a RefMut.
 ///
 // Accounts:
 // 0.      [signer] Payer account. This pays for the creation of the processed message PDA.
@@ -182,7 +184,7 @@ fn inbox_process(
 
     // Decode the message bytes.
     let message = HyperlaneMessage::read_from(&mut std::io::Cursor::new(&process.message))
-        .map_err(|_| ProgramError::from(Error::MalformattedHyperlaneMessage))?;
+        .map_err(|_| ProgramError::from(Error::DecodeError))?;
     let message_id = message.id();
 
     // Require the message version to match what we expect.
@@ -205,18 +207,22 @@ fn inbox_process(
 
     // Account 2: Inbox PDA.
     let inbox_info = next_account_info(accounts_iter)?;
-    let mut inbox = Inbox::verify_account_and_fetch_inner(program_id, inbox_info)?;
+    // By holding a refmut of the Inbox data, we effectively have a reentrancy guard
+    // that prevents any of the CPIs performed by this function to call back into
+    // this function.
+    let (mut inbox, mut inbox_data_refmut) =
+        Inbox::verify_account_and_fetch_inner_with_data_refmut(program_id, inbox_info)?;
 
     // Verify the message's destination matches the inbox's local domain.
     if inbox.local_domain != message.destination {
-        return Err(Error::IncorrectDestinationDomain.into());
+        return Err(Error::DestinationDomainNotLocalDomain.into());
     }
 
     // Account 3: Process authority account that is specific to the
     // message recipient.
     let process_authority_info = next_account_info(accounts_iter)?;
-    // TODO make this create_program_address and take the bump seed in
-    // as an input?
+    // Future versions / changes should consider requiring the process authority to
+    // store its bump seed as account data.
     let (expected_process_authority_key, expected_process_authority_bump) =
         Pubkey::find_program_address(
             mailbox_process_authority_pda_seeds!(&recipient_program_id),
@@ -361,7 +367,9 @@ fn inbox_process(
 
     // Increment the processed count and store the updated Inbox account.
     inbox.processed_count += 1;
-    InboxAccount::from(inbox).store(inbox_info, false)?;
+    InboxAccount::from(inbox)
+        .store_in_slice(&mut inbox_data_refmut)
+        .map_err(|e| ProgramError::BorshIoError(e.to_string()))?;
 
     // Now call into the recipient program with the verified message!
     let handle_intruction = Instruction::new_with_bytes(
@@ -561,8 +569,8 @@ fn outbox_dispatch(
     // we need to confirm that the sender signer has the authority to sign
     // on behalf of the dispatch.sender!
     if *sender_signer_info.key != dispatch.sender {
-        // TODO would be great to have the bump in here...
-        // Maybe shove it into the data of the sender_signer?
+        // Future versions / changes should consider requiring the dispatch authority to
+        // store its bump seed as account data.
         let (expected_signer_key, _expected_signer_bump) = Pubkey::find_program_address(
             mailbox_message_dispatch_authority_pda_seeds!(),
             &dispatch.sender,
@@ -637,7 +645,7 @@ fn outbox_dispatch(
     let mut encoded_message = vec![];
     message
         .write_to(&mut encoded_message)
-        .map_err(|_| ProgramError::from(Error::MalformattedMessage))?;
+        .map_err(|_| ProgramError::from(Error::EncodeError))?;
 
     let id = message.id();
     outbox.tree.ingest(id);
@@ -671,6 +679,12 @@ fn outbox_dispatch(
         data: dispatched_message_account_info.data.borrow().to_vec(),
     };
     invoke(&noop_cpi_log, &[])?;
+
+    msg!(
+        "Dispatched message to {}, ID {:?}",
+        dispatch.destination_domain,
+        id
+    );
 
     // Store the Outbox with the new updates.
     OutboxAccount::from(outbox).store(outbox_info, true)?;

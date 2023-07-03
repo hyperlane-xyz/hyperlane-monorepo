@@ -1,7 +1,7 @@
-//! TODO
+//! Shared logic for all Hyperlane Sealevel Token programs.
 
-// #![deny(warnings)] // FIXME
-// #![deny(missing_docs)] // FIXME
+#![deny(warnings)]
+#![deny(missing_docs)]
 #![deny(unsafe_code)]
 
 pub mod accounts;
