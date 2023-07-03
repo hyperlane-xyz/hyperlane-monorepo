@@ -102,13 +102,7 @@ where
             let data = &mut *guard;
             let data_len = data.len();
 
-            // Create a new slice so that this new slice
-            // is updated to point to the unwritten data during serialization.
-            // Otherwise, if the account `data` is used directly, `data` will be
-            // the account data itself will be updated to point to unwritten data!
-            let mut writable_data: &mut [u8] = &mut data[..];
-
-            match self.store_in_slice(&mut writable_data) {
+            match self.store_in_slice(data) {
                 Ok(_) => break,
                 Err(err) => match err.kind() {
                     std::io::ErrorKind::WriteZero => {
@@ -130,7 +124,10 @@ where
     }
 
     pub fn store_in_slice(&self, target: &mut [u8]) -> Result<(), Box<std::io::Error>> {
-        let mut writable_target: &mut [u8] = &mut target[..];
+        // Create a new slice so that this new slice
+        // is updated to point to the unwritten data during serialization, and not `target` itself.
+
+        let mut writable_target: &mut [u8] = &mut *target;
         true.serialize(&mut writable_target)
             .and_then(|_| self.data.serialize(&mut writable_target))?;
         Ok(())
