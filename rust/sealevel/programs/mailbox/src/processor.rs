@@ -161,7 +161,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
     Ok(())
 }
 
-/// Process a message.
+/// Process a message. Non-reentrant through the use of a RefMut.
 ///
 // Accounts:
 // 0.      [signer] Payer account. This pays for the creation of the processed message PDA.
@@ -367,7 +367,6 @@ fn inbox_process(
 
     // Increment the processed count and store the updated Inbox account.
     inbox.processed_count += 1;
-    // InboxAccount::from(inbox).store(inbox_info, false)?;
     InboxAccount::from(inbox).store_in_slice(&mut inbox_data_refmut)?;
 
     // Now call into the recipient program with the verified message!
