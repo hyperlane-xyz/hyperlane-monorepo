@@ -131,7 +131,7 @@ where
 
     #[instrument(err, skip(self))]
     async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
-        let (from, to) = match range {
+        let range = match range {
             IndexRange::Blocks(from, to) => (from, to),
             IndexRange::Sequences(_, _) => {
                 return Err(ChainCommunicationError::from_other_str(
@@ -143,8 +143,8 @@ where
         let mut events: Vec<(HyperlaneMessage, LogMeta)> = self
             .contract
             .dispatch_filter()
-            .from_block(from)
-            .to_block(to)
+            .from_block(*range.start())
+            .to_block(*range.end())
             .query_with_meta()
             .await?
             .into_iter()
@@ -182,7 +182,7 @@ where
 
     #[instrument(err, skip(self))]
     async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(H256, LogMeta)>> {
-        let (from, to) = match range {
+        let range = match range {
             IndexRange::Blocks(from, to) => (from, to),
             IndexRange::Sequences(_, _) => {
                 return Err(ChainCommunicationError::from_other_str(
@@ -194,8 +194,8 @@ where
         Ok(self
             .contract
             .process_id_filter()
-            .from_block(from)
-            .to_block(to)
+            .from_block(*range.start())
+            .to_block(*range.end())
             .query_with_meta()
             .await?
             .into_iter()

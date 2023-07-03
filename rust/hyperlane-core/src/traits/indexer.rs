@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use auto_impl::auto_impl;
 use serde::Deserialize;
 
-use crate::{ChainResult, HyperlaneMessage, LogMeta};
+use crate::{BlockRange, ChainResult, HyperlaneMessage, LogMeta};
 
 /// Indexing mode.
 #[derive(Copy, Debug, Default, Deserialize, Clone)]
@@ -27,9 +27,10 @@ pub enum IndexMode {
 #[derive(Copy, Debug, Clone)]
 pub enum IndexRange {
     /// For block-based indexers
-    Blocks(u32, u32),
+    Blocks(BlockRange),
     /// For indexers that look for specific sequences, e.g. message nonces.
     Sequences(u32, u32),
+    Sequences(SequenceRange),
 }
 
 /// Interface for an indexer.

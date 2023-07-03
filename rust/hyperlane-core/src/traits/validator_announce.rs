@@ -8,7 +8,7 @@ use crate::{Announcement, ChainResult, HyperlaneContract, SignedType, TxOutcome,
 /// Interface for the ValidatorAnnounce chain contract. Allows abstraction over
 /// different chains
 #[async_trait]
-#[auto_impl(Box, Arc)]
+#[auto_impl(&, Box, Arc)]
 pub trait ValidatorAnnounce: HyperlaneContract + Send + Sync + Debug {
     /// Returns the announced storage locations for the provided validators.
     async fn get_announced_storage_locations(
