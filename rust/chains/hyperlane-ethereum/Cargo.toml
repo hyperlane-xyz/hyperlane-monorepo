@@ -17,6 +17,7 @@ ethers-signers.workspace = true
 ethers.workspace = true
 hex = "0.4.3"
 num = "0.4"
+num-traits.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -28,7 +29,12 @@ url.workspace = true
 
 hyperlane-core = { path = "../../hyperlane-core" }
 ethers-prometheus = { path = "../../ethers-prometheus", features = ["serde"] }
-num-traits.workspace = true
+
+# These should only be used if it _must_ be used to interop with the inner library,
+# all errors exported from a chain crate should be using thiserror or handrolled to
+# make error handling easier.
+# eyre = "never"
+# anyhow = never
 
 [build-dependencies]
 abigen = { path = "../../utils/abigen", features = ["ethers"] }
