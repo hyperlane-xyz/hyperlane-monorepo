@@ -6,6 +6,7 @@ members = [
     "agents/relayer",
     "agents/scraper",
     "agents/validator",
+    "chains/hyperlane-cosmos",
     "chains/hyperlane-ethereum",
     "chains/hyperlane-fuel",
     "ethers-prometheus",
@@ -30,6 +31,7 @@ version = "0.1.0"
 async-trait = { version = "0.1" }
 color-eyre = { version = "0.6" }
 config = "~0.13.3"
+cosmrs = { version = "0.14", default-features = false }
 derive-new = "0.5"
 derive_more = "0.99"
 enum_dispatch = "0.3"
