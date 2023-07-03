@@ -3,6 +3,7 @@ members = [
     "agents/relayer",
     "agents/scraper",
     "agents/validator",
+    "chains/hyperlane-cosmos",
     "chains/hyperlane-ethereum",
     "chains/hyperlane-fuel",
     "chains/hyperlane-sealevel",
@@ -65,6 +66,7 @@ convert_case = "0.6"
 crunchy = "0.2"
 ctrlc = "3.2"
 curve25519-dalek = { version = "~3.2", features = ["serde"] }
+cosmrs = { version = "0.14", default-features = false }
 derive-new = "0.5"
 derive_builder = "0.12"
 derive_more = "0.99"
