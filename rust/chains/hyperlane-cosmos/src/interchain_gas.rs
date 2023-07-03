@@ -4,6 +4,7 @@ use hyperlane_core::{
 };
 use hyperlane_core::{HyperlaneDomain, HyperlaneProvider, InterchainGasPayment, LogMeta, H256};
 
+/// A reference to a InterchainGasPaymaster contract on some Cosmos chain
 #[derive(Debug)]
 pub struct CosmosInterchainGasPaymaster {}
 
@@ -25,6 +26,7 @@ impl HyperlaneChain for CosmosInterchainGasPaymaster {
 
 impl InterchainGasPaymaster for CosmosInterchainGasPaymaster {}
 
+/// A reference to a InterchainGasPaymasterIndexer contract on some Cosmos chain
 #[derive(Debug)]
 pub struct CosmosInterchainGasPaymasterIndexer {}
 

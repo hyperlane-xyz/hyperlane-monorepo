@@ -11,11 +11,11 @@ version.workspace = true
 async-trait.workspace = true
 cosmrs = { workspace = true, features = [] }
 serde.workspace = true
+thiserror.workspace = true
 tokio.workspace = true
 tracing-futures.workspace = true
 tracing.workspace = true
 url.workspace = true
-thiserror.worskace = true
 
 hyperlane-core = { path = "../../hyperlane-core" }
 
