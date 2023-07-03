@@ -129,7 +129,7 @@ where
         Ok(())
     }
 
-    pub fn store_in_slice(&self, target: &mut [u8]) -> Result<(), std::io::Error> {
+    pub fn store_in_slice(&self, target: &mut [u8]) -> Result<(), Box<std::io::Error>> {
         let mut writable_target: &mut [u8] = &mut target[..];
         true.serialize(&mut writable_target)
             .and_then(|_| self.data.serialize(&mut writable_target))?;

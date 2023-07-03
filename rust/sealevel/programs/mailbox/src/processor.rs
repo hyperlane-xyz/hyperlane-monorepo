@@ -80,7 +80,7 @@ pub fn process_instruction(
 ///
 /// Accounts:
 /// 0. [executable] The system program.
-/// 1. [writable] The payer account and owner of the Mailbox.
+/// 1. [signer, writable] The payer account and owner of the Mailbox.
 /// 2. [writable] The inbox PDA account.
 /// 3. [writable] The outbox PDA account.
 fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramResult {
@@ -367,7 +367,9 @@ fn inbox_process(
 
     // Increment the processed count and store the updated Inbox account.
     inbox.processed_count += 1;
-    InboxAccount::from(inbox).store_in_slice(&mut inbox_data_refmut)?;
+    InboxAccount::from(inbox)
+        .store_in_slice(&mut inbox_data_refmut)
+        .map_err(|e| ProgramError::BorshIoError(e.to_string()))?;
 
     // Now call into the recipient program with the verified message!
     let handle_intruction = Instruction::new_with_bytes(
