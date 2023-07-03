@@ -272,9 +272,9 @@ export class AgentAwsKey extends CloudAgentKey {
     }
 
     const command = new CreateKeyCommand({
-      Description: `${this.environment} ${this.chainName ?? 'omniscient'} ${
-        this.role
-      }`,
+      Description: `${this.context} ${this.environment} ${
+        this.chainName ?? 'omniscient'
+      } ${this.role}`,
       KeyUsage: KeyUsageType.SIGN_VERIFY,
       Origin: OriginType.AWS_KMS,
       BypassPolicyLockoutSafetyCheck: false,
