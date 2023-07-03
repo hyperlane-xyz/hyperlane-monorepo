@@ -20,14 +20,25 @@ export const s3BucketName = (
   index: number,
 ) => `${context}-${environment}-${chainName}-validator-${index}`;
 
+// The name of the key generated in helm, without the numeric suffix
+// e.g. `rc-testnet3-key-arbitrumgoerli-validator`
+const keyName = (
+  context: Contexts,
+  environment: string,
+  chainName: CoreChainName,
+) => `${context}-${environment}-key-${chainName}-validator`;
+
 export const validatorsConfig = (
   context: Contexts,
   environment: string,
   chain: CoreChainName,
-  keys: ValidatorKey[],
+  keys: Record<string, ValidatorKey[]>,
+  count: number = 1,
 ): Array<ValidatorBaseConfig> => {
-  const chainKeys = keys.filter((v) => v.identifier.includes(chain));
-  return new Array(chainKeys.length).map((_, i) => {
+  const key = keyName(context, environment, chain);
+  const chainKeys = keys[context].filter((v) => v.identifier.includes(key));
+  const validatorCount = Math.min(count, chainKeys.length);
+  return [...Array(validatorCount).keys()].map((i) => {
     const bucketName = s3BucketName(context, environment, chain, i);
     const key = chainKeys.find((v) => v.identifier.endsWith(`${i}`));
     return {
