@@ -16,9 +16,11 @@ rust/ @mattiecnvr @tkporter @asaj
 ## SDK
 typescript/sdk @yorhodes @jmrossy
 
+## Token
+typescript/token @yorhodes @jmrossy @tkporter
+
+## Hello World
+typescript/helloworld @yorhodes @nambrot
+
 ## Infra
 typescript/infra @tkporter @asaj @mattiecnvr
-
-## Submodules
-typescript/token @yorhodes @jmrossy
-typescript/helloworld @yorhodes

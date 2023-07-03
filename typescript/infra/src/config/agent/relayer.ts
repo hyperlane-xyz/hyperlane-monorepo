@@ -1,6 +1,6 @@
 import { BigNumberish } from 'ethers';
 
-import { ChainMap, chainMetadata } from '@hyperlane-xyz/sdk';
+import { ChainMap, ProtocolType, chainMetadata } from '@hyperlane-xyz/sdk';
 
 import { AgentAwsUser } from '../../agents/aws';
 import { Role } from '../../roles';
@@ -125,22 +125,31 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
 
   // Get the signer configuration for each chain by the chain name.
   async signers(): Promise<ChainMap<KeyConfig>> {
-    if (!this.aws)
+    if (this.aws) {
+      const awsUser = new AgentAwsUser(
+        this.runEnv,
+        this.context,
+        Role.Relayer,
+        this.aws.region,
+      );
+      await awsUser.createIfNotExists();
+      const awsKey = (await awsUser.createKeyIfNotExists(this)).keyConfig;
+      return Object.fromEntries(
+        this.contextChainNames.map((name) => {
+          const chain = chainMetadata[name];
+          // Sealevel chains always use hex keys
+          if (chain?.protocol == ProtocolType.Sealevel) {
+            return [name, { type: KeyType.Hex }];
+          } else {
+            return [name, awsKey];
+          }
+        }),
+      );
+    } else {
       return Object.fromEntries(
         this.contextChainNames.map((name) => [name, { type: KeyType.Hex }]),
       );
-
-    const awsUser = new AgentAwsUser(
-      this.runEnv,
-      this.context,
-      Role.Relayer,
-      this.aws.region,
-    );
-    await awsUser.createIfNotExists();
-    const key = (await awsUser.createKeyIfNotExists(this)).keyConfig;
-    return Object.fromEntries(
-      this.contextChainNames.map((name) => [name, key]),
-    );
+    }
   }
 
   // Returns whether the relayer requires AWS credentials
