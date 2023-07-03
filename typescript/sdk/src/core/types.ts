@@ -8,6 +8,7 @@ import { ChainName } from '../types';
 export type CoreConfig = {
   defaultIsm: IsmConfig;
   owner: types.Address;
+  upgradeTimelockDelay?: number;
   remove?: boolean;
 };
 
@@ -15,6 +16,7 @@ export enum CoreViolationType {
   Mailbox = 'Mailbox',
   ConnectionManager = 'ConnectionManager',
   ValidatorAnnounce = 'ValidatorAnnounce',
+  TimelockController = 'TimelockController',
 }
 
 export enum MailboxViolationType {

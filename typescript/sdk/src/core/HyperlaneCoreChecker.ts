@@ -1,6 +1,6 @@
 import { utils as ethersUtils } from 'ethers';
 
-import { utils } from '@hyperlane-xyz/utils';
+import { types, utils } from '@hyperlane-xyz/utils';
 
 import { BytecodeHash } from '../consts/bytecode';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
@@ -46,13 +46,68 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     await this.checkMailbox(chain);
     await this.checkBytecodes(chain);
     await this.checkValidatorAnnounce(chain);
+    await this.checkTimelockController(chain);
+  }
+
+  async checkTimelockController(chain: ChainName): Promise<void> {
+    const config = this.configMap[chain];
+    if (config.upgradeTimelockDelay) {
+      const timelockController =
+        this.app.getContracts(chain).timelockController;
+      if (!timelockController) {
+        // do not check if not deployed
+        return;
+      }
+
+      const minDelay = (await timelockController.getMinDelay()).toNumber();
+
+      if (minDelay !== config.upgradeTimelockDelay) {
+        this.addViolation({
+          type: CoreViolationType.TimelockController,
+          chain,
+          actual: minDelay,
+          expected: config.upgradeTimelockDelay,
+          contract: timelockController,
+        });
+      }
+
+      const roles = {
+        executor: await timelockController.EXECUTOR_ROLE(),
+        proposer: await timelockController.PROPOSER_ROLE(),
+        canceller: await timelockController.CANCELLER_ROLE(),
+        admin: await timelockController.TIMELOCK_ADMIN_ROLE(),
+      };
+
+      for (const [label, role] of Object.entries(roles)) {
+        const ownerHasRole = await timelockController.hasRole(
+          role,
+          config.owner,
+        );
+        if (!ownerHasRole) {
+          this.addViolation({
+            type: `${CoreViolationType.TimelockController} owner ${config.owner} missing role ${label}`,
+            chain,
+            actual: false,
+            expected: true,
+            contract: timelockController,
+          });
+        }
+      }
+    }
   }
 
   async checkDomainOwnership(chain: ChainName): Promise<void> {
     const config = this.configMap[chain];
-    if (config.owner) {
-      return this.checkOwnership(chain, config.owner);
+
+    let ownableOverrides: Record<string, types.Address> = {};
+    if (config.upgradeTimelockDelay) {
+      const timelockController =
+        this.app.getAddresses(chain).timelockController;
+      ownableOverrides = {
+        proxyAdmin: timelockController,
+      };
     }
+    return this.checkOwnership(chain, config.owner, ownableOverrides);
   }
 
   async checkMailbox(chain: ChainName): Promise<void> {
