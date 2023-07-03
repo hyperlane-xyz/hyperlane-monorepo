@@ -10,6 +10,7 @@ use hyperlane_core::{
     Indexer, LogMeta, Mailbox, TxCostEstimate, TxOutcome, H256, U256,
 };
 
+/// A reference to a Mailbox contract on some Cosmos chain
 pub struct CosmosMailbox {}
 
 impl HyperlaneContract for CosmosMailbox {

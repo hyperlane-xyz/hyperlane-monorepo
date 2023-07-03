@@ -4,6 +4,7 @@ use hyperlane_core::{
     BlockInfo, ChainResult, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, TxnInfo, H256,
 };
 
+/// A wrapper around a cosmos provider to get generic blockchain information.
 #[derive(Debug)]
 pub struct CosmosProvider {}
 
