@@ -1,0 +1,26 @@
+[package]
+name = "hyperlane-cosmos"
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license-file.workspace = true
+publish.workspace = true
+version.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+cosmrs = { workspace = true, features = [] }
+serde.workspace = true
+tokio.workspace = true
+tracing-futures.workspace = true
+tracing.workspace = true
+url.workspace = true
+thiserror.worskace = true
+
+hyperlane-core = { path = "../../hyperlane-core" }
+
+# These should only be used if it _must_ be used to interop with the inner library,
+# all errors exported from a chain crate should be using thiserror or handrolled to
+# make error handling easier.
+# eyre = "never"
+# anyhow = never
