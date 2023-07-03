@@ -4,8 +4,10 @@
 use account_utils::{create_pda_account, AccountData, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_sealevel_mailbox::{
-    instruction::{Instruction as MailboxInstruction, OutboxDispatch},
-    mailbox_message_dispatch_authority_pda_seeds, mailbox_process_authority_pda_seeds,
+    instruction::{InboxProcess, Instruction as MailboxInstruction, OutboxDispatch},
+    mailbox_message_dispatch_authority_pda_seeds,
+    mailbox_process_authority_pda_seeds,
+    // mailbox_inbox_pda_seeds
 };
 use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
@@ -17,7 +19,7 @@ use solana_program::{
     entrypoint::ProgramResult,
     instruction::{AccountMeta, Instruction},
     msg,
-    program::{invoke_signed, set_return_data},
+    program::{invoke, invoke_signed, set_return_data},
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
@@ -64,8 +66,8 @@ pub struct TestSendReceiverStorage {
     pub ism: Option<Pubkey>,
     /// The mode for returning data from the ISM.
     pub ism_return_data_mode: IsmReturnDataMode,
-    /// Whether the handle instruction should fail.
-    pub fail_handle: bool,
+    /// Modes of handling a message.
+    pub handle_mode: HandleMode,
 }
 
 impl SizedData for TestSendReceiverStorage {
@@ -73,7 +75,7 @@ impl SizedData for TestSendReceiverStorage {
         // 32 for mailbox
         // 1 + 32 for ism
         // 1 for ism_return_data_mode
-        // 1 for fail_handle
+        // 1 for handle_mode
         32 + 1 + 32 + 1 + 1
     }
 }
@@ -90,6 +92,23 @@ macro_rules! test_send_receiver_storage_pda_seeds {
     }};
 }
 
+/// Modes of handling a message.
+#[derive(BorshSerialize, BorshDeserialize, Debug)]
+pub enum HandleMode {
+    /// Handling a message is successful.
+    Success,
+    /// Handling a message fails.
+    Fail,
+    /// Handling a message reenters the Mailbox with the process instruction.
+    ReenterProcess,
+}
+
+impl Default for HandleMode {
+    fn default() -> Self {
+        Self::Success
+    }
+}
+
 /// Instructions for the program.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 pub enum TestSendReceiverInstruction {
@@ -99,8 +118,8 @@ pub enum TestSendReceiverInstruction {
     Dispatch(OutboxDispatch),
     /// Sets the ISM.
     SetInterchainSecurityModule(Option<Pubkey>, IsmReturnDataMode),
-    /// Sets whether the handle instruction should fail.
-    SetFailHandle(bool),
+    /// Sets the behavior when handling a message.
+    SetHandleMode(HandleMode),
 }
 
 /// The program's entrypoint.
@@ -136,8 +155,8 @@ pub fn process_instruction(
         TestSendReceiverInstruction::SetInterchainSecurityModule(ism, ism_return_data_mode) => {
             set_interchain_security_module(program_id, accounts, ism, ism_return_data_mode)
         }
-        TestSendReceiverInstruction::SetFailHandle(fail_handle) => {
-            set_fail_handle(program_id, accounts, fail_handle)
+        TestSendReceiverInstruction::SetHandleMode(mode) => {
+            set_handle_mode(program_id, accounts, mode)
         }
     }
 }
@@ -175,7 +194,7 @@ fn init(program_id: &Pubkey, accounts: &[AccountInfo], mailbox: Pubkey) -> Progr
         mailbox,
         ism: None,
         ism_return_data_mode: IsmReturnDataMode::EncodeOption,
-        fail_handle: false,
+        handle_mode: HandleMode::Success,
     });
     create_pda_account(
         payer_info,
@@ -305,10 +324,44 @@ pub fn handle(
         return Err(ProgramError::MissingRequiredSignature);
     }
 
-    if storage.fail_handle {
-        return Err(ProgramError::Custom(
-            TestSendReceiverError::HandleFailed as u32,
-        ));
+    match storage.handle_mode {
+        HandleMode::Success => {
+            // Nothing!
+        }
+        HandleMode::Fail => {
+            return Err(ProgramError::Custom(
+                TestSendReceiverError::HandleFailed as u32,
+            ));
+        }
+        HandleMode::ReenterProcess => {
+            // Reenter the Mailbox with the process instruction
+
+            let mut reenter_accounts = vec![];
+            let mut reenter_account_metas = vec![];
+
+            for account in accounts_iter {
+                reenter_accounts.push(account.clone());
+                reenter_account_metas.push(AccountMeta {
+                    pubkey: *account.key,
+                    is_signer: account.is_signer,
+                    is_writable: account.is_writable,
+                });
+            }
+
+            let instruction = Instruction {
+                program_id: storage.mailbox,
+                data: MailboxInstruction::InboxProcess(InboxProcess {
+                    metadata: vec![],
+                    // The encoded HyperlaneMessage to reenter with is
+                    // expected to be in the body of the message currently
+                    // being processed.
+                    message: handle.message.clone(),
+                })
+                .into_instruction_data()?,
+                accounts: reenter_account_metas,
+            };
+            invoke(&instruction, reenter_accounts.as_slice())?;
+        }
     }
 
     msg!("hyperlane-sealevel-test-send-receiver: {:?}", handle);
@@ -375,10 +428,10 @@ fn get_interchain_security_module(_program_id: &Pubkey, accounts: &[AccountInfo]
 
 /// Accounts:
 /// 0. [writeable] Storage PDA account.
-fn set_fail_handle(
+fn set_handle_mode(
     _program_id: &Pubkey,
     accounts: &[AccountInfo],
-    fail_handle: bool,
+    mode: HandleMode,
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
@@ -388,7 +441,7 @@ fn set_fail_handle(
     let mut storage =
         TestSendReceiverStorageAccount::fetch(&mut &storage_info.data.borrow()[..])?.into_inner();
 
-    storage.fail_handle = fail_handle;
+    storage.handle_mode = mode;
 
     // Store it
     TestSendReceiverStorageAccount::from(storage).store(storage_info, false)?;

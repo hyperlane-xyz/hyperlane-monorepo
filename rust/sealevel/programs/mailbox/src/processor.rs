@@ -207,7 +207,11 @@ fn inbox_process(
 
     // Account 2: Inbox PDA.
     let inbox_info = next_account_info(accounts_iter)?;
-    let mut inbox = Inbox::verify_account_and_fetch_inner(program_id, inbox_info)?;
+    // By holding a refmut of the Inbox data, we effectively have a reentrancy guard
+    // that prevents any of the CPIs performed by this function to call back into
+    // this function.
+    let (mut inbox, mut inbox_data_refmut) =
+        Inbox::verify_account_and_fetch_inner_with_data_refmut(program_id, inbox_info)?;
 
     // Verify the message's destination matches the inbox's local domain.
     if inbox.local_domain != message.destination {
@@ -363,7 +367,8 @@ fn inbox_process(
 
     // Increment the processed count and store the updated Inbox account.
     inbox.processed_count += 1;
-    InboxAccount::from(inbox).store(inbox_info, false)?;
+    // InboxAccount::from(inbox).store(inbox_info, false)?;
+    InboxAccount::from(inbox).store_in_slice(&mut inbox_data_refmut)?;
 
     // Now call into the recipient program with the verified message!
     let handle_intruction = Instruction::new_with_bytes(
@@ -673,6 +678,12 @@ fn outbox_dispatch(
         data: dispatched_message_account_info.data.borrow().to_vec(),
     };
     invoke(&noop_cpi_log, &[])?;
+
+    msg!(
+        "Dispatched message to {}, ID {:?}",
+        dispatch.destination_domain,
+        id
+    );
 
     // Store the Outbox with the new updates.
     OutboxAccount::from(outbox).store(outbox_info, true)?;

@@ -107,10 +107,7 @@ where
             // the account data itself will be updated to point to unwritten data!
             let mut writable_data: &mut [u8] = &mut data[..];
 
-            match true
-                .serialize(&mut writable_data)
-                .and_then(|_| self.data.serialize(&mut writable_data))
-            {
+            match self.store_in_slice(&mut writable_data) {
                 Ok(_) => break,
                 Err(err) => match err.kind() {
                     std::io::ErrorKind::WriteZero => {
@@ -128,6 +125,13 @@ where
                 panic!("realloc() is only supported on the SVM");
             }
         }
+        Ok(())
+    }
+
+    pub fn store_in_slice(&self, target: &mut [u8]) -> Result<(), std::io::Error> {
+        let mut writable_target: &mut [u8] = &mut target[..];
+        true.serialize(&mut writable_target)
+            .and_then(|_| self.data.serialize(&mut writable_target))?;
         Ok(())
     }
 }

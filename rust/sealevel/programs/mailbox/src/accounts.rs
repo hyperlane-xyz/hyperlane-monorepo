@@ -1,5 +1,6 @@
 //! Hyperlane Sealevel Mailbox data account layouts.
 
+use core::cell::RefMut;
 use std::io::Read;
 
 use access_control::AccessControl;
@@ -57,6 +58,31 @@ impl Inbox {
         }
 
         Ok(*inbox)
+    }
+
+    /// Verifies that the given account is the canonical Inbox PDA, and returns the deserialized inner data
+    /// alongside a RefMut of the account data.
+    /// Intended to be used when the account data's RefMut is required, e.g. as a
+    /// reentrancy guard.
+    pub fn verify_account_and_fetch_inner_with_data_refmut<'a, 'b>(
+        program_id: &'b Pubkey,
+        inbox_account_info: &'b AccountInfo<'a>,
+    ) -> Result<(Self, RefMut<'b, &'a mut [u8]>), ProgramError> {
+        let data_refmut = inbox_account_info.try_borrow_mut_data()?;
+
+        let inbox = InboxAccount::fetch(&mut &data_refmut[..])?.into_inner();
+        let expected_inbox_key = Pubkey::create_program_address(
+            mailbox_inbox_pda_seeds!(inbox.inbox_bump_seed),
+            program_id,
+        )?;
+        if inbox_account_info.key != &expected_inbox_key {
+            return Err(ProgramError::InvalidArgument);
+        }
+        if inbox_account_info.owner != program_id {
+            return Err(ProgramError::IllegalOwner);
+        }
+
+        Ok((*inbox, data_refmut))
     }
 }
 

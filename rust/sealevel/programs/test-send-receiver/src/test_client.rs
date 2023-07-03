@@ -17,7 +17,7 @@ use hyperlane_test_utils::{mailbox_id, process_instruction, MailboxAccounts};
 
 use crate::{
     id,
-    program::{IsmReturnDataMode, TestSendReceiverInstruction},
+    program::{HandleMode, IsmReturnDataMode, TestSendReceiverInstruction},
     test_send_receiver_storage_pda_seeds,
 };
 
@@ -101,8 +101,8 @@ impl TestSendReceiverTestClient {
         Ok(())
     }
 
-    /// Sets whether the program should fail when handling a message.
-    pub async fn set_fail_handle(&mut self, fail_handle: bool) -> Result<(), BanksClientError> {
+    /// Sets the behavior when handling a message.
+    pub async fn set_handle_mode(&mut self, mode: HandleMode) -> Result<(), BanksClientError> {
         let program_id = id();
 
         let (storage_pda_key, _storage_pda_bump) =
@@ -110,7 +110,7 @@ impl TestSendReceiverTestClient {
 
         let instruction = Instruction {
             program_id,
-            data: TestSendReceiverInstruction::SetFailHandle(fail_handle)
+            data: TestSendReceiverInstruction::SetHandleMode(mode)
                 .try_to_vec()
                 .unwrap(),
             accounts: vec![

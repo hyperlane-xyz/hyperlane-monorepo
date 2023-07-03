@@ -26,7 +26,7 @@ use hyperlane_sealevel_mailbox::{
 
 use hyperlane_sealevel_test_ism::{program::TestIsmError, test_client::TestIsmTestClient};
 use hyperlane_sealevel_test_send_receiver::{
-    program::{IsmReturnDataMode, TestSendReceiverError},
+    program::{HandleMode, IsmReturnDataMode, TestSendReceiverError},
     test_client::TestSendReceiverTestClient,
 };
 
@@ -740,7 +740,10 @@ async fn test_process_errors_if_recipient_handle_fails() {
 
     let recipient_id = hyperlane_sealevel_test_send_receiver::id();
 
-    test_send_receiver.set_fail_handle(true).await.unwrap();
+    test_send_receiver
+        .set_handle_mode(HandleMode::Fail)
+        .await
+        .unwrap();
 
     let message = HyperlaneMessage {
         version: 0,
