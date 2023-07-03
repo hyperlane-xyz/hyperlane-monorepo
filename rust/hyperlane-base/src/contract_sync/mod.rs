@@ -62,14 +62,13 @@ where
             indexed_height.set(cursor.latest_block() as i64);
             let Ok((action, eta)) = cursor.next_action().await else { continue };
             match action {
-                CursorAction::Query((from, to)) => {
-                    debug!(from, to, "Looking for for events in block range");
+                CursorAction::Query(range) => {
+                    debug!(?range, "Looking for for events in block range");
 
-                    let logs = self.indexer.fetch_logs(from, to).await?;
+                    let logs = self.indexer.fetch_logs(range.clone()).await?;
 
                     info!(
-                        from,
-                        to,
+                        ?range,
                         num_logs = logs.len(),
                         estimated_time_to_sync = fmt_sync_time(eta),
                         "Found log(s) in block range"

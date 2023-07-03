@@ -1,17 +1,10 @@
+use std::ops::RangeInclusive;
 use std::time::Duration;
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
 
 use crate::{ChainResult, LogMeta};
-
-/// The action that should be taken by the contract sync loop
-pub enum CursorAction {
-    /// Direct the contract_sync task to query a block range
-    Query((u32, u32)),
-    /// Direct the contract_sync task to sleep for a duration
-    Sleep(Duration),
-}
 
 /// A cursor governs event indexing for a contract.
 #[async_trait]
@@ -27,3 +20,15 @@ pub trait ContractSyncCursor<T>: Send + Sync + 'static {
     /// accordingly.
     async fn update(&mut self, logs: Vec<(T, LogMeta)>) -> eyre::Result<()>;
 }
+
+/// The action that should be taken by the contract sync loop
+pub enum CursorAction {
+    /// Direct the contract_sync task to query a block range (inclusive)
+    Query(BlockRange),
+    /// Direct the contract_sync task to sleep for a duration
+    Sleep(Duration),
+}
+
+/// An inclusive block range. The `from` value must be less than or equal to the `to` value.
+/// I.e. it must be an increasing range.
+pub type BlockRange = RangeInclusive<u32>;

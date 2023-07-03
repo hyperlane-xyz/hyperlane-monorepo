@@ -12,8 +12,8 @@ use tokio::time::sleep;
 use tracing::{debug, warn};
 
 use hyperlane_core::{
-    ChainResult, ContractSyncCursor, CursorAction, HyperlaneMessage, HyperlaneMessageStore,
-    HyperlaneWatermarkedLogStore, Indexer, LogMeta, MessageIndexer,
+    BlockRange, ChainResult, ContractSyncCursor, CursorAction, HyperlaneMessage,
+    HyperlaneMessageStore, HyperlaneWatermarkedLogStore, Indexer, LogMeta, MessageIndexer,
 };
 
 use crate::contract_sync::eta_calculator::SyncerEtaCalculator;
@@ -57,7 +57,7 @@ impl MessageSyncCursor {
         &mut self,
         logs: Vec<(HyperlaneMessage, LogMeta)>,
         prev_nonce: u32,
-    ) -> eyre::Result<()> {
+    ) -> Result<()> {
         // If we found messages, but did *not* find the message we were looking for,
         // we need to rewind to the block at which we found the last message.
         if !logs.is_empty() && !logs.iter().any(|m| m.0.nonce == self.next_nonce) {
@@ -82,7 +82,7 @@ impl MessageSyncCursor {
 pub(crate) struct ForwardMessageSyncCursor(MessageSyncCursor);
 
 impl ForwardMessageSyncCursor {
-    async fn get_next_range(&mut self) -> ChainResult<Option<(u32, u32)>> {
+    async fn get_next_range(&mut self) -> ChainResult<Option<BlockRange>> {
         // Check if any new messages have been inserted into the DB,
         // and update the cursor accordingly.
         while self
@@ -123,7 +123,7 @@ impl ForwardMessageSyncCursor {
                 let from = self.0.next_block;
                 let to = u32::min(tip, from + self.0.chunk_size);
                 self.0.next_block = to + 1;
-                Ok(Some((from, to)))
+                Ok(Some(from..=to))
             }
             Ordering::Greater => {
                 // Providers may be internally inconsistent, e.g. RPC request A could hit a node
@@ -155,7 +155,7 @@ impl ContractSyncCursor<HyperlaneMessage> for ForwardMessageSyncCursor {
     /// If the previous block has been synced, rewind to the block number
     /// at which it was dispatched.
     /// Otherwise, rewind all the way back to the start block.
-    async fn update(&mut self, logs: Vec<(HyperlaneMessage, LogMeta)>) -> eyre::Result<()> {
+    async fn update(&mut self, logs: Vec<(HyperlaneMessage, LogMeta)>) -> Result<()> {
         let prev_nonce = self.0.next_nonce.saturating_sub(1);
         // We may wind up having re-indexed messages that are previous to the nonce that we are looking for.
         // We should not consider these messages when checking for continuity errors.
@@ -175,7 +175,7 @@ pub(crate) struct BackwardMessageSyncCursor {
 }
 
 impl BackwardMessageSyncCursor {
-    async fn get_next_range(&mut self) -> Option<(u32, u32)> {
+    async fn get_next_range(&mut self) -> Option<BlockRange> {
         // Check if any new messages have been inserted into the DB,
         // and update the cursor accordingly.
         while !self.synced {
@@ -213,13 +213,13 @@ impl BackwardMessageSyncCursor {
         let from = to.saturating_sub(self.cursor.chunk_size);
         self.cursor.next_block = from.saturating_sub(1);
         // TODO: Consider returning a proper ETA for the backwards pass
-        Some((from, to))
+        Some(from..=to)
     }
 
     /// If the previous block has been synced, rewind to the block number
     /// at which it was dispatched.
     /// Otherwise, rewind all the way back to the start block.
-    async fn update(&mut self, logs: Vec<(HyperlaneMessage, LogMeta)>) -> eyre::Result<()> {
+    async fn update(&mut self, logs: Vec<(HyperlaneMessage, LogMeta)>) -> Result<()> {
         let prev_nonce = self.cursor.next_nonce.saturating_add(1);
         // We may wind up having re-indexed messages that are previous to the nonce that we are looking for.
         // We should not consider these messages when checking for continuity errors.
@@ -302,7 +302,7 @@ impl ContractSyncCursor<HyperlaneMessage> for ForwardBackwardMessageSyncCursor {
         self.forward.0.next_block.saturating_sub(1)
     }
 
-    async fn update(&mut self, logs: Vec<(HyperlaneMessage, LogMeta)>) -> eyre::Result<()> {
+    async fn update(&mut self, logs: Vec<(HyperlaneMessage, LogMeta)>) -> Result<()> {
         match self.direction {
             SyncDirection::Forward => self.forward.update(logs).await,
             SyncDirection::Backward => self.backward.update(logs).await,
@@ -392,19 +392,20 @@ where
         };
 
         let rate_limit = self.get_rate_limit().await?;
-        if let Some(rate_limit) = rate_limit {
-            return Ok((CursorAction::Sleep(rate_limit), eta));
+        let action = if let Some(rate_limit) = rate_limit {
+            CursorAction::Sleep(rate_limit)
         } else {
             self.from = to + 1;
-            return Ok((CursorAction::Query((from, to)), eta));
-        }
+            CursorAction::Query(from..=to)
+        };
+        Ok((action, eta))
     }
 
     fn latest_block(&self) -> u32 {
         self.from.saturating_sub(1)
     }
 
-    async fn update(&mut self, _: Vec<(T, LogMeta)>) -> eyre::Result<()> {
+    async fn update(&mut self, _: Vec<(T, LogMeta)>) -> Result<()> {
         // Store a relatively conservative view of the high watermark, which should allow a single watermark to be
         // safely shared across multiple cursors, so long as they are running sufficiently in sync
         self.db

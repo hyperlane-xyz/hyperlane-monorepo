@@ -9,14 +9,14 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use auto_impl::auto_impl;
 
-use crate::{ChainResult, HyperlaneMessage, LogMeta};
+use crate::{BlockRange, ChainResult, HyperlaneMessage, LogMeta};
 
 /// Interface for an indexer.
 #[async_trait]
 #[auto_impl(&, Box, Arc,)]
 pub trait Indexer<T: Sized>: Send + Sync + Debug {
-    /// Fetch list of logs between blocks `from` and `to`, inclusive.
-    async fn fetch_logs(&self, from: u32, to: u32) -> ChainResult<Vec<(T, LogMeta)>>;
+    /// Fetch list of logs between blocks.
+    async fn fetch_logs(&self, range: BlockRange) -> ChainResult<Vec<(T, LogMeta)>>;
 
     /// Get the chain's latest block number that has reached finality
     async fn get_finalized_block_number(&self) -> ChainResult<u32>;

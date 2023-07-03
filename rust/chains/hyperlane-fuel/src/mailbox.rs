@@ -7,10 +7,10 @@ use fuels::prelude::{Bech32ContractId, WalletUnlocked};
 use tracing::instrument;
 
 use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, utils::fmt_bytes, ChainCommunicationError,
-    ChainResult, Checkpoint, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox,
-    TxCostEstimate, TxOutcome, H256, U256,
+    accumulator::incremental::IncrementalMerkle, utils::fmt_bytes, BlockRange,
+    ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, HyperlaneAbi,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
+    Indexer, LogMeta, Mailbox, TxCostEstimate, TxOutcome, H256, U256,
 };
 
 use crate::{
@@ -153,11 +153,7 @@ pub struct FuelMailboxIndexer {}
 
 #[async_trait]
 impl Indexer<HyperlaneMessage> for FuelMailboxIndexer {
-    async fn fetch_logs(
-        &self,
-        from: u32,
-        to: u32,
-    ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
+    async fn fetch_logs(&self, range: BlockRange) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
         todo!()
     }
 
@@ -168,7 +164,7 @@ impl Indexer<HyperlaneMessage> for FuelMailboxIndexer {
 
 #[async_trait]
 impl Indexer<H256> for FuelMailboxIndexer {
-    async fn fetch_logs(&self, from: u32, to: u32) -> ChainResult<Vec<(H256, LogMeta)>> {
+    async fn fetch_logs(&self, range: BlockRange) -> ChainResult<Vec<(H256, LogMeta)>> {
         todo!()
     }
 

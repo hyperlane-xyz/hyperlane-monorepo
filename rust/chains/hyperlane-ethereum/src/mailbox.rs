@@ -14,10 +14,10 @@ use hyperlane_core::accumulator::TREE_DEPTH;
 use tracing::instrument;
 
 use hyperlane_core::{
-    utils::fmt_bytes, ChainCommunicationError, ChainResult, Checkpoint, ContractLocator,
-    HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProtocolError, HyperlaneProvider, Indexer, LogMeta, Mailbox, MessageIndexer,
-    RawHyperlaneMessage, TxCostEstimate, TxOutcome, H160, H256, U256,
+    utils::fmt_bytes, BlockRange, ChainCommunicationError, ChainResult, Checkpoint,
+    ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneMessage, HyperlaneProtocolError, HyperlaneProvider, Indexer, LogMeta, Mailbox,
+    MessageIndexer, RawHyperlaneMessage, TxCostEstimate, TxOutcome, H160, H256, U256,
 };
 
 use crate::contracts::arbitrum_node_interface::ArbitrumNodeInterface;
@@ -130,16 +130,12 @@ where
     }
 
     #[instrument(err, skip(self))]
-    async fn fetch_logs(
-        &self,
-        from: u32,
-        to: u32,
-    ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
+    async fn fetch_logs(&self, range: BlockRange) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
         let mut events: Vec<(HyperlaneMessage, LogMeta)> = self
             .contract
             .dispatch_filter()
-            .from_block(from)
-            .to_block(to)
+            .from_block(*range.start())
+            .to_block(*range.end())
             .query_with_meta()
             .await?
             .into_iter()
@@ -176,12 +172,12 @@ where
     }
 
     #[instrument(err, skip(self))]
-    async fn fetch_logs(&self, from: u32, to: u32) -> ChainResult<Vec<(H256, LogMeta)>> {
+    async fn fetch_logs(&self, range: BlockRange) -> ChainResult<Vec<(H256, LogMeta)>> {
         Ok(self
             .contract
             .process_id_filter()
-            .from_block(from)
-            .to_block(to)
+            .from_block(*range.start())
+            .to_block(*range.end())
             .query_with_meta()
             .await?
             .into_iter()
