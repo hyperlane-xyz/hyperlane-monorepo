@@ -25,6 +25,7 @@ members = [
     "sealevel/programs/hyperlane-sealevel-token",
     "sealevel/programs/hyperlane-sealevel-token-native",
     "sealevel/programs/ism/multisig-ism-message-id",
+    "sealevel/programs/ism/multisig-ism-message-id-test",
     "sealevel/programs/ism/test-ism",
     "sealevel/programs/mailbox",
     "sealevel/programs/mailbox-test",

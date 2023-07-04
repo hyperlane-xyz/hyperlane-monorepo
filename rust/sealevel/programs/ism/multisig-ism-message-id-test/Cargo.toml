@@ -1,12 +1,9 @@
 [package]
-name = "hyperlane-sealevel-multisig-ism-message-id"
+name = "hyperlane-sealevel-multisig-ism-message-id-test"
 version = "0.1.0"
 edition = "2021"
 
-[features]
-no-entrypoint = []
-
-[dependencies]
+[dev-dependencies]
 borsh.workspace = true
 num-derive.workspace = true
 num-traits.workspace = true
@@ -19,8 +16,13 @@ ecdsa-signature = { path = "../../../libraries/ecdsa-signature" }
 hyperlane-core = { path = "../../../../hyperlane-core" }
 hyperlane-sealevel-interchain-security-module-interface = { path = "../../../libraries/interchain-security-module-interface" }
 hyperlane-sealevel-mailbox = { path = "../../mailbox", features = ["no-entrypoint"] }
-multisig-ism = { path = "../../../libraries/multisig-ism" }
+hyperlane-sealevel-multisig-ism-message-id = { path = "../multisig-ism-message-id" }
+multisig-ism = { path = "../../../libraries/multisig-ism", features = ["test-data"] }
 serializable-account-meta = { path = "../../../libraries/serializable-account-meta" }
+
+solana-program-test.workspace = true
+solana-sdk.workspace = true
+hex.workspace = true
 
 [lib]
 crate-type = ["cdylib", "lib"]

@@ -3873,10 +3873,30 @@ dependencies = [
  "account-utils",
  "borsh 0.9.3",
  "ecdsa-signature",
+ "hyperlane-core",
+ "hyperlane-sealevel-interchain-security-module-interface",
+ "hyperlane-sealevel-mailbox",
+ "multisig-ism",
+ "num-derive",
+ "num-traits",
+ "serializable-account-meta",
+ "solana-program",
+ "thiserror",
+]
+
+[[package]]
+name = "hyperlane-sealevel-multisig-ism-message-id-test"
+version = "0.1.0"
+dependencies = [
+ "access-control",
+ "account-utils",
+ "borsh 0.9.3",
+ "ecdsa-signature",
  "hex 0.4.3",
  "hyperlane-core",
  "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-multisig-ism-message-id",
  "multisig-ism",
  "num-derive",
  "num-traits",
