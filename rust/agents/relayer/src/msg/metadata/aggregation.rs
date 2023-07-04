@@ -83,7 +83,7 @@ impl AggregationIsmMetadataBuilder {
         let mut cheapest: Vec<_> = metas_and_gas[..n].into();
         // Sort by index in ascending order, to match the order expected by the smart contract
         cheapest.sort_by(|(meta_1, _), (meta_2, _)| meta_1.index.cmp(&meta_2.index));
-        cheapest.iter().cloned().map(|(meta, _)| meta).collect()
+        cheapest.into_iter().map(|(meta, _)| meta).collect()
     }
 
     async fn cheapest_valid_metas(
