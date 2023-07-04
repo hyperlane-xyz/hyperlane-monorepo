@@ -6,7 +6,15 @@ import {ISpecifiesInterchainSecurityModule} from "../../interfaces/IInterchainSe
 import {ICircleMessageTransmitter} from "./interfaces/circle/ICircleMessageTransmitter.sol";
 import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
 
-contract CCTPIsm is IInterchainSecurityModule {
+/**
+ * Format of metadata:
+ * [   0:  248] CCTP Burn message
+ * [ 248:  280] Attestation
+ */
+contract CctpIsm is IInterchainSecurityModule {
+    uint8 private constant CCTP_MESSAGE_OFFSET = 0;
+    uint8 private constant CCTP_ATTESTATION_OFFSET = 248;
+
     ICircleMessageTransmitter public cctpMessageTransmitter;
 
     constructor(ICircleMessageTransmitter _cctpMessageTransmitter) {
@@ -25,8 +33,11 @@ contract CCTPIsm is IInterchainSecurityModule {
         external
         returns (bool)
     {
-        // TODO: need to get attestation data from metadata
-        // bytes memory attestation = _metadata.attestation();
-        return cctpMessageTransmitter.receiveMessage(_message, _metadata);
+        bytes
+            memory message = _metadata[CCTP_MESSAGE_OFFSET:CCTP_ATTESTATION_OFFSET];
+        bytes
+            memory metadata = _metadata[CCTP_ATTESTATION_OFFSET:CCTP_ATTESTATION_OFFSET +
+                32];
+        return cctpMessageTransmitter.receiveMessage(message, metadata);
     }
 }

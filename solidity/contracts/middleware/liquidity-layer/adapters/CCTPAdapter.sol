@@ -11,7 +11,7 @@ import {TypeCasts} from "../../../libs/TypeCasts.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-contract CCTPAdapter is ILiquidityLayerAdapterV2, Router {
+contract CctpAdapter is ILiquidityLayerAdapterV2, Router {
     using SafeERC20 for IERC20;
 
     /**
@@ -148,7 +148,7 @@ contract CCTPAdapter is ILiquidityLayerAdapterV2, Router {
         emit SentTransferRemote(_destinationDomain, _recipientAddress, _amount);
     }
 
-    // token transfer is already handled by the CCTPIsm
+    // token transfer is already handled by the CctpIsm
     function _handle(
         uint32, // origin
         bytes32, // sender
