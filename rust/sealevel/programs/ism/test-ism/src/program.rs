@@ -14,7 +14,7 @@ use solana_program::{
 };
 
 use account_utils::create_pda_account;
-use hyperlane_core::IsmType;
+use hyperlane_core::ModuleType;
 use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
 use hyperlane_sealevel_mailbox::accounts::{AccountData, SizedData};
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
@@ -22,7 +22,7 @@ use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 #[cfg(not(feature = "no-entrypoint"))]
 solana_program::entrypoint!(process_instruction);
 
-const ISM_TYPE: IsmType = IsmType::None;
+const ISM_TYPE: ModuleType = ModuleType::None;
 
 pub enum TestIsmError {
     VerifyNotAccepted = 69420,

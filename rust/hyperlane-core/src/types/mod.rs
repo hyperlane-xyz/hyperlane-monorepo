@@ -1,4 +1,3 @@
-use borsh::{BorshDeserialize, BorshSerialize};
 pub use primitive_types::{H128, H160, H256, H512, U128, U256, U512};
 use std::io::{Read, Write};
 use std::ops::Add;
@@ -139,14 +138,4 @@ impl TxCostEstimate {
     pub fn enforceable_gas_limit(&self) -> U256 {
         self.l2_gas_limit.unwrap_or(self.gas_limit)
     }
-}
-
-#[derive(BorshDeserialize, BorshSerialize)]
-pub enum IsmType {
-    None = 0,
-    Routing = 1,
-    Aggregation = 2,
-    LegacyMultisig = 3,
-    MerkleRootMultisig = 4,
-    MessageIdMultisig = 5,
 }

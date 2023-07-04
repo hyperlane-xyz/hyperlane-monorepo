@@ -11,7 +11,7 @@ use solana_program::{
 };
 
 use ecdsa_signature::EcdsaSignature;
-use hyperlane_core::{Encode, HyperlaneMessage, IsmType, H160, H256};
+use hyperlane_core::{Encode, HyperlaneMessage, ModuleType, H160, H256};
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction, VERIFY_ACCOUNT_METAS_PDA_SEEDS,
 };
@@ -521,5 +521,5 @@ async fn test_ism_type() {
     let type_u32 = SimulationReturnData::<u32>::try_from_slice(type_bytes.as_slice())
         .unwrap()
         .return_data;
-    assert_eq!(type_u32, IsmType::MessageIdMultisig as u32);
+    assert_eq!(type_u32, ModuleType::MessageIdMultisig as u32);
 }

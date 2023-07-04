@@ -34,7 +34,6 @@ members = [
     "utils/backtrace-oneline",
     "utils/hex",
     "utils/run-locally",
-    "utils/patcher",
 ]
 
 [workspace.package]
@@ -100,10 +99,10 @@ solana-program-test = "=1.14.13"
 solana-sdk = "=1.14.13"
 solana-transaction-status = "=1.14.13"
 solana-zk-token-sdk = "=1.14.13"
-spl-associated-token-account = "=1.1.2"
-spl-noop = "=0.1.3"
-spl-token = "=3.5.0"
-spl-token-2022 = "=0.5.0"
+spl-associated-token-account = { version = "=1.1.2", features = ["no-entrypoint"] }
+spl-noop = { version = "=0.1.3", features = ["no-entrypoint"] }
+spl-token = { version = "=3.5.0", features = ["no-entrypoint"] }
+spl-token-2022 = { version = "=0.5.0", features = ["no-entrypoint"] }
 spl-type-length-value = "=0.1.0"
 static_assertions = "1.1"
 strum = "0.24"
@@ -181,124 +180,104 @@ default-features = false
 version = "3.2.2"
 git = "https://github.com/Eclipse-Laboratories-Inc/curve25519-dalek"
 branch = "v3.2.2-relax-zeroize"
-features = []
 
 [patch.crates-io.ed25519-dalek]
 version = "1.0.1"
 git = "https://github.com/Eclipse-Laboratories-Inc/ed25519-dalek"
 branch = "main"
-features = []
 
 [patch.crates-io.primitive-types]
 version = "=0.12.1"
-path = "vendor/parity-common/primitive-types"
-features = []
-default-features = false
+git = "https://github.com/hyperlane-xyz/parity-common.git"
+branch = "hyperlane"
 
 [patch.crates-io.rlp]
 version = "=0.5.2"
-path = "vendor/parity-common/rlp"
-features = []
-default-features = false
+git = "https://github.com/hyperlane-xyz/parity-common.git"
+branch = "hyperlane"
 
 [patch.crates-io.solana-account-decoder]
 version = "=1.14.13"
-path = "vendor/solana/account-decoder"
-features = []
-default-features = false
+git = "https://github.com/hyperlane-xyz/solana.git"
+tag = "hyperlane-1.14.13-2023-07-04"
 
 [patch.crates-io.solana-banks-client]
 version = "=1.14.13"
-path = "vendor/solana/banks-client"
-features = []
-default-features = false
+git = "https://github.com/hyperlane-xyz/solana.git"
+tag = "hyperlane-1.14.13-2023-07-04"
 
 [patch.crates-io.solana-banks-interface]
 version = "=1.14.13"
-path = "vendor/solana/banks-interface"
-features = []
-default-features = false
+git = "https://github.com/hyperlane-xyz/solana.git"
+tag = "hyperlane-1.14.13-2023-07-04"
 
 [patch.crates-io.solana-banks-server]
 version = "=1.14.13"
-path = "vendor/solana/banks-server"
-features = []
-default-features = false
+git = "https://github.com/hyperlane-xyz/solana.git"
+tag = "hyperlane-1.14.13-2023-07-04"
 
 [patch.crates-io.solana-clap-utils]
 version = "=1.14.13"
-path = "vendor/solana/clap-utils"
-features = []
-default-features = false
+git = "https://github.com/hyperlane-xyz/solana.git"
+tag = "hyperlane-1.14.13-2023-07-04"
 
 [patch.crates-io.solana-cli-config]
 version = "=1.14.13"
-path = "vendor/solana/cli-config"
-features = []
-default-features = false
+git = "https://github.com/hyperlane-xyz/solana.git"
+tag = "hyperlane-1.14.13-2023-07-04"
 
 [patch.crates-io.solana-client]
 version = "=1.14.13"
-path = "vendor/solana/client"
-features = []
-default-features = false
+git = "https://github.com/hyperlane-xyz/solana.git"
+tag = "hyperlane-1.14.13-2023-07-04"
 
 [patch.crates-io.solana-program]
 version = "=1.14.13"
-path = "vendor/solana/sdk/program"
-features = []
-default-features = false
+git = "https://github.com/hyperlane-xyz/solana.git"
+tag = "hyperlane-1.14.13-2023-07-04"
 
 [patch.crates-io.solana-program-test]
 version = "=1.14.13"
-path = "vendor/solana/program-test"
-features = []
-default-features = false
+git = "https://github.com/hyperlane-xyz/solana.git"
+tag = "hyperlane-1.14.13-2023-07-04"
 
 [patch.crates-io.solana-sdk]
 version = "=1.14.13"
-path = "vendor/solana/sdk"
-features = []
-default-features = false
+git = "https://github.com/hyperlane-xyz/solana.git"
+tag = "hyperlane-1.14.13-2023-07-04"
 
 [patch.crates-io.solana-transaction-status]
 version = "=1.14.13"
-path = "vendor/solana/transaction-status"
-features = []
-default-features = false
+git = "https://github.com/hyperlane-xyz/solana.git"
+tag = "hyperlane-1.14.13-2023-07-04"
 
 [patch.crates-io.solana-zk-token-sdk]
 version = "=1.14.13"
-path = "vendor/solana/zk-token-sdk"
-features = []
-default-features = false
+git = "https://github.com/hyperlane-xyz/solana.git"
+tag = "hyperlane-1.14.13-2023-07-04"
 
 [patch.crates-io.spl-associated-token-account]
 version = "=1.1.2"
-path = "vendor/spl/associated-token-account/program"
-features = []
-default-features = false
+git = "https://github.com/hyperlane-xyz/solana-program-library.git"
+branch = "hyperlane"
 
 [patch.crates-io.spl-noop]
 version = "=0.1.3"
-path = "vendor/spl/account-compression/programs/noop"
-features = []
-default-features = false
+git = "https://github.com/hyperlane-xyz/solana-program-library.git"
+branch = "hyperlane"
 
 [patch.crates-io.spl-token]
 version = "=3.5.0"
-path = "vendor/spl/token/program"
-features = []
-default-features = false
+git = "https://github.com/hyperlane-xyz/solana-program-library.git"
+branch = "hyperlane"
 
 [patch.crates-io.spl-token-2022]
 version = "=0.5.0"
-path = "vendor/spl/token/program-2022"
-features = []
-default-features = false
+git = "https://github.com/hyperlane-xyz/solana-program-library.git"
+branch = "hyperlane"
 
 [patch.crates-io.spl-type-length-value]
 version = "=0.1.0"
-path = "vendor/spl/libraries/type-length-value"
-features = []
-default-features = false
+
+git = "https://github.com/hyperlane-xyz/solana-program-library.git"
+branch = "hyperlane"

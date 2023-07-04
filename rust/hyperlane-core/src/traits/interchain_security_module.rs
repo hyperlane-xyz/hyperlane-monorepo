@@ -2,13 +2,14 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
+use borsh::{BorshDeserialize, BorshSerialize};
 use num_derive::FromPrimitive;
 use strum::Display;
 
 use crate::{ChainResult, HyperlaneContract};
 
 /// Enumeration of all known module types
-#[derive(FromPrimitive, Clone, Debug, Default, Display, Copy, PartialEq, Eq)]
+#[derive(FromPrimitive, Clone, Debug, Default, Display, Copy, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
 pub enum ModuleType {
     /// INVALID ISM
     #[default]

@@ -3,8 +3,10 @@ use std::error::Error as StdError;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::Deref;
 
+#[cfg(not(target_os = "solana"))]
 use ethers_contract::ContractError;
 use ethers_core::types::SignatureError;
+#[cfg(not(target_os = "solana"))]
 use ethers_providers::{Middleware, ProviderError};
 
 use crate::HyperlaneProviderError;
@@ -67,6 +69,7 @@ pub enum ChainCommunicationError {
     ContractError(HyperlaneCustomErrorWrapper),
     /// Provider Error
     #[error(transparent)]
+    #[cfg(not(target_os = "solana"))]
     ProviderError(#[from] ProviderError),
     /// A transaction was dropped from the mempool
     #[error("Transaction dropped from mempool {0:?}")]
@@ -143,6 +146,7 @@ impl ChainCommunicationError {
     }
 }
 
+#[cfg(not(target_os = "solana"))]
 impl<M> From<ContractError<M>> for ChainCommunicationError
 where
     M: Middleware + 'static,

@@ -4,7 +4,7 @@ use access_control::AccessControl;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle as MerkleTree, Decode, Encode, HyperlaneMessage,
-    H256,
+    H256, Signable,
 };
 #[cfg(not(feature = "no-entrypoint"))]
 use solana_program::entrypoint;
@@ -52,6 +52,10 @@ pub fn process_instruction(
     accounts: &[AccountInfo],
     instruction_data: &[u8],
 ) -> ProgramResult {
+
+    let f = Foo(32);
+    msg!("yo {:?}", f.eth_signed_message_hash());
+
     match MailboxIxn::from_instruction_data(instruction_data)? {
         MailboxIxn::Init(init) => initialize(program_id, accounts, init),
         MailboxIxn::InboxProcess(process) => inbox_process(program_id, accounts, process),
@@ -72,6 +76,16 @@ pub fn process_instruction(
         msg!("{}", err);
         err
     })
+}
+
+struct Foo(u32);
+
+impl Signable for Foo {
+    /// A hash of the contents.
+    /// The EIP-191 compliant version of this hash is signed by validators.
+    fn signing_hash(&self) -> H256 {
+        H256::zero()
+    }
 }
 
 /// Initializes the Mailbox.

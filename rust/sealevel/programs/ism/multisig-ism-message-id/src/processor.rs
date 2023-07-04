@@ -1,4 +1,4 @@
-use hyperlane_core::{Checkpoint, CheckpointWithMessageId, Decode, HyperlaneMessage, IsmType};
+use hyperlane_core::{Checkpoint, CheckpointWithMessageId, Decode, HyperlaneMessage, ModuleType};
 
 use access_control::AccessControl;
 use account_utils::{create_pda_account, DiscriminatorDecode};
@@ -28,7 +28,7 @@ use multisig_ism::{interface::MultisigIsmInstruction, multisig::MultisigIsm};
 
 use borsh::BorshSerialize;
 
-const ISM_TYPE: IsmType = IsmType::MessageIdMultisig;
+const ISM_TYPE: ModuleType = ModuleType::MessageIdMultisig;
 
 #[cfg(not(feature = "no-entrypoint"))]
 solana_program::entrypoint!(process_instruction);

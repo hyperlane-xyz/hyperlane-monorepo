@@ -12,5 +12,9 @@ thiserror.workspace = true
 
 hyperlane-core = { path = "../../../hyperlane-core" }
 
+# Required to allow dependencies `getrandom` but to preserve determinism required by programs, see
+# https://github.com/solana-labs/solana/blob/master/docs/src/developing/on-chain-programs/developing-rust.md#depending-on-rand
+getrandom = { version = "0.2", features = ["custom"] }
+
 [lib]
 crate-type = ["cdylib", "lib"]

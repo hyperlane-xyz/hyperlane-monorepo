@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 
+#[cfg(not(target_os = "solana"))]
 use ethers_contract::LogMeta as EthersLogMeta;
 use serde::{Deserialize, Serialize};
 
@@ -29,6 +30,7 @@ pub struct LogMeta {
     pub log_index: U256,
 }
 
+#[cfg(not(target_os = "solana"))]
 impl From<EthersLogMeta> for LogMeta {
     fn from(v: EthersLogMeta) -> Self {
         Self {
@@ -42,6 +44,7 @@ impl From<EthersLogMeta> for LogMeta {
     }
 }
 
+#[cfg(not(target_os = "solana"))]
 impl From<&EthersLogMeta> for LogMeta {
     fn from(v: &EthersLogMeta) -> Self {
         Self {

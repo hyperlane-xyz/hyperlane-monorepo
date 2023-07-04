@@ -17,10 +17,18 @@ hyperlane-core = { path = "../../../hyperlane-core" }
 hyperlane-sealevel-mailbox = { path = "../mailbox", features = ["no-entrypoint"] }
 serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
 
+# Required to allow dependencies `getrandom` but to preserve determinism required by programs, see
+# https://github.com/solana-labs/solana/blob/master/docs/src/developing/on-chain-programs/developing-rust.md#depending-on-rand
+getrandom = { version = "0.2", features = ["custom"] }
+
 [dev-dependencies]
-hex.workspace = true
-solana-program-test.workspace = true
-solana-sdk.workspace = true
+# [target.'cfg(not(target_arch = "sbfv2"))'.dev-dependencies]
+# hex.workspace = true
+solana-program-test = "1.14.13"
+# solana-sdk.workspace = true
 
 [lib]
 crate-type = ["cdylib", "lib"]
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
