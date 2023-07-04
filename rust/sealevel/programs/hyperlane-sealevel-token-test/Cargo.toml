@@ -1,12 +1,10 @@
 [package]
-name = "hyperlane-sealevel-token"
+name = "hyperlane-sealevel-token-test"
 version = "0.1.0"
 edition = "2021"
 
-[features]
-no-entrypoint = []
+[dev-dependencies]
 
-[dependencies]
 borsh.workspace = true
 bs58.workspace = true # FIXME remove
 num-derive.workspace = true
@@ -24,7 +22,14 @@ hyperlane-sealevel-connection-client = { path = "../../libraries/hyperlane-seale
 hyperlane-sealevel-mailbox = { path = "../mailbox", features = ["no-entrypoint"] }
 hyperlane-sealevel-message-recipient-interface = { path = "../../libraries/message-recipient-interface" }
 hyperlane-sealevel-token-lib = { path = "../../libraries/hyperlane-sealevel-token" }
+hyperlane-sealevel-token = { path = "../hyperlane-sealevel-token" }
 serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
+
+solana-program-test.workspace = true
+solana-sdk.workspace = true
+
+hyperlane-test-utils = { path = "../../libraries/test-utils" }
+hyperlane-sealevel-test-ism = { path = "../ism/test-ism", features = ["no-entrypoint"] }
 
 [lib]
 crate-type = ["cdylib", "lib"]

@@ -23,6 +23,7 @@ members = [
     "sealevel/libraries/test-transaction-utils",
     "sealevel/libraries/test-utils",
     "sealevel/programs/hyperlane-sealevel-token",
+    "sealevel/programs/hyperlane-sealevel-token-test",
     "sealevel/programs/hyperlane-sealevel-token-native",
     "sealevel/programs/ism/multisig-ism-message-id",
     "sealevel/programs/ism/multisig-ism-message-id-test",
