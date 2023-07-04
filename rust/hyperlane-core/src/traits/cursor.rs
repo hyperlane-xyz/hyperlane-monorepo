@@ -1,4 +1,3 @@
-use std::ops::RangeInclusive;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -25,11 +24,6 @@ pub trait ContractSyncCursor<T>: Send + Sync + 'static {
 pub enum CursorAction {
     /// Direct the contract_sync task to query a block range (inclusive)
     Query(IndexRange),
-    Query(BlockRange),
     /// Direct the contract_sync task to sleep for a duration
     Sleep(Duration),
 }
-
-/// An inclusive block range. The `from` value must be less than or equal to the `to` value.
-/// I.e. it must be an increasing range.
-pub type BlockRange = RangeInclusive<u32>;

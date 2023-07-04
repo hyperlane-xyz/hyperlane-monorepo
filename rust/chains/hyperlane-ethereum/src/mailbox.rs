@@ -9,15 +9,15 @@ use async_trait::async_trait;
 use ethers::abi::AbiEncode;
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
-use hyperlane_core::accumulator::incremental::IncrementalMerkle;
-use hyperlane_core::accumulator::TREE_DEPTH;
 use tracing::instrument;
 
+use hyperlane_core::accumulator::incremental::IncrementalMerkle;
+use hyperlane_core::accumulator::TREE_DEPTH;
 use hyperlane_core::{
-    utils::fmt_bytes, ChainCommunicationError, ChainResult, Checkpoint, ContractLocator,
-    HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProtocolError, HyperlaneProvider, IndexRange, Indexer, LogMeta, Mailbox,
-    MessageIndexer, RawHyperlaneMessage, TxCostEstimate, TxOutcome, H160, H256, U256,
+    utils::fmt_bytes, BlockRange, ChainCommunicationError, ChainResult, Checkpoint,
+    ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneMessage, HyperlaneProtocolError, HyperlaneProvider, IndexRange, Indexer, LogMeta,
+    Mailbox, MessageIndexer, RawHyperlaneMessage, TxCostEstimate, TxOutcome, H160, H256, U256,
 };
 
 use crate::contracts::arbitrum_node_interface::ArbitrumNodeInterface;
@@ -131,13 +131,10 @@ where
 
     #[instrument(err, skip(self))]
     async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
-        let range = match range {
-            IndexRange::Blocks(from, to) => (from, to),
-            IndexRange::Sequences(_, _) => {
-                return Err(ChainCommunicationError::from_other_str(
-                    "EthereumMailboxIndexer does not support sequence-based indexing",
-                ))
-            }
+        let BlockRange(range) = range else {
+            return Err(ChainCommunicationError::from_other_str(
+                "EthereumMailboxIndexer does not support sequence-based indexing",
+            ))
         };
 
         let mut events: Vec<(HyperlaneMessage, LogMeta)> = self
@@ -182,13 +179,10 @@ where
 
     #[instrument(err, skip(self))]
     async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(H256, LogMeta)>> {
-        let range = match range {
-            IndexRange::Blocks(from, to) => (from, to),
-            IndexRange::Sequences(_, _) => {
-                return Err(ChainCommunicationError::from_other_str(
-                    "EthereumMailboxIndexer does not support sequence-based indexing",
-                ))
-            }
+        let BlockRange(range) = range else {
+            return Err(ChainCommunicationError::from_other_str(
+                "EthereumMailboxIndexer does not support sequence-based indexing",
+            ))
         };
 
         Ok(self
@@ -517,6 +511,7 @@ mod test {
         providers::{MockProvider, Provider},
         types::{Block, Transaction},
     };
+
     use hyperlane_core::{
         ContractLocator, HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, Mailbox,
         TxCostEstimate, H160, H256, U256,

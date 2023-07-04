@@ -13,7 +13,8 @@ use tracing::{debug, warn};
 
 use hyperlane_core::{
     BlockRange, ChainResult, ContractSyncCursor, CursorAction, HyperlaneMessage,
-    HyperlaneMessageStore, HyperlaneWatermarkedLogStore, IndexMode, IndexRange, Indexer, LogMeta, MessageIndexer,
+    HyperlaneMessageStore, HyperlaneWatermarkedLogStore, IndexMode, IndexRange, Indexer, LogMeta,
+    MessageIndexer, MessageNonceRange,
 };
 
 use crate::contract_sync::eta_calculator::SyncerEtaCalculator;
@@ -87,7 +88,7 @@ pub(crate) struct ForwardMessageSyncCursor {
 }
 
 impl ForwardMessageSyncCursor {
-    async fn get_next_range(&mut self) -> ChainResult<Option<BlockRange>> {
+    async fn get_next_range(&mut self) -> ChainResult<Option<IndexRange>> {
         // Check if any new messages have been inserted into the DB,
         // and update the cursor accordingly.
         while self
@@ -130,10 +131,9 @@ impl ForwardMessageSyncCursor {
                 self.cursor.next_block = to + 1;
 
                 let range = match self.mode {
-                    IndexMode::Block => IndexRange::Blocks(from..=to),
-                    IndexMode::Sequence => IndexRange::Sequences(
-                        cursor_count,
-                        mailbox_count.min(cursor_count + MAX_SEQUENCE_RANGE),
+                    IndexMode::Block => BlockRange(from..=to),
+                    IndexMode::MessageNonce => MessageNonceRange(
+                        cursor_count..=u32::min(mailbox_count, cursor_count + MAX_SEQUENCE_RANGE),
                     ),
                 };
 
@@ -190,7 +190,6 @@ pub(crate) struct BackwardMessageSyncCursor {
 }
 
 impl BackwardMessageSyncCursor {
-    async fn get_next_range(&mut self) -> Option<BlockRange> {
     async fn get_next_range(&mut self) -> Option<IndexRange> {
         // Check if any new messages have been inserted into the DB,
         // and update the cursor accordingly.
@@ -232,10 +231,9 @@ impl BackwardMessageSyncCursor {
         let next_nonce = self.cursor.next_nonce;
 
         let range = match self.mode {
-            IndexMode::Block => IndexRange::Blocks(from..=to),
-            IndexMode::Sequence => IndexRange::Sequences(
-                (next_nonce.saturating_sub(MAX_SEQUENCE_RANGE)).max(0),
-                next_nonce + 1,
+            IndexMode::Block => BlockRange(from..=to),
+            IndexMode::MessageNonce => MessageNonceRange(
+                u32::max(next_nonce.saturating_sub(MAX_SEQUENCE_RANGE), 0)..=next_nonce,
             ),
         };
 
@@ -420,7 +418,7 @@ where
             CursorAction::Sleep(rate_limit)
         } else {
             self.from = to + 1;
-            CursorAction::Query(IndexRange::Blocks(from..=to))
+            CursorAction::Query(BlockRange(from..=to))
         };
         Ok((action, eta))
     }

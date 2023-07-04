@@ -5,12 +5,13 @@
 //! a chain-specific library and provider (e.g. ethers::provider).
 
 use std::fmt::Debug;
+use std::ops::RangeInclusive;
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
 use serde::Deserialize;
 
-use crate::{BlockRange, ChainResult, HyperlaneMessage, LogMeta};
+use crate::{ChainResult, HyperlaneMessage, LogMeta};
 
 /// Indexing mode.
 #[derive(Copy, Debug, Default, Deserialize, Clone)]
@@ -20,18 +21,22 @@ pub enum IndexMode {
     #[default]
     Block,
     /// Sequence based indexing.
-    Sequence,
+    MessageNonce,
 }
 
+/// An inclusive range of sequence numbers.
+pub type SequenceRange = RangeInclusive<u32>;
+
 /// An indexing range.
-#[derive(Copy, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub enum IndexRange {
     /// For block-based indexers
-    Blocks(BlockRange),
+    BlockRange(SequenceRange),
     /// For indexers that look for specific sequences, e.g. message nonces.
-    Sequences(u32, u32),
-    Sequences(SequenceRange),
+    MessageNonceRange(SequenceRange),
 }
+
+pub use IndexRange::*;
 
 /// Interface for an indexer.
 #[async_trait]

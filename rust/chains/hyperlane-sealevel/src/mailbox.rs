@@ -1,11 +1,6 @@
 #![allow(warnings)] // FIXME remove
 
-use std::{
-    collections::HashMap,
-    num::NonZeroU64,
-    str::FromStr as _,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashMap, num::NonZeroU64, str::FromStr as _};
 
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -13,10 +8,10 @@ use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     ContractLocator, Decode as _, Encode as _, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, IndexRange, Indexer, LogMeta, Mailbox,
-    MessageIndexer, TxCostEstimate, TxOutcome, H256, U256,
+    MessageIndexer, MessageNonceRange, SequenceRange, TxCostEstimate, TxOutcome, H256, U256,
 };
 use jsonrpc_core::futures_util::TryFutureExt;
-use tracing::{debug, error, instrument, trace, warn};
+use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::{
     mailbox::contract::DispatchedMessageAccount,
@@ -688,26 +683,19 @@ impl MessageIndexer for SealevelMailboxIndexer {
 #[async_trait]
 impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
     async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
-        let (from, to) = match range {
-            IndexRange::Blocks(from, to) => {
-                return Err(ChainCommunicationError::from_other_str(
-                    "SealevelMailboxIndexer does not support block-based indexing",
-                ))
-            }
-            IndexRange::Sequences(from, to) => (from, to),
+        let MessageNonceRange(range) = range else {
+            return Err(ChainCommunicationError::from_other_str(
+                "SealevelMailboxIndexer does not support block-based indexing",
+            ))
         };
 
-        tracing::info!(
-            "Fetching SealevelMailboxIndexer HyperlaneMessage logs from {} to {}",
-            from,
-            to
+        info!(
+            ?range,
+            "Fetching SealevelMailboxIndexer HyperlaneMessage logs"
         );
 
-        let expected_count: usize = (to - from)
-            .try_into()
-            .map_err(ChainCommunicationError::from_other)?;
-        let mut messages = Vec::with_capacity(expected_count);
-        for nonce in from..to {
+        let mut messages = Vec::with_capacity((range.end() - range.start()) as usize);
+        for nonce in range {
             messages.push(self.get_message_with_nonce(nonce).await?);
         }
         Ok(messages)

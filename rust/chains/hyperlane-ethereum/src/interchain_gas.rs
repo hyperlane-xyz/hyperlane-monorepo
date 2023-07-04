@@ -9,8 +9,8 @@ use ethers::prelude::Middleware;
 use tracing::instrument;
 
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, IndexRange, Indexer,
+    BlockRange, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider, IndexRange, Indexer,
     InterchainGasPaymaster, InterchainGasPayment, LogMeta, H160, H256,
 };
 
@@ -89,11 +89,10 @@ where
         &self,
         range: IndexRange,
     ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
-        let range = match range {
-            IndexRange::Blocks(range) => (from, to),
-            IndexRange::Sequences(_, _) => return Err(ChainCommunicationError::from_other_str(
+        let BlockRange(range) = range else {
+            return Err(ChainCommunicationError::from_other_str(
                 "EthereumInterchainGasPaymasterIndexer does not support sequence-based indexing",
-            )),
+            ));
         };
 
         let events = self
