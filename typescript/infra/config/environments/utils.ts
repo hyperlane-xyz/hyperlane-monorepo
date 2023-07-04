@@ -20,30 +20,31 @@ export const s3BucketName = (
   index: number,
 ) => `${context}-${environment}-${chainName}-validator-${index}`;
 
-// The name of the key generated in helm, without the numeric suffix
-// e.g. `rc-testnet3-key-arbitrumgoerli-validator`
-const keyName = (
-  context: Contexts,
-  environment: string,
-  chainName: CoreChainName,
-) => `${context}-${environment}-key-${chainName}-validator`;
+type ContextAddresses = { [context in Contexts]: string[] };
 
+/**
+ *
+ * @param addresses Validator addresses, provided in order of deployment priority
+ * only the first `count` addresses will be used
+ * @param context
+ * @param environment
+ * @param chain
+ * @param count Number of validators to use
+ * @returns
+ */
 export const validatorsConfig = (
+  addresses: ContextAddresses,
   context: Contexts,
   environment: string,
   chain: CoreChainName,
-  keys: Record<string, ValidatorKey[]>,
-  count: number = 1,
+  count: number,
 ): Array<ValidatorBaseConfig> => {
-  const key = keyName(context, environment, chain);
-  const chainKeys = keys[context].filter((v) => v.identifier.includes(key));
-  const validatorCount = Math.min(count, chainKeys.length);
-  return [...Array(validatorCount).keys()].map((i) => {
-    const bucketName = s3BucketName(context, environment, chain, i);
-    const key = chainKeys.find((v) => v.identifier.endsWith(`${i}`));
+  const addressesToUse = addresses[context].slice(0, count);
+  return addressesToUse.map((address, index) => {
+    const bucketName = s3BucketName(context, environment, chain, index);
     return {
       name: bucketName,
-      address: key!.address,
+      address,
       checkpointSyncer: {
         type: CheckpointSyncerType.S3,
         bucket: bucketName,
