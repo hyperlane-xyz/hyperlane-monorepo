@@ -9,7 +9,18 @@ use strum::Display;
 use crate::{ChainResult, HyperlaneContract};
 
 /// Enumeration of all known module types
-#[derive(FromPrimitive, Clone, Debug, Default, Display, Copy, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
+#[derive(
+    FromPrimitive,
+    Clone,
+    Debug,
+    Default,
+    Display,
+    Copy,
+    PartialEq,
+    Eq,
+    BorshDeserialize,
+    BorshSerialize,
+)]
 pub enum ModuleType {
     /// INVALID ISM
     #[default]

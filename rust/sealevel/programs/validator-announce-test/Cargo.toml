@@ -1,12 +1,9 @@
 [package]
-name = "hyperlane-sealevel-validator-announce"
+name = "hyperlane-sealevel-validator-announce-test"
 version = "0.1.0"
 edition = "2021"
 
-[features]
-no-entrypoint = []
-
-[dependencies]
+[dev-dependencies]
 borsh.workspace = true
 solana-program.workspace = true
 thiserror.workspace = true
@@ -16,10 +13,11 @@ ecdsa-signature = { path = "../../libraries/ecdsa-signature" }
 hyperlane-core = { path = "../../../hyperlane-core" }
 hyperlane-sealevel-mailbox = { path = "../mailbox", features = ["no-entrypoint"] }
 serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
+hyperlane-sealevel-validator-announce = { path = "../validator-announce" }
 
-# Required to allow dependencies `getrandom` but to preserve determinism required by programs, see
-# https://github.com/solana-labs/solana/blob/master/docs/src/developing/on-chain-programs/developing-rust.md#depending-on-rand
-getrandom = { version = "0.2", features = ["custom"] }
+hex.workspace = true
+solana-program-test = "1.14.13"
+solana-sdk.workspace = true
 
 [lib]
 crate-type = ["cdylib", "lib"]

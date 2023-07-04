@@ -4,7 +4,7 @@ use access_control::AccessControl;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle as MerkleTree, Decode, Encode, HyperlaneMessage,
-    H256, Signable,
+    Signable, H256,
 };
 #[cfg(not(feature = "no-entrypoint"))]
 use solana_program::entrypoint;
@@ -52,7 +52,6 @@ pub fn process_instruction(
     accounts: &[AccountInfo],
     instruction_data: &[u8],
 ) -> ProgramResult {
-
     let f = Foo(32);
     msg!("yo {:?}", f.eth_signed_message_hash());
 

@@ -30,6 +30,7 @@ members = [
     "sealevel/programs/mailbox-test",
     "sealevel/programs/test-send-receiver",
     "sealevel/programs/validator-announce",
+    "sealevel/programs/validator-announce-test",
     "utils/abigen",
     "utils/backtrace-oneline",
     "utils/hex",

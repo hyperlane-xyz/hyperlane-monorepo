@@ -4033,7 +4033,24 @@ dependencies = [
  "hyperlane-sealevel-mailbox",
  "serializable-account-meta",
  "solana-program",
+ "thiserror",
+]
+
+[[package]]
+name = "hyperlane-sealevel-validator-announce-test"
+version = "0.1.0"
+dependencies = [
+ "account-utils",
+ "borsh 0.9.3",
+ "ecdsa-signature",
+ "hex 0.4.3",
+ "hyperlane-core",
+ "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-validator-announce",
+ "serializable-account-meta",
+ "solana-program",
  "solana-program-test",
+ "solana-sdk",
  "thiserror",
 ]
 

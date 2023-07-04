@@ -22,7 +22,7 @@ use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 #[cfg(not(feature = "no-entrypoint"))]
 solana_program::entrypoint!(process_instruction);
 
-const ISM_TYPE: ModuleType = ModuleType::None;
+const ISM_TYPE: ModuleType = ModuleType::Unused;
 
 pub enum TestIsmError {
     VerifyNotAccepted = 69420,
