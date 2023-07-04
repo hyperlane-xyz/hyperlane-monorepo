@@ -27,20 +27,26 @@ export abstract class HyperlaneRouterDeployer<
   // recipient, or body-specific logic. Folks that wish to deploy using
   // such ISMs *may* need to override checkConfig to disable this check.
   async checkConfig(configMap: ChainMap<Config>): Promise<void> {
-    const chains = Object.keys(configMap);
+    // First pass, find the ISM for each chain
+    const ismCache: ChainMap<types.Address> = {};
+    for (const [chain, config] of Object.entries(configMap)) {
+      const signerOrProvider = this.multiProvider.getSignerOrProvider(chain);
+      const mailbox = Mailbox__factory.connect(
+        config.mailbox,
+        signerOrProvider,
+      );
+      ismCache[chain] =
+        config.interchainSecurityModule ?? (await mailbox.defaultIsm());
+    }
+
+    // Second pass, verify the IGP and ISM for each chain
     for (const [chain, config] of Object.entries(configMap)) {
       const signerOrProvider = this.multiProvider.getSignerOrProvider(chain);
       const igp = IInterchainGasPaymaster__factory.connect(
         config.interchainGasPaymaster,
         signerOrProvider,
       );
-      const mailbox = Mailbox__factory.connect(
-        config.mailbox,
-        signerOrProvider,
-      );
-      const ism =
-        config.interchainSecurityModule ?? (await mailbox.defaultIsm());
-      const remotes = chains.filter((c) => c !== chain);
+      const remotes = Object.keys(configMap).filter((c) => c !== chain);
       for (const remote of remotes) {
         // Try to confirm that the IGP supports delivery to all remotes
         try {
@@ -55,14 +61,14 @@ export abstract class HyperlaneRouterDeployer<
 
         // Try to confirm that the specified or default ISM can verify messages to all remotes
         const canVerify = await moduleCanCertainlyVerify(
-          ism,
+          ismCache[remote],
           this.multiProvider,
           chain,
           remote,
         );
         if (!canVerify) {
           throw new Error(
-            `The specified or default ISM with address ${ism} on ${chain} ` +
+            `The specified or default ISM with address ${ismCache[remote]} on ${chain} ` +
               `cannot verify messages from ${remote}, did you forget to ` +
               `specify an ISM, or mean to specify a different one?`,
           );

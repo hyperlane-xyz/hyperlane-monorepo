@@ -227,7 +227,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
 // body specific logic, as the sample message used when querying the ISM
 // sets all of these to zero.
 export async function moduleCanCertainlyVerify(
-  moduleAddress: types.Address,
+  destModuleAddress: types.Address,
   multiProvider: MultiProvider,
   origin: ChainName,
   destination: ChainName,
@@ -243,7 +243,7 @@ export async function moduleCanCertainlyVerify(
   );
   const provider = multiProvider.getSignerOrProvider(destination);
   const module = IInterchainSecurityModule__factory.connect(
-    moduleAddress,
+    destModuleAddress,
     provider,
   );
   try {
@@ -254,7 +254,7 @@ export async function moduleCanCertainlyVerify(
       moduleType === ModuleType.MESSAGE_ID_MULTISIG
     ) {
       const multisigModule = IMultisigIsm__factory.connect(
-        moduleAddress,
+        destModuleAddress,
         provider,
       );
 
@@ -263,7 +263,10 @@ export async function moduleCanCertainlyVerify(
       );
       return threshold > 0;
     } else if (moduleType === ModuleType.ROUTING) {
-      const routingIsm = IRoutingIsm__factory.connect(moduleAddress, provider);
+      const routingIsm = IRoutingIsm__factory.connect(
+        destModuleAddress,
+        provider,
+      );
       const subModule = await routingIsm.route(message);
       return moduleCanCertainlyVerify(
         subModule,
@@ -273,7 +276,7 @@ export async function moduleCanCertainlyVerify(
       );
     } else if (moduleType === ModuleType.AGGREGATION) {
       const aggregationIsm = IAggregationIsm__factory.connect(
-        moduleAddress,
+        destModuleAddress,
         provider,
       );
       const [subModules, threshold] = await aggregationIsm.modulesAndThreshold(
@@ -296,7 +299,7 @@ export async function moduleCanCertainlyVerify(
       throw new Error(`Unsupported module type: ${moduleType}`);
     }
   } catch (e) {
-    logging.warn(`Error checking module ${moduleAddress}: ${e}`);
+    logging.warn(`Error checking module ${destModuleAddress}: ${e}`);
     return false;
   }
 }
