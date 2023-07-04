@@ -27,6 +27,7 @@ members = [
     "sealevel/programs/hyperlane-sealevel-token-collateral",
     "sealevel/programs/hyperlane-sealevel-token-collateral-test",
     "sealevel/programs/hyperlane-sealevel-token-native",
+    "sealevel/programs/hyperlane-sealevel-token-native-test",
     "sealevel/programs/ism/multisig-ism-message-id",
     "sealevel/programs/ism/multisig-ism-message-id-test",
     "sealevel/programs/ism/test-ism",

@@ -4047,8 +4047,29 @@ dependencies = [
  "hyperlane-sealevel-connection-client",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
+ "hyperlane-sealevel-token-lib",
+ "num-derive",
+ "num-traits",
+ "serializable-account-meta",
+ "solana-program",
+ "spl-noop",
+ "thiserror",
+]
+
+[[package]]
+name = "hyperlane-sealevel-token-native-test"
+version = "0.1.0"
+dependencies = [
+ "account-utils",
+ "borsh 0.9.3",
+ "bs58",
+ "hyperlane-core",
+ "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-message-recipient-interface",
  "hyperlane-sealevel-test-ism",
  "hyperlane-sealevel-token-lib",
+ "hyperlane-sealevel-token-native",
  "hyperlane-test-utils",
  "num-derive",
  "num-traits",
@@ -4057,7 +4078,7 @@ dependencies = [
  "solana-program-test",
  "solana-sdk",
  "spl-noop",
- "tarpc 0.33.0",
+ "tarpc",
  "thiserror",
 ]
 
@@ -7459,7 +7480,7 @@ dependencies = [
  "solana-banks-interface",
  "solana-program",
  "solana-sdk",
- "tarpc 0.29.0",
+ "tarpc",
  "thiserror",
  "tokio",
  "tokio-serde",
@@ -7472,7 +7493,7 @@ source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-
 dependencies = [
  "serde",
  "solana-sdk",
- "tarpc 0.29.0",
+ "tarpc",
 ]
 
 [[package]]
@@ -7488,7 +7509,7 @@ dependencies = [
  "solana-runtime",
  "solana-sdk",
  "solana-send-transaction-service",
- "tarpc 0.29.0",
+ "tarpc",
  "tokio",
  "tokio-serde",
  "tokio-stream",
@@ -8624,28 +8645,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tarpc"
-version = "0.33.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f41bce44d290df0598ae4b9cd6ea7f58f651fd3aa4af1b26060c4fa32b08af7"
-dependencies = [
- "anyhow",
- "fnv",
- "futures",
- "humantime 2.1.0",
- "opentelemetry 0.18.0",
- "pin-project",
- "rand 0.8.5",
- "static_assertions",
- "tarpc-plugins",
- "thiserror",
- "tokio",
- "tokio-util 0.7.8",
- "tracing",
- "tracing-opentelemetry 0.18.0",
-]
-
-[[package]]
 name = "tarpc-plugins"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9009,7 +9008,6 @@ dependencies = [
  "futures-core",
  "futures-sink",
  "pin-project-lite",
- "slab",
  "tokio",
  "tracing",
 ]
