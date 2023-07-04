@@ -246,7 +246,7 @@ impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
             #[allow(deprecated)]
             raw.originchainname
         }
-        .map(|s| s.split(',').map(str::to_owned).collect::<Vec<_>>());
+        .map(parse_chains);
 
         if origin_chain_names.is_some() {
             warn!(
@@ -259,7 +259,7 @@ impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
             #[allow(deprecated)]
             raw.destinationchainnames
         }
-        .map(|r| r.split(',').map(str::to_owned).collect::<Vec<_>>());
+        .map(parse_chains);
 
         if destination_chain_names.is_some() {
             warn!(
@@ -268,10 +268,7 @@ impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
             );
         }
 
-        if let Some(relay_chain_names) = raw
-            .relaychains
-            .map(|r| r.split(',').map(str::to_owned).collect::<Vec<_>>())
-        {
+        if let Some(relay_chain_names) = raw.relaychains.map(parse_chains) {
             if origin_chain_names.is_some() {
                 err.push(
                     cwp + "originchainname",
@@ -390,4 +387,8 @@ impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
 
 fn default_gasfraction() -> String {
     "1/2".into()
+}
+
+fn parse_chains(chains_str: String) -> Vec<String> {
+    chains_str.split(',').map(str::to_ascii_lowercase).collect()
 }
