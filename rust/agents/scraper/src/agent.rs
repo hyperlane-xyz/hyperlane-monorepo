@@ -66,7 +66,7 @@ impl FromRawConf<'_, RawScraperSettings> for ScraperSettings {
             .chainstoscrape
             .ok_or_else(|| eyre!("Missing `chainstoscrape` list"))
             .take_err(&mut err, || cwp + "chainstoscrape")
-            .map(|s| s.split(',').map(str::to_owned).collect::<Vec<_>>())
+            .map(|s| s.split(',').map(str::to_ascii_lowercase).collect::<Vec<_>>())
         else { return Err(err) };
 
         let base = raw
