@@ -217,9 +217,9 @@ impl Validator {
                     );
                 }
             }
-            Err(e) => {
+            Err(err) => {
                 error!(
-                    error=?e,
+                    ?err,
                     "Failed to announce validator. Make sure you have enough ETH in your account to pay for gas."
                 );
             }

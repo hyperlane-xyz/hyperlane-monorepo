@@ -138,15 +138,20 @@ where
         let validator = announcement.value.validator;
         let Ok(contract_call) = self
             .announce_contract_call(announcement, None)
-            .await else {
+            .await
+        else {
                 trace!("Unable to get announce contract call");
                 return None;
-            };
-        let Ok(balance) = self.provider.get_balance(validator, None).await else {
+        };
+
+        let Ok(balance) = self.provider.get_balance(validator, None).await
+        else {
             trace!("Unable to query balance");
             return None;
         };
-        let Some(max_cost) = contract_call.tx.max_cost() else {
+
+        let Some(max_cost) = contract_call.tx.max_cost()
+        else {
             trace!("Unable to get announce max cost");
             return None;
         };
