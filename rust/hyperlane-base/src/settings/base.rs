@@ -81,11 +81,13 @@ impl FromRawConf<'_, RawSettings, Option<&HashSet<&str>>> for Settings {
             if let Some(filter) = filter {
                 chains.retain(|k, _| filter.contains(&k.as_str()));
             }
-            let chains_path = cwp.join("chains");
+            let chains_path = cwp + "chains";
             chains
                 .into_iter()
                 .map(|(k, v)| {
-                    let mut parsed: ChainConf = v.parse_config(&chains_path.join(&k))?;
+                    let cwp = &chains_path + &k;
+                    let k = k.to_ascii_lowercase();
+                    let mut parsed: ChainConf = v.parse_config(&cwp)?;
                     if let Some(default_signer) = &default_signer {
                         parsed.signer.get_or_insert_with(|| default_signer.clone());
                     }
@@ -140,14 +142,14 @@ impl Settings {
     }
 
     /// Try to get the chain configuration for the given domain.
-    pub fn chain_setup(&self, domain: &HyperlaneDomain) -> eyre::Result<&ChainConf> {
+    pub fn chain_setup(&self, domain: &HyperlaneDomain) -> Result<&ChainConf> {
         self.chains
             .get(domain.name())
             .ok_or_else(|| eyre!("No chain setup found for {domain}"))
     }
 
     /// Try to get the domain for a given chain by name.
-    pub fn lookup_domain(&self, chain_name: &str) -> eyre::Result<HyperlaneDomain> {
+    pub fn lookup_domain(&self, chain_name: &str) -> Result<HyperlaneDomain> {
         self.chains
             .get(chain_name)
             .ok_or_else(|| eyre!("No chain setup found for {chain_name}"))
@@ -155,7 +157,7 @@ impl Settings {
     }
 
     /// Create the core metrics from the settings given the name of the agent.
-    pub fn metrics(&self, name: &str) -> eyre::Result<Arc<CoreMetrics>> {
+    pub fn metrics(&self, name: &str) -> Result<Arc<CoreMetrics>> {
         Ok(Arc::new(CoreMetrics::new(
             name,
             self.metrics_port,
