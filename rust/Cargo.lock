@@ -3973,7 +3973,31 @@ dependencies = [
  "hyperlane-sealevel-connection-client",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
+ "hyperlane-sealevel-token-lib",
+ "num-derive",
+ "num-traits",
+ "serializable-account-meta",
+ "solana-program",
+ "spl-associated-token-account",
+ "spl-noop",
+ "spl-token",
+ "spl-token-2022",
+ "thiserror",
+]
+
+[[package]]
+name = "hyperlane-sealevel-token-collateral-test"
+version = "0.1.0"
+dependencies = [
+ "account-utils",
+ "borsh 0.9.3",
+ "bs58",
+ "hyperlane-core",
+ "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-message-recipient-interface",
  "hyperlane-sealevel-test-ism",
+ "hyperlane-sealevel-token-collateral",
  "hyperlane-sealevel-token-lib",
  "hyperlane-test-utils",
  "num-derive",
