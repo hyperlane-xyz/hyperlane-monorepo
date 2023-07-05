@@ -31,7 +31,7 @@ contract HypERC20 is ERC20Upgradeable, TokenRouter {
         uint256 _totalSupply,
         string memory _name,
         string memory _symbol
-    ) public virtual initializer {
+    ) external initializer {
         // transfers ownership to `msg.sender`
         __HyperlaneConnectionClient_initialize(
             _mailbox,

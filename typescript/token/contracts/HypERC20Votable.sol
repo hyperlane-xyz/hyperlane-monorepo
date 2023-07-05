@@ -6,10 +6,11 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/draft-ERC20Pe
 import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20VotesUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 
-/* This smart contract is developed to add Votable extension to normal HypERC20 token. 
-With this smart contract you can use your token for voting purposes in DAO
-We have included all the important libraries needed for voting extension*/
-
+/**
+ * @title Hyperlane ERC20Votable Token Router that extends HypERC20 with votable functionality useful for DAOs.
+ * @author Abacus Works
+ * @dev separate initialize function "votableInitialize"
+ */
 contract HypERC20Votable is
     HypERC20,
     ERC20PermitUpgradeable,
@@ -25,13 +26,13 @@ contract HypERC20Votable is
      * @param _name The name of the token.
      * @param _symbol The symbol of the token.
      */
-    function initialize(
+    function votableInitialize(
         address _mailbox,
         address _interchainGasPaymaster,
         uint256 _totalSupply,
         string memory _name,
         string memory _symbol
-    ) public override initializer {
+    ) external initializer {
         // transfers ownership to `msg.sender`
         __HyperlaneConnectionClient_initialize(
             _mailbox,
