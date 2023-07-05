@@ -1,6 +1,18 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+/*@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+     @@@@@  HYPERLANE  @@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+@@@@@@@@@       @@@@@@@@*/
+
 // ============ Internal Imports ============
 
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
@@ -34,7 +46,10 @@ contract ERC5164ISM is AbstractNativeISM {
      * @notice Check if sender is authorized to message `verifyMessageId`.
      */
     modifier isAuthorized() {
-        require(msg.sender == executor, "ERC5164ISM: sender is not the hook");
+        require(
+            msg.sender == executor,
+            "ERC5164ISM: sender is not the executor"
+        );
         _;
     }
 
@@ -42,6 +57,7 @@ contract ERC5164ISM is AbstractNativeISM {
 
     constructor(address _executor) {
         require(Address.isContract(_executor), "ERC5164ISM: invalid executor");
+        executor = _executor;
     }
 
     // ============ External Functions ============

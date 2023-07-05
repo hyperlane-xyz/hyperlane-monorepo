@@ -38,7 +38,7 @@ contract OptimismISMTest is Test {
     address internal alice = address(0x1);
 
     ICrossDomainMessenger internal l1Messenger;
-    L2CrossDomainMessenger l2Messenger;
+    L2CrossDomainMessenger internal l2Messenger;
     OptimismISM internal opISM;
     OptimismMessageHook internal opHook;
 
@@ -173,8 +173,6 @@ contract OptimismISMTest is Test {
         bytes32 messageId = Message.id(
             _encodeTestMessage(0, address(testRecipient))
         );
-
-        messageId = 0x4f5ed38605c337de8e386ab3e006f759aa58f7e25c065a1bd29115949311fd1e;
 
         bytes memory encodedHookData = abi.encodeCall(
             OptimismISM.verifyMessageId,
