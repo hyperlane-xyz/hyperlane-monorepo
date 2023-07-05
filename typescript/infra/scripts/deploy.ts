@@ -12,13 +12,11 @@ import {
   HyperlaneIsmFactoryDeployer,
   InterchainAccountDeployer,
   InterchainQueryDeployer,
-  LiquidityLayerDeployer, // MultiProvider,
-  MultiProvider,
+  LiquidityLayerDeployer,
+  MultiProvider, // MultiProvider,
   objMap,
 } from '@hyperlane-xyz/sdk';
-import { changeTestAddress, getMainnetAddress } from '@hyperlane-xyz/sdk';
 
-import { testConfigs } from '../config/environments/test/chains';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
@@ -71,34 +69,24 @@ async function main() {
     );
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   } else if (module === Modules.HOOK) {
-    const hookProvider = new MultiProvider(testConfigs);
+    // multiProvider.metadata = filteredMetadata;
 
-    console.log('HOOKed');
+    const newProvider = new MultiProvider();
 
-    const ethMailboxAddress = await getMainnetAddress('ethereum', 'mailbox');
-    const opMailboxAddress = await getMainnetAddress('optimism', 'mailbox');
-
-    if (!ethMailboxAddress || !opMailboxAddress) {
-      throw new Error('Failed to get mailbox addresses');
-    }
-
-    console.log('ETH: ', ethMailboxAddress);
-    console.log('OP: ', opMailboxAddress);
-
-    await changeTestAddress('test1', 'mailbox', ethMailboxAddress);
-    await changeTestAddress('test2', 'mailbox', opMailboxAddress);
+    // console.log('filteredMetadata', filteredMetadata);
+    // console.log('newProvider', newProvider);
 
     // anvil --fork-url https://rpc.ankr.com/optimism --chain-id 31337 --port 8546
     const ethForked = new providers.JsonRpcProvider('http://localhost:8546');
     // anvil --fork-url https://rpc.ankr.com/optimism --chain-id 31337 --port 8547
     const opForked = new providers.JsonRpcProvider('http://localhost:8547');
 
-    hookProvider.setSigner(
-      'test1',
+    newProvider.setSigner(
+      'ethereum',
       ethForked.getSigner('0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'),
     );
-    hookProvider.setSigner(
-      'test2',
+    newProvider.setSigner(
+      'optimism',
       opForked.getSigner('0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'),
     );
 
@@ -107,7 +95,7 @@ async function main() {
     }
     config = envConfig.hooks;
 
-    deployer = new HyperlaneHookDeployer(hookProvider);
+    deployer = new HyperlaneHookDeployer(newProvider);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);
@@ -161,6 +149,10 @@ async function main() {
       )
     : path.join(modulePath, 'addresses.json');
 
+  console.log(
+    `Deploying ${module} to ${environment} at path ${modulePath}, addresses ${addresses}`,
+  );
+
   const verification = path.join(modulePath, 'verification.json');
 
   const cache = {
@@ -170,6 +162,7 @@ async function main() {
     write: true,
   };
   // Don't write agent config in fork tests
+
   const agentConfig =
     ['core', 'igp'].includes(module) && !fork
       ? {
@@ -178,6 +171,7 @@ async function main() {
           multiProvider,
         }
       : undefined;
+
   await deployWithArtifacts(config, deployer, cache, fork, agentConfig);
 }
 

@@ -2,11 +2,16 @@ import debug from 'debug';
 import { providers, utils } from 'ethers';
 
 import { Mailbox__factory } from '@hyperlane-xyz/core';
-import { HyperlaneCore, MultiProvider } from '@hyperlane-xyz/sdk';
-import { getHookAddress } from '@hyperlane-xyz/sdk';
+import {
+  HyperlaneCore,
+  MultiProvider,
+  chainMetadata,
+} from '@hyperlane-xyz/sdk';
 import { types } from '@hyperlane-xyz/utils';
 
 import { testConfigs } from '../config/environments/test/chains';
+
+import { getHookAddress } from './utils';
 
 export const forkedL2 = {
   id: 10,
@@ -41,17 +46,23 @@ const getMappingStorageSlot = (messageId: string) => {
 };
 
 async function main() {
-  const hookProvider = new MultiProvider(testConfigs);
+  const hookChain = 'ethereum';
+  const ismChain = 'optimism';
+  const metadata = {
+    [hookChain]: chainMetadata[hookChain],
+    [ismChain]: chainMetadata[ismChain],
+  };
+  const hookProvider = new MultiProvider(metadata);
 
-  const core = HyperlaneCore.fromEnvironment('test', hookProvider);
+  const core = HyperlaneCore.fromEnvironment('mainnet', hookProvider);
 
   const testSender =
     '0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266';
 
-  const l1Contracts = core.getContracts('test1');
+  const l1Contracts = core.getContracts('ethereum');
   const mailboxAddress = l1Contracts.mailbox.address;
-  let testRecipient = await getHookAddress('test2', 'testRecipient');
-  const optimismISMAddress = await getHookAddress('test2', 'optimismISM');
+  let testRecipient = await getHookAddress('optimism', 'testRecipient');
+  const optimismISMAddress = await getHookAddress('optimism', 'optimismISM');
 
   if (!optimismISMAddress) {
     throw new Error('No ISM address found');
@@ -110,6 +121,7 @@ export async function dispatchMessage(
     const mailbox = await new Mailbox__factory(signer).attach(mailboxAddress);
 
     logger('Mailbox configured: %s', mailbox.address);
+    console.log(await mailbox.count());
 
     const destinationDomain = testConfigs['test2'].chainId;
 

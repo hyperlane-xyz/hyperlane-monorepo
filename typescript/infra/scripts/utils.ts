@@ -20,6 +20,7 @@ import {
 
 import { Contexts } from '../config/contexts';
 import { environments } from '../config/environments';
+import * as HookConfig from '../config/environments/test/hooks/addresses.json';
 import { getCurrentKubernetesContext } from '../src/agents';
 import { getCloudAgentKey } from '../src/agents/key-utils';
 import { CloudAgentKey } from '../src/agents/keys';
@@ -52,6 +53,12 @@ export const SDK_MODULES = [
   Modules.INTERCHAIN_ACCOUNTS,
   Modules.INTERCHAIN_QUERY_SYSTEM,
 ];
+
+interface Config {
+  [network: string]: {
+    [contract: string]: string;
+  };
+}
 
 export function getArgs() {
   return yargs(process.argv.slice(2))
@@ -207,6 +214,8 @@ export function getModuleDirectory(
         return 'middleware/queries';
       case Modules.LIQUIDITY_LAYER:
         return 'middleware/liquidity-layer';
+      case Modules.HOOK:
+        return 'hooks';
       default:
         return module;
     }
@@ -231,6 +240,15 @@ export async function assertCorrectKubeContext(coreConfig: EnvironmentConfig) {
     );
     process.exit(1);
   }
+}
+
+export async function getHookAddress(
+  network: string,
+  key: string,
+): Promise<string | undefined> {
+  const hookDepeloyments = HookConfig as Config;
+
+  return hookDepeloyments[network]?.[key];
 }
 
 export async function getRouterConfig(

@@ -59,7 +59,7 @@
     "deploy-core": "ts-node scripts/deploy.ts -e test --context hyperlane -m core",
     "deploy-igp": "ts-node scripts/deploy.ts -e test --context hyperlane -m igp",
     "deploy-ism": "ts-node scripts/deploy.ts -e test --context hyperlane -m ism",
-    "deploy-hook": "ts-node scripts/deploy.ts -e test --context hyperlane -m hook",
+    "deploy-hook": "ts-node scripts/deploy.ts -e mainnet2 --context hyperlane -m hook",
     "orchestrate-hook": "ts-node scripts/orchestrate-hook.ts",
     "build": "tsc",
     "clean": "rm -rf ./dist ./cache",

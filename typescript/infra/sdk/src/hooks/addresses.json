@@ -1,0 +1,9 @@
+{
+  "test1": {
+    "optimismMessageHook": "0xC220Ed128102d888af857d137a54b9B7573A41b2"
+  },
+  "test2": {
+    "optimismISM": "0x21dF544947ba3E8b3c32561399E88B52Dc8b2823",
+    "testRecipient": "0x2E2Ed0Cfd3AD2f1d34481277b3204d807Ca2F8c2"
+  }
+}
