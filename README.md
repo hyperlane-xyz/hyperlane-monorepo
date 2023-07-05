@@ -68,10 +68,6 @@ yarn publish:all --otp YOUR_OTP_HERE
 yarn publish:all --otp YOUR_OTP_HERE --tag beta
 ```
 
-For the git submodules, you will have to undo the removal of the `yarn.lock` files, `yarn install` and check in the yarn.lock changes on the submodule as well. Then checkin the updated commits on the monorepo itself.
-
-Make PRs for the monorepo and the submodules.
-
 Tag the commit with the appropriate version, and then create a github release with a changelog against the previous version https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/new
 
 ### Release Agents
