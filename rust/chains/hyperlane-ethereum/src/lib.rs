@@ -10,9 +10,9 @@ use ethers::prelude::{abi, Lazy, Middleware};
 
 #[cfg(not(doctest))]
 pub use self::{
-    config::*, interchain_gas::*, interchain_security_module::*, mailbox::*, multisig_ism::*,
-    provider::*, routing_ism::*, rpc_clients::*, signers::*, singleton_signer::*, trait_builder::*,
-    validator_announce::*,
+    aggregation_ism::*, config::*, interchain_gas::*, interchain_security_module::*, mailbox::*,
+    multisig_ism::*, provider::*, routing_ism::*, rpc_clients::*, signers::*, singleton_signer::*,
+    trait_builder::*, validator_announce::*,
 };
 
 #[cfg(not(doctest))]
@@ -48,6 +48,10 @@ mod routing_ism;
 /// ValidatorAnnounce abi
 #[cfg(not(doctest))]
 mod validator_announce;
+
+/// AggregationIsm abi
+#[cfg(not(doctest))]
+mod aggregation_ism;
 
 /// Generated contract bindings.
 #[cfg(not(doctest))]

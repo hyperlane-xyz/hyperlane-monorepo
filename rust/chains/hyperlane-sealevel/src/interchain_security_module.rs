@@ -2,7 +2,7 @@ use async_trait::async_trait;
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, InterchainSecurityModule, ModuleType, H256,
+    HyperlaneDomain, InterchainSecurityModule, ModuleType, H256, U256, HyperlaneMessage,
 };
 use num_traits::cast::FromPrimitive;
 use tracing::warn;
@@ -83,5 +83,14 @@ impl InterchainSecurityModule for SealevelInterchainSecurityModule {
             warn!(%module, "Unknown module type");
             Ok(ModuleType::Unused)
         }
+    }
+
+    async fn dry_run_verify(
+        &self,
+        message: &HyperlaneMessage,
+        metadata: &[u8],
+    ) -> ChainResult<Option<U256>> {
+        // TODO: Implement this once we have aggregation ISM support
+        Ok(Some(U256::zero()))
     }
 }
