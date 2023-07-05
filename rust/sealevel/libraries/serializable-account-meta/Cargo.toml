@@ -1,3 +1,5 @@
+cargo-features = ["workspace-inheritance"]
+
 [package]
 name = "serializable-account-meta"
 version = "0.1.0"

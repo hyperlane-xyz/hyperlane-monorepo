@@ -1,3 +1,5 @@
+cargo-features = ["workspace-inheritance"]
+
 [package]
 name = "hyperlane-sealevel-message-recipient-interface"
 version = "0.1.0"

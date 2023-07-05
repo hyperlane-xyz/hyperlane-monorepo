@@ -1051,7 +1051,7 @@ dependencies = [
  "bitflags 1.3.2",
  "clap_derive 3.2.25",
  "clap_lex 0.2.4",
- "indexmap 1.9.3",
+ "indexmap",
  "once_cell",
  "strsim 0.10.0",
  "termcolor",
@@ -2159,12 +2159,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "equivalent"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "88bffebc5d80432c9b140ee17875ff173a8ab62faad5b257da912bd2f6c1c0a1"
-
-[[package]]
 name = "errno"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3262,7 +3256,7 @@ dependencies = [
  "futures-sink",
  "futures-util",
  "http",
- "indexmap 1.9.3",
+ "indexmap",
  "slab",
  "tokio",
  "tokio-util 0.7.8",
@@ -4349,16 +4343,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "indexmap"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d5477fe2230a79769d8dc68e0eabf5437907c0457a5614a9e8dddb67f65eb65d"
-dependencies = [
- "equivalent",
- "hashbrown 0.14.0",
-]
-
-[[package]]
 name = "indicatif"
 version = "0.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5109,44 +5093,23 @@ dependencies = [
 
 [[package]]
 name = "num_enum"
-version = "0.5.11"
+version = "0.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f646caf906c20226733ed5b1374287eb97e3c2a5c227ce668c1f2ce20ae57c9"
+checksum = "cf5395665662ef45796a4ff5486c5d41d29e0c09640af4c5f17fd94ee2c119c9"
 dependencies = [
- "num_enum_derive 0.5.11",
-]
-
-[[package]]
-name = "num_enum"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a015b430d3c108a207fd776d2e2196aaf8b1cf8cf93253e3a097ff3085076a1"
-dependencies = [
- "num_enum_derive 0.6.1",
+ "num_enum_derive",
 ]
 
 [[package]]
 name = "num_enum_derive"
-version = "0.5.11"
+version = "0.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dcbff9bc912032c62bf65ef1d5aea88983b420f4f839db1e9b0c281a25c9c799"
+checksum = "3b0498641e53dd6ac1a4f22547548caa6864cc4933784319cd1775271c5a46ce"
 dependencies = [
- "proc-macro-crate 1.3.1",
+ "proc-macro-crate 1.1.3",
  "proc-macro2 1.0.63",
  "quote 1.0.29",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "num_enum_derive"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96667db765a921f7b295ffee8b60472b686a51d4f21c2ee4ffdb94c7013b65a6"
-dependencies = [
- "proc-macro-crate 1.3.1",
- "proc-macro2 1.0.63",
- "quote 1.0.29",
- "syn 2.0.22",
 ]
 
 [[package]]
@@ -5361,7 +5324,7 @@ dependencies = [
  "fnv",
  "futures-channel",
  "futures-util",
- "indexmap 1.9.3",
+ "indexmap",
  "js-sys",
  "once_cell",
  "pin-project-lite",
@@ -5470,7 +5433,7 @@ version = "3.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b6937b5e67bfba3351b87b040d48352a2fcb6ad72f81855412ce97b45c8f110"
 dependencies = [
- "proc-macro-crate 1.3.1",
+ "proc-macro-crate 1.1.3",
  "proc-macro2 1.0.63",
  "quote 1.0.29",
  "syn 1.0.109",
@@ -5844,12 +5807,12 @@ dependencies = [
 
 [[package]]
 name = "proc-macro-crate"
-version = "1.3.1"
+version = "1.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f4c021e1093a56626774e81216a4ce732a735e5bad4868a03f3ed65ca0c3919"
+checksum = "e17d47ce914bf4de440332250b0edd23ce48c005f59fab39d3335866b114f11a"
 dependencies = [
- "once_cell",
- "toml_edit",
+ "thiserror",
+ "toml",
 ]
 
 [[package]]
@@ -6788,7 +6751,7 @@ version = "2.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19df9bd9ace6cc2fe19387c96ce677e823e07d017ceed253e7bb3d1d1bd9c73b"
 dependencies = [
- "proc-macro-crate 1.3.1",
+ "proc-macro-crate 1.1.3",
  "proc-macro2 1.0.63",
  "quote 1.0.29",
  "syn 1.0.109",
@@ -7250,7 +7213,7 @@ version = "0.8.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "578a7433b776b56a35785ed5ce9a7e777ac0598aac5a6dd1b4b18a307c7fc71b"
 dependencies = [
- "indexmap 1.9.3",
+ "indexmap",
  "ryu",
  "serde",
  "yaml-rust",
@@ -7595,7 +7558,7 @@ dependencies = [
  "enum_dispatch",
  "futures",
  "futures-util",
- "indexmap 1.9.3",
+ "indexmap",
  "indicatif",
  "itertools",
  "jsonrpc-core",
@@ -8091,7 +8054,7 @@ dependencies = [
  "crossbeam-channel",
  "futures-util",
  "histogram",
- "indexmap 1.9.3",
+ "indexmap",
  "itertools",
  "libc",
  "log",
@@ -8274,7 +8237,7 @@ dependencies = [
 [[package]]
 name = "spl-associated-token-account"
 version = "1.1.2"
-source = "git+https://github.com/hyperlane-xyz/solana-program-library.git?branch=hyperlane#5de3c060c276afb4e767111b3b42fbbf4a81d83f"
+source = "git+https://github.com/hyperlane-xyz/solana-program-library.git?rev=b5a1539f74a3c5d09c91973866bdabb34c814df0#b5a1539f74a3c5d09c91973866bdabb34c814df0"
 dependencies = [
  "assert_matches",
  "borsh 0.9.3",
@@ -8298,7 +8261,7 @@ dependencies = [
 [[package]]
 name = "spl-memo"
 version = "3.0.1"
-source = "git+https://github.com/hyperlane-xyz/solana-program-library.git?branch=hyperlane#5de3c060c276afb4e767111b3b42fbbf4a81d83f"
+source = "git+https://github.com/hyperlane-xyz/solana-program-library.git?rev=b5a1539f74a3c5d09c91973866bdabb34c814df0#b5a1539f74a3c5d09c91973866bdabb34c814df0"
 dependencies = [
  "solana-program",
 ]
@@ -8306,7 +8269,7 @@ dependencies = [
 [[package]]
 name = "spl-noop"
 version = "0.1.3"
-source = "git+https://github.com/hyperlane-xyz/solana-program-library.git?branch=hyperlane#5de3c060c276afb4e767111b3b42fbbf4a81d83f"
+source = "git+https://github.com/hyperlane-xyz/solana-program-library.git?rev=b5a1539f74a3c5d09c91973866bdabb34c814df0#b5a1539f74a3c5d09c91973866bdabb34c814df0"
 dependencies = [
  "solana-program",
 ]
@@ -8314,13 +8277,13 @@ dependencies = [
 [[package]]
 name = "spl-token"
 version = "3.5.0"
-source = "git+https://github.com/hyperlane-xyz/solana-program-library.git?branch=hyperlane#5de3c060c276afb4e767111b3b42fbbf4a81d83f"
+source = "git+https://github.com/hyperlane-xyz/solana-program-library.git?rev=b5a1539f74a3c5d09c91973866bdabb34c814df0#b5a1539f74a3c5d09c91973866bdabb34c814df0"
 dependencies = [
  "arrayref",
  "bytemuck",
  "num-derive",
  "num-traits",
- "num_enum 0.5.11",
+ "num_enum",
  "solana-program",
  "thiserror",
 ]
@@ -8328,16 +8291,16 @@ dependencies = [
 [[package]]
 name = "spl-token-2022"
 version = "0.5.0"
-source = "git+https://github.com/hyperlane-xyz/solana-program-library.git?branch=hyperlane#5de3c060c276afb4e767111b3b42fbbf4a81d83f"
+source = "git+https://github.com/hyperlane-xyz/solana-program-library.git?rev=b5a1539f74a3c5d09c91973866bdabb34c814df0#b5a1539f74a3c5d09c91973866bdabb34c814df0"
 dependencies = [
  "arrayref",
  "bytemuck",
  "num-derive",
  "num-traits",
- "num_enum 0.5.11",
+ "num_enum",
  "solana-program",
  "solana-zk-token-sdk",
- "spl-memo 3.0.1 (git+https://github.com/hyperlane-xyz/solana-program-library.git?branch=hyperlane)",
+ "spl-memo 3.0.1 (git+https://github.com/hyperlane-xyz/solana-program-library.git?rev=b5a1539f74a3c5d09c91973866bdabb34c814df0)",
  "spl-token",
  "thiserror",
 ]
@@ -8345,13 +8308,13 @@ dependencies = [
 [[package]]
 name = "spl-type-length-value"
 version = "0.1.0"
-source = "git+https://github.com/hyperlane-xyz/solana-program-library.git?branch=hyperlane#5de3c060c276afb4e767111b3b42fbbf4a81d83f"
+source = "git+https://github.com/hyperlane-xyz/solana-program-library.git?rev=b5a1539f74a3c5d09c91973866bdabb34c814df0#b5a1539f74a3c5d09c91973866bdabb34c814df0"
 dependencies = [
  "arrayref",
  "bytemuck",
  "num-derive",
  "num-traits",
- "num_enum 0.6.1",
+ "num_enum",
  "solana-program",
  "thiserror",
 ]
@@ -8404,7 +8367,7 @@ dependencies = [
  "hex 0.4.3",
  "hkdf",
  "hmac 0.12.1",
- "indexmap 1.9.3",
+ "indexmap",
  "itoa",
  "libc",
  "log",
@@ -9019,23 +8982,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f4f7f0dd8d50a853a531c426359045b1998f04219d88799810762cd4ad314234"
 dependencies = [
  "serde",
-]
-
-[[package]]
-name = "toml_datetime"
-version = "0.6.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7cda73e2f1397b1262d6dfdcef8aafae14d1de7748d66822d3bfeeb6d03e5e4b"
-
-[[package]]
-name = "toml_edit"
-version = "0.19.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "266f016b7f039eec8a1a80dfe6156b633d208b9fccca5e4db1d6775b0c4e34a7"
-dependencies = [
- "indexmap 2.0.0",
- "toml_datetime",
- "winnow",
 ]
 
 [[package]]
@@ -9867,15 +9813,6 @@ name = "windows_x86_64_msvc"
 version = "0.48.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1a515f5799fe4961cb532f983ce2b23082366b898e52ffbce459c86f67c8378a"
-
-[[package]]
-name = "winnow"
-version = "0.4.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca0ace3845f0d96209f0375e6d367e3eb87eb65d27d445bdc9f1843a26f39448"
-dependencies = [
- "memchr",
-]
 
 [[package]]
 name = "winreg"
