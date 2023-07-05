@@ -713,10 +713,10 @@ export const solanadevnet: ChainMetadata = {
   isTestnet: true,
 };
 
-export const solanadevnet1: ChainMetadata = {
+export const zbctestnet: ChainMetadata = {
   chainId: 1399811152,
   domainId: 13376, // TODO change after next deployment
-  name: Chains.solanadevnet1,
+  name: Chains.zbctestnet,
   protocol: ProtocolType.Sealevel,
   displayName: 'Solana Devnet 1',
   displayNameShort: 'Sol Devnet 1',
@@ -812,7 +812,7 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   test2,
   test3,
   solanadevnet,
-  solanadevnet1,
+  zbctestnet,
 };
 
 // For convenient use in wagmi-based apps
