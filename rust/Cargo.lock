@@ -35,8 +35,17 @@ dependencies = [
 name = "account-utils"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
+ "auto_impl 1.1.0",
  "borsh 0.9.3",
+ "bytes",
+ "config",
+ "convert_case 0.6.0",
+ "derive-new",
+ "ethers-core",
+ "eyre",
  "getrandom 0.2.10",
+ "hex 0.4.3",
  "solana-program",
  "spl-type-length-value",
 ]
