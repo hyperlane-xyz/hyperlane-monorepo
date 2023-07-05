@@ -93,7 +93,7 @@ pub(crate) fn deploy_program_idempotent(
 }
 
 pub(crate) fn deploy_program(
-    payer: &Keypair,
+    _payer: &Keypair,
     payer_path: &str,
     program_keypair_path: &str,
     program_path: &str,
@@ -111,7 +111,7 @@ pub(crate) fn deploy_program(
             "deploy",
             program_path,
             "--upgrade-authority",
-            payer.pubkey().to_string().as_str(),
+            payer_path,
             "--program-id",
             program_keypair_path,
         ],
