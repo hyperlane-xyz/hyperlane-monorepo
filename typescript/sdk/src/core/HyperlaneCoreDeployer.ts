@@ -7,7 +7,7 @@ import {
   TimelockController__factory,
   ValidatorAnnounce,
 } from '@hyperlane-xyz/core';
-import { types } from '@hyperlane-xyz/utils';
+import { types, utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
@@ -103,6 +103,36 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     this.logger(`Deploying new ISM to ${chain}`);
     const ism = await this.ismFactory.deploy(chain, config);
     return ism.address;
+  }
+
+  async deployIsms(
+    // The config map is only used to determine which chains to deploy to
+    configMap: ChainMap<unknown>,
+    ismConfig: IsmConfig,
+  ): Promise<ChainMap<string>> {
+    const chainToIsmMap: ChainMap<types.Address> = {};
+    const configChains = Object.keys(configMap);
+    const targetChains = this.multiProvider.intersect(
+      configChains,
+      true,
+    ).intersection;
+
+    this.logger(`Deploying ism type ${ismConfig.type} to ${targetChains}`);
+    for (const chain of targetChains) {
+      const signerUrl = await this.multiProvider.tryGetExplorerAddressUrl(
+        chain,
+      );
+      const signerAddress = await this.multiProvider.getSignerAddress(chain);
+      const fromString = signerUrl || signerAddress;
+      this.logger(`Deploying to ${chain} from ${fromString}`);
+      this.startingBlockNumbers[chain] = await this.multiProvider
+        .getProvider(chain)
+        .getBlockNumber();
+      await utils.runWithTimeout(this.chainTimeoutMs, async () => {
+        chainToIsmMap[chain] = await this.deployIsm(chain, ismConfig);
+      });
+    }
+    return chainToIsmMap;
   }
 
   async deployContracts(

@@ -11,6 +11,7 @@ import {
   CoreConfig,
   HyperlaneCore,
   HyperlaneIgp,
+  ModuleType,
   MultiProvider,
   RouterConfig,
   collectValidators,
@@ -34,7 +35,8 @@ import { Role } from '../src/roles';
 import { assertContext, assertRole } from '../src/utils/utils';
 
 export enum Modules {
-  ISM_FACTORY = 'ism',
+  ISM = 'ism',
+  ISM_FACTORY = 'ism_factory',
   CORE = 'core',
   INTERCHAIN_GAS_PAYMASTER = 'igp',
   INTERCHAIN_ACCOUNTS = 'ica',
@@ -69,6 +71,13 @@ export function withModuleAndFork<T>(args: yargs.Argv<T>) {
     .describe('fork', 'network to fork')
     .choices('fork', Object.values(Chains))
     .alias('f', 'fork');
+}
+
+export function withIsm<T>(args: yargs.Argv<T>) {
+  return args
+    .choices('ism', Object.values(ModuleType))
+    .describe('ism', 'ism to deploy')
+    .demandOption('ism');
 }
 
 export function withContext<T>(args: yargs.Argv<T>) {

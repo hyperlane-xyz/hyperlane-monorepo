@@ -11,6 +11,7 @@ import {
   InterchainAccountDeployer,
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
+  ModuleType,
   objMap,
 } from '@hyperlane-xyz/sdk';
 
@@ -30,11 +31,13 @@ import {
   getEnvironmentDirectory,
   getModuleDirectory,
   getRouterConfig,
+  withIsm,
   withModuleAndFork,
 } from './utils';
 
 async function main() {
-  const { module, fork, environment } = await withModuleAndFork(getArgs()).argv;
+  const args = getArgs();
+  const { module, fork, environment } = await withModuleAndFork(args).argv;
   const envConfig = getEnvironmentConfig(environment);
   const multiProvider = await envConfig.getMultiProvider();
 
@@ -53,60 +56,94 @@ async function main() {
 
   let config: ChainMap<unknown> = {};
   let deployer: HyperlaneDeployer<any, any>;
-  if (module === Modules.ISM_FACTORY) {
-    config = objMap(envConfig.core, (chain) => true);
-    deployer = new HyperlaneIsmFactoryDeployer(multiProvider);
-  } else if (module === Modules.CORE) {
-    config = envConfig.core;
-    const ismFactory = HyperlaneIsmFactory.fromEnvironment(
-      deployEnvToSdkEnv[environment],
-      multiProvider,
-    );
-    deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
-  } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
-    config = envConfig.igp;
-    deployer = new HyperlaneIgpDeployer(multiProvider);
-  } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
-    config = await getRouterConfig(environment, multiProvider);
-    deployer = new InterchainAccountDeployer(multiProvider);
-  } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
-    config = await getRouterConfig(environment, multiProvider);
-    deployer = new InterchainQueryDeployer(multiProvider);
-  } else if (module === Modules.LIQUIDITY_LAYER) {
-    const routerConfig = await getRouterConfig(environment, multiProvider);
-    if (!envConfig.liquidityLayerConfig) {
-      throw new Error(`No liquidity layer config for ${environment}`);
-    }
-    config = objMap(
-      envConfig.liquidityLayerConfig.bridgeAdapters,
-      (chain, conf) => ({
-        ...conf,
-        ...routerConfig[chain],
-      }),
-    );
-    deployer = new LiquidityLayerDeployer(multiProvider);
-  } else if (module === Modules.TEST_RECIPIENT) {
-    deployer = new TestRecipientDeployer(multiProvider);
-  } else if (module === Modules.TEST_QUERY_SENDER) {
-    // TODO: make this more generic
-    const igp = HyperlaneIgp.fromEnvironment(
-      deployEnvToSdkEnv[environment],
-      multiProvider,
-    );
-    // Get query router addresses
-    const queryRouterDir = path.join(
-      getEnvironmentDirectory(environment),
-      'middleware/queries',
-    );
-    config = objMap(readJSON(queryRouterDir, 'addresses.json'), (_c, conf) => ({
-      queryRouterAddress: conf.router,
-    }));
-    deployer = new TestQuerySenderDeployer(multiProvider, igp);
-  } else {
-    console.log(`Skipping ${module}, deployer unimplemented`);
-    return;
-  }
+  switch (module) {
+    case Modules.ISM: {
+      config = envConfig.core;
+      const { ism } = await withIsm(getArgs()).argv;
+      const ismFactory = HyperlaneIsmFactory.fromEnvironment(
+        deployEnvToSdkEnv[environment],
+        multiProvider,
+      );
+      const deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
+      // map ism moduletype to an ism config in another file
+      const ismConfig = ismModuleToConfig[ism];
+      await deployer.deployIsms(config, ismConfig);
 
+      return;
+    }
+    case Modules.ISM_FACTORY: {
+      config = objMap(envConfig.core, (chain) => true);
+      deployer = new HyperlaneIsmFactoryDeployer(multiProvider);
+      break;
+    }
+    case Modules.CORE: {
+      config = envConfig.core;
+      const ismFactory = HyperlaneIsmFactory.fromEnvironment(
+        deployEnvToSdkEnv[environment],
+        multiProvider,
+      );
+      deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
+      break;
+    }
+    case Modules.INTERCHAIN_GAS_PAYMASTER: {
+      config = envConfig.igp;
+      deployer = new HyperlaneIgpDeployer(multiProvider);
+      break;
+    }
+    case Modules.INTERCHAIN_ACCOUNTS: {
+      config = await getRouterConfig(environment, multiProvider);
+      deployer = new InterchainAccountDeployer(multiProvider);
+      break;
+    }
+    case Modules.INTERCHAIN_QUERY_SYSTEM: {
+      config = await getRouterConfig(environment, multiProvider);
+      deployer = new InterchainQueryDeployer(multiProvider);
+      break;
+    }
+    case Modules.LIQUIDITY_LAYER: {
+      const routerConfig = await getRouterConfig(environment, multiProvider);
+      if (!envConfig.liquidityLayerConfig) {
+        throw new Error(`No liquidity layer config for ${environment}`);
+      }
+      config = objMap(
+        envConfig.liquidityLayerConfig.bridgeAdapters,
+        (chain, conf) => ({
+          ...conf,
+          ...routerConfig[chain],
+        }),
+      );
+      deployer = new LiquidityLayerDeployer(multiProvider);
+      break;
+    }
+    case Modules.TEST_RECIPIENT: {
+      deployer = new TestRecipientDeployer(multiProvider);
+      break;
+    }
+    case Modules.TEST_QUERY_SENDER: {
+      // TODO: make this more generic
+      const igp = HyperlaneIgp.fromEnvironment(
+        deployEnvToSdkEnv[environment],
+        multiProvider,
+      );
+      // Get query router addresses
+      const queryRouterDir = path.join(
+        getEnvironmentDirectory(environment),
+        'middleware/queries',
+      );
+      config = objMap(
+        readJSON(queryRouterDir, 'addresses.json'),
+        (_c, conf) => ({
+          queryRouterAddress: conf.router,
+        }),
+      );
+      deployer = new TestQuerySenderDeployer(multiProvider, igp);
+      break;
+    }
+    default: {
+      console.log(`Skipping ${module}, deployer unimplemented`);
+      return;
+    }
+  }
   const modulePath = getModuleDirectory(environment, module);
 
   const addresses = SDK_MODULES.includes(module)
