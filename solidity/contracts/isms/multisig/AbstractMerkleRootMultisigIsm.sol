@@ -32,10 +32,12 @@ abstract contract AbstractMerkleRootMultisigIsm is AbstractMultisigIsm {
     /**
      * @inheritdoc AbstractMultisigIsm
      */
-    function digest(
-        bytes calldata _metadata,
-        bytes calldata _message
-    ) internal pure override returns (bytes32) {
+    function digest(bytes calldata _metadata, bytes calldata _message)
+        internal
+        pure
+        override
+        returns (bytes32)
+    {
         // We verify a merkle proof of (messageId, index) I to compute root J
         bytes32 _root = MerkleLib.branchRoot(
             Message.id(_message),
@@ -56,10 +58,13 @@ abstract contract AbstractMerkleRootMultisigIsm is AbstractMultisigIsm {
     /**
      * @inheritdoc AbstractMultisigIsm
      */
-    function signatureAt(
-        bytes calldata _metadata,
-        uint256 _index
-    ) internal pure virtual override returns (bytes memory signature) {
+    function signatureAt(bytes calldata _metadata, uint256 _index)
+        internal
+        pure
+        virtual
+        override
+        returns (bytes memory signature)
+    {
         return MerkleRootMultisigIsmMetadata.signatureAt(_metadata, _index);
     }
 }

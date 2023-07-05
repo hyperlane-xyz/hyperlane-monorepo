@@ -28,10 +28,12 @@ abstract contract AbstractMessageIdMultisigIsm is AbstractMultisigIsm {
     /**
      * @inheritdoc AbstractMultisigIsm
      */
-    function digest(
-        bytes calldata _metadata,
-        bytes calldata _message
-    ) internal pure override returns (bytes32) {
+    function digest(bytes calldata _metadata, bytes calldata _message)
+        internal
+        pure
+        override
+        returns (bytes32)
+    {
         return
             CheckpointLib.digest(
                 Message.origin(_message),
@@ -45,10 +47,13 @@ abstract contract AbstractMessageIdMultisigIsm is AbstractMultisigIsm {
     /**
      * @inheritdoc AbstractMultisigIsm
      */
-    function signatureAt(
-        bytes calldata _metadata,
-        uint256 _index
-    ) internal pure virtual override returns (bytes memory) {
+    function signatureAt(bytes calldata _metadata, uint256 _index)
+        internal
+        pure
+        virtual
+        override
+        returns (bytes memory)
+    {
         return MessageIdMultisigIsmMetadata.signatureAt(_metadata, _index);
     }
 }
