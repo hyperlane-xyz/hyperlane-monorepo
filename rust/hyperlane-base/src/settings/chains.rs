@@ -8,10 +8,10 @@ use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
 };
 use hyperlane_core::{
-    config::*, ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol,
-    HyperlaneProvider, HyperlaneSigner, Indexer, InterchainGasPaymaster, InterchainGasPayment,
-    InterchainSecurityModule, Mailbox, MessageIndexer, MultisigIsm, RoutingIsm, ValidatorAnnounce,
-    H160, H256,
+    config::*, AggregationIsm, ContractLocator, HyperlaneAbi, HyperlaneDomain,
+    HyperlaneDomainProtocol, HyperlaneProvider, HyperlaneSigner, Indexer, InterchainGasPaymaster,
+    InterchainGasPayment, InterchainSecurityModule, Mailbox, MessageIndexer, MultisigIsm,
+    RoutingIsm, ValidatorAnnounce, H160, H256,
 };
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
@@ -224,8 +224,8 @@ impl FromRawConf<'_, RawChainConf> for ChainConf {
 
         let domain = connection
             .as_ref()
-            .ok_or_else(|| eyre!("Missing `domain` configuration"))
-            .take_err(&mut err, || cwp + "domain")
+            .ok_or_else(|| eyre!("Missing `connection` configuration"))
+            .take_err(&mut err, || cwp + "connection")
             .and_then(|c: &ChainConnectionConf| {
                 let protocol = c.protocol();
                 let domain_id = raw
@@ -521,6 +521,29 @@ impl ChainConf {
         match &self.connection()? {
             ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(conf, &locator, metrics, h_eth::RoutingIsmBuilder {})
+                    .await
+            }
+
+            ChainConnectionConf::Fuel(_) => todo!(),
+        }
+        .context(ctx)
+    }
+
+    /// Try to convert the chain setting into an AggregationIsm Ism contract
+    pub async fn build_aggregation_ism(
+        &self,
+        address: H256,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn AggregationIsm>> {
+        let ctx = "Building aggregation ISM";
+        let locator = ContractLocator {
+            domain: &self.domain,
+            address,
+        };
+
+        match &self.connection()? {
+            ChainConnectionConf::Ethereum(conf) => {
+                self.build_ethereum(conf, &locator, metrics, h_eth::AggregationIsmBuilder {})
                     .await
             }
 

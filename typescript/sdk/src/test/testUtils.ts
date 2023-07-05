@@ -77,7 +77,7 @@ export function testCoreConfig(chains: ChainName[]): ChainMap<CoreConfig> {
     threshold: 1,
   };
 
-  return Object.fromEntries(
+  const config: ChainMap<CoreConfig> = Object.fromEntries(
     chains.map((local) => [
       local,
       {
@@ -94,6 +94,11 @@ export function testCoreConfig(chains: ChainName[]): ChainMap<CoreConfig> {
       },
     ]),
   );
+
+  // test partial timelock config
+  config.test3.upgradeTimelockDelay = 100;
+
+  return config;
 }
 
 // A mock CoinGecko intended to be used by tests
