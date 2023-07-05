@@ -170,7 +170,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
     );
     await this.multiProvider.handleTx(
       chain,
-      config.votable
+      'votableInitialize' in router
         ? router.votableInitialize(
             config.mailbox,
             config.interchainGasPaymaster,
