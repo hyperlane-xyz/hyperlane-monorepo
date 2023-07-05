@@ -64,7 +64,7 @@ contract HypERC721URIStorage is HypERC721, ERC721URIStorageUpgradeable {
     function supportsInterface(bytes4 interfaceId)
         public
         view
-        override(ERC721EnumerableUpgradeable, ERC721Upgradeable)
+        override(ERC721EnumerableUpgradeable, ERC721URIStorageUpgradeable)
         returns (bool)
     {
         return ERC721EnumerableUpgradeable.supportsInterface(interfaceId);
