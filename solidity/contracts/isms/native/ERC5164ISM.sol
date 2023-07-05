@@ -34,11 +34,8 @@ contract ERC5164ISM is AbstractNativeISM {
 
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.NULL);
-
-    // ============ Public Storage ============
-
     // corresponding 5164 executor address
-    address public executor;
+    address public immutable executor;
 
     // ============ Modifiers ============
 

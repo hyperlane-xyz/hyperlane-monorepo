@@ -45,21 +45,43 @@ contract ERC5164ISMTest is Test {
     function setUp() public {
         dispatcher = new MockMessageDispatcher();
         executor = new MockMessageExecutor();
+        testRecipient = new TestRecipient();
+    }
 
+    function deployContracts() public {
         ism = new ERC5164ISM(address(executor));
         hook = new ERC5164MessageHook(
             TEST2_DOMAIN,
             address(dispatcher),
             address(ism)
         );
-        testRecipient = new TestRecipient();
     }
 
     ///////////////////////////////////////////////////////////////////
     ///                            TESTS                            ///
     ///////////////////////////////////////////////////////////////////
 
+    function test_RevertWhen_Constructor() public {
+        vm.expectRevert("ERC5164ISM: invalid executor");
+        ism = new ERC5164ISM(alice);
+
+        vm.expectRevert("ERC5164Hook: invalid destination domain");
+        hook = new ERC5164MessageHook(0, address(dispatcher), address(ism));
+
+        vm.expectRevert("ERC5164Hook: invalid dispatcher");
+        hook = new ERC5164MessageHook(TEST2_DOMAIN, alice, address(ism));
+
+        vm.expectRevert("ERC5164Hook: invalid ISM");
+        hook = new ERC5164MessageHook(
+            TEST2_DOMAIN,
+            address(dispatcher),
+            address(0)
+        );
+    }
+
     function test_PostDispatch() public {
+        deployContracts();
+
         bytes32 messageId = Message.id(
             _encodeTestMessage(0, address(testRecipient))
         );
@@ -83,6 +105,8 @@ contract ERC5164ISMTest is Test {
     }
 
     function test_PostDispatch_RevertWhen_ChainIDNotSupported() public {
+        deployContracts();
+
         bytes32 messageId = Message.id(
             _encodeTestMessage(0, address(testRecipient))
         );
@@ -94,6 +118,8 @@ contract ERC5164ISMTest is Test {
     /* ============ ISM.verifyMessageId ============ */
 
     function test_VerifyMessageId() public {
+        deployContracts();
+
         bytes32 messageId = Message.id(
             _encodeTestMessage(0, address(testRecipient))
         );
@@ -110,6 +136,8 @@ contract ERC5164ISMTest is Test {
     }
 
     function test_VerifyMessageId_RevertWhen_NotAuthorized() public {
+        deployContracts();
+
         bytes32 messageId = Message.id(
             _encodeTestMessage(0, address(testRecipient))
         );
@@ -126,6 +154,8 @@ contract ERC5164ISMTest is Test {
     /* ============ ISM.verify ============ */
 
     function test_Verify() public {
+        deployContracts();
+
         bytes memory encodedMessage = _encodeTestMessage(
             0,
             address(testRecipient)
@@ -143,6 +173,8 @@ contract ERC5164ISMTest is Test {
     }
 
     function test_Verify_RevertWhen_InvalidMessage() public {
+        deployContracts();
+
         bytes32 messageId = Message.id(
             _encodeTestMessage(0, address(testRecipient))
         );
@@ -159,6 +191,8 @@ contract ERC5164ISMTest is Test {
     }
 
     function test_Verify_RevertWhen_InvalidSender() public {
+        deployContracts();
+
         bytes memory encodedMessage = _encodeTestMessage(
             0,
             address(testRecipient)
