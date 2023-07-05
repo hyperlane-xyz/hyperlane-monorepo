@@ -165,7 +165,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
       chain,
       //The changes below are made to choose which HypERC20 contract to be deployed based on the votable config
       config.votable ? new HypERC20Votable__factory() : new HypERC20__factory(),
-      config.votable ? 'HypERC20Votable' : 'HypERC20',
+      `HypERC20${config.votable ? 'Votable' : ''}`,
       [config.decimals],
     );
     await this.multiProvider.handleTx(
