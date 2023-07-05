@@ -32,14 +32,16 @@ contract HypERC20Votable is
         string memory _name,
         string memory _symbol
     ) public override initializer {
-        __ERC20Permit_init(_name);
-        super.initialize(
+        // transfers ownership to `msg.sender`
+        __HyperlaneConnectionClient_initialize(
             _mailbox,
-            _interchainGasPaymaster,
-            _totalSupply,
-            _name,
-            _symbol
+            _interchainGasPaymaster
         );
+
+        // Initialize ERC20 metadata
+        __ERC20_init(_name, _symbol);
+        __ERC20Permit_init(_name);
+        _mint(msg.sender, _totalSupply);
     }
 
     // Below are the functions which needed override
