@@ -95,6 +95,7 @@ export {
 export { HyperlaneIsmFactoryDeployer } from './ism/HyperlaneIsmFactoryDeployer';
 export {
   AggregationIsmConfig,
+  DeployedIsm,
   IsmConfig,
   ModuleType,
   MultisigIsmConfig,
