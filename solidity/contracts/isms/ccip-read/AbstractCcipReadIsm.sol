@@ -24,20 +24,6 @@ import {AbstractMultisigIsm} from "../multisig/AbstractMultisigIsm.sol";
  *    for the OffchainLookup error
  */
 abstract contract AbstractCcipReadIsm is ICcipReadIsm {
-    /// @dev https://eips.ethereum.org/EIPS/eip-3668
-    /// @param sender the address of the contract making the call, usually address(this)
-    /// @param urls the URLs to query for offchain data
-    /// @param callData context needed for offchain service to service request
-    /// @param callbackFunction function selector to call with offchain information
-    /// @param extraData additional passthrough information to call callbackFunction with
-    error OffchainLookup(
-        address sender,
-        string[] urls,
-        bytes callData,
-        bytes4 callbackFunction,
-        bytes extraData
-    );
-
     // ============ Constants ============
 
     // solhint-disable-next-line const-name-snakecase

@@ -89,13 +89,12 @@ where
     M: Middleware + 'static,
 {
     #[instrument(err)]
-    async fn get_offchain_verify_info(&self, message: Vec<u8>) -> ChainResult<bool> {
-        let info: bool = self
-            .contract
+    async fn get_offchain_verify_info(&self, message: Vec<u8>) -> ChainResult<()> {
+        self.contract
             .get_offchain_verify_info(message.into())
             .call()
             .await?;
-        Ok(info)
+        Ok(())
     }
 }
 

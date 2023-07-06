@@ -39,13 +39,7 @@
       }
     ],
     "name": "getOffchainVerifyInfo",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
+    "outputs": [],
     "stateMutability": "view",
     "type": "function"
   },

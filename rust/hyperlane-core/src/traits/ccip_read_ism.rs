@@ -10,5 +10,5 @@ use crate::{ChainResult, HyperlaneContract};
 #[auto_impl(&, Box, Arc)]
 pub trait CcipReadIsm: HyperlaneContract + Send + Sync + Debug {
     /// Reverts with a custom error specifying how to query for offchain information
-    async fn get_offchain_verify_info(&self, message: Vec<u8>) -> ChainResult<bool>;
+    async fn get_offchain_verify_info(&self, message: Vec<u8>) -> ChainResult<()>;
 }
