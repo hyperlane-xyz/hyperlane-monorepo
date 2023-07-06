@@ -4,13 +4,14 @@ import {
   ChainMetadata,
   ProtocolType,
   isValidChainMetadata,
-} from './chainMetadata';
+} from './chainMetadataTypes';
 
 const minimalSchema: ChainMetadata = {
   chainId: 5,
+  domainId: 5,
   name: 'goerli',
   protocol: ProtocolType.Ethereum,
-  publicRpcUrls: [{ http: 'https://foobar.com' }],
+  rpcUrls: [{ http: 'https://foobar.com' }],
 };
 
 const blockExplorers = [

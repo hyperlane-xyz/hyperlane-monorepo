@@ -1,191 +1,32 @@
-import type { Chain as WagmiChain } from '@wagmi/chains';
-import type { providers } from 'ethers';
-import { z } from 'zod';
-
-import type { types } from '@hyperlane-xyz/utils';
-
-import type { RetryProviderOptions } from '../providers/RetryProvider';
-import { ChainMap, ChainName } from '../types';
-import { objMap } from '../utils/objects';
-import { chainMetadataToWagmiChain } from '../utils/wagmi';
+import { ExplorerFamily, ProtocolType } from '../metadata/chainMetadataTypes';
+import { ChainMetadataWithUiExt } from '../metadata/userInterfaceExtension';
+import { ChainMap } from '../types';
 
 import { Chains, Mainnets, Testnets } from './chains';
-
-export enum ExplorerFamily {
-  Etherscan = 'etherscan',
-  Blockscout = 'blockscout',
-  Other = 'other',
-}
-
-export enum ProtocolType {
-  Ethereum = 'ethereum',
-  Sealevel = 'sealevel',
-  Fuel = 'fuel',
-}
-
-export type ExplorerFamilyType = `${ExplorerFamily}`;
-
-/**
- * Collection of useful properties and settings
- * for Hyperlane-supported chains
- */
-export interface ChainMetadata {
-  chainId: number;
-  /** Hyperlane domain, only required if differs from id above */
-  domainId?: number;
-  name: ChainName;
-  protocol: ProtocolType;
-  /** Human-readable name */
-  displayName?: string;
-  /** Shorter human-readable name */
-  displayNameShort?: string;
-  /** Default currency/token used by chain */
-  nativeToken?: {
-    name: string;
-    symbol: string;
-    decimals: number;
-  };
-  /** Collection of RPC endpoints */
-  publicRpcUrls: Array<{
-    http: string;
-    webSocket?: string;
-    pagination?: RpcPaginationOptions;
-    retry?: RetryProviderOptions;
-  }>;
-  /** Collection of block explorers */
-  blockExplorers?: Array<{
-    name: string;
-    url: string;
-    apiUrl: string;
-    apiKey?: string;
-    family?: ExplorerFamilyType;
-  }>;
-  blocks?: {
-    /** Number of blocks to wait before considering a transaction confirmed */
-    confirmations: number;
-    //  TODO consider merging with confirmations, requires agent code changes */
-    /** Number of blocks before a transaction has a near-zero chance of reverting */
-    reorgPeriod?: number;
-    /** Rough estimate of time per block in seconds */
-    estimateBlockTime?: number;
-  };
-  /** Settings to use when forming transaction requests */
-  transactionOverrides?: Partial<providers.TransactionRequest>;
-  /** Address for Ethereum Name Service registry */
-  ensAddress?: types.Address;
-  /** The CoinGecko API sometimes expects IDs that do not match ChainNames */
-  gasCurrencyCoinGeckoId?: string;
-  /** URL of the gnosis safe transaction service */
-  gnosisSafeTransactionServiceUrl?: string;
-  /** Is chain a testnet or a mainnet */
-  isTestnet?: boolean;
-}
-
-export interface RpcPaginationOptions {
-  /** Maximum number of blocks to query between (e.g. for fetching logs) */
-  maxBlockRange?: number;
-  /** Absolute lowest block number from which to query */
-  minBlockNumber?: number;
-  /** Relative num blocks from latest from which to query */
-  maxBlockAge?: number;
-}
-
-/**
- * Zod schema for ChainMetadata validation
- * Keep in sync with ChainMetadata above
- */
-export const ChainMetadataSchema = z.object({
-  chainId: z.number().positive(),
-  domainId: z.number().positive().optional(),
-  name: z.string(),
-  protocol: z.string(),
-  displayName: z.string().optional(),
-  displayNameShort: z.string().optional(),
-  nativeToken: z
-    .object({
-      name: z.string(),
-      symbol: z.string(),
-      decimals: z.number().positive(),
-    })
-    .optional(),
-  publicRpcUrls: z
-    .array(
-      z.object({
-        http: z.string().url(),
-        webSocket: z.string().optional(),
-        pagination: z
-          .object({
-            maxBlockRange: z.number().positive().optional(),
-            minBlockNumber: z.number().positive().optional(),
-            maxBlockAge: z.number().positive().optional(),
-          })
-          .optional(),
-        retry: z
-          .object({
-            maxRequests: z.number().positive(),
-            baseRetryMs: z.number().positive(),
-          })
-          .optional(),
-      }),
-    )
-    .nonempty(),
-  blockExplorers: z
-    .array(
-      z.object({
-        name: z.string(),
-        url: z.string().url(),
-        apiUrl: z.string().url(),
-        apiKey: z.string().optional(),
-        family: z.nativeEnum(ExplorerFamily).optional(),
-      }),
-    )
-    .optional(),
-  blocks: z
-    .object({
-      confirmations: z.number(),
-      reorgPeriod: z.number().optional(),
-      estimateBlockTime: z.number().positive().optional(),
-    })
-    .optional(),
-  transactionOverrides: z.object({}).optional(),
-  gasCurrencyCoinGeckoId: z.string().optional(),
-  gnosisSafeTransactionServiceUrl: z.string().optional(),
-  isTestnet: z.boolean().optional(),
-});
 
 /**
  * Common native currencies
  */
-export const avaxToken = {
-  decimals: 18,
-  name: 'Avalanche',
-  symbol: 'AVAX',
-};
-export const bnbToken = {
-  decimals: 18,
-  name: 'BNB',
-  symbol: 'BNB',
-};
-export const celoToken = {
-  decimals: 18,
-  name: 'CELO',
-  symbol: 'CELO',
-};
+export const avaxToken = { decimals: 18, name: 'Avalanche', symbol: 'AVAX' };
+export const bnbToken = { decimals: 18, name: 'BNB', symbol: 'BNB' };
+export const celoToken = { decimals: 18, name: 'CELO', symbol: 'CELO' };
 export const etherToken = { name: 'Ether', symbol: 'ETH', decimals: 18 };
 export const maticToken = { name: 'MATIC', symbol: 'MATIC', decimals: 18 };
 export const xDaiToken = { name: 'xDai', symbol: 'xDai', decimals: 18 };
+export const solToken = { name: 'Sol', symbol: 'SOL', decimals: 9 };
 
 /**
- * Chain metadata
+ * Metadata for Ethereum chains
  */
 
-export const alfajores: ChainMetadata = {
+export const alfajores: ChainMetadataWithUiExt = {
   chainId: 44787,
+  domainId: 44787,
   name: Chains.alfajores,
   protocol: ProtocolType.Ethereum,
   displayName: 'Alfajores',
   nativeToken: celoToken,
-  publicRpcUrls: [{ http: 'https://alfajores-forno.celo-testnet.org' }],
+  rpcUrls: [{ http: 'https://alfajores-forno.celo-testnet.org' }],
   blockExplorers: [
     {
       name: 'CeloScan',
@@ -208,13 +49,14 @@ export const alfajores: ChainMetadata = {
   isTestnet: true,
 };
 
-export const arbitrum: ChainMetadata = {
+export const arbitrum: ChainMetadataWithUiExt = {
   chainId: 42161,
+  domainId: 42161,
   name: Chains.arbitrum,
   protocol: ProtocolType.Ethereum,
   displayName: 'Arbitrum',
   nativeToken: etherToken,
-  publicRpcUrls: [{ http: 'https://arb1.arbitrum.io/rpc' }],
+  rpcUrls: [{ http: 'https://arb1.arbitrum.io/rpc' }],
   blockExplorers: [
     {
       name: 'Arbiscan',
@@ -233,14 +75,15 @@ export const arbitrum: ChainMetadata = {
     'https://safe-transaction.arbitrum.gnosis.io/',
 };
 
-export const arbitrumgoerli: ChainMetadata = {
+export const arbitrumgoerli: ChainMetadataWithUiExt = {
   chainId: 421613,
+  domainId: 421613,
   name: Chains.arbitrumgoerli,
   protocol: ProtocolType.Ethereum,
   displayName: 'Arbitrum Goerli',
   displayNameShort: 'Arb. Goerli',
   nativeToken: etherToken,
-  publicRpcUrls: [{ http: 'https://goerli-rollup.arbitrum.io/rpc' }],
+  rpcUrls: [{ http: 'https://goerli-rollup.arbitrum.io/rpc' }],
   blockExplorers: [
     {
       name: 'Arbiscan',
@@ -257,13 +100,14 @@ export const arbitrumgoerli: ChainMetadata = {
   isTestnet: true,
 };
 
-export const avalanche: ChainMetadata = {
+export const avalanche: ChainMetadataWithUiExt = {
   chainId: 43114,
+  domainId: 43114,
   name: Chains.avalanche,
   protocol: ProtocolType.Ethereum,
   displayName: 'Avalanche',
   nativeToken: avaxToken,
-  publicRpcUrls: [
+  rpcUrls: [
     {
       http: 'https://api.avax.network/ext/bc/C/rpc',
       pagination: {
@@ -290,14 +134,15 @@ export const avalanche: ChainMetadata = {
     'https://safe-transaction.avalanche.gnosis.io/',
 };
 
-export const bsc: ChainMetadata = {
+export const bsc: ChainMetadataWithUiExt = {
   chainId: 56,
+  domainId: 56,
   name: Chains.bsc,
   protocol: ProtocolType.Ethereum,
   displayName: 'Binance Smart Chain',
   displayNameShort: 'Binance',
   nativeToken: bnbToken,
-  publicRpcUrls: [
+  rpcUrls: [
     { http: 'https://bsc-dataseed.binance.org' },
     { http: 'https://rpc.ankr.com/bsc' },
   ],
@@ -318,13 +163,14 @@ export const bsc: ChainMetadata = {
   gnosisSafeTransactionServiceUrl: 'https://safe-transaction.bsc.gnosis.io/',
 };
 
-export const bsctestnet: ChainMetadata = {
+export const bsctestnet: ChainMetadataWithUiExt = {
   chainId: 97,
+  domainId: 97,
   name: Chains.bsctestnet,
   protocol: ProtocolType.Ethereum,
   displayName: 'BSC Testnet',
   nativeToken: bnbToken,
-  publicRpcUrls: [{ http: 'https://data-seed-prebsc-1-s3.binance.org:8545' }],
+  rpcUrls: [{ http: 'https://data-seed-prebsc-1-s3.binance.org:8545' }],
   blockExplorers: [
     {
       name: 'BscScan',
@@ -341,13 +187,14 @@ export const bsctestnet: ChainMetadata = {
   isTestnet: true,
 };
 
-export const celo: ChainMetadata = {
+export const celo: ChainMetadataWithUiExt = {
   chainId: 42220,
+  domainId: 42220,
   name: Chains.celo,
   protocol: ProtocolType.Ethereum,
   displayName: 'Celo',
   nativeToken: celoToken,
-  publicRpcUrls: [{ http: 'https://forno.celo.org' }],
+  rpcUrls: [{ http: 'https://forno.celo.org' }],
   blockExplorers: [
     {
       name: 'CeloScan',
@@ -371,13 +218,14 @@ export const celo: ChainMetadata = {
     'https://transaction-service.gnosis-safe-staging.celo-networks-dev.org',
 };
 
-export const ethereum: ChainMetadata = {
+export const ethereum: ChainMetadataWithUiExt = {
   chainId: 1,
+  domainId: 1,
   name: Chains.ethereum,
   protocol: ProtocolType.Ethereum,
   displayName: 'Ethereum',
   nativeToken: etherToken,
-  publicRpcUrls: [
+  rpcUrls: [
     { http: 'https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161' },
     { http: 'https://cloudflare-eth.com' },
   ],
@@ -403,13 +251,14 @@ export const ethereum: ChainMetadata = {
   gnosisSafeTransactionServiceUrl: 'https://safe-transaction.gnosis.io',
 };
 
-export const fuji: ChainMetadata = {
+export const fuji: ChainMetadataWithUiExt = {
   chainId: 43113,
+  domainId: 43113,
   name: Chains.fuji,
   protocol: ProtocolType.Ethereum,
   displayName: 'Fuji',
   nativeToken: avaxToken,
-  publicRpcUrls: [
+  rpcUrls: [
     {
       http: 'https://api.avax-test.network/ext/bc/C/rpc',
       pagination: { maxBlockRange: 2048 },
@@ -431,13 +280,14 @@ export const fuji: ChainMetadata = {
   isTestnet: true,
 };
 
-export const goerli: ChainMetadata = {
+export const goerli: ChainMetadataWithUiExt = {
   chainId: 5,
+  domainId: 5,
   name: Chains.goerli,
   protocol: ProtocolType.Ethereum,
   displayName: 'Goerli',
   nativeToken: etherToken,
-  publicRpcUrls: [
+  rpcUrls: [
     { http: 'https://goerli.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161' },
     { http: 'https://rpc.ankr.com/eth_goerli' },
     { http: 'https://eth-goerli.public.blastapi.io' },
@@ -458,13 +308,14 @@ export const goerli: ChainMetadata = {
   isTestnet: true,
 };
 
-export const sepolia: ChainMetadata = {
+export const sepolia: ChainMetadataWithUiExt = {
   chainId: 11155111,
+  domainId: 11155111,
   name: Chains.sepolia,
   protocol: ProtocolType.Ethereum,
   displayName: 'Sepolia',
   nativeToken: etherToken,
-  publicRpcUrls: [
+  rpcUrls: [
     { http: 'https://endpoints.omniatech.io/v1/eth/sepolia/public' },
     { http: 'https://rpc.sepolia.org' },
   ],
@@ -484,8 +335,9 @@ export const sepolia: ChainMetadata = {
   isTestnet: true,
 };
 
-export const moonbasealpha: ChainMetadata = {
+export const moonbasealpha: ChainMetadataWithUiExt = {
   chainId: 1287,
+  domainId: 1287,
   name: Chains.moonbasealpha,
   protocol: ProtocolType.Ethereum,
   displayName: 'Moonbase Alpha',
@@ -495,7 +347,7 @@ export const moonbasealpha: ChainMetadata = {
     name: 'DEV',
     symbol: 'DEV',
   },
-  publicRpcUrls: [{ http: 'https://rpc.api.moonbase.moonbeam.network' }],
+  rpcUrls: [{ http: 'https://rpc.api.moonbase.moonbeam.network' }],
   blockExplorers: [
     {
       name: 'MoonScan',
@@ -512,8 +364,9 @@ export const moonbasealpha: ChainMetadata = {
   isTestnet: true,
 };
 
-export const moonbeam: ChainMetadata = {
+export const moonbeam: ChainMetadataWithUiExt = {
   chainId: 1284,
+  domainId: 1284,
   name: Chains.moonbeam,
   protocol: ProtocolType.Ethereum,
   displayName: 'Moonbeam',
@@ -522,7 +375,7 @@ export const moonbeam: ChainMetadata = {
     name: 'GLMR',
     symbol: 'GLMR',
   },
-  publicRpcUrls: [{ http: 'https://rpc.api.moonbeam.network' }],
+  rpcUrls: [{ http: 'https://rpc.api.moonbeam.network' }],
   blockExplorers: [
     {
       name: 'MoonScan',
@@ -540,13 +393,14 @@ export const moonbeam: ChainMetadata = {
     'https://transaction.multisig.moonbeam.network',
 };
 
-export const mumbai: ChainMetadata = {
+export const mumbai: ChainMetadataWithUiExt = {
   chainId: 80001,
+  domainId: 80001,
   name: Chains.mumbai,
   protocol: ProtocolType.Ethereum,
   displayName: 'Mumbai',
   nativeToken: maticToken,
-  publicRpcUrls: [
+  rpcUrls: [
     {
       http: 'https://rpc.ankr.com/polygon_mumbai',
       pagination: {
@@ -575,13 +429,14 @@ export const mumbai: ChainMetadata = {
   isTestnet: true,
 };
 
-export const optimism: ChainMetadata = {
+export const optimism: ChainMetadataWithUiExt = {
   chainId: 10,
+  domainId: 10,
   name: Chains.optimism,
   protocol: ProtocolType.Ethereum,
   displayName: 'Optimism',
   nativeToken: etherToken,
-  publicRpcUrls: [{ http: 'https://mainnet.optimism.io' }],
+  rpcUrls: [{ http: 'https://mainnet.optimism.io' }],
   blockExplorers: [
     {
       name: 'Etherscan',
@@ -600,14 +455,15 @@ export const optimism: ChainMetadata = {
     'https://safe-transaction.optimism.gnosis.io/',
 };
 
-export const optimismgoerli: ChainMetadata = {
+export const optimismgoerli: ChainMetadataWithUiExt = {
   chainId: 420,
+  domainId: 420,
   name: Chains.optimismgoerli,
   protocol: ProtocolType.Ethereum,
   displayName: 'Optimism Goerli',
   displayNameShort: 'Opt. Goerli',
   nativeToken: etherToken,
-  publicRpcUrls: [{ http: 'https://goerli.optimism.io' }],
+  rpcUrls: [{ http: 'https://goerli.optimism.io' }],
   blockExplorers: [
     {
       name: 'Etherscan',
@@ -624,13 +480,14 @@ export const optimismgoerli: ChainMetadata = {
   isTestnet: true,
 };
 
-export const polygon: ChainMetadata = {
+export const polygon: ChainMetadataWithUiExt = {
   chainId: 137,
+  domainId: 137,
   name: Chains.polygon,
   protocol: ProtocolType.Ethereum,
   displayName: 'Polygon',
   nativeToken: etherToken,
-  publicRpcUrls: [
+  rpcUrls: [
     {
       http: 'https://rpc-mainnet.matic.quiknode.pro',
       pagination: {
@@ -659,13 +516,14 @@ export const polygon: ChainMetadata = {
     'https://safe-transaction.polygon.gnosis.io/',
 };
 
-export const gnosis: ChainMetadata = {
+export const gnosis: ChainMetadataWithUiExt = {
   chainId: 100,
+  domainId: 100,
   name: Chains.gnosis,
   protocol: ProtocolType.Ethereum,
   displayName: 'Gnosis',
   nativeToken: xDaiToken,
-  publicRpcUrls: [
+  rpcUrls: [
     {
       http: 'https://rpc.gnosischain.com',
       pagination: {
@@ -691,13 +549,18 @@ export const gnosis: ChainMetadata = {
   gnosisSafeTransactionServiceUrl: 'https://safe-transaction.xdai.gnosis.io/',
 };
 
-export const test1: ChainMetadata = {
+/**
+ * Metadata for local test chains
+ */
+
+export const test1: ChainMetadataWithUiExt = {
   chainId: 13371,
+  domainId: 13371,
   name: Chains.test1,
   protocol: ProtocolType.Ethereum,
   displayName: 'Test 1',
   nativeToken: etherToken,
-  publicRpcUrls: [{ http: 'http://localhost:8545' }],
+  rpcUrls: [{ http: 'http://localhost:8545' }],
   blockExplorers: [],
   blocks: {
     confirmations: 1,
@@ -707,13 +570,14 @@ export const test1: ChainMetadata = {
   isTestnet: true,
 };
 
-export const test2: ChainMetadata = {
+export const test2: ChainMetadataWithUiExt = {
   chainId: 13372,
+  domainId: 13372,
   name: Chains.test2,
   protocol: ProtocolType.Ethereum,
   displayName: 'Test 2',
   nativeToken: etherToken,
-  publicRpcUrls: [{ http: 'http://localhost:8545' }],
+  rpcUrls: [{ http: 'http://localhost:8545' }],
   blockExplorers: [],
   blocks: {
     confirmations: 1,
@@ -723,13 +587,14 @@ export const test2: ChainMetadata = {
   isTestnet: true,
 };
 
-export const test3: ChainMetadata = {
+export const test3: ChainMetadataWithUiExt = {
   chainId: 13373,
+  domainId: 13373,
   name: Chains.test3,
   protocol: ProtocolType.Ethereum,
   displayName: 'Test 3',
   nativeToken: etherToken,
-  publicRpcUrls: [{ http: 'http://localhost:8545' }],
+  rpcUrls: [{ http: 'http://localhost:8545' }],
   blockExplorers: [],
   blocks: {
     confirmations: 1,
@@ -740,12 +605,70 @@ export const test3: ChainMetadata = {
 };
 
 /**
+ * Metadata for Sealevel chains
+ */
+
+export const solanamainnet: ChainMetadataWithUiExt = {
+  protocol: ProtocolType.Sealevel,
+  // Uses the same ChainId as https://www.alchemy.com/chain-connect/chain/solana
+  chainId: 1399811149,
+  domainId: 1399811149,
+  name: 'solanamainnet',
+  displayName: 'Solana',
+  nativeToken: solToken,
+  rpcUrls: [{ http: 'https://api.mainnet-beta.solana.com' }],
+  blockExplorers: [
+    {
+      name: 'SolScan',
+      url: 'https://solscan.io',
+      apiUrl: 'https://public-api.solscan.io',
+      family: ExplorerFamily.Other,
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 1,
+    estimateBlockTime: 1,
+  },
+};
+
+export const solanatestnet: ChainMetadataWithUiExt = {
+  protocol: ProtocolType.Sealevel,
+  chainId: 13998111450,
+  domainId: 13998111450,
+  name: 'solanatestnet',
+  displayName: 'Sol Testnet',
+  nativeToken: solToken,
+  rpcUrls: [{ http: 'https://api.testnet.solana.com' }],
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 1,
+    estimateBlockTime: 1,
+  },
+};
+
+export const solanadevnet: ChainMetadataWithUiExt = {
+  protocol: ProtocolType.Sealevel,
+  chainId: 1399811151,
+  domainId: 1399811151,
+  name: 'solanadevnet',
+  displayName: 'Sol Devnet',
+  nativeToken: solToken,
+  rpcUrls: [{ http: 'https://api.devnet.solana.com' }],
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 1,
+    estimateBlockTime: 1,
+  },
+};
+
+/**
  * Collection maps
  *
  * NOTE: When adding chains here, consider also adding the
  * corresponding chain logo images in the /sdk/logos/* folders
  */
-export const chainMetadata: ChainMap<ChainMetadata> = {
+export const chainMetadata: ChainMap<ChainMetadataWithUiExt> = {
   alfajores,
   arbitrum,
   arbitrumgoerli,
@@ -769,26 +692,14 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   test3,
 };
 
-// For convenient use in wagmi-based apps
-export const wagmiChainMetadata: ChainMap<WagmiChain> = objMap(
-  chainMetadata,
-  (_, metadata) => chainMetadataToWagmiChain(metadata),
-);
-
 export const chainIdToMetadata = Object.values(chainMetadata).reduce<
-  ChainMap<ChainMetadata>
+  ChainMap<ChainMetadataWithUiExt>
 >((result, chain) => {
   result[chain.chainId] = chain;
   return result;
 }, {});
 
-export const mainnetChainsMetadata: Array<ChainMetadata> = Mainnets.map(
-  (chainName) => chainMetadata[chainName],
-);
-export const testnetChainsMetadata: Array<ChainMetadata> = Testnets.map(
-  (chainName) => chainMetadata[chainName],
-);
-
-export function isValidChainMetadata(c: ChainMetadata): boolean {
-  return ChainMetadataSchema.safeParse(c).success;
-}
+export const mainnetChainsMetadata: Array<ChainMetadataWithUiExt> =
+  Mainnets.map((chainName) => chainMetadata[chainName]);
+export const testnetChainsMetadata: Array<ChainMetadataWithUiExt> =
+  Testnets.map((chainName) => chainMetadata[chainName]);

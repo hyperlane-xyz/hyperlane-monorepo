@@ -1,26 +1,9 @@
 export { HyperlaneApp } from './HyperlaneApp';
 export {
-  AgentChainSetup,
-  AgentConfig,
-  AgentConnection,
-  AgentConnectionType,
-  AgentSigner,
-  HyperlaneAgentAddresses,
-  buildAgentConfig,
-} from './agents/types';
-export {
-  ChainMetadata,
-  ChainMetadataSchema,
-  ExplorerFamily,
-  ExplorerFamilyType,
-  ProtocolType,
-  RpcPaginationOptions,
   chainIdToMetadata,
   chainMetadata,
-  isValidChainMetadata,
   mainnetChainsMetadata,
   testnetChainsMetadata,
-  wagmiChainMetadata,
 } from './consts/chainMetadata';
 export {
   AllChains,
@@ -100,6 +83,37 @@ export {
   MultisigIsmConfig,
   RoutingIsmConfig,
 } from './ism/types';
+export {
+  AgentMetadataExtSchema,
+  AgentMetadataExtension,
+  ChainMetadataForAgent,
+  ChainMetadataForAgentSchema,
+  buildAgentConfig,
+} from './metadata/agentConfig';
+export {
+  ChainMetadata,
+  ChainMetadataSchema,
+  ExplorerFamily,
+  ExplorerFamilyValue,
+  ProtocolSmallestUnit,
+  ProtocolType,
+  ProtocolTypeValue,
+  isValidChainMetadata,
+} from './metadata/chainMetadataTypes';
+export {
+  ChainMetadataWithArtifacts,
+  ChainMetadataWithArtifactsAndUiExt,
+  ChainMetadataWithArtifactsAndUiExtSchema,
+  ChainMetadataWithArtifactsSchema,
+  HyperlaneDeploymentArtifacts,
+  HyperlaneDeploymentArtifactsSchema,
+} from './metadata/deploymentArtifacts';
+export {
+  ChainMetadataWithUiExt,
+  ChainMetadataWithUiExtSchema,
+  UserInterfaceMetadataExtSchema,
+  UserInterfaceMetadataExtension,
+} from './metadata/userInterfaceExtension';
 export { InterchainAccount } from './middleware/account/InterchainAccount';
 export { InterchainAccountChecker } from './middleware/account/InterchainAccountChecker';
 export {
@@ -139,6 +153,7 @@ export { GasRouterApp, Router, RouterApp } from './router/RouterApps';
 export {
   ConnectionClientViolation,
   ConnectionClientViolationType,
+  GasConfig,
   GasRouterConfig,
   RouterConfig,
 } from './router/types';
@@ -171,4 +186,4 @@ export {
   promiseObjAll,
 } from './utils/objects';
 export { delay } from './utils/time';
-export { chainMetadataToWagmiChain } from './utils/wagmi';
+export { chainMetadataToWagmiChain, wagmiChainMetadata } from './utils/wagmi';

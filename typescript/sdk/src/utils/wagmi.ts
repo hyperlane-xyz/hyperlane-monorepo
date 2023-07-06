@@ -1,16 +1,28 @@
 import type { Chain as WagmiChain } from '@wagmi/chains';
 
-import { ChainMetadata, etherToken } from '../consts/chainMetadata';
+import { chainMetadata, etherToken } from '../consts/chainMetadata';
+import { ChainMetadataWithUiExt } from '../metadata/userInterfaceExtension';
+import { ChainMap } from '../types';
 
-export function chainMetadataToWagmiChain(metadata: ChainMetadata): WagmiChain {
+import { objMap } from './objects';
+
+// For convenient use in wagmi-based apps
+export const wagmiChainMetadata: ChainMap<WagmiChain> = objMap(
+  chainMetadata,
+  (_, metadata) => chainMetadataToWagmiChain(metadata),
+);
+
+export function chainMetadataToWagmiChain(
+  metadata: ChainMetadataWithUiExt,
+): WagmiChain {
   return {
     id: metadata.chainId,
     name: metadata.displayName || metadata.name,
     network: metadata.name as string,
     nativeCurrency: metadata.nativeToken || etherToken,
     rpcUrls: {
-      public: { http: [metadata.publicRpcUrls[0].http] },
-      default: { http: [metadata.publicRpcUrls[0].http] },
+      public: { http: [metadata.rpcUrls[0].http] },
+      default: { http: [metadata.rpcUrls[0].http] },
     },
     blockExplorers: metadata.blockExplorers?.length
       ? {
