@@ -9,28 +9,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { types } from '@hyperlane-xyz/utils';
 
-import { testConfigs } from '../config/environments/test/chains';
-
 import { getHookAddress } from './utils';
-
-export const forkedL2 = {
-  id: 10,
-  name: 'Anvil Forked',
-  network: 'opForked',
-  nativeCurrency: {
-    decimals: 18,
-    name: 'Ether',
-    symbol: 'ETH',
-  },
-  rpcUrls: {
-    public: { http: ['http://127.0.0.1:8547'] },
-    default: { http: ['http://127.0.0.1:8547'] },
-  },
-  blockExplorers: {
-    etherscan: { name: 'Etherscan', url: 'https://etherscan.io' },
-    default: { name: 'Etherscan', url: 'https://etherscan.io' },
-  },
-};
 
 const getMappingStorageSlot = (messageId: string) => {
   // Slot position of the mapping in the contract according to the storage layout
@@ -52,7 +31,12 @@ async function main() {
     [hookChain]: chainMetadata[hookChain],
     [ismChain]: chainMetadata[ismChain],
   };
+  const ethForked = new providers.JsonRpcProvider('http://127.0.0.1:8546');
   const hookProvider = new MultiProvider(metadata);
+  hookProvider.setSigner(
+    hookChain,
+    ethForked.getSigner('0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'),
+  );
 
   const core = HyperlaneCore.fromEnvironment('mainnet', hookProvider);
 
@@ -74,9 +58,10 @@ async function main() {
   testRecipient = padToBytes32(testRecipient);
 
   const messageId = await dispatchMessage(
-    'test',
+    'mainnet2',
     mailboxAddress,
     testRecipient,
+    hookProvider,
   );
 
   await setISMStorage(optimismISMAddress, messageId, testSender);
@@ -107,23 +92,25 @@ export async function dispatchMessage(
   env: string,
   mailboxAddress: types.Address,
   recipient: types.Address,
+  multiProvider: MultiProvider,
 ): Promise<string> {
   const testMessage = utils.randomBytes(32);
 
-  if (env === 'test') {
+  if (env === 'mainnet2') {
     const logger = debug('hyperlane:hook:dispatcheMessage');
-    const ethForked = new providers.JsonRpcProvider('http://127.0.0.1:8546');
+    // const ethForked = new providers.JsonRpcProvider('http://127.0.0.1:8546');
 
-    const signer = ethForked.getSigner(
-      '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
-    );
+    // const signer = ethForked.getSigner(
+    //   '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+    // );
+    const signer = multiProvider.getSigner('ethereum');
 
     const mailbox = await new Mailbox__factory(signer).attach(mailboxAddress);
 
     logger('Mailbox configured: %s', mailbox.address);
     console.log(await mailbox.count());
 
-    const destinationDomain = testConfigs['test2'].chainId;
+    const destinationDomain = 10;
 
     logger(
       'Dispatching message to domain %s with recipient %s',

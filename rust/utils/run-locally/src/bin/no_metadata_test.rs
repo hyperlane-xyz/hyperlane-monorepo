@@ -213,7 +213,7 @@ fn main() -> ExitCode {
     state.log_all = log_all;
 
     println!("Launching anvil for l1 (forked from eth Mainnet)...");
-    let mut args = ["--fork-url", "https://eth.llamarpc.com", "--chain-id", "31337", "--port", "8546"];
+    let mut args = ["--fork-url", "https://eth-mainnet.alchemyapi.io/v2/ZkGpwVOGW0Fr7NbpcafAwrljFpGtP9So", "--chain-id", "1", "--port", "8546", "--block-time", "1"];
     let mut l1_node = Command::new("anvil");
     l1_node.args(&args);
     if log_all {
@@ -226,7 +226,8 @@ fn main() -> ExitCode {
     state.l1_node = Some(l1_node);
 
     println!("Launching anvil for l2 (forked from optimsim Mainnet)...");
-    args[1] = "https://mainnet.optimism.io";
+    args[1] = "https://blue-crimson-sun.optimism.quiknode.pro/f3c3da26fbf36f72a8b1bac1ff3a8e6e3a7d2868/";
+    args[3] = "10";
     args[5] = "8547";
     let mut l2_node = Command::new("anvil");
     l2_node.args(&args);
@@ -282,12 +283,12 @@ fn main() -> ExitCode {
     sleep(Duration::from_secs(5));
     while RUNNING.fetch_and(true, Ordering::Relaxed) {
 
-        println!("Simulating native hook dispatch...");
-        build_cmd(
-            &["yarn", "orchestrate-hook"],
-            Some("../typescript/infra"),
-            Some(&deploy_env),
-        );
+        // println!("Simulating native hook dispatch...");
+        // build_cmd(
+        //     &["yarn", "orchestrate-hook"],
+        //     Some("../typescript/infra"),
+        //     Some(&deploy_env),
+        // );
 
         if ci_mode {
             // for CI we have to look for the end condition.

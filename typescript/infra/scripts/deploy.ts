@@ -40,20 +40,20 @@ async function main() {
   const envConfig = getEnvironmentConfig(environment);
   const multiProvider = await envConfig.getMultiProvider();
 
-  // if (fork) {
-  //   await useLocalProvider(multiProvider, fork, 'localhost:8545');
+  if (fork) {
+    await useLocalProvider(multiProvider, fork, 'localhost:8545');
 
-  //   // TODO: make this more generic
-  //   const deployerAddress =
-  //     environment === 'testnet3'
-  //       ? '0xfaD1C94469700833717Fa8a3017278BC1cA8031C'
-  //       : '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
+    // TODO: make this more generic
+    const deployerAddress =
+      environment === 'testnet3'
+        ? '0xfaD1C94469700833717Fa8a3017278BC1cA8031C'
+        : '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 
-  //   const signer = await impersonateAccount(deployerAddress);
-  //   multiProvider.setSigner(fork, signer);
+    const signer = await impersonateAccount(deployerAddress);
+    multiProvider.setSigner(fork, signer);
 
-  //   console.log('fork', fork);
-  // }
+    console.log('fork', fork);
+  }
 
   let config: ChainMap<unknown> = {};
   let deployer: HyperlaneDeployer<any, any>;
@@ -70,10 +70,6 @@ async function main() {
     );
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   } else if (module === Modules.HOOK) {
-    if (fork) {
-      console.log('fork', fork);
-    }
-
     if (fork?.length !== 2) {
       throw new Error('fork must be a array of two forks');
     }

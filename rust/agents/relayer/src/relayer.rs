@@ -107,6 +107,7 @@ impl BaseAgent for Relayer {
         let mailboxes = settings
             .build_mailboxes(settings.destination_chains.iter(), &metrics)
             .await?;
+        println!("mailboxes: {:?}", mailboxes);
         let validator_announces = settings
             .build_validator_announces(settings.origin_chains.iter(), &metrics)
             .await?;

@@ -1,9 +1,9 @@
 {
   "ethereum": {
-    "optimismMessageHook": "0x45523738aC47b88a5212a25eDe40EB7eBA51FFbb"
+    "optimismMessageHook": "0x56176C7Fb66FdD70ef962Ae53a46A226c7F6a2Cc"
   },
   "optimism": {
-    "optimismISM": "0x719952FB48d412ca65e8D129f6248a75DE770b9f",
-    "testRecipient": "0x45000D25d3E2D62323ccafCf7322bf60209A28Ef"
+    "optimismISM": "0xc760a72a536fDB936855612B13FAAAe2C123F772",
+    "testRecipient": "0x81591Fe51Ebf220Df55E633d9F5a3C3956b5E304"
   }
 }

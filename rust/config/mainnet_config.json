@@ -25,7 +25,7 @@
       "protocol": "ethereum",
       "finalityBlocks": 20,
       "index": {
-        "from": 17629889
+        "from": 17634932
       }
     },
     "avalanche": {
@@ -96,7 +96,7 @@
       "finalityBlocks": 0,
       "index": {
         "from": 
-        106495672
+        106529085
       }
     },
     "moonbeam": {

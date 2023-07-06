@@ -20,7 +20,7 @@ import {
 
 import { Contexts } from '../config/contexts';
 import { environments } from '../config/environments';
-import * as HookConfig from '../config/environments/test/hooks/addresses.json';
+import * as HookConfig from '../config/environments/mainnet2/hooks/addresses.json';
 import { getCurrentKubernetesContext } from '../src/agents';
 import { getCloudAgentKey } from '../src/agents/key-utils';
 import { CloudAgentKey } from '../src/agents/keys';

@@ -32,7 +32,6 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     configMap: ChainMap<HookConfig>,
   ): Promise<HyperlaneContractsMap<HookFactories>> {
     const deployedContractMap = await super.deploy(configMap);
-    this.logger('deployedContractMap', deployedContractMap);
     const hookAddress =
       deployedContractMap.ethereum.optimismMessageHook.address;
 
