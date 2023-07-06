@@ -9,9 +9,9 @@ use ethers_prometheus::middleware::{
 };
 use hyperlane_core::{
     config::*, AggregationIsm, ContractLocator, HyperlaneAbi, HyperlaneDomain,
-    HyperlaneDomainProtocol, HyperlaneProvider, HyperlaneSigner, Indexer, InterchainGasPaymaster,
-    InterchainGasPayment, InterchainSecurityModule, Mailbox, MessageIndexer, MultisigIsm,
-    RoutingIsm, ValidatorAnnounce, H160, H256,
+    HyperlaneDomainProtocol, HyperlaneProvider, HyperlaneSigner, IndexMode, Indexer,
+    InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
+    MessageIndexer, MultisigIsm, RoutingIsm, ValidatorAnnounce, H160, H256,
 };
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
@@ -612,6 +612,9 @@ impl ChainConf {
             }
 
             ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(_) => {
+                Err(eyre!("Sealevel does not support routing ISM yet")).context(ctx)
+            }
         }
         .context(ctx)
     }

@@ -3092,7 +3092,7 @@ dependencies = [
  "lazy_static",
  "log",
  "num-traits",
- "rand 0.8.5",
+ "rand 0.7.3",
  "reqwest",
  "semver",
  "serde",
