@@ -1,10 +1,10 @@
 ### Description
 
-_What's included in this PR?_
+<!-- What's included in this PR? -->
 
 ### Drive-by changes
 
-_Are there any minor or drive-by changes also included?_
+<!--  Are there any minor or drive-by changes also included? -->
 
 ### Related issues
 
@@ -12,20 +12,19 @@ _Are there any minor or drive-by changes also included?_
 
 ### Backward compatibility
 
-_Are these changes backward compatible?_
+<!-- Are these changes backward compatible? -->
 
 Yes
 No
 
-_Are there any infrastructure implications, e.g. changes that would prohibit deploying older commits using this infra tooling?_
+<!-- Are there any infrastructure implications, e.g. changes that would prohibit deploying older commits using this infra tooling? -->
 
 None
 Yes
 
-
 ### Testing
 
-_What kind of testing have these changes undergone?_
+<!-- What kind of testing have these changes undergone? -->
 
 None
 Manual
