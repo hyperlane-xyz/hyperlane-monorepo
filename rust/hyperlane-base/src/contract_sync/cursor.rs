@@ -144,7 +144,7 @@ impl ContractSyncCursor<HyperlaneMessage> for ForwardMessageSyncCursor {
             Ok((CursorAction::Query(range), eta))
         } else {
             // TODO: Define the sleep time from interval flag
-            Ok((CursorAction::Sleep(Duration::from_secs(5)), eta))
+            Ok((CursorAction::Sleep(Duration::from_secs(50)), eta))
         }
     }
 

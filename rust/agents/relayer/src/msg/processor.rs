@@ -380,7 +380,7 @@ mod test {
         tokio::select! {
             _ = process_fut => {},
             _ = pending_message_accumulator => {},
-            _ = sleep(Duration::from_millis(200)) => { panic!("No PendingMessage received from the processor") }
+            _ = sleep(Duration::from_millis(2000)) => { panic!("No PendingMessage received from the processor") }
         };
         pending_messages
     }

@@ -72,6 +72,7 @@ impl FromRawConf<'_, RawSettings, Option<&HashSet<&str>>> for Settings {
         cwp: &ConfigPath,
         filter: Option<&HashSet<&str>>,
     ) -> Result<Self, ConfigParsingError> {
+        println!("setting base.rs 1");
         let mut err = ConfigParsingError::default();
         let chains: HashMap<String, ChainConf> = if let Some(mut chains) = raw.chains {
             let default_signer: Option<SignerConf> = raw.defaultsigner.and_then(|r| {
@@ -141,6 +142,7 @@ impl Settings {
 
     /// Try to get the chain configuration for the given domain.
     pub fn chain_setup(&self, domain: &HyperlaneDomain) -> eyre::Result<&ChainConf> {
+        println!("chain setup");
         self.chains
             .get(domain.name())
             .ok_or_else(|| eyre!("No chain setup found for {domain}"))
@@ -148,6 +150,7 @@ impl Settings {
 
     /// Try to get the domain for a given chain by name.
     pub fn lookup_domain(&self, chain_name: &str) -> eyre::Result<HyperlaneDomain> {
+        println!("Lookup domain");
         self.chains
             .get(chain_name)
             .ok_or_else(|| eyre!("No chain setup found for {chain_name}"))

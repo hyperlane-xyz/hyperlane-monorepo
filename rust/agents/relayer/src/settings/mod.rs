@@ -193,6 +193,7 @@ impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
         _filter: (),
     ) -> ConfigResult<Self> {
         let mut err = ConfigParsingError::default();
+        println!("cwp: {:?}", cwp);
 
         let gas_payment_enforcement = raw
             .gaspaymentenforcement

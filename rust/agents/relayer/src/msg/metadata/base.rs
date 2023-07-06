@@ -72,6 +72,7 @@ impl MetadataBuilder for BaseMetadataBuilder {
         message: &HyperlaneMessage,
     ) -> Result<Option<Vec<u8>>> {
         const CTX: &str = "When fetching module type";
+        
         let ism = self
             .destination_chain_setup
             .build_ism(ism_address, &self.metrics)
@@ -80,7 +81,10 @@ impl MetadataBuilder for BaseMetadataBuilder {
         let module_type = ism.module_type().await.context(CTX)?;
         let base = self.clone_with_incremented_depth()?;
 
+        println!("fetching module type for ism_address: {:?} module_type: {:?}", ism_address, module_type);
+
         let metadata_builder: Box<dyn MetadataBuilder> = match module_type {
+            
             ModuleType::LegacyMultisig => Box::new(LegacyMultisigMetadataBuilder::new(base)),
             ModuleType::MerkleRootMultisig => {
                 Box::new(MerkleRootMultisigMetadataBuilder::new(base))

@@ -50,6 +50,7 @@ pub trait BaseAgent: Send + Sync + Debug {
 /// lifecycle. This assumes only a single agent is being run. This will
 /// initialize the metrics server and tracing as well.
 pub async fn agent_main<A: BaseAgent>() -> Result<()> {
+    println!("setting agent.rs");
     if env::var("ONELINE_BACKTRACES")
         .map(|v| v.to_lowercase())
         .as_deref()
@@ -63,8 +64,9 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
         #[cfg(feature = "color_eyre")]
         color_eyre::install()?;
     }
-
+    // println!("Settings: {:#?}", settings.as_ref());
     let settings = A::Settings::new()?;
+    
     let core_settings: &Settings = settings.as_ref();
 
     let metrics = settings.as_ref().metrics(A::AGENT_NAME)?;

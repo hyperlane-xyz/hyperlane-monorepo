@@ -123,29 +123,56 @@ fn main() -> ExitCode {
         "RUST_BACKTRACE" => "full",
         "HYP_BASE_TRACING_FMT" => "pretty",
         "HYP_BASE_TRACING_LEVEL" => "debug",
-        "HYP_BASE_CHAINS_TEST1_INDEX_CHUNK" => "1",
-        "HYP_BASE_CHAINS_TEST2_INDEX_CHUNK" => "1",
+        "HYP_BASE_CHAINS_ETHEREUM_INDEX_CHUNK" => "1",
+        "HYP_BASE_CHAINS_OPTIMISM_INDEX_CHUNK" => "1",
     };
 
+    // let common_env = hashmap! {
+    //     "RUST_BACKTRACE" => "full",
+    //     "HYP_BASE_TRACING_FMT" => "pretty",
+    //     "HYP_BASE_TRACING_LEVEL" => "debug",
+    //     "HYP_BASE_CHAINS_TEST1_INDEX_CHUNK" => "1",
+    //     "HYP_BASE_CHAINS_TEST2_INDEX_CHUNK" => "1",
+    // };
+
     let relayer_env = hashmap! {
-        "HYP_BASE_CHAINS_TEST1_CONNECTION_TYPE" => "http",
-        "HYP_BASE_CHAINS_TEST2_CONNECTION_TYPE" => "http",
+        "HYP_BASE_CHAINS_ETHEREUM_CONNECTION_TYPE" => "http",
+        "HYP_BASE_CHAINS_OPTIMISM_CONNECTION_TYPE" => "http",
         "HYP_BASE_METRICS" => "9092",
         "HYP_BASE_DB" => relayer_db.to_str().unwrap(),
-        "HYP_BASE_CHAINS_TEST1_SIGNER_KEY" => RELAYER_KEYS[0],
-        "HYP_BASE_CHAINS_TEST2_SIGNER_KEY" => RELAYER_KEYS[1],
-        "HYP_BASE_RELAYCHAINS" => "test1,test2",
+        "HYP_BASE_CHAINS_ETHEREUM_SIGNER_KEY" => RELAYER_KEYS[0],
+        "HYP_BASE_CHAINS_OPTIMISM_SIGNER_KEY" => RELAYER_KEYS[1],
+        "HYP_BASE_RELAYCHAINS" => "ethereum,optimism",
         "HYP_RELAYER_ALLOWLOCALCHECKPOINTSYNCERS" => "true",
     };
 
+    // let relayer_env = hashmap! {
+    //     "HYP_BASE_CHAINS_TEST1_CONNECTION_TYPE" => "http",
+    //     "HYP_BASE_CHAINS_TEST2_CONNECTION_TYPE" => "http",
+    //     "HYP_BASE_METRICS" => "9092",
+    //     "HYP_BASE_DB" => relayer_db.to_str().unwrap(),
+    //     "HYP_BASE_CHAINS_TEST1_SIGNER_KEY" => RELAYER_KEYS[0],
+    //     "HYP_BASE_CHAINS_TEST2_SIGNER_KEY" => RELAYER_KEYS[1],
+    //     "HYP_BASE_RELAYCHAINS" => "test1,test2",
+    //     "HYP_RELAYER_ALLOWLOCALCHECKPOINTSYNCERS" => "true",
+    // };
+
     // test using args
     let relayer_args = [
-        "--chains.test1.connection.url=\"http://127.0.0.1:8546\"",
-        "--chains.test2.connection.url=\"http://127.0.0.1:8547\"",
+        "--chains.ethereum.connection.url=\"http://127.0.0.1:8546\"",
+        "--chains.optimism.connection.url=\"http://127.0.0.1:8547\"",
         // default is used for TEST3
         "--defaultSigner.key", RELAYER_KEYS[2],
-        "--relayChains=test1,test2",
+        "--relayChains=ethereum,optimism",
     ];
+
+    // let relayer_args = [
+    //     "--chains.test1.connection.url=\"http://127.0.0.1:8546\"",
+    //     "--chains.test2.connection.url=\"http://127.0.0.1:8547\"",
+    //     // default is used for TEST3
+    //     "--defaultSigner.key", RELAYER_KEYS[2],
+    //     "--relayChains=test1,test2",
+    // ];
 
     if !log_all {
         println!("Logs in {}", log_dir.display());
@@ -186,7 +213,7 @@ fn main() -> ExitCode {
     state.log_all = log_all;
 
     println!("Launching anvil for l1 (forked from eth Mainnet)...");
-    let mut args = ["--fork-url", "https://rpc.ankr.com/eth", "--chain-id", "31337", "--port", "8546"];
+    let mut args = ["--fork-url", "https://eth.llamarpc.com", "--chain-id", "31337", "--port", "8546"];
     let mut l1_node = Command::new("anvil");
     l1_node.args(&args);
     if log_all {
@@ -199,7 +226,7 @@ fn main() -> ExitCode {
     state.l1_node = Some(l1_node);
 
     println!("Launching anvil for l2 (forked from optimsim Mainnet)...");
-    args[1] = "https://rpc.ankr.com/optimism";
+    args[1] = "https://mainnet.optimism.io";
     args[5] = "8547";
     let mut l2_node = Command::new("anvil");
     l2_node.args(&args);
@@ -228,6 +255,8 @@ fn main() -> ExitCode {
 
     build_rust.join().unwrap();
 
+    println!("relayer_Env: {:?}", relayer_env.clone());
+
     let (relayer, relayer_stdout, relayer_stderr) = run_agent(
         "relayer",
         &relayer_env.into_iter().chain(common_env.clone()).collect(),
@@ -236,6 +265,9 @@ fn main() -> ExitCode {
         log_all,
         &log_dir,
     );
+    println!("relayer: {:?}", relayer);
+    println!("relayer_Args: {:?}", relayer_args);
+    
     state.watchers.push(relayer_stdout);
     state.watchers.push(relayer_stderr);
     state.relayer = Some(relayer);

@@ -324,7 +324,7 @@ export const bsctestnet: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   displayName: 'BSC Testnet',
   nativeToken: bnbToken,
-  publicRpcUrls: [{ http: 'https://data-seed-prebsc-1-s3.binance.org:8545s' }],
+  publicRpcUrls: [{ http: 'https://data-seed-prebsc-1-s3.binance.org:8545' }],
   blockExplorers: [
     {
       name: 'BscScan',
@@ -790,5 +790,10 @@ export const testnetChainsMetadata: Array<ChainMetadata> = Testnets.map(
 );
 
 export function isValidChainMetadata(c: ChainMetadata): boolean {
-  return ChainMetadataSchema.safeParse(c).success;
+  const parsing = ChainMetadataSchema.safeParse(c);
+  if (!parsing.success) {
+    // @ts-ignore
+    console.log(parsing.error);
+  }
+  return parsing.success;
 }

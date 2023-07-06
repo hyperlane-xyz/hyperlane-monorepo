@@ -173,8 +173,3 @@ export {
 } from './utils/objects';
 export { delay } from './utils/time';
 export { chainMetadataToWagmiChain } from './utils/wagmi';
-export {
-  getMainnetAddress,
-  getHookAddress,
-  changeTestAddress,
-} from './hook/utils';

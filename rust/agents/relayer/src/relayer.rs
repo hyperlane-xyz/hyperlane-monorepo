@@ -237,6 +237,8 @@ impl BaseAgent for Relayer {
     async fn run(self) -> Instrumented<JoinHandle<Result<()>>> {
         let mut tasks = vec![];
 
+        println!("relayer::run");
+
         // send channels by destination chain
         let mut send_channels = HashMap::with_capacity(self.destination_chains.len());
         for destination in &self.destination_chains {

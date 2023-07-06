@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, sync::Arc};
+use std::{marker::PhantomData, sync::Arc, time::Duration};
 
 use derive_new::new;
 
@@ -74,6 +74,8 @@ where
                         estimated_time_to_sync = fmt_sync_time(eta),
                         "Found log(s) in block range"
                     );
+
+                    sleep(Duration::from_secs(5)).await;
                     // Store deliveries
                     let stored = self.db.store_logs(&logs).await?;
                     // Report amount of deliveries stored into db
