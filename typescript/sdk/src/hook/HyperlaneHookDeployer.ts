@@ -45,6 +45,10 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     hookConfig: HookConfig,
   ): Promise<HyperlaneContracts<HookFactories>> {
     let optimismISM, optimismMessageHook, testRecipient;
+    this.logger(
+      `Deploying ${hookConfig.nativeType} on ${chain} with config`,
+      hookConfig,
+    );
     if (hookConfig.nativeType === NativeType.ISM) {
       optimismISM = await this.deployOptimismISM(
         chain,
@@ -115,6 +119,9 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     optimismISM: types.Address,
   ): Promise<OptimismMessageHook> {
     const signer = this.multiProvider.getSigner(chain);
+    this.logger('multiProvider:specific', this.multiProvider.metadata[chain]);
+    this.logger('multiProvider:test1', this.multiProvider.metadata['test1']);
+    this.logger('signer', signer);
 
     const optimismMessageHook = await new OptimismMessageHook__factory(
       signer,

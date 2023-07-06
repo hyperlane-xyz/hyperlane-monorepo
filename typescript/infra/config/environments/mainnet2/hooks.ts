@@ -9,7 +9,7 @@ import {
 import { owners } from './owners';
 
 export const hooks: ChainMap<HookConfig> = objMap(owners, (chain) => {
-  if (chain === 'test1') {
+  if (chain === 'ethereum') {
     return {
       nativeType: NativeType.HOOK,
       nativeBridge: '0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1',

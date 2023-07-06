@@ -39,11 +39,12 @@ async function check() {
 
   // must rotate to forked provider before building core contracts
   if (fork) {
-    await useLocalProvider(multiProvider, fork);
+    const onlyFork = fork[0];
+    await useLocalProvider(multiProvider, onlyFork, 'http://127.0.0.1:8545');
     if (govern) {
-      const owner = config.core[fork].owner;
-      const signer = await impersonateAccount(owner);
-      multiProvider.setSigner(fork, signer);
+      const owner = config.core[onlyFork].owner;
+      const signer = await impersonateAccount(owner, 'http://127.0.0.1:8545');
+      multiProvider.setSigner(onlyFork, signer);
     }
   }
 
@@ -87,9 +88,10 @@ async function check() {
   }
 
   if (fork) {
-    await governor.checker.checkChain(fork);
+    const onlyFork = fork[0];
+    await governor.checker.checkChain(onlyFork.toString());
     if (govern) {
-      await governor.govern(false, fork);
+      await governor.govern(false, onlyFork.toString());
     }
   } else {
     await governor.checker.check();
