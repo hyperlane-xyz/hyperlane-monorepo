@@ -94,8 +94,6 @@ async function main() {
     multiProvider.setSigner(fork[0], signer1);
     multiProvider.setSigner(fork[1], signer2);
 
-    console.log('multi21', multiProvider);
-
     // const newProvider = new MultiProvider();
 
     // // anvil --fork-url https://rpc.ankr.com/optimism --chain-id 31337 --port 8546
@@ -116,6 +114,20 @@ async function main() {
       throw new Error(`No hook config for ${environment}`);
     }
     config = envConfig.hooks;
+
+    config = {
+      ethereum: {
+        nativeType: 'hook',
+        nativeBridge: '0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1',
+        remoteIsm: '0x4c5859f0f772848b2d91f1d83e2fe57935348029', // dummy
+        destinationDomain: 10,
+      },
+      optimism: {
+        nativeType: 'ism',
+        nativeBridge: '0x4200000000000000000000000000000000000007',
+      },
+    };
+    console.log('DEPLOY: config', config);
 
     deployer = new HyperlaneHookDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {

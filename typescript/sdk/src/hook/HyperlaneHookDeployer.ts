@@ -32,10 +32,12 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     configMap: ChainMap<HookConfig>,
   ): Promise<HyperlaneContractsMap<HookFactories>> {
     const deployedContractMap = await super.deploy(configMap);
-    const hookAddress = deployedContractMap.test1.optimismMessageHook.address;
+    this.logger('deployedContractMap', deployedContractMap);
+    const hookAddress =
+      deployedContractMap.ethereum.optimismMessageHook.address;
 
     this.logger(`Setting hook address ${hookAddress} for OptimismISM`);
-    await deployedContractMap.test2.optimismISM.setOptimismHook(hookAddress);
+    await deployedContractMap.optimism.optimismISM.setOptimismHook(hookAddress);
 
     return deployedContractMap;
   }
@@ -92,8 +94,6 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       nativeBridge,
     );
 
-    await this.multiProvider.handleTx(chain, optimsimISM.deployTransaction);
-
     this.logger(`Deployed OptimismISM on ${chain} at ${optimsimISM.address}`);
     return optimsimISM;
   }
@@ -106,8 +106,6 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
 
     const testRecipient = await new TestRecipient__factory(signer).deploy();
 
-    await this.multiProvider.handleTx(chain, testRecipient.deployTransaction);
-
     await testRecipient.setInterchainSecurityModule(ism);
     return testRecipient;
   }
@@ -119,18 +117,10 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     optimismISM: types.Address,
   ): Promise<OptimismMessageHook> {
     const signer = this.multiProvider.getSigner(chain);
-    this.logger('multiProvider:specific', this.multiProvider.metadata[chain]);
-    this.logger('multiProvider:test1', this.multiProvider.metadata['test1']);
-    this.logger('signer', signer);
 
     const optimismMessageHook = await new OptimismMessageHook__factory(
       signer,
     ).deploy(destinationDomain, nativeBridge, optimismISM);
-
-    await this.multiProvider.handleTx(
-      chain,
-      optimismMessageHook.deployTransaction,
-    );
     this.logger(
       `Deployed OptimismMessageHook on ${chain} at ${optimismMessageHook.address}`,
     );
