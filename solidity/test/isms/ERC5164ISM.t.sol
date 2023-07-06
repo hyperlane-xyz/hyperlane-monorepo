@@ -3,14 +3,14 @@ pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 
-import {Message} from "../../../contracts/libs/Message.sol";
-import {TypeCasts} from "../../../contracts/libs/TypeCasts.sol";
+import {Message} from "../../contracts/libs/Message.sol";
+import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 
-import {IMessageDispatcher} from "../../../contracts/hooks/ERC5164/interfaces/IMessageDispatcher.sol";
-import {ERC5164MessageHook} from "../../../contracts/hooks/ERC5164MessageHook.sol";
-import {ERC5164ISM} from "../../../contracts/isms/native/ERC5164ISM.sol";
-import {TestRecipient} from "../../../contracts/test/TestRecipient.sol";
-import {MockMessageDispatcher, MockMessageExecutor} from "./MockERC5164.sol";
+import {IMessageDispatcher} from "../../contracts/hooks/ERC5164/interfaces/IMessageDispatcher.sol";
+import {ERC5164MessageHook} from "../../contracts/hooks/ERC5164MessageHook.sol";
+import {ERC5164ISM} from "../../contracts/isms/native/ERC5164ISM.sol";
+import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
+import {MockMessageDispatcher, MockMessageExecutor} from "../../contracts/mock/MockERC5164.sol";
 
 contract ERC5164ISMTest is Test {
     using TypeCasts for address;
@@ -29,6 +29,10 @@ contract ERC5164ISMTest is Test {
     bytes internal testMessage =
         abi.encodePacked("Hello from the other chain!");
     address internal alice = address(0x1);
+
+    // req for most tests
+    bytes encodedMessage = _encodeTestMessage(0, address(testRecipient));
+    bytes32 messageId = Message.id(encodedMessage);
 
     event MessageDispatched(
         bytes32 indexed messageId,
@@ -61,7 +65,7 @@ contract ERC5164ISMTest is Test {
     ///                            TESTS                            ///
     ///////////////////////////////////////////////////////////////////
 
-    function test_RevertWhen_Constructor() public {
+    function test_constructor() public {
         vm.expectRevert("ERC5164ISM: invalid executor");
         ism = new ERC5164ISM(alice);
 
@@ -79,12 +83,8 @@ contract ERC5164ISMTest is Test {
         );
     }
 
-    function test_PostDispatch() public {
+    function test_postDispatch() public {
         deployContracts();
-
-        bytes32 messageId = Message.id(
-            _encodeTestMessage(0, address(testRecipient))
-        );
 
         bytes memory encodedHookData = abi.encodeCall(
             ERC5164ISM.verifyMessageId,
@@ -104,12 +104,8 @@ contract ERC5164ISMTest is Test {
         hook.postDispatch(TEST2_DOMAIN, messageId);
     }
 
-    function test_PostDispatch_RevertWhen_ChainIDNotSupported() public {
+    function test_postDispatch_RevertWhen_ChainIDNotSupported() public {
         deployContracts();
-
-        bytes32 messageId = Message.id(
-            _encodeTestMessage(0, address(testRecipient))
-        );
 
         vm.expectRevert("ERC5164Hook: invalid destination domain");
         hook.postDispatch(3, messageId);
@@ -117,12 +113,8 @@ contract ERC5164ISMTest is Test {
 
     /* ============ ISM.verifyMessageId ============ */
 
-    function test_VerifyMessageId() public {
+    function test_verifyMessageId() public {
         deployContracts();
-
-        bytes32 messageId = Message.id(
-            _encodeTestMessage(0, address(testRecipient))
-        );
 
         vm.startPrank(address(executor));
 
@@ -135,12 +127,8 @@ contract ERC5164ISMTest is Test {
         vm.stopPrank();
     }
 
-    function test_VerifyMessageId_RevertWhen_NotAuthorized() public {
+    function test_verifyMessageId_RevertWhen_NotAuthorized() public {
         deployContracts();
-
-        bytes32 messageId = Message.id(
-            _encodeTestMessage(0, address(testRecipient))
-        );
 
         vm.startPrank(alice);
 
@@ -153,14 +141,8 @@ contract ERC5164ISMTest is Test {
 
     /* ============ ISM.verify ============ */
 
-    function test_Verify() public {
+    function test_verify() public {
         deployContracts();
-
-        bytes memory encodedMessage = _encodeTestMessage(
-            0,
-            address(testRecipient)
-        );
-        bytes32 messageId = Message.id(encodedMessage);
 
         vm.startPrank(address(executor));
 
@@ -172,12 +154,8 @@ contract ERC5164ISMTest is Test {
         vm.stopPrank();
     }
 
-    function test_Verify_RevertWhen_InvalidMessage() public {
+    function test_verify_RevertWhen_InvalidMessage() public {
         deployContracts();
-
-        bytes32 messageId = Message.id(
-            _encodeTestMessage(0, address(testRecipient))
-        );
 
         vm.startPrank(address(executor));
 
@@ -190,14 +168,8 @@ contract ERC5164ISMTest is Test {
         vm.stopPrank();
     }
 
-    function test_Verify_RevertWhen_InvalidSender() public {
+    function test_verify_RevertWhen_InvalidSender() public {
         deployContracts();
-
-        bytes memory encodedMessage = _encodeTestMessage(
-            0,
-            address(testRecipient)
-        );
-        bytes32 messageId = Message.id(encodedMessage);
 
         vm.startPrank(address(executor));
 
@@ -214,16 +186,17 @@ contract ERC5164ISMTest is Test {
     function _encodeTestMessage(uint32 _msgCount, address _receipient)
         internal
         view
-        returns (bytes memory encodedMessage)
+        returns (bytes memory)
     {
-        encodedMessage = abi.encodePacked(
-            VERSION,
-            _msgCount,
-            TEST1_DOMAIN,
-            TypeCasts.addressToBytes32(address(this)),
-            TEST2_DOMAIN,
-            TypeCasts.addressToBytes32(_receipient),
-            testMessage
-        );
+        return
+            abi.encodePacked(
+                VERSION,
+                _msgCount,
+                TEST1_DOMAIN,
+                TypeCasts.addressToBytes32(address(this)),
+                TEST2_DOMAIN,
+                TypeCasts.addressToBytes32(_receipient),
+                testMessage
+            );
     }
 }
