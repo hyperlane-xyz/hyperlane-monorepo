@@ -8,7 +8,7 @@ use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
 };
 use hyperlane_core::{
-    config::*, CcipReadIsm, ContractLocator, HyperlaneAbi, HyperlaneDomain,
+    config::*, AggregationIsm, CcipReadIsm, ContractLocator, HyperlaneAbi, HyperlaneDomain,
     HyperlaneDomainProtocol, HyperlaneProvider, HyperlaneSigner, Indexer, InterchainGasPaymaster,
     InterchainGasPayment, InterchainSecurityModule, Mailbox, MessageIndexer, MultisigIsm,
     RoutingIsm, ValidatorAnnounce, H160, H256,
@@ -521,6 +521,29 @@ impl ChainConf {
         match &self.connection()? {
             ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(conf, &locator, metrics, h_eth::RoutingIsmBuilder {})
+                    .await
+            }
+
+            ChainConnectionConf::Fuel(_) => todo!(),
+        }
+        .context(ctx)
+    }
+
+    /// Try to convert the chain setting into an AggregationIsm Ism contract
+    pub async fn build_aggregation_ism(
+        &self,
+        address: H256,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn AggregationIsm>> {
+        let ctx = "Building aggregation ISM";
+        let locator = ContractLocator {
+            domain: &self.domain,
+            address,
+        };
+
+        match &self.connection()? {
+            ChainConnectionConf::Ethereum(conf) => {
+                self.build_ethereum(conf, &locator, metrics, h_eth::AggregationIsmBuilder {})
                     .await
             }
 

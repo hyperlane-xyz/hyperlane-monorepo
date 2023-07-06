@@ -1,3 +1,4 @@
+pub use aggregation_ism::*;
 pub use ccip_read_ism::*;
 pub use cursor::*;
 pub use db::*;
@@ -13,6 +14,7 @@ pub use routing_ism::*;
 pub use signing::*;
 pub use validator_announce::*;
 
+mod aggregation_ism;
 mod ccip_read_ism;
 mod cursor;
 mod db;
