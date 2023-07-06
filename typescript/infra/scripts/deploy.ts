@@ -1,4 +1,4 @@
-import { providers } from 'ethers';
+// import { providers } from 'ethers';
 import path from 'path';
 
 import {
@@ -13,7 +13,6 @@ import {
   InterchainAccountDeployer,
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
-  MultiProvider, // MultiProvider,
   objMap,
 } from '@hyperlane-xyz/sdk';
 
@@ -41,18 +40,20 @@ async function main() {
   const envConfig = getEnvironmentConfig(environment);
   const multiProvider = await envConfig.getMultiProvider();
 
-  if (fork) {
-    await useLocalProvider(multiProvider, fork);
+  // if (fork) {
+  //   await useLocalProvider(multiProvider, fork, 'localhost:8545');
 
-    // TODO: make this more generic
-    const deployerAddress =
-      environment === 'testnet3'
-        ? '0xfaD1C94469700833717Fa8a3017278BC1cA8031C'
-        : '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
+  //   // TODO: make this more generic
+  //   const deployerAddress =
+  //     environment === 'testnet3'
+  //       ? '0xfaD1C94469700833717Fa8a3017278BC1cA8031C'
+  //       : '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 
-    const signer = await impersonateAccount(deployerAddress);
-    multiProvider.setSigner(fork, signer);
-  }
+  //   const signer = await impersonateAccount(deployerAddress);
+  //   multiProvider.setSigner(fork, signer);
+
+  //   console.log('fork', fork);
+  // }
 
   let config: ChainMap<unknown> = {};
   let deployer: HyperlaneDeployer<any, any>;
@@ -69,33 +70,54 @@ async function main() {
     );
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   } else if (module === Modules.HOOK) {
-    // multiProvider.metadata = filteredMetadata;
+    if (fork) {
+      console.log('fork', fork);
+    }
 
-    const newProvider = new MultiProvider();
+    if (fork?.length !== 2) {
+      throw new Error('fork must be a array of two forks');
+    }
 
-    // console.log('filteredMetadata', filteredMetadata);
-    // console.log('newProvider', newProvider);
+    await useLocalProvider(multiProvider, fork[0], 'http://127.0.0.1:8546');
+    await useLocalProvider(multiProvider, fork[1], 'http://127.0.0.1:8547');
 
-    // anvil --fork-url https://rpc.ankr.com/optimism --chain-id 31337 --port 8546
-    const ethForked = new providers.JsonRpcProvider('http://localhost:8546');
-    // anvil --fork-url https://rpc.ankr.com/optimism --chain-id 31337 --port 8547
-    const opForked = new providers.JsonRpcProvider('http://localhost:8547');
-
-    newProvider.setSigner(
-      'ethereum',
-      ethForked.getSigner('0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'),
+    const deployerAddress = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
+    const signer1 = await impersonateAccount(
+      deployerAddress,
+      'http://127.0.0.1:8546',
     );
-    newProvider.setSigner(
-      'optimism',
-      opForked.getSigner('0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'),
+    const signer2 = await impersonateAccount(
+      deployerAddress,
+      'http://127.0.0.1:8547',
     );
+
+    multiProvider.setSigner(fork[0], signer1);
+    multiProvider.setSigner(fork[1], signer2);
+
+    console.log('multi21', multiProvider);
+
+    // const newProvider = new MultiProvider();
+
+    // // anvil --fork-url https://rpc.ankr.com/optimism --chain-id 31337 --port 8546
+    // const ethForked = new providers.JsonRpcProvider('http://localhost:8546');
+    // // anvil --fork-url https://rpc.ankr.com/optimism --chain-id 31337 --port 8547
+    // const opForked = new providers.JsonRpcProvider('http://localhost:8547');
+
+    // newProvider.setSigner(
+    //   'ethereum',
+    //   ethForked.getSigner('0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'),
+    // );
+    // newProvider.setSigner(
+    //   'optimism',
+    //   opForked.getSigner('0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'),
+    // );
 
     if (!envConfig.hooks) {
       throw new Error(`No hook config for ${environment}`);
     }
     config = envConfig.hooks;
 
-    deployer = new HyperlaneHookDeployer(newProvider);
+    deployer = new HyperlaneHookDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);
@@ -172,7 +194,15 @@ async function main() {
         }
       : undefined;
 
-  await deployWithArtifacts(config, deployer, cache, fork, agentConfig);
+  if (fork && fork[0]) {
+    await deployWithArtifacts(
+      config,
+      deployer,
+      cache,
+      fork[0].toString(),
+      agentConfig,
+    );
+  }
 }
 
 main()

@@ -74,8 +74,18 @@ export function withModuleAndFork<T>(args: yargs.Argv<T>) {
     .demandOption('module')
     .alias('m', 'module')
 
-    .describe('fork', 'network to fork')
-    .choices('fork', Object.values(Chains))
+    .describe('fork', 'networks to fork')
+    .array('fork')
+    .check((argv) => {
+      if (
+        argv.fork &&
+        argv.fork.every((f) => Object.values(Chains).includes(f as Chains))
+      ) {
+        return true;
+      } else {
+        throw new Error('fork must be an array of valid Chains');
+      }
+    })
     .alias('f', 'fork');
 }
 
