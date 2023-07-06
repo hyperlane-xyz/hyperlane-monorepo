@@ -54,6 +54,10 @@ pub trait PendingOperation {
     /// This is only used for sorting, the functions are responsible for
     /// returning `NotReady` if it is too early and matters.
     fn _next_attempt_after(&self) -> Option<Instant>;
+
+    #[cfg(test)]
+    /// Set the number of times this operation has been retried.
+    fn set_retries(&mut self, retries: u32);
 }
 
 /// A "dynamic" pending operation implementation which knows about the
