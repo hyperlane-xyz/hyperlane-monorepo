@@ -19,7 +19,7 @@ use crate::{ChainResult, HyperlaneContract};
     BorshDeserialize,
     BorshSerialize,
 )]
-#[cfg_attr(not(target_os = "solana"), derive(strum::Display))]
+#[cfg_attr(feature = "strum", derive(strum::Display))]
 pub enum ModuleType {
     /// INVALID ISM
     #[default]

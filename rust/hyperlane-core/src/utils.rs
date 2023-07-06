@@ -55,9 +55,16 @@ pub fn fmt_bytes(bytes: &[u8]) -> String {
 
 /// Format a domain id as a name if it is known or just the number if not.
 pub fn fmt_domain(domain: u32) -> String {
-    KnownHyperlaneDomain::try_from(domain)
-        .map(|d| d.to_string())
-        .unwrap_or_else(|_| domain.to_string())
+    #[cfg(feature = "strum")]
+    {
+        KnownHyperlaneDomain::try_from(domain)
+            .map(|d| d.to_string())
+            .unwrap_or_else(|_| domain.to_string())
+    }
+    #[cfg(not(feature = "strum"))]
+    {
+        domain.to_string()
+    }
 }
 
 /// Formats the duration in the most appropriate time units.

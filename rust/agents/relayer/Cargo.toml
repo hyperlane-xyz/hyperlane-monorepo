@@ -30,7 +30,7 @@ tracing-futures.workspace = true
 tracing-subscriber.workspace = true
 tracing.workspace = true
 
-hyperlane-core = { path = "../../hyperlane-core", features = ["ethers"] }
+hyperlane-core = { path = "../../hyperlane-core", features = ["agent-set"] }
 hyperlane-base = { path = "../../hyperlane-base" }
 hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
 num-derive.workspace = true
