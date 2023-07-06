@@ -8,7 +8,7 @@ import "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 
 /**
  * @title Hyperlane ERC20Votable Token Router that extends HypERC20 with votable functionality useful for DAOs.
- * @author Abacus Works
+ * @author Arman Aurobindo @armanthepythonguy
  * @dev separate initialize function "votableInitialize"
  */
 contract HypERC20Votable is

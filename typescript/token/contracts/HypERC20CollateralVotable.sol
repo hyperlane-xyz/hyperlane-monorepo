@@ -6,7 +6,7 @@ import "@openzeppelin/contracts-upgradeable/governance/utils/IVotesUpgradeable.s
 
 /**
  * @title Hyperlane ERC20 Token Collateral that wraps an existing votable ERC20 with remote transfer functionality.
- * @author Abacus Works
+ * @author  Arman Aurobindo @armanthepythonguy
  */
 contract HypERC20CollateralVotable is HypERC20Collateral {
     constructor(address _erc20) HypERC20Collateral(_erc20) {}
