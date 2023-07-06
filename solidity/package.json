@@ -1,9 +1,9 @@
 {
   "name": "@hyperlane-xyz/core",
   "description": "Core solidity contracts for Hyperlane",
-  "version": "1.3.5",
+  "version": "1.3.7",
   "dependencies": {
-    "@hyperlane-xyz/utils": "1.3.5",
+    "@hyperlane-xyz/utils": "1.3.7",
     "@openzeppelin/contracts": "^4.8.0",
     "@openzeppelin/contracts-upgradeable": "^4.8.0"
   },
@@ -32,7 +32,8 @@
   "files": [
     "/dist",
     "/contracts",
-    "/interfaces"
+    "/interfaces",
+    "/docs"
   ],
   "homepage": "https://www.hyperlane.xyz",
   "keywords": [
@@ -47,6 +48,7 @@
     "lint": "solhint contracts/**/*.sol",
     "clean": "hardhat clean && rm -rf ./dist ./cache",
     "coverage": "hardhat coverage && forge coverage --report lcov",
+    "docs": "forge doc",
     "prettier": "prettier --write ./contracts ./test",
     "test": "hardhat test && yarn test:forge",
     "test:forge": "forge test -vvv",
