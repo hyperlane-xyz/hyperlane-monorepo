@@ -693,7 +693,6 @@ export const gnosis: ChainMetadata = {
 
 export const solanadevnet: ChainMetadata = {
   chainId: 1399811151,
-  domainId: 13375, // TODO change after next deployment
   name: Chains.solanadevnet,
   protocol: ProtocolType.Sealevel,
   displayName: 'Solana Devnet',
@@ -714,8 +713,7 @@ export const solanadevnet: ChainMetadata = {
 };
 
 export const zbctestnet: ChainMetadata = {
-  chainId: 1399811152,
-  domainId: 13376, // TODO change after next deployment
+  chainId: 2053254516,
   name: Chains.zbctestnet,
   protocol: ProtocolType.Sealevel,
   displayName: 'Solana Devnet 1',
