@@ -82,10 +82,10 @@ const hyperlane: RootAgentConfig = {
     },
     chainDockerOverrides: {
       [chainMetadata.solanadevnet.name]: {
-        tag: '29b6bd2-20230620-134737',
+        tag: 'a267194-20230706-142820',
       },
       [chainMetadata.zbctestnet.name]: {
-        tag: '29b6bd2-20230620-134737',
+        tag: 'a267194-20230706-142820',
       },
     },
     chains: validators,
@@ -107,7 +107,7 @@ const releaseCandidate: RootAgentConfig = {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: '29b6bd2-20230620-134737',
+      tag: 'a267194-20230706-142820',
     },
     whitelist: [
       ...releaseCandidateHelloworldMatchingList,
