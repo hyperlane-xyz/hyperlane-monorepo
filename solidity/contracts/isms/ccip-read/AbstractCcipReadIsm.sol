@@ -43,18 +43,4 @@ abstract contract AbstractCcipReadIsm is ICcipReadIsm {
     // solhint-disable-next-line const-name-snakecase
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.CCIP_READ);
-
-    // ============ External Functions ============
-
-    /**
-     * @notice Reverts with the data needed to query information offchain before
-     * mailbox submission
-     * @param _message the Hyperlane encoded message
-     * @return bool Ignored
-     */
-    function getOffchainVerifyInfo(bytes calldata _message)
-        external
-        view
-        virtual
-        returns (bool);
 }

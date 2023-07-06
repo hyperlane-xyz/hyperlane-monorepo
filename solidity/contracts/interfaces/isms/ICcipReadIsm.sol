@@ -9,10 +9,6 @@ interface ICcipReadIsm is IInterchainSecurityModule {
      * and be submitted via the origin mailbox
      * @dev See https://eips.ethereum.org/EIPS/eip-3668 for more information
      * @param _message data that will help construct the offchain query
-     * @return bool Ignored
      */
-    function getOffchainVerifyInfo(bytes calldata _message)
-        external
-        view
-        returns (bool);
+    function getOffchainVerifyInfo(bytes calldata _message) external view;
 }
