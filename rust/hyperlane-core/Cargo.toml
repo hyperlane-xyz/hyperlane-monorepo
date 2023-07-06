@@ -12,22 +12,24 @@ version.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 # These dependencies are incompatible with Solana programs
-[target.'cfg(not(target_os = "solana"))'.dependencies]
-ethers-contract.workspace = true
-ethers-providers.workspace = true
+#[target.'cfg(not(target_os = "solana"))'.dependencies]
+#ethers-contract.workspace = true
+#ethers-providers.workspace = true
+#ethers-core.workspace = true
+#primitive-types = { version = "*", features = ["impl-borsh", "impl-serde"] }
 
 [dependencies]
 async-trait.workspace = true
 auto_impl = "1.0"
 borsh.workspace = true
 bytes = { version = "1", features = ["serde"] }
-config = { workspace = true, optional = true }
 convert_case = "0.6"
 derive-new.workspace = true
-ethers-core.workspace = true
+derive_more.workspace = true
 eyre.workspace = true
 hex.workspace = true
 itertools.workspace = true
+lazy_static.workspace = true
 num = { workspace = true, features = ["serde"] }
 num-derive.workspace = true
 num-traits.workspace = true
@@ -36,10 +38,13 @@ serde_json.workspace = true
 sha3 = "0.10"
 strum.workspace = true
 thiserror.workspace = true
+uint = "0.9.5"
+fixed-hash = "0.8.0"
 
-lazy_static.workspace = true
-primitive-types = { version = "*", features = ["impl-borsh", "impl-serde"] }
-derive_more.workspace = true
+config = { workspace = true, optional = true }
+ethers-core = { workspace = true, optional = true }
+ethers-contract = { workspace = true, optional = true }
+ethers-providers = { workspace = true, optional = true }
 
 [dev-dependencies]
 hyperlane-base = { path = "../hyperlane-base" }
@@ -49,3 +54,4 @@ walkdir = { version = "2" }
 [features]
 default = []
 test-utils = ["dep:config"]
+ethers = ["dep:ethers-core", "dep:ethers-contract", "dep:ethers-providers"]

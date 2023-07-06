@@ -40,13 +40,17 @@ pub struct TxOutcome {
     // TODO: more? What can be abstracted across all chains?
 }
 
+#[cfg(feature = "ethers")]
 impl From<ethers_core::types::TransactionReceipt> for TxOutcome {
     fn from(t: ethers_core::types::TransactionReceipt) -> Self {
         Self {
-            txid: t.transaction_hash,
+            txid: t.transaction_hash.into(),
             executed: t.status.unwrap().low_u32() == 1,
-            gas_used: t.gas_used.unwrap_or(crate::U256::zero()),
-            gas_price: t.effective_gas_price.unwrap_or(crate::U256::zero()),
+            gas_used: t.gas_used.map(Into::into).unwrap_or(crate::U256::zero()),
+            gas_price: t
+                .effective_gas_price
+                .map(Into::into)
+                .unwrap_or(crate::U256::zero()),
         }
     }
 }

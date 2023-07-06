@@ -1,12 +1,14 @@
-pub use primitive_types::{H128, H160, H256, H512, U128, U256, U512};
+use std::fmt;
 use std::io::{Read, Write};
 use std::ops::Add;
+use serde::{Deserialize, Serialize};
 
 pub use announcement::*;
 pub use chain_data::*;
 pub use checkpoint::*;
 pub use log_metadata::*;
 pub use message::*;
+pub use primitive_types::*;
 
 use crate::{Decode, Encode, HyperlaneProtocolError};
 
@@ -19,6 +21,63 @@ mod message;
 /// Unified 32-byte identifier with convenience tooling for handling
 /// 20-byte ids (e.g ethereum addresses)
 pub mod identifiers;
+mod primitive_types;
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Copy, Hash)]
+/// An ECDSA signature
+pub struct Signature {
+    /// R value
+    pub r: U256,
+    /// S Value
+    pub s: U256,
+    /// V value
+    pub v: u64,
+}
+
+impl fmt::Display for Signature {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let sig = <[u8; 65]>::from(self);
+        write!(f, "{}", hex::encode(&sig[..]))
+    }
+}
+
+impl From<&Signature> for [u8; 65] {
+    fn from(src: &Signature) -> [u8; 65] {
+        let mut sig = [0u8; 65];
+        src.r.to_big_endian(&mut sig[0..32]);
+        src.s.to_big_endian(&mut sig[32..64]);
+        sig[64] = src.v as u8;
+        sig
+    }
+}
+
+impl From<Signature> for [u8; 65] {
+    fn from(src: Signature) -> [u8; 65] {
+        <[u8; 65]>::from(&src)
+    }
+}
+
+#[cfg(feature = "ethers")]
+impl From<ethers_core::types::Signature> for Signature {
+    fn from(value: ethers_core::types::Signature) -> Self {
+        Self {
+            r: value.r.into(),
+            s: value.s.into(),
+            v: value.v,
+        }
+    }
+}
+
+#[cfg(feature = "ethers")]
+impl From<Signature> for ethers_core::types::Signature {
+    fn from(value: Signature) -> Self {
+        Self {
+            r: value.r.into(),
+            s: value.s.into(),
+            v: value.v,
+        }
+    }
+}
 
 /// A payment of a message's gas costs.
 #[derive(Debug, Copy, Clone)]

@@ -4,7 +4,6 @@ use async_trait::async_trait;
 use auto_impl::auto_impl;
 use borsh::{BorshDeserialize, BorshSerialize};
 use num_derive::FromPrimitive;
-use strum::Display;
 
 use crate::{ChainResult, HyperlaneContract};
 
@@ -14,13 +13,13 @@ use crate::{ChainResult, HyperlaneContract};
     Clone,
     Debug,
     Default,
-    Display,
     Copy,
     PartialEq,
     Eq,
     BorshDeserialize,
     BorshSerialize,
 )]
+#[cfg_attr(not(target_os = "solana"), derive(strum::Display))]
 pub enum ModuleType {
     /// INVALID ISM
     #[default]

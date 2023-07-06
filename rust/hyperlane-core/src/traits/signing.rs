@@ -2,18 +2,18 @@ use std::fmt::{Debug, Formatter};
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
-use ethers_core::{
-    types::{Address, Signature},
-    utils::hash_message,
-};
-
 use serde::{
     ser::{SerializeStruct, Serializer},
     Deserialize, Serialize,
 };
 
 use crate::utils::fmt_bytes;
-use crate::{HyperlaneProtocolError, H160, H256};
+use crate::{Signature, H160, H256};
+
+// use ethers_core::{
+//     types::{Address, Signature},
+//     utils::hash_message,
+// };
 
 /// An error incurred by a signer
 #[derive(thiserror::Error, Debug)]
@@ -43,7 +43,8 @@ pub trait HyperlaneSignerExt {
     ) -> Result<SignedType<T>, HyperlaneSignerError>;
 
     /// Check whether a message was signed by a specific address.
-    fn verify<T: Signable>(&self, signed: &SignedType<T>) -> Result<(), HyperlaneProtocolError>;
+    #[cfg(feature = "ethers")]
+    fn verify<T: Signable>(&self, signed: &SignedType<T>) -> Result<(), crate::HyperlaneProtocolError>;
 }
 
 #[async_trait]
@@ -57,7 +58,8 @@ impl<S: HyperlaneSigner> HyperlaneSignerExt for S {
         Ok(SignedType { value, signature })
     }
 
-    fn verify<T: Signable>(&self, signed: &SignedType<T>) -> Result<(), HyperlaneProtocolError> {
+    #[cfg(feature = "ethers")]
+    fn verify<T: Signable>(&self, signed: &SignedType<T>) -> Result<(), crate::HyperlaneProtocolError> {
         signed.verify(self.eth_address())
     }
 }
@@ -71,8 +73,9 @@ pub trait Signable: Sized {
     fn signing_hash(&self) -> H256;
 
     /// EIP-191 compliant hash of the signing hash.
+    #[cfg(feature = "ethers")]
     fn eth_signed_message_hash(&self) -> H256 {
-        hash_message(self.signing_hash())
+        ethers_core::utils::hash_message(self.signing_hash()).into()
     }
 }
 
@@ -103,17 +106,20 @@ impl<T: Signable + Serialize> Serialize for SignedType<T> {
 
 impl<T: Signable> SignedType<T> {
     /// Recover the Ethereum address of the signer
-    pub fn recover(&self) -> Result<Address, HyperlaneProtocolError> {
-        Ok(self
-            .signature
-            .recover(self.value.eth_signed_message_hash())?)
+    #[cfg(feature = "ethers")]
+    pub fn recover(&self) -> Result<H160, crate::HyperlaneProtocolError> {
+        let hash = ethers_core::types::H256::from(self.value.eth_signed_message_hash());
+        let sig = ethers_core::types::Signature::from(self.signature);
+        Ok(sig.recover(hash)?.into())
     }
 
     /// Check whether a message was signed by a specific address
-    pub fn verify(&self, signer: Address) -> Result<(), HyperlaneProtocolError> {
-        Ok(self
-            .signature
-            .verify(self.value.eth_signed_message_hash(), signer)?)
+    #[cfg(feature = "ethers")]
+    pub fn verify(&self, signer: H160) -> Result<(), crate::HyperlaneProtocolError> {
+        let hash = ethers_core::types::H256::from(self.value.eth_signed_message_hash());
+        let sig = ethers_core::types::Signature::from(self.signature);
+        let signer = ethers_core::types::H160::from(signer);
+        Ok(sig.verify(hash, signer)?.into())
     }
 }
 

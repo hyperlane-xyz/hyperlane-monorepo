@@ -1,8 +1,8 @@
-use primitive_types::U256;
 use serde::Deserialize;
 use std::fmt::{Debug, Formatter};
 use std::num::{ParseIntError, TryFromIntError};
 use thiserror::Error;
+use crate::U256;
 
 /// A type which can be used for parsing configs that may be provided as a
 /// string or an integer but will ultimately be read as an integer. E.g. where

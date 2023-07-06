@@ -35,17 +35,9 @@ dependencies = [
 name = "account-utils"
 version = "0.1.0"
 dependencies = [
- "async-trait",
- "auto_impl 1.1.0",
  "borsh 0.9.3",
- "bytes",
- "config",
- "convert_case 0.6.0",
- "derive-new",
- "ethers-core",
- "eyre",
  "getrandom 0.2.10",
- "hex 0.4.3",
+ "hyperlane-core",
  "solana-program",
  "spl-type-length-value",
 ]
@@ -3674,6 +3666,7 @@ dependencies = [
  "ethers-core",
  "ethers-providers",
  "eyre",
+ "fixed-hash 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.4.3",
  "hyperlane-base",
  "itertools",
@@ -3681,13 +3674,13 @@ dependencies = [
  "num 0.4.0",
  "num-derive",
  "num-traits",
- "primitive-types",
  "serde",
  "serde_json",
  "sha3 0.10.8",
  "strum 0.24.1",
  "thiserror",
  "tokio",
+ "uint",
  "walkdir",
 ]
 
@@ -4257,14 +4250,6 @@ dependencies = [
  "sized-chunks",
  "typenum",
  "version_check",
-]
-
-[[package]]
-name = "impl-borsh"
-version = "0.1.0"
-source = "git+https://github.com/hyperlane-xyz/parity-common.git?branch=hyperlane#3c2a89084ccfc27b82fda29007b4e27215a75cb1"
-dependencies = [
- "borsh 0.9.3",
 ]
 
 [[package]]
@@ -5797,7 +5782,6 @@ version = "0.12.1"
 source = "git+https://github.com/hyperlane-xyz/parity-common.git?branch=hyperlane#3c2a89084ccfc27b82fda29007b4e27215a75cb1"
 dependencies = [
  "fixed-hash 0.8.0 (git+https://github.com/hyperlane-xyz/parity-common.git?branch=hyperlane)",
- "impl-borsh",
  "impl-codec 0.6.0 (git+https://github.com/hyperlane-xyz/parity-common.git?branch=hyperlane)",
  "impl-rlp 0.3.0 (git+https://github.com/hyperlane-xyz/parity-common.git?branch=hyperlane)",
  "impl-serde 0.4.0 (git+https://github.com/hyperlane-xyz/parity-common.git?branch=hyperlane)",
