@@ -1,6 +1,18 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+/*@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+     @@@@@  HYPERLANE  @@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+@@@@@@@@@       @@@@@@@@*/
+
 // ============ Internal Imports ============
 
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
@@ -11,7 +23,6 @@ import {TypeCasts} from "../../libs/TypeCasts.sol";
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
  * @title ArbtractNativeISM
@@ -25,13 +36,13 @@ abstract contract AbstractNativeISM is
 {
     // ============ Public Storage ============
 
-    // mapping to check if the specific messageID from a specific sender has been received
+    // mapping to check if the specific messageID is from a specific sender
     // @dev anyone can send an untrusted messageId, so need to check for that while verifying
-    mapping(bytes32 => mapping(address => bool)) public verifiedMessageIds;
+    mapping(bytes32 => bytes32) public verifiedMessageIds;
 
     // ============ Events ============
 
-    event ReceivedMessage(address indexed sender, bytes32 indexed messageId);
+    event ReceivedMessage(bytes32 indexed sender, bytes32 indexed messageId);
 
     // ============ External Functions ============
 
@@ -44,8 +55,8 @@ abstract contract AbstractNativeISM is
         bytes calldata _message
     ) external view returns (bool) {
         bytes32 _messageId = Message.id(_message);
-        address _messageSender = Message.senderAddress(_message);
+        bytes32 _messageSender = Message.sender(_message);
 
-        return verifiedMessageIds[_messageId][_messageSender];
+        return _messageSender == verifiedMessageIds[_messageId];
     }
 }
