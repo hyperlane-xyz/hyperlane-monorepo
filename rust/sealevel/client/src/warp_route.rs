@@ -382,6 +382,15 @@ fn init_warp_route_idempotent(
     let (token_pda, _token_bump) =
         Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &program_id);
 
+    if let Some(ata_payer_funding_amount) = ata_payer_funding_amount {
+        if matches!(
+            token_config.token_type,
+            TokenType::Collateral(_) | TokenType::Synthetic(_)
+        ) {
+            fund_ata_payer_up_to(ctx, client, program_id, ata_payer_funding_amount);
+        }
+    }
+
     if account_exists(client, &token_pda).unwrap() {
         println!("Token PDA already exists, skipping init");
         return Ok(());
@@ -396,6 +405,40 @@ fn init_warp_route_idempotent(
         program_id,
         ata_payer_funding_amount,
     )
+}
+
+fn fund_ata_payer_up_to(
+    ctx: &mut Context,
+    client: &RpcClient,
+    program_id: Pubkey,
+    ata_payer_funding_amount: u64,
+) {
+    let (ata_payer_account, _ata_payer_bump) = Pubkey::find_program_address(
+        hyperlane_sealevel_token::hyperlane_token_ata_payer_pda_seeds!(),
+        &program_id,
+    );
+
+    let current_balance = client.get_balance(&ata_payer_account).unwrap();
+
+    let funding_amount = ata_payer_funding_amount.saturating_sub(current_balance);
+
+    if funding_amount == 0 {
+        println!("ATA payer fully funded with balance of {}", current_balance);
+        return;
+    }
+
+    println!(
+        "Funding ATA payer {} with funding_amount {} to reach total balance of {}",
+        ata_payer_account, funding_amount, ata_payer_funding_amount
+    );
+    ctx.instructions
+        .push(solana_program::system_instruction::transfer(
+            &ctx.payer.pubkey(),
+            &ata_payer_account,
+            funding_amount,
+        ));
+    ctx.send_transaction_with_client(client, &[&ctx.payer]);
+    ctx.instructions.clear();
 }
 
 fn init_warp_route(
@@ -458,18 +501,6 @@ fn init_warp_route(
                 .unwrap(),
             );
 
-            if let Some(ata_payer_funding_amount) = ata_payer_funding_amount {
-                let (ata_payer_account, _ata_payer_bump) = Pubkey::find_program_address(
-                    hyperlane_sealevel_token::hyperlane_token_ata_payer_pda_seeds!(),
-                    &program_id,
-                );
-                instructions.push(solana_program::system_instruction::transfer(
-                    &ctx.payer.pubkey(),
-                    &ata_payer_account,
-                    ata_payer_funding_amount,
-                ));
-            }
-
             instructions
         }
         TokenType::Collateral(collateral_info) => {
@@ -486,18 +517,6 @@ fn init_warp_route(
                     collateral_info.mint.parse().expect("Invalid mint address"),
                 )?,
             ];
-
-            if let Some(ata_payer_funding_amount) = ata_payer_funding_amount {
-                let (ata_payer_account, _ata_payer_bump) = Pubkey::find_program_address(
-                    hyperlane_sealevel_token_collateral::hyperlane_token_ata_payer_pda_seeds!(),
-                    &program_id,
-                );
-                instructions.push(solana_program::system_instruction::transfer(
-                    &ctx.payer.pubkey(),
-                    &ata_payer_account,
-                    ata_payer_funding_amount,
-                ));
-            }
 
             instructions
         }
