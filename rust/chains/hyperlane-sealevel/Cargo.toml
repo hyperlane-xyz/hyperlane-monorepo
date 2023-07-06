@@ -34,7 +34,7 @@ serde_json = "1.0"
 sha2 = "0.10.0"
 tokio = { workspace = true, features = ["full"] }
 url = { workspace = true }
-rand = "*"
+rand = "0.7.3"
 # auto-resolve zstd version to avoid dependency conflicts
 zstd = "*"
 

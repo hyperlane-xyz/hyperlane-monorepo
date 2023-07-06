@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use ethers::providers::{Middleware, ProviderError};
+use ethers::providers::Middleware;
 
 use ethers_contract::builders::ContractCall;
 use hyperlane_core::{
@@ -13,6 +13,7 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H160, H256, U256,
 };
 use tracing::instrument;
+use tracing::log::trace;
 
 use crate::contracts::i_validator_announce::{
     IValidatorAnnounce as EthereumValidatorAnnounceInternal, IVALIDATORANNOUNCE_ABI,
@@ -132,21 +133,29 @@ where
         Ok(storage_locations)
     }
 
-    async fn announce_tokens_needed(
-        &self,
-        announcement: SignedType<Announcement>,
-    ) -> ChainResult<U256> {
+    #[instrument(ret, skip(self))]
+    async fn announce_tokens_needed(&self, announcement: SignedType<Announcement>) -> Option<U256> {
         let validator = announcement.value.validator;
-        let contract_call = self.announce_contract_call(announcement, None).await?;
-        if let Ok(balance) = self.provider.get_balance(validator, None).await {
-            if let Some(cost) = contract_call.tx.max_cost() {
-                Ok(cost.saturating_sub(balance))
-            } else {
-                Err(ProviderError::CustomError("Unable to get announce max cost".into()).into())
-            }
-        } else {
-            Err(ProviderError::CustomError("Unable to query balance".into()).into())
-        }
+        let Ok(contract_call) = self
+            .announce_contract_call(announcement, None)
+            .await
+        else {
+                trace!("Unable to get announce contract call");
+                return None;
+        };
+
+        let Ok(balance) = self.provider.get_balance(validator, None).await
+        else {
+            trace!("Unable to query balance");
+            return None;
+        };
+
+        let Some(max_cost) = contract_call.tx.max_cost()
+        else {
+            trace!("Unable to get announce max cost");
+            return None;
+        };
+        Some(max_cost.saturating_sub(balance))
     }
 
     #[instrument(err, ret, skip(self))]

@@ -107,8 +107,8 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
     async fn announce_tokens_needed(
         &self,
         _announcement: SignedType<Announcement>,
-    ) -> ChainResult<U256> {
-        Ok(U256::zero())
+    ) -> Option<U256> {
+        Some(U256::zero())
     }
 
     #[instrument(err, ret, skip(self))]
