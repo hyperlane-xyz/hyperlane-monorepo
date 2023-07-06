@@ -7,3 +7,6 @@ coverage/
 coverage.json
 *.swp
 .yarn/install-state.gz
+# foundry
+docs
+out
