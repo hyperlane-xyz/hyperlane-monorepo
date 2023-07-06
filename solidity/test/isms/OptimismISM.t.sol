@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import "forge-std/console.sol";
 
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {Mailbox} from "../../contracts/Mailbox.sol";
@@ -21,6 +20,8 @@ import {Encoding} from "@eth-optimism/contracts-bedrock/contracts/libraries/Enco
 import {Hashing} from "@eth-optimism/contracts-bedrock/contracts/libraries/Hashing.sol";
 
 contract OptimismISMTest is Test {
+    using TypeCasts for address;
+
     uint256 internal mainnetFork;
     uint256 internal optimismFork;
 
@@ -37,13 +38,16 @@ contract OptimismISMTest is Test {
     address internal alice = address(0x1);
 
     ICrossDomainMessenger internal l1Messenger;
-    L2CrossDomainMessenger l2Messenger;
+    L2CrossDomainMessenger internal l2Messenger;
     OptimismISM internal opISM;
     OptimismMessageHook internal opHook;
 
     TestRecipient internal testRecipient;
     bytes internal testMessage =
         abi.encodePacked("Hello from the other chain!");
+
+    bytes encodedMessage = _encodeTestMessage(0, address(testRecipient));
+    bytes32 messageId = Message.id(encodedMessage);
 
     uint32 internal constant MAINNET_DOMAIN = 1;
     uint32 internal constant OPTIMISM_DOMAIN = 10;
@@ -60,13 +64,14 @@ contract OptimismISMTest is Test {
 
     event FailedRelayedMessage(bytes32 indexed msgHash);
 
-    event ReceivedMessage(address indexed sender, bytes32 indexed messageId);
+    event ReceivedMessage(bytes32 indexed sender, bytes32 indexed messageId);
 
     error NotCrossChainCall();
 
     function setUp() public {
-        mainnetFork = vm.createFork(vm.rpcUrl("mainnet"));
-        optimismFork = vm.createFork(vm.rpcUrl("optimism"));
+        // block numbers to fork from, chain data is cached to ../../forge-cache/
+        mainnetFork = vm.createFork(vm.rpcUrl("mainnet"), 17_586_909);
+        optimismFork = vm.createFork(vm.rpcUrl("optimism"), 106_233_774);
 
         testRecipient = new TestRecipient();
     }
@@ -118,20 +123,14 @@ contract OptimismISMTest is Test {
 
     /* ============ hook.postDispatch ============ */
 
-    function testPostDispatch() public {
+    function testFork_postDispatch() public {
         deployAll();
 
         vm.selectFork(mainnetFork);
 
-        bytes memory encodedMessage = _encodeTestMessage(
-            0,
-            address(testRecipient)
-        );
-        bytes32 messageId = Message.id(encodedMessage);
-
         bytes memory encodedHookData = abi.encodeCall(
             OptimismISM.verifyMessageId,
-            (address(this), messageId)
+            (address(this).addressToBytes32(), messageId)
         );
 
         uint40 nonce = ICanonicalTransactionChain(L1_CANNONICAL_CHAIN)
@@ -149,14 +148,10 @@ contract OptimismISMTest is Test {
         opHook.postDispatch(OPTIMISM_DOMAIN, messageId);
     }
 
-    function testPostDispatch_ChainIDNotSupported() public {
+    function testFork_postDispatch_RevertWhen_ChainIDNotSupported() public {
         deployAll();
 
         vm.selectFork(mainnetFork);
-
-        bytes32 messageId = Message.id(
-            _encodeTestMessage(0, address(testRecipient))
-        );
 
         vm.expectRevert("OptimismHook: invalid destination domain");
         opHook.postDispatch(11, messageId);
@@ -164,18 +159,14 @@ contract OptimismISMTest is Test {
 
     /* ============ ISM.verifyMessageId ============ */
 
-    function testverifyMessageId() public {
+    function testFork_verifyMessageId() public {
         deployAll();
 
         vm.selectFork(optimismFork);
 
-        bytes32 messageId = Message.id(
-            _encodeTestMessage(0, address(testRecipient))
-        );
-
         bytes memory encodedHookData = abi.encodeCall(
             OptimismISM.verifyMessageId,
-            (address(this), messageId)
+            (address(this).addressToBytes32(), messageId)
         );
 
         (uint240 nonce, uint16 verison) = Encoding.decodeVersionedNonce(
@@ -200,7 +191,7 @@ contract OptimismISMTest is Test {
         );
 
         vm.expectEmit(true, true, false, false, address(opISM));
-        emit ReceivedMessage(address(this), messageId);
+        emit ReceivedMessage(address(this).addressToBytes32(), messageId);
 
         vm.expectEmit(true, false, false, false, L2_MESSENGER_ADDRESS);
         emit RelayedMessage(versionedHash);
@@ -214,20 +205,20 @@ contract OptimismISMTest is Test {
             encodedHookData
         );
 
-        assertEq(opISM.verifiedMessageIds(messageId, address(this)), true);
+        assertEq(
+            opISM.verifiedMessageIds(messageId),
+            address(this).addressToBytes32()
+        );
 
         vm.stopPrank();
     }
 
+    // will get included in https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/2410
     // function testverifyMessageId_WithValue() public {
     //     // this would fail
     //     deployAll();
 
     //     vm.selectFork(optimismFork);
-
-    //     bytes32 messageId = Message.id(
-    //         _encodeTestMessage(0, address(testRecipient))
-    //     );
 
     //     bytes memory encodedHookData = abi.encodeCall(
     //         OptimismISM.verifyMessageId,
@@ -258,20 +249,14 @@ contract OptimismISMTest is Test {
     //     vm.stopPrank();
     // }
 
-    function testverifyMessageId_NotAuthorized() public {
+    function testFork_verifyMessageId_RevertWhen_NotAuthorized() public {
         deployAll();
 
         vm.selectFork(optimismFork);
 
-        bytes memory encodedMessage = _encodeTestMessage(
-            0,
-            address(testRecipient)
-        );
-        bytes32 _messageId = Message.id(encodedMessage);
-
         // needs to be called by the cannonical messenger on Optimism
         vm.expectRevert(NotCrossChainCall.selector);
-        opISM.verifyMessageId(address(opHook), _messageId);
+        opISM.verifyMessageId(address(opHook).addressToBytes32(), messageId);
 
         // set the xDomainMessageSender storage slot as alice
         bytes32 key = bytes32(uint256(204));
@@ -282,25 +267,19 @@ contract OptimismISMTest is Test {
 
         // needs to be called by the authorized hook contract on Ethereum
         vm.expectRevert("OptimismISM: sender is not the hook");
-        opISM.verifyMessageId(address(opHook), _messageId);
+        opISM.verifyMessageId(address(opHook).addressToBytes32(), messageId);
     }
 
     /* ============ ISM.verify ============ */
 
-    function testVerify() public {
+    function testFork_verify() public {
         deployAll();
 
         vm.selectFork(optimismFork);
 
-        bytes memory encodedMessage = _encodeTestMessage(
-            0,
-            address(testRecipient)
-        );
-        bytes32 _messageId = Message.id(encodedMessage);
-
         bytes memory encodedHookData = abi.encodeCall(
             OptimismISM.verifyMessageId,
-            (address(this), _messageId)
+            (address(this).addressToBytes32(), messageId)
         );
 
         (uint240 nonce, uint16 verison) = Encoding.decodeVersionedNonce(
@@ -325,20 +304,15 @@ contract OptimismISMTest is Test {
         assertTrue(verified);
     }
 
-    function testVerify_InvalidMessage_Hyperlane() public {
+    // sending over invalid message
+    function testFork_verify_RevertWhen_HyperlaneInvalidMessage() public {
         deployAll();
 
         vm.selectFork(optimismFork);
 
-        bytes memory encodedMessage = _encodeTestMessage(
-            0,
-            address(testRecipient)
-        );
-        bytes32 _messageId = Message.id(encodedMessage);
-
         bytes memory encodedHookData = abi.encodeCall(
             OptimismISM.verifyMessageId,
-            (address(this), _messageId)
+            (address(this).addressToBytes32(), messageId)
         );
 
         (uint240 nonce, uint16 verison) = Encoding.decodeVersionedNonce(
@@ -364,21 +338,18 @@ contract OptimismISMTest is Test {
         assertFalse(verified);
     }
 
-    function testVerify_InvalidMessageID_Optimism() public {
+    // invalid messageID in postDispatch
+    function testFork_verify_RevertWhen_InvalidOptimismMessageID() public {
         deployAll();
 
         vm.selectFork(optimismFork);
 
-        bytes memory encodedMessage = _encodeTestMessage(
-            0,
-            address(testRecipient)
-        );
         bytes memory invalidMessage = _encodeTestMessage(0, address(this));
         bytes32 _messageId = Message.id(invalidMessage);
 
         bytes memory encodedHookData = abi.encodeCall(
             OptimismISM.verifyMessageId,
-            (address(this), _messageId)
+            (address(this).addressToBytes32(), _messageId)
         );
 
         (uint240 nonce, uint16 verison) = Encoding.decodeVersionedNonce(
@@ -403,20 +374,14 @@ contract OptimismISMTest is Test {
         assertFalse(verified);
     }
 
-    function testVerify_InvalidSender() public {
+    function testFork_verify_RevertWhen_InvalidSender() public {
         deployAll();
 
         vm.selectFork(optimismFork);
 
-        bytes memory encodedMessage = _encodeTestMessage(
-            0,
-            address(testRecipient)
-        );
-        bytes32 _messageId = Message.id(encodedMessage);
-
         bytes memory encodedHookData = abi.encodeCall(
             OptimismISM.verifyMessageId,
-            (alice, _messageId)
+            (alice.addressToBytes32(), messageId)
         );
 
         (uint240 nonce, uint16 verison) = Encoding.decodeVersionedNonce(
@@ -446,16 +411,17 @@ contract OptimismISMTest is Test {
     function _encodeTestMessage(uint32 _msgCount, address _receipient)
         internal
         view
-        returns (bytes memory encodedMessage)
+        returns (bytes memory)
     {
-        encodedMessage = abi.encodePacked(
-            VERSION,
-            _msgCount,
-            MAINNET_DOMAIN,
-            TypeCasts.addressToBytes32(address(this)),
-            OPTIMISM_DOMAIN,
-            TypeCasts.addressToBytes32(_receipient),
-            testMessage
-        );
+        return
+            abi.encodePacked(
+                VERSION,
+                _msgCount,
+                MAINNET_DOMAIN,
+                TypeCasts.addressToBytes32(address(this)),
+                OPTIMISM_DOMAIN,
+                TypeCasts.addressToBytes32(_receipient),
+                testMessage
+            );
     }
 }
