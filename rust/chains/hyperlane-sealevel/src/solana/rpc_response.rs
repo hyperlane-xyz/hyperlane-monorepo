@@ -3,7 +3,7 @@ use {
     crate::solana::client_error,
     // solana_sdk::{
     crate::solana::clock::{Epoch, Slot, UnixTimestamp},
-    //     fee_calculator::{FeeCalculator, FeeRateGovernor},
+        fee_calculator::{FeeCalculator, FeeRateGovernor},
     //     hash::Hash,
     //     inflation::Inflation,
     crate::solana::transaction::{Result, TransactionError},
@@ -126,11 +126,11 @@ pub struct RpcBlockhash {
 //     pub last_valid_block_height: u64,
 // }
 
-// #[derive(Serialize, Deserialize, Clone, Debug)]
-// #[serde(rename_all = "camelCase")]
-// pub struct RpcFeeCalculator {
-//     pub fee_calculator: FeeCalculator,
-// }
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct RpcFeeCalculator {
+    pub fee_calculator: FeeCalculator,
+}
 
 // #[derive(Serialize, Deserialize, Clone, Debug)]
 // #[serde(rename_all = "camelCase")]

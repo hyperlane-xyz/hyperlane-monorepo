@@ -192,14 +192,14 @@ impl From<serde_json::error::Error> for ClientError {
 //     }
 // }
 
-// impl From<TransactionError> for ClientError {
-//     fn from(err: TransactionError) -> Self {
-//         Self {
-//             request: None,
-//             kind: err.into(),
-//         }
-//     }
-// }
+impl From<TransactionError> for ClientError {
+    fn from(err: TransactionError) -> Self {
+        Self {
+            request: None,
+            kind: err.into(),
+        }
+    }
+}
 
 // impl From<FaucetError> for ClientError {
 //     fn from(err: FaucetError) -> Self {

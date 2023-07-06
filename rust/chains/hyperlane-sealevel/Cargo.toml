@@ -37,6 +37,8 @@ url = { workspace = true }
 rand = "0.7.3"
 # auto-resolve zstd version to avoid dependency conflicts
 zstd = "*"
+solana-sdk-macro = { path = "src/solana/sdk/macro", version = "=1.14.13" }
+solana-sdk = { path = "src/solana/sdk", version = "=1.14.13" }
 
 [dependencies.curve25519-dalek]
 version = "3.2.1"

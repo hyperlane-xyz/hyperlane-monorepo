@@ -6,7 +6,11 @@
 //!
 //! [JSON-RPC]: https://www.jsonrpc.org/specification
 
-use super::rpc_filter::{self, RpcFilterType};
+use std::time::Duration;
+
+use tokio::time::sleep;
+
+use super::{rpc_filter::{self, RpcFilterType}, transaction};
 
 /*
 pub use crate::mock_sender::Mocks;
@@ -35,7 +39,7 @@ use {
         commitment_config::{CommitmentConfig, CommitmentLevel},
         //     epoch_info::EpochInfo,
         //     epoch_schedule::EpochSchedule,
-        //     fee_calculator::{FeeCalculator, FeeRateGovernor},
+            fee_calculator::{FeeCalculator, /*FeeRateGovernor*/},
         hash::Hash,
         //     message::Message,
         pubkey::Pubkey,
@@ -606,7 +610,6 @@ impl RpcClient {
         Ok(filters)
     }
 
-    /*
         /// Submit a transaction and wait for confirmation.
         ///
         /// Once this function returns successfully, the given transaction is
@@ -722,6 +725,7 @@ impl RpcClient {
             .into())
         }
 
+    /*
         pub async fn send_and_confirm_transaction_with_spinner(
             &self,
             transaction: &impl SerializableTransaction,
@@ -1473,6 +1477,7 @@ impl RpcClient {
         pub async fn get_snapshot_slot(&self) -> ClientResult<Slot> {
             self.send(RpcRequest::GetSnapshotSlot, Value::Null).await
         }
+        */
 
         /// Check if a transaction has been processed with the default [commitment level][cl].
         ///
@@ -1538,7 +1543,6 @@ impl RpcClient {
             self.get_signature_status_with_commitment(signature, self.commitment())
                 .await
         }
-    */
 
     /// Gets the statuses of a list of transaction signatures.
     ///
@@ -1701,6 +1705,7 @@ impl RpcClient {
             )
             .await
         }
+        */
 
         /// Check if a transaction has been processed with the given [commitment level][cl].
         ///
@@ -1780,6 +1785,7 @@ impl RpcClient {
                 .map(|status_meta| status_meta.status))
         }
 
+    /*
         /// Check if a transaction has been processed with the given [commitment level][cl].
         ///
         /// [cl]: https://docs.solana.com/developing/clients/jsonrpc-api#configuring-state-commitment
@@ -4789,7 +4795,7 @@ impl RpcClient {
                 .await?
                 .value)
         }
-
+*/
         #[deprecated(
             since = "1.9.0",
             note = "Please `get_latest_blockhash_with_commitment` and `get_fee_for_message` instead"
@@ -4816,6 +4822,7 @@ impl RpcClient {
             })
         }
 
+/*
         #[deprecated(
             since = "1.9.0",
             note = "Please do not use, will no longer be available in the future"
@@ -5368,7 +5375,6 @@ impl RpcClient {
         Ok((blockhash, last_valid_block_height))
     }
 
-    /*
         #[allow(deprecated)]
         pub async fn is_blockhash_valid(
             &self,
@@ -5391,6 +5397,7 @@ impl RpcClient {
             Ok(result)
         }
 
+        /* 
         #[allow(deprecated)]
         pub async fn get_fee_for_message(&self, message: &Message) -> ClientResult<u64> {
             if self.get_node_version().await? < semver::Version::new(1, 9, 0) {

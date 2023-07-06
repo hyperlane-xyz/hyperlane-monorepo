@@ -398,14 +398,18 @@ impl Mailbox for SealevelMailbox {
             .payer
             .as_ref()
             .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
-
+        
         let mut instructions = Vec::with_capacity(2);
         // Set the compute unit limit.
         instructions.push(contract::ComputeBudgetInstruction::set_compute_unit_limit(
             PROCESS_COMPUTE_UNITS,
         ));
-
-        let commitment = CommitmentConfig::finalized();
+        
+        // "processed" level commitment does not guarantee finality.
+        // roughly 5% of blocks end up on a dropped fork.
+        // However we don't want this function to be a bottleneck and there already
+        // is retry logic in the agents.
+        let commitment = CommitmentConfig::processed();
 
         let (process_authority_key, _process_authority_bump) = Pubkey::try_find_program_address(
             mailbox_process_authority_pda_seeds!(&recipient),
@@ -491,14 +495,15 @@ impl Mailbox for SealevelMailbox {
 
         let signature = self
             .rpc_client
+            .send_and_confirm_transaction(transaction)
             // .send_transaction(&txn) // TODO just use this. Don't need to skip pre-flight.
-            .send_transaction_with_config(
-                &txn,
-                RpcSendTransactionConfig {
-                    skip_preflight: true,
-                    ..Default::default()
-                },
-            )
+            // .send_transaction_with_config(
+            //     &txn,
+            //     RpcSendTransactionConfig {
+            //         skip_preflight: true,
+            //         ..Default::default()
+            //     },
+            // )
             .await
             .map_err(ChainCommunicationError::from_other)?;
         tracing::info!("signature={}", signature);
