@@ -82,10 +82,10 @@ const hyperlane: RootAgentConfig = {
     },
     chainDockerOverrides: {
       [chainMetadata.solanadevnet.name]: {
-        tag: 'a267194-20230706-142820',
+        tag: '79bad9d-20230706-190752',
       },
       [chainMetadata.zbctestnet.name]: {
-        tag: 'a267194-20230706-142820',
+        tag: '79bad9d-20230706-190752',
       },
     },
     chains: validators,
