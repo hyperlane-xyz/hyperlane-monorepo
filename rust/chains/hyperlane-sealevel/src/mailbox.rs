@@ -495,15 +495,7 @@ impl Mailbox for SealevelMailbox {
 
         let signature = self
             .rpc_client
-            .send_and_confirm_transaction(transaction)
-            // .send_transaction(&txn) // TODO just use this. Don't need to skip pre-flight.
-            // .send_transaction_with_config(
-            //     &txn,
-            //     RpcSendTransactionConfig {
-            //         skip_preflight: true,
-            //         ..Default::default()
-            //     },
-            // )
+            .send_and_confirm_transaction(&txn)
             .await
             .map_err(ChainCommunicationError::from_other)?;
         tracing::info!("signature={}", signature);

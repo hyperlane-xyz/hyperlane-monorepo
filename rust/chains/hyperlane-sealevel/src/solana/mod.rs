@@ -9,6 +9,7 @@ pub mod bpf_loader_upgradeable;
 pub mod client_error;
 pub mod clock;
 pub mod commitment_config;
+pub mod ed25519_program;
 pub mod fee_calculator;
 pub mod hash;
 pub mod http_sender;

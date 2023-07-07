@@ -28,7 +28,7 @@ full = [
     "rand",
     "rand_chacha",
     "serde_json",
-    "ed25519-dalek",
+    # "ed25519-dalek",
     "ed25519-dalek-bip32",
     # "solana-logger",
     "libsecp256k1",
@@ -46,11 +46,10 @@ bs58 = "0.4.0"
 bytemuck = { version = "1.11.0", features = ["derive"] }
 byteorder = { version = "1.4.3", optional = true }
 chrono = { default-features = false, features = ["alloc"], version = "0.4", optional = true }
-curve25519-dalek = { version = "3.2.1", optional = true }
 derivation-path = { version = "0.2.0", default-features = false }
 digest = { version = "0.10.1", optional = true }
-ed25519-dalek = { version = "=1.0.1", optional = true }
 ed25519-dalek-bip32 = { version = "0.2.0", optional = true }
+ed25519-dalek = { version = "=1.0.1", git = "https://github.com/Eclipse-Laboratories-Inc/ed25519-dalek", branch = "steven/fix-deps" }
 generic-array = { version = "0.14.5", default-features = false, features = ["serde", "more_lengths"], optional = true }
 hmac = "0.12.1"
 itertools =  "0.10.3"
@@ -75,17 +74,19 @@ sha3 = { version = "0.10.1", optional = true }
 # solana-frozen-abi-macro = { path = "../frozen-abi/macro", version = "=1.14.13" }
 # solana-logger = { path = "../logger", version = "=1.14.13", optional = true }
 # solana-program = { path = "program", version = "=1.14.13" }
-# solana-sdk-macro = { path = "macro", version = "=1.14.13" }
+solana-sdk-macro = { path = "macro", version = "=1.14.13" }
 thiserror = "1.0"
 uriparse = "0.6.4"
 wasm-bindgen = "0.2"
 
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-js-sys = "0.3.58"
+[dependencies.curve25519-dalek]
+version = "3.2.1"
+features = ["serde"]
+git = "https://github.com/Eclipse-Laboratories-Inc/curve25519-dalek"
+branch = "steven/fix-deps"
 
 [dev-dependencies]
 anyhow = "1.0.58"
-curve25519-dalek = "3.2.1"
 hex = "0.4.3"
 static_assertions = "1.1.0"
 tiny-bip39 = "0.8.2"

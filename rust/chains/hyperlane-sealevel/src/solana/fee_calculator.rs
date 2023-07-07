@@ -2,14 +2,16 @@
 
 #![allow(clippy::integer_arithmetic)]
 
-use super::{message::Message, secp256k1_program};
+use serde_derive::{Serialize, Deserialize};
+
+use super::{message::Message, secp256k1_program, ed25519_program};
 // use super::
 use {
     // crate::{clock::DEFAULT_MS_PER_SLOT, ed25519_program, superMessage, secp256k1_program},
     log::*,
 };
 
-#[derive(Serialize, Deserialize, Default, PartialEq, Eq, Clone, Copy, Debug, AbiExample)]
+#[derive(Serialize, Deserialize, Default, PartialEq, Eq, Clone, Copy, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct FeeCalculator {
     /// The current cost of a signature.

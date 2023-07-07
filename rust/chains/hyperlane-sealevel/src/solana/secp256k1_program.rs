@@ -7,5 +7,6 @@
 //!
 //! [`solana_sdk::secp256k1_instruction`]: https://docs.rs/solana-sdk/latest/solana_sdk/secp256k1_instruction/index.html
 use solana_sdk_macro::declare_id;
+use crate::solana::pubkey::Pubkey;
 
 declare_id!("KeccakSecp256k11111111111111111111111111111");
