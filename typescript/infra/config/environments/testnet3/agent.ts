@@ -1,9 +1,8 @@
 import {
   AgentConnectionType,
   chainMetadata,
-  getDomainId,
-  hyperlaneEnvironments,
-  objMap,
+  getDomainId, // hyperlaneEnvironments,
+  // objMap,
 } from '@hyperlane-xyz/sdk';
 
 import {
@@ -23,18 +22,18 @@ const releaseCandidateHelloworldMatchingList = routerMatchingList(
   helloWorld[Contexts.ReleaseCandidate].addresses,
 );
 
-const interchainQueryRouters = objMap(
-  hyperlaneEnvironments.testnet,
-  (_, addresses) => {
-    return {
-      router: addresses.interchainQueryRouter,
-    };
-  },
-);
+// const interchainQueryRouters = objMap(
+//   hyperlaneEnvironments.testnet,
+//   (_, addresses) => {
+//     return {
+//       router: addresses.interchainQueryRouter,
+//     };
+//   },
+// );
 
-const interchainQueriesMatchingList = routerMatchingList(
-  interchainQueryRouters,
-);
+// const interchainQueriesMatchingList = routerMatchingList(
+//   interchainQueryRouters,
+// );
 
 const repo = 'gcr.io/abacus-labs-dev/hyperlane-agent';
 
@@ -55,7 +54,7 @@ const gasPaymentEnforcement: GasPaymentEnforcementConfig[] = [
     // all messages between interchain query routers.
     // This whitelist will become more strict with
     // https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/1605
-    matchingList: interchainQueriesMatchingList,
+    matchingList: undefined,
   },
   // Default policy is OnChainFeeQuoting
   {
