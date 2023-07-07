@@ -107,7 +107,7 @@ const releaseCandidate: RootAgentConfig = {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: 'a267194-20230706-142820',
+      tag: '79bad9d-20230706-190752',
     },
     whitelist: [
       ...releaseCandidateHelloworldMatchingList,
