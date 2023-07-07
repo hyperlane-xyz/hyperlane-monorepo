@@ -39,6 +39,7 @@ sha3 = "0.10"
 thiserror.workspace = true
 uint = "0.9.5"
 fixed-hash = "0.8.0"
+tiny-keccak = { version = "2.0.2", features = ["keccak"]}
 
 config = { workspace = true, optional = true }
 ethers-core = { workspace = true, optional = true }

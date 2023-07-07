@@ -44,7 +44,10 @@ pub trait HyperlaneSignerExt {
 
     /// Check whether a message was signed by a specific address.
     #[cfg(feature = "ethers")]
-    fn verify<T: Signable>(&self, signed: &SignedType<T>) -> Result<(), crate::HyperlaneProtocolError>;
+    fn verify<T: Signable>(
+        &self,
+        signed: &SignedType<T>,
+    ) -> Result<(), crate::HyperlaneProtocolError>;
 }
 
 #[async_trait]
@@ -59,7 +62,10 @@ impl<S: HyperlaneSigner> HyperlaneSignerExt for S {
     }
 
     #[cfg(feature = "ethers")]
-    fn verify<T: Signable>(&self, signed: &SignedType<T>) -> Result<(), crate::HyperlaneProtocolError> {
+    fn verify<T: Signable>(
+        &self,
+        signed: &SignedType<T>,
+    ) -> Result<(), crate::HyperlaneProtocolError> {
         signed.verify(self.eth_address())
     }
 }
@@ -73,9 +79,8 @@ pub trait Signable: Sized {
     fn signing_hash(&self) -> H256;
 
     /// EIP-191 compliant hash of the signing hash.
-    #[cfg(feature = "ethers")]
     fn eth_signed_message_hash(&self) -> H256 {
-        ethers_core::utils::hash_message(self.signing_hash()).into()
+        hashes::hash_message(self.signing_hash()).into()
     }
 }
 
@@ -119,7 +124,7 @@ impl<T: Signable> SignedType<T> {
         let hash = ethers_core::types::H256::from(self.value.eth_signed_message_hash());
         let sig = ethers_core::types::Signature::from(self.signature);
         let signer = ethers_core::types::H160::from(signer);
-        Ok(sig.verify(hash, signer)?.into())
+        Ok(sig.verify(hash, signer)?)
     }
 }
 
@@ -130,5 +135,54 @@ impl<T: Signable + Debug> Debug for SignedType<T> {
             "SignedType {{ value: {:?}, signature: 0x{} }}",
             self.value, self.signature
         )
+    }
+}
+
+mod hashes {
+    const PREFIX: &str = "\x19Ethereum Signed Message:\n";
+    use crate::H256;
+    use tiny_keccak::{Hasher, Keccak};
+
+    /// Hash a message according to EIP-191.
+    ///
+    /// The data is a UTF-8 encoded string and will enveloped as follows:
+    /// `"\x19Ethereum Signed Message:\n" + message.length + message` and hashed
+    /// using keccak256.
+    pub fn hash_message<S>(message: S) -> H256
+    where
+        S: AsRef<[u8]>,
+    {
+        let message = message.as_ref();
+
+        let mut eth_message = format!("{PREFIX}{}", message.len()).into_bytes();
+        eth_message.extend_from_slice(message);
+
+        keccak256(&eth_message).into()
+    }
+
+    /// Compute the Keccak-256 hash of input bytes.
+    // TODO: Add Solidity Keccak256 packing support
+    pub fn keccak256<S>(bytes: S) -> [u8; 32]
+    where
+        S: AsRef<[u8]>,
+    {
+        let mut output = [0u8; 32];
+        let mut hasher = Keccak::v256();
+        hasher.update(bytes.as_ref());
+        hasher.finalize(&mut output);
+        output
+    }
+
+    #[test]
+    #[cfg(feature = "ethers")]
+    fn ensure_signed_hashes_match() {
+        assert_eq!(
+            ethers_core::utils::hash_message(&[b"gm crypto!"]),
+            hash_message(&[b"gm crypto!"])
+        );
+        assert_eq!(
+            ethers_core::utils::hash_message(&[b"hyperlane"]),
+            hash_message(&[b"hyperlane"])
+        );
     }
 }
