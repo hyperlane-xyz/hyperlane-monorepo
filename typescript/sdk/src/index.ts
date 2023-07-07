@@ -172,3 +172,5 @@ export {
 } from './utils/objects';
 export { delay } from './utils/time';
 export { chainMetadataToWagmiChain } from './utils/wagmi';
+export { HookConfig } from './hook/types';
+export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer';

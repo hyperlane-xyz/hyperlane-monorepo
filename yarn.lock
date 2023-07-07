@@ -4050,7 +4050,7 @@ __metadata:
     "@safe-global/safe-service-client": ^1.4.0
     "@types/chai": ^4.2.21
     "@types/mocha": ^9.1.0
-    "@types/node": ^16.9.1
+    "@types/node": ^18.0.0
     "@types/prompts": ^2.0.14
     "@types/yargs": ^17.0.10
     asn1.js: 5.4.1
@@ -4094,7 +4094,7 @@ __metadata:
     "@nomiclabs/hardhat-waffle": ^2.0.3
     "@types/coingecko-api": ^1.0.10
     "@types/debug": ^4.1.7
-    "@types/node": ^16.9.1
+    "@types/node": ^18.0.0
     "@wagmi/chains": ^0.2.6
     chai: ^4.3.6
     coingecko-api: ^1.0.10
@@ -5393,10 +5393,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/node@npm:^16.9.1":
-  version: 16.11.39
-  resolution: "@types/node@npm:16.11.39"
-  checksum: bc97b9773ac6b3194800f990b349fad7f66c6126dacef59291b10a2c8b6813d6f67f947b7e12a6c9952790f7065d576fe38355b8fe034a6af60f317cfc570f69
+"@types/node@npm:^18.0.0":
+  version: 18.16.19
+  resolution: "@types/node@npm:18.16.19"
+  checksum: 63c31f09616508aa7135380a4c79470a897b75f9ff3a70eb069e534dfabdec3f32fb0f9df5939127f1086614d980ddea0fa5e8cc29a49103c4f74cd687618aaf
   languageName: node
   linkType: hard
 
