@@ -1,6 +1,7 @@
 use super::MetadataBuilder;
 use async_trait::async_trait;
 use derive_new::new;
+use tracing::instrument;
 
 use hyperlane_core::{HyperlaneMessage, H256};
 
