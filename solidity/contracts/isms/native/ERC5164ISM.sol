@@ -16,32 +16,26 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
-import {OptimismMessageHook} from "../../hooks/OptimismMessageHook.sol";
+import {ERC5164MessageHook} from "../../hooks/ERC5164MessageHook.sol";
 import {Message} from "../../libs/Message.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {AbstractNativeISM} from "./AbstractNativeISM.sol";
 
 // ============ External Imports ============
 
-import {ICrossDomainMessenger} from "@eth-optimism/contracts/libraries/bridge/ICrossDomainMessenger.sol";
-import {CrossChainEnabledOptimism} from "@openzeppelin/contracts/crosschain/optimism/CrossChainEnabledOptimism.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
- * @title OptimismISM
- * @notice Uses the native Optimism bridge to verify interchain messages.
+ * @title ERC5164ISM
+ * @notice Uses the generic eip-5164 standard to verify interchain messages.
  */
-contract OptimismISM is CrossChainEnabledOptimism, AbstractNativeISM {
+contract ERC5164ISM is AbstractNativeISM {
     // ============ Constants ============
 
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.NULL);
-
-    // ============ Public Storage ============
-
-    // Address for Hook on L1 responsible for sending message via the Optimism bridge
-    // @dev check https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/2381 for updates to native
-    address public l1Hook;
+    // corresponding 5164 executor address
+    address public immutable executor;
 
     // ============ Modifiers ============
 
@@ -50,33 +44,23 @@ contract OptimismISM is CrossChainEnabledOptimism, AbstractNativeISM {
      */
     modifier isAuthorized() {
         require(
-            _crossChainSender() == l1Hook,
-            "OptimismISM: sender is not the hook"
+            msg.sender == executor,
+            "ERC5164ISM: sender is not the executor"
         );
         _;
     }
 
     // ============ Constructor ============
 
-    constructor(address _l2Messenger) CrossChainEnabledOptimism(_l2Messenger) {
-        require(
-            Address.isContract(_l2Messenger),
-            "OptimismISM: invalid L2Messenger"
-        );
-    }
-
-    // ============ Initializer ============
-
-    function setOptimismHook(address _l1Hook) external initializer {
-        require(_l1Hook != address(0), "OptimismISM: invalid l1Hook");
-        l1Hook = _l1Hook;
+    constructor(address _executor) {
+        require(Address.isContract(_executor), "ERC5164ISM: invalid executor");
+        executor = _executor;
     }
 
     // ============ External Functions ============
 
     /**
-     * @notice Receive a message from the L2 messenger.
-     * @dev Only callable by the L2 messenger.
+     * @notice Receive a message from the executor.
      * @param _sender Left-padded address of the sender.
      * @param _messageId Hyperlane ID for the message.
      */
