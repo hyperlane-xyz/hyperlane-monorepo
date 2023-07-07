@@ -403,7 +403,6 @@ fn init_warp_route_idempotent(
         _chain_config,
         token_config,
         program_id,
-        ata_payer_funding_amount,
     )
 }
 
@@ -448,7 +447,6 @@ fn init_warp_route(
     _chain_config: &ChainMetadata,
     token_config: &TokenConfig,
     program_id: Pubkey,
-    ata_payer_funding_amount: Option<u64>,
 ) -> Result<(), ProgramError> {
     // If the Mailbox was provided as configuration, use that. Otherwise, default to
     // the Mailbox found in the core program ids.
@@ -504,7 +502,7 @@ fn init_warp_route(
             instructions
         }
         TokenType::Collateral(collateral_info) => {
-            let mut instructions = vec![
+            vec![
                 hyperlane_sealevel_token_collateral::instruction::init_instruction(
                     program_id,
                     ctx.payer.pubkey(),
@@ -516,9 +514,7 @@ fn init_warp_route(
                         .program_id(),
                     collateral_info.mint.parse().expect("Invalid mint address"),
                 )?,
-            ];
-
-            instructions
+            ]
         }
     };
 
