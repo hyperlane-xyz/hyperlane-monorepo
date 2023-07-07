@@ -1,4 +1,5 @@
 import { AgentConnectionType, chainMetadata } from '@hyperlane-xyz/sdk';
+import { hyperlaneEnvironments, objMap } from '@hyperlane-xyz/sdk';
 
 import {
   GasPaymentEnforcementPolicyType,
@@ -11,11 +12,19 @@ import { Contexts } from '../../contexts';
 
 import { chainNames, environment } from './chains';
 import { helloWorld } from './helloworld';
-import interchainQueryRouters from './middleware/queries/addresses.json';
 import { validators } from './validators';
 
 const releaseCandidateHelloworldMatchingList = routerMatchingList(
   helloWorld[Contexts.ReleaseCandidate].addresses,
+);
+
+const interchainQueryRouters = objMap(
+  hyperlaneEnvironments.mainnet,
+  (_, addresses) => {
+    return {
+      router: addresses.interchainQueryRouter,
+    };
+  },
 );
 
 const interchainQueriesMatchingList = routerMatchingList(

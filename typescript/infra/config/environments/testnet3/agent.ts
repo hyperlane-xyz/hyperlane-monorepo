@@ -2,6 +2,8 @@ import {
   AgentConnectionType,
   chainMetadata,
   getDomainId,
+  hyperlaneEnvironments,
+  objMap,
 } from '@hyperlane-xyz/sdk';
 
 import {
@@ -15,11 +17,19 @@ import { Contexts } from '../../contexts';
 
 import { agentChainNames, environment } from './chains';
 import { helloWorld } from './helloworld';
-import interchainQueryRouters from './middleware/queries/addresses.json';
 import { validators } from './validators';
 
 const releaseCandidateHelloworldMatchingList = routerMatchingList(
   helloWorld[Contexts.ReleaseCandidate].addresses,
+);
+
+const interchainQueryRouters = objMap(
+  hyperlaneEnvironments.testnet,
+  (_, addresses) => {
+    return {
+      router: addresses.interchainQueryRouter,
+    };
+  },
 );
 
 const interchainQueriesMatchingList = routerMatchingList(

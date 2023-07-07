@@ -128,6 +128,7 @@
     "defaultIsmInterchainGasPaymaster": "0xF987d7edcb5890cB321437d8145E3D51131298b6",
     "multisigIsm": "0xD3d062a5dcBA85ae863618d4c264d2358300c283",
     "testRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
+    "interchainQueryRouter": "0x0000000000000000000000000000000000000000",
     "interchainAccountRouter": "0xB057Fb841027a8554521DcCdeC3c3474CaC99AB5",
     "interchainAccountIsm": "0x7483faD0Bc297667664A43A064bA7c9911659f57",
     "aggregationIsmFactory": "0x01812D60958798695391dacF092BAc4a715B1718",
