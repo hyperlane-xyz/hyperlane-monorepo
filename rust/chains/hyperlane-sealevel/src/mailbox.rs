@@ -80,6 +80,7 @@ impl SealevelMailbox {
         locator: ContractLocator,
         payer: Option<Keypair>,
     ) -> ChainResult<Self> {
+        // Set the `processed` commitment at rpc level
         let rpc_client = RpcClient::new_with_commitment(conf.url.to_string(), CommitmentConfig::processed());
 
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
