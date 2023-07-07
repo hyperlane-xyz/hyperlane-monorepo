@@ -22,7 +22,9 @@ use crate::msg::metadata::multisig::{
     LegacyMultisigMetadataBuilder, MerkleRootMultisigMetadataBuilder,
     MessageIdMultisigMetadataBuilder,
 };
-use crate::msg::metadata::{AggregationIsmMetadataBuilder, NoMetadataBuilder, RoutingIsmMetadataBuilder};
+use crate::msg::metadata::{
+    AggregationIsmMetadataBuilder, NoMetadataBuilder, RoutingIsmMetadataBuilder,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum MetadataBuilderError {
