@@ -81,7 +81,8 @@ impl SealevelMailbox {
         payer: Option<Keypair>,
     ) -> ChainResult<Self> {
         // Set the `processed` commitment at rpc level
-        let rpc_client = RpcClient::new_with_commitment(conf.url.to_string(), CommitmentConfig::processed());
+        let rpc_client =
+            RpcClient::new_with_commitment(conf.url.to_string(), CommitmentConfig::processed());
 
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         let domain = locator.domain.id();
@@ -399,13 +400,13 @@ impl Mailbox for SealevelMailbox {
             .payer
             .as_ref()
             .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
-        
+
         let mut instructions = Vec::with_capacity(2);
         // Set the compute unit limit.
         instructions.push(contract::ComputeBudgetInstruction::set_compute_unit_limit(
             PROCESS_COMPUTE_UNITS,
         ));
-        
+
         // "processed" level commitment does not guarantee finality.
         // roughly 5% of blocks end up on a dropped fork.
         // However we don't want this function to be a bottleneck and there already

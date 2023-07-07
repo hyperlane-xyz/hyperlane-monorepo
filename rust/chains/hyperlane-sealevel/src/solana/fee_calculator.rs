@@ -2,14 +2,11 @@
 
 #![allow(clippy::integer_arithmetic)]
 
-use serde_derive::{Serialize, Deserialize};
+use serde_derive::{Deserialize, Serialize};
 
-use super::{message::Message, secp256k1_program, ed25519_program};
+use super::{ed25519_program, message::Message, secp256k1_program};
 // use super::
-use {
-    // crate::{clock::DEFAULT_MS_PER_SLOT, ed25519_program, superMessage, secp256k1_program},
-    log::*,
-};
+use log::*;
 
 #[derive(Serialize, Deserialize, Default, PartialEq, Eq, Clone, Copy, Debug)]
 #[serde(rename_all = "camelCase")]

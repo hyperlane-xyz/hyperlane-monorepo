@@ -3,28 +3,11 @@
 //! Input: a single literal base58 string representation of a program's id
 extern crate proc_macro;
 
-use proc_macro::{TokenStream};
-use syn::{parse_macro_input, LitStr, Expr, LitByte};
+use proc_macro::TokenStream;
+use proc_macro2::{Delimiter, Span, TokenTree};
 use quote::{quote, ToTokens};
 use syn::parse::{Parse, ParseStream, Result};
-use proc_macro2::{Delimiter, Span, TokenTree};
-
-
-use {
-    // proc_macro::TokenStream,
-    // proc_macro2::{Delimiter, Span, TokenTree},
-    // quote::{quote, ToTokens},
-    // std::convert::TryFrom,
-    // syn::{
-    //     bracketed,
-    //     parse::{Parse, ParseStream, Result},
-    //     parse_macro_input,
-    //     punctuated::Punctuated,
-    //     token::Bracket,
-    //     Expr, Ident, LitByte, LitStr, Path, Token,
-    // },
-};
-
+use syn::{parse_macro_input, Expr, LitByte, LitStr};
 
 fn parse_id(
     input: ParseStream,
@@ -135,7 +118,6 @@ impl ToTokens for ProgramSdkPubkey {
 */
 
 struct Id(proc_macro2::TokenStream);
-
 
 impl Parse for Id {
     fn parse(input: ParseStream) -> Result<Self> {

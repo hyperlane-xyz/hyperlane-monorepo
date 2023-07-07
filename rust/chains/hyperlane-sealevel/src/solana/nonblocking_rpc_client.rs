@@ -10,7 +10,10 @@ use std::time::Duration;
 
 use tokio::time::sleep;
 
-use super::{rpc_filter::{self, RpcFilterType}, transaction};
+use super::{
+    rpc_filter::{self, RpcFilterType},
+    transaction,
+};
 
 /*
 pub use crate::mock_sender::Mocks;
@@ -39,7 +42,7 @@ use {
         commitment_config::{CommitmentConfig, CommitmentLevel},
         //     epoch_info::EpochInfo,
         //     epoch_schedule::EpochSchedule,
-            fee_calculator::{FeeCalculator, /*FeeRateGovernor*/},
+        fee_calculator::FeeCalculator,
         hash::Hash,
         //     message::Message,
         pubkey::Pubkey,
@@ -610,120 +613,120 @@ impl RpcClient {
         Ok(filters)
     }
 
-        /// Submit a transaction and wait for confirmation.
-        ///
-        /// Once this function returns successfully, the given transaction is
-        /// guaranteed to be processed with the configured [commitment level][cl].
-        ///
-        /// [cl]: https://docs.solana.com/developing/clients/jsonrpc-api#configuring-state-commitment
-        ///
-        /// After sending the transaction, this method polls in a loop for the
-        /// status of the transaction until it has ben confirmed.
-        ///
-        /// # Errors
-        ///
-        /// If the transaction is not signed then an error with kind [`RpcError`] is
-        /// returned, containing an [`RpcResponseError`] with `code` set to
-        /// [`JSON_RPC_SERVER_ERROR_TRANSACTION_SIGNATURE_VERIFICATION_FAILURE`].
-        ///
-        /// If the preflight transaction simulation fails then an error with kind
-        /// [`RpcError`] is returned, containing an [`RpcResponseError`] with `code`
-        /// set to [`JSON_RPC_SERVER_ERROR_SEND_TRANSACTION_PREFLIGHT_FAILURE`].
-        ///
-        /// If the receiving node is unhealthy, e.g. it is not fully synced to
-        /// the cluster, then an error with kind [`RpcError`] is returned,
-        /// containing an [`RpcResponseError`] with `code` set to
-        /// [`JSON_RPC_SERVER_ERROR_NODE_UNHEALTHY`].
-        ///
-        /// [`RpcResponseError`]: RpcError::RpcResponseError
-        /// [`JSON_RPC_SERVER_ERROR_TRANSACTION_SIGNATURE_VERIFICATION_FAILURE`]: crate::rpc_custom_error::JSON_RPC_SERVER_ERROR_TRANSACTION_SIGNATURE_VERIFICATION_FAILURE
-        /// [`JSON_RPC_SERVER_ERROR_SEND_TRANSACTION_PREFLIGHT_FAILURE`]: crate::rpc_custom_error::JSON_RPC_SERVER_ERROR_SEND_TRANSACTION_PREFLIGHT_FAILURE
-        /// [`JSON_RPC_SERVER_ERROR_NODE_UNHEALTHY`]: crate::rpc_custom_error::JSON_RPC_SERVER_ERROR_NODE_UNHEALTHY
-        ///
-        /// # RPC Reference
-        ///
-        /// This method is built on the [`sendTransaction`] RPC method, and the
-        /// [`getLatestBlockhash`] RPC method.
-        ///
-        /// [`sendTransaction`]: https://docs.solana.com/developing/clients/jsonrpc-api#sendtransaction
-        /// [`getLatestBlockhash`]: https://docs.solana.com/developing/clients/jsonrpc-api#getlatestblockhash
-        ///
-        /// # Examples
-        ///
-        /// ```
-        /// # use solana_client::{
-        /// #     nonblocking::rpc_client::RpcClient,
-        /// #     client_error::ClientError,
-        /// # };
-        /// # use solana_sdk::{
-        /// #     signature::Signer,
-        /// #     signature::Signature,
-        /// #     signer::keypair::Keypair,
-        /// #     system_transaction,
-        /// # };
-        /// # futures::executor::block_on(async {
-        /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
-        /// #     let alice = Keypair::new();
-        /// #     let bob = Keypair::new();
-        /// #     let lamports = 50;
-        /// #     let latest_blockhash = rpc_client.get_latest_blockhash().await?;
-        /// let tx = system_transaction::transfer(&alice, &bob.pubkey(), lamports, latest_blockhash);
-        /// let signature = rpc_client.send_and_confirm_transaction(&tx).await?;
-        /// #     Ok::<(), ClientError>(())
-        /// # })?;
-        /// # Ok::<(), ClientError>(())
-        /// ```
-        pub async fn send_and_confirm_transaction(
-            &self,
-            transaction: &impl SerializableTransaction,
-        ) -> ClientResult<Signature> {
-            const SEND_RETRIES: usize = 1;
-            const GET_STATUS_RETRIES: usize = usize::MAX;
+    /// Submit a transaction and wait for confirmation.
+    ///
+    /// Once this function returns successfully, the given transaction is
+    /// guaranteed to be processed with the configured [commitment level][cl].
+    ///
+    /// [cl]: https://docs.solana.com/developing/clients/jsonrpc-api#configuring-state-commitment
+    ///
+    /// After sending the transaction, this method polls in a loop for the
+    /// status of the transaction until it has ben confirmed.
+    ///
+    /// # Errors
+    ///
+    /// If the transaction is not signed then an error with kind [`RpcError`] is
+    /// returned, containing an [`RpcResponseError`] with `code` set to
+    /// [`JSON_RPC_SERVER_ERROR_TRANSACTION_SIGNATURE_VERIFICATION_FAILURE`].
+    ///
+    /// If the preflight transaction simulation fails then an error with kind
+    /// [`RpcError`] is returned, containing an [`RpcResponseError`] with `code`
+    /// set to [`JSON_RPC_SERVER_ERROR_SEND_TRANSACTION_PREFLIGHT_FAILURE`].
+    ///
+    /// If the receiving node is unhealthy, e.g. it is not fully synced to
+    /// the cluster, then an error with kind [`RpcError`] is returned,
+    /// containing an [`RpcResponseError`] with `code` set to
+    /// [`JSON_RPC_SERVER_ERROR_NODE_UNHEALTHY`].
+    ///
+    /// [`RpcResponseError`]: RpcError::RpcResponseError
+    /// [`JSON_RPC_SERVER_ERROR_TRANSACTION_SIGNATURE_VERIFICATION_FAILURE`]: crate::rpc_custom_error::JSON_RPC_SERVER_ERROR_TRANSACTION_SIGNATURE_VERIFICATION_FAILURE
+    /// [`JSON_RPC_SERVER_ERROR_SEND_TRANSACTION_PREFLIGHT_FAILURE`]: crate::rpc_custom_error::JSON_RPC_SERVER_ERROR_SEND_TRANSACTION_PREFLIGHT_FAILURE
+    /// [`JSON_RPC_SERVER_ERROR_NODE_UNHEALTHY`]: crate::rpc_custom_error::JSON_RPC_SERVER_ERROR_NODE_UNHEALTHY
+    ///
+    /// # RPC Reference
+    ///
+    /// This method is built on the [`sendTransaction`] RPC method, and the
+    /// [`getLatestBlockhash`] RPC method.
+    ///
+    /// [`sendTransaction`]: https://docs.solana.com/developing/clients/jsonrpc-api#sendtransaction
+    /// [`getLatestBlockhash`]: https://docs.solana.com/developing/clients/jsonrpc-api#getlatestblockhash
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use solana_client::{
+    /// #     nonblocking::rpc_client::RpcClient,
+    /// #     client_error::ClientError,
+    /// # };
+    /// # use solana_sdk::{
+    /// #     signature::Signer,
+    /// #     signature::Signature,
+    /// #     signer::keypair::Keypair,
+    /// #     system_transaction,
+    /// # };
+    /// # futures::executor::block_on(async {
+    /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
+    /// #     let alice = Keypair::new();
+    /// #     let bob = Keypair::new();
+    /// #     let lamports = 50;
+    /// #     let latest_blockhash = rpc_client.get_latest_blockhash().await?;
+    /// let tx = system_transaction::transfer(&alice, &bob.pubkey(), lamports, latest_blockhash);
+    /// let signature = rpc_client.send_and_confirm_transaction(&tx).await?;
+    /// #     Ok::<(), ClientError>(())
+    /// # })?;
+    /// # Ok::<(), ClientError>(())
+    /// ```
+    pub async fn send_and_confirm_transaction(
+        &self,
+        transaction: &impl SerializableTransaction,
+    ) -> ClientResult<Signature> {
+        const SEND_RETRIES: usize = 1;
+        const GET_STATUS_RETRIES: usize = usize::MAX;
 
-            'sending: for _ in 0..SEND_RETRIES {
-                let signature = self.send_transaction(transaction).await?;
+        'sending: for _ in 0..SEND_RETRIES {
+            let signature = self.send_transaction(transaction).await?;
 
-                let recent_blockhash = if transaction.uses_durable_nonce() {
-                    let (recent_blockhash, ..) = self
-                        .get_latest_blockhash_with_commitment(CommitmentConfig::processed())
-                        .await?;
-                    recent_blockhash
-                } else {
-                    *transaction.get_recent_blockhash()
-                };
+            let recent_blockhash = if transaction.uses_durable_nonce() {
+                let (recent_blockhash, ..) = self
+                    .get_latest_blockhash_with_commitment(CommitmentConfig::processed())
+                    .await?;
+                recent_blockhash
+            } else {
+                *transaction.get_recent_blockhash()
+            };
 
-                for status_retry in 0..GET_STATUS_RETRIES {
-                    match self.get_signature_status(&signature).await? {
-                        Some(Ok(_)) => return Ok(signature),
-                        Some(Err(e)) => return Err(e.into()),
-                        None => {
-                            if !self
-                                .is_blockhash_valid(&recent_blockhash, CommitmentConfig::processed())
-                                .await?
-                            {
-                                // Block hash is not found by some reason
-                                break 'sending;
-                            } else if cfg!(not(test))
+            for status_retry in 0..GET_STATUS_RETRIES {
+                match self.get_signature_status(&signature).await? {
+                    Some(Ok(_)) => return Ok(signature),
+                    Some(Err(e)) => return Err(e.into()),
+                    None => {
+                        if !self
+                            .is_blockhash_valid(&recent_blockhash, CommitmentConfig::processed())
+                            .await?
+                        {
+                            // Block hash is not found by some reason
+                            break 'sending;
+                        } else if cfg!(not(test))
                                 // Ignore sleep at last step.
                                 && status_retry < GET_STATUS_RETRIES
-                            {
-                                // Retry twice a second
-                                sleep(Duration::from_millis(500)).await;
-                                continue;
-                            }
+                        {
+                            // Retry twice a second
+                            sleep(Duration::from_millis(500)).await;
+                            continue;
                         }
                     }
                 }
             }
+        }
 
-            Err(RpcError::ForUser(
-                "unable to confirm transaction. \
+        Err(RpcError::ForUser(
+            "unable to confirm transaction. \
                  This can happen in situations such as transaction expiration \
                  and insufficient fee-payer funds"
-                    .to_string(),
-            )
-            .into())
-        }
+                .to_string(),
+        )
+        .into())
+    }
 
     /*
         pub async fn send_and_confirm_transaction_with_spinner(
@@ -1429,120 +1432,120 @@ impl RpcClient {
 
     /*
 
-        /// Returns the highest slot information that the node has snapshots for.
-        ///
-        /// This will find the highest full snapshot slot, and the highest incremental snapshot slot
-        /// _based on_ the full snapshot slot, if there is one.
-        ///
-        /// # RPC Reference
-        ///
-        /// This method corresponds directly to the [`getHighestSnapshotSlot`] RPC method.
-        ///
-        /// [`getHighestSnapshotSlot`]: https://docs.solana.com/developing/clients/jsonrpc-api#gethighestsnapshotslot
-        ///
-        /// # Examples
-        ///
-        /// ```
-        /// # use solana_client::{
-        /// #     nonblocking::rpc_client::RpcClient,
-        /// #     client_error::ClientError,
-        /// # };
-        /// # futures::executor::block_on(async {
-        /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
-        /// let snapshot_slot_info = rpc_client.get_highest_snapshot_slot().await?;
-        /// #     Ok::<(), ClientError>(())
-        /// # })?;
-        /// # Ok::<(), ClientError>(())
-        /// ```
-        pub async fn get_highest_snapshot_slot(&self) -> ClientResult<RpcSnapshotSlotInfo> {
-            if self.get_node_version().await? < semver::Version::new(1, 9, 0) {
-                #[allow(deprecated)]
-                self.get_snapshot_slot()
-                    .await
-                    .map(|full| RpcSnapshotSlotInfo {
-                        full,
-                        incremental: None,
-                    })
-            } else {
-                self.send(RpcRequest::GetHighestSnapshotSlot, Value::Null)
-                    .await
-            }
-        }
-
-        #[deprecated(
-            since = "1.8.0",
-            note = "Please use RpcClient::get_highest_snapshot_slot() instead"
-        )]
-        #[allow(deprecated)]
-        pub async fn get_snapshot_slot(&self) -> ClientResult<Slot> {
-            self.send(RpcRequest::GetSnapshotSlot, Value::Null).await
-        }
-        */
-
-        /// Check if a transaction has been processed with the default [commitment level][cl].
-        ///
-        /// [cl]: https://docs.solana.com/developing/clients/jsonrpc-api#configuring-state-commitment
-        ///
-        /// If the transaction has been processed with the default commitment level,
-        /// then this method returns `Ok` of `Some`. If the transaction has not yet
-        /// been processed with the default commitment level, it returns `Ok` of
-        /// `None`.
-        ///
-        /// If the transaction has been processed with the default commitment level,
-        /// and the transaction succeeded, this method returns `Ok(Some(Ok(())))`.
-        /// If the transaction has peen processed with the default commitment level,
-        /// and the transaction failed, this method returns `Ok(Some(Err(_)))`,
-        /// where the interior error is type [`TransactionError`].
-        ///
-        /// [`TransactionError`]: solana_sdk::transaction::TransactionError
-        ///
-        /// This function only searches a node's recent history, including all
-        /// recent slots, plus up to
-        /// [`MAX_RECENT_BLOCKHASHES`][solana_sdk::clock::MAX_RECENT_BLOCKHASHES]
-        /// rooted slots. To search the full transaction history use the
-        /// [`get_signature_statuse_with_commitment_and_history`][RpcClient::get_signature_status_with_commitment_and_history]
-        /// method.
-        ///
-        /// # RPC Reference
-        ///
-        /// This method is built on the [`getSignatureStatuses`] RPC method.
-        ///
-        /// [`getSignatureStatuses`]: https://docs.solana.com/developing/clients/jsonrpc-api#gitsignaturestatuses
-        ///
-        /// # Examples
-        ///
-        /// ```
-        /// # use solana_client::{
-        /// #     nonblocking::rpc_client::RpcClient,
-        /// #     client_error::ClientError,
-        /// # };
-        /// # use solana_sdk::{
-        /// #     signature::Signer,
-        /// #     signature::Signature,
-        /// #     signer::keypair::Keypair,
-        /// #     hash::Hash,
-        /// #     system_transaction,
-        /// # };
-        /// # futures::executor::block_on(async {
-        /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
-        /// #     let alice = Keypair::new();
-        /// #     let bob = Keypair::new();
-        /// #     let lamports = 50;
-        /// #     let latest_blockhash = rpc_client.get_latest_blockhash().await?;
-        /// #     let tx = system_transaction::transfer(&alice, &bob.pubkey(), lamports, latest_blockhash);
-        /// let signature = rpc_client.send_transaction(&tx).await?;
-        /// let status = rpc_client.get_signature_status(&signature).await?;
-        /// #     Ok::<(), ClientError>(())
-        /// # })?;
-        /// # Ok::<(), ClientError>(())
-        /// ```
-        pub async fn get_signature_status(
-            &self,
-            signature: &Signature,
-        ) -> ClientResult<Option<transaction::Result<()>>> {
-            self.get_signature_status_with_commitment(signature, self.commitment())
+    /// Returns the highest slot information that the node has snapshots for.
+    ///
+    /// This will find the highest full snapshot slot, and the highest incremental snapshot slot
+    /// _based on_ the full snapshot slot, if there is one.
+    ///
+    /// # RPC Reference
+    ///
+    /// This method corresponds directly to the [`getHighestSnapshotSlot`] RPC method.
+    ///
+    /// [`getHighestSnapshotSlot`]: https://docs.solana.com/developing/clients/jsonrpc-api#gethighestsnapshotslot
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use solana_client::{
+    /// #     nonblocking::rpc_client::RpcClient,
+    /// #     client_error::ClientError,
+    /// # };
+    /// # futures::executor::block_on(async {
+    /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
+    /// let snapshot_slot_info = rpc_client.get_highest_snapshot_slot().await?;
+    /// #     Ok::<(), ClientError>(())
+    /// # })?;
+    /// # Ok::<(), ClientError>(())
+    /// ```
+    pub async fn get_highest_snapshot_slot(&self) -> ClientResult<RpcSnapshotSlotInfo> {
+        if self.get_node_version().await? < semver::Version::new(1, 9, 0) {
+            #[allow(deprecated)]
+            self.get_snapshot_slot()
+                .await
+                .map(|full| RpcSnapshotSlotInfo {
+                    full,
+                    incremental: None,
+                })
+        } else {
+            self.send(RpcRequest::GetHighestSnapshotSlot, Value::Null)
                 .await
         }
+    }
+
+    #[deprecated(
+        since = "1.8.0",
+        note = "Please use RpcClient::get_highest_snapshot_slot() instead"
+    )]
+    #[allow(deprecated)]
+    pub async fn get_snapshot_slot(&self) -> ClientResult<Slot> {
+        self.send(RpcRequest::GetSnapshotSlot, Value::Null).await
+    }
+    */
+
+    /// Check if a transaction has been processed with the default [commitment level][cl].
+    ///
+    /// [cl]: https://docs.solana.com/developing/clients/jsonrpc-api#configuring-state-commitment
+    ///
+    /// If the transaction has been processed with the default commitment level,
+    /// then this method returns `Ok` of `Some`. If the transaction has not yet
+    /// been processed with the default commitment level, it returns `Ok` of
+    /// `None`.
+    ///
+    /// If the transaction has been processed with the default commitment level,
+    /// and the transaction succeeded, this method returns `Ok(Some(Ok(())))`.
+    /// If the transaction has peen processed with the default commitment level,
+    /// and the transaction failed, this method returns `Ok(Some(Err(_)))`,
+    /// where the interior error is type [`TransactionError`].
+    ///
+    /// [`TransactionError`]: solana_sdk::transaction::TransactionError
+    ///
+    /// This function only searches a node's recent history, including all
+    /// recent slots, plus up to
+    /// [`MAX_RECENT_BLOCKHASHES`][solana_sdk::clock::MAX_RECENT_BLOCKHASHES]
+    /// rooted slots. To search the full transaction history use the
+    /// [`get_signature_statuse_with_commitment_and_history`][RpcClient::get_signature_status_with_commitment_and_history]
+    /// method.
+    ///
+    /// # RPC Reference
+    ///
+    /// This method is built on the [`getSignatureStatuses`] RPC method.
+    ///
+    /// [`getSignatureStatuses`]: https://docs.solana.com/developing/clients/jsonrpc-api#gitsignaturestatuses
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use solana_client::{
+    /// #     nonblocking::rpc_client::RpcClient,
+    /// #     client_error::ClientError,
+    /// # };
+    /// # use solana_sdk::{
+    /// #     signature::Signer,
+    /// #     signature::Signature,
+    /// #     signer::keypair::Keypair,
+    /// #     hash::Hash,
+    /// #     system_transaction,
+    /// # };
+    /// # futures::executor::block_on(async {
+    /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
+    /// #     let alice = Keypair::new();
+    /// #     let bob = Keypair::new();
+    /// #     let lamports = 50;
+    /// #     let latest_blockhash = rpc_client.get_latest_blockhash().await?;
+    /// #     let tx = system_transaction::transfer(&alice, &bob.pubkey(), lamports, latest_blockhash);
+    /// let signature = rpc_client.send_transaction(&tx).await?;
+    /// let status = rpc_client.get_signature_status(&signature).await?;
+    /// #     Ok::<(), ClientError>(())
+    /// # })?;
+    /// # Ok::<(), ClientError>(())
+    /// ```
+    pub async fn get_signature_status(
+        &self,
+        signature: &Signature,
+    ) -> ClientResult<Option<transaction::Result<()>>> {
+        self.get_signature_status_with_commitment(signature, self.commitment())
+            .await
+    }
 
     /// Gets the statuses of a list of transaction signatures.
     ///
@@ -1628,162 +1631,162 @@ impl RpcClient {
     }
 
     /*
-        /// Gets the statuses of a list of transaction signatures.
-        ///
-        /// The returned vector of [`TransactionStatus`] has the same length as the
-        /// input slice.
-        ///
-        /// For any transaction that has not been processed by the network, the
-        /// value of the corresponding entry in the returned vector is `None`. As a
-        /// result, a transaction that has recently been submitted will not have a
-        /// status immediately.
-        ///
-        /// To submit a transaction and wait for it to confirm, use
-        /// [`send_and_confirm_transaction`][RpcClient::send_and_confirm_transaction].
-        ///
-        /// This function ignores the configured confirmation level, and returns the
-        /// transaction status whatever it is. It does not wait for transactions to
-        /// be processed.
-        ///
-        /// This function searches a node's full ledger history and (if implemented) long-term storage. To search for
-        /// transactions in recent slots only use the
-        /// [`get_signature_statuses`][RpcClient::get_signature_statuses] method.
-        ///
-        /// # Errors
-        ///
-        /// Any individual `TransactionStatus` may have triggered an error during
-        /// processing, in which case its [`err`][`TransactionStatus::err`] field
-        /// will be `Some`.
-        ///
-        /// # RPC Reference
-        ///
-        /// This method corresponds directly to the [`getSignatureStatuses`] RPC
-        /// method, with the `searchTransactionHistory` configuration option set to
-        /// `true`.
-        ///
-        /// [`getSignatureStatuses`]: https://docs.solana.com/developing/clients/jsonrpc-api#getsignaturestatuses
-        ///
-        /// # Examples
-        ///
-        /// ```
-        /// # use solana_client::{
-        /// #     nonblocking::rpc_client::RpcClient,
-        /// #     client_error::ClientError,
-        /// # };
-        /// # use solana_sdk::{
-        /// #     signature::Signer,
-        /// #     signature::Signature,
-        /// #     signer::keypair::Keypair,
-        /// #     hash::Hash,
-        /// #     system_transaction,
-        /// # };
-        /// # futures::executor::block_on(async {
-        /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
-        /// #     let alice = Keypair::new();
-        /// #     fn get_old_transaction_signature() -> Signature { Signature::default() }
-        /// // Check if an old transaction exists
-        /// let signature = get_old_transaction_signature();
-        /// let latest_blockhash = rpc_client.get_latest_blockhash().await?;
-        /// let statuses = rpc_client.get_signature_statuses_with_history(&[signature]).await?.value;
-        /// if statuses[0].is_none() {
-        ///     println!("old transaction does not exist");
-        /// }
-        /// #     Ok::<(), ClientError>(())
-        /// # })?;
-        /// # Ok::<(), ClientError>(())
-        /// ```
-        pub async fn get_signature_statuses_with_history(
-            &self,
-            signatures: &[Signature],
-        ) -> RpcResult<Vec<Option<TransactionStatus>>> {
-            let signatures: Vec<_> = signatures.iter().map(|s| s.to_string()).collect();
-            self.send(
-                RpcRequest::GetSignatureStatuses,
-                json!([signatures, {
-                    "searchTransactionHistory": true
-                }]),
-            )
-            .await
-        }
-        */
+    /// Gets the statuses of a list of transaction signatures.
+    ///
+    /// The returned vector of [`TransactionStatus`] has the same length as the
+    /// input slice.
+    ///
+    /// For any transaction that has not been processed by the network, the
+    /// value of the corresponding entry in the returned vector is `None`. As a
+    /// result, a transaction that has recently been submitted will not have a
+    /// status immediately.
+    ///
+    /// To submit a transaction and wait for it to confirm, use
+    /// [`send_and_confirm_transaction`][RpcClient::send_and_confirm_transaction].
+    ///
+    /// This function ignores the configured confirmation level, and returns the
+    /// transaction status whatever it is. It does not wait for transactions to
+    /// be processed.
+    ///
+    /// This function searches a node's full ledger history and (if implemented) long-term storage. To search for
+    /// transactions in recent slots only use the
+    /// [`get_signature_statuses`][RpcClient::get_signature_statuses] method.
+    ///
+    /// # Errors
+    ///
+    /// Any individual `TransactionStatus` may have triggered an error during
+    /// processing, in which case its [`err`][`TransactionStatus::err`] field
+    /// will be `Some`.
+    ///
+    /// # RPC Reference
+    ///
+    /// This method corresponds directly to the [`getSignatureStatuses`] RPC
+    /// method, with the `searchTransactionHistory` configuration option set to
+    /// `true`.
+    ///
+    /// [`getSignatureStatuses`]: https://docs.solana.com/developing/clients/jsonrpc-api#getsignaturestatuses
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use solana_client::{
+    /// #     nonblocking::rpc_client::RpcClient,
+    /// #     client_error::ClientError,
+    /// # };
+    /// # use solana_sdk::{
+    /// #     signature::Signer,
+    /// #     signature::Signature,
+    /// #     signer::keypair::Keypair,
+    /// #     hash::Hash,
+    /// #     system_transaction,
+    /// # };
+    /// # futures::executor::block_on(async {
+    /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
+    /// #     let alice = Keypair::new();
+    /// #     fn get_old_transaction_signature() -> Signature { Signature::default() }
+    /// // Check if an old transaction exists
+    /// let signature = get_old_transaction_signature();
+    /// let latest_blockhash = rpc_client.get_latest_blockhash().await?;
+    /// let statuses = rpc_client.get_signature_statuses_with_history(&[signature]).await?.value;
+    /// if statuses[0].is_none() {
+    ///     println!("old transaction does not exist");
+    /// }
+    /// #     Ok::<(), ClientError>(())
+    /// # })?;
+    /// # Ok::<(), ClientError>(())
+    /// ```
+    pub async fn get_signature_statuses_with_history(
+        &self,
+        signatures: &[Signature],
+    ) -> RpcResult<Vec<Option<TransactionStatus>>> {
+        let signatures: Vec<_> = signatures.iter().map(|s| s.to_string()).collect();
+        self.send(
+            RpcRequest::GetSignatureStatuses,
+            json!([signatures, {
+                "searchTransactionHistory": true
+            }]),
+        )
+        .await
+    }
+    */
 
-        /// Check if a transaction has been processed with the given [commitment level][cl].
-        ///
-        /// [cl]: https://docs.solana.com/developing/clients/jsonrpc-api#configuring-state-commitment
-        ///
-        /// If the transaction has been processed with the given commitment level,
-        /// then this method returns `Ok` of `Some`. If the transaction has not yet
-        /// been processed with the given commitment level, it returns `Ok` of
-        /// `None`.
-        ///
-        /// If the transaction has been processed with the given commitment level,
-        /// and the transaction succeeded, this method returns `Ok(Some(Ok(())))`.
-        /// If the transaction has peen processed with the given commitment level,
-        /// and the transaction failed, this method returns `Ok(Some(Err(_)))`,
-        /// where the interior error is type [`TransactionError`].
-        ///
-        /// [`TransactionError`]: solana_sdk::transaction::TransactionError
-        ///
-        /// This function only searches a node's recent history, including all
-        /// recent slots, plus up to
-        /// [`MAX_RECENT_BLOCKHASHES`][solana_sdk::clock::MAX_RECENT_BLOCKHASHES]
-        /// rooted slots. To search the full transaction history use the
-        /// [`get_signature_statuse_with_commitment_and_history`][RpcClient::get_signature_status_with_commitment_and_history]
-        /// method.
-        ///
-        /// # RPC Reference
-        ///
-        /// This method is built on the [`getSignatureStatuses`] RPC method.
-        ///
-        /// [`getSignatureStatuses`]: https://docs.solana.com/developing/clients/jsonrpc-api#getsignaturestatuses
-        ///
-        /// # Examples
-        ///
-        /// ```
-        /// # use solana_client::{
-        /// #     nonblocking::rpc_client::RpcClient,
-        /// #     client_error::ClientError,
-        /// # };
-        /// # use solana_sdk::{
-        /// #     commitment_config::CommitmentConfig,
-        /// #     signature::Signer,
-        /// #     signature::Signature,
-        /// #     signer::keypair::Keypair,
-        /// #     system_transaction,
-        /// # };
-        /// # futures::executor::block_on(async {
-        /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
-        /// #     let alice = Keypair::new();
-        /// #     let bob = Keypair::new();
-        /// #     let lamports = 50;
-        /// #     let latest_blockhash = rpc_client.get_latest_blockhash().await?;
-        /// #     let tx = system_transaction::transfer(&alice, &bob.pubkey(), lamports, latest_blockhash);
-        /// let signature = rpc_client.send_and_confirm_transaction(&tx).await?;
-        /// let commitment_config = CommitmentConfig::processed();
-        /// let status = rpc_client.get_signature_status_with_commitment(
-        ///     &signature,
-        ///     commitment_config,
-        /// ).await?;
-        /// #     Ok::<(), ClientError>(())
-        /// # })?;
-        /// # Ok::<(), ClientError>(())
-        /// ```
-        pub async fn get_signature_status_with_commitment(
-            &self,
-            signature: &Signature,
-            commitment_config: CommitmentConfig,
-        ) -> ClientResult<Option<transaction::Result<()>>> {
-            let result: Response<Vec<Option<TransactionStatus>>> = self
-                .send(
-                    RpcRequest::GetSignatureStatuses,
-                    json!([[signature.to_string()]]),
-                )
-                .await?;
-            Ok(result.value[0]
-                .clone()
-                .filter(|result| result.satisfies_commitment(commitment_config))
-                .map(|status_meta| status_meta.status))
-        }
+    /// Check if a transaction has been processed with the given [commitment level][cl].
+    ///
+    /// [cl]: https://docs.solana.com/developing/clients/jsonrpc-api#configuring-state-commitment
+    ///
+    /// If the transaction has been processed with the given commitment level,
+    /// then this method returns `Ok` of `Some`. If the transaction has not yet
+    /// been processed with the given commitment level, it returns `Ok` of
+    /// `None`.
+    ///
+    /// If the transaction has been processed with the given commitment level,
+    /// and the transaction succeeded, this method returns `Ok(Some(Ok(())))`.
+    /// If the transaction has peen processed with the given commitment level,
+    /// and the transaction failed, this method returns `Ok(Some(Err(_)))`,
+    /// where the interior error is type [`TransactionError`].
+    ///
+    /// [`TransactionError`]: solana_sdk::transaction::TransactionError
+    ///
+    /// This function only searches a node's recent history, including all
+    /// recent slots, plus up to
+    /// [`MAX_RECENT_BLOCKHASHES`][solana_sdk::clock::MAX_RECENT_BLOCKHASHES]
+    /// rooted slots. To search the full transaction history use the
+    /// [`get_signature_statuse_with_commitment_and_history`][RpcClient::get_signature_status_with_commitment_and_history]
+    /// method.
+    ///
+    /// # RPC Reference
+    ///
+    /// This method is built on the [`getSignatureStatuses`] RPC method.
+    ///
+    /// [`getSignatureStatuses`]: https://docs.solana.com/developing/clients/jsonrpc-api#getsignaturestatuses
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use solana_client::{
+    /// #     nonblocking::rpc_client::RpcClient,
+    /// #     client_error::ClientError,
+    /// # };
+    /// # use solana_sdk::{
+    /// #     commitment_config::CommitmentConfig,
+    /// #     signature::Signer,
+    /// #     signature::Signature,
+    /// #     signer::keypair::Keypair,
+    /// #     system_transaction,
+    /// # };
+    /// # futures::executor::block_on(async {
+    /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
+    /// #     let alice = Keypair::new();
+    /// #     let bob = Keypair::new();
+    /// #     let lamports = 50;
+    /// #     let latest_blockhash = rpc_client.get_latest_blockhash().await?;
+    /// #     let tx = system_transaction::transfer(&alice, &bob.pubkey(), lamports, latest_blockhash);
+    /// let signature = rpc_client.send_and_confirm_transaction(&tx).await?;
+    /// let commitment_config = CommitmentConfig::processed();
+    /// let status = rpc_client.get_signature_status_with_commitment(
+    ///     &signature,
+    ///     commitment_config,
+    /// ).await?;
+    /// #     Ok::<(), ClientError>(())
+    /// # })?;
+    /// # Ok::<(), ClientError>(())
+    /// ```
+    pub async fn get_signature_status_with_commitment(
+        &self,
+        signature: &Signature,
+        commitment_config: CommitmentConfig,
+    ) -> ClientResult<Option<transaction::Result<()>>> {
+        let result: Response<Vec<Option<TransactionStatus>>> = self
+            .send(
+                RpcRequest::GetSignatureStatuses,
+                json!([[signature.to_string()]]),
+            )
+            .await?;
+        Ok(result.value[0]
+            .clone()
+            .filter(|result| result.satisfies_commitment(commitment_config))
+            .map(|status_meta| status_meta.status))
+    }
 
     /*
         /// Check if a transaction has been processed with the given [commitment level][cl].
@@ -4569,260 +4572,260 @@ impl RpcClient {
     }
     /*
 
-        /// Returns the stake minimum delegation, in lamports.
-        ///
-        /// # RPC Reference
-        ///
-        /// This method corresponds directly to the [`getStakeMinimumDelegation`] RPC method.
-        ///
-        /// [`getStakeMinimumDelegation`]: https://docs.solana.com/developing/clients/jsonrpc-api#getstakeminimumdelegation
-        ///
-        /// # Examples
-        ///
-        /// ```
-        /// # use solana_client::{
-        /// #     nonblocking::rpc_client::RpcClient,
-        /// #     client_error::ClientError,
-        /// # };
-        /// # futures::executor::block_on(async {
-        /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
-        /// let stake_minimum_delegation = rpc_client.get_stake_minimum_delegation().await?;
-        /// #     Ok::<(), ClientError>(())
-        /// # })?;
-        /// # Ok::<(), ClientError>(())
-        /// ```
-        pub async fn get_stake_minimum_delegation(&self) -> ClientResult<u64> {
-            self.get_stake_minimum_delegation_with_commitment(self.commitment())
-                .await
-        }
+            /// Returns the stake minimum delegation, in lamports.
+            ///
+            /// # RPC Reference
+            ///
+            /// This method corresponds directly to the [`getStakeMinimumDelegation`] RPC method.
+            ///
+            /// [`getStakeMinimumDelegation`]: https://docs.solana.com/developing/clients/jsonrpc-api#getstakeminimumdelegation
+            ///
+            /// # Examples
+            ///
+            /// ```
+            /// # use solana_client::{
+            /// #     nonblocking::rpc_client::RpcClient,
+            /// #     client_error::ClientError,
+            /// # };
+            /// # futures::executor::block_on(async {
+            /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
+            /// let stake_minimum_delegation = rpc_client.get_stake_minimum_delegation().await?;
+            /// #     Ok::<(), ClientError>(())
+            /// # })?;
+            /// # Ok::<(), ClientError>(())
+            /// ```
+            pub async fn get_stake_minimum_delegation(&self) -> ClientResult<u64> {
+                self.get_stake_minimum_delegation_with_commitment(self.commitment())
+                    .await
+            }
 
-        /// Returns the stake minimum delegation, in lamports, based on the commitment level.
-        ///
-        /// # RPC Reference
-        ///
-        /// This method corresponds directly to the [`getStakeMinimumDelegation`] RPC method.
-        ///
-        /// [`getStakeMinimumDelegation`]: https://docs.solana.com/developing/clients/jsonrpc-api#getstakeminimumdelegation
-        ///
-        /// # Examples
-        ///
-        /// ```
-        /// # use solana_client::{
-        /// #     nonblocking::rpc_client::RpcClient,
-        /// #     client_error::ClientError,
-        /// # };
-        /// # use solana_sdk::commitment_config::CommitmentConfig;
-        /// # futures::executor::block_on(async {
-        /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
-        /// let stake_minimum_delegation = rpc_client.get_stake_minimum_delegation_with_commitment(CommitmentConfig::confirmed()).await?;
-        /// #     Ok::<(), ClientError>(())
-        /// # })?;
-        /// # Ok::<(), ClientError>(())
-        /// ```
-        pub async fn get_stake_minimum_delegation_with_commitment(
-            &self,
-            commitment_config: CommitmentConfig,
-        ) -> ClientResult<u64> {
-            Ok(self
-                .send::<Response<u64>>(
-                    RpcRequest::GetStakeMinimumDelegation,
+            /// Returns the stake minimum delegation, in lamports, based on the commitment level.
+            ///
+            /// # RPC Reference
+            ///
+            /// This method corresponds directly to the [`getStakeMinimumDelegation`] RPC method.
+            ///
+            /// [`getStakeMinimumDelegation`]: https://docs.solana.com/developing/clients/jsonrpc-api#getstakeminimumdelegation
+            ///
+            /// # Examples
+            ///
+            /// ```
+            /// # use solana_client::{
+            /// #     nonblocking::rpc_client::RpcClient,
+            /// #     client_error::ClientError,
+            /// # };
+            /// # use solana_sdk::commitment_config::CommitmentConfig;
+            /// # futures::executor::block_on(async {
+            /// #     let rpc_client = RpcClient::new_mock("succeeds".to_string());
+            /// let stake_minimum_delegation = rpc_client.get_stake_minimum_delegation_with_commitment(CommitmentConfig::confirmed()).await?;
+            /// #     Ok::<(), ClientError>(())
+            /// # })?;
+            /// # Ok::<(), ClientError>(())
+            /// ```
+            pub async fn get_stake_minimum_delegation_with_commitment(
+                &self,
+                commitment_config: CommitmentConfig,
+            ) -> ClientResult<u64> {
+                Ok(self
+                    .send::<Response<u64>>(
+                        RpcRequest::GetStakeMinimumDelegation,
+                        json!([self.maybe_map_commitment(commitment_config).await?]),
+                    )
+                    .await?
+                    .value)
+            }
+
+            /// Request the transaction count.
+            pub async fn get_transaction_count(&self) -> ClientResult<u64> {
+                self.get_transaction_count_with_commitment(self.commitment())
+                    .await
+            }
+
+            pub async fn get_transaction_count_with_commitment(
+                &self,
+                commitment_config: CommitmentConfig,
+            ) -> ClientResult<u64> {
+                self.send(
+                    RpcRequest::GetTransactionCount,
                     json!([self.maybe_map_commitment(commitment_config).await?]),
                 )
-                .await?
-                .value)
-        }
-
-        /// Request the transaction count.
-        pub async fn get_transaction_count(&self) -> ClientResult<u64> {
-            self.get_transaction_count_with_commitment(self.commitment())
                 .await
-        }
+            }
 
-        pub async fn get_transaction_count_with_commitment(
-            &self,
-            commitment_config: CommitmentConfig,
-        ) -> ClientResult<u64> {
-            self.send(
-                RpcRequest::GetTransactionCount,
-                json!([self.maybe_map_commitment(commitment_config).await?]),
+            #[deprecated(
+                since = "1.9.0",
+                note = "Please use `get_latest_blockhash` and `get_fee_for_message` instead"
+            )]
+            #[allow(deprecated)]
+            pub async fn get_fees(&self) -> ClientResult<Fees> {
+                #[allow(deprecated)]
+                Ok(self
+                    .get_fees_with_commitment(self.commitment())
+                    .await?
+                    .value)
+            }
+
+            #[deprecated(
+                since = "1.9.0",
+                note = "Please use `get_latest_blockhash_with_commitment` and `get_fee_for_message` instead"
+            )]
+            #[allow(deprecated)]
+            pub async fn get_fees_with_commitment(
+                &self,
+                commitment_config: CommitmentConfig,
+            ) -> RpcResult<Fees> {
+                let Response {
+                    context,
+                    value: fees,
+                } = self
+                    .send::<Response<RpcFees>>(
+                        RpcRequest::GetFees,
+                        json!([self.maybe_map_commitment(commitment_config).await?]),
+                    )
+                    .await?;
+                let blockhash = fees.blockhash.parse().map_err(|_| {
+                    ClientError::new_with_request(
+                        RpcError::ParseError("Hash".to_string()).into(),
+                        RpcRequest::GetFees,
+                    )
+                })?;
+                Ok(Response {
+                    context,
+                    value: Fees {
+                        blockhash,
+                        fee_calculator: fees.fee_calculator,
+                        last_valid_block_height: fees.last_valid_block_height,
+                    },
+                })
+            }
+
+            #[deprecated(since = "1.9.0", note = "Please use `get_latest_blockhash` instead")]
+            #[allow(deprecated)]
+            pub async fn get_recent_blockhash(&self) -> ClientResult<(Hash, FeeCalculator)> {
+                #[allow(deprecated)]
+                let (blockhash, fee_calculator, _last_valid_slot) = self
+                    .get_recent_blockhash_with_commitment(self.commitment())
+                    .await?
+                    .value;
+                Ok((blockhash, fee_calculator))
+            }
+
+            #[deprecated(
+                since = "1.9.0",
+                note = "Please use `get_latest_blockhash_with_commitment` instead"
+            )]
+            #[allow(deprecated)]
+            pub async fn get_recent_blockhash_with_commitment(
+                &self,
+                commitment_config: CommitmentConfig,
+            ) -> RpcResult<(Hash, FeeCalculator, Slot)> {
+                let (context, blockhash, fee_calculator, last_valid_slot) = if let Ok(Response {
+                    context,
+                    value:
+                        RpcFees {
+                            blockhash,
+                            fee_calculator,
+                            last_valid_slot,
+                            ..
+                        },
+                }) = self
+                    .send::<Response<RpcFees>>(
+                        RpcRequest::GetFees,
+                        json!([self.maybe_map_commitment(commitment_config).await?]),
+                    )
+                    .await
+                {
+                    (context, blockhash, fee_calculator, last_valid_slot)
+                } else if let Ok(Response {
+                    context,
+                    value:
+                        DeprecatedRpcFees {
+                            blockhash,
+                            fee_calculator,
+                            last_valid_slot,
+                        },
+                }) = self
+                    .send::<Response<DeprecatedRpcFees>>(
+                        RpcRequest::GetFees,
+                        json!([self.maybe_map_commitment(commitment_config).await?]),
+                    )
+                    .await
+                {
+                    (context, blockhash, fee_calculator, last_valid_slot)
+                } else if let Ok(Response {
+                    context,
+                    value:
+                        RpcBlockhashFeeCalculator {
+                            blockhash,
+                            fee_calculator,
+                        },
+                }) = self
+                    .send::<Response<RpcBlockhashFeeCalculator>>(
+                        RpcRequest::GetRecentBlockhash,
+                        json!([self.maybe_map_commitment(commitment_config).await?]),
+                    )
+                    .await
+                {
+                    (context, blockhash, fee_calculator, 0)
+                } else {
+                    return Err(ClientError::new_with_request(
+                        RpcError::ParseError("RpcBlockhashFeeCalculator or RpcFees".to_string()).into(),
+                        RpcRequest::GetRecentBlockhash,
+                    ));
+                };
+
+                let blockhash = blockhash.parse().map_err(|_| {
+                    ClientError::new_with_request(
+                        RpcError::ParseError("Hash".to_string()).into(),
+                        RpcRequest::GetRecentBlockhash,
+                    )
+                })?;
+                Ok(Response {
+                    context,
+                    value: (blockhash, fee_calculator, last_valid_slot),
+                })
+            }
+
+            #[deprecated(since = "1.9.0", note = "Please `get_fee_for_message` instead")]
+            #[allow(deprecated)]
+            pub async fn get_fee_calculator_for_blockhash(
+                &self,
+                blockhash: &Hash,
+            ) -> ClientResult<Option<FeeCalculator>> {
+                #[allow(deprecated)]
+                Ok(self
+                    .get_fee_calculator_for_blockhash_with_commitment(blockhash, self.commitment())
+                    .await?
+                    .value)
+            }
+    */
+    #[deprecated(
+        since = "1.9.0",
+        note = "Please `get_latest_blockhash_with_commitment` and `get_fee_for_message` instead"
+    )]
+    #[allow(deprecated)]
+    pub async fn get_fee_calculator_for_blockhash_with_commitment(
+        &self,
+        blockhash: &Hash,
+        commitment_config: CommitmentConfig,
+    ) -> RpcResult<Option<FeeCalculator>> {
+        let Response { context, value } = self
+            .send::<Response<Option<RpcFeeCalculator>>>(
+                RpcRequest::GetFeeCalculatorForBlockhash,
+                json!([
+                    blockhash.to_string(),
+                    self.maybe_map_commitment(commitment_config).await?
+                ]),
             )
-            .await
-        }
+            .await?;
 
-        #[deprecated(
-            since = "1.9.0",
-            note = "Please use `get_latest_blockhash` and `get_fee_for_message` instead"
-        )]
-        #[allow(deprecated)]
-        pub async fn get_fees(&self) -> ClientResult<Fees> {
-            #[allow(deprecated)]
-            Ok(self
-                .get_fees_with_commitment(self.commitment())
-                .await?
-                .value)
-        }
+        Ok(Response {
+            context,
+            value: value.map(|rf| rf.fee_calculator),
+        })
+    }
 
-        #[deprecated(
-            since = "1.9.0",
-            note = "Please use `get_latest_blockhash_with_commitment` and `get_fee_for_message` instead"
-        )]
-        #[allow(deprecated)]
-        pub async fn get_fees_with_commitment(
-            &self,
-            commitment_config: CommitmentConfig,
-        ) -> RpcResult<Fees> {
-            let Response {
-                context,
-                value: fees,
-            } = self
-                .send::<Response<RpcFees>>(
-                    RpcRequest::GetFees,
-                    json!([self.maybe_map_commitment(commitment_config).await?]),
-                )
-                .await?;
-            let blockhash = fees.blockhash.parse().map_err(|_| {
-                ClientError::new_with_request(
-                    RpcError::ParseError("Hash".to_string()).into(),
-                    RpcRequest::GetFees,
-                )
-            })?;
-            Ok(Response {
-                context,
-                value: Fees {
-                    blockhash,
-                    fee_calculator: fees.fee_calculator,
-                    last_valid_block_height: fees.last_valid_block_height,
-                },
-            })
-        }
-
-        #[deprecated(since = "1.9.0", note = "Please use `get_latest_blockhash` instead")]
-        #[allow(deprecated)]
-        pub async fn get_recent_blockhash(&self) -> ClientResult<(Hash, FeeCalculator)> {
-            #[allow(deprecated)]
-            let (blockhash, fee_calculator, _last_valid_slot) = self
-                .get_recent_blockhash_with_commitment(self.commitment())
-                .await?
-                .value;
-            Ok((blockhash, fee_calculator))
-        }
-
-        #[deprecated(
-            since = "1.9.0",
-            note = "Please use `get_latest_blockhash_with_commitment` instead"
-        )]
-        #[allow(deprecated)]
-        pub async fn get_recent_blockhash_with_commitment(
-            &self,
-            commitment_config: CommitmentConfig,
-        ) -> RpcResult<(Hash, FeeCalculator, Slot)> {
-            let (context, blockhash, fee_calculator, last_valid_slot) = if let Ok(Response {
-                context,
-                value:
-                    RpcFees {
-                        blockhash,
-                        fee_calculator,
-                        last_valid_slot,
-                        ..
-                    },
-            }) = self
-                .send::<Response<RpcFees>>(
-                    RpcRequest::GetFees,
-                    json!([self.maybe_map_commitment(commitment_config).await?]),
-                )
-                .await
-            {
-                (context, blockhash, fee_calculator, last_valid_slot)
-            } else if let Ok(Response {
-                context,
-                value:
-                    DeprecatedRpcFees {
-                        blockhash,
-                        fee_calculator,
-                        last_valid_slot,
-                    },
-            }) = self
-                .send::<Response<DeprecatedRpcFees>>(
-                    RpcRequest::GetFees,
-                    json!([self.maybe_map_commitment(commitment_config).await?]),
-                )
-                .await
-            {
-                (context, blockhash, fee_calculator, last_valid_slot)
-            } else if let Ok(Response {
-                context,
-                value:
-                    RpcBlockhashFeeCalculator {
-                        blockhash,
-                        fee_calculator,
-                    },
-            }) = self
-                .send::<Response<RpcBlockhashFeeCalculator>>(
-                    RpcRequest::GetRecentBlockhash,
-                    json!([self.maybe_map_commitment(commitment_config).await?]),
-                )
-                .await
-            {
-                (context, blockhash, fee_calculator, 0)
-            } else {
-                return Err(ClientError::new_with_request(
-                    RpcError::ParseError("RpcBlockhashFeeCalculator or RpcFees".to_string()).into(),
-                    RpcRequest::GetRecentBlockhash,
-                ));
-            };
-
-            let blockhash = blockhash.parse().map_err(|_| {
-                ClientError::new_with_request(
-                    RpcError::ParseError("Hash".to_string()).into(),
-                    RpcRequest::GetRecentBlockhash,
-                )
-            })?;
-            Ok(Response {
-                context,
-                value: (blockhash, fee_calculator, last_valid_slot),
-            })
-        }
-
-        #[deprecated(since = "1.9.0", note = "Please `get_fee_for_message` instead")]
-        #[allow(deprecated)]
-        pub async fn get_fee_calculator_for_blockhash(
-            &self,
-            blockhash: &Hash,
-        ) -> ClientResult<Option<FeeCalculator>> {
-            #[allow(deprecated)]
-            Ok(self
-                .get_fee_calculator_for_blockhash_with_commitment(blockhash, self.commitment())
-                .await?
-                .value)
-        }
-*/
-        #[deprecated(
-            since = "1.9.0",
-            note = "Please `get_latest_blockhash_with_commitment` and `get_fee_for_message` instead"
-        )]
-        #[allow(deprecated)]
-        pub async fn get_fee_calculator_for_blockhash_with_commitment(
-            &self,
-            blockhash: &Hash,
-            commitment_config: CommitmentConfig,
-        ) -> RpcResult<Option<FeeCalculator>> {
-            let Response { context, value } = self
-                .send::<Response<Option<RpcFeeCalculator>>>(
-                    RpcRequest::GetFeeCalculatorForBlockhash,
-                    json!([
-                        blockhash.to_string(),
-                        self.maybe_map_commitment(commitment_config).await?
-                    ]),
-                )
-                .await?;
-
-            Ok(Response {
-                context,
-                value: value.map(|rf| rf.fee_calculator),
-            })
-        }
-
-/*
+    /*
         #[deprecated(
             since = "1.9.0",
             note = "Please do not use, will no longer be available in the future"
@@ -5375,29 +5378,29 @@ impl RpcClient {
         Ok((blockhash, last_valid_block_height))
     }
 
-        #[allow(deprecated)]
-        pub async fn is_blockhash_valid(
-            &self,
-            blockhash: &Hash,
-            commitment: CommitmentConfig,
-        ) -> ClientResult<bool> {
-            let result = if self.get_node_version().await? < semver::Version::new(1, 9, 0) {
-                self.get_fee_calculator_for_blockhash_with_commitment(blockhash, commitment)
-                    .await?
-                    .value
-                    .is_some()
-            } else {
-                self.send::<Response<bool>>(
-                    RpcRequest::IsBlockhashValid,
-                    json!([blockhash.to_string(), commitment,]),
-                )
+    #[allow(deprecated)]
+    pub async fn is_blockhash_valid(
+        &self,
+        blockhash: &Hash,
+        commitment: CommitmentConfig,
+    ) -> ClientResult<bool> {
+        let result = if self.get_node_version().await? < semver::Version::new(1, 9, 0) {
+            self.get_fee_calculator_for_blockhash_with_commitment(blockhash, commitment)
                 .await?
                 .value
-            };
-            Ok(result)
-        }
+                .is_some()
+        } else {
+            self.send::<Response<bool>>(
+                RpcRequest::IsBlockhashValid,
+                json!([blockhash.to_string(), commitment,]),
+            )
+            .await?
+            .value
+        };
+        Ok(result)
+    }
 
-        /* 
+    /*
         #[allow(deprecated)]
         pub async fn get_fee_for_message(&self, message: &Message) -> ClientResult<u64> {
             if self.get_node_version().await? < semver::Version::new(1, 9, 0) {
