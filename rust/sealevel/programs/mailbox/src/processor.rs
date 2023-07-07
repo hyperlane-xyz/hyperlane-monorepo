@@ -279,10 +279,13 @@ fn inbox_process(
     )?;
 
     // Account N: SPL Noop program.
-    #[allow(unused)]
     let spl_noop_info = next_account_info(accounts_iter)?;
+    if spl_noop_info.key != &spl_noop_id {
+        return Err(ProgramError::InvalidArgument);
+    }
+
     #[cfg(not(feature = "no-spl-noop"))]
-    if spl_noop_info.key != &spl_noop_id || !spl_noop_info.executable {
+    if !spl_noop_info.executable {
         return Err(ProgramError::InvalidArgument);
     }
 
@@ -594,10 +597,13 @@ fn outbox_dispatch(
     }
 
     // Account 3: SPL Noop program.
-    #[allow(unused)]
     let spl_noop_info = next_account_info(accounts_iter)?;
+    if spl_noop_info.key != &spl_noop::id() {
+        return Err(ProgramError::InvalidArgument);
+    }
+
     #[cfg(not(feature = "no-spl-noop"))]
-    if spl_noop_info.key != &spl_noop::id() || !spl_noop_info.executable {
+    if !spl_noop_info.executable {
         return Err(ProgramError::InvalidArgument);
     }
 

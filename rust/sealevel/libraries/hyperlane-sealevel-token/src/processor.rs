@@ -270,11 +270,13 @@ where
             return Err(ProgramError::InvalidArgument);
         }
 
-        // Account 0: SPL Noop.
-        // Verification of this is deferred to the Mailbox.
+        // Account 1: SPL Noop.
         let spl_noop = next_account_info(accounts_iter)?;
+        if spl_noop.key != &spl_noop::id() {
+            return Err(ProgramError::InvalidArgument);
+        }
 
-        // Account 1: Token storage account
+        // Account 2: Token storage account
         let token_account = next_account_info(accounts_iter)?;
         let token =
             HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow()[..])?.into_inner();
@@ -287,17 +289,17 @@ where
             return Err(ProgramError::IncorrectProgramId);
         }
 
-        // Account 2: Mailbox program
+        // Account 3: Mailbox program
         let mailbox_info = next_account_info(accounts_iter)?;
         if mailbox_info.key != &token.mailbox {
             return Err(ProgramError::IncorrectProgramId);
         }
 
-        // Account 3: Mailbox Outbox data account.
+        // Account 4: Mailbox Outbox data account.
         // No verification is performed here, the Mailbox will do that.
         let mailbox_outbox_account = next_account_info(accounts_iter)?;
 
-        // Account 4: Message dispatch authority
+        // Account 5: Message dispatch authority
         let dispatch_authority_account = next_account_info(accounts_iter)?;
         let dispatch_authority_seeds: &[&[u8]] =
             mailbox_message_dispatch_authority_pda_seeds!(token.dispatch_authority_bump);
@@ -307,17 +309,17 @@ where
             return Err(ProgramError::InvalidArgument);
         }
 
-        // Account 5: Sender account / mailbox payer
+        // Account 6: Sender account / mailbox payer
         let sender_wallet = next_account_info(accounts_iter)?;
         if !sender_wallet.is_signer {
             return Err(ProgramError::MissingRequiredSignature);
         }
 
-        // Account 6: Unique message account
+        // Account 7: Unique message account
         // Defer to the checks in the Mailbox, no need to verify anything here.
         let unique_message_account = next_account_info(accounts_iter)?;
 
-        // Account 7: Message storage PDA.
+        // Account 8: Message storage PDA.
         // Similarly defer to the checks in the Mailbox to ensure account validity.
         let dispatched_message_pda = next_account_info(accounts_iter)?;
 
