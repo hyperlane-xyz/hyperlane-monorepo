@@ -270,11 +270,9 @@ where
             return Err(ProgramError::InvalidArgument);
         }
 
-        // Account 0: SPL Noop
+        // Account 0: SPL Noop.
+        // Verification of this is deferred to the Mailbox.
         let spl_noop = next_account_info(accounts_iter)?;
-        if spl_noop.key != &spl_noop::id() || !spl_noop.executable {
-            return Err(ProgramError::InvalidArgument);
-        }
 
         // Account 1: Token storage account
         let token_account = next_account_info(accounts_iter)?;

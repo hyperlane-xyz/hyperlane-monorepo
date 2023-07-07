@@ -5,6 +5,7 @@ edition = "2021"
 
 [features]
 no-entrypoint = []
+no-spl-noop = []
 
 [dependencies]
 hyperlane-core = { path = "../../hyperlane-core" }
