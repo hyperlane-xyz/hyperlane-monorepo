@@ -9,15 +9,6 @@ license-file.workspace = true
 publish.workspace = true
 version.workspace = true
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-# These dependencies are incompatible with Solana programs
-#[target.'cfg(not(target_os = "solana"))'.dependencies]
-#ethers-contract.workspace = true
-#ethers-providers.workspace = true
-#ethers-core.workspace = true
-#primitive-types = { version = "*", features = ["impl-borsh", "impl-serde"] }
-
 [dependencies]
 async-trait.workspace = true
 auto_impl = "1.0"
