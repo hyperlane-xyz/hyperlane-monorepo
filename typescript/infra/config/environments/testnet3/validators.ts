@@ -310,4 +310,70 @@ export const validators: ValidatorBaseChainConfigMap = {
       },
     ],
   },
+  solanadevnet: {
+    interval: 10,
+    reorgPeriod: 0,
+    validators: [
+      {
+        address: '0xec0f73dbc5b1962a20f7dcbe07c98414025b0c43',
+        name: s3BucketName('solanadevnet', 0),
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('solanadevnet', 0),
+          region: s3BucketRegion,
+        },
+      },
+      {
+        address: '0x9c20a149dfa09ea9f77f5a7ca09ed44f9c025133',
+        name: s3BucketName('solanadevnet', 1),
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('solanadevnet', 1),
+          region: s3BucketRegion,
+        },
+      },
+      {
+        address: '0x967c5ecdf2625ae86580bd203b630abaaf85cd62',
+        name: s3BucketName('solanadevnet', 2),
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('solanadevnet', 2),
+          region: s3BucketRegion,
+        },
+      },
+    ],
+  },
+  zbctestnet: {
+    interval: 10,
+    reorgPeriod: 0,
+    validators: [
+      {
+        address: '0x37c38deca34bdf1b35436fcfca7b16e1b60ab23b',
+        name: s3BucketName('zbctestnet', 0),
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('zbctestnet', 0),
+          region: s3BucketRegion,
+        },
+      },
+      {
+        address: '0x9701cba527daf36ba52bf78e582455ec0b21848a',
+        name: s3BucketName('zbctestnet', 1),
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('zbctestnet', 1),
+          region: s3BucketRegion,
+        },
+      },
+      {
+        address: '0xb449c5cf55429e779f0f9c419e783dc36d51c17d',
+        name: s3BucketName('zbctestnet', 2),
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('zbctestnet', 2),
+          region: s3BucketRegion,
+        },
+      },
+    ],
+  },
 };

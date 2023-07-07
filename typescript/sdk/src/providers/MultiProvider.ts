@@ -13,6 +13,7 @@ import { types, utils } from '@hyperlane-xyz/utils';
 import {
   ChainMetadata,
   chainMetadata as defaultChainMetadata,
+  getDomainId,
   isValidChainMetadata,
 } from '../consts/chainMetadata';
 import { CoreChainName, TestChains } from '../consts/chains';
@@ -199,7 +200,7 @@ export class MultiProvider {
    */
   getDomainId(chainNameOrId: ChainName | number): number {
     const metadata = this.getChainMetadata(chainNameOrId);
-    return metadata.domainId ?? metadata.chainId;
+    return getDomainId(metadata);
   }
 
   /**

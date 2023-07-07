@@ -691,6 +691,48 @@ export const gnosis: ChainMetadata = {
   gnosisSafeTransactionServiceUrl: 'https://safe-transaction.xdai.gnosis.io/',
 };
 
+export const solanadevnet: ChainMetadata = {
+  chainId: 1399811151,
+  name: Chains.solanadevnet,
+  protocol: ProtocolType.Sealevel,
+  displayName: 'Solana Devnet',
+  displayNameShort: 'Sol Devnet',
+  nativeToken: {
+    decimals: 9,
+    name: 'Solana',
+    symbol: 'SOL',
+  },
+  publicRpcUrls: [{ http: 'https://api.devnet.solana.com' }],
+  blockExplorers: [],
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 0,
+    estimateBlockTime: 0.4,
+  },
+  isTestnet: true,
+};
+
+export const zbctestnet: ChainMetadata = {
+  chainId: 2053254516,
+  name: Chains.zbctestnet,
+  protocol: ProtocolType.Sealevel,
+  displayName: 'Solana Devnet 1',
+  displayNameShort: 'Sol Devnet 1',
+  nativeToken: {
+    decimals: 9,
+    name: 'Solana',
+    symbol: 'SOL',
+  },
+  publicRpcUrls: [{ http: 'https://api.devnet.solana.com' }],
+  blockExplorers: [],
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 0,
+    estimateBlockTime: 0.4,
+  },
+  isTestnet: true,
+};
+
 export const test1: ChainMetadata = {
   chainId: 13371,
   name: Chains.test1,
@@ -767,6 +809,8 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   test1,
   test2,
   test3,
+  solanadevnet,
+  zbctestnet,
 };
 
 // For convenient use in wagmi-based apps
@@ -791,4 +835,8 @@ export const testnetChainsMetadata: Array<ChainMetadata> = Testnets.map(
 
 export function isValidChainMetadata(c: ChainMetadata): boolean {
   return ChainMetadataSchema.safeParse(c).success;
+}
+
+export function getDomainId(chainMetadata: ChainMetadata): number {
+  return chainMetadata.domainId ?? chainMetadata.chainId;
 }
