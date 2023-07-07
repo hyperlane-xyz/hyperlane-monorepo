@@ -13,17 +13,13 @@ members = [
     "hyperlane-base",
     "hyperlane-core",
     "hyperlane-test",
-    # "sealevel/programs/ism/rubber-stamp",
-    # "sealevel/programs/mailbox",
-    # "sealevel/programs/recipient/echo",
     "utils/abigen",
     "utils/backtrace-oneline",
     "utils/hex",
     "utils/run-locally",
 ]
-# FIXME dependency conflicts between solana and hyperlane
+
 exclude = [ "sealevel" ]
-# exclude = [ "sealevel/hyperlane-core" ]
 
 [workspace.package]
 documentation = "https://docs.hyperlane.xyz"

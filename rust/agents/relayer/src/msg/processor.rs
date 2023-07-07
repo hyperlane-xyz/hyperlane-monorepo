@@ -130,14 +130,11 @@ impl MessageProcessor {
             }
 
             // Skip if the message is intended for this origin
-            // TODO: Add this back, maybe
-            /*
             if destination == self.domain().id() {
                 debug!(?msg, "Message destined for self, skipping");
                 self.message_nonce += 1;
                 return Ok(());
             }
-            */
 
             // Skip if the message is intended for a destination we do not service
             if !self.send_channels.contains_key(&destination) {

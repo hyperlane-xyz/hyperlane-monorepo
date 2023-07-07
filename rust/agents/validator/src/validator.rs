@@ -69,6 +69,10 @@ impl BaseAgent for Validator {
             .build_mailbox(&settings.origin_chain, &metrics)
             .await?;
 
+        let validator_announce = settings
+            .build_validator_announce(&settings.origin_chain, &metrics)
+            .await?;
+
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
 
         let message_sync = settings
@@ -80,10 +84,6 @@ impl BaseAgent for Validator {
             )
             .await?
             .into();
-
-        let validator_announce = settings
-            .build_validator_announce(&settings.origin_chain, &metrics)
-            .await?;
 
         Ok(Self {
             origin_chain: settings.origin_chain,
