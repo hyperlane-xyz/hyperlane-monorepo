@@ -1,7 +1,6 @@
 import { z } from 'zod';
 
 import { ChainMetadataSchema } from './chainMetadataTypes';
-import { ChainMetadataWithUiExtSchema } from './userInterfaceExtension';
 
 export const HyperlaneDeploymentArtifactsSchema = z.object({
   mailbox: z.string().describe('The address of the Mailbox contract.'),
@@ -27,11 +26,4 @@ export const ChainMetadataWithArtifactsSchema = ChainMetadataSchema.merge(
 
 export type ChainMetadataWithArtifacts = z.infer<
   typeof ChainMetadataWithArtifactsSchema
->;
-
-export const ChainMetadataWithArtifactsAndUiExtSchema =
-  ChainMetadataWithUiExtSchema.merge(HyperlaneDeploymentArtifactsSchema);
-
-export type ChainMetadataWithArtifactsAndUiExt = z.infer<
-  typeof ChainMetadataWithArtifactsAndUiExtSchema
 >;

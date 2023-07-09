@@ -102,18 +102,10 @@ export {
 } from './metadata/chainMetadataTypes';
 export {
   ChainMetadataWithArtifacts,
-  ChainMetadataWithArtifactsAndUiExt,
-  ChainMetadataWithArtifactsAndUiExtSchema,
   ChainMetadataWithArtifactsSchema,
   HyperlaneDeploymentArtifacts,
   HyperlaneDeploymentArtifactsSchema,
 } from './metadata/deploymentArtifacts';
-export {
-  ChainMetadataWithUiExt,
-  ChainMetadataWithUiExtSchema,
-  UserInterfaceMetadataExtSchema,
-  UserInterfaceMetadataExtension,
-} from './metadata/userInterfaceExtension';
 export { InterchainAccount } from './middleware/account/InterchainAccount';
 export { InterchainAccountChecker } from './middleware/account/InterchainAccountChecker';
 export {

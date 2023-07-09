@@ -38,15 +38,32 @@ export const ChainMetadataSchema = z.object({
   domainId: z
     .number()
     .positive()
+    .optional()
     .describe(
       'The domainId of the chain, should generally default to `chainId`. Consumer of `ChainMetadata` should use this value if present, but otherwise fallback to `chainId`.',
     ),
   name: z
     .string()
+    .regex(/^[a-z]+[a-z0-9]*$/)
     .describe(
       'The unique string identifier of the chain, used as the key in ChainMap dictionaries.',
     ),
-
+  displayName: z
+    .string()
+    .optional()
+    .describe('Human-readable name of the chain.'),
+  displayNameShort: z
+    .string()
+    .optional()
+    .describe(
+      'A shorter human-readable name of the chain for use in user interfaces.',
+    ),
+  logoURI: z
+    .string()
+    .optional()
+    .describe(
+      'A URI to a logo image for this chain for use in user interfaces.',
+    ),
   nativeToken: z
     .object({
       name: z.string(),

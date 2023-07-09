@@ -1,8 +1,8 @@
 import type { Chain as WagmiChain } from '@wagmi/chains';
 
 import { chainMetadata, etherToken } from '../consts/chainMetadata';
-import { ChainMetadataWithUiExt } from '../metadata/userInterfaceExtension';
-import { ChainMap } from '../types';
+import type { ChainMetadata } from '../metadata/chainMetadataTypes';
+import type { ChainMap } from '../types';
 
 import { objMap } from './objects';
 
@@ -12,9 +12,7 @@ export const wagmiChainMetadata: ChainMap<WagmiChain> = objMap(
   (_, metadata) => chainMetadataToWagmiChain(metadata),
 );
 
-export function chainMetadataToWagmiChain(
-  metadata: ChainMetadataWithUiExt,
-): WagmiChain {
+export function chainMetadataToWagmiChain(metadata: ChainMetadata): WagmiChain {
   return {
     id: metadata.chainId,
     name: metadata.displayName || metadata.name,

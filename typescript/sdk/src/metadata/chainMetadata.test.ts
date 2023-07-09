@@ -75,5 +75,12 @@ describe('ChainMetadataSchema', () => {
         ],
       }),
     ).to.eq(false);
+
+    expect(
+      isValidChainMetadata({
+        ...minimalSchema,
+        name: 'Invalid name',
+      }),
+    ).to.eq(false);
   });
 });

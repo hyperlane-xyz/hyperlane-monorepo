@@ -1,5 +1,8 @@
-import { ExplorerFamily, ProtocolType } from '../metadata/chainMetadataTypes';
-import { ChainMetadataWithUiExt } from '../metadata/userInterfaceExtension';
+import {
+  ChainMetadata,
+  ExplorerFamily,
+  ProtocolType,
+} from '../metadata/chainMetadataTypes';
 import { ChainMap } from '../types';
 
 import { Chains, Mainnets, Testnets } from './chains';
@@ -19,7 +22,7 @@ export const solToken = { name: 'Sol', symbol: 'SOL', decimals: 9 };
  * Metadata for Ethereum chains
  */
 
-export const alfajores: ChainMetadataWithUiExt = {
+export const alfajores: ChainMetadata = {
   chainId: 44787,
   domainId: 44787,
   name: Chains.alfajores,
@@ -49,7 +52,7 @@ export const alfajores: ChainMetadataWithUiExt = {
   isTestnet: true,
 };
 
-export const arbitrum: ChainMetadataWithUiExt = {
+export const arbitrum: ChainMetadata = {
   chainId: 42161,
   domainId: 42161,
   name: Chains.arbitrum,
@@ -75,7 +78,7 @@ export const arbitrum: ChainMetadataWithUiExt = {
     'https://safe-transaction.arbitrum.gnosis.io/',
 };
 
-export const arbitrumgoerli: ChainMetadataWithUiExt = {
+export const arbitrumgoerli: ChainMetadata = {
   chainId: 421613,
   domainId: 421613,
   name: Chains.arbitrumgoerli,
@@ -100,7 +103,7 @@ export const arbitrumgoerli: ChainMetadataWithUiExt = {
   isTestnet: true,
 };
 
-export const avalanche: ChainMetadataWithUiExt = {
+export const avalanche: ChainMetadata = {
   chainId: 43114,
   domainId: 43114,
   name: Chains.avalanche,
@@ -134,7 +137,7 @@ export const avalanche: ChainMetadataWithUiExt = {
     'https://safe-transaction.avalanche.gnosis.io/',
 };
 
-export const bsc: ChainMetadataWithUiExt = {
+export const bsc: ChainMetadata = {
   chainId: 56,
   domainId: 56,
   name: Chains.bsc,
@@ -163,7 +166,7 @@ export const bsc: ChainMetadataWithUiExt = {
   gnosisSafeTransactionServiceUrl: 'https://safe-transaction.bsc.gnosis.io/',
 };
 
-export const bsctestnet: ChainMetadataWithUiExt = {
+export const bsctestnet: ChainMetadata = {
   chainId: 97,
   domainId: 97,
   name: Chains.bsctestnet,
@@ -187,7 +190,7 @@ export const bsctestnet: ChainMetadataWithUiExt = {
   isTestnet: true,
 };
 
-export const celo: ChainMetadataWithUiExt = {
+export const celo: ChainMetadata = {
   chainId: 42220,
   domainId: 42220,
   name: Chains.celo,
@@ -218,7 +221,7 @@ export const celo: ChainMetadataWithUiExt = {
     'https://transaction-service.gnosis-safe-staging.celo-networks-dev.org',
 };
 
-export const ethereum: ChainMetadataWithUiExt = {
+export const ethereum: ChainMetadata = {
   chainId: 1,
   domainId: 1,
   name: Chains.ethereum,
@@ -251,7 +254,7 @@ export const ethereum: ChainMetadataWithUiExt = {
   gnosisSafeTransactionServiceUrl: 'https://safe-transaction.gnosis.io',
 };
 
-export const fuji: ChainMetadataWithUiExt = {
+export const fuji: ChainMetadata = {
   chainId: 43113,
   domainId: 43113,
   name: Chains.fuji,
@@ -280,7 +283,7 @@ export const fuji: ChainMetadataWithUiExt = {
   isTestnet: true,
 };
 
-export const goerli: ChainMetadataWithUiExt = {
+export const goerli: ChainMetadata = {
   chainId: 5,
   domainId: 5,
   name: Chains.goerli,
@@ -308,7 +311,7 @@ export const goerli: ChainMetadataWithUiExt = {
   isTestnet: true,
 };
 
-export const sepolia: ChainMetadataWithUiExt = {
+export const sepolia: ChainMetadata = {
   chainId: 11155111,
   domainId: 11155111,
   name: Chains.sepolia,
@@ -335,7 +338,7 @@ export const sepolia: ChainMetadataWithUiExt = {
   isTestnet: true,
 };
 
-export const moonbasealpha: ChainMetadataWithUiExt = {
+export const moonbasealpha: ChainMetadata = {
   chainId: 1287,
   domainId: 1287,
   name: Chains.moonbasealpha,
@@ -364,7 +367,7 @@ export const moonbasealpha: ChainMetadataWithUiExt = {
   isTestnet: true,
 };
 
-export const moonbeam: ChainMetadataWithUiExt = {
+export const moonbeam: ChainMetadata = {
   chainId: 1284,
   domainId: 1284,
   name: Chains.moonbeam,
@@ -393,7 +396,7 @@ export const moonbeam: ChainMetadataWithUiExt = {
     'https://transaction.multisig.moonbeam.network',
 };
 
-export const mumbai: ChainMetadataWithUiExt = {
+export const mumbai: ChainMetadata = {
   chainId: 80001,
   domainId: 80001,
   name: Chains.mumbai,
@@ -429,7 +432,7 @@ export const mumbai: ChainMetadataWithUiExt = {
   isTestnet: true,
 };
 
-export const optimism: ChainMetadataWithUiExt = {
+export const optimism: ChainMetadata = {
   chainId: 10,
   domainId: 10,
   name: Chains.optimism,
@@ -455,7 +458,7 @@ export const optimism: ChainMetadataWithUiExt = {
     'https://safe-transaction.optimism.gnosis.io/',
 };
 
-export const optimismgoerli: ChainMetadataWithUiExt = {
+export const optimismgoerli: ChainMetadata = {
   chainId: 420,
   domainId: 420,
   name: Chains.optimismgoerli,
@@ -480,7 +483,7 @@ export const optimismgoerli: ChainMetadataWithUiExt = {
   isTestnet: true,
 };
 
-export const polygon: ChainMetadataWithUiExt = {
+export const polygon: ChainMetadata = {
   chainId: 137,
   domainId: 137,
   name: Chains.polygon,
@@ -516,7 +519,7 @@ export const polygon: ChainMetadataWithUiExt = {
     'https://safe-transaction.polygon.gnosis.io/',
 };
 
-export const gnosis: ChainMetadataWithUiExt = {
+export const gnosis: ChainMetadata = {
   chainId: 100,
   domainId: 100,
   name: Chains.gnosis,
@@ -553,7 +556,7 @@ export const gnosis: ChainMetadataWithUiExt = {
  * Metadata for local test chains
  */
 
-export const test1: ChainMetadataWithUiExt = {
+export const test1: ChainMetadata = {
   chainId: 13371,
   domainId: 13371,
   name: Chains.test1,
@@ -570,7 +573,7 @@ export const test1: ChainMetadataWithUiExt = {
   isTestnet: true,
 };
 
-export const test2: ChainMetadataWithUiExt = {
+export const test2: ChainMetadata = {
   chainId: 13372,
   domainId: 13372,
   name: Chains.test2,
@@ -587,7 +590,7 @@ export const test2: ChainMetadataWithUiExt = {
   isTestnet: true,
 };
 
-export const test3: ChainMetadataWithUiExt = {
+export const test3: ChainMetadata = {
   chainId: 13373,
   domainId: 13373,
   name: Chains.test3,
@@ -608,7 +611,7 @@ export const test3: ChainMetadataWithUiExt = {
  * Metadata for Sealevel chains
  */
 
-export const solanamainnet: ChainMetadataWithUiExt = {
+export const solanamainnet: ChainMetadata = {
   protocol: ProtocolType.Sealevel,
   // Uses the same ChainId as https://www.alchemy.com/chain-connect/chain/solana
   chainId: 1399811149,
@@ -632,7 +635,7 @@ export const solanamainnet: ChainMetadataWithUiExt = {
   },
 };
 
-export const solanatestnet: ChainMetadataWithUiExt = {
+export const solanatestnet: ChainMetadata = {
   protocol: ProtocolType.Sealevel,
   chainId: 13998111450,
   domainId: 13998111450,
@@ -647,7 +650,7 @@ export const solanatestnet: ChainMetadataWithUiExt = {
   },
 };
 
-export const solanadevnet: ChainMetadataWithUiExt = {
+export const solanadevnet: ChainMetadata = {
   protocol: ProtocolType.Sealevel,
   chainId: 1399811151,
   domainId: 1399811151,
@@ -668,7 +671,7 @@ export const solanadevnet: ChainMetadataWithUiExt = {
  * NOTE: When adding chains here, consider also adding the
  * corresponding chain logo images in the /sdk/logos/* folders
  */
-export const chainMetadata: ChainMap<ChainMetadataWithUiExt> = {
+export const chainMetadata: ChainMap<ChainMetadata> = {
   alfajores,
   arbitrum,
   arbitrumgoerli,
@@ -693,13 +696,15 @@ export const chainMetadata: ChainMap<ChainMetadataWithUiExt> = {
 };
 
 export const chainIdToMetadata = Object.values(chainMetadata).reduce<
-  ChainMap<ChainMetadataWithUiExt>
+  ChainMap<ChainMetadata>
 >((result, chain) => {
   result[chain.chainId] = chain;
   return result;
 }, {});
 
-export const mainnetChainsMetadata: Array<ChainMetadataWithUiExt> =
-  Mainnets.map((chainName) => chainMetadata[chainName]);
-export const testnetChainsMetadata: Array<ChainMetadataWithUiExt> =
-  Testnets.map((chainName) => chainMetadata[chainName]);
+export const mainnetChainsMetadata: Array<ChainMetadata> = Mainnets.map(
+  (chainName) => chainMetadata[chainName],
+);
+export const testnetChainsMetadata: Array<ChainMetadata> = Testnets.map(
+  (chainName) => chainMetadata[chainName],
+);
