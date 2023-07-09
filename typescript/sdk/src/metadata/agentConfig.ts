@@ -8,10 +8,17 @@ import {
   HyperlaneDeploymentArtifacts,
 } from './deploymentArtifacts';
 
+export enum AgentConnectionType {
+  Http = 'http',
+  Ws = 'ws',
+  HttpQuorum = 'httpQuorum',
+  HttpFallback = 'httpFallback',
+}
+
 export const AgentMetadataExtSchema = z.object({
   rpcConsensusType: z
-    .enum(['fallback', 'quorum'])
-    .default('fallback')
+    .nativeEnum(AgentConnectionType)
+    .default(AgentConnectionType.HttpFallback)
     .describe(
       'The consensus type to use when multiple RPCs are configured. `fallback` will use the first RPC that returns a result, `quorum` will require a majority of RPCs to return the same result. Different consumers may choose to default to different values here, i.e. validators may want to default to `quorum` while relayers may want to default to `fallback`.',
     ),
@@ -53,7 +60,7 @@ export function buildAgentConfig(
     const metadata = multiProvider.getChainMetadata(chain);
     const config: ChainMetadataForAgent = {
       ...metadata,
-      rpcConsensusType: 'fallback',
+      rpcConsensusType: AgentConnectionType.HttpFallback,
       mailbox: addresses[chain].mailbox,
       interchainGasPaymaster: addresses[chain].interchainGasPaymaster,
       validatorAnnounce: addresses[chain].validatorAnnounce,

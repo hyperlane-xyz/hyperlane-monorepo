@@ -1,3 +1,4 @@
+// TODO convert the agent types to use new ChainMetadata shapes
 import {
   AgentChainSetup,
   AgentConnection,

@@ -2,8 +2,8 @@ import {
   ChainMap,
   ChainName,
   HyperlaneAddresses,
-  HyperlaneAgentAddresses,
   HyperlaneDeployer,
+  HyperlaneDeploymentArtifacts,
   MultiProvider,
   buildAgentConfig,
   objMap,
@@ -108,7 +108,7 @@ export async function writeAgentConfig(
   const agentConfig = buildAgentConfig(
     multiProvider.getKnownChainNames(),
     multiProvider,
-    addresses as unknown as ChainMap<HyperlaneAgentAddresses>,
+    addresses as ChainMap<HyperlaneDeploymentArtifacts>,
     startBlocks,
   );
   const sdkEnv = deployEnvToSdkEnv[environment];

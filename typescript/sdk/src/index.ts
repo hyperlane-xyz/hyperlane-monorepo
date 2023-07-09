@@ -84,6 +84,7 @@ export {
   RoutingIsmConfig,
 } from './ism/types';
 export {
+  AgentConnectionType,
   AgentMetadataExtSchema,
   AgentMetadataExtension,
   ChainMetadataForAgent,
