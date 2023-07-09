@@ -82,7 +82,7 @@ where
     ) -> ChainResult<ContractCall<M, bool>> {
         let serialized_signature: [u8; 65] = announcement.signature.into();
         let tx = self.contract.announce(
-            announcement.value.validator,
+            announcement.value.validator.into(),
             announcement.value.storage_location,
             serialized_signature.into(),
         );
@@ -126,7 +126,9 @@ where
     ) -> ChainResult<Vec<Vec<String>>> {
         let storage_locations = self
             .contract
-            .get_announced_storage_locations(validators.iter().map(|v| H160::from(*v)).collect())
+            .get_announced_storage_locations(
+                validators.iter().map(|v| H160::from(*v).into()).collect(),
+            )
             .call()
             .await?;
         Ok(storage_locations)
@@ -140,7 +142,7 @@ where
         let contract_call = self.announce_contract_call(announcement, None).await?;
         if let Ok(balance) = self.provider.get_balance(validator, None).await {
             if let Some(cost) = contract_call.tx.max_cost() {
-                Ok(cost.saturating_sub(balance))
+                Ok(cost.saturating_sub(balance).into())
             } else {
                 Err(ProviderError::CustomError("Unable to get announce max cost".into()).into())
             }

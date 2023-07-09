@@ -37,6 +37,7 @@ ethers-core = { workspace = true, optional = true }
 ethers-contract = { workspace = true, optional = true }
 ethers-providers = { workspace = true, optional = true }
 strum = { workspace = true, optional = true }
+primitive-types = { workspace = true }
 
 [dev-dependencies]
 hyperlane-base = { path = "../hyperlane-base" }
@@ -48,4 +49,5 @@ default = []
 test-utils = ["dep:config"]
 agent-set = ["ethers", "strum"]
 ethers = ["dep:ethers-core", "dep:ethers-contract", "dep:ethers-providers"]
+# ethers = ["dep:ethers-core", "dep:ethers-contract", "dep:ethers-providers", "dep:primitive-types"]
 strum = ["dep:strum"]

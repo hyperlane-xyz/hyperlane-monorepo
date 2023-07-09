@@ -143,7 +143,9 @@ impl From<HyperlaneProviderError> for ChainCommunicationError {
 }
 
 #[cfg(feature = "ethers")]
-impl<T: ethers_providers::Middleware + 'static> From<ethers_contract::ContractError<T>> for ChainCommunicationError {
+impl<T: ethers_providers::Middleware + 'static> From<ethers_contract::ContractError<T>>
+    for ChainCommunicationError
+{
     fn from(err: ethers_contract::ContractError<T>) -> Self {
         Self::ContractError(HyperlaneCustomErrorWrapper(Box::new(err)))
     }

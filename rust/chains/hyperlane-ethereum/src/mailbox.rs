@@ -394,6 +394,7 @@ where
                     Some(fixed_block_number),
                 )
                 .await
+                .map(Into::into)
                 .map_err(ChainCommunicationError::from_other)?;
         }
 
@@ -460,13 +461,13 @@ where
             Some(
                 arbitrum_node_interface
                     .estimate_retryable_ticket(
-                        H160::zero(),
+                        H160::zero().into(),
                         // Give the sender a deposit, otherwise it reverts
-                        U256::MAX,
+                        U256::MAX.into(),
                         self.contract.address(),
-                        U256::zero(),
-                        H160::zero(),
-                        H160::zero(),
+                        U256::zero().into(),
+                        H160::zero().into(),
+                        H160::zero().into(),
                         contract_call.calldata().unwrap_or_default(),
                     )
                     .estimate_gas()
@@ -481,11 +482,12 @@ where
             .get_gas_price()
             .await
             .map_err(ChainCommunicationError::from_other)?;
+        // let gas_estimate: U256 = gas_limit;
 
         Ok(TxCostEstimate {
-            gas_limit,
-            gas_price,
-            l2_gas_limit,
+            gas_limit: gas_limit.into(),
+            gas_price: gas_price.into(),
+            l2_gas_limit: l2_gas_limit.map(|v| v.into()),
         })
     }
 
@@ -548,7 +550,12 @@ mod test {
         assert!(mailbox.arbitrum_node_interface.is_some());
         // Confirm `H160::from_low_u64_ne(0xC8)` does what's expected
         assert_eq!(
-            mailbox.arbitrum_node_interface.as_ref().unwrap().address(),
+            mailbox
+                .arbitrum_node_interface
+                .as_ref()
+                .unwrap()
+                .address()
+                .into(),
             H160::from_str("0x00000000000000000000000000000000000000C8").unwrap(),
         );
 

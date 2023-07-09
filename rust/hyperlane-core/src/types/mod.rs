@@ -1,14 +1,15 @@
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::io::{Read, Write};
 use std::ops::Add;
-use serde::{Deserialize, Serialize};
 
+pub use self::primitive_types::*;
+pub use ::primitive_types as parity_primitive_types;
 pub use announcement::*;
 pub use chain_data::*;
 pub use checkpoint::*;
 pub use log_metadata::*;
 pub use message::*;
-pub use primitive_types::*;
 
 use crate::{Decode, Encode, HyperlaneProtocolError};
 

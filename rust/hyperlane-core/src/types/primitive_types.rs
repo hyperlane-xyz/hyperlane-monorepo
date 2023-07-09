@@ -1,5 +1,6 @@
 // Based on https://github.com/paritytech/parity-common/blob/a5ef7308d6986e62431e35d3156fed0a7a585d39/primitive-types/src/lib.rs
 
+use primitive_types;
 use std::fmt::Formatter;
 
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -26,6 +27,14 @@ construct_uint! {
     #[derive(Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
     pub struct U256(4);
 }
+
+// impl From<primitive_types::U128> for U256 {
+//     fn from(value: primitive_types::U128) -> Self {
+//         let u128: U128 = U128(value.0);
+//         u128.into()
+//     }
+// }
+
 construct_uint! {
     /// 512-bit unsigned integer.
     #[derive(Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
@@ -49,6 +58,13 @@ construct_fixed_hash! {
     #[derive(Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
     pub struct H256(32);
 }
+
+// impl From<primitive_types::H160> for H256 {
+//     fn from(value: primitive_types::H160) -> Self {
+//         let u128: H160 = H160(value.0);
+//         u128.into()
+//     }
+// }
 
 construct_fixed_hash! {
     /// 512-bit hash type.
@@ -91,6 +107,8 @@ impl<'de> Deserialize<'de> for H512 {
     }
 }
 
+type PrimitiveH160 = primitive_types::H160;
+impl_fixed_hash_conversions!(H256, PrimitiveH160);
 impl_fixed_hash_conversions!(H256, H160);
 impl_fixed_hash_conversions!(H512, H256);
 impl_fixed_hash_conversions!(H512, H160);
@@ -144,6 +162,7 @@ macro_rules! impl_fixed_uint_conversions {
     };
 }
 
+impl_fixed_uint_conversions!(U256, primitive_types::U128);
 impl_fixed_uint_conversions!(U256, U128);
 impl_fixed_uint_conversions!(U512, U128);
 impl_fixed_uint_conversions!(U512, U256);

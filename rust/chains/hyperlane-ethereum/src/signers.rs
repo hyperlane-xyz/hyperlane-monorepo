@@ -83,7 +83,7 @@ impl Signer for Signers {
 #[async_trait]
 impl HyperlaneSigner for Signers {
     fn eth_address(&self) -> H160 {
-        Signer::address(self)
+        Signer::address(self).into()
     }
 
     async fn sign_hash(&self, hash: &H256) -> Result<Signature, HyperlaneSignerError> {
