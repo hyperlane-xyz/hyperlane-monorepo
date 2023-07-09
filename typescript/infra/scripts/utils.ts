@@ -12,6 +12,7 @@ import {
   HyperlaneCore,
   HyperlaneIgp,
   MultiProvider,
+  ProtocolType,
   RouterConfig,
   collectValidators,
   objMap,
@@ -76,6 +77,14 @@ export function withContext<T>(args: yargs.Argv<T>) {
     .describe('context', 'deploy context')
     .coerce('context', assertContext)
     .demandOption('context');
+}
+
+export function withProtocol<T>(args: yargs.Argv<T>) {
+  return args
+    .describe('protocol', 'protocol type')
+    .default('protocol', ProtocolType.Ethereum)
+    .choices('protocol', Object.values(ProtocolType))
+    .demandOption('protocol');
 }
 
 export function withAgentRole<T>(args: yargs.Argv<T>) {

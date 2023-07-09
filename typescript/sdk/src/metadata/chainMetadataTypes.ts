@@ -201,3 +201,7 @@ export type ChainMetadata = z.infer<typeof ChainMetadataSchema>;
 export function isValidChainMetadata(c: ChainMetadata): boolean {
   return ChainMetadataSchema.safeParse(c).success;
 }
+
+export function getDomainId(chainMetadata: ChainMetadata): number {
+  return chainMetadata.domainId ?? chainMetadata.chainId;
+}

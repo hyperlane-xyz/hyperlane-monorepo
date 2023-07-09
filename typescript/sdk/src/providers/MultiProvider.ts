@@ -14,6 +14,7 @@ import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata';
 import { CoreChainName, TestChains } from '../consts/chains';
 import {
   ChainMetadata,
+  getDomainId,
   isValidChainMetadata,
 } from '../metadata/chainMetadataTypes';
 import { ChainMap, ChainName } from '../types';
@@ -199,7 +200,7 @@ export class MultiProvider {
    */
   getDomainId(chainNameOrId: ChainName | number): number {
     const metadata = this.getChainMetadata(chainNameOrId);
-    return metadata.domainId ?? metadata.chainId;
+    return getDomainId(metadata);
   }
 
   /**

@@ -98,6 +98,7 @@ export {
   ProtocolSmallestUnit,
   ProtocolType,
   ProtocolTypeValue,
+  getDomainId,
   isValidChainMetadata,
 } from './metadata/chainMetadataTypes';
 export {

@@ -630,8 +630,8 @@ export const solanamainnet: ChainMetadata = {
   ],
   blocks: {
     confirmations: 1,
-    reorgPeriod: 1,
-    estimateBlockTime: 1,
+    reorgPeriod: 0,
+    estimateBlockTime: 0.4,
   },
 };
 
@@ -640,14 +640,16 @@ export const solanatestnet: ChainMetadata = {
   chainId: 13998111450,
   domainId: 13998111450,
   name: 'solanatestnet',
-  displayName: 'Sol Testnet',
+  displayName: 'Solana Testnet',
+  displayNameShort: 'Sol Testnet',
   nativeToken: solToken,
   rpcUrls: [{ http: 'https://api.testnet.solana.com' }],
   blocks: {
     confirmations: 1,
-    reorgPeriod: 1,
-    estimateBlockTime: 1,
+    reorgPeriod: 0,
+    estimateBlockTime: 0.4,
   },
+  isTestnet: true,
 };
 
 export const solanadevnet: ChainMetadata = {
@@ -655,14 +657,34 @@ export const solanadevnet: ChainMetadata = {
   chainId: 1399811151,
   domainId: 1399811151,
   name: 'solanadevnet',
-  displayName: 'Sol Devnet',
+  displayName: 'Solana Devnet',
+  displayNameShort: 'Sol Devnet',
   nativeToken: solToken,
   rpcUrls: [{ http: 'https://api.devnet.solana.com' }],
   blocks: {
     confirmations: 1,
-    reorgPeriod: 1,
-    estimateBlockTime: 1,
+    reorgPeriod: 0,
+    estimateBlockTime: 0.4,
   },
+  isTestnet: true,
+};
+
+export const zbctestnet: ChainMetadata = {
+  chainId: 2053254516,
+  domainId: 2053254516,
+  name: Chains.zbctestnet,
+  protocol: ProtocolType.Sealevel,
+  displayName: 'Zebec Devnet',
+  displayNameShort: 'Zebec Dev',
+  nativeToken: solToken,
+  rpcUrls: [{ http: 'https://api.devnet.solana.com' }],
+  blockExplorers: [],
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 0,
+    estimateBlockTime: 0.4,
+  },
+  isTestnet: true,
 };
 
 /**
@@ -693,6 +715,8 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   test1,
   test2,
   test3,
+  solanadevnet,
+  zbctestnet,
 };
 
 export const chainIdToMetadata = Object.values(chainMetadata).reduce<
