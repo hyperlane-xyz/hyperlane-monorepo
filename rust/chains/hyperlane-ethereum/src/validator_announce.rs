@@ -139,8 +139,9 @@ where
         announcement: SignedType<Announcement>,
     ) -> ChainResult<U256> {
         let validator = announcement.value.validator;
+        let eth_h160: ethers::types::H160 = validator.into();
         let contract_call = self.announce_contract_call(announcement, None).await?;
-        if let Ok(balance) = self.provider.get_balance(validator, None).await {
+        if let Ok(balance) = self.provider.get_balance(eth_h160, None).await {
             if let Some(cost) = contract_call.tx.max_cost() {
                 Ok(cost.saturating_sub(balance).into())
             } else {

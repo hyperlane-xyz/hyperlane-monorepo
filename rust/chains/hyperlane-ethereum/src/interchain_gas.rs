@@ -110,8 +110,8 @@ where
                 (
                     InterchainGasPayment {
                         message_id: H256::from(log.message_id),
-                        payment: log.payment,
-                        gas_amount: log.gas_amount,
+                        payment: log.payment.into(),
+                        gas_amount: log.gas_amount.into(),
                     },
                     log_meta.into(),
                 )

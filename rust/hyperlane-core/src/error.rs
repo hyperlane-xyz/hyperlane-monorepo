@@ -1,3 +1,5 @@
+#[cfg(feature = "ethers")]
+use ethers;
 use std::any::Any;
 use std::error::Error as StdError;
 use std::fmt::{Debug, Display, Formatter};
@@ -147,6 +149,13 @@ impl<T: ethers_providers::Middleware + 'static> From<ethers_contract::ContractEr
     for ChainCommunicationError
 {
     fn from(err: ethers_contract::ContractError<T>) -> Self {
+        Self::ContractError(HyperlaneCustomErrorWrapper(Box::new(err)))
+    }
+}
+
+#[cfg(feature = "ethers")]
+impl From<ethers::providers::ProviderError> for ChainCommunicationError {
+    fn from(err: ethers::providers::ProviderError) -> Self {
         Self::ContractError(HyperlaneCustomErrorWrapper(Box::new(err)))
     }
 }

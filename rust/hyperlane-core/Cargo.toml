@@ -33,11 +33,12 @@ fixed-hash = "0.8.0"
 tiny-keccak = { version = "2.0.2", features = ["keccak"]}
 
 config = { workspace = true, optional = true }
+ethers = { workspace = true, optional = true }
 ethers-core = { workspace = true, optional = true }
 ethers-contract = { workspace = true, optional = true }
 ethers-providers = { workspace = true, optional = true }
 strum = { workspace = true, optional = true }
-primitive-types = { workspace = true }
+primitive-types = { workspace = true, optional = true }
 
 [dev-dependencies]
 hyperlane-base = { path = "../hyperlane-base" }
@@ -48,6 +49,5 @@ walkdir = { version = "2" }
 default = []
 test-utils = ["dep:config"]
 agent-set = ["ethers", "strum"]
-ethers = ["dep:ethers-core", "dep:ethers-contract", "dep:ethers-providers"]
-# ethers = ["dep:ethers-core", "dep:ethers-contract", "dep:ethers-providers", "dep:primitive-types"]
+ethers = ["dep:ethers-core", "dep:ethers-contract", "dep:ethers-providers", "dep:primitive-types", "dep:ethers"]
 strum = ["dep:strum"]

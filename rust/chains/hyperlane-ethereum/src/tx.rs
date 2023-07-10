@@ -38,7 +38,7 @@ where
     let dispatch_fut = tx.send();
     let dispatched = dispatch_fut.await?;
 
-    let tx_hash: H256 = *dispatched;
+    let tx_hash: H256 = (*dispatched).into();
 
     info!(?to, %data, ?tx_hash, "Dispatched tx");
 

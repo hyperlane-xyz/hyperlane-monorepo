@@ -4,6 +4,7 @@ use std::io::{Read, Write};
 use std::ops::Add;
 
 pub use self::primitive_types::*;
+#[cfg(feature = "ethers")]
 pub use ::primitive_types as parity_primitive_types;
 pub use announcement::*;
 pub use chain_data::*;
@@ -35,6 +36,13 @@ pub struct Signature {
     pub v: u64,
 }
 
+impl Signature {
+    /// Copies and serializes `self` into a new `Vec` with the recovery id included
+    pub fn to_vec(&self) -> Vec<u8> {
+        self.into()
+    }
+}
+
 impl fmt::Display for Signature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let sig = <[u8; 65]>::from(self);
@@ -55,6 +63,18 @@ impl From<&Signature> for [u8; 65] {
 impl From<Signature> for [u8; 65] {
     fn from(src: Signature) -> [u8; 65] {
         <[u8; 65]>::from(&src)
+    }
+}
+
+impl From<&Signature> for Vec<u8> {
+    fn from(src: &Signature) -> Vec<u8> {
+        <[u8; 65]>::from(src).to_vec()
+    }
+}
+
+impl From<Signature> for Vec<u8> {
+    fn from(src: Signature) -> Vec<u8> {
+        <[u8; 65]>::from(&src).to_vec()
     }
 }
 

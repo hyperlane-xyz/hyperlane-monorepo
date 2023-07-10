@@ -12,8 +12,7 @@ use tracing::instrument;
 
 use hyperlane_core::{
     BlockInfo, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain,
-    HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H160,
-    H256,
+    HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H256,
 };
 
 use crate::BuildableWithProvider;
@@ -52,8 +51,11 @@ where
 {
     #[instrument(err, skip(self))]
     async fn get_block_by_hash(&self, hash: &H256) -> ChainResult<BlockInfo> {
-        let eth_h256: parity_primitive_types::H256 = hash.into();
-        let block = get_with_retry_on_none(hash, |h| self.provider.get_block(eth_h256)).await?;
+        let block = get_with_retry_on_none(hash, |h| {
+            let eth_h256: parity_primitive_types::H256 = h.into();
+            self.provider.get_block(eth_h256)
+        })
+        .await?;
         Ok(BlockInfo {
             hash: *hash,
             timestamp: block.timestamp.as_u64(),
