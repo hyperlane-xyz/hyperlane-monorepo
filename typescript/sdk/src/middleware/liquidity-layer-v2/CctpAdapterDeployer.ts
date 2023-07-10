@@ -1,14 +1,11 @@
 import { ethers } from 'ethers';
 
-import { utils } from '@hyperlane-xyz/utils';
-
 import { CCTPAdapter } from '../../../../../solidity/dist';
-import { HyperlaneContracts, HyperlaneContractsMap } from '../../contracts';
+import { HyperlaneContractsMap } from '../../contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ProxiedRouterDeployer } from '../../router/ProxiedRouterDeployer';
 import { RouterConfig } from '../../router/types';
 import { ChainMap, ChainName } from '../../types';
-import { objFilter, objMap } from '../../utils/objects';
 
 import {
   LiquidityLayerV2Factories,
@@ -22,7 +19,6 @@ export enum AdapterType {
 export type CctpAdapterConfig = RouterConfig & {
   type: AdapterType.CCTP;
   tokenMessengerAddress: string;
-  usdcAddress: string;
   token: string;
   tokenSymbol: string;
   gasAmount: number;
@@ -81,31 +77,6 @@ export class CctpAdapterDeployer extends ProxiedRouterDeployer<
   ): Promise<void> {
     this.logger(`Enroll CCTP adapters with each other`);
     await super.enrollRemoteRouters(contractsMap, configMap);
-  }
-
-  async deployContracts(
-    chain: ChainName,
-    config: CctpAdapterConfig,
-  ): Promise<HyperlaneContracts<LiquidityLayerV2Factories>> {
-    // This is just the temp owner for contracts, and HyperlaneRouterDeployer#transferOwnership actually sets the configured owner
-    const deployer = await this.multiProvider.getSignerAddress(chain);
-
-    const routerContracts = await super.deployContracts(chain, config);
-
-    const bridgeAdapters: Partial<
-      HyperlaneContracts<typeof liquidityLayerV2Factories>
-    > = {};
-
-    bridgeAdapters.CCTPAdapter = await this.deployCctpAdapter(
-      chain,
-      config,
-      deployer,
-    );
-
-    return {
-      ...routerContracts,
-      ...bridgeAdapters,
-    };
   }
 
   async deployCctpAdapter(
