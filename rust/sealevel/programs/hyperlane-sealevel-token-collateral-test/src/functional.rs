@@ -952,21 +952,19 @@ async fn test_transfer_from_remote_errors_if_process_authority_not_signer() {
                 // Recipient.handle accounts
                 // 0. [signer] Mailbox process authority
                 // 1. [executable] system_program
-                // 2. [executable] spl_noop
-                // 3. [] hyperlane_token storage
-                // 4. [] recipient wallet address
-                // 5. [executable] SPL token 2022 program.
-                // 6. [executable] SPL associated token account.
-                // 7. [writeable] Mint account.
-                // 8. [writeable] Recipient associated token account.
-                // 9. [writeable] ATA payer PDA account.
-                // 10. [writeable] Escrow account.
+                // 2. [] hyperlane_token storage
+                // 3. [] recipient wallet address
+                // 4. [executable] SPL token 2022 program.
+                // 5. [executable] SPL associated token account.
+                // 6. [writeable] Mint account.
+                // 7. [writeable] Recipient associated token account.
+                // 8. [writeable] ATA payer PDA account.
+                // 9. [writeable] Escrow account.
                 AccountMeta::new_readonly(
                     hyperlane_token_accounts.mailbox_process_authority,
                     false,
                 ),
                 AccountMeta::new_readonly(solana_program::system_program::id(), false),
-                AccountMeta::new_readonly(spl_noop::id(), false),
                 AccountMeta::new_readonly(hyperlane_token_accounts.token, false),
                 AccountMeta::new_readonly(recipient_pubkey, false),
                 AccountMeta::new_readonly(spl_token_2022::id(), false),

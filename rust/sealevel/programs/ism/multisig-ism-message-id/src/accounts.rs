@@ -1,7 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 
 use access_control::AccessControl;
-use hyperlane_sealevel_mailbox::accounts::{AccountData, SizedData};
+use account_utils::{AccountData, SizedData};
 use solana_program::{program_error::ProgramError, pubkey::Pubkey};
 
 use crate::instruction::ValidatorsAndThreshold;

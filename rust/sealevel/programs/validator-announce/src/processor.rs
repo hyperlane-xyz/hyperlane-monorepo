@@ -1,7 +1,8 @@
-use account_utils::create_pda_account;
+//! Program processor.
+
+use account_utils::{create_pda_account, SizedData};
 use ecdsa_signature::EcdsaSignature;
 use hyperlane_core::{Announcement, Signable};
-use hyperlane_sealevel_mailbox::accounts::SizedData;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
@@ -27,6 +28,7 @@ use crate::{
 #[cfg(not(feature = "no-entrypoint"))]
 solana_program::entrypoint!(process_instruction);
 
+/// The entrypoint of the program that processes an instruction.
 pub fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],

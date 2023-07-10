@@ -25,6 +25,7 @@ pub(super) fn hash_concat(left: impl AsRef<[u8]>, right: impl AsRef<[u8]>) -> H2
     )
 }
 
+/// The root of an empty tree
 pub const INITIAL_ROOT: H256 = H256([
     39, 174, 91, 160, 141, 114, 145, 201, 108, 140, 189, 220, 193, 72, 191, 72, 166, 214, 140, 121,
     116, 185, 67, 86, 245, 55, 84, 239, 97, 113, 215, 87,

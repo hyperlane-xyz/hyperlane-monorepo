@@ -105,8 +105,8 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
     async fn announce_tokens_needed(
         &self,
         _announcement: SignedType<Announcement>,
-    ) -> ChainResult<U256> {
-        Ok(U256::zero())
+    ) -> Option<U256> {
+        Some(U256::zero())
     }
 
     #[instrument(err, ret, skip(self))]
@@ -129,8 +129,8 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
 
 // Copied from the validator-announce contract
 mod contract {
+    use account_utils::AccountData;
     use borsh::{BorshDeserialize, BorshSerialize};
-    use hyperlane_sealevel_mailbox::accounts::AccountData;
 
     /// An account that holds a validator's announced storage locations.
     /// It is a PDA based off the validator's address, and can therefore

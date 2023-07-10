@@ -26,4 +26,5 @@ yarn-error.log
 
 .idea
 **/*.ignore
+.vscode
 

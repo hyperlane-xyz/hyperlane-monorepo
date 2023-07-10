@@ -10,7 +10,7 @@ use crate::{H256, U256};
 /// A close clone of the Ethereum `LogMeta`, this is designed to be a more
 /// generic metadata that we can use for other blockchains later. Some changes
 /// may be required in the future.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct LogMeta {
     /// Address from which this log originated
     pub address: H256,
@@ -47,7 +47,7 @@ impl From<&EthersLogMeta> for LogMeta {
             block_hash: v.block_hash.into(),
             transaction_hash: v.transaction_hash.into(),
             transaction_index: v.transaction_index.as_u64(),
-            log_index: v.log_index.into()
+            log_index: v.log_index.into(),
         }
     }
 }

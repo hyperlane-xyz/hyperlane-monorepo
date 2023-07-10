@@ -14,6 +14,7 @@ use crate::{
 //    - remove ring dependency
 // In accordance with its license terms, the apache2 license is reproduced below
 
+/// Zero nodes to act as "synthetic" left and right subtrees of other zero nodes.
 pub const ZERO_NODES: [MerkleTree; TREE_DEPTH + 1] = [
     MerkleTree::Zero(0),
     MerkleTree::Zero(1),

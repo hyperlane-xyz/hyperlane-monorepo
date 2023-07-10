@@ -308,8 +308,7 @@ impl Relayer {
         let destination_ctxs = self
             .destination_chains
             .iter()
-            // TODO rm, see https://github.com/hyperlane-xyz/issues/issues/464
-            // .filter(|&destination| destination != origin)
+            .filter(|&destination| destination != origin)
             .map(|destination| {
                 (
                     destination.id(),

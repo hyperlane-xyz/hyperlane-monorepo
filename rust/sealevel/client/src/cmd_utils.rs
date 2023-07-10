@@ -67,7 +67,6 @@ pub(crate) fn account_exists(client: &RpcClient, account: &Pubkey) -> Result<boo
 }
 
 pub(crate) fn deploy_program_idempotent(
-    payer: &Keypair,
     payer_path: &str,
     program_keypair: &Keypair,
     program_keypair_path: &str,
@@ -78,7 +77,6 @@ pub(crate) fn deploy_program_idempotent(
     let client = RpcClient::new(url.to_string());
     if !account_exists(&client, &program_keypair.pubkey())? {
         deploy_program(
-            payer,
             payer_path,
             program_keypair_path,
             program_path,
@@ -93,7 +91,6 @@ pub(crate) fn deploy_program_idempotent(
 }
 
 pub(crate) fn deploy_program(
-    _payer: &Keypair,
     payer_path: &str,
     program_keypair_path: &str,
     program_path: &str,

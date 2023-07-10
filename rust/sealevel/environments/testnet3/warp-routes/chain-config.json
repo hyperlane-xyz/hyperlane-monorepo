@@ -1,0 +1,29 @@
+{
+  "solanadevnet": {
+    "chainId": 1399811151,
+    "name": "solanadevnet",
+    "publicRpcUrls": [
+      {
+        "http": "https://api.devnet.solana.com"
+      }
+    ]
+  },
+  "zbctestnet": {
+    "chainId": 2053254516,
+    "name": "zbctestnet",
+    "publicRpcUrls": [
+      {
+        "http": "https://api.zebec.eclipsenetwork.xyz:8899"
+      }
+    ]
+  },
+  "fuji": {
+    "chainId": 43113,
+    "name": "fuji",
+    "publicRpcUrls": [
+      {
+        "http": "https://api.avax-test.network/ext/bc/C/rpc"
+      }
+    ]
+  }
+}

@@ -48,5 +48,5 @@ walkdir = { version = "2" }
 default = []
 test-utils = ["dep:config"]
 agent-set = ["ethers", "strum"]
-ethers = ["dep:ethers-core", "dep:ethers-contract", "dep:ethers-providers", "dep:primitive-types", "dep:ethers"]
 strum = ["dep:strum"]
+ethers = ["dep:ethers-core", "dep:ethers-contract", "dep:ethers-providers", "dep:primitive-types", "dep:ethers"]

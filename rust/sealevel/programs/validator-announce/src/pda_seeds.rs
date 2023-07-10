@@ -1,3 +1,5 @@
+//! Program-specific PDA seeds.
+
 /// PDA seeds for the ValidatorAnnounce account.
 #[macro_export]
 macro_rules! validator_announce_pda_seeds {

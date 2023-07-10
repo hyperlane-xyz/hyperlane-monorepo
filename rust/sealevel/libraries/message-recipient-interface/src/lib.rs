@@ -1,7 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H256;
 use solana_program::program_error::ProgramError;
-use spl_type_length_value::discriminator::{Discriminator, TlvDiscriminator};
+use spl_type_length_value::discriminator::Discriminator;
 
 /// Instructions that a Hyperlane message recipient is expected to process.
 /// The first 8 bytes of the encoded instruction is a discriminator that
@@ -84,12 +84,6 @@ pub const HANDLE_ACCOUNT_METAS_PDA_SEEDS: &[&[u8]] = &[
     b"account_metas",
 ];
 
-// TODO: does this even need to be implemented?
-impl TlvDiscriminator for HandleInstruction {
-    const TLV_DISCRIMINATOR: Discriminator = Discriminator::new(HANDLE_DISCRIMINATOR);
-}
-
-// TODO implement hyperlane-core's Encode & Decode?
 impl MessageRecipientInstruction {
     pub fn encode(&self) -> Result<Vec<u8>, ProgramError> {
         let mut buf = vec![];

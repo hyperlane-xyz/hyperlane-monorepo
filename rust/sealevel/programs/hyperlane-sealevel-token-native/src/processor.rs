@@ -2,9 +2,11 @@
 
 use account_utils::DiscriminatorDecode;
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
-use hyperlane_sealevel_message_recipient_interface::MessageRecipientInstruction;
+use hyperlane_sealevel_message_recipient_interface::{
+    HandleInstruction, MessageRecipientInstruction,
+};
 use hyperlane_sealevel_token_lib::{
-    instruction::{Init, Instruction as TokenIxn, TransferFromRemote, TransferRemote},
+    instruction::{Init, Instruction as TokenIxn, TransferRemote},
     processor::HyperlaneSealevelToken,
 };
 use solana_program::{account_info::AccountInfo, entrypoint::ProgramResult, msg, pubkey::Pubkey};
@@ -34,7 +36,7 @@ pub fn process_instruction(
             MessageRecipientInstruction::Handle(handle) => transfer_from_remote(
                 program_id,
                 accounts,
-                TransferFromRemote {
+                HandleInstruction {
                     origin: handle.origin,
                     sender: handle.sender,
                     message: handle.message,
@@ -44,7 +46,7 @@ pub fn process_instruction(
                 transfer_from_remote_account_metas(
                     program_id,
                     accounts,
-                    TransferFromRemote {
+                    HandleInstruction {
                         origin: handle.origin,
                         sender: handle.sender,
                         message: handle.message,
@@ -114,15 +116,14 @@ fn transfer_remote(
 /// Accounts:
 /// 0.   [signer] Mailbox processor authority specific to this program.
 /// 1.   [executable] system_program
-/// 2.   [executable] spl_noop
-/// 3.   [] hyperlane_token storage
-/// 4.   [writeable] recipient wallet address
-/// 5.   [executable] The system program.
-/// 6.   [writeable] The native token collateral PDA account.
+/// 2.   [] hyperlane_token storage
+/// 3.   [writeable] recipient wallet address
+/// 4.   [executable] The system program.
+/// 5.   [writeable] The native token collateral PDA account.
 fn transfer_from_remote(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
-    transfer: TransferFromRemote,
+    transfer: HandleInstruction,
 ) -> ProgramResult {
     HyperlaneSealevelToken::<NativePlugin>::transfer_from_remote(program_id, accounts, transfer)
 }
@@ -130,7 +131,7 @@ fn transfer_from_remote(
 fn transfer_from_remote_account_metas(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
-    transfer: TransferFromRemote,
+    transfer: HandleInstruction,
 ) -> ProgramResult {
     HyperlaneSealevelToken::<NativePlugin>::transfer_from_remote_account_metas(
         program_id, accounts, transfer,

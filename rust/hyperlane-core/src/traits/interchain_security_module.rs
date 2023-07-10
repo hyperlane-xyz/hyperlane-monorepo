@@ -5,19 +5,11 @@ use auto_impl::auto_impl;
 use borsh::{BorshDeserialize, BorshSerialize};
 use num_derive::FromPrimitive;
 
-use crate::{ChainResult, HyperlaneContract};
+use crate::{ChainResult, HyperlaneContract, HyperlaneMessage, U256};
 
 /// Enumeration of all known module types
 #[derive(
-    FromPrimitive,
-    Clone,
-    Debug,
-    Default,
-    Copy,
-    PartialEq,
-    Eq,
-    BorshDeserialize,
-    BorshSerialize,
+    FromPrimitive, Clone, Debug, Default, Copy, PartialEq, Eq, BorshDeserialize, BorshSerialize,
 )]
 #[cfg_attr(feature = "strum", derive(strum::Display))]
 pub enum ModuleType {
@@ -44,4 +36,12 @@ pub trait InterchainSecurityModule: HyperlaneContract + Send + Sync + Debug {
     /// Returns the module type of the ISM compliant with the corresponding
     /// metadata offchain fetching and onchain formatting standard.
     async fn module_type(&self) -> ChainResult<ModuleType>;
+
+    /// Dry runs the `verify()` ISM call and returns `Some(gas_estimate)` if the call
+    /// succeeds.
+    async fn dry_run_verify(
+        &self,
+        message: &HyperlaneMessage,
+        metadata: &[u8],
+    ) -> ChainResult<Option<U256>>;
 }

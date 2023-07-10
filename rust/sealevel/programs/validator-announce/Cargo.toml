@@ -15,8 +15,8 @@ thiserror.workspace = true
 
 account-utils = { path = "../../libraries/account-utils" }
 ecdsa-signature = { path = "../../libraries/ecdsa-signature" }
-hyperlane-core = { path = "../../../hyperlane-core" }
 hyperlane-sealevel-mailbox = { path = "../mailbox", features = ["no-entrypoint"] }
+hyperlane-core = { path = "../../../hyperlane-core" }
 serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
 
 # Required to allow dependencies `getrandom` but to preserve determinism required by programs, see

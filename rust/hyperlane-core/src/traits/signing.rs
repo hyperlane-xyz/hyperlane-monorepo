@@ -80,7 +80,7 @@ pub trait Signable: Sized {
 
     /// EIP-191 compliant hash of the signing hash.
     fn eth_signed_message_hash(&self) -> H256 {
-        hashes::hash_message(self.signing_hash()).into()
+        hashes::hash_message(self.signing_hash())
     }
 }
 

@@ -1,9 +1,9 @@
-//! TODO
+//! Processor logic shared by all Hyperlane Sealevel Token programs.
 
 use access_control::AccessControl;
 use account_utils::create_pda_account;
 use borsh::{BorshDeserialize, BorshSerialize};
-use hyperlane_core::{Decode, Encode as _, H256};
+use hyperlane_core::{Decode, Encode};
 use hyperlane_sealevel_connection_client::{
     router::{
         HyperlaneRouterAccessControl, HyperlaneRouterDispatch, HyperlaneRouterMessageRecipient,
@@ -12,15 +12,16 @@ use hyperlane_sealevel_connection_client::{
     HyperlaneConnectionClient, HyperlaneConnectionClientSetterAccessControl,
 };
 use hyperlane_sealevel_mailbox::{
-    mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
-    mailbox_process_authority_pda_seeds,
+    mailbox_message_dispatch_authority_pda_seeds, mailbox_process_authority_pda_seeds,
 };
+use hyperlane_sealevel_message_recipient_interface::HandleInstruction;
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
-    instruction::{AccountMeta, Instruction},
-    program::{invoke_signed, set_return_data},
+    instruction::AccountMeta,
+    msg,
+    program::set_return_data,
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
@@ -31,10 +32,7 @@ use std::collections::HashMap;
 use crate::{
     accounts::{HyperlaneToken, HyperlaneTokenAccount},
     error::Error,
-    instruction::{
-        Event, EventReceivedTransferRemote, EventSentTransferRemote, Init, TransferFromRemote,
-        TransferRemote,
-    },
+    instruction::{Init, TransferRemote},
     message::TokenMessage,
 };
 
@@ -66,11 +64,13 @@ macro_rules! hyperlane_token_pda_seeds {
     }};
 }
 
+/// A plugin that handles token transfers for a Hyperlane Sealevel Token program.
 pub trait HyperlaneSealevelTokenPlugin
 where
     Self:
         BorshSerialize + BorshDeserialize + std::cmp::PartialEq + std::fmt::Debug + Default + Sized,
 {
+    /// Initializes the plugin.
     fn initialize<'a, 'b>(
         program_id: &Pubkey,
         system_program: &'a AccountInfo<'b>,
@@ -79,6 +79,7 @@ where
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
     ) -> Result<Self, ProgramError>;
 
+    /// Transfers tokens into the program.
     fn transfer_in<'a, 'b>(
         program_id: &Pubkey,
         token: &HyperlaneToken<Self>,
@@ -87,6 +88,7 @@ where
         amount: u64,
     ) -> Result<(), ProgramError>;
 
+    /// Transfers tokens out of the program.
     fn transfer_out<'a, 'b>(
         program_id: &Pubkey,
         token: &HyperlaneToken<Self>,
@@ -96,6 +98,7 @@ where
         amount: u64,
     ) -> Result<(), ProgramError>;
 
+    /// Gets the AccountMetas required by the `transfer_out` function.
     /// Returns (AccountMetas, whether recipient wallet must be writeable)
     fn transfer_out_account_metas(
         program_id: &Pubkey,
@@ -104,6 +107,8 @@ where
     ) -> Result<(Vec<SerializableAccountMeta>, bool), ProgramError>;
 }
 
+/// Core functionality of a Hyperlane Sealevel Token program that uses
+/// a plugin to handle token transfers.
 pub struct HyperlaneSealevelToken<
     T: HyperlaneSealevelTokenPlugin
         + BorshDeserialize
@@ -265,16 +270,16 @@ where
             return Err(ProgramError::InvalidArgument);
         }
 
-        // Account 0: SPL Noop
+        // Account 1: SPL Noop.
         let spl_noop = next_account_info(accounts_iter)?;
-        if spl_noop.key != &spl_noop::id() || !spl_noop.executable {
+        if spl_noop.key != &spl_noop::id() {
             return Err(ProgramError::InvalidArgument);
         }
 
-        // Account 1: Token storage account
+        // Account 2: Token storage account
         let token_account = next_account_info(accounts_iter)?;
         let token =
-            HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow_mut()[..])?.into_inner();
+            HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow()[..])?.into_inner();
         let token_seeds: &[&[u8]] = hyperlane_token_pda_seeds!(token.bump);
         let expected_token_key = Pubkey::create_program_address(token_seeds, program_id)?;
         if token_account.key != &expected_token_key {
@@ -284,24 +289,17 @@ where
             return Err(ProgramError::IncorrectProgramId);
         }
 
-        // Account 2: Mailbox program
+        // Account 3: Mailbox program
         let mailbox_info = next_account_info(accounts_iter)?;
         if mailbox_info.key != &token.mailbox {
             return Err(ProgramError::IncorrectProgramId);
         }
-        // TODO supposed to use create_program_address() but we would need to pass in bump seed...
 
-        // Account 3: Mailbox outbox data account
-        // TODO should I be using find_program_address...?
-        // TODO why not just get it from the outbox account data?
+        // Account 4: Mailbox Outbox data account.
+        // No verification is performed here, the Mailbox will do that.
         let mailbox_outbox_account = next_account_info(accounts_iter)?;
-        let (mailbox_outbox, _mailbox_outbox_bump) =
-            Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), &token.mailbox);
-        if mailbox_outbox_account.key != &mailbox_outbox {
-            return Err(ProgramError::InvalidArgument);
-        }
 
-        // Account 4: Message dispatch authority
+        // Account 5: Message dispatch authority
         let dispatch_authority_account = next_account_info(accounts_iter)?;
         let dispatch_authority_seeds: &[&[u8]] =
             mailbox_message_dispatch_authority_pda_seeds!(token.dispatch_authority_bump);
@@ -311,17 +309,17 @@ where
             return Err(ProgramError::InvalidArgument);
         }
 
-        // Account 5: Sender account / mailbox payer
+        // Account 6: Sender account / mailbox payer
         let sender_wallet = next_account_info(accounts_iter)?;
         if !sender_wallet.is_signer {
             return Err(ProgramError::MissingRequiredSignature);
         }
 
-        // Account 6: Unique message account
+        // Account 7: Unique message account
         // Defer to the checks in the Mailbox, no need to verify anything here.
         let unique_message_account = next_account_info(accounts_iter)?;
 
-        // Account 7: Message storage PDA.
+        // Account 8: Message storage PDA.
         // Similarly defer to the checks in the Mailbox to ensure account validity.
         let dispatched_message_pda = next_account_info(accounts_iter)?;
 
@@ -377,18 +375,12 @@ where
             ],
         )?;
 
-        let event = Event::new(EventSentTransferRemote {
-            destination: xfer.destination_domain,
-            recipient: xfer.recipient,
-            amount: remote_amount,
-        });
-        let event_data = event.to_noop_cpi_ixn_data().map_err(|_| Error::TODO)?;
-        let noop_cpi_log = Instruction {
-            program_id: spl_noop::id(),
-            accounts: vec![],
-            data: event_data,
-        };
-        invoke_signed(&noop_cpi_log, &[], &[token_seeds])?;
+        msg!(
+            "Warp route transfer completed to destination: {}, recipient: {}, remote_amount: {}",
+            xfer.destination_domain,
+            xfer.recipient,
+            remote_amount
+        );
 
         Ok(())
     }
@@ -396,20 +388,19 @@ where
     /// Accounts:
     /// 0.   [signer] Mailbox processor authority specific to this program.
     /// 1.   [executable] system_program
-    /// 2.   [executable] spl_noop
-    /// 3.   [] hyperlane_token storage
-    /// 4.   [depends on plugin] recipient wallet address
-    /// 5..N [??..??] Plugin-specific accounts.
+    /// 2.   [] hyperlane_token storage
+    /// 3.   [depends on plugin] recipient wallet address
+    /// 4..N [??..??] Plugin-specific accounts.
     pub fn transfer_from_remote(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
-        xfer: TransferFromRemote,
+        xfer: HandleInstruction,
     ) -> ProgramResult {
         let accounts_iter = &mut accounts.iter();
 
         let mut message_reader = std::io::Cursor::new(xfer.message);
         let message = TokenMessage::read_from(&mut message_reader)
-            .map_err(|_err| ProgramError::from(Error::TODO))?;
+            .map_err(|_err| ProgramError::from(Error::MessageDecodeError))?;
 
         // Account 0: Mailbox authority
         // This is verified further below.
@@ -421,16 +412,10 @@ where
             return Err(ProgramError::InvalidArgument);
         }
 
-        // Account 2: SPL Noop program
-        let spl_noop = next_account_info(accounts_iter)?;
-        if spl_noop.key != &spl_noop::id() || !spl_noop.executable {
-            return Err(ProgramError::InvalidArgument);
-        }
-
-        // Account 3: Token account
+        // Account 2: Token account
         let token_account = next_account_info(accounts_iter)?;
         let token =
-            HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow_mut()[..])?.into_inner();
+            HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow()[..])?.into_inner();
         let token_seeds: &[&[u8]] = hyperlane_token_pda_seeds!(token.bump);
         let expected_token_key = Pubkey::create_program_address(token_seeds, program_id)?;
         if token_account.key != &expected_token_key {
@@ -440,7 +425,7 @@ where
             return Err(ProgramError::IncorrectProgramId);
         }
 
-        // Account 4: Recipient wallet
+        // Account 3: Recipient wallet
         let recipient_wallet = next_account_info(accounts_iter)?;
         let expected_recipient = Pubkey::new_from_array(message.recipient().into());
         if recipient_wallet.key != &expected_recipient {
@@ -471,24 +456,17 @@ where
             return Err(ProgramError::from(Error::ExtraneousAccount));
         }
 
-        let event = Event::new(EventReceivedTransferRemote {
-            origin: xfer.origin,
-            // Note: assuming recipient not recipient ata is the correct "recipient" to log.
-            recipient: H256::from(recipient_wallet.key.to_bytes()),
-            amount: remote_amount,
-        });
-        let event_data = event.to_noop_cpi_ixn_data().map_err(|_| Error::TODO)?;
-        let noop_cpi_log = Instruction {
-            program_id: spl_noop::id(),
-            accounts: vec![],
-            data: event_data,
-        };
-        invoke_signed(&noop_cpi_log, &[], &[token_seeds])?;
+        msg!(
+            "Warp route transfer completed from origin: {}, recipient: {}, remote_amount: {}",
+            xfer.origin,
+            recipient_wallet.key,
+            remote_amount
+        );
 
         Ok(())
     }
 
-    /// Gets the account metas required by the `TransferFromRemote` instruction,
+    /// Gets the account metas required by the `HandleInstruction` instruction,
     /// serializes them, and sets them as return data.
     ///
     /// Accounts:
@@ -496,13 +474,13 @@ where
     pub fn transfer_from_remote_account_metas(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
-        transfer: TransferFromRemote,
+        transfer: HandleInstruction,
     ) -> ProgramResult {
         let accounts_iter = &mut accounts.iter();
 
         let mut message_reader = std::io::Cursor::new(transfer.message);
         let message = TokenMessage::read_from(&mut message_reader)
-            .map_err(|_err| ProgramError::from(Error::TODO))?;
+            .map_err(|_err| ProgramError::from(Error::MessageDecodeError))?;
 
         // Account 0: Token account.
         let token_account_info = next_account_info(accounts_iter)?;
@@ -513,7 +491,6 @@ where
 
         let mut accounts: Vec<SerializableAccountMeta> = vec![
             AccountMeta::new_readonly(solana_program::system_program::id(), false).into(),
-            AccountMeta::new_readonly(spl_noop::id(), false).into(),
             AccountMeta::new_readonly(*token_account_info.key, false).into(),
             AccountMeta {
                 pubkey: Pubkey::new_from_array(message.recipient().into()),
@@ -551,7 +528,7 @@ where
         // Account 0: Token account
         let token_account = next_account_info(accounts_iter)?;
         let mut token =
-            HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow_mut()[..])?.into_inner();
+            HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow()[..])?.into_inner();
         let token_seeds: &[&[u8]] = hyperlane_token_pda_seeds!(token.bump);
         let expected_token_key = Pubkey::create_program_address(token_seeds, program_id)?;
         if token_account.key != &expected_token_key {
@@ -588,7 +565,7 @@ where
         // Account 0: Token account
         let token_account = next_account_info(accounts_iter)?;
         let mut token =
-            HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow_mut()[..])?.into_inner();
+            HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow()[..])?.into_inner();
         let token_seeds: &[&[u8]] = hyperlane_token_pda_seeds!(token.bump);
         let expected_token_key = Pubkey::create_program_address(token_seeds, program_id)?;
         if token_account.key != &expected_token_key {

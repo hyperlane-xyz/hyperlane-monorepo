@@ -135,6 +135,8 @@ const Z_32: H256 = H256([
     116, 185, 67, 86, 245, 55, 84, 239, 97, 113, 215, 87,
 ]);
 
+/// Precomputed zero hashes for building the merkle tree
+/// A cache of the zero hashes for each layer of the tree.
 pub const ZERO_HASHES: [H256; TREE_DEPTH + 1] = [
     Z_0, Z_1, Z_2, Z_3, Z_4, Z_5, Z_6, Z_7, Z_8, Z_9, Z_10, Z_11, Z_12, Z_13, Z_14, Z_15, Z_16,
     Z_17, Z_18, Z_19, Z_20, Z_21, Z_22, Z_23, Z_24, Z_25, Z_26, Z_27, Z_28, Z_29, Z_30, Z_31, Z_32,

@@ -13,17 +13,14 @@ use solana_sdk::pubkey::Pubkey;
 #[derive(Debug)]
 pub struct SealevelInterchainGasPaymaster {
     program_id: Pubkey,
-    // rpc_client: crate::RpcClientWithDebug, // FIXME we don't need a client here?
     domain: HyperlaneDomain,
 }
 
 impl SealevelInterchainGasPaymaster {
-    pub fn new(_conf: &ConnectionConf /*TODO don't need?*/, locator: ContractLocator) -> Self {
+    pub fn new(_conf: &ConnectionConf, locator: ContractLocator) -> Self {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
-        // let rpc_client = crate::RpcClientWithDebug::new(conf.url.clone());
         Self {
             program_id,
-            // rpc_client,
             domain: locator.domain.clone(),
         }
     }
@@ -52,10 +49,7 @@ impl InterchainGasPaymaster for SealevelInterchainGasPaymaster {}
 pub struct SealevelInterchainGasPaymasterIndexer {}
 
 impl SealevelInterchainGasPaymasterIndexer {
-    pub fn new(
-        _conf: &ConnectionConf,
-        _locator: ContractLocator, /*TODO don't need?*/
-    ) -> Self {
+    pub fn new(_conf: &ConnectionConf, _locator: ContractLocator) -> Self {
         Self {}
     }
 }

@@ -29,9 +29,6 @@ jobs:
         with:
           submodules: recursive
 
-      - name: remove submodule locks
-        run: git submodule foreach 'test -f yarn.lock && rm yarn.lock || echo "No yarn.lock file in this submodule"'
-
       - name: setup rust
         uses: actions-rs/toolchain@v1
         with:

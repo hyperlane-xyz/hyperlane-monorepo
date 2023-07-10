@@ -26,13 +26,14 @@ use hyperlane_sealevel_mailbox::{
 
 use hyperlane_sealevel_test_ism::{program::TestIsmError, test_client::TestIsmTestClient};
 use hyperlane_sealevel_test_send_receiver::{
-    program::{IsmReturnDataMode, TestSendReceiverError},
+    program::{HandleMode, IsmReturnDataMode, TestSendReceiverError},
     test_client::TestSendReceiverTestClient,
 };
 
 use hyperlane_test_utils::{
-    assert_transaction_error, clone_keypair, get_recipient_ism, initialize_mailbox, mailbox_id,
-    new_funded_keypair, process, process_instruction,
+    assert_transaction_error, clone_keypair, get_process_account_metas, get_recipient_ism,
+    initialize_mailbox, mailbox_id, new_funded_keypair, process, process_instruction,
+    process_with_accounts,
 };
 
 use crate::utils::{
@@ -740,7 +741,10 @@ async fn test_process_errors_if_recipient_handle_fails() {
 
     let recipient_id = hyperlane_sealevel_test_send_receiver::id();
 
-    test_send_receiver.set_fail_handle(true).await.unwrap();
+    test_send_receiver
+        .set_handle_mode(HandleMode::Fail)
+        .await
+        .unwrap();
 
     let message = HyperlaneMessage {
         version: 0,
@@ -807,7 +811,7 @@ async fn test_process_errors_if_incorrect_destination_domain() {
         result,
         TransactionError::InstructionError(
             0,
-            InstructionError::Custom(MailboxError::IncorrectDestinationDomain as u32),
+            InstructionError::Custom(MailboxError::DestinationDomainNotLocalDomain as u32),
         ),
     );
 
@@ -884,6 +888,64 @@ async fn test_process_errors_if_recipient_not_a_program() {
     .await;
 
     assert_transaction_error(result, TransactionError::ProgramAccountNotFound);
+
+    assert_message_not_processed(&mut banks_client, &mailbox_accounts, message.id()).await;
+}
+
+#[tokio::test]
+async fn test_process_errors_if_reentrant() {
+    let program_id = mailbox_id();
+    let (mut banks_client, payer, mut test_send_receiver, _) = setup_client().await;
+
+    let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
+        .await
+        .unwrap();
+
+    test_send_receiver
+        .set_handle_mode(HandleMode::ReenterProcess)
+        .await
+        .unwrap();
+
+    let recipient_id = hyperlane_sealevel_test_send_receiver::id();
+
+    let message = HyperlaneMessage {
+        version: 0,
+        nonce: 0,
+        origin: REMOTE_DOMAIN,
+        sender: payer.pubkey().to_bytes().into(),
+        destination: LOCAL_DOMAIN,
+        recipient: recipient_id.to_bytes().into(),
+        body: vec![0, 1, 2, 3, 4, 5, 6, 7, 8],
+    };
+
+    let mut accounts = get_process_account_metas(
+        &mut banks_client,
+        &payer,
+        &mailbox_accounts,
+        vec![],
+        &message,
+    )
+    .await
+    .unwrap();
+    // Add the same accounts to the end, because the test recipient that attempts
+    // to reenter will use the rest of the accounts provided in its handler to reenter.
+    accounts.extend(accounts.clone());
+
+    let result = process_with_accounts(
+        &mut banks_client,
+        &payer,
+        &mailbox_accounts,
+        vec![],
+        &message,
+        accounts,
+    )
+    .await;
+
+    // We use a RefMut of the Inbox PDA's data as a reentrancy guard, so we expect `AccountBorrowFailed`
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::AccountBorrowFailed),
+    );
 
     assert_message_not_processed(&mut banks_client, &mailbox_accounts, message.id()).await;
 }
