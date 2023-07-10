@@ -84,12 +84,18 @@ export {
   RoutingIsmConfig,
 } from './ism/types';
 export {
+  AgentChainSetup,
+  AgentChainSetupBase,
+  AgentConfig,
+  AgentConnection,
   AgentConnectionType,
   AgentMetadataExtSchema,
   AgentMetadataExtension,
+  AgentSigner,
   ChainMetadataForAgent,
   ChainMetadataForAgentSchema,
   buildAgentConfig,
+  buildAgentConfigDeprecated,
 } from './metadata/agentConfig';
 export {
   ChainMetadata,
