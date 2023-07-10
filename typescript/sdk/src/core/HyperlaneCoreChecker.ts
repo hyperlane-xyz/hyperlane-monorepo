@@ -8,6 +8,7 @@ import { proxyImplementation } from '../deploy/proxy';
 import {
   HyperlaneIsmFactory,
   collectValidators,
+  moduleMatchesConfig,
 } from '../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
@@ -117,18 +118,16 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     utils.assert(localDomain === this.multiProvider.getDomainId(chain));
 
     const actualIsm = await mailbox.defaultIsm();
+    console.log({ actualIsm });
+
     const config = this.configMap[chain];
-    /*
-    TODO: Add this back in once the new ISM factories are adopted
-    const matches = await moduleMatches(
+    const matches = await moduleMatchesConfig(
       chain,
       actualIsm,
       config.defaultIsm,
       this.ismFactory.multiProvider,
       this.ismFactory.getContracts(chain),
     );
-    */
-    const matches = true;
     if (!matches) {
       const violation: MailboxViolation = {
         type: CoreViolationType.Mailbox,
