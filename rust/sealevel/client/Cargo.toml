@@ -9,7 +9,6 @@ edition = "2021"
 borsh.workspace = true
 clap = { workspace = true, features = ["derive"] }
 hex.workspace = true
-lazy_static.workspace = true
 pretty_env_logger.workspace = true
 serde.workspace = true
 serde_json.workspace = true
