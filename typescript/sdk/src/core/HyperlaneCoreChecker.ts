@@ -118,7 +118,6 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     utils.assert(localDomain === this.multiProvider.getDomainId(chain));
 
     const actualIsm = await mailbox.defaultIsm();
-    console.log({ actualIsm });
 
     const config = this.configMap[chain];
     const matches = await moduleMatchesConfig(
