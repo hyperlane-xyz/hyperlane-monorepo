@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-// ============ External Imports ============
-import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-
+// ============ Internal Imports ============
 import {TypeCasts} from "./TypeCasts.sol";
 import {LegacyCheckpointLib} from "./LegacyCheckpointLib.sol";
 
@@ -34,6 +32,7 @@ library CheckpointLib {
         bytes32 _messageId
     ) internal pure returns (bytes32) {
         bytes32 _domainHash = domainHash(_origin, _originMailbox);
+        // TODO: remove ECDSA specific code
         return
             ECDSA.toEthSignedMessageHash(
                 keccak256(
@@ -65,21 +64,6 @@ library CheckpointLib {
                 checkpoint.index,
                 checkpoint.messageId
             );
-    }
-
-    /**
-     * @notice Returns the address that signed the checkpoint.
-     * @param checkpoint The checkpoint (struct) to hash.
-     * @param signature The signature on the checkpoint (65 bytes).
-     * @return The address of the signer.
-     */
-    function signer(Checkpoint calldata checkpoint, bytes calldata signature)
-        internal
-        pure
-        returns (address)
-    {
-        bytes32 _digest = digest(checkpoint);
-        return ECDSA.recover(_digest, signature);
     }
 
     /**
