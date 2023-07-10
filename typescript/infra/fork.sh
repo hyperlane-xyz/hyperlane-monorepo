@@ -17,15 +17,18 @@ else
   exit 1
 fi
 
+# kill all child processes on exit
+trap 'kill $(jobs -p)' EXIT
+
+# exit 1 on any subsequent failures
+set -e
+
 anvil --fork-url $RPC_URL --block-time 1 --silent > /dev/null &
 ANVIL_PID=$!
 
 while ! cast bn &> /dev/null; do
   sleep 1
 done
-
-# exit 1 on any subsequent failures
-set -e
 
 echo "=== Run $MODULE checker against forked $ENVIRONMENT ==="
 yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $FORK_CHAIN -m $MODULE
