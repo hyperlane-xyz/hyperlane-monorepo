@@ -7,7 +7,7 @@ import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {Mailbox} from "../../contracts/Mailbox.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {TestMultisigIsm} from "../../contracts/test/TestMultisigIsm.sol";
-import {OptimismISM} from "../../contracts/isms/native/OptimismISM.sol";
+import {OptimismISM} from "../../contracts/isms/hook/optimism/OptimismISM.sol";
 import {OptimismMessageHook} from "../../contracts/hooks/OptimismMessageHook.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
 
@@ -206,8 +206,11 @@ contract OptimismISMTest is Test {
         );
 
         assertEq(
-            opISM.verifiedMessageIds(messageId),
-            address(this).addressToBytes32()
+            opISM.verifiedMessageIds(
+                messageId,
+                address(this).addressToBytes32()
+            ),
+            true
         );
 
         vm.stopPrank();

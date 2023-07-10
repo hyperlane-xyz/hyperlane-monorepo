@@ -15,23 +15,23 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 
-import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
-import {OptimismMessageHook} from "../../hooks/OptimismMessageHook.sol";
-import {Message} from "../../libs/Message.sol";
-import {TypeCasts} from "../../libs/TypeCasts.sol";
-import {AbstractNativeISM} from "./AbstractNativeISM.sol";
+import {IInterchainSecurityModule} from "../../../interfaces/IInterchainSecurityModule.sol";
+import {OptimismMessageHook} from "../../../hooks/OptimismMessageHook.sol";
+import {Message} from "../../../libs/Message.sol";
+import {TypeCasts} from "../../../libs/TypeCasts.sol";
+import {AbstractHookISM} from "../AbstractHookISM.sol";
+import {CrossChainEnabledOptimism} from "./CrossChainEnabledOptimism.sol";
 
 // ============ External Imports ============
 
 import {ICrossDomainMessenger} from "@eth-optimism/contracts/libraries/bridge/ICrossDomainMessenger.sol";
-import {CrossChainEnabledOptimism} from "@openzeppelin/contracts/crosschain/optimism/CrossChainEnabledOptimism.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
  * @title OptimismISM
  * @notice Uses the native Optimism bridge to verify interchain messages.
  */
-contract OptimismISM is CrossChainEnabledOptimism, AbstractNativeISM {
+contract OptimismISM is CrossChainEnabledOptimism, AbstractHookISM {
     // ============ Constants ============
 
     uint8 public constant moduleType =
@@ -84,7 +84,7 @@ contract OptimismISM is CrossChainEnabledOptimism, AbstractNativeISM {
         external
         isAuthorized
     {
-        verifiedMessageIds[_messageId] = _sender;
+        verifiedMessageIds[_messageId][_sender] = true;
 
         emit ReceivedMessage(_sender, _messageId);
     }
