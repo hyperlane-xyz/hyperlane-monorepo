@@ -611,12 +611,12 @@ export const test3: ChainMetadata = {
  * Metadata for Sealevel chains
  */
 
-export const solanamainnet: ChainMetadata = {
+export const solana: ChainMetadata = {
   protocol: ProtocolType.Sealevel,
   // Uses the same ChainId as https://www.alchemy.com/chain-connect/chain/solana
   chainId: 1399811149,
   domainId: 1399811149,
-  name: 'solanamainnet',
+  name: 'solana',
   displayName: 'Solana',
   nativeToken: solToken,
   rpcUrls: [{ http: 'https://api.mainnet-beta.solana.com' }],
