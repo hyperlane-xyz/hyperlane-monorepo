@@ -26,6 +26,7 @@ export enum Chains {
   test3 = 'test3',
   solanadevnet = 'solanadevnet',
   zbctestnet = 'zbctestnet',
+  zkevm = 'zkevm',
 }
 
 export type CoreChainName = keyof typeof Chains;

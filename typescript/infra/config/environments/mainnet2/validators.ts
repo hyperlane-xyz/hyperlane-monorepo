@@ -148,4 +148,19 @@ export const validators: ValidatorBaseChainConfigMap = {
       },
     ],
   },
+  zkevm: {
+    interval: 5,
+    reorgPeriod: 1,
+    validators: [
+      {
+        address: '',
+        name: s3BucketName('zkevm', 0),
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('zkevm', 0),
+          region: s3BucketRegion,
+        },
+      },
+    ],
+  },
 };

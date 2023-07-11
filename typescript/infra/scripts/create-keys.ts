@@ -4,6 +4,7 @@ import { getConfigsBasedOnArgs } from './utils';
 
 async function main() {
   const { agentConfig } = await getConfigsBasedOnArgs();
+  console.log(agentConfig.validators!.chains['zkevm']);
   return createAgentKeysIfNotExists(agentConfig);
 }
 
