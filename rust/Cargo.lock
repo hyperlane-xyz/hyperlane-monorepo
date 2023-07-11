@@ -27,7 +27,6 @@ dependencies = [
 name = "access-control"
 version = "0.1.0"
 dependencies = [
- "getrandom 0.2.10",
  "solana-program",
 ]
 
@@ -36,8 +35,6 @@ name = "account-utils"
 version = "0.1.0"
 dependencies = [
  "borsh 0.9.3",
- "getrandom 0.2.10",
- "hyperlane-core",
  "solana-program",
  "spl-type-length-value",
 ]
@@ -1980,7 +1977,6 @@ dependencies = [
 name = "ecdsa-signature"
 version = "0.1.0"
 dependencies = [
- "getrandom 0.2.10",
  "hyperlane-core",
  "solana-program",
  "thiserror",
@@ -3791,7 +3787,6 @@ version = "0.1.0"
 dependencies = [
  "access-control",
  "borsh 0.9.3",
- "getrandom 0.2.10",
  "hyperlane-core",
  "hyperlane-sealevel-mailbox",
  "solana-program",
@@ -3802,7 +3797,6 @@ name = "hyperlane-sealevel-interchain-security-module-interface"
 version = "0.1.0"
 dependencies = [
  "borsh 0.9.3",
- "getrandom 0.2.10",
  "solana-program",
  "spl-type-length-value",
 ]
@@ -4031,7 +4025,6 @@ dependencies = [
  "account-utils",
  "borsh 0.9.3",
  "ecdsa-signature",
- "getrandom 0.2.10",
  "hex 0.4.3",
  "hyperlane-core",
  "hyperlane-sealevel-mailbox",
@@ -7142,7 +7135,6 @@ name = "serializable-account-meta"
 version = "0.1.0"
 dependencies = [
  "borsh 0.9.3",
- "getrandom 0.2.10",
  "solana-program",
 ]
 

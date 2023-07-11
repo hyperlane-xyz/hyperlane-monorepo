@@ -94,8 +94,6 @@ fn deploy_multisig_ism_message_id(
     )
     .unwrap();
 
-    println!("instruction {:?}", instruction);
-
     ctx.instructions.push(instruction);
     ctx.send_transaction(&[&ctx.payer]);
     ctx.instructions.clear();

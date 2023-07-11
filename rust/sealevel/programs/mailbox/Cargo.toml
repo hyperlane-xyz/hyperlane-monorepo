@@ -25,10 +25,6 @@ hyperlane-sealevel-interchain-security-module-interface = { path = "../../librar
 hyperlane-sealevel-message-recipient-interface = { path = "../../libraries/message-recipient-interface" }
 serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
 
-# Required to allow dependencies `getrandom` but to preserve determinism required by programs, see
-# https://github.com/solana-labs/solana/blob/master/docs/src/developing/on-chain-programs/developing-rust.md#depending-on-rand
-# getrandom = { version = "0.2", features = ["custom"] }
-
 [dev-dependencies]
 base64.workspace = true
 itertools.workspace = true

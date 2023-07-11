@@ -19,10 +19,6 @@ hyperlane-sealevel-mailbox = { path = "../mailbox", features = ["no-entrypoint"]
 hyperlane-core = { path = "../../../hyperlane-core" }
 serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
 
-# Required to allow dependencies `getrandom` but to preserve determinism required by programs, see
-# https://github.com/solana-labs/solana/blob/master/docs/src/developing/on-chain-programs/developing-rust.md#depending-on-rand
-getrandom = { version = "0.2", features = ["custom"] }
-
 [dev-dependencies]
 hex.workspace = true
 solana-program-test = "1.14.13"

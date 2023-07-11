@@ -16,10 +16,6 @@ access-control = { path = "../access-control" }
 hyperlane-core = { path = "../../../hyperlane-core" }
 hyperlane-sealevel-mailbox = { path = "../../programs/mailbox", features = ["no-entrypoint"] }
 
-# Required to allow dependencies `getrandom` but to preserve determinism required by programs, see
-# https://github.com/solana-labs/solana/blob/master/docs/src/developing/on-chain-programs/developing-rust.md#depending-on-rand
-getrandom = { version = "0.2", features = ["custom"] }
-
 [dev-dependencies]
 
 [lib]

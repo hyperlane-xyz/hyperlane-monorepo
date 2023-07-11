@@ -11,10 +11,6 @@ no-entrypoint = []
 [dependencies]
 solana-program.workspace = true
 
-# Required to allow dependencies `getrandom` but to preserve determinism required by programs, see
-# https://github.com/solana-labs/solana/blob/master/docs/src/developing/on-chain-programs/developing-rust.md#depending-on-rand
-getrandom = { version = "0.2", features = ["custom"] }
-
 [dev-dependencies]
 
 [lib]

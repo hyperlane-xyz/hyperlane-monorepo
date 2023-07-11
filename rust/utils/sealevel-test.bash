@@ -29,7 +29,7 @@ build_program() {
     if $3 || [ ! -e $1 ]; then
         # .so file doesn't exist, build it
         pushd "${2}"
-        cargo build-sbf # --arch sbfv2 <-- (sbfv1 or sbfv2?)
+        cargo build-sbf
         popd
     fi
 }

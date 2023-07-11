@@ -10,11 +10,6 @@ use serde::{
 use crate::utils::fmt_bytes;
 use crate::{Signature, H160, H256};
 
-// use ethers_core::{
-//     types::{Address, Signature},
-//     utils::hash_message,
-// };
-
 /// An error incurred by a signer
 #[derive(thiserror::Error, Debug)]
 #[error(transparent)]
@@ -138,6 +133,8 @@ impl<T: Signable + Debug> Debug for SignedType<T> {
     }
 }
 
+// Copied from https://github.com/hyperlane-xyz/ethers-rs/blob/hyperlane/ethers-core/src/utils/hash.rs
+// so that we can get EIP-191 hashing without the `ethers` feature
 mod hashes {
     const PREFIX: &str = "\x19Ethereum Signed Message:\n";
     use crate::H256;
