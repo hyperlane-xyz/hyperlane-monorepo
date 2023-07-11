@@ -75,7 +75,7 @@ export const arbitrum: ChainMetadata = {
   },
   gasCurrencyCoinGeckoId: 'ethereum', // ETH is used for gas
   gnosisSafeTransactionServiceUrl:
-    'https://safe-transaction.arbitrum.gnosis.io/',
+    'https://safe-transaction-arbitrum.safe.global/',
 };
 
 export const arbitrumgoerli: ChainMetadata = {

@@ -87,7 +87,8 @@
     "aggregationIsmFactory": "0x9E3075E067932d744119e583B34d11b144CE1e4A",
     "routingIsmFactory": "0xcC2fA09fa13857942fae408EcCEc8De307344e99",
     "interchainQueryRouter": "0x6fa285743afc565Ee99b6D34FE5F298690BC6412",
-    "interchainAccountRouter": "0x2dF1d8f3b357422Ceddbeee3fdF159B45AC6F005"
+    "interchainAccountRouter": "0x2dF1d8f3b357422Ceddbeee3fdF159B45AC6F005",
+    "timelockController": "0xAC98b0cD1B64EA4fe133C6D2EDaf842cE5cF4b01"
   },
   "optimism": {
     "storageGasOracle": "0x27e88AeB8EA4B159d81df06355Ea3d20bEB1de38",
