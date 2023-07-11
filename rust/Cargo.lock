@@ -3876,26 +3876,6 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-mailbox",
- "multisig-ism",
- "num-derive",
- "num-traits",
- "serializable-account-meta",
- "solana-program",
- "thiserror",
-]
-
-[[package]]
-name = "hyperlane-sealevel-multisig-ism-message-id-test"
-version = "0.1.0"
-dependencies = [
- "access-control",
- "account-utils",
- "borsh 0.9.3",
- "ecdsa-signature",
- "hex 0.4.3",
- "hyperlane-core",
- "hyperlane-sealevel-interchain-security-module-interface",
- "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-multisig-ism-message-id",
  "multisig-ism",
  "num-derive",
@@ -3950,11 +3930,15 @@ dependencies = [
  "hyperlane-sealevel-connection-client",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
+ "hyperlane-sealevel-test-ism",
  "hyperlane-sealevel-token-lib",
+ "hyperlane-test-utils",
  "num-derive",
  "num-traits",
  "serializable-account-meta",
  "solana-program",
+ "solana-program-test",
+ "solana-sdk",
  "spl-associated-token-account",
  "spl-noop",
  "spl-token",
@@ -3973,31 +3957,7 @@ dependencies = [
  "hyperlane-sealevel-connection-client",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
- "hyperlane-sealevel-token-lib",
- "num-derive",
- "num-traits",
- "serializable-account-meta",
- "solana-program",
- "spl-associated-token-account",
- "spl-noop",
- "spl-token",
- "spl-token-2022",
- "thiserror",
-]
-
-[[package]]
-name = "hyperlane-sealevel-token-collateral-test"
-version = "0.1.0"
-dependencies = [
- "account-utils",
- "borsh 0.9.3",
- "bs58",
- "hyperlane-core",
- "hyperlane-sealevel-connection-client",
- "hyperlane-sealevel-mailbox",
- "hyperlane-sealevel-message-recipient-interface",
  "hyperlane-sealevel-test-ism",
- "hyperlane-sealevel-token-collateral",
  "hyperlane-sealevel-token-lib",
  "hyperlane-test-utils",
  "num-derive",
@@ -4047,29 +4007,8 @@ dependencies = [
  "hyperlane-sealevel-connection-client",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
- "hyperlane-sealevel-token-lib",
- "num-derive",
- "num-traits",
- "serializable-account-meta",
- "solana-program",
- "spl-noop",
- "thiserror",
-]
-
-[[package]]
-name = "hyperlane-sealevel-token-native-test"
-version = "0.1.0"
-dependencies = [
- "account-utils",
- "borsh 0.9.3",
- "bs58",
- "hyperlane-core",
- "hyperlane-sealevel-connection-client",
- "hyperlane-sealevel-mailbox",
- "hyperlane-sealevel-message-recipient-interface",
  "hyperlane-sealevel-test-ism",
  "hyperlane-sealevel-token-lib",
- "hyperlane-sealevel-token-native",
  "hyperlane-test-utils",
  "num-derive",
  "num-traits",
@@ -4079,34 +4018,6 @@ dependencies = [
  "solana-sdk",
  "spl-noop",
  "tarpc",
- "thiserror",
-]
-
-[[package]]
-name = "hyperlane-sealevel-token-test"
-version = "0.1.0"
-dependencies = [
- "account-utils",
- "borsh 0.9.3",
- "bs58",
- "hyperlane-core",
- "hyperlane-sealevel-connection-client",
- "hyperlane-sealevel-mailbox",
- "hyperlane-sealevel-message-recipient-interface",
- "hyperlane-sealevel-test-ism",
- "hyperlane-sealevel-token",
- "hyperlane-sealevel-token-lib",
- "hyperlane-test-utils",
- "num-derive",
- "num-traits",
- "serializable-account-meta",
- "solana-program",
- "solana-program-test",
- "solana-sdk",
- "spl-associated-token-account",
- "spl-noop",
- "spl-token",
- "spl-token-2022",
  "thiserror",
 ]
 
@@ -4121,22 +4032,6 @@ dependencies = [
  "hex 0.4.3",
  "hyperlane-core",
  "hyperlane-sealevel-mailbox",
- "serializable-account-meta",
- "solana-program",
- "thiserror",
-]
-
-[[package]]
-name = "hyperlane-sealevel-validator-announce-test"
-version = "0.1.0"
-dependencies = [
- "account-utils",
- "borsh 0.9.3",
- "ecdsa-signature",
- "hex 0.4.3",
- "hyperlane-core",
- "hyperlane-sealevel-mailbox",
- "hyperlane-sealevel-validator-announce",
  "serializable-account-meta",
  "solana-program",
  "solana-program-test",

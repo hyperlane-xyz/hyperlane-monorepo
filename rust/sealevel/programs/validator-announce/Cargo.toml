@@ -25,6 +25,8 @@ getrandom = { version = "0.2", features = ["custom"] }
 
 [dev-dependencies]
 hex.workspace = true
+solana-program-test = "1.14.13"
+solana-sdk.workspace = true
 
 [lib]
 crate-type = ["cdylib", "lib"]

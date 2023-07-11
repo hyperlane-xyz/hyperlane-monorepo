@@ -24,10 +24,11 @@ use hyperlane_sealevel_multisig_ism_message_id::{
     metadata::MultisigIsmMessageIdMetadata,
     processor::process_instruction,
 };
-use multisig_ism::{
-    interface::{MultisigIsmInstruction, VALIDATORS_AND_THRESHOLD_ACCOUNT_METAS_PDA_SEEDS},
-    test_data::{get_multisig_ism_test_data, MultisigIsmTestData},
+use multisig_ism::interface::{
+    MultisigIsmInstruction, VALIDATORS_AND_THRESHOLD_ACCOUNT_METAS_PDA_SEEDS,
 };
+#[cfg(test)]
+use multisig_ism::test_data::{get_multisig_ism_test_data, MultisigIsmTestData};
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program_test::*;
 use solana_sdk::{
