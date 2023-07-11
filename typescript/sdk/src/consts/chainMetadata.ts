@@ -637,8 +637,8 @@ export const solana: ChainMetadata = {
 
 export const solanatestnet: ChainMetadata = {
   protocol: ProtocolType.Sealevel,
-  chainId: 13998111450,
-  domainId: 13998111450,
+  chainId: 1399811150,
+  domainId: 1399811150,
   name: 'solanatestnet',
   displayName: 'Solana Testnet',
   displayNameShort: 'Sol Testnet',
