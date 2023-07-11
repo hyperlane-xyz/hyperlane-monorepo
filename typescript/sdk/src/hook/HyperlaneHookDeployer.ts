@@ -121,14 +121,14 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
   ): Promise<OptimismISM> {
     const signer = this.multiProvider.getSigner(chain);
 
-    const optimsimISM = await new OptimismISM__factory(signer).deploy(
+    const optimismISM = await new OptimismISM__factory(signer).deploy(
       nativeBridge,
     );
 
-    await this.multiProvider.handleTx(chain, optimsimISM.deployTransaction);
+    await this.multiProvider.handleTx(chain, optimismISM.deployTransaction);
 
-    this.logger(`Deployed OptimismISM on ${chain} at ${optimsimISM.address}`);
-    return optimsimISM;
+    this.logger(`Deployed OptimismISM on ${chain} at ${optimismISM.address}`);
+    return optimismISM;
   }
 
   async deployTestRecipient(
