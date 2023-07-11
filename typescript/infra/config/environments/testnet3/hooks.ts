@@ -4,14 +4,14 @@ import {
   HookContractType,
   MessageHookConfig,
   NoMetadataIsmConfig,
-  filteredOwners,
+  filterByChains,
   objMap,
 } from '@hyperlane-xyz/sdk';
 
 import { owners } from './owners';
 
 const chainNameFilter = new Set(['goerli', 'optimismgoerli']);
-const filteredOwnersResult = filteredOwners(owners, chainNameFilter);
+const filteredOwnersResult = filterByChains<string>(owners, chainNameFilter);
 
 export const hooks: ChainMap<HookConfig> = objMap(
   filteredOwnersResult,

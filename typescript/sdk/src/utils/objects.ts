@@ -91,14 +91,14 @@ export function objMerge(
   }
 }
 
-export function filteredOwners(
-  owners: ChainMap<string>,
+export function filterByChains<T>(
+  owners: ChainMap<T>,
   filterByChainName: Set<string>,
-): ChainMap<string> {
+): ChainMap<T> {
   return Object.keys(owners).reduce((result, chain) => {
     if (filterByChainName.has(chain)) {
       result[chain] = owners[chain];
     }
     return result;
-  }, {} as ChainMap<string>);
+  }, {} as ChainMap<T>);
 }

@@ -185,7 +185,7 @@ export {
   mulBigAndFixed,
 } from './utils/number';
 export {
-  filteredOwners,
+  filterByChains,
   objFilter,
   objMap,
   objMapEntries,
