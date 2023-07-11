@@ -205,12 +205,11 @@ contract OptimismISMTest is Test {
             encodedHookData
         );
 
-        assertEq(
+        assertTrue(
             opISM.verifiedMessageIds(
                 messageId,
                 address(this).addressToBytes32()
-            ),
-            true
+            )
         );
 
         vm.stopPrank();

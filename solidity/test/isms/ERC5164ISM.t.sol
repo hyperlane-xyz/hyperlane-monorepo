@@ -119,9 +119,8 @@ contract ERC5164ISMTest is Test {
         vm.startPrank(address(executor));
 
         ism.verifyMessageId(address(this).addressToBytes32(), messageId);
-        assertEq(
-            ism.verifiedMessageIds(messageId, address(this).addressToBytes32()),
-            true
+        assertTrue(
+            ism.verifiedMessageIds(messageId, address(this).addressToBytes32())
         );
 
         vm.stopPrank();

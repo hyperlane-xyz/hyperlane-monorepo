@@ -33,9 +33,8 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 abstract contract AbstractHookISM is IInterchainSecurityModule, Initializable {
     // ============ Public Storage ============
 
-    // mapping to check if the specific messageID is from a specific sender
+    // Maps messageId to whether or not the sender attested to that message ID on the origin chain
     // @dev anyone can send an untrusted messageId, so need to check for that while verifying
-    // @dev anyone can overwrite the mapping for a messageId, and hence need the sender => bool mapping
     mapping(bytes32 => mapping(bytes32 => bool)) public verifiedMessageIds;
 
     // ============ Events ============
