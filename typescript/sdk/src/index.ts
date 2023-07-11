@@ -170,6 +170,7 @@ export {
   mulBigAndFixed,
 } from './utils/number';
 export {
+  filteredOwners,
   objFilter,
   objMap,
   objMapEntries,

@@ -4,9 +4,9 @@ import {
   HookContractType,
   MessageHookConfig,
   NoMetadataIsmConfig,
+  filteredOwners,
   objMap,
 } from '@hyperlane-xyz/sdk';
-import { filteredOwners } from '@hyperlane-xyz/utils';
 
 import { owners } from './owners';
 

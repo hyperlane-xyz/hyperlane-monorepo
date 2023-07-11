@@ -1,11 +1,12 @@
-import { ChainMap, objMap } from '@hyperlane-xyz/sdk';
 import {
+  ChainMap,
   HookConfig,
   HookContractType,
   MessageHookConfig,
   NoMetadataIsmConfig,
-} from '@hyperlane-xyz/sdk/dist/hook/types';
-import { filteredOwners } from '@hyperlane-xyz/utils';
+  filteredOwners,
+  objMap,
+} from '@hyperlane-xyz/sdk';
 
 import { owners } from './owners';
 
