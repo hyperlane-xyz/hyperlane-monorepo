@@ -23,7 +23,7 @@ use crate::msg::metadata::multisig::{
     MessageIdMultisigMetadataBuilder,
 };
 use crate::msg::metadata::{
-    AggregationIsmMetadataBuilder, NoMetadataBuilder, RoutingIsmMetadataBuilder,
+    AggregationIsmMetadataBuilder, NullMetadataBuilder, RoutingIsmMetadataBuilder,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -86,7 +86,7 @@ impl MetadataBuilder for BaseMetadataBuilder {
             ModuleType::MessageIdMultisig => Box::new(MessageIdMultisigMetadataBuilder::new(base)),
             ModuleType::Routing => Box::new(RoutingIsmMetadataBuilder::new(base)),
             ModuleType::Aggregation => Box::new(AggregationIsmMetadataBuilder::new(base)),
-            ModuleType::Null => Box::new(NoMetadataBuilder::new()),
+            ModuleType::Null => Box::new(NullMetadataBuilder::new()),
             _ => return Err(MetadataBuilderError::UnsupportedModuleType(module_type).into()),
         };
         metadata_builder

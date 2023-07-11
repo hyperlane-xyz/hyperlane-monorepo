@@ -6,10 +6,10 @@ use tracing::instrument;
 use hyperlane_core::{HyperlaneMessage, H256};
 
 #[derive(Clone, Debug, new)]
-pub struct NoMetadataBuilder {}
+pub struct NullMetadataBuilder {}
 
 #[async_trait]
-impl MetadataBuilder for NoMetadataBuilder {
+impl MetadataBuilder for NullMetadataBuilder {
     #[instrument(err, skip(self))]
     async fn build(
         &self,

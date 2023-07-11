@@ -1,19 +1,19 @@
 import type { types } from '@hyperlane-xyz/utils';
 
-export enum NativeType {
+export enum HookContractType {
   HOOK = 'hook',
   ISM = 'ism',
 }
 
 export type MessageHookConfig = {
-  nativeType: NativeType.HOOK;
+  hookContractType: HookContractType.HOOK;
   nativeBridge: types.Address;
   remoteIsm: types.Address;
   destinationDomain: number;
 };
 
 export type NoMetadataIsmConfig = {
-  nativeType: NativeType.ISM;
+  hookContractType: HookContractType.ISM;
   nativeBridge: types.Address;
 };
 

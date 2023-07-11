@@ -295,11 +295,12 @@ export async function getHooksProvider(
   }
   for (const chain of Object.keys(hooksConfig)) {
     // need to use different url for two forks simultaneously
+    // need another rpc param
     await useLocalProvider(multiProvider, chain);
-    const signer = await impersonateAccount(
-      '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
-    );
-    hooksProvider.setSigner(chain, signer);
   }
+  const signer = await impersonateAccount(
+    '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+  );
+  hooksProvider.setSharedSigner(signer);
   return hooksProvider;
 }

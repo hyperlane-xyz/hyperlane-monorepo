@@ -1,13 +1,14 @@
 import {
   HookConfig,
+  HookContractType,
   MessageHookConfig,
-  NativeType,
   NoMetadataIsmConfig,
 } from './types';
 
 export const isISMConfig = (
   config: HookConfig,
-): config is NoMetadataIsmConfig => config.nativeType === NativeType.ISM;
+): config is NoMetadataIsmConfig =>
+  config.hookContractType === HookContractType.ISM;
 
 export const isHookConfig = (config: HookConfig): config is MessageHookConfig =>
-  config.nativeType === NativeType.HOOK;
+  config.hookContractType === HookContractType.HOOK;

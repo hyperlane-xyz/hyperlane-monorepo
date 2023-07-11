@@ -9,6 +9,7 @@ import {
   TestRecipient__factory,
 } from '@hyperlane-xyz/core';
 import { types } from '@hyperlane-xyz/utils';
+import { addressToBytes32 } from '@hyperlane-xyz/utils/dist/src/utils';
 
 import { HyperlaneContracts, HyperlaneContractsMap } from '../contracts';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
@@ -43,7 +44,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     }
 
     // Ensure ISM contracts have been deployed
-    if (!ismContracts) {
+    if (!ismContracts || !ismContracts?.optimismISM) {
       throw new Error('ISM contracts not deployed');
     }
 
@@ -57,7 +58,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     }
 
     // Ensure hook contracts have been deployed
-    if (!hookContracts) {
+    if (!hookContracts || !hookContracts?.optimismMessageHook) {
       throw new Error('Hook contracts not deployed');
     }
 
@@ -80,7 +81,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     hookConfig: HookConfig,
   ): Promise<HyperlaneContracts<HookFactories>> {
     let optimismISM, optimismMessageHook, testRecipient;
-    this.logger(`Deploying ${hookConfig.nativeType} on ${chain}`);
+    this.logger(`Deploying ${hookConfig.hookContractType} on ${chain}`);
     if (isISMConfig(hookConfig)) {
       optimismISM = await this.deployOptimismISM(
         chain,
@@ -91,7 +92,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         optimismISM.address,
       );
       this.logger(
-        `Deployed test recipient on ${chain} at ${this.padToBytes32(
+        `Deployed test recipient on ${chain} at ${addressToBytes32(
           testRecipient.address,
         )}`,
       );
@@ -164,23 +165,5 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       `Deployed OptimismMessageHook on ${chain} at ${optimismMessageHook.address}`,
     );
     return optimismMessageHook;
-  }
-
-  // Function to pad a hexadecimal string to 32 bytes
-  padToBytes32(hexString: string): string {
-    // Check that it is indeed a hexidecimal string
-    if (typeof hexString !== 'string' || !/^0x[0-9a-fA-F]*$/.test(hexString)) {
-      throw new Error('The input should be a hexadecimal string');
-    }
-
-    // If the hexString is shorter than 64 characters (64 characters = 32 bytes),
-    // add leading zeroes to make it 32 bytes long
-    const unprefixedHexString = hexString.replace(/^0x/, ''); // remove '0x'
-    if (unprefixedHexString.length < 64) {
-      return `0x${unprefixedHexString.padStart(64, '0')}`;
-    }
-
-    // If it is already 32 bytes long or longer, just return it.
-    return hexString;
   }
 }
