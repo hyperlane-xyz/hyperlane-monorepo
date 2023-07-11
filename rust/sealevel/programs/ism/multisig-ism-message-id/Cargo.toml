@@ -24,5 +24,8 @@ hyperlane-sealevel-mailbox = { path = "../../mailbox", features = ["no-entrypoin
 multisig-ism = { path = "../../../libraries/multisig-ism" }
 serializable-account-meta = { path = "../../../libraries/serializable-account-meta" }
 
+[dev-dependencies]
+hex.workspace = true
+
 [lib]
 crate-type = ["cdylib", "lib"]

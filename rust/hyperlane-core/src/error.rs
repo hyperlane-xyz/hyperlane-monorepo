@@ -1,5 +1,3 @@
-#[cfg(feature = "ethers")]
-use ethers;
 use std::any::Any;
 use std::error::Error as StdError;
 use std::fmt::{Debug, Display, Formatter};

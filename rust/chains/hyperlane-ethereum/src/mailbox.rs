@@ -482,7 +482,6 @@ where
             .get_gas_price()
             .await
             .map_err(ChainCommunicationError::from_other)?;
-        // let gas_estimate: U256 = gas_limit;
 
         Ok(TxCostEstimate {
             gas_limit: gas_limit.into(),
@@ -517,7 +516,7 @@ mod test {
 
     use ethers::{
         providers::{MockProvider, Provider},
-        types::{Block, Transaction},
+        types::{Block, Transaction, U256 as EthersU256},
     };
     use hyperlane_core::{
         ContractLocator, HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, Mailbox,
@@ -550,12 +549,7 @@ mod test {
         assert!(mailbox.arbitrum_node_interface.is_some());
         // Confirm `H160::from_low_u64_ne(0xC8)` does what's expected
         assert_eq!(
-            mailbox
-                .arbitrum_node_interface
-                .as_ref()
-                .unwrap()
-                .address()
-                .into(),
+            H160::from(mailbox.arbitrum_node_interface.as_ref().unwrap().address()),
             H160::from_str("0x00000000000000000000000000000000000000C8").unwrap(),
         );
 
@@ -565,7 +559,8 @@ mod test {
 
         // RPC 4: eth_gasPrice by process_estimate_costs
         // Return 15 gwei
-        let gas_price: U256 = ethers::utils::parse_units("15", "gwei").unwrap().into();
+        let gas_price: U256 =
+            EthersU256::from(ethers::utils::parse_units("15", "gwei").unwrap()).into();
         mock_provider.push(gas_price).unwrap();
 
         // RPC 3: eth_estimateGas to the ArbitrumNodeInterface's estimateRetryableTicket function by process_estimate_costs

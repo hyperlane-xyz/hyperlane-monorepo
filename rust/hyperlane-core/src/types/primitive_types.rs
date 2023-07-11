@@ -1,7 +1,8 @@
 // Based on https://github.com/paritytech/parity-common/blob/a5ef7308d6986e62431e35d3156fed0a7a585d39/primitive-types/src/lib.rs
 
-#[cfg(feature = "ethers")]
-use primitive_types as parity_primitive_types;
+#![allow(clippy::assign_op_pattern)]
+#![allow(clippy::reversed_empty_ranges)]
+
 use std::fmt::Formatter;
 
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -94,15 +95,14 @@ impl<'de> Deserialize<'de> for H512 {
     }
 }
 
-// TODO: Figure out how to do this without duplicating the feature flag
 #[cfg(feature = "ethers")]
-type PrimitiveH160 = parity_primitive_types::H160;
+type EthersH160 = ethers_core::types::H160;
 #[cfg(feature = "ethers")]
-type PrimitiveH256 = parity_primitive_types::H256;
+type EthersH256 = ethers_core::types::H256;
 #[cfg(feature = "ethers")]
-impl_fixed_hash_conversions!(H256, PrimitiveH160);
+impl_fixed_hash_conversions!(H256, EthersH160);
 #[cfg(feature = "ethers")]
-impl_fixed_hash_conversions!(PrimitiveH256, H160);
+impl_fixed_hash_conversions!(EthersH256, H160);
 
 impl_fixed_hash_conversions!(H256, H160);
 impl_fixed_hash_conversions!(H512, H256);
@@ -158,9 +158,7 @@ macro_rules! impl_fixed_uint_conversions {
 }
 
 #[cfg(feature = "ethers")]
-type PrimitiveU128 = parity_primitive_types::U128;
-#[cfg(feature = "ethers")]
-impl_fixed_uint_conversions!(U256, PrimitiveU128);
+impl_fixed_uint_conversions!(U256, ethers_core::types::U128);
 impl_fixed_uint_conversions!(U256, U128);
 impl_fixed_uint_conversions!(U512, U128);
 impl_fixed_uint_conversions!(U512, U256);

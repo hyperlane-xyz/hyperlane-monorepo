@@ -23,5 +23,8 @@ serializable-account-meta = { path = "../../libraries/serializable-account-meta"
 # https://github.com/solana-labs/solana/blob/master/docs/src/developing/on-chain-programs/developing-rust.md#depending-on-rand
 getrandom = { version = "0.2", features = ["custom"] }
 
+[dev-dependencies]
+hex.workspace = true
+
 [lib]
 crate-type = ["cdylib", "lib"]
