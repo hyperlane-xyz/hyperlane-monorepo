@@ -30,15 +30,12 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  * @dev In the future, the hook might be moved inside the Mailbox which doesn't require storage mappings for senders.
  *      for more details see https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/2381
  */
-abstract contract AbstractNativeISM is
-    IInterchainSecurityModule,
-    Initializable
-{
+abstract contract AbstractHookISM is IInterchainSecurityModule, Initializable {
     // ============ Public Storage ============
 
-    // mapping to check if the specific messageID is from a specific sender
+    // Maps messageId to whether or not the sender attested to that message ID on the origin chain
     // @dev anyone can send an untrusted messageId, so need to check for that while verifying
-    mapping(bytes32 => bytes32) public verifiedMessageIds;
+    mapping(bytes32 => mapping(bytes32 => bool)) public verifiedMessageIds;
 
     // ============ Events ============
 
@@ -57,6 +54,6 @@ abstract contract AbstractNativeISM is
         bytes32 _messageId = Message.id(_message);
         bytes32 _messageSender = Message.sender(_message);
 
-        return _messageSender == verifiedMessageIds[_messageId];
+        return verifiedMessageIds[_messageId][_messageSender];
     }
 }
