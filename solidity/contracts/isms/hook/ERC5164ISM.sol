@@ -16,10 +16,10 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
-import {ERC5164MessageHook} from "../../hooks/ERC5164MessageHook.sol";
+import {ERC5164MessageHook} from "../../hooks/ERC5164/ERC5164MessageHook.sol";
 import {Message} from "../../libs/Message.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
-import {AbstractNativeISM} from "./AbstractNativeISM.sol";
+import {AbstractHookISM} from "./AbstractHookISM.sol";
 
 // ============ External Imports ============
 
@@ -29,7 +29,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * @title ERC5164ISM
  * @notice Uses the generic eip-5164 standard to verify interchain messages.
  */
-contract ERC5164ISM is AbstractNativeISM {
+contract ERC5164ISM is AbstractHookISM {
     // ============ Constants ============
 
     uint8 public constant moduleType =
@@ -68,7 +68,7 @@ contract ERC5164ISM is AbstractNativeISM {
         external
         isAuthorized
     {
-        verifiedMessageIds[_messageId] = _sender;
+        verifiedMessageIds[_messageId][_sender] = true;
 
         emit ReceivedMessage(_sender, _messageId);
     }
