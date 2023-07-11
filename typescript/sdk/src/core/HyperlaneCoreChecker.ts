@@ -76,7 +76,8 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
         executor: await timelockController.EXECUTOR_ROLE(),
         proposer: await timelockController.PROPOSER_ROLE(),
         canceller: await timelockController.CANCELLER_ROLE(),
-        admin: await timelockController.TIMELOCK_ADMIN_ROLE(),
+        // see https://docs.openzeppelin.com/contracts/4.x/api/governance#TimelockController-constructor-uint256-address---address---address-
+        // admin: await timelockController.TIMELOCK_ADMIN_ROLE(),
       };
 
       for (const [label, role] of Object.entries(roles)) {

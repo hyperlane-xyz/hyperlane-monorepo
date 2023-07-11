@@ -36,6 +36,9 @@ yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $FORK_CHAIN -m $MODULE
 echo "=== Run $MODULE deployer against forked $ENVIRONMENT ==="
 yarn ts-node ./scripts/deploy.ts -e $ENVIRONMENT -f $FORK_CHAIN -m $MODULE
 
+# build SDK to get the latest addresses
+yarn --cwd ../sdk build
+
 echo "=== Run $MODULE govern against forked $ENVIRONMENT ==="
 yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $FORK_CHAIN --govern -m $MODULE
 
