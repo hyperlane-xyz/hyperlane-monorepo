@@ -2,11 +2,9 @@ import CoinGecko from 'coingecko-api';
 
 import { warn } from '@hyperlane-xyz/utils';
 
-import {
-  ChainMetadata,
-  chainMetadata as defaultChainMetadata,
-} from '../consts/chainMetadata';
+import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata';
 import { CoreChainName, Mainnets } from '../consts/chains';
+import { ChainMetadata } from '../metadata/chainMetadataTypes';
 import { ChainMap, ChainName } from '../types';
 
 export interface TokenPriceGetter {
