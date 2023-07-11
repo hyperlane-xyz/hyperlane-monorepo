@@ -1,11 +1,14 @@
 import { ethers } from 'ethers';
 
-import { CCTPAdapter } from '../../../../../solidity/dist';
-import { HyperlaneContractsMap } from '../../contracts';
+import {
+  CctpAdapter__factory,
+  ProxyAdmin__factory,
+} from '../../../../../solidity/dist';
+import { HyperlaneContracts, HyperlaneContractsMap } from '../../contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ProxiedRouterDeployer } from '../../router/ProxiedRouterDeployer';
 import { RouterConfig } from '../../router/types';
-import { ChainMap, ChainName } from '../../types';
+import { ChainMap } from '../../types';
 
 import {
   LiquidityLayerV2Factories,
@@ -31,9 +34,9 @@ export type CctpAdapterConfig = RouterConfig & {
 export class CctpAdapterDeployer extends ProxiedRouterDeployer<
   CctpAdapterConfig,
   LiquidityLayerV2Factories,
-  'CCTPAdapter'
+  'CctpAdapter'
 > {
-  readonly routerContractName = 'CCTPAdapter';
+  readonly routerContractName = 'CctpAdapter';
 
   constructor(multiProvider: MultiProvider) {
     super(multiProvider, liquidityLayerV2Factories);
@@ -79,32 +82,23 @@ export class CctpAdapterDeployer extends ProxiedRouterDeployer<
     await super.enrollRemoteRouters(contractsMap, configMap);
   }
 
-  async deployCctpAdapter(
-    chain: ChainName,
-    adapterConfig: CctpAdapterConfig,
-    owner: string,
-  ): Promise<CCTPAdapter> {
-    const cctpAdapter = await this.deployContract(
-      chain,
-      'CCTPAdapter',
-      [],
-      [
-        owner,
-        adapterConfig.tokenMessengerAddress,
-        adapterConfig.token,
-        adapterConfig.tokenSymbol,
-        adapterConfig.gasAmount,
-        adapterConfig.mailbox,
-        adapterConfig.interchainGasPaymaster,
-        adapterConfig.interchainSecurityModule ?? ethers.constants.AddressZero,
-      ],
-    );
+  async deployContracts(
+    chain: string,
+    config: CctpAdapterConfig,
+  ): Promise<
+    HyperlaneContracts<{
+      proxyAdmin: ProxyAdmin__factory;
+      CctpAdapter: CctpAdapter__factory;
+    }>
+  > {
+    const cctpAdapterFactory = await super.deployContracts(chain, config);
+    const cctpAdapter = cctpAdapterFactory.CctpAdapter;
 
     // Set domain mappings
     for (const {
       circleDomain,
       hyperlaneDomain,
-    } of adapterConfig.circleDomainMapping) {
+    } of config.circleDomainMapping) {
       const expectedCircleDomain =
         await cctpAdapter.hyperlaneDomainToCircleDomain(hyperlaneDomain);
       if (expectedCircleDomain === circleDomain) continue;
@@ -120,6 +114,6 @@ export class CctpAdapterDeployer extends ProxiedRouterDeployer<
       );
     }
 
-    return cctpAdapter;
+    return cctpAdapterFactory;
   }
 }
