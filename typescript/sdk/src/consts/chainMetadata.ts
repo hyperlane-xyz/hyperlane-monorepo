@@ -677,7 +677,7 @@ export const zbctestnet: ChainMetadata = {
   displayName: 'Zebec Devnet',
   displayNameShort: 'Zebec Dev',
   nativeToken: solToken,
-  rpcUrls: [{ http: 'https://api.devnet.solana.com' }],
+  rpcUrls: [{ http: 'https://api.zebec.eclipsenetwork.xyz:8899' }],
   blockExplorers: [],
   blocks: {
     confirmations: 1,
