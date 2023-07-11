@@ -21,19 +21,16 @@ pub enum IndexMode {
     #[default]
     Block,
     /// Sequence based indexing.
-    MessageNonce,
+    Sequence,
 }
-
-/// An inclusive range of sequence numbers.
-pub type SequenceRange = RangeInclusive<u32>;
 
 /// An indexing range.
 #[derive(Debug, Clone)]
 pub enum IndexRange {
     /// For block-based indexers
-    BlockRange(SequenceRange),
+    BlockRange(RangeInclusive<u32>),
     /// For indexers that look for specific sequences, e.g. message nonces.
-    MessageNonceRange(SequenceRange),
+    SequenceRange(RangeInclusive<u32>),
 }
 
 pub use IndexRange::*;

@@ -8,7 +8,7 @@ use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     ContractLocator, Decode as _, Encode as _, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, IndexRange, Indexer, LogMeta, Mailbox,
-    MessageIndexer, MessageNonceRange, SequenceRange, TxCostEstimate, TxOutcome, H256, U256,
+    MessageIndexer, SequenceRange, TxCostEstimate, TxOutcome, H256, U256,
 };
 use jsonrpc_core::futures_util::TryFutureExt;
 use tracing::{debug, error, info, instrument, trace, warn};
@@ -683,7 +683,7 @@ impl MessageIndexer for SealevelMailboxIndexer {
 #[async_trait]
 impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
     async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
-        let MessageNonceRange(range) = range else {
+        let SequenceRange(range) = range else {
             return Err(ChainCommunicationError::from_other_str(
                 "SealevelMailboxIndexer does not support block-based indexing",
             ))

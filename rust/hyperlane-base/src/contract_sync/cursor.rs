@@ -14,7 +14,7 @@ use tracing::{debug, warn};
 use hyperlane_core::{
     BlockRange, ChainResult, ContractSyncCursor, CursorAction, HyperlaneMessage,
     HyperlaneMessageStore, HyperlaneWatermarkedLogStore, IndexMode, IndexRange, Indexer, LogMeta,
-    MessageIndexer, MessageNonceRange,
+    MessageIndexer, SequenceRange,
 };
 
 use crate::contract_sync::eta_calculator::SyncerEtaCalculator;
@@ -132,7 +132,7 @@ impl ForwardMessageSyncCursor {
 
                 let range = match self.mode {
                     IndexMode::Block => BlockRange(from..=to),
-                    IndexMode::MessageNonce => MessageNonceRange(
+                    IndexMode::Sequence => SequenceRange(
                         cursor_count..=u32::min(mailbox_count, cursor_count + MAX_SEQUENCE_RANGE),
                     ),
                 };
@@ -232,9 +232,9 @@ impl BackwardMessageSyncCursor {
 
         let range = match self.mode {
             IndexMode::Block => BlockRange(from..=to),
-            IndexMode::MessageNonce => MessageNonceRange(
-                u32::max(next_nonce.saturating_sub(MAX_SEQUENCE_RANGE), 0)..=next_nonce,
-            ),
+            IndexMode::Sequence => {
+                SequenceRange(next_nonce.saturating_sub(MAX_SEQUENCE_RANGE)..=next_nonce)
+            }
         };
 
         Some(range)
@@ -418,6 +418,10 @@ where
             CursorAction::Sleep(rate_limit)
         } else {
             self.from = to + 1;
+            // TODO: note at the moment IndexModes are not considered here, and
+            // block-based indexing is always used.
+            // This should be changed when Sealevel IGP indexing is implemented,
+            // along with a refactor to better accommodate indexing modes.
             CursorAction::Query(BlockRange(from..=to))
         };
         Ok((action, eta))
