@@ -119,6 +119,7 @@ contract CctpAdapter is ILiquidityLayerAdapterV2, Router {
         ];
 
         IERC20(token).transferFrom(msg.sender, address(this), _amount);
+        IERC20(token).approve(address(tokenMessenger), _amount);
 
         uint64 _nonce = tokenMessenger.depositForBurn(
             _amount,
