@@ -26,23 +26,21 @@ contract HypERC20Votable is
      * @param _name The name of the token.
      * @param _symbol The symbol of the token.
      */
-    function votableInitialize(
+    function initialize(
         address _mailbox,
         address _interchainGasPaymaster,
         uint256 _totalSupply,
         string memory _name,
         string memory _symbol
-    ) external initializer {
-        // transfers ownership to `msg.sender`
-        __HyperlaneConnectionClient_initialize(
-            _mailbox,
-            _interchainGasPaymaster
-        );
-
-        // Initialize ERC20 metadata
-        __ERC20_init(_name, _symbol);
+    ) public override initializer {
         __ERC20Permit_init(_name);
-        _mint(msg.sender, _totalSupply);
+        _initialize(
+            _mailbox,
+            _interchainGasPaymaster,
+            _totalSupply,
+            _name,
+            _symbol
+        );
     }
 
     // Below are the functions which needed override

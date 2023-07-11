@@ -170,21 +170,13 @@ export class HypERC20Deployer extends GasRouterDeployer<
     );
     await this.multiProvider.handleTx(
       chain,
-      'votableInitialize' in router
-        ? router.votableInitialize(
-            config.mailbox,
-            config.interchainGasPaymaster,
-            config.totalSupply,
-            config.name,
-            config.symbol,
-          )
-        : router.initialize(
-            config.mailbox,
-            config.interchainGasPaymaster,
-            config.totalSupply,
-            config.name,
-            config.symbol,
-          ),
+      router.initialize(
+        config.mailbox,
+        config.interchainGasPaymaster,
+        config.totalSupply,
+        config.name,
+        config.symbol,
+      ),
     );
     return router;
   }

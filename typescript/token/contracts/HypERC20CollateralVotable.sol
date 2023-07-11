@@ -15,4 +15,41 @@ contract HypERC20CollateralVotable is HypERC20Collateral, IVotesUpgradeable {
     function delegate(address _L1VoteDelegator) external override onlyOwner {
         IVotesUpgradeable(address(wrappedToken)).delegate(_L1VoteDelegator);
     }
+
+    function getVotes(address account)
+        external
+        view
+        override
+        returns (uint256)
+    {}
+
+    function getPastVotes(address account, uint256 timepoint)
+        external
+        view
+        override
+        returns (uint256)
+    {}
+
+    function getPastTotalSupply(uint256 timepoint)
+        external
+        view
+        override
+        returns (uint256)
+    {}
+
+    function delegates(address account)
+        external
+        view
+        override
+        returns (address)
+    {}
+
+    function delegateBySig(
+        address delegatee,
+        uint256 nonce,
+        uint256 expiry,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external override {}
 }
