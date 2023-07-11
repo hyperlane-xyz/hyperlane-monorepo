@@ -7,8 +7,8 @@ import {Message} from "../../contracts/libs/Message.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 
 import {IMessageDispatcher} from "../../contracts/hooks/ERC5164/interfaces/IMessageDispatcher.sol";
-import {ERC5164MessageHook} from "../../contracts/hooks/ERC5164MessageHook.sol";
-import {ERC5164ISM} from "../../contracts/isms/native/ERC5164ISM.sol";
+import {ERC5164MessageHook} from "../../contracts/hooks/ERC5164/ERC5164MessageHook.sol";
+import {ERC5164ISM} from "../../contracts/isms/hook/ERC5164ISM.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
 import {MockMessageDispatcher, MockMessageExecutor} from "../../contracts/mock/MockERC5164.sol";
 
@@ -119,9 +119,8 @@ contract ERC5164ISMTest is Test {
         vm.startPrank(address(executor));
 
         ism.verifyMessageId(address(this).addressToBytes32(), messageId);
-        assertEq(
-            ism.verifiedMessageIds(messageId),
-            address(this).addressToBytes32()
+        assertTrue(
+            ism.verifiedMessageIds(messageId, address(this).addressToBytes32())
         );
 
         vm.stopPrank();
