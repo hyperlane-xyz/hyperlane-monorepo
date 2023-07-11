@@ -14,10 +14,10 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 // ============ Internal Imports ============
-import {TypeCasts} from "../libs/TypeCasts.sol";
-import {IMessageHook} from "../interfaces/hooks/IMessageHook.sol";
-import {IMessageDispatcher} from "./ERC5164/interfaces/IMessageDispatcher.sol";
-import {ERC5164ISM} from "../isms/native/ERC5164ISM.sol";
+import {TypeCasts} from "../../libs/TypeCasts.sol";
+import {IMessageHook} from "../../interfaces/hooks/IMessageHook.sol";
+import {IMessageDispatcher} from "./interfaces/IMessageDispatcher.sol";
+import {ERC5164ISM} from "../../isms/hook/ERC5164ISM.sol";
 
 // ============ External Imports ============
 
