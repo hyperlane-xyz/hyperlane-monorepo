@@ -4,6 +4,7 @@ members = [
     "client",
     "programs/mailbox",
     "programs/mailbox-test",
+    "programs/interchain-gas-paymaster",
     "programs/ism/multisig-ism-message-id",
     "programs/ism/test-ism",
     "programs/hyperlane-sealevel-token",

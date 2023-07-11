@@ -1688,6 +1688,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-igp"
+version = "0.1.0"
+dependencies = [
+ "access-control",
+ "account-utils",
+ "borsh",
+ "hyperlane-core",
+ "serializable-account-meta",
+ "solana-program",
+]
+
+[[package]]
 name = "hyperlane-sealevel-interchain-security-module-interface"
 version = "0.1.0"
 dependencies = [
