@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-import { Address, Checkpoint, Domain, HexString } from './types';
+import { Address, Checkpoint, Domain, HexString, SignatureLike } from './types';
 import { domainHash } from './utils';
 
 /**
@@ -21,64 +21,43 @@ export class BaseValidator {
     return domainHash(this.localDomain, this.mailbox);
   }
 
-  message(root: HexString, index: number) {
-    return ethers.utils.solidityPack(
-      ['bytes32', 'bytes32', 'uint32'],
-      [this.domainHash(), root, index],
-    );
+  message(checkpoint: Checkpoint, messageId?: HexString) {
+    return !!messageId
+      ? ethers.utils.solidityPack(
+          ['bytes32', 'bytes32', 'uint32', 'bytes32'],
+          [this.domainHash(), checkpoint.root, checkpoint.index, messageId],
+        )
+      : ethers.utils.solidityPack(
+          ['bytes32', 'bytes32', 'uint32'],
+          [this.domainHash(), checkpoint.root, checkpoint.index],
+        );
   }
 
-  messageHash(root: HexString, index: number) {
-    const message = this.message(root, index);
+  messageHash(checkpoint: Checkpoint, messageId?: HexString) {
+    const message = this.message(checkpoint, messageId);
     return ethers.utils.arrayify(ethers.utils.keccak256(message));
   }
 
-  recoverAddressFromCheckpoint(checkpoint: Checkpoint): Address {
-    const msgHash = this.messageHash(checkpoint.root, checkpoint.index);
-    return ethers.utils.verifyMessage(msgHash, checkpoint.signature);
+  recoverAddressFromCheckpoint(
+    checkpoint: Checkpoint,
+    signature: SignatureLike,
+    messageId?: HexString,
+  ): Address {
+    const msgHash = this.messageHash(checkpoint, messageId);
+    return ethers.utils.verifyMessage(msgHash, signature);
   }
 
-  matchesSigner(checkpoint: Checkpoint) {
+  matchesSigner(
+    checkpoint: Checkpoint,
+    signature: SignatureLike,
+    messageId?: HexString,
+  ) {
     return (
-      this.recoverAddressFromCheckpoint(checkpoint).toLowerCase() ===
-      this.address.toLowerCase()
+      this.recoverAddressFromCheckpoint(
+        checkpoint,
+        signature,
+        messageId,
+      ).toLowerCase() === this.address.toLowerCase()
     );
-  }
-}
-
-/**
- * Extension of BaseValidator that includes ethers signing utilities.
- */
-export class Validator extends BaseValidator {
-  constructor(
-    protected signer: ethers.Signer,
-    address: Address,
-    localDomain: Domain,
-    mailbox: Address,
-  ) {
-    super(address, localDomain, mailbox);
-  }
-
-  static async fromSigner(
-    signer: ethers.Signer,
-    localDomain: Domain,
-    mailbox: Address,
-  ) {
-    return new Validator(
-      signer,
-      await signer.getAddress(),
-      localDomain,
-      mailbox,
-    );
-  }
-
-  async signCheckpoint(root: HexString, index: number): Promise<Checkpoint> {
-    const msgHash = this.messageHash(root, index);
-    const signature = await this.signer.signMessage(msgHash);
-    return {
-      root,
-      index,
-      signature,
-    };
   }
 }
