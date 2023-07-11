@@ -76,7 +76,7 @@ export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
       const implementation = await this.deployContract(
         chain,
         'interchainAccountRouter',
-        [domainId, proxy.address],
+        [domainId],
       );
 
       // 3. upgrade the proxy to the real implementation and initialize
