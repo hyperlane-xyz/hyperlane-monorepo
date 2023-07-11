@@ -38,7 +38,9 @@ export abstract class HyperlaneRouterDeployer<
         signerOrProvider,
       );
       const localIsm =
-        config.interchainSecurityModule ?? (await localMailbox.defaultIsm());
+        typeof config.interchainSecurityModule === 'string'
+          ? config.interchainSecurityModule
+          : await localMailbox.defaultIsm();
       const remotes = Object.keys(configMap).filter((c) => c !== local);
       for (const remote of remotes) {
         // Try to confirm that the IGP supports delivery to all remotes

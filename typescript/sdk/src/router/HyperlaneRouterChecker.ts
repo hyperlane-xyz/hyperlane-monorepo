@@ -40,7 +40,10 @@ export class HyperlaneRouterChecker<
     ) => {
       const actual = await router[property]();
       const expected =
-        this.configMap[chain][property] ?? ethers.constants.AddressZero;
+        typeof this.configMap[chain][property] === 'string'
+          ? String(this.configMap[chain][property]) ??
+            ethers.constants.AddressZero
+          : ethers.constants.AddressZero;
       if (!utils.eqAddress(actual, expected)) {
         const violation: ConnectionClientViolation = {
           chain,

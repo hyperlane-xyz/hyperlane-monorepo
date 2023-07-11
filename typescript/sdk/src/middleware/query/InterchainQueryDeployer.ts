@@ -40,7 +40,9 @@ export class InterchainQueryDeployer extends ProxiedRouterDeployer<
     return [
       config.mailbox,
       config.interchainGasPaymaster,
-      config.interchainSecurityModule ?? ethers.constants.AddressZero,
+      typeof config.interchainSecurityModule === 'string'
+        ? config.interchainSecurityModule
+        : ethers.constants.AddressZero,
       owner,
     ];
   }

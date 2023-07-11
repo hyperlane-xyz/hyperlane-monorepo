@@ -227,7 +227,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
 // body specific logic, as the sample message used when querying the ISM
 // sets all of these to zero.
 export async function moduleCanCertainlyVerify(
-  destModuleAddress: types.Address,
+  destModule: types.Address | IsmConfig,
   multiProvider: MultiProvider,
   origin: ChainName,
   destination: ChainName,
@@ -242,65 +242,94 @@ export async function moduleCanCertainlyVerify(
     '0x',
   );
   const provider = multiProvider.getSignerOrProvider(destination);
-  const module = IInterchainSecurityModule__factory.connect(
-    destModuleAddress,
-    provider,
-  );
-  try {
-    const moduleType = await module.moduleType();
-    if (
-      moduleType === ModuleType.MERKLE_ROOT_MULTISIG ||
-      moduleType === ModuleType.LEGACY_MULTISIG ||
-      moduleType === ModuleType.MESSAGE_ID_MULTISIG
-    ) {
-      const multisigModule = IMultisigIsm__factory.connect(
-        destModuleAddress,
-        provider,
-      );
 
-      const [, threshold] = await multisigModule.validatorsAndThreshold(
-        message,
-      );
-      return threshold > 0;
-    } else if (moduleType === ModuleType.ROUTING) {
-      const routingIsm = IRoutingIsm__factory.connect(
-        destModuleAddress,
-        provider,
-      );
-      const subModule = await routingIsm.route(message);
-      return moduleCanCertainlyVerify(
-        subModule,
-        multiProvider,
-        origin,
-        destination,
-      );
-    } else if (moduleType === ModuleType.AGGREGATION) {
-      const aggregationIsm = IAggregationIsm__factory.connect(
-        destModuleAddress,
-        provider,
-      );
-      const [subModules, threshold] = await aggregationIsm.modulesAndThreshold(
-        message,
-      );
-      let verified = 0;
-      for (const subModule of subModules) {
-        const canVerify = await moduleCanCertainlyVerify(
+  if (typeof destModule === 'string') {
+    const module = IInterchainSecurityModule__factory.connect(
+      destModule,
+      provider,
+    );
+
+    try {
+      const moduleType = await module.moduleType();
+      if (
+        moduleType === ModuleType.MERKLE_ROOT_MULTISIG ||
+        moduleType === ModuleType.LEGACY_MULTISIG ||
+        moduleType === ModuleType.MESSAGE_ID_MULTISIG
+      ) {
+        const multisigModule = IMultisigIsm__factory.connect(
+          destModule,
+          provider,
+        );
+
+        const [, threshold] = await multisigModule.validatorsAndThreshold(
+          message,
+        );
+        return threshold > 0;
+      } else if (moduleType === ModuleType.ROUTING) {
+        const routingIsm = IRoutingIsm__factory.connect(destModule, provider);
+        const subModule = await routingIsm.route(message);
+        return moduleCanCertainlyVerify(
           subModule,
           multiProvider,
           origin,
           destination,
         );
-        if (canVerify) {
-          verified += 1;
+      } else if (moduleType === ModuleType.AGGREGATION) {
+        const aggregationIsm = IAggregationIsm__factory.connect(
+          destModule,
+          provider,
+        );
+        const [subModules, threshold] =
+          await aggregationIsm.modulesAndThreshold(message);
+        let verified = 0;
+        for (const subModule of subModules) {
+          const canVerify = await moduleCanCertainlyVerify(
+            subModule,
+            multiProvider,
+            origin,
+            destination,
+          );
+          if (canVerify) {
+            verified += 1;
+          }
         }
+        return verified >= threshold;
+      } else {
+        throw new Error(`Unsupported module type: ${moduleType}`);
       }
-      return verified >= threshold;
-    } else {
-      throw new Error(`Unsupported module type: ${moduleType}`);
+    } catch (e) {
+      logging.warn(`Error checking module ${destModule}: ${e}`);
+      return false;
     }
-  } catch (e) {
-    logging.warn(`Error checking module ${destModuleAddress}: ${e}`);
-    return false;
+  } else {
+    // destModule is an IsmConfig
+    let verified = 0; // can't declare this in case statement
+    switch (destModule.type) {
+      case ModuleType.MERKLE_ROOT_MULTISIG:
+      case ModuleType.MESSAGE_ID_MULTISIG:
+      case ModuleType.LEGACY_MULTISIG:
+        return destModule.threshold > 0;
+      case ModuleType.ROUTING:
+        return moduleCanCertainlyVerify(
+          destModule.domains[destination],
+          multiProvider,
+          origin,
+          destination,
+        );
+      case ModuleType.AGGREGATION:
+        for (const subModule of destModule.modules) {
+          const canVerify = await moduleCanCertainlyVerify(
+            subModule,
+            multiProvider,
+            origin,
+            destination,
+          );
+          if (canVerify) {
+            verified += 1;
+          }
+        }
+        return verified >= destModule.threshold;
+    }
   }
 }
 

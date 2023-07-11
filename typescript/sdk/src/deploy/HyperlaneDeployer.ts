@@ -17,6 +17,7 @@ import {
   HyperlaneContractsMap,
   HyperlaneFactories,
 } from '../contracts';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ConnectionClientConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
@@ -46,6 +47,7 @@ export abstract class HyperlaneDeployer<
     protected readonly multiProvider: MultiProvider,
     protected readonly factories: Factories,
     protected readonly options?: DeployerOptions,
+    protected readonly ismFactory?: HyperlaneIsmFactory,
   ) {
     this.logger = options?.logger ?? debug('hyperlane:deployer');
     this.chainTimeoutMs = options?.chainTimeoutMs ?? 5 * 60 * 1000; // 5 minute timeout per chain
@@ -182,12 +184,26 @@ export abstract class HyperlaneDeployer<
           (await connectionClient.interchainSecurityModule())
       ) {
         this.logger(`Set interchain security module on ${local}`);
-        await this.multiProvider.handleTx(
-          local,
-          connectionClient.setInterchainSecurityModule(
+        if (typeof config.interchainSecurityModule === 'string') {
+          await this.multiProvider.handleTx(
+            local,
+            connectionClient.setInterchainSecurityModule(
+              config.interchainSecurityModule,
+            ),
+          );
+        } else if (this.ismFactory) {
+          // deploy matching module
+          const ism = await this.ismFactory.deploy(
+            local,
             config.interchainSecurityModule,
-          ),
-        );
+          );
+          await this.multiProvider.handleTx(
+            local,
+            connectionClient.setInterchainSecurityModule(ism.address),
+          );
+        } else {
+          throw new Error('No ISM factory provided');
+        }
       }
     });
     this.logger(`Connection client on ${local} initialized...`);
