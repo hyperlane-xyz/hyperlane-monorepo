@@ -4,3 +4,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 pub enum Instruction {
     InitRelayer(InitRelayer),
 }
+
+pub struct InitRelayer {
+    pub owner: Option<Pubkey>,
+    pub beneficiary: Pubkey,
+}

@@ -22,7 +22,6 @@ pub type RelayerAccount = AccountData<RelayerData>;
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
 pub struct RelayerData {
-    pub bump: u8,
     // TODO: should this be a global count?...
     pub payment_count: u64,
     pub beneficiary: Pubkey,
@@ -38,10 +37,4 @@ pub struct RemoteGasData {
     pub token_decimals: u8,
 }
 
-pub type GasOracleAccount = AccountData<GasOracleAccountData>;
 
-#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
-pub struct GasOracleAccountData {
-    pub bump: u8,
-    pub remote_gas_data: RemoteGasData,
-}
