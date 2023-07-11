@@ -2,10 +2,10 @@ import {
   ChainMap,
   ChainName,
   HyperlaneAddresses,
-  HyperlaneAgentAddresses,
   HyperlaneDeployer,
+  HyperlaneDeploymentArtifacts,
   MultiProvider,
-  buildAgentConfig,
+  buildAgentConfigDeprecated,
   objMap,
   promiseObjAll,
   serializeContractsMap,
@@ -105,10 +105,10 @@ export async function writeAgentConfig(
       multiProvider.getProvider(chain).getBlockNumber(),
     ),
   );
-  const agentConfig = buildAgentConfig(
+  const agentConfig = buildAgentConfigDeprecated(
     multiProvider.getKnownChainNames(),
     multiProvider,
-    addresses as unknown as ChainMap<HyperlaneAgentAddresses>,
+    addresses as ChainMap<HyperlaneDeploymentArtifacts>,
     startBlocks,
   );
   const sdkEnv = deployEnvToSdkEnv[environment];

@@ -13,8 +13,8 @@ use hyperlane_base::{
 };
 use hyperlane_core::accumulator::merkle::Proof;
 use hyperlane_core::{
-    Checkpoint, HyperlaneDomain, HyperlaneMessage, ModuleType, MultisigIsm, RoutingIsm,
-    ValidatorAnnounce, H160, H256,
+    AggregationIsm, Checkpoint, HyperlaneDomain, HyperlaneMessage, InterchainSecurityModule,
+    ModuleType, MultisigIsm, RoutingIsm, ValidatorAnnounce, H160, H256,
 };
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
@@ -22,7 +22,7 @@ use crate::msg::metadata::multisig::{
     LegacyMultisigMetadataBuilder, MerkleRootMultisigMetadataBuilder,
     MessageIdMultisigMetadataBuilder,
 };
-use crate::msg::metadata::RoutingIsmMetadataBuilder;
+use crate::msg::metadata::{AggregationIsmMetadataBuilder, RoutingIsmMetadataBuilder};
 
 #[derive(Debug, thiserror::Error)]
 pub enum MetadataBuilderError {
@@ -72,11 +72,7 @@ impl MetadataBuilder for BaseMetadataBuilder {
         message: &HyperlaneMessage,
     ) -> Result<Option<Vec<u8>>> {
         const CTX: &str = "When fetching module type";
-        let ism = self
-            .destination_chain_setup
-            .build_ism(ism_address, &self.metrics)
-            .await
-            .context(CTX)?;
+        let ism = self.build_ism(ism_address).await.context(CTX)?;
         let module_type = ism.module_type().await.context(CTX)?;
         let base = self.clone_with_incremented_depth()?;
 
@@ -87,6 +83,7 @@ impl MetadataBuilder for BaseMetadataBuilder {
             }
             ModuleType::MessageIdMultisig => Box::new(MessageIdMultisigMetadataBuilder::new(base)),
             ModuleType::Routing => Box::new(RoutingIsmMetadataBuilder::new(base)),
+            ModuleType::Aggregation => Box::new(AggregationIsmMetadataBuilder::new(base)),
             _ => return Err(MetadataBuilderError::UnsupportedModuleType(module_type).into()),
         };
         metadata_builder
@@ -138,6 +135,12 @@ impl BaseMetadataBuilder {
         self.origin_prover_sync.read().await.count() - 1
     }
 
+    pub async fn build_ism(&self, address: H256) -> Result<Box<dyn InterchainSecurityModule>> {
+        self.destination_chain_setup
+            .build_ism(address, &self.metrics)
+            .await
+    }
+
     pub async fn build_routing_ism(&self, address: H256) -> Result<Box<dyn RoutingIsm>> {
         self.destination_chain_setup
             .build_routing_ism(address, &self.metrics)
@@ -147,6 +150,12 @@ impl BaseMetadataBuilder {
     pub async fn build_multisig_ism(&self, address: H256) -> Result<Box<dyn MultisigIsm>> {
         self.destination_chain_setup
             .build_multisig_ism(address, &self.metrics)
+            .await
+    }
+
+    pub async fn build_aggregation_ism(&self, address: H256) -> Result<Box<dyn AggregationIsm>> {
+        self.destination_chain_setup
+            .build_aggregation_ism(address, &self.metrics)
             .await
     }
 
