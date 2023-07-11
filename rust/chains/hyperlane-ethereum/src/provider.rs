@@ -76,10 +76,7 @@ where
             .map_err(ChainCommunicationError::from_other)?
             .map(|r| -> Result<_, HyperlaneProviderError> {
                 Ok(TxnReceiptInfo {
-                    gas_used: r
-                        .gas_used
-                        .ok_or(HyperlaneProviderError::NoGasUsed)
-                        .map(Into::into)?,
+                    gas_used: r.gas_used.ok_or(HyperlaneProviderError::NoGasUsed)?.into(),
                     cumulative_gas_used: r.cumulative_gas_used.into(),
                     effective_gas_price: r.effective_gas_price.map(Into::into),
                 })

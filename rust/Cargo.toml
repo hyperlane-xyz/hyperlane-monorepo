@@ -259,25 +259,25 @@ tag = "hyperlane-1.14.13-2023-07-04"
 [patch.crates-io.spl-associated-token-account]
 version = "=1.1.2"
 git = "https://github.com/hyperlane-xyz/solana-program-library.git"
-rev = "b5a1539f74a3c5d09c91973866bdabb34c814df0"
+branch = "hyperlane"
 
 [patch.crates-io.spl-noop]
 version = "=0.1.3"
 git = "https://github.com/hyperlane-xyz/solana-program-library.git"
-rev = "b5a1539f74a3c5d09c91973866bdabb34c814df0"
+branch = "hyperlane"
 
 [patch.crates-io.spl-token]
 version = "=3.5.0"
 git = "https://github.com/hyperlane-xyz/solana-program-library.git"
-rev = "b5a1539f74a3c5d09c91973866bdabb34c814df0"
+branch = "hyperlane"
 
 [patch.crates-io.spl-token-2022]
 version = "=0.5.0"
 git = "https://github.com/hyperlane-xyz/solana-program-library.git"
-rev = "b5a1539f74a3c5d09c91973866bdabb34c814df0"
+branch = "hyperlane"
 
 [patch.crates-io.spl-type-length-value]
 version = "=0.1.0"
 
 git = "https://github.com/hyperlane-xyz/solana-program-library.git"
-rev = "b5a1539f74a3c5d09c91973866bdabb34c814df0"
+branch = "hyperlane"

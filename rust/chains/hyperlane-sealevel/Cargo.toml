@@ -28,3 +28,6 @@ hyperlane-sealevel-interchain-security-module-interface = { path = "../../sealev
 hyperlane-sealevel-message-recipient-interface = { path = "../../sealevel/libraries/message-recipient-interface" }
 serializable-account-meta = { path = "../../sealevel/libraries/serializable-account-meta" }
 account-utils = { path = "../../sealevel/libraries/account-utils" }
+multisig-ism = { path = "../../sealevel/libraries/multisig-ism" }
+hyperlane-sealevel-multisig-ism-message-id = { path = "../../sealevel/programs/ism/multisig-ism-message-id" }
+hyperlane-sealevel-validator-announce = { path = "../../sealevel/programs/validator-announce" }

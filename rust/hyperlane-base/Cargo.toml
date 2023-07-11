@@ -43,7 +43,7 @@ backtrace = { version = "0.3", optional = true }
 backtrace-oneline = { path = "../utils/backtrace-oneline", optional = true }
 
 ethers-prometheus = { path = "../ethers-prometheus", features = ["serde"] }
-hyperlane-core = { path = "../hyperlane-core", features = ["agent-set"] }
+hyperlane-core = { path = "../hyperlane-core", features = ["agent"] }
 hyperlane-ethereum = { path = "../chains/hyperlane-ethereum" }
 hyperlane-fuel = { path = "../chains/hyperlane-fuel" }
 hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }

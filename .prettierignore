@@ -7,5 +7,3 @@
 
 *.Dockerfile
 Dockerfile
-
-rust/vendor

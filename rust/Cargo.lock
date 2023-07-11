@@ -3741,7 +3741,10 @@ dependencies = [
  "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
+ "hyperlane-sealevel-multisig-ism-message-id",
+ "hyperlane-sealevel-validator-announce",
  "jsonrpc-core",
+ "multisig-ism",
  "num-traits",
  "serde",
  "serializable-account-meta",
@@ -4991,7 +4994,16 @@ version = "0.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf5395665662ef45796a4ff5486c5d41d29e0c09640af4c5f17fd94ee2c119c9"
 dependencies = [
- "num_enum_derive",
+ "num_enum_derive 0.5.7",
+]
+
+[[package]]
+name = "num_enum"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a015b430d3c108a207fd776d2e2196aaf8b1cf8cf93253e3a097ff3085076a1"
+dependencies = [
+ "num_enum_derive 0.6.1",
 ]
 
 [[package]]
@@ -5004,6 +5016,18 @@ dependencies = [
  "proc-macro2 1.0.58",
  "quote 1.0.26",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "num_enum_derive"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96667db765a921f7b295ffee8b60472b686a51d4f21c2ee4ffdb94c7013b65a6"
+dependencies = [
+ "proc-macro-crate 1.2.1",
+ "proc-macro2 1.0.58",
+ "quote 1.0.26",
+ "syn 2.0.15",
 ]
 
 [[package]]
@@ -8131,7 +8155,7 @@ dependencies = [
 [[package]]
 name = "spl-associated-token-account"
 version = "1.1.2"
-source = "git+https://github.com/hyperlane-xyz/solana-program-library.git?rev=b5a1539f74a3c5d09c91973866bdabb34c814df0#b5a1539f74a3c5d09c91973866bdabb34c814df0"
+source = "git+https://github.com/hyperlane-xyz/solana-program-library.git?branch=hyperlane#5de3c060c276afb4e767111b3b42fbbf4a81d83f"
 dependencies = [
  "assert_matches",
  "borsh 0.9.3",
@@ -8155,7 +8179,7 @@ dependencies = [
 [[package]]
 name = "spl-memo"
 version = "3.0.1"
-source = "git+https://github.com/hyperlane-xyz/solana-program-library.git?rev=b5a1539f74a3c5d09c91973866bdabb34c814df0#b5a1539f74a3c5d09c91973866bdabb34c814df0"
+source = "git+https://github.com/hyperlane-xyz/solana-program-library.git?branch=hyperlane#5de3c060c276afb4e767111b3b42fbbf4a81d83f"
 dependencies = [
  "solana-program",
 ]
@@ -8163,7 +8187,7 @@ dependencies = [
 [[package]]
 name = "spl-noop"
 version = "0.1.3"
-source = "git+https://github.com/hyperlane-xyz/solana-program-library.git?rev=b5a1539f74a3c5d09c91973866bdabb34c814df0#b5a1539f74a3c5d09c91973866bdabb34c814df0"
+source = "git+https://github.com/hyperlane-xyz/solana-program-library.git?branch=hyperlane#5de3c060c276afb4e767111b3b42fbbf4a81d83f"
 dependencies = [
  "solana-program",
 ]
@@ -8171,13 +8195,13 @@ dependencies = [
 [[package]]
 name = "spl-token"
 version = "3.5.0"
-source = "git+https://github.com/hyperlane-xyz/solana-program-library.git?rev=b5a1539f74a3c5d09c91973866bdabb34c814df0#b5a1539f74a3c5d09c91973866bdabb34c814df0"
+source = "git+https://github.com/hyperlane-xyz/solana-program-library.git?branch=hyperlane#5de3c060c276afb4e767111b3b42fbbf4a81d83f"
 dependencies = [
  "arrayref",
  "bytemuck",
  "num-derive",
  "num-traits",
- "num_enum",
+ "num_enum 0.5.7",
  "solana-program",
  "thiserror",
 ]
@@ -8185,16 +8209,16 @@ dependencies = [
 [[package]]
 name = "spl-token-2022"
 version = "0.5.0"
-source = "git+https://github.com/hyperlane-xyz/solana-program-library.git?rev=b5a1539f74a3c5d09c91973866bdabb34c814df0#b5a1539f74a3c5d09c91973866bdabb34c814df0"
+source = "git+https://github.com/hyperlane-xyz/solana-program-library.git?branch=hyperlane#5de3c060c276afb4e767111b3b42fbbf4a81d83f"
 dependencies = [
  "arrayref",
  "bytemuck",
  "num-derive",
  "num-traits",
- "num_enum",
+ "num_enum 0.5.7",
  "solana-program",
  "solana-zk-token-sdk",
- "spl-memo 3.0.1 (git+https://github.com/hyperlane-xyz/solana-program-library.git?rev=b5a1539f74a3c5d09c91973866bdabb34c814df0)",
+ "spl-memo 3.0.1 (git+https://github.com/hyperlane-xyz/solana-program-library.git?branch=hyperlane)",
  "spl-token",
  "thiserror",
 ]
@@ -8202,13 +8226,13 @@ dependencies = [
 [[package]]
 name = "spl-type-length-value"
 version = "0.1.0"
-source = "git+https://github.com/hyperlane-xyz/solana-program-library.git?rev=b5a1539f74a3c5d09c91973866bdabb34c814df0#b5a1539f74a3c5d09c91973866bdabb34c814df0"
+source = "git+https://github.com/hyperlane-xyz/solana-program-library.git?branch=hyperlane#5de3c060c276afb4e767111b3b42fbbf4a81d83f"
 dependencies = [
  "arrayref",
  "bytemuck",
  "num-derive",
  "num-traits",
- "num_enum",
+ "num_enum 0.6.1",
  "solana-program",
  "thiserror",
 ]

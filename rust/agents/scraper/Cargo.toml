@@ -30,7 +30,7 @@ tracing.workspace = true
 
 hex = { path = "../../utils/hex" }
 hyperlane-base = { path = "../../hyperlane-base" }
-hyperlane-core = { path = "../../hyperlane-core", features = ["agent-set"] }
+hyperlane-core = { path = "../../hyperlane-core", features = ["agent"] }
 migration = { path = "migration" }
 
 [dev-dependencies]
