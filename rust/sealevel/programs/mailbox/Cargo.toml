@@ -17,6 +17,7 @@ num-traits.workspace = true
 solana-program.workspace = true
 thiserror.workspace = true
 spl-noop.workspace = true
+getrandom.workspace = true
 
 access-control = { path = "../../libraries/access-control" }
 account-utils = { path = "../../libraries/account-utils" }

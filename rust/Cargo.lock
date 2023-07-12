@@ -3810,6 +3810,7 @@ dependencies = [
  "base64 0.13.1",
  "borsh 0.9.3",
  "bs58",
+ "getrandom 0.2.10",
  "hyperlane-core",
  "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-message-recipient-interface",
