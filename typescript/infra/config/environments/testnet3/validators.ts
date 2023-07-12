@@ -2,14 +2,14 @@ import { chainMetadata } from '@hyperlane-xyz/sdk';
 
 import { ValidatorBaseChainConfigMap } from '../../../src/config/agent';
 import { Contexts } from '../../contexts';
-import { validatorsConfig } from '../utils';
+import { validatorBaseConfigsFn } from '../utils';
 
 import { environment } from './chains';
 
 export const validatorChainConfig = (
   context: Contexts,
-  count: number = 1,
 ): ValidatorBaseChainConfigMap => {
+  const validatorsConfig = validatorBaseConfigsFn(environment, context);
   return {
     alfajores: {
       interval: 5,
@@ -27,10 +27,7 @@ export const validatorChainConfig = (
             '0xc60ef4fc6f9530fdb37b1cf4c2c16a6764e6f723',
           ],
         },
-        context,
-        environment,
         'alfajores',
-        count,
       ),
     },
     fuji: {
@@ -49,10 +46,7 @@ export const validatorChainConfig = (
             '0x1bf7d94ddcca25a8b139b6d21fd396fe959f21c8',
           ],
         },
-        context,
-        environment,
         'fuji',
-        count,
       ),
     },
     mumbai: {
@@ -71,10 +65,7 @@ export const validatorChainConfig = (
             '0x688fd80884a23680c2c80970a357b74558d8a25e',
           ],
         },
-        context,
-        environment,
         'mumbai',
-        count,
       ),
     },
     bsctestnet: {
@@ -93,10 +84,7 @@ export const validatorChainConfig = (
             '0x1e0bdd7de5573d010bd8681fa282ece5bc77180e',
           ],
         },
-        context,
-        environment,
         'bsctestnet',
-        count,
       ),
     },
     goerli: {
@@ -115,10 +103,7 @@ export const validatorChainConfig = (
             '0x57d4db75e762ebf2fc8725dc7c3194fbefa492fc',
           ],
         },
-        context,
-        environment,
         'goerli',
-        count,
       ),
     },
     sepolia: {
@@ -137,10 +122,7 @@ export const validatorChainConfig = (
             '0x18cf2f76d604d6f6470d924678221fb556347fbd',
           ],
         },
-        context,
-        environment,
         'sepolia',
-        count,
       ),
     },
     moonbasealpha: {
@@ -159,10 +141,7 @@ export const validatorChainConfig = (
             '0x15a183fb89807c4036006e028d4871fb797113b2',
           ],
         },
-        context,
-        environment,
         'moonbasealpha',
-        count,
       ),
     },
     optimismgoerli: {
@@ -181,10 +160,7 @@ export const validatorChainConfig = (
             '0xee331cba457352ce282a1bc1696e6d2defb6be26',
           ],
         },
-        context,
-        environment,
         'optimismgoerli',
-        count,
       ),
     },
     arbitrumgoerli: {
@@ -203,10 +179,7 @@ export const validatorChainConfig = (
             '0xb77da6c29eca52b89c0fa6d220462f03258e14a9',
           ],
         },
-        context,
-        environment,
         'arbitrumgoerli',
-        count,
       ),
     },
     solanadevnet: {
@@ -221,10 +194,7 @@ export const validatorChainConfig = (
           ],
           [Contexts.ReleaseCandidate]: [],
         },
-        context,
-        environment,
         'solanadevnet',
-        count,
       ),
     },
     zbctestnet: {
@@ -239,10 +209,7 @@ export const validatorChainConfig = (
           ],
           [Contexts.ReleaseCandidate]: [],
         },
-        context,
-        environment,
         'zbctestnet',
-        count,
       ),
     },
   };

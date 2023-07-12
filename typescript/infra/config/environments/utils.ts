@@ -20,8 +20,6 @@ export const s3BucketName = (
   index: number,
 ) => `${context}-${environment}-${chainName}-validator-${index}`;
 
-type ContextAddresses = { [context in Contexts]: string[] };
-
 /**
  *
  * @param addresses Validator addresses, provided in order of deployment priority
@@ -32,24 +30,25 @@ type ContextAddresses = { [context in Contexts]: string[] };
  * @param count Number of validators to use
  * @returns
  */
-export const validatorsConfig = (
-  addresses: ContextAddresses,
-  context: Contexts,
+export const validatorBaseConfigsFn = (
   environment: string,
+  context: Contexts,
+): ((
+  addresses: Record<Contexts, string[]>,
   chain: CoreChainName,
-  count: number,
-): Array<ValidatorBaseConfig> => {
-  const addressesToUse = addresses[context].slice(0, count);
-  return addressesToUse.map((address, index) => {
-    const bucketName = s3BucketName(context, environment, chain, index);
-    return {
-      name: bucketName,
-      address,
-      checkpointSyncer: {
-        type: CheckpointSyncerType.S3,
-        bucket: bucketName,
-        region: s3BucketRegion,
-      },
-    } as ValidatorBaseConfig;
-  });
+) => ValidatorBaseConfig[]) => {
+  return (addresses, chain) => {
+    return addresses[context].map((address, index) => {
+      const bucketName = s3BucketName(context, environment, chain, index);
+      return {
+        name: bucketName,
+        address,
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: bucketName,
+          region: s3BucketRegion,
+        },
+      };
+    });
+  };
 };
