@@ -22,15 +22,13 @@ export class BaseValidator {
   }
 
   message(checkpoint: Checkpoint, messageId?: HexString) {
-    return !!messageId
-      ? ethers.utils.solidityPack(
-          ['bytes32', 'bytes32', 'uint32', 'bytes32'],
-          [this.domainHash(), checkpoint.root, checkpoint.index, messageId],
-        )
-      : ethers.utils.solidityPack(
-          ['bytes32', 'bytes32', 'uint32'],
-          [this.domainHash(), checkpoint.root, checkpoint.index],
-        );
+    let types = ['bytes32', 'bytes32', 'uint32'];
+    let values = [this.domainHash(), checkpoint.root, checkpoint.index];
+    if (!!messageId) {
+      types.push('bytes32');
+      values.push(messageId);
+    }
+    return ethers.utils.solidityPack(types, values);
   }
 
   messageHash(checkpoint: Checkpoint, messageId?: HexString) {
