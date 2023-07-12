@@ -4,6 +4,7 @@ import {
   ChainMap,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
+  HyperlaneHookDeployer,
   HyperlaneIgp,
   HyperlaneIgpDeployer,
   HyperlaneIsmFactory,
@@ -63,6 +64,9 @@ async function main() {
       multiProvider,
     );
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
+  } else if (module === Modules.HOOK) {
+    config = envConfig.hooks;
+    deployer = new HyperlaneHookDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);
