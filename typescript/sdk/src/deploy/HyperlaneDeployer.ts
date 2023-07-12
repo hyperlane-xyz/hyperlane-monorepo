@@ -217,7 +217,7 @@ export abstract class HyperlaneDeployer<
 
     if (initializeArgs) {
       this.logger(`Initialize ${contractName} on ${chain}`);
-      const initTx = await contract.initialize(...initializeArgs);
+      const initTx = await contract.initialize(...initializeArgs, overrides);
       await this.multiProvider.handleTx(chain, initTx);
     }
 
@@ -265,15 +265,20 @@ export abstract class HyperlaneDeployer<
       return;
     }
 
+    const txOverrides = this.multiProvider.getTransactionOverrides(chain);
     this.logger(`Changing proxy admin`);
     await this.runIfAdmin(
       chain,
       proxy,
-      () => this.multiProvider.handleTx(chain, proxy.changeAdmin(admin)),
+      () =>
+        this.multiProvider.handleTx(
+          chain,
+          proxy.changeAdmin(admin, txOverrides),
+        ),
       (proxyAdmin) =>
         this.multiProvider.handleTx(
           chain,
-          proxyAdmin.changeProxyAdmin(proxy.address, admin),
+          proxyAdmin.changeProxyAdmin(proxy.address, admin, txOverrides),
         ),
     );
   }

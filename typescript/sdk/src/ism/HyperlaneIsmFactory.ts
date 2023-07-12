@@ -99,15 +99,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     const signer = this.multiProvider.getSigner(chain);
     let address: string;
     if (config.type === ModuleType.LEGACY_MULTISIG) {
-      if (
-        process.env.CI !== 'true' &&
-        process.env.ALLOW_LEGACY_MULTISIG_ISM !== 'true'
-      ) {
-        throw new Error(
-          'Legacy multisig ISM is being deprecated, do not deploy',
-        );
-      }
-
       const multisig = await new LegacyMultisigIsm__factory()
         .connect(signer)
         .deploy();
@@ -117,6 +108,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
         chain,
         multisig.enrollValidators([originDomain], [config.validators]),
       );
+
       await this.multiProvider.handleTx(
         chain,
         multisig.setThreshold(originDomain, config.threshold),
@@ -227,7 +219,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
 // body specific logic, as the sample message used when querying the ISM
 // sets all of these to zero.
 export async function moduleCanCertainlyVerify(
-  moduleAddress: types.Address,
+  destModuleAddress: types.Address,
   multiProvider: MultiProvider,
   origin: ChainName,
   destination: ChainName,
@@ -243,7 +235,7 @@ export async function moduleCanCertainlyVerify(
   );
   const provider = multiProvider.getSignerOrProvider(destination);
   const module = IInterchainSecurityModule__factory.connect(
-    moduleAddress,
+    destModuleAddress,
     provider,
   );
   try {
@@ -254,7 +246,7 @@ export async function moduleCanCertainlyVerify(
       moduleType === ModuleType.MESSAGE_ID_MULTISIG
     ) {
       const multisigModule = IMultisigIsm__factory.connect(
-        moduleAddress,
+        destModuleAddress,
         provider,
       );
 
@@ -263,7 +255,10 @@ export async function moduleCanCertainlyVerify(
       );
       return threshold > 0;
     } else if (moduleType === ModuleType.ROUTING) {
-      const routingIsm = IRoutingIsm__factory.connect(moduleAddress, provider);
+      const routingIsm = IRoutingIsm__factory.connect(
+        destModuleAddress,
+        provider,
+      );
       const subModule = await routingIsm.route(message);
       return moduleCanCertainlyVerify(
         subModule,
@@ -273,7 +268,7 @@ export async function moduleCanCertainlyVerify(
       );
     } else if (moduleType === ModuleType.AGGREGATION) {
       const aggregationIsm = IAggregationIsm__factory.connect(
-        moduleAddress,
+        destModuleAddress,
         provider,
       );
       const [subModules, threshold] = await aggregationIsm.modulesAndThreshold(
@@ -296,7 +291,7 @@ export async function moduleCanCertainlyVerify(
       throw new Error(`Unsupported module type: ${moduleType}`);
     }
   } catch (e) {
-    logging.warn(`Error checking module ${moduleAddress}: ${e}`);
+    logging.warn(`Error checking module ${destModuleAddress}: ${e}`);
     return false;
   }
 }
@@ -307,6 +302,7 @@ export async function moduleMatchesConfig(
   config: IsmConfig,
   multiProvider: MultiProvider,
   contracts: HyperlaneContracts<IsmFactoryFactories>,
+  origin?: ChainName,
 ): Promise<boolean> {
   const provider = multiProvider.getProvider(chain);
   const module = IInterchainSecurityModule__factory.connect(
@@ -333,12 +329,16 @@ export async function moduleMatchesConfig(
         moduleAddress,
         provider,
       );
-      const domain = multiProvider.getDomainId(chain);
-      const validators = await multisigIsm.validators(domain);
-      const threshold = await multisigIsm.threshold(domain);
+      if (!origin) {
+        throw new Error("Can't check legacy multisig without origin");
+      }
+      const originDomain = multiProvider.getDomainId(origin);
+      const validators = await multisigIsm.validators(originDomain);
+      const threshold = await multisigIsm.threshold(originDomain);
       matches =
-        config.validators.sort() == validators.sort() &&
-        config.threshold == threshold;
+        JSON.stringify(config.validators.map((s) => s.toLowerCase()).sort()) ===
+          JSON.stringify(validators.map((s) => s.toLowerCase()).sort()) &&
+        config.threshold === threshold;
       break;
     }
     case ModuleType.ROUTING: {
@@ -355,16 +355,17 @@ export async function moduleMatchesConfig(
       matches = matches && utils.eqAddress(owner, config.owner);
       // Recursively check that the submodule for each configured
       // domain matches the submodule config.
-      for (const chain of Object.keys(config.domains)) {
+      for (const [origin, subConfig] of Object.entries(config.domains)) {
         const subModule = await routingIsm.modules(
-          multiProvider.getDomainId(chain),
+          multiProvider.getDomainId(origin),
         );
         const subModuleMatches = await moduleMatchesConfig(
           chain,
           subModule,
-          config.domains[chain],
+          subConfig,
           multiProvider,
           contracts,
+          origin,
         );
         matches = matches && subModuleMatches;
       }

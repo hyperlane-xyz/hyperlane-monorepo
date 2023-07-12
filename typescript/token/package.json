@@ -1,11 +1,11 @@
 {
   "name": "@hyperlane-xyz/hyperlane-token",
   "description": "A template for interchain ERC20 and ERC721 tokens using Hyperlane",
-  "version": "1.3.6",
+  "version": "1.4.2",
   "dependencies": {
-    "@hyperlane-xyz/core": "1.3.6",
-    "@hyperlane-xyz/sdk": "1.3.6",
-    "@hyperlane-xyz/utils": "1.3.6",
+    "@hyperlane-xyz/core": "1.4.2",
+    "@hyperlane-xyz/sdk": "1.4.2",
+    "@hyperlane-xyz/utils": "1.4.2",
     "@openzeppelin/contracts-upgradeable": "^4.8.0",
     "ethers": "^5.7.2"
   },
@@ -35,7 +35,8 @@
   },
   "files": [
     "/dist",
-    "/contracts"
+    "/contracts",
+    "/docs"
   ],
   "homepage": "https://www.hyperlane.xyz",
   "keywords": [
@@ -51,7 +52,8 @@
     "url": "https://github.com/hyperlane-xyz/hyperlane-token"
   },
   "scripts": {
-    "clean": "hardhat clean && rm -rf dist cache src/types",
+    "clean": "hardhat clean && rm -rf dist cache src/types && forge clean",
+    "docs": "forge doc",
     "build": "hardhat compile && tsc",
     "coverage": "hardhat coverage",
     "lint": "solhint contracts/**/*.sol && eslint . --ext .ts",

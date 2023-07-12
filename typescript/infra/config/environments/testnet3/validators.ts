@@ -209,5 +209,41 @@ export const validatorChainConfig = (
         count,
       ),
     },
+    solanadevnet: {
+      interval: 10,
+      reorgPeriod: chainMetadata.solanadevnet.blocks!.reorgPeriod!,
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [
+            '0xec0f73dbc5b1962a20f7dcbe07c98414025b0c43',
+            '0x9c20a149dfa09ea9f77f5a7ca09ed44f9c025133',
+            '0x967c5ecdf2625ae86580bd203b630abaaf85cd62',
+          ],
+          [Contexts.ReleaseCandidate]: [],
+        },
+        context,
+        environment,
+        'solanadevnet',
+        count,
+      ),
+    },
+    zbctestnet: {
+      interval: 10,
+      reorgPeriod: chainMetadata.zbctestnet.blocks!.reorgPeriod!,
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [
+            '0x37c38deca34bdf1b35436fcfca7b16e1b60ab23b',
+            '0x9701cba527daf36ba52bf78e582455ec0b21848a',
+            '0xb449c5cf55429e779f0f9c419e783dc36d51c17d',
+          ],
+          [Contexts.ReleaseCandidate]: [],
+        },
+        context,
+        environment,
+        'zbctestnet',
+        count,
+      ),
+    },
   };
 };

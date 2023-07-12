@@ -1,5 +1,6 @@
 import { ChainName } from '../../types';
 import { objMerge } from '../../utils/objects';
+import { CoreChainName } from '../chains';
 
 import mainnet from './mainnet.json';
 import test from './test.json';
@@ -17,4 +18,4 @@ export type HyperlaneEnvironmentChain<E extends HyperlaneEnvironment> = Extract<
 export const hyperlaneContractAddresses = objMerge(
   hyperlaneEnvironments.testnet,
   hyperlaneEnvironments.mainnet,
-);
+) as Record<CoreChainName, typeof hyperlaneEnvironments['mainnet']['ethereum']>;
