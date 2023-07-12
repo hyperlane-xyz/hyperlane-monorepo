@@ -112,9 +112,11 @@ pub enum KnownHyperlaneDomain {
 
     /// Fuel1 local chain
     FuelTest1 = 13374,
-    // TODO: re-add once we deploy solanadevnet with a new domain ID.
-    // /// Sealevel local chain.
-    // SealevelTest1 = 13375,
+
+    /// Sealevel local chain 1
+    SealevelTest1 = 13375,
+    /// Sealevel local chain 1
+    SealevelTest2 = 13376,
 }
 
 #[derive(Clone)]
@@ -221,7 +223,7 @@ impl KnownHyperlaneDomain {
                 Goerli, Mumbai, Fuji, ArbitrumGoerli, OptimismGoerli, BinanceSmartChainTestnet,
                 Alfajores, MoonbaseAlpha, Zksync2Testnet, Sepolia
             ],
-            LocalTestChain: [Test1, Test2, Test3, FuelTest1],
+            LocalTestChain: [Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2],
         })
     }
 
@@ -235,7 +237,7 @@ impl KnownHyperlaneDomain {
                 Alfajores, Moonbeam, MoonbaseAlpha, Zksync2Testnet, Test1, Test2, Test3
             ],
             HyperlaneDomainProtocol::Fuel: [FuelTest1],
-            HyperlaneDomainProtocol::Sealevel: [],
+            HyperlaneDomainProtocol::Sealevel: [SealevelTest1, SealevelTest2],
         })
     }
 }

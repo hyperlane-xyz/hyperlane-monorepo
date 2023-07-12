@@ -10,9 +10,7 @@ use hyperlane_base::{RawSettings, Settings};
 use hyperlane_core::config::*;
 use hyperlane_core::KnownHyperlaneDomain;
 
-/// Relative path to the `hyperlane-monorepo/rust/config/`
-/// directory, which is where the agent's config files
-/// currently live.
+/// Path to the agent's config files, relative to the repo root.
 const AGENT_CONFIG_PATH_ROOT: &str = "../config";
 
 /// We will not include any file paths of config/settings files
@@ -60,7 +58,11 @@ fn config_paths(root: &Path) -> Vec<String> {
 /// of a test env. This test simply tries to do some sanity checks
 /// against the integrity of that data.
 fn hyperlane_settings() -> Vec<Settings> {
-    let root = Path::new(AGENT_CONFIG_PATH_ROOT);
+    // Determine the config path based on the crate root so that
+    // the debugger can also find the config file.
+    let crate_root = env!("CARGO_MANIFEST_DIR");
+    let config_path = format!("{}/{}", crate_root, AGENT_CONFIG_PATH_ROOT);
+    let root = Path::new(config_path.as_str());
     let paths = config_paths(root);
     let files: Vec<String> = paths
         .iter()
@@ -69,18 +71,19 @@ fn hyperlane_settings() -> Vec<Settings> {
     paths
         .iter()
         .zip(files.iter())
-        .map(|(p, f)| {
+        // Filter out config files that can't be parsed as json (e.g. env files)
+        .filter_map(|(p, f)| {
             let raw: RawSettings = Config::builder()
                 .add_source(config::File::from_str(f.as_str(), FileFormat::Json))
                 .build()
-                .unwrap()
+                .ok()?
                 .try_deserialize::<RawSettings>()
                 .unwrap_or_else(|e| {
                     panic!("!cfg({}): {:?}: {}", p, e, f);
                 });
             Settings::from_config(raw, &ConfigPath::default())
                 .context("Config parsing error, please check the config reference (https://docs.hyperlane.xyz/docs/operators/agent-configuration/configuration-reference)")
-                .unwrap()
+                .ok()
         })
         .collect()
 }
