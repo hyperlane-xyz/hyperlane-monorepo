@@ -117,6 +117,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
         chain,
         multisig.enrollValidators([originDomain], [config.validators]),
       );
+
       await this.multiProvider.handleTx(
         chain,
         multisig.setThreshold(originDomain, config.threshold),
@@ -310,6 +311,7 @@ export async function moduleMatchesConfig(
   config: IsmConfig,
   multiProvider: MultiProvider,
   contracts: HyperlaneContracts<IsmFactoryFactories>,
+  origin?: ChainName,
 ): Promise<boolean> {
   const provider = multiProvider.getProvider(chain);
   const module = IInterchainSecurityModule__factory.connect(
@@ -336,12 +338,16 @@ export async function moduleMatchesConfig(
         moduleAddress,
         provider,
       );
-      const domain = multiProvider.getDomainId(chain);
-      const validators = await multisigIsm.validators(domain);
-      const threshold = await multisigIsm.threshold(domain);
+      if (!origin) {
+        throw new Error("Can't check legacy multisig without origin");
+      }
+      const originDomain = multiProvider.getDomainId(origin);
+      const validators = await multisigIsm.validators(originDomain);
+      const threshold = await multisigIsm.threshold(originDomain);
       matches =
-        config.validators.sort() == validators.sort() &&
-        config.threshold == threshold;
+        JSON.stringify(config.validators.map((s) => s.toLowerCase()).sort()) ===
+          JSON.stringify(validators.map((s) => s.toLowerCase()).sort()) &&
+        config.threshold === threshold;
       break;
     }
     case ModuleType.ROUTING: {
@@ -358,16 +364,17 @@ export async function moduleMatchesConfig(
       matches = matches && utils.eqAddress(owner, config.owner);
       // Recursively check that the submodule for each configured
       // domain matches the submodule config.
-      for (const chain of Object.keys(config.domains)) {
+      for (const [origin, subConfig] of Object.entries(config.domains)) {
         const subModule = await routingIsm.modules(
-          multiProvider.getDomainId(chain),
+          multiProvider.getDomainId(origin),
         );
         const subModuleMatches = await moduleMatchesConfig(
           chain,
           subModule,
-          config.domains[chain],
+          subConfig,
           multiProvider,
           contracts,
+          origin,
         );
         matches = matches && subModuleMatches;
       }

@@ -1,4 +1,5 @@
 // TODO move to utils package
+import { ChainMap } from '../types';
 
 type MappedObject<M extends Record<any, any>, O> = {
   [Property in keyof M]: O;
@@ -88,4 +89,16 @@ export function objMerge(
   } else {
     return b ? b : a;
   }
+}
+
+export function filterByChains<T>(
+  owners: ChainMap<T>,
+  filterByChainName: Set<string>,
+): ChainMap<T> {
+  return Object.keys(owners).reduce((result, chain) => {
+    if (filterByChainName.has(chain)) {
+      result[chain] = owners[chain];
+    }
+    return result;
+  }, {} as ChainMap<T>);
 }

@@ -22,7 +22,9 @@ use crate::msg::metadata::multisig::{
     LegacyMultisigMetadataBuilder, MerkleRootMultisigMetadataBuilder,
     MessageIdMultisigMetadataBuilder,
 };
-use crate::msg::metadata::{AggregationIsmMetadataBuilder, RoutingIsmMetadataBuilder};
+use crate::msg::metadata::{
+    AggregationIsmMetadataBuilder, NullMetadataBuilder, RoutingIsmMetadataBuilder,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum MetadataBuilderError {
@@ -84,6 +86,7 @@ impl MetadataBuilder for BaseMetadataBuilder {
             ModuleType::MessageIdMultisig => Box::new(MessageIdMultisigMetadataBuilder::new(base)),
             ModuleType::Routing => Box::new(RoutingIsmMetadataBuilder::new(base)),
             ModuleType::Aggregation => Box::new(AggregationIsmMetadataBuilder::new(base)),
+            ModuleType::Null => Box::new(NullMetadataBuilder::new()),
             _ => return Err(MetadataBuilderError::UnsupportedModuleType(module_type).into()),
         };
         metadata_builder
