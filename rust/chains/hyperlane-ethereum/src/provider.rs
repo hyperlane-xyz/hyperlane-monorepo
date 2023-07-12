@@ -6,7 +6,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use derive_new::new;
 use ethers::prelude::Middleware;
-use hyperlane_core::parity_primitive_types;
+use hyperlane_core::ethers_core_types;
 use tokio::time::sleep;
 use tracing::instrument;
 
@@ -52,7 +52,7 @@ where
     #[instrument(err, skip(self))]
     async fn get_block_by_hash(&self, hash: &H256) -> ChainResult<BlockInfo> {
         let block = get_with_retry_on_none(hash, |h| {
-            let eth_h256: parity_primitive_types::H256 = h.into();
+            let eth_h256: ethers_core_types::H256 = h.into();
             self.provider.get_block(eth_h256)
         })
         .await?;
@@ -100,7 +100,7 @@ where
     async fn is_contract(&self, address: &H256) -> ChainResult<bool> {
         let code = self
             .provider
-            .get_code(parity_primitive_types::H160::from(*address), None)
+            .get_code(ethers_core_types::H160::from(*address), None)
             .await
             .map_err(ChainCommunicationError::from_other)?;
         Ok(!code.is_empty())
@@ -116,7 +116,7 @@ where
         let storage = self
             .provider
             .get_storage_at(
-                parity_primitive_types::H160::from(address),
+                ethers_core_types::H160::from(address),
                 location.into(),
                 None,
             )

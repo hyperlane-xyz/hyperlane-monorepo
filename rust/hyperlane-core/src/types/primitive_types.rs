@@ -8,8 +8,9 @@ use std::fmt::Formatter;
 use borsh::{BorshDeserialize, BorshSerialize};
 use fixed_hash::{construct_fixed_hash, impl_fixed_hash_conversions};
 use serde::de::Visitor;
-use serde::ser::SerializeTupleStruct;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+// use serde::ser::SerializeTupleStruct;
+// use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use crate::types::serialize;
 use uint::construct_uint;
 
 /// Error type for conversion.
@@ -21,36 +22,36 @@ pub enum Error {
 
 construct_uint! {
     /// 128-bit unsigned integer.
-    #[derive(Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+    #[derive(BorshSerialize, BorshDeserialize)]
     pub struct U128(2);
 }
 construct_uint! {
     /// 256-bit unsigned integer.
-    #[derive(Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+    #[derive(BorshSerialize, BorshDeserialize)]
     pub struct U256(4);
 }
 
 construct_uint! {
     /// 512-bit unsigned integer.
-    #[derive(Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+    #[derive(BorshSerialize, BorshDeserialize)]
     pub struct U512(8);
 }
 
 construct_fixed_hash! {
     /// 128-bit hash type.
-    #[derive(Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+    #[derive(BorshSerialize, BorshDeserialize)]
     pub struct H128(16);
 }
 
 construct_fixed_hash! {
     /// 160-bit hash type.
-    #[derive(Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+    #[derive(BorshSerialize, BorshDeserialize)]
     pub struct H160(20);
 }
 
 construct_fixed_hash! {
     /// 256-bit hash type.
-    #[derive(Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+    #[derive(BorshSerialize, BorshDeserialize)]
     pub struct H256(32);
 }
 
@@ -60,13 +61,13 @@ construct_fixed_hash! {
     pub struct H512(64);
 }
 
-impl Serialize for H512 {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut s = serializer.serialize_tuple_struct("H512", 1)?;
-        s.serialize_field(&self.0.as_slice())?;
-        s.end()
-    }
-}
+// impl Serialize for H512 {
+//     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+//         let mut s = serializer.serialize_tuple_struct("H512", 1)?;
+//         s.serialize_field(&self.0.as_slice())?;
+//         s.end()
+//     }
+// }
 
 struct H512Visitor;
 impl<'de> Visitor<'de> for H512Visitor {
@@ -86,14 +87,14 @@ impl<'de> Visitor<'de> for H512Visitor {
     }
 }
 
-impl<'de> Deserialize<'de> for H512 {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        deserializer.deserialize_tuple_struct("H512", 1, H512Visitor)
-    }
-}
+// impl<'de> Deserialize<'de> for H512 {
+//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+//     where
+//         D: Deserializer<'de>,
+//     {
+//         deserializer.deserialize_tuple_struct("H512", 1, H512Visitor)
+//     }
+// }
 
 #[cfg(feature = "ethers")]
 type EthersH160 = ethers_core::types::H160;
@@ -257,3 +258,81 @@ impl_inner_conversion!(U128, ethers_core::types::U128);
 impl_inner_conversion!(U256, ethers_core::types::U256);
 #[cfg(feature = "ethers")]
 impl_inner_conversion!(U512, ethers_core::types::U512);
+
+/// Add Serde serialization support to an integer created by `construct_uint!`.
+// #[cfg(feature = "ethers")]
+macro_rules! impl_uint_serde {
+    ($name: ident, $len: expr) => {
+        impl serde::Serialize for $name {
+            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: serde::Serializer,
+            {
+                let mut slice = [0u8; 2 + 2 * $len * 8];
+                let mut bytes = [0u8; $len * 8];
+                self.to_big_endian(&mut bytes);
+                serialize::serialize_uint(&mut slice, &bytes, serializer)
+            }
+        }
+
+        impl<'de> serde::Deserialize<'de> for $name {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                let mut bytes = [0u8; $len * 8];
+                let wrote = serialize::deserialize_check_len(
+                    deserializer,
+                    serialize::ExpectedLen::Between(0, &mut bytes),
+                )?;
+                Ok(bytes[0..wrote].into())
+            }
+        }
+    };
+}
+
+/// Add Serde serialization support to a fixed-sized hash type created by `construct_fixed_hash!`.
+// #[cfg(feature = "ethers")]
+macro_rules! impl_fixed_hash_serde {
+    ($name: ident, $len: expr) => {
+        impl serde::Serialize for $name {
+            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: serde::Serializer,
+            {
+                let mut slice = [0u8; 2 + 2 * $len];
+                serialize::serialize_raw(&mut slice, &self.0, serializer)
+            }
+        }
+
+        impl<'de> serde::Deserialize<'de> for $name {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                let mut bytes = [0u8; $len];
+                serialize::deserialize_check_len(
+                    deserializer,
+                    serialize::ExpectedLen::Exact(&mut bytes),
+                )?;
+                Ok($name(bytes))
+            }
+        }
+    };
+}
+
+// #[cfg(feature = "ethers")]
+impl_uint_serde!(U128, 2);
+// #[cfg(feature = "ethers")]
+impl_uint_serde!(U256, 4);
+// #[cfg(feature = "ethers")]
+impl_uint_serde!(U512, 8);
+
+// #[cfg(feature = "ethers")]
+impl_fixed_hash_serde!(H128, 16);
+// #[cfg(feature = "ethers")]
+impl_fixed_hash_serde!(H160, 20);
+// #[cfg(feature = "ethers")]
+impl_fixed_hash_serde!(H256, 32);
+// #[cfg(feature = "ethers")]
+impl_fixed_hash_serde!(H512, 64);

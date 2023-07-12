@@ -5,7 +5,7 @@ use std::ops::Add;
 
 pub use self::primitive_types::*;
 #[cfg(feature = "ethers")]
-pub use ::primitive_types as parity_primitive_types;
+pub use ::primitive_types as ethers_core_types;
 pub use announcement::*;
 pub use chain_data::*;
 pub use checkpoint::*;
@@ -19,6 +19,7 @@ mod chain_data;
 mod checkpoint;
 mod log_metadata;
 mod message;
+mod serialize;
 
 /// Unified 32-byte identifier with convenience tooling for handling
 /// 20-byte ids (e.g ethereum addresses)
