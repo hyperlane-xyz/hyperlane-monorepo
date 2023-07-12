@@ -12,6 +12,7 @@ import {
   HyperlaneCore,
   HyperlaneIgp,
   MultiProvider,
+  ProtocolType,
   RouterConfig,
   collectValidators,
   objMap,
@@ -31,11 +32,13 @@ import {
 import { fetchProvider } from '../src/config/chain';
 import { EnvironmentNames, deployEnvToSdkEnv } from '../src/config/environment';
 import { Role } from '../src/roles';
+import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 import { assertContext, assertRole } from '../src/utils/utils';
 
 export enum Modules {
   ISM_FACTORY = 'ism',
   CORE = 'core',
+  HOOK = 'hook',
   INTERCHAIN_GAS_PAYMASTER = 'igp',
   INTERCHAIN_ACCOUNTS = 'ica',
   INTERCHAIN_QUERY_SYSTEM = 'iqs',
@@ -76,6 +79,14 @@ export function withContext<T>(args: yargs.Argv<T>) {
     .describe('context', 'deploy context')
     .coerce('context', assertContext)
     .demandOption('context');
+}
+
+export function withProtocol<T>(args: yargs.Argv<T>) {
+  return args
+    .describe('protocol', 'protocol type')
+    .default('protocol', ProtocolType.Ethereum)
+    .choices('protocol', Object.values(ProtocolType))
+    .demandOption('protocol');
 }
 
 export function withAgentRole<T>(args: yargs.Argv<T>) {
@@ -280,4 +291,25 @@ export function getValidatorsByChain(
     });
   }
   return validators;
+}
+
+export async function getHooksProvider(
+  multiProvider: MultiProvider,
+  environment: DeployEnvironment,
+): Promise<MultiProvider> {
+  const hooksProvider = new MultiProvider();
+  const hooksConfig = getEnvironmentConfig(environment).hooks;
+  if (!hooksConfig) {
+    return hooksProvider;
+  }
+  for (const chain of Object.keys(hooksConfig)) {
+    // need to use different url for two forks simultaneously
+    // need another rpc param
+    await useLocalProvider(multiProvider, chain);
+  }
+  const signer = await impersonateAccount(
+    '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+  );
+  hooksProvider.setSharedSigner(signer);
+  return hooksProvider;
 }
