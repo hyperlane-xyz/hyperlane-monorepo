@@ -70,6 +70,13 @@ export {
   IgpViolationType,
   OverheadIgpConfig,
 } from './gas/types';
+export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer';
+export {
+  HookConfig,
+  HookContractType,
+  MessageHookConfig,
+  NoMetadataIsmConfig,
+} from './hook/types';
 export {
   HyperlaneIsmFactory,
   collectValidators,
@@ -178,6 +185,7 @@ export {
   mulBigAndFixed,
 } from './utils/number';
 export {
+  filterByChains,
   objFilter,
   objMap,
   objMapEntries,
