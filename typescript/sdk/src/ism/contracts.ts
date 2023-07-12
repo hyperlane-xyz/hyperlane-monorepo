@@ -5,6 +5,8 @@ import {
   StaticMessageIdMultisigIsmFactory__factory,
 } from '@hyperlane-xyz/core';
 
+import { CCTPIsm__factory } from '../../../../solidity/dist';
+
 export const ismFactoryFactories = {
   merkleRootMultisigIsmFactory:
     new StaticMerkleRootMultisigIsmFactory__factory(),
@@ -14,3 +16,9 @@ export const ismFactoryFactories = {
 };
 
 export type IsmFactoryFactories = typeof ismFactoryFactories;
+
+export const cctpIsmFactories = {
+  cctpIsm: new CCTPIsm__factory(),
+};
+
+export type CctpIsmFactories = typeof cctpIsmFactories;
