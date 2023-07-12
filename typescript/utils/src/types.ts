@@ -27,6 +27,23 @@ export type MerkleProof = {
 export type Checkpoint = {
   root: string;
   index: number; // safe because 2 ** 32 leaves < Number.MAX_VALUE
+  mailbox_domain: Domain;
+  mailbox_address: Address;
+};
+
+/**
+ * Shape of a checkpoint in S3 as published by the agent.
+ */
+export type S3CheckpointWithId = {
+  value: {
+    checkpoint: Checkpoint;
+    message_id: HexString;
+  };
+  signature: SignatureLike;
+};
+
+export type S3Checkpoint = {
+  value: Checkpoint;
   signature: SignatureLike;
 };
 
