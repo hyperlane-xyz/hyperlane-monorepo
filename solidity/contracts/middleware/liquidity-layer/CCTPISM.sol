@@ -17,6 +17,9 @@ contract CctpIsm is IInterchainSecurityModule {
 
     ICircleMessageTransmitter public cctpMessageTransmitter;
 
+    // Event for testing
+    event TestCctpIsmVerify(bytes message, bytes metadata);
+
     constructor(ICircleMessageTransmitter _cctpMessageTransmitter) {
         cctpMessageTransmitter = _cctpMessageTransmitter;
     }
@@ -38,6 +41,8 @@ contract CctpIsm is IInterchainSecurityModule {
         bytes
             memory metadata = _metadata[CCTP_ATTESTATION_OFFSET:CCTP_ATTESTATION_OFFSET +
                 32];
-        return cctpMessageTransmitter.receiveMessage(message, metadata);
+
+        emit TestCctpIsmVerify(message, metadata);
+        // return cctpMessageTransmitter.receiveMessage(message, metadata);
     }
 }
