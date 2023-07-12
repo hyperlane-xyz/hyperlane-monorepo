@@ -10,7 +10,9 @@ use hyperlane_base::{RawSettings, Settings};
 use hyperlane_core::config::*;
 use hyperlane_core::KnownHyperlaneDomain;
 
-/// Path to the agent's config files, relative to the repo root.
+/// Relative path to the `hyperlane-monorepo/rust/config/`
+/// directory, which is where the agent's config files
+/// currently live.
 const AGENT_CONFIG_PATH_ROOT: &str = "../config";
 
 /// We will not include any file paths of config/settings files
