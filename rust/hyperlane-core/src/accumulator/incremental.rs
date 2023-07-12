@@ -106,8 +106,6 @@ mod test {
             for leaf in test_case.leaves.iter() {
                 let hashed_leaf = hash_message(leaf);
                 tree.ingest(hashed_leaf.into());
-                // used to be
-                // tree.ingest(hashed_leaf);
             }
 
             // assert the tree has the proper leaf count

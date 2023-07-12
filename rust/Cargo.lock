@@ -3809,7 +3809,6 @@ dependencies = [
  "account-utils",
  "base64 0.13.1",
  "borsh 0.9.3",
- "bs58",
  "getrandom 0.2.10",
  "hyperlane-core",
  "hyperlane-sealevel-interchain-security-module-interface",
@@ -3832,7 +3831,6 @@ dependencies = [
  "account-utils",
  "base64 0.13.1",
  "borsh 0.9.3",
- "bs58",
  "hyperlane-core",
  "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-mailbox",
@@ -3923,7 +3921,6 @@ version = "0.1.0"
 dependencies = [
  "account-utils",
  "borsh 0.9.3",
- "bs58",
  "hyperlane-core",
  "hyperlane-sealevel-connection-client",
  "hyperlane-sealevel-mailbox",
@@ -3950,7 +3947,6 @@ version = "0.1.0"
 dependencies = [
  "account-utils",
  "borsh 0.9.3",
- "bs58",
  "hyperlane-core",
  "hyperlane-sealevel-connection-client",
  "hyperlane-sealevel-mailbox",
@@ -3978,7 +3974,6 @@ dependencies = [
  "access-control",
  "account-utils",
  "borsh 0.9.3",
- "bs58",
  "hyperlane-core",
  "hyperlane-sealevel-connection-client",
  "hyperlane-sealevel-mailbox",
@@ -4000,7 +3995,6 @@ version = "0.1.0"
 dependencies = [
  "account-utils",
  "borsh 0.9.3",
- "bs58",
  "hyperlane-core",
  "hyperlane-sealevel-connection-client",
  "hyperlane-sealevel-mailbox",

@@ -1,5 +1,5 @@
 #![allow(unused)]
-// Based off https://github.com/paritytech/parity-common/blob/7194def73feb7d97644303f1a6ddbab29bbb799f/primitive-types/impls/serde/src/serialize.rs
+// Based on https://github.com/paritytech/parity-common/blob/7194def73feb7d97644303f1a6ddbab29bbb799f/primitive-types/impls/serde/src/serialize.rs
 
 // Copyright 2020 Parity Technologies
 //

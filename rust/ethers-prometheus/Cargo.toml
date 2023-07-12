@@ -19,7 +19,7 @@ log.workspace = true
 maplit.workspace = true
 parking_lot.workspace = true
 prometheus.workspace = true
-serde = { workspace = true, features = ["derive", "alloc"], optional = true }
+serde = { workspace = true, features = ["derive"], optional = true }
 serde_json = { workspace = true }
 static_assertions.workspace = true
 tokio = { workspace = true, features = ["time", "sync", "parking_lot"] }
