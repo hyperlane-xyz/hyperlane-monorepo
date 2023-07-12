@@ -1,6 +1,13 @@
 import { ethers } from 'ethers';
 
-import { Address, Checkpoint, Domain, HexString, SignatureLike } from './types';
+import {
+  Address,
+  Checkpoint,
+  Domain,
+  HexString,
+  S3Checkpoint,
+  SignatureLike,
+} from './types';
 import { domainHash } from './utils';
 
 /**
@@ -57,5 +64,44 @@ export class BaseValidator {
         messageId,
       ).toLowerCase() === this.address.toLowerCase()
     );
+  }
+}
+
+export class Validator extends BaseValidator {
+  constructor(
+    protected signer: ethers.Signer,
+    address: Address,
+    localDomain: Domain,
+    mailbox: Address,
+  ) {
+    super(address, localDomain, mailbox);
+  }
+
+  static async fromSigner(
+    signer: ethers.Signer,
+    localDomain: Domain,
+    mailbox: Address,
+  ) {
+    return new Validator(
+      signer,
+      await signer.getAddress(),
+      localDomain,
+      mailbox,
+    );
+  }
+
+  async signCheckpoint(root: HexString, index: number): Promise<S3Checkpoint> {
+    const checkpoint = {
+      root,
+      index,
+      mailbox_address: this.mailbox,
+      mailbox_domain: this.localDomain,
+    };
+    const msgHash = this.messageHash(checkpoint);
+    const signature = await this.signer.signMessage(msgHash);
+    return {
+      value: checkpoint,
+      signature,
+    };
   }
 }
