@@ -639,8 +639,8 @@ export const solana: ChainMetadata = {
 
 export const solanatestnet: ChainMetadata = {
   protocol: ProtocolType.Sealevel,
-  chainId: 13998111450,
-  domainId: 13998111450,
+  chainId: 1399811150,
+  domainId: 1399811150,
   name: 'solanatestnet',
   displayName: 'Solana Testnet',
   displayNameShort: 'Sol Testnet',
@@ -679,7 +679,7 @@ export const zbctestnet: ChainMetadata = {
   displayName: 'Zebec Devnet',
   displayNameShort: 'Zebec Dev',
   nativeToken: solToken,
-  rpcUrls: [{ http: 'https://api.devnet.solana.com' }],
+  rpcUrls: [{ http: 'https://api.zebec.eclipsenetwork.xyz:8899' }],
   blockExplorers: [],
   blocks: {
     confirmations: 1,
