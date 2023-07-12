@@ -244,8 +244,6 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
       throw Error('Context does not support chain');
     if (!this.config.environmentChainNames.includes(chainName))
       throw Error('Environment does not support chain');
-    if (this.context != Contexts.Hyperlane)
-      throw Error('Context does not support validator');
   }
 
   get length(): number {

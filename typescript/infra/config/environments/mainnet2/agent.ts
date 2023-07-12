@@ -86,7 +86,7 @@ const hyperlane: RootAgentConfig = {
       tag: '497db63-20230614-174455',
     },
     connectionType: AgentConnectionType.HttpQuorum,
-    chains: validators,
+    chains: validators.hyperlane,
   },
   scraper: {
     connectionType: AgentConnectionType.HttpFallback,
@@ -116,7 +116,28 @@ const releaseCandidate: RootAgentConfig = {
   },
 };
 
+const permissionless: RootAgentConfig = {
+  namespace: environment,
+  runEnv: environment,
+  contextChainNames: ['zkevm'],
+  environmentChainNames: ['zkevm'],
+  aws: {
+    region: 'us-east-1',
+  },
+  context: Contexts.Permissionless,
+  rolesWithKeys: [Role.Validator],
+  validators: {
+    docker: {
+      repo,
+      tag: '497db63-20230614-174455',
+    },
+    connectionType: AgentConnectionType.HttpQuorum,
+    chains: validators.permissionless,
+  },
+};
+
 export const agents = {
   [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
+  [Contexts.Permissionless]: permissionless,
 };
