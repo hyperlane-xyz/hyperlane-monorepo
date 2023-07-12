@@ -5,12 +5,10 @@
 
 use std::fmt::Formatter;
 
+use crate::types::serialize;
 use borsh::{BorshDeserialize, BorshSerialize};
 use fixed_hash::{construct_fixed_hash, impl_fixed_hash_conversions};
 use serde::de::Visitor;
-// use serde::ser::SerializeTupleStruct;
-// use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use crate::types::serialize;
 use uint::construct_uint;
 
 /// Error type for conversion.
@@ -61,14 +59,6 @@ construct_fixed_hash! {
     pub struct H512(64);
 }
 
-// impl Serialize for H512 {
-//     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-//         let mut s = serializer.serialize_tuple_struct("H512", 1)?;
-//         s.serialize_field(&self.0.as_slice())?;
-//         s.end()
-//     }
-// }
-
 struct H512Visitor;
 impl<'de> Visitor<'de> for H512Visitor {
     type Value = H512;
@@ -86,15 +76,6 @@ impl<'de> Visitor<'de> for H512Visitor {
             .map(H512)
     }
 }
-
-// impl<'de> Deserialize<'de> for H512 {
-//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-//     where
-//         D: Deserializer<'de>,
-//     {
-//         deserializer.deserialize_tuple_struct("H512", 1, H512Visitor)
-//     }
-// }
 
 #[cfg(feature = "ethers")]
 type EthersH160 = ethers_core::types::H160;
@@ -260,7 +241,6 @@ impl_inner_conversion!(U256, ethers_core::types::U256);
 impl_inner_conversion!(U512, ethers_core::types::U512);
 
 /// Add Serde serialization support to an integer created by `construct_uint!`.
-// #[cfg(feature = "ethers")]
 macro_rules! impl_uint_serde {
     ($name: ident, $len: expr) => {
         impl serde::Serialize for $name {
@@ -292,7 +272,6 @@ macro_rules! impl_uint_serde {
 }
 
 /// Add Serde serialization support to a fixed-sized hash type created by `construct_fixed_hash!`.
-// #[cfg(feature = "ethers")]
 macro_rules! impl_fixed_hash_serde {
     ($name: ident, $len: expr) => {
         impl serde::Serialize for $name {
@@ -321,18 +300,11 @@ macro_rules! impl_fixed_hash_serde {
     };
 }
 
-// #[cfg(feature = "ethers")]
 impl_uint_serde!(U128, 2);
-// #[cfg(feature = "ethers")]
 impl_uint_serde!(U256, 4);
-// #[cfg(feature = "ethers")]
 impl_uint_serde!(U512, 8);
 
-// #[cfg(feature = "ethers")]
 impl_fixed_hash_serde!(H128, 16);
-// #[cfg(feature = "ethers")]
 impl_fixed_hash_serde!(H160, 20);
-// #[cfg(feature = "ethers")]
 impl_fixed_hash_serde!(H256, 32);
-// #[cfg(feature = "ethers")]
 impl_fixed_hash_serde!(H512, 64);
