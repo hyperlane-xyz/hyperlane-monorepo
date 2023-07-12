@@ -8,8 +8,8 @@ use rusoto_kms::KmsClient;
 use serde::Deserialize;
 use tracing::instrument;
 
-use ed25519_dalek::{PublicKey, SecretKey};
-use hyperlane_sealevel::solana::signer::keypair::Keypair;
+use ed25519_dalek::SecretKey;
+use hyperlane_sealevel::Keypair;
 
 use super::aws_credentials::AwsChainCredentialsProvider;
 use hyperlane_core::{config::*, H256};
@@ -144,7 +144,7 @@ impl BuildableWithSignerConf for fuels::prelude::WalletUnlocked {
 }
 
 #[async_trait]
-impl BuildableWithSignerConf for hyperlane_sealevel::solana::signer::keypair::Keypair {
+impl BuildableWithSignerConf for Keypair {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
         Ok(match conf {
             SignerConf::HexKey { key } => {
@@ -155,8 +155,7 @@ impl BuildableWithSignerConf for hyperlane_sealevel::solana::signer::keypair::Ke
                 // and then construct the Keypair.
                 let secret = SecretKey::from_bytes(key.as_bytes())
                     .context("Invalid sealevel ed25519 secret key")?;
-                let public = PublicKey::from(&secret);
-                Keypair::from_bytes(&ed25519_dalek::Keypair { secret, public }.to_bytes()[..])
+                Keypair::from_bytes(&ed25519_dalek::Keypair::from(secret).to_bytes())
                     .context("Unable to create Keypair")?
             }
             SignerConf::Aws { .. } => bail!("Aws signer is not supported by fuel"),

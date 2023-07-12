@@ -5,7 +5,6 @@ use ecdsa_signature::EcdsaSignature;
 use hyperlane_core::{Announcement, Signable};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
-    entrypoint,
     entrypoint::ProgramResult,
     program::invoke,
     program_error::ProgramError,
@@ -27,7 +26,7 @@ use crate::{
 };
 
 #[cfg(not(feature = "no-entrypoint"))]
-entrypoint!(process_instruction);
+solana_program::entrypoint!(process_instruction);
 
 /// The entrypoint of the program that processes an instruction.
 pub fn process_instruction(

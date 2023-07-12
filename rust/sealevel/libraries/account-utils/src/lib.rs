@@ -88,9 +88,9 @@ where
     // Optimisically write then realloc on failure.
     // If we serialize and calculate len before realloc we will waste heap space as there is no
     // free(). Tradeoff between heap usage and compute budget.
-    pub fn store<'a>(
+    pub fn store(
         &self,
-        account: &AccountInfo<'a>,
+        account: &AccountInfo<'_>,
         allow_realloc: bool,
     ) -> Result<(), ProgramError> {
         if !account.is_writable || account.executable {
@@ -195,7 +195,7 @@ pub fn create_pda_account<'a>(
 }
 
 /// Returns Ok() if the account is rent exempt, Err() otherwise.
-pub fn verify_rent_exempt<'a>(account: &AccountInfo<'a>, rent: &Rent) -> Result<(), ProgramError> {
+pub fn verify_rent_exempt(account: &AccountInfo<'_>, rent: &Rent) -> Result<(), ProgramError> {
     if !rent.is_exempt(account.lamports(), account.data_len()) {
         return Err(ProgramError::AccountNotRentExempt);
     }

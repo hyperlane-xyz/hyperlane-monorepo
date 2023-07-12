@@ -3,13 +3,14 @@
 // #![deny(missing_docs)] // FIXME
 #![deny(unsafe_code)]
 
+use std::{path::PathBuf, str::FromStr};
+
 use account_utils::DiscriminatorEncode;
 use clap::{Args, Parser, Subcommand, ValueEnum};
-use hyperlane_core::H160;
+use hyperlane_core::{Encode, HyperlaneMessage, H160, H256};
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_mailbox::{
     accounts::{InboxAccount, OutboxAccount},
-    hyperlane_core::{message::HyperlaneMessage, types::H256, Encode},
     instruction::{InboxProcess, Instruction as MailboxInstruction, OutboxDispatch, VERSION},
     mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds,
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
@@ -40,7 +41,6 @@ use hyperlane_sealevel_token_lib::{
 use hyperlane_sealevel_token_native::{
     hyperlane_token_native_collateral_pda_seeds, plugin::NativePlugin,
 };
-
 use hyperlane_sealevel_validator_announce::{
     accounts::ValidatorStorageLocationsAccount,
     instruction::{
@@ -50,7 +50,6 @@ use hyperlane_sealevel_validator_announce::{
     replay_protection_pda_seeds, validator_announce_pda_seeds,
     validator_storage_locations_pda_seeds,
 };
-
 use solana_clap_utils::input_validators::{is_keypair, is_url, normalize_to_url_if_moniker};
 use solana_cli_config::{Config, CONFIG_FILE};
 use solana_client::{rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig};
@@ -66,15 +65,12 @@ use solana_sdk::{
     transaction::Transaction,
 };
 
-use std::{path::PathBuf, str::FromStr};
+pub(crate) use crate::core::*;
+use crate::warp_route::process_warp_route_cmd;
 
 mod cmd_utils;
 mod r#core;
 mod warp_route;
-
-pub(crate) use crate::core::*;
-
-use crate::warp_route::process_warp_route_cmd;
 
 // Note: from solana_program_runtime::compute_budget
 const DEFAULT_INSTRUCTION_COMPUTE_UNIT_LIMIT: u32 = 200_000;

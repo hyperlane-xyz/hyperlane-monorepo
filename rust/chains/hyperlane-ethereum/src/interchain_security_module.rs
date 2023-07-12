@@ -121,7 +121,7 @@ where
         );
         let (verifies, gas_estimate) = try_join(tx.call(), tx.estimate_gas()).await?;
         if verifies {
-            Ok(Some(gas_estimate))
+            Ok(Some(gas_estimate.into()))
         } else {
             Ok(None)
         }

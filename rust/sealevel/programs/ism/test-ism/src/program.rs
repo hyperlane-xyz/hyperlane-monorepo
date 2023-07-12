@@ -2,7 +2,6 @@
 
 use account_utils::{create_pda_account, AccountData, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
-use hyperlane_core::IsmType;
 use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::{
@@ -17,10 +16,12 @@ use solana_program::{
     sysvar::Sysvar,
 };
 
+use hyperlane_core::ModuleType;
+
 #[cfg(not(feature = "no-entrypoint"))]
 solana_program::entrypoint!(process_instruction);
 
-const ISM_TYPE: IsmType = IsmType::None;
+const ISM_TYPE: ModuleType = ModuleType::Unused;
 
 /// Custom errors for the program.
 pub enum TestIsmError {
