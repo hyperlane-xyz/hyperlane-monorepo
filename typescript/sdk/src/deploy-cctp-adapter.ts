@@ -32,7 +32,7 @@ function buildCctpAdapterConfigMap(owner: types.Address) {
     gasAmount: 1000000,
     circleDomainMapping: circleDomainMapping,
     mailbox: hyperlaneContractAddresses.goerli.mailbox,
-    interchainGasPaymaster: '0x5FBFb88130ba04Fb7Ace473a64A25837A5EaBc5D',
+    interchainGasPaymaster: hyperlaneContractAddresses.goerli.igp,
     interchainSecurityModule: hyperlaneContractAddresses.goerli.multisigIsm,
     owner: owner,
   };
@@ -44,7 +44,8 @@ function buildCctpAdapterConfigMap(owner: types.Address) {
     gasAmount: 1000000,
     circleDomainMapping: circleDomainMapping,
     mailbox: hyperlaneContractAddresses.fuji.mailbox,
-    interchainGasPaymaster: '0x6fDAd296b58C304D390bA604C61E6E42334CccCc',
+    interchainGasPaymaster: hyperlaneContractAddresses.fuji.igp,
+    interchainSecurityModule: hyperlaneContractAddresses.fuji.multisigIsm,
     owner: owner,
   };
   return config;
@@ -95,21 +96,8 @@ async function main() {
   const config = buildCctpAdapterConfigMap(signer.address);
 
   const deployer = new CctpAdapterDeployer(multiProvider);
-  const goerliCctpAdapter = await deployer.deployContracts(
-    Chains.goerli,
-    config[Chains.goerli],
-  );
-  const fujiCctpAdapter = await deployer.deployContracts(
-    Chains.fuji,
-    config[Chains.fuji],
-  );
-  deployer.enrollRemoteRouters(
-    {
-      goerli: goerliCctpAdapter,
-      fuji: fujiCctpAdapter,
-    },
-    config,
-  );
+  const cctpAdapters = await deployer.deploy(config);
+  console.log('cctpAdapters: ', cctpAdapters);
 }
 
 main()

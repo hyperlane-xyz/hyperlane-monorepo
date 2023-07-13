@@ -4,7 +4,6 @@ import { HyperlaneContracts, HyperlaneContractsMap } from '../contracts';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
-import { isObject } from '../utils/objects';
 
 import { CctpIsmFactories, cctpIsmFactories } from './contracts';
 
@@ -23,15 +22,9 @@ export class HyperlaneCctpIsmDeployer extends HyperlaneDeployer<
   }
 
   async deploy(
-    config: ChainName[] | ChainMap<CctpIsmConfig>,
+    config: ChainMap<CctpIsmConfig>,
   ): Promise<HyperlaneContractsMap<CctpIsmFactories>> {
-    if (isObject(config)) {
-      return super.deploy(config as ChainMap<CctpIsmConfig>);
-    } else {
-      return super.deploy(
-        Object.fromEntries((config as ChainName[]).map((c) => [c, true])),
-      );
-    }
+    return super.deploy(config as ChainMap<CctpIsmConfig>);
   }
 
   async deployContracts(
@@ -39,10 +32,8 @@ export class HyperlaneCctpIsmDeployer extends HyperlaneDeployer<
     config: CctpIsmConfig,
   ): Promise<HyperlaneContracts<CctpIsmFactories>> {
     const cctpIsmFactory = await this.deployContract(chain, 'cctpIsm', [
-      '0x...CCTP_ADDRESS',
+      config.messageTransmitter,
     ]);
-    return {
-      cctpIsmFactory,
-    };
+    return cctpIsmFactory;
   }
 }
