@@ -30,6 +30,7 @@ pub struct SealevelMultisigIsm {
 }
 
 impl SealevelMultisigIsm {
+    /// Create a new Sealevel MultisigIsm.
     pub fn new(conf: &ConnectionConf, locator: ContractLocator, payer: Option<Keypair>) -> Self {
         let rpc_client = RpcClientWithDebug::new(conf.url.to_string());
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));

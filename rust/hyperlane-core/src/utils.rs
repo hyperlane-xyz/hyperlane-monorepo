@@ -1,8 +1,9 @@
-use std::time::Duration;
+use std::{str::FromStr, time::Duration};
 
+use eyre::Result;
 use sha3::{digest::Update, Digest, Keccak256};
 
-use crate::{KnownHyperlaneDomain, H256};
+use crate::{KnownHyperlaneDomain, H160, H256};
 
 /// Strips the '0x' prefix off of hex string so it can be deserialized.
 ///
@@ -15,6 +16,25 @@ pub fn strip_0x_prefix(s: &str) -> &str {
     } else {
         &s[2..]
     }
+}
+
+/// Converts a hex or base58 string to an H256.
+pub fn hex_or_base58_to_h256(string: &str) -> Result<H256> {
+    let h256 = if string.starts_with("0x") {
+        match string.len() {
+            66 => H256::from_str(string)?,
+            42 => H160::from_str(string)?.into(),
+            _ => eyre::bail!("Invalid hex string"),
+        }
+    } else {
+        let bytes = bs58::decode(string).into_vec()?;
+        if bytes.len() != 32 {
+            eyre::bail!("Invalid length of base58 string")
+        }
+        H256::from_slice(bytes.as_slice())
+    };
+
+    Ok(h256)
 }
 
 /// Computes hash of domain concatenated with "HYPERLANE"

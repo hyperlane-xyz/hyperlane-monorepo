@@ -8,10 +8,10 @@ use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
 };
 use hyperlane_core::{
-    config::*, AggregationIsm, ContractLocator, HyperlaneAbi, HyperlaneDomain,
-    HyperlaneDomainProtocol, HyperlaneProvider, HyperlaneSigner, IndexMode, Indexer,
-    InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
-    MessageIndexer, MultisigIsm, RoutingIsm, ValidatorAnnounce, H160, H256,
+    config::*, utils::hex_or_base58_to_h256, AggregationIsm, ContractLocator, HyperlaneAbi,
+    HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneProvider, HyperlaneSigner, IndexMode,
+    Indexer, InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
+    MessageIndexer, MultisigIsm, RoutingIsm, ValidatorAnnounce, H256,
 };
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
@@ -113,19 +113,7 @@ impl FromRawConf<'_, RawCoreContractAddresses> for CoreContractAddresses {
                         )
                     })
                     .take_err(&mut err, path)
-                    .and_then(|v| {
-                        // TODO this is sketchy
-                        if v.len() <= 42 {
-                            v.parse::<H160>().take_err(&mut err, path).map(Into::into)
-                        } else if v.starts_with("0x") {
-                            v.parse().take_err(&mut err, path)
-                        } else {
-                            bs58::decode(v)
-                                .into_vec()
-                                .take_err(&mut err, path)
-                                .map(|v| H256::from_slice(&v))
-                        }
-                    })
+                    .and_then(|v| hex_or_base58_to_h256(&v).take_err(&mut err, path))
             }};
         }
 
