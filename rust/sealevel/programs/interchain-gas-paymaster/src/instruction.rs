@@ -5,20 +5,21 @@ use solana_program::pubkey::Pubkey;
 
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub enum Instruction {
-    InitRelayer(InitRelayer),
+    InitIgp(InitIgp),
     PayForGas(PayForGas),
     QuoteGasPayment(QuoteGasPayment),
 }
 
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
-pub struct InitRelayer {
+pub struct InitIgp {
     pub owner: Option<Pubkey>,
     pub beneficiary: Pubkey,
 }
 
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub struct PayForGas {
-    pub relayer: Pubkey,
+    // TODO needed? could imply from accounts
+    // pub igp: Pubkey,
     pub message_id: H256,
     pub destination_domain: u32,
     // TODO maybe U256? check Fuel impl...
@@ -28,7 +29,8 @@ pub struct PayForGas {
 
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub struct QuoteGasPayment {
-    pub relayer: Pubkey,
+    // TODO needed? could imply from accounts
+    // pub igp: Pubkey,
     pub destination_domain: u32,
     // TODO maybe U256?
     pub gas_amount: u64,

@@ -25,20 +25,43 @@ impl Default for GasOracle {
     }
 }
 
-pub type RelayerAccount = AccountData<RelayerData>;
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
+pub struct ProgramData {
+    pub payment_count: u64,
+}
+
+pub type ProgramDataAccount = AccountData<ProgramData>;
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
-pub struct RelayerData {
+pub struct OverheadIgp {
+    pub owner: Option<Pubkey>,
+    pub inner: Pubkey,
+    pub gas_overheads: HashMap<u32, u64>,
+}
+
+impl OverheadIgp {
+    pub fn gas_overhead(&self, destination_domain: u32) -> u64 {
+        self.gas_overheads
+            .get(&destination_domain)
+            .copied()
+            .unwrap_or(0)
+    }
+}
+
+pub type OverheadIgpAccount = AccountData<OverheadIgp>;
+
+pub type IgpAccount = AccountData<IgpData>;
+
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
+pub struct IgpData {
     // TODO: should this be a global count?...
     pub owner: Option<Pubkey>,
     pub payment_count: u64,
     pub beneficiary: Pubkey,
-    // TODO: u64? or U256. Forgot what we did in Fuel and why...
-    pub gas_overheads: HashMap<u32, u64>,
     pub gas_oracle: HashMap<u32, GasOracle>,
 }
 
-impl SizedData for RelayerData {
+impl SizedData for IgpData {
     fn size(&self) -> usize {
         // 33 for owner (1 byte Option, 32 bytes for pubkey)
         // 8 for payment_count
@@ -47,18 +70,16 @@ impl SizedData for RelayerData {
         // N * (4 + 8) for gas_overhead contents
         // 4 for gas_oracle.len()
         // M * (4 + 8) for gas_oracle contents
-        33 + 8
-            + 32
-            + 4
-            + (self.gas_overheads.len() * (4 + 8))
-            + 4
-            + (self.gas_oracle.len() * (4 + 8))
+        33 + 8 + 32 + 4 + (self.gas_oracle.len() * (4 + 8))
     }
 }
 
-impl RelayerData {
-    pub fn quote_gas_payment(&self, destination_domain: u32, gas_amount: u64) -> Result<u64, Error> {
-        let overhead = self.gas_overheads.get(&destination_domain).unwrap_or(&0);
+impl IgpData {
+    pub fn quote_gas_payment(
+        &self,
+        destination_domain: u32,
+        gas_amount: u64,
+    ) -> Result<u64, Error> {
         let oracle = self
             .gas_oracle
             .get(&destination_domain)
@@ -71,12 +92,10 @@ impl RelayerData {
             GasOracle::RemoteGasData(data) => data,
         };
 
-        let total_gas_amount = gas_amount + overhead;
-
         // Arithmetic is done using U256 to avoid overflows.
 
         // The total cost quoted in the destination chain's native token.
-        let destination_gas_cost = U256::from(total_gas_amount) * U256::from(*gas_price);
+        let destination_gas_cost = U256::from(gas_amount) * U256::from(*gas_price);
 
         // Convert to the local native token (decimals not yet accounted for).
         let origin_cost = (destination_gas_cost * U256::from(*token_exchange_rate))
@@ -99,7 +118,7 @@ pub struct RemoteGasData {
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
 pub struct GasPayment {
-    pub relayer: Pubkey,
+    pub igp: Pubkey,
     pub sequence_number: u64,
     pub destination_domain: u32,
     pub message_id: H256,
@@ -110,7 +129,7 @@ pub struct GasPayment {
 
 impl SizedData for GasPayment {
     fn size(&self) -> usize {
-        // 32 for relayer
+        // 32 for igp
         // 8 for sequence_number
         // 4 for destination_domain
         // 32 for message_id
