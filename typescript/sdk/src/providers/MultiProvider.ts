@@ -17,51 +17,28 @@ import {
   getDomainId,
   isValidChainMetadata,
 } from '../metadata/chainMetadataTypes';
+import type { HyperlaneDeploymentArtifacts } from '../metadata/deploymentArtifacts';
 import { ChainMap, ChainName } from '../types';
+import { isNumeric } from '../utils/number';
 import { pick } from '../utils/objects';
 
-import { RetryJsonRpcProvider, RetryProviderOptions } from './RetryProvider';
+import {
+  DEFAULT_RETRY_OPTIONS,
+  ProviderBuilderFn,
+  defaultProviderBuilder,
+} from './providerBuilders';
 
 type Provider = providers.Provider;
 
-const DEFAULT_RETRY_OPTIONS: RetryProviderOptions = {
-  maxRequests: 3,
-  baseRetryMs: 250,
-};
-
-export function defaultProviderBuilder(
-  rpcUrls: ChainMetadata['rpcUrls'],
-  network: providers.Networkish,
-  retryOverride?: RetryProviderOptions,
-): Provider {
-  const createProvider = (r: ChainMetadata['rpcUrls'][number]) => {
-    const retry = r.retry || retryOverride;
-    return retry
-      ? new RetryJsonRpcProvider(retry, r.http, network)
-      : new providers.StaticJsonRpcProvider(r.http, network);
-  };
-  if (rpcUrls.length > 1) {
-    return new providers.FallbackProvider(rpcUrls.map(createProvider), 1);
-  } else if (rpcUrls.length === 1) {
-    return createProvider(rpcUrls[0]);
-  } else {
-    throw new Error('No RPC URLs provided');
-  }
-}
-
-export type ProviderBuilderFn = typeof defaultProviderBuilder;
-
-interface MultiProviderOptions {
+export interface MultiProviderOptions {
   loggerName?: string;
-  providerBuilder?: ProviderBuilderFn;
+  providerBuilder?: ProviderBuilderFn<Provider>;
 }
 
-export class MultiProvider {
+export class ReadOnlyMultiProvider {
   public readonly metadata: ChainMap<ChainMetadata> = {};
   protected readonly providers: ChainMap<Provider> = {};
-  protected readonly providerBuilder: ProviderBuilderFn;
-  protected signers: ChainMap<Signer> = {};
-  protected useSharedSigner = false; // A single signer to be used for all chains
+  protected readonly providerBuilder: ProviderBuilderFn<Provider>;
   protected readonly logger: Debugger;
 
   /**
@@ -107,12 +84,6 @@ export class MultiProvider {
         );
     }
     this.metadata[metadata.name] = metadata;
-    if (this.useSharedSigner) {
-      const signers = Object.values(this.signers);
-      if (signers.length > 0) {
-        this.setSharedSigner(signers[0]);
-      }
-    }
   }
 
   /**
@@ -121,12 +92,14 @@ export class MultiProvider {
    */
   tryGetChainMetadata(chainNameOrId: ChainName | number): ChainMetadata | null {
     let chainMetadata: ChainMetadata | undefined;
-    if (typeof chainNameOrId === 'string') {
-      chainMetadata = this.metadata[chainNameOrId];
-    } else if (typeof chainNameOrId === 'number') {
+    if (isNumeric(chainNameOrId)) {
+      // Should be chain id or domain id
       chainMetadata = Object.values(this.metadata).find(
-        (m) => m.chainId === chainNameOrId || m.domainId === chainNameOrId,
+        (m) => m.chainId == chainNameOrId || m.domainId == chainNameOrId,
       );
+    } else if (typeof chainNameOrId === 'string') {
+      // Should be chain name
+      chainMetadata = this.metadata[chainNameOrId];
     }
     return chainMetadata || null;
   }
@@ -140,6 +113,18 @@ export class MultiProvider {
     if (!chainMetadata)
       throw new Error(`No chain metadata set for ${chainNameOrId}`);
     return chainMetadata;
+  }
+
+  /**
+   * Chain metadata may include deployment artifacts
+   * This is a convenience method to retype the metadata value
+   * @throws if chain's metadata has not been set
+   */
+  getChainMetadataWithArtifacts(
+    chainNameOrId: ChainName | number,
+  ): ChainMetadata & Partial<HyperlaneDeploymentArtifacts> {
+    const metadata = this.getChainMetadata(chainNameOrId);
+    return metadata as ChainMetadata & Partial<HyperlaneDeploymentArtifacts>;
   }
 
   /**
@@ -264,10 +249,6 @@ export class MultiProvider {
   setProvider(chainNameOrId: ChainName | number, provider: Provider): Provider {
     const chainName = this.getChainName(chainNameOrId);
     this.providers[chainName] = provider;
-    const signer = this.signers[chainName];
-    if (signer && signer.provider) {
-      this.setSigner(chainName, signer.connect(provider));
-    }
     return provider;
   }
 
@@ -280,6 +261,127 @@ export class MultiProvider {
       const chainName = this.getChainName(chain);
       this.providers[chainName] = providers[chain];
     }
+  }
+
+  /**
+   * Get chain names excluding given chain name
+   */
+  getRemoteChains(name: ChainName): ChainName[] {
+    return utils.exclude(name, this.getKnownChainNames());
+  }
+
+  /**
+   * Get an RPC URL for a given chain name, chain id, or domain id
+   * @throws if chain's metadata has not been set
+   */
+  getRpcUrl(chainNameOrId: ChainName | number): string {
+    const { rpcUrls } = this.getChainMetadata(chainNameOrId);
+    if (!rpcUrls?.length || !rpcUrls[0].http)
+      throw new Error(`No RPC URl configured for ${chainNameOrId}`);
+    return rpcUrls[0].http;
+  }
+
+  /**
+   * Get a block explorer URL for a given chain name, chain id, or domain id
+   */
+  tryGetExplorerUrl(chainNameOrId: ChainName | number): string | null {
+    const explorers = this.tryGetChainMetadata(chainNameOrId)?.blockExplorers;
+    if (!explorers?.length) return null;
+    return explorers[0].url;
+  }
+
+  /**
+   * Get a block explorer URL for a given chain name, chain id, or domain id
+   * @throws if chain's metadata or block explorer data has no been set
+   */
+  getExplorerUrl(chainNameOrId: ChainName | number): string {
+    const url = this.tryGetExplorerUrl(chainNameOrId);
+    if (!url) throw new Error(`No explorer url set for ${chainNameOrId}`);
+    return url;
+  }
+
+  /**
+   * Get a block explorer's API URL for a given chain name, chain id, or domain id
+   */
+  tryGetExplorerApiUrl(chainNameOrId: ChainName | number): string | null {
+    const explorers = this.tryGetChainMetadata(chainNameOrId)?.blockExplorers;
+    if (!explorers?.length || !explorers[0].apiUrl) return null;
+    const { apiUrl, apiKey } = explorers[0];
+    if (!apiKey) return apiUrl;
+    const url = new URL(apiUrl);
+    url.searchParams.set('apikey', apiKey);
+    return url.toString();
+  }
+
+  /**
+   * Get a block explorer API URL for a given chain name, chain id, or domain id
+   * @throws if chain's metadata or block explorer data has no been set
+   */
+  getExplorerApiUrl(chainNameOrId: ChainName | number): string {
+    const url = this.tryGetExplorerApiUrl(chainNameOrId);
+    if (!url) throw new Error(`No explorer api url set for ${chainNameOrId}`);
+    return url;
+  }
+
+  /**
+   * Get a block explorer URL for given chain's tx
+   */
+  tryGetExplorerTxUrl(
+    chainNameOrId: ChainName | number,
+    response: { hash: string },
+  ): string | null {
+    const baseUrl = this.tryGetExplorerUrl(chainNameOrId);
+    return baseUrl ? `${baseUrl}/tx/${response.hash}` : null;
+  }
+
+  /**
+   * Get a block explorer URL for given chain's tx
+   * @throws if chain's metadata or block explorer data has no been set
+   */
+  getExplorerTxUrl(
+    chainNameOrId: ChainName | number,
+    response: { hash: string },
+  ): string {
+    return `${this.getExplorerUrl(chainNameOrId)}/tx/${response.hash}`;
+  }
+
+  /**
+   * Run given function on all known chains
+   */
+  mapKnownChains<Output>(fn: (n: ChainName) => Output): ChainMap<Output> {
+    const result: ChainMap<Output> = {};
+    for (const chain of this.getKnownChainNames()) {
+      result[chain] = fn(chain);
+    }
+    return result;
+  }
+}
+
+export class MultiProvider extends ReadOnlyMultiProvider {
+  protected signers: ChainMap<Signer> = {};
+  protected useSharedSigner = false; // A single signer to be used for all chains
+
+  override addChain(metadata: ChainMetadata): void {
+    super.addChain(metadata);
+    if (this.useSharedSigner) {
+      const signers = Object.values(this.signers);
+      if (signers.length > 0) {
+        this.setSharedSigner(signers[0]);
+      }
+    }
+  }
+
+  override setProvider(
+    chainNameOrId: ChainName | number,
+    provider: Provider,
+  ): Provider {
+    const chainName = this.getChainName(chainNameOrId);
+    this.providers[chainName] = provider;
+    const signer = this.signers[chainName];
+    if (signer && signer.provider) {
+      this.setSigner(chainName, signer.connect(provider));
+    }
+    return provider;
   }
 
   /**
@@ -428,88 +530,6 @@ export class MultiProvider {
   }
 
   /**
-   * Get chain names excluding given chain name
-   */
-  getRemoteChains(name: ChainName): ChainName[] {
-    return utils.exclude(name, this.getKnownChainNames());
-  }
-
-  /**
-   * Get an RPC URL for a given chain name, chain id, or domain id
-   * @throws if chain's metadata has not been set
-   */
-  getRpcUrl(chainNameOrId: ChainName | number): string {
-    const { rpcUrls } = this.getChainMetadata(chainNameOrId);
-    if (!rpcUrls?.length || !rpcUrls[0].http)
-      throw new Error(`No RPC URl configured for ${chainNameOrId}`);
-    return rpcUrls[0].http;
-  }
-
-  /**
-   * Get a block explorer URL for a given chain name, chain id, or domain id
-   */
-  tryGetExplorerUrl(chainNameOrId: ChainName | number): string | null {
-    const explorers = this.tryGetChainMetadata(chainNameOrId)?.blockExplorers;
-    if (!explorers?.length) return null;
-    return explorers[0].url;
-  }
-
-  /**
-   * Get a block explorer URL for a given chain name, chain id, or domain id
-   * @throws if chain's metadata or block explorer data has no been set
-   */
-  getExplorerUrl(chainNameOrId: ChainName | number): string {
-    const url = this.tryGetExplorerUrl(chainNameOrId);
-    if (!url) throw new Error(`No explorer url set for ${chainNameOrId}`);
-    return url;
-  }
-
-  /**
-   * Get a block explorer's API URL for a given chain name, chain id, or domain id
-   */
-  tryGetExplorerApiUrl(chainNameOrId: ChainName | number): string | null {
-    const explorers = this.tryGetChainMetadata(chainNameOrId)?.blockExplorers;
-    if (!explorers?.length || !explorers[0].apiUrl) return null;
-    const { apiUrl, apiKey } = explorers[0];
-    if (!apiKey) return apiUrl;
-    const url = new URL(apiUrl);
-    url.searchParams.set('apikey', apiKey);
-    return url.toString();
-  }
-
-  /**
-   * Get a block explorer API URL for a given chain name, chain id, or domain id
-   * @throws if chain's metadata or block explorer data has no been set
-   */
-  getExplorerApiUrl(chainNameOrId: ChainName | number): string {
-    const url = this.tryGetExplorerApiUrl(chainNameOrId);
-    if (!url) throw new Error(`No explorer api url set for ${chainNameOrId}`);
-    return url;
-  }
-
-  /**
-   * Get a block explorer URL for given chain's tx
-   */
-  tryGetExplorerTxUrl(
-    chainNameOrId: ChainName | number,
-    response: { hash: string },
-  ): string | null {
-    const baseUrl = this.tryGetExplorerUrl(chainNameOrId);
-    return baseUrl ? `${baseUrl}/tx/${response.hash}` : null;
-  }
-
-  /**
-   * Get a block explorer URL for given chain's tx
-   * @throws if chain's metadata or block explorer data has no been set
-   */
-  getExplorerTxUrl(
-    chainNameOrId: ChainName | number,
-    response: { hash: string },
-  ): string {
-    return `${this.getExplorerUrl(chainNameOrId)}/tx/${response.hash}`;
-  }
-
-  /**
    * Get a block explorer URL for given chain's address
    */
   async tryGetExplorerAddressUrl(
@@ -620,17 +640,6 @@ export class MultiProvider {
     const response = await signer.sendTransaction(txReq);
     this.logger(`Sent tx ${response.hash}`);
     return this.handleTx(chainNameOrId, response);
-  }
-
-  /**
-   * Run given function on all known chains
-   */
-  mapKnownChains<Output>(fn: (n: ChainName) => Output): ChainMap<Output> {
-    const result: ChainMap<Output> = {};
-    for (const chain of this.getKnownChainNames()) {
-      result[chain] = fn(chain);
-    }
-    return result;
   }
 
   /**

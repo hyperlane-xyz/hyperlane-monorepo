@@ -59,3 +59,7 @@ export function convertDecimalValue(
     return value.mul(10 ** (toDecimals - fromDecimals));
   }
 }
+
+export function isNumeric(value: string | number) {
+  return typeof value === 'number' || /^\d+$/.test(value);
+}

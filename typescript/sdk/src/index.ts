@@ -147,14 +147,41 @@ export {
 } from './middleware/query/InterchainQueryDeployer';
 export { interchainQueryFactories } from './middleware/query/contracts';
 export {
+  MultiProtocolProvider,
+  MultiProtocolProviderOptions,
+} from './providers/MultiProtocolProvider';
+export {
   MultiProvider,
-  ProviderBuilderFn,
-  defaultProviderBuilder,
+  MultiProviderOptions,
+  ReadOnlyMultiProvider,
 } from './providers/MultiProvider';
+export {
+  EthersV5Provider,
+  EthersV6Provider,
+  ProviderMap,
+  ProviderType,
+  SolanaWeb3Provider,
+  TypedProvider,
+  ViemProvider,
+} from './providers/ProviderType';
 export {
   RetryJsonRpcProvider,
   RetryProviderOptions,
 } from './providers/RetryProvider';
+export {
+  DEFAULT_RETRY_OPTIONS,
+  ProviderBuilderFn,
+  ProviderBuilderMap,
+  TypedProviderBuilderFn,
+  defaultEthersV5ProviderBuilder,
+  defaultEthersV6ProviderBuilder,
+  defaultFuelProviderBuilder,
+  defaultProviderBuilder,
+  defaultProviderBuilderMap,
+  defaultSolProviderBuilder,
+  defaultViemProviderBuilder,
+  protocolToDefaultProviderBuilder,
+} from './providers/providerBuilders';
 export { GasRouterDeployer } from './router/GasRouterDeployer';
 export { HyperlaneRouterChecker } from './router/HyperlaneRouterChecker';
 export { HyperlaneRouterDeployer } from './router/HyperlaneRouterDeployer';
@@ -184,6 +211,7 @@ export {
   bigToFixed,
   convertDecimalValue,
   fixedToBig,
+  isNumeric,
   mulBigAndFixed,
 } from './utils/number';
 export {
