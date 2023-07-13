@@ -101,8 +101,10 @@ export {
   AgentSigner,
   ChainMetadataForAgent,
   ChainMetadataForAgentSchema,
+  CombinedAgentConfig,
   buildAgentConfig,
   buildAgentConfigDeprecated,
+  buildAgentConfigNew,
 } from './metadata/agentConfig';
 export {
   ChainMetadata,
