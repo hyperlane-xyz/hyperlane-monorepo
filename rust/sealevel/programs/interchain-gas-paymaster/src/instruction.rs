@@ -5,6 +5,7 @@ use solana_program::pubkey::Pubkey;
 
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub enum Instruction {
+    Init,
     InitIgp(InitIgp),
     PayForGas(PayForGas),
     QuoteGasPayment(QuoteGasPayment),

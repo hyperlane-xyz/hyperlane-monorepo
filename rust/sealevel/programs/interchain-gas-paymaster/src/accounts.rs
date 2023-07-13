@@ -30,6 +30,13 @@ pub struct ProgramData {
     pub payment_count: u64,
 }
 
+impl SizedData for ProgramData {
+    fn size(&self) -> usize {
+        // 8 for payment_count
+        8
+    }
+}
+
 pub type ProgramDataAccount = AccountData<ProgramData>;
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]

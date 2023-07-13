@@ -38,6 +38,9 @@ pub fn process_instruction(
     instruction_data: &[u8],
 ) -> ProgramResult {
     match IgpInstruction::try_from_slice(instruction_data)? {
+        IgpInstruction::Init => {
+            init(program_id, accounts)?;
+        }
         IgpInstruction::InitIgp(data) => {
             init_igp(program_id, accounts, data)?;
         }
@@ -48,6 +51,58 @@ pub fn process_instruction(
             quote_gas_payment(program_id, accounts, payment)?;
         }
     }
+
+    Ok(())
+}
+
+/// Initializes the program.
+///
+/// Accounts:
+/// 0. [executable] The system program.
+/// 1. [signer] The payer account.
+/// 2. [writeable] The program data account.
+fn init(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: The system program.
+    let system_program_info = next_account_info(accounts_iter)?;
+    if *system_program_info.key != solana_program::system_program::id() {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    // Account 1: The payer account.
+    let payer_info = next_account_info(accounts_iter)?;
+    if !payer_info.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+
+    // Account 2: The program data account.
+    let program_data_info = next_account_info(accounts_iter)?;
+    verify_account_uninitialized(program_data_info)?;
+    let (program_data_key, program_data_bump) =
+        Pubkey::find_program_address(igp_program_data_pda_seeds!(), program_id);
+    if *program_data_info.key != program_data_key {
+        return Err(ProgramError::InvalidSeeds);
+    }
+
+    let program_data_account = ProgramDataAccount::from(ProgramData { payment_count: 0 });
+    // Create the program data PDA account.
+    let program_data_account_size = program_data_account.size();
+
+    let rent = Rent::get()?;
+
+    create_pda_account(
+        payer_info,
+        &rent,
+        program_data_account_size,
+        program_id,
+        system_program_info,
+        program_data_info,
+        igp_program_data_pda_seeds!(program_data_bump),
+    )?;
+
+    // Store the program data.
+    program_data_account.store(program_data_info, false)?;
 
     Ok(())
 }
