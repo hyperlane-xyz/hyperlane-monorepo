@@ -153,8 +153,6 @@ main() {
 
     # build the SPL token CLI
     build_spl_token_cli
-    # copy the keys into the deploy dir
-    cp ${TEST_KEYS_DIR}/*.json ${TARGET_DIR}/deploy/
 
     "${BIN_DIR}/hyperlane-sealevel-client" --compute-budget 200000 -k "${KEYPAIR}" core deploy --local-domain "${CHAIN_ID}" --environment local-e2e --use-existing-keys --environments-dir "${SEALEVEL_DIR}/environments" --built-so-dir "${DEPLOY_DIR}" --chain sealeveltest1
     "${BIN_DIR}/hyperlane-sealevel-client" --compute-budget 200000 -k "${KEYPAIR}" core deploy --local-domain "${REMOTE_CHAIN_ID}" --environment local-e2e --use-existing-keys --environments-dir "${SEALEVEL_DIR}/environments" --built-so-dir "${DEPLOY_DIR}" --chain sealeveltest2
