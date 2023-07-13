@@ -16,16 +16,19 @@ use solana_program::{
 };
 
 use account_utils::{
-    create_pda_account, verify_account_uninitialized, verify_rent_exempt, SizedData,
+    create_pda_account, verify_account_uninitialized, verify_rent_exempt, AccountData, SizedData,
 };
 
 use crate::{
     accounts::{
-        GasPayment, GasPaymentAccount, IgpAccount, IgpData, OverheadIgp, OverheadIgpAccount,
+        GasPayment, GasPaymentAccount, Igp, IgpAccount, OverheadIgp, OverheadIgpAccount,
         ProgramData, ProgramDataAccount,
     },
     igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
-    instruction::{InitIgp, Instruction as IgpInstruction, PayForGas, QuoteGasPayment},
+    instruction::{
+        InitIgp, InitOverheadIgp, Instruction as IgpInstruction, PayForGas, QuoteGasPayment,
+    },
+    overhead_igp_pda_seeds,
 };
 
 #[cfg(not(feature = "no-entrypoint"))]
@@ -43,6 +46,9 @@ pub fn process_instruction(
         }
         IgpInstruction::InitIgp(data) => {
             init_igp(program_id, accounts, data)?;
+        }
+        IgpInstruction::InitOverheadIgp(data) => {
+            init_overhead_igp(program_id, accounts, data)?;
         }
         IgpInstruction::PayForGas(payment) => {
             pay_for_gas(program_id, accounts, payment)?;
@@ -114,53 +120,19 @@ fn init(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
 /// 1. [signer] The payer account and owner of the IGP account.
 /// 2. [writeable] The IGP account to initialize.
 fn init_igp(program_id: &Pubkey, accounts: &[AccountInfo], data: InitIgp) -> ProgramResult {
-    let accounts_iter = &mut accounts.iter();
-
-    // Account 0: The system program.
-    let system_program_info = next_account_info(accounts_iter)?;
-    if *system_program_info.key != solana_program::system_program::id() {
-        return Err(ProgramError::IncorrectProgramId);
-    }
-
-    // Account 1: The payer account and owner of the IGP account.
-    let payer_info = next_account_info(accounts_iter)?;
-    if !payer_info.is_signer {
-        return Err(ProgramError::MissingRequiredSignature);
-    }
-
-    // Account 2: The IGP account to initialize.
-    let igp_info = next_account_info(accounts_iter)?;
-    verify_account_uninitialized(igp_info)?;
-    let (igp_key, igp_bump) = Pubkey::find_program_address(igp_pda_seeds!(data.salt), program_id);
-    if *igp_info.key != igp_key {
-        return Err(ProgramError::InvalidSeeds);
-    }
-
-    let igp_account = IgpAccount::from(IgpData {
-        salt: data.salt,
-        owner: Some(*payer_info.key),
-        beneficiary: data.beneficiary,
-        ..IgpData::default()
-    });
-
-    let igp_account_size = igp_account.size();
-
-    let rent = Rent::get()?;
-
-    create_pda_account(
-        payer_info,
-        &rent,
-        igp_account_size,
+    let igp_key = init_igp_variant(
         program_id,
-        system_program_info,
-        igp_info,
-        igp_pda_seeds!(data.salt, igp_bump),
+        accounts,
+        |owner| Igp {
+            salt: data.salt,
+            owner: Some(owner),
+            beneficiary: data.beneficiary,
+            ..Igp::default()
+        },
+        igp_pda_seeds!(data.salt),
     )?;
 
-    // Store the IGP account.
-    igp_account.store(igp_info, false)?;
-
-    msg!("Initialized IGP: {}", igp_info.key);
+    msg!("Initialized IGP: {}", igp_key);
 
     Ok(())
 }
@@ -170,8 +142,35 @@ fn init_igp(program_id: &Pubkey, accounts: &[AccountInfo], data: InitIgp) -> Pro
 /// Accounts:
 /// 0. [executable] The system program.
 /// 1. [signer] The payer account and owner of the IGP account.
-/// 2. [signer, writeable] The IGP account to initialize.
-fn init_overhead_igp(program_id: &Pubkey, accounts: &[AccountInfo], data: InitIgp) -> ProgramResult {
+/// 2. [signer, writeable] The Overhead IGP account to initialize.
+fn init_overhead_igp(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    data: InitOverheadIgp,
+) -> ProgramResult {
+    let igp_key = init_igp_variant(
+        program_id,
+        accounts,
+        |owner| OverheadIgp {
+            salt: data.salt,
+            owner: Some(owner),
+            inner: data.inner,
+            ..OverheadIgp::default()
+        },
+        overhead_igp_pda_seeds!(data.salt),
+    )?;
+
+    msg!("Initialized Overhead IGP: {}", igp_key);
+
+    Ok(())
+}
+
+fn init_igp_variant<T: account_utils::Data + account_utils::SizedData>(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    get_data: impl FnOnce(Pubkey) -> T,
+    pda_seeds: &[&[u8]],
+) -> Result<Pubkey, ProgramError> {
     let accounts_iter = &mut accounts.iter();
 
     // Account 0: The system program.
@@ -186,20 +185,15 @@ fn init_overhead_igp(program_id: &Pubkey, accounts: &[AccountInfo], data: InitIg
         return Err(ProgramError::MissingRequiredSignature);
     }
 
-    // Account 2: The IGP account to initialize.
+    // Account 2: The Overhead IGP account to initialize.
     let igp_info = next_account_info(accounts_iter)?;
     verify_account_uninitialized(igp_info)?;
-    let (igp_key, igp_bump) = Pubkey::find_program_address(igp_pda_seeds!(data.salt), program_id);
+    let (igp_key, igp_bump) = Pubkey::find_program_address(pda_seeds, program_id);
     if *igp_info.key != igp_key {
         return Err(ProgramError::InvalidSeeds);
     }
 
-    let igp_account = IgpAccount::from(IgpData {
-        salt: data.salt,
-        owner: Some(*payer_info.key),
-        beneficiary: data.beneficiary,
-        ..IgpData::default()
-    });
+    let igp_account = AccountData::<T>::from(get_data(*payer_info.key));
 
     let igp_account_size = igp_account.size();
 
@@ -212,15 +206,13 @@ fn init_overhead_igp(program_id: &Pubkey, accounts: &[AccountInfo], data: InitIg
         program_id,
         system_program_info,
         igp_info,
-        igp_pda_seeds!(data.salt, igp_bump),
+        &[pda_seeds, &[&[igp_bump]]].concat(),
     )?;
 
     // Store the IGP account.
     igp_account.store(igp_info, false)?;
 
-    msg!("Initialized IGP: {}", igp_info.key);
-
-    Ok(())
+    Ok(*igp_info.key)
 }
 
 /// Pay for gas.

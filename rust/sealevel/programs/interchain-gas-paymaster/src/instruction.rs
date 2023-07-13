@@ -7,6 +7,7 @@ use solana_program::pubkey::Pubkey;
 pub enum Instruction {
     Init,
     InitIgp(InitIgp),
+    InitOverheadIgp(InitOverheadIgp),
     PayForGas(PayForGas),
     QuoteGasPayment(QuoteGasPayment),
 }
@@ -16,6 +17,13 @@ pub struct InitIgp {
     pub salt: H256,
     pub owner: Option<Pubkey>,
     pub beneficiary: Pubkey,
+}
+
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+pub struct InitOverheadIgp {
+    pub salt: H256,
+    pub owner: Option<Pubkey>,
+    pub inner: Pubkey,
 }
 
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
