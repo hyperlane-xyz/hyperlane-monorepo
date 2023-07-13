@@ -90,6 +90,7 @@ export function attachContractsMap<F extends HyperlaneFactories>(
   factories: F,
 ): HyperlaneContractsMap<F> {
   const filteredAddressesMap = filterAddressesMap(addressesMap, factories);
+  console.log('attachContractsMap: filteredAddressesMap', filteredAddressesMap);
   return objMap(filteredAddressesMap, (_, addresses) =>
     attachContracts(addresses, factories),
   ) as HyperlaneContractsMap<F>;
@@ -144,16 +145,15 @@ export function appFromAddressesMapHelper<F extends HyperlaneFactories>(
   // addresses
 
   const contractsMap = attachContractsMap(addressesMap, factories);
-  console.log('contractsMap', contractsMap);
+  console.log('HELPER: contractsMap', factories);
 
   // Filters out providers for chains for which we don't have a complete set
   // of addresses
   const intersection = multiProvider.intersect(Object.keys(contractsMap));
-  console.log('intersection', intersection);
+  console.log('HELPER: intersection', intersection);
 
   // Filters out contracts for chains for which we don't have a provider
   const filteredContractsMap = pick(contractsMap, intersection.intersection);
-  console.log('filteredContractsMap', filteredContractsMap);
 
   return {
     contractsMap: filteredContractsMap,

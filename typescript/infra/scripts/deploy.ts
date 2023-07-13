@@ -23,6 +23,7 @@ import { TestRecipientDeployer } from '../src/deployment/testcontracts/testrecip
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 import { readJSON } from '../src/utils/utils';
 
+import { hyperlaneRCEnvironments } from './consts/rc-environments';
 import {
   Modules,
   SDK_MODULES,
@@ -109,8 +110,8 @@ async function main() {
     }));
     deployer = new TestQuerySenderDeployer(multiProvider, igp);
   } else if (module === Modules.HELLO_WORLD) {
-    const ismFactory = HyperlaneIsmFactory.fromEnvironment(
-      deployEnvToSdkEnv[environment],
+    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
+      hyperlaneRCEnvironments.testnet,
       multiProvider,
     );
     config = await getRCConnectionClientConfig(environment, multiProvider);

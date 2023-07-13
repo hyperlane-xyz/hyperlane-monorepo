@@ -19,6 +19,7 @@ export class HelloWorldDeployer extends HyperlaneRouterDeployer<
     multiProvider: MultiProvider,
     readonly ismFactory?: HyperlaneIsmFactory,
   ) {
+    console.log('HelloWorldDeployer constructor', ismFactory);
     super(multiProvider, helloWorldFactories, ismFactory, {});
   }
 

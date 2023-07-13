@@ -184,7 +184,7 @@ export abstract class HyperlaneDeployer<
           (await connectionClient.interchainSecurityModule())
       ) {
         this.logger(`Set interchain security module on ${local}`);
-        this.logger(`"ismFactory" ${this.ismFactory}`);
+        this.logger(`"ismFactory" ${JSON.stringify(this.ismFactory)}`);
         if (typeof config.interchainSecurityModule === 'string') {
           await this.multiProvider.handleTx(
             local,

@@ -42,6 +42,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     multiProvider: MultiProvider,
   ): HyperlaneIsmFactory {
     const envAddresses = hyperlaneEnvironments[env];
+    console.log('ENV ADDRESSES: ', envAddresses);
     if (!envAddresses) {
       throw new Error(`No addresses found for ${env}`);
     }
