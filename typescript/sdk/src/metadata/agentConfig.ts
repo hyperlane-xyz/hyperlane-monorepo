@@ -54,30 +54,6 @@ export const ChainMetadataForAgentSchema =
 
 export type ChainMetadataForAgent = z.infer<typeof ChainMetadataForAgentSchema>;
 
-export function buildAgentConfig(
-  chains: ChainName[],
-  multiProvider: MultiProvider,
-  addresses: ChainMap<HyperlaneDeploymentArtifacts>,
-  startBlocks: ChainMap<number>,
-): ChainMap<ChainMetadataForAgent> {
-  const configs: ChainMap<ChainMetadataForAgent> = {};
-  for (const chain of [...chains].sort()) {
-    const metadata = multiProvider.getChainMetadata(chain);
-    const config: ChainMetadataForAgent = {
-      ...metadata,
-      rpcConsensusType: AgentConnectionType.HttpFallback,
-      mailbox: addresses[chain].mailbox,
-      interchainGasPaymaster: addresses[chain].interchainGasPaymaster,
-      validatorAnnounce: addresses[chain].validatorAnnounce,
-      index: {
-        from: startBlocks[chain],
-      },
-    };
-    configs[chain] = config;
-  }
-  return configs;
-}
-
 /**
  * Deprecated agent config shapes.
  * See https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/2215
@@ -118,6 +94,36 @@ export interface AgentConfig {
   };
 }
 
+/**
+ * Utilities for generating agent configs from metadata / artifacts.
+ */
+
+// Returns the new agent config shape that extends ChainMetadata
+export function buildAgentConfigNew(
+  chains: ChainName[],
+  multiProvider: MultiProvider,
+  addresses: ChainMap<HyperlaneDeploymentArtifacts>,
+  startBlocks: ChainMap<number>,
+): ChainMap<ChainMetadataForAgent> {
+  const configs: ChainMap<ChainMetadataForAgent> = {};
+  for (const chain of [...chains].sort()) {
+    const metadata = multiProvider.getChainMetadata(chain);
+    const config: ChainMetadataForAgent = {
+      ...metadata,
+      rpcConsensusType: AgentConnectionType.HttpFallback,
+      mailbox: addresses[chain].mailbox,
+      interchainGasPaymaster: addresses[chain].interchainGasPaymaster,
+      validatorAnnounce: addresses[chain].validatorAnnounce,
+      index: {
+        from: startBlocks[chain],
+      },
+    };
+    configs[chain] = config;
+  }
+  return configs;
+}
+
+// Returns the current (but deprecated) agent config shape.
 export function buildAgentConfigDeprecated(
   chains: ChainName[],
   multiProvider: MultiProvider,
@@ -149,4 +155,25 @@ export function buildAgentConfigDeprecated(
     agentConfig.chains[chain] = chainConfig;
   }
   return agentConfig;
+}
+
+// For compat with the older agent config shape, we return a combination
+// of the two schemas (ChainMap<ChainMetadataForAgent> & AgentConfig).
+export type CombinedAgentConfig = ChainMap<ChainMetadataForAgent> | AgentConfig;
+
+export function buildAgentConfig(
+  chains: ChainName[],
+  multiProvider: MultiProvider,
+  addresses: ChainMap<HyperlaneDeploymentArtifacts>,
+  startBlocks: ChainMap<number>,
+): CombinedAgentConfig {
+  return {
+    ...buildAgentConfigNew(chains, multiProvider, addresses, startBlocks),
+    ...buildAgentConfigDeprecated(
+      chains,
+      multiProvider,
+      addresses,
+      startBlocks,
+    ),
+  };
 }

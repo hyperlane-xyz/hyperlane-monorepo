@@ -50,7 +50,10 @@ export async function deployWithArtifacts<Config>(
 
   try {
     if (fork) {
-      await deployer.deployContracts(fork, configMap[fork]);
+      deployer.deployedContracts[fork] = await deployer.deployContracts(
+        fork,
+        configMap[fork],
+      );
     } else {
       await deployer.deploy(configMap);
     }
