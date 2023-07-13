@@ -11,6 +11,7 @@ pub struct SealevelProvider {
 }
 
 impl SealevelProvider {
+    /// Create a new Sealevel provider.
     pub fn new(domain: HyperlaneDomain) -> Self {
         SealevelProvider { domain }
     }

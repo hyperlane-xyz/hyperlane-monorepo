@@ -1,8 +1,7 @@
 //! Implementation of hyperlane for Sealevel.
 
 #![forbid(unsafe_code)]
-// FIXME
-// #![warn(missing_docs)]
+#![warn(missing_docs)]
 #![deny(warnings)]
 
 pub use crate::multisig_ism::*;
