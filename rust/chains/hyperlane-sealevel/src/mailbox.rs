@@ -528,7 +528,7 @@ impl Mailbox for SealevelMailbox {
         Ok(TxOutcome {
             txid,
             executed,
-            // TODO use correct data
+            // TODO use correct data upon integrating IGP support
             gas_price: U256::zero(),
             gas_used: U256::zero(),
         })
@@ -540,7 +540,7 @@ impl Mailbox for SealevelMailbox {
         _message: &HyperlaneMessage,
         _metadata: &[u8],
     ) -> ChainResult<TxCostEstimate> {
-        // FIXME do something real
+        // TODO use correct data upon integrating IGP support
         Ok(TxCostEstimate {
             gas_limit: U256::zero(),
             gas_price: U256::zero(),
@@ -676,7 +676,7 @@ impl SealevelMailboxIndexer {
             LogMeta {
                 address: self.mailbox.program_id.to_bytes().into(),
                 block_number: dispatched_message_account.slot,
-                // TODO real values?
+                // TODO: get these when building out scraper support.
                 // It's inconvenient to get these :|
                 block_hash: H256::zero(),
                 transaction_hash: H256::zero(),
