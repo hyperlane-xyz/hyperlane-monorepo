@@ -637,9 +637,7 @@ impl ChainConf {
         })
     }
 
-    async fn sealevel_signer(
-        &self,
-    ) -> Result<Option<h_sealevel::solana::signer::keypair::Keypair>> {
+    async fn sealevel_signer(&self) -> Result<Option<h_sealevel::Keypair>> {
         self.signer().await
     }
 
@@ -660,7 +658,7 @@ impl ChainConf {
 
         if let Some(signer) = signer {
             cfg.wallets
-                .entry(signer.eth_address())
+                .entry(signer.eth_address().into())
                 .or_insert_with(|| WalletInfo {
                     name: Some(agent_name.into()),
                 });

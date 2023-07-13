@@ -1,14 +1,15 @@
 use async_trait::async_trait;
+use tracing::{info, instrument, warn};
 
 use hyperlane_core::{
     Announcement, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, SignedType, TxOutcome, ValidatorAnnounce, H160, H256, U256,
 };
-use tracing::{info, instrument, warn};
+use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey};
 
-use crate::{
-    solana::{commitment_config::CommitmentConfig, pubkey::Pubkey},
-    validator_storage_locations_pda_seeds, ConnectionConf, RpcClientWithDebug,
+use crate::{ConnectionConf, RpcClientWithDebug};
+use hyperlane_sealevel_validator_announce::{
+    accounts::ValidatorStorageLocationsAccount, validator_storage_locations_pda_seeds,
 };
 
 /// A reference to a ValidatorAnnounce contract on some Sealevel chain
@@ -86,9 +87,7 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
             .map(|account| {
                 account
                     .map(|account| {
-                        match contract::ValidatorStorageLocationsAccount::fetch(
-                            &mut &account.data[..],
-                        ) {
+                        match ValidatorStorageLocationsAccount::fetch(&mut &account.data[..]) {
                             Ok(v) => v.into_inner().storage_locations,
                             Err(err) => {
                                 // If there's an error parsing the account, gracefully return an empty list
@@ -126,48 +125,5 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
             gas_used: U256::zero(),
             gas_price: U256::zero(),
         })
-    }
-}
-
-// Copied from the validator-announce contract
-mod contract {
-    use crate::mailbox::contract::AccountData;
-    use borsh::{BorshDeserialize, BorshSerialize};
-
-    /// An account that holds a validator's announced storage locations.
-    /// It is a PDA based off the validator's address, and can therefore
-    /// hold up to 10 KiB of data.
-    pub type ValidatorStorageLocationsAccount = AccountData<ValidatorStorageLocations>;
-
-    /// Storage locations for a validator.
-    #[derive(BorshSerialize, BorshDeserialize, Debug, Default, Clone, PartialEq, Eq)]
-    pub struct ValidatorStorageLocations {
-        pub bump_seed: u8,
-        pub storage_locations: Vec<String>,
-    }
-
-    /// PDA seeds for validator-specific ValidatorStorageLocations accounts.
-    #[macro_export]
-    macro_rules! validator_storage_locations_pda_seeds {
-        ($validator_h160:expr) => {{
-            &[
-                b"hyperlane_validator_announce",
-                b"-",
-                b"storage_locations",
-                b"-",
-                $validator_h160.as_bytes(),
-            ]
-        }};
-
-        ($validator_h160:expr, $bump_seed:expr) => {{
-            &[
-                b"hyperlane_validator_announce",
-                b"-",
-                b"storage_locations",
-                b"-",
-                $validator_h160.as_bytes(),
-                &[$bump_seed],
-            ]
-        }};
     }
 }

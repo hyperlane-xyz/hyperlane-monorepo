@@ -1,3 +1,5 @@
+cargo-features = ["workspace-inheritance"]
+
 [package]
 name = "hyperlane-sealevel-igp"
 version = "0.1.0"
@@ -8,7 +10,7 @@ no-entrypoint = []
 no-spl-noop = []
 
 [dependencies]
-hyperlane-core = { path = "../../hyperlane-core" }
+hyperlane-core = { path = "../../../hyperlane-core" }
 borsh = "0.9"
 solana-program = "=1.14.13"
 access-control = { path = "../../libraries/access-control" }
@@ -17,6 +19,7 @@ serializable-account-meta = { path = "../../libraries/serializable-account-meta"
 num-derive = "0.3"
 num-traits = "0.2"
 thiserror = "1.0"
+getrandom.workspace = true
 
 [dev-dependencies]
 

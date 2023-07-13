@@ -6,7 +6,8 @@ use hyperlane_core::{
 };
 use tracing::{info, instrument};
 
-use crate::{solana::pubkey::Pubkey, ConnectionConf, SealevelProvider};
+use crate::{ConnectionConf, SealevelProvider};
+use solana_sdk::pubkey::Pubkey;
 
 /// A reference to an IGP contract on some Sealevel chain
 #[derive(Debug)]

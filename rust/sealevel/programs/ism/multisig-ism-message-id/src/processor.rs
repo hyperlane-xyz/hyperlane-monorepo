@@ -1,11 +1,10 @@
-use hyperlane_core::{Checkpoint, CheckpointWithMessageId, Decode, HyperlaneMessage, IsmType};
+use hyperlane_core::{Checkpoint, CheckpointWithMessageId, Decode, HyperlaneMessage, ModuleType};
 
 use access_control::AccessControl;
 use account_utils::{create_pda_account, DiscriminatorDecode, SizedData};
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
-    entrypoint,
     entrypoint::ProgramResult,
     instruction::AccountMeta,
     program::set_return_data,
@@ -27,10 +26,10 @@ use multisig_ism::{interface::MultisigIsmInstruction, multisig::MultisigIsm};
 
 use borsh::BorshSerialize;
 
-const ISM_TYPE: IsmType = IsmType::MessageIdMultisig;
+const ISM_TYPE: ModuleType = ModuleType::MessageIdMultisig;
 
 #[cfg(not(feature = "no-entrypoint"))]
-entrypoint!(process_instruction);
+solana_program::entrypoint!(process_instruction);
 
 /// PDA seeds relating to the access control PDA account.
 #[macro_export]
