@@ -24,8 +24,8 @@ pub enum ModuleType {
     MerkleRootMultisig,
     /// Message ID ISM (cheapest multisig with no batching)
     MessageIdMultisig,
-    /// TODO: document
-    Optimism,
+    /// No metadata ISM (no metadata)
+    Null,
     /// Ccip Read ISM (accepts offchain signature information)
     CcipRead,
 }

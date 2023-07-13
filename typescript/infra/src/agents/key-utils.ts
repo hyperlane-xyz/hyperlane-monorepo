@@ -19,20 +19,39 @@ interface KeyAsAddress {
   address: string;
 }
 
+export function getRelayerCloudAgentKeys(
+  agentConfig: AgentContextConfig,
+): Array<CloudAgentKey> {
+  if (!agentConfig.aws) {
+    return [
+      new AgentGCPKey(agentConfig.runEnv, agentConfig.context, Role.Relayer),
+    ];
+  }
+
+  const keys = [];
+  keys.push(new AgentAwsKey(agentConfig, Role.Relayer));
+  let nonEthereumChains = agentConfig.contextChainNames.find(
+    (chainName) => chainMetadata[chainName].protocol !== ProtocolType.Ethereum,
+  );
+  // If there are any non-ethereum chains, we also want hex keys.
+  if (nonEthereumChains) {
+    keys.push(
+      new AgentGCPKey(agentConfig.runEnv, agentConfig.context, Role.Relayer),
+    );
+  }
+  return keys;
+}
+
+// If getting all keys for relayers or validators, it's recommended to use
+// `getRelayerCloudAgentKeys` or `getValidatorCloudAgentKeys` instead.
 export function getCloudAgentKey(
   agentConfig: AgentContextConfig,
   role: Role,
   chainName?: ChainName,
   index?: number,
 ): CloudAgentKey {
-  let isAws = !!agentConfig.aws;
   // The deployer is always GCP-based
-  isAws = isAws && role !== Role.Deployer;
-  const isSealevel =
-    !!chainName && chainMetadata[chainName].protocol === ProtocolType.Sealevel;
-  // Sealevel chains should use GCP-based hex keys for relayers
-  isAws = isAws && !(isSealevel && role == Role.Relayer);
-  if (isAws) {
+  if (!!agentConfig.aws && role !== Role.Deployer) {
     return new AgentAwsKey(agentConfig, role, chainName, index);
   } else {
     return new AgentGCPKey(
@@ -63,7 +82,7 @@ export function getAllCloudAgentKeys(
 ): Array<CloudAgentKey> {
   const keys = [];
   if ((agentConfig.rolesWithKeys ?? []).includes(Role.Relayer))
-    keys.push(getCloudAgentKey(agentConfig, Role.Relayer));
+    keys.push(...getRelayerCloudAgentKeys(agentConfig));
   if ((agentConfig.rolesWithKeys ?? []).includes(Role.Validator))
     keys.push(...getValidatorCloudAgentKeys(agentConfig));
   for (const role of agentConfig.rolesWithKeys) {

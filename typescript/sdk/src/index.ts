@@ -1,26 +1,9 @@
 export { HyperlaneApp } from './HyperlaneApp';
 export {
-  AgentChainSetup,
-  AgentConfig,
-  AgentConnection,
-  AgentConnectionType,
-  AgentSigner,
-  HyperlaneAgentAddresses,
-  buildAgentConfig,
-} from './agents/types';
-export {
-  ChainMetadata,
-  ChainMetadataSchema,
-  ExplorerFamily,
-  ExplorerFamilyType,
-  ProtocolType,
-  RpcPaginationOptions,
   chainIdToMetadata,
   chainMetadata,
-  isValidChainMetadata,
   mainnetChainsMetadata,
   testnetChainsMetadata,
-  wagmiChainMetadata,
 } from './consts/chainMetadata';
 export {
   AllChains,
@@ -87,6 +70,13 @@ export {
   IgpViolationType,
   OverheadIgpConfig,
 } from './gas/types';
+export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer';
+export {
+  HookConfig,
+  HookContractType,
+  MessageHookConfig,
+  NoMetadataIsmConfig,
+} from './hook/types';
 export {
   HyperlaneIsmFactory,
   collectValidators,
@@ -100,6 +90,37 @@ export {
   MultisigIsmConfig,
   RoutingIsmConfig,
 } from './ism/types';
+export {
+  AgentChainSetup,
+  AgentChainSetupBase,
+  AgentConfig,
+  AgentConnection,
+  AgentConnectionType,
+  AgentMetadataExtSchema,
+  AgentMetadataExtension,
+  AgentSigner,
+  ChainMetadataForAgent,
+  ChainMetadataForAgentSchema,
+  buildAgentConfig,
+  buildAgentConfigDeprecated,
+} from './metadata/agentConfig';
+export {
+  ChainMetadata,
+  ChainMetadataSchema,
+  ExplorerFamily,
+  ExplorerFamilyValue,
+  ProtocolSmallestUnit,
+  ProtocolType,
+  ProtocolTypeValue,
+  getDomainId,
+  isValidChainMetadata,
+} from './metadata/chainMetadataTypes';
+export {
+  ChainMetadataWithArtifacts,
+  ChainMetadataWithArtifactsSchema,
+  HyperlaneDeploymentArtifacts,
+  HyperlaneDeploymentArtifactsSchema,
+} from './metadata/deploymentArtifacts';
 export { InterchainAccount } from './middleware/account/InterchainAccount';
 export { InterchainAccountChecker } from './middleware/account/InterchainAccountChecker';
 export {
@@ -139,6 +160,7 @@ export { GasRouterApp, Router, RouterApp } from './router/RouterApps';
 export {
   ConnectionClientViolation,
   ConnectionClientViolationType,
+  GasConfig,
   GasRouterConfig,
   RouterConfig,
 } from './router/types';
@@ -163,6 +185,7 @@ export {
   mulBigAndFixed,
 } from './utils/number';
 export {
+  filterByChains,
   objFilter,
   objMap,
   objMapEntries,
@@ -171,4 +194,4 @@ export {
   promiseObjAll,
 } from './utils/objects';
 export { delay } from './utils/time';
-export { chainMetadataToWagmiChain } from './utils/wagmi';
+export { chainMetadataToWagmiChain, wagmiChainMetadata } from './utils/wagmi';

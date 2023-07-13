@@ -110,9 +110,11 @@ async function check() {
         'actual',
         'expected',
       ]);
-      throw new Error(
-        `Checking ${module} deploy yielded ${violations.length} violations`,
-      );
+      if (!fork) {
+        throw new Error(
+          `Checking ${module} deploy yielded ${violations.length} violations`,
+        );
+      }
     } else {
       console.info(`${module} Checker found no violations`);
     }
