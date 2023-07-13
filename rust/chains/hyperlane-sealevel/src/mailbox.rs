@@ -701,7 +701,7 @@ impl MessageIndexer for SealevelMailboxIndexer {
 #[async_trait]
 impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
     async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
-        let IndexRange::Blocks(from, to) = range else {
+        let IndexRange::Sequences(from, to) = range else {
             return Err(ChainCommunicationError::from_other_str(
                 "SealevelMailboxIndexer only supports sequence-based indexing",
             ))

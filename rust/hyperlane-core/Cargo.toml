@@ -13,6 +13,7 @@ version.workspace = true
 async-trait.workspace = true
 auto_impl = "1.0"
 borsh.workspace = true
+bs58.workspace = true
 bytes = { version = "1", features = ["serde"] }
 convert_case = "0.6"
 derive-new.workspace = true
