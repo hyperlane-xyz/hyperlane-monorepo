@@ -701,13 +701,10 @@ impl MessageIndexer for SealevelMailboxIndexer {
 #[async_trait]
 impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
     async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
-        let (from, to) = match range {
-            IndexRange::Blocks(from, to) => {
-                return Err(ChainCommunicationError::from_other_str(
-                    "SealevelMailboxIndexer does not support block-based indexing",
-                ))
-            }
-            IndexRange::Sequences(from, to) => (from, to),
+        let IndexRange::Blocks(from, to) = range else {
+            return Err(ChainCommunicationError::from_other_str(
+                "SealevelMailboxIndexer only supports sequence-based indexing",
+            ))
         };
 
         tracing::info!(

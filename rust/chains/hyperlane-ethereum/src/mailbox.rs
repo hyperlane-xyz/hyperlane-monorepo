@@ -131,13 +131,10 @@ where
 
     #[instrument(err, skip(self))]
     async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
-        let (from, to) = match range {
-            IndexRange::Blocks(from, to) => (from, to),
-            IndexRange::Sequences(_, _) => {
-                return Err(ChainCommunicationError::from_other_str(
-                    "EthereumMailboxIndexer does not support sequence-based indexing",
-                ))
-            }
+        let IndexRange::Blocks(from, to) = range else {
+            return Err(ChainCommunicationError::from_other_str(
+                "EthereumMailboxIndexer only supports block-based indexing",
+            ))
         };
 
         let mut events: Vec<(HyperlaneMessage, LogMeta)> = self
@@ -182,13 +179,10 @@ where
 
     #[instrument(err, skip(self))]
     async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(H256, LogMeta)>> {
-        let (from, to) = match range {
-            IndexRange::Blocks(from, to) => (from, to),
-            IndexRange::Sequences(_, _) => {
-                return Err(ChainCommunicationError::from_other_str(
-                    "EthereumMailboxIndexer does not support sequence-based indexing",
-                ))
-            }
+        let IndexRange::Blocks(from, to) = range else {
+            return Err(ChainCommunicationError::from_other_str(
+                "EthereumMailboxIndexer only supports block-based indexing",
+            ))
         };
 
         Ok(self

@@ -88,7 +88,7 @@ impl InterchainSecurityModule for SealevelInterchainSecurityModule {
         _message: &HyperlaneMessage,
         _metadata: &[u8],
     ) -> ChainResult<Option<U256>> {
-        // TODO: Implement this once we have aggregation ISM support
+        // TODO: Implement this once we have aggregation ISM support in Sealevel
         Ok(Some(U256::zero()))
     }
 }
