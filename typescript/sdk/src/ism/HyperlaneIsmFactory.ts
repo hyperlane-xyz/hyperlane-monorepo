@@ -127,6 +127,9 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
         config.type === ModuleType.MERKLE_ROOT_MULTISIG
           ? this.getContracts(chain).merkleRootMultisigIsmFactory
           : this.getContracts(chain).messageIdMultisigIsmFactory;
+
+      console.log(config.type === ModuleType.MERKLE_ROOT_MULTISIG);
+      console.log('FACTORIES: ', this.getContracts(chain));
       address = await this.deployMOfNFactory(
         chain,
         multisigIsmFactory,
@@ -304,6 +307,7 @@ export async function moduleCanCertainlyVerify(
   } else {
     // destModule is an IsmConfig
     let verified = 0; // can't declare this in case statement
+    // checksConfig checks for origin to origin - which is undefined
     if (destModule) {
       switch (destModule.type) {
         case ModuleType.MERKLE_ROOT_MULTISIG:

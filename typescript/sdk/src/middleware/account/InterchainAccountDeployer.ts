@@ -22,7 +22,7 @@ export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
   InterchainAccountFactories
 > {
   constructor(multiProvider: MultiProvider) {
-    super(multiProvider, interchainAccountFactories, {});
+    super(multiProvider, interchainAccountFactories);
   }
 
   router(contracts: HyperlaneContracts<InterchainAccountFactories>): Router {

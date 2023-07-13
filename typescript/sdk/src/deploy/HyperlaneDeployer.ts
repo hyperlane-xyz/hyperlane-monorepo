@@ -46,8 +46,8 @@ export abstract class HyperlaneDeployer<
   constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly factories: Factories,
-    protected readonly options?: DeployerOptions,
     protected readonly ismFactory?: HyperlaneIsmFactory,
+    protected readonly options?: DeployerOptions,
   ) {
     this.logger = options?.logger ?? debug('hyperlane:deployer');
     this.chainTimeoutMs = options?.chainTimeoutMs ?? 5 * 60 * 1000; // 5 minute timeout per chain
@@ -184,6 +184,7 @@ export abstract class HyperlaneDeployer<
           (await connectionClient.interchainSecurityModule())
       ) {
         this.logger(`Set interchain security module on ${local}`);
+        this.logger(`"ismFactory" ${this.ismFactory}`);
         if (typeof config.interchainSecurityModule === 'string') {
           await this.multiProvider.handleTx(
             local,

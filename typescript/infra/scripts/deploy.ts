@@ -105,9 +105,12 @@ async function main() {
     }));
     deployer = new TestQuerySenderDeployer(multiProvider, igp);
   } else if (module === Modules.HELLO_WORLD) {
+    const ismFactory = HyperlaneIsmFactory.fromEnvironment(
+      deployEnvToSdkEnv[environment],
+      multiProvider,
+    );
     config = await getRCConnectionClientConfig(environment, multiProvider);
-    console.log(config);
-    deployer = new HelloWorldDeployer(multiProvider);
+    deployer = new HelloWorldDeployer(multiProvider, ismFactory);
   } else {
     console.log(`Skipping ${module}, deployer unimplemented`);
     return;

@@ -13,7 +13,7 @@ export class HyperlaneIsmFactoryDeployer extends HyperlaneDeployer<
   IsmFactoryFactories
 > {
   constructor(multiProvider: MultiProvider) {
-    super(multiProvider, ismFactoryFactories, {
+    super(multiProvider, ismFactoryFactories, undefined, {
       logger: debug('hyperlane:IsmFactoryDeployer'),
     });
   }

@@ -3,6 +3,8 @@
 
 pragma solidity ^0.8.4;
 
+import "./errors.sol";
+
 /**
  * @author OpenZeppelin
  * @dev LibOptimism was removed from the OpenZeppelin Contracts library as of v4.7.0
@@ -18,8 +20,6 @@ pragma solidity ^0.8.4;
  * _Available since v4.6._
  */
 abstract contract CrossChainEnabled {
-    error NotCrossChainCall();
-    error InvalidCrossChainSender(address actual, address expected);
     /**
      * @dev Throws if the current function call is not the result of a
      * cross-chain execution.

@@ -15,12 +15,12 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 
-import {IInterchainSecurityModule} from "../../../interfaces/IInterchainSecurityModule.sol";
-import {OptimismMessageHook} from "../../../hooks/OptimismMessageHook.sol";
-import {Message} from "../../../libs/Message.sol";
-import {TypeCasts} from "../../../libs/TypeCasts.sol";
-import {AbstractHookISM} from "../AbstractHookISM.sol";
-import {CrossChainEnabledOptimism} from "./CrossChainEnabledOptimism.sol";
+import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
+import {OptimismMessageHook} from "../../hooks/OptimismMessageHook.sol";
+import {Message} from "../../libs/Message.sol";
+import {TypeCasts} from "../../libs/TypeCasts.sol";
+import {AbstractHookISM} from "./AbstractHookISM.sol";
+import {CrossChainEnabledOptimism} from "./crossChainEnabled/optimism/CrossChainEnabledOptimism.sol";
 
 // ============ External Imports ============
 

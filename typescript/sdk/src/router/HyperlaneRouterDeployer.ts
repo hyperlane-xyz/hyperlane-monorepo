@@ -37,8 +37,6 @@ export abstract class HyperlaneRouterDeployer<
         config.mailbox,
         signerOrProvider,
       );
-      console.log('localIsm', config);
-      console.log('localIsm', typeof config.interchainSecurityModule);
       const localIsm =
         config.interchainSecurityModule ?? (await localMailbox.defaultIsm());
 
@@ -61,8 +59,6 @@ export abstract class HyperlaneRouterDeployer<
               `did you mean to specify a different one?`,
           );
         }
-
-        console.log('Reaching ISM check', localIsm);
 
         // Try to confirm that the specified or default ISM can verify messages to all remotes
         const canVerify = await moduleCanCertainlyVerify(
