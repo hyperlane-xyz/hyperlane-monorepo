@@ -1695,8 +1695,11 @@ dependencies = [
  "account-utils",
  "borsh",
  "hyperlane-core",
+ "num-derive",
+ "num-traits",
  "serializable-account-meta",
  "solana-program",
+ "thiserror",
 ]
 
 [[package]]
