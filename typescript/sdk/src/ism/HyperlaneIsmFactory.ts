@@ -57,6 +57,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
       ismFactoryFactories,
       multiProvider,
     );
+    // console.log("ISMISM factories map: ", helper);
     return new HyperlaneIsmFactory(
       helper.contractsMap,
       helper.multiProvider,
