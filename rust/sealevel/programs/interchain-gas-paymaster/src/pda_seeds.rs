@@ -35,3 +35,40 @@ macro_rules! igp_program_data_pda_seeds {
         &[b"hyperlane_igp", b"-", b"program_data", &[$bump_seed]]
     }};
 }
+
+#[macro_export]
+macro_rules! igp_pda_seeds {
+    ($salt:expr) => {{
+        &[b"hyperlane_igp", b"-", b"igp", b"-", $salt.as_ref()]
+    }};
+
+    ($salt:expr, $bump_seed:expr) => {{
+        &[
+            b"hyperlane_igp",
+            b"-",
+            b"igp",
+            b"-",
+            $salt.as_ref(),
+            &[$bump_seed],
+        ]
+    }};
+}
+
+#[macro_export]
+macro_rules! overhead_igp_pda_seeds {
+    ($salt:expr) => {{
+        &[b"hyperlane_igp", b"-", b"igp", b"-", $salt.as_ref()]
+    }};
+
+    ($salt:expr, $bump_seed:expr) => {{
+        &[
+            b"hyperlane_igp",
+            b"-",
+            b"igp",
+            b"-",
+            $salt.as_ref(),
+            &[$bump_seed],
+        ]
+    }};
+}
+

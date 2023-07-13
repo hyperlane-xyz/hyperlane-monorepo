@@ -61,9 +61,8 @@ pub type IgpAccount = AccountData<IgpData>;
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
 pub struct IgpData {
-    // TODO: should this be a global count?...
+    pub salt: H256,
     pub owner: Option<Pubkey>,
-    pub payment_count: u64,
     pub beneficiary: Pubkey,
     pub gas_oracle: HashMap<u32, GasOracle>,
 }

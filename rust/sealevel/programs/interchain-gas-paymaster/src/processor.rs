@@ -24,7 +24,7 @@ use crate::{
         GasPayment, GasPaymentAccount, IgpAccount, IgpData, OverheadIgp, OverheadIgpAccount,
         ProgramData, ProgramDataAccount,
     },
-    igp_gas_payment_pda_seeds, igp_program_data_pda_seeds,
+    igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
     instruction::{InitIgp, Instruction as IgpInstruction, PayForGas, QuoteGasPayment},
 };
 
@@ -112,7 +112,7 @@ fn init(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
 /// Accounts:
 /// 0. [executable] The system program.
 /// 1. [signer] The payer account and owner of the IGP account.
-/// 2. [signer, writeable] The IGP account to initialize.
+/// 2. [writeable] The IGP account to initialize.
 fn init_igp(program_id: &Pubkey, accounts: &[AccountInfo], data: InitIgp) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
@@ -129,36 +129,96 @@ fn init_igp(program_id: &Pubkey, accounts: &[AccountInfo], data: InitIgp) -> Pro
     }
 
     // Account 2: The IGP account to initialize.
-    // TODO make this a PDA!
     let igp_info = next_account_info(accounts_iter)?;
     verify_account_uninitialized(igp_info)?;
+    let (igp_key, igp_bump) = Pubkey::find_program_address(igp_pda_seeds!(data.salt), program_id);
+    if *igp_info.key != igp_key {
+        return Err(ProgramError::InvalidSeeds);
+    }
 
-    let igp_data = IgpData {
+    let igp_account = IgpAccount::from(IgpData {
+        salt: data.salt,
         owner: Some(*payer_info.key),
         beneficiary: data.beneficiary,
         ..IgpData::default()
-    };
+    });
 
-    let igp_data_size = igp_data.size();
+    let igp_account_size = igp_account.size();
 
     let rent = Rent::get()?;
 
-    invoke(
-        &system_instruction::create_account(
-            payer_info.key,
-            igp_info.key,
-            rent.minimum_balance(igp_data_size),
-            igp_data_size as u64,
-            program_id,
-        ),
-        &[
-            payer_info.clone(),
-            igp_info.clone(),
-            system_program_info.clone(),
-        ],
+    create_pda_account(
+        payer_info,
+        &rent,
+        igp_account_size,
+        program_id,
+        system_program_info,
+        igp_info,
+        igp_pda_seeds!(data.salt, igp_bump),
     )?;
 
-    msg!("Initialized IGP");
+    // Store the IGP account.
+    igp_account.store(igp_info, false)?;
+
+    msg!("Initialized IGP: {}", igp_info.key);
+
+    Ok(())
+}
+
+/// Initialize a new overhead IGP account.
+///
+/// Accounts:
+/// 0. [executable] The system program.
+/// 1. [signer] The payer account and owner of the IGP account.
+/// 2. [signer, writeable] The IGP account to initialize.
+fn init_overhead_igp(program_id: &Pubkey, accounts: &[AccountInfo], data: InitIgp) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: The system program.
+    let system_program_info = next_account_info(accounts_iter)?;
+    if *system_program_info.key != solana_program::system_program::id() {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+
+    // Account 1: The payer account and owner of the IGP account.
+    let payer_info = next_account_info(accounts_iter)?;
+    if !payer_info.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+
+    // Account 2: The IGP account to initialize.
+    let igp_info = next_account_info(accounts_iter)?;
+    verify_account_uninitialized(igp_info)?;
+    let (igp_key, igp_bump) = Pubkey::find_program_address(igp_pda_seeds!(data.salt), program_id);
+    if *igp_info.key != igp_key {
+        return Err(ProgramError::InvalidSeeds);
+    }
+
+    let igp_account = IgpAccount::from(IgpData {
+        salt: data.salt,
+        owner: Some(*payer_info.key),
+        beneficiary: data.beneficiary,
+        ..IgpData::default()
+    });
+
+    let igp_account_size = igp_account.size();
+
+    let rent = Rent::get()?;
+
+    create_pda_account(
+        payer_info,
+        &rent,
+        igp_account_size,
+        program_id,
+        system_program_info,
+        igp_info,
+        igp_pda_seeds!(data.salt, igp_bump),
+    )?;
+
+    // Store the IGP account.
+    igp_account.store(igp_info, false)?;
+
+    msg!("Initialized IGP: {}", igp_info.key);
 
     Ok(())
 }

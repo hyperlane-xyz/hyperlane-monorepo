@@ -13,6 +13,7 @@ pub enum Instruction {
 
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub struct InitIgp {
+    pub salt: H256,
     pub owner: Option<Pubkey>,
     pub beneficiary: Pubkey,
 }
