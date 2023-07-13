@@ -304,31 +304,35 @@ export async function moduleCanCertainlyVerify(
   } else {
     // destModule is an IsmConfig
     let verified = 0; // can't declare this in case statement
-    switch (destModule.type) {
-      case ModuleType.MERKLE_ROOT_MULTISIG:
-      case ModuleType.MESSAGE_ID_MULTISIG:
-      case ModuleType.LEGACY_MULTISIG:
-        return destModule.threshold > 0;
-      case ModuleType.ROUTING:
-        return moduleCanCertainlyVerify(
-          destModule.domains[destination],
-          multiProvider,
-          origin,
-          destination,
-        );
-      case ModuleType.AGGREGATION:
-        for (const subModule of destModule.modules) {
-          const canVerify = await moduleCanCertainlyVerify(
-            subModule,
+    if (destModule) {
+      switch (destModule.type) {
+        case ModuleType.MERKLE_ROOT_MULTISIG:
+        case ModuleType.MESSAGE_ID_MULTISIG:
+        case ModuleType.LEGACY_MULTISIG:
+          return destModule.threshold > 0;
+        case ModuleType.ROUTING:
+          return moduleCanCertainlyVerify(
+            destModule.domains[destination],
             multiProvider,
             origin,
             destination,
           );
-          if (canVerify) {
-            verified += 1;
+        case ModuleType.AGGREGATION:
+          for (const subModule of destModule.modules) {
+            const canVerify = await moduleCanCertainlyVerify(
+              subModule,
+              multiProvider,
+              origin,
+              destination,
+            );
+            if (canVerify) {
+              verified += 1;
+            }
           }
-        }
-        return verified >= destModule.threshold;
+          return verified >= destModule.threshold;
+      }
+    } else {
+      return true;
     }
   }
 }

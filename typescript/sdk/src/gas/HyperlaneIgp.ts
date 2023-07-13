@@ -30,6 +30,7 @@ export class HyperlaneIgp extends HyperlaneApp<IgpFactories> {
     addressesMap: HyperlaneAddressesMap<any>,
     multiProvider: MultiProvider,
   ): HyperlaneIgp {
+    console.log('addressesMap', addressesMap);
     const helper = appFromAddressesMapHelper(
       addressesMap,
       igpFactories,

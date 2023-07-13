@@ -15,11 +15,12 @@ export {
   TestChains,
   Testnets,
 } from './consts/chains';
+export { defaultMultisigIsmConfigs } from './consts/defaultMultisigIsm';
 export {
   hyperlaneContractAddresses,
   hyperlaneEnvironments,
 } from './consts/environments';
-export { defaultMultisigIsmConfigs } from './consts/multisigIsm';
+export { rcMultisigIsmConfigs } from './consts/rcMultisigIsm';
 export {
   HyperlaneAddresses,
   HyperlaneAddressesMap,

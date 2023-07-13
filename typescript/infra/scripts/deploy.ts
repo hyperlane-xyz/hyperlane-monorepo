@@ -1,5 +1,6 @@
 import path from 'path';
 
+import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
   ChainMap,
   HyperlaneCoreDeployer,
@@ -29,6 +30,7 @@ import {
   getEnvironmentConfig,
   getEnvironmentDirectory,
   getModuleDirectory,
+  getRCConnectionClientConfig,
   getRouterConfig,
   withModuleAndFork,
 } from './utils';
@@ -102,6 +104,10 @@ async function main() {
       queryRouterAddress: conf.router,
     }));
     deployer = new TestQuerySenderDeployer(multiProvider, igp);
+  } else if (module === Modules.HELLO_WORLD) {
+    config = await getRCConnectionClientConfig(environment, multiProvider);
+    console.log(config);
+    deployer = new HelloWorldDeployer(multiProvider);
   } else {
     console.log(`Skipping ${module}, deployer unimplemented`);
     return;
