@@ -16,7 +16,9 @@ num-traits.workspace = true
 solana-program.workspace = true
 thiserror.workspace = true
 spl-noop.workspace = true
-getrandom.workspace = true
+# Required to allow dependencies `getrandom` but to preserve determinism required by programs, see
+# https://github.com/solana-labs/solana/blob/master/docs/src/developing/on-chain-programs/developing-rust.md#depending-on-rand
+getrandom = { workspace = true, features = ["custom"] }
 
 access-control = { path = "../../libraries/access-control" }
 account-utils = { path = "../../libraries/account-utils" }

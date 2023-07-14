@@ -19,6 +19,7 @@ convert_case = "0.6"
 derive-new.workspace = true
 derive_more.workspace = true
 eyre.workspace = true
+getrandom.workspace = true
 hex.workspace = true
 itertools.workspace = true
 num = { workspace = true, features = ["serde"] }
@@ -41,7 +42,6 @@ strum = { workspace = true, optional = true }
 primitive-types = { workspace = true, optional = true }
 
 [dev-dependencies]
-hyperlane-base = { path = "../hyperlane-base" }
 tokio = { workspace = true, features = ["rt", "time"] }
 walkdir = { version = "2" }
 
