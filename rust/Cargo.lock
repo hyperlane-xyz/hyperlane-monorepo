@@ -6115,6 +6115,7 @@ dependencies = [
  "num-derive",
  "num-traits",
  "prometheus",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",

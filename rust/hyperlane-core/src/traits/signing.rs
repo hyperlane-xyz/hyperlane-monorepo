@@ -174,12 +174,12 @@ mod hashes {
     #[cfg(feature = "ethers")]
     fn ensure_signed_hashes_match() {
         assert_eq!(
-            ethers_core::utils::hash_message(&b"gm crypto!"),
-            hash_message(&b"gm crypto!").into()
+            ethers_core::utils::hash_message(b"gm crypto!"),
+            hash_message(b"gm crypto!").into()
         );
         assert_eq!(
-            ethers_core::utils::hash_message(&b"hyperlane"),
-            hash_message(&b"hyperlane").into()
+            ethers_core::utils::hash_message(b"hyperlane"),
+            hash_message(b"hyperlane").into()
         );
     }
 }

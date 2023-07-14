@@ -187,21 +187,15 @@ impl SealevelMailbox {
         &self,
         recipient_program_id: Pubkey,
     ) -> ChainResult<Vec<AccountMeta>> {
-        let (account_metas_pda_key, _) = Pubkey::find_program_address(
-            hyperlane_sealevel_message_recipient_interface::INTERCHAIN_SECURITY_MODULE_ACCOUNT_METAS_PDA_SEEDS,
-            &recipient_program_id,
-        );
         let instruction =
             hyperlane_sealevel_message_recipient_interface::MessageRecipientInstruction::InterchainSecurityModuleAccountMetas;
-        let instruction = Instruction::new_with_bytes(
+        self.get_account_metas_with_instruction_bytes(
             recipient_program_id,
             &instruction
                 .encode()
                 .map_err(ChainCommunicationError::from_other)?,
-            vec![AccountMeta::new(account_metas_pda_key, false)],
-        );
-
-        self.get_account_metas(instruction).await
+                hyperlane_sealevel_message_recipient_interface::INTERCHAIN_SECURITY_MODULE_ACCOUNT_METAS_PDA_SEEDS,
+        ).await
     }
 
     /// Gets the account metas required for the ISM's `Verify` instruction.
@@ -211,24 +205,19 @@ impl SealevelMailbox {
         metadata: Vec<u8>,
         message: Vec<u8>,
     ) -> ChainResult<Vec<AccountMeta>> {
-        let (account_metas_pda_key, _) = Pubkey::find_program_address(
-            hyperlane_sealevel_interchain_security_module_interface::VERIFY_ACCOUNT_METAS_PDA_SEEDS,
-            &ism,
-        );
         let instruction =
             InterchainSecurityModuleInstruction::VerifyAccountMetas(VerifyInstruction {
                 metadata,
                 message,
             });
-        let instruction = Instruction::new_with_bytes(
+        self.get_account_metas_with_instruction_bytes(
             ism,
             &instruction
                 .encode()
                 .map_err(ChainCommunicationError::from_other)?,
-            vec![AccountMeta::new(account_metas_pda_key, false)],
-        );
-
-        self.get_account_metas(instruction).await
+            hyperlane_sealevel_interchain_security_module_interface::VERIFY_ACCOUNT_METAS_PDA_SEEDS,
+        )
+        .await
     }
 
     /// Gets the account metas required for the recipient's `MessageRecipientInstruction::Handle` instruction.
@@ -242,15 +231,28 @@ impl SealevelMailbox {
             origin: message.origin,
             message: message.body.clone(),
         });
-        let (account_metas_pda_key, _) = Pubkey::find_program_address(
-            hyperlane_sealevel_message_recipient_interface::HANDLE_ACCOUNT_METAS_PDA_SEEDS,
-            &recipient_program_id,
-        );
-        let instruction = Instruction::new_with_bytes(
+
+        self.get_account_metas_with_instruction_bytes(
             recipient_program_id,
             &instruction
                 .encode()
                 .map_err(ChainCommunicationError::from_other)?,
+            hyperlane_sealevel_message_recipient_interface::HANDLE_ACCOUNT_METAS_PDA_SEEDS,
+        )
+        .await
+    }
+
+    async fn get_account_metas_with_instruction_bytes(
+        &self,
+        program_id: Pubkey,
+        instruction_data: &[u8],
+        account_metas_pda_seeds: &[&[u8]],
+    ) -> ChainResult<Vec<AccountMeta>> {
+        let (account_metas_pda_key, _) =
+            Pubkey::find_program_address(account_metas_pda_seeds, &program_id);
+        let instruction = Instruction::new_with_bytes(
+            program_id,
+            instruction_data,
             vec![AccountMeta::new(account_metas_pda_key, false)],
         );
 
@@ -528,7 +530,7 @@ impl Mailbox for SealevelMailbox {
         Ok(TxOutcome {
             txid,
             executed,
-            // TODO use correct data
+            // TODO use correct data upon integrating IGP support
             gas_price: U256::zero(),
             gas_used: U256::zero(),
         })
@@ -540,7 +542,7 @@ impl Mailbox for SealevelMailbox {
         _message: &HyperlaneMessage,
         _metadata: &[u8],
     ) -> ChainResult<TxCostEstimate> {
-        // FIXME do something real
+        // TODO use correct data upon integrating IGP support
         Ok(TxCostEstimate {
             gas_limit: U256::zero(),
             gas_price: U256::zero(),
@@ -676,7 +678,7 @@ impl SealevelMailboxIndexer {
             LogMeta {
                 address: self.mailbox.program_id.to_bytes().into(),
                 block_number: dispatched_message_account.slot,
-                // TODO real values?
+                // TODO: get these when building out scraper support.
                 // It's inconvenient to get these :|
                 block_hash: H256::zero(),
                 transaction_hash: H256::zero(),

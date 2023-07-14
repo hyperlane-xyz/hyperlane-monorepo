@@ -1,28 +1,39 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+/*@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+     @@@@@  HYPERLANE  @@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+@@@@@@@@@       @@@@@@@@*/
+
 // ============ Internal Imports ============
 
-import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
-import {OptimismMessageHook} from "../../hooks/OptimismMessageHook.sol";
-import {Message} from "../../libs/Message.sol";
-import {TypeCasts} from "../../libs/TypeCasts.sol";
-import {AbstractNativeISM} from "./AbstractNativeISM.sol";
+import {IInterchainSecurityModule} from "../../../interfaces/IInterchainSecurityModule.sol";
+import {OptimismMessageHook} from "../../../hooks/OptimismMessageHook.sol";
+import {Message} from "../../../libs/Message.sol";
+import {TypeCasts} from "../../../libs/TypeCasts.sol";
+import {AbstractHookISM} from "../AbstractHookISM.sol";
+import {CrossChainEnabledOptimism} from "./CrossChainEnabledOptimism.sol";
 
 // ============ External Imports ============
 
 import {ICrossDomainMessenger} from "@eth-optimism/contracts/libraries/bridge/ICrossDomainMessenger.sol";
-import {CrossChainEnabledOptimism} from "@openzeppelin/contracts/crosschain/optimism/CrossChainEnabledOptimism.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
  * @title OptimismISM
  * @notice Uses the native Optimism bridge to verify interchain messages.
  */
-contract OptimismISM is CrossChainEnabledOptimism, AbstractNativeISM {
+contract OptimismISM is CrossChainEnabledOptimism, AbstractHookISM {
     // ============ Constants ============
 
-    // solhint-disable-next-line const-name-snakecase
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.NULL);
 
@@ -66,10 +77,10 @@ contract OptimismISM is CrossChainEnabledOptimism, AbstractNativeISM {
     /**
      * @notice Receive a message from the L2 messenger.
      * @dev Only callable by the L2 messenger.
-     * @param _sender Address of the sender.
+     * @param _sender Left-padded address of the sender.
      * @param _messageId Hyperlane ID for the message.
      */
-    function verifyMessageId(address _sender, bytes32 _messageId)
+    function verifyMessageId(bytes32 _sender, bytes32 _messageId)
         external
         isAuthorized
     {

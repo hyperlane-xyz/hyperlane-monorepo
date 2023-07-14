@@ -8,6 +8,7 @@ import { proxyImplementation } from '../deploy/proxy';
 import {
   HyperlaneIsmFactory,
   collectValidators,
+  moduleMatchesConfig,
 } from '../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
@@ -75,7 +76,8 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
         executor: await timelockController.EXECUTOR_ROLE(),
         proposer: await timelockController.PROPOSER_ROLE(),
         canceller: await timelockController.CANCELLER_ROLE(),
-        admin: await timelockController.TIMELOCK_ADMIN_ROLE(),
+        // see https://docs.openzeppelin.com/contracts/4.x/api/governance#TimelockController-constructor-uint256-address---address---address-
+        // admin: await timelockController.TIMELOCK_ADMIN_ROLE(),
       };
 
       for (const [label, role] of Object.entries(roles)) {
@@ -117,18 +119,15 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     utils.assert(localDomain === this.multiProvider.getDomainId(chain));
 
     const actualIsm = await mailbox.defaultIsm();
+
     const config = this.configMap[chain];
-    /*
-    TODO: Add this back in once the new ISM factories are adopted
-    const matches = await moduleMatches(
+    const matches = await moduleMatchesConfig(
       chain,
       actualIsm,
       config.defaultIsm,
       this.ismFactory.multiProvider,
       this.ismFactory.getContracts(chain),
     );
-    */
-    const matches = true;
     if (!matches) {
       const violation: MailboxViolation = {
         type: CoreViolationType.Mailbox,

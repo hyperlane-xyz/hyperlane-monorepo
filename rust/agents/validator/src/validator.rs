@@ -213,7 +213,7 @@ impl Validator {
                         hash=?outcome.txid,
                         gas_used=?outcome.gas_used,
                         gas_price=?outcome.gas_price,
-                        "Transaction attempting to announce validator reverted. Make sure you have enough ETH in your account to pay for gas."
+                        "Transaction attempting to announce validator reverted. Make sure you have enough funds in your account to pay for transaction fees."
                     );
                 }
             }
