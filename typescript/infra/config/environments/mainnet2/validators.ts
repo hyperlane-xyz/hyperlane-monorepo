@@ -1,172 +1,140 @@
-import { CoreChainName } from '@hyperlane-xyz/sdk';
-
-import {
-  CheckpointSyncerType,
-  ValidatorBaseChainConfigMap,
-} from '../../../src/config/agent';
+import { ValidatorBaseChainConfigMap } from '../../../src/config/agent';
 import { Contexts } from '../../contexts';
+import { validatorBaseConfigsFn } from '../utils';
 
 import { environment } from './chains';
 
-const s3BucketRegion = 'us-east-1';
-
-const s3BucketName = (chainName: CoreChainName, index: number) =>
-  `hyperlane-${environment}-${chainName}-validator-${index}`;
-
-export const validators: Record<Contexts, ValidatorBaseChainConfigMap> = {
-  hyperlane: {
+export const validatorChainConfig = (
+  context: Contexts,
+  count: number = 1,
+): ValidatorBaseChainConfigMap => {
+  const validatorsConfig = validatorBaseConfigsFn(environment, context);
+  return {
     celo: {
       interval: 5,
       reorgPeriod: 0,
-      validators: [
+      validators: validatorsConfig(
         {
-          address: '0x1f20274b1210046769d48174c2f0e7c25ca7d5c5',
-          name: s3BucketName('celo', 0),
-          checkpointSyncer: {
-            type: CheckpointSyncerType.S3,
-            bucket: s3BucketName('celo', 0),
-            region: s3BucketRegion,
-          },
+          [Contexts.Hyperlane]: ['0x1f20274b1210046769d48174c2f0e7c25ca7d5c5'],
+          [Contexts.ReleaseCandidate]: [
+            '0xe7a82e210f512f8e9900d6bc2acbf7981c63e66e',
+          ],
+          [Contexts.Permissionless]: [],
         },
-      ],
+        'celo',
+      ),
     },
     ethereum: {
       interval: 5,
       reorgPeriod: 20,
-      validators: [
+      validators: validatorsConfig(
         {
-          address: '0x4c327ccb881a7542be77500b2833dc84c839e7b7',
-          name: s3BucketName('ethereum', 0),
-          checkpointSyncer: {
-            type: CheckpointSyncerType.S3,
-            bucket: s3BucketName('ethereum', 0),
-            region: s3BucketRegion,
-          },
+          [Contexts.Hyperlane]: ['0x4c327ccb881a7542be77500b2833dc84c839e7b7'],
+          [Contexts.ReleaseCandidate]: [
+            '0xaea1adb1c687b061e5b60b9da84cb69e7b5fab44',
+          ],
+          [Contexts.Permissionless]: [],
         },
-      ],
+        'ethereum',
+      ),
     },
     avalanche: {
       interval: 5,
       reorgPeriod: 3,
-      validators: [
+      validators: validatorsConfig(
         {
-          address: '0xa7aa52623fe3d78c343008c95894be669e218b8d',
-          name: s3BucketName('avalanche', 0),
-          checkpointSyncer: {
-            type: CheckpointSyncerType.S3,
-            bucket: s3BucketName('avalanche', 0),
-            region: s3BucketRegion,
-          },
+          [Contexts.Hyperlane]: ['0xa7aa52623fe3d78c343008c95894be669e218b8d'],
+          [Contexts.ReleaseCandidate]: [
+            '0x706976391e23dea28152e0207936bd942aba01ce',
+          ],
+          [Contexts.Permissionless]: [],
         },
-      ],
+        'avalanche',
+      ),
     },
     polygon: {
       interval: 5,
       reorgPeriod: 256,
-      validators: [
+      validators: validatorsConfig(
         {
-          address: '0x59a001c3451e7f9f3b4759ea215382c1e9aa5fc1',
-          name: s3BucketName('polygon', 0),
-          checkpointSyncer: {
-            type: CheckpointSyncerType.S3,
-            bucket: s3BucketName('polygon', 0),
-            region: s3BucketRegion,
-          },
+          [Contexts.Hyperlane]: ['0x59a001c3451e7f9f3b4759ea215382c1e9aa5fc1'],
+          [Contexts.ReleaseCandidate]: [
+            '0xef372f6ff7775989b3ac884506ee31c79638c989',
+          ],
+          [Contexts.Permissionless]: [],
         },
-      ],
+        'polygon',
+      ),
     },
     bsc: {
       interval: 5,
       reorgPeriod: 15,
-      validators: [
+      validators: validatorsConfig(
         {
-          address: '0xcc84b1eb711e5076b2755cf4ad1d2b42c458a45e',
-          name: s3BucketName('bsc', 0),
-          checkpointSyncer: {
-            type: CheckpointSyncerType.S3,
-            bucket: s3BucketName('bsc', 0),
-            region: s3BucketRegion,
-          },
+          [Contexts.Hyperlane]: ['0xcc84b1eb711e5076b2755cf4ad1d2b42c458a45e'],
+          [Contexts.ReleaseCandidate]: [
+            '0x0823081031a4a6f97c6083775c191d17ca96d0ab',
+          ],
+          [Contexts.Permissionless]: [],
         },
-      ],
+        'bsc',
+      ),
     },
     arbitrum: {
       interval: 5,
       reorgPeriod: 0,
-      validators: [
+      validators: validatorsConfig(
         {
-          address: '0xbcb815f38d481a5eba4d7ac4c9e74d9d0fc2a7e7',
-          name: s3BucketName('arbitrum', 0),
-          checkpointSyncer: {
-            type: CheckpointSyncerType.S3,
-            bucket: s3BucketName('arbitrum', 0),
-            region: s3BucketRegion,
-          },
+          [Contexts.Hyperlane]: ['0xbcb815f38d481a5eba4d7ac4c9e74d9d0fc2a7e7'],
+          [Contexts.ReleaseCandidate]: [
+            '0x1a95b35fb809d57faf1117c1cc29a6c5df289df1',
+          ],
+          [Contexts.Permissionless]: [],
         },
-      ],
+        'arbitrum',
+      ),
     },
     optimism: {
       interval: 5,
       reorgPeriod: 0,
-      validators: [
+      validators: validatorsConfig(
         {
-          address: '0x9f2296d5cfc6b5176adc7716c7596898ded13d35',
-          name: s3BucketName('optimism', 0),
-          checkpointSyncer: {
-            type: CheckpointSyncerType.S3,
-            bucket: s3BucketName('optimism', 0),
-            region: s3BucketRegion,
-          },
+          [Contexts.Hyperlane]: ['0x9f2296d5cfc6b5176adc7716c7596898ded13d35'],
+          [Contexts.ReleaseCandidate]: [
+            '0x60e938bf280bbc21bacfd8bf435459d9003a8f98',
+          ],
+          [Contexts.Permissionless]: [],
         },
-      ],
+        'optimism',
+      ),
     },
     moonbeam: {
       interval: 5,
       reorgPeriod: 2,
-      validators: [
+      validators: validatorsConfig(
         {
-          address: '0x237243d32d10e3bdbbf8dbcccc98ad44c1c172ea',
-          name: s3BucketName('moonbeam', 0),
-          checkpointSyncer: {
-            type: CheckpointSyncerType.S3,
-            bucket: s3BucketName('moonbeam', 0),
-            region: s3BucketRegion,
-          },
+          [Contexts.Hyperlane]: ['0x237243d32d10e3bdbbf8dbcccc98ad44c1c172ea'],
+          [Contexts.ReleaseCandidate]: [
+            '0x0df7140811e309dc69638352545151ebb9d5e0fd',
+          ],
+          [Contexts.Permissionless]: [],
         },
-      ],
+        'moonbeam',
+      ),
     },
     gnosis: {
       interval: 5,
       reorgPeriod: 14,
-      validators: [
+      validators: validatorsConfig(
         {
-          address: '0xd0529ec8df08d0d63c0f023786bfa81e4bb51fd6',
-          name: s3BucketName('gnosis', 0),
-          checkpointSyncer: {
-            type: CheckpointSyncerType.S3,
-            bucket: s3BucketName('gnosis', 0),
-            region: s3BucketRegion,
-          },
+          [Contexts.Hyperlane]: ['0xd0529ec8df08d0d63c0f023786bfa81e4bb51fd6'],
+          [Contexts.ReleaseCandidate]: [
+            '0x15f48e78092a4f79febface509cfd76467c6cdbb',
+          ],
+          [Contexts.Permissionless]: [],
         },
-      ],
+        'gnosis',
+      ),
     },
-  },
-  rc: {},
-  permissionless: {
-    zkevm: {
-      interval: 5,
-      reorgPeriod: 1,
-      validators: [
-        {
-          address: '',
-          name: s3BucketName('zkevm', 0),
-          checkpointSyncer: {
-            type: CheckpointSyncerType.S3,
-            bucket: s3BucketName('zkevm', 0),
-            region: s3BucketRegion,
-          },
-        },
-      ],
-    },
-  },
+  };
 };

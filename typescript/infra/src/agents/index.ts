@@ -257,6 +257,13 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
       configs: await this.config.buildConfig(),
     };
 
+    // The name of the helm release for agents is `hyperlane-agent`.
+    // This causes the name of the S3 bucket to exceed the 63 character limit in helm.
+    // To work around this, we shorten the name of the helm release to `agent`
+    if (this.config.context !== Contexts.Hyperlane) {
+      helmValues.nameOverride = 'agent';
+    }
+
     return helmValues;
   }
 }
