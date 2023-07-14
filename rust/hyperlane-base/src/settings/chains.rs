@@ -607,6 +607,29 @@ impl ChainConf {
         .context(ctx)
     }
 
+    /// Try to convert the chain setting into a CcipRead Ism contract
+    pub async fn build_ccip_read_ism(
+        &self,
+        address: H256,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn CcipReadIsm>> {
+        let ctx = "Building CcipRead ISM";
+        let locator = ContractLocator {
+            domain: &self.domain,
+            address,
+        };
+
+        match &self.connection()? {
+            ChainConnectionConf::Ethereum(conf) => {
+                self.build_ethereum(conf, &locator, metrics, h_eth::CcipReadIsmBuilder {})
+                    .await
+            }
+
+            ChainConnectionConf::Fuel(_) => todo!(),
+        }
+        .context(ctx)
+    }
+
     async fn signer<S: BuildableWithSignerConf>(&self) -> Result<Option<S>> {
         if let Some(conf) = &self.signer {
             Ok(Some(conf.build::<S>().await?))
