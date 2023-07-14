@@ -98,6 +98,8 @@ where
         }
         let realloc_increment = 1024;
         loop {
+            // Create new scope to ensure `guard` is dropped before
+            // potential reallocation.
             let data_len = {
                 let mut guard = account.try_borrow_mut_data()?;
                 let data = &mut *guard;
