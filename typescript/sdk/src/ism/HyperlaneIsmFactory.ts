@@ -42,7 +42,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     multiProvider: MultiProvider,
   ): HyperlaneIsmFactory {
     const envAddresses = hyperlaneEnvironments[env];
-    console.log('ENV ADDRESSES: ', envAddresses);
     if (!envAddresses) {
       throw new Error(`No addresses found for ${env}`);
     }
@@ -58,7 +57,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
       ismFactoryFactories,
       multiProvider,
     );
-    // console.log("ISMISM factories map: ", helper);
     return new HyperlaneIsmFactory(
       helper.contractsMap,
       helper.multiProvider,
@@ -76,7 +74,23 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
       config.type === ModuleType.MESSAGE_ID_MULTISIG ||
       config.type === ModuleType.LEGACY_MULTISIG
     ) {
-      this.logger(`Deploying Multisig ISM to ${chain} for verifying ${origin}`);
+      switch (config.type) {
+        case ModuleType.LEGACY_MULTISIG:
+          this.logger(
+            `Deploying Legacy Multisig ISM to ${chain} for verifying ${origin}`,
+          );
+          break;
+        case ModuleType.MERKLE_ROOT_MULTISIG:
+          this.logger(
+            `Deploying Merkle Root Multisig ISM to ${chain} for verifying ${origin}`,
+          );
+          break;
+        case ModuleType.MESSAGE_ID_MULTISIG:
+          this.logger(
+            `Deploying Message ID Multisig ISM to ${chain} for verifying ${origin}`,
+          );
+          break;
+      }
       return this.deployMultisigIsm(chain, config, origin);
     } else if (config.type === ModuleType.ROUTING) {
       this.logger(
@@ -122,8 +136,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
           ? this.getContracts(chain).merkleRootMultisigIsmFactory
           : this.getContracts(chain).messageIdMultisigIsmFactory;
 
-      console.log(config.type === ModuleType.MERKLE_ROOT_MULTISIG);
-      console.log('FACTORIES: ', this.getContracts(chain));
       address = await this.deployMOfNFactory(
         chain,
         multisigIsmFactory,
@@ -204,11 +216,15 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     const address = await factory.getAddress(sorted, threshold);
     const provider = this.multiProvider.getProvider(chain);
     const code = await provider.getCode(address);
+
     if (code === '0x') {
       this.logger(
         `Deploying new ${threshold} of ${values.length} address set to ${chain}`,
       );
-      await factory.deploy(sorted, threshold);
+
+      const overrides = this.multiProvider.getTransactionOverrides(chain);
+      const hash = await factory.deploy(sorted, threshold, overrides);
+      await this.multiProvider.handleTx(chain, hash);
     } else {
       this.logger(
         `Recovered ${threshold} of ${values.length} address set on ${chain}`,

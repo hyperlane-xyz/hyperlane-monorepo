@@ -1,6 +1,5 @@
 import path from 'path';
 
-import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
   ChainMap,
   HyperlaneCoreDeployer,
@@ -17,13 +16,11 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { deployEnvToSdkEnv } from '../src/config/environment';
-import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
 import { TestRecipientDeployer } from '../src/deployment/testcontracts/testrecipient';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 import { readJSON } from '../src/utils/utils';
 
-import { hyperlaneRCEnvironments } from './consts/rc-environments';
 import {
   Modules,
   SDK_MODULES,
@@ -32,7 +29,6 @@ import {
   getEnvironmentConfig,
   getEnvironmentDirectory,
   getModuleDirectory,
-  getRCConnectionClientConfig,
   getRouterConfig,
   withModuleAndFork,
 } from './utils';
