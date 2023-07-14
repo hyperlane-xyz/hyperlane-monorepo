@@ -11,18 +11,23 @@ import {
   rcMultisigIsmConfigs,
 } from '@hyperlane-xyz/sdk';
 
+import { Contexts } from '../../contexts';
+
 import { chainNames } from './chains';
+import { owners } from './owners';
 
 export const multisigIsms = (
-  origin: ChainName,
+  local: ChainName,
   type: MultisigIsmConfig['type'],
-  isRc: boolean,
+  context: Contexts,
 ): ChainMap<MultisigIsmConfig> =>
   objMap(
     objFilter(
-      isRc ? rcMultisigIsmConfigs : defaultMultisigIsmConfigs,
+      context === Contexts.ReleaseCandidate
+        ? rcMultisigIsmConfigs
+        : defaultMultisigIsmConfigs,
       (chain, config): config is MultisigIsmConfig =>
-        chain !== origin && chainNames.includes(chain),
+        chain !== local && chainNames.includes(chain),
     ),
     (_, config) => ({
       ...config,
@@ -30,27 +35,30 @@ export const multisigIsms = (
     }),
   );
 
+/// Routing => Multisig ISM type
 export const routingIsm = (
-  origin: ChainName,
+  local: ChainName,
   type: MultisigIsmConfig['type'],
-  isRc: boolean,
+  context: Contexts,
 ): RoutingIsmConfig => {
+  const multisigIsmConfigs = multisigIsms(origin, type, context);
   return {
     type: ModuleType.ROUTING,
-    owner: '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65',
-    domains: multisigIsms(origin, type, isRc),
+    domains: multisigIsmConfigs,
+    owner: owners[local],
   };
 };
 
+/// 1/2 Aggregation => Routing => Multisig ISM
 export const aggregationIsm = (
-  origin: ChainName,
-  isRC = false,
+  local: ChainName,
+  context: Contexts,
 ): AggregationIsmConfig => {
   return {
     type: ModuleType.AGGREGATION,
     modules: [
-      routingIsm(origin, ModuleType.MESSAGE_ID_MULTISIG, isRC),
-      routingIsm(origin, ModuleType.MERKLE_ROOT_MULTISIG, isRC),
+      routingIsm(local, ModuleType.MESSAGE_ID_MULTISIG, context),
+      routingIsm(local, ModuleType.MERKLE_ROOT_MULTISIG, context),
     ],
     threshold: 1,
   };

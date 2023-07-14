@@ -1,5 +1,6 @@
 import path from 'path';
 
+import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
   ChainMap,
   HyperlaneCoreDeployer,
@@ -15,12 +16,15 @@ import {
   objMap,
 } from '@hyperlane-xyz/sdk';
 
+import { helloWorldConfig } from '../config/environments/testnet3/helloworld';
 import { deployEnvToSdkEnv } from '../src/config/environment';
+import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
 import { TestRecipientDeployer } from '../src/deployment/testcontracts/testrecipient';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 import { readJSON } from '../src/utils/utils';
 
+import { hyperlaneRCEnvironments } from './consts/rc-environments';
 import {
   Modules,
   SDK_MODULES,
@@ -30,11 +34,14 @@ import {
   getEnvironmentDirectory,
   getModuleDirectory,
   getRouterConfig,
+  withContext,
   withModuleAndFork,
 } from './utils';
 
 async function main() {
-  const { module, fork, environment } = await withModuleAndFork(getArgs()).argv;
+  const { context, module, fork, environment } = await withContext(
+    withModuleAndFork(getArgs()),
+  ).argv;
   const envConfig = getEnvironmentConfig(environment);
   const multiProvider = await envConfig.getMultiProvider();
 
@@ -106,18 +113,23 @@ async function main() {
     }));
     deployer = new TestQuerySenderDeployer(multiProvider, igp);
   } else if (module === Modules.HELLO_WORLD) {
+    console.log('entering hello world');
+    const routerConfig = await getRouterConfig(environment, multiProvider);
+    config = helloWorldConfig(context, routerConfig);
+    console.log('config: ', config);
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
       hyperlaneRCEnvironments.testnet,
       multiProvider,
     );
-    config = await getRCConnectionClientConfig(environment, multiProvider);
     deployer = new HelloWorldDeployer(multiProvider, ismFactory);
   } else {
     console.log(`Skipping ${module}, deployer unimplemented`);
     return;
   }
 
-  const modulePath = getModuleDirectory(environment, module);
+  const modulePath = getModuleDirectory(environment, module, context);
+
+  console.log(`Deploying to ${modulePath}`);
 
   const addresses = SDK_MODULES.includes(module)
     ? path.join(

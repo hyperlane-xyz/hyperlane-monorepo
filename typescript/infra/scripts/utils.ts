@@ -1,7 +1,6 @@
 import path from 'path';
 import yargs from 'yargs';
 
-import { HelloWorldConfig } from '@hyperlane-xyz/helloworld';
 import {
   AgentConnectionType,
   AllChains,
@@ -22,7 +21,6 @@ import {
 
 import { Contexts } from '../config/contexts';
 import { environments } from '../config/environments';
-import { aggregationIsm } from '../config/environments/testnet3/aggregationIsm';
 import { getCurrentKubernetesContext } from '../src/agents';
 import { getCloudAgentKey } from '../src/agents/key-utils';
 import { CloudAgentKey } from '../src/agents/keys';
@@ -209,6 +207,7 @@ export function getEnvironmentDirectory(environment: DeployEnvironment) {
 export function getModuleDirectory(
   environment: DeployEnvironment,
   module: Modules,
+  context?: Contexts,
 ) {
   // for backwards compatibility with existing paths
   const suffixFn = () => {
@@ -219,11 +218,14 @@ export function getModuleDirectory(
         return 'middleware/queries';
       case Modules.LIQUIDITY_LAYER:
         return 'middleware/liquidity-layer';
+      case Modules.HELLO_WORLD:
+        return `helloworld/${context}`;
       default:
         return module;
     }
   };
   return path.join(getEnvironmentDirectory(environment), suffixFn());
+  //  ./config/environments/testnet3/helloworld/rc/address.json
 }
 
 export function getAgentConfigDirectory() {
@@ -275,25 +277,6 @@ export async function getRouterConfig(
     };
   }
   return config;
-}
-
-export async function getRCConnectionClientConfig(
-  environment: DeployEnvironment,
-  multiProvider: MultiProvider,
-  useMultiProviderOwners = false,
-): Promise<ChainMap<HelloWorldConfig>> {
-  const routerConfig = await getRouterConfig(
-    environment,
-    multiProvider,
-    useMultiProviderOwners,
-  );
-
-  const helloWorldConfig = objMap(routerConfig, (chain, config) => {
-    config.interchainSecurityModule = aggregationIsm(chain, true);
-    return config;
-  });
-
-  return helloWorldConfig;
 }
 
 export function getValidatorsByChain(

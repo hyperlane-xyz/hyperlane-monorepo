@@ -1,3 +1,4 @@
+import { HelloWorldApp, helloWorldFactories } from '@hyperlane-xyz/helloworld';
 import {
   HyperlaneCore,
   HyperlaneCoreChecker,
@@ -8,8 +9,10 @@ import {
   InterchainQuery,
   InterchainQueryChecker,
 } from '@hyperlane-xyz/sdk';
+import { appFromAddressesMapHelper } from '@hyperlane-xyz/sdk/dist/contracts';
 import { HyperlaneIsmFactory } from '@hyperlane-xyz/sdk/dist/ism/HyperlaneIsmFactory';
 
+import helloworldHyperlaneAddresses from '../config/environments/testnet3/helloworld/addresses.json';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { HyperlaneAppGovernor } from '../src/govern/HyperlaneAppGovernor';
 import { HyperlaneCoreGovernor } from '../src/govern/HyperlaneCoreGovernor';
@@ -82,6 +85,19 @@ async function check() {
     );
     governor = new ProxiedRouterGovernor(checker, config.owners);
   } else {
+    const core = HyperlaneCore.fromEnvironment(env, multiProvider);
+    const x = appFromAddressesMapHelper(
+      helloworldHyperlaneAddresses,
+      helloWorldFactories,
+      multiProvider,
+    );
+    const app = new HelloWorldApp(core, x.contractsMap, x.multiProvider);
+    console.log({
+      appContractsAlfajoresRouterProvider:
+        app.contractsMap.alfajores.router.provider,
+    });
+    const isms = await app.getSecurityModules();
+    console.log(JSON.stringify(isms));
     console.log(`Skipping ${module}, checker or governor unimplemented`);
     return;
   }
