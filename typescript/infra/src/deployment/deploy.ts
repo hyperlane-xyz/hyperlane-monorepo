@@ -55,6 +55,7 @@ export async function deployWithArtifacts<Config>(
         configMap[fork],
       );
     } else {
+      console.log('DEPLOYING CONFIG MAP: ', configMap);
       await deployer.deploy(configMap);
     }
   } catch (e) {

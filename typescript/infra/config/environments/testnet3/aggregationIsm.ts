@@ -41,7 +41,7 @@ export const routingIsm = (
   type: MultisigIsmConfig['type'],
   context: Contexts,
 ): RoutingIsmConfig => {
-  const multisigIsmConfigs = multisigIsms(origin, type, context);
+  const multisigIsmConfigs = multisigIsms(local, type, context);
   return {
     type: ModuleType.ROUTING,
     domains: multisigIsmConfigs,

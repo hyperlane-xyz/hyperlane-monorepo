@@ -1,3 +1,5 @@
+import { ethers } from 'ethers';
+
 import {
   IInterchainGasPaymaster__factory,
   Mailbox__factory,
@@ -28,6 +30,7 @@ export abstract class HyperlaneRouterDeployer<
   // such ISMs *may* need to override checkConfig to disable this check.
   async checkConfig(configMap: ChainMap<Config>): Promise<void> {
     for (const [local, config] of Object.entries(configMap)) {
+      this.logger(`Checking config for ${local}...`);
       const signerOrProvider = this.multiProvider.getSignerOrProvider(local);
       const localIgp = IInterchainGasPaymaster__factory.connect(
         config.interchainGasPaymaster,
@@ -38,14 +41,14 @@ export abstract class HyperlaneRouterDeployer<
         signerOrProvider,
       );
       const localIsm =
-        config.interchainSecurityModule ?? (await localMailbox.defaultIsm());
-
-      if (typeof config.interchainSecurityModule === 'number') {
-        await localMailbox.defaultIsm();
-      }
+        !config.interchainSecurityModule ||
+        config.interchainSecurityModule === ethers.constants.AddressZero
+          ? await localMailbox.defaultIsm()
+          : config.interchainSecurityModule;
 
       const remotes = Object.keys(configMap).filter((c) => c !== local);
       for (const remote of remotes) {
+        this.logger(`Checking origin ${remote}...`);
         // Try to confirm that the IGP supports delivery to all remotes
         try {
           await localIgp.quoteGasPayment(

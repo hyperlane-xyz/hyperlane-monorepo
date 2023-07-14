@@ -12,7 +12,7 @@ import {
 import { appFromAddressesMapHelper } from '@hyperlane-xyz/sdk/dist/contracts';
 import { HyperlaneIsmFactory } from '@hyperlane-xyz/sdk/dist/ism/HyperlaneIsmFactory';
 
-import helloworldHyperlaneAddresses from '../config/environments/testnet3/helloworld/addresses.json';
+import rcAddresses from '../config/environments/testnet3/helloworld/rc/addresses.json';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { HyperlaneAppGovernor } from '../src/govern/HyperlaneAppGovernor';
 import { HyperlaneCoreGovernor } from '../src/govern/HyperlaneCoreGovernor';
@@ -87,7 +87,7 @@ async function check() {
   } else {
     const core = HyperlaneCore.fromEnvironment(env, multiProvider);
     const x = appFromAddressesMapHelper(
-      helloworldHyperlaneAddresses,
+      rcAddresses,
       helloWorldFactories,
       multiProvider,
     );
