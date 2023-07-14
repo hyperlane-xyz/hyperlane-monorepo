@@ -41,7 +41,7 @@ export const validatorChainConfig = (
       reorgPeriod: 3,
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x4c327ccb881a7542be77500b2833dc84c839e7b7'],
+          [Contexts.Hyperlane]: ['0xa7aa52623fe3d78c343008c95894be669e218b8d'],
           [Contexts.ReleaseCandidate]: [
             '0x706976391e23dea28152e0207936bd942aba01ce',
           ],
@@ -54,7 +54,7 @@ export const validatorChainConfig = (
       reorgPeriod: 256,
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x4c327ccb881a7542be77500b2833dc84c839e7b7'],
+          [Contexts.Hyperlane]: ['0x59a001c3451e7f9f3b4759ea215382c1e9aa5fc1'],
           [Contexts.ReleaseCandidate]: [
             '0xef372f6ff7775989b3ac884506ee31c79638c989',
           ],
@@ -67,7 +67,7 @@ export const validatorChainConfig = (
       reorgPeriod: 15,
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x4c327ccb881a7542be77500b2833dc84c839e7b7'],
+          [Contexts.Hyperlane]: ['0xcc84b1eb711e5076b2755cf4ad1d2b42c458a45e'],
           [Contexts.ReleaseCandidate]: [
             '0x0823081031a4a6f97c6083775c191d17ca96d0ab',
           ],
@@ -80,7 +80,7 @@ export const validatorChainConfig = (
       reorgPeriod: 0,
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x4c327ccb881a7542be77500b2833dc84c839e7b7'],
+          [Contexts.Hyperlane]: ['0xbcb815f38d481a5eba4d7ac4c9e74d9d0fc2a7e7'],
           [Contexts.ReleaseCandidate]: [
             '0x1a95b35fb809d57faf1117c1cc29a6c5df289df1',
           ],
@@ -93,7 +93,7 @@ export const validatorChainConfig = (
       reorgPeriod: 0,
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x4c327ccb881a7542be77500b2833dc84c839e7b7'],
+          [Contexts.Hyperlane]: ['0x9f2296d5cfc6b5176adc7716c7596898ded13d35'],
           [Contexts.ReleaseCandidate]: [
             '0x60e938bf280bbc21bacfd8bf435459d9003a8f98',
           ],
@@ -106,7 +106,7 @@ export const validatorChainConfig = (
       reorgPeriod: 2,
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x4c327ccb881a7542be77500b2833dc84c839e7b7'],
+          [Contexts.Hyperlane]: ['0x237243d32d10e3bdbbf8dbcccc98ad44c1c172ea'],
           [Contexts.ReleaseCandidate]: [
             '0x0df7140811e309dc69638352545151ebb9d5e0fd',
           ],
@@ -119,7 +119,7 @@ export const validatorChainConfig = (
       reorgPeriod: 14,
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x4c327ccb881a7542be77500b2833dc84c839e7b7'],
+          [Contexts.Hyperlane]: ['0xd0529ec8df08d0d63c0f023786bfa81e4bb51fd6'],
           [Contexts.ReleaseCandidate]: [
             '0x15f48e78092a4f79febface509cfd76467c6cdbb',
           ],
