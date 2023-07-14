@@ -29,6 +29,12 @@ serializable-account-meta = { path = "../../libraries/serializable-account-meta"
 base64.workspace = true
 itertools.workspace = true
 log.workspace = true
+solana-program-test.workspace = true
+solana-sdk.workspace = true
+
+hyperlane-sealevel-test-ism = { path = "../ism/test-ism", features = ["test-client"] }
+hyperlane-sealevel-test-send-receiver = { path = "../test-send-receiver", features = ["test-client"] }
+hyperlane-test-utils = { path = "../../libraries/test-utils" }
 
 [lib]
 crate-type = ["cdylib", "lib"]
