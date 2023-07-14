@@ -8,7 +8,6 @@ homepage.workspace = true
 license-file.workspace = true
 publish.workspace = true
 version.workspace = true
-resolver = "2"
 
 [dependencies]
 async-trait.workspace = true
