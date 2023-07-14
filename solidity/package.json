@@ -3,6 +3,7 @@
   "description": "Core solidity contracts for Hyperlane",
   "version": "1.4.2",
   "dependencies": {
+    "@eth-optimism/contracts": "^0.6.0",
     "@hyperlane-xyz/utils": "1.4.2",
     "@openzeppelin/contracts": "^4.8.0",
     "@openzeppelin/contracts-upgradeable": "^4.8.0"
