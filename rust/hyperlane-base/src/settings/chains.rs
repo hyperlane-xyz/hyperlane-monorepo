@@ -8,10 +8,10 @@ use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
 };
 use hyperlane_core::{
-    config::*, utils::hex_or_base58_to_h256, AggregationIsm, ContractLocator, HyperlaneAbi,
-    HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneProvider, HyperlaneSigner, IndexMode,
-    Indexer, InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
-    MessageIndexer, MultisigIsm, RoutingIsm, ValidatorAnnounce, H256,
+    config::*, utils::hex_or_base58_to_h256, AggregationIsm, CcipReadIsm, ContractLocator,
+    HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneProvider, HyperlaneSigner,
+    IndexMode, Indexer, InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule,
+    Mailbox, MessageIndexer, MultisigIsm, RoutingIsm, ValidatorAnnounce, H256,
 };
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
@@ -601,7 +601,7 @@ impl ChainConf {
 
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(_) => {
-                Err(eyre!("Sealevel does not support routing ISM yet")).context(ctx)
+                Err(eyre!("Sealevel does not support aggregation ISM yet")).context(ctx)
             }
         }
         .context(ctx)
@@ -626,6 +626,9 @@ impl ChainConf {
             }
 
             ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(_) => {
+                Err(eyre!("Sealevel does not support CCIP read ISM yet")).context(ctx)
+            }
         }
         .context(ctx)
     }
