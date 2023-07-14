@@ -162,7 +162,7 @@ mod tests {
                 &latest_proof_i.path,
                 TREE_DEPTH,
                 i,
-                root,
+                *root,
             ));
         }
     }
@@ -179,7 +179,7 @@ mod tests {
                     &proof.path,
                     TREE_DEPTH,
                     i,
-                    root,
+                    *root,
                 ));
             }
         }
