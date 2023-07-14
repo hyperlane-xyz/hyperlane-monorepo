@@ -3814,6 +3814,28 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-message-recipient-interface",
+ "itertools",
+ "log",
+ "num-derive",
+ "num-traits",
+ "serializable-account-meta",
+ "solana-program",
+ "spl-noop",
+ "thiserror",
+]
+
+[[package]]
+name = "hyperlane-sealevel-mailbox-test"
+version = "0.1.0"
+dependencies = [
+ "access-control",
+ "account-utils",
+ "base64 0.13.1",
+ "borsh 0.9.3",
+ "hyperlane-core",
+ "hyperlane-sealevel-interchain-security-module-interface",
+ "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-message-recipient-interface",
  "hyperlane-sealevel-test-ism",
  "hyperlane-sealevel-test-send-receiver",
  "hyperlane-test-utils",

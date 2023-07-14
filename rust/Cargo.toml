@@ -28,6 +28,7 @@ members = [
     "sealevel/programs/ism/multisig-ism-message-id",
     "sealevel/programs/ism/test-ism",
     "sealevel/programs/mailbox",
+    "sealevel/programs/mailbox-test",
     "sealevel/programs/test-send-receiver",
     "sealevel/programs/validator-announce",
     "utils/abigen",

@@ -36,8 +36,6 @@ use hyperlane_test_utils::{
     process_with_accounts,
 };
 
-mod utils;
-
 use crate::utils::{
     assert_dispatched_message, assert_inbox, assert_message_not_processed, assert_outbox,
     assert_processed_message, dispatch_from_payer,
