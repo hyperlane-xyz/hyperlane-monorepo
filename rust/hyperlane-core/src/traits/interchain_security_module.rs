@@ -26,6 +26,8 @@ pub enum ModuleType {
     MessageIdMultisig,
     /// No metadata ISM (no metadata)
     Null,
+    /// Ccip Read ISM (accepts offchain signature information)
+    CcipRead,
 }
 
 /// Interface for the InterchainSecurityModule chain contract. Allows abstraction over
