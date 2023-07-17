@@ -113,10 +113,8 @@ async function main() {
     }));
     deployer = new TestQuerySenderDeployer(multiProvider, igp);
   } else if (module === Modules.HELLO_WORLD) {
-    console.log('entering hello world');
     const routerConfig = await getRouterConfig(environment, multiProvider);
     config = helloWorldConfig(context, routerConfig);
-    console.log('config: ', config);
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
       hyperlaneRCEnvironments.testnet,
       multiProvider,

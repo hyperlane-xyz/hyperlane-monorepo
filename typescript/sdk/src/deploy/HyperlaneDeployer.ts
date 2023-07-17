@@ -196,7 +196,6 @@ export abstract class HyperlaneDeployer<
             ),
           );
         } else if (this.ismFactory) {
-          console.log('real: ', config.interchainSecurityModule);
           const matches = await moduleMatchesConfig(
             local,
             currentIsm,
@@ -205,36 +204,23 @@ export abstract class HyperlaneDeployer<
             this.ismFactory.chainMap[local],
           );
           if (matches) {
-            this.logger('ISM matches config');
+            // when the ISM recursively matches the IsmConfig, we don't need to deploy a new ISM
+            this.logger(
+              `ISM matches config for chain ${local}, skipping deploy`,
+            );
             return;
           }
-          console.log({ matches });
-          // return;
-
-          // console.log(config.interchainSecurityModule);
-          // if (config.interchainSecurityModule.type === ModuleType.AGGREGATION) {
-          //   for (const modules of config.interchainSecurityModule.modules) {
-          //     if (modules.type === ModuleType.ROUTING) {
-          //       console.log('Routing ISM');
-          //       for (const domain of Object.entries(modules.domains)) {
-          //         console.log(domain);
-          //       }
-          //     }
-          //   }
-          // }
-          return;
-          // deploy matching module
-          // const ism = await this.ismFactory.deploy(
-          //   local,
-          //   config.interchainSecurityModule,
-          // );
-          // await this.multiProvider.handleTx(
-          //   local,
-          //   connectionClient.setInterchainSecurityModule(
-          //     ism.address,
-          //     txOverrides,
-          //   ),
-          // );
+          const ism = await this.ismFactory.deploy(
+            local,
+            config.interchainSecurityModule,
+          );
+          await this.multiProvider.handleTx(
+            local,
+            connectionClient.setInterchainSecurityModule(
+              ism.address,
+              txOverrides,
+            ),
+          );
         } else {
           throw new Error('No ISM factory provided');
         }

@@ -1,4 +1,3 @@
-import { HelloWorldApp, helloWorldFactories } from '@hyperlane-xyz/helloworld';
 import {
   HyperlaneCore,
   HyperlaneCoreChecker,
@@ -8,18 +7,9 @@ import {
   InterchainAccountChecker,
   InterchainQuery,
   InterchainQueryChecker,
-  objMap,
-  promiseObjAll,
 } from '@hyperlane-xyz/sdk';
-import { appFromAddressesMapHelper } from '@hyperlane-xyz/sdk/dist/contracts';
-import {
-  HyperlaneIsmFactory,
-  moduleMatchesConfig,
-} from '@hyperlane-xyz/sdk/dist/ism/HyperlaneIsmFactory';
+import { HyperlaneIsmFactory } from '@hyperlane-xyz/sdk/dist/ism/HyperlaneIsmFactory';
 
-import { Contexts } from '../config/contexts';
-import { helloWorldConfig } from '../config/environments/testnet3/helloworld';
-import rcAddresses from '../config/environments/testnet3/helloworld/rc/addresses.json';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { HyperlaneAppGovernor } from '../src/govern/HyperlaneAppGovernor';
 import { HyperlaneCoreGovernor } from '../src/govern/HyperlaneCoreGovernor';
@@ -27,7 +17,6 @@ import { HyperlaneIgpGovernor } from '../src/govern/HyperlaneIgpGovernor';
 import { ProxiedRouterGovernor } from '../src/govern/ProxiedRouterGovernor';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 
-import { hyperlaneRCEnvironments } from './consts/rc-environments';
 import {
   Modules,
   getEnvironmentConfig,
@@ -93,32 +82,7 @@ async function check() {
     );
     governor = new ProxiedRouterGovernor(checker, config.owners);
   } else {
-    const core = HyperlaneCore.fromEnvironment(env, multiProvider);
-    const x = appFromAddressesMapHelper(
-      rcAddresses,
-      helloWorldFactories,
-      multiProvider,
-    );
-    const app = new HelloWorldApp(core, x.contractsMap, x.multiProvider);
-    const isms = await app.getSecurityModules();
-    const routerConfig = await getRouterConfig(environment, multiProvider);
-    const ismConfig = helloWorldConfig(Contexts.ReleaseCandidate, routerConfig);
-    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-      hyperlaneRCEnvironments.testnet,
-      multiProvider,
-    );
-    const res = await promiseObjAll(
-      objMap(isms, (chain, ism) =>
-        moduleMatchesConfig(
-          chain,
-          ism,
-          ismConfig[chain].interchainSecurityModule!,
-          multiProvider,
-          ismFactory.chainMap[chain],
-        ),
-      ),
-    );
-    console.log(res);
+    console.log(`Skipping ${module}, checker or governor unimplemented`);
     return;
   }
 
