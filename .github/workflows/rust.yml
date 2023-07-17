@@ -40,6 +40,8 @@ jobs:
           shared-key: "test"
           workspaces: |
             ./rust
+      - name: Some debugging
+        run: df -h && du -h ./
       - name: Run tests
         run: cargo test
 
