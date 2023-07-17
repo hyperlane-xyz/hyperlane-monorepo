@@ -128,11 +128,11 @@
     },
     "solanadevnet": {
       "name": "solanadevnet",
-      "domain": 13375,
+      "domain": 1399811151,
       "addresses": {
-        "mailbox": "692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1",
+        "mailbox": "4v25Dz9RccqUrTzmfHzJMsjd1iVoNrWzeJ4o6GYuJrVn",
         "interchainGasPaymaster": "FixmeFixmeFixmeFixmeFixmeFixmeFixmeFixmeFixm",
-        "validatorAnnounce": "DH43ae1LwemXAboWwSh8zc9pG8j72gKUEXNi57w8fEnn"
+        "validatorAnnounce": "CMHKvdq4CopDf7qXnDCaTybS15QekQeRt4oUB219yxsp"
       },
       "protocol": "sealevel",
       "finalityBlocks": 0,
@@ -145,19 +145,19 @@
         "mode": "sequence"
       }
     },
-    "solanadevnet1": {
-      "name": "solanadevnet1",
-      "domain": 13376,
+    "zbctestnet": {
+      "name": "zbctestnet",
+      "domain": 2053254516,
       "addresses": {
-        "mailbox": "AWgqPcY1vjHRoFLHNgs15fdvy4bqEakHmYXW78B8GgYk",
+        "mailbox": "4hW22NXtJ2AXrEVbeAmxjhvxWPSNvfTfAphKXdRBZUco",
         "interchainGasPaymaster": "FixmeFixmeFixmeFixmeFixmeFixmeFixmeFixmeFixm",
-        "validatorAnnounce": "4JRZrYJnXJn6KPSCG4tA6GBomP2zwQv8bD65anWnHmNz"
+        "validatorAnnounce": "Ar1WiYNhN6F33pj4pcVo5jRMV3V8iJqKiMRSbaDEeqkq"
       },
       "protocol": "sealevel",
       "finalityBlocks": 0,
       "connection": {
         "type": "http",
-        "url": "https://api.devnet.solana.com"
+        "url": "https://api.zebec.eclipsenetwork.xyz:8899"
       },
       "index": {
         "from": 1,

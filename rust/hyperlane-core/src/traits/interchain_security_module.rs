@@ -2,14 +2,16 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
+use borsh::{BorshDeserialize, BorshSerialize};
 use num_derive::FromPrimitive;
-use primitive_types::U256;
-use strum::Display;
 
-use crate::{ChainResult, HyperlaneContract, HyperlaneMessage};
+use crate::{ChainResult, HyperlaneContract, HyperlaneMessage, U256};
 
 /// Enumeration of all known module types
-#[derive(FromPrimitive, Clone, Debug, Default, Display, Copy, PartialEq, Eq)]
+#[derive(
+    FromPrimitive, Clone, Debug, Default, Copy, PartialEq, Eq, BorshDeserialize, BorshSerialize,
+)]
+#[cfg_attr(feature = "strum", derive(strum::Display))]
 pub enum ModuleType {
     /// INVALID ISM
     #[default]
@@ -24,6 +26,10 @@ pub enum ModuleType {
     MerkleRootMultisig,
     /// Message ID ISM (cheapest multisig with no batching)
     MessageIdMultisig,
+    /// No metadata ISM (no metadata)
+    Null,
+    /// Ccip Read ISM (accepts offchain signature information)
+    CcipRead,
 }
 
 /// Interface for the InterchainSecurityModule chain contract. Allows abstraction over

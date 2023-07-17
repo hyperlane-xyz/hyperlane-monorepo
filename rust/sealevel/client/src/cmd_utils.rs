@@ -1,11 +1,9 @@
-use hyperlane_core::{H160, H256};
 use std::{
     collections::HashMap,
     fs::File,
     io::Write,
     path::{Path, PathBuf},
     process::{Command, Stdio},
-    str::FromStr,
 };
 
 use solana_client::{client_error::ClientError, rpc_client::RpcClient};
@@ -159,17 +157,4 @@ pub(crate) fn create_and_write_keypair(
     println!("Wrote keypair {} to {}", keypair.pubkey(), path.display());
 
     (keypair, path)
-}
-
-pub(crate) fn hex_or_base58_to_h256(string: &str) -> H256 {
-    if string.starts_with("0x") {
-        match string.len() {
-            66 => H256::from_str(string).unwrap(),
-            42 => H160::from_str(string).unwrap().into(),
-            _ => panic!("Invalid hex string"),
-        }
-    } else {
-        let pubkey = Pubkey::from_str(string).unwrap();
-        H256::from_slice(&pubkey.to_bytes()[..])
-    }
 }

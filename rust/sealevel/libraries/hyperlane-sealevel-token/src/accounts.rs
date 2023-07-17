@@ -49,9 +49,9 @@ where
 {
     /// Deserializes the data from the provided `token_account_info` and returns it.
     /// Returns an Err if the provided `token_account_info` is not the canonical HyperlaneToken PDA for this program.
-    pub fn verify_account_and_fetch_inner<'a>(
+    pub fn verify_account_and_fetch_inner(
         program_id: &Pubkey,
-        token_account_info: &AccountInfo<'a>,
+        token_account_info: &AccountInfo<'_>,
     ) -> Result<Self, ProgramError> {
         let token =
             HyperlaneTokenAccount::fetch(&mut &token_account_info.data.borrow()[..])?.into_inner();

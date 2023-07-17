@@ -3,13 +3,14 @@ pragma solidity >=0.6.11;
 
 interface IInterchainSecurityModule {
     enum Types {
-        NULL, // used with relayer carrying no metadata
+        UNUSED,
         ROUTING,
         AGGREGATION,
         LEGACY_MULTISIG,
         MERKLE_ROOT_MULTISIG,
         MESSAGE_ID_MULTISIG,
-        OPTIMISM
+        NULL, // used with relayer carrying no metadata
+        CCIP_READ
     }
 
     /**

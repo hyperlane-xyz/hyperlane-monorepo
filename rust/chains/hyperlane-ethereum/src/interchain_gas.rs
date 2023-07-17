@@ -89,11 +89,10 @@ where
         &self,
         range: IndexRange,
     ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
-        let (from_block, to_block) = match range {
-            IndexRange::Blocks(from, to) => (from, to),
-            IndexRange::Sequences(_, _) => return Err(ChainCommunicationError::from_other_str(
-                "EthereumInterchainGasPaymasterIndexer does not support sequence-based indexing",
-            )),
+        let IndexRange::Blocks(from_block, to_block) = range else {
+            return Err(ChainCommunicationError::from_other_str(
+                "EthereumInterchainGasPaymasterIndexer only supports block-based indexing",
+            ))
         };
 
         let events = self
@@ -110,8 +109,8 @@ where
                 (
                     InterchainGasPayment {
                         message_id: H256::from(log.message_id),
-                        payment: log.payment,
-                        gas_amount: log.gas_amount,
+                        payment: log.payment.into(),
+                        gas_amount: log.gas_amount.into(),
                     },
                     log_meta.into(),
                 )

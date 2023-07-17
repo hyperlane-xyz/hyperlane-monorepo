@@ -1,18 +1,16 @@
 use async_trait::async_trait;
+use num_traits::cast::FromPrimitive;
+use solana_sdk::{instruction::Instruction, pubkey::Pubkey, signature::Keypair};
+use tracing::warn;
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, InterchainSecurityModule, ModuleType, H256, U256,
 };
-use num_traits::cast::FromPrimitive;
-use tracing::warn;
+use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
+use serializable_account_meta::SimulationReturnData;
 
-use crate::{
-    contract::{InterchainSecurityModuleInstruction, SimulationReturnData},
-    solana::{instruction::Instruction, pubkey::Pubkey, signature::Keypair},
-    utils::simulate_instruction,
-    ConnectionConf, RpcClientWithDebug,
-};
+use crate::{utils::simulate_instruction, ConnectionConf, RpcClientWithDebug};
 
 /// A reference to an InterchainSecurityModule contract on some Sealevel chain
 #[derive(Debug)]
@@ -90,7 +88,7 @@ impl InterchainSecurityModule for SealevelInterchainSecurityModule {
         _message: &HyperlaneMessage,
         _metadata: &[u8],
     ) -> ChainResult<Option<U256>> {
-        // TODO: Implement this once we have aggregation ISM support
+        // TODO: Implement this once we have aggregation ISM support in Sealevel
         Ok(Some(U256::zero()))
     }
 }

@@ -1,3 +1,5 @@
+cargo-features = ["workspace-inheritance"]
+
 [package]
 name = "scraper"
 documentation.workspace = true
@@ -28,7 +30,7 @@ tracing.workspace = true
 
 hex = { path = "../../utils/hex" }
 hyperlane-base = { path = "../../hyperlane-base" }
-hyperlane-core = { path = "../../hyperlane-core" }
+hyperlane-core = { path = "../../hyperlane-core", features = ["agent"] }
 migration = { path = "migration" }
 
 [dev-dependencies]

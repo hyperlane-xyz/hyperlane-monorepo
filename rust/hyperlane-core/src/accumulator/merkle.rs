@@ -1,4 +1,3 @@
-use lazy_static::lazy_static;
 use thiserror::Error;
 
 use crate::{
@@ -15,12 +14,46 @@ use crate::{
 //    - remove ring dependency
 // In accordance with its license terms, the apache2 license is reproduced below
 
-lazy_static! {
-    /// Zero nodes to act as "synthetic" left and right subtrees of other zero nodes.
-    pub static ref ZERO_NODES: Vec<MerkleTree> = {
-        (0..=TREE_DEPTH).map(MerkleTree::Zero).collect()
-    };
-}
+// Can't initialize this using `lazy_static` because of a constaint in Solana: static variables cannot be writable.
+// See the following links for more info:
+// https://stackoverflow.com/questions/70630344/failed-to-deploy-my-solana-smart-contract
+// https://docs.solana.com/developing/on-chain-programs/limitations#static-writable-data
+/// Zero nodes to act as "synthetic" left and right subtrees of other zero nodes.
+pub const ZERO_NODES: [MerkleTree; TREE_DEPTH + 1] = [
+    MerkleTree::Zero(0),
+    MerkleTree::Zero(1),
+    MerkleTree::Zero(2),
+    MerkleTree::Zero(3),
+    MerkleTree::Zero(4),
+    MerkleTree::Zero(5),
+    MerkleTree::Zero(6),
+    MerkleTree::Zero(7),
+    MerkleTree::Zero(8),
+    MerkleTree::Zero(9),
+    MerkleTree::Zero(10),
+    MerkleTree::Zero(11),
+    MerkleTree::Zero(12),
+    MerkleTree::Zero(13),
+    MerkleTree::Zero(14),
+    MerkleTree::Zero(15),
+    MerkleTree::Zero(16),
+    MerkleTree::Zero(17),
+    MerkleTree::Zero(18),
+    MerkleTree::Zero(19),
+    MerkleTree::Zero(20),
+    MerkleTree::Zero(21),
+    MerkleTree::Zero(22),
+    MerkleTree::Zero(23),
+    MerkleTree::Zero(24),
+    MerkleTree::Zero(25),
+    MerkleTree::Zero(26),
+    MerkleTree::Zero(27),
+    MerkleTree::Zero(28),
+    MerkleTree::Zero(29),
+    MerkleTree::Zero(30),
+    MerkleTree::Zero(31),
+    MerkleTree::Zero(32),
+];
 
 /// Right-sparse Merkle tree.
 ///
@@ -490,6 +523,12 @@ mod tests {
         incr.ingest(leaf);
         assert_eq!(second.hash(), incr.root());
         assert_eq!(full.hash(), incr.root());
+    }
+
+    #[test]
+    fn it_sets_zero_nodes_correctly() {
+        let expected_zero_nodes: Vec<_> = (0..=TREE_DEPTH).map(MerkleTree::Zero).collect();
+        assert_eq!(expected_zero_nodes.as_slice(), ZERO_NODES.as_slice());
     }
 }
 
