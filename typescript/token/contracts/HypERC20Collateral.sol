@@ -49,6 +49,7 @@ contract HypERC20Collateral is TokenRouter {
      */
     function _transferFromSender(uint256 _amount)
         internal
+        virtual
         override
         returns (bytes memory)
     {
@@ -64,7 +65,7 @@ contract HypERC20Collateral is TokenRouter {
         address _recipient,
         uint256 _amount,
         bytes calldata // no metadata
-    ) internal override {
+    ) internal virtual override {
         wrappedToken.safeTransfer(_recipient, _amount);
     }
 }
