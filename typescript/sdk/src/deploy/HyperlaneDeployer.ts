@@ -17,8 +17,10 @@ import {
   HyperlaneContractsMap,
   HyperlaneFactories,
 } from '../contracts';
-import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
-import { moduleMatchesConfig } from '../ism/HyperlaneIsmFactory';
+import {
+  HyperlaneIsmFactory,
+  moduleMatchesConfig,
+} from '../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ConnectionClientConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
@@ -70,7 +72,7 @@ export abstract class HyperlaneDeployer<
   async deploy(
     configMap: ChainMap<Config>,
   ): Promise<HyperlaneContractsMap<Factories>> {
-    await this.checkConfig(configMap);
+    // await this.checkConfig(configMap);
     const configChains = Object.keys(configMap);
     const targetChains = this.multiProvider.intersect(
       configChains,
@@ -194,7 +196,7 @@ export abstract class HyperlaneDeployer<
             ),
           );
         } else if (this.ismFactory) {
-          console.log(config.interchainSecurityModule);
+          console.log('real: ', config.interchainSecurityModule);
           const matches = await moduleMatchesConfig(
             local,
             currentIsm,
@@ -207,18 +209,32 @@ export abstract class HyperlaneDeployer<
             return;
           }
           console.log({ matches });
+          // return;
+
+          // console.log(config.interchainSecurityModule);
+          // if (config.interchainSecurityModule.type === ModuleType.AGGREGATION) {
+          //   for (const modules of config.interchainSecurityModule.modules) {
+          //     if (modules.type === ModuleType.ROUTING) {
+          //       console.log('Routing ISM');
+          //       for (const domain of Object.entries(modules.domains)) {
+          //         console.log(domain);
+          //       }
+          //     }
+          //   }
+          // }
+          return;
           // deploy matching module
-          const ism = await this.ismFactory.deploy(
-            local,
-            config.interchainSecurityModule,
-          );
-          await this.multiProvider.handleTx(
-            local,
-            connectionClient.setInterchainSecurityModule(
-              ism.address,
-              txOverrides,
-            ),
-          );
+          // const ism = await this.ismFactory.deploy(
+          //   local,
+          //   config.interchainSecurityModule,
+          // );
+          // await this.multiProvider.handleTx(
+          //   local,
+          //   connectionClient.setInterchainSecurityModule(
+          //     ism.address,
+          //     txOverrides,
+          //   ),
+          // );
         } else {
           throw new Error('No ISM factory provided');
         }

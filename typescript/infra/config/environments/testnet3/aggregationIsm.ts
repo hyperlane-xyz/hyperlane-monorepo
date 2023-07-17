@@ -57,8 +57,8 @@ export const aggregationIsm = (
   return {
     type: ModuleType.AGGREGATION,
     modules: [
-      routingIsm(local, ModuleType.MESSAGE_ID_MULTISIG, context),
       routingIsm(local, ModuleType.MERKLE_ROOT_MULTISIG, context),
+      routingIsm(local, ModuleType.MESSAGE_ID_MULTISIG, context),
     ],
     threshold: 1,
   };

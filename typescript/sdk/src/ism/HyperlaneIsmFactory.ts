@@ -368,11 +368,20 @@ export async function moduleMatchesConfig(
   if (actualType !== config.type) return false;
   let matches = true;
   switch (config.type) {
-    case ModuleType.MERKLE_ROOT_MULTISIG:
+    case ModuleType.MERKLE_ROOT_MULTISIG: {
+      const expectedAddress =
+        await contracts.merkleRootMultisigIsmFactory.getAddress(
+          config.validators.sort(),
+          config.threshold,
+        );
+      matches = utils.eqAddress(expectedAddress, module.address);
+      break;
+    }
+
     case ModuleType.MESSAGE_ID_MULTISIG: {
       // A MultisigIsm matches if validators and threshold match the config
       const expectedAddress =
-        await contracts.merkleRootMultisigIsmFactory.getAddress(
+        await contracts.messageIdMultisigIsmFactory.getAddress(
           config.validators.sort(),
           config.threshold,
         );
@@ -440,26 +449,19 @@ export async function moduleMatchesConfig(
       matches = matches && threshold === config.threshold;
       matches = matches && subModules.length === config.modules.length;
 
-      const configIndexMatched = new Map();
-      for (const subModule of subModules) {
-        const subModuleMatchesConfig = await Promise.all(
-          config.modules.map((c) =>
-            moduleMatchesConfig(chain, subModule, c, multiProvider, contracts),
-          ),
-        );
-        // The submodule returned by the ISM must match exactly one
-        // entry in the config.
-        const count = subModuleMatchesConfig.filter(Boolean).length;
-        matches = matches && count === 1;
+      const subModulesMatch = await Promise.all(
+        subModules.map((subModule, index) => {
+          return moduleMatchesConfig(
+            chain,
+            subModule,
+            config.modules[index],
+            multiProvider,
+            contracts,
+          );
+        }),
+      );
 
-        // That entry in the config should not have been matched already.
-        subModuleMatchesConfig.forEach((matched, index) => {
-          if (matched) {
-            matches = matches && !configIndexMatched.has(index);
-            configIndexMatched.set(index, true);
-          }
-        });
-      }
+      matches = matches && subModulesMatch.every((m) => m);
       break;
     }
     default: {
