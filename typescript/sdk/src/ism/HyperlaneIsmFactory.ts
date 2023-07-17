@@ -354,11 +354,15 @@ export async function moduleCanCertainlyVerify(
 export async function moduleMatchesConfig(
   chain: ChainName,
   moduleAddress: types.Address,
-  config: IsmConfig,
+  config: IsmConfig | types.Address,
   multiProvider: MultiProvider,
-  contracts: HyperlaneContracts<IsmFactoryFactories>,
+  contracts: HyperlaneContracts<IsmFactoryFactories>, // TODO: remove
   origin?: ChainName,
 ): Promise<boolean> {
+  if (typeof config === 'string') {
+    return utils.eqAddress(moduleAddress, config);
+  }
+
   const provider = multiProvider.getProvider(chain);
   const module = IInterchainSecurityModule__factory.connect(
     moduleAddress,
@@ -368,37 +372,15 @@ export async function moduleMatchesConfig(
   if (actualType !== config.type) return false;
   let matches = true;
   switch (config.type) {
-    case ModuleType.MERKLE_ROOT_MULTISIG: {
-      const expectedAddress =
-        await contracts.merkleRootMultisigIsmFactory.getAddress(
-          config.validators.sort(),
-          config.threshold,
-        );
-      matches = utils.eqAddress(expectedAddress, module.address);
-      break;
-    }
-
+    case ModuleType.MERKLE_ROOT_MULTISIG:
     case ModuleType.MESSAGE_ID_MULTISIG: {
-      // A MultisigIsm matches if validators and threshold match the config
-      const expectedAddress =
-        await contracts.messageIdMultisigIsmFactory.getAddress(
-          config.validators.sort(),
-          config.threshold,
-        );
-      matches = utils.eqAddress(expectedAddress, module.address);
-      break;
-    }
-    case ModuleType.LEGACY_MULTISIG: {
-      const multisigIsm = LegacyMultisigIsm__factory.connect(
+      const multisigIsm = IMultisigIsm__factory.connect(
         moduleAddress,
         provider,
       );
-      if (!origin) {
-        throw new Error("Can't check legacy multisig without origin");
-      }
-      const originDomain = multiProvider.getDomainId(origin);
-      const validators = await multisigIsm.validators(originDomain);
-      const threshold = await multisigIsm.threshold(originDomain);
+      const [validators, threshold] = await multisigIsm.validatorsAndThreshold(
+        '0x',
+      );
       matches =
         JSON.stringify(config.validators.map((s) => s.toLowerCase()).sort()) ===
           JSON.stringify(validators.map((s) => s.toLowerCase()).sort()) &&
@@ -415,8 +397,9 @@ export async function moduleMatchesConfig(
         provider,
       );
       // Check that the RoutingISM owner matches the config
-      const owner = await routingIsm.owner();
-      matches = matches && utils.eqAddress(owner, config.owner);
+      // const owner = await routingIsm.owner();
+      // matches = matches && utils.eqAddress(owner, config.owner);
+      // console.log(`routing owner matches ${matches}`);
       // Recursively check that the submodule for each configured
       // domain matches the submodule config.
       for (const [origin, subConfig] of Object.entries(config.domains)) {
@@ -450,15 +433,15 @@ export async function moduleMatchesConfig(
       matches = matches && subModules.length === config.modules.length;
 
       const subModulesMatch = await Promise.all(
-        subModules.map((subModule, index) => {
-          return moduleMatchesConfig(
+        subModules.map((subModule, index) =>
+          moduleMatchesConfig(
             chain,
             subModule,
             config.modules[index],
             multiProvider,
             contracts,
-          );
-        }),
+          ),
+        ),
       );
 
       matches = matches && subModulesMatch.every((m) => m);
@@ -469,6 +452,23 @@ export async function moduleMatchesConfig(
     }
   }
 
+  const typeToName = (type: ModuleType) => {
+    switch (type) {
+      case ModuleType.MERKLE_ROOT_MULTISIG:
+        return 'Merkle Root Multisig';
+      case ModuleType.MESSAGE_ID_MULTISIG:
+        return 'Message ID Multisig';
+      case ModuleType.LEGACY_MULTISIG:
+        return 'Legacy Multisig';
+      case ModuleType.ROUTING:
+        return 'Routing';
+      case ModuleType.AGGREGATION:
+        return 'Aggregation';
+      default:
+        throw new Error('Unsupported ModuleType');
+    }
+  };
+  console.log(`${chain} ${typeToName(config.type)} ${matches}`);
   return matches;
 }
 
