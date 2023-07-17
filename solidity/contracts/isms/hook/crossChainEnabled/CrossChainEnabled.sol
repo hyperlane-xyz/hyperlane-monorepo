@@ -13,7 +13,7 @@ import "./errors.sol";
  * flow when receiving cross-chain messages.
  *
  * Actual implementations of cross-chain aware contracts, which are based on
- * this abstraction, will  have to inherit from a bridge-specific
+ * this abstraction, will have to inherit from a bridge-specific
  * specialization. Such specializations are provided under
  * `crosschain/<chain>/CrossChainEnabled<chain>.sol`.
  *
