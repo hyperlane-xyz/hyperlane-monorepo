@@ -219,12 +219,18 @@ export abstract class HyperlaneDeployer<
         } else {
           throw new Error('No ISM factory provided');
         }
+        this.logger(
+          `Set interchain security module on ${local} at ${deployedIsm}`,
+        );
+
+        await this.multiProvider.handleTx(
+          local,
+          connectionClient.setInterchainSecurityModule(
+            deployedIsm,
+            txOverrides,
+          ),
+        );
       }
-      this.logger(`Set interchain security module on ${local}`);
-      await this.multiProvider.handleTx(
-        local,
-        connectionClient.setInterchainSecurityModule(deployedIsm, txOverrides),
-      );
     });
     this.logger(`Connection client on ${local} initialized...`);
   }

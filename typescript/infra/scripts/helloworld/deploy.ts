@@ -25,11 +25,6 @@ async function main() {
     Role.Deployer,
   );
   const configMap = await getRouterConfig(environment, multiProvider, true);
-  console.log('ConfigMap: ', configMap);
-
-  // for (const routingIsms of Object.entries( aggregationIsm().modules)) {
-  //   console.log(routingIsms);
-  // }
   const deployer = new HelloWorldDeployer(multiProvider);
   const dir = path.join(
     getEnvironmentDirectory(environment),
