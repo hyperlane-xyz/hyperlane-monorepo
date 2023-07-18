@@ -36,6 +36,7 @@ export const infrastructure: InfrastructureConfig = {
       'hyperlane-mainnet2-',
       'rc-mainnet2-',
       'mainnet2-',
+      'permissionless-mainnet2-',
     ],
   },
 };

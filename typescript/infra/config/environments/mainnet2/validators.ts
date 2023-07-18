@@ -136,5 +136,19 @@ export const validatorChainConfig = (
         'gnosis',
       ),
     },
+    zkevm: {
+      interval: 5,
+      reorgPeriod: 1,
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Permissionless]: [
+            '0xdc38324fd59043c98dd8b46d2c2349dfc381506a',
+          ],
+        },
+        'gnosis',
+      ),
+    },
   };
 };

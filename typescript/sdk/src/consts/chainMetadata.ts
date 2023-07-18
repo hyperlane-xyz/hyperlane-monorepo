@@ -689,6 +689,23 @@ export const zbctestnet: ChainMetadata = {
   isTestnet: true,
 };
 
+export const zkevm: ChainMetadata = {
+  chainId: 1101,
+  domainId: 1101,
+  name: Chains.zkevm,
+  protocol: ProtocolType.Ethereum,
+  displayName: 'zkEVM',
+  displayNameShort: 'zkEVM',
+  nativeToken: maticToken,
+  rpcUrls: [{ http: 'https://zkevm-rpc.com' }],
+  blockExplorers: [],
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 0,
+    estimateBlockTime: 5,
+  },
+  isTestnet: false,
+};
 /**
  * Collection maps
  *
@@ -719,6 +736,7 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   test3,
   solanadevnet,
   zbctestnet,
+  zkevm,
 };
 
 export const chainIdToMetadata = Object.values(chainMetadata).reduce<
