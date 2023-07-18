@@ -1,7 +1,7 @@
 import { ModuleType, MultisigIsmConfig } from '../ism/types';
 import { ChainMap } from '../types';
 
-export const multisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
+export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
   // ----------------- Mainnets -----------------
   celo: {
     type: ModuleType.LEGACY_MULTISIG,

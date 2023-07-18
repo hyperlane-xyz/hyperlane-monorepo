@@ -77,9 +77,9 @@ export function withModuleAndFork<T>(args: yargs.Argv<T>) {
 export function withContext<T>(args: yargs.Argv<T>) {
   return args
     .describe('context', 'deploy context')
-    .default('protocol', Contexts.Hyperlane)
+    .default('context', Contexts.Hyperlane)
     .coerce('context', assertContext)
-    .alias('c', 'context');
+    .demandOption('context');
 }
 
 export function withProtocol<T>(args: yargs.Argv<T>) {

@@ -3,7 +3,7 @@ import {
   CoreConfig,
   ModuleType,
   RoutingIsmConfig,
-  multisigIsmConfigs,
+  defaultMultisigIsmConfigs,
   objMap,
 } from '@hyperlane-xyz/sdk';
 
@@ -15,7 +15,7 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     type: ModuleType.ROUTING,
     owner,
     domains: Object.fromEntries(
-      Object.entries(multisigIsmConfigs).filter(
+      Object.entries(defaultMultisigIsmConfigs).filter(
         ([chain]) => chain !== local && chainNames.includes(chain),
       ),
     ),

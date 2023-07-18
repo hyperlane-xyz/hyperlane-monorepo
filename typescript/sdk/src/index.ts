@@ -19,7 +19,7 @@ export {
   hyperlaneContractAddresses,
   hyperlaneEnvironments,
 } from './consts/environments';
-export { multisigIsmConfigs } from './consts/multisigIsm';
+export { defaultMultisigIsmConfigs } from './consts/multisigIsm';
 export {
   HyperlaneAddresses,
   HyperlaneAddressesMap,

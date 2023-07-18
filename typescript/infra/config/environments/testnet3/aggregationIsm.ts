@@ -6,13 +6,13 @@ import {
   ModuleType,
   MultisigIsmConfig,
   RoutingIsmConfig,
-  multisigIsmConfigs,
+  defaultMultisigIsmConfigs,
   objFilter,
   objMap,
 } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../contexts';
-import { rcMultisigIsmConfigs } from '../../rcMultisigIsm';
+import { rcMultisigIsmConfigs } from '../../multisigIsm';
 
 import { chainNames } from './chains';
 import { owners } from './owners';
@@ -26,7 +26,7 @@ export const multisigIsms = (
     objFilter(
       context === Contexts.ReleaseCandidate
         ? rcMultisigIsmConfigs
-        : multisigIsmConfigs,
+        : defaultMultisigIsmConfigs,
       (chain, config): config is MultisigIsmConfig =>
         chain !== local && chainNames.includes(chain),
     ),
@@ -42,10 +42,10 @@ export const routingIsm = (
   type: MultisigIsmConfig['type'],
   context: Contexts,
 ): RoutingIsmConfig => {
-  const multisigIsmConfigs = multisigIsms(local, type, context);
+  const defaultMultisigIsmConfigs = multisigIsms(local, type, context);
   return {
     type: ModuleType.ROUTING,
-    domains: multisigIsmConfigs,
+    domains: defaultMultisigIsmConfigs,
     owner: owners[local],
   };
 };

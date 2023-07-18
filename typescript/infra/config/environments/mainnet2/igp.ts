@@ -2,7 +2,7 @@ import {
   ChainMap,
   GasOracleContractType,
   OverheadIgpConfig,
-  multisigIsmConfigs,
+  defaultMultisigIsmConfigs,
   multisigIsmVerificationCost,
   objMap,
 } from '@hyperlane-xyz/sdk';
@@ -34,8 +34,8 @@ export const igp: ChainMap<OverheadIgpConfig> = objMap(
           .map((remote) => [
             remote,
             multisigIsmVerificationCost(
-              multisigIsmConfigs[remote].threshold,
-              multisigIsmConfigs[remote].validators.length,
+              defaultMultisigIsmConfigs[remote].threshold,
+              defaultMultisigIsmConfigs[remote].validators.length,
             ),
           ]),
       ),
