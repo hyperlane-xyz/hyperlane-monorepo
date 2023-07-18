@@ -39,11 +39,8 @@ export class HyperlaneRouterChecker<
       violationType: ConnectionClientViolationType,
     ) => {
       const actual = await router[property]();
-      // TODO: check for IsmConfig
       const expected =
-        typeof this.configMap[chain][property] === 'string'
-          ? `${this.configMap[chain][property]}` ?? ethers.constants.AddressZero
-          : ethers.constants.AddressZero;
+        this.configMap[chain][property] ?? ethers.constants.AddressZero;
       if (!utils.eqAddress(actual, expected)) {
         const violation: ConnectionClientViolation = {
           chain,

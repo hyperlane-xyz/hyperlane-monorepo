@@ -1,7 +1,6 @@
 import {
   ChainName,
   HyperlaneContracts,
-  HyperlaneIsmFactory,
   HyperlaneRouterDeployer,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
@@ -15,11 +14,8 @@ export class HelloWorldDeployer extends HyperlaneRouterDeployer<
   HelloWorldConfig,
   HelloWorldFactories
 > {
-  constructor(
-    multiProvider: MultiProvider,
-    readonly ismFactory?: HyperlaneIsmFactory,
-  ) {
-    super(multiProvider, helloWorldFactories, { ismFactory });
+  constructor(multiProvider: MultiProvider) {
+    super(multiProvider, helloWorldFactories, {});
   }
 
   router(contracts: HyperlaneContracts<HelloWorldFactories>): HelloWorld {

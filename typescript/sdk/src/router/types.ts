@@ -6,7 +6,6 @@ import type { types } from '@hyperlane-xyz/utils';
 
 import { HyperlaneFactories } from '../contracts';
 import { CheckerViolation } from '../deploy/types';
-import { IsmConfig } from '../ism/types';
 
 export type OwnableConfig = {
   owner: types.Address;
@@ -33,7 +32,7 @@ export type ProxiedFactories = HyperlaneFactories & {
 export type ConnectionClientConfig = {
   mailbox: types.Address;
   interchainGasPaymaster: types.Address;
-  interchainSecurityModule?: types.Address | IsmConfig;
+  interchainSecurityModule?: types.Address;
 };
 
 export enum ConnectionClientViolationType {
