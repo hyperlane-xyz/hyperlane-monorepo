@@ -40,9 +40,12 @@ export class HyperlaneRouterChecker<
     ) => {
       const actual = await router[property]();
       // TODO: check for IsmConfig
+      const value = this.configMap[chain][property];
+      if (value && typeof value === 'object')
+        throw new Error('ISM as object unimplemented');
       const expected =
-        typeof this.configMap[chain][property] === 'string'
-          ? `${this.configMap[chain][property]}` ?? ethers.constants.AddressZero
+        value && typeof value === 'string'
+          ? value
           : ethers.constants.AddressZero;
       if (!utils.eqAddress(actual, expected)) {
         const violation: ConnectionClientViolation = {

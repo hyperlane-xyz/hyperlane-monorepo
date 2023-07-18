@@ -76,7 +76,7 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
   > {
     const owner = await this.multiProvider.getSignerAddress(chain);
     if (typeof config.interchainSecurityModule === 'object') {
-      throw new Error('Invalid ISM config');
+      throw new Error('ISM as object unimplemented');
     }
     return [
       config.mailbox,
