@@ -25,7 +25,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
   HookFactories
 > {
   constructor(multiProvider: MultiProvider) {
-    super(multiProvider, hookFactories, undefined, {
+    super(multiProvider, hookFactories, {
       logger: debug('hyperlane:HookDeployer'),
     });
   }

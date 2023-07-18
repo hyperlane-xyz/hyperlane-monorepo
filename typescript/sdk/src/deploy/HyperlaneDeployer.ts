@@ -32,6 +32,7 @@ import { getContractVerificationInput } from './verify/utils';
 export interface DeployerOptions {
   logger?: Debugger;
   chainTimeoutMs?: number;
+  ismFactory?: HyperlaneIsmFactory;
 }
 
 export abstract class HyperlaneDeployer<
@@ -49,7 +50,6 @@ export abstract class HyperlaneDeployer<
   constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly factories: Factories,
-    protected readonly ismFactory?: HyperlaneIsmFactory,
     protected readonly options?: DeployerOptions,
   ) {
     this.logger = options?.logger ?? debug('hyperlane:deployer');
@@ -184,17 +184,17 @@ export abstract class HyperlaneDeployer<
       const currentIsm = await connectionClient.interchainSecurityModule();
 
       // set interchain security module if not already set (and configured)
-      let deployedIsm = '';
+      let configuredIsm;
       if (config.interchainSecurityModule) {
         if (typeof config.interchainSecurityModule === 'string') {
-          deployedIsm = config.interchainSecurityModule;
-        } else if (this.ismFactory) {
+          configuredIsm = config.interchainSecurityModule;
+        } else if (this.options?.ismFactory) {
           const matches = await moduleMatchesConfig(
             local,
             currentIsm,
             config.interchainSecurityModule,
             this.multiProvider,
-            this.ismFactory.chainMap[local],
+            this.options.ismFactory.chainMap[local],
           );
           if (matches) {
             // when the ISM recursively matches the IsmConfig, we don't need to deploy a new ISM
@@ -203,7 +203,7 @@ export abstract class HyperlaneDeployer<
             );
             return;
           }
-          const ism = await this.ismFactory.deploy(
+          const ism = await this.options.ismFactory.deploy(
             local,
             config.interchainSecurityModule,
           );
@@ -214,18 +214,18 @@ export abstract class HyperlaneDeployer<
               txOverrides,
             ),
           );
-          deployedIsm = ism.address;
+          configuredIsm = ism.address;
         } else {
           throw new Error('No ISM factory provided');
         }
         this.logger(
-          `Set interchain security module on ${local} at ${deployedIsm}`,
+          `Set interchain security module on ${local} at ${configuredIsm}`,
         );
 
         await this.multiProvider.handleTx(
           local,
           connectionClient.setInterchainSecurityModule(
-            deployedIsm,
+            configuredIsm,
             txOverrides,
           ),
         );

@@ -19,7 +19,7 @@ export class HelloWorldDeployer extends HyperlaneRouterDeployer<
     multiProvider: MultiProvider,
     readonly ismFactory?: HyperlaneIsmFactory,
   ) {
-    super(multiProvider, helloWorldFactories, ismFactory, {});
+    super(multiProvider, helloWorldFactories, { ismFactory });
   }
 
   router(contracts: HyperlaneContracts<HelloWorldFactories>): HelloWorld {

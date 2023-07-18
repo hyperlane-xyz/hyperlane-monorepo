@@ -1,5 +1,4 @@
-import { ModuleType, MultisigIsmConfig } from '../ism/types';
-import { ChainMap } from '../types';
+import { ChainMap, ModuleType, MultisigIsmConfig } from '@hyperlane-xyz/sdk';
 
 export const rcMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
   // ----------------- Mainnets -----------------

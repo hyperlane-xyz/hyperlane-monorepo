@@ -77,8 +77,9 @@ export function withModuleAndFork<T>(args: yargs.Argv<T>) {
 export function withContext<T>(args: yargs.Argv<T>) {
   return args
     .describe('context', 'deploy context')
+    .default('protocol', Contexts.Hyperlane)
     .coerce('context', assertContext)
-    .demandOption('context');
+    .alias('c', 'context');
 }
 
 export function withProtocol<T>(args: yargs.Argv<T>) {
@@ -132,7 +133,7 @@ export async function getConfigsBasedOnArgs(argv?: {
   environment: DeployEnvironment;
   context: Contexts;
 }) {
-  const { environment, context } = argv
+  const { environment, context = Contexts.Hyperlane } = argv
     ? argv
     : await withContext(getArgs()).argv;
   const envConfig = getEnvironmentConfig(environment);

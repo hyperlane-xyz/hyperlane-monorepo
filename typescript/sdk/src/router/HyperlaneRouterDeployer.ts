@@ -40,11 +40,15 @@ export abstract class HyperlaneRouterDeployer<
         config.mailbox,
         signerOrProvider,
       );
-      const localIsm =
+      let localIsm;
+      if (
         !config.interchainSecurityModule ||
         config.interchainSecurityModule === ethers.constants.AddressZero
-          ? await localMailbox.defaultIsm()
-          : config.interchainSecurityModule;
+      ) {
+        localIsm = await localMailbox.defaultIsm();
+      } else {
+        localIsm = config.interchainSecurityModule;
+      }
 
       const remotes = Object.keys(configMap).filter((c) => c !== local);
       for (const remote of remotes) {

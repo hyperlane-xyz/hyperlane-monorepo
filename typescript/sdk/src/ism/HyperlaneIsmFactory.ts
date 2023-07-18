@@ -318,37 +318,33 @@ export async function moduleCanCertainlyVerify(
     }
   } else {
     // destModule is an IsmConfig
-    let verified = 0; // can't declare this in case statement
-    // checksConfig checks for origin to origin - which is undefined
-    if (destModule) {
-      switch (destModule.type) {
-        case ModuleType.MERKLE_ROOT_MULTISIG:
-        case ModuleType.MESSAGE_ID_MULTISIG:
-        case ModuleType.LEGACY_MULTISIG:
-          return destModule.threshold > 0;
-        case ModuleType.ROUTING:
-          return moduleCanCertainlyVerify(
-            destModule.domains[destination],
+    switch (destModule.type) {
+      case ModuleType.MERKLE_ROOT_MULTISIG:
+      case ModuleType.MESSAGE_ID_MULTISIG:
+      case ModuleType.LEGACY_MULTISIG:
+        return destModule.threshold > 0;
+      case ModuleType.ROUTING:
+        return moduleCanCertainlyVerify(
+          destModule.domains[destination],
+          multiProvider,
+          origin,
+          destination,
+        );
+      case ModuleType.AGGREGATION: {
+        let verified = 0;
+        for (const subModule of destModule.modules) {
+          const canVerify = await moduleCanCertainlyVerify(
+            subModule,
             multiProvider,
             origin,
             destination,
           );
-        case ModuleType.AGGREGATION:
-          for (const subModule of destModule.modules) {
-            const canVerify = await moduleCanCertainlyVerify(
-              subModule,
-              multiProvider,
-              origin,
-              destination,
-            );
-            if (canVerify) {
-              verified += 1;
-            }
+          if (canVerify) {
+            verified += 1;
           }
-          return verified >= destModule.threshold;
+        }
+        return verified >= destModule.threshold;
       }
-    } else {
-      throw new Error(`Undefined module type`);
     }
   }
 }

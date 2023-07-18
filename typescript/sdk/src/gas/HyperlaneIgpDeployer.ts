@@ -22,7 +22,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
   IgpFactories
 > {
   constructor(multiProvider: MultiProvider) {
-    super(multiProvider, igpFactories, undefined, {
+    super(multiProvider, igpFactories, {
       logger: debug('hyperlane:IgpDeployer'),
     });
   }

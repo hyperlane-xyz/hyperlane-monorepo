@@ -29,7 +29,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     multiProvider: MultiProvider,
     readonly ismFactory: HyperlaneIsmFactory,
   ) {
-    super(multiProvider, coreFactories, undefined, {
+    super(multiProvider, coreFactories, {
       logger: debug('hyperlane:CoreDeployer'),
       chainTimeoutMs: 1000 * 60 * 10, // 10 minutes
     });

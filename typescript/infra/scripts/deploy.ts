@@ -16,6 +16,7 @@ import {
   objMap,
 } from '@hyperlane-xyz/sdk';
 
+import { Contexts } from '../config/contexts';
 import { helloWorldConfig } from '../config/environments/testnet3/helloworld';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { deployWithArtifacts } from '../src/deployment/deploy';
@@ -38,9 +39,12 @@ import {
 } from './utils';
 
 async function main() {
-  const { context, module, fork, environment } = await withContext(
-    withModuleAndFork(getArgs()),
-  ).argv;
+  const {
+    context = Contexts.Hyperlane,
+    module,
+    fork,
+    environment,
+  } = await withContext(withModuleAndFork(getArgs())).argv;
   const envConfig = getEnvironmentConfig(environment);
   const multiProvider = await envConfig.getMultiProvider();
 

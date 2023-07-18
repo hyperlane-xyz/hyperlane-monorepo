@@ -75,12 +75,13 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
     ]
   > {
     const owner = await this.multiProvider.getSignerAddress(chain);
+    if (typeof config.interchainSecurityModule !== 'string') {
+      throw new Error('Invalid ISM config');
+    }
     return [
       config.mailbox,
       config.interchainGasPaymaster,
-      typeof config.interchainSecurityModule === 'string'
-        ? config.interchainSecurityModule
-        : ethers.constants.AddressZero,
+      config.interchainSecurityModule ?? ethers.constants.AddressZero,
       owner,
     ];
   }
