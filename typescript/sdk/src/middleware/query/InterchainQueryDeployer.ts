@@ -37,7 +37,7 @@ export class InterchainQueryDeployer extends ProxiedRouterDeployer<
     ]
   > {
     const owner = await this.multiProvider.getSignerAddress(chain);
-    if (typeof config.interchainSecurityModule !== 'string') {
+    if (typeof config.interchainSecurityModule === 'object') {
       throw new Error('Invalid ISM config');
     }
     return [
