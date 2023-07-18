@@ -67,7 +67,7 @@ export class ReadOnlyMultiProvider<
 
     if (TestChains.includes(name as CoreChainName)) {
       this.providers[name] = new providers.JsonRpcProvider(
-        'http://localhost:8545',
+        'http://127.0.0.1:8545',
         31337,
       );
     } else if (rpcUrls.length) {

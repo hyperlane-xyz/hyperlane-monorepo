@@ -47,7 +47,7 @@
   "scripts": {
     "build": "hardhat compile && tsc",
     "lint": "solhint contracts/**/*.sol",
-    "clean": "hardhat clean && rm -rf ./dist ./cache",
+    "clean": "hardhat clean && rm -rf ./dist ./cache ./types",
     "coverage": "hardhat coverage && forge coverage --report lcov",
     "docs": "forge doc",
     "prettier": "prettier --write ./contracts ./test",

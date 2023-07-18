@@ -17,6 +17,10 @@ import {
   HyperlaneContractsMap,
   HyperlaneFactories,
 } from '../contracts/types';
+import {
+  HyperlaneIsmFactory,
+  moduleMatchesConfig,
+} from '../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ConnectionClientConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
@@ -28,6 +32,7 @@ import { getContractVerificationInput } from './verify/utils';
 export interface DeployerOptions {
   logger?: Debugger;
   chainTimeoutMs?: number;
+  ismFactory?: HyperlaneIsmFactory;
 }
 
 export abstract class HyperlaneDeployer<
@@ -67,7 +72,6 @@ export abstract class HyperlaneDeployer<
   async deploy(
     configMap: ChainMap<Config>,
   ): Promise<HyperlaneContractsMap<Factories>> {
-    await this.checkConfig(configMap);
     const configChains = Object.keys(configMap);
     const targetChains = this.multiProvider.intersect(
       configChains,
@@ -152,12 +156,13 @@ export abstract class HyperlaneDeployer<
       `Initializing connection client (if not already) on ${local}...`,
     );
     await this.runIfOwner(local, connectionClient, async () => {
+      const txOverrides = this.multiProvider.getTransactionOverrides(local);
       // set mailbox if not already set (and configured)
       if (config.mailbox !== (await connectionClient.mailbox())) {
         this.logger(`Set mailbox on (${local})`);
         await this.multiProvider.handleTx(
           local,
-          connectionClient.setMailbox(config.mailbox),
+          connectionClient.setMailbox(config.mailbox, txOverrides),
         );
       }
 
@@ -171,21 +176,57 @@ export abstract class HyperlaneDeployer<
           local,
           connectionClient.setInterchainGasPaymaster(
             config.interchainGasPaymaster,
+            txOverrides,
           ),
         );
       }
 
+      const currentIsm = await connectionClient.interchainSecurityModule();
+
       // set interchain security module if not already set (and configured)
-      if (
-        config.interchainSecurityModule &&
-        config.interchainSecurityModule !==
-          (await connectionClient.interchainSecurityModule())
-      ) {
-        this.logger(`Set interchain security module on ${local}`);
+      let configuredIsm;
+      if (config.interchainSecurityModule) {
+        if (typeof config.interchainSecurityModule === 'string') {
+          configuredIsm = config.interchainSecurityModule;
+        } else if (this.options?.ismFactory) {
+          const matches = await moduleMatchesConfig(
+            local,
+            currentIsm,
+            config.interchainSecurityModule,
+            this.multiProvider,
+            this.options.ismFactory.chainMap[local],
+          );
+          if (matches) {
+            // when the ISM recursively matches the IsmConfig, we don't need to deploy a new ISM
+            this.logger(
+              `ISM matches config for chain ${local}, skipping deploy`,
+            );
+            return;
+          }
+          const ism = await this.options.ismFactory.deploy(
+            local,
+            config.interchainSecurityModule,
+          );
+          await this.multiProvider.handleTx(
+            local,
+            connectionClient.setInterchainSecurityModule(
+              ism.address,
+              txOverrides,
+            ),
+          );
+          configuredIsm = ism.address;
+        } else {
+          throw new Error('No ISM factory provided');
+        }
+        this.logger(
+          `Set interchain security module on ${local} at ${configuredIsm}`,
+        );
+
         await this.multiProvider.handleTx(
           local,
           connectionClient.setInterchainSecurityModule(
-            config.interchainSecurityModule,
+            configuredIsm,
+            txOverrides,
           ),
         );
       }

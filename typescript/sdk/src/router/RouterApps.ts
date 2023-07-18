@@ -17,7 +17,7 @@ export abstract class RouterApp<
 
   getSecurityModules(): Promise<ChainMap<types.Address>> {
     return promiseObjAll(
-      objMap(this.contractsMap, (_, contracts) =>
+      objMap(this.chainMap, (_, contracts) =>
         this.router(contracts).interchainSecurityModule(),
       ),
     );
@@ -25,9 +25,7 @@ export abstract class RouterApp<
 
   getOwners(): Promise<ChainMap<types.Address>> {
     return promiseObjAll(
-      objMap(this.contractsMap, (_, contracts) =>
-        this.router(contracts).owner(),
-      ),
+      objMap(this.chainMap, (_, contracts) => this.router(contracts).owner()),
     );
   }
 }
