@@ -225,7 +225,6 @@ export function getModuleDirectory(
     }
   };
   return path.join(getEnvironmentDirectory(environment), suffixFn());
-  //  ./config/environments/testnet3/helloworld/rc/address.json
 }
 
 export function getAgentConfigDirectory() {

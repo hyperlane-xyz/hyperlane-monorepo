@@ -17,8 +17,6 @@ import {
 async function main() {
   const { environment, context } = await withContext(getArgs()).argv;
   const coreConfig = getEnvironmentConfig(environment);
-  console.log(`Deploying to ${environment} ${context}`);
-  console.log(coreConfig);
   // Always deploy from the hyperlane deployer
   const multiProvider = await coreConfig.getMultiProvider(
     Contexts.Hyperlane,

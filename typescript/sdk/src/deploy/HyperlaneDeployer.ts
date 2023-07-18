@@ -72,7 +72,6 @@ export abstract class HyperlaneDeployer<
   async deploy(
     configMap: ChainMap<Config>,
   ): Promise<HyperlaneContractsMap<Factories>> {
-    // await this.checkConfig(configMap);
     const configChains = Object.keys(configMap);
     const targetChains = this.multiProvider.intersect(
       configChains,

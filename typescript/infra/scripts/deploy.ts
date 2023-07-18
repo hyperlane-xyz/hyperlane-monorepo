@@ -24,7 +24,6 @@ import { TestRecipientDeployer } from '../src/deployment/testcontracts/testrecip
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 import { readJSON } from '../src/utils/utils';
 
-import { hyperlaneRCEnvironments } from './consts/rc-environments';
 import {
   Modules,
   SDK_MODULES,
@@ -115,8 +114,8 @@ async function main() {
   } else if (module === Modules.HELLO_WORLD) {
     const routerConfig = await getRouterConfig(environment, multiProvider);
     config = helloWorldConfig(context, routerConfig);
-    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-      hyperlaneRCEnvironments.testnet,
+    const ismFactory = HyperlaneIsmFactory.fromEnvironment(
+      deployEnvToSdkEnv[environment],
       multiProvider,
     );
     deployer = new HelloWorldDeployer(multiProvider, ismFactory);

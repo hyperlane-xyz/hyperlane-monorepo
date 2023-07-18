@@ -348,7 +348,7 @@ export async function moduleCanCertainlyVerify(
           return verified >= destModule.threshold;
       }
     } else {
-      return true;
+      throw new Error(`Undefined module type`);
     }
   }
 }
