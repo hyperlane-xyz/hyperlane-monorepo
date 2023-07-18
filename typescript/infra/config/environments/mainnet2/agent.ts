@@ -137,7 +137,7 @@ const permissionless: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '497db63-20230614-174455',
+      tag: '8e1fe01-20230718-194704',
     },
     connectionType: AgentConnectionType.HttpQuorum,
     chains: validatorChainConfig(Contexts.Permissionless),

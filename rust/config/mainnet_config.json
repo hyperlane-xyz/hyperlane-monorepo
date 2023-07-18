@@ -128,20 +128,20 @@
       "index": {
         "from": 25900000
       }
-    }
-  },
-  "zkevm": {
-    "name": "zkevm",
-    "domain": 1101,
-    "addresses": {
-      "mailbox": "0xDDd979557327455A497B314fbE879e82C63BA563",
-      "validatorAnnounce": "0x31EC336b4c0f04983c05bB9706E5271AA6842068",
-      "interchainGasPaymaster": "0x9C54659D372d9424ef79A9C24d921AB4ee376045"
     },
-    "protocol": "ethereum",
-    "finalityBlocks": 1,
-    "index": {
-      "from": 1727147
+    "zkevm": {
+      "name": "zkevm",
+      "domain": 1101,
+      "addresses": {
+        "mailbox": "0xDDd979557327455A497B314fbE879e82C63BA563",
+        "interchainGasPaymaster": "0x9C54659D372d9424ef79A9C24d921AB4ee376045",
+        "validatorAnnounce": "0x31EC336b4c0f04983c05bB9706E5271AA6842068"
+      },
+      "protocol": "ethereum",
+      "finalityBlocks": 1,
+      "index": {
+        "from": 1727147
+      }
     }
   }
 }
