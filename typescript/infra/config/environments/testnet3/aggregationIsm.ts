@@ -88,5 +88,5 @@ const replacerEnum = (key: string, value: any) => {
 };
 
 export const printIsmConfig = (ism: IsmConfig): string => {
-  return `IsmConfig: ${JSON.stringify(ism, replacerEnum, 2)}`;
+  return JSON.stringify(ism, replacerEnum, 2);
 };
