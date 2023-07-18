@@ -70,13 +70,6 @@ export function getValidatorCloudAgentKeys(
   // For each chainName, create validatorCount keys
   if (!agentConfig.validators) return [];
   const validators = agentConfig.validators;
-  // TODO: The problem is that the context chains does not include zkevm,
-  // which means we do not create keys for that chain. *But* we don't want to
-  // add zkevm to context chains (or we create a new context).
-  // Alternatively, we could use other things to signal which chains to deploy to.
-  // We already have this for validator configs, but would also need it for:
-  // - relayer configs
-  // - Smart contracts (core, ICAs, ISMs, middlewares)
   return agentConfig.contextChainNames.flatMap((chainName) =>
     validators.chains[chainName].validators.map((_, index) =>
       getCloudAgentKey(agentConfig, Role.Validator, chainName, index),
@@ -114,7 +107,6 @@ export async function createAgentKeysIfNotExists(
   agentConfig: AgentContextConfig,
 ) {
   const keys = getAllCloudAgentKeys(agentConfig);
-  console.log({ keys });
 
   await Promise.all(
     keys.map(async (key) => {
