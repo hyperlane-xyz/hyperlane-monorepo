@@ -13,4 +13,5 @@ tempfile = "3.3"
 maplit = "1.0"
 nix = { version = "0.26", default-features = false, features = ["signal"] }
 ureq = { version = "2.4", default-features = false }
+subprocess = "0.2.9"
 eyre.workspace = true
