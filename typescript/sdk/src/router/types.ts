@@ -4,7 +4,7 @@ import {
 } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
-import { HyperlaneFactories } from '../contracts';
+import { HyperlaneFactories } from '../contracts/types';
 import { CheckerViolation } from '../deploy/types';
 
 export type OwnableConfig = {

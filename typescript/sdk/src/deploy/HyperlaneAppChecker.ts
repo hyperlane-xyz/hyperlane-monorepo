@@ -4,8 +4,8 @@ import { Ownable } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 import { utils } from '@hyperlane-xyz/utils';
 
-import { HyperlaneApp } from '../HyperlaneApp';
-import { filterOwnableContracts } from '../contracts';
+import { HyperlaneApp } from '../app/HyperlaneApp';
+import { filterOwnableContracts } from '../contracts/contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 import { objMap, promiseObjAll } from '../utils/objects';

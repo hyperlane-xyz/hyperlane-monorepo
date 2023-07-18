@@ -1,4 +1,4 @@
-export { HyperlaneApp } from './HyperlaneApp';
+export { HyperlaneApp } from './app/HyperlaneApp';
 export {
   chainIdToMetadata,
   chainMetadata,
@@ -21,11 +21,6 @@ export {
 } from './consts/environments';
 export { defaultMultisigIsmConfigs } from './consts/multisigIsm';
 export {
-  HyperlaneAddresses,
-  HyperlaneAddressesMap,
-  HyperlaneContracts,
-  HyperlaneContractsMap,
-  HyperlaneFactories,
   attachContracts,
   attachContractsMap,
   connectContracts,
@@ -33,7 +28,15 @@ export {
   filterAddressesMap,
   serializeContracts,
   serializeContractsMap,
-} from './contracts';
+} from './contracts/contracts';
+export {
+  AddressesMap,
+  HyperlaneAddresses,
+  HyperlaneAddressesMap,
+  HyperlaneContracts,
+  HyperlaneContractsMap,
+  HyperlaneFactories,
+} from './contracts/types';
 export { DispatchedMessage, HyperlaneCore } from './core/HyperlaneCore';
 export { HyperlaneCoreChecker } from './core/HyperlaneCoreChecker';
 export { HyperlaneCoreDeployer } from './core/HyperlaneCoreDeployer';

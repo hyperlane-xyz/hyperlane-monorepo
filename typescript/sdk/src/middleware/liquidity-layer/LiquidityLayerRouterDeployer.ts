@@ -7,7 +7,10 @@ import {
 } from '@hyperlane-xyz/core';
 import { types, utils } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts, HyperlaneContractsMap } from '../../contracts';
+import {
+  HyperlaneContracts,
+  HyperlaneContractsMap,
+} from '../../contracts/types';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ProxiedRouterDeployer } from '../../router/ProxiedRouterDeployer';
 import { RouterConfig } from '../../router/types';

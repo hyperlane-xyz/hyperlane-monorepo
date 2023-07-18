@@ -8,18 +8,13 @@ import {
   providers,
 } from 'ethers';
 
-import { types, utils } from '@hyperlane-xyz/utils';
+import { types } from '@hyperlane-xyz/utils';
 
 import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata';
 import { CoreChainName, TestChains } from '../consts/chains';
-import {
-  ChainMetadata,
-  getDomainId,
-  isValidChainMetadata,
-} from '../metadata/chainMetadataTypes';
-import type { HyperlaneDeploymentArtifacts } from '../metadata/deploymentArtifacts';
+import { ChainMetadataManager } from '../metadata/ChainMetadataManager';
+import { ChainMetadata } from '../metadata/chainMetadataTypes';
 import { ChainMap, ChainName } from '../types';
-import { isNumeric } from '../utils/number';
 import { pick } from '../utils/objects';
 
 import {
@@ -35,8 +30,14 @@ export interface MultiProviderOptions {
   providerBuilder?: ProviderBuilderFn<Provider>;
 }
 
-export class ReadOnlyMultiProvider {
-  public readonly metadata: ChainMap<ChainMetadata> = {};
+/**
+ * A utility class to create and manage providers for multiple chains
+ * Does not support signer/signing methods, for those use MultiProvider
+ * @typeParam MetaExt - Extra metadata fields for chains (such as contract addresses)
+ */
+export class ReadOnlyMultiProvider<
+  MetaExt = any,
+> extends ChainMetadataManager<MetaExt> {
   protected readonly providers: ChainMap<Provider> = {};
   protected readonly providerBuilder: ProviderBuilderFn<Provider>;
   protected readonly logger: Debugger;
@@ -46,161 +47,12 @@ export class ReadOnlyMultiProvider {
    * or the SDK's default metadata if not provided
    */
   constructor(
-    chainMetadata: ChainMap<ChainMetadata> = defaultChainMetadata,
+    chainMetadata?: ChainMap<ChainMetadata<MetaExt>>,
     options: MultiProviderOptions = {},
   ) {
-    Object.entries(chainMetadata).forEach(([key, cm]) => {
-      if (key !== cm.name)
-        throw new Error(
-          `Chain name mismatch: Key was ${key}, but name is ${cm.name}`,
-        );
-      this.addChain(cm);
-    });
+    super(chainMetadata, options);
     this.logger = debug(options?.loggerName || 'hyperlane:MultiProvider');
     this.providerBuilder = options?.providerBuilder || defaultProviderBuilder;
-  }
-
-  /**
-   * Add a chain to the MultiProvider
-   * @throws if chain's name or domain/chain ID collide
-   */
-  addChain(metadata: ChainMetadata): void {
-    if (!isValidChainMetadata(metadata))
-      throw new Error(`Invalid chain metadata for ${metadata.name}`);
-    // Ensure no two chains have overlapping names/domainIds/chainIds
-    for (const chainMetadata of Object.values(this.metadata)) {
-      const { name, chainId, domainId } = chainMetadata;
-      if (name == metadata.name)
-        throw new Error(`Duplicate chain name: ${name}`);
-      // Chain and Domain Ids should be globally unique
-      const idCollision =
-        chainId == metadata.chainId ||
-        domainId == metadata.chainId ||
-        (metadata.domainId &&
-          (chainId == metadata.domainId || domainId === metadata.domainId));
-      if (idCollision)
-        throw new Error(
-          `Chain/Domain id collision: ${name} and ${metadata.name}`,
-        );
-    }
-    this.metadata[metadata.name] = metadata;
-  }
-
-  /**
-   * Get the metadata for a given chain name, chain id, or domain id
-   * @throws if chain's metadata has not been set
-   */
-  tryGetChainMetadata(chainNameOrId: ChainName | number): ChainMetadata | null {
-    let chainMetadata: ChainMetadata | undefined;
-    if (isNumeric(chainNameOrId)) {
-      // Should be chain id or domain id
-      chainMetadata = Object.values(this.metadata).find(
-        (m) => m.chainId == chainNameOrId || m.domainId == chainNameOrId,
-      );
-    } else if (typeof chainNameOrId === 'string') {
-      // Should be chain name
-      chainMetadata = this.metadata[chainNameOrId];
-    }
-    return chainMetadata || null;
-  }
-
-  /**
-   * Get the metadata for a given chain name, chain id, or domain id
-   * @throws if chain's metadata has not been set
-   */
-  getChainMetadata(chainNameOrId: ChainName | number): ChainMetadata {
-    const chainMetadata = this.tryGetChainMetadata(chainNameOrId);
-    if (!chainMetadata)
-      throw new Error(`No chain metadata set for ${chainNameOrId}`);
-    return chainMetadata;
-  }
-
-  /**
-   * Chain metadata may include deployment artifacts
-   * This is a convenience method to retype the metadata value
-   * @throws if chain's metadata has not been set
-   */
-  getChainMetadataWithArtifacts(
-    chainNameOrId: ChainName | number,
-  ): ChainMetadata & Partial<HyperlaneDeploymentArtifacts> {
-    const metadata = this.getChainMetadata(chainNameOrId);
-    return metadata as ChainMetadata & Partial<HyperlaneDeploymentArtifacts>;
-  }
-
-  /**
-   * Get the name for a given chain name, chain id, or domain id
-   */
-  tryGetChainName(chainNameOrId: ChainName | number): string | null {
-    return this.tryGetChainMetadata(chainNameOrId)?.name ?? null;
-  }
-
-  /**
-   * Get the name for a given chain name, chain id, or domain id
-   * @throws if chain's metadata has not been set
-   */
-  getChainName(chainNameOrId: ChainName | number): string {
-    return this.getChainMetadata(chainNameOrId).name;
-  }
-
-  /**
-   * Get the names for all chains known to this MultiProvider
-   */
-  getKnownChainNames(): string[] {
-    return Object.keys(this.metadata);
-  }
-
-  /**
-   * Get the id for a given chain name, chain id, or domain id
-   */
-  tryGetChainId(chainNameOrId: ChainName | number): number | null {
-    return this.tryGetChainMetadata(chainNameOrId)?.chainId ?? null;
-  }
-
-  /**
-   * Get the id for a given chain name, chain id, or domain id
-   * @throws if chain's metadata has not been set
-   */
-  getChainId(chainNameOrId: ChainName | number): number {
-    return this.getChainMetadata(chainNameOrId).chainId;
-  }
-
-  /**
-   * Get the ids for all chains known to this MultiProvider
-   */
-  getKnownChainIds(): number[] {
-    return Object.values(this.metadata).map((c) => c.chainId);
-  }
-
-  /**
-   * Get the domain id for a given chain name, chain id, or domain id
-   */
-  tryGetDomainId(chainNameOrId: ChainName | number): number | null {
-    const metadata = this.tryGetChainMetadata(chainNameOrId);
-    return metadata?.domainId ?? metadata?.chainId ?? null;
-  }
-
-  /**
-   * Get the domain id for a given chain name, chain id, or domain id
-   * @throws if chain's metadata has not been set
-   */
-  getDomainId(chainNameOrId: ChainName | number): number {
-    const metadata = this.getChainMetadata(chainNameOrId);
-    return getDomainId(metadata);
-  }
-
-  /**
-   * Get the domain ids for a list of chain names, chain ids, or domain ids
-   * @throws if any chain's metadata has not been set
-   */
-  getDomainIds(chainNamesOrIds: Array<ChainName | number>): number[] {
-    return chainNamesOrIds.map((c) => this.getDomainId(c));
-  }
-
-  /**
-   * Get the ids for all chains known to this MultiProvider
-   */
-  getKnownDomainIds(): number[] {
-    return this.getKnownChainNames().map(this.getDomainId);
   }
 
   /**
@@ -262,106 +114,19 @@ export class ReadOnlyMultiProvider {
       this.providers[chainName] = providers[chain];
     }
   }
-
-  /**
-   * Get chain names excluding given chain name
-   */
-  getRemoteChains(name: ChainName): ChainName[] {
-    return utils.exclude(name, this.getKnownChainNames());
-  }
-
-  /**
-   * Get an RPC URL for a given chain name, chain id, or domain id
-   * @throws if chain's metadata has not been set
-   */
-  getRpcUrl(chainNameOrId: ChainName | number): string {
-    const { rpcUrls } = this.getChainMetadata(chainNameOrId);
-    if (!rpcUrls?.length || !rpcUrls[0].http)
-      throw new Error(`No RPC URl configured for ${chainNameOrId}`);
-    return rpcUrls[0].http;
-  }
-
-  /**
-   * Get a block explorer URL for a given chain name, chain id, or domain id
-   */
-  tryGetExplorerUrl(chainNameOrId: ChainName | number): string | null {
-    const explorers = this.tryGetChainMetadata(chainNameOrId)?.blockExplorers;
-    if (!explorers?.length) return null;
-    return explorers[0].url;
-  }
-
-  /**
-   * Get a block explorer URL for a given chain name, chain id, or domain id
-   * @throws if chain's metadata or block explorer data has no been set
-   */
-  getExplorerUrl(chainNameOrId: ChainName | number): string {
-    const url = this.tryGetExplorerUrl(chainNameOrId);
-    if (!url) throw new Error(`No explorer url set for ${chainNameOrId}`);
-    return url;
-  }
-
-  /**
-   * Get a block explorer's API URL for a given chain name, chain id, or domain id
-   */
-  tryGetExplorerApiUrl(chainNameOrId: ChainName | number): string | null {
-    const explorers = this.tryGetChainMetadata(chainNameOrId)?.blockExplorers;
-    if (!explorers?.length || !explorers[0].apiUrl) return null;
-    const { apiUrl, apiKey } = explorers[0];
-    if (!apiKey) return apiUrl;
-    const url = new URL(apiUrl);
-    url.searchParams.set('apikey', apiKey);
-    return url.toString();
-  }
-
-  /**
-   * Get a block explorer API URL for a given chain name, chain id, or domain id
-   * @throws if chain's metadata or block explorer data has no been set
-   */
-  getExplorerApiUrl(chainNameOrId: ChainName | number): string {
-    const url = this.tryGetExplorerApiUrl(chainNameOrId);
-    if (!url) throw new Error(`No explorer api url set for ${chainNameOrId}`);
-    return url;
-  }
-
-  /**
-   * Get a block explorer URL for given chain's tx
-   */
-  tryGetExplorerTxUrl(
-    chainNameOrId: ChainName | number,
-    response: { hash: string },
-  ): string | null {
-    const baseUrl = this.tryGetExplorerUrl(chainNameOrId);
-    return baseUrl ? `${baseUrl}/tx/${response.hash}` : null;
-  }
-
-  /**
-   * Get a block explorer URL for given chain's tx
-   * @throws if chain's metadata or block explorer data has no been set
-   */
-  getExplorerTxUrl(
-    chainNameOrId: ChainName | number,
-    response: { hash: string },
-  ): string {
-    return `${this.getExplorerUrl(chainNameOrId)}/tx/${response.hash}`;
-  }
-
-  /**
-   * Run given function on all known chains
-   */
-  mapKnownChains<Output>(fn: (n: ChainName) => Output): ChainMap<Output> {
-    const result: ChainMap<Output> = {};
-    for (const chain of this.getKnownChainNames()) {
-      result[chain] = fn(chain);
-    }
-    return result;
-  }
 }
 
-export class MultiProvider extends ReadOnlyMultiProvider {
+/**
+ * A utility class to create and manage providers and signers for multiple chains
+ * @typeParam MetaExt - Extra metadata fields for chains (such as contract addresses)
+ */
+export class MultiProvider<
+  MetaExt = any,
+> extends ReadOnlyMultiProvider<MetaExt> {
   protected signers: ChainMap<Signer> = {};
   protected useSharedSigner = false; // A single signer to be used for all chains
 
-  override addChain(metadata: ChainMetadata): void {
+  override addChain(metadata: ChainMetadata<MetaExt>): void {
     super.addChain(metadata);
     if (this.useSharedSigner) {
       const signers = Object.values(this.signers);
@@ -498,7 +263,7 @@ export class MultiProvider extends ReadOnlyMultiProvider {
     throwIfNotSubset = false,
   ): {
     intersection: ChainName[];
-    multiProvider: MultiProvider;
+    multiProvider: MultiProvider<MetaExt>;
   } {
     const ownChains = this.getKnownChainNames();
     const intersection: ChainName[] = [];

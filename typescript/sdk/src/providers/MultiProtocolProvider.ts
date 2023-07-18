@@ -1,37 +1,28 @@
 import { Debugger, debug } from 'debug';
 
 import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata';
+import { ChainMetadataManager } from '../metadata/ChainMetadataManager';
 import type { ChainMetadata } from '../metadata/chainMetadataTypes';
 import type { ChainMap, ChainName } from '../types';
 
-import { MultiProviderOptions, ReadOnlyMultiProvider } from './MultiProvider';
-import { ProviderMap, ProviderType, TypedProvider } from './ProviderType';
+import {
+  EthersV5Provider,
+  EthersV6Provider,
+  ProviderMap,
+  ProviderType,
+  SolanaWeb3Provider,
+  TypedProvider,
+  ViemProvider,
+} from './ProviderType';
 import {
   ProviderBuilderMap,
   defaultProviderBuilderMap,
 } from './providerBuilders';
 
-/**
- * Type hacking to allow MultiProtocolProvider to extend MultiProvider
- * while still overriding the signature of some methods.
- * Alternatively, we could use composition and explicitly re-define all methods
- */
-
-type MethodToExcludeFromInheritance =
-  | 'tryGetProvider'
-  | 'getProvider'
-  | 'setProvider'
-  | 'setProviders';
-
-type PartialMultiProvider = new (
-  ...params: ConstructorParameters<typeof ReadOnlyMultiProvider>
-) => {
-  [Method in Exclude<
-    keyof ReadOnlyMultiProvider,
-    MethodToExcludeFromInheritance
-  >]: ReadOnlyMultiProvider[Method];
-};
-const PartialMultiProvider: PartialMultiProvider = ReadOnlyMultiProvider;
+export interface MultiProtocolProviderOptions {
+  loggerName?: string;
+  providerBuilders?: Partial<ProviderBuilderMap>;
+}
 
 /**
  * A version of MultiProvider that can support different
@@ -41,21 +32,20 @@ const PartialMultiProvider: PartialMultiProvider = ReadOnlyMultiProvider;
  * so it isn't strictly backwards compatible with MultiProvider.
  *
  * Unlike MultiProvider, this class does not support signer/signing methods (yet).
+ * @typeParam MetaExt - Extra metadata fields for chains (such as contract addresses)
  */
-
-export interface MultiProtocolProviderOptions extends MultiProviderOptions {
-  providerBuilders?: Partial<ProviderBuilderMap>;
-}
-
-export class MultiProtocolProvider extends PartialMultiProvider {
-  public readonly metadata: ChainMap<ChainMetadata> = {};
+export class MultiProtocolProvider<
+  MetaExt = any,
+> extends ChainMetadataManager<MetaExt> {
   protected readonly providers: ChainMap<ProviderMap<TypedProvider>> = {};
   protected signers: ChainMap<ProviderMap<never>> = {}; // TODO signer support
   protected readonly logger: Debugger;
   protected readonly providerBuilders: Partial<ProviderBuilderMap>;
 
   constructor(
-    chainMetadata: ChainMap<ChainMetadata> = defaultChainMetadata,
+    chainMetadata: ChainMap<
+      ChainMetadata<MetaExt>
+    > = defaultChainMetadata as ChainMap<ChainMetadata<MetaExt>>,
     options: MultiProtocolProviderOptions = {},
   ) {
     super(chainMetadata, options);
@@ -93,6 +83,40 @@ export class MultiProtocolProvider extends PartialMultiProvider {
     if (!provider)
       throw new Error(`No provider available for ${chainNameOrId}`);
     return provider;
+  }
+
+  getEthersV5Provider(
+    chainNameOrId: ChainName | number,
+  ): EthersV5Provider['provider'] {
+    const provider = this.getProvider(chainNameOrId, ProviderType.EthersV5);
+    if (provider.type !== ProviderType.EthersV5)
+      throw new Error('Invalid provider type');
+    return provider.provider;
+  }
+
+  getEthersV6Provider(
+    chainNameOrId: ChainName | number,
+  ): EthersV6Provider['provider'] {
+    const provider = this.getProvider(chainNameOrId, ProviderType.EthersV5);
+    if (provider.type !== ProviderType.EthersV6)
+      throw new Error('Invalid provider type');
+    return provider.provider;
+  }
+
+  getViemProvider(chainNameOrId: ChainName | number): ViemProvider['provider'] {
+    const provider = this.getProvider(chainNameOrId, ProviderType.EthersV5);
+    if (provider.type !== ProviderType.Viem)
+      throw new Error('Invalid provider type');
+    return provider.provider;
+  }
+
+  getSolanaWeb3Provider(
+    chainNameOrId: ChainName | number,
+  ): SolanaWeb3Provider['provider'] {
+    const provider = this.getProvider(chainNameOrId, ProviderType.EthersV5);
+    if (provider.type !== ProviderType.SolanaWeb3)
+      throw new Error('Invalid provider type');
+    return provider.provider;
   }
 
   setProvider(

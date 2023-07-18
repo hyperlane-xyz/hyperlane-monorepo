@@ -4,7 +4,7 @@ import {
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
 
-import { HyperlaneContracts } from '../../contracts';
+import { HyperlaneContracts } from '../../contracts/types';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { HyperlaneRouterDeployer } from '../../router/HyperlaneRouterDeployer';
 import { RouterConfig } from '../../router/types';

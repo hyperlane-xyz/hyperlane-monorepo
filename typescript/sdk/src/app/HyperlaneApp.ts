@@ -1,17 +1,16 @@
 import debug from 'debug';
 
+import { connectContracts, serializeContracts } from '../contracts/contracts';
 import {
   HyperlaneAddresses,
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneFactories,
-  connectContracts,
-  serializeContracts,
-} from './contracts';
-import { MultiProvider } from './providers/MultiProvider';
-import { ChainName } from './types';
-import { MultiGeneric } from './utils/MultiGeneric';
-import { objMap } from './utils/objects';
+} from '../contracts/types';
+import { MultiProvider } from '../providers/MultiProvider';
+import { ChainName } from '../types';
+import { MultiGeneric } from '../utils/MultiGeneric';
+import { objMap } from '../utils/objects';
 
 export class HyperlaneApp<
   Factories extends HyperlaneFactories,

@@ -8,7 +8,8 @@ import {
 } from '@hyperlane-xyz/core';
 import { types, utils } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts, filterOwnableContracts } from '../contracts';
+import { filterOwnableContracts } from '../contracts/contracts';
+import { HyperlaneContracts } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName } from '../types';
