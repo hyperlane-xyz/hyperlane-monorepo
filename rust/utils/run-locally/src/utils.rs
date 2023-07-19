@@ -60,13 +60,15 @@ pub fn concat_path(p1: impl AsRef<Path>, p2: impl AsRef<Path>) -> PathBuf {
     p
 }
 
+pub type AgentHandles = (Child, JoinHandle<()>, JoinHandle<()>);
+
 pub fn run_agent(
     bin_path: impl AsRef<Path>,
     args: &ProgramArgs,
     log_prefix: &'static str,
     log_all: bool,
     log_dir: &PathBuf,
-) -> (Child, JoinHandle<()>, JoinHandle<()>) {
+) -> AgentHandles {
     let bin_display = bin_path.as_ref().display();
     let mut command = Command::new(bin_path.as_ref());
     command.envs(args.list_envs()).args(args.list_args());

@@ -33,7 +33,7 @@ use tempfile::tempdir;
 use logging::log;
 
 use crate::config::ProgramArgs;
-use crate::utils::{build_cmd, concat_path, make_static, run_agent, stop_child};
+use crate::utils::{build_cmd, concat_path, make_static, run_agent, stop_child, AgentHandles};
 
 mod config;
 mod logging;
@@ -71,7 +71,13 @@ struct State {
     agents: Vec<Child>,
     watchers: Vec<JoinHandle<()>>,
 }
-
+impl State {
+    fn push_agent(&mut self, handles: AgentHandles) {
+        self.agents.push(handles.0);
+        self.watchers.push(handles.1);
+        self.watchers.push(handles.2);
+    }
+}
 impl Drop for State {
     fn drop(&mut self) {
         SHUTDOWN.store(true, Ordering::Relaxed);
@@ -122,7 +128,6 @@ fn main() -> ExitCode {
         fs::create_dir_all(&log_dir).expect("Failed to make log dir");
     }
     let build_log = concat_path(&log_dir, "build.log");
-    let anvil_log = concat_path(&log_dir, "anvil.stdout.log");
 
     let checkpoints_dirs = (0..3).map(|_| tempdir().unwrap()).collect::<Vec<_>>();
     let rocks_db_dir = tempdir().unwrap();
@@ -297,11 +302,9 @@ fn main() -> ExitCode {
 
     shutdown_if_needed!();
     log!("Launching anvil...");
-    let node_args = ProgramArgs::default().flag("silent");
-    let (node, stdout, stderr) = run_agent("anvil", &node_args, "ETH", config.log_all, &log_dir);
-    state.agents.push(node);
-    state.watchers.push(stdout);
-    state.watchers.push(stderr);
+    let anvil_args = ProgramArgs::default().flag("silent");
+    let anvil = run_agent("anvil", &anvil_args, "ETH", config.log_all, &log_dir);
+    state.push_agent(anvil);
 
     sleep(Duration::from_secs(10));
 
@@ -357,24 +360,19 @@ fn main() -> ExitCode {
 
     shutdown_if_needed!();
 
-    let (scraper, scraper_stdout, scraper_stderr) =
-        run_agent(scraper_bin, &scraper_env, "SCR", config.log_all, &log_dir);
-    state.watchers.push(scraper_stdout);
-    state.watchers.push(scraper_stderr);
-    state.agents.push(scraper);
+    let scraper = run_agent(scraper_bin, &scraper_env, "SCR", config.log_all, &log_dir);
+    state.push_agent(scraper);
 
     // spawn 1st validator before any messages have been sent to test empty mailbox
     let validator1_env = validator_envs.first().unwrap();
-    let (validator, validator_stdout, validator_stderr) = run_agent(
+    let validator1 = run_agent(
         &validator_bin,
         validator1_env,
         "VAL1",
         config.log_all,
         &log_dir,
     );
-    state.watchers.push(validator_stdout);
-    state.watchers.push(validator_stderr);
-    state.agents.push(validator);
+    state.push_agent(validator1);
 
     sleep(Duration::from_secs(5));
 
@@ -392,34 +390,26 @@ fn main() -> ExitCode {
 
     // spawn the rest of the validators
     for (i, validator_env) in validator_envs.iter().enumerate().skip(1) {
-        let (validator, validator_stdout, validator_stderr) = run_agent(
+        let validator = run_agent(
             &validator_bin,
             validator_env,
             make_static(format!("VAL{}", 1 + i)),
             config.log_all,
             &log_dir,
         );
-        state.watchers.push(validator_stdout);
-        state.watchers.push(validator_stderr);
-        state.agents.push(validator);
+        state.push_agent(validator);
     }
 
-    let (relayer, relayer_stdout, relayer_stderr) =
-        run_agent(relayer_bin, &relayer_env, "RLY", config.log_all, &log_dir);
-    state.watchers.push(relayer_stdout);
-    state.watchers.push(relayer_stderr);
-    state.agents.push(relayer);
+    let relayer = run_agent(relayer_bin, &relayer_env, "RLY", config.log_all, &log_dir);
+    state.push_agent(relayer);
 
     log!("Setup complete! Agents running in background...");
     log!("Ctrl+C to end execution...");
 
     // Send half the kathy messages after the relayer comes up
     let kathy_env = kathy_env.flag("mineforever");
-    let (kathy, kathy_stdout, kathy_stderr) =
-        run_agent("yarn", &kathy_env, "KTY", config.log_all, &log_dir);
-    state.watchers.push(kathy_stdout);
-    state.watchers.push(kathy_stderr);
-    state.agents.push(kathy);
+    let kathy = run_agent("yarn", &kathy_env, "KTY", config.log_all, &log_dir);
+    state.push_agent(kathy);
 
     let loop_start = Instant::now();
     // give things a chance to fully start.
