@@ -1,4 +1,4 @@
-use borsh::BorshDeserialize;
+use borsh::{BorshDeserialize, BorshSerialize};
 
 #[cfg(not(feature = "no-entrypoint"))]
 use solana_program::entrypoint;
@@ -7,7 +7,7 @@ use solana_program::{
     clock::Clock,
     entrypoint::ProgramResult,
     msg,
-    program::invoke,
+    program::{invoke, set_return_data},
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
@@ -18,6 +18,7 @@ use solana_program::{
 use account_utils::{
     create_pda_account, verify_account_uninitialized, verify_rent_exempt, AccountData, SizedData,
 };
+use serializable_account_meta::SimulationReturnData;
 
 use crate::{
     accounts::{
@@ -255,11 +256,9 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
 
     // Account 3: The IGP account.
     let igp_info = next_account_info(accounts_iter)?;
-    // TODO does this still make sense
     // The caller should validate the IGP account before paying for gas,
-    // but we do some basic checks here as a sanity check.
+    // but we do a basic sanity check.
     if igp_info.owner != program_id {
-        // || igp_info.key != &payment.igp {
         return Err(ProgramError::IncorrectProgramId);
     }
 
@@ -285,7 +284,13 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
     // Make sure an account can't be written to that already exists.
     verify_account_uninitialized(gas_payment_account_info)?;
 
-    // Account 6: Overhead IGP account (optional).
+    // Account 6: IGP beneficiary.
+    let igp_beneficiary = next_account_info(accounts_iter)?;
+    if igp_beneficiary.key != &igp.beneficiary {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    // Account 7: Overhead IGP account (optional).
     // The caller is expected to only provide an overhead IGP they are comfortable
     // with / have configured themselves.
     let gas_amount = if let Some(overhead_igp_info) = accounts_iter.next() {
@@ -309,8 +314,8 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
 
     // Transfer the required payment to the beneficiary.
     invoke(
-        &system_instruction::transfer(payer_info.key, igp_info.key, required_payment),
-        &[payer_info.clone(), igp_info.clone()],
+        &system_instruction::transfer(payer_info.key, igp_beneficiary.key, required_payment),
+        &[payer_info.clone(), igp_beneficiary.clone()],
     )?;
 
     // Increment the payment count.
@@ -359,13 +364,7 @@ fn quote_gas_payment(
         return Err(ProgramError::IncorrectProgramId);
     }
 
-    // Account 1: The payer account and owner of the Relayer account.
-    let payer_info = next_account_info(accounts_iter)?;
-    if !payer_info.is_signer {
-        return Err(ProgramError::MissingRequiredSignature);
-    }
-
-    // Account 2: The IGP account.
+    // Account 1: The IGP account.
     let igp_info = next_account_info(accounts_iter)?;
     // The caller should validate the IGP account before paying for gas,
     // but we do some basic checks here as a sanity check.
@@ -374,7 +373,31 @@ fn quote_gas_payment(
         return Err(ProgramError::IncorrectProgramId);
     }
 
+    // Account 2: Overhead IGP account (optional).
+    // The caller is expected to only provide an overhead IGP they are comfortable
+    // with / have configured themselves.
+    let gas_amount = if let Some(overhead_igp_info) = accounts_iter.next() {
+        if overhead_igp_info.owner != program_id {
+            return Err(ProgramError::IncorrectProgramId);
+        }
+
+        let overhead_igp =
+            OverheadIgpAccount::fetch(&mut &overhead_igp_info.data.borrow()[..])?.into_inner();
+
+        if overhead_igp.inner != *igp_info.key {
+            return Err(ProgramError::InvalidArgument);
+        }
+
+        overhead_igp.gas_overhead(payment.destination_domain) + payment.gas_amount
+    } else {
+        payment.gas_amount
+    };
+
     let igp = IgpAccount::fetch(&mut &igp_info.data.borrow()[..])?.into_inner();
+
+    let required_payment = igp.quote_gas_payment(payment.destination_domain, gas_amount)?;
+
+    set_return_data(&SimulationReturnData::new(required_payment).try_to_vec()?);
 
     Ok(())
 }

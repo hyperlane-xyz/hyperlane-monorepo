@@ -54,6 +54,16 @@ impl OverheadIgp {
             .copied()
             .unwrap_or(0)
     }
+
+    pub fn quote_gas_payment(
+        &self,
+        destination_domain: u32,
+        gas_amount: u64,
+        inner_igp: &Igp,
+    ) -> Result<u64, Error> {
+        let total_gas_amount = self.gas_overhead(destination_domain) + gas_amount;
+        inner_igp.quote_gas_payment(destination_domain, gas_amount)
+    }
 }
 
 pub type OverheadIgpAccount = AccountData<OverheadIgp>;
