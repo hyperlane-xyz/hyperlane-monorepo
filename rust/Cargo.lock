@@ -3642,6 +3642,7 @@ dependencies = [
  "tracing-futures",
  "tracing-opentelemetry 0.18.0",
  "tracing-subscriber",
+ "walkdir",
  "warp",
 ]
 
@@ -3679,7 +3680,6 @@ dependencies = [
  "tiny-keccak",
  "tokio",
  "uint",
- "walkdir",
 ]
 
 [[package]]
