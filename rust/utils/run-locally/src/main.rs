@@ -67,13 +67,8 @@ static SHUTDOWN: AtomicBool = AtomicBool::new(false);
 struct State {
     build_log: PathBuf,
     log_all: bool,
-    kathy: Option<Child>,
-    node: Option<Child>,
-    relayer: Option<Child>,
-    validators: Vec<Child>,
-    scraper: Option<Child>,
     scraper_postgres_initialized: bool,
-
+    agents: Vec<Child>,
     watchers: Vec<JoinHandle<()>>,
 }
 
@@ -81,23 +76,14 @@ impl Drop for State {
     fn drop(&mut self) {
         SHUTDOWN.store(true, Ordering::Relaxed);
         log!("Signaling children to stop...");
-        if let Some(mut c) = self.kathy.take() {
-            stop_child(&mut c);
-        }
-        if let Some(mut c) = self.relayer.take() {
-            stop_child(&mut c);
-        }
-        if let Some(mut c) = self.scraper.take() {
-            stop_child(&mut c);
+        // stop children in reverse order
+        self.agents.reverse();
+        for mut agent in self.agents.drain(..) {
+            stop_child(&mut agent);
         }
         if self.scraper_postgres_initialized {
+            log!("Stopping scraper postgres...");
             kill_scraper_postgres(&self.build_log, self.log_all);
-        }
-        for mut c in self.validators.drain(..) {
-            stop_child(&mut c);
-        }
-        if let Some(mut c) = self.node.take() {
-            stop_child(&mut c);
         }
         log!("Joining watchers...");
         RUN_LOG_WATCHERS.store(false, Ordering::Relaxed);
@@ -320,7 +306,7 @@ fn main() -> ExitCode {
         node.stdout(append_to(anvil_log));
     }
     let node = node.spawn().expect("Failed to start node");
-    state.node = Some(node);
+    state.agents.push(node);
 
     sleep(Duration::from_secs(10));
 
@@ -380,7 +366,7 @@ fn main() -> ExitCode {
         run_agent(scraper_bin, &scraper_env, "SCR", config.log_all, &log_dir);
     state.watchers.push(scraper_stdout);
     state.watchers.push(scraper_stderr);
-    state.scraper = Some(scraper);
+    state.agents.push(scraper);
 
     // spawn 1st validator before any messages have been sent to test empty mailbox
     let validator1_env = validator_envs.first().unwrap();
@@ -393,7 +379,7 @@ fn main() -> ExitCode {
     );
     state.watchers.push(validator_stdout);
     state.watchers.push(validator_stderr);
-    state.validators.push(validator);
+    state.agents.push(validator);
 
     sleep(Duration::from_secs(5));
 
@@ -420,14 +406,14 @@ fn main() -> ExitCode {
         );
         state.watchers.push(validator_stdout);
         state.watchers.push(validator_stderr);
-        state.validators.push(validator);
+        state.agents.push(validator);
     }
 
     let (relayer, relayer_stdout, relayer_stderr) =
         run_agent(relayer_bin, &relayer_env, "RLY", config.log_all, &log_dir);
     state.watchers.push(relayer_stdout);
     state.watchers.push(relayer_stderr);
-    state.relayer = Some(relayer);
+    state.agents.push(relayer);
 
     log!("Setup complete! Agents running in background...");
     log!("Ctrl+C to end execution...");
@@ -438,7 +424,7 @@ fn main() -> ExitCode {
         run_agent("yarn", &kathy_env, "KTY", config.log_all, &log_dir);
     state.watchers.push(kathy_stdout);
     state.watchers.push(kathy_stderr);
-    state.kathy = Some(kathy);
+    state.agents.push(kathy);
 
     let loop_start = Instant::now();
     // give things a chance to fully start.
@@ -461,10 +447,7 @@ fn main() -> ExitCode {
         }
 
         // verify long-running tasks are still running
-        for child in state.validators.iter_mut().chain([
-            state.relayer.as_mut().unwrap(),
-            state.scraper.as_mut().unwrap(),
-        ]) {
+        for child in state.agents.iter_mut() {
             if child.try_wait().unwrap().is_some() {
                 log!("Child process exited unexpectedly, shutting down");
                 failure_occurred = true;

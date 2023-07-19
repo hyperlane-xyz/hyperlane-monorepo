@@ -137,84 +137,6 @@ pub fn build_cmd(
     AssertJoinHandle(handle)
 }
 
-fn build_cmd_task(
-    cmd: Vec<String>,
-    log: PathBuf,
-    log_all: bool,
-    wd: Option<PathBuf>,
-    env: Option<HashMap<String, String>>,
-    assert_success: bool,
-) {
-    assert!(!cmd.is_empty(), "Must specify a command!");
-    let mut command = Command::new(&cmd[0]);
-    command.args(&cmd[1..]);
-    if log_all {
-        command.stdout(Stdio::piped());
-    } else {
-        command.stdout(append_to(log));
-    }
-    command.stderr(Stdio::piped());
-    if let Some(wd) = &wd {
-        command.current_dir(wd);
-    }
-    if let Some(env) = env {
-        command.envs(env);
-    }
-
-    log!(
-        "({})$ {}",
-        wd.as_ref()
-            .map(|wd| wd.display())
-            .unwrap_or(env::current_dir().unwrap().display()),
-        cmd.join(" ")
-    );
-
-    let mut child = command.spawn().unwrap_or_else(|e| {
-        panic!(
-            "Failed to start command `{}` with Error: {e}",
-            cmd.join(" ")
-        )
-    });
-    let running = Arc::new(AtomicBool::new(true));
-    let stdout = if log_all {
-        let stdout = child.stdout.take().unwrap();
-        let name = cmd[0].to_owned();
-        let running = running.clone();
-        Some(spawn(move || prefix_log(stdout, name, &running)))
-    } else {
-        None
-    };
-    let stderr = {
-        let stderr = child.stderr.take().unwrap();
-        let name = cmd[0].to_owned();
-        let running = running.clone();
-        spawn(move || prefix_log(stderr, name, &running))
-    };
-
-    let status = loop {
-        if let Some(exit_status) = child.try_wait().expect("Failed to run command") {
-            break exit_status;
-        } else if SHUTDOWN.load(Ordering::Relaxed) {
-            log!("Forcing termination of command `{}`", cmd.join(" "));
-            stop_child(&mut child);
-            break child.wait().expect("Failed to run command");
-        } else {
-            sleep(Duration::from_millis(100));
-        }
-    };
-
-    running.store(false, Ordering::Relaxed);
-    if let Some(stdout) = stdout {
-        stdout.join().unwrap();
-    }
-    stderr.join().unwrap();
-    assert!(
-        !assert_success || !RUN_LOG_WATCHERS.load(Ordering::Relaxed) || status.success(),
-        "Command returned non-zero exit code: {}",
-        cmd.join(" ")
-    );
-}
-
 /// Attempt to kindly signal a child to stop running, and kill it if that fails.
 pub fn stop_child(child: &mut Child) {
     if child.try_wait().unwrap().is_some() {
@@ -295,4 +217,82 @@ fn inspect_and_write_to_file(output: impl Read, log: impl AsRef<Path>, filter_ar
             break;
         }
     }
+}
+
+fn build_cmd_task(
+    cmd: Vec<String>,
+    log: PathBuf,
+    log_all: bool,
+    wd: Option<PathBuf>,
+    env: Option<HashMap<String, String>>,
+    assert_success: bool,
+) {
+    assert!(!cmd.is_empty(), "Must specify a command!");
+    let mut command = Command::new(&cmd[0]);
+    command.args(&cmd[1..]);
+    if log_all {
+        command.stdout(Stdio::piped());
+    } else {
+        command.stdout(append_to(log));
+    }
+    command.stderr(Stdio::piped());
+    if let Some(wd) = &wd {
+        command.current_dir(wd);
+    }
+    if let Some(env) = env {
+        command.envs(env);
+    }
+
+    log!(
+        "({})$ {}",
+        wd.as_ref()
+            .map(|wd| wd.display())
+            .unwrap_or(env::current_dir().unwrap().display()),
+        cmd.join(" ")
+    );
+
+    let mut child = command.spawn().unwrap_or_else(|e| {
+        panic!(
+            "Failed to start command `{}` with Error: {e}",
+            cmd.join(" ")
+        )
+    });
+    let running = Arc::new(AtomicBool::new(true));
+    let stdout = if log_all {
+        let stdout = child.stdout.take().unwrap();
+        let name = cmd[0].to_owned();
+        let running = running.clone();
+        Some(spawn(move || prefix_log(stdout, name, &running)))
+    } else {
+        None
+    };
+    let stderr = {
+        let stderr = child.stderr.take().unwrap();
+        let name = cmd[0].to_owned();
+        let running = running.clone();
+        spawn(move || prefix_log(stderr, name, &running))
+    };
+
+    let status = loop {
+        if let Some(exit_status) = child.try_wait().expect("Failed to run command") {
+            break exit_status;
+        } else if SHUTDOWN.load(Ordering::Relaxed) {
+            log!("Forcing termination of command `{}`", cmd.join(" "));
+            stop_child(&mut child);
+            break child.wait().expect("Failed to run command");
+        } else {
+            sleep(Duration::from_millis(100));
+        }
+    };
+
+    running.store(false, Ordering::Relaxed);
+    if let Some(stdout) = stdout {
+        stdout.join().unwrap();
+    }
+    stderr.join().unwrap();
+    assert!(
+        !assert_success || !RUN_LOG_WATCHERS.load(Ordering::Relaxed) || status.success(),
+        "Command returned non-zero exit code: {}",
+        cmd.join(" ")
+    );
 }
