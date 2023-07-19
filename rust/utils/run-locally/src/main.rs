@@ -288,7 +288,9 @@ fn main() -> ExitCode {
 
     shutdown_if_needed!();
     log!("Launching anvil...");
-    let anvil_args = ProgramArgs::new("anvil").flag("silent");
+    let anvil_args = ProgramArgs::new("anvil")
+        .flag("silent")
+        .filter_logs(filter_anvil_logs);
     let anvil = run_agent(&anvil_args, "ETH", config.log_all, &log_dir);
     state.push_agent(anvil);
 
@@ -545,4 +547,9 @@ fn kill_scraper_postgres(build_log: impl AsRef<Path>, log_all: bool) {
         false,
     )
     .join();
+}
+
+fn filter_anvil_logs(_log: &str) -> bool {
+    // for now discard all anvil logs
+    false
 }

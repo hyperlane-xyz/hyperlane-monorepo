@@ -59,6 +59,7 @@ pub fn concat_path(p1: impl AsRef<Path>, p2: impl AsRef<Path>) -> PathBuf {
 }
 
 pub type AgentHandles = (Child, JoinHandle<()>, JoinHandle<()>);
+pub type LogFilter = fn(&str) -> bool;
 
 pub fn run_agent(
     args: &ProgramArgs,
@@ -75,9 +76,10 @@ pub fn run_agent(
         .unwrap_or_else(|e| panic!("Failed to start {:?} with error: {e}", &args));
     let stdout_path = concat_path(log_dir, format!("{log_prefix}.stdout.log"));
     let child_stdout = child.stdout.take().unwrap();
+    let filter = args.get_filter();
     let stdout = spawn(move || {
         if log_all {
-            prefix_log(child_stdout, log_prefix, &RUN_LOG_WATCHERS)
+            prefix_log(child_stdout, log_prefix, &RUN_LOG_WATCHERS, filter)
         } else {
             inspect_and_write_to_file(
                 child_stdout,
@@ -90,7 +92,7 @@ pub fn run_agent(
     let child_stderr = child.stderr.take().unwrap();
     let stderr = spawn(move || {
         if log_all {
-            prefix_log(child_stderr, log_prefix, &RUN_LOG_WATCHERS)
+            prefix_log(child_stderr, log_prefix, &RUN_LOG_WATCHERS, filter)
         } else {
             inspect_and_write_to_file(child_stderr, stderr_path, &[])
         }
@@ -146,8 +148,7 @@ fn append_to(p: impl AsRef<Path>) -> File {
 
 /// Read from a process output and add a string to the front before writing it
 /// to stdout.
-fn prefix_log(output: impl Read, name: impl AsRef<str>, run_log_watcher: &AtomicBool) {
-    let prefix = name.as_ref();
+fn prefix_log(output: impl Read, prefix: &str, run_log_watcher: &AtomicBool, filter: Option<LogFilter>) {
     let mut reader = BufReader::new(output).lines();
     loop {
         if let Some(line) = reader.next() {
@@ -159,6 +160,11 @@ fn prefix_log(output: impl Read, name: impl AsRef<str>, run_log_watcher: &Atomic
                     break;
                 }
             };
+            if let Some(filter) = filter.as_ref() {
+                if !(filter)(&line) {
+                    continue;
+                }
+            }
             println!("<{prefix}> {line}");
         } else if run_log_watcher.load(Ordering::Relaxed) {
             sleep(Duration::from_millis(10));
@@ -215,12 +221,13 @@ fn build_cmd_task(args: ProgramArgs, log: PathBuf, log_all: bool, assert_success
     let mut child = command
         .spawn()
         .unwrap_or_else(|e| panic!("Failed to start command `{}` with Error: {e}", &args));
+    let filter = args.get_filter();
     let running = Arc::new(AtomicBool::new(true));
     let stdout = if log_all {
         let stdout = child.stdout.take().unwrap();
         let name = args.get_bin_name().to_owned();
         let running = running.clone();
-        Some(spawn(move || prefix_log(stdout, name, &running)))
+        Some(spawn(move || prefix_log(stdout, &name, &running, filter)))
     } else {
         None
     };
@@ -228,7 +235,7 @@ fn build_cmd_task(args: ProgramArgs, log: PathBuf, log_all: bool, assert_success
         let stderr = child.stderr.take().unwrap();
         let name = args.get_bin_name().to_owned();
         let running = running.clone();
-        spawn(move || prefix_log(stderr, name, &running))
+        spawn(move || prefix_log(stderr, &name, &running, filter))
     };
 
     let status = loop {

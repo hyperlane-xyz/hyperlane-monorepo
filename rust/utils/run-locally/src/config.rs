@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 use std::env;
 use std::ffi::OsStr;
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
+use crate::utils::LogFilter;
 
 pub struct Config {
     pub is_ci_env: bool,
@@ -38,12 +39,25 @@ impl Config {
     }
 }
 
-#[derive(Default, Clone, Debug)]
+#[derive(Default, Clone)]
 pub struct ProgramArgs {
     bin_path: Option<Arc<PathBuf>>,
     args: Vec<Arc<String>>,
     env: HashMap<Arc<String>, Arc<String>>,
     working_dir: Option<Arc<PathBuf>>,
+    log_filter: Option<LogFilter>,
+}
+
+impl Debug for ProgramArgs {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProgramArgs")
+            .field("bin_path", &self.bin_path)
+            .field("args", &self.args)
+            .field("env", &self.env)
+            .field("working_dir", &self.working_dir)
+            .field("log_filter", &self.log_filter.is_some())
+            .finish()
+    }
 }
 
 impl Display for ProgramArgs {
@@ -137,6 +151,12 @@ impl ProgramArgs {
         self
     }
 
+    /// Filter logs being printed to stdout/stderr
+    pub fn filter_logs(mut self, filter: LogFilter) -> Self {
+        self.log_filter = Some(filter);
+        self
+    }
+
     pub fn create_command(&self) -> Command {
         let mut cmd = Command::new(
             self.bin_path
@@ -151,6 +171,10 @@ impl ProgramArgs {
         }
         cmd.args(self.args.iter().map(AsRef::as_ref));
         cmd
+    }
+
+    pub fn get_filter(&self) -> Option<LogFilter> {
+        self.log_filter
     }
 
     pub fn get_bin_name(&self) -> &str {
