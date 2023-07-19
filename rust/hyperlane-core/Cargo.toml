@@ -43,7 +43,6 @@ primitive-types = { workspace = true, optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt", "time"] }
-walkdir = { version = "2" }
 
 [features]
 default = []
