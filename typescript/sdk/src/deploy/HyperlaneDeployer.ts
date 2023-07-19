@@ -193,9 +193,9 @@ export abstract class HyperlaneDeployer<
         currentIsm = await mailbox.defaultIsm();
       }
 
-      // set interchain security module if not already set (and configured)
-      let configuredIsm;
       if (config.interchainSecurityModule) {
+        // set interchain security module if not already set (and configured)
+        let configuredIsm;
         if (typeof config.interchainSecurityModule === 'string') {
           configuredIsm = config.interchainSecurityModule;
         } else if (this.options?.ismFactory) {
