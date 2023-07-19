@@ -4,6 +4,7 @@
 pragma solidity ^0.8.4;
 
 import {ICrossDomainMessenger} from "@eth-optimism/contracts/libraries/bridge/ICrossDomainMessenger.sol";
+import {NotCrossChainCall} from "../errors.sol";
 
 /**
  * @dev Primitives for cross-chain aware contracts for https://www.optimism.io/[Optimism].
@@ -11,8 +12,6 @@ import {ICrossDomainMessenger} from "@eth-optimism/contracts/libraries/bridge/IC
  * for the functionality used here.
  */
 library LibOptimism {
-    error NotCrossChainCall();
-
     /**
      * @dev Returns whether the current function call is the result of a
      * cross-chain message relayed by `messenger`.

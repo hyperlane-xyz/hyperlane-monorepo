@@ -45,6 +45,7 @@ export enum Modules {
   LIQUIDITY_LAYER = 'll',
   TEST_QUERY_SENDER = 'testquerysender',
   TEST_RECIPIENT = 'testrecipient',
+  HELLO_WORLD = 'helloworld',
 }
 
 export const SDK_MODULES = [
@@ -76,6 +77,7 @@ export function withModuleAndFork<T>(args: yargs.Argv<T>) {
 export function withContext<T>(args: yargs.Argv<T>) {
   return args
     .describe('context', 'deploy context')
+    .default('context', Contexts.Hyperlane)
     .coerce('context', assertContext)
     .demandOption('context');
 }
@@ -131,7 +133,7 @@ export async function getConfigsBasedOnArgs(argv?: {
   environment: DeployEnvironment;
   context: Contexts;
 }) {
-  const { environment, context } = argv
+  const { environment, context = Contexts.Hyperlane } = argv
     ? argv
     : await withContext(getArgs()).argv;
   const envConfig = getEnvironmentConfig(environment);
@@ -206,6 +208,7 @@ export function getEnvironmentDirectory(environment: DeployEnvironment) {
 export function getModuleDirectory(
   environment: DeployEnvironment,
   module: Modules,
+  context?: Contexts,
 ) {
   // for backwards compatibility with existing paths
   const suffixFn = () => {
@@ -216,6 +219,8 @@ export function getModuleDirectory(
         return 'middleware/queries';
       case Modules.LIQUIDITY_LAYER:
         return 'middleware/liquidity-layer';
+      case Modules.HELLO_WORLD:
+        return `helloworld/${context}`;
       default:
         return module;
     }
@@ -255,6 +260,7 @@ export async function getRouterConfig(
     deployEnvToSdkEnv[environment],
     multiProvider,
   );
+
   const owners = getEnvironmentConfig(environment).owners;
   const config: ChainMap<RouterConfig> = {};
   const knownChains = multiProvider.intersect(
