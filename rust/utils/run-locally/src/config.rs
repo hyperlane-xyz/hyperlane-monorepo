@@ -48,6 +48,20 @@ impl ProgramArgs {
         self
     }
 
+    pub fn cmd(self, cmd: impl Into<String>) -> Self {
+        let cmd = cmd.into();
+        debug_assert!(!cmd.starts_with('-'), "arg should not start with -");
+        self.raw_arg(cmd)
+    }
+
+    pub fn flag(self, arg: impl AsRef<str>) -> Self {
+        debug_assert!(
+            !arg.as_ref().starts_with('-'),
+            "arg should not start with -"
+        );
+        self.raw_arg(format!("--{}", arg.as_ref()))
+    }
+
     /// Assumes an arg in the format of `--$ARG1 $ARG2`, arg1 and arg2 should exclude quoting, equal sign, and the leading hyphens.
     pub fn arg(mut self, arg1: impl Into<String>, arg2: impl Into<String>) -> Self {
         let (arg1, arg2) = (arg1.into(), arg2.into());

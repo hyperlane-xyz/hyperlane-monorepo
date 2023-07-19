@@ -153,7 +153,7 @@ pub fn stop_child(child: &mut Child) {
 }
 
 /// Open a file in append mode, or create it if it does not exist.
-pub fn append_to(p: impl AsRef<Path>) -> File {
+fn append_to(p: impl AsRef<Path>) -> File {
     File::options()
         .create(true)
         .append(true)

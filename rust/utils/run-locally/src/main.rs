@@ -20,7 +20,7 @@ use std::{
     env,
     fs::{self},
     path::PathBuf,
-    process::{Child, Command, ExitCode, Stdio},
+    process::{Child, ExitCode},
     sync::atomic::{AtomicBool, Ordering},
     thread::{sleep, JoinHandle},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -33,7 +33,7 @@ use tempfile::tempdir;
 use logging::log;
 
 use crate::config::ProgramArgs;
-use crate::utils::{append_to, build_cmd, concat_path, make_static, run_agent, stop_child};
+use crate::utils::{build_cmd, concat_path, make_static, run_agent, stop_child};
 
 mod config;
 mod logging;
@@ -297,16 +297,11 @@ fn main() -> ExitCode {
 
     shutdown_if_needed!();
     log!("Launching anvil...");
-    let mut node = Command::new("anvil");
-    if config.log_all {
-        // TODO: should we log this? It seems way too verbose to be useful
-        // node.stdout(Stdio::piped());
-        node.stdout(Stdio::null());
-    } else {
-        node.stdout(append_to(anvil_log));
-    }
-    let node = node.spawn().expect("Failed to start node");
+    let node_args = ProgramArgs::default().flag("silent");
+    let (node, stdout, stderr) = run_agent("anvil", &node_args, "ETH", config.log_all, &log_dir);
     state.agents.push(node);
+    state.watchers.push(stdout);
+    state.watchers.push(stderr);
 
     sleep(Duration::from_secs(10));
 
@@ -386,7 +381,7 @@ fn main() -> ExitCode {
     // Send half the kathy messages before starting the rest of the agents
     let kathy_env = ProgramArgs::default()
         .working_dir(INFRA_PATH)
-        .raw_arg("kathy")
+        .cmd("kathy")
         .arg("messages", (config.kathy_messages / 2).to_string())
         .arg("timeout", "1000");
     let (mut kathy, kathy_stdout, kathy_stderr) =
@@ -419,7 +414,7 @@ fn main() -> ExitCode {
     log!("Ctrl+C to end execution...");
 
     // Send half the kathy messages after the relayer comes up
-    let kathy_env = kathy_env.raw_arg("--mineforever");
+    let kathy_env = kathy_env.flag("mineforever");
     let (kathy, kathy_stdout, kathy_stderr) =
         run_agent("yarn", &kathy_env, "KTY", config.log_all, &log_dir);
     state.watchers.push(kathy_stdout);
