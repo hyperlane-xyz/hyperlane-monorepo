@@ -34,7 +34,9 @@ use crate::config::ProgramArgs;
 use crate::utils::{append_to, build_cmd, concat_path, make_static, run_agent, stop_child};
 
 mod config;
+mod logging;
 mod utils;
+use logging::log;
 
 /// These private keys are from hardhat/anvil's testing accounts.
 const RELAYER_KEYS: &[&str] = &[
@@ -75,7 +77,7 @@ struct State {
 
 impl Drop for State {
     fn drop(&mut self) {
-        println!("Signaling children to stop...");
+        log!("Signaling children to stop...");
         if let Some(mut c) = self.kathy.take() {
             stop_child(&mut c);
         }
@@ -94,7 +96,7 @@ impl Drop for State {
         if let Some(mut c) = self.node.take() {
             stop_child(&mut c);
         }
-        println!("Joining watchers...");
+        log!("Joining watchers...");
         RUNNING.store(false, Ordering::Relaxed);
         for w in self.watchers.drain(..) {
             w.join().unwrap();
@@ -105,7 +107,7 @@ impl Drop for State {
 fn main() -> ExitCode {
     // on sigint we want to trigger things to stop running
     ctrlc::set_handler(|| {
-        println!("Terminating...");
+        log!("Terminating...");
         RUNNING.store(false, Ordering::Relaxed);
     })
     .unwrap();
@@ -219,9 +221,9 @@ fn main() -> ExitCode {
     state.log_all = config.log_all;
 
     if !config.log_all {
-        println!("Logs in {}", log_dir.display());
+        log!("Logs in {}", log_dir.display());
     }
-    println!(
+    log!(
         "Signed checkpoints in {}",
         checkpoints_dirs
             .iter()
@@ -229,9 +231,9 @@ fn main() -> ExitCode {
             .collect::<Vec<_>>()
             .join(", ")
     );
-    println!("Relayer DB in {}", relayer_db.display());
+    log!("Relayer DB in {}", relayer_db.display());
     (0..3).for_each(|i| {
-        println!("Validator {} DB in {}", i + 1, validator_dbs[i].display());
+        log!("Validator {} DB in {}", i + 1, validator_dbs[i].display());
     });
 
     let build_log_ref = make_static(state.build_log.to_str().unwrap().to_owned());
@@ -241,7 +243,7 @@ fn main() -> ExitCode {
     // this task takes a long time in the CI so run it in parallel
     let build_rust = {
         spawn(move || {
-            println!("Building rust...");
+            log!("Building rust...");
             build_cmd(
                 &[
                     "cargo",
@@ -263,7 +265,7 @@ fn main() -> ExitCode {
         })
     };
 
-    println!("Running postgres db...");
+    log!("Running postgres db...");
     let postgres_env = hashmap! {
         "DATABASE_URL"=>"postgresql://postgres:47221c18c610@localhost:5432/postgres",
     };
@@ -287,7 +289,7 @@ fn main() -> ExitCode {
     );
     state.scraper_postgres_initialized = true;
 
-    println!("Installing typescript dependencies...");
+    log!("Installing typescript dependencies...");
     build_cmd(&["yarn", "install"], Some(&MONOREPO_ROOT_PATH), None);
     if !config.is_ci_env {
         // don't need to clean in the CI
@@ -295,7 +297,7 @@ fn main() -> ExitCode {
     }
     build_cmd(&["yarn", "build"], Some(&MONOREPO_ROOT_PATH), None);
 
-    println!("Launching anvil...");
+    log!("Launching anvil...");
     let mut node = Command::new("anvil");
     if config.log_all {
         // TODO: should we log this? It seems way too verbose to be useful
@@ -310,24 +312,24 @@ fn main() -> ExitCode {
     sleep(Duration::from_secs(10));
 
     let deploy_env = hashmap! {"ALLOW_LEGACY_MULTISIG_ISM" => "true"};
-    println!("Deploying hyperlane ism contracts...");
+    log!("Deploying hyperlane ism contracts...");
     build_cmd(
         &["yarn", "deploy-ism"],
         Some(&INFRA_PATH),
         Some(&deploy_env),
     );
 
-    println!("Rebuilding sdk...");
+    log!("Rebuilding sdk...");
     build_cmd(&["yarn", "build"], Some(&TS_SDK_PATH), None);
 
-    println!("Deploying hyperlane core contracts...");
+    log!("Deploying hyperlane core contracts...");
     build_cmd(
         &["yarn", "deploy-core"],
         Some(&INFRA_PATH),
         Some(&deploy_env),
     );
 
-    println!("Deploying hyperlane igp contracts...");
+    log!("Deploying hyperlane igp contracts...");
     build_cmd(
         &["yarn", "deploy-igp"],
         Some(&INFRA_PATH),
@@ -341,12 +343,12 @@ fn main() -> ExitCode {
     }
 
     // Rebuild the SDK to pick up the deployed contracts
-    println!("Rebuilding sdk...");
+    log!("Rebuilding sdk...");
     build_cmd(&["yarn", "build"], Some(&TS_SDK_PATH), None);
 
     build_rust.join().unwrap();
 
-    println!("Init postgres db...");
+    log!("Init postgres db...");
     build_cmd(
         &["cargo", "run", "-r", "-p", "migration", "--bin", "init-db"],
         None,
@@ -406,8 +408,8 @@ fn main() -> ExitCode {
     state.watchers.push(relayer_stderr);
     state.relayer = Some(relayer);
 
-    println!("Setup complete! Agents running in background...");
-    println!("Ctrl+C to end execution...");
+    log!("Setup complete! Agents running in background...");
+    log!("Ctrl+C to end execution...");
 
     // Send half the kathy messages after the relayer comes up
     let kathy_env = kathy_env.raw_arg("--mineforever");
@@ -426,11 +428,11 @@ fn main() -> ExitCode {
             let num_messages_expected = (config.kathy_messages / 2) as u32 * 2;
             if termination_invariants_met(num_messages_expected).unwrap_or(false) {
                 // end condition reached successfully
-                println!("Agent metrics look healthy");
+                log!("Agent metrics look healthy");
                 break;
             } else if (Instant::now() - loop_start).as_secs() > config.ci_mode_timeout {
                 // we ran out of time
-                eprintln!("CI timeout reached before queues emptied");
+                log!("CI timeout reached before queues emptied");
                 return ExitCode::from(1);
             }
         }
@@ -466,7 +468,7 @@ fn termination_invariants_met(num_expected_messages: u32) -> Result<bool> {
     let lengths = fetch_metric("9092", "hyperlane_submitter_queue_length", &hashmap! {})?;
     assert!(!lengths.is_empty(), "Could not find queue length metric");
     if lengths.into_iter().any(|n| n != 0) {
-        println!("<E2E> Relayer queues not empty");
+        log!("Relayer queues not empty");
         return Ok(false);
     };
 
@@ -477,9 +479,10 @@ fn termination_invariants_met(num_expected_messages: u32) -> Result<bool> {
             .iter()
             .sum::<u32>();
     if msg_processed_count != num_expected_messages {
-        println!(
-            "<E2E> Relayer has {} processed messages, expected {}",
-            msg_processed_count, num_expected_messages
+        log!(
+            "Relayer has {} processed messages, expected {}",
+            msg_processed_count,
+            num_expected_messages
         );
         return Ok(false);
     }
@@ -494,9 +497,10 @@ fn termination_invariants_met(num_expected_messages: u32) -> Result<bool> {
     // TestSendReceiver randomly breaks gas payments up into
     // two. So we expect at least as many gas payments as messages.
     if gas_payment_events_count < num_expected_messages {
-        println!(
-            "<E2E> Relayer has {} gas payment events, expected at least {}",
-            gas_payment_events_count, num_expected_messages
+        log!(
+            "Relayer has {} gas payment events, expected at least {}",
+            gas_payment_events_count,
+            num_expected_messages
         );
         return Ok(false);
     }
@@ -509,9 +513,10 @@ fn termination_invariants_met(num_expected_messages: u32) -> Result<bool> {
     .iter()
     .sum::<u32>();
     if dispatched_messages_scraped != num_expected_messages {
-        println!(
-            "<E2E> Scraper has scraped {} dispatched messages, expected {}",
-            dispatched_messages_scraped, num_expected_messages
+        log!(
+            "Scraper has scraped {} dispatched messages, expected {}",
+            dispatched_messages_scraped,
+            num_expected_messages
         );
         return Ok(false);
     }
@@ -525,9 +530,10 @@ fn termination_invariants_met(num_expected_messages: u32) -> Result<bool> {
     .sum::<u32>();
     // The relayer and scraper should have the same number of gas payments.
     if gas_payments_scraped != gas_payment_events_count {
-        println!(
-            "<E2E> Scraper has scraped {} gas payments, expected {}",
-            gas_payments_scraped, num_expected_messages
+        log!(
+            "Scraper has scraped {} gas payments, expected {}",
+            gas_payments_scraped,
+            num_expected_messages
         );
         return Ok(false);
     }
@@ -540,12 +546,14 @@ fn termination_invariants_met(num_expected_messages: u32) -> Result<bool> {
     .iter()
     .sum::<u32>();
     if delivered_messages_scraped != num_expected_messages {
-        println!(
-            "<E2E> Scraper has scraped {} delivered messages, expected {}",
-            delivered_messages_scraped, num_expected_messages
+        log!(
+            "Scraper has scraped {} delivered messages, expected {}",
+            delivered_messages_scraped,
+            num_expected_messages
         );
         Ok(false)
     } else {
+        log!("Termination invariants have been meet");
         Ok(true)
     }
 }
