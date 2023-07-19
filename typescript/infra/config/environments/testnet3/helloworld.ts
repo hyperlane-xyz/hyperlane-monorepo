@@ -8,9 +8,9 @@ import {
 
 import { HelloWorldConfig } from '../../../src/config';
 import { HelloWorldKathyRunMode } from '../../../src/config/helloworld';
+import { aggregationIsm } from '../../aggregationIsm';
 import { Contexts } from '../../contexts';
 
-import { aggregationIsm } from './aggregationIsm';
 import { environment } from './chains';
 import hyperlaneAddresses from './helloworld/hyperlane/addresses.json';
 import rcAddresses from './helloworld/rc/addresses.json';
@@ -65,5 +65,5 @@ export const helloWorldConfig = (
 ): ChainMap<HelloWorldContractsConfig> =>
   objMap(routerConfigMap, (chain, routerConfig) => ({
     ...routerConfig,
-    interchainSecurityModule: aggregationIsm(chain, context),
+    interchainSecurityModule: aggregationIsm('testnet3', chain, context),
   }));
