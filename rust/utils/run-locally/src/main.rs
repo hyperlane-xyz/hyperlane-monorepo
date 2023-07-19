@@ -14,12 +14,12 @@
 //!   true if CI mode,
 //! else false.
 
+use std::path::Path;
 use std::{
     collections::HashMap,
     env,
-    fs::{self, File},
-    io::{BufRead, BufReader, BufWriter, Read, Write},
-    path::{Path, PathBuf},
+    fs::{self},
+    path::PathBuf,
     process::{Child, Command, ExitCode, Stdio},
     sync::atomic::{AtomicBool, Ordering},
     thread::{sleep, spawn, JoinHandle},
@@ -28,12 +28,10 @@ use std::{
 
 use eyre::{eyre, Result};
 use maplit::hashmap;
-use nix::{
-    libc::pid_t,
-    sys::signal::{self, Signal},
-    unistd::Pid,
-};
 use tempfile::tempdir;
+
+use crate::config::ProgramArgs;
+use crate::utils::{append_to, build_cmd, concat_path, make_static, run_agent, stop_child};
 
 mod config;
 mod utils;
@@ -52,6 +50,11 @@ const VALIDATOR_KEYS: &[&str] = &[
     "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e",
 ];
 
+const AGENT_BIN_PATH: &str = "target/debug";
+const INFRA_PATH: &str = "../typescript/infra";
+const TS_SDK_PATH: &str = "../typescript/sdk";
+const MONOREPO_ROOT_PATH: &str = "../";
+
 static RUNNING: AtomicBool = AtomicBool::new(true);
 
 /// Struct to hold stuff we want to cleanup whenever we exit. Just using for
@@ -65,27 +68,9 @@ struct State {
     relayer: Option<Child>,
     validators: Vec<Child>,
     scraper: Option<Child>,
+    scraper_postgres_initialized: bool,
 
     watchers: Vec<JoinHandle<()>>,
-}
-
-fn kill_scraper_postgres(build_log: &PathBuf, log_all: bool) {
-    build_cmd(
-        &["docker", "stop", "scraper-testnet-postgres"],
-        build_log,
-        log_all,
-        None,
-        None,
-        false,
-    );
-    build_cmd(
-        &["docker", "rm", "scraper-testnet-postgres"],
-        build_log,
-        log_all,
-        None,
-        None,
-        false,
-    );
 }
 
 impl Drop for State {
@@ -99,6 +84,8 @@ impl Drop for State {
         }
         if let Some(mut c) = self.scraper.take() {
             stop_child(&mut c);
+        }
+        if self.scraper_postgres_initialized {
             kill_scraper_postgres(&self.build_log, self.log_all);
         }
         for mut c in self.validators.drain(..) {
@@ -144,69 +131,92 @@ fn main() -> ExitCode {
         .map(|i| concat_path(&rocks_db_dir, format!("validator{i}")))
         .collect::<Vec<_>>();
 
-    let common_env = hashmap! {
-        "RUST_BACKTRACE" => "full",
-        "HYP_BASE_TRACING_FMT" => "pretty",
-        "HYP_BASE_TRACING_LEVEL" => "debug",
-        "HYP_BASE_CHAINS_TEST1_INDEX_CHUNK" => "1",
-        "HYP_BASE_CHAINS_TEST2_INDEX_CHUNK" => "1",
-        "HYP_BASE_CHAINS_TEST3_INDEX_CHUNK" => "1",
-    };
+    let scraper_bin = concat_path(AGENT_BIN_PATH, "scraper");
+    let validator_bin = concat_path(AGENT_BIN_PATH, "validator");
+    let relayer_bin = concat_path(AGENT_BIN_PATH, "relayer");
 
-    let relayer_env = hashmap! {
-        "HYP_BASE_CHAINS_TEST1_CONNECTION_TYPE" => "httpFallback",
-        "HYP_BASE_CHAINS_TEST2_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
+    let common_agent_env = ProgramArgs::default()
+        .sys_env("RUST_BACKTRACE", "full")
+        .env("TRACING_FMT", "pretty")
+        .env("TRACING_LEVEL", "debug")
+        .env("CHAINS_TEST1_INDEX_CHUNK", "1")
+        .env("CHAINS_TEST2_INDEX_CHUNK", "1")
+        .env("CHAINS_TEST3_INDEX_CHUNK", "1");
+
+    let relayer_env = common_agent_env
+        .clone()
+        .env("CHAINS_TEST1_CONNECTION_TYPE", "httpFallback")
+        .env(
+            "CHAINS_TEST2_CONNECTION_URLS",
+            "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
+        )
         // by setting this as a quorum provider we will cause nonce errors when delivering to test2
         // because the message will be sent to the node 3 times.
-        "HYP_BASE_CHAINS_TEST2_CONNECTION_TYPE" => "httpQuorum",
-        "HYP_BASE_CHAINS_TEST3_CONNECTION_URL" => "http://127.0.0.1:8545",
-        "HYP_BASE_METRICS" => "9092",
-        "HYP_BASE_DB" => relayer_db.to_str().unwrap(),
-        "HYP_BASE_CHAINS_TEST1_SIGNER_KEY" => RELAYER_KEYS[0],
-        "HYP_BASE_CHAINS_TEST2_SIGNER_KEY" => RELAYER_KEYS[1],
-        "HYP_BASE_RELAYCHAINS" => "invalidchain,otherinvalid",
-        "HYP_RELAYER_ALLOWLOCALCHECKPOINTSYNCERS" => "true",
-    };
-
-    // test using args
-    let relayer_args = [
-        "--chains.test1.connection.urls=\"http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545\"",
+        .env("CHAINS_TEST2_CONNECTION_TYPE", "httpQuorum")
+        .env("CHAINS_TEST3_CONNECTION_URL", "http://127.0.0.1:8545")
+        .env("METRICS", "9092")
+        .env("DB", relayer_db.to_str().unwrap())
+        .env("CHAINS_TEST1_SIGNER_KEY", RELAYER_KEYS[0])
+        .env("CHAINS_TEST2_SIGNER_KEY", RELAYER_KEYS[1])
+        .env("RELAYCHAINS", "invalidchain,otherinvalid")
+        .env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
+        .arg(
+            "chains.test1.connection.urls",
+            "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
+        )
         // default is used for TEST3
-        "--defaultSigner.key", RELAYER_KEYS[2],
-        "--relayChains=test1,test2,test3",
-    ];
+        .arg("defaultSigner.key", RELAYER_KEYS[2])
+        .arg("relayChains", "test1,test2,test3");
 
-    let validator_envs: Vec<_> = (0..3).map(|i| {
-        let metrics_port = make_static((9094 + i).to_string());
-        let originchainname = make_static(format!("test{}", 1 + i));
-        hashmap! {
-            "HYP_BASE_CHAINS_TEST1_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
-            "HYP_BASE_CHAINS_TEST1_CONNECTION_TYPE" => "httpQuorum",
-            "HYP_BASE_CHAINS_TEST2_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
-            "HYP_BASE_CHAINS_TEST2_CONNECTION_TYPE" => "httpFallback",
-            "HYP_BASE_CHAINS_TEST3_CONNECTION_URL" => "http://127.0.0.1:8545",
-            "HYP_BASE_METRICS" => metrics_port,
-            "HYP_BASE_DB" => validator_dbs[i].to_str().unwrap(),
-            "HYP_VALIDATOR_ORIGINCHAINNAME" => originchainname,
-            "HYP_VALIDATOR_VALIDATOR_KEY" => VALIDATOR_KEYS[i],
-            "HYP_VALIDATOR_REORGPERIOD" => "0",
-            "HYP_VALIDATOR_INTERVAL" => "5",
-            "HYP_VALIDATOR_CHECKPOINTSYNCER_TYPE" => "localStorage",
-            "HYP_VALIDATOR_CHECKPOINTSYNCER_PATH" => checkpoints_dirs[i].path().to_str().unwrap(),
-        }
-    }).collect();
+    let base_validator_env = common_agent_env
+        .clone()
+        .env(
+            "CHAINS_TEST1_CONNECTION_URLS",
+            "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
+        )
+        .env("CHAINS_TEST1_CONNECTION_TYPE", "httpQuorum")
+        .env(
+            "CHAINS_TEST2_CONNECTION_URLS",
+            "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
+        )
+        .env("CHAINS_TEST2_CONNECTION_TYPE", "httpFallback")
+        .env("CHAINS_TEST3_CONNECTION_URL", "http://127.0.0.1:8545")
+        .env("REORGPERIOD", "0")
+        .env("INTERVAL", "5")
+        .env("CHECKPOINTSYNCER_TYPE", "localStorage");
 
-    let scraper_env = hashmap! {
-        "HYP_BASE_CHAINS_TEST1_CONNECTION_TYPE" => "httpQuorum",
-        "HYP_BASE_CHAINS_TEST1_CONNECTION_URL" => "http://127.0.0.1:8545",
-        "HYP_BASE_CHAINS_TEST2_CONNECTION_TYPE" => "httpQuorum",
-        "HYP_BASE_CHAINS_TEST2_CONNECTION_URL" => "http://127.0.0.1:8545",
-        "HYP_BASE_CHAINS_TEST3_CONNECTION_TYPE" => "httpQuorum",
-        "HYP_BASE_CHAINS_TEST3_CONNECTION_URL" => "http://127.0.0.1:8545",
-        "HYP_BASE_CHAINSTOSCRAPE" => "test1,test2,test3",
-        "HYP_BASE_METRICS" => "9093",
-        "HYP_BASE_DB"=>"postgresql://postgres:47221c18c610@localhost:5432/postgres",
-    };
+    let validator_envs = (0..3)
+        .map(|i| {
+            base_validator_env
+                .clone()
+                .env("METRICS", (9094 + i).to_string())
+                .env("DB", validator_dbs[i].to_str().unwrap())
+                .env("ORIGINCHAINNAME", format!("test{}", 1 + i))
+                .env("VALIDATOR_KEY", VALIDATOR_KEYS[i])
+                .env(
+                    "CHECKPOINTSYNCER_PATH",
+                    checkpoints_dirs[i].path().to_str().unwrap(),
+                )
+        })
+        .collect::<Vec<_>>();
+
+    let scraper_env = common_agent_env
+        .env("CHAINS_TEST1_CONNECTION_TYPE", "httpQuorum")
+        .env("CHAINS_TEST1_CONNECTION_URL", "http://127.0.0.1:8545")
+        .env("CHAINS_TEST2_CONNECTION_TYPE", "httpQuorum")
+        .env("CHAINS_TEST2_CONNECTION_URL", "http://127.0.0.1:8545")
+        .env("CHAINS_TEST3_CONNECTION_TYPE", "httpQuorum")
+        .env("CHAINS_TEST3_CONNECTION_URL", "http://127.0.0.1:8545")
+        .env("CHAINSTOSCRAPE", "test1,test2,test3")
+        .env("METRICS", "9093")
+        .env(
+            "DB",
+            "postgresql://postgres:47221c18c610@localhost:5432/postgres",
+        );
+
+    let mut state = State::default();
+    state.build_log = build_log;
+    state.log_all = config.log_all;
 
     if !config.log_all {
         println!("Logs in {}", log_dir.display());
@@ -224,10 +234,9 @@ fn main() -> ExitCode {
         println!("Validator {} DB in {}", i + 1, validator_dbs[i].display());
     });
 
-    let build_cmd = {
-        let build_log = make_static(build_log.to_str().unwrap().into());
-        move |cmd, path, env| build_cmd(cmd, build_log, config.log_all, path, env, true)
-    };
+    let build_log_ref = make_static(state.build_log.to_str().unwrap().to_owned());
+    let build_cmd =
+        move |cmd, path, env| build_cmd(cmd, build_log_ref, config.log_all, path, env, true);
 
     // this task takes a long time in the CI so run it in parallel
     let build_rust = {
@@ -258,11 +267,12 @@ fn main() -> ExitCode {
     let postgres_env = hashmap! {
         "DATABASE_URL"=>"postgresql://postgres:47221c18c610@localhost:5432/postgres",
     };
-    kill_scraper_postgres(&build_log, config.log_all);
+    kill_scraper_postgres(&state.build_log, config.log_all);
     build_cmd(
         &[
             "docker",
             "run",
+            "--rm",
             "--name",
             "scraper-testnet-postgres",
             "-e",
@@ -275,18 +285,15 @@ fn main() -> ExitCode {
         None,
         Some(&postgres_env),
     );
+    state.scraper_postgres_initialized = true;
 
     println!("Installing typescript dependencies...");
-    build_cmd(&["yarn", "install"], Some("../"), None);
+    build_cmd(&["yarn", "install"], Some(&MONOREPO_ROOT_PATH), None);
     if !config.is_ci_env {
         // don't need to clean in the CI
-        build_cmd(&["yarn", "clean"], Some("../"), None);
+        build_cmd(&["yarn", "clean"], Some(&MONOREPO_ROOT_PATH), None);
     }
-    build_cmd(&["yarn", "build"], Some("../"), None);
-
-    let mut state = State::default();
-    state.build_log = build_log;
-    state.log_all = config.log_all;
+    build_cmd(&["yarn", "build"], Some(&MONOREPO_ROOT_PATH), None);
 
     println!("Launching anvil...");
     let mut node = Command::new("anvil");
@@ -306,36 +313,36 @@ fn main() -> ExitCode {
     println!("Deploying hyperlane ism contracts...");
     build_cmd(
         &["yarn", "deploy-ism"],
-        Some("../typescript/infra"),
+        Some(&INFRA_PATH),
         Some(&deploy_env),
     );
 
     println!("Rebuilding sdk...");
-    build_cmd(&["yarn", "build"], Some("../typescript/sdk"), None);
+    build_cmd(&["yarn", "build"], Some(&TS_SDK_PATH), None);
 
     println!("Deploying hyperlane core contracts...");
     build_cmd(
         &["yarn", "deploy-core"],
-        Some("../typescript/infra"),
+        Some(&INFRA_PATH),
         Some(&deploy_env),
     );
 
     println!("Deploying hyperlane igp contracts...");
     build_cmd(
         &["yarn", "deploy-igp"],
-        Some("../typescript/infra"),
+        Some(&INFRA_PATH),
         Some(&deploy_env),
     );
 
     if !config.is_ci_env {
         // Follow-up 'yarn hardhat node' invocation with 'yarn prettier' to fixup
         // formatting on any autogenerated json config files to avoid any diff creation.
-        build_cmd(&["yarn", "prettier"], Some("../"), None);
+        build_cmd(&["yarn", "prettier"], Some(&MONOREPO_ROOT_PATH), None);
     }
 
     // Rebuild the SDK to pick up the deployed contracts
     println!("Rebuilding sdk...");
-    build_cmd(&["yarn", "build"], Some("../typescript/sdk"), None);
+    build_cmd(&["yarn", "build"], Some(&TS_SDK_PATH), None);
 
     build_rust.join().unwrap();
 
@@ -346,30 +353,17 @@ fn main() -> ExitCode {
         None,
     );
 
-    let (scraper, scraper_stdout, scraper_stderr) = run_agent(
-        "scraper",
-        &scraper_env.into_iter().chain(common_env.clone()).collect(),
-        &[],
-        "SCR",
-        config.log_all,
-        &log_dir,
-    );
+    let (scraper, scraper_stdout, scraper_stderr) =
+        run_agent(scraper_bin, &scraper_env, "SCR", config.log_all, &log_dir);
     state.watchers.push(scraper_stdout);
     state.watchers.push(scraper_stderr);
     state.scraper = Some(scraper);
 
-    let mut validator_iter = validator_envs.iter();
-
     // spawn 1st validator before any messages have been sent to test empty mailbox
-    let validator1_env = validator_iter.next().unwrap();
+    let validator1_env = validator_envs.first().unwrap();
     let (validator, validator_stdout, validator_stderr) = run_agent(
-        "validator",
-        &common_env
-            .clone()
-            .into_iter()
-            .chain(validator1_env.clone())
-            .collect(),
-        &[],
+        &validator_bin,
+        validator1_env,
         "VAL1",
         config.log_all,
         &log_dir,
@@ -381,34 +375,22 @@ fn main() -> ExitCode {
     sleep(Duration::from_secs(5));
 
     // Send half the kathy messages before starting the rest of the agents
-    let mut kathy = Command::new("yarn");
-    kathy
-        .arg("kathy")
-        .args([
-            "--messages",
-            &(config.kathy_messages / 2).to_string(),
-            "--timeout",
-            "1000",
-        ])
-        .current_dir("../typescript/infra")
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+    let kathy_env = ProgramArgs::default()
+        .working_dir(INFRA_PATH)
+        .raw_arg("kathy")
+        .arg("messages", (config.kathy_messages / 2).to_string())
+        .arg("timeout", "1000");
     let (mut kathy, kathy_stdout, kathy_stderr) =
-        spawn_cmd_with_logging("kathy", kathy, "KTY", config.log_all, &log_dir);
+        run_agent("yarn", &kathy_env, "KTY", config.log_all, &log_dir);
     state.watchers.push(kathy_stdout);
     state.watchers.push(kathy_stderr);
     kathy.wait().unwrap();
 
     // spawn the rest of the validators
-    for (i, validator_env) in validator_iter.enumerate() {
+    for (i, validator_env) in validator_envs.iter().enumerate().skip(1) {
         let (validator, validator_stdout, validator_stderr) = run_agent(
-            "validator",
-            &common_env
-                .clone()
-                .into_iter()
-                .chain(validator_env.clone())
-                .collect(),
-            &[],
+            &validator_bin,
+            validator_env,
             make_static(format!("VAL{}", 1 + i)),
             config.log_all,
             &log_dir,
@@ -418,14 +400,8 @@ fn main() -> ExitCode {
         state.validators.push(validator);
     }
 
-    let (relayer, relayer_stdout, relayer_stderr) = run_agent(
-        "relayer",
-        &relayer_env.into_iter().chain(common_env.clone()).collect(),
-        &relayer_args,
-        "RLY",
-        config.log_all,
-        &log_dir,
-    );
+    let (relayer, relayer_stdout, relayer_stderr) =
+        run_agent(relayer_bin, &relayer_env, "RLY", config.log_all, &log_dir);
     state.watchers.push(relayer_stdout);
     state.watchers.push(relayer_stderr);
     state.relayer = Some(relayer);
@@ -434,21 +410,9 @@ fn main() -> ExitCode {
     println!("Ctrl+C to end execution...");
 
     // Send half the kathy messages after the relayer comes up
-    let mut kathy = Command::new("yarn");
-    kathy
-        .arg("kathy")
-        .args([
-            "--messages",
-            &(config.kathy_messages / 2).to_string(),
-            "--timeout",
-            "1000",
-            "--mineforever",
-        ])
-        .current_dir("../typescript/infra")
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+    let kathy_env = kathy_env.raw_arg("--mineforever");
     let (kathy, kathy_stdout, kathy_stderr) =
-        spawn_cmd_with_logging("kathy", kathy, "KTY", config.log_all, &log_dir);
+        run_agent("yarn", &kathy_env, "KTY", config.log_all, &log_dir);
     state.watchers.push(kathy_stdout);
     state.watchers.push(kathy_stderr);
     state.kathy = Some(kathy);
@@ -586,179 +550,13 @@ fn termination_invariants_met(num_expected_messages: u32) -> Result<bool> {
     }
 }
 
-/// Read from a process output and add a string to the front before writing it
-/// to stdout.
-fn prefix_log(output: impl Read, name: &'static str) {
-    let mut reader = BufReader::new(output).lines();
-    loop {
-        if let Some(line) = reader.next() {
-            let line = match line {
-                Ok(l) => l,
-                Err(e) => {
-                    // end of stream, probably
-                    eprintln!("Error reading from output for {name}: {e}");
-                    break;
-                }
-            };
-            println!("<{name}> {line}");
-        } else if RUNNING.fetch_and(true, Ordering::Relaxed) {
-            sleep(Duration::from_millis(10));
-        } else {
-            break;
-        }
-    }
-}
-
-/// Basically `tail -f file | grep <FILTER>` but also has to write to the file
-/// (writes to file all lines, not just what passes the filter).
-fn inspect_and_write_to_file(output: impl Read, log: impl AsRef<Path>, filter_array: &[&str]) {
-    let mut writer = BufWriter::new(append_to(log));
-    let mut reader = BufReader::new(output).lines();
-    loop {
-        if let Some(line) = reader.next() {
-            let line = match line {
-                Ok(l) => l,
-                Err(e) => {
-                    // end of stream, probably
-                    eprintln!("Error reading from output: {e}");
-                    break;
-                }
-            };
-
-            if filter_array.is_empty() {
-                println!("{line}")
-            } else {
-                for filter in filter_array {
-                    if line.contains(filter) {
-                        println!("{line}")
-                    }
-                }
-            }
-            writeln!(writer, "{line}").unwrap();
-        } else if RUNNING.fetch_and(true, Ordering::Relaxed) {
-            sleep(Duration::from_millis(10))
-        } else {
-            break;
-        }
-    }
-}
-
-/// Attempt to kindly signal a child to stop running, and kill it if that fails.
-fn stop_child(child: &mut Child) {
-    if child.try_wait().unwrap().is_some() {
-        // already stopped
-        return;
-    }
-    let pid = Pid::from_raw(child.id() as pid_t);
-    if signal::kill(pid, Signal::SIGTERM).is_err() {
-        eprintln!("Failed to send sigterm, killing");
-        if let Err(e) = child.kill() {
-            eprintln!("{}", e);
-        }
-    };
-}
-
-/// Merge two paths.
-fn concat_path(p1: impl AsRef<Path>, p2: impl AsRef<Path>) -> PathBuf {
-    let mut p = p1.as_ref().to_path_buf();
-    p.push(p2);
-    p
-}
-
-/// Open a file in append mode, or create it if it does not exist.
-fn append_to(p: impl AsRef<Path>) -> File {
-    File::options()
-        .create(true)
-        .append(true)
-        .open(p)
-        .expect("Failed to open file")
-}
-
-fn build_cmd(
-    cmd: &[&str],
-    log: impl AsRef<Path>,
-    log_all: bool,
-    wd: Option<&str>,
-    env: Option<&HashMap<&str, &str>>,
-    assert_success: bool,
-) {
-    assert!(!cmd.is_empty(), "Must specify a command!");
-    let mut c = Command::new(cmd[0]);
-    c.args(&cmd[1..]);
-    if log_all {
-        c.stdout(Stdio::inherit());
-    } else {
-        c.stdout(append_to(log));
-    }
-    if let Some(wd) = wd {
-        c.current_dir(wd);
-    }
-    if let Some(env) = env {
-        c.envs(env);
-    }
-    let status = c.status().expect("Failed to run command");
-    if assert_success {
-        assert!(
-            status.success(),
-            "Command returned non-zero exit code: {}",
-            cmd.join(" ")
-        );
-    }
-}
-
-fn make_static(s: String) -> &'static str {
-    Box::leak(s.into_boxed_str())
-}
-
-fn spawn_cmd_with_logging(
-    name: &str,
-    mut command: Command,
-    log_prefix: &'static str,
-    log_all: bool,
-    log_dir: &PathBuf,
-) -> (std::process::Child, JoinHandle<()>, JoinHandle<()>) {
-    println!("Spawning {}...", name);
-    let mut child = command
-        .spawn()
-        .unwrap_or_else(|_| panic!("Failed to start {}", name));
-    let stdout_path = concat_path(log_dir, format!("{}.stdout.log", log_prefix));
-    let child_stdout = child.stdout.take().unwrap();
-    let stdout = spawn(move || {
-        if log_all {
-            prefix_log(child_stdout, log_prefix)
-        } else {
-            inspect_and_write_to_file(
-                child_stdout,
-                stdout_path,
-                &["ERROR", "message successfully processed"],
-            )
-        }
-    });
-    let stderr_path = concat_path(log_dir, format!("{}.stderr.log", log_prefix));
-    let child_stderr = child.stderr.take().unwrap();
-    let stderr = spawn(move || {
-        if log_all {
-            prefix_log(child_stderr, log_prefix)
-        } else {
-            inspect_and_write_to_file(child_stderr, stderr_path, &[])
-        }
-    });
-    (child, stdout, stderr)
-}
-
-fn run_agent(
-    name: &str,
-    env: &HashMap<&str, &str>,
-    args: &[&str],
-    log_prefix: &'static str,
-    log_all: bool,
-    log_dir: &PathBuf,
-) -> (std::process::Child, JoinHandle<()>, JoinHandle<()>) {
-    let mut command = Command::new(format!("target/debug/{}", name));
-    command
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .envs(env)
-        .args(args);
-    spawn_cmd_with_logging(name, command, log_prefix, log_all, log_dir)
+fn kill_scraper_postgres(build_log: impl AsRef<Path>, log_all: bool) {
+    build_cmd(
+        &["docker", "stop", "scraper-testnet-postgres"],
+        &build_log,
+        log_all,
+        None,
+        None,
+        false,
+    );
 }
