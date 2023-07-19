@@ -136,35 +136,32 @@ fn main() -> ExitCode {
         .map(|i| concat_path(&rocks_db_dir, format!("validator{i}")))
         .collect::<Vec<_>>();
 
-    let scraper_bin = concat_path(AGENT_BIN_PATH, "scraper");
-    let validator_bin = concat_path(AGENT_BIN_PATH, "validator");
-    let relayer_bin = concat_path(AGENT_BIN_PATH, "relayer");
-
     let common_agent_env = ProgramArgs::default()
-        .sys_env("RUST_BACKTRACE", "full")
-        .env("TRACING_FMT", "pretty")
-        .env("TRACING_LEVEL", "debug")
-        .env("CHAINS_TEST1_INDEX_CHUNK", "1")
-        .env("CHAINS_TEST2_INDEX_CHUNK", "1")
-        .env("CHAINS_TEST3_INDEX_CHUNK", "1");
+        .env("RUST_BACKTRACE", "full")
+        .hyp_env("TRACING_FMT", "pretty")
+        .hyp_env("TRACING_LEVEL", "debug")
+        .hyp_env("CHAINS_TEST1_INDEX_CHUNK", "1")
+        .hyp_env("CHAINS_TEST2_INDEX_CHUNK", "1")
+        .hyp_env("CHAINS_TEST3_INDEX_CHUNK", "1");
 
     let relayer_env = common_agent_env
         .clone()
-        .env("CHAINS_TEST1_CONNECTION_TYPE", "httpFallback")
-        .env(
+        .bin(concat_path(AGENT_BIN_PATH, "relayer"))
+        .hyp_env("CHAINS_TEST1_CONNECTION_TYPE", "httpFallback")
+        .hyp_env(
             "CHAINS_TEST2_CONNECTION_URLS",
             "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
         )
         // by setting this as a quorum provider we will cause nonce errors when delivering to test2
         // because the message will be sent to the node 3 times.
-        .env("CHAINS_TEST2_CONNECTION_TYPE", "httpQuorum")
-        .env("CHAINS_TEST3_CONNECTION_URL", "http://127.0.0.1:8545")
-        .env("METRICS", "9092")
-        .env("DB", relayer_db.to_str().unwrap())
-        .env("CHAINS_TEST1_SIGNER_KEY", RELAYER_KEYS[0])
-        .env("CHAINS_TEST2_SIGNER_KEY", RELAYER_KEYS[1])
-        .env("RELAYCHAINS", "invalidchain,otherinvalid")
-        .env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
+        .hyp_env("CHAINS_TEST2_CONNECTION_TYPE", "httpQuorum")
+        .hyp_env("CHAINS_TEST3_CONNECTION_URL", "http://127.0.0.1:8545")
+        .hyp_env("METRICS", "9092")
+        .hyp_env("DB", relayer_db.to_str().unwrap())
+        .hyp_env("CHAINS_TEST1_SIGNER_KEY", RELAYER_KEYS[0])
+        .hyp_env("CHAINS_TEST2_SIGNER_KEY", RELAYER_KEYS[1])
+        .hyp_env("RELAYCHAINS", "invalidchain,otherinvalid")
+        .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
         .arg(
             "chains.test1.connection.urls",
             "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
@@ -175,30 +172,31 @@ fn main() -> ExitCode {
 
     let base_validator_env = common_agent_env
         .clone()
-        .env(
+        .bin(concat_path(AGENT_BIN_PATH, "validator"))
+        .hyp_env(
             "CHAINS_TEST1_CONNECTION_URLS",
             "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
         )
-        .env("CHAINS_TEST1_CONNECTION_TYPE", "httpQuorum")
-        .env(
+        .hyp_env("CHAINS_TEST1_CONNECTION_TYPE", "httpQuorum")
+        .hyp_env(
             "CHAINS_TEST2_CONNECTION_URLS",
             "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
         )
-        .env("CHAINS_TEST2_CONNECTION_TYPE", "httpFallback")
-        .env("CHAINS_TEST3_CONNECTION_URL", "http://127.0.0.1:8545")
-        .env("REORGPERIOD", "0")
-        .env("INTERVAL", "5")
-        .env("CHECKPOINTSYNCER_TYPE", "localStorage");
+        .hyp_env("CHAINS_TEST2_CONNECTION_TYPE", "httpFallback")
+        .hyp_env("CHAINS_TEST3_CONNECTION_URL", "http://127.0.0.1:8545")
+        .hyp_env("REORGPERIOD", "0")
+        .hyp_env("INTERVAL", "5")
+        .hyp_env("CHECKPOINTSYNCER_TYPE", "localStorage");
 
     let validator_envs = (0..3)
         .map(|i| {
             base_validator_env
                 .clone()
-                .env("METRICS", (9094 + i).to_string())
-                .env("DB", validator_dbs[i].to_str().unwrap())
-                .env("ORIGINCHAINNAME", format!("test{}", 1 + i))
-                .env("VALIDATOR_KEY", VALIDATOR_KEYS[i])
-                .env(
+                .hyp_env("METRICS", (9094 + i).to_string())
+                .hyp_env("DB", validator_dbs[i].to_str().unwrap())
+                .hyp_env("ORIGINCHAINNAME", format!("test{}", 1 + i))
+                .hyp_env("VALIDATOR_KEY", VALIDATOR_KEYS[i])
+                .hyp_env(
                     "CHECKPOINTSYNCER_PATH",
                     checkpoints_dirs[i].path().to_str().unwrap(),
                 )
@@ -206,15 +204,16 @@ fn main() -> ExitCode {
         .collect::<Vec<_>>();
 
     let scraper_env = common_agent_env
-        .env("CHAINS_TEST1_CONNECTION_TYPE", "httpQuorum")
-        .env("CHAINS_TEST1_CONNECTION_URL", "http://127.0.0.1:8545")
-        .env("CHAINS_TEST2_CONNECTION_TYPE", "httpQuorum")
-        .env("CHAINS_TEST2_CONNECTION_URL", "http://127.0.0.1:8545")
-        .env("CHAINS_TEST3_CONNECTION_TYPE", "httpQuorum")
-        .env("CHAINS_TEST3_CONNECTION_URL", "http://127.0.0.1:8545")
-        .env("CHAINSTOSCRAPE", "test1,test2,test3")
-        .env("METRICS", "9093")
-        .env(
+        .bin(concat_path(AGENT_BIN_PATH, "scraper"))
+        .hyp_env("CHAINS_TEST1_CONNECTION_TYPE", "httpQuorum")
+        .hyp_env("CHAINS_TEST1_CONNECTION_URL", "http://127.0.0.1:8545")
+        .hyp_env("CHAINS_TEST2_CONNECTION_TYPE", "httpQuorum")
+        .hyp_env("CHAINS_TEST2_CONNECTION_URL", "http://127.0.0.1:8545")
+        .hyp_env("CHAINS_TEST3_CONNECTION_TYPE", "httpQuorum")
+        .hyp_env("CHAINS_TEST3_CONNECTION_URL", "http://127.0.0.1:8545")
+        .hyp_env("CHAINSTOSCRAPE", "test1,test2,test3")
+        .hyp_env("METRICS", "9093")
+        .hyp_env(
             "DB",
             "postgresql://postgres:47221c18c610@localhost:5432/postgres",
         );
@@ -240,150 +239,121 @@ fn main() -> ExitCode {
     });
 
     let build_log_ref = make_static(state.build_log.to_str().unwrap().to_owned());
-    let build_cmd =
-        move |cmd, path, env| build_cmd(cmd, build_log_ref, config.log_all, path, env, true);
+    let build_cmd = move |cmd| build_cmd(cmd, build_log_ref, config.log_all, true);
 
     shutdown_if_needed!();
     // this task takes a long time in the CI so run it in parallel
     log!("Building rust...");
     let build_rust = build_cmd(
-        &[
-            "cargo",
-            "build",
-            "--features",
-            "test-utils",
-            "--bin",
-            "relayer",
-            "--bin",
-            "validator",
-            "--bin",
-            "scraper",
-            "--bin",
-            "init-db",
-        ],
-        None,
-        None,
+        ProgramArgs::new("cargo")
+            .cmd("build")
+            .arg("features", "test-utils")
+            .arg("bin", "relayer")
+            .arg("bin", "validator")
+            .arg("bin", "scraper")
+            .arg("bin", "init-db"),
     );
 
     log!("Running postgres db...");
-    let postgres_env = hashmap! {
-        "DATABASE_URL"=>"postgresql://postgres:47221c18c610@localhost:5432/postgres",
-    };
     kill_scraper_postgres(&state.build_log, config.log_all);
     build_cmd(
-        &[
-            "docker",
-            "run",
-            "--rm",
-            "--name",
-            "scraper-testnet-postgres",
-            "-e",
-            "POSTGRES_PASSWORD=47221c18c610",
-            "-p",
-            "5432:5432",
-            "-d",
-            "postgres:14",
-        ],
-        None,
-        Some(&postgres_env),
+        ProgramArgs::new("docker")
+            .cmd("run")
+            .flag("rm")
+            .arg("name", "scraper-testnet-postgres")
+            .arg("env", "POSTGRES_PASSWORD=47221c18c610")
+            .arg("publish", "5432:5432")
+            .flag("detach")
+            .cmd("postgres:14")
+            // TODO: does this do anything?
+            .env(
+                "DATABASE_URL",
+                "postgresql://postgres:47221c18c610@localhost:5432/postgres",
+            ),
     )
     .join();
     state.scraper_postgres_initialized = true;
 
     shutdown_if_needed!();
     log!("Installing typescript dependencies...");
-    build_cmd(&["yarn", "install"], Some(&MONOREPO_ROOT_PATH), None).join();
+
+    let yarn_monorepo = ProgramArgs::new("yarn").working_dir(MONOREPO_ROOT_PATH);
+    build_cmd(yarn_monorepo.clone().cmd("install")).join();
     if !config.is_ci_env {
         // don't need to clean in the CI
-        build_cmd(&["yarn", "clean"], Some(&MONOREPO_ROOT_PATH), None).join();
+        build_cmd(yarn_monorepo.clone().cmd("clean")).join();
     }
     shutdown_if_needed!();
-    build_cmd(&["yarn", "build"], Some(&MONOREPO_ROOT_PATH), None).join();
+    build_cmd(yarn_monorepo.clone().cmd("build")).join();
 
     shutdown_if_needed!();
     log!("Launching anvil...");
-    let anvil_args = ProgramArgs::default().flag("silent");
-    let anvil = run_agent("anvil", &anvil_args, "ETH", config.log_all, &log_dir);
+    let anvil_args = ProgramArgs::new("anvil").flag("silent");
+    let anvil = run_agent(&anvil_args, "ETH", config.log_all, &log_dir);
     state.push_agent(anvil);
 
     sleep(Duration::from_secs(10));
 
-    let deploy_env = hashmap! {"ALLOW_LEGACY_MULTISIG_ISM" => "true"};
+    let yarn_infra = ProgramArgs::new("yarn")
+        .working_dir(INFRA_PATH)
+        .env("ALLOW_LEGACY_MULTISIG_ISM", "true");
     log!("Deploying hyperlane ism contracts...");
-    build_cmd(
-        &["yarn", "deploy-ism"],
-        Some(&INFRA_PATH),
-        Some(&deploy_env),
-    )
-    .join();
+    build_cmd(yarn_infra.clone().cmd("deploy-ism")).join();
 
     shutdown_if_needed!();
     log!("Rebuilding sdk...");
-    build_cmd(&["yarn", "build"], Some(&TS_SDK_PATH), None).join();
+    let yarn_sdk = ProgramArgs::new("yarn").working_dir(TS_SDK_PATH);
+    build_cmd(yarn_sdk.clone().cmd("build")).join();
 
     log!("Deploying hyperlane core contracts...");
-    build_cmd(
-        &["yarn", "deploy-core"],
-        Some(&INFRA_PATH),
-        Some(&deploy_env),
-    )
-    .join();
+    build_cmd(yarn_infra.clone().cmd("deploy-core")).join();
 
     log!("Deploying hyperlane igp contracts...");
-    build_cmd(
-        &["yarn", "deploy-igp"],
-        Some(&INFRA_PATH),
-        Some(&deploy_env),
-    )
-    .join();
+    build_cmd(yarn_infra.clone().cmd("deploy-igp")).join();
 
     if !config.is_ci_env {
         // Follow-up 'yarn hardhat node' invocation with 'yarn prettier' to fixup
         // formatting on any autogenerated json config files to avoid any diff creation.
-        build_cmd(&["yarn", "prettier"], Some(&MONOREPO_ROOT_PATH), None).join();
+        build_cmd(yarn_monorepo.cmd("prettier")).join();
     }
 
     shutdown_if_needed!();
     // Rebuild the SDK to pick up the deployed contracts
     log!("Rebuilding sdk...");
-    build_cmd(&["yarn", "build"], Some(&TS_SDK_PATH), None).join();
+    build_cmd(yarn_sdk.cmd("build")).join();
 
     build_rust.join();
 
     log!("Init postgres db...");
+    // TODO: make sure this was already built and probably don't use release
     build_cmd(
-        &["cargo", "run", "-r", "-p", "migration", "--bin", "init-db"],
-        None,
-        None,
+        ProgramArgs::new("cargo")
+            .cmd("run")
+            .flag("release")
+            .arg("package", "migration")
+            .arg("bin", "init-db"),
     )
     .join();
 
     shutdown_if_needed!();
 
-    let scraper = run_agent(scraper_bin, &scraper_env, "SCR", config.log_all, &log_dir);
+    let scraper = run_agent(&scraper_env, "SCR", config.log_all, &log_dir);
     state.push_agent(scraper);
 
     // spawn 1st validator before any messages have been sent to test empty mailbox
     let validator1_env = validator_envs.first().unwrap();
-    let validator1 = run_agent(
-        &validator_bin,
-        validator1_env,
-        "VAL1",
-        config.log_all,
-        &log_dir,
-    );
+    let validator1 = run_agent(validator1_env, "VAL1", config.log_all, &log_dir);
     state.push_agent(validator1);
 
     sleep(Duration::from_secs(5));
 
     // Send half the kathy messages before starting the rest of the agents
-    let kathy_env = ProgramArgs::default()
-        .working_dir(INFRA_PATH)
+    let kathy_env = yarn_infra
         .cmd("kathy")
         .arg("messages", (config.kathy_messages / 2).to_string())
         .arg("timeout", "1000");
     let (mut kathy, kathy_stdout, kathy_stderr) =
-        run_agent("yarn", &kathy_env, "KTY", config.log_all, &log_dir);
+        run_agent(&kathy_env, "KTY", config.log_all, &log_dir);
     state.watchers.push(kathy_stdout);
     state.watchers.push(kathy_stderr);
     kathy.wait().unwrap();
@@ -391,7 +361,6 @@ fn main() -> ExitCode {
     // spawn the rest of the validators
     for (i, validator_env) in validator_envs.iter().enumerate().skip(1) {
         let validator = run_agent(
-            &validator_bin,
             validator_env,
             make_static(format!("VAL{}", 1 + i)),
             config.log_all,
@@ -400,7 +369,7 @@ fn main() -> ExitCode {
         state.push_agent(validator);
     }
 
-    let relayer = run_agent(relayer_bin, &relayer_env, "RLY", config.log_all, &log_dir);
+    let relayer = run_agent(&relayer_env, "RLY", config.log_all, &log_dir);
     state.push_agent(relayer);
 
     log!("Setup complete! Agents running in background...");
@@ -408,7 +377,7 @@ fn main() -> ExitCode {
 
     // Send half the kathy messages after the relayer comes up
     let kathy_env = kathy_env.flag("mineforever");
-    let kathy = run_agent("yarn", &kathy_env, "KTY", config.log_all, &log_dir);
+    let kathy = run_agent(&kathy_env, "KTY", config.log_all, &log_dir);
     state.push_agent(kathy);
 
     let loop_start = Instant::now();
@@ -568,11 +537,11 @@ fn termination_invariants_met(num_expected_messages: u32) -> Result<bool> {
 
 fn kill_scraper_postgres(build_log: impl AsRef<Path>, log_all: bool) {
     build_cmd(
-        &["docker", "stop", "scraper-testnet-postgres"],
+        ProgramArgs::new("docker")
+            .cmd("stop")
+            .cmd("scraper-testnet-postgres"),
         &build_log,
         log_all,
-        None,
-        None,
         false,
     )
     .join();

@@ -29,12 +29,10 @@
 //     OnDrop { value, on_drop }
 // }
 
-use std::collections::HashMap;
-use std::env;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread::{sleep, spawn, JoinHandle};
@@ -63,24 +61,18 @@ pub fn concat_path(p1: impl AsRef<Path>, p2: impl AsRef<Path>) -> PathBuf {
 pub type AgentHandles = (Child, JoinHandle<()>, JoinHandle<()>);
 
 pub fn run_agent(
-    bin_path: impl AsRef<Path>,
     args: &ProgramArgs,
     log_prefix: &'static str,
     log_all: bool,
     log_dir: &PathBuf,
 ) -> AgentHandles {
-    let bin_display = bin_path.as_ref().display();
-    let mut command = Command::new(bin_path.as_ref());
-    command.envs(args.list_envs()).args(args.list_args());
-    if let Some(wd) = &args.list_working_dir() {
-        command.current_dir(wd);
-    }
-    log!("Spawning {}...", bin_display);
-
+    let mut command = args.create_command();
     command.stdout(Stdio::piped()).stderr(Stdio::piped());
+
+    log!("Spawning {}...", &args);
     let mut child = command
         .spawn()
-        .unwrap_or_else(|e| panic!("Failed to start {bin_display} with error: {e}"));
+        .unwrap_or_else(|e| panic!("Failed to start {:?} with error: {e}", &args));
     let stdout_path = concat_path(log_dir, format!("{log_prefix}.stdout.log"));
     let child_stdout = child.stdout.take().unwrap();
     let stdout = spawn(move || {
@@ -117,25 +109,14 @@ impl<T> AssertJoinHandle<T> {
     }
 }
 
-// TODO: take ProgramArgs instead and create better logging on what command is being run by impl Debug/Display
-//  and make bin_path part of ProgramArgs
 pub fn build_cmd(
-    cmd: &[&str],
+    args: ProgramArgs,
     log: impl AsRef<Path>,
     log_all: bool,
-    wd: Option<&dyn AsRef<Path>>,
-    env: Option<&HashMap<&str, &str>>,
     assert_success: bool,
 ) -> AssertJoinHandle<()> {
     let log = log.as_ref().to_owned();
-    let wd = wd.map(|p| p.as_ref().to_owned());
-    let cmd = cmd.iter().map(|&s| s.to_owned()).collect();
-    let env = env.map(|e| {
-        e.iter()
-            .map(|(&k, &v)| (k.to_owned(), v.to_owned()))
-            .collect()
-    });
-    let handle = spawn(move || build_cmd_task(cmd, log, log_all, wd, env, assert_success));
+    let handle = spawn(move || build_cmd_task(args, log, log_all, assert_success));
     AssertJoinHandle(handle)
 }
 
@@ -221,48 +202,23 @@ fn inspect_and_write_to_file(output: impl Read, log: impl AsRef<Path>, filter_ar
     }
 }
 
-fn build_cmd_task(
-    cmd: Vec<String>,
-    log: PathBuf,
-    log_all: bool,
-    wd: Option<PathBuf>,
-    env: Option<HashMap<String, String>>,
-    assert_success: bool,
-) {
-    assert!(!cmd.is_empty(), "Must specify a command!");
-    let mut command = Command::new(&cmd[0]);
-    command.args(&cmd[1..]);
+fn build_cmd_task(args: ProgramArgs, log: PathBuf, log_all: bool, assert_success: bool) {
+    let mut command = args.create_command();
     if log_all {
         command.stdout(Stdio::piped());
     } else {
         command.stdout(append_to(log));
     }
     command.stderr(Stdio::piped());
-    if let Some(wd) = &wd {
-        command.current_dir(wd);
-    }
-    if let Some(env) = env {
-        command.envs(env);
-    }
 
-    log!(
-        "({})$ {}",
-        wd.as_ref()
-            .map(|wd| wd.display())
-            .unwrap_or(env::current_dir().unwrap().display()),
-        cmd.join(" ")
-    );
-
-    let mut child = command.spawn().unwrap_or_else(|e| {
-        panic!(
-            "Failed to start command `{}` with Error: {e}",
-            cmd.join(" ")
-        )
-    });
+    log!("{:#}", &args);
+    let mut child = command
+        .spawn()
+        .unwrap_or_else(|e| panic!("Failed to start command `{}` with Error: {e}", &args));
     let running = Arc::new(AtomicBool::new(true));
     let stdout = if log_all {
         let stdout = child.stdout.take().unwrap();
-        let name = cmd[0].to_owned();
+        let name = args.get_bin_name().to_owned();
         let running = running.clone();
         Some(spawn(move || prefix_log(stdout, name, &running)))
     } else {
@@ -270,7 +226,7 @@ fn build_cmd_task(
     };
     let stderr = {
         let stderr = child.stderr.take().unwrap();
-        let name = cmd[0].to_owned();
+        let name = args.get_bin_name().to_owned();
         let running = running.clone();
         spawn(move || prefix_log(stderr, name, &running))
     };
@@ -279,7 +235,7 @@ fn build_cmd_task(
         if let Some(exit_status) = child.try_wait().expect("Failed to run command") {
             break exit_status;
         } else if SHUTDOWN.load(Ordering::Relaxed) {
-            log!("Forcing termination of command `{}`", cmd.join(" "));
+            log!("Forcing termination of command `{}`", &args);
             stop_child(&mut child);
             break child.wait().expect("Failed to run command");
         } else {
@@ -294,7 +250,7 @@ fn build_cmd_task(
     stderr.join().unwrap();
     assert!(
         !assert_success || !RUN_LOG_WATCHERS.load(Ordering::Relaxed) || status.success(),
-        "Command returned non-zero exit code: {}",
-        cmd.join(" ")
+        "Command returned non-zero exit code: {:?}",
+        &args
     );
 }

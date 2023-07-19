@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 use std::env;
+use std::ffi::OsStr;
+use std::fmt::{Display, Formatter};
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
+use std::process::Command;
+use std::sync::Arc;
 
 pub struct Config {
     pub is_ci_env: bool,
@@ -35,16 +38,61 @@ impl Config {
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct ProgramArgs {
-    args: Vec<(Rc<String>, Option<Rc<String>>)>,
-    env: HashMap<Rc<String>, Rc<String>>,
-    working_dir: Option<Rc<PathBuf>>,
+    bin_path: Option<Arc<PathBuf>>,
+    args: Vec<Arc<String>>,
+    env: HashMap<Arc<String>, Arc<String>>,
+    working_dir: Option<Arc<PathBuf>>,
+}
+
+impl Display for ProgramArgs {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if f.alternate() {
+            let wd = self
+                .working_dir
+                .as_ref()
+                .map(|wd| wd.display())
+                .unwrap_or_else(|| Path::new("./").display());
+            write!(f, "({wd})$ ")?;
+
+            for (k, v) in &self.env {
+                write!(f, "{k}={v} ")?;
+            }
+
+            if let Some(bp) = &self.bin_path {
+                write!(f, "{}", bp.display())?;
+            } else {
+                write!(f, "???")?;
+            }
+
+            for a in &self.args {
+                write!(f, " {a}")?;
+            }
+
+            Ok(())
+        } else {
+            write!(f, "{}", self.get_bin_name())
+        }
+    }
 }
 
 impl ProgramArgs {
+    pub fn new(bin: impl AsRef<OsStr>) -> Self {
+        Self::default().bin(bin)
+    }
+
+    pub fn bin(mut self, bin: impl AsRef<OsStr>) -> Self {
+        self.bin_path = Some(
+            which::which(bin)
+                .expect("bin not found or is not executable")
+                .into(),
+        );
+        self
+    }
+
     pub fn raw_arg(mut self, arg: impl Into<String>) -> Self {
-        self.args.push((arg.into().into(), None));
+        self.args.push(arg.into().into());
         self
     }
 
@@ -63,30 +111,23 @@ impl ProgramArgs {
     }
 
     /// Assumes an arg in the format of `--$ARG1 $ARG2`, arg1 and arg2 should exclude quoting, equal sign, and the leading hyphens.
-    pub fn arg(mut self, arg1: impl Into<String>, arg2: impl Into<String>) -> Self {
-        let (arg1, arg2) = (arg1.into(), arg2.into());
-        debug_assert!(!arg1.starts_with('-'), "arg1 should not start with -");
-        debug_assert!(
-            !arg2.starts_with('=') && !arg1.ends_with('='),
-            "arg2 should not start with = or arg1 should not end with ="
-        );
-        self.args.push((arg1.into(), Some(arg2.into())));
-        self
+    pub fn arg(self, arg1: impl AsRef<str>, arg2: impl Into<String>) -> Self {
+        self.flag(arg1).cmd(arg2)
     }
 
     /// add an env that will be prefixed with the default hyperlane env prefix
-    pub fn env(self, key: impl AsRef<str>, value: impl Into<String>) -> Self {
+    pub fn hyp_env(self, key: impl AsRef<str>, value: impl Into<String>) -> Self {
         const PREFIX: &str = "HYP_BASE_";
         let key = key.as_ref();
         debug_assert!(
             !key.starts_with(PREFIX),
             "env key should not start with prefix that is being added"
         );
-        self.sys_env(format!("{PREFIX}{key}"), value)
+        self.env(format!("{PREFIX}{key}"), value)
     }
 
     /// add a system env that makes no prefix assumptions
-    pub fn sys_env(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+    pub fn env(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.env.insert(key.into().into(), value.into().into());
         self
     }
@@ -96,27 +137,54 @@ impl ProgramArgs {
         self
     }
 
-    pub fn list_envs(&self) -> impl Iterator<Item = (&str, &str)> {
-        self.env.iter().map(|(k, v)| (k.as_str(), v.as_str()))
+    pub fn create_command(&self) -> Command {
+        let mut cmd = Command::new(
+            self.bin_path
+                .as_deref()
+                .expect("A bin path must be specified"),
+        );
+        if let Some(wd) = &self.working_dir {
+            cmd.current_dir(wd.as_path());
+        }
+        for (k, v) in self.env.iter() {
+            cmd.env(k.as_str(), v.as_str());
+        }
+        cmd.args(self.args.iter().map(AsRef::as_ref));
+        cmd
     }
 
-    pub fn list_args(&self) -> impl Iterator<Item = String> + '_ {
-        self.args
-            .iter()
-            .flat_map(|(k, v)| {
-                if let Some(v) = v {
-                    [
-                        Some(format!("--{}", k.as_str())),
-                        Some(v.as_str().to_owned()),
-                    ]
-                } else {
-                    [Some(k.as_str().to_owned()), None]
-                }
-            })
-            .flatten()
-    }
-
-    pub fn list_working_dir(&self) -> Option<&Path> {
-        self.working_dir.as_ref().map(|r| r.as_path())
+    pub fn get_bin_name(&self) -> &str {
+        self.bin_path
+            .as_deref()
+            .expect("A bin path must be specified")
+            .file_name()
+            .expect("bin path must have a file name")
+            .to_str()
+            .unwrap()
     }
 }
+
+// macro_rules! program {
+//     // entry
+//     ($($rest:tt)+) => {
+//         program!(@a ProgramArgs::default(), $($rest)*)
+//     };
+//
+//     // env
+//     (@a $prog:expr, $key:literal=$val:literal $($rest:tt)+) => {
+//         program!(@a $prog.env($key, $val), $($rest)*)
+//     };
+//
+//     // bin
+//     (@a $prog:expr, $bin:literal $($rest:tt)*) => {
+//         program!(@b $prog.bin($bin), $($rest:tt)*)
+//     };
+//
+//     (@b $prog:expr, $arg:literal $($rest:tt)*) => {
+//         program!(@b $prog.raw_arg($bin), $($rest:tt)*)
+//     };
+//
+//     (@b $prog:expr,) => { $prog };
+// }
+//
+// pub(crate) use program;
