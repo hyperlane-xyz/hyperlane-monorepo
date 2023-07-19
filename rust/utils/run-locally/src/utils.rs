@@ -29,21 +29,24 @@
 //     OnDrop { value, on_drop }
 // }
 
+use nix::libc::pid_t;
 use std::collections::HashMap;
+use std::env;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::thread::{sleep, spawn, JoinHandle};
 use std::time::Duration;
 
-use nix::libc::pid_t;
 use nix::sys::signal;
 use nix::sys::signal::Signal;
 use nix::unistd::Pid;
 
 use crate::config::ProgramArgs;
+use crate::logging::log;
 use crate::RUNNING;
 
 pub fn make_static(s: String) -> &'static str {
@@ -70,17 +73,17 @@ pub fn run_agent(
     if let Some(wd) = &args.list_working_dir() {
         command.current_dir(wd);
     }
-    println!("Spawning {bin_display}...");
+    log!("Spawning {}...", bin_display);
 
     command.stdout(Stdio::piped()).stderr(Stdio::piped());
     let mut child = command
         .spawn()
-        .unwrap_or_else(|_| panic!("Failed to start {bin_display}"));
+        .unwrap_or_else(|e| panic!("Failed to start {bin_display} with error: {e}"));
     let stdout_path = concat_path(log_dir, format!("{log_prefix}.stdout.log"));
     let child_stdout = child.stdout.take().unwrap();
     let stdout = spawn(move || {
         if log_all {
-            prefix_log(child_stdout, log_prefix)
+            prefix_log(child_stdout, log_prefix, &RUNNING)
         } else {
             inspect_and_write_to_file(
                 child_stdout,
@@ -93,7 +96,7 @@ pub fn run_agent(
     let child_stderr = child.stderr.take().unwrap();
     let stderr = spawn(move || {
         if log_all {
-            prefix_log(child_stderr, log_prefix)
+            prefix_log(child_stderr, log_prefix, &RUNNING)
         } else {
             inspect_and_write_to_file(child_stderr, stderr_path, &[])
         }
@@ -109,28 +112,77 @@ pub fn build_cmd(
     env: Option<&HashMap<&str, &str>>,
     assert_success: bool,
 ) {
-    assert!(!cmd.is_empty(), "Must specify a command!");
-    let mut c = Command::new(cmd[0]);
-    c.args(&cmd[1..]);
-    if log_all {
-        c.stdout(Stdio::inherit());
-    } else {
-        c.stdout(append_to(log));
+    if !RUNNING.fetch_and(true, Ordering::Relaxed) {
+        log!("Early termination, skipping command");
+        return;
     }
+    assert!(!cmd.is_empty(), "Must specify a command!");
+    let mut command = Command::new(cmd[0]);
+    command.args(&cmd[1..]);
+    if log_all {
+        command.stdout(Stdio::piped());
+    } else {
+        command.stdout(append_to(log));
+    }
+    command.stderr(Stdio::piped());
     if let Some(wd) = wd {
-        c.current_dir(wd);
+        command.current_dir(wd);
     }
     if let Some(env) = env {
-        c.envs(env);
+        command.envs(env);
     }
-    let status = c.status().expect("Failed to run command");
-    if assert_success {
-        assert!(
-            status.success(),
-            "Command returned non-zero exit code: {}",
+
+    log!(
+        "({})$ {}",
+        wd.map(|wd| wd.as_ref().display())
+            .unwrap_or(env::current_dir().unwrap().display()),
+        cmd.join(" ")
+    );
+
+    let mut child = command.spawn().unwrap_or_else(|e| {
+        panic!(
+            "Failed to start command `{}` with Error: {e}",
             cmd.join(" ")
-        );
+        )
+    });
+    let running = Arc::new(AtomicBool::new(true));
+    let stdout = if log_all {
+        let stdout = child.stdout.take().unwrap();
+        let name = cmd[0].to_owned();
+        let running = running.clone();
+        Some(spawn(move || prefix_log(stdout, name, &running)))
+    } else {
+        None
+    };
+    let stderr = {
+        let stderr = child.stderr.take().unwrap();
+        let name = cmd[0].to_owned();
+        let running = running.clone();
+        spawn(move || prefix_log(stderr, name, &running))
+    };
+
+    let status = loop {
+        if let Some(exit_status) = child.try_wait().expect("Failed to run command") {
+            break exit_status;
+        } else if RUNNING.fetch_and(true, Ordering::Relaxed) {
+            sleep(Duration::from_millis(100));
+        } else {
+            log!("Forcing termination of command `{}`", cmd.join(" "));
+            stop_child(&mut child);
+            break child.wait().expect("Failed to run command");
+        }
+    };
+
+    running.store(false, Ordering::Relaxed);
+    if let Some(stdout) = stdout {
+        stdout.join().unwrap();
     }
+    stderr.join().unwrap();
+    assert!(
+        !assert_success || !RUNNING.fetch_and(true, Ordering::Relaxed) || status.success(),
+        "Command returned non-zero exit code: {}",
+        cmd.join(" ")
+    );
 }
 
 /// Attempt to kindly signal a child to stop running, and kill it if that fails.
@@ -141,9 +193,9 @@ pub fn stop_child(child: &mut Child) {
     }
     let pid = Pid::from_raw(child.id() as pid_t);
     if signal::kill(pid, Signal::SIGTERM).is_err() {
-        eprintln!("Failed to send sigterm, killing");
+        log!("Failed to send sigterm, killing");
         if let Err(e) = child.kill() {
-            eprintln!("{}", e);
+            log!("{}", e);
         }
     };
 }
@@ -159,7 +211,8 @@ pub fn append_to(p: impl AsRef<Path>) -> File {
 
 /// Read from a process output and add a string to the front before writing it
 /// to stdout.
-fn prefix_log(output: impl Read, name: &'static str) {
+fn prefix_log(output: impl Read, name: impl AsRef<str>, running: &AtomicBool) {
+    let prefix = name.as_ref();
     let mut reader = BufReader::new(output).lines();
     loop {
         if let Some(line) = reader.next() {
@@ -167,12 +220,12 @@ fn prefix_log(output: impl Read, name: &'static str) {
                 Ok(l) => l,
                 Err(e) => {
                     // end of stream, probably
-                    eprintln!("Error reading from output for {name}: {e}");
+                    log!("Error reading from output for {}: {}", prefix, e);
                     break;
                 }
             };
-            println!("<{name}> {line}");
-        } else if RUNNING.fetch_and(true, Ordering::Relaxed) {
+            println!("<{prefix}> {line}");
+        } else if running.fetch_and(true, Ordering::Relaxed) {
             sleep(Duration::from_millis(10));
         } else {
             break;
@@ -191,7 +244,7 @@ fn inspect_and_write_to_file(output: impl Read, log: impl AsRef<Path>, filter_ar
                 Ok(l) => l,
                 Err(e) => {
                     // end of stream, probably
-                    eprintln!("Error reading from output: {e}");
+                    log!("Error reading from output: {}", e);
                     break;
                 }
             };

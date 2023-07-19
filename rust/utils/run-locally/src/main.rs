@@ -355,6 +355,11 @@ fn main() -> ExitCode {
         None,
     );
 
+    if !RUNNING.fetch_and(true, Ordering::Relaxed) {
+        log!("Early termination, shutting down");
+        return ExitCode::FAILURE;
+    }
+
     let (scraper, scraper_stdout, scraper_stderr) =
         run_agent(scraper_bin, &scraper_env, "SCR", config.log_all, &log_dir);
     state.watchers.push(scraper_stdout);
