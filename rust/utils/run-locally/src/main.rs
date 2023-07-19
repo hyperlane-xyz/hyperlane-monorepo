@@ -22,7 +22,7 @@ use std::{
     path::PathBuf,
     process::{Child, Command, ExitCode, Stdio},
     sync::atomic::{AtomicBool, Ordering},
-    thread::{sleep, spawn, JoinHandle},
+    thread::{sleep, JoinHandle},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
@@ -30,13 +30,14 @@ use eyre::{eyre, Result};
 use maplit::hashmap;
 use tempfile::tempdir;
 
+use logging::log;
+
 use crate::config::ProgramArgs;
 use crate::utils::{append_to, build_cmd, concat_path, make_static, run_agent, stop_child};
 
 mod config;
 mod logging;
 mod utils;
-use logging::log;
 
 /// These private keys are from hardhat/anvil's testing accounts.
 const RELAYER_KEYS: &[&str] = &[
@@ -57,7 +58,8 @@ const INFRA_PATH: &str = "../typescript/infra";
 const TS_SDK_PATH: &str = "../typescript/sdk";
 const MONOREPO_ROOT_PATH: &str = "../";
 
-static RUNNING: AtomicBool = AtomicBool::new(true);
+static RUN_LOG_WATCHERS: AtomicBool = AtomicBool::new(true);
+static SHUTDOWN: AtomicBool = AtomicBool::new(false);
 
 /// Struct to hold stuff we want to cleanup whenever we exit. Just using for
 /// cleanup purposes at this time.
@@ -77,6 +79,7 @@ struct State {
 
 impl Drop for State {
     fn drop(&mut self) {
+        SHUTDOWN.store(true, Ordering::Relaxed);
         log!("Signaling children to stop...");
         if let Some(mut c) = self.kathy.take() {
             stop_child(&mut c);
@@ -97,7 +100,7 @@ impl Drop for State {
             stop_child(&mut c);
         }
         log!("Joining watchers...");
-        RUNNING.store(false, Ordering::Relaxed);
+        RUN_LOG_WATCHERS.store(false, Ordering::Relaxed);
         for w in self.watchers.drain(..) {
             w.join().unwrap();
         }
@@ -105,10 +108,19 @@ impl Drop for State {
 }
 
 fn main() -> ExitCode {
+    macro_rules! shutdown_if_needed {
+        () => {
+            if SHUTDOWN.load(Ordering::Relaxed) {
+                log!("Early termination, shutting down");
+                return ExitCode::FAILURE;
+            }
+        };
+    }
+
     // on sigint we want to trigger things to stop running
     ctrlc::set_handler(|| {
         log!("Terminating...");
-        RUNNING.store(false, Ordering::Relaxed);
+        SHUTDOWN.store(true, Ordering::Relaxed);
     })
     .unwrap();
 
@@ -240,30 +252,27 @@ fn main() -> ExitCode {
     let build_cmd =
         move |cmd, path, env| build_cmd(cmd, build_log_ref, config.log_all, path, env, true);
 
+    shutdown_if_needed!();
     // this task takes a long time in the CI so run it in parallel
-    let build_rust = {
-        spawn(move || {
-            log!("Building rust...");
-            build_cmd(
-                &[
-                    "cargo",
-                    "build",
-                    "--features",
-                    "test-utils",
-                    "--bin",
-                    "relayer",
-                    "--bin",
-                    "validator",
-                    "--bin",
-                    "scraper",
-                    "--bin",
-                    "init-db",
-                ],
-                None,
-                None,
-            );
-        })
-    };
+    log!("Building rust...");
+    let build_rust = build_cmd(
+        &[
+            "cargo",
+            "build",
+            "--features",
+            "test-utils",
+            "--bin",
+            "relayer",
+            "--bin",
+            "validator",
+            "--bin",
+            "scraper",
+            "--bin",
+            "init-db",
+        ],
+        None,
+        None,
+    );
 
     log!("Running postgres db...");
     let postgres_env = hashmap! {
@@ -286,17 +295,21 @@ fn main() -> ExitCode {
         ],
         None,
         Some(&postgres_env),
-    );
+    )
+    .join();
     state.scraper_postgres_initialized = true;
 
+    shutdown_if_needed!();
     log!("Installing typescript dependencies...");
-    build_cmd(&["yarn", "install"], Some(&MONOREPO_ROOT_PATH), None);
+    build_cmd(&["yarn", "install"], Some(&MONOREPO_ROOT_PATH), None).join();
     if !config.is_ci_env {
         // don't need to clean in the CI
-        build_cmd(&["yarn", "clean"], Some(&MONOREPO_ROOT_PATH), None);
+        build_cmd(&["yarn", "clean"], Some(&MONOREPO_ROOT_PATH), None).join();
     }
-    build_cmd(&["yarn", "build"], Some(&MONOREPO_ROOT_PATH), None);
+    shutdown_if_needed!();
+    build_cmd(&["yarn", "build"], Some(&MONOREPO_ROOT_PATH), None).join();
 
+    shutdown_if_needed!();
     log!("Launching anvil...");
     let mut node = Command::new("anvil");
     if config.log_all {
@@ -317,48 +330,51 @@ fn main() -> ExitCode {
         &["yarn", "deploy-ism"],
         Some(&INFRA_PATH),
         Some(&deploy_env),
-    );
+    )
+    .join();
 
+    shutdown_if_needed!();
     log!("Rebuilding sdk...");
-    build_cmd(&["yarn", "build"], Some(&TS_SDK_PATH), None);
+    build_cmd(&["yarn", "build"], Some(&TS_SDK_PATH), None).join();
 
     log!("Deploying hyperlane core contracts...");
     build_cmd(
         &["yarn", "deploy-core"],
         Some(&INFRA_PATH),
         Some(&deploy_env),
-    );
+    )
+    .join();
 
     log!("Deploying hyperlane igp contracts...");
     build_cmd(
         &["yarn", "deploy-igp"],
         Some(&INFRA_PATH),
         Some(&deploy_env),
-    );
+    )
+    .join();
 
     if !config.is_ci_env {
         // Follow-up 'yarn hardhat node' invocation with 'yarn prettier' to fixup
         // formatting on any autogenerated json config files to avoid any diff creation.
-        build_cmd(&["yarn", "prettier"], Some(&MONOREPO_ROOT_PATH), None);
+        build_cmd(&["yarn", "prettier"], Some(&MONOREPO_ROOT_PATH), None).join();
     }
 
+    shutdown_if_needed!();
     // Rebuild the SDK to pick up the deployed contracts
     log!("Rebuilding sdk...");
-    build_cmd(&["yarn", "build"], Some(&TS_SDK_PATH), None);
+    build_cmd(&["yarn", "build"], Some(&TS_SDK_PATH), None).join();
 
-    build_rust.join().unwrap();
+    build_rust.join();
 
     log!("Init postgres db...");
     build_cmd(
         &["cargo", "run", "-r", "-p", "migration", "--bin", "init-db"],
         None,
         None,
-    );
+    )
+    .join();
 
-    if !RUNNING.fetch_and(true, Ordering::Relaxed) {
-        log!("Early termination, shutting down");
-        return ExitCode::FAILURE;
-    }
+    shutdown_if_needed!();
 
     let (scraper, scraper_stdout, scraper_stderr) =
         run_agent(scraper_bin, &scraper_env, "SCR", config.log_all, &log_dir);
@@ -427,7 +443,8 @@ fn main() -> ExitCode {
     let loop_start = Instant::now();
     // give things a chance to fully start.
     sleep(Duration::from_secs(5));
-    while RUNNING.fetch_and(true, Ordering::Relaxed) {
+    let mut failure_occurred = false;
+    while !SHUTDOWN.load(Ordering::Relaxed) {
         if config.ci_mode {
             // for CI we have to look for the end condition.
             let num_messages_expected = (config.kathy_messages / 2) as u32 * 2;
@@ -438,13 +455,31 @@ fn main() -> ExitCode {
             } else if (Instant::now() - loop_start).as_secs() > config.ci_mode_timeout {
                 // we ran out of time
                 log!("CI timeout reached before queues emptied");
-                return ExitCode::from(1);
+                failure_occurred = true;
+                break;
             }
         }
+
+        // verify long-running tasks are still running
+        for child in state.validators.iter_mut().chain([
+            state.relayer.as_mut().unwrap(),
+            state.scraper.as_mut().unwrap(),
+        ]) {
+            if child.try_wait().unwrap().is_some() {
+                log!("Child process exited unexpectedly, shutting down");
+                failure_occurred = true;
+                break;
+            }
+        }
+
         sleep(Duration::from_secs(5));
     }
 
-    ExitCode::from(0)
+    if failure_occurred {
+        ExitCode::FAILURE
+    } else {
+        ExitCode::SUCCESS
+    }
 }
 
 fn fetch_metric(port: &str, metric: &str, labels: &HashMap<&str, &str>) -> Result<Vec<u32>> {
@@ -571,5 +606,6 @@ fn kill_scraper_postgres(build_log: impl AsRef<Path>, log_all: bool) {
         None,
         None,
         false,
-    );
+    )
+    .join();
 }

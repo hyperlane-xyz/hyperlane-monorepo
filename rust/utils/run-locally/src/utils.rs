@@ -29,7 +29,6 @@
 //     OnDrop { value, on_drop }
 // }
 
-use nix::libc::pid_t;
 use std::collections::HashMap;
 use std::env;
 use std::fs::File;
@@ -41,13 +40,14 @@ use std::sync::Arc;
 use std::thread::{sleep, spawn, JoinHandle};
 use std::time::Duration;
 
+use nix::libc::pid_t;
 use nix::sys::signal;
 use nix::sys::signal::Signal;
 use nix::unistd::Pid;
 
 use crate::config::ProgramArgs;
 use crate::logging::log;
-use crate::RUNNING;
+use crate::{RUN_LOG_WATCHERS, SHUTDOWN};
 
 pub fn make_static(s: String) -> &'static str {
     Box::leak(s.into_boxed_str())
@@ -83,7 +83,7 @@ pub fn run_agent(
     let child_stdout = child.stdout.take().unwrap();
     let stdout = spawn(move || {
         if log_all {
-            prefix_log(child_stdout, log_prefix, &RUNNING)
+            prefix_log(child_stdout, log_prefix, &RUN_LOG_WATCHERS)
         } else {
             inspect_and_write_to_file(
                 child_stdout,
@@ -96,7 +96,7 @@ pub fn run_agent(
     let child_stderr = child.stderr.take().unwrap();
     let stderr = spawn(move || {
         if log_all {
-            prefix_log(child_stderr, log_prefix, &RUNNING)
+            prefix_log(child_stderr, log_prefix, &RUN_LOG_WATCHERS)
         } else {
             inspect_and_write_to_file(child_stderr, stderr_path, &[])
         }
@@ -104,6 +104,19 @@ pub fn run_agent(
     (child, stdout, stderr)
 }
 
+/// Wrapper around a join handle to simplify use.
+#[must_use]
+pub struct AssertJoinHandle<T>(JoinHandle<T>);
+impl<T> AssertJoinHandle<T> {
+    pub fn join(self) -> T {
+        self.0
+            .join()
+            .expect("Thread running build command panicked!")
+    }
+}
+
+// TODO: take ProgramArgs instead and create better logging on what command is being run by impl Debug/Display
+//  and make bin_path part of ProgramArgs
 pub fn build_cmd(
     cmd: &[&str],
     log: impl AsRef<Path>,
@@ -111,13 +124,29 @@ pub fn build_cmd(
     wd: Option<&dyn AsRef<Path>>,
     env: Option<&HashMap<&str, &str>>,
     assert_success: bool,
+) -> AssertJoinHandle<()> {
+    let log = log.as_ref().to_owned();
+    let wd = wd.map(|p| p.as_ref().to_owned());
+    let cmd = cmd.iter().map(|&s| s.to_owned()).collect();
+    let env = env.map(|e| {
+        e.iter()
+            .map(|(&k, &v)| (k.to_owned(), v.to_owned()))
+            .collect()
+    });
+    let handle = spawn(move || build_cmd_task(cmd, log, log_all, wd, env, assert_success));
+    AssertJoinHandle(handle)
+}
+
+fn build_cmd_task(
+    cmd: Vec<String>,
+    log: PathBuf,
+    log_all: bool,
+    wd: Option<PathBuf>,
+    env: Option<HashMap<String, String>>,
+    assert_success: bool,
 ) {
-    if !RUNNING.fetch_and(true, Ordering::Relaxed) {
-        log!("Early termination, skipping command");
-        return;
-    }
     assert!(!cmd.is_empty(), "Must specify a command!");
-    let mut command = Command::new(cmd[0]);
+    let mut command = Command::new(&cmd[0]);
     command.args(&cmd[1..]);
     if log_all {
         command.stdout(Stdio::piped());
@@ -125,7 +154,7 @@ pub fn build_cmd(
         command.stdout(append_to(log));
     }
     command.stderr(Stdio::piped());
-    if let Some(wd) = wd {
+    if let Some(wd) = &wd {
         command.current_dir(wd);
     }
     if let Some(env) = env {
@@ -134,7 +163,8 @@ pub fn build_cmd(
 
     log!(
         "({})$ {}",
-        wd.map(|wd| wd.as_ref().display())
+        wd.as_ref()
+            .map(|wd| wd.display())
             .unwrap_or(env::current_dir().unwrap().display()),
         cmd.join(" ")
     );
@@ -164,12 +194,12 @@ pub fn build_cmd(
     let status = loop {
         if let Some(exit_status) = child.try_wait().expect("Failed to run command") {
             break exit_status;
-        } else if RUNNING.fetch_and(true, Ordering::Relaxed) {
-            sleep(Duration::from_millis(100));
-        } else {
+        } else if SHUTDOWN.load(Ordering::Relaxed) {
             log!("Forcing termination of command `{}`", cmd.join(" "));
             stop_child(&mut child);
             break child.wait().expect("Failed to run command");
+        } else {
+            sleep(Duration::from_millis(100));
         }
     };
 
@@ -179,7 +209,7 @@ pub fn build_cmd(
     }
     stderr.join().unwrap();
     assert!(
-        !assert_success || !RUNNING.fetch_and(true, Ordering::Relaxed) || status.success(),
+        !assert_success || !RUN_LOG_WATCHERS.load(Ordering::Relaxed) || status.success(),
         "Command returned non-zero exit code: {}",
         cmd.join(" ")
     );
@@ -211,7 +241,7 @@ pub fn append_to(p: impl AsRef<Path>) -> File {
 
 /// Read from a process output and add a string to the front before writing it
 /// to stdout.
-fn prefix_log(output: impl Read, name: impl AsRef<str>, running: &AtomicBool) {
+fn prefix_log(output: impl Read, name: impl AsRef<str>, run_log_watcher: &AtomicBool) {
     let prefix = name.as_ref();
     let mut reader = BufReader::new(output).lines();
     loop {
@@ -225,7 +255,7 @@ fn prefix_log(output: impl Read, name: impl AsRef<str>, running: &AtomicBool) {
                 }
             };
             println!("<{prefix}> {line}");
-        } else if running.fetch_and(true, Ordering::Relaxed) {
+        } else if run_log_watcher.load(Ordering::Relaxed) {
             sleep(Duration::from_millis(10));
         } else {
             break;
@@ -259,7 +289,7 @@ fn inspect_and_write_to_file(output: impl Read, log: impl AsRef<Path>, filter_ar
                 }
             }
             writeln!(writer, "{line}").unwrap();
-        } else if RUNNING.fetch_and(true, Ordering::Relaxed) {
+        } else if RUN_LOG_WATCHERS.load(Ordering::Relaxed) {
             sleep(Duration::from_millis(10))
         } else {
             break;
