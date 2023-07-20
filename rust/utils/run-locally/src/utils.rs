@@ -239,14 +239,14 @@ fn build_cmd_task(args: ProgramArgs, log: PathBuf, log_all: bool, assert_success
     };
 
     let status = loop {
+        sleep(Duration::from_millis(500));
+
         if let Some(exit_status) = child.try_wait().expect("Failed to run command") {
             break exit_status;
         } else if SHUTDOWN.load(Ordering::Relaxed) {
             log!("Forcing termination of command `{}`", &args);
             stop_child(&mut child);
             break child.wait().expect("Failed to run command");
-        } else {
-            sleep(Duration::from_millis(100));
         }
     };
 

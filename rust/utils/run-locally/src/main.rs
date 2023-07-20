@@ -264,12 +264,7 @@ fn main() -> ExitCode {
             .arg("env", "POSTGRES_PASSWORD=47221c18c610")
             .arg("publish", "5432:5432")
             .flag("detach")
-            .cmd("postgres:14")
-            // TODO: does this do anything?
-            .env(
-                "DATABASE_URL",
-                "postgresql://postgres:47221c18c610@localhost:5432/postgres",
-            ),
+            .cmd("postgres:14"),
     )
     .join();
     state.scraper_postgres_initialized = true;
@@ -327,15 +322,7 @@ fn main() -> ExitCode {
     build_rust.join();
 
     log!("Init postgres db...");
-    // TODO: make sure this was already built and probably don't use release
-    build_cmd(
-        ProgramArgs::new("cargo")
-            .cmd("run")
-            .flag("release")
-            .arg("package", "migration")
-            .arg("bin", "init-db"),
-    )
-    .join();
+    build_cmd(ProgramArgs::new(concat_path(AGENT_BIN_PATH, "init-db"))).join();
 
     shutdown_if_needed!();
 
