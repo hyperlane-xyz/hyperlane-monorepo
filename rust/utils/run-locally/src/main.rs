@@ -22,7 +22,7 @@ use std::{
     path::PathBuf,
     process::{Child, ExitCode},
     sync::atomic::{AtomicBool, Ordering},
-    thread::{sleep, JoinHandle},
+    thread::sleep,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
@@ -33,11 +33,14 @@ use tempfile::tempdir;
 use logging::log;
 
 use crate::config::ProgramArgs;
-use crate::utils::{build_cmd, concat_path, make_static, run_agent, stop_child, AgentHandles};
+use crate::utils::{
+    build_cmd, concat_path, make_static, run_agent, stop_child, AgentHandles, TaskHandle,
+};
 
 mod config;
 mod logging;
 mod utils;
+mod component;
 
 /// These private keys are from hardhat/anvil's testing accounts.
 const RELAYER_KEYS: &[&str] = &[
@@ -69,7 +72,7 @@ struct State {
     log_all: bool,
     scraper_postgres_initialized: bool,
     agents: Vec<Child>,
-    watchers: Vec<JoinHandle<()>>,
+    watchers: Vec<TaskHandle<()>>,
 }
 impl State {
     fn push_agent(&mut self, handles: AgentHandles) {
@@ -94,7 +97,7 @@ impl Drop for State {
         log!("Joining watchers...");
         RUN_LOG_WATCHERS.store(false, Ordering::Relaxed);
         for w in self.watchers.drain(..) {
-            w.join().unwrap();
+            w.join();
         }
     }
 }

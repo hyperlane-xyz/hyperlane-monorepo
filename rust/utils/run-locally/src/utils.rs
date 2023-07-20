@@ -27,7 +27,7 @@ pub fn concat_path(p1: impl AsRef<Path>, p2: impl AsRef<Path>) -> PathBuf {
     p
 }
 
-pub type AgentHandles = (Child, JoinHandle<()>, JoinHandle<()>);
+pub type AgentHandles = (Child, TaskHandle<()>, TaskHandle<()>);
 pub type LogFilter = fn(&str) -> bool;
 
 pub fn run_agent(
@@ -66,17 +66,17 @@ pub fn run_agent(
             inspect_and_write_to_file(child_stderr, stderr_path, &[])
         }
     });
-    (child, stdout, stderr)
+    (child, TaskHandle(stdout), TaskHandle(stderr))
 }
 
 /// Wrapper around a join handle to simplify use.
 #[must_use]
-pub struct AssertJoinHandle<T>(JoinHandle<T>);
-impl<T> AssertJoinHandle<T> {
+pub struct TaskHandle<T>(pub JoinHandle<T>);
+impl<T> TaskHandle<T> {
     pub fn join(self) -> T {
         self.0
             .join()
-            .expect("Thread running build command panicked!")
+            .expect("Task thread panicked!")
     }
 }
 
@@ -85,10 +85,10 @@ pub fn build_cmd(
     log: impl AsRef<Path>,
     log_all: bool,
     assert_success: bool,
-) -> AssertJoinHandle<()> {
+) -> TaskHandle<()> {
     let log = log.as_ref().to_owned();
     let handle = spawn(move || build_cmd_task(args, log, log_all, assert_success));
-    AssertJoinHandle(handle)
+    TaskHandle(handle)
 }
 
 /// Attempt to kindly signal a child to stop running, and kill it if that fails.
