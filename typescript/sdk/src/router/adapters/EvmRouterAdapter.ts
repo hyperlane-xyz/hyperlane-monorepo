@@ -5,7 +5,7 @@ import {
   Router,
   Router__factory,
 } from '@hyperlane-xyz/core';
-import { types } from '@hyperlane-xyz/utils';
+import { types, utils } from '@hyperlane-xyz/utils';
 
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
 import { ChainName } from '../../types';
@@ -26,6 +26,30 @@ export class EvmRouterAdapter implements IRouterAdapter {
 
   owner(chain: ChainName): Promise<types.Address> {
     return this.getConnectedContract(chain).owner();
+  }
+
+  remoteDomains(originChain: ChainName): Promise<types.Domain[]> {
+    return this.getConnectedContract(originChain).domains();
+  }
+
+  async remoteRouter(
+    originChain: ChainName,
+    remoteDomain: types.Domain,
+  ): Promise<types.Address> {
+    const routerAddressesAsBytes32 = await this.getConnectedContract(
+      originChain,
+    ).routers(remoteDomain);
+    return utils.bytes32ToAddress(routerAddressesAsBytes32);
+  }
+
+  async remoteRouters(
+    originChain: ChainName,
+  ): Promise<Array<{ domain: types.Domain; address: types.Address }>> {
+    const domains = await this.remoteDomains(originChain);
+    const routers: types.Address[] = await Promise.all(
+      domains.map((d) => this.remoteRouter(originChain, d)),
+    );
+    return domains.map((d, i) => ({ domain: d, address: routers[i] }));
   }
 
   protected getConnectedContract(chain: ChainName): Router {

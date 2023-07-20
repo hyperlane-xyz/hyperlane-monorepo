@@ -30,6 +30,12 @@ export class MultiProtocolRouterApp<
   owners(): Promise<ChainMap<types.Address>> {
     return promiseObjAll(this.map((chain, adapter) => adapter.owner(chain)));
   }
+
+  remoteRouters(
+    originChain: ChainName,
+  ): Promise<Array<{ domain: types.Domain; address: types.Address }>> {
+    return this.adapter(originChain).remoteRouters(originChain);
+  }
 }
 
 export class MultiProtocolGasRouterApp<
