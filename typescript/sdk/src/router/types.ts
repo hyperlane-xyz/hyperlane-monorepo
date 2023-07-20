@@ -2,18 +2,18 @@ import {
   HyperlaneConnectionClient,
   ProxyAdmin__factory,
 } from '@hyperlane-xyz/core';
-import type { types } from '@hyperlane-xyz/utils';
+import type { Address } from '@hyperlane-xyz/utils';
 
 import { HyperlaneFactories } from '../contracts';
 import { CheckerViolation } from '../deploy/types';
 import { IsmConfig } from '../ism/types';
 
 export type OwnableConfig = {
-  owner: types.Address;
+  owner: Address;
 };
 
 export type ForeignDeploymentConfig = {
-  foreignDeployment?: types.Address;
+  foreignDeployment?: Address;
 };
 
 export type RouterConfig = ConnectionClientConfig &
@@ -31,9 +31,9 @@ export type ProxiedFactories = HyperlaneFactories & {
 };
 
 export type ConnectionClientConfig = {
-  mailbox: types.Address;
-  interchainGasPaymaster: types.Address;
-  interchainSecurityModule?: types.Address | IsmConfig;
+  mailbox: Address;
+  interchainGasPaymaster: Address;
+  interchainSecurityModule?: Address | IsmConfig;
 };
 
 export enum ConnectionClientViolationType {

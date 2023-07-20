@@ -5,7 +5,7 @@ import {
   HyperlaneCore,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { utils } from '@hyperlane-xyz/utils';
+import { bytes32ToAddress, ensure0x, messageId } from '@hyperlane-xyz/utils';
 
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { assertChain } from '../src/utils/utils';
@@ -16,7 +16,7 @@ async function main() {
   const argv = await getArgs()
     .string('tx-hash')
     .coerce('tx-hash', (txHash: string) => {
-      txHash = utils.ensure0x(txHash);
+      txHash = ensure0x(txHash);
 
       // 0x + 64 hex chars
       if (txHash.length !== 66) {
@@ -66,8 +66,8 @@ async function checkMessage(
   multiProvider: MultiProvider,
   message: DispatchedMessage,
 ) {
-  const messageId = utils.messageId(message.message);
-  console.log(`Id: ${messageId}`);
+  const mid = messageId(message.message);
+  console.log(`Id: ${mid}`);
   console.log(`Raw bytes: ${message.message}`);
   console.log('Parsed message:', message.parsed);
 
@@ -92,7 +92,7 @@ async function checkMessage(
   }
 
   const destinationMailbox = core.getContracts(destinationChain).mailbox;
-  const delivered = await destinationMailbox.delivered(messageId);
+  const delivered = await destinationMailbox.delivered(mid);
   if (delivered) {
     console.log('Message has already been processed');
 
@@ -103,7 +103,7 @@ async function checkMessage(
     console.log('Message not yet processed');
   }
 
-  const recipientAddress = utils.bytes32ToAddress(message.parsed.recipient);
+  const recipientAddress = bytes32ToAddress(message.parsed.recipient);
   const recipientIsContract = await isContract(
     multiProvider,
     destinationChain,

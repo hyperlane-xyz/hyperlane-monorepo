@@ -6,7 +6,6 @@ import { environment } from './chains';
 
 export const validatorChainConfig = (
   context: Contexts,
-  count: number = 1,
 ): ValidatorBaseChainConfigMap => {
   const validatorsConfig = validatorBaseConfigsFn(environment, context);
   return {

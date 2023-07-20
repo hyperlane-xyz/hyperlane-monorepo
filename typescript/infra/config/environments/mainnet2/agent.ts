@@ -2,8 +2,8 @@ import {
   AgentConnectionType,
   chainMetadata,
   hyperlaneEnvironments,
-  objMap,
 } from '@hyperlane-xyz/sdk';
+import { objMap } from '@hyperlane-xyz/utils';
 
 import {
   GasPaymentEnforcementPolicyType,
