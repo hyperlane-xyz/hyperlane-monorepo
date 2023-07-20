@@ -16,7 +16,6 @@
 
 use std::path::Path;
 use std::{
-    collections::HashMap,
     fs::{self},
     path::PathBuf,
     process::{Child, ExitCode},
@@ -25,7 +24,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use eyre::{eyre, Result};
+use eyre::Result;
 use maplit::hashmap;
 use tempfile::tempdir;
 
@@ -38,7 +37,9 @@ use crate::utils::{
 
 mod config;
 mod logging;
+mod metrics;
 mod utils;
+pub use metrics::fetch_metric;
 
 /// These private keys are from hardhat/anvil's testing accounts.
 const RELAYER_KEYS: &[&str] = &[
@@ -396,26 +397,6 @@ fn main() -> ExitCode {
     } else {
         ExitCode::SUCCESS
     }
-}
-
-fn fetch_metric(port: &str, metric: &str, labels: &HashMap<&str, &str>) -> Result<Vec<u32>> {
-    let resp = ureq::get(&format!("http://127.0.0.1:{}/metrics", port));
-    resp.call()?
-        .into_string()?
-        .lines()
-        .filter(|l| l.starts_with(metric))
-        .filter(|l| {
-            labels
-                .iter()
-                .all(|(k, v)| l.contains(&format!("{k}=\"{v}\"")))
-        })
-        .map(|l| {
-            Ok(l.rsplit_once(' ')
-                .ok_or(eyre!("Unknown metric format"))?
-                .1
-                .parse::<u32>()?)
-        })
-        .collect()
 }
 
 /// Use the metrics to check if the relayer queues are empty and the expected
