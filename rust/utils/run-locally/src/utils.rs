@@ -148,7 +148,12 @@ fn append_to(p: impl AsRef<Path>) -> File {
 
 /// Read from a process output and add a string to the front before writing it
 /// to stdout.
-fn prefix_log(output: impl Read, prefix: &str, run_log_watcher: &AtomicBool, filter: Option<LogFilter>) {
+fn prefix_log(
+    output: impl Read,
+    prefix: &str,
+    run_log_watcher: &AtomicBool,
+    filter: Option<LogFilter>,
+) {
     let mut reader = BufReader::new(output).lines();
     loop {
         if let Some(line) = reader.next() {
