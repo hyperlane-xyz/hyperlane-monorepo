@@ -107,11 +107,12 @@ impl ProgramArgs {
     }
 
     pub fn bin(mut self, bin: impl AsRef<OsStr>) -> Self {
-        self.bin_path = Some(
-            which::which(bin)
-                .expect("bin not found or is not executable")
-                .into(),
-        );
+        let bin_name = bin.as_ref();
+        if let Ok(bin) = which::which(bin_name) {
+            self.bin_path = Some(bin.into());
+        } else {
+            panic!("Cannot find binary: {:?}", bin_name);
+        }
         self
     }
 
