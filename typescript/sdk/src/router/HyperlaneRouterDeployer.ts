@@ -23,7 +23,6 @@ import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { moduleCanCertainlyVerify } from '../ism/HyperlaneIsmFactory';
 import { RouterConfig } from '../router/types';
 import { ChainMap } from '../types';
-import '../utils/objects';
 
 export abstract class HyperlaneRouterDeployer<
   Config extends RouterConfig,

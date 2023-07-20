@@ -4,6 +4,7 @@ import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
 import {
+  InterchainSecurityModuleType,
   Validator,
   addressToBytes32,
   formatLegacyMultisigIsmMetadata,
@@ -62,7 +63,7 @@ describe('LegacyMultisigIsm', async () => {
   describe('#moduleType', () => {
     it('returns the correct type', async () => {
       expect(await multisigIsm.moduleType()).to.equal(
-        types.InterchainSecurityModuleType.MULTISIG,
+        InterchainSecurityModuleType.MULTISIG,
       );
     });
   });
