@@ -1,14 +1,21 @@
-import { AgentConnectionType } from '@hyperlane-xyz/sdk';
+import { HelloWorldConfig as HelloWorldContractsConfig } from '@hyperlane-xyz/helloworld';
+import {
+  AgentConnectionType,
+  ChainMap,
+  RouterConfig,
+  objMap,
+} from '@hyperlane-xyz/sdk';
 
 import { HelloWorldConfig } from '../../../src/config';
 import { HelloWorldKathyRunMode } from '../../../src/config/helloworld';
 import { Contexts } from '../../contexts';
 
+import { aggregationIsm } from './aggregationIsm';
 import { environment } from './chains';
 import hyperlaneAddresses from './helloworld/hyperlane/addresses.json';
 import rcAddresses from './helloworld/rc/addresses.json';
 
-export const hyperlane: HelloWorldConfig = {
+export const hyperlaneHelloworld: HelloWorldConfig = {
   addresses: hyperlaneAddresses,
   kathy: {
     docker: {
@@ -28,7 +35,7 @@ export const hyperlane: HelloWorldConfig = {
   },
 };
 
-export const releaseCandidate: HelloWorldConfig = {
+export const releaseCandidateHelloworld: HelloWorldConfig = {
   addresses: rcAddresses,
   kathy: {
     docker: {
@@ -48,6 +55,15 @@ export const releaseCandidate: HelloWorldConfig = {
 };
 
 export const helloWorld = {
-  [Contexts.Hyperlane]: hyperlane,
-  [Contexts.ReleaseCandidate]: releaseCandidate,
+  [Contexts.Hyperlane]: hyperlaneHelloworld,
+  [Contexts.ReleaseCandidate]: releaseCandidateHelloworld,
 };
+
+export const helloWorldConfig = (
+  context: Contexts,
+  routerConfigMap: ChainMap<RouterConfig>,
+): ChainMap<HelloWorldContractsConfig> =>
+  objMap(routerConfigMap, (chain, routerConfig) => ({
+    ...routerConfig,
+    interchainSecurityModule: aggregationIsm(chain, context),
+  }));
