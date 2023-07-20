@@ -3,6 +3,8 @@ import { Contract, ethers } from 'ethers';
 
 import {
   HyperlaneConnectionClient,
+  Mailbox,
+  Mailbox__factory,
   Ownable,
   ProxyAdmin,
   ProxyAdmin__factory,
@@ -181,11 +183,19 @@ export abstract class HyperlaneDeployer<
         );
       }
 
-      const currentIsm = await connectionClient.interchainSecurityModule();
+      let currentIsm = await connectionClient.interchainSecurityModule();
+      // in case the above returns zero address, fetch the defaultISM from the mailbox
+      if (currentIsm === ethers.constants.AddressZero) {
+        const mailbox: Mailbox = Mailbox__factory.connect(
+          config.mailbox,
+          connectionClient.signer,
+        );
+        currentIsm = await mailbox.defaultIsm();
+      }
 
-      // set interchain security module if not already set (and configured)
-      let configuredIsm;
       if (config.interchainSecurityModule) {
+        // set interchain security module if not already set (and configured)
+        let configuredIsm;
         if (typeof config.interchainSecurityModule === 'string') {
           configuredIsm = config.interchainSecurityModule;
         } else if (this.options?.ismFactory) {
@@ -206,13 +216,6 @@ export abstract class HyperlaneDeployer<
           const ism = await this.options.ismFactory.deploy(
             local,
             config.interchainSecurityModule,
-          );
-          await this.multiProvider.handleTx(
-            local,
-            connectionClient.setInterchainSecurityModule(
-              ism.address,
-              txOverrides,
-            ),
           );
           configuredIsm = ism.address;
         } else {
