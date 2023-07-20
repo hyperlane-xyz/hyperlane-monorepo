@@ -193,7 +193,7 @@ fn build_cmd_task(args: ProgramArgs, log: PathBuf, log_all: bool, assert_success
     let running = Arc::new(AtomicBool::new(true));
     let stdout = if log_all {
         let stdout = child.stdout.take().unwrap();
-        let name = args.get_bin_name().to_owned();
+        let name = args.get_bin_name();
         let running = running.clone();
         Some(spawn(move || prefix_log(stdout, &name, &running, filter)))
     } else {
@@ -201,7 +201,7 @@ fn build_cmd_task(args: ProgramArgs, log: PathBuf, log_all: bool, assert_success
     };
     let stderr = {
         let stderr = child.stderr.take().unwrap();
-        let name = args.get_bin_name().to_owned();
+        let name = args.get_bin_name();
         let running = running.clone();
         spawn(move || prefix_log(stderr, &name, &running, filter))
     };
