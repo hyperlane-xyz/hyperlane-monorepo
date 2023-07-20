@@ -7,6 +7,8 @@ use std::process::Command;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use eyre::{Context, Result};
+
 use crate::utils::{concat_path, LogFilter};
 
 pub struct Config {
@@ -51,7 +53,7 @@ impl Config {
 
 #[derive(Default, Clone)]
 pub struct ProgramArgs {
-    bin_path: Option<Arc<PathBuf>>,
+    bin: Option<Arc<String>>,
     args: Vec<Arc<String>>,
     env: HashMap<Arc<String>, Arc<String>>,
     working_dir: Option<Arc<PathBuf>>,
@@ -61,7 +63,7 @@ pub struct ProgramArgs {
 impl Debug for ProgramArgs {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ProgramArgs")
-            .field("bin_path", &self.bin_path)
+            .field("bin", &self.bin)
             .field("args", &self.args)
             .field("env", &self.env)
             .field("working_dir", &self.working_dir)
@@ -84,8 +86,12 @@ impl Display for ProgramArgs {
                 write!(f, "{k}={v} ")?;
             }
 
-            if let Some(bp) = &self.bin_path {
-                write!(f, "{}", bp.display())?;
+            if let Some(path_result) = self.get_bin_path() {
+                if let Ok(bp) = path_result {
+                    write!(f, "{}", bp.display())?;
+                } else {
+                    write!(f, "{}", self.bin.as_ref().unwrap())?;
+                }
             } else {
                 write!(f, "???")?;
             }
@@ -96,7 +102,11 @@ impl Display for ProgramArgs {
 
             Ok(())
         } else {
-            write!(f, "{}", self.get_bin_name())
+            write!(
+                f,
+                "{}",
+                self.bin.as_deref().map(String::as_str).unwrap_or("???")
+            )
         }
     }
 }
@@ -107,12 +117,13 @@ impl ProgramArgs {
     }
 
     pub fn bin(mut self, bin: impl AsRef<OsStr>) -> Self {
-        let bin_name = bin.as_ref();
-        if let Ok(bin) = which::which(bin_name) {
-            self.bin_path = Some(bin.into());
-        } else {
-            panic!("Cannot find binary: {:?}", bin_name);
-        }
+        self.bin = Some(
+            bin.as_ref()
+                .to_str()
+                .expect("Invalid string encoding for binary name")
+                .to_owned()
+                .into(),
+        );
         self
     }
 
@@ -170,9 +181,9 @@ impl ProgramArgs {
 
     pub fn create_command(&self) -> Command {
         let mut cmd = Command::new(
-            self.bin_path
-                .as_deref()
-                .expect("A bin path must be specified"),
+            self.get_bin_path()
+                .expect("bin path must be specified")
+                .unwrap(),
         );
         if let Some(wd) = &self.working_dir {
             cmd.current_dir(wd.as_path());
@@ -188,13 +199,26 @@ impl ProgramArgs {
         self.log_filter
     }
 
-    pub fn get_bin_name(&self) -> &str {
-        self.bin_path
-            .as_deref()
-            .expect("A bin path must be specified")
-            .file_name()
-            .expect("bin path must have a file name")
-            .to_str()
-            .unwrap()
+    /// Try to get the path to the binary
+    pub fn get_bin_path(&self) -> Option<Result<PathBuf>> {
+        self.bin.as_ref().map(|raw_bin_name| {
+            which::which(raw_bin_name.as_ref())
+                .with_context(|| format!("Cannot find binary: {raw_bin_name}"))
+        })
+    }
+
+    /// Get just the name component of the binary
+    pub fn get_bin_name(&self) -> String {
+        Path::new(
+            self.bin
+                .as_ref()
+                .expect("bin path must be specified")
+                .as_str(),
+        )
+        .file_name()
+        .expect("bin must have a file name")
+        .to_str()
+        .unwrap()
+        .to_owned()
     }
 }
