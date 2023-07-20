@@ -12,7 +12,7 @@ use nix::sys::signal;
 use nix::sys::signal::Signal;
 use nix::unistd::Pid;
 
-use crate::config::ProgramArgs;
+use crate::config::{Config, ProgramArgs};
 use crate::logging::log;
 use crate::{RUN_LOG_WATCHERS, SHUTDOWN};
 
@@ -30,12 +30,7 @@ pub fn concat_path(p1: impl AsRef<Path>, p2: impl AsRef<Path>) -> PathBuf {
 pub type AgentHandles = (Child, TaskHandle<()>, TaskHandle<()>);
 pub type LogFilter = fn(&str) -> bool;
 
-pub fn run_agent(
-    args: &ProgramArgs,
-    log_prefix: &'static str,
-    log_all: bool,
-    log_dir: &PathBuf,
-) -> AgentHandles {
+pub fn run_agent(args: ProgramArgs, log_prefix: &'static str, config: &Config) -> AgentHandles {
     let mut command = args.create_command();
     command.stdout(Stdio::piped()).stderr(Stdio::piped());
 
@@ -43,9 +38,10 @@ pub fn run_agent(
     let mut child = command
         .spawn()
         .unwrap_or_else(|e| panic!("Failed to start {:?} with error: {e}", &args));
-    let stdout_path = concat_path(log_dir, format!("{log_prefix}.stdout.log"));
+    let stdout_path = concat_path(&config.log_dir, format!("{log_prefix}.stdout.log"));
     let child_stdout = child.stdout.take().unwrap();
     let filter = args.get_filter();
+    let log_all = config.log_all;
     let stdout = spawn(move || {
         if log_all {
             prefix_log(child_stdout, log_prefix, &RUN_LOG_WATCHERS, filter)
@@ -57,7 +53,7 @@ pub fn run_agent(
             )
         }
     });
-    let stderr_path = concat_path(log_dir, format!("{log_prefix}.stderr.log"));
+    let stderr_path = concat_path(&config.log_dir, format!("{log_prefix}.stderr.log"));
     let child_stderr = child.stderr.take().unwrap();
     let stderr = spawn(move || {
         if log_all {
@@ -74,9 +70,7 @@ pub fn run_agent(
 pub struct TaskHandle<T>(pub JoinHandle<T>);
 impl<T> TaskHandle<T> {
     pub fn join(self) -> T {
-        self.0
-            .join()
-            .expect("Task thread panicked!")
+        self.0.join().expect("Task thread panicked!")
     }
 }
 

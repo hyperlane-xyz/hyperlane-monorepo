@@ -5,7 +5,9 @@ use std::fmt::{Debug, Display, Formatter};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
-use crate::utils::LogFilter;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use crate::utils::{concat_path, LogFilter};
 
 pub struct Config {
     pub is_ci_env: bool,
@@ -13,6 +15,7 @@ pub struct Config {
     pub ci_mode_timeout: u64,
     pub kathy_messages: u64,
     pub log_all: bool,
+    pub log_dir: PathBuf,
 }
 
 impl Config {
@@ -20,9 +23,16 @@ impl Config {
         let ci_mode = env::var("E2E_CI_MODE")
             .map(|k| k.parse::<bool>().unwrap())
             .unwrap_or_default();
+        let date_str = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            .to_string();
+        let log_dir = concat_path(env::temp_dir(), format!("logs/hyperlane-agents/{date_str}"));
         Self {
-            is_ci_env: env::var("CI").as_deref() == Ok("true"),
             ci_mode,
+            log_dir,
+            is_ci_env: env::var("CI").as_deref() == Ok("true"),
             ci_mode_timeout: env::var("E2E_CI_TIMEOUT_SEC")
                 .map(|k| k.parse::<u64>().unwrap())
                 .unwrap_or(60 * 10),
@@ -187,28 +197,3 @@ impl ProgramArgs {
             .unwrap()
     }
 }
-
-// macro_rules! program {
-//     // entry
-//     ($($rest:tt)+) => {
-//         program!(@a ProgramArgs::default(), $($rest)*)
-//     };
-//
-//     // env
-//     (@a $prog:expr, $key:literal=$val:literal $($rest:tt)+) => {
-//         program!(@a $prog.env($key, $val), $($rest)*)
-//     };
-//
-//     // bin
-//     (@a $prog:expr, $bin:literal $($rest:tt)*) => {
-//         program!(@b $prog.bin($bin), $($rest:tt)*)
-//     };
-//
-//     (@b $prog:expr, $arg:literal $($rest:tt)*) => {
-//         program!(@b $prog.raw_arg($bin), $($rest:tt)*)
-//     };
-//
-//     (@b $prog:expr,) => { $prog };
-// }
-//
-// pub(crate) use program;

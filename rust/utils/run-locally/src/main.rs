@@ -17,13 +17,12 @@
 use std::path::Path;
 use std::{
     collections::HashMap,
-    env,
     fs::{self},
     path::PathBuf,
     process::{Child, ExitCode},
     sync::atomic::{AtomicBool, Ordering},
     thread::sleep,
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant},
 };
 
 use eyre::{eyre, Result};
@@ -40,7 +39,6 @@ use crate::utils::{
 mod config;
 mod logging;
 mod utils;
-mod component;
 
 /// These private keys are from hardhat/anvil's testing accounts.
 const RELAYER_KEYS: &[&str] = &[
@@ -121,16 +119,10 @@ fn main() -> ExitCode {
 
     let config = config::Config::load();
 
-    let date_str = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs()
-        .to_string();
-    let log_dir = concat_path(env::temp_dir(), format!("logs/hyperlane-agents/{date_str}"));
     if !config.log_all {
-        fs::create_dir_all(&log_dir).expect("Failed to make log dir");
+        fs::create_dir_all(&config.log_dir).expect("Failed to make log dir");
     }
-    let build_log = concat_path(&log_dir, "build.log");
+    let build_log = concat_path(&config.log_dir, "build.log");
 
     let checkpoints_dirs = (0..3).map(|_| tempdir().unwrap()).collect::<Vec<_>>();
     let rocks_db_dir = tempdir().unwrap();
@@ -226,7 +218,7 @@ fn main() -> ExitCode {
     state.log_all = config.log_all;
 
     if !config.log_all {
-        log!("Logs in {}", log_dir.display());
+        log!("Logs in {}", config.log_dir.display());
     }
     log!(
         "Signed checkpoints in {}",
@@ -243,6 +235,7 @@ fn main() -> ExitCode {
 
     let build_log_ref = make_static(state.build_log.to_str().unwrap().to_owned());
     let build_cmd = move |cmd| build_cmd(cmd, build_log_ref, config.log_all, true);
+    let run_agent = |args, prefix| run_agent(args, prefix, &config);
 
     shutdown_if_needed!();
     // this task takes a long time in the CI so run it in parallel
@@ -289,7 +282,7 @@ fn main() -> ExitCode {
     let anvil_args = ProgramArgs::new("anvil")
         .flag("silent")
         .filter_logs(filter_anvil_logs);
-    let anvil = run_agent(&anvil_args, "ETH", config.log_all, &log_dir);
+    let anvil = run_agent(anvil_args, "ETH");
     state.push_agent(anvil);
 
     sleep(Duration::from_secs(10));
@@ -329,12 +322,12 @@ fn main() -> ExitCode {
 
     shutdown_if_needed!();
 
-    let scraper = run_agent(&scraper_env, "SCR", config.log_all, &log_dir);
+    let scraper = run_agent(scraper_env, "SCR");
     state.push_agent(scraper);
 
     // spawn 1st validator before any messages have been sent to test empty mailbox
-    let validator1_env = validator_envs.first().unwrap();
-    let validator1 = run_agent(validator1_env, "VAL1", config.log_all, &log_dir);
+    let validator1_env = validator_envs.first().unwrap().clone();
+    let validator1 = run_agent(validator1_env, "VAL1");
     state.push_agent(validator1);
 
     sleep(Duration::from_secs(5));
@@ -344,24 +337,18 @@ fn main() -> ExitCode {
         .cmd("kathy")
         .arg("messages", (config.kathy_messages / 2).to_string())
         .arg("timeout", "1000");
-    let (mut kathy, kathy_stdout, kathy_stderr) =
-        run_agent(&kathy_env, "KTY", config.log_all, &log_dir);
+    let (mut kathy, kathy_stdout, kathy_stderr) = run_agent(kathy_env.clone(), "KTY");
     state.watchers.push(kathy_stdout);
     state.watchers.push(kathy_stderr);
     kathy.wait().unwrap();
 
     // spawn the rest of the validators
-    for (i, validator_env) in validator_envs.iter().enumerate().skip(1) {
-        let validator = run_agent(
-            validator_env,
-            make_static(format!("VAL{}", 1 + i)),
-            config.log_all,
-            &log_dir,
-        );
+    for (i, validator_env) in validator_envs.into_iter().enumerate().skip(1) {
+        let validator = run_agent(validator_env, make_static(format!("VAL{}", 1 + i)));
         state.push_agent(validator);
     }
 
-    let relayer = run_agent(&relayer_env, "RLY", config.log_all, &log_dir);
+    let relayer = run_agent(relayer_env, "RLY");
     state.push_agent(relayer);
 
     log!("Setup complete! Agents running in background...");
@@ -369,7 +356,7 @@ fn main() -> ExitCode {
 
     // Send half the kathy messages after the relayer comes up
     let kathy_env = kathy_env.flag("mineforever");
-    let kathy = run_agent(&kathy_env, "KTY", config.log_all, &log_dir);
+    let kathy = run_agent(kathy_env, "KTY");
     state.push_agent(kathy);
 
     let loop_start = Instant::now();
