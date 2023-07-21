@@ -24,7 +24,6 @@
     "dotenv": "^10.0.0",
     "eslint": "^8.43.0",
     "ethereum-waffle": "^3.4.4",
-    "ethers6": "npm:ethers@6.6.3",
     "fs": "0.0.1-security",
     "hardhat": "^2.16.1",
     "mocha": "^9.2.2",

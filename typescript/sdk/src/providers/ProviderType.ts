@@ -3,12 +3,12 @@ import type {
   Contract as EV5Contract,
   providers as EV5Providers,
 } from 'ethers';
-import type { Contract as Ev6Contract, Provider as Ev6Provider } from 'ethers6';
+// import type { Contract as Ev6Contract, Provider as Ev6Provider } from 'ethers6';
 import type { GetContractReturnType, PublicClient } from 'viem';
 
 export enum ProviderType {
   EthersV5 = 'ethers-v5',
-  EthersV6 = 'ethers-v6',
+  // EthersV6 = 'ethers-v6', Disabled for now to simplify build tooling
   Viem = 'viem',
   SolanaWeb3 = 'solana-web3',
 }
@@ -30,10 +30,10 @@ export interface EthersV5Provider
   provider: EV5Providers.Provider;
 }
 
-export interface EthersV6Provider extends TypedProviderBase<Ev6Provider> {
-  type: ProviderType.EthersV6;
-  provider: Ev6Provider;
-}
+// export interface EthersV6Provider extends TypedProviderBase<Ev6Provider> {
+//   type: ProviderType.EthersV6;
+//   provider: Ev6Provider;
+// }
 
 export interface ViemProvider extends TypedProviderBase<PublicClient> {
   type: ProviderType.Viem;
@@ -47,7 +47,7 @@ export interface SolanaWeb3Provider extends TypedProviderBase<Connection> {
 
 export type TypedProvider =
   | EthersV5Provider
-  | EthersV6Provider
+  // | EthersV6Provider
   | ViemProvider
   | SolanaWeb3Provider;
 
@@ -65,10 +65,10 @@ export interface EthersV5Contract extends TypedContractBase<EV5Contract> {
   contract: EV5Contract;
 }
 
-export interface EthersV6Contract extends TypedContractBase<Ev6Contract> {
-  type: ProviderType.EthersV6;
-  contract: Ev6Contract;
-}
+// export interface EthersV6Contract extends TypedContractBase<Ev6Contract> {
+//   type: ProviderType.EthersV6;
+//   contract: Ev6Contract;
+// }
 
 export interface ViemContract extends TypedContractBase<GetContractReturnType> {
   type: ProviderType.Viem;
@@ -83,6 +83,6 @@ export interface SolanaWeb3Contract extends TypedContractBase<never> {
 
 export type TypedContract =
   | EthersV5Contract
-  | EthersV6Contract
+  // | EthersV6Contract
   | ViemContract
   | SolanaWeb3Contract;

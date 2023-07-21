@@ -1,6 +1,5 @@
 import { Connection } from '@solana/web3.js';
 import { providers } from 'ethers';
-import { JsonRpcProvider as Ev6JsonRpcProvider } from 'ethers6';
 import { createPublicClient, http } from 'viem';
 
 import { isNumeric } from '@hyperlane-xyz/utils';
@@ -9,7 +8,6 @@ import { ChainMetadata, ProtocolType } from '../metadata/chainMetadataTypes';
 
 import {
   EthersV5Provider,
-  EthersV6Provider,
   ProviderType,
   SolanaWeb3Provider,
   TypedProvider,
@@ -51,17 +49,17 @@ export function defaultEthersV5ProviderBuilder(
   return { type: ProviderType.EthersV5, provider };
 }
 
-export function defaultEthersV6ProviderBuilder(
-  rpcUrls: ChainMetadata['rpcUrls'],
-  network: number | string,
-): EthersV6Provider {
-  // TODO add support for retry providers here
-  if (!rpcUrls.length) throw new Error('No RPC URLs provided');
-  return {
-    type: ProviderType.EthersV6,
-    provider: new Ev6JsonRpcProvider(rpcUrls[0].http, network),
-  };
-}
+// export function defaultEthersV6ProviderBuilder(
+//   rpcUrls: ChainMetadata['rpcUrls'],
+//   network: number | string,
+// ): EthersV6Provider {
+//   // TODO add support for retry providers here
+//   if (!rpcUrls.length) throw new Error('No RPC URLs provided');
+//   return {
+//     type: ProviderType.EthersV6,
+//     provider: new Ev6JsonRpcProvider(rpcUrls[0].http, network),
+//   };
+// }
 
 export function defaultViemProviderBuilder(
   rpcUrls: ChainMetadata['rpcUrls'],
@@ -118,7 +116,7 @@ export type ProviderBuilderMap = Record<
 >;
 export const defaultProviderBuilderMap: ProviderBuilderMap = {
   [ProviderType.EthersV5]: defaultEthersV5ProviderBuilder,
-  [ProviderType.EthersV6]: defaultEthersV6ProviderBuilder,
+  // [ProviderType.EthersV6]: defaultEthersV6ProviderBuilder,
   [ProviderType.Viem]: defaultViemProviderBuilder,
   [ProviderType.SolanaWeb3]: defaultSolProviderBuilder,
 };
