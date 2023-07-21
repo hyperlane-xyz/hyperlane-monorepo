@@ -10,6 +10,8 @@ pub enum Instruction {
     InitOverheadIgp(InitOverheadIgp),
     PayForGas(PayForGas),
     QuoteGasPayment(QuoteGasPayment),
+    TransferOwnership(Option<Pubkey>),
+    SetIgpBeneficiary(Pubkey),
 }
 
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]

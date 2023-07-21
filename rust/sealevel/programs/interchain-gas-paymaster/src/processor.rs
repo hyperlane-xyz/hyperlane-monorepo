@@ -401,3 +401,7 @@ fn quote_gas_payment(
 
     Ok(())
 }
+
+fn set_igp_beneficiary(
+    
+)
