@@ -3,8 +3,9 @@ import { providers } from 'ethers';
 import { JsonRpcProvider as Ev6JsonRpcProvider } from 'ethers6';
 import { createPublicClient, http } from 'viem';
 
+import { isNumeric } from '@hyperlane-xyz/utils';
+
 import { ChainMetadata, ProtocolType } from '../metadata/chainMetadataTypes';
-import { isNumeric } from '../utils/number';
 
 import {
   EthersV5Provider,

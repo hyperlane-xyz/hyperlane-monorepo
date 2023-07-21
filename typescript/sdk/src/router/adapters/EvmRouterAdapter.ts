@@ -5,7 +5,7 @@ import {
   Router,
   Router__factory,
 } from '@hyperlane-xyz/core';
-import { types, utils } from '@hyperlane-xyz/utils';
+import { Address, Domain, bytes32ToAddress } from '@hyperlane-xyz/utils';
 
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
 import { ChainName } from '../../types';
@@ -16,37 +16,37 @@ import { IGasRouterAdapter, IRouterAdapter } from './types';
 export class EvmRouterAdapter implements IRouterAdapter {
   constructor(
     public readonly multiProvider: MultiProtocolProvider<{
-      router: types.Address;
+      router: Address;
     }>,
   ) {}
 
-  interchainSecurityModule(chain: ChainName): Promise<types.Address> {
+  interchainSecurityModule(chain: ChainName): Promise<Address> {
     return this.getConnectedContract(chain).interchainSecurityModule();
   }
 
-  owner(chain: ChainName): Promise<types.Address> {
+  owner(chain: ChainName): Promise<Address> {
     return this.getConnectedContract(chain).owner();
   }
 
-  remoteDomains(originChain: ChainName): Promise<types.Domain[]> {
+  remoteDomains(originChain: ChainName): Promise<Domain[]> {
     return this.getConnectedContract(originChain).domains();
   }
 
   async remoteRouter(
     originChain: ChainName,
-    remoteDomain: types.Domain,
-  ): Promise<types.Address> {
+    remoteDomain: Domain,
+  ): Promise<Address> {
     const routerAddressesAsBytes32 = await this.getConnectedContract(
       originChain,
     ).routers(remoteDomain);
-    return utils.bytes32ToAddress(routerAddressesAsBytes32);
+    return bytes32ToAddress(routerAddressesAsBytes32);
   }
 
   async remoteRouters(
     originChain: ChainName,
-  ): Promise<Array<{ domain: types.Domain; address: types.Address }>> {
+  ): Promise<Array<{ domain: Domain; address: Address }>> {
     const domains = await this.remoteDomains(originChain);
-    const routers: types.Address[] = await Promise.all(
+    const routers: Address[] = await Promise.all(
       domains.map((d) => this.remoteRouter(originChain, d)),
     );
     return domains.map((d, i) => ({ domain: d, address: routers[i] }));

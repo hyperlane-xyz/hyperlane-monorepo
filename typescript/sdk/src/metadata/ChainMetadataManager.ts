@@ -1,10 +1,9 @@
 import { Debugger, debug } from 'debug';
 
-import { utils } from '@hyperlane-xyz/utils';
+import { exclude, isNumeric } from '@hyperlane-xyz/utils';
 
 import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata';
 import { ChainMap, ChainName } from '../types';
-import { isNumeric } from '../utils/number';
 
 import {
   ChainMetadata,
@@ -182,7 +181,7 @@ export class ChainMetadataManager<MetaExt = any> {
    * Get chain names excluding given chain name
    */
   getRemoteChains(name: ChainName): ChainName[] {
-    return utils.exclude(name, this.getKnownChainNames());
+    return exclude(name, this.getKnownChainNames());
   }
 
   /**

@@ -1,11 +1,11 @@
 import type { ethers } from 'ethers';
 
-import type { types } from '@hyperlane-xyz/utils';
+import type { Address } from '@hyperlane-xyz/utils';
 
 import type { ChainMap } from '../types';
 
 export type AddressesMap = {
-  [key: string]: types.Address;
+  [key: string]: Address;
 };
 
 export type HyperlaneFactories = {
@@ -21,7 +21,7 @@ export type HyperlaneContractsMap<F extends HyperlaneFactories> = ChainMap<
 >;
 
 export type HyperlaneAddresses<F extends HyperlaneFactories> = {
-  [P in keyof F]: types.Address;
+  [P in keyof F]: Address;
 };
 
 export type HyperlaneAddressesMap<F extends HyperlaneFactories> = ChainMap<
