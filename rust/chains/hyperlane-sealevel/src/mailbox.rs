@@ -5,7 +5,7 @@ use std::{collections::HashMap, num::NonZeroU64, str::FromStr as _};
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
 use jsonrpc_core::futures_util::TryFutureExt;
-use tracing::{debug, instrument, warn};
+use tracing::{debug, info, instrument, warn};
 
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
