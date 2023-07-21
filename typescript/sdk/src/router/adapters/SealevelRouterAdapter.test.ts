@@ -2,8 +2,8 @@ import { deserializeUnchecked } from 'borsh';
 import { expect } from 'chai';
 
 import {
-  AccountDataWrapper,
-  HyperlaneTokenDataSchema,
+  SealevelAccountDataWrapper,
+  SealevelTokenDataSchema,
 } from './SealevelRouterAdapter';
 
 describe('SealevelRouterAdapter', () => {
@@ -14,8 +14,8 @@ describe('SealevelRouterAdapter', () => {
         'hex',
       );
       const accountData = deserializeUnchecked(
-        HyperlaneTokenDataSchema,
-        AccountDataWrapper,
+        SealevelTokenDataSchema,
+        SealevelAccountDataWrapper,
         rawData,
       );
       expect(accountData.initialized).to.eql(1);

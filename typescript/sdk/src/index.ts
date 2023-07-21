@@ -1,4 +1,5 @@
 export { HyperlaneApp } from './app/HyperlaneApp';
+export { MultiProtocolApp } from './app/MultiProtocolApp';
 export {
   chainIdToMetadata,
   chainMetadata,
@@ -187,7 +188,21 @@ export {
 export { GasRouterDeployer } from './router/GasRouterDeployer';
 export { HyperlaneRouterChecker } from './router/HyperlaneRouterChecker';
 export { HyperlaneRouterDeployer } from './router/HyperlaneRouterDeployer';
+export {
+  MultiProtocolGasRouterApp,
+  MultiProtocolRouterApp,
+} from './router/MultiProtocolRouterApps';
 export { GasRouterApp, Router, RouterApp } from './router/RouterApps';
+export {
+  EvmGasRouterAdapter,
+  EvmRouterAdapter,
+} from './router/adapters/EvmRouterAdapter';
+export {
+  SealevelGasRouterAdapter,
+  SealevelRouterAdapter,
+  SealevelTokenDataSchema,
+} from './router/adapters/SealevelRouterAdapter';
+export { IGasRouterAdapter, IRouterAdapter } from './router/adapters/types';
 export {
   ConnectionClientViolation,
   ConnectionClientViolationType,

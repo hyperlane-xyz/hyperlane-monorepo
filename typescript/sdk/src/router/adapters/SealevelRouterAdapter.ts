@@ -10,16 +10,16 @@ import { ChainName } from '../../types';
 import { IGasRouterAdapter, IRouterAdapter } from './types';
 
 // Hyperlane Token Borsh Schema
-export class AccountDataWrapper {
+export class SealevelAccountDataWrapper {
   initialized!: boolean;
-  data!: HyperlaneTokenData;
+  data!: SealevelTokenData;
   constructor(public readonly fields: any) {
     Object.assign(this, fields);
   }
 }
 
 // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/trevor/sealevel-validator-rebase/rust/sealevel/libraries/hyperlane-sealevel-token/src/accounts.rs#L21
-export class HyperlaneTokenData {
+export class SealevelTokenData {
   /// The bump seed for this PDA.
   bump!: number;
   /// The address of the mailbox contract.
@@ -60,19 +60,19 @@ export class HyperlaneTokenData {
   }
 }
 
-export const HyperlaneTokenDataSchema = new Map<any, any>([
+export const SealevelTokenDataSchema = new Map<any, any>([
   [
-    AccountDataWrapper,
+    SealevelAccountDataWrapper,
     {
       kind: 'struct',
       fields: [
         ['initialized', 'u8'],
-        ['data', HyperlaneTokenData],
+        ['data', SealevelTokenData],
       ],
     },
   ],
   [
-    HyperlaneTokenData,
+    SealevelTokenData,
     {
       kind: 'struct',
       fields: [
@@ -142,7 +142,7 @@ export class SealevelRouterAdapter implements IRouterAdapter {
 
   // TODO this incorrectly assumes all sealevel routers will have the TokenRouter's data schema
   // This will need to change when other types of routers are supported
-  async getRouterAccountInfo(chain: ChainName): Promise<HyperlaneTokenData> {
+  async getRouterAccountInfo(chain: ChainName): Promise<SealevelTokenData> {
     const address = this.multiProvider.getChainMetadata(chain).router;
     const connection = this.multiProvider.getSolanaWeb3Provider(chain);
 
@@ -153,8 +153,8 @@ export class SealevelRouterAdapter implements IRouterAdapter {
         `No account info found for ${msgRecipientPda.toBase58()}}`,
       );
     const accountData = deserializeUnchecked(
-      HyperlaneTokenDataSchema,
-      AccountDataWrapper,
+      SealevelTokenDataSchema,
+      SealevelAccountDataWrapper,
       accountInfo.data,
     );
     return accountData.data;
