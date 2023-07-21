@@ -7,7 +7,6 @@ import type { ChainMap, ChainName } from '../types';
 
 import {
   EthersV5Provider,
-  EthersV6Provider,
   ProviderMap,
   ProviderType,
   SolanaWeb3Provider,
@@ -94,14 +93,14 @@ export class MultiProtocolProvider<
     return provider.provider;
   }
 
-  getEthersV6Provider(
-    chainNameOrId: ChainName | number,
-  ): EthersV6Provider['provider'] {
-    const provider = this.getProvider(chainNameOrId, ProviderType.EthersV5);
-    if (provider.type !== ProviderType.EthersV6)
-      throw new Error('Invalid provider type');
-    return provider.provider;
-  }
+  // getEthersV6Provider(
+  //   chainNameOrId: ChainName | number,
+  // ): EthersV6Provider['provider'] {
+  //   const provider = this.getProvider(chainNameOrId, ProviderType.EthersV5);
+  //   if (provider.type !== ProviderType.EthersV6)
+  //     throw new Error('Invalid provider type');
+  //   return provider.provider;
+  // }
 
   getViemProvider(chainNameOrId: ChainName | number): ViemProvider['provider'] {
     const provider = this.getProvider(chainNameOrId, ProviderType.EthersV5);

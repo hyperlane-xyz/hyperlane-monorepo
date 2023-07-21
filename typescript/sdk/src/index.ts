@@ -161,7 +161,6 @@ export {
 } from './providers/MultiProvider';
 export {
   EthersV5Provider,
-  EthersV6Provider,
   ProviderMap,
   ProviderType,
   SolanaWeb3Provider,
@@ -178,7 +177,6 @@ export {
   ProviderBuilderMap,
   TypedProviderBuilderFn,
   defaultEthersV5ProviderBuilder,
-  defaultEthersV6ProviderBuilder,
   defaultFuelProviderBuilder,
   defaultProviderBuilder,
   defaultProviderBuilderMap,
