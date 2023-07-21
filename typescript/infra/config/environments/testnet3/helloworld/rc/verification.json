@@ -62,5 +62,13 @@
       "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
       "isProxy": false
     }
+  ],
+  "sepolia": [
+    {
+      "name": "Router",
+      "address": "0x6AD4DEBA8A147d000C09de6465267a9047d1c217",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f987d7edcb5890cb321437d8145e3d51131298b6",
+      "isProxy": false
+    }
   ]
 }
