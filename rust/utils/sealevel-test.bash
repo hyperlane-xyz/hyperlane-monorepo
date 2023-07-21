@@ -11,7 +11,7 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TEST_KEYS_DIR="${SCRIPT_DIR}/../config/sealevel/test-keys"
 KEYPAIR="${TEST_KEYS_DIR}/test_deployer-keypair.json"
-TARGET_DIR="${SCRIPT_DIR}/../sealevel/target"
+TARGET_DIR="${SCRIPT_DIR}/../target"
 SEALEVEL_DIR="${SCRIPT_DIR}/../sealevel"
 DEPLOY_DIR="${TARGET_DIR}/deploy"
 BIN_DIR="${TARGET_DIR}/debug"
@@ -29,7 +29,7 @@ build_program() {
     if $3 || [ ! -e $1 ]; then
         # .so file doesn't exist, build it
         pushd "${2}"
-        cargo build-sbf --arch sbf
+        cargo build-sbf
         popd
     fi
 }
@@ -56,12 +56,12 @@ build_programs() {
     build_program "${ECLIPSE_PROGRAM_LIBRARY_DIR}/account-compression/target/deploy/spl_noop.so" "${ECLIPSE_PROGRAM_LIBRARY_DIR}/account-compression/programs/noop" "${force_build}"
 
     # hyperlane sealevel programs
-    build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_mailbox.so" "${TARGET_DIR}/../programs/mailbox" "${force_build}"
-    build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_validator_announce.so" "${TARGET_DIR}/../programs/validator-announce" "${force_build}"
-    build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_multisig_ism_message_id.so" "${TARGET_DIR}/../programs/ism/multisig-ism-message-id" "${force_build}"
-    build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_token.so" "${TARGET_DIR}/../programs/hyperlane-sealevel-token" "${force_build}"
-    build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_token_native.so" "${TARGET_DIR}/../programs/hyperlane-sealevel-token-native" "${force_build}"
-    build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_token_collateral.so" "${TARGET_DIR}/../programs/hyperlane-sealevel-token-collateral" "${force_build}"
+    build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_mailbox.so" "${SEALEVEL_DIR}/programs/mailbox" "${force_build}"
+    build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_validator_announce.so" "${SEALEVEL_DIR}/programs/validator-announce" "${force_build}"
+    build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_multisig_ism_message_id.so" "${SEALEVEL_DIR}/programs/ism/multisig-ism-message-id" "${force_build}"
+    build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_token.so" "${SEALEVEL_DIR}/programs/hyperlane-sealevel-token" "${force_build}"
+    build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_token_native.so" "${SEALEVEL_DIR}/programs/hyperlane-sealevel-token-native" "${force_build}"
+    build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_token_collateral.so" "${SEALEVEL_DIR}/programs/hyperlane-sealevel-token-collateral" "${force_build}"
 }
 
 build_spl_token_cli() {
@@ -153,8 +153,6 @@ main() {
 
     # build the SPL token CLI
     build_spl_token_cli
-    # copy the keys into the deploy dir
-    cp ${TEST_KEYS_DIR}/*.json ${TARGET_DIR}/deploy/
 
     "${BIN_DIR}/hyperlane-sealevel-client" --compute-budget 200000 -k "${KEYPAIR}" core deploy --local-domain "${CHAIN_ID}" --environment local-e2e --use-existing-keys --environments-dir "${SEALEVEL_DIR}/environments" --built-so-dir "${DEPLOY_DIR}" --chain sealeveltest1
     "${BIN_DIR}/hyperlane-sealevel-client" --compute-budget 200000 -k "${KEYPAIR}" core deploy --local-domain "${REMOTE_CHAIN_ID}" --environment local-e2e --use-existing-keys --environments-dir "${SEALEVEL_DIR}/environments" --built-so-dir "${DEPLOY_DIR}" --chain sealeveltest2

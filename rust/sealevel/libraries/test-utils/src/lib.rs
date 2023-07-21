@@ -191,18 +191,16 @@ pub async fn get_ism_getter_account_metas(
     payer: &Keypair,
     recipient_program_id: Pubkey,
 ) -> Result<Vec<AccountMeta>, BanksClientError> {
-    let (account_metas_pda_key, _) = Pubkey::find_program_address(
-        INTERCHAIN_SECURITY_MODULE_ACCOUNT_METAS_PDA_SEEDS,
-        &recipient_program_id,
-    );
     let instruction = MessageRecipientInstruction::InterchainSecurityModuleAccountMetas;
-    let instruction = Instruction::new_with_bytes(
+
+    get_account_metas_with_instruction_bytes(
+        banks_client,
+        payer,
         recipient_program_id,
         &instruction.encode().unwrap(),
-        vec![AccountMeta::new(account_metas_pda_key, false)],
-    );
-
-    get_account_metas(banks_client, payer, instruction).await
+        INTERCHAIN_SECURITY_MODULE_ACCOUNT_METAS_PDA_SEEDS,
+    )
+    .await
 }
 
 pub async fn get_recipient_ism(
@@ -231,19 +229,19 @@ pub async fn get_ism_verify_account_metas(
     metadata: Vec<u8>,
     message: Vec<u8>,
 ) -> Result<Vec<AccountMeta>, BanksClientError> {
-    let (account_metas_pda_key, _) =
-        Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, &ism);
     let instruction = InterchainSecurityModuleInstruction::VerifyAccountMetas(VerifyInstruction {
         metadata,
         message,
     });
-    let instruction = Instruction::new_with_bytes(
+
+    get_account_metas_with_instruction_bytes(
+        banks_client,
+        payer,
         ism,
         &instruction.encode().unwrap(),
-        vec![AccountMeta::new(account_metas_pda_key, false)],
-    );
-
-    get_account_metas(banks_client, payer, instruction).await
+        VERIFY_ACCOUNT_METAS_PDA_SEEDS,
+    )
+    .await
 }
 
 /// Gets the account metas required for the recipient's `MessageRecipientInstruction::Handle` instruction.
@@ -258,11 +256,29 @@ pub async fn get_handle_account_metas(
         origin: message.origin,
         message: message.body.clone(),
     });
-    let (account_metas_pda_key, _) =
-        Pubkey::find_program_address(HANDLE_ACCOUNT_METAS_PDA_SEEDS, &recipient_program_id);
-    let instruction = Instruction::new_with_bytes(
+
+    get_account_metas_with_instruction_bytes(
+        banks_client,
+        payer,
         recipient_program_id,
         &instruction.encode().unwrap(),
+        HANDLE_ACCOUNT_METAS_PDA_SEEDS,
+    )
+    .await
+}
+
+async fn get_account_metas_with_instruction_bytes(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    program_id: Pubkey,
+    instruction_data: &[u8],
+    account_metas_pda_seeds: &[&[u8]],
+) -> Result<Vec<AccountMeta>, BanksClientError> {
+    let (account_metas_pda_key, _) =
+        Pubkey::find_program_address(account_metas_pda_seeds, &program_id);
+    let instruction = Instruction::new_with_bytes(
+        program_id,
+        instruction_data,
         vec![AccountMeta::new(account_metas_pda_key, false)],
     );
 

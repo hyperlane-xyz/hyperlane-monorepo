@@ -8,10 +8,10 @@ use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
 };
 use hyperlane_core::{
-    config::*, ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol,
-    HyperlaneProvider, HyperlaneSigner, IndexMode, Indexer, InterchainGasPaymaster,
-    InterchainGasPayment, InterchainSecurityModule, Mailbox, MessageIndexer, MultisigIsm,
-    RoutingIsm, ValidatorAnnounce, H160, H256,
+    config::*, utils::hex_or_base58_to_h256, AggregationIsm, CcipReadIsm, ContractLocator,
+    HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneProvider, HyperlaneSigner,
+    IndexMode, Indexer, InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule,
+    Mailbox, MessageIndexer, MultisigIsm, RoutingIsm, ValidatorAnnounce, H256,
 };
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
@@ -113,19 +113,7 @@ impl FromRawConf<'_, RawCoreContractAddresses> for CoreContractAddresses {
                         )
                     })
                     .take_err(&mut err, path)
-                    .and_then(|v| {
-                        // TODO this is sketchy
-                        if v.len() <= 42 {
-                            v.parse::<H160>().take_err(&mut err, path).map(Into::into)
-                        } else if v.starts_with("0x") {
-                            v.parse().take_err(&mut err, path)
-                        } else {
-                            bs58::decode(v)
-                                .into_vec()
-                                .take_err(&mut err, path)
-                                .map(|v| H256::from_slice(&v))
-                        }
-                    })
+                    .and_then(|v| hex_or_base58_to_h256(&v).take_err(&mut err, path))
             }};
         }
 
@@ -593,6 +581,58 @@ impl ChainConf {
         .context(ctx)
     }
 
+    /// Try to convert the chain setting into an AggregationIsm Ism contract
+    pub async fn build_aggregation_ism(
+        &self,
+        address: H256,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn AggregationIsm>> {
+        let ctx = "Building aggregation ISM";
+        let locator = ContractLocator {
+            domain: &self.domain,
+            address,
+        };
+
+        match &self.connection()? {
+            ChainConnectionConf::Ethereum(conf) => {
+                self.build_ethereum(conf, &locator, metrics, h_eth::AggregationIsmBuilder {})
+                    .await
+            }
+
+            ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(_) => {
+                Err(eyre!("Sealevel does not support aggregation ISM yet")).context(ctx)
+            }
+        }
+        .context(ctx)
+    }
+
+    /// Try to convert the chain setting into a CcipRead Ism contract
+    pub async fn build_ccip_read_ism(
+        &self,
+        address: H256,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn CcipReadIsm>> {
+        let ctx = "Building CcipRead ISM";
+        let locator = ContractLocator {
+            domain: &self.domain,
+            address,
+        };
+
+        match &self.connection()? {
+            ChainConnectionConf::Ethereum(conf) => {
+                self.build_ethereum(conf, &locator, metrics, h_eth::CcipReadIsmBuilder {})
+                    .await
+            }
+
+            ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(_) => {
+                Err(eyre!("Sealevel does not support CCIP read ISM yet")).context(ctx)
+            }
+        }
+        .context(ctx)
+    }
+
     async fn signer<S: BuildableWithSignerConf>(&self) -> Result<Option<S>> {
         if let Some(conf) = &self.signer {
             Ok(Some(conf.build::<S>().await?))
@@ -611,9 +651,7 @@ impl ChainConf {
         })
     }
 
-    async fn sealevel_signer(
-        &self,
-    ) -> Result<Option<h_sealevel::solana::signer::keypair::Keypair>> {
+    async fn sealevel_signer(&self) -> Result<Option<h_sealevel::Keypair>> {
         self.signer().await
     }
 
@@ -634,7 +672,7 @@ impl ChainConf {
 
         if let Some(signer) = signer {
             cfg.wallets
-                .entry(signer.eth_address())
+                .entry(signer.eth_address().into())
                 .or_insert_with(|| WalletInfo {
                     name: Some(agent_name.into()),
                 });

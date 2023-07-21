@@ -72,7 +72,6 @@ fn deploy_multisig_ism_message_id(
     let program_id = keypair.pubkey();
 
     deploy_program(
-        &ctx.payer,
         &ctx.payer_path,
         keypair_path.to_str().unwrap(),
         built_so_dir
@@ -121,7 +120,6 @@ fn deploy_mailbox(
     let program_id = keypair.pubkey();
 
     deploy_program(
-        &ctx.payer,
         &ctx.payer_path,
         keypair_path.to_str().unwrap(),
         built_so_dir
@@ -169,7 +167,6 @@ fn deploy_validator_announce(
     let program_id = keypair.pubkey();
 
     deploy_program(
-        &ctx.payer,
         &ctx.payer_path,
         keypair_path.to_str().unwrap(),
         built_so_dir

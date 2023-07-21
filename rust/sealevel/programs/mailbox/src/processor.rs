@@ -280,7 +280,12 @@ fn inbox_process(
 
     // Account N: SPL Noop program.
     let spl_noop_info = next_account_info(accounts_iter)?;
-    if spl_noop_info.key != &spl_noop_id || !spl_noop_info.executable {
+    if spl_noop_info.key != &spl_noop_id {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    #[cfg(not(feature = "no-spl-noop"))]
+    if !spl_noop_info.executable {
         return Err(ProgramError::InvalidArgument);
     }
 
@@ -391,12 +396,15 @@ fn inbox_process(
         )],
     )?;
 
-    let noop_cpi_log = Instruction {
-        program_id: spl_noop::id(),
-        accounts: vec![],
-        data: format!("Hyperlane inbox: {:?}", message_id).into_bytes(),
-    };
-    invoke(&noop_cpi_log, &[])?;
+    #[cfg(not(feature = "no-spl-noop"))]
+    {
+        let noop_cpi_log = Instruction {
+            program_id: spl_noop::id(),
+            accounts: vec![],
+            data: format!("Hyperlane inbox: {:?}", message_id).into_bytes(),
+        };
+        invoke(&noop_cpi_log, &[])?;
+    }
 
     msg!("Hyperlane inbox processed message {:?}", message_id);
 
@@ -590,7 +598,12 @@ fn outbox_dispatch(
 
     // Account 3: SPL Noop program.
     let spl_noop_info = next_account_info(accounts_iter)?;
-    if spl_noop_info.key != &spl_noop::id() || !spl_noop_info.executable {
+    if spl_noop_info.key != &spl_noop::id() {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    #[cfg(not(feature = "no-spl-noop"))]
+    if !spl_noop_info.executable {
         return Err(ProgramError::InvalidArgument);
     }
 
@@ -673,12 +686,15 @@ fn outbox_dispatch(
     dispatched_message_account.store(dispatched_message_account_info, false)?;
 
     // Log the message using the SPL Noop program.
-    let noop_cpi_log = Instruction {
-        program_id: *spl_noop_info.key,
-        accounts: vec![],
-        data: dispatched_message_account_info.data.borrow().to_vec(),
-    };
-    invoke(&noop_cpi_log, &[])?;
+    #[cfg(not(feature = "no-spl-noop"))]
+    {
+        let noop_cpi_log = Instruction {
+            program_id: *spl_noop_info.key,
+            accounts: vec![],
+            data: dispatched_message_account_info.data.borrow().to_vec(),
+        };
+        invoke(&noop_cpi_log, &[])?;
+    }
 
     msg!(
         "Dispatched message to {}, ID {:?}",

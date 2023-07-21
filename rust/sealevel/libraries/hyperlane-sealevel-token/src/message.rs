@@ -1,6 +1,6 @@
 //! The Hyperlane Token message format.
 
-use hyperlane_core::{Decode, Encode, HyperlaneError, H256, U256};
+use hyperlane_core::{Decode, Encode, HyperlaneProtocolError, H256, U256};
 
 /// Message contents sent or received by a Hyperlane Token program to indicate
 /// a remote token transfer.
@@ -29,7 +29,7 @@ impl Encode for TokenMessage {
 }
 
 impl Decode for TokenMessage {
-    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneError>
+    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
     where
         R: std::io::Read,
     {

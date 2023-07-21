@@ -1,12 +1,18 @@
 import fs from 'fs';
 
-import { ChainName } from '@hyperlane-xyz/sdk';
+import {
+  AgentConnectionType,
+  ChainName,
+  ProtocolType,
+  chainMetadata,
+} from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import {
   AgentConfigHelper,
   AgentContextConfig,
   DeployEnvironment,
+  DockerConfig,
   HelmRootAgentValues,
   RelayerConfigHelper,
   RootAgentConfig,
@@ -101,10 +107,11 @@ export abstract class AgentHelmManager {
   }
 
   async helmValues(): Promise<HelmRootAgentValues> {
+    const dockerImage = this.dockerImage();
     return {
       image: {
-        repository: this.config.docker.repo,
-        tag: this.config.docker.tag,
+        repository: dockerImage.repo,
+        tag: dockerImage.tag,
       },
       hyperlane: {
         runEnv: this.environment,
@@ -113,10 +120,18 @@ export abstract class AgentHelmManager {
         chains: this.config.environmentChainNames.map((name) => ({
           name,
           disabled: !this.config.contextChainNames.includes(name),
-          connection: { type: this.config.connectionType },
+          connection: { type: this.connectionType(name) },
         })),
       },
     };
+  }
+
+  connectionType(chain: ChainName): AgentConnectionType {
+    if (chainMetadata[chain].protocol == ProtocolType.Sealevel) {
+      return AgentConnectionType.Http;
+    }
+
+    return this.config.connectionType;
   }
 
   async doesAgentReleaseExist() {
@@ -131,6 +146,10 @@ export abstract class AgentHelmManager {
     } catch (error) {
       return false;
     }
+  }
+
+  dockerImage(): DockerConfig {
+    return this.config.docker;
   }
 }
 
@@ -155,6 +174,10 @@ abstract class MultichainAgentHelmManager extends AgentHelmManager {
     // in the name of the helm release if the context is the default "hyperlane"
     if (this.context != Contexts.Hyperlane) parts.push(this.context);
     return parts.join('-');
+  }
+
+  dockerImage(): DockerConfig {
+    return this.config.dockerImageForChain(this.chainName);
   }
 }
 
@@ -221,8 +244,6 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
       throw Error('Context does not support chain');
     if (!this.config.environmentChainNames.includes(chainName))
       throw Error('Environment does not support chain');
-    if (this.context != Contexts.Hyperlane)
-      throw Error('Context does not support validator');
   }
 
   get length(): number {
@@ -235,6 +256,13 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
       enabled: true,
       configs: await this.config.buildConfig(),
     };
+
+    // The name of the helm release for agents is `hyperlane-agent`.
+    // This causes the name of the S3 bucket to exceed the 63 character limit in helm.
+    // To work around this, we shorten the name of the helm release to `agent`
+    if (this.config.context !== Contexts.Hyperlane) {
+      helmValues.nameOverride = 'agent';
+    }
 
     return helmValues;
   }

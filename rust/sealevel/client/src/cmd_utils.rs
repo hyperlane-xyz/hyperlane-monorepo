@@ -1,11 +1,9 @@
-use hyperlane_core::{H160, H256};
 use std::{
     collections::HashMap,
     fs::File,
     io::Write,
     path::{Path, PathBuf},
     process::{Command, Stdio},
-    str::FromStr,
 };
 
 use solana_client::{client_error::ClientError, rpc_client::RpcClient};
@@ -67,7 +65,6 @@ pub(crate) fn account_exists(client: &RpcClient, account: &Pubkey) -> Result<boo
 }
 
 pub(crate) fn deploy_program_idempotent(
-    payer: &Keypair,
     payer_path: &str,
     program_keypair: &Keypair,
     program_keypair_path: &str,
@@ -78,7 +75,6 @@ pub(crate) fn deploy_program_idempotent(
     let client = RpcClient::new(url.to_string());
     if !account_exists(&client, &program_keypair.pubkey())? {
         deploy_program(
-            payer,
             payer_path,
             program_keypair_path,
             program_path,
@@ -93,7 +89,6 @@ pub(crate) fn deploy_program_idempotent(
 }
 
 pub(crate) fn deploy_program(
-    payer: &Keypair,
     payer_path: &str,
     program_keypair_path: &str,
     program_path: &str,
@@ -111,7 +106,7 @@ pub(crate) fn deploy_program(
             "deploy",
             program_path,
             "--upgrade-authority",
-            payer.pubkey().to_string().as_str(),
+            payer_path,
             "--program-id",
             program_keypair_path,
         ],
@@ -162,17 +157,4 @@ pub(crate) fn create_and_write_keypair(
     println!("Wrote keypair {} to {}", keypair.pubkey(), path.display());
 
     (keypair, path)
-}
-
-pub(crate) fn hex_or_base58_to_h256(string: &str) -> H256 {
-    if string.starts_with("0x") {
-        match string.len() {
-            66 => H256::from_str(string).unwrap(),
-            42 => H160::from_str(string).unwrap().into(),
-            _ => panic!("Invalid hex string"),
-        }
-    } else {
-        let pubkey = Pubkey::from_str(string).unwrap();
-        H256::from_slice(&pubkey.to_bytes()[..])
-    }
 }

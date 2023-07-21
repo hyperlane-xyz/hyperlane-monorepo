@@ -29,8 +29,11 @@ impl SyncerEtaCalculator {
         let elapsed = now.duration_since(self.last_time).as_secs_f64();
         self.last_time = now;
 
-        let blocks_processed = (current_block - self.last_block) as f64;
-        let tip_progression = (current_tip - self.last_tip) as f64;
+        // It was observed that this function can be called with a `last_block` that is greater
+        // than the `currenct_block`, which results in an underflow. Use saturating math to
+        // prevent this.
+        let blocks_processed = current_block.saturating_sub(self.last_block) as f64;
+        let tip_progression = current_tip.saturating_sub(self.last_tip) as f64;
 
         self.last_block = current_block;
         self.last_tip = current_tip;

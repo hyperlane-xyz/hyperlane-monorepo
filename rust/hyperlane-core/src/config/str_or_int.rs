@@ -1,4 +1,4 @@
-use primitive_types::U256;
+use crate::U256;
 use serde::Deserialize;
 use std::fmt::{Debug, Formatter};
 use std::num::{ParseIntError, TryFromIntError};

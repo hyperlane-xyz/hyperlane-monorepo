@@ -41,9 +41,9 @@ impl SizedData for Inbox {
 
 impl Inbox {
     /// Verifies that the given account is the canonical Inbox PDA and returns the deserialized inner data.
-    pub fn verify_account_and_fetch_inner<'a>(
+    pub fn verify_account_and_fetch_inner(
         program_id: &Pubkey,
-        inbox_account_info: &AccountInfo<'a>,
+        inbox_account_info: &AccountInfo<'_>,
     ) -> Result<Self, ProgramError> {
         let inbox = InboxAccount::fetch(&mut &inbox_account_info.data.borrow()[..])?.into_inner();
         let expected_inbox_key = Pubkey::create_program_address(

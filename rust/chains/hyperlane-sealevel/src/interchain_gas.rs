@@ -6,7 +6,8 @@ use hyperlane_core::{
 };
 use tracing::{info, instrument};
 
-use crate::{solana::pubkey::Pubkey, ConnectionConf, SealevelProvider};
+use crate::{ConnectionConf, SealevelProvider};
+use solana_sdk::pubkey::Pubkey;
 
 /// A reference to an IGP contract on some Sealevel chain
 #[derive(Debug)]
@@ -16,6 +17,7 @@ pub struct SealevelInterchainGasPaymaster {
 }
 
 impl SealevelInterchainGasPaymaster {
+    /// Create a new Sealevel IGP.
     pub fn new(_conf: &ConnectionConf, locator: ContractLocator) -> Self {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         Self {
@@ -48,6 +50,7 @@ impl InterchainGasPaymaster for SealevelInterchainGasPaymaster {}
 pub struct SealevelInterchainGasPaymasterIndexer {}
 
 impl SealevelInterchainGasPaymasterIndexer {
+    /// Create a new Sealevel IGP indexer.
     pub fn new(_conf: &ConnectionConf, _locator: ContractLocator) -> Self {
         Self {}
     }

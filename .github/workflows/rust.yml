@@ -40,6 +40,13 @@ jobs:
           shared-key: "test"
           workspaces: |
             ./rust
+      - name: Free disk space
+        run: |
+          # Based on https://github.com/actions/runner-images/issues/2840#issuecomment-790492173
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
       - name: Run tests
         run: cargo test
 
@@ -61,6 +68,13 @@ jobs:
           shared-key: "lint"
           workspaces: |
             ./rust
+      - name: Free disk space
+        run: |
+          # Based on https://github.com/actions/runner-images/issues/2840#issuecomment-790492173
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
       - name: Check
         run: cargo check --all-features --all-targets
       - name: Rustfmt

@@ -13,8 +13,9 @@ use hyperlane_base::{
     MessageContractSync,
 };
 use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, Announcement, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox, ValidatorAnnounce, H256, U256,
+    accumulator::incremental::IncrementalMerkle, Announcement, ChainResult, HyperlaneChain,
+    HyperlaneContract, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox, TxOutcome,
+    ValidatorAnnounce, H256, U256,
 };
 use hyperlane_ethereum::{SingletonSigner, SingletonSignerHandle};
 
@@ -68,6 +69,10 @@ impl BaseAgent for Validator {
             .build_mailbox(&settings.origin_chain, &metrics)
             .await?;
 
+        let validator_announce = settings
+            .build_validator_announce(&settings.origin_chain, &metrics)
+            .await?;
+
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
 
         let message_sync = settings
@@ -79,10 +84,6 @@ impl BaseAgent for Validator {
             )
             .await?
             .into();
-
-        let validator_announce = settings
-            .build_validator_announce(&settings.origin_chain, &metrics)
-            .await?;
 
         Ok(Self {
             origin_chain: settings.origin_chain,
@@ -204,6 +205,27 @@ impl Validator {
         tasks
     }
 
+    fn log_on_announce_failure(result: ChainResult<TxOutcome>) {
+        match result {
+            Ok(outcome) => {
+                if !outcome.executed {
+                    error!(
+                        hash=?outcome.txid,
+                        gas_used=?outcome.gas_used,
+                        gas_price=?outcome.gas_price,
+                        "Transaction attempting to announce validator reverted. Make sure you have enough funds in your account to pay for transaction fees."
+                    );
+                }
+            }
+            Err(err) => {
+                error!(
+                    ?err,
+                    "Failed to announce validator. Make sure you have enough ETH in your account to pay for gas."
+                );
+            }
+        }
+    }
+
     async fn announce(&self) -> Result<()> {
         // Sign and post the validator announcement
         let announcement = Announcement {
@@ -241,7 +263,8 @@ impl Validator {
                 let balance_delta = self
                     .validator_announce
                     .announce_tokens_needed(signed_announcement.clone())
-                    .await?;
+                    .await
+                    .unwrap_or_default();
                 if balance_delta > U256::zero() {
                     warn!(
                         tokens_needed=%balance_delta,
@@ -250,16 +273,11 @@ impl Validator {
                     );
                     sleep(self.interval).await;
                 } else {
-                    let outcome = self
+                    let result = self
                         .validator_announce
                         .announce(signed_announcement.clone(), None)
-                        .await?;
-                    if !outcome.executed {
-                        error!(
-                            hash=?outcome.txid,
-                            "Transaction attempting to announce validator reverted"
-                        );
-                    }
+                        .await;
+                    Self::log_on_announce_failure(result);
                 }
             }
         }

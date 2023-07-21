@@ -3,10 +3,6 @@ use std::error::Error as StdError;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::Deref;
 
-use ethers_contract::ContractError;
-use ethers_core::types::SignatureError;
-use ethers_providers::{Middleware, ProviderError};
-
 use crate::HyperlaneProviderError;
 use crate::H256;
 
@@ -65,9 +61,6 @@ pub enum ChainCommunicationError {
     /// An error with a contract call
     #[error(transparent)]
     ContractError(HyperlaneCustomErrorWrapper),
-    /// Provider Error
-    #[error(transparent)]
-    ProviderError(#[from] ProviderError),
     /// A transaction was dropped from the mempool
     #[error("Transaction dropped from mempool {0:?}")]
     TransactionDropped(H256),
@@ -143,18 +136,25 @@ impl ChainCommunicationError {
     }
 }
 
-impl<M> From<ContractError<M>> for ChainCommunicationError
-where
-    M: Middleware + 'static,
-{
-    fn from(e: ContractError<M>) -> Self {
-        Self::ContractError(HyperlaneCustomErrorWrapper(Box::new(e)))
-    }
-}
-
 impl From<HyperlaneProviderError> for ChainCommunicationError {
     fn from(e: HyperlaneProviderError) -> Self {
         Self::from_other(e)
+    }
+}
+
+#[cfg(feature = "ethers")]
+impl<T: ethers_providers::Middleware + 'static> From<ethers_contract::ContractError<T>>
+    for ChainCommunicationError
+{
+    fn from(err: ethers_contract::ContractError<T>) -> Self {
+        Self::ContractError(HyperlaneCustomErrorWrapper(Box::new(err)))
+    }
+}
+
+#[cfg(feature = "ethers")]
+impl From<ethers::providers::ProviderError> for ChainCommunicationError {
+    fn from(err: ethers::providers::ProviderError) -> Self {
+        Self::ContractError(HyperlaneCustomErrorWrapper(Box::new(err)))
     }
 }
 
@@ -162,8 +162,9 @@ impl From<HyperlaneProviderError> for ChainCommunicationError {
 #[derive(Debug, thiserror::Error)]
 pub enum HyperlaneProtocolError {
     /// Signature Error pasthrough
+    #[cfg(feature = "ethers")]
     #[error(transparent)]
-    SignatureError(#[from] SignatureError),
+    SignatureError(#[from] ethers_core::types::SignatureError),
     /// IO error from Read/Write usage
     #[error(transparent)]
     IoError(#[from] std::io::Error),

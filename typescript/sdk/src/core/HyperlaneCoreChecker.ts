@@ -1,6 +1,6 @@
 import { utils as ethersUtils } from 'ethers';
 
-import { utils } from '@hyperlane-xyz/utils';
+import { types, utils } from '@hyperlane-xyz/utils';
 
 import { BytecodeHash } from '../consts/bytecode';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
@@ -8,6 +8,7 @@ import { proxyImplementation } from '../deploy/proxy';
 import {
   HyperlaneIsmFactory,
   collectValidators,
+  moduleMatchesConfig,
 } from '../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
@@ -46,13 +47,69 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     await this.checkMailbox(chain);
     await this.checkBytecodes(chain);
     await this.checkValidatorAnnounce(chain);
+    await this.checkTimelockController(chain);
+  }
+
+  async checkTimelockController(chain: ChainName): Promise<void> {
+    const config = this.configMap[chain];
+    if (config.upgradeTimelockDelay) {
+      const timelockController =
+        this.app.getContracts(chain).timelockController;
+      if (!timelockController) {
+        // do not check if not deployed
+        return;
+      }
+
+      const minDelay = (await timelockController.getMinDelay()).toNumber();
+
+      if (minDelay !== config.upgradeTimelockDelay) {
+        this.addViolation({
+          type: CoreViolationType.TimelockController,
+          chain,
+          actual: minDelay,
+          expected: config.upgradeTimelockDelay,
+          contract: timelockController,
+        });
+      }
+
+      const roles = {
+        executor: await timelockController.EXECUTOR_ROLE(),
+        proposer: await timelockController.PROPOSER_ROLE(),
+        canceller: await timelockController.CANCELLER_ROLE(),
+        // see https://docs.openzeppelin.com/contracts/4.x/api/governance#TimelockController-constructor-uint256-address---address---address-
+        // admin: await timelockController.TIMELOCK_ADMIN_ROLE(),
+      };
+
+      for (const [label, role] of Object.entries(roles)) {
+        const ownerHasRole = await timelockController.hasRole(
+          role,
+          config.owner,
+        );
+        if (!ownerHasRole) {
+          this.addViolation({
+            type: `${CoreViolationType.TimelockController} owner ${config.owner} missing role ${label}`,
+            chain,
+            actual: false,
+            expected: true,
+            contract: timelockController,
+          });
+        }
+      }
+    }
   }
 
   async checkDomainOwnership(chain: ChainName): Promise<void> {
     const config = this.configMap[chain];
-    if (config.owner) {
-      return this.checkOwnership(chain, config.owner);
+
+    let ownableOverrides: Record<string, types.Address> = {};
+    if (config.upgradeTimelockDelay) {
+      const timelockController =
+        this.app.getAddresses(chain).timelockController;
+      ownableOverrides = {
+        proxyAdmin: timelockController,
+      };
     }
+    return this.checkOwnership(chain, config.owner, ownableOverrides);
   }
 
   async checkMailbox(chain: ChainName): Promise<void> {
@@ -62,18 +119,15 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     utils.assert(localDomain === this.multiProvider.getDomainId(chain));
 
     const actualIsm = await mailbox.defaultIsm();
+
     const config = this.configMap[chain];
-    /*
-    TODO: Add this back in once the new ISM factories are adopted
-    const matches = await moduleMatches(
+    const matches = await moduleMatchesConfig(
       chain,
       actualIsm,
       config.defaultIsm,
       this.ismFactory.multiProvider,
       this.ismFactory.getContracts(chain),
     );
-    */
-    const matches = true;
     if (!matches) {
       const violation: MailboxViolation = {
         type: CoreViolationType.Mailbox,

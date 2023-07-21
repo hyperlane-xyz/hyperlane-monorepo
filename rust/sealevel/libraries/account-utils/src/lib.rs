@@ -88,9 +88,9 @@ where
     // Optimisically write then realloc on failure.
     // If we serialize and calculate len before realloc we will waste heap space as there is no
     // free(). Tradeoff between heap usage and compute budget.
-    pub fn store<'a>(
+    pub fn store(
         &self,
-        account: &AccountInfo<'a>,
+        account: &AccountInfo<'_>,
         allow_realloc: bool,
     ) -> Result<(), ProgramError> {
         if !account.is_writable || account.executable {
@@ -98,22 +98,28 @@ where
         }
         let realloc_increment = 1024;
         loop {
-            let mut guard = account.try_borrow_mut_data()?;
-            let data = &mut *guard;
-            let data_len = data.len();
+            // Create new scope to ensure `guard` is dropped before
+            // potential reallocation.
+            let data_len = {
+                let mut guard = account.try_borrow_mut_data()?;
+                let data = &mut *guard;
+                let data_len = data.len();
 
-            match self.store_in_slice(data) {
-                Ok(_) => break,
-                Err(err) => match err.kind() {
-                    std::io::ErrorKind::WriteZero => {
-                        if !allow_realloc {
-                            return Err(ProgramError::BorshIoError(err.to_string()));
+                match self.store_in_slice(data) {
+                    Ok(_) => break,
+                    Err(err) => match err.kind() {
+                        std::io::ErrorKind::WriteZero => {
+                            if !allow_realloc {
+                                return Err(ProgramError::BorshIoError(err.to_string()));
+                            }
                         }
-                    }
-                    _ => return Err(ProgramError::BorshIoError(err.to_string())),
-                },
+                        _ => return Err(ProgramError::BorshIoError(err.to_string())),
+                    },
+                };
+
+                data_len
             };
-            drop(guard);
+
             if cfg!(target_os = "solana") {
                 account.realloc(data_len + realloc_increment, false)?;
             } else {
@@ -195,7 +201,7 @@ pub fn create_pda_account<'a>(
 }
 
 /// Returns Ok() if the account is rent exempt, Err() otherwise.
-pub fn verify_rent_exempt<'a>(account: &AccountInfo<'a>, rent: &Rent) -> Result<(), ProgramError> {
+pub fn verify_rent_exempt(account: &AccountInfo<'_>, rent: &Rent) -> Result<(), ProgramError> {
     if !rent.is_exempt(account.lamports(), account.data_len()) {
         return Err(ProgramError::AccountNotRentExempt);
     }
