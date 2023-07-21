@@ -41,23 +41,4 @@ export class MultiProtocolApp<
   metadata(chain: ChainName): ChainMetadata<ContractAddresses> {
     return this.multiProvider.getChainMetadata(chain);
   }
-
-  // routeByProtocolType<T>(
-  //   chain: ChainName,
-  //   protocolToFn: Partial<Record<ProtocolType, (chain: ChainName) => T>>,
-  // ): T {
-  //   const protocolType = this.multiProvider.getChainMetadata(chain).protocol;
-  //   if (!protocolToFn[protocolType])
-  //     throw new Error(`No function for protocol ${protocolType} provided`);
-  //   return protocolToFn[protocolType]!(chain);
-  // }
-
-  // getContracts(chain: ChainName, providerType:ProviderType, factories?: { [key in keyof ContractAddresses]: ()=>any}): { [key in keyof ContractAddresses]: TypedContract} {
-  // const addresses = this.getAddresses(chain);
-  // if (providerType === ProviderType.EthersV5) {
-  //   const connectedContractsMap = objMap(addresses, (chain, contracts) =>
-  //     connectContracts(contracts, multiProvider.getSignerOrProvider(chain)),
-  //   );
-  // }
-  // }
 }

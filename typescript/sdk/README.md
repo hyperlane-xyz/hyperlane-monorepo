@@ -10,7 +10,7 @@ For details on how to use the various abstractions and utilities, [see the docum
 
 ### Peer Dependencies
 
-_Experimental_: If you intend to use the SDK with a library other than Ethers.JS v5, you will need to install that lib. Supported options are `ethers@6`, `viem`, and `@solana/web3.js`
+_Experimental_: If you intend to use the SDK with a library other than Ethers.JS v5, you will need to install that lib. Supported options are `viem`, and `@solana/web3.js`
 
 ## Contents
 
