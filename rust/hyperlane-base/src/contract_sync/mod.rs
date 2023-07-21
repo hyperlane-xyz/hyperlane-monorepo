@@ -65,7 +65,7 @@ where
                 CursorAction::Query(range) => {
                     debug!(?range, "Looking for for events in index range");
 
-                    let logs = self.indexer.fetch_logs(range).await?;
+                    let logs = self.indexer.fetch_logs(range.clone()).await?;
 
                     info!(
                         ?range,
