@@ -173,7 +173,9 @@ impl ProgramArgs {
         self
     }
 
-    /// Filter logs being printed to stdout/stderr
+    /// Filter logs being printed to stdout/stderr. If the LogFilter returns true,
+    /// then it will keep that log line, if it returns false it will discard it.
+    /// This is ignored when logging to files.
     pub fn filter_logs(mut self, filter: LogFilter) -> Self {
         self.log_filter = Some(filter);
         self

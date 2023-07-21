@@ -507,6 +507,7 @@ fn kill_scraper_postgres(build_log: impl AsRef<Path>, log_all: bool) {
     .join();
 }
 
+/// Return true if a given log line should be kept.
 fn filter_anvil_logs(_log: &str) -> bool {
     // for now discard all anvil logs
     false
