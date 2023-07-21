@@ -5,13 +5,13 @@ use std::{collections::HashMap, num::NonZeroU64, str::FromStr as _};
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
 use jsonrpc_core::futures_util::TryFutureExt;
-use tracing::{debug, instrument, warn};
+use tracing::{debug, info, instrument, warn};
 
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     ContractLocator, Decode as _, Encode as _, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, IndexRange, Indexer, LogMeta, Mailbox,
-    MessageIndexer, TxCostEstimate, TxOutcome, H256, U256,
+    MessageIndexer, SequenceRange, TxCostEstimate, TxOutcome, H256, U256,
 };
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
@@ -703,23 +703,19 @@ impl MessageIndexer for SealevelMailboxIndexer {
 #[async_trait]
 impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
     async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
-        let IndexRange::Sequences(from, to) = range else {
+        let SequenceRange(range) = range else {
             return Err(ChainCommunicationError::from_other_str(
                 "SealevelMailboxIndexer only supports sequence-based indexing",
             ))
         };
 
-        tracing::info!(
-            "Fetching SealevelMailboxIndexer HyperlaneMessage logs from {} to {}",
-            from,
-            to
+        info!(
+            ?range,
+            "Fetching SealevelMailboxIndexer HyperlaneMessage logs"
         );
 
-        let expected_count: usize = (to - from)
-            .try_into()
-            .map_err(ChainCommunicationError::from_other)?;
-        let mut messages = Vec::with_capacity(expected_count);
-        for nonce in from..to {
+        let mut messages = Vec::with_capacity((range.end() - range.start()) as usize);
+        for nonce in range {
             messages.push(self.get_message_with_nonce(nonce).await?);
         }
         Ok(messages)

@@ -5,14 +5,6 @@ use auto_impl::auto_impl;
 
 use crate::{ChainResult, IndexRange, LogMeta};
 
-/// The action that should be taken by the contract sync loop
-pub enum CursorAction {
-    /// Direct the contract_sync task to query a block range
-    Query(IndexRange),
-    /// Direct the contract_sync task to sleep for a duration
-    Sleep(Duration),
-}
-
 /// A cursor governs event indexing for a contract.
 #[async_trait]
 #[auto_impl(Box)]
@@ -26,4 +18,12 @@ pub trait ContractSyncCursor<T>: Send + Sync + 'static {
     /// Ingests the logs that were fetched from the chain, and adjusts the cursor
     /// accordingly.
     async fn update(&mut self, logs: Vec<(T, LogMeta)>) -> eyre::Result<()>;
+}
+
+/// The action that should be taken by the contract sync loop
+pub enum CursorAction {
+    /// Direct the contract_sync task to query a block range (inclusive)
+    Query(IndexRange),
+    /// Direct the contract_sync task to sleep for a duration
+    Sleep(Duration),
 }

@@ -5,6 +5,7 @@
 //! a chain-specific library and provider (e.g. ethers::provider).
 
 use std::fmt::Debug;
+use std::ops::RangeInclusive;
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
@@ -24,13 +25,15 @@ pub enum IndexMode {
 }
 
 /// An indexing range.
-#[derive(Copy, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub enum IndexRange {
     /// For block-based indexers
-    Blocks(u32, u32),
+    BlockRange(RangeInclusive<u32>),
     /// For indexers that look for specific sequences, e.g. message nonces.
-    Sequences(u32, u32),
+    SequenceRange(RangeInclusive<u32>),
 }
+
+pub use IndexRange::*;
 
 /// Interface for an indexer.
 #[async_trait]
