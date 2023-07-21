@@ -7,9 +7,8 @@ import {
   MultisigIsmConfig,
   RoutingIsmConfig,
   defaultMultisigIsmConfigs,
-  objFilter,
-  objMap,
 } from '@hyperlane-xyz/sdk';
+import { objFilter, objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../contexts';
 import { rcMultisigIsmConfigs } from '../../multisigIsm';

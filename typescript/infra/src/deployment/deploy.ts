@@ -6,10 +6,9 @@ import {
   HyperlaneDeploymentArtifacts,
   MultiProvider,
   buildAgentConfigDeprecated,
-  objMap,
-  promiseObjAll,
   serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
+import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { getAgentConfigDirectory } from '../../scripts/utils';
 import { DeployEnvironment } from '../config';

@@ -8,8 +8,7 @@ import {
   TestRecipient,
   TestRecipient__factory,
 } from '@hyperlane-xyz/core';
-import { types } from '@hyperlane-xyz/utils';
-import { addressToBytes32 } from '@hyperlane-xyz/utils/dist/src/utils';
+import { Address, addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts, HyperlaneContractsMap } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
@@ -117,7 +116,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
 
   async deployOptimismISM(
     chain: ChainName,
-    nativeBridge: types.Address,
+    nativeBridge: Address,
   ): Promise<OptimismISM> {
     const signer = this.multiProvider.getSigner(chain);
 
@@ -133,7 +132,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
 
   async deployTestRecipient(
     chain: ChainName,
-    ism: types.Address,
+    ism: Address,
   ): Promise<TestRecipient> {
     const signer = this.multiProvider.getSigner(chain);
 
@@ -148,8 +147,8 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
   async deployOptimismMessageHook(
     chain: ChainName,
     destinationDomain: number,
-    nativeBridge: types.Address,
-    optimismISM: types.Address,
+    nativeBridge: Address,
+    optimismISM: Address,
   ): Promise<OptimismMessageHook> {
     const signer = this.multiProvider.getSigner(chain);
 

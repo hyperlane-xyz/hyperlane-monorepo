@@ -1,12 +1,11 @@
 import { ethers } from 'ethers';
 
-import type { types } from '@hyperlane-xyz/utils';
-import { eqAddress } from '@hyperlane-xyz/utils/dist/src/utils';
+import { Address, areAddressesEqual } from '@hyperlane-xyz/utils';
 
 export async function proxyImplementation(
   provider: ethers.providers.Provider,
-  proxy: types.Address,
-): Promise<types.Address> {
+  proxy: Address,
+): Promise<Address> {
   // Hardcoded storage slot for implementation per EIP-1967
   const storageValue = await provider.getStorageAt(
     proxy,
@@ -17,8 +16,8 @@ export async function proxyImplementation(
 
 export async function proxyAdmin(
   provider: ethers.providers.Provider,
-  proxy: types.Address,
-): Promise<types.Address> {
+  proxy: Address,
+): Promise<Address> {
   // Hardcoded storage slot for admin per EIP-1967
   const storageValue = await provider.getStorageAt(
     proxy,
@@ -29,8 +28,8 @@ export async function proxyAdmin(
 
 export async function isProxy(
   provider: ethers.providers.Provider,
-  proxy: types.Address,
+  proxy: Address,
 ): Promise<boolean> {
   const admin = await proxyAdmin(provider, proxy);
-  return !eqAddress(admin, ethers.constants.AddressZero);
+  return !areAddressesEqual(admin, ethers.constants.AddressZero);
 }

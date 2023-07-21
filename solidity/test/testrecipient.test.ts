@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
-import { utils } from '@hyperlane-xyz/utils';
+import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { TestRecipient, TestRecipient__factory } from '../types';
 
@@ -19,10 +19,10 @@ describe('TestRecipient', () => {
 
   it('handles a message', async () => {
     await expect(
-      recipient.handle(0, utils.addressToBytes32(signerAddress), testData),
+      recipient.handle(0, addressToBytes32(signerAddress), testData),
     ).to.emit(recipient, 'ReceivedMessage');
     expect(await recipient.lastSender()).to.eql(
-      utils.addressToBytes32(signerAddress),
+      addressToBytes32(signerAddress),
     );
     expect(await recipient.lastData()).to.eql(testData);
   });

@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 
 import { TestMailbox, TestMailbox__factory } from '@hyperlane-xyz/core';
-import { utils } from '@hyperlane-xyz/utils';
+import { messageId } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
 import { ChainName } from '../types';
@@ -52,7 +52,7 @@ export class TestCoreApp extends HyperlaneCore {
       }
       const destinationChain = this.multiProvider.getChainName(destination);
       const inbox = this.getContracts(destinationChain).mailbox;
-      const id = utils.messageId(dispatch.args.message);
+      const id = messageId(dispatch.args.message);
       const delivered = await inbox.delivered(id);
       if (!delivered) {
         const response = await inbox.process('0x', dispatch.args.message);

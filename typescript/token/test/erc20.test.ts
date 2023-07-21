@@ -14,9 +14,8 @@ import {
   TestCoreApp,
   TestCoreDeployer,
   deployTestIgpsAndGetRouterConfig,
-  objMap,
 } from '@hyperlane-xyz/sdk';
-import { utils } from '@hyperlane-xyz/utils';
+import { addressToBytes32, objMap } from '@hyperlane-xyz/utils';
 
 import { TokenConfig, TokenType } from '../src/config';
 import { HypERC20Factories } from '../src/contracts';
@@ -169,17 +168,20 @@ for (const variant of [
         // deposit amount
         await local.transferRemote(
           remoteDomain,
-          utils.addressToBytes32(remote.address),
+          addressToBytes32(remote.address),
           amount,
           { value: interchainGasPayment },
         );
       }
-      const message = `${utils.addressToBytes32(
-        recipient.address,
-      )}${BigNumber.from(amount).toHexString().slice(2).padStart(64, '0')}`;
+      const message = `${addressToBytes32(recipient.address)}${BigNumber.from(
+        amount,
+      )
+        .toHexString()
+        .slice(2)
+        .padStart(64, '0')}`;
       const handleGas = await localRaw.estimateGas.handle(
         remoteDomain,
-        utils.addressToBytes32(remote.address),
+        addressToBytes32(remote.address),
         message,
         { from: mailboxAddress },
       );
@@ -194,7 +196,7 @@ for (const variant of [
 
       await local.transferRemote(
         remoteDomain,
-        utils.addressToBytes32(recipient.address),
+        addressToBytes32(recipient.address),
         amount,
         {
           value: interchainGasPayment,
@@ -231,7 +233,7 @@ for (const variant of [
       await expect(
         local.transferRemote(
           remoteDomain,
-          utils.addressToBytes32(recipient.address),
+          addressToBytes32(recipient.address),
           amount,
           { value: interchainGasPayment },
         ),
@@ -257,7 +259,7 @@ for (const variant of [
           .connect(recipient)
           .transferRemote(
             remoteDomain,
-            utils.addressToBytes32(recipient.address),
+            addressToBytes32(recipient.address),
             amount,
             { value },
           ),
@@ -268,7 +270,7 @@ for (const variant of [
       expect(
         await local.transferRemote(
           remoteDomain,
-          utils.addressToBytes32(recipient.address),
+          addressToBytes32(recipient.address),
           amount,
           { value: interchainGasPayment },
         ),

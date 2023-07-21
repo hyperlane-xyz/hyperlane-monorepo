@@ -4,7 +4,7 @@ import {
   TestInterchainGasPaymaster,
   TestInterchainGasPaymaster__factory,
 } from '@hyperlane-xyz/core';
-import { types } from '@hyperlane-xyz/utils';
+import { Address, objMap } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
 import { HyperlaneContractsMap } from '../contracts/types';
@@ -21,18 +21,17 @@ import { ModuleType, MultisigIsmConfig } from '../ism/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { RouterConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
-import { objMap } from '../utils/objects';
 
 export function randomInt(max: number, min = 0): number {
   return Math.floor(Math.random() * (max - min)) + min;
 }
 
-export function randomAddress(): types.Address {
+export function randomAddress(): Address {
   return ethers.utils.hexlify(ethers.utils.randomBytes(20));
 }
 
 export function createRouterConfigMap(
-  owner: types.Address,
+  owner: Address,
   coreContracts: HyperlaneContractsMap<CoreFactories>,
   igpContracts: HyperlaneContractsMap<IgpFactories>,
 ): ChainMap<RouterConfig> {
@@ -48,7 +47,7 @@ export function createRouterConfigMap(
 
 export async function deployTestIgpsAndGetRouterConfig(
   multiProvider: MultiProvider,
-  owner: types.Address,
+  owner: Address,
   coreContracts: HyperlaneContractsMap<CoreFactories>,
 ): Promise<ChainMap<RouterConfig>> {
   const igps: ChainMap<TestInterchainGasPaymaster> = {};

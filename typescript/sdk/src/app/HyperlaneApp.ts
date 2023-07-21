@@ -1,5 +1,7 @@
 import debug from 'debug';
 
+import { objMap } from '@hyperlane-xyz/utils';
+
 import { connectContracts, serializeContracts } from '../contracts/contracts';
 import {
   HyperlaneAddresses,
@@ -10,7 +12,6 @@ import {
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName } from '../types';
 import { MultiGeneric } from '../utils/MultiGeneric';
-import { objMap } from '../utils/objects';
 
 export class HyperlaneApp<
   Factories extends HyperlaneFactories,

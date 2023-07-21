@@ -15,9 +15,8 @@ import {
   ProtocolType,
   RouterConfig,
   collectValidators,
-  objMap,
-  promiseObjAll,
 } from '@hyperlane-xyz/sdk';
+import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
 import { environments } from '../config/environments';

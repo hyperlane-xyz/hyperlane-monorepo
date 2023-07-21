@@ -4,8 +4,8 @@ import {
   ModuleType,
   RoutingIsmConfig,
   defaultMultisigIsmConfigs,
-  objMap,
 } from '@hyperlane-xyz/sdk';
+import { objMap } from '@hyperlane-xyz/utils';
 
 import { chainNames } from './chains';
 import { owners } from './owners';

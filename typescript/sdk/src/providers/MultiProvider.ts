@@ -8,14 +8,13 @@ import {
   providers,
 } from 'ethers';
 
-import { types } from '@hyperlane-xyz/utils';
+import { Address, pick } from '@hyperlane-xyz/utils';
 
 import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata';
 import { CoreChainName, TestChains } from '../consts/chains';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager';
 import { ChainMetadata } from '../metadata/chainMetadataTypes';
 import { ChainMap, ChainName } from '../types';
-import { pick } from '../utils/objects';
 
 import {
   DEFAULT_RETRY_OPTIONS,
@@ -179,9 +178,7 @@ export class MultiProvider<
    * Get an Ethers signer for a given chain name, chain id, or domain id
    * @throws if chain's metadata or signer has not been set
    */
-  async getSignerAddress(
-    chainNameOrId: ChainName | number,
-  ): Promise<types.Address> {
+  async getSignerAddress(chainNameOrId: ChainName | number): Promise<Address> {
     const signer = this.getSigner(chainNameOrId);
     const address = await signer.getAddress();
     return address;

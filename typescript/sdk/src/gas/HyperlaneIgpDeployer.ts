@@ -6,14 +6,13 @@ import {
   ProxyAdmin,
   StorageGasOracle,
 } from '@hyperlane-xyz/core';
-import { types, utils } from '@hyperlane-xyz/utils';
+import { Address, areAddressesEqual, pick } from '@hyperlane-xyz/utils';
 
 import { filterOwnableContracts } from '../contracts/contracts';
 import { HyperlaneContracts } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName } from '../types';
-import { pick } from '../utils/objects';
 
 import { IgpFactories, igpFactories } from './contracts';
 import { IgpConfig, OverheadIgpConfig } from './types';
@@ -51,7 +50,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     for (const remote of remotes) {
       const remoteId = this.multiProvider.getDomainId(remote);
       const currentGasOracle = await igp.gasOracles(remoteId);
-      if (!utils.eqAddress(currentGasOracle, storageGasOracle.address)) {
+      if (!areAddressesEqual(currentGasOracle, storageGasOracle.address)) {
         gasOracleConfigsToSet.push({
           remoteDomain: remoteId,
           gasOracle: storageGasOracle.address,
@@ -72,7 +71,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
   async deployOverheadIgp(
     chain: ChainName,
-    interchainGasPaymasterAddress: types.Address,
+    interchainGasPaymasterAddress: Address,
     config: OverheadIgpConfig,
   ): Promise<OverheadIgp> {
     const overheadInterchainGasPaymaster = await this.deployContract(

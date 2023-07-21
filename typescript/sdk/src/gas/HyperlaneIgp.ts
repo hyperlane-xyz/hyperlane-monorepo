@@ -1,7 +1,7 @@
 import { BigNumber } from 'ethers';
 
 import { InterchainGasPaymaster__factory } from '@hyperlane-xyz/core';
-import { types } from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../app/HyperlaneApp';
 import {
@@ -110,7 +110,7 @@ export class HyperlaneIgp extends HyperlaneApp<IgpFactories> {
     origin: ChainName,
     destination: ChainName,
     gasAmount: BigNumber,
-    interchainGasPaymasterAddress: types.Address,
+    interchainGasPaymasterAddress: Address,
   ): Promise<BigNumber> {
     const originProvider = this.multiProvider.getProvider(origin);
     const igp = InterchainGasPaymaster__factory.connect(

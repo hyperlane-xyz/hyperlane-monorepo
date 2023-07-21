@@ -1,17 +1,17 @@
 import { Contract } from 'ethers';
 
 import { Ownable } from '@hyperlane-xyz/core';
-import type { types } from '@hyperlane-xyz/utils';
-
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, Connection } from '../types';
 import {
+  Address,
   ValueOf,
   objFilter,
   objMap,
   pick,
   promiseObjAll,
-} from '../utils/objects';
+} from '@hyperlane-xyz/utils';
+
+import { MultiProvider } from '../providers/MultiProvider';
+import { ChainMap, Connection } from '../types';
 
 import {
   HyperlaneAddresses,
@@ -67,7 +67,7 @@ export function attachContracts<F extends HyperlaneFactories>(
   addresses: HyperlaneAddresses<F>,
   factories: F,
 ): HyperlaneContracts<F> {
-  return objMap(addresses, (key, address: types.Address) => {
+  return objMap(addresses, (key, address: Address) => {
     const factory = getFactory(key, factories);
     return factory.attach(address) as Awaited<ReturnType<ValueOf<F>['deploy']>>;
   });
