@@ -60,12 +60,12 @@ export const dispatchMessageAndReturnProof = async (
     messageStr,
     utf8,
   );
-  const messageId = messageId(message);
+  const mid = messageId(message);
   const proof = await mailbox.proof();
   return {
     proof: {
       branch: proof,
-      leaf: messageId,
+      leaf: mid,
       index: nonce,
     },
     message,
