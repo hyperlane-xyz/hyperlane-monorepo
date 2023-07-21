@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import {
   GasRouter,
   GasRouter__factory,
@@ -52,7 +51,7 @@ export class EvmRouterAdapter implements IRouterAdapter {
     return domains.map((d, i) => ({ domain: d, address: routers[i] }));
   }
 
-  protected getConnectedContract(chain: ChainName): Router {
+  getConnectedContract(chain: ChainName): Router {
     const address = this.multiProvider.getChainMetadata(chain).router;
     // TODO support alternative provider types here
     const provider = this.multiProvider.getEthersV5Provider(chain);
@@ -75,7 +74,7 @@ export class EvmGasRouterAdapter
     return amount.toString();
   }
 
-  protected override getConnectedContract(chain: ChainName): GasRouter {
+  override getConnectedContract(chain: ChainName): GasRouter {
     const address = this.multiProvider.getChainMetadata(chain).router;
     // TODO support alternative provider types here
     const provider = this.multiProvider.getEthersV5Provider(chain);
