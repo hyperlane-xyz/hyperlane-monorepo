@@ -1,7 +1,11 @@
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
-import { addressToBytes32, formatMessage } from '@hyperlane-xyz/utils';
+import {
+  addressToBytes32,
+  formatMessage,
+  messageId,
+} from '@hyperlane-xyz/utils';
 
 import testCases from '../../vectors/message.json';
 import { TestMessage, TestMessage__factory } from '../types';
@@ -74,7 +78,7 @@ describe('Message', async () => {
       );
       expect(await messageLib.recipient(hyperlaneMessage)).to.equal(recipient);
       expect(await messageLib.body(hyperlaneMessage)).to.equal(hexBody);
-      expect(utils.messageId(hyperlaneMessage)).to.equal(id);
+      expect(messageId(hyperlaneMessage)).to.equal(id);
     }
   });
 });
