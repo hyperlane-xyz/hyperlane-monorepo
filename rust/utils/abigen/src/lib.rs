@@ -1,11 +1,19 @@
-use fuels_code_gen::ProgramType;
 use std::collections::BTreeSet;
 use std::ffi::OsStr;
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::Path;
 
+// use fuels_code_gen::ProgramType;
 use inflector::Inflector;
+
+// to avoid "use of undeclared crate or module `fuels_code_gen`" error
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProgramType {
+    Script,
+    Contract,
+    Predicate,
+}
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum BuildType {
