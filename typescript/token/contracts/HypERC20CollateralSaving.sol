@@ -11,7 +11,8 @@ import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.so
  */
 contract HypERC20CollateralSaving is HypERC20Collateral {
     ERC4626 public immutable erc4626Token;
-    uint256 private totalCollateralAssets;
+    mapping(address => uint256) private shareAmount;
+    mapping(address => uint256) private assetsAmount;
 
     /**
      * @notice Constructor
@@ -36,8 +37,9 @@ contract HypERC20CollateralSaving is HypERC20Collateral {
     {
         super._transferFromSender(_amount);
         // deposit to vault contract
-        erc4626Token.deposit(_amount, address(this));
-        totalCollateralAssets = totalCollateralAssets + _amount;
+        uint256 _shares = erc4626Token.deposit(_amount, address(this));
+        shareAmount[msg.sender] = shareAmount[msg.sender] + _shares;
+        assetsAmount[msg.sender] = assetsAmount[msg.sender] + _amount;
         return bytes(""); // no metadata
     }
 
@@ -50,30 +52,54 @@ contract HypERC20CollateralSaving is HypERC20Collateral {
         uint256 _amount,
         bytes calldata _metadata // no metadata
     ) internal override {
-        uint256 redeemAmount = _convertToRedeemToken(_amount);
-        // redeem token from vault
-        uint256 amount = erc4626Token.redeem(
+        uint256 shares = erc4626Token.withdraw(
             redeemAmount,
             address(this),
             address(this)
         );
+        if (shareAmount[_recipient] != 0) {
+            if (shareAmount[_recipient] > shares) {
+                shareAmount[_recipient] = shareAmount[_recipient] - shares;
+            } else {
+                shareAmount[_recipient] = 0;
+            }
+        }
+        if (assetsAmount[_recipient] != 0) {
+            if (assetsAmount[_recipient] > shares) {
+                assetsAmount[_recipient] = assetsAmount[_recipient] - shares;
+            } else {
+                assetsAmount[_recipient] = 0;
+            }
+        }
         // send it back to user
         super._transferTo(_recipient, amount, _metadata);
-        totalCollateralAssets = totalCollateralAssets - _amount;
     }
 
     function previewRedeem(uint256 _amount) external view returns (uint256) {
         return erc4626Token.previewRedeem(_convertToRedeemToken(_amount));
     }
 
-    function _convertToRedeemToken(uint256 _amount)
-        internal
-        view
-        virtual
-        returns (uint256)
-    {
-        return
-            (_amount * erc4626Token.balanceOf(address(this))) /
-            totalCollateralAssets;
+    function getAssetAmount() public view returns (uint256) {
+        return assetsAmount[msg.sender];
+    }
+
+    function getShareAmount() public view returns (uint256) {
+        return shareAmount[msg.sender];
+    }
+
+    function takeProfit() public {
+        require(
+            assetsAmount[msg.sender] == 0,
+            "You have to withdraw all assets before take profit"
+        );
+        require(
+            shareAmount[msg.sender] != 0,
+            "Share Token must be different from 0"
+        );
+        uint256 shares = erc4626Token.redeem(
+            shareAmount[msg.sender],
+            msg.sender,
+            address(this)
+        );
     }
 }
