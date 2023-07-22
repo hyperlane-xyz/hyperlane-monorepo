@@ -10,8 +10,11 @@ pub enum Instruction {
     InitOverheadIgp(InitOverheadIgp),
     PayForGas(PayForGas),
     QuoteGasPayment(QuoteGasPayment),
-    TransferOwnership(Option<Pubkey>),
+    TransferIgpOwnership(Option<Pubkey>),
+    TransferOverheadIgpOwnership(Option<Pubkey>),
     SetIgpBeneficiary(Pubkey),
+    SetDestinationGasOverheads(Vec<GasOverheadConfig>),
+    Claim,
 }
 
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
@@ -46,4 +49,10 @@ pub struct QuoteGasPayment {
     pub destination_domain: u32,
     // TODO maybe U256?
     pub gas_amount: u64,
+}
+
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+pub struct GasOverheadConfig {
+    pub destination_domain: u32,
+    pub gas_overhead: u64,
 }

@@ -2,9 +2,10 @@
 
 use std::collections::HashMap;
 
+use access_control::AccessControl;
 use account_utils::{AccountData, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
-use solana_program::{clock::Slot, pubkey::Pubkey};
+use solana_program::{clock::Slot, pubkey::Pubkey, program_error::ProgramError};
 
 use hyperlane_core::{H256, U256};
 
@@ -63,6 +64,17 @@ impl OverheadIgp {
     ) -> Result<u64, Error> {
         let total_gas_amount = self.gas_overhead(destination_domain) + gas_amount;
         inner_igp.quote_gas_payment(destination_domain, gas_amount)
+    }
+}
+
+impl AccessControl for OverheadIgp {
+    fn owner(&self) -> Option<&Pubkey> {
+        self.owner.as_ref()
+    }
+
+    fn set_owner(&mut self, new_owner: Option<Pubkey>) -> Result<(), ProgramError> {
+        self.owner = new_owner;
+        Ok(())
     }
 }
 
@@ -135,6 +147,17 @@ impl Igp {
 
         // Panics if an overflow occurs.
         Ok(origin_cost.as_u64())
+    }
+}
+
+impl AccessControl for Igp {
+    fn owner(&self) -> Option<&Pubkey> {
+        self.owner.as_ref()
+    }
+
+    fn set_owner(&mut self, new_owner: Option<Pubkey>) -> Result<(), ProgramError> {
+        self.owner = new_owner;
+        Ok(())
     }
 }
 
