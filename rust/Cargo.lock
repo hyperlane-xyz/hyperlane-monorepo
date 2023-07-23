@@ -4538,6 +4538,7 @@ dependencies = [
  "nix",
  "tempfile",
  "ureq",
+ "which",
 ]
 
 [[package]]

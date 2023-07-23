@@ -14,26 +14,32 @@
 //!   true if CI mode,
 //! else false.
 
+use std::path::Path;
 use std::{
-    collections::HashMap,
-    env,
-    fs::{self, File},
-    io::{BufRead, BufReader, BufWriter, Read, Write},
-    path::{Path, PathBuf},
-    process::{Child, Command, ExitCode, Stdio},
+    fs::{self},
+    path::PathBuf,
+    process::{Child, ExitCode},
     sync::atomic::{AtomicBool, Ordering},
-    thread::{sleep, spawn, JoinHandle},
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    thread::sleep,
+    time::{Duration, Instant},
 };
 
-use eyre::{eyre, Result};
+use eyre::Result;
 use maplit::hashmap;
-use nix::{
-    libc::pid_t,
-    sys::signal::{self, Signal},
-    unistd::Pid,
-};
 use tempfile::tempdir;
+
+use logging::log;
+
+use crate::config::ProgramArgs;
+use crate::utils::{
+    build_cmd, concat_path, make_static, run_agent, stop_child, AgentHandles, TaskHandle,
+};
+
+mod config;
+mod logging;
+mod metrics;
+mod utils;
+pub use metrics::fetch_metric;
 
 /// These private keys are from hardhat/anvil's testing accounts.
 const RELAYER_KEYS: &[&str] = &[
@@ -49,7 +55,13 @@ const VALIDATOR_KEYS: &[&str] = &[
     "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e",
 ];
 
-static RUNNING: AtomicBool = AtomicBool::new(true);
+const AGENT_BIN_PATH: &str = "target/debug";
+const INFRA_PATH: &str = "../typescript/infra";
+const TS_SDK_PATH: &str = "../typescript/sdk";
+const MONOREPO_ROOT_PATH: &str = "../";
+
+static RUN_LOG_WATCHERS: AtomicBool = AtomicBool::new(true);
+static SHUTDOWN: AtomicBool = AtomicBool::new(false);
 
 /// Struct to hold stuff we want to cleanup whenever we exit. Just using for
 /// cleanup purposes at this time.
@@ -57,100 +69,61 @@ static RUNNING: AtomicBool = AtomicBool::new(true);
 struct State {
     build_log: PathBuf,
     log_all: bool,
-    kathy: Option<Child>,
-    node: Option<Child>,
-    relayer: Option<Child>,
-    validators: Vec<Child>,
-    scraper: Option<Child>,
-
-    watchers: Vec<JoinHandle<()>>,
+    scraper_postgres_initialized: bool,
+    agents: Vec<Child>,
+    watchers: Vec<TaskHandle<()>>,
 }
-
-fn kill_scraper_postgres(build_log: &PathBuf, log_all: bool) {
-    build_cmd(
-        &["docker", "stop", "scraper-testnet-postgres"],
-        build_log,
-        log_all,
-        None,
-        None,
-        false,
-    );
-    build_cmd(
-        &["docker", "rm", "scraper-testnet-postgres"],
-        build_log,
-        log_all,
-        None,
-        None,
-        false,
-    );
+impl State {
+    fn push_agent(&mut self, handles: AgentHandles) {
+        self.agents.push(handles.0);
+        self.watchers.push(handles.1);
+        self.watchers.push(handles.2);
+    }
 }
-
 impl Drop for State {
     fn drop(&mut self) {
-        println!("Signaling children to stop...");
-        if let Some(mut c) = self.kathy.take() {
-            stop_child(&mut c);
+        SHUTDOWN.store(true, Ordering::Relaxed);
+        log!("Signaling children to stop...");
+        // stop children in reverse order
+        self.agents.reverse();
+        for mut agent in self.agents.drain(..) {
+            stop_child(&mut agent);
         }
-        if let Some(mut c) = self.relayer.take() {
-            stop_child(&mut c);
-        }
-        if let Some(mut c) = self.scraper.take() {
-            stop_child(&mut c);
+        if self.scraper_postgres_initialized {
+            log!("Stopping scraper postgres...");
             kill_scraper_postgres(&self.build_log, self.log_all);
         }
-        for mut c in self.validators.drain(..) {
-            stop_child(&mut c);
-        }
-        if let Some(mut c) = self.node.take() {
-            stop_child(&mut c);
-        }
-        println!("Joining watchers...");
-        RUNNING.store(false, Ordering::Relaxed);
+        log!("Joining watchers...");
+        RUN_LOG_WATCHERS.store(false, Ordering::Relaxed);
         for w in self.watchers.drain(..) {
-            w.join().unwrap();
+            w.join();
         }
     }
 }
 
 fn main() -> ExitCode {
+    macro_rules! shutdown_if_needed {
+        () => {
+            if SHUTDOWN.load(Ordering::Relaxed) {
+                log!("Early termination, shutting down");
+                return ExitCode::FAILURE;
+            }
+        };
+    }
+
     // on sigint we want to trigger things to stop running
     ctrlc::set_handler(|| {
-        println!("Terminating...");
-        RUNNING.store(false, Ordering::Relaxed);
+        log!("Terminating...");
+        SHUTDOWN.store(true, Ordering::Relaxed);
     })
     .unwrap();
 
-    let is_ci_env = env::var("CI").as_deref() == Ok("true");
-    let ci_mode = env::var("E2E_CI_MODE")
-        .map(|k| k.parse::<bool>().unwrap())
-        .unwrap_or_default();
+    let config = config::Config::load();
 
-    let ci_mode_timeout = env::var("E2E_CI_TIMEOUT_SEC")
-        .map(|k| k.parse::<u64>().unwrap())
-        .unwrap_or(60 * 10);
-
-    let kathy_messages = {
-        let r = env::var("E2E_KATHY_MESSAGES")
-            .ok()
-            .map(|r| r.parse::<u64>().unwrap());
-        r.unwrap_or(16)
-    };
-
-    let log_all = env::var("E2E_LOG_ALL")
-        .map(|k| k.parse::<bool>().unwrap())
-        .unwrap_or(ci_mode);
-
-    let date_str = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs()
-        .to_string();
-    let log_dir = concat_path(env::temp_dir(), format!("logs/hyperlane-agents/{date_str}"));
-    if !log_all {
-        fs::create_dir_all(&log_dir).expect("Failed to make log dir");
+    if !config.log_all {
+        fs::create_dir_all(&config.log_dir).expect("Failed to make log dir");
     }
-    let build_log = concat_path(&log_dir, "build.log");
-    let anvil_log = concat_path(&log_dir, "anvil.stdout.log");
+    let build_log = concat_path(&config.log_dir, "build.log");
 
     let checkpoints_dirs = (0..3).map(|_| tempdir().unwrap()).collect::<Vec<_>>();
     let rocks_db_dir = tempdir().unwrap();
@@ -159,74 +132,96 @@ fn main() -> ExitCode {
         .map(|i| concat_path(&rocks_db_dir, format!("validator{i}")))
         .collect::<Vec<_>>();
 
-    let common_env = hashmap! {
-        "RUST_BACKTRACE" => "full",
-        "HYP_BASE_TRACING_FMT" => "pretty",
-        "HYP_BASE_TRACING_LEVEL" => "debug",
-        "HYP_BASE_CHAINS_TEST1_INDEX_CHUNK" => "1",
-        "HYP_BASE_CHAINS_TEST2_INDEX_CHUNK" => "1",
-        "HYP_BASE_CHAINS_TEST3_INDEX_CHUNK" => "1",
-    };
+    let common_agent_env = ProgramArgs::default()
+        .env("RUST_BACKTRACE", "full")
+        .hyp_env("TRACING_FMT", "pretty")
+        .hyp_env("TRACING_LEVEL", "debug")
+        .hyp_env("CHAINS_TEST1_INDEX_CHUNK", "1")
+        .hyp_env("CHAINS_TEST2_INDEX_CHUNK", "1")
+        .hyp_env("CHAINS_TEST3_INDEX_CHUNK", "1");
 
-    let relayer_env = hashmap! {
-        "HYP_BASE_CHAINS_TEST1_CONNECTION_TYPE" => "httpFallback",
-        "HYP_BASE_CHAINS_TEST2_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
+    let relayer_env = common_agent_env
+        .clone()
+        .bin(concat_path(AGENT_BIN_PATH, "relayer"))
+        .hyp_env("CHAINS_TEST1_CONNECTION_TYPE", "httpFallback")
+        .hyp_env(
+            "CHAINS_TEST2_CONNECTION_URLS",
+            "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
+        )
         // by setting this as a quorum provider we will cause nonce errors when delivering to test2
         // because the message will be sent to the node 3 times.
-        "HYP_BASE_CHAINS_TEST2_CONNECTION_TYPE" => "httpQuorum",
-        "HYP_BASE_CHAINS_TEST3_CONNECTION_URL" => "http://127.0.0.1:8545",
-        "HYP_BASE_METRICS" => "9092",
-        "HYP_BASE_DB" => relayer_db.to_str().unwrap(),
-        "HYP_BASE_CHAINS_TEST1_SIGNER_KEY" => RELAYER_KEYS[0],
-        "HYP_BASE_CHAINS_TEST2_SIGNER_KEY" => RELAYER_KEYS[1],
-        "HYP_BASE_RELAYCHAINS" => "invalidchain,otherinvalid",
-        "HYP_RELAYER_ALLOWLOCALCHECKPOINTSYNCERS" => "true",
-    };
-
-    // test using args
-    let relayer_args = [
-        "--chains.test1.connection.urls=\"http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545\"",
+        .hyp_env("CHAINS_TEST2_CONNECTION_TYPE", "httpQuorum")
+        .hyp_env("CHAINS_TEST3_CONNECTION_URL", "http://127.0.0.1:8545")
+        .hyp_env("METRICS", "9092")
+        .hyp_env("DB", relayer_db.to_str().unwrap())
+        .hyp_env("CHAINS_TEST1_SIGNER_KEY", RELAYER_KEYS[0])
+        .hyp_env("CHAINS_TEST2_SIGNER_KEY", RELAYER_KEYS[1])
+        .hyp_env("RELAYCHAINS", "invalidchain,otherinvalid")
+        .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
+        .arg(
+            "chains.test1.connection.urls",
+            "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
+        )
         // default is used for TEST3
-        "--defaultSigner.key", RELAYER_KEYS[2],
-        "--relayChains=test1,test2,test3",
-    ];
+        .arg("defaultSigner.key", RELAYER_KEYS[2])
+        .arg("relayChains", "test1,test2,test3");
 
-    let validator_envs: Vec<_> = (0..3).map(|i| {
-        let metrics_port = make_static((9094 + i).to_string());
-        let originchainname = make_static(format!("test{}", 1 + i));
-        hashmap! {
-            "HYP_BASE_CHAINS_TEST1_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
-            "HYP_BASE_CHAINS_TEST1_CONNECTION_TYPE" => "httpQuorum",
-            "HYP_BASE_CHAINS_TEST2_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
-            "HYP_BASE_CHAINS_TEST2_CONNECTION_TYPE" => "httpFallback",
-            "HYP_BASE_CHAINS_TEST3_CONNECTION_URL" => "http://127.0.0.1:8545",
-            "HYP_BASE_METRICS" => metrics_port,
-            "HYP_BASE_DB" => validator_dbs[i].to_str().unwrap(),
-            "HYP_VALIDATOR_ORIGINCHAINNAME" => originchainname,
-            "HYP_VALIDATOR_VALIDATOR_KEY" => VALIDATOR_KEYS[i],
-            "HYP_VALIDATOR_REORGPERIOD" => "0",
-            "HYP_VALIDATOR_INTERVAL" => "5",
-            "HYP_VALIDATOR_CHECKPOINTSYNCER_TYPE" => "localStorage",
-            "HYP_VALIDATOR_CHECKPOINTSYNCER_PATH" => checkpoints_dirs[i].path().to_str().unwrap(),
-        }
-    }).collect();
+    let base_validator_env = common_agent_env
+        .clone()
+        .bin(concat_path(AGENT_BIN_PATH, "validator"))
+        .hyp_env(
+            "CHAINS_TEST1_CONNECTION_URLS",
+            "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
+        )
+        .hyp_env("CHAINS_TEST1_CONNECTION_TYPE", "httpQuorum")
+        .hyp_env(
+            "CHAINS_TEST2_CONNECTION_URLS",
+            "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
+        )
+        .hyp_env("CHAINS_TEST2_CONNECTION_TYPE", "httpFallback")
+        .hyp_env("CHAINS_TEST3_CONNECTION_URL", "http://127.0.0.1:8545")
+        .hyp_env("REORGPERIOD", "0")
+        .hyp_env("INTERVAL", "5")
+        .hyp_env("CHECKPOINTSYNCER_TYPE", "localStorage");
 
-    let scraper_env = hashmap! {
-        "HYP_BASE_CHAINS_TEST1_CONNECTION_TYPE" => "httpQuorum",
-        "HYP_BASE_CHAINS_TEST1_CONNECTION_URL" => "http://127.0.0.1:8545",
-        "HYP_BASE_CHAINS_TEST2_CONNECTION_TYPE" => "httpQuorum",
-        "HYP_BASE_CHAINS_TEST2_CONNECTION_URL" => "http://127.0.0.1:8545",
-        "HYP_BASE_CHAINS_TEST3_CONNECTION_TYPE" => "httpQuorum",
-        "HYP_BASE_CHAINS_TEST3_CONNECTION_URL" => "http://127.0.0.1:8545",
-        "HYP_BASE_CHAINSTOSCRAPE" => "test1,test2,test3",
-        "HYP_BASE_METRICS" => "9093",
-        "HYP_BASE_DB"=>"postgresql://postgres:47221c18c610@localhost:5432/postgres",
-    };
+    let validator_envs = (0..3)
+        .map(|i| {
+            base_validator_env
+                .clone()
+                .hyp_env("METRICS", (9094 + i).to_string())
+                .hyp_env("DB", validator_dbs[i].to_str().unwrap())
+                .hyp_env("ORIGINCHAINNAME", format!("test{}", 1 + i))
+                .hyp_env("VALIDATOR_KEY", VALIDATOR_KEYS[i])
+                .hyp_env(
+                    "CHECKPOINTSYNCER_PATH",
+                    checkpoints_dirs[i].path().to_str().unwrap(),
+                )
+        })
+        .collect::<Vec<_>>();
 
-    if !log_all {
-        println!("Logs in {}", log_dir.display());
+    let scraper_env = common_agent_env
+        .bin(concat_path(AGENT_BIN_PATH, "scraper"))
+        .hyp_env("CHAINS_TEST1_CONNECTION_TYPE", "httpQuorum")
+        .hyp_env("CHAINS_TEST1_CONNECTION_URL", "http://127.0.0.1:8545")
+        .hyp_env("CHAINS_TEST2_CONNECTION_TYPE", "httpQuorum")
+        .hyp_env("CHAINS_TEST2_CONNECTION_URL", "http://127.0.0.1:8545")
+        .hyp_env("CHAINS_TEST3_CONNECTION_TYPE", "httpQuorum")
+        .hyp_env("CHAINS_TEST3_CONNECTION_URL", "http://127.0.0.1:8545")
+        .hyp_env("CHAINSTOSCRAPE", "test1,test2,test3")
+        .hyp_env("METRICS", "9093")
+        .hyp_env(
+            "DB",
+            "postgresql://postgres:47221c18c610@localhost:5432/postgres",
+        );
+
+    let mut state = State::default();
+    state.build_log = build_log;
+    state.log_all = config.log_all;
+
+    if !config.log_all {
+        log!("Logs in {}", config.log_dir.display());
     }
-    println!(
+    log!(
         "Signed checkpoints in {}",
         checkpoints_dirs
             .iter()
@@ -234,281 +229,174 @@ fn main() -> ExitCode {
             .collect::<Vec<_>>()
             .join(", ")
     );
-    println!("Relayer DB in {}", relayer_db.display());
+    log!("Relayer DB in {}", relayer_db.display());
     (0..3).for_each(|i| {
-        println!("Validator {} DB in {}", i + 1, validator_dbs[i].display());
+        log!("Validator {} DB in {}", i + 1, validator_dbs[i].display());
     });
 
-    let build_cmd = {
-        let build_log = make_static(build_log.to_str().unwrap().into());
-        move |cmd, path, env| build_cmd(cmd, build_log, log_all, path, env, true)
-    };
+    let build_log_ref = make_static(state.build_log.to_str().unwrap().to_owned());
+    let build_cmd = move |cmd| build_cmd(cmd, build_log_ref, config.log_all, true);
+    let run_agent = |args, prefix| run_agent(args, prefix, &config);
 
+    shutdown_if_needed!();
     // this task takes a long time in the CI so run it in parallel
-    let build_rust = {
-        spawn(move || {
-            println!("Building rust...");
-            build_cmd(
-                &[
-                    "cargo",
-                    "build",
-                    "--features",
-                    "test-utils",
-                    "--bin",
-                    "relayer",
-                    "--bin",
-                    "validator",
-                    "--bin",
-                    "scraper",
-                    "--bin",
-                    "init-db",
-                ],
-                None,
-                None,
-            );
-        })
-    };
-
-    println!("Running postgres db...");
-    let postgres_env = hashmap! {
-        "DATABASE_URL"=>"postgresql://postgres:47221c18c610@localhost:5432/postgres",
-    };
-    kill_scraper_postgres(&build_log, log_all);
-    build_cmd(
-        &[
-            "docker",
-            "run",
-            "--name",
-            "scraper-testnet-postgres",
-            "-e",
-            "POSTGRES_PASSWORD=47221c18c610",
-            "-p",
-            "5432:5432",
-            "-d",
-            "postgres:14",
-        ],
-        None,
-        Some(&postgres_env),
+    log!("Building rust...");
+    let build_rust = build_cmd(
+        ProgramArgs::new("cargo")
+            .cmd("build")
+            .arg("features", "test-utils")
+            .arg("bin", "relayer")
+            .arg("bin", "validator")
+            .arg("bin", "scraper")
+            .arg("bin", "init-db"),
     );
 
-    println!("Installing typescript dependencies...");
-    build_cmd(&["yarn", "install"], Some("../"), None);
-    if !is_ci_env {
+    log!("Running postgres db...");
+    kill_scraper_postgres(&state.build_log, config.log_all);
+    build_cmd(
+        ProgramArgs::new("docker")
+            .cmd("run")
+            .flag("rm")
+            .arg("name", "scraper-testnet-postgres")
+            .arg("env", "POSTGRES_PASSWORD=47221c18c610")
+            .arg("publish", "5432:5432")
+            .flag("detach")
+            .cmd("postgres:14"),
+    )
+    .join();
+    state.scraper_postgres_initialized = true;
+
+    shutdown_if_needed!();
+    log!("Installing typescript dependencies...");
+
+    let yarn_monorepo = ProgramArgs::new("yarn").working_dir(MONOREPO_ROOT_PATH);
+    build_cmd(yarn_monorepo.clone().cmd("install")).join();
+    if !config.is_ci_env {
         // don't need to clean in the CI
-        build_cmd(&["yarn", "clean"], Some("../"), None);
+        build_cmd(yarn_monorepo.clone().cmd("clean")).join();
     }
-    build_cmd(&["yarn", "build"], Some("../"), None);
+    shutdown_if_needed!();
+    build_cmd(yarn_monorepo.clone().cmd("build")).join();
 
-    let mut state = State::default();
-    state.build_log = build_log;
-    state.log_all = log_all;
-
-    println!("Launching anvil...");
-    let mut node = Command::new("anvil");
-    if log_all {
-        // TODO: should we log this? It seems way too verbose to be useful
-        // node.stdout(Stdio::piped());
-        node.stdout(Stdio::null());
-    } else {
-        node.stdout(append_to(anvil_log));
-    }
-    let node = node.spawn().expect("Failed to start node");
-    state.node = Some(node);
+    shutdown_if_needed!();
+    log!("Launching anvil...");
+    let anvil_args = ProgramArgs::new("anvil")
+        .flag("silent")
+        .filter_logs(filter_anvil_logs);
+    let anvil = run_agent(anvil_args, "ETH");
+    state.push_agent(anvil);
 
     sleep(Duration::from_secs(10));
 
-    let deploy_env = hashmap! {"ALLOW_LEGACY_MULTISIG_ISM" => "true"};
-    println!("Deploying hyperlane ism contracts...");
-    build_cmd(
-        &["yarn", "deploy-ism"],
-        Some("../typescript/infra"),
-        Some(&deploy_env),
-    );
+    let yarn_infra = ProgramArgs::new("yarn")
+        .working_dir(INFRA_PATH)
+        .env("ALLOW_LEGACY_MULTISIG_ISM", "true");
+    log!("Deploying hyperlane ism contracts...");
+    build_cmd(yarn_infra.clone().cmd("deploy-ism")).join();
 
-    println!("Rebuilding sdk...");
-    build_cmd(&["yarn", "build"], Some("../typescript/sdk"), None);
+    shutdown_if_needed!();
+    log!("Rebuilding sdk...");
+    let yarn_sdk = ProgramArgs::new("yarn").working_dir(TS_SDK_PATH);
+    build_cmd(yarn_sdk.clone().cmd("build")).join();
 
-    println!("Deploying hyperlane core contracts...");
-    build_cmd(
-        &["yarn", "deploy-core"],
-        Some("../typescript/infra"),
-        Some(&deploy_env),
-    );
+    log!("Deploying hyperlane core contracts...");
+    build_cmd(yarn_infra.clone().cmd("deploy-core")).join();
 
-    println!("Deploying hyperlane igp contracts...");
-    build_cmd(
-        &["yarn", "deploy-igp"],
-        Some("../typescript/infra"),
-        Some(&deploy_env),
-    );
+    log!("Deploying hyperlane igp contracts...");
+    build_cmd(yarn_infra.clone().cmd("deploy-igp")).join();
 
-    if !is_ci_env {
+    if !config.is_ci_env {
         // Follow-up 'yarn hardhat node' invocation with 'yarn prettier' to fixup
         // formatting on any autogenerated json config files to avoid any diff creation.
-        build_cmd(&["yarn", "prettier"], Some("../"), None);
+        build_cmd(yarn_monorepo.cmd("prettier")).join();
     }
 
+    shutdown_if_needed!();
     // Rebuild the SDK to pick up the deployed contracts
-    println!("Rebuilding sdk...");
-    build_cmd(&["yarn", "build"], Some("../typescript/sdk"), None);
+    log!("Rebuilding sdk...");
+    build_cmd(yarn_sdk.cmd("build")).join();
 
-    build_rust.join().unwrap();
+    build_rust.join();
 
-    println!("Init postgres db...");
-    build_cmd(
-        &["cargo", "run", "-r", "-p", "migration", "--bin", "init-db"],
-        None,
-        None,
-    );
+    log!("Init postgres db...");
+    build_cmd(ProgramArgs::new(concat_path(AGENT_BIN_PATH, "init-db"))).join();
 
-    let (scraper, scraper_stdout, scraper_stderr) = run_agent(
-        "scraper",
-        &scraper_env.into_iter().chain(common_env.clone()).collect(),
-        &[],
-        "SCR",
-        log_all,
-        &log_dir,
-    );
-    state.watchers.push(scraper_stdout);
-    state.watchers.push(scraper_stderr);
-    state.scraper = Some(scraper);
+    shutdown_if_needed!();
 
-    let mut validator_iter = validator_envs.iter();
+    let scraper = run_agent(scraper_env, "SCR");
+    state.push_agent(scraper);
 
     // spawn 1st validator before any messages have been sent to test empty mailbox
-    let validator1_env = validator_iter.next().unwrap();
-    let (validator, validator_stdout, validator_stderr) = run_agent(
-        "validator",
-        &common_env
-            .clone()
-            .into_iter()
-            .chain(validator1_env.clone())
-            .collect(),
-        &[],
-        "VAL1",
-        log_all,
-        &log_dir,
-    );
-    state.watchers.push(validator_stdout);
-    state.watchers.push(validator_stderr);
-    state.validators.push(validator);
+    let validator1_env = validator_envs.first().unwrap().clone();
+    let validator1 = run_agent(validator1_env, "VAL1");
+    state.push_agent(validator1);
 
     sleep(Duration::from_secs(5));
 
     // Send half the kathy messages before starting the rest of the agents
-    let mut kathy = Command::new("yarn");
-    kathy
-        .arg("kathy")
-        .args([
-            "--messages",
-            &(kathy_messages / 2).to_string(),
-            "--timeout",
-            "1000",
-        ])
-        .current_dir("../typescript/infra")
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    let (mut kathy, kathy_stdout, kathy_stderr) =
-        spawn_cmd_with_logging("kathy", kathy, "KTY", log_all, &log_dir);
+    let kathy_env = yarn_infra
+        .cmd("kathy")
+        .arg("messages", (config.kathy_messages / 2).to_string())
+        .arg("timeout", "1000");
+    let (mut kathy, kathy_stdout, kathy_stderr) = run_agent(kathy_env.clone(), "KTY");
     state.watchers.push(kathy_stdout);
     state.watchers.push(kathy_stderr);
     kathy.wait().unwrap();
 
     // spawn the rest of the validators
-    for (i, validator_env) in validator_iter.enumerate() {
-        let (validator, validator_stdout, validator_stderr) = run_agent(
-            "validator",
-            &common_env
-                .clone()
-                .into_iter()
-                .chain(validator_env.clone())
-                .collect(),
-            &[],
-            make_static(format!("VAL{}", 1 + i)),
-            log_all,
-            &log_dir,
-        );
-        state.watchers.push(validator_stdout);
-        state.watchers.push(validator_stderr);
-        state.validators.push(validator);
+    for (i, validator_env) in validator_envs.into_iter().enumerate().skip(1) {
+        let validator = run_agent(validator_env, make_static(format!("VAL{}", 1 + i)));
+        state.push_agent(validator);
     }
 
-    let (relayer, relayer_stdout, relayer_stderr) = run_agent(
-        "relayer",
-        &relayer_env.into_iter().chain(common_env.clone()).collect(),
-        &relayer_args,
-        "RLY",
-        log_all,
-        &log_dir,
-    );
-    state.watchers.push(relayer_stdout);
-    state.watchers.push(relayer_stderr);
-    state.relayer = Some(relayer);
+    let relayer = run_agent(relayer_env, "RLY");
+    state.push_agent(relayer);
 
-    println!("Setup complete! Agents running in background...");
-    println!("Ctrl+C to end execution...");
+    log!("Setup complete! Agents running in background...");
+    log!("Ctrl+C to end execution...");
 
     // Send half the kathy messages after the relayer comes up
-    let mut kathy = Command::new("yarn");
-    kathy
-        .arg("kathy")
-        .args([
-            "--messages",
-            &(kathy_messages / 2).to_string(),
-            "--timeout",
-            "1000",
-            "--mineforever",
-        ])
-        .current_dir("../typescript/infra")
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    let (kathy, kathy_stdout, kathy_stderr) =
-        spawn_cmd_with_logging("kathy", kathy, "KTY", log_all, &log_dir);
-    state.watchers.push(kathy_stdout);
-    state.watchers.push(kathy_stderr);
-    state.kathy = Some(kathy);
+    let kathy_env = kathy_env.flag("mineforever");
+    let kathy = run_agent(kathy_env, "KTY");
+    state.push_agent(kathy);
 
     let loop_start = Instant::now();
     // give things a chance to fully start.
     sleep(Duration::from_secs(5));
-    while RUNNING.fetch_and(true, Ordering::Relaxed) {
-        if ci_mode {
+    let mut failure_occurred = false;
+    while !SHUTDOWN.load(Ordering::Relaxed) {
+        if config.ci_mode {
             // for CI we have to look for the end condition.
-            let num_messages_expected = (kathy_messages / 2) as u32 * 2;
+            let num_messages_expected = (config.kathy_messages / 2) as u32 * 2;
             if termination_invariants_met(num_messages_expected).unwrap_or(false) {
                 // end condition reached successfully
-                println!("Agent metrics look healthy");
+                log!("Agent metrics look healthy");
                 break;
-            } else if (Instant::now() - loop_start).as_secs() > ci_mode_timeout {
+            } else if (Instant::now() - loop_start).as_secs() > config.ci_mode_timeout {
                 // we ran out of time
-                eprintln!("CI timeout reached before queues emptied");
-                return ExitCode::from(1);
+                log!("CI timeout reached before queues emptied");
+                failure_occurred = true;
+                break;
             }
         }
+
+        // verify long-running tasks are still running
+        for child in state.agents.iter_mut() {
+            if child.try_wait().unwrap().is_some() {
+                log!("Child process exited unexpectedly, shutting down");
+                failure_occurred = true;
+                break;
+            }
+        }
+
         sleep(Duration::from_secs(5));
     }
 
-    ExitCode::from(0)
-}
-
-fn fetch_metric(port: &str, metric: &str, labels: &HashMap<&str, &str>) -> Result<Vec<u32>> {
-    let resp = ureq::get(&format!("http://127.0.0.1:{}/metrics", port));
-    resp.call()?
-        .into_string()?
-        .lines()
-        .filter(|l| l.starts_with(metric))
-        .filter(|l| {
-            labels
-                .iter()
-                .all(|(k, v)| l.contains(&format!("{k}=\"{v}\"")))
-        })
-        .map(|l| {
-            Ok(l.rsplit_once(' ')
-                .ok_or(eyre!("Unknown metric format"))?
-                .1
-                .parse::<u32>()?)
-        })
-        .collect()
+    if failure_occurred {
+        ExitCode::FAILURE
+    } else {
+        ExitCode::SUCCESS
+    }
 }
 
 /// Use the metrics to check if the relayer queues are empty and the expected
@@ -517,7 +405,7 @@ fn termination_invariants_met(num_expected_messages: u32) -> Result<bool> {
     let lengths = fetch_metric("9092", "hyperlane_submitter_queue_length", &hashmap! {})?;
     assert!(!lengths.is_empty(), "Could not find queue length metric");
     if lengths.into_iter().any(|n| n != 0) {
-        println!("<E2E> Relayer queues not empty");
+        log!("Relayer queues not empty");
         return Ok(false);
     };
 
@@ -528,9 +416,10 @@ fn termination_invariants_met(num_expected_messages: u32) -> Result<bool> {
             .iter()
             .sum::<u32>();
     if msg_processed_count != num_expected_messages {
-        println!(
-            "<E2E> Relayer has {} processed messages, expected {}",
-            msg_processed_count, num_expected_messages
+        log!(
+            "Relayer has {} processed messages, expected {}",
+            msg_processed_count,
+            num_expected_messages
         );
         return Ok(false);
     }
@@ -545,9 +434,10 @@ fn termination_invariants_met(num_expected_messages: u32) -> Result<bool> {
     // TestSendReceiver randomly breaks gas payments up into
     // two. So we expect at least as many gas payments as messages.
     if gas_payment_events_count < num_expected_messages {
-        println!(
-            "<E2E> Relayer has {} gas payment events, expected at least {}",
-            gas_payment_events_count, num_expected_messages
+        log!(
+            "Relayer has {} gas payment events, expected at least {}",
+            gas_payment_events_count,
+            num_expected_messages
         );
         return Ok(false);
     }
@@ -560,9 +450,10 @@ fn termination_invariants_met(num_expected_messages: u32) -> Result<bool> {
     .iter()
     .sum::<u32>();
     if dispatched_messages_scraped != num_expected_messages {
-        println!(
-            "<E2E> Scraper has scraped {} dispatched messages, expected {}",
-            dispatched_messages_scraped, num_expected_messages
+        log!(
+            "Scraper has scraped {} dispatched messages, expected {}",
+            dispatched_messages_scraped,
+            num_expected_messages
         );
         return Ok(false);
     }
@@ -576,9 +467,10 @@ fn termination_invariants_met(num_expected_messages: u32) -> Result<bool> {
     .sum::<u32>();
     // The relayer and scraper should have the same number of gas payments.
     if gas_payments_scraped != gas_payment_events_count {
-        println!(
-            "<E2E> Scraper has scraped {} gas payments, expected {}",
-            gas_payments_scraped, num_expected_messages
+        log!(
+            "Scraper has scraped {} gas payments, expected {}",
+            gas_payments_scraped,
+            num_expected_messages
         );
         return Ok(false);
     }
@@ -591,189 +483,32 @@ fn termination_invariants_met(num_expected_messages: u32) -> Result<bool> {
     .iter()
     .sum::<u32>();
     if delivered_messages_scraped != num_expected_messages {
-        println!(
-            "<E2E> Scraper has scraped {} delivered messages, expected {}",
-            delivered_messages_scraped, num_expected_messages
+        log!(
+            "Scraper has scraped {} delivered messages, expected {}",
+            delivered_messages_scraped,
+            num_expected_messages
         );
         Ok(false)
     } else {
+        log!("Termination invariants have been meet");
         Ok(true)
     }
 }
 
-/// Read from a process output and add a string to the front before writing it
-/// to stdout.
-fn prefix_log(output: impl Read, name: &'static str) {
-    let mut reader = BufReader::new(output).lines();
-    loop {
-        if let Some(line) = reader.next() {
-            let line = match line {
-                Ok(l) => l,
-                Err(e) => {
-                    // end of stream, probably
-                    eprintln!("Error reading from output for {name}: {e}");
-                    break;
-                }
-            };
-            println!("<{name}> {line}");
-        } else if RUNNING.fetch_and(true, Ordering::Relaxed) {
-            sleep(Duration::from_millis(10));
-        } else {
-            break;
-        }
-    }
+fn kill_scraper_postgres(build_log: impl AsRef<Path>, log_all: bool) {
+    build_cmd(
+        ProgramArgs::new("docker")
+            .cmd("stop")
+            .cmd("scraper-testnet-postgres"),
+        &build_log,
+        log_all,
+        false,
+    )
+    .join();
 }
 
-/// Basically `tail -f file | grep <FILTER>` but also has to write to the file
-/// (writes to file all lines, not just what passes the filter).
-fn inspect_and_write_to_file(output: impl Read, log: impl AsRef<Path>, filter_array: &[&str]) {
-    let mut writer = BufWriter::new(append_to(log));
-    let mut reader = BufReader::new(output).lines();
-    loop {
-        if let Some(line) = reader.next() {
-            let line = match line {
-                Ok(l) => l,
-                Err(e) => {
-                    // end of stream, probably
-                    eprintln!("Error reading from output: {e}");
-                    break;
-                }
-            };
-
-            if filter_array.is_empty() {
-                println!("{line}")
-            } else {
-                for filter in filter_array {
-                    if line.contains(filter) {
-                        println!("{line}")
-                    }
-                }
-            }
-            writeln!(writer, "{line}").unwrap();
-        } else if RUNNING.fetch_and(true, Ordering::Relaxed) {
-            sleep(Duration::from_millis(10))
-        } else {
-            break;
-        }
-    }
-}
-
-/// Attempt to kindly signal a child to stop running, and kill it if that fails.
-fn stop_child(child: &mut Child) {
-    if child.try_wait().unwrap().is_some() {
-        // already stopped
-        return;
-    }
-    let pid = Pid::from_raw(child.id() as pid_t);
-    if signal::kill(pid, Signal::SIGTERM).is_err() {
-        eprintln!("Failed to send sigterm, killing");
-        if let Err(e) = child.kill() {
-            eprintln!("{}", e);
-        }
-    };
-}
-
-/// Merge two paths.
-fn concat_path(p1: impl AsRef<Path>, p2: impl AsRef<Path>) -> PathBuf {
-    let mut p = p1.as_ref().to_path_buf();
-    p.push(p2);
-    p
-}
-
-/// Open a file in append mode, or create it if it does not exist.
-fn append_to(p: impl AsRef<Path>) -> File {
-    File::options()
-        .create(true)
-        .append(true)
-        .open(p)
-        .expect("Failed to open file")
-}
-
-fn build_cmd(
-    cmd: &[&str],
-    log: impl AsRef<Path>,
-    log_all: bool,
-    wd: Option<&str>,
-    env: Option<&HashMap<&str, &str>>,
-    assert_success: bool,
-) {
-    assert!(!cmd.is_empty(), "Must specify a command!");
-    let mut c = Command::new(cmd[0]);
-    c.args(&cmd[1..]);
-    if log_all {
-        c.stdout(Stdio::inherit());
-    } else {
-        c.stdout(append_to(log));
-    }
-    if let Some(wd) = wd {
-        c.current_dir(wd);
-    }
-    if let Some(env) = env {
-        c.envs(env);
-    }
-    let status = c.status().expect("Failed to run command");
-    if assert_success {
-        assert!(
-            status.success(),
-            "Command returned non-zero exit code: {}",
-            cmd.join(" ")
-        );
-    }
-}
-
-fn make_static(s: String) -> &'static str {
-    Box::leak(s.into_boxed_str())
-}
-
-fn spawn_cmd_with_logging(
-    name: &str,
-    mut command: Command,
-    log_prefix: &'static str,
-    log_all: bool,
-    log_dir: &PathBuf,
-) -> (std::process::Child, JoinHandle<()>, JoinHandle<()>) {
-    println!("Spawning {}...", name);
-    let mut child = command
-        .spawn()
-        .unwrap_or_else(|_| panic!("Failed to start {}", name));
-    let stdout_path = concat_path(log_dir, format!("{}.stdout.log", log_prefix));
-    let child_stdout = child.stdout.take().unwrap();
-    let stdout = spawn(move || {
-        if log_all {
-            prefix_log(child_stdout, log_prefix)
-        } else {
-            inspect_and_write_to_file(
-                child_stdout,
-                stdout_path,
-                &["ERROR", "message successfully processed"],
-            )
-        }
-    });
-    let stderr_path = concat_path(log_dir, format!("{}.stderr.log", log_prefix));
-    let child_stderr = child.stderr.take().unwrap();
-    let stderr = spawn(move || {
-        if log_all {
-            prefix_log(child_stderr, log_prefix)
-        } else {
-            inspect_and_write_to_file(child_stderr, stderr_path, &[])
-        }
-    });
-    (child, stdout, stderr)
-}
-
-fn run_agent(
-    name: &str,
-    env: &HashMap<&str, &str>,
-    args: &[&str],
-    log_prefix: &'static str,
-    log_all: bool,
-    log_dir: &PathBuf,
-) -> (std::process::Child, JoinHandle<()>, JoinHandle<()>) {
-    let mut command = Command::new(format!("target/debug/{}", name));
-    command
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .envs(env)
-        .args(args);
-    spawn_cmd_with_logging(name, command, log_prefix, log_all, log_dir)
+/// Return true if a given log line should be kept.
+fn filter_anvil_logs(_log: &str) -> bool {
+    // for now discard all anvil logs
+    false
 }
