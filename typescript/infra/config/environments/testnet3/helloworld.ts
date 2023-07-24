@@ -6,7 +6,7 @@ import {
   objMap,
 } from '@hyperlane-xyz/sdk';
 
-import { HelloWorldConfig } from '../../../src/config';
+import { DeployEnvironment, HelloWorldConfig } from '../../../src/config';
 import { HelloWorldKathyRunMode } from '../../../src/config/helloworld';
 import { aggregationIsm } from '../../aggregationIsm';
 import { Contexts } from '../../contexts';
@@ -60,10 +60,11 @@ export const helloWorld = {
 };
 
 export const helloWorldConfig = (
+  environment: DeployEnvironment,
   context: Contexts,
   routerConfigMap: ChainMap<RouterConfig>,
 ): ChainMap<HelloWorldContractsConfig> =>
   objMap(routerConfigMap, (chain, routerConfig) => ({
     ...routerConfig,
-    interchainSecurityModule: aggregationIsm('testnet3', chain, context),
+    interchainSecurityModule: aggregationIsm(environment, chain, context),
   }));
