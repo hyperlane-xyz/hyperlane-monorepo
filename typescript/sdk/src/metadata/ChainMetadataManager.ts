@@ -269,4 +269,21 @@ export class ChainMetadataManager<MetaExt = {}> {
   ): string {
     return `${this.getExplorerUrl(chainNameOrId)}/tx/${response.hash}`;
   }
+
+  /**
+   * Creates a new ChainMetadataManager with the extended metadata
+   * @param additionalMetadata extra fields to add to the metadata for each chain
+   * @returns a new ChainMetadataManager
+   */
+  extendChainMetadata<NewExt = {}>(
+    additionalMetadata: ChainMap<NewExt>,
+  ): ChainMetadataManager<MetaExt & NewExt> {
+    const newMetadata: ChainMap<ChainMetadata<MetaExt & NewExt>> = {};
+    for (const [name, meta] of Object.entries(this.metadata)) {
+      if (!additionalMetadata[name])
+        throw new Error(`No additional data provided for chain ${name}`);
+      newMetadata[name] = { ...meta, ...additionalMetadata[name] };
+    }
+    return new ChainMetadataManager(newMetadata);
+  }
 }

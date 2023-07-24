@@ -161,11 +161,7 @@ export {
   MultiProtocolProvider,
   MultiProtocolProviderOptions,
 } from './providers/MultiProtocolProvider';
-export {
-  MultiProvider,
-  MultiProviderOptions,
-  ReadOnlyMultiProvider,
-} from './providers/MultiProvider';
+export { MultiProvider, MultiProviderOptions } from './providers/MultiProvider';
 export {
   EthersV5Contract,
   EthersV5Provider,

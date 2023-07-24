@@ -46,7 +46,7 @@ export class MultiProtocolProvider<
     chainMetadata: ChainMap<
       ChainMetadata<MetaExt>
     > = defaultChainMetadata as ChainMap<ChainMetadata<MetaExt>>,
-    options: MultiProtocolProviderOptions = {},
+    protected readonly options: MultiProtocolProviderOptions = {},
   ) {
     super(chainMetadata, options);
     this.logger = debug(
@@ -56,11 +56,18 @@ export class MultiProtocolProvider<
       options.providerBuilders || defaultProviderBuilderMap;
   }
 
-  static fromMultiProvider<MetaExt = any>(
+  static fromMultiProvider<MetaExt = {}>(
     mp: MultiProvider<MetaExt>,
     options: MultiProtocolProviderOptions = {},
   ): MultiProtocolProvider<MetaExt> {
     return new MultiProtocolProvider<MetaExt>(mp.metadata, options);
+  }
+
+  override extendChainMetadata<NewExt = {}>(
+    additionalMetadata: ChainMap<NewExt>,
+  ): MultiProtocolProvider<MetaExt & NewExt> {
+    const newMetadata = super.extendChainMetadata(additionalMetadata).metadata;
+    return new MultiProtocolProvider(newMetadata, this.options);
   }
 
   tryGetProvider(

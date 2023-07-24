@@ -30,15 +30,14 @@ export interface MultiProviderOptions {
 }
 
 /**
- * A utility class to create and manage providers for multiple chains
- * Does not support signer/signing methods, for those use MultiProvider
+ * A utility class to create and manage providers and signers for multiple chains
  * @typeParam MetaExt - Extra metadata fields for chains (such as contract addresses)
  */
-export class ReadOnlyMultiProvider<
-  MetaExt = {},
-> extends ChainMetadataManager<MetaExt> {
+export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   protected readonly providers: ChainMap<Provider> = {};
   protected readonly providerBuilder: ProviderBuilderFn<Provider>;
+  protected signers: ChainMap<Signer> = {};
+  protected useSharedSigner = false; // A single signer to be used for all chains
   protected readonly logger: Debugger;
 
   /**
@@ -47,11 +46,28 @@ export class ReadOnlyMultiProvider<
    */
   constructor(
     chainMetadata?: ChainMap<ChainMetadata<MetaExt>>,
-    options: MultiProviderOptions = {},
+    protected readonly options: MultiProviderOptions = {},
   ) {
     super(chainMetadata, options);
     this.logger = debug(options?.loggerName || 'hyperlane:MultiProvider');
     this.providerBuilder = options?.providerBuilder || defaultProviderBuilder;
+  }
+
+  override addChain(metadata: ChainMetadata<MetaExt>): void {
+    super.addChain(metadata);
+    if (this.useSharedSigner) {
+      const signers = Object.values(this.signers);
+      if (signers.length > 0) {
+        this.setSharedSigner(signers[0]);
+      }
+    }
+  }
+
+  override extendChainMetadata<NewExt = {}>(
+    additionalMetadata: ChainMap<NewExt>,
+  ): MultiProvider<MetaExt & NewExt> {
+    const newMetadata = super.extendChainMetadata(additionalMetadata).metadata;
+    return new MultiProvider(newMetadata, this.options);
   }
 
   /**
@@ -100,6 +116,10 @@ export class ReadOnlyMultiProvider<
   setProvider(chainNameOrId: ChainName | number, provider: Provider): Provider {
     const chainName = this.getChainName(chainNameOrId);
     this.providers[chainName] = provider;
+    const signer = this.signers[chainName];
+    if (signer && signer.provider) {
+      this.setSigner(chainName, signer.connect(provider));
+    }
     return provider;
   }
 
@@ -112,40 +132,6 @@ export class ReadOnlyMultiProvider<
       const chainName = this.getChainName(chain);
       this.providers[chainName] = providers[chain];
     }
-  }
-}
-
-/**
- * A utility class to create and manage providers and signers for multiple chains
- * @typeParam MetaExt - Extra metadata fields for chains (such as contract addresses)
- */
-export class MultiProvider<
-  MetaExt = {},
-> extends ReadOnlyMultiProvider<MetaExt> {
-  protected signers: ChainMap<Signer> = {};
-  protected useSharedSigner = false; // A single signer to be used for all chains
-
-  override addChain(metadata: ChainMetadata<MetaExt>): void {
-    super.addChain(metadata);
-    if (this.useSharedSigner) {
-      const signers = Object.values(this.signers);
-      if (signers.length > 0) {
-        this.setSharedSigner(signers[0]);
-      }
-    }
-  }
-
-  override setProvider(
-    chainNameOrId: ChainName | number,
-    provider: Provider,
-  ): Provider {
-    const chainName = this.getChainName(chainNameOrId);
-    this.providers[chainName] = provider;
-    const signer = this.signers[chainName];
-    if (signer && signer.provider) {
-      this.setSigner(chainName, signer.connect(provider));
-    }
-    return provider;
   }
 
   /**
