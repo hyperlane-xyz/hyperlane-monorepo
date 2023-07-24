@@ -35,7 +35,7 @@ export interface MultiProviderOptions {
  * @typeParam MetaExt - Extra metadata fields for chains (such as contract addresses)
  */
 export class ReadOnlyMultiProvider<
-  MetaExt = any,
+  MetaExt = {},
 > extends ChainMetadataManager<MetaExt> {
   protected readonly providers: ChainMap<Provider> = {};
   protected readonly providerBuilder: ProviderBuilderFn<Provider>;
@@ -120,7 +120,7 @@ export class ReadOnlyMultiProvider<
  * @typeParam MetaExt - Extra metadata fields for chains (such as contract addresses)
  */
 export class MultiProvider<
-  MetaExt = any,
+  MetaExt = {},
 > extends ReadOnlyMultiProvider<MetaExt> {
   protected signers: ChainMap<Signer> = {};
   protected useSharedSigner = false; // A single signer to be used for all chains

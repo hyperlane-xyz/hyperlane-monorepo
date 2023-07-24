@@ -4,8 +4,10 @@ import { deserializeUnchecked } from 'borsh';
 
 import { Address, Domain } from '@hyperlane-xyz/utils';
 
+import { BaseSealevelAdapter } from '../../app/MultiProtocolApp';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
 import { ChainName } from '../../types';
+import { RouterAddress } from '../types';
 
 import { IGasRouterAdapter, IRouterAdapter } from './types';
 
@@ -90,13 +92,17 @@ export const SealevelTokenDataSchema = new Map<any, any>([
   ],
 ]);
 
-// Interacts with native currencies
-export class SealevelRouterAdapter implements IRouterAdapter {
+export class SealevelRouterAdapter<
+    ContractAddrs extends RouterAddress = RouterAddress,
+  >
+  extends BaseSealevelAdapter<ContractAddrs>
+  implements IRouterAdapter
+{
   constructor(
-    public readonly multiProvider: MultiProtocolProvider<{
-      router: Address;
-    }>,
-  ) {}
+    public readonly multiProvider: MultiProtocolProvider<ContractAddrs>,
+  ) {
+    super(multiProvider);
+  }
 
   async interchainSecurityModule(chain: ChainName): Promise<Address> {
     const routerAccountInfo = await this.getRouterAccountInfo(chain);
@@ -176,8 +182,10 @@ export class SealevelRouterAdapter implements IRouterAdapter {
   }
 }
 
-export class SealevelGasRouterAdapter
-  extends SealevelRouterAdapter
+export class SealevelGasRouterAdapter<
+    ContractAddrs extends RouterAddress = RouterAddress,
+  >
+  extends SealevelRouterAdapter<ContractAddrs>
   implements IGasRouterAdapter
 {
   async quoteGasPayment(

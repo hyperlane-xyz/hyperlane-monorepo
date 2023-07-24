@@ -5,6 +5,7 @@ import { ChainMetadataManager } from '../metadata/ChainMetadataManager';
 import type { ChainMetadata } from '../metadata/chainMetadataTypes';
 import type { ChainMap, ChainName } from '../types';
 
+import type { MultiProvider } from './MultiProvider';
 import {
   EthersV5Provider,
   ProviderMap,
@@ -34,7 +35,7 @@ export interface MultiProtocolProviderOptions {
  * @typeParam MetaExt - Extra metadata fields for chains (such as contract addresses)
  */
 export class MultiProtocolProvider<
-  MetaExt = any,
+  MetaExt = {},
 > extends ChainMetadataManager<MetaExt> {
   protected readonly providers: ChainMap<ProviderMap<TypedProvider>> = {};
   protected signers: ChainMap<ProviderMap<never>> = {}; // TODO signer support
@@ -53,6 +54,13 @@ export class MultiProtocolProvider<
     );
     this.providerBuilders =
       options.providerBuilders || defaultProviderBuilderMap;
+  }
+
+  static fromMultiProvider<MetaExt = any>(
+    mp: MultiProvider<MetaExt>,
+    options: MultiProtocolProviderOptions = {},
+  ): MultiProtocolProvider<MetaExt> {
+    return new MultiProtocolProvider<MetaExt>(mp.metadata, options);
   }
 
   tryGetProvider(

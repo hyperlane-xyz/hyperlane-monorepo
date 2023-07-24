@@ -1,5 +1,11 @@
 export { HyperlaneApp } from './app/HyperlaneApp';
-export { MultiProtocolApp } from './app/MultiProtocolApp';
+export {
+  AdapterClassType,
+  BaseAppAdapter,
+  BaseEvmAdapter,
+  BaseSealevelAdapter,
+  MultiProtocolApp,
+} from './app/MultiProtocolApp';
 export {
   chainIdToMetadata,
   chainMetadata,

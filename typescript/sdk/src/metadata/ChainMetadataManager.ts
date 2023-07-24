@@ -20,7 +20,7 @@ export interface ChainMetadataManagerOptions {
  * Validates metadata on construction and provides useful methods
  * for interacting with the data
  */
-export class ChainMetadataManager<MetaExt = any> {
+export class ChainMetadataManager<MetaExt = {}> {
   public readonly metadata: ChainMap<ChainMetadata<MetaExt>> = {};
   protected readonly logger: Debugger;
 
