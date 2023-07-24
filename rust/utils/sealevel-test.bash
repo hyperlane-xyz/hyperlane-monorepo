@@ -1,8 +1,39 @@
 #!/usr/bin/env bash
 
-if [ -z $SOLAR_ECLIPSE_DIR ]; then
-    echo '$SOLAR_ECLIPSE_DIR must be set'
-fi
+# PATH="/Users/mattie/.local/share/solana/install/active_release/bin:$PATH"
+
+# possibly copy in bytecode instead of cloning and building _or_ build only the specific programs we need
+# see *.so tokens below. Might be able to fetch build from solana release.
+# ECLIPSE_PROGRAM_LIBRARY_DIR=/Users/mattie/workspace/solana-program-library
+# run this script with build-only
+
+# run solana local/test validator
+# mkdir -p /tmp/eclipse/ledger-dir && solana-test-validator --res
+  #et --ledger /tmp/eclipse/ledger-dir --account E9VrvAdGRvCguN2XgXsgu9PNmMM3vZsU8LSUrM68j8ty ~/workspace/hyperlane-monorepo/rust/config/sealevel/test-keys/test_deployer-account.json --bpf-program TokenkegQfeZyiNwAJbNbGKPFXCWuB
+  #vf9Ss623VQ5DA ~/workspace/solana-program-library/target/deploy/spl_token.so --bpf-program TokenzQdBNbLqP5VEhdkAS
+  #6EPFLC1PHnBqCXEpPxuEb ~/workspace/solana-program-library/target/deploy/spl_token_2022.so --bpf-program ATokenGPv
+  #bdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL ~/workspace/solana-program-library/target/deploy/spl_associated_token_accoun
+  #t.so --bpf-program noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV ~/workspace/solana-program-library/account-compression/target/deploy/spl_noop.so
+
+# create solana config at ~/.config/solana/cli/config.yml
+# solana config set -u localhost
+
+# run this script up to transfer-remote
+# run validator and relayer
+#  source config/sealevel/validator.env
+#  mkdir /tmp/SEALEVEL_DB
+#  rm -rf /tmp/SEALEVEL_DB/validator /tmp/test_sealevel_checkpoints_0x70997970c51812dc3a010c7d01b50e0d17dc79c8/*
+#  CONFIG_FILES=./config/sealevel/sealevel.json cargo run --bin validator
+#
+#  source config/sealevel/relayer.env
+#  rm -rf /tmp/SEALEVEL_DB/relayer
+#  RUST_BACKTRACE=full CONFIG_FILES=./config/sealevel/sealevel.json cargo run --bin relayer
+
+# run remainder of this script
+
+#if [ -z $SOLAR_ECLIPSE_DIR ]; then
+#    echo '$SOLAR_ECLIPSE_DIR must be set'
+#fi
 
 if [ -z $ECLIPSE_PROGRAM_LIBRARY_DIR ]; then
     echo '$ECLIPSE_PROGRAM_LIBRARY_DIR must be set'
@@ -20,7 +51,7 @@ CHAIN_ID="13375"
 REMOTE_CHAIN_ID="13376"
 
 # Ensure that the solar-eclipse `solana` binary is used
-alias solana="${SOLAR_ECLIPSE_DIR}/target/debug/solana"
+#alias solana="${SOLAR_ECLIPSE_DIR}/target/debug/solana"
 
 # first arg = path to .so file
 # second arg = path to directory to build program in if the .so file doesn't exist

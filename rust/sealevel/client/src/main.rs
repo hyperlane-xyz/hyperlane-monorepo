@@ -473,7 +473,9 @@ fn main() {
 
     let cli = Cli::parse();
     let config = match CONFIG_FILE.as_ref() {
-        Some(config_file) => Config::load(config_file).unwrap(),
+        Some(config_file) => Config::load(config_file)
+            .map_err(|e| format!("Failed to load solana config file {}: {}", config_file, e))
+            .unwrap(),
         None => Config::default(),
     };
     let url = normalize_to_url_if_moniker(cli.url.unwrap_or(config.json_rpc_url));
