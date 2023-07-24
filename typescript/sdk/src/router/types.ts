@@ -8,6 +8,10 @@ import { HyperlaneFactories } from '../contracts/types';
 import { CheckerViolation } from '../deploy/types';
 import { IsmConfig } from '../ism/types';
 
+export type RouterAddress = {
+  router: Address;
+};
+
 export type OwnableConfig = {
   owner: Address;
 };
