@@ -12,7 +12,7 @@ import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { HelloWorldConfig } from '../../src/config/helloworld';
 import { Role } from '../../src/roles';
 
-export async function getApp(
+export async function getHelloWorldApp(
   coreConfig: EnvironmentConfig,
   context: Contexts,
   keyRole: Role,

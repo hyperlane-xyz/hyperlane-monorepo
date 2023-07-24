@@ -1,4 +1,8 @@
-import { ChainName, IRouterAdapter } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  IRouterAdapter,
+  TypedTransaction,
+} from '@hyperlane-xyz/sdk';
 
 import { StatCounts } from '../app/types';
 
@@ -8,7 +12,7 @@ export interface IHelloWorldAdapter extends IRouterAdapter {
     to: ChainName,
     message: string,
     value: string,
-  ) => Promise<any>; //TODO
+  ) => Promise<TypedTransaction>;
 
   channelStats: (from: ChainName, to: ChainName) => Promise<StatCounts>;
 }

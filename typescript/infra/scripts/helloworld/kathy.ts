@@ -2,7 +2,7 @@ import { BigNumber, ethers } from 'ethers';
 import { Counter, Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
-import { HelloWorldApp } from '@hyperlane-xyz/helloworld';
+import { HelloMultiProtocolApp } from '@hyperlane-xyz/helloworld';
 import {
   AgentConnectionType,
   ChainName,
@@ -25,7 +25,7 @@ import { startMetricsServer } from '../../src/utils/metrics';
 import { assertChain, diagonalize, sleep } from '../../src/utils/utils';
 import { getArgs, getEnvironmentConfig, withContext } from '../utils';
 
-import { getApp } from './utils';
+import { getHelloWorldApp } from './utils';
 
 const metricsRegister = new Registry();
 // TODO rename counter names
@@ -147,7 +147,7 @@ async function main(): Promise<boolean> {
   debug('Starting up', { environment });
 
   const coreConfig = getEnvironmentConfig(environment);
-  const app = await getApp(
+  const app = await getHelloWorldApp(
     coreConfig,
     context,
     Role.Kathy,
@@ -456,7 +456,7 @@ async function messageIsProcessed(
 }
 
 async function updateWalletBalanceMetricFor(
-  app: HelloWorldApp,
+  app: HelloMultiProtocolApp,
   chain: ChainName,
 ): Promise<void> {
   const provider = app.multiProvider.getProvider(chain);

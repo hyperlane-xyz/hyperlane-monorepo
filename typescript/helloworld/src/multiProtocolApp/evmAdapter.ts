@@ -1,4 +1,5 @@
 import { ChainName, EvmRouterAdapter, ProviderType } from '@hyperlane-xyz/sdk';
+import { EthersV5Transaction } from '@hyperlane-xyz/sdk';
 
 import { StatCounts } from '../app/types';
 import { HelloWorld, HelloWorld__factory } from '../types';
@@ -14,8 +15,7 @@ export class EvmHelloWorldAdapter
     to: ChainName,
     message: string,
     value: string,
-    // TODO type here
-  ): Promise<any> {
+  ): Promise<EthersV5Transaction> {
     const contract = this.getConnectedContract(from);
     const toDomain = this.multiProvider.getDomainId(to);
     const { transactionOverrides } = this.multiProvider.getChainMetadata(from);

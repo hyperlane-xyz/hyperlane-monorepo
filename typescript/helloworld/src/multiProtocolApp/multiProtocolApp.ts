@@ -1,38 +1,26 @@
-import { BigNumber } from 'ethers';
-
 import {
   ChainMap,
   ChainName,
-  IGasRouterAdapter,
-  MultiProtocolGasRouterApp,
+  MultiProtocolRouterApp,
+  TypedTransaction,
 } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { StatCounts } from '../app/types';
 
-interface HelloWorldAdapter extends IGasRouterAdapter {
-  sendHelloWorld: (
-    from: ChainName,
-    to: ChainName,
-    message: string,
-    value: BigNumber,
-  ) => Promise<string>;
+import { IHelloWorldAdapter } from './types';
 
-  channelStats: (from: ChainName, to: ChainName) => Promise<StatCounts>;
-  stats: () => Promise<ChainMap<ChainMap<StatCounts>>>;
-}
-
-export class HelloMultiProtocolApp extends MultiProtocolGasRouterApp<
+export class HelloMultiProtocolApp extends MultiProtocolRouterApp<
   { router: Address },
-  HelloWorldAdapter
+  IHelloWorldAdapter
 > {
-  sendHelloWorld(
+  populateHelloWorldTx(
     from: ChainName,
     to: ChainName,
     message: string,
-    value: BigNumber,
-  ): Promise<string> {
-    return this.adapter(from).sendHelloWorld(from, to, message, value);
+    value: string,
+  ): Promise<TypedTransaction> {
+    return this.adapter(from).populateHelloWorldTx(from, to, message, value);
   }
 
   channelStats(from: ChainName, to: ChainName): Promise<StatCounts> {
