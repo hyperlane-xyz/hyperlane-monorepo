@@ -161,12 +161,20 @@ export {
   ReadOnlyMultiProvider,
 } from './providers/MultiProvider';
 export {
+  EthersV5Contract,
   EthersV5Provider,
+  EthersV5Transaction,
   ProviderMap,
   ProviderType,
+  SolanaWeb3Contract,
   SolanaWeb3Provider,
+  SolanaWeb3Transaction,
+  TypedContract,
   TypedProvider,
+  TypedTransaction,
+  ViemContract,
   ViemProvider,
+  ViemTransaction,
 } from './providers/ProviderType';
 export {
   RetryJsonRpcProvider,
