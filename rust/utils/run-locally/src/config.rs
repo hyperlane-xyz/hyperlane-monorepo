@@ -18,10 +18,11 @@ pub struct Config {
     pub kathy_messages: u64,
     pub log_all: bool,
     pub log_dir: PathBuf,
+    pub build_log_file: PathBuf,
 }
 
 impl Config {
-    pub fn load() -> Self {
+    pub fn load() -> Arc<Self> {
         let ci_mode = env::var("E2E_CI_MODE")
             .map(|k| k.parse::<bool>().unwrap())
             .unwrap_or_default();
@@ -31,7 +32,8 @@ impl Config {
             .as_secs()
             .to_string();
         let log_dir = concat_path(env::temp_dir(), format!("logs/hyperlane-agents/{date_str}"));
-        Self {
+        let build_log_file = concat_path(&log_dir, "build.log");
+        Arc::new(Self {
             ci_mode,
             log_dir,
             is_ci_env: env::var("CI").as_deref() == Ok("true"),
@@ -47,7 +49,8 @@ impl Config {
             log_all: env::var("E2E_LOG_ALL")
                 .map(|k| k.parse::<bool>().unwrap())
                 .unwrap_or(ci_mode),
-        }
+            build_log_file,
+        })
     }
 }
 

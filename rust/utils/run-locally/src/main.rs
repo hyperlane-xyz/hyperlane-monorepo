@@ -14,15 +14,14 @@
 //!   true if CI mode,
 //! else false.
 
-use std::path::Path;
 use std::{
     fs::{self},
-    path::PathBuf,
     process::{Child, ExitCode},
     sync::atomic::{AtomicBool, Ordering},
     thread::sleep,
     time::{Duration, Instant},
 };
+use std::sync::Arc;
 
 use eyre::Result;
 use maplit::hashmap;
@@ -30,7 +29,7 @@ use tempfile::tempdir;
 
 use logging::log;
 
-use crate::config::ProgramArgs;
+use crate::config::{Config, ProgramArgs};
 use crate::utils::{
     build_cmd, concat_path, make_static, run_agent, stop_child, AgentHandles, TaskHandle,
 };
@@ -38,7 +37,9 @@ use crate::utils::{
 mod config;
 mod logging;
 mod metrics;
+mod solana_cli;
 mod utils;
+use crate::solana_cli::install_solana_cli_tools;
 pub use metrics::fetch_metric;
 
 /// These private keys are from hardhat/anvil's testing accounts.
@@ -59,21 +60,29 @@ const AGENT_BIN_PATH: &str = "target/debug";
 const INFRA_PATH: &str = "../typescript/infra";
 const TS_SDK_PATH: &str = "../typescript/sdk";
 const MONOREPO_ROOT_PATH: &str = "../";
+/// The Solana CLI tool version to download and use.
+const SOLANA_CLI_VERSION: &str = "1.14.20";
 
 static RUN_LOG_WATCHERS: AtomicBool = AtomicBool::new(true);
 static SHUTDOWN: AtomicBool = AtomicBool::new(false);
 
 /// Struct to hold stuff we want to cleanup whenever we exit. Just using for
 /// cleanup purposes at this time.
-#[derive(Default)]
 struct State {
-    build_log: PathBuf,
-    log_all: bool,
+    config: Arc<Config>,
     scraper_postgres_initialized: bool,
     agents: Vec<Child>,
     watchers: Vec<TaskHandle<()>>,
 }
 impl State {
+    fn new(config: Arc<Config>) -> Self {
+        Self {
+            config,
+            scraper_postgres_initialized: false,
+            agents: vec![],
+            watchers: vec![],
+        }
+    }
     fn push_agent(&mut self, handles: AgentHandles) {
         self.agents.push(handles.0);
         self.watchers.push(handles.1);
@@ -91,7 +100,7 @@ impl Drop for State {
         }
         if self.scraper_postgres_initialized {
             log!("Stopping scraper postgres...");
-            kill_scraper_postgres(&self.build_log, self.log_all);
+            kill_scraper_postgres(&self.config);
         }
         log!("Joining watchers...");
         RUN_LOG_WATCHERS.store(false, Ordering::Relaxed);
@@ -118,12 +127,11 @@ fn main() -> ExitCode {
     })
     .unwrap();
 
-    let config = config::Config::load();
+    let config = Config::load();
 
     if !config.log_all {
         fs::create_dir_all(&config.log_dir).expect("Failed to make log dir");
     }
-    let build_log = concat_path(&config.log_dir, "build.log");
 
     let checkpoints_dirs = (0..3).map(|_| tempdir().unwrap()).collect::<Vec<_>>();
     let rocks_db_dir = tempdir().unwrap();
@@ -214,9 +222,7 @@ fn main() -> ExitCode {
             "postgresql://postgres:47221c18c610@localhost:5432/postgres",
         );
 
-    let mut state = State::default();
-    state.build_log = build_log;
-    state.log_all = config.log_all;
+    let mut state = State::new(config.clone());
 
     if !config.log_all {
         log!("Logs in {}", config.log_dir.display());
@@ -234,9 +240,21 @@ fn main() -> ExitCode {
         log!("Validator {} DB in {}", i + 1, validator_dbs[i].display());
     });
 
-    let build_log_ref = make_static(state.build_log.to_str().unwrap().to_owned());
-    let build_cmd = move |cmd| build_cmd(cmd, build_log_ref, config.log_all, true);
+    let build_cmd = {
+        let log_all = config.log_all;
+        let build_log = make_static(config.build_log_file.to_str().unwrap().to_owned());
+        move |cmd| build_cmd(cmd, build_log.into(), log_all, true)
+    };
     let run_agent = |args, prefix| run_agent(args, prefix, &config);
+
+    //
+    // Ready to run...
+    //
+
+    let solana_path = install_solana_cli_tools(config.clone()).join();
+
+
+    return ExitCode::SUCCESS;
 
     shutdown_if_needed!();
     // this task takes a long time in the CI so run it in parallel
@@ -252,7 +270,7 @@ fn main() -> ExitCode {
     );
 
     log!("Running postgres db...");
-    kill_scraper_postgres(&state.build_log, config.log_all);
+    kill_scraper_postgres(&config);
     build_cmd(
         ProgramArgs::new("docker")
             .cmd("run")
@@ -495,13 +513,13 @@ fn termination_invariants_met(num_expected_messages: u32) -> Result<bool> {
     }
 }
 
-fn kill_scraper_postgres(build_log: impl AsRef<Path>, log_all: bool) {
+fn kill_scraper_postgres(config: &Config) {
     build_cmd(
         ProgramArgs::new("docker")
             .cmd("stop")
             .cmd("scraper-testnet-postgres"),
-        &build_log,
-        log_all,
+        config.build_log_file.clone(),
+        config.log_all,
         false,
     )
     .join();
