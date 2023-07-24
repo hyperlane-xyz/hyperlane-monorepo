@@ -1,10 +1,18 @@
-import type { Connection } from '@solana/web3.js';
+import type {
+  Connection,
+  Transaction as SolTransaction,
+} from '@solana/web3.js';
 import type {
   Contract as EV5Contract,
   providers as EV5Providers,
+  PopulatedTransaction as EV5Transaction,
 } from 'ethers';
 // import type { Contract as Ev6Contract, Provider as Ev6Provider } from 'ethers6';
-import type { GetContractReturnType, PublicClient } from 'viem';
+import type {
+  GetContractReturnType,
+  PublicClient,
+  Transaction as VTransaction,
+} from 'viem';
 
 export enum ProviderType {
   EthersV5 = 'ethers-v5',
@@ -62,7 +70,7 @@ interface TypedContractBase<T> {
 
 export interface EthersV5Contract extends TypedContractBase<EV5Contract> {
   type: ProviderType.EthersV5;
-  contract: EV5Contract;
+  transaction: EV5Contract;
 }
 
 // export interface EthersV6Contract extends TypedContractBase<Ev6Contract> {
@@ -72,13 +80,13 @@ export interface EthersV5Contract extends TypedContractBase<EV5Contract> {
 
 export interface ViemContract extends TypedContractBase<GetContractReturnType> {
   type: ProviderType.Viem;
-  contract: GetContractReturnType;
+  transaction: GetContractReturnType;
 }
 
 export interface SolanaWeb3Contract extends TypedContractBase<never> {
   type: ProviderType.SolanaWeb3;
   // Contract concept doesn't exist in @solana/web3.js
-  contract: never;
+  transaction: never;
 }
 
 export type TypedContract =
@@ -86,3 +94,41 @@ export type TypedContract =
   // | EthersV6Contract
   | ViemContract
   | SolanaWeb3Contract;
+
+/**
+ * Transactions with discriminated union of provider type
+ */
+
+interface TypedTransactionBase<T> {
+  type: ProviderType;
+  transaction: T;
+}
+
+export interface EthersV5Transaction
+  extends TypedTransactionBase<EV5Transaction> {
+  type: ProviderType.EthersV5;
+  transaction: EV5Transaction;
+}
+
+// export interface EthersV6Transaction extends TypedTransactionBase<Ev6Transaction> {
+//   type: ProviderType.EthersV6;
+//   contract: Ev6Transaction;
+// }
+
+export interface ViemTransaction extends TypedTransactionBase<VTransaction> {
+  type: ProviderType.Viem;
+  transaction: VTransaction;
+}
+
+export interface SolanaWeb3Transaction
+  extends TypedTransactionBase<SolTransaction> {
+  type: ProviderType.SolanaWeb3;
+  // Transaction concept doesn't exist in @solana/web3.js
+  transaction: SolTransaction;
+}
+
+export type TypedTransaction =
+  | EthersV5Transaction
+  // | EthersV6Transaction
+  | ViemTransaction
+  | SolanaWeb3Transaction;
