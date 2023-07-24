@@ -65,9 +65,11 @@ export class InterchainAccountDeployer extends ProxiedRouterDeployer<
       'interchainAccountIsm',
       [config.mailbox],
     );
-    config.interchainSecurityModule = interchainAccountIsm.address;
-
-    const contracts = await super.deployContracts(chain, config);
+    const modifiedConfig = {
+      ...config,
+      interchainSecurityModule: interchainAccountIsm.address,
+    };
+    const contracts = await super.deployContracts(chain, modifiedConfig);
 
     return {
       ...contracts,

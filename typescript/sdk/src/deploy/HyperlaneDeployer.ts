@@ -197,7 +197,7 @@ export abstract class HyperlaneDeployer<
 
       if (config.interchainSecurityModule) {
         // set interchain security module if not already set (and configured)
-        let configuredIsm;
+        let configuredIsm: string;
         if (typeof config.interchainSecurityModule === 'string') {
           configuredIsm = config.interchainSecurityModule;
         } else if (this.options?.ismFactory) {
