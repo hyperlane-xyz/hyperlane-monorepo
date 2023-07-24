@@ -24,6 +24,7 @@ export const igp: ChainMap<OverheadIgpConfig> = objMap(
   (chain, owner) => {
     return {
       owner,
+      oracle: owner,
       beneficiary: owner,
       gasOracleType: getGasOracles(chain),
       overhead: Object.fromEntries(
