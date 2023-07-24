@@ -3,6 +3,18 @@ import { ethers } from 'ethers';
 import type { types } from '@hyperlane-xyz/utils';
 import { eqAddress } from '@hyperlane-xyz/utils/dist/src/utils';
 
+export type UpgradeConfig = {
+  timelock: {
+    delay: number;
+    roles: {
+      executor: types.Address;
+      proposer: types.Address;
+      // canceller: types.Address; proposer == canceller in constructor of TimelockController
+      // admin?: types.Address; assume self-administration
+    };
+  };
+};
+
 export async function proxyImplementation(
   provider: ethers.providers.Provider,
   proxy: types.Address,
