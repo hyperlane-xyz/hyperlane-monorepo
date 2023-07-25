@@ -104,11 +104,13 @@ contract MailboxV3 is IMailboxV3, Versioned, Ownable {
 
         // effects
         nonce += 1;
+        bytes32 _id = _message.id();
+        emit DispatchId(_id);
         emit Dispatch(_message);
 
         // interactions
         defaultHook.postDispatch{value: msg.value}(_message);
-        return _message.id();
+        return _id;
     }
 
     /**
@@ -141,6 +143,7 @@ contract MailboxV3 is IMailboxV3, Versioned, Ownable {
         // effects
         delivered[_id] = true;
         emit Process(_message);
+        emit ProcessId(_id);
 
         // Deliver the message to the recipient. (interactions)
         IMessageRecipient(recipient).handle{value: msg.value}(
