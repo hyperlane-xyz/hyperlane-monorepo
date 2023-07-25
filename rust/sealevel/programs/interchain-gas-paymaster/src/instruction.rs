@@ -48,14 +48,14 @@ pub struct QuoteGasPayment {
     pub gas_amount: u64,
 }
 
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Clone)]
 pub struct GasOverheadConfig {
     pub destination_domain: u32,
     pub gas_overhead: Option<u64>,
 }
 
 /// A config for setting remote gas data.
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Clone)]
 pub struct GasOracleConfig {
     pub domain: u32,
     pub gas_oracle: Option<GasOracle>,

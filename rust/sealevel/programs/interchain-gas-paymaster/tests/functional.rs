@@ -21,9 +21,14 @@ use solana_sdk::{
 use hyperlane_test_utils::{assert_transaction_error, new_funded_keypair, process_instruction};
 
 use hyperlane_sealevel_igp::{
-    accounts::{Igp, IgpAccount, OverheadIgp, OverheadIgpAccount, ProgramData, ProgramDataAccount},
+    accounts::{
+        GasOracle, Igp, IgpAccount, OverheadIgp, OverheadIgpAccount, ProgramData,
+        ProgramDataAccount, RemoteGasData,
+    },
     igp_pda_seeds, igp_program_data_pda_seeds,
-    instruction::{InitIgp, InitOverheadIgp, Instruction as IgpInstruction},
+    instruction::{
+        GasOracleConfig, GasOverheadConfig, InitIgp, InitOverheadIgp, Instruction as IgpInstruction,
+    },
     overhead_igp_pda_seeds,
     processor::process_instruction as igp_process_instruction,
 };
@@ -307,3 +312,337 @@ async fn test_initialize_overhead_igp_errors_if_called_twice() {
         TransactionError::InstructionError(0, InstructionError::AccountAlreadyInitialized),
     );
 }
+
+#[tokio::test]
+async fn test_set_gas_oracle_configs() {
+    let program_id = igp_program_id();
+    let (mut banks_client, payer) = setup_client().await;
+
+    initialize(&mut banks_client, &payer).await.unwrap();
+
+    let salt = H256::random();
+
+    let (igp_key, _igp_bump_seed) = initialize_igp(
+        &mut banks_client,
+        &payer,
+        salt,
+        Some(payer.pubkey()),
+        payer.pubkey(),
+    )
+    .await
+    .unwrap();
+
+    let configs = vec![
+        GasOracleConfig {
+            domain: 11,
+            gas_oracle: Some(GasOracle::RemoteGasData(RemoteGasData {
+                token_exchange_rate: 112233445566u128,
+                gas_price: 123456u128,
+                token_decimals: 18u8,
+            })),
+        },
+        GasOracleConfig {
+            domain: 12,
+            gas_oracle: Some(GasOracle::RemoteGasData(RemoteGasData {
+                token_exchange_rate: 665544332211u128,
+                gas_price: 654321u128,
+                token_decimals: 6u8,
+            })),
+        },
+    ];
+
+    // Accounts:
+    // 0. [executable] The system program.
+    // 1. [writeable] The IGP.
+    // 2. [signer] The IGP owner.
+    let instruction = Instruction::new_with_borsh(
+        program_id,
+        &IgpInstruction::SetGasOracleConfigs(configs.clone()),
+        vec![
+            AccountMeta::new_readonly(system_program::id(), false),
+            AccountMeta::new(igp_key, false),
+            AccountMeta::new_readonly(payer.pubkey(), true),
+        ],
+    );
+    process_instruction(&mut banks_client, instruction, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Expect the gas oracle configs to be set.
+    let igp_account = banks_client.get_account(igp_key).await.unwrap().unwrap();
+    let igp = IgpAccount::fetch(&mut &igp_account.data[..])
+        .unwrap()
+        .into_inner();
+
+    assert_eq!(
+        igp.gas_oracles,
+        configs
+            .iter()
+            .cloned()
+            .map(|c| (c.domain, c.gas_oracle.unwrap()))
+            .collect(),
+    );
+
+    // Remove one of them
+    let rm_configs = vec![GasOracleConfig {
+        domain: 12,
+        gas_oracle: None,
+    }];
+
+    let instruction = Instruction::new_with_borsh(
+        program_id,
+        &IgpInstruction::SetGasOracleConfigs(rm_configs.clone()),
+        vec![
+            AccountMeta::new_readonly(system_program::id(), false),
+            AccountMeta::new(igp_key, false),
+            AccountMeta::new_readonly(payer.pubkey(), true),
+        ],
+    );
+    process_instruction(&mut banks_client, instruction, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Make sure the other one is still there
+    let igp_account = banks_client.get_account(igp_key).await.unwrap().unwrap();
+    let igp = IgpAccount::fetch(&mut &igp_account.data[..])
+        .unwrap()
+        .into_inner();
+
+    let remaining_config = configs[0].clone();
+
+    assert_eq!(
+        igp.gas_oracles,
+        HashMap::from([(
+            remaining_config.domain,
+            remaining_config.gas_oracle.unwrap(),
+        )]),
+    );
+}
+
+#[tokio::test]
+async fn test_set_gas_oracle_configs_errors_if_owner_not_signer() {
+    let program_id = igp_program_id();
+    let (mut banks_client, payer) = setup_client().await;
+
+    initialize(&mut banks_client, &payer).await.unwrap();
+
+    let non_owner = new_funded_keypair(&mut banks_client, &payer, 1000000000).await;
+
+    let salt = H256::random();
+
+    let (igp_key, _igp_bump_seed) = initialize_igp(
+        &mut banks_client,
+        &payer,
+        salt,
+        Some(payer.pubkey()),
+        payer.pubkey(),
+    )
+    .await
+    .unwrap();
+
+    let configs = vec![GasOracleConfig {
+        domain: 11,
+        gas_oracle: Some(GasOracle::RemoteGasData(RemoteGasData {
+            token_exchange_rate: 112233445566u128,
+            gas_price: 123456u128,
+            token_decimals: 18u8,
+        })),
+    }];
+
+    // Accounts:
+    // 0. [executable] The system program.
+    // 1. [writeable] The IGP.
+    // 2. [signer] The IGP owner.
+
+    // Try with the correct owner passed in, but it's not a signer
+    let instruction = Instruction::new_with_borsh(
+        program_id,
+        &IgpInstruction::SetGasOracleConfigs(configs.clone()),
+        vec![
+            AccountMeta::new_readonly(system_program::id(), false),
+            AccountMeta::new(igp_key, false),
+            AccountMeta::new_readonly(payer.pubkey(), false),
+        ],
+    );
+    assert_transaction_error(
+        process_instruction(&mut banks_client, instruction, &non_owner, &[&non_owner]).await,
+        TransactionError::InstructionError(0, InstructionError::MissingRequiredSignature),
+    );
+
+    // Try with the wrong owner passed in, but it's a signer
+    let instruction = Instruction::new_with_borsh(
+        program_id,
+        &IgpInstruction::SetGasOracleConfigs(configs.clone()),
+        vec![
+            AccountMeta::new_readonly(system_program::id(), false),
+            AccountMeta::new(igp_key, false),
+            AccountMeta::new_readonly(non_owner.pubkey(), true),
+        ],
+    );
+    assert_transaction_error(
+        process_instruction(&mut banks_client, instruction, &non_owner, &[&non_owner]).await,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
+}
+
+#[tokio::test]
+async fn test_set_destination_gas_overheads() {
+    let program_id = igp_program_id();
+    let (mut banks_client, payer) = setup_client().await;
+
+    initialize(&mut banks_client, &payer).await.unwrap();
+
+    let salt = H256::random();
+    let inner = Pubkey::new_unique();
+
+    let (overhead_igp_key, _overhead_igp_bump_seed) =
+        initialize_overhead_igp(&mut banks_client, &payer, salt, Some(payer.pubkey()), inner)
+            .await
+            .unwrap();
+
+    let configs = vec![
+        GasOverheadConfig {
+            destination_domain: 11,
+            gas_overhead: Some(112233),
+        },
+        GasOverheadConfig {
+            destination_domain: 12,
+            gas_overhead: Some(332211),
+        },
+    ];
+
+    // Accounts:
+    // 0. [executable] The system program.
+    // 1. [writeable] The Overhead IGP.
+    // 2. [signer] The Overhead IGP owner.
+    let instruction = Instruction::new_with_borsh(
+        program_id,
+        &IgpInstruction::SetDestinationGasOverheads(configs.clone()),
+        vec![
+            AccountMeta::new_readonly(system_program::id(), false),
+            AccountMeta::new(overhead_igp_key, false),
+            AccountMeta::new_readonly(payer.pubkey(), true),
+        ],
+    );
+    process_instruction(&mut banks_client, instruction, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Expect the configs to be set.
+    let overhead_igp_account = banks_client
+        .get_account(overhead_igp_key)
+        .await
+        .unwrap()
+        .unwrap();
+    let overhead_igp = OverheadIgpAccount::fetch(&mut &overhead_igp_account.data[..])
+        .unwrap()
+        .into_inner();
+
+    assert_eq!(
+        overhead_igp.gas_overheads,
+        configs
+            .iter()
+            .cloned()
+            .map(|c| (c.destination_domain, c.gas_overhead.unwrap()))
+            .collect(),
+    );
+
+    // Remove one of them
+    let rm_configs = vec![GasOverheadConfig {
+        destination_domain: 12,
+        gas_overhead: None,
+    }];
+
+    let instruction = Instruction::new_with_borsh(
+        program_id,
+        &IgpInstruction::SetDestinationGasOverheads(rm_configs.clone()),
+        vec![
+            AccountMeta::new_readonly(system_program::id(), false),
+            AccountMeta::new(overhead_igp_key, false),
+            AccountMeta::new_readonly(payer.pubkey(), true),
+        ],
+    );
+    process_instruction(&mut banks_client, instruction, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Make sure the other one is still there
+    let overhead_igp_account = banks_client
+        .get_account(overhead_igp_key)
+        .await
+        .unwrap()
+        .unwrap();
+    let overhead_igp = OverheadIgpAccount::fetch(&mut &overhead_igp_account.data[..])
+        .unwrap()
+        .into_inner();
+
+    let remaining_config = configs[0].clone();
+
+    assert_eq!(
+        overhead_igp.gas_overheads,
+        HashMap::from([(
+            remaining_config.destination_domain,
+            remaining_config.gas_overhead.unwrap(),
+        )]),
+    );
+}
+
+#[tokio::test]
+async fn test_set_destination_gas_overheads_errors_if_owner_not_signer() {
+    let program_id = igp_program_id();
+    let (mut banks_client, payer) = setup_client().await;
+
+    initialize(&mut banks_client, &payer).await.unwrap();
+
+    let non_owner = new_funded_keypair(&mut banks_client, &payer, 1000000000).await;
+
+    let salt = H256::random();
+    let inner = Pubkey::new_unique();
+
+    let (overhead_igp_key, _overhead_igp_bump_seed) =
+        initialize_overhead_igp(&mut banks_client, &payer, salt, Some(payer.pubkey()), inner)
+            .await
+            .unwrap();
+
+    let configs = vec![GasOverheadConfig {
+        destination_domain: 11,
+        gas_overhead: Some(112233),
+    }];
+
+    // Accounts:
+    // 0. [executable] The system program.
+    // 1. [writeable] The Overhead IGP.
+    // 2. [signer] The Overhead IGP owner.
+
+    // Try with the correct owner passed in, but it's not a signer
+    let instruction = Instruction::new_with_borsh(
+        program_id,
+        &IgpInstruction::SetDestinationGasOverheads(configs.clone()),
+        vec![
+            AccountMeta::new_readonly(system_program::id(), false),
+            AccountMeta::new(overhead_igp_key, false),
+            AccountMeta::new_readonly(payer.pubkey(), false),
+        ],
+    );
+    assert_transaction_error(
+        process_instruction(&mut banks_client, instruction, &non_owner, &[&non_owner]).await,
+        TransactionError::InstructionError(0, InstructionError::MissingRequiredSignature),
+    );
+
+    // Try with the wrong owner passed in, but it's a signer
+    let instruction = Instruction::new_with_borsh(
+        program_id,
+        &IgpInstruction::SetDestinationGasOverheads(configs.clone()),
+        vec![
+            AccountMeta::new_readonly(system_program::id(), false),
+            AccountMeta::new(overhead_igp_key, false),
+            AccountMeta::new_readonly(non_owner.pubkey(), true),
+        ],
+    );
+    assert_transaction_error(
+        process_instruction(&mut banks_client, instruction, &non_owner, &[&non_owner]).await,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
+}
+
+// #[tokio::test]

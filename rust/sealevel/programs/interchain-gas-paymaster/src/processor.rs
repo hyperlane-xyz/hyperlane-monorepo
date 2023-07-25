@@ -577,6 +577,12 @@ fn set_destination_gas_overheads(
     Ok(())
 }
 
+/// Sets gas oracle configs for an IGP.
+///
+/// Accounts:
+/// 0. [executable] The system program.
+/// 1. [writeable] The IGP.
+/// 2. [signer] The IGP owner.
 fn set_gas_oracle_configs(
     program_id: &Pubkey,
     accounts: &[AccountInfo],

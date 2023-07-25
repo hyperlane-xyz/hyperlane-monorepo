@@ -14,7 +14,7 @@ use crate::error::Error;
 pub const TOKEN_EXCHANGE_RATE_SCALE: u64 = 10u64.pow(19);
 pub const SOL_DECIMALS: u8 = 9;
 
-#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Clone)]
 pub enum GasOracle {
     RemoteGasData(RemoteGasData),
     // Could imagine a Pyth type, or CPI type, etc...
@@ -112,13 +112,10 @@ impl SizedData for Igp {
         // 1 for bump_seed
         // 32 for salt
         // 33 for owner (1 byte Option, 32 bytes for pubkey)
-        // 8 for payment_count
         // 32 for beneficiary
-        // 4 for gas_overheads.len()
-        // N * (4 + 8) for gas_overhead contents
         // 4 for gas_oracles.len()
-        // M * (4 + 8) for gas_oracles contents
-        1 + 32 + 33 + 8 + 32 + 4 + (self.gas_oracles.len() * (4 + 8))
+        // M * (4 + (1 + 257)) for gas_oracles contents
+        1 + 32 + 33 + 32 + 4 + (self.gas_oracles.len() * (1 + 257))
     }
 }
 
@@ -168,7 +165,7 @@ impl AccessControl for Igp {
     }
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default, Clone)]
 pub struct RemoteGasData {
     pub token_exchange_rate: u128,
     pub gas_price: u128,
