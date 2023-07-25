@@ -10,13 +10,9 @@
 //! does not include the initial setup time. If this timeout is reached before
 //! the end conditions are met, the test is a failure. Defaults to 10 min.
 //! - `E2E_KATHY_MESSAGES`: Number of kathy messages to dispatch. Defaults to 16 if CI mode is enabled.
-//! - `E2E_LOG_ALL`: Log all output instead of writing to log files. Defaults to
-//!   true if CI mode,
 //! else false.
 
-use std::sync::Arc;
 use std::{
-    fs::{self},
     process::{Child, ExitCode},
     sync::atomic::{AtomicBool, Ordering},
     thread::sleep,
@@ -72,23 +68,14 @@ static SHUTDOWN: AtomicBool = AtomicBool::new(false);
 
 /// Struct to hold stuff we want to cleanup whenever we exit. Just using for
 /// cleanup purposes at this time.
+#[derive(Default)]
 struct State {
-    config: Arc<Config>,
     scraper_postgres_initialized: bool,
     agents: Vec<Child>,
     watchers: Vec<TaskHandle<()>>,
     data: Vec<Box<dyn ArbitraryData>>,
 }
 impl State {
-    fn new(config: Arc<Config>) -> Self {
-        Self {
-            config,
-            scraper_postgres_initialized: false,
-            agents: vec![],
-            watchers: vec![],
-            data: vec![],
-        }
-    }
     fn push_agent(&mut self, handles: AgentHandles) {
         self.agents.push(handles.0);
         self.watchers.push(handles.1);
@@ -107,7 +94,7 @@ impl Drop for State {
         }
         if self.scraper_postgres_initialized {
             log!("Stopping scraper postgres...");
-            kill_scraper_postgres(&self.config);
+            kill_scraper_postgres();
         }
         log!("Joining watchers...");
         RUN_LOG_WATCHERS.store(false, Ordering::Relaxed);
@@ -140,10 +127,6 @@ fn main() -> ExitCode {
     .unwrap();
 
     let config = Config::load();
-
-    if !config.log_all {
-        fs::create_dir_all(&config.log_dir).expect("Failed to make log dir");
-    }
 
     let checkpoints_dirs = (0..3).map(|_| tempdir().unwrap()).collect::<Vec<_>>();
     let rocks_db_dir = tempdir().unwrap();
@@ -234,11 +217,8 @@ fn main() -> ExitCode {
             "postgresql://postgres:47221c18c610@localhost:5432/postgres",
         );
 
-    let mut state = State::new(config.clone());
+    let mut state = State::default();
 
-    if !config.log_all {
-        log!("Logs in {}", config.log_dir.display());
-    }
     log!(
         "Signed checkpoints in {}",
         checkpoints_dirs
@@ -252,28 +232,18 @@ fn main() -> ExitCode {
         log!("Validator {} DB in {}", i + 1, validator_dbs[i].display());
     });
 
-    let build_cmd = {
-        let log_all = config.log_all;
-        let build_log = make_static(config.build_log_file.to_str().unwrap().to_owned());
-        move |cmd| build_cmd(cmd, build_log.into(), log_all, true)
-    };
-    let run_agent = |args, prefix| run_agent(args, prefix, &config);
-
     //
     // Ready to run...
     //
 
-    let solana_cli_tool_install = install_solana_cli_tools(config.clone());
-    let solana_program_library_clone = clone_solana_program_library(config.clone());
+    let solana_cli_tool_install = install_solana_cli_tools();
+    let solana_program_library_clone = clone_solana_program_library();
 
     let solana_path = solana_cli_tool_install.join();
     let solana_program_library_path = solana_program_library_clone.join();
 
-    let solana_program_builder = build_solana_programs(
-        config.clone(),
-        solana_path.clone(),
-        solana_program_library_path.clone(),
-    );
+    let solana_program_builder =
+        build_solana_programs(solana_path.clone(), solana_program_library_path.clone());
 
     shutdown_if_needed!();
     // this task takes a long time in the CI so run it in parallel
@@ -287,13 +257,13 @@ fn main() -> ExitCode {
             .arg("bin", "scraper")
             .arg("bin", "init-db")
             .arg("bin", "hyperlane-sealevel-client"),
+        true,
     );
 
     let solana_program_path = solana_program_builder.join();
 
     let solana_ledger_dir = tempdir().unwrap();
     let (solana_config_path, solana_validator) = start_solana_test_validator(
-        config.clone(),
         solana_path,
         solana_program_path,
         solana_ledger_dir.as_ref().to_path_buf(),
@@ -309,7 +279,7 @@ fn main() -> ExitCode {
     return ExitCode::SUCCESS;
 
     log!("Running postgres db...");
-    kill_scraper_postgres(&config);
+    kill_scraper_postgres();
     build_cmd(
         ProgramArgs::new("docker")
             .cmd("run")
@@ -319,6 +289,7 @@ fn main() -> ExitCode {
             .arg("publish", "5432:5432")
             .flag("detach")
             .cmd("postgres:14"),
+        true,
     )
     .join();
     state.scraper_postgres_initialized = true;
@@ -327,13 +298,13 @@ fn main() -> ExitCode {
     log!("Installing typescript dependencies...");
 
     let yarn_monorepo = ProgramArgs::new("yarn").working_dir(MONOREPO_ROOT_PATH);
-    build_cmd(yarn_monorepo.clone().cmd("install")).join();
+    build_cmd(yarn_monorepo.clone().cmd("install"), true).join();
     if !config.is_ci_env {
         // don't need to clean in the CI
-        build_cmd(yarn_monorepo.clone().cmd("clean")).join();
+        build_cmd(yarn_monorepo.clone().cmd("clean"), true).join();
     }
     shutdown_if_needed!();
-    build_cmd(yarn_monorepo.clone().cmd("build")).join();
+    build_cmd(yarn_monorepo.clone().cmd("build"), true).join();
 
     shutdown_if_needed!();
     log!("Launching anvil...");
@@ -349,34 +320,38 @@ fn main() -> ExitCode {
         .working_dir(INFRA_PATH)
         .env("ALLOW_LEGACY_MULTISIG_ISM", "true");
     log!("Deploying hyperlane ism contracts...");
-    build_cmd(yarn_infra.clone().cmd("deploy-ism")).join();
+    build_cmd(yarn_infra.clone().cmd("deploy-ism"), true).join();
 
     shutdown_if_needed!();
     log!("Rebuilding sdk...");
     let yarn_sdk = ProgramArgs::new("yarn").working_dir(TS_SDK_PATH);
-    build_cmd(yarn_sdk.clone().cmd("build")).join();
+    build_cmd(yarn_sdk.clone().cmd("build"), true).join();
 
     log!("Deploying hyperlane core contracts...");
-    build_cmd(yarn_infra.clone().cmd("deploy-core")).join();
+    build_cmd(yarn_infra.clone().cmd("deploy-core"), true).join();
 
     log!("Deploying hyperlane igp contracts...");
-    build_cmd(yarn_infra.clone().cmd("deploy-igp")).join();
+    build_cmd(yarn_infra.clone().cmd("deploy-igp"), true).join();
 
     if !config.is_ci_env {
         // Follow-up 'yarn hardhat node' invocation with 'yarn prettier' to fixup
         // formatting on any autogenerated json config files to avoid any diff creation.
-        build_cmd(yarn_monorepo.cmd("prettier")).join();
+        build_cmd(yarn_monorepo.cmd("prettier"), true).join();
     }
 
     shutdown_if_needed!();
     // Rebuild the SDK to pick up the deployed contracts
     log!("Rebuilding sdk...");
-    build_cmd(yarn_sdk.cmd("build")).join();
+    build_cmd(yarn_sdk.cmd("build"), true).join();
 
     build_rust.join();
 
     log!("Init postgres db...");
-    build_cmd(ProgramArgs::new(concat_path(AGENT_BIN_PATH, "init-db"))).join();
+    build_cmd(
+        ProgramArgs::new(concat_path(AGENT_BIN_PATH, "init-db")),
+        true,
+    )
+    .join();
 
     shutdown_if_needed!();
 
@@ -553,13 +528,11 @@ fn termination_invariants_met(num_expected_messages: u32) -> Result<bool> {
     }
 }
 
-fn kill_scraper_postgres(config: &Config) {
+fn kill_scraper_postgres() {
     build_cmd(
         ProgramArgs::new("docker")
             .cmd("stop")
             .cmd("scraper-testnet-postgres"),
-        config.build_log_file.clone(),
-        config.log_all,
         false,
     )
     .join();

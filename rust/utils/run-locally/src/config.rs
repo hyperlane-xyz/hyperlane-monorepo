@@ -5,20 +5,16 @@ use std::fmt::{Debug, Display, Formatter};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use eyre::{Context, Result};
 
-use crate::utils::{ArbitraryData, concat_path, LogFilter};
+use crate::utils::{ArbitraryData, LogFilter};
 
 pub struct Config {
     pub is_ci_env: bool,
     pub ci_mode: bool,
     pub ci_mode_timeout: u64,
     pub kathy_messages: u64,
-    pub log_all: bool,
-    pub log_dir: PathBuf,
-    pub build_log_file: PathBuf,
 }
 
 impl Config {
@@ -26,16 +22,8 @@ impl Config {
         let ci_mode = env::var("E2E_CI_MODE")
             .map(|k| k.parse::<bool>().unwrap())
             .unwrap_or_default();
-        let date_str = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs()
-            .to_string();
-        let log_dir = concat_path(env::temp_dir(), format!("logs/hyperlane-agents/{date_str}"));
-        let build_log_file = concat_path(&log_dir, "build.log");
         Arc::new(Self {
             ci_mode,
-            log_dir,
             is_ci_env: env::var("CI").as_deref() == Ok("true"),
             ci_mode_timeout: env::var("E2E_CI_TIMEOUT_SEC")
                 .map(|k| k.parse::<u64>().unwrap())
@@ -46,10 +34,6 @@ impl Config {
                     .map(|r| r.parse::<u64>().unwrap());
                 r.unwrap_or(16)
             },
-            log_all: env::var("E2E_LOG_ALL")
-                .map(|k| k.parse::<bool>().unwrap())
-                .unwrap_or(ci_mode),
-            build_log_file,
         })
     }
 }

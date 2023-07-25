@@ -3,9 +3,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use macro_rules_attribute::apply;
-use tempfile::{tempdir, tempfile, NamedTempFile, TempDir, TempPath};
+use tempfile::{tempdir, NamedTempFile};
 
-use crate::config::{Config, ProgramArgs};
+use crate::config::ProgramArgs;
 use crate::logging::log;
 use crate::utils::{as_task, build_cmd, concat_path, run_agent, AgentHandles};
 use crate::{AGENT_BIN_PATH, SOLANA_CLI_VERSION};
@@ -57,7 +57,7 @@ const SOLANA_PROGRAM_LIBRARY_REPO_BRANCH: &str = "hyperlane";
 
 // Install the CLI tools and return the path to the bin dir.
 #[apply(as_task)]
-pub fn install_solana_cli_tools(config: Arc<Config>) -> PathBuf {
+pub fn install_solana_cli_tools() -> PathBuf {
     let solana_tools_dir = format!("target/solana-tools-{SOLANA_CLI_VERSION}");
     if Path::new(&solana_tools_dir).exists() {
         log!(
@@ -93,7 +93,7 @@ pub fn install_solana_cli_tools(config: Arc<Config>) -> PathBuf {
             .cmd(format!("https://github.com/solana-labs/solana/releases/download/v{SOLANA_CLI_VERSION}/{solana_archive_name}"))
             .flag("silent")
             .working_dir("target"),
-        config.build_log_file.clone(), config.log_all, true
+         true
     )
         .join();
     log!("Uncompressing solana release");
@@ -102,8 +102,6 @@ pub fn install_solana_cli_tools(config: Arc<Config>) -> PathBuf {
             .flag("extract")
             .arg("file", &solana_archive_name)
             .working_dir("target"),
-        config.build_log_file.clone(),
-        config.log_all,
         true,
     )
     .join();
@@ -116,7 +114,7 @@ pub fn install_solana_cli_tools(config: Arc<Config>) -> PathBuf {
 }
 
 #[apply(as_task)]
-pub fn clone_solana_program_library(config: Arc<Config>) -> PathBuf {
+pub fn clone_solana_program_library() -> PathBuf {
     let solana_programs_path = concat_path("target", "solana-program-library");
     if solana_programs_path.exists() {
         fs::remove_dir_all(&solana_programs_path).expect("Failed to remove solana program dir");
@@ -130,8 +128,6 @@ pub fn clone_solana_program_library(config: Arc<Config>) -> PathBuf {
             .arg("depth", "1")
             .cmd(SOLANA_PROGRAM_LIBRARY_REPO)
             .cmd(solana_programs_path.to_str().unwrap()),
-        config.build_log_file.clone(),
-        config.log_all,
         true,
     )
     .join();
@@ -141,7 +137,6 @@ pub fn clone_solana_program_library(config: Arc<Config>) -> PathBuf {
 
 #[apply(as_task)]
 pub fn build_solana_programs(
-    config: Arc<Config>,
     solana_cli_tools_path: PathBuf,
     solana_program_library_path: PathBuf,
 ) -> PathBuf {
@@ -163,8 +158,6 @@ pub fn build_solana_programs(
             build_sbf
                 .clone()
                 .working_dir(concat_path(&solana_program_library_path, path)),
-            config.build_log_file.clone(),
-            config.log_all,
             true,
         )
         .join();
@@ -178,8 +171,6 @@ pub fn build_solana_programs(
             build_sbf
                 .clone()
                 .working_dir(concat_path("sealevel/programs", path)),
-            config.build_log_file.clone(),
-            config.log_all,
             true,
         )
         .join();
@@ -190,7 +181,6 @@ pub fn build_solana_programs(
 
 #[apply(as_task)]
 pub fn start_solana_test_validator(
-    config: Arc<Config>,
     solana_cli_tools_path: PathBuf,
     solana_programs_path: PathBuf,
     ledger_dir: PathBuf,
@@ -205,8 +195,6 @@ pub fn start_solana_test_validator(
             .cmd("config")
             .cmd("set")
             .arg("url", "localhost"),
-        config.build_log_file.clone(),
-        config.log_all,
         true,
     )
     .join();
@@ -229,7 +217,7 @@ pub fn start_solana_test_validator(
             concat_path(&solana_programs_path, lib).to_str().unwrap(),
         );
     }
-    let validator = run_agent(args, "SOL", &config);
+    let validator = run_agent(args, "SOL");
 
     // deploy hyperlane programs
     let sealevel_client = sealevel_client(&solana_cli_tools_path);
@@ -243,8 +231,6 @@ pub fn start_solana_test_validator(
             .arg("validators", "0x70997970c51812dc3a010c7d01b50e0d17dc79c8")
             .arg("threshold", "1")
             .arg("program-id", "4RSV6iyqW9X66Xq3RDCVsKJ7hMba5uv6XP8ttgxjVUB1"),
-        config.build_log_file.clone(),
-        config.log_all,
         true,
     )
     .join();
@@ -260,15 +246,13 @@ pub fn start_solana_test_validator(
                 format!("file://{}", solana_checkpoints.path().to_str().unwrap()),
             )
             .arg("signature", "0xcd87b715cd4c2e3448be9e34204cf16376a6ba6106e147a4965e26ea946dd2ab19598140bf26f1e9e599c23f6b661553c7d89e8db22b3609068c91eb7f0fa2f01b"),
-        config.build_log_file.clone(),
-        config.log_all,
+
         true,
     )
     .join();
 
     build_cmd(
         sealevel_client
-            .clone()
             .arg("compute-budget", "200000")
             .cmd("warp-route")
             .cmd("deploy")
@@ -285,8 +269,6 @@ pub fn start_solana_test_validator(
                 "sealevel/environments/local-e2e/warp-routes/chain-config.json",
             )
             .arg("ata-payer-funding-amount", "1000000000"),
-        config.build_log_file.clone(),
-        config.log_all,
         true,
     )
     .join();
@@ -296,7 +278,6 @@ pub fn start_solana_test_validator(
 
 #[apply(as_task)]
 pub fn initiate_solana_hyperlane_transfer(
-    config: Arc<Config>,
     solana_cli_tools_path: PathBuf,
     solana_config_path: PathBuf,
 ) {
