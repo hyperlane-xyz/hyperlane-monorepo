@@ -266,10 +266,12 @@ impl Relayer {
         &self,
         origin: &HyperlaneDomain,
     ) -> Instrumented<JoinHandle<eyre::Result<()>>> {
-        let index_settings = self.as_ref().settings.chains[origin.name()].index.clone();
+        let chain_conf = self.as_ref().settings.chains[origin.name()].clone();
+        let index_settings = chain_conf.index.clone();
+        let index_mode = chain_conf.domain.index_mode();
         let contract_sync = self.message_syncs.get(origin).unwrap().clone();
         let cursor = contract_sync
-            .forward_backward_message_sync_cursor(index_settings)
+            .forward_backward_message_sync_cursor(index_settings, index_mode)
             .await;
         tokio::spawn(async move {
             contract_sync

@@ -1,6 +1,6 @@
 #![allow(warnings)] // FIXME remove
 
-use std::{collections::HashMap, num::NonZeroU64, str::FromStr as _};
+use std::{collections::HashMap, num::NonZeroU64, ops::RangeInclusive, str::FromStr as _};
 
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -10,8 +10,8 @@ use tracing::{debug, info, instrument, warn};
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     ContractLocator, Decode as _, Encode as _, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, IndexRange, Indexer, LogMeta, Mailbox,
-    MessageIndexer, SequenceRange, TxCostEstimate, TxOutcome, H256, U256,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox,
+    MessageIndexer, TxCostEstimate, TxOutcome, H256, U256,
 };
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
@@ -701,13 +701,10 @@ impl MessageIndexer for SealevelMailboxIndexer {
 
 #[async_trait]
 impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
-    async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
-        let SequenceRange(range) = range else {
-            return Err(ChainCommunicationError::from_other_str(
-                "SealevelMailboxIndexer only supports sequence-based indexing",
-            ))
-        };
-
+    async fn fetch_logs(
+        &self,
+        range: RangeInclusive<u32>,
+    ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
         info!(
             ?range,
             "Fetching SealevelMailboxIndexer HyperlaneMessage logs"
@@ -727,7 +724,7 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
 
 #[async_trait]
 impl Indexer<H256> for SealevelMailboxIndexer {
-    async fn fetch_logs(&self, _range: IndexRange) -> ChainResult<Vec<(H256, LogMeta)>> {
+    async fn fetch_logs(&self, _range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
         todo!()
     }
 

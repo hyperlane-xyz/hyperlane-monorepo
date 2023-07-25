@@ -3,6 +3,7 @@
 
 use std::collections::HashMap;
 use std::num::NonZeroU64;
+use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -14,10 +15,10 @@ use tracing::instrument;
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use hyperlane_core::accumulator::TREE_DEPTH;
 use hyperlane_core::{
-    utils::fmt_bytes, BlockRange, ChainCommunicationError, ChainResult, Checkpoint,
-    ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProtocolError, HyperlaneProvider, IndexRange, Indexer, LogMeta,
-    Mailbox, MessageIndexer, RawHyperlaneMessage, TxCostEstimate, TxOutcome, H160, H256, U256,
+    utils::fmt_bytes, ChainCommunicationError, ChainResult, Checkpoint, ContractLocator,
+    HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
+    HyperlaneProtocolError, HyperlaneProvider, Indexer, LogMeta, Mailbox, MessageIndexer,
+    RawHyperlaneMessage, TxCostEstimate, TxOutcome, H160, H256, U256,
 };
 
 use crate::contracts::arbitrum_node_interface::ArbitrumNodeInterface;
@@ -130,13 +131,10 @@ where
     }
 
     #[instrument(err, skip(self))]
-    async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
-        let BlockRange(range) = range else {
-            return Err(ChainCommunicationError::from_other_str(
-                "EthereumMailboxIndexer only supports block-based indexing",
-            ))
-        };
-
+    async fn fetch_logs(
+        &self,
+        range: RangeInclusive<u32>,
+    ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
         let mut events: Vec<(HyperlaneMessage, LogMeta)> = self
             .contract
             .dispatch_filter()
@@ -178,13 +176,7 @@ where
     }
 
     #[instrument(err, skip(self))]
-    async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(H256, LogMeta)>> {
-        let BlockRange(range) = range else {
-            return Err(ChainCommunicationError::from_other_str(
-                "EthereumMailboxIndexer only supports block-based indexing",
-            ))
-        };
-
+    async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
         Ok(self
             .contract
             .process_id_filter()
