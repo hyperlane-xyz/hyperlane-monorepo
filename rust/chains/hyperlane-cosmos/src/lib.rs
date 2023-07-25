@@ -6,7 +6,7 @@
 #![allow(unused_variables)]
 
 pub use self::{
-    interchain_gas::*, mailbox::*, multisig_ism::*, provider::*, routing_ism::*, trait_builder::*,
+    interchain_gas::*, mailbox::*, multisig_ism::*, providers::*, routing_ism::*, trait_builder::*,
     validator_announce::*,
 };
 
@@ -14,10 +14,12 @@ mod contracts;
 mod interchain_gas;
 mod mailbox;
 mod multisig_ism;
-mod provider;
+mod payloads;
+mod providers;
 mod routing_ism;
 mod trait_builder;
 mod validator_announce;
+mod verify;
 
 /// Safe default imports of commonly used traits/types.
 pub mod prelude {}
