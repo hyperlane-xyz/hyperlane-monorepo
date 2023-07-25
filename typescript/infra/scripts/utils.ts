@@ -12,11 +12,10 @@ import {
   HyperlaneCore,
   HyperlaneIgp,
   MultiProvider,
-  ProtocolType,
   RouterConfig,
   collectValidators,
 } from '@hyperlane-xyz/sdk';
-import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import { ProtocolType, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
 import { environments } from '../config/environments';
