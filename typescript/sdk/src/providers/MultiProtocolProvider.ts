@@ -1,5 +1,7 @@
 import { Debugger, debug } from 'debug';
 
+import { objMap } from '@hyperlane-xyz/utils';
+
 import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager';
 import type { ChainMetadata } from '../metadata/chainMetadataTypes';
@@ -60,7 +62,13 @@ export class MultiProtocolProvider<
     mp: MultiProvider<MetaExt>,
     options: MultiProtocolProviderOptions = {},
   ): MultiProtocolProvider<MetaExt> {
-    return new MultiProtocolProvider<MetaExt>(mp.metadata, options);
+    const newMp = new MultiProtocolProvider<MetaExt>(mp.metadata, options);
+    const typedProviders = objMap(mp.providers, (_, provider) => ({
+      type: ProviderType.EthersV5,
+      provider,
+    })) as ChainMap<TypedProvider>;
+    newMp.setProviders(typedProviders);
+    return newMp;
   }
 
   override extendChainMetadata<NewExt = {}>(
