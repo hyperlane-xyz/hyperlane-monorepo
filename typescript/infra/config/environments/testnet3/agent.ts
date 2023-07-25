@@ -118,7 +118,7 @@ const releaseCandidate: RootAgentConfig = {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: 'f03257a-20230714-154845',
+      tag: 'aa92fe3-20230717-210518',
     },
     whitelist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -170,7 +170,7 @@ const releaseCandidate: RootAgentConfig = {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: '497db63-20230614-174455',
+      tag: 'aa92fe3-20230717-210518',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
   },
