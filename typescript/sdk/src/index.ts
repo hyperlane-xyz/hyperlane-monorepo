@@ -121,9 +121,6 @@ export {
   ChainMetadataSchema,
   ExplorerFamily,
   ExplorerFamilyValue,
-  ProtocolSmallestUnit,
-  ProtocolType,
-  ProtocolTypeValue,
   getDomainId,
   isValidChainMetadata,
 } from './metadata/chainMetadataTypes';
