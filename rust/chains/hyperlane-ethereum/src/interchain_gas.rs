@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 use std::fmt::Display;
+use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -9,9 +10,9 @@ use ethers::prelude::Middleware;
 use tracing::instrument;
 
 use hyperlane_core::{
-    BlockRange, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi,
-    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider, IndexRange, Indexer,
-    InterchainGasPaymaster, InterchainGasPayment, LogMeta, H160, H256,
+    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
+    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster,
+    InterchainGasPayment, LogMeta, H160, H256,
 };
 
 use crate::contracts::i_interchain_gas_paymaster::{
@@ -87,14 +88,8 @@ where
     #[instrument(err, skip(self))]
     async fn fetch_logs(
         &self,
-        range: IndexRange,
+        range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
-        let BlockRange(range) = range else {
-            return Err(ChainCommunicationError::from_other_str(
-                "EthereumInterchainGasPaymasterIndexer only supports block-based indexing",
-            ));
-        };
-
         let events = self
             .contract
             .gas_payment_filter()

@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use std::fmt::Debug;
+use std::ops::RangeInclusive;
 use std::{
     sync::Arc,
     time::{Duration, Instant},
@@ -12,9 +13,8 @@ use tokio::time::sleep;
 use tracing::{debug, warn};
 
 use hyperlane_core::{
-    BlockRange, ChainResult, ContractSyncCursor, CursorAction, HyperlaneMessage,
-    HyperlaneMessageStore, HyperlaneWatermarkedLogStore, IndexMode, IndexRange, Indexer, LogMeta,
-    MessageIndexer, SequenceRange,
+    ChainResult, ContractSyncCursor, CursorAction, HyperlaneMessage, HyperlaneMessageStore,
+    HyperlaneWatermarkedLogStore, IndexMode, Indexer, LogMeta, MessageIndexer,
 };
 
 use crate::contract_sync::eta_calculator::SyncerEtaCalculator;
@@ -88,7 +88,7 @@ pub(crate) struct ForwardMessageSyncCursor {
 }
 
 impl ForwardMessageSyncCursor {
-    async fn get_next_range(&mut self) -> ChainResult<Option<IndexRange>> {
+    async fn get_next_range(&mut self) -> ChainResult<Option<RangeInclusive<u32>>> {
         // Check if any new messages have been inserted into the DB,
         // and update the cursor accordingly.
         while self
@@ -131,10 +131,10 @@ impl ForwardMessageSyncCursor {
                 self.cursor.next_block = to + 1;
 
                 let range = match self.mode {
-                    IndexMode::Block => BlockRange(from..=to),
-                    IndexMode::Sequence => SequenceRange(
-                        cursor_count..=u32::min(mailbox_count, cursor_count + MAX_SEQUENCE_RANGE),
-                    ),
+                    IndexMode::Block => from..=to,
+                    IndexMode::Sequence => {
+                        cursor_count..=u32::min(mailbox_count, cursor_count + MAX_SEQUENCE_RANGE)
+                    }
                 };
 
                 Ok(Some(range))
@@ -190,7 +190,7 @@ pub(crate) struct BackwardMessageSyncCursor {
 }
 
 impl BackwardMessageSyncCursor {
-    async fn get_next_range(&mut self) -> Option<IndexRange> {
+    async fn get_next_range(&mut self) -> Option<RangeInclusive<u32>> {
         // Check if any new messages have been inserted into the DB,
         // and update the cursor accordingly.
         while !self.synced {
@@ -231,10 +231,8 @@ impl BackwardMessageSyncCursor {
         let next_nonce = self.cursor.next_nonce;
 
         let range = match self.mode {
-            IndexMode::Block => BlockRange(from..=to),
-            IndexMode::Sequence => {
-                SequenceRange(next_nonce.saturating_sub(MAX_SEQUENCE_RANGE)..=next_nonce)
-            }
+            IndexMode::Block => from..=to,
+            IndexMode::Sequence => next_nonce.saturating_sub(MAX_SEQUENCE_RANGE)..=next_nonce,
         };
 
         Some(range)
@@ -422,7 +420,7 @@ where
             // block-based indexing is always used.
             // This should be changed when Sealevel IGP indexing is implemented,
             // along with a refactor to better accommodate indexing modes.
-            CursorAction::Query(BlockRange(from..=to))
+            CursorAction::Query(from..=to)
         };
         Ok((action, eta))
     }
