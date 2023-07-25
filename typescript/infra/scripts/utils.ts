@@ -12,10 +12,10 @@ import {
   HyperlaneCore,
   HyperlaneIgp,
   MultiProvider,
+  ProxiedRouterConfig,
   RouterConfig,
   collectValidators,
 } from '@hyperlane-xyz/sdk';
-import { ProxiedRouterConfig } from '@hyperlane-xyz/sdk/dist/router/types';
 import { ProtocolType, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
@@ -185,7 +185,7 @@ export async function getMultiProviderForRole(
 
   const multiProvider = new MultiProvider(txConfigs);
   await promiseObjAll(
-    objMap(txConfigs, async (chain, config) => {
+    objMap(txConfigs, async (chain, _) => {
       const provider = await fetchProvider(environment, chain, connectionType);
       const key = getKeyForRole(environment, context, chain, role, index);
       const signer = await key.getSigner(provider);

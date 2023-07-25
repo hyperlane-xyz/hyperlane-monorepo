@@ -6,10 +6,10 @@ import {
   ChainName,
   CoreConfig,
   HookConfig,
+  HyperlaneEnvironment,
   MultiProvider,
   OverheadIgpConfig,
 } from '@hyperlane-xyz/sdk';
-import { HyperlaneEnvironment } from '@hyperlane-xyz/sdk/dist/consts/environments';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';

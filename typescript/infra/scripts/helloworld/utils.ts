@@ -24,19 +24,14 @@ export async function getHelloWorldApp(
   );
 
   const helloworldConfig = getHelloWorldConfig(coreConfig, context);
-  const multiProtocolProvier = MultiProtocolProvider.fromMultiProvider(
+
+  const multiProtocolProvider = MultiProtocolProvider.fromMultiProvider(
     multiProvider,
   ).extendChainMetadata(helloworldConfig.addresses);
 
-  // const contracts = attachContractsMap(
-  //   helloworldConfig.addresses,
-  //   helloWorldFactories,
-  // );
-  // const core = HyperlaneCore.fromEnvironment(
-  //   deployEnvToSdkEnv[coreConfig.environment],
-  //   multiProvider,
-  // );
-  return new HelloMultiProtocolApp(multiProtocolProvier);
+  const app = new HelloMultiProtocolApp(multiProtocolProvider);
+
+  return { app, multiProvider, multiProtocolProvider };
 }
 
 export function getHelloWorldConfig(

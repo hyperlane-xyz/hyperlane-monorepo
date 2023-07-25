@@ -9,8 +9,11 @@ import {
   DispatchedMessage,
   HyperlaneCore,
   HyperlaneIgp,
+  MultiProvider,
+  ProviderType,
 } from '@hyperlane-xyz/sdk';
 import {
+  Address,
   debug,
   error,
   log,
@@ -147,7 +150,7 @@ async function main(): Promise<boolean> {
   debug('Starting up', { environment });
 
   const coreConfig = getEnvironmentConfig(environment);
-  const app = await getHelloWorldApp(
+  const { app, multiProvider } = await getHelloWorldApp(
     coreConfig,
     context,
     Role.Kathy,
@@ -156,7 +159,7 @@ async function main(): Promise<boolean> {
   );
   const igp = HyperlaneIgp.fromEnvironment(
     deployEnvToSdkEnv[coreConfig.environment],
-    app.multiProvider,
+    multiProvider,
   );
   const appChains = app.chains();
 
@@ -228,7 +231,9 @@ async function main(): Promise<boolean> {
     messageReceiptSeconds.labels({ origin, remote }).inc(0);
   }
 
-  chains.map((chain) => updateWalletBalanceMetricFor(app, chain));
+  chains.map((chain) =>
+    updateWalletBalanceMetricFor(app, chain, coreConfig.owners[chain]),
+  );
 
   // Incremented each time an entire cycle has occurred
   let currentCycle = 0;
@@ -327,6 +332,7 @@ async function main(): Promise<boolean> {
     try {
       await sendMessage(
         app,
+        multiProvider,
         igp,
         origin,
         destination,
@@ -343,12 +349,14 @@ async function main(): Promise<boolean> {
       messagesSendCount.labels({ ...labels, status: 'failure' }).inc();
       errorOccurred = true;
     }
-    updateWalletBalanceMetricFor(app, origin).catch((e) => {
-      warn('Failed to update wallet balance for chain', {
-        chain: origin,
-        err: format(e),
-      });
-    });
+    updateWalletBalanceMetricFor(app, origin, coreConfig.owners[origin]).catch(
+      (e) => {
+        warn('Failed to update wallet balance for chain', {
+          chain: origin,
+          err: format(e),
+        });
+      },
+    );
 
     // Break if we should stop sending messages
     if (await nextMessage()) {
@@ -359,7 +367,8 @@ async function main(): Promise<boolean> {
 }
 
 async function sendMessage(
-  app: HelloWorldApp,
+  app: HelloMultiProtocolApp,
+  multiProvider: MultiProvider,
   igp: HyperlaneIgp,
   origin: ChainName,
   destination: ChainName,
@@ -387,10 +396,23 @@ async function sendMessage(
     interchainGasPayment: value.toString(),
   });
 
+  const sendAndConfirmMsg = async () => {
+    // TODO sol support here
+    const tx = await app.populateHelloWorldTx(
+      origin,
+      destination,
+      msg,
+      value.toString(),
+    );
+    if (tx.type !== ProviderType.EthersV5)
+      throw new Error('Expected EthersV5 tx type');
+    return multiProvider.sendTransaction(origin, tx.transaction);
+  };
+
   const receipt = await retryAsync(
     () =>
       timeout(
-        app.sendHelloWorld(origin, destination, msg, value),
+        sendAndConfirmMsg(),
         messageSendTimeout,
         'Timeout sending message',
       ),
@@ -424,7 +446,7 @@ async function sendMessage(
     // we've seen some intermittent issues when fetching state.
     // This will throw if the message is found to have not been processed.
     await retryAsync(async () => {
-      if (!(await messageIsProcessed(app.core, origin, destination, message))) {
+      if (!(await messageIsProcessed(app.core, destination, message))) {
         throw error;
       }
     }, 3);
@@ -447,7 +469,6 @@ async function sendMessage(
 
 async function messageIsProcessed(
   core: HyperlaneCore,
-  origin: ChainName,
   destination: ChainName,
   message: DispatchedMessage,
 ): Promise<boolean> {
@@ -458,11 +479,9 @@ async function messageIsProcessed(
 async function updateWalletBalanceMetricFor(
   app: HelloMultiProtocolApp,
   chain: ChainName,
+  signerAddress: Address,
 ): Promise<void> {
-  const provider = app.multiProvider.getProvider(chain);
-  const signerAddress = await app
-    .getContracts(chain)
-    .router.signer.getAddress();
+  const provider = app.multiProvider.getEthersV5Provider(chain);
   const signerBalance = await provider.getBalance(signerAddress);
   const balance = parseFloat(ethers.utils.formatEther(signerBalance));
   walletBalance
