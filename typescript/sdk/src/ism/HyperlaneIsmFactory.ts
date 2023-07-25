@@ -156,15 +156,29 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     const signer = this.multiProvider.getSigner(chain);
     const routingIsmFactory = this.getContracts(chain).routingIsmFactory;
     const isms: ChainMap<Address> = {};
-    for (const origin of Object.keys(config.domains)) {
-      const ism = await this.deploy(chain, config.domains[origin], origin);
-      isms[origin] = ism.address;
-    }
+    // deploy for all origins in parallel, keep running even if some fail
+    await Promise.allSettled(
+      Object.keys(config.domains).map(async (origin) => {
+        const ism = await this.deploy(chain, config.domains[origin], origin);
+        isms[origin] = ism.address;
+      }),
+    ).then((results) => {
+      results.forEach((result) => {
+        if (result.status === 'rejected') {
+          this.logger(`Failed to deploy routing ISM: ${result.reason}`);
+        }
+      });
+    });
     const domains = Object.keys(isms).map((chain) =>
       this.multiProvider.getDomainId(chain),
     );
     const submoduleAddresses = Object.values(isms);
-    const tx = await routingIsmFactory.deploy(domains, submoduleAddresses);
+    const overrides = this.multiProvider.getTransactionOverrides(chain);
+    const tx = await routingIsmFactory.deploy(
+      domains,
+      submoduleAddresses,
+      overrides,
+    );
     const receipt = await this.multiProvider.handleTx(chain, tx);
     // TODO: Break this out into a generalized function
     const dispatchLogs = receipt.logs
@@ -187,7 +201,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     this.logger(`Transferring ownership of routing ISM to ${config.owner}`);
     await this.multiProvider.handleTx(
       chain,
-      await routingIsm.transferOwnership(config.owner),
+      await routingIsm.transferOwnership(config.owner, overrides),
     );
     const address = dispatchLogs[0].args['module'];
     return IRoutingIsm__factory.connect(address, signer);
@@ -228,7 +242,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
       this.logger(
         `Deploying new ${threshold} of ${values.length} address set to ${chain}`,
       );
-
       const overrides = this.multiProvider.getTransactionOverrides(chain);
       const hash = await factory.deploy(sorted, threshold, overrides);
       await this.multiProvider.handleTx(chain, hash);

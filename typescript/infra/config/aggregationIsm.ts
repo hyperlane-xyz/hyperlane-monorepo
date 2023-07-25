@@ -10,13 +10,31 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { objFilter, objMap } from '@hyperlane-xyz/utils';
 
-import { Contexts } from '../../contexts';
-import { rcMultisigIsmConfigs } from '../../multisigIsm';
+import { DeployEnvironment } from '../src/config';
 
-import { chainNames } from './chains';
-import { owners } from './owners';
+import { Contexts } from './contexts';
+import { chainNames as mainnet2Chains } from './environments/mainnet2/chains';
+import { owners as mainnet2Owners } from './environments/mainnet2/owners';
+import { chainNames as testChains } from './environments/test/chains';
+import { owners as testOwners } from './environments/test/owners';
+import { chainNames as testnet3Chains } from './environments/testnet3/chains';
+import { owners as testnet3Owners } from './environments/testnet3/owners';
+import { rcMultisigIsmConfigs } from './multisigIsm';
+
+const chains = {
+  mainnet2: mainnet2Chains,
+  testnet3: testnet3Chains,
+  test: testChains,
+};
+
+const owners = {
+  testnet3: testnet3Owners,
+  mainnet2: mainnet2Owners,
+  test: testOwners,
+};
 
 export const multisigIsms = (
+  env: DeployEnvironment,
   local: ChainName,
   type: MultisigIsmConfig['type'],
   context: Contexts,
@@ -27,7 +45,7 @@ export const multisigIsms = (
         ? rcMultisigIsmConfigs
         : defaultMultisigIsmConfigs,
       (chain, config): config is MultisigIsmConfig =>
-        chain !== local && chainNames.includes(chain),
+        chain !== local && chains[env].includes(chain),
     ),
     (_, config) => ({
       ...config,
@@ -37,20 +55,27 @@ export const multisigIsms = (
 
 /// Routing => Multisig ISM type
 export const routingIsm = (
+  environment: DeployEnvironment,
   local: ChainName,
   type: MultisigIsmConfig['type'],
   context: Contexts,
 ): RoutingIsmConfig => {
-  const defaultMultisigIsmConfigs = multisigIsms(local, type, context);
+  const defaultMultisigIsmConfigs = multisigIsms(
+    environment,
+    local,
+    type,
+    context,
+  );
   return {
     type: ModuleType.ROUTING,
     domains: defaultMultisigIsmConfigs,
-    owner: owners[local],
+    owner: owners[environment][local],
   };
 };
 
 /// 1/2 Aggregation => Routing => Multisig ISM
 export const aggregationIsm = (
+  environment: DeployEnvironment,
   local: ChainName,
   context: Contexts,
 ): AggregationIsmConfig => {
@@ -58,8 +83,8 @@ export const aggregationIsm = (
     type: ModuleType.AGGREGATION,
     modules: [
       // ORDERING MATTERS
-      routingIsm(local, ModuleType.MERKLE_ROOT_MULTISIG, context),
-      routingIsm(local, ModuleType.MESSAGE_ID_MULTISIG, context),
+      routingIsm(environment, local, ModuleType.MERKLE_ROOT_MULTISIG, context),
+      routingIsm(environment, local, ModuleType.MESSAGE_ID_MULTISIG, context),
     ],
     threshold: 1,
   };

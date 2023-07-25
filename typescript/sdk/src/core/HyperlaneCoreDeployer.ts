@@ -35,21 +35,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     });
   }
 
-  async deployTimelock(
-    chain: ChainName,
-    delay: number,
-    owner: Address,
-  ): Promise<TimelockController> {
-    const timelock = await this.deployContract(
-      chain,
-      'timelockController',
-      // see https://docs.openzeppelin.com/contracts/4.x/api/governance#TimelockController-constructor-uint256-address---address---address-
-      // delay, [proposers], [executors], admin
-      [delay, [owner], [owner], ethers.constants.AddressZero],
-    );
-    return timelock;
-  }
-
   async deployMailbox(
     chain: ChainName,
     ismConfig: IsmConfig,
@@ -124,11 +109,10 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     );
 
     let timelockController: TimelockController;
-    if (config.upgradeTimelockDelay) {
+    if (config.upgrade) {
       timelockController = await this.deployTimelock(
         chain,
-        config.upgradeTimelockDelay,
-        config.owner,
+        config.upgrade.timelock,
       );
       await this.transferOwnershipOfContracts(
         chain,

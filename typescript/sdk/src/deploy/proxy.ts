@@ -2,6 +2,17 @@ import { ethers } from 'ethers';
 
 import { Address, areAddressesEqual } from '@hyperlane-xyz/utils';
 
+export type UpgradeConfig = {
+  timelock: {
+    delay: number;
+    // canceller inherited from proposer and admin not supported
+    roles: {
+      executor: types.Address;
+      proposer: types.Address;
+    };
+  };
+};
+
 export async function proxyImplementation(
   provider: ethers.providers.Provider,
   proxy: Address,

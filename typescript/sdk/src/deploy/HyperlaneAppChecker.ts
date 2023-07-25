@@ -1,6 +1,6 @@
 import { keccak256 } from 'ethers/lib/utils';
 
-import { Ownable } from '@hyperlane-xyz/core';
+import { Ownable, TimelockController } from '@hyperlane-xyz/core';
 import {
   Address,
   areAddressesEqual,
@@ -14,12 +14,14 @@ import { filterOwnableContracts } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
-import { isProxy, proxyAdmin } from './proxy';
+import { UpgradeConfig, isProxy, proxyAdmin } from './proxy';
 import {
+  AccessControlViolation,
   BytecodeMismatchViolation,
   CheckerViolation,
   OwnerViolation,
   ProxyAdminViolation,
+  TimelockControllerViolation,
   ViolationType,
 } from './types';
 
@@ -95,6 +97,61 @@ export abstract class HyperlaneAppChecker<
     );
   }
 
+  async checkUpgrade(
+    chain: ChainName,
+    upgradeConfig: UpgradeConfig,
+  ): Promise<void> {
+    const timelockController = this.app.getContracts(chain)
+      .timelockController as TimelockController;
+    if (!timelockController) {
+      throw new Error(
+        `Checking upgrade config for ${chain} with no timelock provided`,
+      );
+    }
+
+    const minDelay = (await timelockController.getMinDelay()).toNumber();
+
+    if (minDelay !== upgradeConfig.timelock.delay) {
+      const violation: TimelockControllerViolation = {
+        type: ViolationType.TimelockController,
+        chain,
+        actual: minDelay,
+        expected: upgradeConfig.timelock.delay,
+        contract: timelockController,
+      };
+      this.addViolation(violation);
+    }
+
+    const roleIds = {
+      executor: await timelockController.EXECUTOR_ROLE(),
+      proposer: await timelockController.PROPOSER_ROLE(),
+      canceller: await timelockController.CANCELLER_ROLE(),
+      admin: await timelockController.TIMELOCK_ADMIN_ROLE(),
+    };
+
+    const accountHasRole = await promiseObjAll(
+      objMap(upgradeConfig.timelock.roles, async (role, account) => ({
+        hasRole: await timelockController.hasRole(roleIds[role], account),
+        account,
+      })),
+    );
+
+    for (const [role, { hasRole, account }] of Object.entries(accountHasRole)) {
+      if (!hasRole) {
+        const violation: AccessControlViolation = {
+          type: ViolationType.AccessControl,
+          chain,
+          account,
+          actual: false,
+          expected: true,
+          contract: timelockController,
+          role,
+        };
+        this.addViolation(violation);
+      }
+    }
+  }
+
   private removeBytecodeMetadata(bytecode: string): string {
     // https://docs.soliditylang.org/en/v0.8.17/metadata.html#encoding-of-the-metadata-hash-in-the-bytecode
     // Remove solc metadata from bytecode
@@ -130,7 +187,7 @@ export abstract class HyperlaneAppChecker<
     return filterOwnableContracts(contracts);
   }
 
-  async checkOwnership(
+  protected async checkOwnership(
     chain: ChainName,
     owner: Address,
     ownableOverrides?: Record<string, Address>,

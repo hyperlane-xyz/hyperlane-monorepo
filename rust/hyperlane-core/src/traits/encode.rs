@@ -1,5 +1,3 @@
-use ethers_core::types::{Signature, SignatureError};
-use std::convert::TryFrom;
 use std::io::{Error, ErrorKind};
 
 use crate::{HyperlaneProtocolError, H256, U256};
@@ -28,7 +26,8 @@ pub trait Decode {
         Self: Sized;
 }
 
-impl Encode for Signature {
+#[cfg(feature = "ethers")]
+impl Encode for ethers_core::types::Signature {
     fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
     where
         W: std::io::Write,
@@ -38,7 +37,8 @@ impl Encode for Signature {
     }
 }
 
-impl Decode for Signature {
+#[cfg(feature = "ethers")]
+impl Decode for ethers_core::types::Signature {
     fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
     where
         R: std::io::Read,
@@ -46,7 +46,7 @@ impl Decode for Signature {
         let mut buf = [0u8; 65];
         let len = reader.read(&mut buf)?;
         if len != 65 {
-            Err(SignatureError::InvalidLength(len).into())
+            Err(ethers_core::types::SignatureError::InvalidLength(len).into())
         } else {
             Ok(Self::try_from(buf.as_ref())?)
         }
