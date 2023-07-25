@@ -565,7 +565,7 @@ export const test1: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   displayName: 'Test 1',
   nativeToken: etherToken,
-  rpcUrls: [{ http: 'http://localhost:8545' }],
+  rpcUrls: [{ http: 'http://127.0.0.1:8545' }],
   blockExplorers: [],
   blocks: {
     confirmations: 1,
@@ -582,7 +582,7 @@ export const test2: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   displayName: 'Test 2',
   nativeToken: etherToken,
-  rpcUrls: [{ http: 'http://localhost:8545' }],
+  rpcUrls: [{ http: 'http://127.0.0.1:8545' }],
   blockExplorers: [],
   blocks: {
     confirmations: 1,
@@ -599,7 +599,7 @@ export const test3: ChainMetadata = {
   protocol: ProtocolType.Ethereum,
   displayName: 'Test 3',
   nativeToken: etherToken,
-  rpcUrls: [{ http: 'http://localhost:8545' }],
+  rpcUrls: [{ http: 'http://127.0.0.1:8545' }],
   blockExplorers: [],
   blocks: {
     confirmations: 1,

@@ -17,7 +17,7 @@ import { Contexts } from '../../contexts';
 
 import { agentChainNames, environment } from './chains';
 import { helloWorld } from './helloworld';
-import { validators } from './validators';
+import { validatorChainConfig } from './validators';
 
 const releaseCandidateHelloworldMatchingList = routerMatchingList(
   helloWorld[Contexts.ReleaseCandidate].addresses,
@@ -99,7 +99,7 @@ const hyperlane: RootAgentConfig = {
         tag: '79bad9d-20230706-190752',
       },
     },
-    chains: validators,
+    chains: validatorChainConfig(Contexts.Hyperlane),
   },
   scraper: {
     connectionType: AgentConnectionType.HttpFallback,
@@ -113,7 +113,7 @@ const hyperlane: RootAgentConfig = {
 const releaseCandidate: RootAgentConfig = {
   ...contextBase,
   context: Contexts.ReleaseCandidate,
-  rolesWithKeys: [Role.Relayer, Role.Kathy],
+  rolesWithKeys: [Role.Relayer, Role.Kathy, Role.Validator],
   relayer: {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
@@ -165,6 +165,14 @@ const releaseCandidate: RootAgentConfig = {
     // Skipping arbitrum because the gas price estimates are inclusive of L1
     // fees which leads to wildly off predictions.
     skipTransactionGasLimitFor: [chainMetadata.arbitrumgoerli.chainId],
+  },
+  validators: {
+    connectionType: AgentConnectionType.HttpFallback,
+    docker: {
+      repo,
+      tag: '497db63-20230614-174455',
+    },
+    chains: validatorChainConfig(Contexts.ReleaseCandidate),
   },
 };
 
