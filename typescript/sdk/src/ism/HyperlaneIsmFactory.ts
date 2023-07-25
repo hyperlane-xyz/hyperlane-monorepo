@@ -283,6 +283,8 @@ export async function moduleCanCertainlyVerify(
         }
       }
       return verified >= threshold;
+    } else if (moduleType == ModuleType.CCIP) {
+      // TODO: add verify for CCIP
     } else {
       throw new Error(`Unsupported module type: ${moduleType}`);
     }
