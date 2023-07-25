@@ -1,21 +1,30 @@
 [package]
 name = "hyperlane-cosmos"
-documentation.workspace = true
-edition.workspace = true
-homepage.workspace = true
-license-file.workspace = true
-publish.workspace = true
-version.workspace = true
+documentation = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license-file = { workspace = true }
+publish = { workspace = true }
+version = { workspace = true }
 
 [dependencies]
-async-trait.workspace = true
-cosmrs = { workspace = true, features = [] }
-serde.workspace = true
-thiserror.workspace = true
-tokio.workspace = true
-tracing-futures.workspace = true
-tracing.workspace = true
-url.workspace = true
+async-trait = { workspace = true }
+cosmrs = { workspace = true, features = ["cosmwasm", "tokio", "grpc", "rpc"] }
+serde = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing-futures = { workspace = true }
+tracing = { workspace = true }
+url = { workspace = true }
+bech32 = { workspace = true }
+serde_json = { workspace = true }
+tonic = { workspace = true }
+sha2 = { workspace = true }
+ripemd = { workspace = true }
+hyper = { workspace = true }
+hyper-tls = { workspace = true }
+sha256 = { workspace = true }
+hex = { workspace = true }
 
 hyperlane-core = { path = "../../hyperlane-core" }
 
