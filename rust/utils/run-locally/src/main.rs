@@ -30,14 +30,20 @@ use tempfile::tempdir;
 use logging::log;
 
 use crate::config::{Config, ProgramArgs};
-use crate::utils::{build_cmd, concat_path, make_static, run_agent, stop_child, AgentHandles, TaskHandle, ArbitraryData};
+use crate::utils::{
+    build_cmd, concat_path, make_static, run_agent, stop_child, AgentHandles, ArbitraryData,
+    TaskHandle,
+};
 
 mod config;
 mod logging;
 mod metrics;
 mod solana_cli;
 mod utils;
-use crate::solana_cli::{build_solana_programs, clone_solana_program_library, init_solana_config, install_solana_cli_tools, start_solana_test_validator};
+use crate::solana_cli::{
+    build_solana_programs, clone_solana_program_library, install_solana_cli_tools,
+    start_solana_test_validator,
+};
 pub use metrics::fetch_metric;
 
 /// These private keys are from hardhat/anvil's testing accounts.
@@ -71,7 +77,7 @@ struct State {
     scraper_postgres_initialized: bool,
     agents: Vec<Child>,
     watchers: Vec<TaskHandle<()>>,
-    data: Vec<Box<dyn ArbitraryData>>
+    data: Vec<Box<dyn ArbitraryData>>,
 }
 impl State {
     fn new(config: Arc<Config>) -> Self {
@@ -285,15 +291,14 @@ fn main() -> ExitCode {
 
     let solana_program_path = solana_program_builder.join();
 
-    let solana_config_path = init_solana_config(&config, &solana_path);
-
     let solana_ledger_dir = tempdir().unwrap();
-    let solana_validator = start_solana_test_validator(
+    let (solana_config_path, solana_validator) = start_solana_test_validator(
         config.clone(),
-        &solana_path,
-        &solana_program_path,
-        solana_ledger_dir.as_ref(),
-    );
+        solana_path,
+        solana_program_path,
+        solana_ledger_dir.as_ref().to_path_buf(),
+    )
+    .join();
     state.push_agent(solana_validator);
 
     build_rust.join();
@@ -390,10 +395,11 @@ fn main() -> ExitCode {
         .cmd("kathy")
         .arg("messages", (config.kathy_messages / 2).to_string())
         .arg("timeout", "1000");
-    let (mut kathy, kathy_stdout, kathy_stderr) = run_agent(kathy_env.clone(), "KTY");
+    let (mut kathy, kathy_stdout, kathy_stderr, kathy_state) = run_agent(kathy_env.clone(), "KTY");
     state.watchers.push(kathy_stdout);
     state.watchers.push(kathy_stderr);
     kathy.wait().unwrap();
+    drop(kathy_state);
 
     // spawn the rest of the validators
     for (i, validator_env) in validator_envs.into_iter().enumerate().skip(1) {

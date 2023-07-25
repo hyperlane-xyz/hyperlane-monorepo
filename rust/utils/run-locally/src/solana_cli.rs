@@ -37,6 +37,8 @@ const SOLANA_PROGRAMS: &[(&str, &str, &str)] = &[
     ),
 ];
 
+const SOLANA_KEYPAIR: &str = "config/sealevel/test-keys/test_deployer-keypair.json";
+
 const SBF_OUT_PATH: &str = "target/deploy";
 
 // Relative paths to solana program source code within rust/sealevel/programs repo.
@@ -189,15 +191,16 @@ pub fn build_solana_programs(
 #[apply(as_task)]
 pub fn start_solana_test_validator(
     config: Arc<Config>,
-    solana_cli_tools_path: &Path,
-    solana_programs_path: &Path,
-    ledger_dir: &Path,
-) -> AgentHandles {
+    solana_cli_tools_path: PathBuf,
+    solana_programs_path: PathBuf,
+    ledger_dir: PathBuf,
+) -> (PathBuf, AgentHandles) {
     // init solana config
     let solana_config = NamedTempFile::new().unwrap().into_temp_path();
+    let solana_config_path = solana_config.to_path_buf();
     let solana_checkpoints = Arc::new(tempdir().unwrap());
     build_cmd(
-        ProgramArgs::new(concat_path(solana_cli_tools_path, "solana"))
+        ProgramArgs::new(concat_path(&solana_cli_tools_path, "solana"))
             .arg("config", solana_config.to_str().unwrap())
             .cmd("config")
             .cmd("set")
@@ -209,7 +212,7 @@ pub fn start_solana_test_validator(
     .join();
 
     // run the validator
-    let mut args = ProgramArgs::new(concat_path(solana_cli_tools_path, "solana-test-validator"))
+    let mut args = ProgramArgs::new(concat_path(&solana_cli_tools_path, "solana-test-validator"))
         .flag("reset")
         .arg("ledger", ledger_dir.to_str().unwrap())
         .arg3(
@@ -223,19 +226,13 @@ pub fn start_solana_test_validator(
         args = args.arg3(
             "bpf-program",
             address,
-            concat_path(solana_programs_path, lib).to_str().unwrap(),
+            concat_path(&solana_programs_path, lib).to_str().unwrap(),
         );
     }
     let validator = run_agent(args, "SOL", &config);
 
     // deploy hyperlane programs
-    let sealevel_client =
-        ProgramArgs::new(concat_path(AGENT_BIN_PATH, "hyperlane-sealevel-client"))
-            .env("PATH", updated_path(&solana_cli_tools_path))
-            .arg(
-                "keypair",
-                "config/sealevel/test-keys/test_deployer-keypair.json",
-            );
+    let sealevel_client = sealevel_client(&solana_cli_tools_path);
 
     build_cmd(
         sealevel_client
@@ -294,7 +291,28 @@ pub fn start_solana_test_validator(
     )
     .join();
 
-    validator
+    (solana_config_path, validator)
+}
+
+#[apply(as_task)]
+pub fn initiate_solana_hyperlane_transfer(
+    config: Arc<Config>,
+    solana_cli_tools_path: PathBuf,
+    solana_config_path: PathBuf,
+) {
+    let solana = ProgramArgs::new(concat_path(&solana_cli_tools_path, "solana"))
+        .arg("config", solana_config_path.to_str().unwrap())
+        .arg("keypair", SOLANA_KEYPAIR);
+    let sealevel_client = sealevel_client(&solana_cli_tools_path);
+
+    todo!()
+    // let sender_addr = solana.clone().cmd("address").join();
+}
+
+fn sealevel_client(solana_cli_tools_path: &Path) -> ProgramArgs {
+    ProgramArgs::new(concat_path(AGENT_BIN_PATH, "hyperlane-sealevel-client"))
+        .env("PATH", updated_path(&solana_cli_tools_path))
+        .arg("keypair", SOLANA_KEYPAIR)
 }
 
 fn updated_path(solana_cli_tools_path: &Path) -> String {

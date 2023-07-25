@@ -46,8 +46,8 @@ pub fn concat_path(p1: impl AsRef<Path>, p2: impl AsRef<Path>) -> PathBuf {
     p
 }
 
-pub trait ArbitraryData: Send + Sync {}
-impl<T: Send + Sync> ArbitraryData for T {}
+pub trait ArbitraryData: Send + Sync + 'static {}
+impl<T: Send + Sync + 'static> ArbitraryData for T {}
 
 pub type AgentHandles = (
     Child,
@@ -89,7 +89,12 @@ pub fn run_agent(args: ProgramArgs, log_prefix: &'static str, config: &Config) -
             inspect_and_write_to_file(child_stderr, stderr_path, &[])
         }
     });
-    (child, TaskHandle(stdout), TaskHandle(stderr), args.get_memory())
+    (
+        child,
+        TaskHandle(stdout),
+        TaskHandle(stderr),
+        args.get_memory(),
+    )
 }
 
 /// Wrapper around a join handle to simplify use.
