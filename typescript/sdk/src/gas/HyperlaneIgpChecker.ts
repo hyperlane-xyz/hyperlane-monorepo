@@ -38,7 +38,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
     const config = this.configMap[chain];
 
     const ownableOverrides: Record<string, string> = {
-      storageGasOracle: config.oracle,
+      storageGasOracle: config.oracleKey,
     };
     if (config.upgrade) {
       const timelockController =

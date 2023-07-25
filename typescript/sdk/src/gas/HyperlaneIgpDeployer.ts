@@ -164,7 +164,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
     // Configure oracle key for StorageGasOracle separately to keep 'hot'
     // for updating exchange rates regularly
-    await this.transferOwnershipOfContracts(chain, config.oracle, {
+    await this.transferOwnershipOfContracts(chain, config.oracleKey, {
       storageGasOracle,
     });
 

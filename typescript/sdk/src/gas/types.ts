@@ -15,7 +15,7 @@ export type IgpConfig = {
   owner: types.Address;
   beneficiary: types.Address;
   gasOracleType: ChainMap<GasOracleContractType>;
-  oracle: types.Address;
+  oracleKey: types.Address;
   upgrade?: UpgradeConfig;
 };
 
