@@ -29,11 +29,12 @@ function buildCctpAdapterConfigMap(owner: types.Address) {
     tokenMessengerAddress: '0xd0c3da58f55358142b8d3e06c1c30c5c6114efe8',
     token: '0x07865c6e87b9f70255377e024ace6630c1eaa37f',
     tokenSymbol: 'USDC',
-    gasAmount: 1000000,
+    gasAmount: 500000,
     circleDomainMapping: circleDomainMapping,
     mailbox: hyperlaneContractAddresses.goerli.mailbox,
-    interchainGasPaymaster: hyperlaneContractAddresses.goerli.igp,
-    interchainSecurityModule: hyperlaneContractAddresses.goerli.multisigIsm,
+    interchainGasPaymaster:
+      hyperlaneContractAddresses.goerli.defaultIsmInterchainGasPaymaster,
+    interchainSecurityModule: '0x8EE099c620Fe635F86a4b97f3707359495022F37',
     owner: owner,
   };
   config[Chains.fuji] = {
@@ -41,11 +42,12 @@ function buildCctpAdapterConfigMap(owner: types.Address) {
     tokenMessengerAddress: '0xeb08f243e5d3fcff26a9e38ae5520a669f4019d0',
     token: '0x5425890298aed601595a70ab815c96711a31bc65',
     tokenSymbol: 'USDC',
-    gasAmount: 1000000,
+    gasAmount: 500000,
     circleDomainMapping: circleDomainMapping,
     mailbox: hyperlaneContractAddresses.fuji.mailbox,
-    interchainGasPaymaster: hyperlaneContractAddresses.fuji.igp,
-    interchainSecurityModule: hyperlaneContractAddresses.fuji.multisigIsm,
+    interchainGasPaymaster:
+      hyperlaneContractAddresses.fuji.defaultIsmInterchainGasPaymaster,
+    interchainSecurityModule: '0xE4922FfD478E385a4111a75c5DaA173763a778a1',
     owner: owner,
   };
   return config;
