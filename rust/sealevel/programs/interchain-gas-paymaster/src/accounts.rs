@@ -28,13 +28,15 @@ impl Default for GasOracle {
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
 pub struct ProgramData {
+    pub bump_seed: u8,
     pub payment_count: u64,
 }
 
 impl SizedData for ProgramData {
     fn size(&self) -> usize {
+        // 1 for bump_seed
         // 8 for payment_count
-        8
+        1 + 8
     }
 }
 

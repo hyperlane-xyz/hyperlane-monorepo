@@ -110,7 +110,10 @@ fn init(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
         return Err(ProgramError::InvalidSeeds);
     }
 
-    let program_data_account = ProgramDataAccount::from(ProgramData { payment_count: 0 });
+    let program_data_account = ProgramDataAccount::from(ProgramData {
+        bump_seed: program_data_bump,
+        payment_count: 0,
+    });
     // Create the program data PDA account.
     let program_data_account_size = program_data_account.size();
 
@@ -261,16 +264,18 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
 
     // Account 2: The IGP program data.
     let program_data_info = next_account_info(accounts_iter)?;
-    let (program_data_key, _program_data_bump) =
-        Pubkey::find_program_address(igp_program_data_pda_seeds!(), program_id);
-    if program_data_info.key != &program_data_key {
+    let mut program_data =
+        ProgramDataAccount::fetch(&mut &program_data_info.data.borrow()[..])?.into_inner();
+    let expected_program_data_key = Pubkey::create_program_address(
+        igp_program_data_pda_seeds!(program_data.bump_seed),
+        program_id,
+    )?;
+    if program_data_info.key != &expected_program_data_key {
         return Err(ProgramError::InvalidSeeds);
     }
     if program_data_info.owner != program_id {
         return Err(ProgramError::IncorrectProgramId);
     }
-    let mut program_data =
-        ProgramDataAccount::fetch(&mut &program_data_info.data.borrow()[..])?.into_inner();
 
     // Account 3: The IGP account.
     let igp_info = next_account_info(accounts_iter)?;
