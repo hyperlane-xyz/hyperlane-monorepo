@@ -7,8 +7,8 @@ export type UpgradeConfig = {
     delay: number;
     // canceller inherited from proposer and admin not supported
     roles: {
-      executor: types.Address;
-      proposer: types.Address;
+      executor: Address;
+      proposer: Address;
     };
   };
 };

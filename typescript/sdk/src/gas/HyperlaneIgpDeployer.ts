@@ -9,7 +9,7 @@ import {
   TimelockController,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
-import { Address, areAddressesEqual, pick } from '@hyperlane-xyz/utils';
+import { Address, areAddressesEqual } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
