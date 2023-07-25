@@ -17,4 +17,23 @@ interface ICrossDomainMessenger {
         bytes calldata _message,
         uint32 _gasLimit
     ) external payable;
+
+    function relayMessage(
+        uint256 _nonce,
+        address _sender,
+        address _target,
+        uint256 _value,
+        uint256 _minGasLimit,
+        bytes calldata _message
+    ) external payable;
+
+    /*************
+     * Variables *
+     *************/
+
+    function xDomainMessageSender() external view returns (address);
+}
+
+interface IL2CrossDomainMessenger is ICrossDomainMessenger {
+    function messageNonce() external view returns (uint256);
 }

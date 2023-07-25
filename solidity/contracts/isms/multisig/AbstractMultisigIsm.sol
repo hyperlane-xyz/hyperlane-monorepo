@@ -58,7 +58,7 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
         internal
         pure
         virtual
-        returns (bytes memory);
+        returns (bytes calldata);
 
     // ============ Public Functions ============
 

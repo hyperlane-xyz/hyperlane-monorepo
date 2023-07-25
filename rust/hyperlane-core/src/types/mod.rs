@@ -176,8 +176,8 @@ impl Add for InterchainGasExpenditure {
 /// Uniquely identifying metadata for an InterchainGasPayment
 #[derive(Debug)]
 pub struct InterchainGasPaymentMeta {
-    /// The transaction hash in which the GasPayment log was emitted
-    pub transaction_hash: H256,
+    /// The transaction id/hash in which the GasPayment log was emitted
+    pub transaction_id: H512,
     /// The index of the GasPayment log within the transaction's logs
     pub log_index: u64,
 }
@@ -188,7 +188,7 @@ impl Encode for InterchainGasPaymentMeta {
         W: Write,
     {
         let mut written = 0;
-        written += self.transaction_hash.write_to(writer)?;
+        written += self.transaction_id.write_to(writer)?;
         written += self.log_index.write_to(writer)?;
         Ok(written)
     }
@@ -201,7 +201,7 @@ impl Decode for InterchainGasPaymentMeta {
         Self: Sized,
     {
         Ok(Self {
-            transaction_hash: H256::read_from(reader)?,
+            transaction_id: H512::read_from(reader)?,
             log_index: u64::read_from(reader)?,
         })
     }
@@ -210,7 +210,7 @@ impl Decode for InterchainGasPaymentMeta {
 impl From<&LogMeta> for InterchainGasPaymentMeta {
     fn from(meta: &LogMeta) -> Self {
         Self {
-            transaction_hash: meta.transaction_hash,
+            transaction_id: meta.transaction_id,
             log_index: meta.log_index.as_u64(),
         }
     }

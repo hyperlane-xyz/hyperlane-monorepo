@@ -6,12 +6,12 @@ import { format } from 'util';
 import {
   AgentConnectionType,
   AllChains,
+  ChainMap,
   ChainName,
   Chains,
   HyperlaneIgp,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { ChainMap } from '@hyperlane-xyz/sdk/dist/types';
 import { error, log, warn } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
@@ -24,7 +24,7 @@ import {
 import { DeployEnvironment } from '../../src/config';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { ContextAndRoles, ContextAndRolesMap } from '../../src/config/funding';
-import { Role } from '../../src/roles';
+import { AgentRole, Role } from '../../src/roles';
 import { submitMetrics } from '../../src/utils/metrics';
 import {
   assertContext,
@@ -403,7 +403,7 @@ class ContextFunder {
           key.context,
           key.environment,
         ).contextChainNames;
-        for (const chain of chains) {
+        for (const chain of chains[role as AgentRole]) {
           chainKeys[chain].push(key);
         }
       }

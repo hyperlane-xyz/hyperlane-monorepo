@@ -1,6 +1,6 @@
 use std::io::{Error, ErrorKind};
 
-use crate::{GasPaymentKey, HyperlaneProtocolError, H256, U256};
+use crate::{HyperlaneProtocolError, H160, H256, H512, U256};
 
 /// Simple trait for types with a canonical encoding
 pub trait Encode {
@@ -53,27 +53,35 @@ impl Decode for ethers_core::types::Signature {
     }
 }
 
-impl Encode for H256 {
-    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
-    where
-        W: std::io::Write,
-    {
-        writer.write_all(self.as_ref())?;
-        Ok(32)
-    }
+macro_rules! impl_encode_for_primitive_hash {
+    ($t:ty) => {
+        impl Encode for $t {
+            fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
+            where
+                W: std::io::Write,
+            {
+                writer.write_all(&self.0)?;
+                Ok(<$t>::len_bytes())
+            }
+        }
+
+        impl Decode for $t {
+            fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
+            where
+                R: std::io::Read,
+                Self: Sized,
+            {
+                let mut h = Self::zero();
+                reader.read_exact(&mut h.0)?;
+                Ok(h)
+            }
+        }
+    };
 }
 
-impl Decode for H256 {
-    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
-    where
-        R: std::io::Read,
-        Self: Sized,
-    {
-        let mut digest = H256::default();
-        reader.read_exact(digest.as_mut())?;
-        Ok(digest)
-    }
-}
+impl_encode_for_primitive_hash!(H160);
+impl_encode_for_primitive_hash!(H256);
+impl_encode_for_primitive_hash!(H512);
 
 impl Encode for U256 {
     fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>

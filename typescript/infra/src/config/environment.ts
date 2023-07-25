@@ -6,14 +6,15 @@ import {
   ChainName,
   CoreConfig,
   HookConfig,
+  HyperlaneEnvironment,
   MultiProvider,
   OverheadIgpConfig,
 } from '@hyperlane-xyz/sdk';
-import { HyperlaneEnvironment } from '@hyperlane-xyz/sdk/dist/consts/environments';
-import { types } from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import { environments } from '../../config/environments';
+import { CloudAgentKey } from '../agents/keys';
 import { Role } from '../roles';
 
 import { RootAgentConfig } from './agent';
@@ -38,13 +39,17 @@ export type EnvironmentConfig = {
   core: ChainMap<CoreConfig>;
   hooks: ChainMap<HookConfig>;
   igp: ChainMap<OverheadIgpConfig>;
-  owners: ChainMap<types.Address>;
+  owners: ChainMap<Address>;
   infra: InfrastructureConfig;
   getMultiProvider: (
     context?: Contexts,
     role?: Role,
     connectionType?: AgentConnectionType,
   ) => Promise<MultiProvider>;
+  getKeys: (
+    context?: Contexts,
+    role?: Role,
+  ) => Promise<ChainMap<CloudAgentKey>>;
   helloWorld?: Partial<Record<Contexts, HelloWorldConfig>>;
   keyFunderConfig?: KeyFunderConfig;
   liquidityLayerConfig?: {

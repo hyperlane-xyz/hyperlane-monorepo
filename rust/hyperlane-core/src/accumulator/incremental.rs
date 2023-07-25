@@ -87,7 +87,7 @@ impl IncrementalMerkle {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "ethers"))]
 mod test {
     use ethers_core::utils::hash_message;
 

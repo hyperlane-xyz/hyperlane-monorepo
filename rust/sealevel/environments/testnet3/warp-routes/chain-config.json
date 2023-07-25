@@ -8,21 +8,21 @@
       }
     ]
   },
-  "zbctestnet": {
-    "chainId": 2053254516,
-    "name": "zbctestnet",
+  "bsctestnet": {
+    "chainId": 97,
+    "name": "bsctestnet",
     "publicRpcUrls": [
       {
-        "http": "https://api.zebec.eclipsenetwork.xyz:8899"
+        "http": "https://rpc.ankr.com/bsc_testnet_chapel"
       }
     ]
   },
-  "fuji": {
-    "chainId": 43113,
-    "name": "fuji",
+  "proteustestnet": {
+    "chainId": 88002,
+    "name": "proteustestnet",
     "publicRpcUrls": [
       {
-        "http": "https://api.avax-test.network/ext/bc/C/rpc"
+        "http": "https://api.proteus.nautchain.xyz/solana"
       }
     ]
   }

@@ -3,7 +3,7 @@
 
 pragma solidity ^0.8.4;
 
-import {ICrossDomainMessenger} from "@eth-optimism/contracts/libraries/bridge/ICrossDomainMessenger.sol";
+import {ICrossDomainMessenger} from "../../../../interfaces/optimism/ICrossDomainMessenger.sol";
 import {NotCrossChainCall} from "../errors.sol";
 
 /**

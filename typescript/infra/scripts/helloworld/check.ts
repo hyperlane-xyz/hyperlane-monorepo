@@ -9,13 +9,13 @@ import {
   withContext,
 } from '../utils';
 
-import { getApp } from './utils';
+import { getHelloWorldApp } from './utils';
 
 async function main() {
   const { environment, context } = await withContext(getArgs()).argv;
   const coreConfig = getEnvironmentConfig(environment);
   const multiProvider = await coreConfig.getMultiProvider();
-  const app = await getApp(
+  const app = await getHelloWorldApp(
     coreConfig,
     context,
     Role.Deployer,

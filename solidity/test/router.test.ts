@@ -4,7 +4,7 @@ import { expect } from 'chai';
 import { BigNumberish } from 'ethers';
 import { ethers } from 'hardhat';
 
-import { utils } from '@hyperlane-xyz/utils';
+import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import {
   TestInterchainGasPaymaster,
@@ -87,22 +87,22 @@ describe.skip('Router', async () => {
     });
 
     it('accepts message from enrolled mailbox and router', async () => {
-      const sender = utils.addressToBytes32(nonOwner.address);
+      const sender = addressToBytes32(nonOwner.address);
       await router.enrollRemoteRouter(origin, sender);
-      const recipient = utils.addressToBytes32(router.address);
+      const recipient = addressToBytes32(router.address);
       // Does not revert.
       await mailbox.testHandle(origin, sender, recipient, body);
     });
 
     it('rejects message from unenrolled mailbox', async () => {
       await expect(
-        router.handle(origin, utils.addressToBytes32(nonOwner.address), body),
+        router.handle(origin, addressToBytes32(nonOwner.address), body),
       ).to.be.revertedWith('!mailbox');
     });
 
     it('rejects message from unenrolled router', async () => {
-      const sender = utils.addressToBytes32(nonOwner.address);
-      const recipient = utils.addressToBytes32(router.address);
+      const sender = addressToBytes32(nonOwner.address);
+      const recipient = addressToBytes32(router.address);
       await expect(
         mailbox.testHandle(origin, sender, recipient, body),
       ).to.be.revertedWith(
@@ -112,27 +112,24 @@ describe.skip('Router', async () => {
 
     it('owner can enroll remote router', async () => {
       const remote = nonOwner.address;
-      const remoteBytes = utils.addressToBytes32(nonOwner.address);
+      const remoteBytes = addressToBytes32(nonOwner.address);
       expect(await router.isRemoteRouter(origin, remoteBytes)).to.equal(false);
       await expect(router.mustHaveRemoteRouter(origin)).to.be.revertedWith(
         `No router enrolled for domain. Did you specify the right domain ID?`,
       );
-      await router.enrollRemoteRouter(origin, utils.addressToBytes32(remote));
+      await router.enrollRemoteRouter(origin, addressToBytes32(remote));
       expect(await router.isRemoteRouter(origin, remoteBytes)).to.equal(true);
       expect(await router.mustHaveRemoteRouter(origin)).to.equal(remoteBytes);
     });
 
     it('owner can enroll remote router using batch function', async () => {
       const remote = nonOwner.address;
-      const remoteBytes = utils.addressToBytes32(nonOwner.address);
+      const remoteBytes = addressToBytes32(nonOwner.address);
       expect(await router.isRemoteRouter(origin, remoteBytes)).to.equal(false);
       await expect(router.mustHaveRemoteRouter(origin)).to.be.revertedWith(
         `No router enrolled for domain. Did you specify the right domain ID?`,
       );
-      await router.enrollRemoteRouters(
-        [origin],
-        [utils.addressToBytes32(remote)],
-      );
+      await router.enrollRemoteRouters([origin], [addressToBytes32(remote)]);
       expect(await router.isRemoteRouter(origin, remoteBytes)).to.equal(true);
       expect(await router.mustHaveRemoteRouter(origin)).to.equal(remoteBytes);
     });
@@ -142,8 +139,8 @@ describe.skip('Router', async () => {
         await router.enrollRemoteRouters(
           [origin, destination],
           [
-            utils.addressToBytes32(nonOwner.address),
-            utils.addressToBytes32(nonOwner.address),
+            addressToBytes32(nonOwner.address),
+            addressToBytes32(nonOwner.address),
           ],
         );
         expect(await router.domains()).to.deep.equal([origin, destination]);
@@ -154,7 +151,7 @@ describe.skip('Router', async () => {
       await expect(
         router
           .connect(nonOwner)
-          .enrollRemoteRouter(origin, utils.addressToBytes32(nonOwner.address)),
+          .enrollRemoteRouter(origin, addressToBytes32(nonOwner.address)),
       ).to.be.revertedWith(ONLY_OWNER_REVERT_MSG);
     });
 
@@ -166,7 +163,7 @@ describe.skip('Router', async () => {
         // The address is arbitrary because no messages will actually be processed.
         await router.enrollRemoteRouter(
           destination,
-          utils.addressToBytes32(nonOwner.address),
+          addressToBytes32(nonOwner.address),
         );
         const recipient = utils.addressToBytes32(router.address);
         payment = await mailbox.quoteDispatch(destination, recipient, body);

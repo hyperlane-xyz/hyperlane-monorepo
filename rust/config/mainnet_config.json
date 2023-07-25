@@ -128,6 +128,39 @@
       "index": {
         "from": 25900000
       }
+    },
+    "nautilus": {
+      "name": "nautilus",
+      "domain": 22222,
+      "addresses": {
+        "mailbox": "0xF59557dfacDc5a1cb8A36Af43aA4819a6A891e88",
+        "interchainGasPaymaster": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
+        "validatorAnnounce": "0x23ce76645EC601148fa451e751eeB75785b97A00"
+      },
+      "protocol": "ethereum",
+      "finalityBlocks": 1,
+      "index": {
+        "from": 216377
+      }
+    },
+    "solana": {
+      "name": "solana",
+      "domain": 1399811149,
+      "addresses": {
+        "mailbox": "Ge9atjAc3Ltu91VTbNpJDCjZ9CFxFyck4h3YBcTF9XPq",
+        "interchainGasPaymaster": "FCNfmLSZLo5x7oNYmkYU8WdPUu7pj636P9CaMxkmaCp7",
+        "validatorAnnounce": "C88Lk5GR6cPxYoJxPbNDDEwsx5Kxn1wZEomvQ2So333g"
+      },
+      "protocol": "sealevel",
+      "finalityBlocks": 0,
+      "connection": {
+        "type": "http",
+        "url": "https://api.mainnet-beta.solana.com"
+      },
+      "index": {
+        "from": 1,
+        "mode": "sequence"
+      }
     }
   }
 }

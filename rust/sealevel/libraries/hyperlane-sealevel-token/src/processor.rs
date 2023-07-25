@@ -1,16 +1,18 @@
 //! Processor logic shared by all Hyperlane Sealevel Token programs.
 
 use access_control::AccessControl;
-use account_utils::create_pda_account;
+use account_utils::{create_pda_account, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{Decode, Encode};
 use hyperlane_sealevel_connection_client::{
+    gas_router::{GasRouterConfig, HyperlaneGasRouterAccessControl, HyperlaneGasRouterDispatch},
     router::{
         HyperlaneRouterAccessControl, HyperlaneRouterDispatch, HyperlaneRouterMessageRecipient,
         RemoteRouterConfig,
     },
     HyperlaneConnectionClient, HyperlaneConnectionClientSetterAccessControl,
 };
+use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
 use hyperlane_sealevel_mailbox::{
     mailbox_message_dispatch_authority_pda_seeds, mailbox_process_authority_pda_seeds,
 };
@@ -67,8 +69,13 @@ macro_rules! hyperlane_token_pda_seeds {
 /// A plugin that handles token transfers for a Hyperlane Sealevel Token program.
 pub trait HyperlaneSealevelTokenPlugin
 where
-    Self:
-        BorshSerialize + BorshDeserialize + std::cmp::PartialEq + std::fmt::Debug + Default + Sized,
+    Self: BorshSerialize
+        + BorshDeserialize
+        + std::cmp::PartialEq
+        + std::fmt::Debug
+        + Default
+        + Sized
+        + SizedData,
 {
     /// Initializes the plugin.
     fn initialize<'a, 'b>(
@@ -137,9 +144,6 @@ where
     /// 3.   [signer] The payer and access control owner.
     /// 4..N [??..??] Plugin-specific accounts.
     pub fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramResult {
-        // On chain create appears to use realloc which is limited to 1024 byte increments.
-        let token_account_size = 2048;
-
         let accounts_iter = &mut accounts.iter();
 
         // Account 0: System program
@@ -203,11 +207,27 @@ where
 
         let rent = Rent::get()?;
 
+        let token: HyperlaneToken<T> = HyperlaneToken {
+            bump: token_bump,
+            mailbox: init.mailbox,
+            mailbox_process_authority,
+            dispatch_authority_bump,
+            owner: Some(*payer_account.key),
+            interchain_security_module: init.interchain_security_module,
+            interchain_gas_paymaster: init.interchain_gas_paymaster,
+            destination_gas: HashMap::new(),
+            decimals: init.decimals,
+            remote_decimals: init.remote_decimals,
+            remote_routers: HashMap::new(),
+            plugin_data,
+        };
+        let token_account_data = HyperlaneTokenAccount::<T>::from(token);
+
         // Create token account PDA
         create_pda_account(
             payer_account,
             &rent,
-            token_account_size,
+            token_account_data.size(),
             program_id,
             system_program,
             token_account,
@@ -225,38 +245,33 @@ where
             mailbox_message_dispatch_authority_pda_seeds!(dispatch_authority_bump),
         )?;
 
-        let token: HyperlaneToken<T> = HyperlaneToken {
-            bump: token_bump,
-            mailbox: init.mailbox,
-            mailbox_process_authority,
-            dispatch_authority_bump,
-            owner: Some(*payer_account.key),
-            interchain_security_module: init.interchain_security_module,
-            decimals: init.decimals,
-            remote_decimals: init.remote_decimals,
-            remote_routers: HashMap::new(),
-            plugin_data,
-        };
-        HyperlaneTokenAccount::<T>::from(token).store(token_account, true)?;
+        token_account_data.store(token_account, false)?;
 
         Ok(())
     }
 
     /// Transfers tokens to a remote.
-    /// Burns the tokens from the sender's associated token account and
+    /// Calls the plugin's `transfer_in` function to transfer tokens in,
     /// then dispatches a message to the remote recipient.
     ///
     /// Accounts:
-    /// 0.   [executable] The system program.
-    /// 1.   [executable] The spl_noop program.
-    /// 2.   [] The token PDA account.
-    /// 3.   [executable] The mailbox program.
-    /// 4.   [writeable] The mailbox outbox account.
-    /// 5.   [] Message dispatch authority.
-    /// 6.   [signer] The token sender and mailbox payer.
-    /// 7.   [signer] Unique message account.
-    /// 8.   [writeable] Message storage PDA.
-    /// 9..N [??..??] Plugin-specific accounts.
+    /// 0.    [executable] The system program.
+    /// 1.    [executable] The spl_noop program.
+    /// 2.    [] The token PDA account.
+    /// 3.    [executable] The mailbox program.
+    /// 4.    [writeable] The mailbox outbox account.
+    /// 5.    [] Message dispatch authority.
+    /// 6.    [signer] The token sender and mailbox payer.
+    /// 7.    [signer] Unique message / gas payment account.
+    /// 8.    [writeable] Message storage PDA.
+    ///       ---- If using an IGP ----
+    /// 9.    [executable] The IGP program.
+    /// 10.   [writeable] The IGP program data.
+    /// 11.   [writeable] Gas payment PDA.
+    /// 12.   [] OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
+    /// 13.   [writeable] The IGP account.
+    ///      ---- End if ----
+    /// 14..N [??..??] Plugin-specific accounts.
     pub fn transfer_remote(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -315,13 +330,85 @@ where
             return Err(ProgramError::MissingRequiredSignature);
         }
 
-        // Account 7: Unique message account
-        // Defer to the checks in the Mailbox, no need to verify anything here.
+        // Account 7: Unique message / gas payment account
+        // Defer to the checks in the Mailbox / IGP, no need to verify anything here.
         let unique_message_account = next_account_info(accounts_iter)?;
 
         // Account 8: Message storage PDA.
         // Similarly defer to the checks in the Mailbox to ensure account validity.
         let dispatched_message_pda = next_account_info(accounts_iter)?;
+
+        let igp_payment_accounts =
+            if let Some((igp_program_id, igp_account_type)) = token.interchain_gas_paymaster() {
+                // Account 9: The IGP program
+                let igp_program_account = next_account_info(accounts_iter)?;
+                if igp_program_account.key != igp_program_id {
+                    return Err(ProgramError::InvalidArgument);
+                }
+
+                // Account 10: The IGP program data.
+                // No verification is performed here, the IGP will do that.
+                let igp_program_data_account = next_account_info(accounts_iter)?;
+
+                // Account 11: The gas payment PDA.
+                // No verification is performed here, the IGP will do that.
+                let igp_payment_pda_account = next_account_info(accounts_iter)?;
+
+                // Account 12: The configured IGP account.
+                let configured_igp_account = next_account_info(accounts_iter)?;
+                if configured_igp_account.key != igp_account_type.key() {
+                    return Err(ProgramError::InvalidArgument);
+                }
+
+                // Accounts expected by the IGP's `PayForGas` instruction:
+                //
+                // 0. [executable] The system program.
+                // 1. [signer] The payer.
+                // 2. [writeable] The IGP program data.
+                // 3. [signer] Unique gas payment account.
+                // 4. [writeable] Gas payment PDA.
+                // 5. [writeable] The IGP account.
+                // 6. [] Overhead IGP account (optional).
+
+                let mut igp_payment_account_metas = vec![
+                    AccountMeta::new_readonly(solana_program::system_program::id(), false),
+                    AccountMeta::new(*sender_wallet.key, true),
+                    AccountMeta::new(*igp_program_data_account.key, false),
+                    AccountMeta::new_readonly(*unique_message_account.key, true),
+                    AccountMeta::new(*igp_payment_pda_account.key, false),
+                ];
+                let mut igp_payment_account_infos = vec![
+                    system_program_account.clone(),
+                    sender_wallet.clone(),
+                    igp_program_data_account.clone(),
+                    unique_message_account.clone(),
+                    igp_payment_pda_account.clone(),
+                ];
+
+                match igp_account_type {
+                    InterchainGasPaymasterType::Igp(_) => {
+                        igp_payment_account_metas
+                            .push(AccountMeta::new(*configured_igp_account.key, false));
+                        igp_payment_account_infos.push(configured_igp_account.clone());
+                    }
+                    InterchainGasPaymasterType::OverheadIgp(_) => {
+                        // Account 13: The inner IGP account.
+                        let inner_igp_account = next_account_info(accounts_iter)?;
+
+                        // The inner IGP is expected first, then the overhead IGP.
+                        igp_payment_account_metas.extend([
+                            AccountMeta::new(*inner_igp_account.key, false),
+                            AccountMeta::new_readonly(*configured_igp_account.key, false),
+                        ]);
+                        igp_payment_account_infos
+                            .extend([inner_igp_account.clone(), configured_igp_account.clone()]);
+                    }
+                };
+
+                Some((igp_payment_account_metas, igp_payment_account_infos))
+            } else {
+                None
+            };
 
         // The amount denominated in the local decimals.
         let local_amount: u64 = xfer
@@ -345,35 +432,53 @@ where
             return Err(ProgramError::from(Error::ExtraneousAccount));
         }
 
+        let dispatch_account_metas = vec![
+            AccountMeta::new(*mailbox_outbox_account.key, false),
+            AccountMeta::new_readonly(*dispatch_authority_account.key, true),
+            AccountMeta::new_readonly(solana_program::system_program::id(), false),
+            AccountMeta::new_readonly(spl_noop::id(), false),
+            AccountMeta::new(*sender_wallet.key, true),
+            AccountMeta::new_readonly(*unique_message_account.key, true),
+            AccountMeta::new(*dispatched_message_pda.key, false),
+        ];
+        let dispatch_account_infos = &[
+            mailbox_outbox_account.clone(),
+            dispatch_authority_account.clone(),
+            system_program_account.clone(),
+            spl_noop.clone(),
+            sender_wallet.clone(),
+            unique_message_account.clone(),
+            dispatched_message_pda.clone(),
+        ];
+
         // The token message body, which specifies the remote_amount.
         let token_transfer_message =
             TokenMessage::new(xfer.recipient, remote_amount, vec![]).to_vec();
 
-        // Dispatch the message.
-        token.dispatch(
-            program_id,
-            dispatch_authority_seeds,
-            xfer.destination_domain,
-            token_transfer_message,
-            vec![
-                AccountMeta::new(*mailbox_outbox_account.key, false),
-                AccountMeta::new_readonly(*dispatch_authority_account.key, true),
-                AccountMeta::new_readonly(solana_program::system_program::id(), false),
-                AccountMeta::new_readonly(spl_noop::id(), false),
-                AccountMeta::new(*sender_wallet.key, true),
-                AccountMeta::new_readonly(*unique_message_account.key, true),
-                AccountMeta::new(*dispatched_message_pda.key, false),
-            ],
-            &[
-                mailbox_outbox_account.clone(),
-                dispatch_authority_account.clone(),
-                system_program_account.clone(),
-                spl_noop.clone(),
-                sender_wallet.clone(),
-                unique_message_account.clone(),
-                dispatched_message_pda.clone(),
-            ],
-        )?;
+        if let Some((igp_payment_account_metas, igp_payment_account_infos)) = igp_payment_accounts {
+            // Dispatch the message and pay for gas.
+            HyperlaneGasRouterDispatch::dispatch_with_gas(
+                &*token,
+                program_id,
+                dispatch_authority_seeds,
+                xfer.destination_domain,
+                token_transfer_message,
+                dispatch_account_metas,
+                dispatch_account_infos,
+                igp_payment_account_metas,
+                &igp_payment_account_infos,
+            )?;
+        } else {
+            // Dispatch the message.
+            token.dispatch(
+                program_id,
+                dispatch_authority_seeds,
+                xfer.destination_domain,
+                token_transfer_message,
+                dispatch_account_metas,
+                dispatch_account_infos,
+            )?;
+        }
 
         msg!(
             "Warp route transfer completed to destination: {}, recipient: {}, remote_amount: {}",
@@ -516,8 +621,9 @@ where
     /// Enrolls a remote router.
     ///
     /// Accounts:
-    /// 0. [writeable] The token PDA account.
-    /// 1. [signer] The owner.
+    /// 0. [executable] The system program.
+    /// 1. [writeable] The token PDA account.
+    /// 2. [signer] The owner.
     pub fn enroll_remote_router(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -525,7 +631,13 @@ where
     ) -> ProgramResult {
         let accounts_iter = &mut accounts.iter();
 
-        // Account 0: Token account
+        // Account 0: System program. Only used if a realloc / rent exemption top up occurs.
+        let system_program = next_account_info(accounts_iter)?;
+        if system_program.key != &solana_program::system_program::id() {
+            return Err(ProgramError::InvalidArgument);
+        }
+
+        // Account 1: Token account
         let token_account = next_account_info(accounts_iter)?;
         let mut token =
             HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow()[..])?.into_inner();
@@ -538,14 +650,18 @@ where
             return Err(ProgramError::IncorrectProgramId);
         }
 
-        // Account 1: Owner
+        // Account 2: Owner
         let owner_account = next_account_info(accounts_iter)?;
 
         // This errors if owner_account is not really the owner.
         token.enroll_remote_router_only_owner(owner_account, config)?;
 
-        // Store the updated token account.
-        HyperlaneTokenAccount::<T>::from(token).store(token_account, true)?;
+        // Store the updated token account and realloc if necessary.
+        HyperlaneTokenAccount::<T>::from(token).store_with_rent_exempt_realloc(
+            token_account,
+            &Rent::get()?,
+            owner_account,
+        )?;
 
         Ok(())
     }
@@ -553,8 +669,9 @@ where
     /// Enrolls remote routers.
     ///
     /// Accounts:
-    /// 0. [writeable] The token PDA account.
-    /// 1. [signer] The owner.
+    /// 0. [executable] The system program.
+    /// 1. [writeable] The token PDA account.
+    /// 2. [signer] The owner.
     pub fn enroll_remote_routers(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -562,7 +679,13 @@ where
     ) -> ProgramResult {
         let accounts_iter = &mut accounts.iter();
 
-        // Account 0: Token account
+        // Account 0: System program. Only used if a realloc / rent exemption top up occurs.
+        let system_program = next_account_info(accounts_iter)?;
+        if system_program.key != &solana_program::system_program::id() {
+            return Err(ProgramError::InvalidArgument);
+        }
+
+        // Account 1: Token account
         let token_account = next_account_info(accounts_iter)?;
         let mut token =
             HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow()[..])?.into_inner();
@@ -575,14 +698,18 @@ where
             return Err(ProgramError::IncorrectProgramId);
         }
 
-        // Account 1: Owner
+        // Account 2: Owner
         let owner_account = next_account_info(accounts_iter)?;
 
         // This errors if owner_account is not really the owner.
         token.enroll_remote_routers_only_owner(owner_account, configs)?;
 
-        // Store the updated token account.
-        HyperlaneTokenAccount::<T>::from(token).store(token_account, true)?;
+        // Store the updated token account and realloc if necessary.
+        HyperlaneTokenAccount::<T>::from(token).store_with_rent_exempt_realloc(
+            token_account,
+            &Rent::get()?,
+            owner_account,
+        )?;
 
         Ok(())
     }
@@ -609,8 +736,8 @@ where
         // This errors if owner_account is not really the owner.
         token.transfer_ownership(owner_account, new_owner)?;
 
-        // Store the updated token account.
-        HyperlaneTokenAccount::<T>::from(token).store(token_account, true)?;
+        // Store the updated token account. No need to realloc, the size for the owner is the same.
+        HyperlaneTokenAccount::<T>::from(token).store(token_account, false)?;
 
         Ok(())
     }
@@ -682,8 +809,75 @@ where
         // This errors if owner_account is not really the owner.
         token.set_interchain_security_module_only_owner(owner_account, ism)?;
 
-        // Store the updated token account.
-        HyperlaneTokenAccount::<T>::from(token).store(token_account, true)?;
+        // Store the updated token account. No need to realloc, the size for the ISM is the same.
+        HyperlaneTokenAccount::<T>::from(token).store(token_account, false)?;
+
+        Ok(())
+    }
+
+    /// Lets the owner set destination gas configs.
+    ///
+    /// Accounts:
+    /// 0. [executable] The system program.
+    /// 1. [writeable] The token PDA account.
+    /// 2. [signer] The access control owner.
+    pub fn set_destination_gas_configs(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+        configs: Vec<GasRouterConfig>,
+    ) -> ProgramResult {
+        let accounts_iter = &mut accounts.iter();
+
+        // Account 0: System program. Only used if a realloc / rent exemption top up occurs.
+        let system_program = next_account_info(accounts_iter)?;
+        if system_program.key != &solana_program::system_program::id() {
+            return Err(ProgramError::InvalidArgument);
+        }
+
+        // Account 1: Token account
+        let token_account = next_account_info(accounts_iter)?;
+        let mut token = HyperlaneToken::verify_account_and_fetch_inner(program_id, token_account)?;
+
+        // Account 2: Owner
+        let owner_account = next_account_info(accounts_iter)?;
+
+        // This errors if owner_account is not really the owner.
+        token.set_destination_gas_configs_only_owner(owner_account, configs)?;
+
+        // Store the updated token account and realloc if necessary.
+        HyperlaneTokenAccount::<T>::from(token).store_with_rent_exempt_realloc(
+            token_account,
+            &Rent::get()?,
+            owner_account,
+        )?;
+
+        Ok(())
+    }
+
+    /// Lets the owner set the interchain gas paymaster.
+    ///
+    /// Accounts:
+    /// 0. [writeable] The token PDA account.
+    /// 1. [signer] The access control owner.
+    pub fn set_interchain_gas_paymaster(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+        igp: Option<(Pubkey, InterchainGasPaymasterType)>,
+    ) -> ProgramResult {
+        let accounts_iter = &mut accounts.iter();
+
+        // Account 0: Token account
+        let token_account = next_account_info(accounts_iter)?;
+        let mut token = HyperlaneToken::verify_account_and_fetch_inner(program_id, token_account)?;
+
+        // Account 1: Owner
+        let owner_account = next_account_info(accounts_iter)?;
+
+        // This errors if owner_account is not really the owner.
+        token.set_interchain_gas_paymaster_only_owner(owner_account, igp)?;
+
+        // Store the updated token account. No need to realloc, the size for the ISM is the same.
+        HyperlaneTokenAccount::<T>::from(token).store(token_account, false)?;
 
         Ok(())
     }

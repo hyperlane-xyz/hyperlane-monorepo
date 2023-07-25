@@ -1,4 +1,8 @@
-//! Settings and configuration for Hyperlane agents
+//! Common settings and configuration for Hyperlane agents
+//!
+//! The correct settings shape is defined in the TypeScript SDK metadata. While the the exact shape
+//! and validations it defines are not applied here, we should mirror them.
+//! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 //!
 //! ## Introduction
 //!
@@ -73,16 +77,50 @@
 //!    E.g. `--originChainName ethereum`
 
 pub use base::*;
-pub use chains::{ChainConf, ChainConnectionConf, CoreContractAddresses};
-pub use signers::{RawSignerConf, SignerConf};
+pub use chains::*;
+pub use checkpoint_syncer::*;
+/// Export this so they don't need to import paste.
+#[doc(hidden)]
+pub use paste;
+pub use signers::*;
+pub use trace::*;
+
+mod envs {
+    pub use hyperlane_ethereum as h_eth;
+    pub use hyperlane_fuel as h_fuel;
+    pub use hyperlane_sealevel as h_sealevel;
+}
 
 /// AWS Credentials provider.
 pub(crate) mod aws_credentials;
 mod base;
 /// Chain configuration
-pub mod chains;
-pub(crate) mod loader;
+mod chains;
+pub mod loader;
 /// Signer configuration
 mod signers;
 /// Tracing subscriber management
-pub mod trace;
+mod trace;
+
+mod checkpoint_syncer;
+pub mod deprecated_parser;
+pub mod parser;
+
+/// Declare that an agent can be constructed from settings.
+///
+/// E.g.
+/// ```ignore
+/// impl_loadable_from_settings!(MyAgent, RawSettingsForMyAgent -> SettingsForMyAgent);
+/// ```
+#[macro_export]
+macro_rules! impl_loadable_from_settings {
+    ($agent:ident, $settingsparser:ident -> $settingsobj:ident) => {
+        impl hyperlane_base::LoadableFromSettings for $settingsobj {
+            fn load() -> hyperlane_core::config::ConfigResult<Self> {
+                hyperlane_base::settings::loader::load_settings::<$settingsparser, Self>(
+                    stringify!($agent),
+                )
+            }
+        }
+    };
+}
