@@ -17,6 +17,22 @@ const SOLANA_PROGRAMS: &[&str] = &[
     "account-compression/programs/noop",
 ];
 
+const SBF_OUT_PATH: &str = "target/deploy";
+
+// // Relative paths to solana program source code within rust/sealevel/programs repo.
+// const SOLANA_HYPERLANE_PROGRAMS: &[&str] = &[
+//     "mailbox",
+//     "validator-announce",
+//     "ism/multisig-ism-message-id",
+//     "hyperlane-sealevel-token",
+//     "hyperlane-sealevel-token-native",
+//     "hyperlane-sealevel-token-collateral"
+// ];
+
+const SOLANA_PROGRAM_LIBRARY_REPO: &str =
+    "https://github.com/hyperlane-xyz/solana-program-library.git";
+const SOLANA_PROGRAM_LIBRARY_REPO_BRANCH: &str = "hyperlane";
+
 // Install the CLI tools and return the path to the bin dir.
 #[apply(as_task)]
 pub fn install_solana_cli_tools(config: Arc<Config>) -> PathBuf {
@@ -81,21 +97,25 @@ pub fn install_solana_cli_tools(config: Arc<Config>) -> PathBuf {
 pub fn build_solana_program_library(config: Arc<Config>, solana_cli_tools_path: PathBuf) {
     let solana_programs_path = concat_path("target", "solana-program-library");
     let target_path = Path::new("target").canonicalize().unwrap();
-    let out_path = concat_path(target_path, "solana-program-library-deploy");
+    let out_path = Path::new(SBF_OUT_PATH);
 
     if solana_programs_path.exists() {
         fs::remove_dir_all(&solana_programs_path).expect("Failed to remove solana program dir");
     }
     if out_path.exists() {
-        fs::remove_dir_all(&out_path).expect("Failed to remove solana program deploy dir");
+        fs::remove_dir_all(out_path).expect("Failed to remove solana program deploy dir");
     }
 
+    fs::create_dir_all(out_path).expect("Failed to create solana program deploy dir");
+    let out_path = out_path.canonicalize().unwrap();
+
+    // get solana program library
     build_cmd(
         ProgramArgs::new("git")
             .cmd("clone")
-            .arg("branch", "hyperlane")
+            .arg("branch", SOLANA_PROGRAM_LIBRARY_REPO_BRANCH)
             .arg("depth", "1")
-            .cmd("https://github.com/hyperlane-xyz/solana-program-library.git")
+            .cmd(SOLANA_PROGRAM_LIBRARY_REPO)
             .cmd(solana_programs_path.to_str().unwrap()),
         config.build_log_file.clone(),
         config.log_all,
@@ -103,6 +123,7 @@ pub fn build_solana_program_library(config: Arc<Config>, solana_cli_tools_path: 
     )
     .join();
 
+    // build solana program library
     let path = format!(
         "{}:{}",
         std::env::var("PATH").unwrap_or_default(),
@@ -113,14 +134,15 @@ pub fn build_solana_program_library(config: Arc<Config>, solana_cli_tools_path: 
             .unwrap()
     );
 
-    let cmd = ProgramArgs::new("cargo")
+    let build_sbf = ProgramArgs::new("cargo")
         .cmd("build-sbf")
         .env("PATH", path)
-        .env("SBF_OUT_PATH", out_path.to_str().unwrap())
-        .raw_arg("--"); // pass remaining to `cargo build` directly
+        .env("SBF_OUT_PATH", out_path.to_str().unwrap());
+
     for &path in SOLANA_PROGRAMS {
         build_cmd(
-            cmd.clone()
+            build_sbf
+                .clone()
                 .working_dir(concat_path(&solana_programs_path, path)),
             config.build_log_file.clone(),
             config.log_all,
@@ -129,4 +151,12 @@ pub fn build_solana_program_library(config: Arc<Config>, solana_cli_tools_path: 
         .join();
     }
     fs::remove_dir_all(&solana_programs_path).expect("Failed to remove solana program dir");
+
+    build_cmd(
+        build_sbf.working_dir("sealevel/programs"),
+        config.build_log_file.clone(),
+        config.log_all,
+        true,
+    )
+    .join();
 }
