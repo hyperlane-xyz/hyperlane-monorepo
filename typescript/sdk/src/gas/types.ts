@@ -3,6 +3,7 @@ import { BigNumber } from 'ethers';
 import { InterchainGasPaymaster, OverheadIgp } from '@hyperlane-xyz/core';
 import type { Address } from '@hyperlane-xyz/utils';
 
+import { UpgradeConfig } from '../deploy/proxy';
 import type { CheckerViolation } from '../deploy/types';
 import { ChainMap } from '../types';
 
@@ -14,6 +15,8 @@ export type IgpConfig = {
   owner: Address;
   beneficiary: Address;
   gasOracleType: ChainMap<GasOracleContractType>;
+  oracleKey: Address;
+  upgrade?: UpgradeConfig;
 };
 
 export type OverheadIgpConfig = IgpConfig & {

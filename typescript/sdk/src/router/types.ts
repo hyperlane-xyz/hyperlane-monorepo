@@ -1,10 +1,12 @@
 import {
   HyperlaneConnectionClient,
   ProxyAdmin__factory,
+  TimelockController__factory,
 } from '@hyperlane-xyz/core';
 import type { Address } from '@hyperlane-xyz/utils';
 
 import { HyperlaneFactories } from '../contracts/types';
+import { UpgradeConfig } from '../deploy/proxy';
 import { CheckerViolation } from '../deploy/types';
 import { IsmConfig } from '../ism/types';
 
@@ -24,6 +26,8 @@ export type RouterConfig = ConnectionClientConfig &
   OwnableConfig &
   ForeignDeploymentConfig;
 
+export type ProxiedRouterConfig = RouterConfig & Partial<UpgradeConfig>;
+
 export type GasConfig = {
   gas: number;
 };
@@ -32,6 +36,12 @@ export type GasRouterConfig = RouterConfig & GasConfig;
 
 export type ProxiedFactories = HyperlaneFactories & {
   proxyAdmin: ProxyAdmin__factory;
+  timelockController: TimelockController__factory;
+};
+
+export const proxiedFactories: ProxiedFactories = {
+  proxyAdmin: new ProxyAdmin__factory(),
+  timelockController: new TimelockController__factory(),
 };
 
 export type ConnectionClientConfig = {
