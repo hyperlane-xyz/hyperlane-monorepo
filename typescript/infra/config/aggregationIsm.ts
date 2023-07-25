@@ -22,13 +22,13 @@ import { chainNames as testnet3Chains } from './environments/testnet3/chains';
 import { owners as testnet3Owners } from './environments/testnet3/owners';
 import { rcMultisigIsmConfigs } from './multisigIsm';
 
-export const chains = {
+const chains = {
   mainnet2: mainnet2Chains,
   testnet3: testnet3Chains,
   test: testChains,
 };
 
-export const owners = {
+const owners = {
   testnet3: testnet3Owners,
   mainnet2: mainnet2Owners,
   test: testOwners,

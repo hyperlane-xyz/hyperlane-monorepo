@@ -157,7 +157,13 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
         const ism = await this.deploy(chain, config.domains[origin], origin);
         isms[origin] = ism.address;
       }),
-    );
+    ).then((results) => {
+      results.forEach((result) => {
+        if (result.status === 'rejected') {
+          this.logger(`Failed to deploy routing ISM: ${result.reason}`);
+        }
+      });
+    });
     const domains = Object.keys(isms).map((chain) =>
       this.multiProvider.getDomainId(chain),
     );
