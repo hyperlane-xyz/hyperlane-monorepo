@@ -14,6 +14,7 @@
 //!   true if CI mode,
 //! else false.
 
+use std::sync::Arc;
 use std::{
     fs::{self},
     process::{Child, ExitCode},
@@ -21,7 +22,6 @@ use std::{
     thread::sleep,
     time::{Duration, Instant},
 };
-use std::sync::Arc;
 
 use eyre::Result;
 use maplit::hashmap;
@@ -39,7 +39,7 @@ mod logging;
 mod metrics;
 mod solana_cli;
 mod utils;
-use crate::solana_cli::install_solana_cli_tools;
+use crate::solana_cli::{build_solana_program_library, install_solana_cli_tools};
 pub use metrics::fetch_metric;
 
 /// These private keys are from hardhat/anvil's testing accounts.
@@ -251,8 +251,12 @@ fn main() -> ExitCode {
     // Ready to run...
     //
 
-    let solana_path = install_solana_cli_tools(config.clone()).join();
+    let solana_cli_tool_install = install_solana_cli_tools(config.clone());
 
+    let solana_path = solana_cli_tool_install.join();
+
+    let solana_program_library_build = build_solana_program_library(config.clone(), solana_path.clone());
+    let solana_program_library_path = solana_program_library_build.join();
 
     return ExitCode::SUCCESS;
 

@@ -9,12 +9,23 @@ use crate::logging::log;
 use crate::utils::{as_task, build_cmd, concat_path};
 use crate::SOLANA_CLI_VERSION;
 
+// Relative paths to solana program source code within the solana program library repo.
+const SOLANA_PROGRAMS: &[&str] = &[
+    "token/program",
+    "token/program-2022",
+    "associated-token-account/program",
+    "account-compression/programs/noop",
+];
+
 // Install the CLI tools and return the path to the bin dir.
 #[apply(as_task)]
 pub fn install_solana_cli_tools(config: Arc<Config>) -> PathBuf {
     let solana_tools_dir = format!("target/solana-tools-{SOLANA_CLI_VERSION}");
     if Path::new(&solana_tools_dir).exists() {
-        log!("Solana cli release v{} already downloaded", SOLANA_CLI_VERSION);
+        log!(
+            "Solana cli release v{} already downloaded",
+            SOLANA_CLI_VERSION
+        );
         return concat_path(solana_tools_dir, "bin");
     }
 
@@ -64,4 +75,58 @@ pub fn install_solana_cli_tools(config: Arc<Config>) -> PathBuf {
     fs::remove_file(concat_path("target", &solana_archive_name))
         .expect("Failed to remove solana archive");
     concat_path(solana_tools_dir, "bin")
+}
+
+#[apply(as_task)]
+pub fn build_solana_program_library(config: Arc<Config>, solana_cli_tools_path: PathBuf) {
+    let solana_programs_path = concat_path("target", "solana-program-library");
+    let target_path = Path::new("target").canonicalize().unwrap();
+    let out_path = concat_path(target_path, "solana-program-library-deploy");
+
+    if solana_programs_path.exists() {
+        fs::remove_dir_all(&solana_programs_path).expect("Failed to remove solana program dir");
+    }
+    if out_path.exists() {
+        fs::remove_dir_all(&out_path).expect("Failed to remove solana program deploy dir");
+    }
+
+    build_cmd(
+        ProgramArgs::new("git")
+            .cmd("clone")
+            .arg("branch", "hyperlane")
+            .arg("depth", "1")
+            .cmd("https://github.com/hyperlane-xyz/solana-program-library.git")
+            .cmd(solana_programs_path.to_str().unwrap()),
+        config.build_log_file.clone(),
+        config.log_all,
+        true,
+    )
+    .join();
+
+    let path = format!(
+        "{}:{}",
+        std::env::var("PATH").unwrap_or_default(),
+        solana_cli_tools_path
+            .canonicalize()
+            .expect("Failed to canonicalize solana cli tools path")
+            .to_str()
+            .unwrap()
+    );
+
+    let cmd = ProgramArgs::new("cargo")
+        .cmd("build-sbf")
+        .env("PATH", path)
+        .env("SBF_OUT_PATH", out_path.to_str().unwrap())
+        .raw_arg("--"); // pass remaining to `cargo build` directly
+    for &path in SOLANA_PROGRAMS {
+        build_cmd(
+            cmd.clone()
+                .working_dir(concat_path(&solana_programs_path, path)),
+            config.build_log_file.clone(),
+            config.log_all,
+            true,
+        )
+        .join();
+    }
+    fs::remove_dir_all(&solana_programs_path).expect("Failed to remove solana program dir");
 }
