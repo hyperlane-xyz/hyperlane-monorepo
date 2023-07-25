@@ -1,4 +1,3 @@
-use std::ops::Deref;
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::{
     account_info::AccountInfo,
@@ -8,7 +7,6 @@ use solana_program::{
     rent::Rent,
     system_instruction, system_program,
 };
-use spl_type_length_value::discriminator::Discriminator;
 
 pub mod discriminator;
 pub use discriminator::*;

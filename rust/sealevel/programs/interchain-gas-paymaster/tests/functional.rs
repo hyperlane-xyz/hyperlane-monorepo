@@ -1,9 +1,7 @@
-use hyperlane_core::{Announcement, H160, H256};
+use hyperlane_core::H256;
 
-use std::{collections::HashMap, str::FromStr};
+use std::collections::HashMap;
 
-use account_utils::SizedData;
-use borsh::BorshSerialize;
 use solana_program::{
     instruction::{AccountMeta, Instruction},
     pubkey,
@@ -12,11 +10,8 @@ use solana_program::{
 };
 use solana_program_test::*;
 use solana_sdk::{
-    instruction::InstructionError,
-    signature::Signature,
-    signature::Signer,
-    signer::keypair::Keypair,
-    transaction::{Transaction, TransactionError},
+    instruction::InstructionError, signature::Signature, signature::Signer,
+    signer::keypair::Keypair, transaction::TransactionError,
 };
 
 use hyperlane_test_utils::{
@@ -26,7 +21,7 @@ use serializable_account_meta::SimulationReturnData;
 
 use hyperlane_sealevel_igp::{
     accounts::{
-        GasOracle, GasPayment, GasPaymentAccount, GasPaymentData, Igp, IgpAccount, OverheadIgp,
+        GasOracle, GasPaymentAccount, GasPaymentData, Igp, IgpAccount, OverheadIgp,
         OverheadIgpAccount, ProgramData, ProgramDataAccount, RemoteGasData,
     },
     error::Error as IgpError,
@@ -51,7 +46,7 @@ fn igp_program_id() -> Pubkey {
 
 async fn setup_client() -> (BanksClient, Keypair) {
     let program_id = igp_program_id();
-    let mut program_test = ProgramTest::new(
+    let program_test = ProgramTest::new(
         "hyperlane_sealevel_igp",
         program_id,
         processor!(igp_process_instruction),
@@ -168,7 +163,7 @@ async fn setup_test_igps(
 
     let (igp_key, _igp_bump_seed) = initialize_igp(
         banks_client,
-        &payer,
+        payer,
         salt,
         Some(payer.pubkey()),
         payer.pubkey(),
@@ -188,12 +183,12 @@ async fn setup_test_igps(
             AccountMeta::new_readonly(payer.pubkey(), true),
         ],
     );
-    process_instruction(banks_client, instruction, &payer, &[payer])
+    process_instruction(banks_client, instruction, payer, &[payer])
         .await
         .unwrap();
 
     let (overhead_igp_key, _overhead_igp_bump_seed) =
-        initialize_overhead_igp(banks_client, &payer, salt, Some(payer.pubkey()), igp_key)
+        initialize_overhead_igp(banks_client, payer, salt, Some(payer.pubkey()), igp_key)
             .await
             .unwrap();
 
@@ -250,7 +245,7 @@ async fn test_initialize() {
 
 #[tokio::test]
 async fn test_initialize_errors_if_called_twice() {
-    let program_id = igp_program_id();
+    let _program_id = igp_program_id();
     let (mut banks_client, payer) = setup_client().await;
 
     initialize(&mut banks_client, &payer).await.unwrap();
@@ -305,7 +300,7 @@ async fn test_initialize_igp() {
 
 #[tokio::test]
 async fn test_initialize_igp_errors_if_called_twice() {
-    let program_id = igp_program_id();
+    let _program_id = igp_program_id();
     let (mut banks_client, payer) = setup_client().await;
 
     initialize(&mut banks_client, &payer).await.unwrap();
@@ -314,7 +309,7 @@ async fn test_initialize_igp_errors_if_called_twice() {
     let owner = Some(Pubkey::new_unique());
     let beneficiary = Pubkey::new_unique();
 
-    let (igp_key, igp_bump_seed) =
+    let (_igp_key, _igp_bump_seed) =
         initialize_igp(&mut banks_client, &payer, salt, owner, beneficiary)
             .await
             .unwrap();
@@ -371,7 +366,7 @@ async fn test_initialize_overhead_igp() {
 
 #[tokio::test]
 async fn test_initialize_overhead_igp_errors_if_called_twice() {
-    let program_id = igp_program_id();
+    let _program_id = igp_program_id();
     let (mut banks_client, payer) = setup_client().await;
 
     initialize(&mut banks_client, &payer).await.unwrap();
@@ -380,7 +375,7 @@ async fn test_initialize_overhead_igp_errors_if_called_twice() {
     let owner = Some(Pubkey::new_unique());
     let inner = Pubkey::new_unique();
 
-    let (overhead_igp_key, overhead_igp_bump_seed) =
+    let (_overhead_igp_key, _overhead_igp_bump_seed) =
         initialize_overhead_igp(&mut banks_client, &payer, salt, owner, inner)
             .await
             .unwrap();
@@ -768,19 +763,19 @@ async fn run_quote_gas_payment_tests(gas_amount: u64, overhead_gas_amount: Optio
         TEST_GAS_AMOUNT
     );
 
-    let program_id = igp_program_id();
+    let _program_id = igp_program_id();
     let (mut banks_client, payer) = setup_client().await;
 
     // Testing when exchange rates are relatively close.
     // The base asset has 9 decimals, there's a 1:1 exchange rate,
     // and the remote asset also has 9 decimals.
-    let (igp_key, overhead_igp_key) = setup_test_igps(
+    let (igp_key, _overhead_igp_key) = setup_test_igps(
         &mut banks_client,
         &payer,
         TEST_DESTINATION_DOMAIN,
         GasOracle::RemoteGasData(RemoteGasData {
             // 0.2 exchange rate (remote token less valuable)
-            token_exchange_rate: (TOKEN_EXCHANGE_RATE_SCALE / 5).into(),
+            token_exchange_rate: (TOKEN_EXCHANGE_RATE_SCALE / 5),
             gas_price: 150u64.into(),       // 150 gas price
             token_decimals: LOCAL_DECIMALS, // same decimals as local
         }),
@@ -809,13 +804,13 @@ async fn run_quote_gas_payment_tests(gas_amount: u64, overhead_gas_amount: Optio
     );
 
     // Testing when the remote token is much more valuable, has higher decimals, & there's a super high gas price
-    let (igp_key, overhead_igp_key) = setup_test_igps(
+    let (igp_key, _overhead_igp_key) = setup_test_igps(
         &mut banks_client,
         &payer,
         TEST_DESTINATION_DOMAIN,
         GasOracle::RemoteGasData(RemoteGasData {
             // remote token 5000x more valuable
-            token_exchange_rate: (5000 * TOKEN_EXCHANGE_RATE_SCALE).into(),
+            token_exchange_rate: (5000 * TOKEN_EXCHANGE_RATE_SCALE),
             gas_price: 1500000000000u64.into(), // 150 gwei gas price
             token_decimals: 18,                 // remote has 18 decimals
         }),
@@ -844,13 +839,13 @@ async fn run_quote_gas_payment_tests(gas_amount: u64, overhead_gas_amount: Optio
     );
 
     // Testing when the remote token is much less valuable & there's a low gas price, but has 18 decimals
-    let (igp_key, overhead_igp_key) = setup_test_igps(
+    let (igp_key, _overhead_igp_key) = setup_test_igps(
         &mut banks_client,
         &payer,
         TEST_DESTINATION_DOMAIN,
         GasOracle::RemoteGasData(RemoteGasData {
             // remote token 0.04x the price
-            token_exchange_rate: (4 * TOKEN_EXCHANGE_RATE_SCALE / 100).into(),
+            token_exchange_rate: (4 * TOKEN_EXCHANGE_RATE_SCALE / 100),
             gas_price: 100000000u64.into(), // 0.1 gwei gas price
             token_decimals: 18,             // remote has 18 decimals
         }),
@@ -879,13 +874,13 @@ async fn run_quote_gas_payment_tests(gas_amount: u64, overhead_gas_amount: Optio
     );
 
     // Testing when the remote token is much less valuable & there's a low gas price, but has 4 decimals
-    let (igp_key, overhead_igp_key) = setup_test_igps(
+    let (igp_key, _overhead_igp_key) = setup_test_igps(
         &mut banks_client,
         &payer,
         TEST_DESTINATION_DOMAIN,
         GasOracle::RemoteGasData(RemoteGasData {
             // remote token 10x the price
-            token_exchange_rate: (10 * TOKEN_EXCHANGE_RATE_SCALE).into(),
+            token_exchange_rate: (10 * TOKEN_EXCHANGE_RATE_SCALE),
             gas_price: 10u64.into(), // 10 gas price
             token_decimals: 4u8,     // remote has 4 decimals
         }),
@@ -930,10 +925,10 @@ async fn test_quote_gas_payment_with_overhead() {
 
 #[tokio::test]
 async fn test_quote_gas_payment_errors_if_no_gas_oracle() {
-    let program_id = igp_program_id();
+    let _program_id = igp_program_id();
     let (mut banks_client, payer) = setup_client().await;
 
-    let (igp_key, overhead_igp_key) = setup_test_igps(
+    let (igp_key, _overhead_igp_key) = setup_test_igps(
         &mut banks_client,
         &payer,
         TEST_DESTINATION_DOMAIN,
@@ -1023,11 +1018,12 @@ async fn pay_for_gas(
     Ok((gas_payment_pda_key, unique_payment_account, tx_signature))
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn assert_gas_payment(
     banks_client: &mut BanksClient,
     igp_key: Pubkey,
     payment_tx_signature: Signature,
-    payment_unique_account_pubkey: Pubkey,
+    _payment_unique_account_pubkey: Pubkey,
     gas_payment_account_key: Pubkey,
     destination_domain: u32,
     gas_amount: u64,
@@ -1065,11 +1061,8 @@ async fn assert_gas_payment(
     );
 }
 
-async fn run_pay_for_gas_tests(
-    gas_amount: u64,
-    overhead_gas_amount: Option<u64>,
-) -> Result<(), BanksClientError> {
-    let program_id = igp_program_id();
+async fn run_pay_for_gas_tests(gas_amount: u64, overhead_gas_amount: Option<u64>) {
+    let _program_id = igp_program_id();
     let (mut banks_client, payer) = setup_client().await;
     let message_id = H256::random();
 
@@ -1097,7 +1090,8 @@ async fn run_pay_for_gas_tests(
         // Only pass in the overhead igp key if there's an overhead amount
         overhead_gas_amount.map(|_| overhead_igp_key),
     )
-    .await?;
+    .await
+    .unwrap();
 
     let igp_balance_before = banks_client.get_balance(igp_key).await.unwrap();
 
@@ -1111,9 +1105,10 @@ async fn run_pay_for_gas_tests(
         gas_amount,
         message_id,
     )
-    .await?;
+    .await
+    .unwrap();
 
-    let igp_balance_after = banks_client.get_balance(igp_key).await?;
+    let igp_balance_after = banks_client.get_balance(igp_key).await.unwrap();
 
     assert_eq!(igp_balance_after - igp_balance_before, quote,);
     assert!(quote > 0);
@@ -1142,7 +1137,8 @@ async fn run_pay_for_gas_tests(
         gas_amount,
         message_id,
     )
-    .await?;
+    .await
+    .unwrap();
 
     assert_gas_payment(
         &mut banks_client,
@@ -1156,8 +1152,6 @@ async fn run_pay_for_gas_tests(
         1,
     )
     .await;
-
-    Ok(())
 }
 
 #[tokio::test]
@@ -1172,7 +1166,7 @@ async fn test_pay_for_gas_with_overhead() {
 
 #[tokio::test]
 async fn test_pay_for_gas_errors_if_payer_balance_is_insufficient() {
-    let program_id = igp_program_id();
+    let _program_id = igp_program_id();
     let (mut banks_client, payer) = setup_client().await;
 
     let balance = 1000000000;

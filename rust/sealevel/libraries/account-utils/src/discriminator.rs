@@ -1,14 +1,7 @@
-use std::ops::Deref;
 use borsh::{BorshDeserialize, BorshSerialize};
-use solana_program::{
-    account_info::AccountInfo,
-    program::{invoke, invoke_signed},
-    program_error::ProgramError,
-    pubkey::Pubkey,
-    rent::Rent,
-    system_instruction, system_program,
-};
+use solana_program::program_error::ProgramError;
 use spl_type_length_value::discriminator::Discriminator;
+use std::ops::Deref;
 
 use crate::SizedData;
 
@@ -16,24 +9,35 @@ pub const PROGRAM_INSTRUCTION_DISCRIMINATOR: [u8; Discriminator::LENGTH] = [1, 1
 
 /// A wrapper type that prefixes data with a discriminator when Borsh (de)serialized.
 #[derive(Debug, Default, Clone, PartialEq)]
-pub struct DiscriminatorPrefixed<T: DiscriminatorData + borsh::BorshSerialize + borsh::BorshDeserialize> {
+pub struct DiscriminatorPrefixed<
+    T: DiscriminatorData + borsh::BorshSerialize + borsh::BorshDeserialize,
+> {
     pub data: T,
 }
 
-impl<T> DiscriminatorPrefixed<T> where T: DiscriminatorData + borsh::BorshSerialize + borsh::BorshDeserialize {
+impl<T> DiscriminatorPrefixed<T>
+where
+    T: DiscriminatorData + borsh::BorshSerialize + borsh::BorshDeserialize,
+{
     fn new(data: T) -> Self {
         Self { data }
     }
 }
 
-impl<T> BorshSerialize for DiscriminatorPrefixed<T> where T: DiscriminatorData + borsh::BorshSerialize + borsh::BorshDeserialize {
+impl<T> BorshSerialize for DiscriminatorPrefixed<T>
+where
+    T: DiscriminatorData + borsh::BorshSerialize + borsh::BorshDeserialize,
+{
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
         PROGRAM_INSTRUCTION_DISCRIMINATOR.serialize(writer)?;
         self.data.serialize(writer)
     }
 }
 
-impl<T> BorshDeserialize for DiscriminatorPrefixed<T> where T: DiscriminatorData + borsh::BorshSerialize + borsh::BorshDeserialize {
+impl<T> BorshDeserialize for DiscriminatorPrefixed<T>
+where
+    T: DiscriminatorData + borsh::BorshSerialize + borsh::BorshDeserialize,
+{
     fn deserialize(buf: &mut &[u8]) -> std::io::Result<Self> {
         let (discriminator, rest) = buf.split_at(Discriminator::LENGTH);
         if discriminator != PROGRAM_INSTRUCTION_DISCRIMINATOR {
@@ -48,14 +52,20 @@ impl<T> BorshDeserialize for DiscriminatorPrefixed<T> where T: DiscriminatorData
     }
 }
 
-impl<T> SizedData for DiscriminatorPrefixed<T> where T: SizedData + DiscriminatorData + borsh::BorshSerialize + borsh::BorshDeserialize {
+impl<T> SizedData for DiscriminatorPrefixed<T>
+where
+    T: SizedData + DiscriminatorData + borsh::BorshSerialize + borsh::BorshDeserialize,
+{
     fn size(&self) -> usize {
         // 8 byte discriminator prefix
         8 + self.data.size()
     }
 }
 
-impl<T> Deref for DiscriminatorPrefixed<T> where T: DiscriminatorData + borsh::BorshSerialize + borsh::BorshDeserialize {
+impl<T> Deref for DiscriminatorPrefixed<T>
+where
+    T: DiscriminatorData + borsh::BorshSerialize + borsh::BorshDeserialize,
+{
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -63,7 +73,10 @@ impl<T> Deref for DiscriminatorPrefixed<T> where T: DiscriminatorData + borsh::B
     }
 }
 
-impl<T> From<T> for DiscriminatorPrefixed<T> where T: DiscriminatorData + borsh::BorshSerialize + borsh::BorshDeserialize {
+impl<T> From<T> for DiscriminatorPrefixed<T>
+where
+    T: DiscriminatorData + borsh::BorshSerialize + borsh::BorshDeserialize,
+{
     fn from(data: T) -> Self {
         Self::new(data)
     }

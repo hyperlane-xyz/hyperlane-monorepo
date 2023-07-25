@@ -129,13 +129,11 @@ impl Igp {
             .gas_oracles
             .get(&destination_domain)
             .ok_or(Error::NoGasOracleSetForDestinationDomain)?;
-        let RemoteGasData {
+        let GasOracle::RemoteGasData(RemoteGasData {
             token_exchange_rate,
             gas_price,
             token_decimals,
-        } = match oracle {
-            GasOracle::RemoteGasData(data) => data,
-        };
+        }) = oracle;
 
         // Arithmetic is done using U256 to avoid overflows.
 
