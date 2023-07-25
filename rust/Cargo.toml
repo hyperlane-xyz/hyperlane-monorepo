@@ -67,7 +67,7 @@ convert_case = "0.6"
 crunchy = "0.2"
 ctrlc = "3.2"
 curve25519-dalek = { version = "~3.2", features = ["serde"] }
-cosmrs = { version = "0.14", default-features = false }
+cosmrs = { version = "0.14", default-features = false, features = ["cosmwasm", "rpc", "tokio", "grpc"] }
 derive-new = "0.5"
 derive_builder = "0.12"
 derive_more = "0.99"
@@ -109,7 +109,6 @@ serde = { version = "1.0", features = ["derive"] }
 serde_bytes = "0.11"
 serde_derive = "1.0"
 serde_json = "1.0"
-sha2 = "0.10"
 sha3 = "0.10"
 solana-account-decoder = "=1.14.13"
 solana-banks-client = "=1.14.13"
@@ -135,8 +134,8 @@ tempfile = "3.3"
 thiserror = "1.0"
 time = "0.3"
 tiny-keccak = "2.0.2"
-tokio = { version = "1", features = ["parking_lot"] }
 tokio-test = "0.4"
+tokio = { version = "1.29.1", features = ["full"] }
 tracing = { version = "0.1", features = ["release_max_level_debug"] }
 tracing-error = "0.2"
 tracing-futures = "0.2"
@@ -147,6 +146,14 @@ url = "2.3"
 walkdir = "2"
 warp = "0.3"
 which = "4.3"
+sha256 = "1.1.4"
+bech32 = "0.9.1"
+tonic = "0.9.2"
+sha2 = { version = "0.10.6", default-features = false }
+ripemd = "0.1.3"
+hyper = "0.14"
+hyper-tls = "0.5.0"
+tendermint-rpc = { version = "0.32.0", features = ["http-client", "tokio"]}
 
 [workspace.dependencies.ethers]
 git = "https://github.com/hyperlane-xyz/ethers-rs"

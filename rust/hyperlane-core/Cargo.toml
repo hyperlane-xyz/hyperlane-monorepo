@@ -2,12 +2,12 @@ cargo-features = ["workspace-inheritance"]
 
 [package]
 name = "hyperlane-core"
-documentation.workspace = true
-edition.workspace = true
-homepage.workspace = true
-license-file.workspace = true
-publish.workspace = true
-version.workspace = true
+documentation = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license-file = { workspace = true }
+publish = { workspace = true }
+version = { workspace = true }
 
 [dependencies]
 async-trait.workspace = true
@@ -39,8 +39,13 @@ strum = { workspace = true, optional = true, features = ["derive"] }
 thiserror.workspace = true
 tiny-keccak = { workspace = true, features = ["keccak"]}
 uint.workspace = true
+tonic = { workspace = true }
+cosmrs = { workspace = true }
+tendermint-rpc = { workspace = true }
 
 [dev-dependencies]
+config = { workspace = true }
+hyperlane-base = { path = "../hyperlane-base" }
 tokio = { workspace = true, features = ["rt", "time"] }
 
 [features]
