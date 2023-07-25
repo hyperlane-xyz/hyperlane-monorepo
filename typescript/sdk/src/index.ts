@@ -23,6 +23,8 @@ export {
   Testnets,
 } from './consts/chains';
 export {
+  HyperlaneEnvironment,
+  HyperlaneEnvironmentChain,
   hyperlaneContractAddresses,
   hyperlaneEnvironments,
 } from './consts/environments';
@@ -51,7 +53,14 @@ export { TestCoreApp } from './core/TestCoreApp';
 export { TestCoreDeployer } from './core/TestCoreDeployer';
 export { CoreFactories, coreFactories } from './core/contracts';
 export { HyperlaneLifecyleEvent } from './core/events';
-export { CoreConfig, CoreViolationType } from './core/types';
+export {
+  CoreConfig,
+  CoreViolationType,
+  MailboxMultisigIsmViolation,
+  MailboxViolation,
+  MailboxViolationType,
+  ValidatorAnnounceViolation,
+} from './core/types';
 export { HyperlaneAppChecker } from './deploy/HyperlaneAppChecker';
 export { DeployerOptions, HyperlaneDeployer } from './deploy/HyperlaneDeployer';
 export {
@@ -211,11 +220,18 @@ export {
 } from './router/adapters/SealevelRouterAdapter';
 export { IGasRouterAdapter, IRouterAdapter } from './router/adapters/types';
 export {
+  ConnectionClientConfig,
   ConnectionClientViolation,
   ConnectionClientViolationType,
+  ForeignDeploymentConfig,
   GasConfig,
   GasRouterConfig,
+  OwnableConfig,
+  ProxiedFactories,
+  ProxiedRouterConfig,
+  RouterAddress,
   RouterConfig,
+  proxiedFactories,
 } from './router/types';
 export {
   createRouterConfigMap,

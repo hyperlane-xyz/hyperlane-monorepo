@@ -34,11 +34,11 @@ export interface MultiProviderOptions {
  * @typeParam MetaExt - Extra metadata fields for chains (such as contract addresses)
  */
 export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
-  protected readonly providers: ChainMap<Provider> = {};
-  protected readonly providerBuilder: ProviderBuilderFn<Provider>;
-  protected signers: ChainMap<Signer> = {};
-  protected useSharedSigner = false; // A single signer to be used for all chains
-  protected readonly logger: Debugger;
+  readonly providers: ChainMap<Provider> = {};
+  readonly providerBuilder: ProviderBuilderFn<Provider>;
+  signers: ChainMap<Signer> = {};
+  useSharedSigner = false; // A single signer to be used for all chains
+  readonly logger: Debugger;
 
   /**
    * Create a new MultiProvider with the given chainMetadata,
@@ -46,7 +46,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   constructor(
     chainMetadata?: ChainMap<ChainMetadata<MetaExt>>,
-    protected readonly options: MultiProviderOptions = {},
+    readonly options: MultiProviderOptions = {},
   ) {
     super(chainMetadata, options);
     this.logger = debug(options?.loggerName || 'hyperlane:MultiProvider');
