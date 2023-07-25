@@ -23,8 +23,6 @@ pub enum ModuleType {
     MerkleRootMultisig,
     /// Message ID ISM (cheapest multisig with no batching)
     MessageIdMultisig,
-    /// Cctp ISM
-    Cctp,
 }
 
 /// Interface for the InterchainSecurityModule chain contract. Allows abstraction over

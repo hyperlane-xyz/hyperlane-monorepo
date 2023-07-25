@@ -13,7 +13,7 @@ use hyperlane_base::{
 };
 use hyperlane_core::accumulator::merkle::Proof;
 use hyperlane_core::{
-    CctpIsm, Checkpoint, HyperlaneDomain, HyperlaneMessage, ModuleType, MultisigIsm, RoutingIsm,
+    Checkpoint, HyperlaneDomain, HyperlaneMessage, ModuleType, MultisigIsm, RoutingIsm,
     ValidatorAnnounce, H160, H256,
 };
 
@@ -22,7 +22,6 @@ use crate::msg::metadata::multisig::{
     LegacyMultisigMetadataBuilder, MerkleRootMultisigMetadataBuilder,
     MessageIdMultisigMetadataBuilder,
 };
-use crate::msg::metadata::CctpIsmMetadataBuilder;
 use crate::msg::metadata::RoutingIsmMetadataBuilder;
 
 #[derive(Debug, thiserror::Error)]
@@ -88,7 +87,6 @@ impl MetadataBuilder for BaseMetadataBuilder {
             }
             ModuleType::MessageIdMultisig => Box::new(MessageIdMultisigMetadataBuilder::new(base)),
             ModuleType::Routing => Box::new(RoutingIsmMetadataBuilder::new(base)),
-            ModuleType::Cctp => Box::new(CctpIsmMetadataBuilder::new(base)),
             _ => return Err(MetadataBuilderError::UnsupportedModuleType(module_type).into()),
         };
         metadata_builder
@@ -149,12 +147,6 @@ impl BaseMetadataBuilder {
     pub async fn build_multisig_ism(&self, address: H256) -> Result<Box<dyn MultisigIsm>> {
         self.destination_chain_setup
             .build_multisig_ism(address, &self.metrics)
-            .await
-    }
-
-    pub async fn build_cctp_ism(&self, address: H256) -> Result<Box<dyn CctpIsm>> {
-        self.destination_chain_setup
-            .build_cctp_ism(address, &self.metrics)
             .await
     }
 
