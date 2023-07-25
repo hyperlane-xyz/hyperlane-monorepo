@@ -36,21 +36,15 @@ pub struct InitOverheadIgp {
 
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub struct PayForGas {
-    // TODO needed? could imply from accounts
-    // pub igp: Pubkey,
     pub message_id: H256,
     pub destination_domain: u32,
-    // TODO maybe U256? check Fuel impl...
     pub gas_amount: u64,
     pub refund_recipient: Pubkey,
 }
 
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub struct QuoteGasPayment {
-    // TODO needed? could imply from accounts
-    // pub igp: Pubkey,
     pub destination_domain: u32,
-    // TODO maybe U256?
     pub gas_amount: u64,
 }
 

@@ -340,8 +340,8 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
     program_data.payment_count += 1;
 
     let gas_payment = GasPayment {
-        igp: *igp_info.key,
         sequence_number: program_data.payment_count,
+        igp: *igp_info.key,
         destination_domain: payment.destination_domain,
         message_id: payment.message_id,
         gas_amount: payment.gas_amount,

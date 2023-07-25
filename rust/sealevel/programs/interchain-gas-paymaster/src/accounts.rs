@@ -171,11 +171,10 @@ pub struct RemoteGasData {
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
 pub struct GasPayment {
-    pub igp: Pubkey,
     pub sequence_number: u64,
+    pub igp: Pubkey,
     pub destination_domain: u32,
     pub message_id: H256,
-    // TODO maybe U256? check Fuel impl...
     pub gas_amount: u64,
     pub slot: Slot,
 }
