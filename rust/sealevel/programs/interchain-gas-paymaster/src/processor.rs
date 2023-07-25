@@ -1,4 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
+use std::collections::HashMap;
 
 #[cfg(not(feature = "no-entrypoint"))]
 use solana_program::entrypoint;
@@ -139,17 +140,18 @@ fn init(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
 ///
 /// Accounts:
 /// 0. [executable] The system program.
-/// 1. [signer] The payer account and owner of the IGP account.
+/// 1. [signer] The payer account.
 /// 2. [writeable] The IGP account to initialize.
 fn init_igp(program_id: &Pubkey, accounts: &[AccountInfo], data: InitIgp) -> ProgramResult {
     let igp_key = init_igp_variant(
         program_id,
         accounts,
-        |owner| Igp {
+        |bump_seed| Igp {
+            bump_seed,
             salt: data.salt,
-            owner: Some(owner),
+            owner: data.owner,
             beneficiary: data.beneficiary,
-            ..Igp::default()
+            gas_oracles: HashMap::new(),
         },
         igp_pda_seeds!(data.salt),
     )?;
@@ -163,7 +165,7 @@ fn init_igp(program_id: &Pubkey, accounts: &[AccountInfo], data: InitIgp) -> Pro
 ///
 /// Accounts:
 /// 0. [executable] The system program.
-/// 1. [signer] The payer account and owner of the IGP account.
+/// 1. [signer] The payer account.
 /// 2. [signer, writeable] The Overhead IGP account to initialize.
 fn init_overhead_igp(
     program_id: &Pubkey,
@@ -173,11 +175,12 @@ fn init_overhead_igp(
     let igp_key = init_igp_variant(
         program_id,
         accounts,
-        |owner| OverheadIgp {
+        |bump_seed| OverheadIgp {
+            bump_seed,
             salt: data.salt,
-            owner: Some(owner),
+            owner: data.owner,
             inner: data.inner,
-            ..OverheadIgp::default()
+            gas_overheads: HashMap::new(),
         },
         overhead_igp_pda_seeds!(data.salt),
     )?;
@@ -190,7 +193,7 @@ fn init_overhead_igp(
 fn init_igp_variant<T: account_utils::Data + account_utils::SizedData>(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
-    get_data: impl FnOnce(Pubkey) -> T,
+    get_data: impl FnOnce(u8) -> T,
     pda_seeds: &[&[u8]],
 ) -> Result<Pubkey, ProgramError> {
     let accounts_iter = &mut accounts.iter();
@@ -215,7 +218,7 @@ fn init_igp_variant<T: account_utils::Data + account_utils::SizedData>(
         return Err(ProgramError::InvalidSeeds);
     }
 
-    let igp_account = AccountData::<T>::from(get_data(*payer_info.key));
+    let igp_account = AccountData::<T>::from(get_data(igp_bump));
 
     let igp_account_size = igp_account.size();
 

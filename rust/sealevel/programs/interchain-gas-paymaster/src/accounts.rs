@@ -44,6 +44,7 @@ pub type ProgramDataAccount = AccountData<ProgramData>;
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
 pub struct OverheadIgp {
+    pub bump_seed: u8,
     pub salt: H256,
     pub owner: Option<Pubkey>,
     pub inner: Pubkey,
@@ -85,12 +86,13 @@ pub type OverheadIgpAccount = AccountData<OverheadIgp>;
 
 impl SizedData for OverheadIgp {
     fn size(&self) -> usize {
+        // 1 for bump_seed
         // 32 for salt
         // 33 for owner (1 byte Option, 32 bytes for pubkey)
         // 32 for inner
         // 4 for gas_overheads.len()
         // N * (4 + 8) for gas_overhead contents
-        32 + 33 + 32 + 4 + (self.gas_overheads.len() * (4 + 8))
+        1 + 32 + 33 + 32 + 4 + (self.gas_overheads.len() * (4 + 8))
     }
 }
 
@@ -98,6 +100,7 @@ pub type IgpAccount = AccountData<Igp>;
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
 pub struct Igp {
+    pub bump_seed: u8,
     pub salt: H256,
     pub owner: Option<Pubkey>,
     pub beneficiary: Pubkey,
@@ -106,6 +109,7 @@ pub struct Igp {
 
 impl SizedData for Igp {
     fn size(&self) -> usize {
+        // 1 for bump_seed
         // 32 for salt
         // 33 for owner (1 byte Option, 32 bytes for pubkey)
         // 8 for payment_count
@@ -114,7 +118,7 @@ impl SizedData for Igp {
         // N * (4 + 8) for gas_overhead contents
         // 4 for gas_oracles.len()
         // M * (4 + 8) for gas_oracles contents
-        32 + 33 + 8 + 32 + 4 + (self.gas_oracles.len() * (4 + 8))
+        1 + 32 + 33 + 8 + 32 + 4 + (self.gas_oracles.len() * (4 + 8))
     }
 }
 
