@@ -404,10 +404,9 @@ export abstract class HyperlaneDeployer<
     chain: ChainName,
     timelockConfig: UpgradeConfig['timelock'],
   ): Promise<TimelockController> {
-    const timelock = await this.deployContractFromFactory(
+    return this.multiProvider.handleDeploy(
       chain,
       new TimelockController__factory(),
-      'timelockController',
       // delay, [proposers], [executors], admin
       [
         timelockConfig.delay,
@@ -416,7 +415,6 @@ export abstract class HyperlaneDeployer<
         ethers.constants.AddressZero,
       ],
     );
-    return timelock;
   }
 
   protected writeCache<K extends keyof Factories>(

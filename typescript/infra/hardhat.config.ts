@@ -11,12 +11,13 @@ import {
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 
+import { Modules, getAddresses } from './scripts/utils';
 import { sleep } from './src/utils/utils';
 
 const chainSummary = async (core: HyperlaneCore, chain: ChainName) => {
   const coreContracts = core.getContracts(chain);
   const mailbox = coreContracts.mailbox;
-  const dispatched = await mailbox.count();
+  const dispatched = await mailbox.nonce();
   // TODO: Allow processed messages to be filtered by
   // origin, possibly sender and recipient.
   const processFilter = mailbox.filters.Process();
@@ -49,8 +50,14 @@ task('kathy', 'Dispatches random hyperlane messages')
       const interchainGasPayment = hre.ethers.utils.parseUnits('100', 'gwei');
       const [signer] = await hre.ethers.getSigners();
       const multiProvider = MultiProvider.createTestMultiProvider({ signer });
-      const core = HyperlaneCore.fromEnvironment(environment, multiProvider);
-      const igps = HyperlaneIgp.fromEnvironment(environment, multiProvider);
+      const core = HyperlaneCore.fromAddressesMap(
+        getAddresses(environment, Modules.CORE),
+        multiProvider,
+      );
+      const igps = HyperlaneIgp.fromAddressesMap(
+        getAddresses(environment, Modules.INTERCHAIN_GAS_PAYMASTER),
+        multiProvider,
+      );
 
       const randomElement = <T>(list: T[]) =>
         list[Math.floor(Math.random() * list.length)];
@@ -92,7 +99,7 @@ task('kathy', 'Dispatches random hyperlane messages')
         console.log(
           `send to ${recipient.address} on ${remote} via mailbox ${
             mailbox.address
-          } on ${local} with nonce ${(await mailbox.count()) - 1}`,
+          } on ${local} with nonce ${(await mailbox.nonce()) - 1}`,
         );
         console.log(await chainSummary(core, local));
         console.log(await chainSummary(core, remote));

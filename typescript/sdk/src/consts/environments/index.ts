@@ -4,11 +4,10 @@ import { ChainName } from '../../types';
 import { CoreChainName } from '../chains';
 
 import mainnet from './mainnet.json';
-import test from './test.json';
 import testnetSealevel from './testnet-sealevel.json';
 import testnet from './testnet.json';
 
-export const hyperlaneEnvironments = { test, testnet, mainnet };
+export const hyperlaneEnvironments = { testnet, mainnet };
 export const hyperlaneEnvironmentsWithSealevel = {
   ...hyperlaneEnvironments,
   testnet: { ...testnet, ...testnetSealevel },

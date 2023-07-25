@@ -1,3 +1,4 @@
+import { getAddress } from 'ethers/lib/utils';
 import path from 'path';
 
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
@@ -5,7 +6,6 @@ import {
   ChainMap,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
-  HyperlaneHookDeployer,
   HyperlaneIgp,
   HyperlaneIgpDeployer,
   HyperlaneIsmFactory,
@@ -27,10 +27,10 @@ import { readJSON } from '../src/utils/utils';
 import {
   Modules,
   SDK_MODULES,
+  getAddresses,
   getArgs,
   getContractAddressesSdkFilepath,
   getEnvironmentConfig,
-  getEnvironmentDirectory,
   getModuleDirectory,
   getProxiedRouterConfig,
   getRouterConfig,
@@ -68,14 +68,15 @@ async function main() {
     deployer = new HyperlaneIsmFactoryDeployer(multiProvider);
   } else if (module === Modules.CORE) {
     config = envConfig.core;
-    const ismFactory = HyperlaneIsmFactory.fromEnvironment(
-      deployEnvToSdkEnv[environment],
+    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
+      getAddresses(environment, Modules.ISM_FACTORY),
       multiProvider,
     );
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   } else if (module === Modules.HOOK) {
-    config = envConfig.hooks;
-    deployer = new HyperlaneHookDeployer(multiProvider);
+    throw new Error('Hook deployment unimplemented');
+    // config = envConfig.hooks;
+    // deployer = new HyperlaneHookDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);
@@ -104,17 +105,16 @@ async function main() {
   } else if (module === Modules.TEST_RECIPIENT) {
     deployer = new TestRecipientDeployer(multiProvider);
   } else if (module === Modules.TEST_QUERY_SENDER) {
-    // TODO: make this more generic
     const igp = HyperlaneIgp.fromEnvironment(
-      deployEnvToSdkEnv[environment],
+      getAddresses(environment, Modules.INTERCHAIN_GAS_PAYMASTER),
       multiProvider,
     );
     // Get query router addresses
-    const queryRouterDir = path.join(
-      getEnvironmentDirectory(environment),
-      'middleware/queries',
+    const queryAddresses = getAddresses(
+      environment,
+      Modules.INTERCHAIN_QUERY_SYSTEM,
     );
-    config = objMap(readJSON(queryRouterDir, 'addresses.json'), (_c, conf) => ({
+    config = objMap(queryAddresses, (_c, conf) => ({
       queryRouterAddress: conf.router,
     }));
     deployer = new TestQuerySenderDeployer(multiProvider, igp);
@@ -124,8 +124,8 @@ async function main() {
       multiProvider,
       true, // use deployer as owner
     );
-    const ismFactory = HyperlaneIsmFactory.fromEnvironment(
-      deployEnvToSdkEnv[environment],
+    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
+      getAddresses(environment, Modules.ISM_FACTORY),
       multiProvider,
     );
     deployer = new HelloWorldDeployer(multiProvider, ismFactory);
@@ -138,7 +138,9 @@ async function main() {
 
   console.log(`Deploying to ${modulePath}`);
 
-  const addresses = SDK_MODULES.includes(module)
+  const isSdkArtifact = SDK_MODULES.includes(module) && environment !== 'test';
+
+  const addresses = isSdkArtifact
     ? path.join(
         getContractAddressesSdkFilepath(),
         `${deployEnvToSdkEnv[environment]}.json`,
