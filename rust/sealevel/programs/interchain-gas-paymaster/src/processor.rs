@@ -17,7 +17,9 @@ use solana_program::{
 };
 
 use access_control::AccessControl;
-use account_utils::{create_pda_account, verify_account_uninitialized, AccountData, SizedData};
+use account_utils::{
+    create_pda_account, verify_account_uninitialized, verify_rent_exempt, AccountData, SizedData,
+};
 use serializable_account_meta::SimulationReturnData;
 
 use crate::{
@@ -522,8 +524,12 @@ fn claim(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     if igp_info.owner != program_id {
         return Err(ProgramError::IncorrectProgramId);
     }
-
     let igp = IgpAccount::fetch(&mut &igp_info.data.borrow()[..])?.into_inner();
+    let expected_igp_key =
+        Pubkey::create_program_address(igp_pda_seeds!(igp.salt, igp.bump_seed), program_id)?;
+    if igp_info.key != &expected_igp_key {
+        return Err(ProgramError::InvalidSeeds);
+    }
 
     // Account 2: The IGP beneficiary.
     let igp_beneficiary = next_account_info(accounts_iter)?;
@@ -531,11 +537,16 @@ fn claim(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
         return Err(ProgramError::InvalidArgument);
     }
 
-    invoke_signed(
-        &system_instruction::transfer(igp_info.key, igp_beneficiary.key, igp_info.lamports()),
-        &[igp_info.clone(), igp_beneficiary.clone()],
-        &[igp_pda_seeds!(igp.salt)],
-    )?;
+    let rent = Rent::get()?;
+
+    let required_balance = rent.minimum_balance(igp_info.data_len());
+
+    let transfer_amount = igp_info.lamports().saturating_sub(required_balance);
+    **igp_info.try_borrow_mut_lamports()? -= transfer_amount;
+    **igp_beneficiary.try_borrow_mut_lamports()? += transfer_amount;
+
+    // For good measure...
+    verify_rent_exempt(igp_info, &rent)?;
 
     Ok(())
 }

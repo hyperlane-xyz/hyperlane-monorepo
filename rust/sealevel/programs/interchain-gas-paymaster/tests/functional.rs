@@ -16,6 +16,7 @@ use solana_sdk::{
 
 use hyperlane_test_utils::{
     assert_transaction_error, new_funded_keypair, process_instruction, simulate_instruction,
+    transfer_lamports,
 };
 use serializable_account_meta::SimulationReturnData;
 
@@ -1221,4 +1222,96 @@ async fn test_pay_for_gas_errors_if_payer_balance_is_insufficient() {
     );
 }
 
-// #[tokio::test]
+#[tokio::test]
+async fn test_pay_for_gas_errors_if_no_gas_oracle() {
+    let (mut banks_client, payer) = setup_client().await;
+
+    initialize(&mut banks_client, &payer).await.unwrap();
+
+    let (igp_key, _) = setup_test_igps(
+        &mut banks_client,
+        &payer,
+        TEST_DESTINATION_DOMAIN,
+        GasOracle::RemoteGasData(RemoteGasData {
+            token_exchange_rate: TOKEN_EXCHANGE_RATE_SCALE,
+            gas_price: 1u128,
+            token_decimals: LOCAL_DECIMALS,
+        }),
+        None,
+    )
+    .await;
+
+    assert_transaction_error(
+        pay_for_gas(
+            &mut banks_client,
+            &payer,
+            igp_key,
+            None,
+            TEST_DESTINATION_DOMAIN + 1,
+            TEST_GAS_AMOUNT,
+            H256::random(),
+        )
+        .await,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(IgpError::NoGasOracleSetForDestinationDomain as u32),
+        ),
+    );
+}
+
+// ============ Claim ============
+
+#[tokio::test]
+async fn test_claim() {
+    let (mut banks_client, payer) = setup_client().await;
+
+    initialize(&mut banks_client, &payer).await.unwrap();
+
+    let (igp_key, _) = setup_test_igps(
+        &mut banks_client,
+        &payer,
+        TEST_DESTINATION_DOMAIN,
+        GasOracle::RemoteGasData(RemoteGasData {
+            token_exchange_rate: TOKEN_EXCHANGE_RATE_SCALE,
+            gas_price: 1u128,
+            token_decimals: LOCAL_DECIMALS,
+        }),
+        None,
+    )
+    .await;
+
+    let claim_amount = 1234567;
+    // Transfer the claim amount to the IGP account
+    transfer_lamports(&mut banks_client, &payer, &igp_key, claim_amount).await;
+
+    let non_beneficiary = new_funded_keypair(&mut banks_client, &payer, 1000000000).await;
+
+    let beneficiary_balance_before = banks_client.get_balance(payer.pubkey()).await.unwrap();
+
+    // Accounts:
+    // 0. [executable] The system program.
+    // 1. [writeable] The IGP.
+    // 2. [writeable] The IGP beneficiary.
+    process_instruction(
+        &mut banks_client,
+        Instruction::new_with_borsh(
+            igp_program_id(),
+            &IgpInstruction::Claim,
+            vec![
+                AccountMeta::new_readonly(system_program::id(), false),
+                AccountMeta::new(igp_key, false),
+                AccountMeta::new(payer.pubkey(), false),
+            ],
+        ),
+        &non_beneficiary,
+        &[&non_beneficiary],
+    )
+    .await
+    .unwrap();
+
+    let beneficiary_balance_after = banks_client.get_balance(payer.pubkey()).await.unwrap();
+    assert_eq!(
+        beneficiary_balance_after - beneficiary_balance_before,
+        claim_amount,
+    );
+}
