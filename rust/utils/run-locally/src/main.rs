@@ -39,7 +39,9 @@ mod logging;
 mod metrics;
 mod solana_cli;
 mod utils;
-use crate::solana_cli::{build_solana_program_library, install_solana_cli_tools};
+use crate::solana_cli::{
+    build_solana_programs, clone_solana_program_library, install_solana_cli_tools,
+};
 pub use metrics::fetch_metric;
 
 /// These private keys are from hardhat/anvil's testing accounts.
@@ -252,11 +254,16 @@ fn main() -> ExitCode {
     //
 
     let solana_cli_tool_install = install_solana_cli_tools(config.clone());
+    let solana_program_library_clone = clone_solana_program_library(config.clone());
 
     let solana_path = solana_cli_tool_install.join();
+    let solana_program_library_path = solana_program_library_clone.join();
 
-    let solana_program_library_build = build_solana_program_library(config.clone(), solana_path.clone());
-    let solana_program_library_path = solana_program_library_build.join();
+    let solana_program_builder = build_solana_programs(
+        config.clone(),
+        solana_path.clone(),
+        solana_program_library_path.clone(),
+    ).join();
 
     return ExitCode::SUCCESS;
 
