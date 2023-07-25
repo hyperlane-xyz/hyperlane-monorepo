@@ -4039,6 +4039,7 @@ dependencies = [
  "hex 0.4.3",
  "hyperlane-core",
  "hyperlane-sealevel-mailbox",
+ "hyperlane-test-utils",
  "serializable-account-meta",
  "solana-program",
  "solana-program-test",
