@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use access_control::AccessControl;
 use account_utils::{AccountData, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
-use solana_program::{clock::Slot, pubkey::Pubkey, program_error::ProgramError};
+use solana_program::{clock::Slot, program_error::ProgramError, pubkey::Pubkey};
 
 use hyperlane_core::{H256, U256};
 
@@ -56,6 +56,7 @@ impl OverheadIgp {
             .unwrap_or(0)
     }
 
+    #[allow(unused)]
     pub fn quote_gas_payment(
         &self,
         destination_domain: u32,
@@ -63,7 +64,7 @@ impl OverheadIgp {
         inner_igp: &Igp,
     ) -> Result<u64, Error> {
         let total_gas_amount = self.gas_overhead(destination_domain) + gas_amount;
-        inner_igp.quote_gas_payment(destination_domain, gas_amount)
+        inner_igp.quote_gas_payment(destination_domain, total_gas_amount)
     }
 }
 
@@ -98,7 +99,7 @@ pub struct Igp {
     pub salt: H256,
     pub owner: Option<Pubkey>,
     pub beneficiary: Pubkey,
-    pub gas_oracle: HashMap<u32, GasOracle>,
+    pub gas_oracles: HashMap<u32, GasOracle>,
 }
 
 impl SizedData for Igp {
@@ -109,9 +110,9 @@ impl SizedData for Igp {
         // 32 for beneficiary
         // 4 for gas_overheads.len()
         // N * (4 + 8) for gas_overhead contents
-        // 4 for gas_oracle.len()
-        // M * (4 + 8) for gas_oracle contents
-        32 + 33 + 8 + 32 + 4 + (self.gas_oracle.len() * (4 + 8))
+        // 4 for gas_oracles.len()
+        // M * (4 + 8) for gas_oracles contents
+        32 + 33 + 8 + 32 + 4 + (self.gas_oracles.len() * (4 + 8))
     }
 }
 
@@ -122,7 +123,7 @@ impl Igp {
         gas_amount: u64,
     ) -> Result<u64, Error> {
         let oracle = self
-            .gas_oracle
+            .gas_oracles
             .get(&destination_domain)
             .ok_or(Error::NoGasOracleSetForDestinationDomain)?;
         let RemoteGasData {

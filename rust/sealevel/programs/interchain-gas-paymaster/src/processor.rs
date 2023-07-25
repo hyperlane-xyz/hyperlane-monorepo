@@ -16,9 +16,7 @@ use solana_program::{
 };
 
 use access_control::AccessControl;
-use account_utils::{
-    create_pda_account, verify_account_uninitialized, verify_rent_exempt, AccountData, SizedData,
-};
+use account_utils::{create_pda_account, verify_account_uninitialized, AccountData, SizedData};
 use serializable_account_meta::SimulationReturnData;
 
 use crate::{
@@ -28,8 +26,8 @@ use crate::{
     },
     igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
     instruction::{
-        InitIgp, InitOverheadIgp, Instruction as IgpInstruction, PayForGas, QuoteGasPayment,
-        GasOverheadConfig,
+        GasOracleConfig, GasOverheadConfig, InitIgp, InitOverheadIgp,
+        Instruction as IgpInstruction, PayForGas, QuoteGasPayment,
     },
     overhead_igp_pda_seeds,
 };
@@ -73,6 +71,9 @@ pub fn process_instruction(
         }
         IgpInstruction::SetDestinationGasOverheads(configs) => {
             set_destination_gas_overheads(program_id, accounts, configs)?;
+        }
+        IgpInstruction::SetGasOracleConfigs(configs) => {
+            set_gas_oracle_configs(program_id, accounts, configs)?;
         }
     }
 
@@ -260,7 +261,7 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
 
     // Account 2: The IGP program data.
     let program_data_info = next_account_info(accounts_iter)?;
-    let (program_data_key, program_data_bump) =
+    let (program_data_key, _program_data_bump) =
         Pubkey::find_program_address(igp_program_data_pda_seeds!(), program_id);
     if program_data_info.key != &program_data_key {
         return Err(ProgramError::InvalidSeeds);
@@ -429,7 +430,8 @@ fn set_igp_beneficiary(
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
-    let (igp_info, mut igp) = get_igp_variant_and_verify_owner::<Igp>(program_id, accounts_iter)?;
+    let (igp_info, mut igp, _) =
+        get_igp_variant_and_verify_owner::<Igp>(program_id, accounts_iter)?;
 
     // Update the beneficiary and store it.
     igp.beneficiary = beneficiary;
@@ -441,14 +443,16 @@ fn set_igp_beneficiary(
 /// Accounts:
 /// 0. [] The IGP or OverheadIGP.
 /// 1. [signer] The owner of the IGP account.
-fn transfer_igp_variant_ownership<T: account_utils::Data + account_utils::SizedData + AccessControl>(
+fn transfer_igp_variant_ownership<
+    T: account_utils::Data + account_utils::SizedData + AccessControl,
+>(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     new_owner: Option<Pubkey>,
 ) -> Result<(), ProgramError> {
     let accounts_iter = &mut accounts.iter();
 
-    let (igp_info, mut igp) = get_igp_variant_and_verify_owner::<T>(program_id, accounts_iter)?;
+    let (igp_info, mut igp, _) = get_igp_variant_and_verify_owner::<T>(program_id, accounts_iter)?;
 
     // Update the owner and store it.
     igp.set_owner(new_owner)?;
@@ -457,10 +461,14 @@ fn transfer_igp_variant_ownership<T: account_utils::Data + account_utils::SizedD
     Ok(())
 }
 
-fn get_igp_variant_and_verify_owner<'a, 'b, T: account_utils::Data + account_utils::SizedData + AccessControl>(
+fn get_igp_variant_and_verify_owner<
+    'a,
+    'b,
+    T: account_utils::Data + account_utils::SizedData + AccessControl,
+>(
     program_id: &Pubkey,
     accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
-) -> Result<(&'a AccountInfo<'b>, T), ProgramError> {
+) -> Result<(&'a AccountInfo<'b>, T, &'a AccountInfo<'b>), ProgramError> {
     // Account 0: The IGP or OverheadIGP account.
     let igp_info = next_account_info(accounts_iter)?;
     if igp_info.owner != program_id {
@@ -474,7 +482,7 @@ fn get_igp_variant_and_verify_owner<'a, 'b, T: account_utils::Data + account_uti
     // Errors if `owner_info` is not a signer or is not the current owner.
     igp.ensure_owner_signer(owner_info)?;
 
-    Ok((igp_info, *igp))
+    Ok((igp_info, *igp, owner_info))
 }
 
 /// Sends funds accrued in an IGP to its beneficiary.
@@ -483,10 +491,7 @@ fn get_igp_variant_and_verify_owner<'a, 'b, T: account_utils::Data + account_uti
 /// 0. [executable] The system program.
 /// 1. [writeable] The IGP.
 /// 2. [writeable] The IGP beneficiary.
-fn claim(
-    program_id: &Pubkey,
-    accounts: &[AccountInfo],
-) -> ProgramResult {
+fn claim(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
     // Account 0: The system program.
@@ -510,11 +515,7 @@ fn claim(
     }
 
     invoke_signed(
-        &system_instruction::transfer(
-            igp_info.key,
-            igp_beneficiary.key,
-            igp_info.lamports(),
-        ),
+        &system_instruction::transfer(igp_info.key, igp_beneficiary.key, igp_info.lamports()),
         &[igp_info.clone(), igp_beneficiary.clone()],
         &[igp_pda_seeds!(igp.salt)],
     )?;
@@ -522,7 +523,7 @@ fn claim(
     Ok(())
 }
 
-///
+/// Sets destination gas overheads for an OverheadIGP.
 ///
 /// Accounts:
 /// 0. [executable] The system program.
@@ -536,31 +537,66 @@ fn set_destination_gas_overheads(
     let accounts_iter = &mut accounts.iter();
 
     // Account 0: System program.
+    // Required to invoke `system_instruction::transfer` in `store_with_rent_exempt_realloc`.
     let system_program_info = next_account_info(accounts_iter)?;
     if system_program_info.key != &solana_program::system_program::id() {
         return Err(ProgramError::IncorrectProgramId);
     }
 
-    let (overhead_igp_info, mut overhead_igp) =
+    // Errors if `owner_info` is not a signer or is not the current owner.
+    let (overhead_igp_info, mut overhead_igp, owner_info) =
         get_igp_variant_and_verify_owner::<OverheadIgp>(program_id, accounts_iter)?;
 
-    
+    configs.into_iter().for_each(|config| {
+        match config.gas_overhead {
+            Some(gas_overhead) => overhead_igp
+                .gas_overheads
+                .insert(config.destination_domain, gas_overhead),
+            None => overhead_igp
+                .gas_overheads
+                .remove(&config.destination_domain),
+        };
+    });
+
+    let overhead_igp_account = OverheadIgpAccount::from(overhead_igp);
+
+    overhead_igp_account.store_with_rent_exempt_realloc(
+        overhead_igp_info,
+        &Rent::get()?,
+        owner_info,
+    )?;
+
+    Ok(())
 }
 
-fn store_igp_variant_and_ensure_rent_exempt<T: account_utils::Data + account_utils::SizedData>(
-    payer: &AccountInfo,
-    rent: &Rent,
-    igp_info: &AccountInfo,
-    igp: T,
-) -> Result<(), ProgramError> {
-    let igp_account = AccountData::<T>::from(igp);
-    let igp_account_size = igp_account.size();
+fn set_gas_oracle_configs(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    configs: Vec<GasOracleConfig>,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
 
-    if 
+    // Account 0: System program.
+    // Required to invoke `system_instruction::transfer` in `store_with_rent_exempt_realloc`.
+    let system_program_info = next_account_info(accounts_iter)?;
+    if system_program_info.key != &solana_program::system_program::id() {
+        return Err(ProgramError::IncorrectProgramId);
+    }
 
-    verify_rent_exempt(igp_info, &rent, igp_account_size)?;
+    // Errors if `owner_info` is not a signer or is not the current owner.
+    let (igp_info, mut igp, owner_info) =
+        get_igp_variant_and_verify_owner::<Igp>(program_id, accounts_iter)?;
 
-    igp_account.store(igp_info, false)?;
+    configs.into_iter().for_each(|config| {
+        match config.gas_oracle {
+            Some(gas_oracle) => igp.gas_oracles.insert(config.domain, gas_oracle),
+            None => igp.gas_oracles.remove(&config.domain),
+        };
+    });
+
+    let igp_account = IgpAccount::from(igp);
+
+    igp_account.store_with_rent_exempt_realloc(igp_info, &Rent::get()?, owner_info)?;
 
     Ok(())
 }

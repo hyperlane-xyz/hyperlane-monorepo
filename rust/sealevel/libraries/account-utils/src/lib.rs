@@ -134,6 +134,42 @@ where
     }
 }
 
+impl<T> AccountData<T>
+where
+    T: Data + SizedData,
+{
+    pub fn store_with_rent_exempt_realloc<'a, 'b>(
+        &self,
+        account_info: &'a AccountInfo<'b>,
+        rent: &Rent,
+        payer_info: &'a AccountInfo<'b>,
+    ) -> Result<(), ProgramError> {
+        let required_size = self.size();
+
+        let account_data_len = account_info.data_len();
+        let required_account_data_len = required_size.max(account_data_len);
+
+        let required_rent = rent.minimum_balance(required_account_data_len);
+        let lamports = account_info.lamports();
+        if lamports < required_rent {
+            invoke(
+                &system_instruction::transfer(
+                    payer_info.key,
+                    account_info.key,
+                    required_rent - lamports,
+                ),
+                &[payer_info.clone(), account_info.clone()],
+            )?;
+        }
+
+        if account_data_len < required_account_data_len {
+            account_info.realloc(required_account_data_len, false)?;
+        }
+
+        self.store(account_info, false)
+    }
+}
+
 /// Creates associated token account using Program Derived Address for the given seeds.
 /// Required to allow PDAs to be created even if they already have a lamport balance.
 ///

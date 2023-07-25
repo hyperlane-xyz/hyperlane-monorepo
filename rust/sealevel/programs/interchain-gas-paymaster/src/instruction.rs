@@ -3,6 +3,8 @@ use hyperlane_core::H256;
 
 use solana_program::pubkey::Pubkey;
 
+use crate::accounts::GasOracle;
+
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub enum Instruction {
     Init,
@@ -14,6 +16,7 @@ pub enum Instruction {
     TransferOverheadIgpOwnership(Option<Pubkey>),
     SetIgpBeneficiary(Pubkey),
     SetDestinationGasOverheads(Vec<GasOverheadConfig>),
+    SetGasOracleConfigs(Vec<GasOracleConfig>),
     Claim,
 }
 
@@ -54,5 +57,12 @@ pub struct QuoteGasPayment {
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub struct GasOverheadConfig {
     pub destination_domain: u32,
-    pub gas_overhead: u64,
+    pub gas_overhead: Option<u64>,
+}
+
+/// A config for setting remote gas data.
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+pub struct GasOracleConfig {
+    pub domain: u32,
+    pub gas_oracle: Option<GasOracle>,
 }
