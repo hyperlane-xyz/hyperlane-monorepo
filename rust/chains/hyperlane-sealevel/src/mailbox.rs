@@ -88,7 +88,9 @@ impl SealevelMailbox {
         locator: ContractLocator,
         payer: Option<Keypair>,
     ) -> ChainResult<Self> {
-        let rpc_client = RpcClient::new(conf.url.to_string());
+        // Set the `processed` commitment at rpc level
+        let rpc_client =
+            RpcClient::new_with_commitment(conf.url.to_string(), CommitmentConfig::processed());
 
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         let domain = locator.domain.id();
@@ -419,7 +421,11 @@ impl Mailbox for SealevelMailbox {
             PROCESS_COMPUTE_UNITS,
         ));
 
-        let commitment = CommitmentConfig::finalized();
+        // "processed" level commitment does not guarantee finality.
+        // roughly 5% of blocks end up on a dropped fork.
+        // However we don't want this function to be a bottleneck and there already
+        // is retry logic in the agents.
+        let commitment = CommitmentConfig::processed();
 
         let (process_authority_key, _process_authority_bump) = Pubkey::try_find_program_address(
             mailbox_process_authority_pda_seeds!(&recipient),
@@ -506,14 +512,7 @@ impl Mailbox for SealevelMailbox {
 
         let signature = self
             .rpc_client
-            // .send_transaction(&txn) // TODO just use this. Don't need to skip pre-flight.
-            .send_transaction_with_config(
-                &txn,
-                RpcSendTransactionConfig {
-                    skip_preflight: true,
-                    ..Default::default()
-                },
-            )
+            .send_and_confirm_transaction(&txn)
             .await
             .map_err(ChainCommunicationError::from_other)?;
         tracing::info!("signature={}", signature);
