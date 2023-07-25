@@ -3,18 +3,38 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use macro_rules_attribute::apply;
+use tempfile::{tempdir, tempfile, NamedTempFile, TempDir, TempPath};
 
 use crate::config::{Config, ProgramArgs};
 use crate::logging::log;
-use crate::utils::{as_task, build_cmd, concat_path};
+use crate::utils::{as_task, build_cmd, concat_path, run_agent, AgentHandles};
 use crate::SOLANA_CLI_VERSION;
 
-// Relative paths to solana program source code within the solana program library repo.
-const SOLANA_PROGRAMS: &[&str] = &[
-    "token/program",
-    "token/program-2022",
-    "associated-token-account/program",
-    "account-compression/programs/noop",
+// Solana program tuples of:
+// 0: Relative path to solana program source code within the solana program library repo.
+// 1: Solana address or keypair for the bpf program
+// 2: Name of the program's shared object file
+const SOLANA_PROGRAMS: &[(&str, &str, &str)] = &[
+    (
+        "token/program",
+        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        "spl_token.so",
+    ),
+    (
+        "token/program-2022",
+        "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+        "spl_token_2022.so",
+    ),
+    (
+        "associated-token-account/program",
+        "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+        "spl_associated_token_account.so",
+    ),
+    (
+        "account-compression/programs/noop",
+        "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV",
+        "spl_noop.so",
+    ),
 ];
 
 const SBF_OUT_PATH: &str = "target/deploy";
@@ -112,7 +132,7 @@ pub fn clone_solana_program_library(config: Arc<Config>) -> PathBuf {
         config.log_all,
         true,
     )
-        .join();
+    .join();
 
     solana_programs_path
 }
@@ -122,7 +142,7 @@ pub fn build_solana_programs(
     config: Arc<Config>,
     solana_cli_tools_path: PathBuf,
     solana_program_library_path: PathBuf,
-) {
+) -> PathBuf {
     let out_path = Path::new(SBF_OUT_PATH);
     if out_path.exists() {
         fs::remove_dir_all(out_path).expect("Failed to remove solana program deploy dir");
@@ -131,22 +151,12 @@ pub fn build_solana_programs(
     let out_path = out_path.canonicalize().unwrap();
 
     // build solana program library
-    let path = format!(
-        "{}:{}",
-        std::env::var("PATH").unwrap_or_default(),
-        solana_cli_tools_path
-            .canonicalize()
-            .expect("Failed to canonicalize solana cli tools path")
-            .to_str()
-            .unwrap()
-    );
-
     let build_sbf = ProgramArgs::new("cargo")
         .cmd("build-sbf")
-        .env("PATH", path)
+        .env("PATH", updated_path(&solana_cli_tools_path))
         .env("SBF_OUT_PATH", out_path.to_str().unwrap());
 
-    for &path in SOLANA_PROGRAMS {
+    for &(path, _, _) in SOLANA_PROGRAMS {
         build_cmd(
             build_sbf
                 .clone()
@@ -172,5 +182,60 @@ pub fn build_solana_programs(
         )
         .join();
     }
-    log!("All hyperlane solana programs built successfully")
+    log!("All hyperlane solana programs built successfully");
+    out_path
+}
+
+pub fn start_solana_test_validator(
+    config: Arc<Config>,
+    solana_cli_tools_path: &Path,
+    solana_programs_path: &Path,
+    ledger_dir: &Path,
+) -> AgentHandles {
+    let mut args = ProgramArgs::new(concat_path(solana_cli_tools_path, "solana-test-validator"))
+        .flag("reset")
+        .arg("ledger", ledger_dir.to_str().unwrap())
+        .arg3(
+            "account",
+            "E9VrvAdGRvCguN2XgXsgu9PNmMM3vZsU8LSUrM68j8ty",
+            "config/sealevel/test-keys/test_deployer-account.json",
+        );
+    for &(_, address, lib) in SOLANA_PROGRAMS {
+        args = args.arg3(
+            "bpf-program",
+            address,
+            concat_path(solana_programs_path, lib).to_str().unwrap(),
+        );
+    }
+
+    run_agent(args, "SOL", &config)
+}
+
+pub fn init_solana_config(config: &Config, solana_cli_tools_path: &Path) -> TempPath {
+    let solana_config = NamedTempFile::new().unwrap().into_temp_path();
+
+    build_cmd(
+        ProgramArgs::new(concat_path(solana_cli_tools_path, "solana"))
+            .arg("config", solana_config.to_str().unwrap())
+            .cmd("config")
+            .cmd("set")
+            .arg("url", "localhost"),
+        config.build_log_file.clone(),
+        config.log_all,
+        true,
+    ).join();
+
+    solana_config
+}
+
+fn updated_path(solana_cli_tools_path: &Path) -> String {
+    format!(
+        "{}:{}",
+        solana_cli_tools_path
+            .canonicalize()
+            .expect("Failed to canonicalize solana cli tools path")
+            .to_str()
+            .unwrap(),
+        std::env::var("PATH").unwrap_or_default(),
+    )
 }

@@ -30,18 +30,14 @@ use tempfile::tempdir;
 use logging::log;
 
 use crate::config::{Config, ProgramArgs};
-use crate::utils::{
-    build_cmd, concat_path, make_static, run_agent, stop_child, AgentHandles, TaskHandle,
-};
+use crate::utils::{build_cmd, concat_path, make_static, run_agent, stop_child, AgentHandles, TaskHandle, ArbitraryData};
 
 mod config;
 mod logging;
 mod metrics;
 mod solana_cli;
 mod utils;
-use crate::solana_cli::{
-    build_solana_programs, clone_solana_program_library, install_solana_cli_tools,
-};
+use crate::solana_cli::{build_solana_programs, clone_solana_program_library, init_solana_config, install_solana_cli_tools, start_solana_test_validator};
 pub use metrics::fetch_metric;
 
 /// These private keys are from hardhat/anvil's testing accounts.
@@ -75,6 +71,7 @@ struct State {
     scraper_postgres_initialized: bool,
     agents: Vec<Child>,
     watchers: Vec<TaskHandle<()>>,
+    data: Vec<Box<dyn ArbitraryData>>
 }
 impl State {
     fn new(config: Arc<Config>) -> Self {
@@ -83,12 +80,14 @@ impl State {
             scraper_postgres_initialized: false,
             agents: vec![],
             watchers: vec![],
+            data: vec![],
         }
     }
     fn push_agent(&mut self, handles: AgentHandles) {
         self.agents.push(handles.0);
         self.watchers.push(handles.1);
         self.watchers.push(handles.2);
+        self.data.push(handles.3);
     }
 }
 impl Drop for State {
@@ -108,6 +107,11 @@ impl Drop for State {
         RUN_LOG_WATCHERS.store(false, Ordering::Relaxed);
         for w in self.watchers.drain(..) {
             w.join();
+        }
+        // drop any held data
+        self.data.reverse();
+        for data in self.data.drain(..) {
+            drop(data)
         }
     }
 }
@@ -263,9 +267,7 @@ fn main() -> ExitCode {
         config.clone(),
         solana_path.clone(),
         solana_program_library_path.clone(),
-    ).join();
-
-    return ExitCode::SUCCESS;
+    );
 
     shutdown_if_needed!();
     // this task takes a long time in the CI so run it in parallel
@@ -277,8 +279,29 @@ fn main() -> ExitCode {
             .arg("bin", "relayer")
             .arg("bin", "validator")
             .arg("bin", "scraper")
-            .arg("bin", "init-db"),
+            .arg("bin", "init-db")
+            .arg("bin", "hyperlane-sealevel-client"),
     );
+
+    let solana_program_path = solana_program_builder.join();
+
+    let solana_config_path = init_solana_config(&config, &solana_path);
+
+    let solana_ledger_dir = tempdir().unwrap();
+    let solana_validator = start_solana_test_validator(
+        config.clone(),
+        &solana_path,
+        &solana_program_path,
+        solana_ledger_dir.as_ref(),
+    );
+    state.push_agent(solana_validator);
+
+    build_rust.join();
+
+    while !SHUTDOWN.load(Ordering::Relaxed) {
+        sleep(Duration::from_millis(100));
+    }
+    return ExitCode::SUCCESS;
 
     log!("Running postgres db...");
     kill_scraper_postgres(&config);

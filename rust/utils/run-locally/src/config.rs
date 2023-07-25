@@ -9,7 +9,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use eyre::{Context, Result};
 
-use crate::utils::{concat_path, LogFilter};
+use crate::utils::{ArbitraryData, concat_path, LogFilter};
 
 pub struct Config {
     pub is_ci_env: bool,
@@ -61,6 +61,7 @@ pub struct ProgramArgs {
     env: HashMap<Arc<String>, Arc<String>>,
     working_dir: Option<Arc<PathBuf>>,
     log_filter: Option<LogFilter>,
+    arbitrary_data: Vec<Arc<dyn ArbitraryData>>,
 }
 
 impl Debug for ProgramArgs {
@@ -154,6 +155,16 @@ impl ProgramArgs {
         self.flag(arg1).cmd(arg2)
     }
 
+    /// Assumes an arg in the format of `--$ARG1 $ARG2 $ARG3`, args should exclude quoting, equal sign, and the leading hyphens.
+    pub fn arg3(
+        self,
+        arg1: impl AsRef<str>,
+        arg2: impl Into<String>,
+        arg3: impl Into<String>,
+    ) -> Self {
+        self.flag(arg1).cmd(arg2).cmd(arg3)
+    }
+
     /// add an env that will be prefixed with the default hyperlane env prefix
     pub fn hyp_env(self, key: impl AsRef<str>, value: impl Into<String>) -> Self {
         const PREFIX: &str = "HYP_BASE_";
@@ -181,6 +192,13 @@ impl ProgramArgs {
     /// This is ignored when logging to files.
     pub fn filter_logs(mut self, filter: LogFilter) -> Self {
         self.log_filter = Some(filter);
+        self
+    }
+
+    /// Remember some arbitrary data until either this program args goes out of scope or until the
+    /// agent/child process exits. This is useful for preventing something from dropping.
+    pub fn remember(mut self, data: impl ArbitraryData) -> Self {
+        self.arbitrary_data.push(Arc::new(data));
         self
     }
 
@@ -225,5 +243,9 @@ impl ProgramArgs {
         .to_str()
         .unwrap()
         .to_owned()
+    }
+
+    pub fn get_memory(&self) -> Box<dyn ArbitraryData> {
+        Box::new(self.arbitrary_data.clone())
     }
 }
