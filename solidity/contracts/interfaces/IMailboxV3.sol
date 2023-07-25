@@ -13,10 +13,22 @@ interface IMailboxV3 {
     event Dispatch(bytes message);
 
     /**
+     * @notice Emitted when a new message is dispatched via Hyperlane
+     * @param messageId The unique message identifier
+     */
+    event DispatchId(bytes32 indexed messageId);
+
+    /**
      * @notice Emitted when a Hyperlane message is delivered
      * @param message Raw bytes of message
      */
     event Process(bytes message);
+
+    /**
+     * @notice Emitted when a Hyperlane message is processed
+     * @param messageId The unique message identifier
+     */
+    event ProcessId(bytes32 indexed messageId);
 
     function localDomain() external view returns (uint32);
 
