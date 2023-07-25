@@ -39,8 +39,8 @@ export const multisigIsms = (
   local: ChainName,
   type: MultisigIsmConfig['type'],
   context: Contexts,
-): ChainMap<MultisigIsmConfig> => {
-  return objMap(
+): ChainMap<MultisigIsmConfig> =>
+  objMap(
     objFilter(
       context === Contexts.ReleaseCandidate
         ? rcMultisigIsmConfigs
@@ -53,7 +53,6 @@ export const multisigIsms = (
       type,
     }),
   );
-};
 
 /// Routing => Multisig ISM type
 export const routingIsm = (
