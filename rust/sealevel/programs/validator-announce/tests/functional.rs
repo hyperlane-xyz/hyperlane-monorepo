@@ -28,7 +28,7 @@ use hyperlane_sealevel_validator_announce::{
     replay_protection_pda_seeds, validator_announce_pda_seeds,
     validator_storage_locations_pda_seeds,
 };
-use hyperlane_test_utils::process_instruction;
+use hyperlane_test_utils::{assert_transaction_error, process_instruction};
 
 // The Ethereum mailbox & domain chosen for easy testing
 const TEST_MAILBOX: &str = "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70";
@@ -76,23 +76,6 @@ fn get_test_announcements() -> Vec<(Announcement, Vec<u8>)> {
 
     vec![(announcement0, signature0), (announcement1, signature1)]
 }
-
-// async fn send_transaction_with_instruction(
-//     banks_client: &mut BanksClient,
-//     payer: &Keypair,
-//     instruction: Instruction,
-// ) -> Result<(), BanksClientError> {
-//     let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-//     let transaction = Transaction::new_signed_with_payer(
-//         &[instruction],
-//         Some(&payer.pubkey()),
-//         &[payer],
-//         recent_blockhash,
-//     );
-//     banks_client.process_transaction(transaction).await?;
-
-//     Ok(())
-// }
 
 async fn initialize(
     banks_client: &mut BanksClient,
@@ -186,15 +169,10 @@ async fn test_initialize_errors_if_called_twice() {
     // As a workaround, use a different mailbox
     let init_result = initialize(&mut banks_client, &payer, Pubkey::new_unique()).await;
 
-    // BanksClientError doesn't implement Eq, but TransactionError does
-    if let BanksClientError::TransactionError(tx_err) = init_result.err().unwrap() {
-        assert_eq!(
-            tx_err,
-            TransactionError::InstructionError(0, InstructionError::AccountAlreadyInitialized,)
-        );
-    } else {
-        panic!("expected TransactionError");
-    }
+    assert_transaction_error(
+        init_result,
+        TransactionError::InstructionError(0, InstructionError::AccountAlreadyInitialized),
+    );
 }
 
 async fn announce(
@@ -358,15 +336,10 @@ async fn test_announce() {
         announce_instruction.clone(),
     )
     .await;
-    // BanksClientError doesn't implement Eq, but TransactionError does
-    if let BanksClientError::TransactionError(tx_err) = announce_result.err().unwrap() {
-        assert_eq!(
-            tx_err,
-            TransactionError::InstructionError(0, InstructionError::AccountAlreadyInitialized,)
-        );
-    } else {
-        panic!("expected TransactionError");
-    }
+    assert_transaction_error(
+        announce_result,
+        TransactionError::InstructionError(0, InstructionError::AccountAlreadyInitialized),
+    );
 
     // And then announce the second storage location, which we expect to be successful
     let (announcement, signature) = test_announcements[1].clone();
