@@ -33,6 +33,7 @@ import {
   getEnvironmentConfig,
   getEnvironmentDirectory,
   getModuleDirectory,
+  getProxiedRouterConfig,
   getRouterConfig,
   withContext,
   withModuleAndFork,
@@ -80,13 +81,16 @@ async function main() {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
-    config = await getRouterConfig(environment, multiProvider);
+    config = await getProxiedRouterConfig(environment, multiProvider);
     deployer = new InterchainAccountDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
-    config = await getRouterConfig(environment, multiProvider);
+    config = await getProxiedRouterConfig(environment, multiProvider);
     deployer = new InterchainQueryDeployer(multiProvider);
   } else if (module === Modules.LIQUIDITY_LAYER) {
-    const routerConfig = await getRouterConfig(environment, multiProvider);
+    const routerConfig = await getProxiedRouterConfig(
+      environment,
+      multiProvider,
+    );
     if (!envConfig.liquidityLayerConfig) {
       throw new Error(`No liquidity layer config for ${environment}`);
     }

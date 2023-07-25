@@ -1,13 +1,11 @@
 import { BigNumber, utils as ethersUtils } from 'ethers';
 
-import { Ownable } from '@hyperlane-xyz/core';
 import { types, utils } from '@hyperlane-xyz/utils';
 
 import { BytecodeHash } from '../consts/bytecode';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
 import { proxyImplementation } from '../deploy/proxy';
 import { ChainName } from '../types';
-import { objFilter } from '../utils/objects';
 
 import { HyperlaneIgp } from './HyperlaneIgp';
 import {
@@ -29,13 +27,25 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
     await this.checkBytecodes(chain);
     await this.checkOverheadInterchainGasPaymaster(chain);
     await this.checkInterchainGasPaymaster(chain);
+
+    const config = this.configMap[chain];
+    if (config.upgrade) {
+      await this.checkUpgrade(chain, config.upgrade);
+    }
   }
 
   async checkDomainOwnership(chain: ChainName): Promise<void> {
     const config = this.configMap[chain];
-    if (config.owner) {
-      return this.checkOwnership(chain, config.owner);
+
+    const ownableOverrides: Record<string, string> = {
+      storageGasOracle: config.oracleKey,
+    };
+    if (config.upgrade) {
+      const timelockController =
+        this.app.getAddresses(chain).timelockController;
+      ownableOverrides['proxyAdmin'] = timelockController;
     }
+    await super.checkOwnership(chain, config.owner, ownableOverrides);
   }
 
   async checkBytecodes(chain: ChainName): Promise<void> {
@@ -161,14 +171,6 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
       };
       this.addViolation(violation);
     }
-  }
-
-  // The owner of storageGasOracle is not expected to match the configured owner
-  async ownables(chain: ChainName): Promise<{ [key: string]: Ownable }> {
-    return objFilter(
-      await super.ownables(chain),
-      (name, contract): contract is Ownable => name !== 'storageGasOracle',
-    );
   }
 
   getGasOracleAddress(local: ChainName, remote: ChainName): types.Address {
