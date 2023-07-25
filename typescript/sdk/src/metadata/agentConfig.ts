@@ -1,9 +1,10 @@
 import { z } from 'zod';
 
+import { ProtocolType } from '@hyperlane-xyz/utils';
+
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
-import { ProtocolType } from './chainMetadataTypes';
 import {
   ChainMetadataWithArtifactsSchema,
   HyperlaneDeploymentArtifacts,
