@@ -269,7 +269,7 @@ impl Relayer {
         let index_settings = self.as_ref().settings.chains[origin.name()].index.clone();
         let contract_sync = self.message_syncs.get(origin).unwrap().clone();
         let cursor = contract_sync
-            .forward_backward_message_sync_cursor(index_settings.chunk_size)
+            .forward_backward_message_sync_cursor(index_settings)
             .await;
         tokio::spawn(async move {
             contract_sync
