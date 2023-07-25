@@ -57,14 +57,20 @@ macro_rules! igp_pda_seeds {
 #[macro_export]
 macro_rules! overhead_igp_pda_seeds {
     ($salt:expr) => {{
-        &[b"hyperlane_igp", b"-", b"igp", b"-", $salt.as_ref()]
+        &[
+            b"hyperlane_igp",
+            b"-",
+            b"overhead_igp",
+            b"-",
+            $salt.as_ref(),
+        ]
     }};
 
     ($salt:expr, $bump_seed:expr) => {{
         &[
             b"hyperlane_igp",
             b"-",
-            b"igp",
+            b"overhead_igp",
             b"-",
             $salt.as_ref(),
             &[$bump_seed],

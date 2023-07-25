@@ -39,7 +39,6 @@ pub struct PayForGas {
     pub message_id: H256,
     pub destination_domain: u32,
     pub gas_amount: u64,
-    pub refund_recipient: Pubkey,
 }
 
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]

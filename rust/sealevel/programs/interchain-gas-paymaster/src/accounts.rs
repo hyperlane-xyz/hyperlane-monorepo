@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use access_control::AccessControl;
-use account_utils::{AccountData, SizedData};
+use account_utils::{AccountData, DiscriminatorData, DiscriminatorPrefixed, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::{clock::Slot, program_error::ProgramError, pubkey::Pubkey};
 
@@ -172,8 +172,18 @@ pub struct RemoteGasData {
     pub token_decimals: u8,
 }
 
+/// A discriminator used to easily identify gas payment accounts.
+/// This is the first 8 bytes of the account data.
+pub const GAS_PAYMENT_DISCRIMINATOR: &[u8; 8] = b"GASPAYMT";
+
+pub type GasPayment = DiscriminatorPrefixed<GasPaymentData>;
+
+impl DiscriminatorData for GasPaymentData {
+    const DISCRIMINATOR: [u8; 8] = *GAS_PAYMENT_DISCRIMINATOR;
+}
+
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
-pub struct GasPayment {
+pub struct GasPaymentData {
     pub sequence_number: u64,
     pub igp: Pubkey,
     pub destination_domain: u32,
@@ -182,15 +192,16 @@ pub struct GasPayment {
     pub slot: Slot,
 }
 
-impl SizedData for GasPayment {
+impl SizedData for GasPaymentData {
     fn size(&self) -> usize {
-        // 32 for igp
+        // 8 for discriminator
         // 8 for sequence_number
+        // 32 for igp
         // 4 for destination_domain
         // 32 for message_id
         // 8 for gas_amount
         // 8 for slot
-        32 + 8 + 4 + 32 + 8 + 8
+        8 + 32 + 8 + 4 + 32 + 8 + 8
     }
 }
 
