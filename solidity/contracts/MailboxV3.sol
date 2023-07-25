@@ -5,17 +5,16 @@ pragma solidity >=0.8.0;
 import {Versioned} from "./upgrade/Versioned.sol";
 import {Message} from "./libs/Message.sol";
 import {TypeCasts} from "./libs/TypeCasts.sol";
-import {IMessageRecipient} from "./interfaces/IMessageRecipient.sol";
 import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "./interfaces/IInterchainSecurityModule.sol";
 import {IPostDispatchHook} from "./interfaces/hooks/IPostDispatchHook.sol";
+import {IMessageRecipient} from "./interfaces/IMessageRecipientV3.sol";
 import {IMailboxV3} from "./interfaces/IMailboxV3.sol";
 
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract MailboxV3 is IMailboxV3, Versioned, ReentrancyGuard, Ownable {
+contract MailboxV3 is IMailboxV3, Versioned, Ownable {
     // ============ Libraries ============
 
     using Message for bytes;
@@ -91,7 +90,7 @@ contract MailboxV3 is IMailboxV3, Versioned, ReentrancyGuard, Ownable {
         uint32 _destinationDomain,
         bytes32 _recipientAddress,
         bytes calldata _messageBody
-    ) external override returns (bytes32) {
+    ) external payable override returns (bytes32) {
         // Format the message into packed bytes.
         bytes memory _message = Message.formatMessage(
             VERSION,
@@ -103,18 +102,13 @@ contract MailboxV3 is IMailboxV3, Versioned, ReentrancyGuard, Ownable {
             _messageBody
         );
 
+        // effects
         nonce += 1;
+        emit Dispatch(_message);
 
-        // Insert the message ID into the merkle tree.
-        bytes32 _id = _message.id();
-        emit Dispatch(
-            msg.sender,
-            _destinationDomain,
-            _recipientAddress,
-            _message
-        );
-        emit DispatchId(_id);
-        return _id;
+        // interactions
+        defaultHook.postDispatch{value: msg.value}(_message);
+        return _message.id();
     }
 
     /**
@@ -125,8 +119,8 @@ contract MailboxV3 is IMailboxV3, Versioned, ReentrancyGuard, Ownable {
      */
     function process(bytes calldata _metadata, bytes calldata _message)
         external
+        payable
         override
-        nonReentrant
     {
         // Check that the message was intended for this mailbox.
         require(_message.version() == VERSION, "!version");
@@ -135,21 +129,25 @@ contract MailboxV3 is IMailboxV3, Versioned, ReentrancyGuard, Ownable {
         // Check that the message hasn't already been delivered.
         bytes32 _id = _message.id();
         require(delivered[_id] == false, "delivered");
-        delivered[_id] = true;
+
+        address recipient = _message.recipientAddress();
 
         // Verify the message via the ISM.
         IInterchainSecurityModule _ism = IInterchainSecurityModule(
-            recipientIsm(_message.recipientAddress())
+            recipientIsm(recipient)
         );
         require(_ism.verify(_metadata, _message), "!module");
 
-        // Deliver the message to the recipient.
-        uint32 origin = _message.origin();
-        bytes32 sender = _message.sender();
-        address recipient = _message.recipientAddress();
-        IMessageRecipient(recipient).handle(origin, sender, _message.body());
-        emit Process(origin, sender, recipient);
-        emit ProcessId(_id);
+        // effects
+        delivered[_id] = true;
+        emit Process(_message);
+
+        // Deliver the message to the recipient. (interactions)
+        IMessageRecipient(recipient).handle{value: msg.value}(
+            _message.origin(),
+            _message.sender(),
+            _message.body()
+        );
     }
 
     // ============ Public Functions ============
