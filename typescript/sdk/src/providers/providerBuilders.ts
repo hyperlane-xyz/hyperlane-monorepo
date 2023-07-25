@@ -2,9 +2,9 @@ import { Connection } from '@solana/web3.js';
 import { providers } from 'ethers';
 import { createPublicClient, http } from 'viem';
 
-import { isNumeric } from '@hyperlane-xyz/utils';
+import { ProtocolType, isNumeric } from '@hyperlane-xyz/utils';
 
-import { ChainMetadata, ProtocolType } from '../metadata/chainMetadataTypes';
+import { ChainMetadata } from '../metadata/chainMetadataTypes';
 
 import {
   EthersV5Provider,
