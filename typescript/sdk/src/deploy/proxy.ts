@@ -6,11 +6,10 @@ import { eqAddress } from '@hyperlane-xyz/utils/dist/src/utils';
 export type UpgradeConfig = {
   timelock: {
     delay: number;
+    // canceller inherited from proposer and admin not supported
     roles: {
       executor: types.Address;
       proposer: types.Address;
-      // canceller: types.Address; proposer == canceller in constructor of TimelockController
-      // admin?: types.Address; assume self-administration
     };
   };
 };
