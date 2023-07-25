@@ -4,16 +4,23 @@ import {
   MultiProtocolRouterApp,
   TypedTransaction,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { StatCounts } from '../app/types';
 
+import { EvmHelloWorldAdapter } from './evmAdapter';
+import { SealevelHelloWorldAdapter } from './sealevelAdapter';
 import { IHelloWorldAdapter } from './types';
 
 export class HelloMultiProtocolApp extends MultiProtocolRouterApp<
   { router: Address },
   IHelloWorldAdapter
 > {
+  public readonly adapters = {
+    [ProtocolType.Ethereum]: EvmHelloWorldAdapter,
+    [ProtocolType.Sealevel]: SealevelHelloWorldAdapter,
+  };
+
   populateHelloWorldTx(
     from: ChainName,
     to: ChainName,
