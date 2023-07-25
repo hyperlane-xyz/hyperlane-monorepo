@@ -62,17 +62,16 @@ where
             indexed_height.set(cursor.latest_block() as i64);
             let Ok((action, eta)) = cursor.next_action().await else { continue };
             match action {
-                CursorAction::Query((from, to)) => {
-                    debug!(from, to, "Looking for for events in block range");
+                CursorAction::Query(range) => {
+                    debug!(?range, "Looking for for events in index range");
 
-                    let logs = self.indexer.fetch_logs(from, to).await?;
+                    let logs = self.indexer.fetch_logs(range.clone()).await?;
 
                     info!(
-                        from,
-                        to,
+                        ?range,
                         num_logs = logs.len(),
                         estimated_time_to_sync = fmt_sync_time(eta),
-                        "Found log(s) in block range"
+                        "Found log(s) in index range"
                     );
                     // Store deliveries
                     let stored = self.db.store_logs(&logs).await?;
@@ -105,6 +104,7 @@ where
         let index_settings = IndexSettings {
             from: watermark.unwrap_or(index_settings.from),
             chunk_size: index_settings.chunk_size,
+            mode: index_settings.mode,
         };
         Box::new(
             RateLimitedContractSyncCursor::new(
@@ -137,19 +137,23 @@ impl MessageContractSync {
             index_settings.from,
             next_nonce,
         );
-        Box::new(ForwardMessageSyncCursor::new(forward_data))
+        Box::new(ForwardMessageSyncCursor::new(
+            forward_data,
+            index_settings.mode,
+        ))
     }
 
     /// Returns a new cursor to be used for syncing dispatched messages from the indexer
     pub async fn forward_backward_message_sync_cursor(
         &self,
-        chunk_size: u32,
+        index_settings: IndexSettings,
     ) -> Box<dyn ContractSyncCursor<HyperlaneMessage>> {
         Box::new(
             ForwardBackwardMessageSyncCursor::new(
                 self.indexer.clone(),
                 self.db.clone(),
-                chunk_size,
+                index_settings.chunk_size,
+                index_settings.mode,
             )
             .await
             .unwrap(),

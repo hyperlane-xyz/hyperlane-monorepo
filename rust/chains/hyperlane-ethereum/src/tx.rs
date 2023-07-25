@@ -38,7 +38,7 @@ where
     let dispatch_fut = tx.send();
     let dispatched = dispatch_fut.await?;
 
-    let tx_hash: H256 = *dispatched;
+    let tx_hash: H256 = (*dispatched).into();
 
     info!(?to, %data, ?tx_hash, "Dispatched tx");
 
@@ -80,7 +80,8 @@ where
     } else {
         tx.estimate_gas()
             .await?
-            .saturating_add(U256::from(GAS_ESTIMATE_BUFFER))
+            .saturating_add(U256::from(GAS_ESTIMATE_BUFFER).into())
+            .into()
     };
     let Ok((max_fee, max_priority_fee)) = provider.estimate_eip1559_fees(None).await else {
         // Is not EIP 1559 chain
@@ -92,7 +93,7 @@ where
     ) {
         // Polygon needs a max priority fee >= 30 gwei
         let min_polygon_fee = U256::from(30_000_000_000u64);
-        max_priority_fee.max(min_polygon_fee)
+        max_priority_fee.max(min_polygon_fee.into())
     } else {
         max_priority_fee
     };

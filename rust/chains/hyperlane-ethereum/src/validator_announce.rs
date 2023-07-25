@@ -83,7 +83,7 @@ where
     ) -> ChainResult<ContractCall<M, bool>> {
         let serialized_signature: [u8; 65] = announcement.signature.into();
         let tx = self.contract.announce(
-            announcement.value.validator,
+            announcement.value.validator.into(),
             announcement.value.storage_location,
             serialized_signature.into(),
         );
@@ -127,7 +127,9 @@ where
     ) -> ChainResult<Vec<Vec<String>>> {
         let storage_locations = self
             .contract
-            .get_announced_storage_locations(validators.iter().map(|v| H160::from(*v)).collect())
+            .get_announced_storage_locations(
+                validators.iter().map(|v| H160::from(*v).into()).collect(),
+            )
             .call()
             .await?;
         Ok(storage_locations)
@@ -136,6 +138,8 @@ where
     #[instrument(ret, skip(self))]
     async fn announce_tokens_needed(&self, announcement: SignedType<Announcement>) -> Option<U256> {
         let validator = announcement.value.validator;
+        let eth_h160: ethers::types::H160 = validator.into();
+
         let Ok(contract_call) = self
             .announce_contract_call(announcement, None)
             .await
@@ -144,7 +148,7 @@ where
                 return None;
         };
 
-        let Ok(balance) = self.provider.get_balance(validator, None).await
+        let Ok(balance) = self.provider.get_balance(eth_h160, None).await
         else {
             trace!("Unable to query balance");
             return None;
@@ -155,7 +159,7 @@ where
             trace!("Unable to get announce max cost");
             return None;
         };
-        Some(max_cost.saturating_sub(balance))
+        Some(max_cost.saturating_sub(balance).into())
     }
 
     #[instrument(err, ret, skip(self))]
