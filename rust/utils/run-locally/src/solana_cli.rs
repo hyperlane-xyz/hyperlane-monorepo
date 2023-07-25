@@ -8,7 +8,7 @@ use tempfile::{tempdir, tempfile, NamedTempFile, TempDir, TempPath};
 use crate::config::{Config, ProgramArgs};
 use crate::logging::log;
 use crate::utils::{as_task, build_cmd, concat_path, run_agent, AgentHandles};
-use crate::SOLANA_CLI_VERSION;
+use crate::{AGENT_BIN_PATH, SOLANA_CLI_VERSION};
 
 // Solana program tuples of:
 // 0: Relative path to solana program source code within the solana program library repo.
@@ -186,34 +186,16 @@ pub fn build_solana_programs(
     out_path
 }
 
+#[apply(as_task)]
 pub fn start_solana_test_validator(
     config: Arc<Config>,
     solana_cli_tools_path: &Path,
     solana_programs_path: &Path,
     ledger_dir: &Path,
 ) -> AgentHandles {
-    let mut args = ProgramArgs::new(concat_path(solana_cli_tools_path, "solana-test-validator"))
-        .flag("reset")
-        .arg("ledger", ledger_dir.to_str().unwrap())
-        .arg3(
-            "account",
-            "E9VrvAdGRvCguN2XgXsgu9PNmMM3vZsU8LSUrM68j8ty",
-            "config/sealevel/test-keys/test_deployer-account.json",
-        );
-    for &(_, address, lib) in SOLANA_PROGRAMS {
-        args = args.arg3(
-            "bpf-program",
-            address,
-            concat_path(solana_programs_path, lib).to_str().unwrap(),
-        );
-    }
-
-    run_agent(args, "SOL", &config)
-}
-
-pub fn init_solana_config(config: &Config, solana_cli_tools_path: &Path) -> TempPath {
+    // init solana config
     let solana_config = NamedTempFile::new().unwrap().into_temp_path();
-
+    let solana_checkpoints = Arc::new(tempdir().unwrap());
     build_cmd(
         ProgramArgs::new(concat_path(solana_cli_tools_path, "solana"))
             .arg("config", solana_config.to_str().unwrap())
@@ -223,9 +205,96 @@ pub fn init_solana_config(config: &Config, solana_cli_tools_path: &Path) -> Temp
         config.build_log_file.clone(),
         config.log_all,
         true,
-    ).join();
+    )
+    .join();
 
-    solana_config
+    // run the validator
+    let mut args = ProgramArgs::new(concat_path(solana_cli_tools_path, "solana-test-validator"))
+        .flag("reset")
+        .arg("ledger", ledger_dir.to_str().unwrap())
+        .arg3(
+            "account",
+            "E9VrvAdGRvCguN2XgXsgu9PNmMM3vZsU8LSUrM68j8ty",
+            "config/sealevel/test-keys/test_deployer-account.json",
+        )
+        .remember(solana_config)
+        .remember(solana_checkpoints.clone());
+    for &(_, address, lib) in SOLANA_PROGRAMS {
+        args = args.arg3(
+            "bpf-program",
+            address,
+            concat_path(solana_programs_path, lib).to_str().unwrap(),
+        );
+    }
+    let validator = run_agent(args, "SOL", &config);
+
+    // deploy hyperlane programs
+    let sealevel_client =
+        ProgramArgs::new(concat_path(AGENT_BIN_PATH, "hyperlane-sealevel-client"))
+            .env("PATH", updated_path(&solana_cli_tools_path))
+            .arg(
+                "keypair",
+                "config/sealevel/test-keys/test_deployer-keypair.json",
+            );
+
+    build_cmd(
+        sealevel_client
+            .clone()
+            .cmd("multisig-ism-message-id")
+            .cmd("set-validators-and-threshold")
+            .arg("chain-id", "13375")
+            .arg("validators", "0x70997970c51812dc3a010c7d01b50e0d17dc79c8")
+            .arg("threshold", "1")
+            .arg("program-id", "4RSV6iyqW9X66Xq3RDCVsKJ7hMba5uv6XP8ttgxjVUB1"),
+        config.build_log_file.clone(),
+        config.log_all,
+        true,
+    )
+    .join();
+
+    build_cmd(
+        sealevel_client
+            .clone()
+            .cmd("validator-announce")
+            .cmd("announce")
+            .arg("validator", "0x70997970c51812dc3a010c7d01b50e0d17dc79c8")
+            .arg(
+                "storage-location",
+                format!("file://{}", solana_checkpoints.path().to_str().unwrap()),
+            )
+            .arg("signature", "0xcd87b715cd4c2e3448be9e34204cf16376a6ba6106e147a4965e26ea946dd2ab19598140bf26f1e9e599c23f6b661553c7d89e8db22b3609068c91eb7f0fa2f01b"),
+        config.build_log_file.clone(),
+        config.log_all,
+        true,
+    )
+    .join();
+
+    build_cmd(
+        sealevel_client
+            .clone()
+            .arg("compute-budget", "200000")
+            .cmd("warp-route")
+            .cmd("deploy")
+            .arg("warp-route-name", "testwarproute")
+            .arg("environment", "local-e2e")
+            .arg("environments-dir", "sealevel/environments")
+            .arg("built-so-dir", SBF_OUT_PATH)
+            .arg(
+                "token-config-file",
+                "sealevel/environments/local-e2e/warp-routes/testwarproute/token-config.json",
+            )
+            .arg(
+                "chain-config-file",
+                "sealevel/environments/local-e2e/warp-routes/chain-config.json",
+            )
+            .arg("ata-payer-funding-amount", "1000000000"),
+        config.build_log_file.clone(),
+        config.log_all,
+        true,
+    )
+    .join();
+
+    validator
 }
 
 fn updated_path(solana_cli_tools_path: &Path) -> String {
