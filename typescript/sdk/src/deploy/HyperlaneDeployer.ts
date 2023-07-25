@@ -8,6 +8,8 @@ import {
   Ownable,
   ProxyAdmin,
   ProxyAdmin__factory,
+  TimelockController,
+  TimelockController__factory,
   TransparentUpgradeableProxy,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
@@ -27,7 +29,7 @@ import { MultiProvider } from '../providers/MultiProvider';
 import { ConnectionClientConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
 
-import { proxyAdmin } from './proxy';
+import { UpgradeConfig, proxyAdmin } from './proxy';
 import { ContractVerificationInput } from './verify/types';
 import { getContractVerificationInput } from './verify/utils';
 
@@ -195,7 +197,7 @@ export abstract class HyperlaneDeployer<
 
       if (config.interchainSecurityModule) {
         // set interchain security module if not already set (and configured)
-        let configuredIsm;
+        let configuredIsm: string;
         if (typeof config.interchainSecurityModule === 'string') {
           configuredIsm = config.interchainSecurityModule;
         } else if (this.options?.ismFactory) {
@@ -395,6 +397,25 @@ export abstract class HyperlaneDeployer<
     return implementation.attach(proxy.address) as C;
   }
 
+  async deployTimelock(
+    chain: ChainName,
+    timelockConfig: UpgradeConfig['timelock'],
+  ): Promise<TimelockController> {
+    const timelock = await this.deployContractFromFactory(
+      chain,
+      new TimelockController__factory(),
+      'timelockController',
+      // delay, [proposers], [executors], admin
+      [
+        timelockConfig.delay,
+        [timelockConfig.roles.proposer],
+        [timelockConfig.roles.executor],
+        ethers.constants.AddressZero,
+      ],
+    );
+    return timelock;
+  }
+
   protected writeCache<K extends keyof Factories>(
     chain: ChainName,
     contractName: K,
@@ -412,7 +433,8 @@ export abstract class HyperlaneDeployer<
     contractName: string,
   ): Awaited<ReturnType<F['deploy']>> | undefined {
     const cachedAddress = this.cachedAddresses[chain]?.[contractName];
-    const hit = !!cachedAddress;
+    const hit =
+      !!cachedAddress && cachedAddress !== ethers.constants.AddressZero;
     const contractAddress = hit ? cachedAddress : ethers.constants.AddressZero;
     const contract = factory
       .attach(contractAddress)
