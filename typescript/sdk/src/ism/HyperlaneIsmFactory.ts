@@ -362,7 +362,6 @@ export async function moduleMatchesConfig(
   origin?: ChainName,
 ): Promise<boolean> {
   const provider = multiProvider.getProvider(chain);
-  if (moduleAddress === ethers.constants.AddressZero) return false;
   const module = IInterchainSecurityModule__factory.connect(
     moduleAddress,
     provider,
