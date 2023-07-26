@@ -34,7 +34,14 @@ export class AgentCli {
         case Role.Validator:
           for (const chain of this.agentConfig.contextChainNames) {
             const key = `${role}-${chain}`;
-            managers[key] = new ValidatorHelmManager(this.agentConfig, chain);
+            const manager = new ValidatorHelmManager(this.agentConfig, chain);
+            if (manager.length === 0) {
+              console.log(
+                `No validators configured for chain ${chain}, skipping deploy`,
+              );
+              continue;
+            }
+            managers[key] = manager;
           }
           break;
         case Role.Relayer:
