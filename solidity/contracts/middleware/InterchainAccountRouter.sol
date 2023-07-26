@@ -34,8 +34,8 @@ contract InterchainAccountRouter is
     // ============ Constants ============
 
     uint32 internal immutable localDomain;
-    address internal immutable implementation;
-    bytes32 internal immutable bytecodeHash;
+    address internal implementation;
+    bytes32 internal bytecodeHash;
 
     // ============ Private Storage ============
     uint32[] private _domains;
@@ -100,20 +100,9 @@ contract InterchainAccountRouter is
      * will be cloned for each interchain account.
      * @param _localDomain The Hyperlane domain ID on which this contract is
      * deployed.
-     * @param _proxy The address of a proxy contract that delegates calls to
-     * this contract. Used by OwnableMulticall for access control.
-     * @dev Set proxy to address(0) to use this contract without a proxy.
      */
-    constructor(uint32 _localDomain, address _proxy) {
+    constructor(uint32 _localDomain) {
         localDomain = _localDomain;
-        // TODO: always proxy and remove this sentinel
-        if (_proxy == address(0)) {
-            _proxy = address(this);
-        }
-        implementation = address(new OwnableMulticall(_proxy));
-        // cannot be stored immutably because it is dynamically sized
-        bytes memory _bytecode = MinimalProxy.bytecode(implementation);
-        bytecodeHash = keccak256(_bytecode);
     }
 
     // ============ Initializers ============
@@ -138,6 +127,11 @@ contract InterchainAccountRouter is
             _owner
         );
         require(localDomain == mailbox.localDomain(), "domain mismatch");
+
+        implementation = address(new OwnableMulticall(address(this)));
+        // cannot be stored immutably because it is dynamically sized
+        bytes memory _bytecode = MinimalProxy.bytecode(implementation);
+        bytecodeHash = keccak256(_bytecode);
     }
 
     // ============ External Functions ============

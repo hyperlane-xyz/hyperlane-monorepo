@@ -10,12 +10,13 @@ import {
 
 import { types, utils } from '@hyperlane-xyz/utils';
 
+import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata';
+import { CoreChainName, TestChains } from '../consts/chains';
 import {
   ChainMetadata,
-  chainMetadata as defaultChainMetadata,
+  getDomainId,
   isValidChainMetadata,
-} from '../consts/chainMetadata';
-import { CoreChainName, TestChains } from '../consts/chains';
+} from '../metadata/chainMetadataTypes';
 import { ChainMap, ChainName } from '../types';
 import { pick } from '../utils/objects';
 
@@ -29,11 +30,11 @@ const DEFAULT_RETRY_OPTIONS: RetryProviderOptions = {
 };
 
 export function defaultProviderBuilder(
-  rpcUrls: ChainMetadata['publicRpcUrls'],
+  rpcUrls: ChainMetadata['rpcUrls'],
   network: providers.Networkish,
   retryOverride?: RetryProviderOptions,
 ): Provider {
-  const createProvider = (r: ChainMetadata['publicRpcUrls'][number]) => {
+  const createProvider = (r: ChainMetadata['rpcUrls'][number]) => {
     const retry = r.retry || retryOverride;
     return retry
       ? new RetryJsonRpcProvider(retry, r.http, network)
@@ -199,7 +200,7 @@ export class MultiProvider {
    */
   getDomainId(chainNameOrId: ChainName | number): number {
     const metadata = this.getChainMetadata(chainNameOrId);
-    return metadata.domainId ?? metadata.chainId;
+    return getDomainId(metadata);
   }
 
   /**
@@ -223,18 +224,18 @@ export class MultiProvider {
   tryGetProvider(chainNameOrId: ChainName | number): Provider | null {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
     if (!metadata) return null;
-    const { name, chainId, publicRpcUrls } = metadata;
+    const { name, chainId, rpcUrls } = metadata;
 
     if (this.providers[name]) return this.providers[name];
 
     if (TestChains.includes(name as CoreChainName)) {
       this.providers[name] = new providers.JsonRpcProvider(
-        'http://localhost:8545',
+        'http://127.0.0.1:8545',
         31337,
       );
-    } else if (publicRpcUrls.length) {
+    } else if (rpcUrls.length) {
       this.providers[name] = this.providerBuilder(
-        publicRpcUrls,
+        rpcUrls,
         chainId,
         DEFAULT_RETRY_OPTIONS,
       );
@@ -438,10 +439,10 @@ export class MultiProvider {
    * @throws if chain's metadata has not been set
    */
   getRpcUrl(chainNameOrId: ChainName | number): string {
-    const { publicRpcUrls } = this.getChainMetadata(chainNameOrId);
-    if (!publicRpcUrls?.length || !publicRpcUrls[0].http)
+    const { rpcUrls } = this.getChainMetadata(chainNameOrId);
+    if (!rpcUrls?.length || !rpcUrls[0].http)
       throw new Error(`No RPC URl configured for ${chainNameOrId}`);
-    return publicRpcUrls[0].http;
+    return rpcUrls[0].http;
   }
 
   /**

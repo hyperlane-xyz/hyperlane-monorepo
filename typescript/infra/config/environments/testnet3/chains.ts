@@ -18,6 +18,10 @@ export const testnetConfigs: ChainMap<ChainMetadata> = {
   arbitrumgoerli: chainMetadata.arbitrumgoerli,
 };
 
+// "Blessed" chains that we want core contracts for.
 export type TestnetChains = keyof typeof testnetConfigs;
 export const chainNames = Object.keys(testnetConfigs) as TestnetChains[];
 export const environment = 'testnet3';
+
+// Chains that we want to run agents for.
+export const agentChainNames = [...chainNames, 'solanadevnet', 'zbctestnet'];

@@ -69,6 +69,7 @@ rusoto_sts = "*"
 [dev-dependencies]
 color-eyre.workspace = true
 tempfile = "3.3"
+walkdir = { version = "2" }
 
 [features]
 default = ["oneline-errors", "color-eyre"]

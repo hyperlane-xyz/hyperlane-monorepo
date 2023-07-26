@@ -100,22 +100,28 @@ where
         }
         let realloc_increment = 1024;
         loop {
-            let mut guard = account.try_borrow_mut_data()?;
-            let data = &mut *guard;
-            let data_len = data.len();
+            // Create new scope to ensure `guard` is dropped before
+            // potential reallocation.
+            let data_len = {
+                let mut guard = account.try_borrow_mut_data()?;
+                let data = &mut *guard;
+                let data_len = data.len();
 
-            match self.store_in_slice(data) {
-                Ok(_) => break,
-                Err(err) => match err.kind() {
-                    std::io::ErrorKind::WriteZero => {
-                        if !allow_realloc {
-                            return Err(ProgramError::BorshIoError(err.to_string()));
+                match self.store_in_slice(data) {
+                    Ok(_) => break,
+                    Err(err) => match err.kind() {
+                        std::io::ErrorKind::WriteZero => {
+                            if !allow_realloc {
+                                return Err(ProgramError::BorshIoError(err.to_string()));
+                            }
                         }
-                    }
-                    _ => return Err(ProgramError::BorshIoError(err.to_string())),
-                },
+                        _ => return Err(ProgramError::BorshIoError(err.to_string())),
+                    },
+                };
+
+                data_len
             };
-            drop(guard);
+
             if cfg!(target_os = "solana") {
                 account.realloc(data_len + realloc_increment, false)?;
             } else {

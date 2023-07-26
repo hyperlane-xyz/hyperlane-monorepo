@@ -12,11 +12,13 @@ import {
   HyperlaneCore,
   HyperlaneIgp,
   MultiProvider,
+  ProtocolType,
   RouterConfig,
   collectValidators,
   objMap,
   promiseObjAll,
 } from '@hyperlane-xyz/sdk';
+import { ProxiedRouterConfig } from '@hyperlane-xyz/sdk/dist/router/types';
 
 import { Contexts } from '../config/contexts';
 import { environments } from '../config/environments';
@@ -31,17 +33,20 @@ import {
 import { fetchProvider } from '../src/config/chain';
 import { EnvironmentNames, deployEnvToSdkEnv } from '../src/config/environment';
 import { Role } from '../src/roles';
+import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 import { assertContext, assertRole } from '../src/utils/utils';
 
 export enum Modules {
   ISM_FACTORY = 'ism',
   CORE = 'core',
+  HOOK = 'hook',
   INTERCHAIN_GAS_PAYMASTER = 'igp',
   INTERCHAIN_ACCOUNTS = 'ica',
   INTERCHAIN_QUERY_SYSTEM = 'iqs',
   LIQUIDITY_LAYER = 'll',
   TEST_QUERY_SENDER = 'testquerysender',
   TEST_RECIPIENT = 'testrecipient',
+  HELLO_WORLD = 'helloworld',
 }
 
 export const SDK_MODULES = [
@@ -65,7 +70,6 @@ export function withModuleAndFork<T>(args: yargs.Argv<T>) {
     .choices('module', Object.values(Modules))
     .demandOption('module')
     .alias('m', 'module')
-
     .describe('fork', 'network to fork')
     .choices('fork', Object.values(Chains))
     .alias('f', 'fork');
@@ -74,8 +78,17 @@ export function withModuleAndFork<T>(args: yargs.Argv<T>) {
 export function withContext<T>(args: yargs.Argv<T>) {
   return args
     .describe('context', 'deploy context')
+    .default('context', Contexts.Hyperlane)
     .coerce('context', assertContext)
     .demandOption('context');
+}
+
+export function withProtocol<T>(args: yargs.Argv<T>) {
+  return args
+    .describe('protocol', 'protocol type')
+    .default('protocol', ProtocolType.Ethereum)
+    .choices('protocol', Object.values(ProtocolType))
+    .demandOption('protocol');
 }
 
 export function withAgentRole<T>(args: yargs.Argv<T>) {
@@ -121,7 +134,7 @@ export async function getConfigsBasedOnArgs(argv?: {
   environment: DeployEnvironment;
   context: Contexts;
 }) {
-  const { environment, context } = argv
+  const { environment, context = Contexts.Hyperlane } = argv
     ? argv
     : await withContext(getArgs()).argv;
   const envConfig = getEnvironmentConfig(environment);
@@ -196,6 +209,7 @@ export function getEnvironmentDirectory(environment: DeployEnvironment) {
 export function getModuleDirectory(
   environment: DeployEnvironment,
   module: Modules,
+  context?: Contexts,
 ) {
   // for backwards compatibility with existing paths
   const suffixFn = () => {
@@ -206,6 +220,8 @@ export function getModuleDirectory(
         return 'middleware/queries';
       case Modules.LIQUIDITY_LAYER:
         return 'middleware/liquidity-layer';
+      case Modules.HELLO_WORLD:
+        return `helloworld/${context}`;
       default:
         return module;
     }
@@ -245,6 +261,7 @@ export async function getRouterConfig(
     deployEnvToSdkEnv[environment],
     multiProvider,
   );
+
   const owners = getEnvironmentConfig(environment).owners;
   const config: ChainMap<RouterConfig> = {};
   const knownChains = multiProvider.intersect(
@@ -261,6 +278,17 @@ export async function getRouterConfig(
     };
   }
   return config;
+}
+
+export async function getProxiedRouterConfig(
+  environment: DeployEnvironment,
+  multiProvider: MultiProvider,
+): Promise<ChainMap<ProxiedRouterConfig>> {
+  const config = await getRouterConfig(environment, multiProvider);
+  return objMap(config, (chain, routerConfig) => ({
+    timelock: environments[environment].core[chain].upgrade?.timelock,
+    ...routerConfig,
+  }));
 }
 
 export function getValidatorsByChain(
@@ -280,4 +308,25 @@ export function getValidatorsByChain(
     });
   }
   return validators;
+}
+
+export async function getHooksProvider(
+  multiProvider: MultiProvider,
+  environment: DeployEnvironment,
+): Promise<MultiProvider> {
+  const hooksProvider = new MultiProvider();
+  const hooksConfig = getEnvironmentConfig(environment).hooks;
+  if (!hooksConfig) {
+    return hooksProvider;
+  }
+  for (const chain of Object.keys(hooksConfig)) {
+    // need to use different url for two forks simultaneously
+    // need another rpc param
+    await useLocalProvider(multiProvider, chain);
+  }
+  const signer = await impersonateAccount(
+    '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+  );
+  hooksProvider.setSharedSigner(signer);
+  return hooksProvider;
 }

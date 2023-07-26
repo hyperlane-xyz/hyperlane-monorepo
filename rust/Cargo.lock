@@ -3642,6 +3642,7 @@ dependencies = [
  "tracing-futures",
  "tracing-opentelemetry 0.18.0",
  "tracing-subscriber",
+ "walkdir",
  "warp",
 ]
 
@@ -3652,6 +3653,7 @@ dependencies = [
  "async-trait",
  "auto_impl 1.1.0",
  "borsh 0.9.3",
+ "bs58",
  "bytes",
  "config",
  "convert_case 0.6.0",
@@ -3663,8 +3665,8 @@ dependencies = [
  "ethers-providers",
  "eyre",
  "fixed-hash 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "getrandom 0.2.10",
  "hex 0.4.3",
- "hyperlane-base",
  "itertools",
  "num 0.4.0",
  "num-derive",
@@ -3678,7 +3680,6 @@ dependencies = [
  "tiny-keccak",
  "tokio",
  "uint",
- "walkdir",
 ]
 
 [[package]]
@@ -6135,6 +6136,7 @@ dependencies = [
  "num-derive",
  "num-traits",
  "prometheus",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",
@@ -6328,6 +6330,7 @@ dependencies = [
  "nix 0.26.2",
  "tempfile",
  "ureq",
+ "which",
 ]
 
 [[package]]
@@ -9211,13 +9214,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b11c96ac7ee530603dcdf68ed1557050f374ce55a5a07193ebf8cbc9f8927e9"
 dependencies = [
  "base64 0.21.2",
- "flate2",
  "log",
  "once_cell",
- "rustls 0.21.2",
- "rustls-webpki",
  "url",
- "webpki-roots 0.23.1",
 ]
 
 [[package]]
@@ -9521,15 +9520,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6c71e40d7d2c34a5106301fb632274ca37242cd0c9d3e64dbece371a40a2d87"
 dependencies = [
  "webpki 0.22.0",
-]
-
-[[package]]
-name = "webpki-roots"
-version = "0.23.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b03058f88386e5ff5310d9111d53f48b17d732b401aeb83a8d5190f2ac459338"
-dependencies = [
- "rustls-webpki",
 ]
 
 [[package]]

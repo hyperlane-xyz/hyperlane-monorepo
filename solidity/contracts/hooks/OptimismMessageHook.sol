@@ -15,7 +15,8 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {IMessageHook} from "../interfaces/hooks/IMessageHook.sol";
-import {OptimismISM} from "../isms/native/OptimismISM.sol";
+import {OptimismISM} from "../isms/hook/OptimismISM.sol";
+import {TypeCasts} from "../libs/TypeCasts.sol";
 
 // ============ External Imports ============
 import {ICrossDomainMessenger} from "@eth-optimism/contracts/libraries/bridge/ICrossDomainMessenger.sol";
@@ -27,6 +28,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * the native Optimism bridge.
  */
 contract OptimismMessageHook is IMessageHook {
+    using TypeCasts for address;
     // ============ Constants ============
 
     // Domain of chain on which the optimism ISM is deployed
@@ -85,7 +87,7 @@ contract OptimismMessageHook is IMessageHook {
 
         bytes memory _payload = abi.encodeCall(
             OptimismISM.verifyMessageId,
-            (msg.sender, _messageId)
+            (msg.sender.addressToBytes32(), _messageId)
         );
 
         l1Messenger.sendMessage(ism, _payload, GAS_LIMIT);

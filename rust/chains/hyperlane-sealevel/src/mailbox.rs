@@ -5,13 +5,13 @@ use std::{collections::HashMap, num::NonZeroU64, str::FromStr as _};
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
 use jsonrpc_core::futures_util::TryFutureExt;
-use tracing::{debug, instrument, warn};
+use tracing::{debug, info, instrument, warn};
 
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     ContractLocator, Decode as _, Encode as _, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, IndexRange, Indexer, LogMeta, Mailbox,
-    MessageIndexer, TxCostEstimate, TxOutcome, H256, U256,
+    MessageIndexer, SequenceRange, TxCostEstimate, TxOutcome, H256, U256,
 };
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
@@ -88,7 +88,9 @@ impl SealevelMailbox {
         locator: ContractLocator,
         payer: Option<Keypair>,
     ) -> ChainResult<Self> {
-        let rpc_client = RpcClient::new(conf.url.to_string());
+        // Set the `processed` commitment at rpc level
+        let rpc_client =
+            RpcClient::new_with_commitment(conf.url.to_string(), CommitmentConfig::processed());
 
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         let domain = locator.domain.id();
@@ -187,21 +189,15 @@ impl SealevelMailbox {
         &self,
         recipient_program_id: Pubkey,
     ) -> ChainResult<Vec<AccountMeta>> {
-        let (account_metas_pda_key, _) = Pubkey::find_program_address(
-            hyperlane_sealevel_message_recipient_interface::INTERCHAIN_SECURITY_MODULE_ACCOUNT_METAS_PDA_SEEDS,
-            &recipient_program_id,
-        );
         let instruction =
             hyperlane_sealevel_message_recipient_interface::MessageRecipientInstruction::InterchainSecurityModuleAccountMetas;
-        let instruction = Instruction::new_with_bytes(
+        self.get_account_metas_with_instruction_bytes(
             recipient_program_id,
             &instruction
                 .encode()
                 .map_err(ChainCommunicationError::from_other)?,
-            vec![AccountMeta::new(account_metas_pda_key, false)],
-        );
-
-        self.get_account_metas(instruction).await
+                hyperlane_sealevel_message_recipient_interface::INTERCHAIN_SECURITY_MODULE_ACCOUNT_METAS_PDA_SEEDS,
+        ).await
     }
 
     /// Gets the account metas required for the ISM's `Verify` instruction.
@@ -211,24 +207,19 @@ impl SealevelMailbox {
         metadata: Vec<u8>,
         message: Vec<u8>,
     ) -> ChainResult<Vec<AccountMeta>> {
-        let (account_metas_pda_key, _) = Pubkey::find_program_address(
-            hyperlane_sealevel_interchain_security_module_interface::VERIFY_ACCOUNT_METAS_PDA_SEEDS,
-            &ism,
-        );
         let instruction =
             InterchainSecurityModuleInstruction::VerifyAccountMetas(VerifyInstruction {
                 metadata,
                 message,
             });
-        let instruction = Instruction::new_with_bytes(
+        self.get_account_metas_with_instruction_bytes(
             ism,
             &instruction
                 .encode()
                 .map_err(ChainCommunicationError::from_other)?,
-            vec![AccountMeta::new(account_metas_pda_key, false)],
-        );
-
-        self.get_account_metas(instruction).await
+            hyperlane_sealevel_interchain_security_module_interface::VERIFY_ACCOUNT_METAS_PDA_SEEDS,
+        )
+        .await
     }
 
     /// Gets the account metas required for the recipient's `MessageRecipientInstruction::Handle` instruction.
@@ -242,15 +233,28 @@ impl SealevelMailbox {
             origin: message.origin,
             message: message.body.clone(),
         });
-        let (account_metas_pda_key, _) = Pubkey::find_program_address(
-            hyperlane_sealevel_message_recipient_interface::HANDLE_ACCOUNT_METAS_PDA_SEEDS,
-            &recipient_program_id,
-        );
-        let instruction = Instruction::new_with_bytes(
+
+        self.get_account_metas_with_instruction_bytes(
             recipient_program_id,
             &instruction
                 .encode()
                 .map_err(ChainCommunicationError::from_other)?,
+            hyperlane_sealevel_message_recipient_interface::HANDLE_ACCOUNT_METAS_PDA_SEEDS,
+        )
+        .await
+    }
+
+    async fn get_account_metas_with_instruction_bytes(
+        &self,
+        program_id: Pubkey,
+        instruction_data: &[u8],
+        account_metas_pda_seeds: &[&[u8]],
+    ) -> ChainResult<Vec<AccountMeta>> {
+        let (account_metas_pda_key, _) =
+            Pubkey::find_program_address(account_metas_pda_seeds, &program_id);
+        let instruction = Instruction::new_with_bytes(
+            program_id,
+            instruction_data,
             vec![AccountMeta::new(account_metas_pda_key, false)],
         );
 
@@ -417,7 +421,11 @@ impl Mailbox for SealevelMailbox {
             PROCESS_COMPUTE_UNITS,
         ));
 
-        let commitment = CommitmentConfig::finalized();
+        // "processed" level commitment does not guarantee finality.
+        // roughly 5% of blocks end up on a dropped fork.
+        // However we don't want this function to be a bottleneck and there already
+        // is retry logic in the agents.
+        let commitment = CommitmentConfig::processed();
 
         let (process_authority_key, _process_authority_bump) = Pubkey::try_find_program_address(
             mailbox_process_authority_pda_seeds!(&recipient),
@@ -504,14 +512,7 @@ impl Mailbox for SealevelMailbox {
 
         let signature = self
             .rpc_client
-            // .send_transaction(&txn) // TODO just use this. Don't need to skip pre-flight.
-            .send_transaction_with_config(
-                &txn,
-                RpcSendTransactionConfig {
-                    skip_preflight: true,
-                    ..Default::default()
-                },
-            )
+            .send_and_confirm_transaction(&txn)
             .await
             .map_err(ChainCommunicationError::from_other)?;
         tracing::info!("signature={}", signature);
@@ -528,7 +529,7 @@ impl Mailbox for SealevelMailbox {
         Ok(TxOutcome {
             txid,
             executed,
-            // TODO use correct data
+            // TODO use correct data upon integrating IGP support
             gas_price: U256::zero(),
             gas_used: U256::zero(),
         })
@@ -540,7 +541,7 @@ impl Mailbox for SealevelMailbox {
         _message: &HyperlaneMessage,
         _metadata: &[u8],
     ) -> ChainResult<TxCostEstimate> {
-        // FIXME do something real
+        // TODO use correct data upon integrating IGP support
         Ok(TxCostEstimate {
             gas_limit: U256::zero(),
             gas_price: U256::zero(),
@@ -676,7 +677,7 @@ impl SealevelMailboxIndexer {
             LogMeta {
                 address: self.mailbox.program_id.to_bytes().into(),
                 block_number: dispatched_message_account.slot,
-                // TODO real values?
+                // TODO: get these when building out scraper support.
                 // It's inconvenient to get these :|
                 block_hash: H256::zero(),
                 transaction_hash: H256::zero(),
@@ -701,26 +702,19 @@ impl MessageIndexer for SealevelMailboxIndexer {
 #[async_trait]
 impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
     async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
-        let (from, to) = match range {
-            IndexRange::Blocks(from, to) => {
-                return Err(ChainCommunicationError::from_other_str(
-                    "SealevelMailboxIndexer does not support block-based indexing",
-                ))
-            }
-            IndexRange::Sequences(from, to) => (from, to),
+        let SequenceRange(range) = range else {
+            return Err(ChainCommunicationError::from_other_str(
+                "SealevelMailboxIndexer only supports sequence-based indexing",
+            ))
         };
 
-        tracing::info!(
-            "Fetching SealevelMailboxIndexer HyperlaneMessage logs from {} to {}",
-            from,
-            to
+        info!(
+            ?range,
+            "Fetching SealevelMailboxIndexer HyperlaneMessage logs"
         );
 
-        let expected_count: usize = (to - from)
-            .try_into()
-            .map_err(ChainCommunicationError::from_other)?;
-        let mut messages = Vec::with_capacity(expected_count);
-        for nonce in from..to {
+        let mut messages = Vec::with_capacity((range.end() - range.start()) as usize);
+        for nonce in range {
             messages.push(self.get_message_with_nonce(nonce).await?);
         }
         Ok(messages)

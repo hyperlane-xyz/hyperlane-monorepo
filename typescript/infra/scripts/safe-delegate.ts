@@ -2,7 +2,7 @@ import { LedgerSigner } from '@ethersproject/hardware-wallets';
 // Due to TS funkiness, the following needs to be imported in order for this
 // code to build, but needs to be removed in order for the code to run.
 import '@ethersproject/hardware-wallets/thirdparty';
-import { SafeDelegateConfig } from '@safe-global/safe-service-client';
+import { AddSafeDelegateProps } from '@safe-global/api-kit';
 
 import { AllChains } from '@hyperlane-xyz/sdk';
 
@@ -40,11 +40,13 @@ async function delegate() {
   // "m/44'/60'/{CHANGE_ME}'/0/0";
   const path = "m/44'/60'/0'/0/0";
   const signer = new LedgerSigner(undefined, 'hid', path);
-  console.log('Connected to signer with address:', await signer.getAddress());
+  const signerAddress = await signer.getAddress();
+  console.log('Connected to signer with address:', signerAddress);
 
-  const delegateConfig: SafeDelegateConfig = {
-    safe,
-    delegate,
+  const delegateConfig: AddSafeDelegateProps = {
+    safeAddress: safe,
+    delegatorAddress: signerAddress,
+    delegateAddress: delegate,
     signer,
     label: 'delegate',
   };

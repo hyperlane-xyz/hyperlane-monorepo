@@ -1,4 +1,4 @@
-use hyperlane_core::H256;
+use hyperlane_core::{utils::hex_or_base58_to_h256, H256};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs::File, path::Path, str::FromStr};
 
@@ -18,7 +18,6 @@ use hyperlane_sealevel_token_lib::{
 use crate::{
     cmd_utils::{
         account_exists, create_and_write_keypair, create_new_directory, deploy_program_idempotent,
-        hex_or_base58_to_h256,
     },
     core::{read_core_program_ids, CoreProgramIds},
     Context, WarpRouteCmd, WarpRouteSubCmd,
@@ -171,7 +170,8 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                     let chain_config = chain_configs.get(chain_name).unwrap();
                     (
                         chain_config.domain_id(),
-                        hex_or_base58_to_h256(token_config.foreign_deployment.as_ref().unwrap()),
+                        hex_or_base58_to_h256(token_config.foreign_deployment.as_ref().unwrap())
+                            .unwrap(),
                     )
                 })
                 .collect::<HashMap<u32, H256>>();

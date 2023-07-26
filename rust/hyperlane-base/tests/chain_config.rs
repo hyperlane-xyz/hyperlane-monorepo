@@ -7,8 +7,7 @@ use eyre::Context;
 use walkdir::WalkDir;
 
 use hyperlane_base::{RawSettings, Settings};
-use hyperlane_core::config::*;
-use hyperlane_core::KnownHyperlaneDomain;
+use hyperlane_core::{config::*, KnownHyperlaneDomain};
 
 /// Relative path to the `hyperlane-monorepo/rust/config/`
 /// directory, which is where the agent's config files

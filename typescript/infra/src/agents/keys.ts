@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-import { ChainName } from '@hyperlane-xyz/sdk';
+import { ChainName, ProtocolType } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import { DeployEnvironment } from '../config';
@@ -18,6 +18,15 @@ export abstract class BaseAgentKey {
   ) {}
 
   abstract get address(): string;
+
+  // By default, only Ethereum keys are supported. Subclasses may override
+  // this to support other protocols.
+  addressForProtocol(protocol: ProtocolType): string | undefined {
+    if (protocol === ProtocolType.Ethereum) {
+      return this.address;
+    }
+    return undefined;
+  }
 }
 
 // Base class to represent cloud-hosted keys used to run Hyperlane agents.

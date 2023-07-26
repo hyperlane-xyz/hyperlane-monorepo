@@ -20,15 +20,10 @@ export class HyperlaneRouterChecker<
   App extends RouterApp<Factories>,
   Config extends RouterConfig,
 > extends HyperlaneAppChecker<App, Config> {
-  checkOwnership(chain: ChainName): Promise<void> {
-    const owner = this.configMap[chain].owner;
-    return super.checkOwnership(chain, owner);
-  }
-
   async checkChain(chain: ChainName): Promise<void> {
     await this.checkHyperlaneConnectionClient(chain);
     await this.checkEnrolledRouters(chain);
-    await this.checkOwnership(chain);
+    await super.checkOwnership(chain, this.configMap[chain].owner);
   }
 
   async checkHyperlaneConnectionClient(chain: ChainName): Promise<void> {
@@ -39,8 +34,14 @@ export class HyperlaneRouterChecker<
       violationType: ConnectionClientViolationType,
     ) => {
       const actual = await router[property]();
+      // TODO: check for IsmConfig
+      const value = this.configMap[chain][property];
+      if (value && typeof value === 'object')
+        throw new Error('ISM as object unimplemented');
       const expected =
-        this.configMap[chain][property] ?? ethers.constants.AddressZero;
+        value && typeof value === 'string'
+          ? value
+          : ethers.constants.AddressZero;
       if (!utils.eqAddress(actual, expected)) {
         const violation: ConnectionClientViolation = {
           chain,

@@ -148,11 +148,6 @@ impl BuildableWithSignerConf for Keypair {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
         Ok(match conf {
             SignerConf::HexKey { key } => {
-                // Keypair ordinarily expects a 64 byte serialization of
-                // [secret key][public key].
-                // To maintain consistency with the other signers, we pass in
-                // the 32 byte secret key, recover the public key from this,
-                // and then construct the Keypair.
                 let secret = SecretKey::from_bytes(key.as_bytes())
                     .context("Invalid sealevel ed25519 secret key")?;
                 Keypair::from_bytes(&ed25519_dalek::Keypair::from(secret).to_bytes())

@@ -115,9 +115,8 @@ ureq = "2.4"
 url = "2.3"
 which = "4.3"
 
-# Required to allow dependencies `getrandom` but to preserve determinism required by programs, see
-# https://github.com/solana-labs/solana/blob/master/docs/src/developing/on-chain-programs/developing-rust.md#depending-on-rand
-getrandom = { version = "0.2", features = ["custom"] }
+# Required for WASM support https://docs.rs/getrandom/latest/getrandom/#webassembly-support
+getrandom = { version = "0.2", features = ["js"] }
 
 [workspace.dependencies.curve25519-dalek]
 version = "~3.2"
