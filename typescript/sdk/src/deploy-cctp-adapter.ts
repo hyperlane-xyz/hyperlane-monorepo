@@ -29,7 +29,7 @@ function buildCctpAdapterConfigMap(owner: types.Address) {
     tokenMessengerAddress: '0xd0c3da58f55358142b8d3e06c1c30c5c6114efe8',
     token: '0x07865c6e87b9f70255377e024ace6630c1eaa37f',
     tokenSymbol: 'USDC',
-    gasAmount: 500000,
+    gasAmount: 300000,
     circleDomainMapping: circleDomainMapping,
     mailbox: hyperlaneContractAddresses.goerli.mailbox,
     interchainGasPaymaster:
@@ -42,7 +42,7 @@ function buildCctpAdapterConfigMap(owner: types.Address) {
     tokenMessengerAddress: '0xeb08f243e5d3fcff26a9e38ae5520a669f4019d0',
     token: '0x5425890298aed601595a70ab815c96711a31bc65',
     tokenSymbol: 'USDC',
-    gasAmount: 500000,
+    gasAmount: 300000,
     circleDomainMapping: circleDomainMapping,
     mailbox: hyperlaneContractAddresses.fuji.mailbox,
     interchainGasPaymaster:
