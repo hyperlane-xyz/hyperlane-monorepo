@@ -5,6 +5,7 @@ import {
   ContractTransaction,
   PopulatedTransaction,
   Signer,
+  ethers,
   providers,
 } from 'ethers';
 
@@ -29,16 +30,22 @@ const DEFAULT_RETRY_OPTIONS: RetryProviderOptions = {
   baseRetryMs: 250,
 };
 
+const DEFAULT_PROVIDER_TIMEOUT: number = 1000 * 60 * 5; // 5 min
+
 export function defaultProviderBuilder(
   rpcUrls: ChainMetadata['rpcUrls'],
   network: providers.Networkish,
   retryOverride?: RetryProviderOptions,
 ): Provider {
   const createProvider = (r: ChainMetadata['rpcUrls'][number]) => {
+    const connection: ethers.utils.ConnectionInfo = {
+      url: r.http,
+      timeout: r.timeout ?? DEFAULT_PROVIDER_TIMEOUT,
+    };
     const retry = r.retry || retryOverride;
     return retry
-      ? new RetryJsonRpcProvider(retry, r.http, network)
-      : new providers.StaticJsonRpcProvider(r.http, network);
+      ? new RetryJsonRpcProvider(retry, connection, network)
+      : new providers.StaticJsonRpcProvider(connection, network);
   };
   if (rpcUrls.length > 1) {
     return new providers.FallbackProvider(rpcUrls.map(createProvider), 1);
@@ -230,7 +237,10 @@ export class MultiProvider {
 
     if (TestChains.includes(name as CoreChainName)) {
       this.providers[name] = new providers.JsonRpcProvider(
-        'http://127.0.0.1:8545',
+        {
+          url: 'http://127.0.0.1:8545',
+          timeout: DEFAULT_PROVIDER_TIMEOUT,
+        },
         31337,
       );
     } else if (rpcUrls.length) {

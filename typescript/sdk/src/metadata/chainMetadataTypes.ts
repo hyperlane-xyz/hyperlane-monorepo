@@ -5,6 +5,7 @@ export enum ProtocolType {
   Sealevel = 'sealevel',
   Fuel = 'fuel',
 }
+
 // A type that also allows for literal values of the enum
 export type ProtocolTypeValue = `${ProtocolType}`;
 
@@ -18,6 +19,7 @@ export enum ExplorerFamily {
   Blockscout = 'blockscout',
   Other = 'other',
 }
+
 // A type that also allows for literal values of the enum
 export type ExplorerFamilyValue = `${ExplorerFamily}`;
 
@@ -128,6 +130,11 @@ export const ChainMetadataSchema = z.object({
           .describe(
             'Default retry settings to be used by a provider such as MultiProvider.',
           ),
+        timeout: z
+          .number()
+          .positive()
+          .optional()
+          .describe('Provider request timeout in ms.'),
       }),
     )
     .nonempty()
