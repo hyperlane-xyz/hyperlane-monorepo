@@ -3,13 +3,14 @@ pragma solidity >=0.8.0;
 
 import {GasRouter} from "@hyperlane-xyz/core/contracts/GasRouter.sol";
 import {TypeCasts} from "@hyperlane-xyz/core/contracts/libs/TypeCasts.sol";
+import {ILiquidityLayerAdapterV2} from "@hyperlane-xyz/core/contracts/middleware/liquidity-layer/interfaces/ILiquidityLayerAdapterV2.sol";
 import {Message} from "./Message.sol";
 
 /**
  * @title Hyperlane Token Router that extends Router with abstract token (ERC20/ERC721) remote transfer functionality.
  * @author Abacus Works
  */
-abstract contract TokenRouter is GasRouter {
+abstract contract TokenRouter is ILiquidityLayerAdapterV2, GasRouter {
     using TypeCasts for bytes32;
     using TypeCasts for address;
     using Message for bytes;
@@ -39,6 +40,7 @@ abstract contract TokenRouter is GasRouter {
     );
 
     /**
+     * @inheritdoc ILiquidityLayerAdapterV2
      * @notice Transfers `_amountOrId` token to `_recipient` on `_destination` domain.
      * @dev Delegates transfer logic to `_transferFromSender` implementation.
      * @dev Emits `SentTransferRemote` event on the origin chain.
@@ -51,7 +53,7 @@ abstract contract TokenRouter is GasRouter {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amountOrId
-    ) public payable virtual returns (bytes32 messageId) {
+    ) public payable virtual override returns (bytes32 messageId) {
         bytes memory metadata = _transferFromSender(_amountOrId);
         messageId = _dispatchWithGas(
             _destination,
