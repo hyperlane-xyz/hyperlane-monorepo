@@ -1571,7 +1571,7 @@ async fn test_transfer_overhead_igp_ownership() {
         &mut banks_client,
         &payer,
         overhead_igp_key,
-        |owner| IgpInstruction::TransferOverheadIgpOwnership(owner),
+        IgpInstruction::TransferOverheadIgpOwnership,
     )
     .await;
 }

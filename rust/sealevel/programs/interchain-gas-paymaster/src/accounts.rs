@@ -1,6 +1,6 @@
 //! Interchain gas paymaster accounts.
 
-use std::collections::HashMap;
+use std::{cmp::Ordering, collections::HashMap};
 
 use access_control::AccessControl;
 use account_utils::{AccountData, DiscriminatorData, DiscriminatorPrefixed, SizedData};
@@ -206,11 +206,48 @@ impl SizedData for GasPaymentData {
 pub type GasPaymentAccount = AccountData<GasPayment>;
 
 fn convert_decimals(num: U256, from_decimals: u8, to_decimals: u8) -> U256 {
-    if from_decimals > to_decimals {
-        num / U256::from(10u64).pow(U256::from(from_decimals - to_decimals))
-    } else if from_decimals < to_decimals {
-        num * U256::from(10u64).pow(U256::from(to_decimals - from_decimals))
-    } else {
-        num
+    match from_decimals.cmp(&to_decimals) {
+        Ordering::Greater => num / U256::from(10u64).pow(U256::from(from_decimals - to_decimals)),
+        Ordering::Less => num * U256::from(10u64).pow(U256::from(to_decimals - from_decimals)),
+        Ordering::Equal => num,
+    }
+}
+
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_convert_decimals() {
+        let num = U256::from(1000000u128);
+        let from_decimals = 9;
+        let to_decimals = 9;
+        let result = convert_decimals(num, from_decimals, to_decimals);
+        assert_eq!(result, num);
+
+        let num = U256::from(1000000000000000u128);
+        let from_decimals = 18;
+        let to_decimals = 9;
+        let result = convert_decimals(num, from_decimals, to_decimals);
+        assert_eq!(result, U256::from(1000000u128));
+
+        let num = U256::from(1000000u128);
+        let from_decimals = 4;
+        let to_decimals = 9;
+        let result = convert_decimals(num, from_decimals, to_decimals);
+        assert_eq!(result, U256::from(100000000000u128));
+
+        // Some loss of precision
+        let num = U256::from(9999999u128);
+        let from_decimals = 9;
+        let to_decimals = 4;
+        let result = convert_decimals(num, from_decimals, to_decimals);
+        assert_eq!(result, U256::from(99u128));
+
+        // Total loss of precision
+        let num = U256::from(999u128);
+        let from_decimals = 9;
+        let to_decimals = 4;
+        let result = convert_decimals(num, from_decimals, to_decimals);
+        assert_eq!(result, U256::from(0u128));
     }
 }
