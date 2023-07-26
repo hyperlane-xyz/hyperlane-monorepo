@@ -170,7 +170,7 @@ fn init_igp(program_id: &Pubkey, accounts: &[AccountInfo], data: InitIgp) -> Pro
 /// Accounts:
 /// 0. [executable] The system program.
 /// 1. [signer] The payer account.
-/// 2. [signer, writeable] The Overhead IGP account to initialize.
+/// 2. [writeable] The Overhead IGP account to initialize.
 fn init_overhead_igp(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -194,6 +194,7 @@ fn init_overhead_igp(
     Ok(())
 }
 
+/// Initializes an IGP variant.
 fn init_igp_variant<T: account_utils::Data + account_utils::SizedData>(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -433,16 +434,7 @@ fn quote_gas_payment(
             return Err(ProgramError::InvalidArgument);
         }
 
-        let a = overhead_igp.gas_overhead(payment.destination_domain) + payment.gas_amount;
-
-        msg!(&format!(
-            "in here homie {} {} {} {}",
-            a,
-            payment.gas_amount,
-            payment.destination_domain,
-            overhead_igp.gas_overhead(payment.destination_domain)
-        ));
-        a
+        overhead_igp.gas_overhead(payment.destination_domain) + payment.gas_amount
     } else {
         payment.gas_amount
     };
