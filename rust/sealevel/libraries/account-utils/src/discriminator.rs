@@ -21,7 +21,7 @@ impl<T> DiscriminatorPrefixed<T> {
 
 impl<T> BorshSerialize for DiscriminatorPrefixed<T>
 where
-    T: DiscriminatorData + borsh::BorshSerialize
+    T: DiscriminatorData + borsh::BorshSerialize,
 {
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
         PROGRAM_INSTRUCTION_DISCRIMINATOR.serialize(writer)?;
@@ -49,7 +49,7 @@ where
 
 impl<T> SizedData for DiscriminatorPrefixed<T>
 where
-    T: SizedData
+    T: SizedData,
 {
     fn size(&self) -> usize {
         // 8 byte discriminator prefix
