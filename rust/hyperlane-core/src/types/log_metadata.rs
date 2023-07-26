@@ -1,14 +1,16 @@
 use std::cmp::Ordering;
 
-use ethers_contract::LogMeta as EthersLogMeta;
 use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "ethers")]
+use ethers_contract::LogMeta as EthersLogMeta;
 
 use crate::{H256, U256};
 
 /// A close clone of the Ethereum `LogMeta`, this is designed to be a more
 /// generic metadata that we can use for other blockchains later. Some changes
 /// may be required in the future.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct LogMeta {
     /// Address from which this log originated
     pub address: H256,
@@ -29,28 +31,23 @@ pub struct LogMeta {
     pub log_index: U256,
 }
 
+#[cfg(feature = "ethers")]
 impl From<EthersLogMeta> for LogMeta {
     fn from(v: EthersLogMeta) -> Self {
-        Self {
-            address: v.address.into(),
-            block_number: v.block_number.as_u64(),
-            block_hash: v.block_hash,
-            transaction_hash: v.transaction_hash,
-            transaction_index: v.transaction_index.as_u64(),
-            log_index: v.log_index,
-        }
+        Self::from(&v)
     }
 }
 
+#[cfg(feature = "ethers")]
 impl From<&EthersLogMeta> for LogMeta {
     fn from(v: &EthersLogMeta) -> Self {
         Self {
-            address: v.address.into(),
+            address: crate::H160::from(v.address).into(),
             block_number: v.block_number.as_u64(),
-            block_hash: v.block_hash,
-            transaction_hash: v.transaction_hash,
+            block_hash: v.block_hash.into(),
+            transaction_hash: v.transaction_hash.into(),
             transaction_index: v.transaction_index.as_u64(),
-            log_index: v.log_index,
+            log_index: v.log_index.into(),
         }
     }
 }

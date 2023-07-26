@@ -1,5 +1,15 @@
 # Hyperlane
 
+[![GitHub Actions][gha-badge]][gha] [![codecov](https://codecov.io/gh/hyperlane-xyz/hyperlane-monorepo/branch/main/graph/badge.svg?token=APC7C3Q2GS)](https://codecov.io/gh/hyperlane-xyz/hyperlane-monorepo) [![Foundry][foundry-badge]][foundry] [![License: MIT][license-badge]][license]
+
+[gha]: https://github.com/hyperlane-xyz/hyperlane-monorepo/actions
+[gha-badge]: https://github.com/PaulRBerg/prb-math/actions/workflows/ci.yml/badge.svg
+[codecov-badge]: https://img.shields.io/codecov/c/github/hyperlane-xyz/hyperlane-monorepo
+[foundry]: https://getfoundry.sh/
+[foundry-badge]: https://img.shields.io/badge/Built%20with-Foundry-FFDB1C.svg
+[license]: https://opensource.org/licenses/MIT
+[license-badge]: https://img.shields.io/badge/License-MIT-blue.svg
+
 ## Versioning
 
 Note this is the branch for Hyperlane v2.
@@ -67,10 +77,6 @@ yarn publish:all --otp YOUR_OTP_HERE
 # Or for a pre-release, include the tag
 yarn publish:all --otp YOUR_OTP_HERE --tag beta
 ```
-
-For the git submodules, you will have to undo the removal of the `yarn.lock` files, `yarn install` and check in the yarn.lock changes on the submodule as well. Then checkin the updated commits on the monorepo itself.
-
-Make PRs for the monorepo and the submodules.
 
 Tag the commit with the appropriate version, and then create a github release with a changelog against the previous version https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/new
 

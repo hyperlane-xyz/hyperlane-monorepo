@@ -7,6 +7,9 @@ import {
   HexString,
   ParsedLegacyMultisigIsmMetadata,
   ParsedMessage,
+  S3Checkpoint,
+  S3CheckpointWithId,
+  SignatureLike,
 } from './types';
 
 export function exclude<T>(item: T, list: T[]) {
@@ -276,17 +279,32 @@ export function streamToString(stream: NodeJS.ReadableStream): Promise<string> {
   });
 }
 
-export function isCheckpoint(obj: any): obj is Checkpoint {
-  const isValidSignature =
-    typeof obj.signature === 'string'
-      ? ethers.utils.isHexString(obj.signature)
-      : ethers.utils.isHexString(obj.signature.r) &&
-        ethers.utils.isHexString(obj.signature.s) &&
-        Number.isSafeInteger(obj.signature.v);
+function isValidSignature(signature: any): signature is SignatureLike {
+  return typeof signature === 'string'
+    ? ethers.utils.isHexString(signature)
+    : ethers.utils.isHexString(signature.r) &&
+        ethers.utils.isHexString(signature.s) &&
+        Number.isSafeInteger(signature.v);
+}
 
+export function isS3Checkpoint(obj: any): obj is S3Checkpoint {
+  return isValidSignature(obj.signature) && isCheckpoint(obj.value);
+}
+
+export function isS3CheckpointWithId(obj: any): obj is S3CheckpointWithId {
+  return (
+    isValidSignature(obj.signature) &&
+    isCheckpoint(obj.value.checkpoint) &&
+    ethers.utils.isHexString(obj.value.message_id)
+  );
+}
+
+export function isCheckpoint(obj: any): obj is Checkpoint {
   const isValidRoot = ethers.utils.isHexString(obj.root);
   const isValidIndex = Number.isSafeInteger(obj.index);
-  return isValidIndex && isValidRoot && isValidSignature;
+  const isValidMailbox = ethers.utils.isHexString(obj.mailbox_address);
+  const isValidDomain = Number.isSafeInteger(obj.mailbox_domain);
+  return isValidIndex && isValidRoot && isValidMailbox && isValidDomain;
 }
 
 /**

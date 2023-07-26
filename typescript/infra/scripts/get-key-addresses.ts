@@ -1,19 +1,26 @@
 import { getAllCloudAgentKeys } from '../src/agents/key-utils';
 
-import { getConfigsBasedOnArgs } from './utils';
+import {
+  getArgs,
+  getConfigsBasedOnArgs,
+  withContext,
+  withProtocol,
+} from './utils';
 
 async function main() {
-  const { agentConfig } = await getConfigsBasedOnArgs();
+  const argv = await withProtocol(withContext(getArgs())).argv;
+
+  const { agentConfig } = await getConfigsBasedOnArgs(argv);
 
   const keys = getAllCloudAgentKeys(agentConfig);
   const keyInfoPromises = keys.map(async (key) => {
-    let address = '';
+    let address = undefined;
     try {
       await key.fetch();
-      address = key.address;
+      address = key.addressForProtocol(argv.protocol);
     } catch (e) {
       // Swallow error
-      console.error('Error getting address', { key: key.identifier });
+      console.error('Error getting address', { key: key.identifier, e });
     }
     return {
       identifier: key.identifier,

@@ -1,6 +1,10 @@
 import type { Contract } from 'ethers';
 
-import type { Ownable } from '@hyperlane-xyz/core';
+import type {
+  AccessControl,
+  Ownable,
+  TimelockController,
+} from '@hyperlane-xyz/core';
 
 import type { ChainName } from '../types';
 
@@ -17,6 +21,8 @@ export enum ViolationType {
   NotDeployed = 'NotDeployed',
   BytecodeMismatch = 'BytecodeMismatch',
   ProxyAdmin = 'ProxyAdmin',
+  TimelockController = 'TimelockController',
+  AccessControl = 'AccessControl',
 }
 
 export interface OwnerViolation extends CheckerViolation {
@@ -30,6 +36,22 @@ export interface OwnerViolation extends CheckerViolation {
 export interface ProxyAdminViolation extends CheckerViolation {
   type: ViolationType.ProxyAdmin;
   name: string;
+}
+
+export interface TimelockControllerViolation extends CheckerViolation {
+  type: ViolationType.TimelockController;
+  actual: number;
+  expected: number;
+  contract: TimelockController;
+}
+
+export interface AccessControlViolation extends CheckerViolation {
+  type: ViolationType.AccessControl;
+  role: string;
+  account: string;
+  actual: boolean;
+  expected: boolean;
+  contract: AccessControl;
 }
 
 export interface NotDeployedViolation extends CheckerViolation {

@@ -8,7 +8,7 @@ use crate::{Announcement, ChainResult, HyperlaneContract, SignedType, TxOutcome,
 /// Interface for the ValidatorAnnounce chain contract. Allows abstraction over
 /// different chains
 #[async_trait]
-#[auto_impl(Box, Arc)]
+#[auto_impl(&, Box, Arc)]
 pub trait ValidatorAnnounce: HyperlaneContract + Send + Sync + Debug {
     /// Returns the announced storage locations for the provided validators.
     async fn get_announced_storage_locations(
@@ -24,9 +24,6 @@ pub trait ValidatorAnnounce: HyperlaneContract + Send + Sync + Debug {
     ) -> ChainResult<TxOutcome>;
 
     /// Returns the number of additional tokens needed to pay for the announce
-    /// transaction.
-    async fn announce_tokens_needed(
-        &self,
-        announcement: SignedType<Announcement>,
-    ) -> ChainResult<U256>;
+    /// transaction. Return `None` if the needed tokens canno tbe determined.
+    async fn announce_tokens_needed(&self, announcement: SignedType<Announcement>) -> Option<U256>;
 }

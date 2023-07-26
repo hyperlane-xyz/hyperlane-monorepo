@@ -1,0 +1,19 @@
+{
+  "solanadevnet": {
+    "type": "native",
+    "decimals": 9
+  },
+  "solanadevnet1": {
+    "type": "synthetic",
+    "decimals": 9,
+    "name": "Solana (solanadevnet)",
+    "symbol": "SOL"
+  },
+  "fuji": {
+    "type": "synthetic",
+    "decimals": 9,
+    "name": "Solana (solanadevnet)",
+    "symbol": "SOL",
+    "foreignDeployment": "0x11CF63c916263d6BBD710F43816ee6703e1C5da3"
+  }
+}

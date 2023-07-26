@@ -4,7 +4,9 @@ use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::types::transaction::eip712::Eip712;
 use ethers_signers::{AwsSigner, AwsSignerError, LocalWallet, Signer, WalletError};
 
-use hyperlane_core::{HyperlaneSigner, HyperlaneSignerError, H160, H256};
+use hyperlane_core::{
+    HyperlaneSigner, HyperlaneSignerError, Signature as HyperlaneSignature, H160, H256,
+};
 
 /// Ethereum-supported signer types
 #[derive(Debug, Clone)]
@@ -83,15 +85,15 @@ impl Signer for Signers {
 #[async_trait]
 impl HyperlaneSigner for Signers {
     fn eth_address(&self) -> H160 {
-        Signer::address(self)
+        Signer::address(self).into()
     }
 
-    async fn sign_hash(&self, hash: &H256) -> Result<Signature, HyperlaneSignerError> {
+    async fn sign_hash(&self, hash: &H256) -> Result<HyperlaneSignature, HyperlaneSignerError> {
         let mut signature = Signer::sign_message(self, hash)
             .await
             .map_err(|err| HyperlaneSignerError::from(Box::new(err) as Box<_>))?;
         signature.v = 28 - (signature.v % 2);
-        Ok(signature)
+        Ok(signature.into())
     }
 }
 
