@@ -213,7 +213,10 @@ fn convert_decimals(num: U256, from_decimals: u8, to_decimals: u8) -> U256 {
     }
 }
 
+#[cfg(test)]
 mod test {
+    use super::*;
+
     #[test]
     fn test_convert_decimals() {
         let num = U256::from(1000000u128);
