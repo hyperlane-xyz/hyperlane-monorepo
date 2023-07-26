@@ -470,6 +470,8 @@ fn set_igp_beneficiary(
     Ok(())
 }
 
+/// Transfers ownership of an IGP variant.
+///
 /// Accounts:
 /// 0. [] The IGP or OverheadIGP.
 /// 1. [signer] The owner of the IGP account.
@@ -491,6 +493,11 @@ fn transfer_igp_variant_ownership<
     Ok(())
 }
 
+/// Gets an IGP variant and verifies the owner.
+///
+/// Accounts:
+/// 0. [] The IGP variant.
+/// 1. [signer] The owner of the IGP variant.
 fn get_igp_variant_and_verify_owner<
     'a,
     'b,
