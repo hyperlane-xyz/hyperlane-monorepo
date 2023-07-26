@@ -7,6 +7,7 @@ use solana_program::{
     pubkey,
     pubkey::Pubkey,
     system_program,
+    sysvar::rent::Rent,
 };
 use solana_program_test::*;
 use solana_sdk::{
@@ -20,6 +21,8 @@ use hyperlane_test_utils::{
 };
 use serializable_account_meta::SimulationReturnData;
 
+use access_control::AccessControl;
+use account_utils::{AccountData, Data};
 use hyperlane_sealevel_igp::{
     accounts::{
         GasOracle, GasPaymentAccount, GasPaymentData, Igp, IgpAccount, OverheadIgp,
@@ -1314,4 +1317,261 @@ async fn test_claim() {
         beneficiary_balance_after - beneficiary_balance_before,
         claim_amount,
     );
+
+    // Make sure the IGP account is still rent exempt
+    let igp_account = banks_client.get_account(igp_key).await.unwrap().unwrap();
+    let rent_exempt_balance = Rent::default().minimum_balance(igp_account.data.len());
+    assert_eq!(igp_account.lamports, rent_exempt_balance);
+}
+
+// ============ SetIgpBeneficiary ============
+
+#[tokio::test]
+async fn test_set_igp_beneficiary() {
+    let program_id = igp_program_id();
+    let (mut banks_client, payer) = setup_client().await;
+
+    initialize(&mut banks_client, &payer).await.unwrap();
+
+    let salt = H256::random();
+
+    let (igp_key, _igp_bump_seed) = initialize_igp(
+        &mut banks_client,
+        &payer,
+        salt,
+        Some(payer.pubkey()),
+        payer.pubkey(),
+    )
+    .await
+    .unwrap();
+
+    let new_beneficiary = Pubkey::new_unique();
+
+    // Accounts:
+    // 0. [] The IGP.
+    // 1. [signer] The owner of the IGP account.
+    let instruction = Instruction::new_with_borsh(
+        program_id,
+        &IgpInstruction::SetIgpBeneficiary(new_beneficiary),
+        vec![
+            AccountMeta::new(igp_key, false),
+            AccountMeta::new_readonly(payer.pubkey(), true),
+        ],
+    );
+    process_instruction(&mut banks_client, instruction, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Expect the beneficiary to be set.
+    let igp_account = banks_client.get_account(igp_key).await.unwrap().unwrap();
+    let igp = IgpAccount::fetch(&mut &igp_account.data[..])
+        .unwrap()
+        .into_inner();
+
+    assert_eq!(igp.beneficiary, new_beneficiary,);
+}
+
+#[tokio::test]
+async fn test_set_igp_beneficiary_errors_if_owner_not_signer() {
+    let program_id = igp_program_id();
+    let (mut banks_client, payer) = setup_client().await;
+
+    initialize(&mut banks_client, &payer).await.unwrap();
+
+    let non_owner = new_funded_keypair(&mut banks_client, &payer, 1000000000).await;
+    let new_beneficiary = Pubkey::new_unique();
+
+    let salt = H256::random();
+
+    let (igp_key, _igp_bump_seed) = initialize_igp(
+        &mut banks_client,
+        &payer,
+        salt,
+        Some(payer.pubkey()),
+        payer.pubkey(),
+    )
+    .await
+    .unwrap();
+
+    // Accounts:
+    // 0. [] The IGP.
+    // 1. [signer] The owner of the IGP account.
+
+    // Try with the right owner passed in, but it's not a signer
+    let instruction = Instruction::new_with_borsh(
+        program_id,
+        &IgpInstruction::SetIgpBeneficiary(new_beneficiary),
+        vec![
+            AccountMeta::new(igp_key, false),
+            AccountMeta::new_readonly(payer.pubkey(), false),
+        ],
+    );
+    assert_transaction_error(
+        process_instruction(&mut banks_client, instruction, &non_owner, &[&non_owner]).await,
+        TransactionError::InstructionError(0, InstructionError::MissingRequiredSignature),
+    );
+
+    // Try with the wrong owner passed in, but it's a signer
+    let instruction = Instruction::new_with_borsh(
+        program_id,
+        &IgpInstruction::SetIgpBeneficiary(new_beneficiary),
+        vec![
+            AccountMeta::new(igp_key, false),
+            AccountMeta::new_readonly(non_owner.pubkey(), true),
+        ],
+    );
+    assert_transaction_error(
+        process_instruction(&mut banks_client, instruction, &non_owner, &[&non_owner]).await,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
+}
+
+// ============ TransferIgpOwnership & TransferOverheadIgpOwnership ============
+
+async fn run_transfer_ownership_tests<T: Data + AccessControl>(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    account_key: Pubkey,
+    transfer_ownership_instruction: impl Fn(Option<Pubkey>) -> IgpInstruction,
+) {
+    let program_id = igp_program_id();
+
+    let new_owner = new_funded_keypair(banks_client, payer, 1000000000).await;
+
+    // Accounts:
+    // 0. [] The IGP or Overhead IGP.
+    // 1. [signer] The owner of the account.
+    let instruction = Instruction::new_with_borsh(
+        program_id,
+        &transfer_ownership_instruction(Some(new_owner.pubkey())),
+        vec![
+            AccountMeta::new(account_key, false),
+            AccountMeta::new_readonly(payer.pubkey(), true),
+        ],
+    );
+    process_instruction(banks_client, instruction.clone(), payer, &[payer])
+        .await
+        .unwrap();
+
+    // Expect the owner to be set.
+    let account = banks_client
+        .get_account(account_key)
+        .await
+        .unwrap()
+        .unwrap();
+    let account_data = AccountData::<T>::fetch(&mut &account.data[..])
+        .unwrap()
+        .into_inner();
+
+    assert_eq!(account_data.owner(), Some(&new_owner.pubkey()),);
+
+    // Try to transfer ownership again, but now the payer isn't the owner anymore
+
+    // Try with the old (now incorrect) owner passed in and as a signer.
+    // Use a random new owner to ensure a different tx signature is used.
+    let instruction = Instruction::new_with_borsh(
+        program_id,
+        &transfer_ownership_instruction(Some(Pubkey::new_unique())),
+        vec![
+            AccountMeta::new(account_key, false),
+            AccountMeta::new_readonly(payer.pubkey(), true),
+        ],
+    );
+    assert_transaction_error(
+        process_instruction(banks_client, instruction, payer, &[payer]).await,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
+
+    // Try with the new owner passed in, but it's not a signer
+    let instruction = Instruction::new_with_borsh(
+        program_id,
+        &transfer_ownership_instruction(Some(new_owner.pubkey())),
+        vec![
+            AccountMeta::new(account_key, false),
+            AccountMeta::new_readonly(new_owner.pubkey(), false),
+        ],
+    );
+    assert_transaction_error(
+        process_instruction(banks_client, instruction, payer, &[payer]).await,
+        TransactionError::InstructionError(0, InstructionError::MissingRequiredSignature),
+    );
+
+    // Set the owner to None, and the new_owner should still not be able to transfer ownership
+    let instruction = Instruction::new_with_borsh(
+        program_id,
+        &transfer_ownership_instruction(None),
+        vec![
+            AccountMeta::new(account_key, false),
+            AccountMeta::new_readonly(new_owner.pubkey(), true),
+        ],
+    );
+    process_instruction(banks_client, instruction.clone(), &new_owner, &[&new_owner])
+        .await
+        .unwrap();
+
+    // Should not be able to transfer ownership anymore.
+    // Try setting a different owner to ensure a different tx signature is used.
+    let instruction = Instruction::new_with_borsh(
+        program_id,
+        &transfer_ownership_instruction(Some(Pubkey::new_unique())),
+        vec![
+            AccountMeta::new(account_key, false),
+            AccountMeta::new_readonly(new_owner.pubkey(), true),
+        ],
+    );
+    assert_transaction_error(
+        process_instruction(banks_client, instruction, &new_owner, &[&new_owner]).await,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
+}
+
+#[tokio::test]
+async fn test_transfer_igp_ownership() {
+    let (mut banks_client, payer) = setup_client().await;
+
+    initialize(&mut banks_client, &payer).await.unwrap();
+
+    let salt = H256::random();
+
+    let (igp_key, _igp_bump_seed) = initialize_igp(
+        &mut banks_client,
+        &payer,
+        salt,
+        Some(payer.pubkey()),
+        payer.pubkey(),
+    )
+    .await
+    .unwrap();
+
+    run_transfer_ownership_tests::<Igp>(&mut banks_client, &payer, igp_key, |owner| {
+        IgpInstruction::TransferIgpOwnership(owner)
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn test_transfer_overhead_igp_ownership() {
+    let (mut banks_client, payer) = setup_client().await;
+
+    initialize(&mut banks_client, &payer).await.unwrap();
+
+    let salt = H256::random();
+
+    let (overhead_igp_key, _igp_bump_seed) = initialize_overhead_igp(
+        &mut banks_client,
+        &payer,
+        salt,
+        Some(payer.pubkey()),
+        Pubkey::new_unique(),
+    )
+    .await
+    .unwrap();
+
+    run_transfer_ownership_tests::<OverheadIgp>(
+        &mut banks_client,
+        &payer,
+        overhead_igp_key,
+        |owner| IgpInstruction::TransferOverheadIgpOwnership(owner),
+    )
+    .await;
 }

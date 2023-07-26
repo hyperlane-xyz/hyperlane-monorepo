@@ -8,7 +8,7 @@ use solana_program::{
     clock::Clock,
     entrypoint::ProgramResult,
     msg,
-    program::{invoke, invoke_signed, set_return_data},
+    program::{invoke, set_return_data},
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
@@ -439,6 +439,8 @@ fn quote_gas_payment(
     Ok(())
 }
 
+/// Sets the beneficiary of an IGP.
+///
 /// Accounts:
 /// 0. [] The IGP.
 /// 1. [signer] The owner of the IGP account.
