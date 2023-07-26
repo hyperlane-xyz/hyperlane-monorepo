@@ -9,16 +9,11 @@ pub const PROGRAM_INSTRUCTION_DISCRIMINATOR: [u8; Discriminator::LENGTH] = [1, 1
 
 /// A wrapper type that prefixes data with a discriminator when Borsh (de)serialized.
 #[derive(Debug, Default, Clone, PartialEq)]
-pub struct DiscriminatorPrefixed<
-    T: DiscriminatorData + borsh::BorshSerialize + borsh::BorshDeserialize,
-> {
+pub struct DiscriminatorPrefixed<T> {
     pub data: T,
 }
 
-impl<T> DiscriminatorPrefixed<T>
-where
-    T: DiscriminatorData + borsh::BorshSerialize + borsh::BorshDeserialize,
-{
+impl<T> DiscriminatorPrefixed<T> {
     pub fn new(data: T) -> Self {
         Self { data }
     }
@@ -26,7 +21,7 @@ where
 
 impl<T> BorshSerialize for DiscriminatorPrefixed<T>
 where
-    T: DiscriminatorData + borsh::BorshSerialize + borsh::BorshDeserialize,
+    T: DiscriminatorData + borsh::BorshSerialize
 {
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
         PROGRAM_INSTRUCTION_DISCRIMINATOR.serialize(writer)?;
@@ -36,7 +31,7 @@ where
 
 impl<T> BorshDeserialize for DiscriminatorPrefixed<T>
 where
-    T: DiscriminatorData + borsh::BorshSerialize + borsh::BorshDeserialize,
+    T: DiscriminatorData + borsh::BorshDeserialize,
 {
     fn deserialize(buf: &mut &[u8]) -> std::io::Result<Self> {
         let (discriminator, rest) = buf.split_at(Discriminator::LENGTH);
@@ -54,7 +49,7 @@ where
 
 impl<T> SizedData for DiscriminatorPrefixed<T>
 where
-    T: SizedData + DiscriminatorData + borsh::BorshSerialize + borsh::BorshDeserialize,
+    T: SizedData
 {
     fn size(&self) -> usize {
         // 8 byte discriminator prefix
@@ -62,10 +57,7 @@ where
     }
 }
 
-impl<T> Deref for DiscriminatorPrefixed<T>
-where
-    T: DiscriminatorData + borsh::BorshSerialize + borsh::BorshDeserialize,
-{
+impl<T> Deref for DiscriminatorPrefixed<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -73,10 +65,7 @@ where
     }
 }
 
-impl<T> From<T> for DiscriminatorPrefixed<T>
-where
-    T: DiscriminatorData + borsh::BorshSerialize + borsh::BorshDeserialize,
-{
+impl<T> From<T> for DiscriminatorPrefixed<T> {
     fn from(data: T) -> Self {
         Self::new(data)
     }
