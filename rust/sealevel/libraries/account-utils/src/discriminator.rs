@@ -19,7 +19,7 @@ impl<T> DiscriminatorPrefixed<T>
 where
     T: DiscriminatorData + borsh::BorshSerialize + borsh::BorshDeserialize,
 {
-    fn new(data: T) -> Self {
+    pub fn new(data: T) -> Self {
         Self { data }
     }
 }

@@ -35,11 +35,17 @@ pub struct AccountData<T> {
     data: Box<T>,
 }
 
-impl<T> From<T> for AccountData<T> {
-    fn from(data: T) -> Self {
+impl<T> AccountData<T> {
+    pub fn new(data: T) -> Self {
         Self {
             data: Box::new(data),
         }
+    }
+}
+
+impl<T> From<T> for AccountData<T> {
+    fn from(data: T) -> Self {
+        Self::new(data)
     }
 }
 

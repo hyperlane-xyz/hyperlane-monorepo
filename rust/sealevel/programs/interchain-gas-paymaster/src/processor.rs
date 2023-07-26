@@ -1,3 +1,5 @@
+//! Program state processor.
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use std::collections::HashMap;
 
@@ -24,8 +26,8 @@ use serializable_account_meta::SimulationReturnData;
 
 use crate::{
     accounts::{
-        GasPayment, GasPaymentAccount, GasPaymentData, Igp, IgpAccount, OverheadIgp,
-        OverheadIgpAccount, ProgramData, ProgramDataAccount,
+        GasPaymentAccount, GasPaymentData, Igp, IgpAccount, OverheadIgp, OverheadIgpAccount,
+        ProgramData, ProgramDataAccount,
     },
     igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
     instruction::{
@@ -38,7 +40,7 @@ use crate::{
 #[cfg(not(feature = "no-entrypoint"))]
 entrypoint!(process_instruction);
 
-/// Entrypoint for the Mailbox program.
+/// Entrypoint for the IGP program.
 pub fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -88,7 +90,7 @@ pub fn process_instruction(
 /// Accounts:
 /// 0. [executable] The system program.
 /// 1. [signer] The payer account.
-/// 2. [writeable] The program data account.
+/// 2. [writeable] The program data PDA account.
 fn init(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
@@ -289,9 +291,12 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
     if igp_info.owner != program_id {
         return Err(ProgramError::IncorrectProgramId);
     }
-    // TODO do we need to verify the IGP is a PDA
-
     let igp = IgpAccount::fetch(&mut &igp_info.data.borrow()[..])?.into_inner();
+    let igp_key =
+        Pubkey::create_program_address(igp_pda_seeds!(igp.salt, igp.bump_seed), program_id)?;
+    if igp_info.key != &igp_key {
+        return Err(ProgramError::InvalidSeeds);
+    }
 
     // Account 4: The unique gas payment account.
     // Uniqueness is enforced by making sure the message storage PDA based on
@@ -317,15 +322,17 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
     // The caller is expected to only provide an overhead IGP they are comfortable
     // with / have configured themselves.
     let gas_amount = if let Some(overhead_igp_info) = accounts_iter.next() {
-        // TODO do we need to verify the Overhead IGP is a PDA
         if overhead_igp_info.owner != program_id {
             return Err(ProgramError::IncorrectProgramId);
         }
 
         let overhead_igp =
             OverheadIgpAccount::fetch(&mut &overhead_igp_info.data.borrow()[..])?.into_inner();
-
-        if overhead_igp.inner != *igp_info.key {
+        let overhead_igp_key = Pubkey::create_program_address(
+            overhead_igp_pda_seeds!(overhead_igp.salt, overhead_igp.bump_seed),
+            program_id,
+        )?;
+        if overhead_igp_key != *overhead_igp_info.key || overhead_igp.inner != *igp_info.key {
             return Err(ProgramError::InvalidArgument);
         }
 
@@ -342,34 +349,44 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
         &[payer_info.clone(), igp_info.clone()],
     )?;
 
-    let gas_payment: GasPayment = GasPaymentData {
-        sequence_number: program_data.payment_count,
-        igp: *igp_info.key,
-        destination_domain: payment.destination_domain,
-        message_id: payment.message_id,
-        gas_amount,
-        slot: Clock::get()?.slot,
-    }
-    .into();
-    let gas_payment_size = gas_payment.size();
+    let gas_payment_account = GasPaymentAccount::new(
+        GasPaymentData {
+            sequence_number: program_data.payment_count,
+            igp: *igp_info.key,
+            destination_domain: payment.destination_domain,
+            message_id: payment.message_id,
+            gas_amount,
+            slot: Clock::get()?.slot,
+        }
+        .into(),
+    );
+    let gas_payment_account_size = gas_payment_account.size();
 
     let rent = Rent::get()?;
 
     create_pda_account(
         payer_info,
         &rent,
-        gas_payment_size,
+        gas_payment_account_size,
         program_id,
         system_program_info,
         gas_payment_account_info,
         igp_gas_payment_pda_seeds!(unique_message_account_info.key, gas_payment_bump),
     )?;
 
-    GasPaymentAccount::from(gas_payment).store(gas_payment_account_info, false)?;
+    gas_payment_account.store(gas_payment_account_info, false)?;
 
     // Increment the payment count and update the program data.
     program_data.payment_count += 1;
     ProgramDataAccount::from(program_data).store(program_data_info, false)?;
+
+    msg!(
+        "Paid IGP {} for {} gas for message {} to {}",
+        igp_key,
+        gas_amount,
+        payment.message_id,
+        payment.destination_domain
+    );
 
     Ok(())
 }

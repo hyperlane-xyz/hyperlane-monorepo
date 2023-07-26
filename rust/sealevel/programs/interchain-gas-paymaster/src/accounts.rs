@@ -11,13 +11,18 @@ use hyperlane_core::{H256, U256};
 
 use crate::error::Error;
 
+/// The scale for token exchange rates, i.e. a token exchange rate of 1.0 is
+/// represented as 10^19.
 pub const TOKEN_EXCHANGE_RATE_SCALE: u64 = 10u64.pow(19);
+/// The number of decimals for the native SOL token.
 pub const SOL_DECIMALS: u8 = 9;
 
+/// A gas oracle that provides gas data for a remote chain.
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Clone)]
 pub enum GasOracle {
+    /// Remote gas data stored directly in the variant data.
     RemoteGasData(RemoteGasData),
-    // Could imagine a Pyth type, or CPI type, etc...
+    // Future gas oracle variants could include a Pyth type, generalized CPI type, etc.
 }
 
 impl Default for GasOracle {
@@ -26,9 +31,15 @@ impl Default for GasOracle {
     }
 }
 
+/// The account for the program's global data.
+pub type ProgramDataAccount = AccountData<ProgramData>;
+
+/// A singleton account that stores the program's global data.
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
 pub struct ProgramData {
+    /// The bump seed for the program data PDA.
     pub bump_seed: u8,
+    /// The number of gas payments made by in the program.
     pub payment_count: u64,
 }
 
@@ -40,18 +51,28 @@ impl SizedData for ProgramData {
     }
 }
 
-pub type ProgramDataAccount = AccountData<ProgramData>;
+/// An overhead IGP account.
+pub type OverheadIgpAccount = AccountData<OverheadIgp>;
 
+/// Overhead IGP account data, intended to be configured with gas overheads
+/// to impose on application-specified gas payment amounts.
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
 pub struct OverheadIgp {
+    /// The bump seed for the overhead IGP PDA.
     pub bump_seed: u8,
+    /// The salt used to derive the overhead IGP PDA.
     pub salt: H256,
+    /// The owner of the overhead IGP.
     pub owner: Option<Pubkey>,
+    /// The inner IGP account.
     pub inner: Pubkey,
+    /// The gas overheads to impose on gas payments to each destination domain.
     pub gas_overheads: HashMap<u32, u64>,
 }
 
 impl OverheadIgp {
+    /// Returns the gas overhead to impose on gas payments to the given
+    /// destination domain. Defaults to 0 if a gas overhead is not set for the domain.
     pub fn gas_overhead(&self, destination_domain: u32) -> u64 {
         self.gas_overheads
             .get(&destination_domain)
@@ -59,6 +80,7 @@ impl OverheadIgp {
             .unwrap_or(0)
     }
 
+    /// Quotes a gas payment, considering the gas overhead if one is present.
     #[allow(unused)]
     pub fn quote_gas_payment(
         &self,
@@ -82,8 +104,6 @@ impl AccessControl for OverheadIgp {
     }
 }
 
-pub type OverheadIgpAccount = AccountData<OverheadIgp>;
-
 impl SizedData for OverheadIgp {
     fn size(&self) -> usize {
         // 1 for bump_seed
@@ -96,14 +116,21 @@ impl SizedData for OverheadIgp {
     }
 }
 
+/// An IGP account.
 pub type IgpAccount = AccountData<Igp>;
 
+/// IGP account data.
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
 pub struct Igp {
+    /// The bump seed for the IGP PDA.
     pub bump_seed: u8,
+    /// The salt used to derive the IGP PDA.
     pub salt: H256,
+    /// The owner of the IGP.
     pub owner: Option<Pubkey>,
+    /// The beneficiary of the IGP.
     pub beneficiary: Pubkey,
+    /// The gas oracles for each destination domain.
     pub gas_oracles: HashMap<u32, GasOracle>,
 }
 
@@ -120,6 +147,8 @@ impl SizedData for Igp {
 }
 
 impl Igp {
+    /// Quotes a gas payment.
+    /// Returns an error if a gas oracle is not set for the destination domain.
     pub fn quote_gas_payment(
         &self,
         destination_domain: u32,
@@ -163,10 +192,16 @@ impl AccessControl for Igp {
     }
 }
 
+/// Remote gas data.
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default, Clone)]
 pub struct RemoteGasData {
+    /// The token exchange rate for the remote token, adjusted by the
+    /// TOKEN_EXCHANGE_RATE_SCALE.
+    /// If this e.g. 0.2, then one local token would give you 5 remote tokens.
     pub token_exchange_rate: u128,
+    /// The gas price for the remote chain.
     pub gas_price: u128,
+    /// The number of decimals for the remote token.
     pub token_decimals: u8,
 }
 
@@ -174,37 +209,46 @@ pub struct RemoteGasData {
 /// This is the first 8 bytes of the account data.
 pub const GAS_PAYMENT_DISCRIMINATOR: &[u8; 8] = b"GASPAYMT";
 
+/// A gas payment account, relating to a single gas payment.
+pub type GasPaymentAccount = AccountData<GasPayment>;
+
+/// Gas payment account data, prefixed with a discriminator.
 pub type GasPayment = DiscriminatorPrefixed<GasPaymentData>;
 
 impl DiscriminatorData for GasPaymentData {
     const DISCRIMINATOR: [u8; 8] = *GAS_PAYMENT_DISCRIMINATOR;
 }
 
+/// Gas payment account data.
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
 pub struct GasPaymentData {
+    /// The sequence number of the gas payment.
     pub sequence_number: u64,
+    /// The IGP that the gas payment is for.
     pub igp: Pubkey,
+    /// The destination domain of the gas payment.
     pub destination_domain: u32,
+    /// The message ID of the gas payment.
     pub message_id: H256,
+    /// The amount of gas paid for.
     pub gas_amount: u64,
+    /// The slot of the gas payment.
     pub slot: Slot,
 }
 
 impl SizedData for GasPaymentData {
     fn size(&self) -> usize {
-        // 8 for discriminator
         // 8 for sequence_number
         // 32 for igp
         // 4 for destination_domain
         // 32 for message_id
         // 8 for gas_amount
         // 8 for slot
-        8 + 32 + 8 + 4 + 32 + 8 + 8
+        8 + 32 + 4 + 32 + 8 + 8
     }
 }
 
-pub type GasPaymentAccount = AccountData<GasPayment>;
-
+/// Converts `num` from `from_decimals` to `to_decimals`.
 fn convert_decimals(num: U256, from_decimals: u8, to_decimals: u8) -> U256 {
     match from_decimals.cmp(&to_decimals) {
         Ordering::Greater => num / U256::from(10u64).pow(U256::from(from_decimals - to_decimals)),
