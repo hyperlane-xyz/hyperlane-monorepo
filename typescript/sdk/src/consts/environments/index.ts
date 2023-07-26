@@ -10,7 +10,7 @@ export const hyperlaneEnvironments = { test, testnet, mainnet };
 
 export type HyperlaneEnvironment = keyof typeof hyperlaneEnvironments;
 export type HyperlaneEnvironmentChain<E extends HyperlaneEnvironment> = Extract<
-  keyof typeof hyperlaneEnvironments[E],
+  keyof (typeof hyperlaneEnvironments)[E],
   ChainName
 >;
 
@@ -18,4 +18,7 @@ export type HyperlaneEnvironmentChain<E extends HyperlaneEnvironment> = Extract<
 export const hyperlaneContractAddresses = objMerge(
   hyperlaneEnvironments.testnet,
   hyperlaneEnvironments.mainnet,
-) as Record<CoreChainName, typeof hyperlaneEnvironments['mainnet']['ethereum']>;
+) as Record<
+  CoreChainName,
+  (typeof hyperlaneEnvironments)['mainnet']['ethereum']
+>;
