@@ -1,7 +1,14 @@
 import chalk from 'chalk';
 import { CommandModule } from 'yargs';
 
-import { Mainnets, Testnets, chainMetadata } from '@hyperlane-xyz/sdk';
+import {
+  Chains,
+  CoreChainName,
+  Mainnets,
+  Testnets,
+  chainMetadata,
+  hyperlaneContractAddresses,
+} from '@hyperlane-xyz/sdk';
 
 /**
  * Parent command
@@ -9,7 +16,8 @@ import { Mainnets, Testnets, chainMetadata } from '@hyperlane-xyz/sdk';
 export const chainsCommand: CommandModule = {
   command: 'chains',
   describe: 'View information about core Hyperlane chains',
-  builder: (yargs) => yargs.command(listCommand).demandCommand(),
+  builder: (yargs) =>
+    yargs.command(listCommand).command(addressesCommand).demandCommand(),
   handler: () => console.log('Command required'),
 };
 
@@ -31,5 +39,33 @@ const listCommand: CommandModule = {
     console.log(
       Testnets.map((chain) => chainMetadata[chain].displayName).join(', '),
     );
+  },
+};
+
+/**
+ * Addresses command
+ */
+const addressesCommand: CommandModule = {
+  command: 'addresses',
+  describe: 'Display the addresses of core Hyperlane contracts',
+  builder: (yargs) =>
+    yargs.options({
+      name: {
+        type: 'string',
+        description: 'Chain to display addresses for',
+        choices: Object.values(Chains),
+      },
+    }),
+  handler: (args) => {
+    const name = args.name as CoreChainName | undefined;
+    if (name && hyperlaneContractAddresses[name]) {
+      console.log(chalk.blue('Hyperlane contract addresses for:', name));
+      console.log(chalk.gray('---------------------------------'));
+      console.log(JSON.stringify(hyperlaneContractAddresses[name], null, 2));
+    } else {
+      console.log(chalk.blue('Hyperlane core contract addresses:'));
+      console.log(chalk.gray('----------------------------------'));
+      console.log(JSON.stringify(hyperlaneContractAddresses, null, 2));
+    }
   },
 };
