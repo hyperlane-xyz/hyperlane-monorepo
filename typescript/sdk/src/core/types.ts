@@ -7,7 +7,7 @@ import { IsmConfig } from '../ism/types';
 import { ChainName } from '../types';
 
 export type CoreConfig = {
-  defaultIsm: IsmConfig;
+  defaultIsm: IsmConfig | types.Address;
   owner: types.Address;
   remove?: boolean;
   upgrade?: UpgradeConfig;

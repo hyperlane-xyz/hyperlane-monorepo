@@ -356,11 +356,15 @@ export async function moduleCanCertainlyVerify(
 export async function moduleMatchesConfig(
   chain: ChainName,
   moduleAddress: types.Address,
-  config: IsmConfig,
+  config: IsmConfig | types.Address,
   multiProvider: MultiProvider,
   contracts: HyperlaneContracts<IsmFactoryFactories>,
   origin?: ChainName,
 ): Promise<boolean> {
+  if (typeof config === 'string') {
+    return utils.eqAddress(moduleAddress, config);
+  }
+
   const provider = multiProvider.getProvider(chain);
   const module = IInterchainSecurityModule__factory.connect(
     moduleAddress,
@@ -483,8 +487,14 @@ export async function moduleMatchesConfig(
 
 export function collectValidators(
   origin: ChainName,
-  config: IsmConfig,
+  config: IsmConfig | types.Address,
 ): Set<string> {
+  // TODO: support address configurations in collectValidators
+  if (typeof config === 'string') {
+    console.warn('Validators not fetched from address ISM config');
+    return new Set([]);
+  }
+
   let validators: string[] = [];
   if (
     config.type === ModuleType.MERKLE_ROOT_MULTISIG ||
