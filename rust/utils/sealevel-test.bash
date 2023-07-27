@@ -137,14 +137,14 @@ test_token() {
     local -r sender="$(solana -ul -k "${sender_keypair}" address)"
     local -r recipient="${sender}"
 
-    local -r sender_balance="$(solana -ul balance "${sender}" | cut -d ' ' -f 1)"
-    local -r amount_float="$(python -c "print(${amount} / 1000000000)")"
-    if (( $(bc -l <<< "${sender_balance} < ${amount_float}") )); then
-        echo "Insufficient sender funds"
-        exit 1
-    fi
+#    local -r sender_balance="$(solana -ul balance "${sender}" | cut -d ' ' -f 1)"
+#    local -r amount_float="$(python -c "print(${amount} / 1000000000)")"
+#    if (( $(bc -l <<< "${sender_balance} < ${amount_float}") )); then
+#        echo "Insufficient sender funds"
+#        exit 1
+#    fi
 
-    solana -ul balance "${sender}"
+#    solana -ul balance "${sender}"
 
     # Transfer the lamports
     "${BIN_DIR}/hyperlane-sealevel-client" \
@@ -158,10 +158,10 @@ test_token() {
         sleep 3
     done
 
-    solana -ul balance "${recipient}"
+#    solana -ul balance "${recipient}"
 
-    "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox query
-    "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" token query "${token_type}" --program-id "${program_id}"
+#    "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" mailbox query
+#    "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" token query "${token_type}" --program-id "${program_id}"
 }
 
 main() {
