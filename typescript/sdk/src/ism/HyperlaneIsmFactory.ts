@@ -69,7 +69,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     config: IsmConfig,
     origin?: ChainName,
   ): Promise<DeployedIsm> {
-    console.log({ config });
     if (
       config.type === ModuleType.MERKLE_ROOT_MULTISIG ||
       config.type === ModuleType.MESSAGE_ID_MULTISIG ||
