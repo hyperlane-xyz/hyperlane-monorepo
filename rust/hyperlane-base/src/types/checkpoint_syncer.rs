@@ -163,7 +163,6 @@ impl MultisigCheckpointSyncerConf {
         for (key, value) in self.checkpointsyncers.iter() {
             let gauge =
                 validator_checkpoint_index.with_label_values(&[origin, &key.to_lowercase()]);
-            // FIXME we can't use 20 byte wallet address here for sealevel (32 bytes)
             if let Ok(conf) = value.build(Some(gauge)) {
                 checkpoint_syncers.insert(H160::from_str(key)?, conf.into());
             } else {
