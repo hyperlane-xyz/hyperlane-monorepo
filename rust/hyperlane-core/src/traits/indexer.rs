@@ -43,3 +43,11 @@ pub trait MessageIndexer: Indexer<HyperlaneMessage> + 'static {
     /// Return the latest finalized mailbox count and block number
     async fn fetch_count_at_tip(&self) -> ChainResult<(u32, u32)>;
 }
+
+/// Interface for indexing data in sequence. Currently used in non-EVM chains
+#[async_trait]
+#[auto_impl(&, Box, Arc)]
+pub trait SequenceIndexer<T>: Indexer<T> + 'static {
+    /// Return the latest finalized nonce and block number
+    async fn nonce_at_tip(&self) -> ChainResult<(u32, u32)>;
+}

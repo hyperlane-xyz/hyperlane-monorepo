@@ -286,13 +286,17 @@ impl Relayer {
         &self,
         origin: &HyperlaneDomain,
     ) -> Instrumented<JoinHandle<eyre::Result<()>>> {
-        let index_settings = self.as_ref().settings.chains[origin.name()].index.clone();
+        let chain_conf = self.as_ref().settings.chains[origin.name()].clone();
+        let index_settings = chain_conf.index.clone();
+        let index_mode = chain_conf.domain.index_mode();
         let contract_sync = self
             .interchain_gas_payment_syncs
             .get(origin)
             .unwrap()
             .clone();
-        let cursor = contract_sync.rate_limited_cursor(index_settings).await;
+        let cursor = contract_sync
+            .rate_limited_cursor(index_settings, index_mode)
+            .await;
         tokio::spawn(async move { contract_sync.clone().sync("gas_payments", cursor).await })
             .instrument(info_span!("ContractSync"))
     }

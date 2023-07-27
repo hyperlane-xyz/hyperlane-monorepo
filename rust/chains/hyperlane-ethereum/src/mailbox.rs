@@ -10,6 +10,7 @@ use async_trait::async_trait;
 use ethers::abi::AbiEncode;
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
+use hyperlane_core::SequenceIndexer;
 use tracing::instrument;
 
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
@@ -66,7 +67,7 @@ pub struct DeliveryIndexerBuilder {
 
 #[async_trait]
 impl BuildableWithProvider for DeliveryIndexerBuilder {
-    type Output = Box<dyn Indexer<H256>>;
+    type Output = Box<dyn SequenceIndexer<H256>>;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
@@ -189,6 +190,17 @@ where
             .collect())
     }
 }
+
+#[async_trait]
+impl<M> SequenceIndexer<H256> for EthereumMailboxIndexer<M>
+where
+    M: Middleware + 'static,
+{
+    async fn nonce_at_tip(&self) -> ChainResult<(u32, u32)> {
+        panic!("Gas payment nonce indexing not implemented");
+    }
+}
+
 pub struct MailboxBuilder {}
 
 #[async_trait]

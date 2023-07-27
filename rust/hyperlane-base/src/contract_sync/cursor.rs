@@ -14,7 +14,7 @@ use tracing::{debug, warn};
 
 use hyperlane_core::{
     ChainResult, ContractSyncCursor, CursorAction, HyperlaneMessage, HyperlaneMessageStore,
-    HyperlaneWatermarkedLogStore, IndexMode, Indexer, LogMeta, MessageIndexer,
+    HyperlaneWatermarkedLogStore, IndexMode, Indexer, LogMeta, MessageIndexer, SequenceIndexer,
 };
 
 use crate::contract_sync::eta_calculator::SyncerEtaCalculator;
@@ -36,6 +36,11 @@ pub(crate) struct MessageSyncCursor {
     /// The next block that should be indexed.
     next_block: u32,
     /// The next nonce that the cursor is looking for.
+    /// In the EVM, this is used for optimizing indexing,
+    /// because it's cheaper to make read calls for the nonce than
+    /// to call `eth_getLogs` with a block range.
+    /// In Sealevel, historic queries aren't supported, so the nonce field
+    /// is used to query storage in sequence.
     next_nonce: u32,
 }
 
@@ -334,7 +339,7 @@ impl ContractSyncCursor<HyperlaneMessage> for ForwardBackwardMessageSyncCursor {
 /// queried is and also handling rate limiting. Rate limiting is automatically
 /// performed by `next_action`.
 pub(crate) struct RateLimitedContractSyncCursor<T> {
-    indexer: Arc<dyn Indexer<T>>,
+    indexer: Arc<dyn SequenceIndexer<T>>,
     db: Arc<dyn HyperlaneWatermarkedLogStore<T>>,
     tip: u32,
     last_tip_update: Instant,
@@ -342,15 +347,19 @@ pub(crate) struct RateLimitedContractSyncCursor<T> {
     from: u32,
     eta_calculator: SyncerEtaCalculator,
     initial_height: u32,
+    mode: IndexMode,
+    /// Field only used for the `Sequence` indexing mode in this cursor.
+    next_nonce: u32,
 }
 
 impl<T> RateLimitedContractSyncCursor<T> {
     /// Construct a new contract sync helper.
     pub async fn new(
-        indexer: Arc<dyn Indexer<T>>,
+        indexer: Arc<dyn SequenceIndexer<T>>,
         db: Arc<dyn HyperlaneWatermarkedLogStore<T>>,
         chunk_size: u32,
         initial_height: u32,
+        mode: IndexMode,
     ) -> Result<Self> {
         let tip = indexer.get_finalized_block_number().await?;
         Ok(Self {
@@ -362,6 +371,8 @@ impl<T> RateLimitedContractSyncCursor<T> {
             from: initial_height,
             initial_height,
             eta_calculator: SyncerEtaCalculator::new(initial_height, tip, ETA_TIME_WINDOW),
+            mode,
+            next_nonce: Default::default(),
         })
     }
 
@@ -416,11 +427,20 @@ where
             CursorAction::Sleep(rate_limit)
         } else {
             self.from = to + 1;
-            // TODO: note at the moment IndexModes are not considered here, and
-            // block-based indexing is always used.
-            // This should be changed when Sealevel IGP indexing is implemented,
-            // along with a refactor to better accommodate indexing modes.
-            CursorAction::Query(from..=to)
+            let range = match self.mode {
+                IndexMode::Block => from..=to,
+                IndexMode::Sequence => {
+                    let sequence_start = self.next_nonce;
+                    let (nonce_count, tip) = self.indexer.nonce_at_tip().await?;
+                    self.last_tip_update = Instant::now();
+                    self.tip = tip;
+                    let sequence_end = u32::min(nonce_count, sequence_start + MAX_SEQUENCE_RANGE);
+                    self.next_nonce = sequence_end + 1;
+
+                    sequence_start..=sequence_end
+                }
+            };
+            CursorAction::Query(range)
         };
         Ok((action, eta))
     }

@@ -1,5 +1,3 @@
-#![allow(missing_docs)]
-
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::ops::RangeInclusive;
@@ -7,13 +5,12 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::prelude::Middleware;
-use tracing::instrument;
-
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster,
-    InterchainGasPayment, LogMeta, H160, H256,
+    InterchainGasPayment, LogMeta, SequenceIndexer, H160, H256,
 };
+use tracing::instrument;
 
 use crate::contracts::i_interchain_gas_paymaster::{
     IInterchainGasPaymaster as EthereumInterchainGasPaymasterInternal, IINTERCHAINGASPAYMASTER_ABI,
@@ -37,7 +34,7 @@ pub struct InterchainGasPaymasterIndexerBuilder {
 
 #[async_trait]
 impl BuildableWithProvider for InterchainGasPaymasterIndexerBuilder {
-    type Output = Box<dyn Indexer<InterchainGasPayment>>;
+    type Output = Box<dyn SequenceIndexer<InterchainGasPayment>>;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
@@ -122,6 +119,16 @@ where
             .map_err(ChainCommunicationError::from_other)?
             .as_u32()
             .saturating_sub(self.finality_blocks))
+    }
+}
+
+#[async_trait]
+impl<M> SequenceIndexer<InterchainGasPayment> for EthereumInterchainGasPaymasterIndexer<M>
+where
+    M: Middleware + 'static,
+{
+    async fn nonce_at_tip(&self) -> ChainResult<(u32, u32)> {
+        panic!("Gas payment nonce indexing not implemented");
     }
 }
 

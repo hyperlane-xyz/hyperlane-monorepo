@@ -10,8 +10,8 @@ use ethers_prometheus::middleware::{
 use hyperlane_core::{
     config::*, utils::hex_or_base58_to_h256, AggregationIsm, CcipReadIsm, ContractLocator,
     HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneProvider, HyperlaneSigner,
-    Indexer, InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
-    MessageIndexer, MultisigIsm, RoutingIsm, ValidatorAnnounce, H256,
+    InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
+    MessageIndexer, MultisigIsm, RoutingIsm, SequenceIndexer, ValidatorAnnounce, H256,
 };
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
@@ -379,7 +379,7 @@ impl ChainConf {
     pub async fn build_delivery_indexer(
         &self,
         metrics: &CoreMetrics,
-    ) -> Result<Box<dyn Indexer<H256>>> {
+    ) -> Result<Box<dyn SequenceIndexer<H256>>> {
         let ctx = "Building delivery indexer";
         let locator = self.locator(self.addresses.mailbox);
 
@@ -399,7 +399,7 @@ impl ChainConf {
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
-                Ok(indexer as Box<dyn Indexer<H256>>)
+                Ok(indexer as Box<dyn SequenceIndexer<H256>>)
             }
         }
         .context(ctx)
@@ -440,7 +440,7 @@ impl ChainConf {
     pub async fn build_interchain_gas_payment_indexer(
         &self,
         metrics: &CoreMetrics,
-    ) -> Result<Box<dyn Indexer<InterchainGasPayment>>> {
+    ) -> Result<Box<dyn SequenceIndexer<InterchainGasPayment>>> {
         let ctx = "Building IGP indexer";
         let locator = self.locator(self.addresses.interchain_gas_paymaster);
 
@@ -463,7 +463,7 @@ impl ChainConf {
                 let indexer = Box::new(h_sealevel::SealevelInterchainGasPaymasterIndexer::new(
                     conf, locator,
                 ));
-                Ok(indexer as Box<dyn Indexer<InterchainGasPayment>>)
+                Ok(indexer as Box<dyn SequenceIndexer<InterchainGasPayment>>)
             }
         }
         .context(ctx)

@@ -234,7 +234,7 @@ macro_rules! spawn_sync_task {
                 .await
                 .unwrap();
             let cursor = sync
-                .$cursor(index_settings.clone())
+                .$cursor(index_settings.clone(), domain.clone().index_mode())
                 .await;
                 tokio::spawn(async move {
                     sync

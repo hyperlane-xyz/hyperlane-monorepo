@@ -6,7 +6,7 @@ use cursor::*;
 use hyperlane_core::{
     utils::fmt_sync_time, ContractSyncCursor, CursorAction, HyperlaneDomain, HyperlaneLogStore,
     HyperlaneMessage, HyperlaneMessageStore, HyperlaneWatermarkedLogStore, IndexMode, Indexer,
-    MessageIndexer,
+    MessageIndexer, SequenceIndexer,
 };
 pub use metrics::ContractSyncMetrics;
 use std::fmt::Debug;
@@ -91,7 +91,7 @@ where
 
 /// A ContractSync for syncing events using a RateLimitedContractSyncCursor
 pub type WatermarkContractSync<T> =
-    ContractSync<T, Arc<dyn HyperlaneWatermarkedLogStore<T>>, Arc<dyn Indexer<T>>>;
+    ContractSync<T, Arc<dyn HyperlaneWatermarkedLogStore<T>>, Arc<dyn SequenceIndexer<T>>>;
 impl<T> WatermarkContractSync<T>
 where
     T: Debug + Send + Sync + Clone + 'static,
@@ -100,6 +100,7 @@ where
     pub async fn rate_limited_cursor(
         &self,
         index_settings: IndexSettings,
+        index_mode: IndexMode,
     ) -> Box<dyn ContractSyncCursor<T>> {
         let watermark = self.db.retrieve_high_watermark().await.unwrap();
         let index_settings = IndexSettings {
@@ -112,6 +113,7 @@ where
                 self.db.clone(),
                 index_settings.chunk_size,
                 index_settings.from,
+                index_mode,
             )
             .await
             .unwrap(),

@@ -11,7 +11,7 @@ use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     ContractLocator, Decode as _, Encode as _, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox,
-    MessageIndexer, TxCostEstimate, TxOutcome, H256, U256,
+    MessageIndexer, SequenceIndexer, TxCostEstimate, TxOutcome, H256, U256,
 };
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
@@ -730,6 +730,14 @@ impl Indexer<H256> for SealevelMailboxIndexer {
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         self.get_finalized_block_number().await
+    }
+}
+
+#[async_trait]
+impl SequenceIndexer<H256> for SealevelMailboxIndexer {
+    async fn nonce_at_tip(&self) -> ChainResult<(u32, u32)> {
+        info!("Gas payment nonce indexing not implemented");
+        Ok((1, 1))
     }
 }
 
