@@ -11,7 +11,7 @@ use hyperlane_core::{
     config::*, utils::hex_or_base58_to_h256, AggregationIsm, CcipReadIsm, ContractLocator,
     HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneProvider, HyperlaneSigner,
     InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
-    MessageIndexer, MultisigIsm, RoutingIsm, SequenceIndexer, ValidatorAnnounce, H256,
+    MessageIndexer, MultisigIsm, RoutingIsm, SequenceIndexer, ValidatorAnnounce, H256, IndexMode,
 };
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
@@ -298,6 +298,14 @@ impl ChainConf {
                 "Missing chain configuration for {}; this includes protocol type and the connection information",
                 self.domain.name()
             ))
+    }
+
+    /// Fetch the index settings and index mode, since they are often used together.
+    pub fn settings_and_mode(&self) -> (IndexSettings, IndexMode) {
+        (
+            self.index.clone(),
+            self.domain.index_mode()
+        )
     }
 
     /// Try to convert the chain settings into an HyperlaneProvider.
