@@ -195,6 +195,7 @@ export abstract class HyperlaneRouterDeployer<
     );
     await this.initConnectionClients(deployedContractsMap, configMap);
     await this.transferOwnership(deployedContractsMap, configMap);
+    this.logger(`Finished deploying router contracts for all chains.`);
 
     return deployedContractsMap;
   }

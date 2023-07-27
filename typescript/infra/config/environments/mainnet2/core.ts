@@ -1,25 +1,21 @@
 import {
+  AggregationIsmConfig,
   ChainMap,
   CoreConfig,
-  ModuleType,
-  RoutingIsmConfig,
-  defaultMultisigIsmConfigs,
   objMap,
 } from '@hyperlane-xyz/sdk';
 
-import { chainNames } from './chains';
+import { aggregationIsm } from '../../aggregationIsm';
+import { Contexts } from '../../contexts';
+
 import { owners } from './owners';
 
 export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
-  const defaultIsm: RoutingIsmConfig = {
-    type: ModuleType.ROUTING,
-    owner,
-    domains: Object.fromEntries(
-      Object.entries(defaultMultisigIsmConfigs).filter(
-        ([chain]) => chain !== local && chainNames.includes(chain),
-      ),
-    ),
-  };
+  const defaultIsm: AggregationIsmConfig = aggregationIsm(
+    'mainnet2',
+    local,
+    Contexts.Hyperlane,
+  );
 
   if (local === 'arbitrum') {
     return {
