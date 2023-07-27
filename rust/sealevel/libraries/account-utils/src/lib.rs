@@ -152,6 +152,8 @@ impl<T> AccountData<T>
 where
     T: Data + SizedData,
 {
+    /// Stores the account data in the given account, reallocing the account
+    /// if necessary, and ensuring it is rent exempt.
     pub fn store_with_rent_exempt_realloc<'a, 'b>(
         &self,
         account_info: &'a AccountInfo<'b>,

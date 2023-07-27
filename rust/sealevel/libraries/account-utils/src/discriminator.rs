@@ -78,6 +78,7 @@ pub trait DiscriminatorData: Sized {
     const DISCRIMINATOR_SLICE: &'static [u8] = &Self::DISCRIMINATOR;
 }
 
+/// Encodes the given data with a discriminator prefix.
 pub trait DiscriminatorEncode: DiscriminatorData + borsh::BorshSerialize {
     fn encode(self) -> Result<Vec<u8>, ProgramError> {
         let mut buf = vec![];
@@ -94,6 +95,7 @@ pub trait DiscriminatorEncode: DiscriminatorData + borsh::BorshSerialize {
 // Auto-implement
 impl<T> DiscriminatorEncode for T where T: DiscriminatorData + borsh::BorshSerialize {}
 
+/// Decodes the given data with a discriminator prefix.
 pub trait DiscriminatorDecode: DiscriminatorData + borsh::BorshDeserialize {
     fn decode(data: &[u8]) -> Result<Self, ProgramError> {
         let (discriminator, rest) = data.split_at(Discriminator::LENGTH);
