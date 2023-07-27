@@ -1,5 +1,4 @@
 use std::fs;
-use std::ops::Not;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -12,27 +11,22 @@ use crate::utils::{as_task, concat_path, AgentHandles, TaskHandle};
 use crate::{AGENT_BIN_PATH, SOLANA_CLI_VERSION};
 
 // Solana program tuples of:
-// 0: Relative path to solana program source code within the solana program library repo.
-// 1: Solana address or keypair for the bpf program
-// 2: Name of the program's shared object file
-const SOLANA_PROGRAMS: &[(&str, &str, &str)] = &[
+// 0: Solana address or keypair for the bpf program
+// 1: Name of the program's shared object file
+const SOLANA_PROGRAMS: &[(&str, &str)] = &[
     (
-        "token/program",
         "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
         "spl_token.so",
     ),
     (
-        "token/program-2022",
         "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
         "spl_token_2022.so",
     ),
     (
-        "associated-token-account/program",
         "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
         "spl_associated_token_account.so",
     ),
     (
-        "account-compression/programs/noop",
         "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV",
         "spl_noop.so",
     ),
@@ -52,9 +46,8 @@ const SOLANA_HYPERLANE_PROGRAMS: &[&str] = &[
     "hyperlane-sealevel-token-collateral",
 ];
 
-const SOLANA_PROGRAM_LIBRARY_REPO: &str =
-    "https://github.com/hyperlane-xyz/solana-program-library.git";
-const SOLANA_PROGRAM_LIBRARY_REPO_BRANCH: &str = "hyperlane";
+const SOLANA_PROGRAM_LIBRARY_ARCHIVE: &str =
+    "https://github.com/hyperlane-xyz/solana-program-library/releases/download/2023-07-27-01/spl.tar.gz";
 
 // Install the CLI tools and return the path to the bin dir.
 #[apply(as_task)]
@@ -113,30 +106,8 @@ pub fn install_solana_cli_tools() -> PathBuf {
 }
 
 #[apply(as_task)]
-pub fn clone_solana_program_library() -> PathBuf {
-    let solana_programs_path = concat_path("target", "solana-program-library");
-    if solana_programs_path.exists() {
-        fs::remove_dir_all(&solana_programs_path).expect("Failed to remove solana program dir");
-    }
-
-    // get solana program library
-
-    Program::new("git")
-        .cmd("clone")
-        .arg("branch", SOLANA_PROGRAM_LIBRARY_REPO_BRANCH)
-        .arg("depth", "1")
-        .cmd(SOLANA_PROGRAM_LIBRARY_REPO)
-        .cmd(solana_programs_path.to_str().unwrap())
-        .run()
-        .join();
-
-    solana_programs_path
-}
-
-#[apply(as_task)]
 pub fn build_solana_programs(
     solana_cli_tools_path: PathBuf,
-    solana_program_library_path: PathBuf,
 ) -> PathBuf {
     let out_path = Path::new(SBF_OUT_PATH);
     if out_path.exists() {
@@ -145,21 +116,32 @@ pub fn build_solana_programs(
     fs::create_dir_all(out_path).expect("Failed to create solana program deploy dir");
     let out_path = out_path.canonicalize().unwrap();
 
+    Program::new("curl")
+        .arg("output", "spl.tar.gz")
+        .flag("location")
+        .cmd(SOLANA_PROGRAM_LIBRARY_ARCHIVE)
+        .flag("silent")
+        .working_dir(&out_path)
+        .run()
+        .join();
+    log!("Uncompressing solana programs");
+
+    Program::new("tar")
+        .flag("extract")
+        .arg("file", "spl.tar.gz")
+        .working_dir(&out_path)
+        .run()
+        .join();
+    log!("Remove temporary solana files");
+    fs::remove_file(concat_path(&out_path, "spl.tar.gz"))
+        .expect("Failed to remove solana program archive");
+
+
     // build solana program library
     let build_sbf = Program::new("cargo")
         .cmd("build-sbf")
         .env("PATH", updated_path(&solana_cli_tools_path))
         .env("SBF_OUT_PATH", out_path.to_str().unwrap());
-
-    for &(path, _, _) in SOLANA_PROGRAMS {
-        build_sbf
-            .clone()
-            .working_dir(concat_path(&solana_program_library_path, path))
-            .run()
-            .join();
-    }
-    log!("All solana program library dependencies built successfully");
-    fs::remove_dir_all(&solana_program_library_path).expect("Failed to remove solana program dir");
 
     // build our programs
     for &path in SOLANA_HYPERLANE_PROGRAMS {
@@ -202,7 +184,7 @@ pub fn start_solana_test_validator(
         )
         .remember(solana_config)
         .remember(solana_checkpoints.clone());
-    for &(_, address, lib) in SOLANA_PROGRAMS {
+    for &(address, lib) in SOLANA_PROGRAMS {
         args = args.arg3(
             "bpf-program",
             address,

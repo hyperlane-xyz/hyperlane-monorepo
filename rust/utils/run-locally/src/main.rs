@@ -36,8 +36,8 @@ mod program;
 mod solana_cli;
 mod utils;
 use crate::solana_cli::{
-    build_solana_programs, clone_solana_program_library, initiate_solana_hyperlane_transfer,
-    install_solana_cli_tools, solana_termination_invariants_met, start_solana_test_validator,
+    build_solana_programs, initiate_solana_hyperlane_transfer, install_solana_cli_tools,
+    solana_termination_invariants_met, start_solana_test_validator,
 };
 pub use metrics::fetch_metric;
 
@@ -236,13 +236,9 @@ fn main() -> ExitCode {
     //
 
     let solana_cli_tool_install = install_solana_cli_tools();
-    let solana_program_library_clone = clone_solana_program_library();
 
     let solana_path = solana_cli_tool_install.join();
-    let solana_program_library_path = solana_program_library_clone.join();
-
-    let solana_program_builder =
-        build_solana_programs(solana_path.clone(), solana_program_library_path.clone());
+    let solana_program_builder = build_solana_programs(solana_path.clone());
 
     shutdown_if_needed!();
     // this task takes a long time in the CI so run it in parallel
