@@ -10,8 +10,8 @@ use ethers_prometheus::middleware::{
 use hyperlane_core::{
     config::*, utils::hex_or_base58_to_h256, AggregationIsm, CcipReadIsm, ContractLocator,
     HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneProvider, HyperlaneSigner,
-    InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
-    MessageIndexer, MultisigIsm, RoutingIsm, SequenceIndexer, ValidatorAnnounce, H256, IndexMode,
+    IndexMode, InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
+    MessageIndexer, MultisigIsm, RoutingIsm, SequenceIndexer, ValidatorAnnounce, H256,
 };
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
@@ -302,10 +302,7 @@ impl ChainConf {
 
     /// Fetch the index settings and index mode, since they are often used together.
     pub fn settings_and_mode(&self) -> (IndexSettings, IndexMode) {
-        (
-            self.index.clone(),
-            self.domain.index_mode()
-        )
+        (self.index.clone(), self.domain.index_mode())
     }
 
     /// Try to convert the chain settings into an HyperlaneProvider.
