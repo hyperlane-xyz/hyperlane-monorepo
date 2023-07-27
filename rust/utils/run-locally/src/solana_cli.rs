@@ -1,4 +1,5 @@
 use std::fs;
+use std::ops::Not;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -217,7 +218,7 @@ pub fn start_solana_test_validator(
         .clone()
         .cmd("multisig-ism-message-id")
         .cmd("set-validators-and-threshold")
-        .arg("chain-id", "13375")
+        .arg("domain", "13375")
         .arg("validators", "0x70997970c51812dc3a010c7d01b50e0d17dc79c8")
         .arg("threshold", "1")
         .arg("program-id", "4RSV6iyqW9X66Xq3RDCVsKJ7hMba5uv6XP8ttgxjVUB1")
@@ -265,22 +266,41 @@ pub fn initiate_solana_hyperlane_transfer(
     solana_cli_tools_path: PathBuf,
     solana_config_path: PathBuf,
 ) {
-    let solana = Program::new(concat_path(&solana_cli_tools_path, "solana"))
+    let sender = Program::new(concat_path(&solana_cli_tools_path, "solana"))
         .arg("config", solana_config_path.to_str().unwrap())
-        .arg("keypair", SOLANA_KEYPAIR);
-    let sender = solana.cmd("adderss").run().join();
-    // let sealevel_client = sealevel_client(&solana_cli_tools_path)
-    //     .cmd("token")
-    //     .cmd("transfer-remote")
-    //     .cmd(SOLANA_KEYPAIR)
-    //     .cmd("10000000000")
-    //     .cmd("13376")
-    //     .cmd(sender) // send to self
-    //     .cmd("native")
-    //     .arg("program-id", "CGn8yNtSD3aTTqJfYhUb6s1aVTN75NzwtsFKo1e83aga");
+        .arg("keypair", SOLANA_KEYPAIR)
+        .cmd("adderss")
+        .run_with_output()
+        .join()
+        .get(0)
+        .expect("failed to get sender address")
+        .trim()
+        .to_owned();
 
-    todo!()
-    // let sender_addr = solana.clone().cmd("address").join();
+    sealevel_client(&solana_cli_tools_path)
+        .cmd("token")
+        .cmd("transfer-remote")
+        .cmd(SOLANA_KEYPAIR)
+        .cmd("10000000000")
+        .cmd("13376")
+        .cmd(sender) // send to self
+        .cmd("native")
+        .arg("program-id", "CGn8yNtSD3aTTqJfYhUb6s1aVTN75NzwtsFKo1e83aga");
+}
+
+pub fn solana_termination_invariants_met(solana_cli_tools_path: PathBuf) -> bool {
+    sealevel_client(&solana_cli_tools_path)
+        .cmd("mailbox")
+        .cmd("delivered")
+        .arg(
+            "message-id",
+            "0x7b8ba684e5ce44f898c5fa81785c83a00e32b5bef3412e648eb7a17bec497685",
+        )
+        .arg("program-id", "9tCUWNjpqcf3NUSrtp7vquYVCwbEByvLjZUrhG5dgvhj")
+        .run_with_output()
+        .join()
+        .join("\n")
+        .contains("Message delivered")
 }
 
 fn sealevel_client(solana_cli_tools_path: &Path) -> Program {

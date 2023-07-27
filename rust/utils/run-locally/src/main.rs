@@ -36,8 +36,8 @@ mod program;
 mod solana_cli;
 mod utils;
 use crate::solana_cli::{
-    build_solana_programs, clone_solana_program_library, install_solana_cli_tools,
-    start_solana_test_validator,
+    build_solana_programs, clone_solana_program_library, initiate_solana_hyperlane_transfer,
+    install_solana_cli_tools, solana_termination_invariants_met, start_solana_test_validator,
 };
 pub use metrics::fetch_metric;
 
@@ -261,7 +261,7 @@ fn main() -> ExitCode {
 
     let solana_ledger_dir = tempdir().unwrap();
     let (solana_config_path, solana_validator) = start_solana_test_validator(
-        solana_path,
+        solana_path.clone(),
         solana_program_path,
         solana_ledger_dir.as_ref().to_path_buf(),
     )
@@ -269,6 +269,16 @@ fn main() -> ExitCode {
     state.push_agent(solana_validator);
 
     build_rust.join();
+
+    initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path).join();
+
+    for _ in 0..20 {
+        log!(
+            "Solana done: {}",
+            solana_termination_invariants_met(solana_path.clone())
+        );
+        sleep(Duration::from_secs(20));
+    }
 
     while !SHUTDOWN.load(Ordering::Relaxed) {
         sleep(Duration::from_millis(100));

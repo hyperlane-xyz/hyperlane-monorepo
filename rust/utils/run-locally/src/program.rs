@@ -30,7 +30,7 @@ pub struct Program {
 
 impl Debug for Program {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ProgramArgs")
+        f.debug_struct("Program")
             .field("bin", &self.bin)
             .field("args", &self.args)
             .field("env", &self.env)
