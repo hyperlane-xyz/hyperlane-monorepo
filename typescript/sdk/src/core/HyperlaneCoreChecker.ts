@@ -47,54 +47,8 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     await this.checkMailbox(chain);
     await this.checkBytecodes(chain);
     await this.checkValidatorAnnounce(chain);
-    await this.checkTimelockController(chain);
-  }
-
-  async checkTimelockController(chain: ChainName): Promise<void> {
-    const config = this.configMap[chain];
-    if (config.upgradeTimelockDelay) {
-      const timelockController =
-        this.app.getContracts(chain).timelockController;
-      if (!timelockController) {
-        // do not check if not deployed
-        return;
-      }
-
-      const minDelay = (await timelockController.getMinDelay()).toNumber();
-
-      if (minDelay !== config.upgradeTimelockDelay) {
-        this.addViolation({
-          type: CoreViolationType.TimelockController,
-          chain,
-          actual: minDelay,
-          expected: config.upgradeTimelockDelay,
-          contract: timelockController,
-        });
-      }
-
-      const roles = {
-        executor: await timelockController.EXECUTOR_ROLE(),
-        proposer: await timelockController.PROPOSER_ROLE(),
-        canceller: await timelockController.CANCELLER_ROLE(),
-        // see https://docs.openzeppelin.com/contracts/4.x/api/governance#TimelockController-constructor-uint256-address---address---address-
-        // admin: await timelockController.TIMELOCK_ADMIN_ROLE(),
-      };
-
-      for (const [label, role] of Object.entries(roles)) {
-        const ownerHasRole = await timelockController.hasRole(
-          role,
-          config.owner,
-        );
-        if (!ownerHasRole) {
-          this.addViolation({
-            type: `${CoreViolationType.TimelockController} owner ${config.owner} missing role ${label}`,
-            chain,
-            actual: false,
-            expected: true,
-            contract: timelockController,
-          });
-        }
-      }
+    if (config.upgrade) {
+      await this.checkUpgrade(chain, config.upgrade);
     }
   }
 
@@ -102,7 +56,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     const config = this.configMap[chain];
 
     let ownableOverrides: Record<string, types.Address> = {};
-    if (config.upgradeTimelockDelay) {
+    if (config.upgrade) {
       const timelockController =
         this.app.getAddresses(chain).timelockController;
       ownableOverrides = {
