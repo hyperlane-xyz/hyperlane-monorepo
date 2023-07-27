@@ -53,6 +53,8 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       return cachedMailbox;
     }
 
+    console.log({ ismConfig });
+
     const defaultIsmAddress =
       typeof ismConfig === 'string'
         ? ismConfig
