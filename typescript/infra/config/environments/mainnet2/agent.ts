@@ -69,7 +69,7 @@ const hyperlane: RootAgentConfig = {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: '2deb9b8-20230602-205342',
+      tag: 'ed7569d-20230725-171222',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -83,7 +83,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '497db63-20230614-174455',
+      tag: 'ed7569d-20230725-171222',
     },
     connectionType: AgentConnectionType.HttpQuorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -105,7 +105,7 @@ const releaseCandidate: RootAgentConfig = {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: 'aa92fe3-20230717-210518',
+      tag: 'ed7569d-20230725-171222',
     },
     whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
@@ -117,7 +117,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'aa92fe3-20230717-210518',
+      tag: 'ed7569d-20230725-171222',
     },
     connectionType: AgentConnectionType.HttpQuorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
