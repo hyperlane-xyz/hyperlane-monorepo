@@ -491,7 +491,8 @@ export function collectValidators(
 ): Set<string> {
   // TODO: support address configurations in collectValidators
   if (typeof config === 'string') {
-    console.warn('Validators not fetched from address ISM config');
+    // eslint-disable-next-line no-console
+    console.warn('WARN: Validators not fetched from address ISM config');
     return new Set([]);
   }
 
