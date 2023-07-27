@@ -4017,8 +4017,8 @@ __metadata:
     "@nomiclabs/hardhat-ethers": ^2.2.1
     "@nomiclabs/hardhat-etherscan": ^3.0.3
     "@nomiclabs/hardhat-waffle": ^2.0.3
-    "@safe-global/api-kit": ^1.1.0
-    "@safe-global/protocol-kit": ^1.0.1
+    "@safe-global/api-kit": ^1.3.0
+    "@safe-global/protocol-kit": ^1.2.0
     "@solana/web3.js": ^1.77.3
     "@types/chai": ^4.2.21
     "@types/mocha": ^9.1.0
@@ -4892,53 +4892,53 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@safe-global/api-kit@npm:^1.1.0":
-  version: 1.1.0
-  resolution: "@safe-global/api-kit@npm:1.1.0"
+"@safe-global/api-kit@npm:^1.3.0":
+  version: 1.3.0
+  resolution: "@safe-global/api-kit@npm:1.3.0"
   dependencies:
     "@ethersproject/abstract-signer": ^5.7.0
-    "@safe-global/safe-core-sdk-types": ^2.0.0
+    "@safe-global/safe-core-sdk-types": ^2.2.0
     node-fetch: ^2.6.6
-  checksum: eaad5e9706941770be5428cdb37852e086134359d66889d62da420f9e5a8f2f108c933ef5366637208843a68b56f96dc216d39470014e49fd985b5921ca28d68
+  checksum: 24937a39304926d5c30ad7a687ae71efece5bca2d92a41dc716c442056c3dcb6f0b1fd50f59bb4bc57567daba23a72cb19ce8bbba68729ea97af4d720fc19651
   languageName: node
   linkType: hard
 
-"@safe-global/protocol-kit@npm:^1.0.1":
-  version: 1.0.1
-  resolution: "@safe-global/protocol-kit@npm:1.0.1"
+"@safe-global/protocol-kit@npm:^1.2.0":
+  version: 1.2.0
+  resolution: "@safe-global/protocol-kit@npm:1.2.0"
   dependencies:
     "@ethersproject/address": ^5.7.0
     "@ethersproject/bignumber": ^5.7.0
     "@ethersproject/solidity": ^5.7.0
-    "@safe-global/safe-deployments": ^1.22.0
+    "@safe-global/safe-deployments": ^1.26.0
     ethereumjs-util: ^7.1.5
-    semver: ^7.3.8
+    semver: ^7.5.4
     web3: ^1.8.1
     web3-core: ^1.8.1
     web3-utils: ^1.8.1
-  checksum: a4aad4b8bc159b6fd44b2070819712a61708b0f3cdedf2e306597570b72265b3b9621d15df388786a535d12da8f7c540433dce1628c70ff91f78dedc3a31eb71
+  checksum: 5fbba720c7b1d8b437d373c88275452a25751d1420f103bcf528ad23fa3f808c6e8734e863d921d072275f75d0523976cc745ae43edc241f492328c9c800b57b
   languageName: node
   linkType: hard
 
-"@safe-global/safe-core-sdk-types@npm:^2.0.0":
-  version: 2.0.0
-  resolution: "@safe-global/safe-core-sdk-types@npm:2.0.0"
+"@safe-global/safe-core-sdk-types@npm:^2.2.0":
+  version: 2.2.0
+  resolution: "@safe-global/safe-core-sdk-types@npm:2.2.0"
   dependencies:
     "@ethersproject/bignumber": ^5.7.0
     "@ethersproject/contracts": ^5.7.0
-    "@safe-global/safe-deployments": ^1.22.0
+    "@safe-global/safe-deployments": ^1.26.0
     web3-core: ^1.8.1
     web3-utils: ^1.8.1
-  checksum: 78e5c46b05b793785803e9ffd488a9e4e780a0f11167f7dec165c0a3f06e697e0a0c1dcdf0333486d98460c490e7e80079f30ca8c31ac8562e00d275bf597217
+  checksum: f1b725c376ce9d409ef5b6f567ce3e5922794f8d47d1ba8964971fa91f975a707e8b7dcd57240963fa54093cb2967f86bb75cf99190eb8f844802434f05650b7
   languageName: node
   linkType: hard
 
-"@safe-global/safe-deployments@npm:^1.22.0":
-  version: 1.25.0
-  resolution: "@safe-global/safe-deployments@npm:1.25.0"
+"@safe-global/safe-deployments@npm:^1.26.0":
+  version: 1.26.0
+  resolution: "@safe-global/safe-deployments@npm:1.26.0"
   dependencies:
     semver: ^7.3.7
-  checksum: c775f514055f1201c0f9e18c04aeae55595755e5253e71a27ed5fd0e15dd5f103af5eb6bc78afd7264ccb23d29a9dc0181d8866289d721662c67e3e25a750609
+  checksum: ea36c04c42f33f679248b4be9477a608b3ad2b4ac87da7c943bac2720ad556fc4d1f87b9ba43b0737fc0a9217bfc232c27042c3720a02cbf7cd90af286d5cb62
   languageName: node
   linkType: hard
 
@@ -16662,7 +16662,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"semver@npm:^7.3.8":
+"semver@npm:^7.5.4":
   version: 7.5.4
   resolution: "semver@npm:7.5.4"
   dependencies:
