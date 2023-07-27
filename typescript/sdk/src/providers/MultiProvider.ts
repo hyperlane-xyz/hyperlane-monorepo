@@ -30,7 +30,7 @@ const DEFAULT_RETRY_OPTIONS: RetryProviderOptions = {
   baseRetryMs: 250,
 };
 
-const DEFAULT_PROVIDER_TIMEOUT: number = 1000 * 60 * 5; // 5 min
+export const DEFAULT_PROVIDER_TIMEOUT: number = 1000 * 30; // 30s
 
 export function defaultProviderBuilder(
   rpcUrls: ChainMetadata['rpcUrls'],
