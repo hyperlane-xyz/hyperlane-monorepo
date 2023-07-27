@@ -26,7 +26,8 @@ use account_utils::{AccountData, Data};
 use hyperlane_sealevel_igp::{
     accounts::{
         GasOracle, GasPaymentAccount, GasPaymentData, Igp, IgpAccount, OverheadIgp,
-        OverheadIgpAccount, ProgramData, ProgramDataAccount, RemoteGasData,
+        OverheadIgpAccount, ProgramData, ProgramDataAccount, RemoteGasData, SOL_DECIMALS,
+        TOKEN_EXCHANGE_RATE_SCALE,
     },
     error::Error as IgpError,
     igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
@@ -41,8 +42,7 @@ use hyperlane_sealevel_igp::{
 const TEST_DESTINATION_DOMAIN: u32 = 11111;
 const TEST_GAS_AMOUNT: u64 = 300000;
 const TEST_GAS_OVERHEAD_AMOUNT: u64 = 100000;
-const TOKEN_EXCHANGE_RATE_SCALE: u128 = 1e19 as u128;
-const LOCAL_DECIMALS: u8 = 9;
+const LOCAL_DECIMALS: u8 = SOL_DECIMALS;
 
 fn igp_program_id() -> Pubkey {
     pubkey!("BSffRJEwRcyEkjnbjAMMfv9kv3Y3SauxsBjCdNJyM2BN")

@@ -13,7 +13,7 @@ use crate::error::Error;
 
 /// The scale for token exchange rates, i.e. a token exchange rate of 1.0 is
 /// represented as 10^19.
-pub const TOKEN_EXCHANGE_RATE_SCALE: u64 = 10u64.pow(19);
+pub const TOKEN_EXCHANGE_RATE_SCALE: u128 = 10u128.pow(19);
 /// The number of decimals for the native SOL token.
 pub const SOL_DECIMALS: u8 = 9;
 
