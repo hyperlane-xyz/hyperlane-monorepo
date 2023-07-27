@@ -7,9 +7,15 @@ import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 abstract contract AbstractHook is MailboxClient, IPostDispatchHook {
     constructor(address mailbox) MailboxClient(mailbox) {}
 
-    function postDispatch(bytes calldata message) external payable onlyMailbox {
-        _postDispatch(message);
+    function postDispatch(bytes calldata metadata, bytes calldata message)
+        external
+        payable
+        onlyMailbox
+    {
+        _postDispatch(metadata, message);
     }
 
-    function _postDispatch(bytes calldata message) internal virtual;
+    function _postDispatch(bytes calldata metadata, bytes calldata message)
+        internal
+        virtual;
 }
