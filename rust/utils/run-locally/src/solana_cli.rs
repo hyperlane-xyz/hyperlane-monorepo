@@ -1,6 +1,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::thread::sleep;
+use std::time::Duration;
 
 use macro_rules_attribute::apply;
 use tempfile::{tempdir, NamedTempFile};
@@ -26,10 +28,7 @@ const SOLANA_PROGRAMS: &[(&str, &str)] = &[
         "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
         "spl_associated_token_account.so",
     ),
-    (
-        "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV",
-        "spl_noop.so",
-    ),
+    ("noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV", "spl_noop.so"),
 ];
 
 const SOLANA_KEYPAIR: &str = "config/sealevel/test-keys/test_deployer-keypair.json";
@@ -48,6 +47,9 @@ const SOLANA_HYPERLANE_PROGRAMS: &[&str] = &[
 
 const SOLANA_PROGRAM_LIBRARY_ARCHIVE: &str =
     "https://github.com/hyperlane-xyz/solana-program-library/releases/download/2023-07-27-01/spl.tar.gz";
+
+const SOLANA_LOCAL_CHAIN_ID: &str = "13375";
+const SOLANA_REMOTE_CHAIN_ID: &str = "13376";
 
 // Install the CLI tools and return the path to the bin dir.
 #[apply(as_task)]
@@ -106,9 +108,7 @@ pub fn install_solana_cli_tools() -> PathBuf {
 }
 
 #[apply(as_task)]
-pub fn build_solana_programs(
-    solana_cli_tools_path: PathBuf,
-) -> PathBuf {
+pub fn build_solana_programs(solana_cli_tools_path: PathBuf) -> PathBuf {
     let out_path = Path::new(SBF_OUT_PATH);
     if out_path.exists() {
         fs::remove_dir_all(out_path).expect("Failed to remove solana program deploy dir");
@@ -135,7 +135,6 @@ pub fn build_solana_programs(
     log!("Remove temporary solana files");
     fs::remove_file(concat_path(&out_path, "spl.tar.gz"))
         .expect("Failed to remove solana program archive");
-
 
     // build solana program library
     let build_sbf = Program::new("cargo")
@@ -173,8 +172,9 @@ pub fn start_solana_test_validator(
         .run()
         .join();
 
-    // run the validator
+    log!("Starting solana validator");
     let mut args = Program::new(concat_path(&solana_cli_tools_path, "solana-test-validator"))
+        .flag("quiet")
         .flag("reset")
         .arg("ledger", ledger_dir.to_str().unwrap())
         .arg3(
@@ -192,42 +192,43 @@ pub fn start_solana_test_validator(
         );
     }
     let validator = args.spawn("SOL");
+    sleep(Duration::from_secs(5));
 
-    // deploy hyperlane programs
+    log!("Deploying the hyperlane programs to solana");
     let sealevel_client = sealevel_client(&solana_cli_tools_path);
 
-    sealevel_client
+    let sealevel_client_deploy_core = sealevel_client
         .clone()
-        .cmd("multisig-ism-message-id")
-        .cmd("set-validators-and-threshold")
-        .arg("domain", "13375")
-        .arg("validators", "0x70997970c51812dc3a010c7d01b50e0d17dc79c8")
-        .arg("threshold", "1")
-        .arg("program-id", "4RSV6iyqW9X66Xq3RDCVsKJ7hMba5uv6XP8ttgxjVUB1")
+        .arg("compute-budget", "200000")
+        .cmd("core")
+        .cmd("deploy")
+        .arg("environment", "local-e2e")
+        .arg("environments-dir", "sealevel/environments")
+        .arg("built-so-dir", SBF_OUT_PATH)
+        .flag("use-existing-keys");
+
+    sealevel_client_deploy_core
+        .clone()
+        .arg("local-domain", SOLANA_LOCAL_CHAIN_ID)
+        .arg("chain", "sealeveltest1")
+        .run()
+        .join();
+
+    sealevel_client_deploy_core
+        .arg("local-domain", SOLANA_REMOTE_CHAIN_ID)
+        .arg("chain", "sealeveltest2")
         .run()
         .join();
 
     sealevel_client
-            .clone()
-            .cmd("validator-announce")
-            .cmd("announce")
-            .arg("validator", "0x70997970c51812dc3a010c7d01b50e0d17dc79c8")
-            .arg(
-                "storage-location",
-                format!("file://{}", solana_checkpoints.path().to_str().unwrap()),
-            )
-            .arg("signature", "0xcd87b715cd4c2e3448be9e34204cf16376a6ba6106e147a4965e26ea946dd2ab19598140bf26f1e9e599c23f6b661553c7d89e8db22b3609068c91eb7f0fa2f01b")
-            .run()
-    .join();
-
-    sealevel_client
+        .clone()
         .arg("compute-budget", "200000")
         .cmd("warp-route")
         .cmd("deploy")
-        .arg("warp-route-name", "testwarproute")
         .arg("environment", "local-e2e")
         .arg("environments-dir", "sealevel/environments")
         .arg("built-so-dir", SBF_OUT_PATH)
+        .arg("warp-route-name", "testwarproute")
         .arg(
             "token-config-file",
             "sealevel/environments/local-e2e/warp-routes/testwarproute/token-config.json",
@@ -239,6 +240,33 @@ pub fn start_solana_test_validator(
         .arg("ata-payer-funding-amount", "1000000000")
         .run()
         .join();
+
+    log!("Initializing solana programs");
+    sealevel_client
+        .clone()
+        .cmd("multisig-ism-message-id")
+        .cmd("set-validators-and-threshold")
+        .arg("domain", SOLANA_LOCAL_CHAIN_ID)
+        .arg("validators", "0x70997970c51812dc3a010c7d01b50e0d17dc79c8")
+        .arg("threshold", "1")
+        .arg("program-id", "4RSV6iyqW9X66Xq3RDCVsKJ7hMba5uv6XP8ttgxjVUB1")
+        .run()
+        .join();
+
+    sealevel_client
+        .clone()
+        .cmd("validator-announce")
+        .cmd("announce")
+        .arg("validator", "0x70997970c51812dc3a010c7d01b50e0d17dc79c8")
+        .arg(
+            "storage-location",
+            format!("file://{}", solana_checkpoints.path().to_str().unwrap()),
+        )
+        .arg("signature", "0xcd87b715cd4c2e3448be9e34204cf16376a6ba6106e147a4965e26ea946dd2ab19598140bf26f1e9e599c23f6b661553c7d89e8db22b3609068c91eb7f0fa2f01b")
+        .run()
+        .join();
+
+    log!("Solana validator started and initialized successfully");
 
     (solana_config_path, validator)
 }
@@ -264,7 +292,7 @@ pub fn initiate_solana_hyperlane_transfer(
         .cmd("transfer-remote")
         .cmd(SOLANA_KEYPAIR)
         .cmd("10000000000")
-        .cmd("13376")
+        .cmd(SOLANA_REMOTE_CHAIN_ID)
         .cmd(sender) // send to self
         .cmd("native")
         .arg("program-id", "CGn8yNtSD3aTTqJfYhUb6s1aVTN75NzwtsFKo1e83aga");
@@ -287,7 +315,8 @@ pub fn solana_termination_invariants_met(solana_cli_tools_path: PathBuf) -> bool
 
 fn sealevel_client(solana_cli_tools_path: &Path) -> Program {
     Program::new(concat_path(AGENT_BIN_PATH, "hyperlane-sealevel-client"))
-        .env("PATH", updated_path(&solana_cli_tools_path))
+        .env("PATH", updated_path(solana_cli_tools_path))
+        .env("RUST_BACKTRACE", "1")
         .arg("keypair", SOLANA_KEYPAIR)
 }
 

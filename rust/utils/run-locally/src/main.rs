@@ -256,6 +256,7 @@ fn main() -> ExitCode {
     let solana_program_path = solana_program_builder.join();
 
     let solana_ledger_dir = tempdir().unwrap();
+    build_rust.join();
     let (solana_config_path, solana_validator) = start_solana_test_validator(
         solana_path.clone(),
         solana_program_path,
@@ -263,8 +264,6 @@ fn main() -> ExitCode {
     )
     .join();
     state.push_agent(solana_validator);
-
-    build_rust.join();
 
     initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path).join();
 

@@ -6,7 +6,7 @@ use crate::utils::{
 use crate::{RUN_LOG_WATCHERS, SHUTDOWN};
 use eyre::Context;
 use macro_rules_attribute::apply;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::ffi::OsStr;
 use std::fmt::{Debug, Display, Formatter};
 use std::io::{BufRead, BufReader, Read};
@@ -22,7 +22,7 @@ use std::time::Duration;
 pub struct Program {
     bin: Option<Arc<String>>,
     args: Vec<Arc<String>>,
-    env: HashMap<Arc<String>, Arc<String>>,
+    env: BTreeMap<Arc<String>, Arc<String>>,
     working_dir: Option<Arc<PathBuf>>,
     log_filter: Option<LogFilter>,
     arbitrary_data: Vec<Arc<dyn ArbitraryData>>,
