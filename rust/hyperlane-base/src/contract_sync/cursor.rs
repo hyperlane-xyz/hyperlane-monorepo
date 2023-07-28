@@ -112,8 +112,12 @@ impl MessageSyncCursor {
     ) -> Result<()> {
         // If we found messages, but did *not* find the message we were looking for,
         // we need to rewind to the block at which we found the last message.
-        if !logs.is_empty() && !logs.iter().any(|m| m.0.nonce == self.sync_state.next_nonce) {
-            warn!(next_nonce=?self.sync_state.next_nonce, "Target nonce not found, rewinding");
+        if !logs.is_empty()
+            && !logs
+                .iter()
+                .any(|m| m.0.nonce == self.sync_state.next_sequence)
+        {
+            warn!(next_nonce=?self.sync_state.next_sequence, "Target nonce not found, rewinding");
             // If the previous nonce has been synced, rewind to the block number
             // at which it was dispatched. Otherwise, rewind all the way back to the start block.
             if let Some(block_number) = self.retrieve_dispatched_block_number(prev_sequence).await {
