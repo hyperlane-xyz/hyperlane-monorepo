@@ -46,10 +46,14 @@ jobs:
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
+      - uses: rui314/setup-mold@v1
+        with:
+          mold-version: 2.0.0
+          make-default: true
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: 'v3-rust'
+          prefix-key: 'v2-rust'
           shared-key: 'e2e'
           workspaces: |
             ./rust
