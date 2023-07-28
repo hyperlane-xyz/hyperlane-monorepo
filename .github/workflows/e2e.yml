@@ -49,7 +49,7 @@ jobs:
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: 'v2-rust'
+          prefix-key: 'v3-rust'
           shared-key: 'e2e'
           workspaces: |
             ./rust
