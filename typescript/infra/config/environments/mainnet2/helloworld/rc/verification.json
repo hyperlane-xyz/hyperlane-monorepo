@@ -39,6 +39,12 @@
       "address": "0xAb65C41a1BC580a52f0b166879122EFdce0cB868",
       "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c7000000000000000000000000056f52c0a1ddcd557285f7cbc782d3d83096ce1cc",
       "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x2F1d0ba5E79EcA27E9fE8edDD5892Ba5bfA913f3",
+      "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c7000000000000000000000000056f52c0a1ddcd557285f7cbc782d3d83096ce1cc",
+      "isProxy": false
     }
   ],
   "celo": [

@@ -8,9 +8,6 @@
   "avalanche": {
     "router": "0xe1De9910fe71cC216490AC7FCF019e13a34481D7"
   },
-  "polygon": {
-    "router": "0xAb65C41a1BC580a52f0b166879122EFdce0cB868"
-  },
   "celo": {
     "router": "0xfE29f6a4468536029Fc9c97d3a9669b9fe38E114"
   },
@@ -25,5 +22,8 @@
   },
   "moonbeam": {
     "router": "0x3eB9eE2CFC8DCB6F58B5869D33336CFcBf1dC354"
+  },
+  "polygon": {
+    "router": "0x2F1d0ba5E79EcA27E9fE8edDD5892Ba5bfA913f3"
   }
 }
