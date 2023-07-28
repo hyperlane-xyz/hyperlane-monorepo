@@ -245,6 +245,7 @@ impl Program {
         let stderr =
             spawn(move || prefix_log(child_stderr, log_prefix, &RUN_LOG_WATCHERS, filter, None));
         (
+            log_prefix.to_owned(),
             child,
             Box::new(SimpleTaskHandle(stdout)),
             Box::new(SimpleTaskHandle(stderr)),

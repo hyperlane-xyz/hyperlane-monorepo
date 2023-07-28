@@ -44,9 +44,15 @@ pub trait ArbitraryData: Send + Sync + 'static {}
 impl<T: Send + Sync + 'static> ArbitraryData for T {}
 
 pub type AgentHandles = (
+    // name
+    String,
+    // child process
     Child,
+    // stdout
     Box<dyn TaskHandle<Output = ()>>,
+    // stderr
     Box<dyn TaskHandle<Output = ()>>,
+    // data to drop once program exits
     Box<dyn ArbitraryData>,
 );
 pub type LogFilter = fn(&str) -> bool;

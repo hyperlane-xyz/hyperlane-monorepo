@@ -82,16 +82,16 @@ static SHUTDOWN: AtomicBool = AtomicBool::new(false);
 /// cleanup purposes at this time.
 #[derive(Default)]
 struct State {
-    agents: Vec<Child>,
+    agents: Vec<(String, Child)>,
     watchers: Vec<Box<dyn TaskHandle<Output = ()>>>,
     data: Vec<Box<dyn ArbitraryData>>,
 }
 impl State {
     fn push_agent(&mut self, handles: AgentHandles) {
-        self.agents.push(handles.0);
-        self.watchers.push(handles.1);
+        self.agents.push((handles.0, handles.1));
         self.watchers.push(handles.2);
-        self.data.push(handles.3);
+        self.watchers.push(handles.3);
+        self.data.push(handles.4);
     }
 }
 impl Drop for State {
@@ -100,7 +100,8 @@ impl Drop for State {
         log!("Signaling children to stop...");
         // stop children in reverse order
         self.agents.reverse();
-        for mut agent in self.agents.drain(..) {
+        for (name, mut agent) in self.agents.drain(..) {
+            log!("Stopping child {}", name);
             stop_child(&mut agent);
         }
         log!("Joining watchers...");
@@ -187,10 +188,7 @@ fn main() -> ExitCode {
         //     "relayChains",
         //     "test1,test2,test3,sealeveltest1,sealeveltest2",
         // );
-        .arg(
-            "relayChains",
-            "sealeveltest1,sealeveltest2",
-        );
+        .arg("relayChains", "sealeveltest1,sealeveltest2");
 
     let base_validator_env = common_agent_env
         .clone()
@@ -362,9 +360,9 @@ fn main() -> ExitCode {
         }
 
         // verify long-running tasks are still running
-        for child in state.agents.iter_mut() {
+        for (name, child) in state.agents.iter_mut() {
             if child.try_wait().unwrap().is_some() {
-                log!("Child process exited unexpectedly, shutting down");
+                log!("Child process {} exited unexpectedly, shutting down", name);
                 failure_occurred = true;
                 SHUTDOWN.store(true, Ordering::Relaxed);
                 break;
