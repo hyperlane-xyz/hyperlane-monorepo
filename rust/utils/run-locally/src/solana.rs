@@ -143,10 +143,13 @@ pub fn build_solana_programs(solana_cli_tools_path: PathBuf) -> PathBuf {
         .expect("Failed to remove solana program archive");
 
     // build solana program library
-    let build_sbf = Program::new("cargo")
-        .cmd("build-sbf")
-        .env("PATH", updated_path(&solana_cli_tools_path))
-        .env("SBF_OUT_PATH", out_path.to_str().unwrap());
+    let build_sbf = Program::new(
+        concat_path(&solana_cli_tools_path, "cargo-build-sbf")
+            .to_str()
+            .unwrap(),
+    )
+    .env("PATH", updated_path(&solana_cli_tools_path))
+    .env("SBF_OUT_PATH", out_path.to_str().unwrap());
 
     // build our programs
     for &path in SOLANA_HYPERLANE_PROGRAMS {
