@@ -12,7 +12,9 @@
 //! - `E2E_KATHY_MESSAGES`: Number of kathy messages to dispatch. Defaults to 16 if CI mode is enabled.
 //! else false.
 
+use std::path::Path;
 use std::{
+    fs,
     process::{Child, ExitCode},
     sync::atomic::{AtomicBool, Ordering},
     thread::sleep,
@@ -42,24 +44,36 @@ mod utils;
 
 /// These private keys are from hardhat/anvil's testing accounts.
 const RELAYER_KEYS: &[&str] = &[
+    // test1
     "0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6",
+    // test2
     "0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97",
+    // test3
     "0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356",
+    // sealeveltest1
+    "0x892bf6949af4233e62f854cb3618bc1a3ee3341dc71ada08c4d5deca239acf4f",
+    // sealeveltest2
+    "0x892bf6949af4233e62f854cb3618bc1a3ee3341dc71ada08c4d5deca239acf4f",
 ];
 /// These private keys are from hardhat/anvil's testing accounts.
 /// These must be consistent with the ISM config for the test.
 const VALIDATOR_KEYS: &[&str] = &[
+    // eth
     "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a",
     "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba",
     "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e",
+    // sealevel
+    "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
 ];
+
+const VALIDATOR_ORIGIN_CHAINS: &[&str] = &["test1", "test2", "test3", "sealeveltest1"];
 
 const AGENT_BIN_PATH: &str = "target/debug";
 const INFRA_PATH: &str = "../typescript/infra";
 const TS_SDK_PATH: &str = "../typescript/sdk";
 const MONOREPO_ROOT_PATH: &str = "../";
-/// The Solana CLI tool version to download and use.
-const SOLANA_CLI_VERSION: &str = "1.14.20";
+
+type DynPath = Box<dyn AsRef<Path>>;
 
 static RUN_LOG_WATCHERS: AtomicBool = AtomicBool::new(true);
 static SHUTDOWN: AtomicBool = AtomicBool::new(false);
@@ -99,6 +113,7 @@ impl Drop for State {
         for data in self.data.drain(..) {
             drop(data)
         }
+        fs::remove_dir_all(SOLANA_CHECKPOINT_LOCATION).unwrap_or_default();
     }
 }
 
@@ -121,16 +136,22 @@ fn main() -> ExitCode {
 
     let config = Config::load();
 
-    let checkpoints_dirs = (0..3).map(|_| tempdir().unwrap()).collect::<Vec<_>>();
+    let solana_checkpoint_path = Path::new(SOLANA_CHECKPOINT_LOCATION);
+    fs::remove_dir_all(solana_checkpoint_path).unwrap_or_default();
+    let checkpoints_dirs: Vec<DynPath> = (0..3)
+        .map(|_| Box::new(tempdir().unwrap()) as DynPath)
+        .chain([Box::new(solana_checkpoint_path) as DynPath])
+        .collect();
     let rocks_db_dir = tempdir().unwrap();
     let relayer_db = concat_path(&rocks_db_dir, "relayer");
-    let validator_dbs = (0..3)
+    let validator_dbs = (0..4)
         .map(|i| concat_path(&rocks_db_dir, format!("validator{i}")))
         .collect::<Vec<_>>();
 
     let common_agent_env = Program::default()
         .env("RUST_BACKTRACE", "full")
-        .hyp_env("TRACING_FMT", "pretty")
+        .env("CONFIG_FILES", "config/sealevel/sealevel.json")
+        .hyp_env("TRACING_FMT", "compact")
         .hyp_env("TRACING_LEVEL", "debug")
         .hyp_env("CHAINS_TEST1_INDEX_CHUNK", "1")
         .hyp_env("CHAINS_TEST2_INDEX_CHUNK", "1")
@@ -152,6 +173,8 @@ fn main() -> ExitCode {
         .hyp_env("DB", relayer_db.to_str().unwrap())
         .hyp_env("CHAINS_TEST1_SIGNER_KEY", RELAYER_KEYS[0])
         .hyp_env("CHAINS_TEST2_SIGNER_KEY", RELAYER_KEYS[1])
+        .hyp_env("CHAINS_SEALEVELTEST1_SIGNER_KEY", RELAYER_KEYS[3])
+        .hyp_env("CHAINS_SEALEVELTEST2_SIGNER_KEY", RELAYER_KEYS[4])
         .hyp_env("RELAYCHAINS", "invalidchain,otherinvalid")
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
         .arg(
@@ -160,7 +183,10 @@ fn main() -> ExitCode {
         )
         // default is used for TEST3
         .arg("defaultSigner.key", RELAYER_KEYS[2])
-        .arg("relayChains", "test1,test2,test3");
+        .arg(
+            "relayChains",
+            "test1,test2,test3,sealeveltest1,sealeveltest2",
+        );
 
     let base_validator_env = common_agent_env
         .clone()
@@ -180,17 +206,17 @@ fn main() -> ExitCode {
         .hyp_env("INTERVAL", "5")
         .hyp_env("CHECKPOINTSYNCER_TYPE", "localStorage");
 
-    let validator_envs = (0..3)
+    let validator_envs = (0..4)
         .map(|i| {
             base_validator_env
                 .clone()
                 .hyp_env("METRICS", (9094 + i).to_string())
                 .hyp_env("DB", validator_dbs[i].to_str().unwrap())
-                .hyp_env("ORIGINCHAINNAME", format!("test{}", 1 + i))
+                .hyp_env("ORIGINCHAINNAME", VALIDATOR_ORIGIN_CHAINS[i])
                 .hyp_env("VALIDATOR_KEY", VALIDATOR_KEYS[i])
                 .hyp_env(
                     "CHECKPOINTSYNCER_PATH",
-                    checkpoints_dirs[i].path().to_str().unwrap(),
+                    (*checkpoints_dirs[i]).as_ref().to_str().unwrap(),
                 )
         })
         .collect::<Vec<_>>();
@@ -216,7 +242,7 @@ fn main() -> ExitCode {
         "Signed checkpoints in {}",
         checkpoints_dirs
             .iter()
-            .map(|d| d.path().display().to_string())
+            .map(|d| (**d).as_ref().display().to_string())
             .collect::<Vec<_>>()
             .join(", ")
     );
@@ -297,7 +323,7 @@ fn main() -> ExitCode {
 
     // spawn the rest of the validators
     for (i, validator_env) in validator_envs.into_iter().enumerate().skip(1) {
-        let validator = validator_env.spawn(make_static(format!("VAL{}", 1 + i)));
+        let validator = validator_env.spawn(make_static(format!("VL{}", 1 + i)));
         state.push_agent(validator);
     }
 
@@ -318,7 +344,8 @@ fn main() -> ExitCode {
     while !SHUTDOWN.load(Ordering::Relaxed) {
         if config.ci_mode {
             // for CI we have to look for the end condition.
-            let num_messages_expected = (config.kathy_messages / 2) as u32 * 2;
+            // Expect 1 extra message to be sent between solana chains
+            let num_messages_expected = (config.kathy_messages / 2) as u32 * 2 + 1;
             if termination_invariants_met(num_messages_expected, &solana_path).unwrap_or(false) {
                 // end condition reached successfully
                 break;
@@ -335,6 +362,7 @@ fn main() -> ExitCode {
             if child.try_wait().unwrap().is_some() {
                 log!("Child process exited unexpectedly, shutting down");
                 failure_occurred = true;
+                SHUTDOWN.store(true, Ordering::Relaxed);
                 break;
             }
         }

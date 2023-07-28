@@ -9,7 +9,7 @@ use tempfile::NamedTempFile;
 use crate::logging::log;
 use crate::program::Program;
 use crate::utils::{as_task, concat_path, AgentHandles, TaskHandle};
-use crate::{AGENT_BIN_PATH, SOLANA_CLI_VERSION};
+use crate::AGENT_BIN_PATH;
 
 // Solana program tuples of:
 // 0: Solana address or keypair for the bpf program
@@ -49,6 +49,13 @@ const SOLANA_PROGRAM_LIBRARY_ARCHIVE: &str =
 
 const SOLANA_LOCAL_CHAIN_ID: &str = "13375";
 const SOLANA_REMOTE_CHAIN_ID: &str = "13376";
+
+/// The Solana CLI tool version to download and use.
+const SOLANA_CLI_VERSION: &str = "1.14.20";
+
+// TODO: use a temp dir instead!
+pub const SOLANA_CHECKPOINT_LOCATION: &str =
+    "/tmp/test_sealevel_checkpoints_0x70997970c51812dc3a010c7d01b50e0d17dc79c8";
 
 // Install the CLI tools and return the path to the bin dir.
 #[apply(as_task)]
@@ -240,6 +247,7 @@ pub fn start_solana_test_validator(
 
     log!("Initializing solana programs");
     sealevel_client
+        .clone()
         .cmd("multisig-ism-message-id")
         .cmd("set-validators-and-threshold")
         .arg("domain", SOLANA_LOCAL_CHAIN_ID)
@@ -249,17 +257,17 @@ pub fn start_solana_test_validator(
         .run()
         .join();
 
-    // sealevel_client
-    //     .cmd("validator-announce")
-    //     .cmd("announce")
-    //     .arg("validator", "0x70997970c51812dc3a010c7d01b50e0d17dc79c8")
-    //     .arg(
-    //         "storage-location",
-    //         "file:///tmp/test_sealevel_checkpoints_0x70997970c51812dc3a010c7d01b50e0d17dc79c8"
-    //     )
-    //     .arg("signature", "0xcd87b715cd4c2e3448be9e34204cf16376a6ba6106e147a4965e26ea946dd2ab19598140bf26f1e9e599c23f6b661553c7d89e8db22b3609068c91eb7f0fa2f01b")
-    //     .run()
-    //     .join();
+    sealevel_client
+        .cmd("validator-announce")
+        .cmd("announce")
+        .arg("validator", "0x70997970c51812dc3a010c7d01b50e0d17dc79c8")
+        .arg(
+            "storage-location",
+            format!("file://{SOLANA_CHECKPOINT_LOCATION}")
+        )
+        .arg("signature", "0xcd87b715cd4c2e3448be9e34204cf16376a6ba6106e147a4965e26ea946dd2ab19598140bf26f1e9e599c23f6b661553c7d89e8db22b3609068c91eb7f0fa2f01b")
+        .run()
+        .join();
 
     log!("Solana validator started and initialized successfully");
 

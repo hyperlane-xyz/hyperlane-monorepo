@@ -271,7 +271,6 @@ impl Validator {
                         validator_address=?announcement.validator,
                         "Please send tokens to the validator address to announce",
                     );
-                    sleep(self.interval).await;
                 } else {
                     let result = self
                         .validator_announce
@@ -279,6 +278,7 @@ impl Validator {
                         .await;
                     Self::log_on_announce_failure(result);
                 }
+                sleep(self.interval).await;
             }
         }
         Ok(())
