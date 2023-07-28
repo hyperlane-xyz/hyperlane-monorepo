@@ -1,11 +1,10 @@
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::thread::sleep;
 use std::time::Duration;
 
 use macro_rules_attribute::apply;
-use tempfile::{tempdir, NamedTempFile};
+use tempfile::NamedTempFile;
 
 use crate::logging::log;
 use crate::program::Program;
@@ -163,7 +162,6 @@ pub fn start_solana_test_validator(
     // init solana config
     let solana_config = NamedTempFile::new().unwrap().into_temp_path();
     let solana_config_path = solana_config.to_path_buf();
-    let solana_checkpoints = Arc::new(tempdir().unwrap());
     Program::new(concat_path(&solana_cli_tools_path, "solana"))
         .arg("config", solana_config.to_str().unwrap())
         .cmd("config")
@@ -182,8 +180,7 @@ pub fn start_solana_test_validator(
             "E9VrvAdGRvCguN2XgXsgu9PNmMM3vZsU8LSUrM68j8ty",
             "config/sealevel/test-keys/test_deployer-account.json",
         )
-        .remember(solana_config)
-        .remember(solana_checkpoints.clone());
+        .remember(solana_config);
     for &(address, lib) in SOLANA_PROGRAMS {
         args = args.arg3(
             "bpf-program",
@@ -243,7 +240,6 @@ pub fn start_solana_test_validator(
 
     log!("Initializing solana programs");
     sealevel_client
-        .clone()
         .cmd("multisig-ism-message-id")
         .cmd("set-validators-and-threshold")
         .arg("domain", SOLANA_LOCAL_CHAIN_ID)
@@ -253,18 +249,17 @@ pub fn start_solana_test_validator(
         .run()
         .join();
 
-    sealevel_client
-        .clone()
-        .cmd("validator-announce")
-        .cmd("announce")
-        .arg("validator", "0x70997970c51812dc3a010c7d01b50e0d17dc79c8")
-        .arg(
-            "storage-location",
-            format!("file://{}", solana_checkpoints.path().to_str().unwrap()),
-        )
-        .arg("signature", "0xcd87b715cd4c2e3448be9e34204cf16376a6ba6106e147a4965e26ea946dd2ab19598140bf26f1e9e599c23f6b661553c7d89e8db22b3609068c91eb7f0fa2f01b")
-        .run()
-        .join();
+    // sealevel_client
+    //     .cmd("validator-announce")
+    //     .cmd("announce")
+    //     .arg("validator", "0x70997970c51812dc3a010c7d01b50e0d17dc79c8")
+    //     .arg(
+    //         "storage-location",
+    //         "file:///tmp/test_sealevel_checkpoints_0x70997970c51812dc3a010c7d01b50e0d17dc79c8"
+    //     )
+    //     .arg("signature", "0xcd87b715cd4c2e3448be9e34204cf16376a6ba6106e147a4965e26ea946dd2ab19598140bf26f1e9e599c23f6b661553c7d89e8db22b3609068c91eb7f0fa2f01b")
+    //     .run()
+    //     .join();
 
     log!("Solana validator started and initialized successfully");
 
@@ -279,7 +274,7 @@ pub fn initiate_solana_hyperlane_transfer(
     let sender = Program::new(concat_path(&solana_cli_tools_path, "solana"))
         .arg("config", solana_config_path.to_str().unwrap())
         .arg("keypair", SOLANA_KEYPAIR)
-        .cmd("adderss")
+        .cmd("address")
         .run_with_output()
         .join()
         .get(0)
