@@ -107,6 +107,12 @@
       "address": "0xed31c20c5517EaC05decD5F6dCd01Fe6d16fD09D",
       "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c7000000000000000000000000056f52c0a1ddcd557285f7cbc782d3d83096ce1cc",
       "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x2C0b88dEa83EBf15ab6D275FA582241E36900B4f",
+      "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c7000000000000000000000000056f52c0a1ddcd557285f7cbc782d3d83096ce1cc",
+      "isProxy": false
     }
   ],
   "moonbeam": [
