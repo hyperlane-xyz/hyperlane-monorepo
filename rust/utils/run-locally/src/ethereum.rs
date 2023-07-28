@@ -8,7 +8,7 @@ use crate::config::Config;
 use crate::logging::log;
 use crate::program::Program;
 use crate::utils::{as_task, AgentHandles, TaskHandle};
-use crate::{filter_anvil_logs, INFRA_PATH, MONOREPO_ROOT_PATH, TS_SDK_PATH};
+use crate::{INFRA_PATH, MONOREPO_ROOT_PATH, TS_SDK_PATH};
 
 #[apply(as_task)]
 pub fn start_anvil(config: Arc<Config>) -> AgentHandles {
@@ -22,9 +22,7 @@ pub fn start_anvil(config: Arc<Config>) -> AgentHandles {
     yarn_monorepo.clone().cmd("build").run().join();
 
     log!("Launching anvil...");
-    let anvil_args = Program::new("anvil")
-        .flag("silent")
-        .filter_logs(filter_anvil_logs);
+    let anvil_args = Program::new("anvil").flag("silent").filter_logs(|_| false); // for now do not keep any of the anvil logs
     let anvil = anvil_args.spawn("ETH");
 
     sleep(Duration::from_secs(10));

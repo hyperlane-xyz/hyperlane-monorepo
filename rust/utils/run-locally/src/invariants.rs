@@ -1,8 +1,10 @@
+use std::path::Path;
+
+use maplit::hashmap;
+
 use crate::fetch_metric;
 use crate::logging::log;
 use crate::solana::solana_termination_invariants_met;
-use maplit::hashmap;
-use std::path::Path;
 
 /// Use the metrics to check if the relayer queues are empty and the expected
 /// number of messages have been sent.
@@ -10,7 +12,7 @@ pub fn termination_invariants_met(
     num_expected_messages: u32,
     solana_cli_tools_path: &Path,
 ) -> eyre::Result<bool> {
-    if solana_termination_invariants_met(solana_cli_tools_path.to_owned()) {
+    if !solana_termination_invariants_met(solana_cli_tools_path.to_owned()) {
         log!("Solana termination invariants not met");
         return Ok(false);
     }

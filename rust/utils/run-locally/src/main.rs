@@ -68,7 +68,6 @@ static SHUTDOWN: AtomicBool = AtomicBool::new(false);
 /// cleanup purposes at this time.
 #[derive(Default)]
 struct State {
-    scraper_postgres_initialized: bool,
     agents: Vec<Child>,
     watchers: Vec<Box<dyn TaskHandle<Output = ()>>>,
     data: Vec<Box<dyn ArbitraryData>>,
@@ -89,10 +88,6 @@ impl Drop for State {
         self.agents.reverse();
         for mut agent in self.agents.drain(..) {
             stop_child(&mut agent);
-        }
-        if self.scraper_postgres_initialized {
-            log!("Stopping scraper postgres...");
-            kill_scraper_postgres();
         }
         log!("Joining watchers...");
         RUN_LOG_WATCHERS.store(false, Ordering::Relaxed);
@@ -250,6 +245,7 @@ fn main() -> ExitCode {
         .arg("bin", "scraper")
         .arg("bin", "init-db")
         .arg("bin", "hyperlane-sealevel-client")
+        .filter_logs(|l| !l.contains("workspace-inheritance"))
         .run();
 
     let start_anvil = start_anvil(config.clone());
@@ -257,19 +253,15 @@ fn main() -> ExitCode {
     let solana_program_path = solana_program_builder.join();
 
     log!("Running postgres db...");
-    kill_scraper_postgres();
-
-    Program::new("docker")
+    let postgres = Program::new("docker")
         .cmd("run")
         .flag("rm")
         .arg("name", "scraper-testnet-postgres")
         .arg("env", "POSTGRES_PASSWORD=47221c18c610")
         .arg("publish", "5432:5432")
-        .flag("detach")
         .cmd("postgres:14")
-        .run()
-        .join();
-    state.scraper_postgres_initialized = true;
+        .spawn("SQL");
+    state.push_agent(postgres);
 
     build_rust.join();
 
@@ -280,21 +272,20 @@ fn main() -> ExitCode {
         solana_ledger_dir.as_ref().to_path_buf(),
     );
 
-    log!("Init postgres db...");
-    Program::new(concat_path(AGENT_BIN_PATH, "init-db"))
-        .run()
-        .join();
-
     let (solana_config_path, solana_validator) = start_solana_validator.join();
     state.push_agent(solana_validator);
     state.push_agent(start_anvil.join());
-
-    state.push_agent(scraper_env.spawn("SCR"));
 
     // spawn 1st validator before any messages have been sent to test empty mailbox
     state.push_agent(validator_envs.first().unwrap().clone().spawn("VAL1"));
 
     sleep(Duration::from_secs(5));
+
+    log!("Init postgres db...");
+    Program::new(concat_path(AGENT_BIN_PATH, "init-db"))
+        .run()
+        .join();
+    state.push_agent(scraper_env.spawn("SCR"));
 
     // Send half the kathy messages before starting the rest of the agents
     let kathy_env = Program::new("yarn")
@@ -356,18 +347,4 @@ fn main() -> ExitCode {
     } else {
         ExitCode::SUCCESS
     }
-}
-
-fn kill_scraper_postgres() {
-    Program::new("docker")
-        .cmd("stop")
-        .cmd("scraper-testnet-postgres")
-        .run_ignore_code()
-        .join();
-}
-
-/// Return true if a given log line should be kept.
-fn filter_anvil_logs(_log: &str) -> bool {
-    // for now discard all anvil logs
-    false
 }

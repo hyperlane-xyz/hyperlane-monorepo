@@ -1,11 +1,3 @@
-use crate::logging::log;
-use crate::utils::{
-    as_task, stop_child, AgentHandles, ArbitraryData, LogFilter, MappingTaskHandle,
-    SimpleTaskHandle, TaskHandle,
-};
-use crate::{RUN_LOG_WATCHERS, SHUTDOWN};
-use eyre::Context;
-use macro_rules_attribute::apply;
 use std::collections::BTreeMap;
 use std::ffi::OsStr;
 use std::fmt::{Debug, Display, Formatter};
@@ -17,6 +9,16 @@ use std::sync::mpsc::Sender;
 use std::sync::{mpsc, Arc};
 use std::thread::{sleep, spawn};
 use std::time::Duration;
+
+use eyre::Context;
+use macro_rules_attribute::apply;
+
+use crate::logging::log;
+use crate::utils::{
+    as_task, stop_child, AgentHandles, ArbitraryData, LogFilter, MappingTaskHandle,
+    SimpleTaskHandle, TaskHandle,
+};
+use crate::{RUN_LOG_WATCHERS, SHUTDOWN};
 
 #[derive(Default, Clone)]
 pub struct Program {
