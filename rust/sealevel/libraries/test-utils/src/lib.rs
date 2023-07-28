@@ -38,6 +38,10 @@ pub fn mailbox_id() -> Pubkey {
     pubkey!("692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1")
 }
 
+pub fn igp_program_id() -> Pubkey {
+    pubkey!("BSffRJEwRcyEkjnbjAMMfv9kv3Y3SauxsBjCdNJyM2BN")
+}
+
 pub struct MailboxAccounts {
     pub program: Pubkey,
     pub inbox: Pubkey,

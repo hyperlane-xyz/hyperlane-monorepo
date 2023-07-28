@@ -17,7 +17,7 @@ use solana_sdk::{
 
 use hyperlane_test_utils::{
     assert_transaction_error, new_funded_keypair, process_instruction, simulate_instruction,
-    transfer_lamports,
+    transfer_lamports, igp_program_id,
 };
 use serializable_account_meta::SimulationReturnData;
 
@@ -43,10 +43,6 @@ const TEST_DESTINATION_DOMAIN: u32 = 11111;
 const TEST_GAS_AMOUNT: u64 = 300000;
 const TEST_GAS_OVERHEAD_AMOUNT: u64 = 100000;
 const LOCAL_DECIMALS: u8 = SOL_DECIMALS;
-
-fn igp_program_id() -> Pubkey {
-    pubkey!("BSffRJEwRcyEkjnbjAMMfv9kv3Y3SauxsBjCdNJyM2BN")
-}
 
 async fn setup_client() -> (BanksClient, Keypair) {
     let program_id = igp_program_id();

@@ -138,6 +138,7 @@ async fn initialize_hyperlane_token(
                 &HyperlaneTokenInstruction::Init(Init {
                     mailbox: mailbox_id(),
                     interchain_security_module: None,
+                    interchain_gas_paymaster: None,
                     decimals: LOCAL_DECIMALS,
                     remote_decimals: REMOTE_DECIMALS,
                 })
@@ -257,6 +258,7 @@ async fn test_initialize() {
             remote_decimals: REMOTE_DECIMALS,
             owner: Some(payer.pubkey()),
             interchain_security_module: None,
+            interchain_gas_paymaster: None,
             remote_routers: HashMap::new(),
             plugin_data: SyntheticPlugin {
                 mint: hyperlane_token_accounts.mint,
