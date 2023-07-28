@@ -32,7 +32,7 @@ const SOLANA_PROGRAMS: &[(&str, &str)] = &[
 
 const SOLANA_KEYPAIR: &str = "config/sealevel/test-keys/test_deployer-keypair.json";
 
-const SBF_OUT_PATH: &str = "target/sbf-solana-solana/release";
+const SBF_OUT_PATH: &str = "target/dist";
 
 // Relative paths to solana program source code within rust/sealevel/programs repo.
 const SOLANA_HYPERLANE_PROGRAMS: &[&str] = &[
