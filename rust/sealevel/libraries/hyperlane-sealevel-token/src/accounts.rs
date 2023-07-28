@@ -9,6 +9,7 @@ use hyperlane_sealevel_connection_client::{
     HyperlaneConnectionClient, HyperlaneConnectionClientRecipient, HyperlaneConnectionClientSetter,
     HyperlaneConnectionClientSetterAccessControl,
 };
+use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
 use solana_program::{account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey};
 use std::{cmp::Ordering, collections::HashMap, fmt::Debug};
 
@@ -37,6 +38,8 @@ pub struct HyperlaneToken<T> {
     pub owner: Option<Pubkey>,
     /// The interchain security module.
     pub interchain_security_module: Option<Pubkey>,
+    /// (IGP Program, IGP account).
+    pub interchain_gas_paymaster: Option<(Pubkey, InterchainGasPaymasterType)>,
     /// Remote routers.
     pub remote_routers: HashMap<u32, H256>,
     /// Plugin-specific data.
@@ -99,7 +102,7 @@ impl<T> HyperlaneConnectionClient for HyperlaneToken<T> {
     }
 
     // Not yet supported
-    fn interchain_gas_paymaster(&self) -> Option<&Pubkey> {
+    fn interchain_gas_paymaster(&self) -> Option<&(Pubkey, InterchainGasPaymasterType)> {
         None
     }
 
@@ -113,7 +116,7 @@ impl<T> HyperlaneConnectionClientSetter for HyperlaneToken<T> {
         self.mailbox = new_mailbox;
     }
 
-    fn set_interchain_gas_paymaster(&mut self, _new_igp: Option<Pubkey>) {
+    fn set_interchain_gas_paymaster(&mut self, _new_igp: Option<(Pubkey, InterchainGasPaymasterType)>) {
         // Not yet supported
     }
 

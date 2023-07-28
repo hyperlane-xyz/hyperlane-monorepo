@@ -3789,6 +3789,7 @@ dependencies = [
  "access-control",
  "borsh 0.9.3",
  "hyperlane-core",
+ "hyperlane-sealevel-igp",
  "hyperlane-sealevel-mailbox",
  "solana-program",
 ]
@@ -3997,6 +3998,7 @@ dependencies = [
  "borsh 0.9.3",
  "hyperlane-core",
  "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-igp",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
  "num-derive",

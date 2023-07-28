@@ -251,9 +251,9 @@ fn init_igp_variant<T: account_utils::Data + account_utils::SizedData>(
 /// 0. [executable] The system program.
 /// 1. [signer] The payer.
 /// 2. [writeable] The IGP program data.
-/// 3. [writeable] The IGP account.
-/// 4. [signer] Unique gas payment account.
-/// 5. [writeable] Gas payment PDA.
+/// 3. [signer] Unique gas payment account.
+/// 4. [writeable] Gas payment PDA.
+/// 5. [writeable] The IGP account.
 /// 6. [] Overhead IGP account (optional).
 fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
@@ -285,7 +285,27 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
         return Err(ProgramError::IncorrectProgramId);
     }
 
-    // Account 3: The IGP account.
+    // Account 3: The unique gas payment account.
+    // Uniqueness is enforced by making sure the message storage PDA based on
+    // this unique message account is empty, which is done next.
+    let unique_message_account_info = next_account_info(accounts_iter)?;
+    if !unique_message_account_info.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+
+    // Account 4: Gas payment PDA.
+    let gas_payment_account_info = next_account_info(accounts_iter)?;
+    let (gas_payment_key, gas_payment_bump) = Pubkey::find_program_address(
+        igp_gas_payment_pda_seeds!(unique_message_account_info.key),
+        program_id,
+    );
+    if gas_payment_account_info.key != &gas_payment_key {
+        return Err(ProgramError::InvalidSeeds);
+    }
+    // Make sure an account can't be written to that already exists.
+    verify_account_uninitialized(gas_payment_account_info)?;
+
+    // Account 5: The IGP account.
     let igp_info = next_account_info(accounts_iter)?;
     // The caller should validate the IGP account before paying for gas,
     // but we do a basic sanity check.
@@ -298,26 +318,6 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
     if igp_info.key != &igp_key {
         return Err(ProgramError::InvalidSeeds);
     }
-
-    // Account 4: The unique gas payment account.
-    // Uniqueness is enforced by making sure the message storage PDA based on
-    // this unique message account is empty, which is done next.
-    let unique_message_account_info = next_account_info(accounts_iter)?;
-    if !unique_message_account_info.is_signer {
-        return Err(ProgramError::MissingRequiredSignature);
-    }
-
-    // Account 5: Gas payment PDA.
-    let gas_payment_account_info = next_account_info(accounts_iter)?;
-    let (gas_payment_key, gas_payment_bump) = Pubkey::find_program_address(
-        igp_gas_payment_pda_seeds!(unique_message_account_info.key),
-        program_id,
-    );
-    if gas_payment_account_info.key != &gas_payment_key {
-        return Err(ProgramError::InvalidSeeds);
-    }
-    // Make sure an account can't be written to that already exists.
-    verify_account_uninitialized(gas_payment_account_info)?;
 
     // Account 6: Overhead IGP account (optional).
     // The caller is expected to only provide an overhead IGP they are comfortable

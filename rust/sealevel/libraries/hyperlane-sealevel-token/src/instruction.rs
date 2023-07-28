@@ -3,6 +3,7 @@
 use account_utils::{DiscriminatorData, DiscriminatorEncode, PROGRAM_INSTRUCTION_DISCRIMINATOR};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{H256, U256};
+use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use solana_program::{
     instruction::{AccountMeta, Instruction as SolanaInstruction},
@@ -42,6 +43,8 @@ pub struct Init {
     pub mailbox: Pubkey,
     /// The interchain security module.
     pub interchain_security_module: Option<Pubkey>,
+    /// The interchain gas paymaster program and account.
+    pub interchain_gas_paymaster: Option<(Pubkey, InterchainGasPaymasterType)>,
     /// The local decimals.
     pub decimals: u8,
     /// The remote decimals.

@@ -14,6 +14,9 @@ use hyperlane_sealevel_connection_client::{
 use hyperlane_sealevel_mailbox::{
     mailbox_message_dispatch_authority_pda_seeds, mailbox_process_authority_pda_seeds,
 };
+use hyperlane_sealevel_igp::{
+    accounts::InterchainGasPaymasterType,
+};
 use hyperlane_sealevel_message_recipient_interface::HandleInstruction;
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::{
@@ -232,6 +235,7 @@ where
             dispatch_authority_bump,
             owner: Some(*payer_account.key),
             interchain_security_module: init.interchain_security_module,
+            interchain_gas_paymaster: init.interchain_gas_paymaster,
             decimals: init.decimals,
             remote_decimals: init.remote_decimals,
             remote_routers: HashMap::new(),
@@ -254,9 +258,14 @@ where
     /// 4.   [writeable] The mailbox outbox account.
     /// 5.   [] Message dispatch authority.
     /// 6.   [signer] The token sender and mailbox payer.
-    /// 7.   [signer] Unique message account.
+    /// 7.   [signer] Unique message / gas payment account.
     /// 8.   [writeable] Message storage PDA.
-    /// 9..N [??..??] Plugin-specific accounts.
+    /// 9.   [executable] The IGP program.
+    /// 10.  [writeable] The IGP program data.
+    /// 11.  [writeable] Gas payment PDA.
+    /// 12.  [] OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
+    /// 13.  [writeable] The IGP account.
+    /// 14..N [??..??] Plugin-specific accounts.
     pub fn transfer_remote(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -315,13 +324,82 @@ where
             return Err(ProgramError::MissingRequiredSignature);
         }
 
-        // Account 7: Unique message account
-        // Defer to the checks in the Mailbox, no need to verify anything here.
+        // Account 7: Unique message / gas payment account
+        // Defer to the checks in the Mailbox / IGP, no need to verify anything here.
         let unique_message_account = next_account_info(accounts_iter)?;
 
         // Account 8: Message storage PDA.
         // Similarly defer to the checks in the Mailbox to ensure account validity.
         let dispatched_message_pda = next_account_info(accounts_iter)?;
+
+        let (igp_program_id, igp_account_type) = token.interchain_gas_paymaster().ok_or(ProgramError::InvalidArgument)?;
+
+        // Account 9: The IGP program
+        let igp_program_account = next_account_info(accounts_iter)?;
+        if igp_program_account.key != igp_program_id {
+            return Err(ProgramError::InvalidArgument);
+        }
+
+        // Account 10: The IGP program data.
+        // No verification is performed here, the IGP will do that.
+        let igp_program_data_account = next_account_info(accounts_iter)?;
+
+        // Account 11: The gas payment PDA.
+        // No verification is performed here, the IGP will do that.
+        let igp_payment_pda_account = next_account_info(accounts_iter)?;
+
+        let (igp_payment_account_metas, igp_payment_account_infos) = {
+
+            // Account 12: The configured IGP account.
+            let configured_igp_account = next_account_info(accounts_iter)?;
+            if configured_igp_account.key != igp_account_type.key() {
+                return Err(ProgramError::InvalidArgument);
+            }
+
+            // 0. [executable] The system program.
+            // 1. [signer] The payer.
+            // 2. [writeable] The IGP program data.
+            // 3. [signer] Unique gas payment account.
+            // 4. [writeable] Gas payment PDA.
+            // 5. [writeable] The IGP account.
+            // 6. [] Overhead IGP account (optional).
+
+            let mut igp_account_metas = vec![
+                AccountMeta::new_readonly(solana_program::system_program::id(), false),
+                AccountMeta::new(*sender_wallet.key, true),
+                AccountMeta::new(*igp_program_data_account.key, false),
+                AccountMeta::new(*unique_message_account.key, true),
+                AccountMeta::new(*igp_payment_pda_account.key, false),
+            ];
+            let mut igp_account_infos = vec![
+                system_program_account.clone(),
+                sender_wallet.clone(),
+                igp_program_data_account.clone(),
+                unique_message_account.clone(),
+                igp_payment_pda_account.clone(),
+            ];
+
+            match igp_account_type {
+                InterchainGasPaymasterType::Igp(_) => {
+                    igp_account_metas.push(AccountMeta::new(*configured_igp_account.key, false));
+                    igp_account_infos.push(configured_igp_account.clone());
+                },
+                InterchainGasPaymasterType::OverheadIgp(_) => {
+                    // Account 13: The inner IGP account.
+                    let inner_igp_account = next_account_info(accounts_iter)?;
+
+                    // First push the inner IGP account
+                    igp_account_metas.push(AccountMeta::new(*inner_igp_account.key, false));
+                    igp_account_infos.push(inner_igp_account.clone());
+
+                    // Then push the Overhead IGP
+                    igp_account_metas.push(AccountMeta::new(*configured_igp_account.key, false));
+                    igp_account_infos.push(configured_igp_account.clone());
+                }
+            };
+
+            (igp_account_metas, igp_account_infos)
+        };
 
         // The amount denominated in the local decimals.
         let local_amount: u64 = xfer
@@ -350,11 +428,12 @@ where
             TokenMessage::new(xfer.recipient, remote_amount, vec![]).to_vec();
 
         // Dispatch the message.
-        token.dispatch(
+        token.dispatch_with_gas(
             program_id,
             dispatch_authority_seeds,
             xfer.destination_domain,
             token_transfer_message,
+            200000u64,
             vec![
                 AccountMeta::new(*mailbox_outbox_account.key, false),
                 AccountMeta::new_readonly(*dispatch_authority_account.key, true),
@@ -373,6 +452,8 @@ where
                 unique_message_account.clone(),
                 dispatched_message_pda.clone(),
             ],
+            igp_payment_account_metas,
+            &igp_payment_account_infos,
         )?;
 
         msg!(

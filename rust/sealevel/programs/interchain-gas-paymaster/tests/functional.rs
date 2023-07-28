@@ -985,17 +985,17 @@ async fn pay_for_gas(
     // 0. [executable] The system program.
     // 1. [signer] The payer.
     // 2. [writeable] The IGP program data.
-    // 3. [writeable] The IGP account.
-    // 4. [signer] Unique gas payment account.
-    // 5. [writeable] Gas payment PDA.
+    // 3. [signer] Unique gas payment account.
+    // 4. [writeable] Gas payment PDA.
+    // 5. [writeable] The IGP account.
     // 6. [] Overhead IGP account (optional).
     let mut accounts = vec![
         AccountMeta::new_readonly(system_program::id(), false),
         AccountMeta::new(payer.pubkey(), true),
         AccountMeta::new(igp_program_data_key, false),
-        AccountMeta::new(igp, false),
         AccountMeta::new_readonly(unique_payment_account.pubkey(), true),
         AccountMeta::new(gas_payment_pda_key, false),
+        AccountMeta::new(igp, false),
     ];
     if let Some(overhead_igp) = overhead_igp {
         accounts.push(AccountMeta::new_readonly(overhead_igp, false));
