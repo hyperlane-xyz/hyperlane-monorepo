@@ -93,7 +93,7 @@ struct Cli {
     #[arg(long, short = 'a')]
     heap_size: Option<u32>,
     #[arg(long, short = 'C')]
-    config: Option<String>
+    config: Option<String>,
 }
 
 #[derive(Subcommand)]

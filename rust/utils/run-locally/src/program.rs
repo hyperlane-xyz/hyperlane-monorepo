@@ -216,14 +216,17 @@ impl Program {
         Box::new(self.arbitrary_data.clone())
     }
 
+    #[allow(dead_code)]
     pub fn run(self) -> impl TaskHandle<Output = ()> {
         MappingTaskHandle(self.run_full(true, false), |_| ())
     }
 
+    #[allow(dead_code)]
     pub fn run_ignore_code(self) -> impl TaskHandle<Output = ()> {
         MappingTaskHandle(self.run_full(false, false), |_| ())
     }
 
+    #[allow(dead_code)]
     pub fn run_with_output(self) -> impl TaskHandle<Output = Vec<String>> {
         MappingTaskHandle(self.run_full(false, true), |o| {
             o.expect("Build command did not return output")
