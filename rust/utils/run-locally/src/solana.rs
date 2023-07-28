@@ -60,6 +60,7 @@ pub const SOLANA_CHECKPOINT_LOCATION: &str =
 // Install the CLI tools and return the path to the bin dir.
 #[apply(as_task)]
 pub fn install_solana_cli_tools() -> (PathBuf, impl ArbitraryData) {
+    let solana_download_dir = tempdir().unwrap();
     let solana_tools_dir = tempdir().unwrap();
     log!("Downloading solana cli release v{}", SOLANA_CLI_VERSION);
     let solana_release_name = {
@@ -86,7 +87,7 @@ pub fn install_solana_cli_tools() -> (PathBuf, impl ArbitraryData) {
         .flag("location")
         .cmd(format!("https://github.com/solana-labs/solana/releases/download/v{SOLANA_CLI_VERSION}/{solana_archive_name}"))
         .flag("silent")
-        .working_dir("target")
+        .working_dir(solana_download_dir.as_ref().to_str().unwrap())
         .run()
         .join();
     log!("Uncompressing solana release");
@@ -94,14 +95,15 @@ pub fn install_solana_cli_tools() -> (PathBuf, impl ArbitraryData) {
     Program::new("tar")
         .flag("extract")
         .arg("file", &solana_archive_name)
-        .working_dir("target")
+        .working_dir(solana_download_dir.as_ref().to_str().unwrap())
         .run()
         .join();
-    log!("Remove temporary solana files");
-    fs::rename("target/solana-release", &solana_tools_dir)
-        .expect("Failed to move solana-release dir");
-    fs::remove_file(concat_path("target", &solana_archive_name))
-        .expect("Failed to remove solana archive");
+
+    fs::rename(
+        concat_path(&solana_download_dir, "solana-release"),
+        &solana_tools_dir,
+    )
+    .expect("Failed to move solana-release dir");
     (concat_path(&solana_tools_dir, "bin"), solana_tools_dir)
 }
 
