@@ -5,6 +5,7 @@ use account_utils::AccountData;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{H256, U256};
 use hyperlane_sealevel_connection_client::{
+    gas_router::{GasRouterConfig, HyperlaneGasRouter},
     router::{HyperlaneRouter, RemoteRouterConfig},
     HyperlaneConnectionClient, HyperlaneConnectionClientRecipient, HyperlaneConnectionClientSetter,
     HyperlaneConnectionClientSetterAccessControl,
@@ -40,6 +41,8 @@ pub struct HyperlaneToken<T> {
     pub interchain_security_module: Option<Pubkey>,
     /// (IGP Program, IGP account).
     pub interchain_gas_paymaster: Option<(Pubkey, InterchainGasPaymasterType)>,
+    /// Destination gas amounts.
+    pub destination_gas: HashMap<u32, u64>,
     /// Remote routers.
     pub remote_routers: HashMap<u32, H256>,
     /// Plugin-specific data.
@@ -142,6 +145,16 @@ impl<T> HyperlaneRouter for HyperlaneToken<T> {
 
     fn enroll_remote_router(&mut self, config: RemoteRouterConfig) {
         self.remote_routers.enroll_remote_router(config);
+    }
+}
+
+impl<T> HyperlaneGasRouter for HyperlaneToken<T> {
+    fn destination_gas(&self, destination: u32) -> Option<u64> {
+        self.destination_gas.destination_gas(destination)
+    }
+
+    fn set_destination_gas(&mut self, config: GasRouterConfig) {
+        self.destination_gas.set_destination_gas(config);
     }
 }
 

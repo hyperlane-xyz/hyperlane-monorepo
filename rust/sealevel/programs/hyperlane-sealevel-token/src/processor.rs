@@ -1,7 +1,9 @@
 //! Program processor.
 
 use account_utils::DiscriminatorDecode;
-use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
+use hyperlane_sealevel_connection_client::{
+    gas_router::GasRouterConfig, router::RemoteRouterConfig,
+};
 use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
 };
@@ -63,6 +65,9 @@ pub fn process_instruction(
         TokenIxn::EnrollRemoteRouter(config) => enroll_remote_router(program_id, accounts, config),
         TokenIxn::EnrollRemoteRouters(configs) => {
             enroll_remote_routers(program_id, accounts, configs)
+        }
+        TokenIxn::SetDestinationGasConfigs(configs) => {
+            set_destination_gas_configs(program_id, accounts, configs)
         }
         TokenIxn::SetInterchainSecurityModule(new_ism) => {
             set_interchain_security_module(program_id, accounts, new_ism)
@@ -169,6 +174,21 @@ fn enroll_remote_routers(
     configs: Vec<RemoteRouterConfig>,
 ) -> ProgramResult {
     HyperlaneSealevelToken::<SyntheticPlugin>::enroll_remote_routers(program_id, accounts, configs)
+}
+
+/// Sets the destination gas configs.
+///
+/// Accounts:
+/// 0. [writeable] The token PDA account.
+/// 1. [signer] The owner.
+fn set_destination_gas_configs(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    configs: Vec<GasRouterConfig>,
+) -> ProgramResult {
+    HyperlaneSealevelToken::<SyntheticPlugin>::set_destination_gas_configs(
+        program_id, accounts, configs,
+    )
 }
 
 /// Transfers ownership.

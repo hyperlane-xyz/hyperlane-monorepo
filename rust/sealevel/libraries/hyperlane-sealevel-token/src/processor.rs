@@ -5,6 +5,7 @@ use account_utils::create_pda_account;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{Decode, Encode};
 use hyperlane_sealevel_connection_client::{
+    gas_router::{GasRouterConfig, HyperlaneGasRouterAccessControl, HyperlaneGasRouterDispatch},
     router::{
         HyperlaneRouterAccessControl, HyperlaneRouterDispatch, HyperlaneRouterMessageRecipient,
         RemoteRouterConfig,
@@ -234,6 +235,7 @@ where
             owner: Some(*payer_account.key),
             interchain_security_module: init.interchain_security_module,
             interchain_gas_paymaster: init.interchain_gas_paymaster,
+            destination_gas: HashMap::new(),
             decimals: init.decimals,
             remote_decimals: init.remote_decimals,
             remote_routers: HashMap::new(),
@@ -451,12 +453,12 @@ where
 
         if let Some((igp_payment_account_metas, igp_payment_account_infos)) = igp_payment_accounts {
             // Dispatch the message and pay for gas.
-            token.dispatch_with_gas(
+            HyperlaneGasRouterDispatch::dispatch_with_gas(
+                &*token,
                 program_id,
                 dispatch_authority_seeds,
                 xfer.destination_domain,
                 token_transfer_message,
-                200000u64,
                 dispatch_account_metas,
                 dispatch_account_infos,
                 igp_payment_account_metas,
@@ -780,6 +782,34 @@ where
 
         // This errors if owner_account is not really the owner.
         token.set_interchain_security_module_only_owner(owner_account, ism)?;
+
+        // Store the updated token account.
+        HyperlaneTokenAccount::<T>::from(token).store(token_account, true)?;
+
+        Ok(())
+    }
+
+    /// Lets the owner set destination gas configs.
+    ///
+    /// Accounts:
+    /// 0. [writeable] The token PDA account.
+    /// 1. [signer] The access control owner.
+    pub fn set_destination_gas_configs(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+        configs: Vec<GasRouterConfig>,
+    ) -> ProgramResult {
+        let accounts_iter = &mut accounts.iter();
+
+        // Account 0: Token account
+        let token_account = next_account_info(accounts_iter)?;
+        let mut token = HyperlaneToken::verify_account_and_fetch_inner(program_id, token_account)?;
+
+        // Account 1: Owner
+        let owner_account = next_account_info(accounts_iter)?;
+
+        // This errors if owner_account is not really the owner.
+        token.set_destination_gas_configs_only_owner(owner_account, configs)?;
 
         // Store the updated token account.
         HyperlaneTokenAccount::<T>::from(token).store(token_account, true)?;

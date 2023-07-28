@@ -6,6 +6,7 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
+pub mod gas_router;
 pub mod router;
 
 /// Getters for the HyperlaneConnectionClient.

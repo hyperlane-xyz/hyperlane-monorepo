@@ -3,7 +3,9 @@
 use account_utils::{DiscriminatorData, DiscriminatorEncode, PROGRAM_INSTRUCTION_DISCRIMINATOR};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{H256, U256};
-use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
+use hyperlane_sealevel_connection_client::{
+    gas_router::GasRouterConfig, router::RemoteRouterConfig,
+};
 use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
 use solana_program::{
     instruction::{AccountMeta, Instruction as SolanaInstruction},
@@ -26,6 +28,8 @@ pub enum Instruction {
     EnrollRemoteRouter(RemoteRouterConfig),
     /// Enroll multiple remote routers. Only owner.
     EnrollRemoteRouters(Vec<RemoteRouterConfig>),
+    /// Enroll multiple remote routers. Only owner.
+    SetDestinationGasConfigs(Vec<GasRouterConfig>),
     /// Set the interchain security module. Only owner.
     SetInterchainSecurityModule(Option<Pubkey>),
     /// Transfer ownership of the program. Only owner.
