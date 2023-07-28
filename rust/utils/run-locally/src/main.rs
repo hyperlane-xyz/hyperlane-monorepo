@@ -184,11 +184,10 @@ fn main() -> ExitCode {
         )
         // default is used for TEST3
         .arg("defaultSigner.key", RELAYER_KEYS[2])
-        // .arg(
-        //     "relayChains",
-        //     "test1,test2,test3,sealeveltest1,sealeveltest2",
-        // );
-        .arg("relayChains", "sealeveltest1,sealeveltest2");
+        .arg(
+            "relayChains",
+            "test1,test2,test3,sealeveltest1,sealeveltest2",
+        );
 
     let base_validator_env = common_agent_env
         .clone()
@@ -304,8 +303,8 @@ fn main() -> ExitCode {
     state.push_agent(solana_validator);
     state.push_agent(start_anvil.join());
 
-    // // spawn 1st validator before any messages have been sent to test empty mailbox
-    // state.push_agent(validator_envs.first().unwrap().clone().spawn("VL1"));
+    // spawn 1st validator before any messages have been sent to test empty mailbox
+    state.push_agent(validator_envs.first().unwrap().clone().spawn("VAL1"));
 
     sleep(Duration::from_secs(5));
 
@@ -315,16 +314,16 @@ fn main() -> ExitCode {
         .join();
     state.push_agent(scraper_env.spawn("SCR"));
 
-    // // Send half the kathy messages before starting the rest of the agents
-    // let kathy_env = Program::new("yarn")
-    //     .working_dir(INFRA_PATH)
-    //     .cmd("kathy")
-    //     .arg("messages", (config.kathy_messages / 2).to_string())
-    //     .arg("timeout", "1000");
-    // kathy_env.clone().run().join();
+    // Send half the kathy messages before starting the rest of the agents
+    let kathy_env = Program::new("yarn")
+        .working_dir(INFRA_PATH)
+        .cmd("kathy")
+        .arg("messages", (config.kathy_messages / 2).to_string())
+        .arg("timeout", "1000");
+    kathy_env.clone().run().join();
 
     // spawn the rest of the validators
-    for (i, validator_env) in validator_envs.into_iter().enumerate().skip(3) {
+    for (i, validator_env) in validator_envs.into_iter().enumerate().skip(1) {
         let validator = validator_env.spawn(make_static(format!("VL{}", 1 + i)));
         state.push_agent(validator);
     }
@@ -336,8 +335,8 @@ fn main() -> ExitCode {
     log!("Setup complete! Agents running in background...");
     log!("Ctrl+C to end execution...");
 
-    // // Send half the kathy messages after the relayer comes up
-    // state.push_agent(kathy_env.flag("mineforever").spawn("KTY"));
+    // Send half the kathy messages after the relayer comes up
+    state.push_agent(kathy_env.flag("mineforever").spawn("KTY"));
 
     let loop_start = Instant::now();
     // give things a chance to fully start.
