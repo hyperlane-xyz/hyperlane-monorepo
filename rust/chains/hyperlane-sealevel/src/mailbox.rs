@@ -735,8 +735,9 @@ impl Indexer<H256> for SealevelMailboxIndexer {
 
 #[async_trait]
 impl SequenceIndexer<H256> for SealevelMailboxIndexer {
-    async fn nonce_at_tip(&self) -> ChainResult<(u32, u32)> {
-        info!("Gas payment nonce indexing not implemented");
+    async fn sequence_at_tip(&self) -> ChainResult<(u32, u32)> {
+        // TODO: implement when sealevel scraper support is implemented
+        info!("Message delivery indexing not implemented");
         Ok((1, 1))
     }
 }

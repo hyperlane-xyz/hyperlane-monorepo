@@ -79,7 +79,7 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
 
 #[async_trait]
 impl SequenceIndexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
-    async fn nonce_at_tip(&self) -> ChainResult<(u32, u32)> {
+    async fn sequence_at_tip(&self) -> ChainResult<(u32, u32)> {
         info!("Gas payment indexing not implemented for Sealevel");
         Ok((1, 1))
     }

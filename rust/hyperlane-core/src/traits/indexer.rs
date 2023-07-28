@@ -48,6 +48,6 @@ pub trait MessageIndexer: Indexer<HyperlaneMessage> + 'static {
 #[async_trait]
 #[auto_impl(&, Box, Arc)]
 pub trait SequenceIndexer<T>: Indexer<T> + 'static {
-    /// Return the latest finalized nonce and block number
-    async fn nonce_at_tip(&self) -> ChainResult<(u32, u32)>;
+    /// Return the latest finalized sequence and block number
+    async fn sequence_at_tip(&self) -> ChainResult<(u32, u32)>;
 }

@@ -42,44 +42,46 @@ pub(crate) struct SyncState {
     /// The next block that should be indexed.
     next_block: u32,
     mode: IndexMode,
-    /// The next nonce that the cursor is looking for.
+    /// The next sequence index that the cursor is looking for.
     /// In the EVM, this is used for optimizing indexing,
-    /// because it's cheaper to make read calls for the nonce than
+    /// because it's cheaper to make read calls for the sequence index than
     /// to call `eth_getLogs` with a block range.
     /// In Sealevel, historic queries aren't supported, so the nonce field
     /// is used to query storage in sequence.
-    next_nonce: u32,
+    next_sequence: u32,
     direction: SyncDirection,
 }
 
 impl SyncState {
     async fn get_next_range(
         &mut self,
-        nonce_and_tip_getter: impl Future<Output = ChainResult<(u32, u32)>>,
+        sequence_and_tip_getter: impl Future<Output = ChainResult<(u32, u32)>>,
     ) -> ChainResult<RangeInclusive<u32>> {
-        let (max_nonce, tip) = nonce_and_tip_getter.await?;
+        let (max_sequence_index, tip) = sequence_and_tip_getter.await?;
         // We attempt to index a range of blocks that is as large as possible.
-        let (from, to, next_nonce) = match self.direction {
+        let (from, to) = match self.direction {
             SyncDirection::Forward => {
                 let from = self.next_block;
                 let to = u32::min(tip, from + self.chunk_size);
                 self.next_block = to + 1;
-                (from, to, self.next_nonce)
+                (from, to)
             }
             SyncDirection::Backward => {
                 let to = self.next_block;
                 let from = to.saturating_sub(self.chunk_size);
                 self.next_block = from.saturating_sub(1);
-                (from, to, self.next_nonce)
+                (from, to)
             }
         };
         let range = match self.mode {
             IndexMode::Block => from..=to,
             IndexMode::Sequence => {
-                let sequence_end = u32::min(max_nonce, next_nonce + MAX_SEQUENCE_RANGE);
-                self.next_nonce = sequence_end + 1;
+                let sequence_start = self.next_sequence;
+                let sequence_end =
+                    u32::min(max_sequence_index, sequence_start + MAX_SEQUENCE_RANGE);
+                self.next_sequence = sequence_end + 1;
                 self.next_block = tip;
-                next_nonce..=sequence_end
+                sequence_start..=sequence_end
             }
         };
         Ok(range)
@@ -106,7 +108,7 @@ impl MessageSyncCursor {
     async fn update(
         &mut self,
         logs: Vec<(HyperlaneMessage, LogMeta)>,
-        prev_nonce: u32,
+        prev_sequence: u32,
     ) -> Result<()> {
         // If we found messages, but did *not* find the message we were looking for,
         // we need to rewind to the block at which we found the last message.
@@ -114,7 +116,7 @@ impl MessageSyncCursor {
             warn!(next_nonce=?self.sync_state.next_nonce, "Target nonce not found, rewinding");
             // If the previous nonce has been synced, rewind to the block number
             // at which it was dispatched. Otherwise, rewind all the way back to the start block.
-            if let Some(block_number) = self.retrieve_dispatched_block_number(prev_nonce).await {
+            if let Some(block_number) = self.retrieve_dispatched_block_number(prev_sequence).await {
                 self.sync_state.next_block = block_number;
                 warn!(block_number, "Rewound to previous known message");
             } else {
@@ -140,7 +142,7 @@ impl ForwardMessageSyncCursor {
         start_block: u32,
         next_block: u32,
         mode: IndexMode,
-        next_nonce: u32,
+        next_sequence: u32,
     ) -> Self {
         Self {
             cursor: MessageSyncCursor::new(
@@ -151,7 +153,7 @@ impl ForwardMessageSyncCursor {
                     start_block,
                     next_block,
                     mode,
-                    next_nonce,
+                    next_sequence,
                     SyncDirection::Forward,
                 ),
             ),
@@ -163,13 +165,13 @@ impl ForwardMessageSyncCursor {
         // and update the cursor accordingly.
         while self
             .cursor
-            .retrieve_message_by_nonce(self.cursor.sync_state.next_nonce)
+            .retrieve_message_by_nonce(self.cursor.sync_state.next_sequence)
             .await
             .is_some()
         {
             if let Some(block_number) = self
                 .cursor
-                .retrieve_dispatched_block_number(self.cursor.sync_state.next_nonce)
+                .retrieve_dispatched_block_number(self.cursor.sync_state.next_sequence)
                 .await
             {
                 debug!(next_block = block_number, "Fast forwarding next block");
@@ -177,14 +179,14 @@ impl ForwardMessageSyncCursor {
                 self.cursor.sync_state.next_block = block_number;
             }
             debug!(
-                next_nonce = self.cursor.sync_state.next_nonce + 1,
+                next_nonce = self.cursor.sync_state.next_sequence + 1,
                 "Fast forwarding next nonce"
             );
-            self.cursor.sync_state.next_nonce += 1;
+            self.cursor.sync_state.next_sequence += 1;
         }
 
         let (mailbox_count, tip) = self.cursor.indexer.fetch_count_at_tip().await?;
-        let cursor_count = self.cursor.sync_state.next_nonce;
+        let cursor_count = self.cursor.sync_state.next_sequence;
         let cmp = cursor_count.cmp(&mailbox_count);
         match cmp {
             Ordering::Equal => {
@@ -233,18 +235,18 @@ impl ContractSyncCursor<HyperlaneMessage> for ForwardMessageSyncCursor {
     /// at which it was dispatched.
     /// Otherwise, rewind all the way back to the start block.
     async fn update(&mut self, logs: Vec<(HyperlaneMessage, LogMeta)>) -> Result<()> {
-        let prev_nonce = self.cursor.sync_state.next_nonce.saturating_sub(1);
+        let prev_nonce = self.cursor.sync_state.next_sequence.saturating_sub(1);
         // We may wind up having re-indexed messages that are previous to the nonce that we are looking for.
         // We should not consider these messages when checking for continuity errors.
         let filtered_logs = logs
             .into_iter()
-            .filter(|m| m.0.nonce >= self.cursor.sync_state.next_nonce)
+            .filter(|m| m.0.nonce >= self.cursor.sync_state.next_sequence)
             .collect();
         self.cursor.update(filtered_logs, prev_nonce).await
     }
 }
 
-/// A MessageSyncCursor that syncs backwards to nonce zero.
+/// A MessageSyncCursor that syncs backwards to sequence (nonce) zero.
 pub(crate) struct BackwardMessageSyncCursor {
     cursor: MessageSyncCursor,
     synced: bool,
@@ -259,7 +261,7 @@ impl BackwardMessageSyncCursor {
         start_block: u32,
         next_block: u32,
         mode: IndexMode,
-        next_nonce: u32,
+        next_sequence: u32,
         synced: bool,
     ) -> Self {
         Self {
@@ -271,7 +273,7 @@ impl BackwardMessageSyncCursor {
                     start_block,
                     next_block,
                     mode,
-                    next_nonce,
+                    next_sequence,
                     SyncDirection::Backward,
                 ),
             ),
@@ -285,28 +287,29 @@ impl BackwardMessageSyncCursor {
         while !self.synced {
             if self
                 .cursor
-                .retrieve_message_by_nonce(self.cursor.sync_state.next_nonce)
+                .retrieve_message_by_nonce(self.cursor.sync_state.next_sequence)
                 .await
                 .is_none()
             {
                 break;
             };
-            // If we found nonce zero or hit block zero, we are done rewinding.
-            if self.cursor.sync_state.next_nonce == 0 || self.cursor.sync_state.next_block == 0 {
+            // If we found sequence zero or hit block zero, we are done rewinding.
+            if self.cursor.sync_state.next_sequence == 0 || self.cursor.sync_state.next_block == 0 {
                 self.synced = true;
                 break;
             }
 
             if let Some(block_number) = self
                 .cursor
-                .retrieve_dispatched_block_number(self.cursor.sync_state.next_nonce)
+                .retrieve_dispatched_block_number(self.cursor.sync_state.next_sequence)
                 .await
             {
                 // It's possible that eth_getLogs dropped logs from this block, therefore we cannot do block_number - 1.
                 self.cursor.sync_state.next_block = block_number;
             }
 
-            self.cursor.sync_state.next_nonce = self.cursor.sync_state.next_nonce.saturating_sub(1);
+            self.cursor.sync_state.next_sequence =
+                self.cursor.sync_state.next_sequence.saturating_sub(1);
         }
         if self.synced {
             return None;
@@ -328,14 +331,14 @@ impl BackwardMessageSyncCursor {
     /// at which it was dispatched.
     /// Otherwise, rewind all the way back to the start block.
     async fn update(&mut self, logs: Vec<(HyperlaneMessage, LogMeta)>) -> Result<()> {
-        let prev_nonce = self.cursor.sync_state.next_nonce.saturating_add(1);
-        // We may wind up having re-indexed messages that are previous to the nonce that we are looking for.
+        let prev_sequence = self.cursor.sync_state.next_sequence.saturating_add(1);
+        // We may wind up having re-indexed messages that are previous to the sequence (nonce) that we are looking for.
         // We should not consider these messages when checking for continuity errors.
         let filtered_logs = logs
             .into_iter()
-            .filter(|m| m.0.nonce <= self.cursor.sync_state.next_nonce)
+            .filter(|m| m.0.nonce <= self.cursor.sync_state.next_sequence)
             .collect();
-        self.cursor.update(filtered_logs, prev_nonce).await
+        self.cursor.update(filtered_logs, prev_sequence).await
     }
 }
 
@@ -514,7 +517,7 @@ where
         } else {
             let range = self
                 .sync_state
-                .get_next_range(self.indexer.nonce_at_tip())
+                .get_next_range(self.indexer.sequence_at_tip())
                 .await?;
             CursorAction::Query(range)
         };
