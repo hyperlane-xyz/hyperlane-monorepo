@@ -21,6 +21,7 @@ use crate::utils::{
 use crate::{RUN_LOG_WATCHERS, SHUTDOWN};
 
 #[derive(Default, Clone)]
+#[must_use]
 pub struct Program {
     bin: Option<Arc<String>>,
     args: Vec<Arc<String>>,

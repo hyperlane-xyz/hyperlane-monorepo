@@ -298,7 +298,9 @@ pub fn initiate_solana_hyperlane_transfer(
         .cmd(SOLANA_REMOTE_CHAIN_ID)
         .cmd(sender) // send to self
         .cmd("native")
-        .arg("program-id", "CGn8yNtSD3aTTqJfYhUb6s1aVTN75NzwtsFKo1e83aga");
+        .arg("program-id", "CGn8yNtSD3aTTqJfYhUb6s1aVTN75NzwtsFKo1e83aga")
+        .run()
+        .join();
 }
 
 pub fn solana_termination_invariants_met(solana_cli_tools_path: PathBuf) -> bool {
