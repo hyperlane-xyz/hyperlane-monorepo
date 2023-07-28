@@ -133,7 +133,11 @@ impl ForwardMessageSyncCursor {
                 let range = match self.mode {
                     IndexMode::Block => BlockRange(from..=to),
                     IndexMode::Sequence => SequenceRange(
-                        cursor_count..=u32::min(mailbox_count, cursor_count + MAX_SEQUENCE_RANGE),
+                        cursor_count
+                            ..=u32::min(
+                                mailbox_count.saturating_sub(1),
+                                cursor_count + MAX_SEQUENCE_RANGE,
+                            ),
                     ),
                 };
 
