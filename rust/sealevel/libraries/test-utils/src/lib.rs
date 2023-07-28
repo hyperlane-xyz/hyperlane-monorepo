@@ -32,14 +32,13 @@ use hyperlane_sealevel_message_recipient_interface::{
 use hyperlane_sealevel_test_ism::test_client::TestIsmTestClient;
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 
+pub mod igp;
+pub use igp::*;
+
 // ========= Mailbox =========
 
 pub fn mailbox_id() -> Pubkey {
     pubkey!("692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1")
-}
-
-pub fn igp_program_id() -> Pubkey {
-    pubkey!("BSffRJEwRcyEkjnbjAMMfv9kv3Y3SauxsBjCdNJyM2BN")
 }
 
 pub struct MailboxAccounts {

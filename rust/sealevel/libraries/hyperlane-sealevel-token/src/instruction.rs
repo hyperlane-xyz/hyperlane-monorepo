@@ -3,8 +3,8 @@
 use account_utils::{DiscriminatorData, DiscriminatorEncode, PROGRAM_INSTRUCTION_DISCRIMINATOR};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{H256, U256};
-use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
+use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
 use solana_program::{
     instruction::{AccountMeta, Instruction as SolanaInstruction},
     program_error::ProgramError,

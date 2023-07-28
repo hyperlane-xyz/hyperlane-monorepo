@@ -1,12 +1,12 @@
 use access_control::AccessControl;
 use borsh::BorshSerialize;
+use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
 use solana_program::{
     account_info::AccountInfo, program::set_return_data, program_error::ProgramError,
     pubkey::Pubkey,
 };
-use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
 
-pub mod router; 
+pub mod router;
 
 /// Getters for the HyperlaneConnectionClient.
 pub trait HyperlaneConnectionClient {
@@ -29,7 +29,10 @@ pub trait HyperlaneConnectionClient {
 pub trait HyperlaneConnectionClientSetter {
     fn set_mailbox(&mut self, new_mailbox: Pubkey);
 
-    fn set_interchain_gas_paymaster(&mut self, new_igp: Option<(Pubkey, InterchainGasPaymasterType)>);
+    fn set_interchain_gas_paymaster(
+        &mut self,
+        new_igp: Option<(Pubkey, InterchainGasPaymasterType)>,
+    );
 
     fn set_interchain_security_module(&mut self, new_ism: Option<Pubkey>);
 }

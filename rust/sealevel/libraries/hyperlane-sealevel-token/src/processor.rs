@@ -11,11 +11,9 @@ use hyperlane_sealevel_connection_client::{
     },
     HyperlaneConnectionClient, HyperlaneConnectionClientSetterAccessControl,
 };
+use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
 use hyperlane_sealevel_mailbox::{
     mailbox_message_dispatch_authority_pda_seeds, mailbox_process_authority_pda_seeds,
-};
-use hyperlane_sealevel_igp::{
-    accounts::InterchainGasPaymasterType,
 };
 use hyperlane_sealevel_message_recipient_interface::HandleInstruction;
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
@@ -260,11 +258,13 @@ where
     /// 6.   [signer] The token sender and mailbox payer.
     /// 7.   [signer] Unique message / gas payment account.
     /// 8.   [writeable] Message storage PDA.
+    ///      ---- If using an IGP ----
     /// 9.   [executable] The IGP program.
     /// 10.  [writeable] The IGP program data.
     /// 11.  [writeable] Gas payment PDA.
     /// 12.  [] OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
     /// 13.  [writeable] The IGP account.
+    ///      ---- End if ----
     /// 14..N [??..??] Plugin-specific accounts.
     pub fn transfer_remote(
         program_id: &Pubkey,
@@ -332,77 +332,77 @@ where
         // Similarly defer to the checks in the Mailbox to ensure account validity.
         let dispatched_message_pda = next_account_info(accounts_iter)?;
 
-        let igp_payment_accounts = if let Some((igp_program_id, igp_account_type)) = token.interchain_gas_paymaster() {
-            // Account 9: The IGP program
-            let igp_program_account = next_account_info(accounts_iter)?;
-            if igp_program_account.key != igp_program_id {
-                return Err(ProgramError::InvalidArgument);
-            }
-
-            // Account 10: The IGP program data.
-            // No verification is performed here, the IGP will do that.
-            let igp_program_data_account = next_account_info(accounts_iter)?;
-
-            // Account 11: The gas payment PDA.
-            // No verification is performed here, the IGP will do that.
-            let igp_payment_pda_account = next_account_info(accounts_iter)?;
-
-            // Account 12: The configured IGP account.
-            let configured_igp_account = next_account_info(accounts_iter)?;
-            if configured_igp_account.key != igp_account_type.key() {
-                return Err(ProgramError::InvalidArgument);
-            }
-
-            // Accounts expected by the IGP's `PayForGas` instruction:
-            //
-            // 0. [executable] The system program.
-            // 1. [signer] The payer.
-            // 2. [writeable] The IGP program data.
-            // 3. [signer] Unique gas payment account.
-            // 4. [writeable] Gas payment PDA.
-            // 5. [writeable] The IGP account.
-            // 6. [] Overhead IGP account (optional).
-
-            let mut igp_payment_account_metas = vec![
-                AccountMeta::new_readonly(solana_program::system_program::id(), false),
-                AccountMeta::new(*sender_wallet.key, true),
-                AccountMeta::new(*igp_program_data_account.key, false),
-                AccountMeta::new(*unique_message_account.key, true),
-                AccountMeta::new(*igp_payment_pda_account.key, false),
-            ];
-            let mut igp_payment_account_infos = vec![
-                system_program_account.clone(),
-                sender_wallet.clone(),
-                igp_program_data_account.clone(),
-                unique_message_account.clone(),
-                igp_payment_pda_account.clone(),
-            ];
-
-            match igp_account_type {
-                InterchainGasPaymasterType::Igp(_) => {
-                    igp_payment_account_metas.push(AccountMeta::new(*configured_igp_account.key, false));
-                    igp_payment_account_infos.push(configured_igp_account.clone());
-                },
-                InterchainGasPaymasterType::OverheadIgp(_) => {
-                    // Account 13: The inner IGP account.
-                    let inner_igp_account = next_account_info(accounts_iter)?;
-
-                    // The inner IGP is expected first, then the overhead IGP.
-                    igp_payment_account_metas.extend([
-                        AccountMeta::new(*inner_igp_account.key, false),
-                        AccountMeta::new(*configured_igp_account.key, false),
-                    ]);
-                    igp_payment_account_infos.extend([
-                        inner_igp_account.clone(),
-                        configured_igp_account.clone(),
-                    ]);
+        let igp_payment_accounts =
+            if let Some((igp_program_id, igp_account_type)) = token.interchain_gas_paymaster() {
+                // Account 9: The IGP program
+                let igp_program_account = next_account_info(accounts_iter)?;
+                if igp_program_account.key != igp_program_id {
+                    return Err(ProgramError::InvalidArgument);
                 }
-            };
 
-            Some((igp_payment_account_metas, igp_payment_account_infos))
-        } else {
-            None
-        };
+                // Account 10: The IGP program data.
+                // No verification is performed here, the IGP will do that.
+                let igp_program_data_account = next_account_info(accounts_iter)?;
+
+                // Account 11: The gas payment PDA.
+                // No verification is performed here, the IGP will do that.
+                let igp_payment_pda_account = next_account_info(accounts_iter)?;
+
+                // Account 12: The configured IGP account.
+                let configured_igp_account = next_account_info(accounts_iter)?;
+                if configured_igp_account.key != igp_account_type.key() {
+                    return Err(ProgramError::InvalidArgument);
+                }
+
+                // Accounts expected by the IGP's `PayForGas` instruction:
+                //
+                // 0. [executable] The system program.
+                // 1. [signer] The payer.
+                // 2. [writeable] The IGP program data.
+                // 3. [signer] Unique gas payment account.
+                // 4. [writeable] Gas payment PDA.
+                // 5. [writeable] The IGP account.
+                // 6. [] Overhead IGP account (optional).
+
+                let mut igp_payment_account_metas = vec![
+                    AccountMeta::new_readonly(solana_program::system_program::id(), false),
+                    AccountMeta::new(*sender_wallet.key, true),
+                    AccountMeta::new(*igp_program_data_account.key, false),
+                    AccountMeta::new_readonly(*unique_message_account.key, true),
+                    AccountMeta::new(*igp_payment_pda_account.key, false),
+                ];
+                let mut igp_payment_account_infos = vec![
+                    system_program_account.clone(),
+                    sender_wallet.clone(),
+                    igp_program_data_account.clone(),
+                    unique_message_account.clone(),
+                    igp_payment_pda_account.clone(),
+                ];
+
+                match igp_account_type {
+                    InterchainGasPaymasterType::Igp(_) => {
+                        igp_payment_account_metas
+                            .push(AccountMeta::new(*configured_igp_account.key, false));
+                        igp_payment_account_infos.push(configured_igp_account.clone());
+                    }
+                    InterchainGasPaymasterType::OverheadIgp(_) => {
+                        // Account 13: The inner IGP account.
+                        let inner_igp_account = next_account_info(accounts_iter)?;
+
+                        // The inner IGP is expected first, then the overhead IGP.
+                        igp_payment_account_metas.extend([
+                            AccountMeta::new(*inner_igp_account.key, false),
+                            AccountMeta::new_readonly(*configured_igp_account.key, false),
+                        ]);
+                        igp_payment_account_infos
+                            .extend([inner_igp_account.clone(), configured_igp_account.clone()]);
+                    }
+                };
+
+                Some((igp_payment_account_metas, igp_payment_account_infos))
+            } else {
+                None
+            };
 
         // The amount denominated in the local decimals.
         let local_amount: u64 = xfer

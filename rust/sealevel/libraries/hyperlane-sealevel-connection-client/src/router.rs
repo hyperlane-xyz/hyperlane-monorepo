@@ -1,15 +1,17 @@
 use access_control::AccessControl;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H256;
+use hyperlane_sealevel_igp::instruction::{
+    Instruction as IgpInstruction, PayForGas as IgpPayForGas,
+};
 use hyperlane_sealevel_mailbox::instruction::{
     Instruction as MailboxInstruction, OutboxDispatch as MailboxOutboxDispatch,
 };
-use hyperlane_sealevel_igp::instruction::{Instruction as IgpInstruction, PayForGas as IgpPayForGas};
 use solana_program::{
     account_info::AccountInfo,
     instruction::{AccountMeta, Instruction},
     msg,
-    program::{invoke_signed, invoke, get_return_data},
+    program::{get_return_data, invoke, invoke_signed},
     program_error::ProgramError,
     pubkey::Pubkey,
 };
@@ -118,11 +120,13 @@ pub trait HyperlaneRouterDispatch: HyperlaneRouter + HyperlaneConnectionClient {
         invoke_signed(&mailbox_ixn, account_infos, &[dispatch_authority_seeds])?;
 
         // Parse the message ID from the return data from the prior dispatch.
-        let (returning_program_id, returned_data) = get_return_data().ok_or(ProgramError::InvalidArgument)?;
+        let (returning_program_id, returned_data) =
+            get_return_data().ok_or(ProgramError::InvalidArgument)?;
         if returning_program_id != *self.mailbox() {
             return Err(ProgramError::InvalidArgument);
         }
-        let message_id: H256 = H256::try_from_slice(&returned_data).map_err(|_| ProgramError::InvalidArgument)?;
+        let message_id: H256 =
+            H256::try_from_slice(&returned_data).map_err(|_| ProgramError::InvalidArgument)?;
 
         Ok(message_id)
     }

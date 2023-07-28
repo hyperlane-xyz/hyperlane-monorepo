@@ -101,9 +101,8 @@ impl<T> HyperlaneConnectionClient for HyperlaneToken<T> {
         &self.mailbox
     }
 
-    // Not yet supported
     fn interchain_gas_paymaster(&self) -> Option<&(Pubkey, InterchainGasPaymasterType)> {
-        None
+        self.interchain_gas_paymaster.as_ref()
     }
 
     fn interchain_security_module(&self) -> Option<&Pubkey> {
@@ -116,8 +115,11 @@ impl<T> HyperlaneConnectionClientSetter for HyperlaneToken<T> {
         self.mailbox = new_mailbox;
     }
 
-    fn set_interchain_gas_paymaster(&mut self, _new_igp: Option<(Pubkey, InterchainGasPaymasterType)>) {
-        // Not yet supported
+    fn set_interchain_gas_paymaster(
+        &mut self,
+        new_igp: Option<(Pubkey, InterchainGasPaymasterType)>,
+    ) {
+        self.interchain_gas_paymaster = new_igp;
     }
 
     fn set_interchain_security_module(&mut self, new_ism: Option<Pubkey>) {

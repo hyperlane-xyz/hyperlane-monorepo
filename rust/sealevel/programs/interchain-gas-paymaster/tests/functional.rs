@@ -16,8 +16,8 @@ use solana_sdk::{
 };
 
 use hyperlane_test_utils::{
-    assert_transaction_error, new_funded_keypair, process_instruction, simulate_instruction,
-    transfer_lamports, igp_program_id,
+    assert_transaction_error, igp_program_id, new_funded_keypair, process_instruction,
+    simulate_instruction, transfer_lamports,
 };
 use serializable_account_meta::SimulationReturnData;
 
