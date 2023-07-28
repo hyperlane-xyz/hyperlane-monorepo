@@ -132,15 +132,15 @@ impl MessageContractSync {
         index_mode: IndexMode,
         next_nonce: u32,
     ) -> Box<dyn ContractSyncCursor<HyperlaneMessage>> {
-        let forward_data = MessageSyncCursor::new(
+        Box::new(ForwardMessageSyncCursor::new(
             self.indexer.clone(),
             self.db.clone(),
             index_settings.chunk_size,
             index_settings.from,
             index_settings.from,
+            index_mode,
             next_nonce,
-        );
-        Box::new(ForwardMessageSyncCursor::new(forward_data, index_mode))
+        ))
     }
 
     /// Returns a new cursor to be used for syncing dispatched messages from the indexer
