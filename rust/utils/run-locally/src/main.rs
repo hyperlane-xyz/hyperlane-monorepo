@@ -371,8 +371,10 @@ fn main() -> ExitCode {
     }
 
     if failure_occurred {
+        log!("E2E tests failed");
         ExitCode::FAILURE
     } else {
+        log!("E2E tests passed");
         ExitCode::SUCCESS
     }
 }
