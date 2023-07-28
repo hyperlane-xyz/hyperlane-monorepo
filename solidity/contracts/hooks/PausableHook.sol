@@ -9,7 +9,7 @@ import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 contract PausableHook is AbstractHook, Ownable, Pausable {
     constructor(address _mailbox) AbstractHook(_mailbox) {}
 
-    function _postDispatch(bytes calldata message)
+    function _postDispatch(bytes calldata metadata, bytes calldata message)
         internal
         override
         whenNotPaused

@@ -9,7 +9,15 @@ import 'solidity-coverage';
  */
 module.exports = {
   solidity: {
-    version: '0.8.17',
+    compilers: [
+      {
+        version: '0.8.17',
+      },
+      {
+        // for @eth-optimism
+        version: '0.8.15',
+      },
+    ],
     settings: {
       optimizer: {
         enabled: true,

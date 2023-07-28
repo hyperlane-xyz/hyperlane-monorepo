@@ -39,16 +39,23 @@ interface IMailboxV3 {
     function defaultHook() external view returns (IPostDispatchHook);
 
     function dispatch(
-        uint32 _destinationDomain,
-        bytes32 _recipientAddress,
-        bytes calldata _messageBody
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata messageBody
     ) external payable returns (bytes32);
 
-    function process(bytes calldata _metadata, bytes calldata _message)
+    function dispatch(
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata body,
+        bytes calldata hookMetadata
+    ) external payable returns (bytes32);
+
+    function process(bytes calldata metadata, bytes calldata message)
         external
         payable;
 
-    function recipientIsm(address _recipient)
+    function recipientIsm(address recipient)
         external
         view
         returns (IInterchainSecurityModule);

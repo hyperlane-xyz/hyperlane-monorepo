@@ -20,7 +20,7 @@ import {TypeCasts} from "../libs/TypeCasts.sol";
 import {Message} from "../libs/Message.sol";
 
 // ============ External Imports ============
-import {L1CrossDomainMessenger} from "@eth-optimism/contracts-bedrock/contracts/L1/L1CrossDomainMessenger.sol";
+import {ICrossDomainMessenger} from "../interfaces/optimism/ICrossDomainMessenger.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
@@ -37,7 +37,7 @@ contract OptimismMessageHook is IPostDispatchHook {
     // Domain of chain on which the optimism ISM is deployed
     uint32 public immutable destinationDomain;
     // Messenger used to send messages from L1 -> L2
-    L1CrossDomainMessenger public immutable l1Messenger;
+    ICrossDomainMessenger public immutable l1Messenger;
     // address for Optimism ISM to verify messages
     address public immutable ism;
     // Gas limit for sending messages to L2
@@ -71,7 +71,7 @@ contract OptimismMessageHook is IPostDispatchHook {
 
     /**
      * @notice Hook to inform the optimism ISM of messages published through.
-     * @param metadata The metadata for the hook caller (unused)
+     * metadata The metadata for the hook caller (unused)
      * @param message The message being dispatched
      */
     function postDispatch(
