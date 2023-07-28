@@ -202,7 +202,7 @@ pub fn start_solana_test_validator(
     sleep(Duration::from_secs(5));
 
     log!("Deploying the hyperlane programs to solana");
-    let sealevel_client = sealevel_client(&solana_cli_tools_path);
+    let sealevel_client = sealevel_client(&solana_cli_tools_path, &solana_config_path);
 
     let sealevel_client_deploy_core = sealevel_client
         .clone()
@@ -293,7 +293,7 @@ pub fn initiate_solana_hyperlane_transfer(
         .trim()
         .to_owned();
 
-    sealevel_client(&solana_cli_tools_path)
+    sealevel_client(&solana_cli_tools_path, &solana_config_path)
         .cmd("token")
         .cmd("transfer-remote")
         .cmd(SOLANA_KEYPAIR)
@@ -306,8 +306,11 @@ pub fn initiate_solana_hyperlane_transfer(
         .join();
 }
 
-pub fn solana_termination_invariants_met(solana_cli_tools_path: PathBuf) -> bool {
-    sealevel_client(&solana_cli_tools_path)
+pub fn solana_termination_invariants_met(
+    solana_cli_tools_path: &Path,
+    solana_config_path: &Path,
+) -> bool {
+    sealevel_client(solana_cli_tools_path, solana_config_path)
         .cmd("mailbox")
         .cmd("delivered")
         .arg(
@@ -321,10 +324,11 @@ pub fn solana_termination_invariants_met(solana_cli_tools_path: PathBuf) -> bool
         .contains("Message delivered")
 }
 
-fn sealevel_client(solana_cli_tools_path: &Path) -> Program {
+fn sealevel_client(solana_cli_tools_path: &Path, solana_config_path: &Path) -> Program {
     Program::new(concat_path(AGENT_BIN_PATH, "hyperlane-sealevel-client"))
         .env("PATH", updated_path(solana_cli_tools_path))
         .env("RUST_BACKTRACE", "1")
+        .arg("config", solana_config_path.to_str().unwrap())
         .arg("keypair", SOLANA_KEYPAIR)
 }
 

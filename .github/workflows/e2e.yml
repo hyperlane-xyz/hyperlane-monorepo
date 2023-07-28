@@ -46,7 +46,8 @@ jobs:
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
-      - uses: rui314/setup-mold@v1
+      - name: Install mold linker
+        uses: rui314/setup-mold@v1
         with:
           mold-version: 2.0.0
           make-default: true

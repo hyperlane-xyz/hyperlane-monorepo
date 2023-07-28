@@ -330,7 +330,7 @@ fn main() -> ExitCode {
 
     state.push_agent(relayer_env.spawn("RLY"));
 
-    initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path).join();
+    initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone()).join();
 
     log!("Setup complete! Agents running in background...");
     log!("Ctrl+C to end execution...");
@@ -346,7 +346,9 @@ fn main() -> ExitCode {
         if config.ci_mode {
             // for CI we have to look for the end condition.
             // Expect 1 extra message to be sent between solana chains
-            if termination_invariants_met(&config, &solana_path).unwrap_or(false) {
+            if termination_invariants_met(&config, &solana_path, &solana_config_path)
+                .unwrap_or(false)
+            {
                 // end condition reached successfully
                 break;
             } else if (Instant::now() - loop_start).as_secs() > config.ci_mode_timeout {
