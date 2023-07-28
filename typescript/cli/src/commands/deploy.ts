@@ -1,6 +1,7 @@
-import { confirm } from '@inquirer/prompts';
-import chalk from 'chalk';
 import { CommandModule } from 'yargs';
+
+import { runCoreDeploy } from '../deploy/core.js';
+import { logGray } from '../logger.js';
 
 /**
  * Parent command
@@ -9,7 +10,11 @@ export const deployCommand: CommandModule = {
   command: 'deploy',
   describe: 'Permisionslessly deploy a Hyperlane contracts or extensions',
   builder: (yargs) =>
-    yargs.command(coreCommand).command(warpCommand).demandCommand(),
+    yargs
+      .command(coreCommand)
+      .command(warpCommand)
+      .version(false)
+      .demandCommand(),
   handler: () => console.log('Command required'),
 };
 
@@ -21,36 +26,29 @@ const coreCommand: CommandModule = {
   describe: 'Deploy core Hyperlane contracts',
   builder: (yargs) =>
     yargs.options({
-      local: {
-        type: 'string',
-        description: 'The chain to deploy to',
-        demandOption: true,
-      },
-      remotes: {
-        type: 'string',
-        array: true,
-        description:
-          'The chains with which local will send and receive messages',
-        demandOption: true,
-      },
       key: {
         type: 'string',
         description:
-          'A hexadecimal private key or seed phrase for transaction signing',
-        demandOption: true,
+          'A hex private key or seed phrase for transaction signing. Or use the HYP_KEY env var',
       },
       config: {
         type: 'string',
         description:
-          'A path to a JSON or YAML file with the chain configs. See ./examples/deploy_core_config.yml for an example.',
-        demandOption: true,
+          'A path to a JSON or YAML file with chain configs. Defaults to ./configs/chain-config.yaml',
+      },
+      out: {
+        type: 'string',
+        description:
+          'A folder name output artifacts into. Defaults to ./artifacts',
       },
     }),
-  handler: async (_argv) => {
-    console.log(chalk.blue('Hyperlane permissionless core deployment'));
-    console.log(chalk.gray('----------------------------------------'));
-    const confirmation = await confirm({ message: 'Are you sure?' });
-    if (!confirmation) throw new Error('Deployment cancelled');
+  handler: (argv: any) => {
+    logGray('Hyperlane permissionless core deployment');
+    logGray('----------------------------------------');
+    const key: string = argv.key || process.env.HYP_KEY;
+    const configPath: string = argv.config || './configs/chain-config.yaml';
+    const outPath: string = argv.out || './artifacts/';
+    return runCoreDeploy({ key, configPath, outPath });
   },
 };
 

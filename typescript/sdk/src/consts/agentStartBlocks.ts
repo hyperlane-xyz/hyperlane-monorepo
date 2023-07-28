@@ -1,7 +1,8 @@
-import { ChainMap } from '@hyperlane-xyz/sdk';
+import { ChainMap } from '../types';
 
-// TODO move to SDK
-export const startBlocks: ChainMap<number> = {
+// TODO this was previously in hyp-deploy, but ideally should be integrated
+// into the ChainMetadata type
+export const agentStartBlocks: ChainMap<number> = {
   // --------------- Mainnets ---------------------
   celo: 16884144,
   ethereum: 16271503,

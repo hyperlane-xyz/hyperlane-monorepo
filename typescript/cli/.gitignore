@@ -1,3 +1,5 @@
 .env
-dist
-cache
+/dist
+/cache
+/configs
+/artifacts

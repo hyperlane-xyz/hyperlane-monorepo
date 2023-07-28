@@ -1,4 +1,3 @@
-import chalk from 'chalk';
 import { CommandModule } from 'yargs';
 
 import {
@@ -10,6 +9,8 @@ import {
   hyperlaneContractAddresses,
 } from '@hyperlane-xyz/sdk';
 
+import { log, logBlue, logGray } from '../logger.js';
+
 /**
  * Parent command
  */
@@ -17,8 +18,12 @@ export const chainsCommand: CommandModule = {
   command: 'chains',
   describe: 'View information about core Hyperlane chains',
   builder: (yargs) =>
-    yargs.command(listCommand).command(addressesCommand).demandCommand(),
-  handler: () => console.log('Command required'),
+    yargs
+      .command(listCommand)
+      .command(addressesCommand)
+      .version(false)
+      .demandCommand(),
+  handler: () => log('Command required'),
 };
 
 /**
@@ -28,17 +33,13 @@ const listCommand: CommandModule = {
   command: 'list',
   describe: 'List all core chains included in the Hyperlane SDK',
   handler: () => {
-    console.log(chalk.blue('Hyperlane core mainnet chains:'));
-    console.log(chalk.gray('------------------------------'));
-    console.log(
-      Mainnets.map((chain) => chainMetadata[chain].displayName).join(', '),
-    );
-    console.log('');
-    console.log(chalk.blue('Hyperlane core testnet chains:'));
-    console.log(chalk.gray('------------------------------'));
-    console.log(
-      Testnets.map((chain) => chainMetadata[chain].displayName).join(', '),
-    );
+    logBlue('Hyperlane core mainnet chains:');
+    logGray('------------------------------');
+    log(Mainnets.map((chain) => chainMetadata[chain].displayName).join(', '));
+    log('');
+    logBlue('Hyperlane core testnet chains:');
+    logGray('------------------------------');
+    log(Testnets.map((chain) => chainMetadata[chain].displayName).join(', '));
   },
 };
 
@@ -59,13 +60,13 @@ const addressesCommand: CommandModule = {
   handler: (args) => {
     const name = args.name as CoreChainName | undefined;
     if (name && hyperlaneContractAddresses[name]) {
-      console.log(chalk.blue('Hyperlane contract addresses for:', name));
-      console.log(chalk.gray('---------------------------------'));
-      console.log(JSON.stringify(hyperlaneContractAddresses[name], null, 2));
+      logBlue('Hyperlane contract addresses for:', name);
+      logGray('---------------------------------');
+      log(JSON.stringify(hyperlaneContractAddresses[name], null, 2));
     } else {
-      console.log(chalk.blue('Hyperlane core contract addresses:'));
-      console.log(chalk.gray('----------------------------------'));
-      console.log(JSON.stringify(hyperlaneContractAddresses, null, 2));
+      logBlue('Hyperlane core contract addresses:');
+      logGray('----------------------------------');
+      log(JSON.stringify(hyperlaneContractAddresses, null, 2));
     }
   },
 };

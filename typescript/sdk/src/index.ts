@@ -1,4 +1,5 @@
 export { HyperlaneApp } from './HyperlaneApp';
+export { agentStartBlocks } from './consts/agentStartBlocks';
 export {
   chainIdToMetadata,
   chainMetadata,

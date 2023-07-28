@@ -25,7 +25,7 @@ export const testRecipientFactories = {
   testRecipient: new TestRecipient__factory(),
 };
 
-export class HyperlaneTestRecipientDeployer extends HyperlaneDeployer<
+export class TestRecipientDeployer extends HyperlaneDeployer<
   TestRecipientConfig,
   typeof testRecipientFactories
 > {
