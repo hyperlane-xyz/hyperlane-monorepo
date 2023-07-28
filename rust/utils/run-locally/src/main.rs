@@ -346,8 +346,7 @@ fn main() -> ExitCode {
         if config.ci_mode {
             // for CI we have to look for the end condition.
             // Expect 1 extra message to be sent between solana chains
-            let num_messages_expected = (config.kathy_messages / 2) as u32 * 2 + 1;
-            if termination_invariants_met(num_messages_expected, &solana_path).unwrap_or(false) {
+            if termination_invariants_met(&config, &solana_path).unwrap_or(false) {
                 // end condition reached successfully
                 break;
             } else if (Instant::now() - loop_start).as_secs() > config.ci_mode_timeout {
