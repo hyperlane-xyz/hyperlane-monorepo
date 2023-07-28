@@ -256,9 +256,8 @@ fn main() -> ExitCode {
     // Ready to run...
     //
 
-    let solana_cli_tool_install = install_solana_cli_tools();
-
-    let solana_path = solana_cli_tool_install.join();
+    let (solana_path, solana_path_tempdir) = install_solana_cli_tools().join();
+    state.data.push(Box::new(solana_path_tempdir));
     let solana_program_builder = build_solana_programs(solana_path.clone());
 
     shutdown_if_needed!();

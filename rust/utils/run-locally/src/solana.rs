@@ -4,11 +4,11 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use macro_rules_attribute::apply;
-use tempfile::NamedTempFile;
+use tempfile::{tempdir, NamedTempFile};
 
 use crate::logging::log;
 use crate::program::Program;
-use crate::utils::{as_task, concat_path, AgentHandles, TaskHandle};
+use crate::utils::{as_task, concat_path, AgentHandles, ArbitraryData, TaskHandle};
 use crate::AGENT_BIN_PATH;
 
 // Solana program tuples of:
@@ -59,16 +59,8 @@ pub const SOLANA_CHECKPOINT_LOCATION: &str =
 
 // Install the CLI tools and return the path to the bin dir.
 #[apply(as_task)]
-pub fn install_solana_cli_tools() -> PathBuf {
-    let solana_tools_dir = format!("target/solana-tools-{SOLANA_CLI_VERSION}");
-    if Path::new(&solana_tools_dir).exists() {
-        log!(
-            "Solana cli release v{} already downloaded",
-            SOLANA_CLI_VERSION
-        );
-        return concat_path(solana_tools_dir, "bin");
-    }
-
+pub fn install_solana_cli_tools() -> (PathBuf, impl ArbitraryData) {
+    let solana_tools_dir = tempdir().unwrap();
     log!("Downloading solana cli release v{}", SOLANA_CLI_VERSION);
     let solana_release_name = {
         // best effort ot pick one of the supported targets
@@ -110,7 +102,7 @@ pub fn install_solana_cli_tools() -> PathBuf {
         .expect("Failed to move solana-release dir");
     fs::remove_file(concat_path("target", &solana_archive_name))
         .expect("Failed to remove solana archive");
-    concat_path(solana_tools_dir, "bin")
+    (concat_path(&solana_tools_dir, "bin"), solana_tools_dir)
 }
 
 #[apply(as_task)]
