@@ -39,71 +39,17 @@ git clone https://github.com/hyperlane-xyz/hyperlane-monorepo.git
 cd hyperlane-monorepo
 yarn install && yarn build
 cd typescript/cli
-node ./dist/cli.js
+yarn hyperlane
 ```
 
-## Deploying Hyperlane
+## Common commands
 
-See below for instructions on using the scripts in this repo to deploy a Hyperlane core instance. For more details see the [deploy documentation](https://docs.hyperlane.xyz/docs/deploy/deploy-hyperlane).
+View help: `hyperlane --help`
 
-### Deploying core contracts
+Create a core deployment config: `hyperlane config create`
 
-If you're deploying to a new chain, ensure there is a corresponding entry `config/chains.ts`, `config/multisig_ism.ts`, and `config/start_blocks.ts`.
+Run hyperlane core deployments: `hyperlane deploy core`
 
-This script is used to deploy the following core Hyperlane contracts to a new chain. The Hyperlane protocol expects exactly one instance of these contracts on every supported chain.
+Run warp route deployments: `hyperlane deploy warp`
 
-- `Mailbox`: for sending and receiving messages
-- `ValidatorAnnounce`: for registering validators
-
-This script also deploys the following contracts to all chains, new and existing. The Hyperlane protocol supports many instances of these contracts on every supported chains.
-
-- `ISM (e.g. MultisigISM)`: for verifying inbound messages from remote chains
-- `InterchainGasPaymaster`: for paying relayers for message delivery
-- `TestRecipient`: used to test that interchain messages can be delivered
-
-```bash
-yarn ts-node scripts/deploy-hyperlane.ts --local anvil \
-  --remotes goerli sepolia \
-  --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-```
-
-### Sending test messages
-
-This script is used to verify that Hyperlane messages can be sent between specified chains.
-
-Users should have first deployed `TestRecipient` contracts to each of the specified chains.
-
-```sh
-yarn ts-node scripts/test-messages.ts \
-  --chains anvil goerli sepolia \
-  --key 0x6f0311f4a0722954c46050bb9f088c4890999e16b64ad02784d24b5fd6d09061
-```
-
-## Deploying Warp Routes
-
-Warp Routes are Hyperlane's unique take on the concept of token bridging, allowing you to permissionlessly bridge any ERC20-like asset to any chain. You can combine Warp Routes with a Hyperlane deployment to create economic trade routes between any chains already connected through Hyperlane.
-
-See below for instructions on using the scripts in this repo to deploy Hyperlane Warp Routes. For more details see the [warp route documentation](https://docs.hyperlane.xyz/docs/deploy/deploy-warp-route).
-
-### Deploying Warp contracts
-
-Establishing a warp route requires deployment of `HypERC20` contracts to the desired chains. Ensure there is an entry for all chains in `config/chains.ts`.
-
-The deployment also require details about the existing (collateral) token and the new synthetics that will be created. Ensure there are entries for them in `config/warp_tokens.ts`.
-
-```sh
-yarn ts-node scripts/deploy-warp-routes.ts \
-  --key 0x6f0311f4a0722954c46050bb9f088c4890999e16b64ad02784d24b5fd6d09061
-```
-
-### Sending a test transfer
-
-```sh
-yarn ts-node scripts/test-warp-transfer.ts \
-  --origin goerli --destination alfajores --wei 100000000000000 \
-  --key 0x6f0311f4a0722954c46050bb9f088c4890999e16b64ad02784d24b5fd6d09061
-```
-
-### Deploying a Warp UI
-
-If you'd like to create a web-based user interface for your warp routes, see the [Warp UI documentation](https://docs.hyperlane.xyz/docs/deploy/deploy-warp-route/deploy-the-ui-for-your-warp-route)
+View SDK contract addresses: `hyperlane chains addresses`
