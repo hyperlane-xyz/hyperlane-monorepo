@@ -12,9 +12,9 @@ anvil1:
   type: 3 # ModuleType.LEGACY_MULTISIG
   threshold: 1 # Number: Signatures required to approve a message
   validators: # Array: List of validator configs
-    - "0xa0ee7a142d267c1f36714e4a8f75612f20a79720"
+    - '0xa0ee7a142d267c1f36714e4a8f75612f20a79720'
 anvil2:
-  type: 3 
+  type: 3
   threshold: 1
-  validators: 
-    - "0xa0ee7a142d267c1f36714e4a8f75612f20a79720"
+  validators:
+    - '0xa0ee7a142d267c1f36714e4a8f75612f20a79720'

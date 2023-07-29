@@ -1,7 +1,7 @@
 # A config for a Warp Route deployment
 # Typically used with the 'hyperlane deploy warp' command
 # Token Types:
-#   synthetic 
+#   synthetic
 #   syntheticUri
 #   collateral
 #   collateralUri
@@ -9,7 +9,7 @@
 ---
 base:
   chainName: anvil1
-  type: native 
+  type: native
   # address: 0x123... # Required for collateral types)
   # isNft: true # If the token is an NFT (ERC721), set to true)
   # owner: 0x123 # Optional owner address for synthetic token
@@ -19,5 +19,5 @@ synthetics:
   - chainName: anvil2
   # You can optionally set the token metadata, otherwise the base token's will be used
   # name: "MySyntheticToken"
-  # symbol: "MST" 
+  # symbol: "MST"
   # totalSupply: 10000000
