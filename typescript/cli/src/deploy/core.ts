@@ -37,7 +37,11 @@ import { types } from '@hyperlane-xyz/utils';
 
 import { readDeploymentArtifacts, readMultisigConfig } from '../configs.js';
 import { MINIMUM_CORE_DEPLOY_BALANCE } from '../consts.js';
-import { getDeployerContext, sdkContractAddressesMap } from '../context.js';
+import {
+  getDeployerContext,
+  getMergedContractAddresses,
+  sdkContractAddressesMap,
+} from '../context.js';
 import { log, logBlue, logGray, logGreen } from '../logger.js';
 import { prepNewArtifactsFiles, writeJson } from '../utils/files.js';
 
@@ -242,11 +246,12 @@ async function executeDeploy({
 
   const owner = await signer.getAddress();
   const allChains = [local, ...remotes];
+  const mergedContractAddrs = getMergedContractAddresses(artifacts);
 
   // 1. Deploy ISM factories to all deployable chains that don't have them.
   log('Deploying ISM factory contracts');
   const ismDeployer = new HyperlaneIsmFactoryDeployer(multiProvider);
-  ismDeployer.cacheAddressesMap(objMerge(sdkContractAddressesMap, artifacts));
+  ismDeployer.cacheAddressesMap(mergedContractAddrs);
   const ismFactoryContracts = await ismDeployer.deploy(allChains);
   artifacts = writeMergedAddresses(
     contractsFilePath,
@@ -272,7 +277,7 @@ async function executeDeploy({
   // Build an IsmFactory that covers all chains so that we can
   // use it later to deploy ISMs to remote chains.
   const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-    objMerge(sdkContractAddressesMap, artifacts),
+    mergedContractAddrs,
     multiProvider,
   );
 

@@ -2,9 +2,13 @@ import { CommandModule, Options } from 'yargs';
 
 import { log } from '../logger.js';
 import { sendTestMessage } from '../send/message.js';
-import { sendTestTrasfer } from '../send/transfer.js';
+import { sendTestTransfer } from '../send/transfer.js';
 
-import { chainsCommandOption, keyCommandOption } from './options.js';
+import {
+  chainsCommandOption,
+  coreArtifactsOption,
+  keyCommandOption,
+} from './options.js';
 
 /**
  * Parent command
@@ -27,6 +31,7 @@ export const sendCommand: CommandModule = {
 const messageOptions: { [k: string]: Options } = {
   key: keyCommandOption,
   chains: chainsCommandOption,
+  core: coreArtifactsOption,
   origin: {
     type: 'string',
     description: 'Origin chain to send message from',
@@ -51,12 +56,14 @@ const messageCommand: CommandModule = {
   handler: async (argv: any) => {
     const key: string = argv.key || process.env.HYP_KEY;
     const chainConfigPath: string = argv.chains;
+    const coreArtifactsPath: string = argv.core;
     const origin: string = argv.origin;
     const destination: string = argv.destination;
     const timeout: number = argv.timeout;
     await sendTestMessage({
       key,
       chainConfigPath,
+      coreArtifactsPath,
       origin,
       destination,
       timeout,
@@ -73,6 +80,11 @@ const transferCommand: CommandModule = {
   builder: (yargs) =>
     yargs.options({
       ...messageOptions,
+      router: {
+        type: 'string',
+        description: 'The address of the token router contract',
+        demandOption: true,
+      },
       wei: {
         type: 'number',
         description: 'Amount in wei to send',
@@ -86,17 +98,21 @@ const transferCommand: CommandModule = {
   handler: async (argv: any) => {
     const key: string = argv.key || process.env.HYP_KEY;
     const chainConfigPath: string = argv.chains;
+    const coreArtifactsPath: string = argv.core;
     const origin: string = argv.origin;
     const destination: string = argv.destination;
     const timeout: number = argv.timeout;
+    const routerAddress: string = argv.router;
     const wei: number = argv.wei;
     const recipient: string | undefined = argv.recipient;
 
-    await sendTestTrasfer({
+    await sendTestTransfer({
       key,
       chainConfigPath,
+      coreArtifactsPath,
       origin,
       destination,
+      routerAddress,
       wei,
       recipient,
       timeout,

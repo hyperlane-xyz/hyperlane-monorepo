@@ -19,7 +19,6 @@ import {
   RouterConfig,
   chainMetadata as defaultChainMetadata,
   objMap,
-  objMerge,
 } from '@hyperlane-xyz/sdk';
 import { types } from '@hyperlane-xyz/utils';
 
@@ -29,7 +28,7 @@ import {
   readWarpRouteConfig,
 } from '../configs.js';
 import { MINIMUM_WARP_DEPLOY_BALANCE } from '../consts.js';
-import { getDeployerContext, sdkContractAddressesMap } from '../context.js';
+import { getDeployerContext, getMergedContractAddresses } from '../context.js';
 import { log, logBlue, logGray, logGreen } from '../logger.js';
 import { prepNewArtifactsFiles, writeJson } from '../utils/files.js';
 
@@ -40,19 +39,21 @@ export async function runWarpDeploy({
   key,
   chainConfigPath,
   warpConfigPath,
-  corePath,
+  coreArtifactsPath,
   outPath,
 }: {
   key: string;
   chainConfigPath: string;
   warpConfigPath: string;
-  corePath: string;
+  coreArtifactsPath: string;
   outPath: string;
 }) {
   const { multiProvider, signer } = getDeployerContext(key, chainConfigPath);
 
   const warpRouteConfig = readWarpRouteConfig(warpConfigPath);
-  const artifacts = corePath ? readDeploymentArtifacts(corePath) : undefined;
+  const artifacts = coreArtifactsPath
+    ? readDeploymentArtifacts(coreArtifactsPath)
+    : undefined;
 
   const configs = await runBuildConfigStep({
     warpRouteConfig,
@@ -98,10 +99,7 @@ async function runBuildConfigStep({
     `Using base token metadata: Name: ${baseMetadata.name}, Symbol: ${baseMetadata.symbol}, Decimals: ${baseMetadata.decimals}`,
   );
 
-  const mergedContractAddrs = objMerge(
-    sdkContractAddressesMap,
-    artifacts || {},
-  ) as HyperlaneContractsMap<any>;
+  const mergedContractAddrs = getMergedContractAddresses(artifacts);
 
   // Create configs that coalesce together values from the config file,
   // the artifacts, and the SDK as a fallback

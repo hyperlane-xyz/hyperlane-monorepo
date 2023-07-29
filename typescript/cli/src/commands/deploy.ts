@@ -6,6 +6,7 @@ import { logGray } from '../logger.js';
 
 import {
   chainsCommandOption,
+  coreArtifactsOption,
   keyCommandOption,
   outDirCommandOption,
 } from './options.js';
@@ -58,27 +59,24 @@ const warpCommand: CommandModule = {
       key: keyCommandOption,
       chains: chainsCommandOption,
       out: outDirCommandOption,
+      core: coreArtifactsOption,
       config: {
         type: 'string',
         description: 'A path to a JSON or YAML file with a warp config.',
         default: './configs/warp-tokens.yaml',
-      },
-      core: {
-        type: 'string',
-        description: 'File path to core deployment output artifacts',
       },
     }),
   handler: async (argv: any) => {
     const key: string = argv.key || process.env.HYP_KEY;
     const chainConfigPath: string = argv.chains;
     const warpConfigPath: string = argv.config;
-    const corePath: string = argv.core;
+    const coreArtifactsPath: string = argv.core;
     const outPath: string = argv.out;
     await runWarpDeploy({
       key,
       chainConfigPath,
       warpConfigPath,
-      corePath,
+      coreArtifactsPath,
       outPath,
     });
   },

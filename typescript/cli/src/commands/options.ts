@@ -18,3 +18,8 @@ export const outDirCommandOption: Options = {
   description: 'A folder name output artifacts into.',
   default: './artifacts',
 };
+
+export const coreArtifactsOption: Options = {
+  type: 'string',
+  description: 'File path to core deployment output artifacts',
+};

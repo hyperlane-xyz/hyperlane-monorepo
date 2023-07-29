@@ -3,9 +3,11 @@ import { ethers } from 'ethers';
 import {
   ChainMap,
   ChainMetadata,
+  HyperlaneContractsMap,
   MultiProvider,
   chainMetadata,
   hyperlaneEnvironments,
+  objMerge,
 } from '@hyperlane-xyz/sdk';
 
 import { readChainConfigIfExists } from './configs.js';
@@ -15,6 +17,15 @@ export const sdkContractAddressesMap = {
   ...hyperlaneEnvironments.testnet,
   ...hyperlaneEnvironments.mainnet,
 };
+
+export function getMergedContractAddresses(
+  artifacts?: HyperlaneContractsMap<any>,
+) {
+  return objMerge(
+    sdkContractAddressesMap,
+    artifacts || {},
+  ) as HyperlaneContractsMap<any>;
+}
 
 export function getDeployerContext(key: string, chainConfigPath: string) {
   const signer = keyToSigner(key);
