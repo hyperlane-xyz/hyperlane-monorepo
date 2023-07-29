@@ -5,7 +5,7 @@ import {
   LiquidityLayerRouter,
   PortalAdapter,
 } from '@hyperlane-xyz/core';
-import { utils } from '@hyperlane-xyz/utils';
+import { types, utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts, HyperlaneContractsMap } from '../../contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
@@ -75,6 +75,9 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
     ]
   > {
     const owner = await this.multiProvider.getSignerAddress(chain);
+    if (typeof config.interchainSecurityModule === 'object') {
+      throw new Error('ISM as object unimplemented');
+    }
     return [
       config.mailbox,
       config.interchainGasPaymaster,
@@ -86,9 +89,10 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
   async enrollRemoteRouters(
     contractsMap: HyperlaneContractsMap<LiquidityLayerFactories>,
     configMap: ChainMap<LiquidityLayerConfig>,
+    foreignRouters: ChainMap<types.Address>,
   ): Promise<void> {
     this.logger(`Enroll LiquidityLayerRouters with each other`);
-    await super.enrollRemoteRouters(contractsMap, configMap);
+    await super.enrollRemoteRouters(contractsMap, configMap, foreignRouters);
 
     this.logger(`Enroll CircleBridgeAdapters with each other`);
     // Hack to allow use of super.enrollRemoteRouters
@@ -104,6 +108,7 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
         }),
       ) as unknown as HyperlaneContractsMap<LiquidityLayerFactories>,
       configMap,
+      foreignRouters,
     );
 
     this.logger(`Enroll PortalAdapters with each other`);
@@ -120,6 +125,7 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
         }),
       ) as unknown as HyperlaneContractsMap<LiquidityLayerFactories>,
       configMap,
+      foreignRouters,
     );
   }
 

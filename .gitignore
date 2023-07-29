@@ -7,7 +7,6 @@ test_deploy.env
 **/*.swp
 **/*.swo
 
-rust/vendor/
 rust/tmp_db
 rust/tmp.env
 tmp.env
@@ -27,4 +26,5 @@ yarn-error.log
 
 .idea
 **/*.ignore
+.vscode
 

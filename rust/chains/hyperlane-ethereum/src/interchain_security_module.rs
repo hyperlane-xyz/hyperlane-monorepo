@@ -8,9 +8,11 @@ use async_trait::async_trait;
 use ethers::providers::Middleware;
 use tracing::{instrument, warn};
 
+use futures_util::future::try_join;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneProvider, InterchainSecurityModule, ModuleType, H256,
+    HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType, RawHyperlaneMessage,
+    H256, U256,
 };
 use num_traits::cast::FromPrimitive;
 
@@ -104,6 +106,24 @@ where
         } else {
             warn!(%module, "Unknown module type");
             Ok(ModuleType::Unused)
+        }
+    }
+
+    #[instrument]
+    async fn dry_run_verify(
+        &self,
+        message: &HyperlaneMessage,
+        metadata: &[u8],
+    ) -> ChainResult<Option<U256>> {
+        let tx = self.contract.verify(
+            metadata.to_owned().into(),
+            RawHyperlaneMessage::from(message).to_vec().into(),
+        );
+        let (verifies, gas_estimate) = try_join(tx.call(), tx.estimate_gas()).await?;
+        if verifies {
+            Ok(Some(gas_estimate.into()))
+        } else {
+            Ok(None)
         }
     }
 }

@@ -1,7 +1,11 @@
-pub use primitive_types::{H128, H160, H256, H512, U128, U256, U512};
+use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::io::{Read, Write};
 use std::ops::Add;
 
+pub use self::primitive_types::*;
+#[cfg(feature = "ethers")]
+pub use ::primitive_types as ethers_core_types;
 pub use announcement::*;
 pub use chain_data::*;
 pub use checkpoint::*;
@@ -15,10 +19,89 @@ mod chain_data;
 mod checkpoint;
 mod log_metadata;
 mod message;
+mod serialize;
 
 /// Unified 32-byte identifier with convenience tooling for handling
 /// 20-byte ids (e.g ethereum addresses)
 pub mod identifiers;
+mod primitive_types;
+
+// Copied from https://github.com/hyperlane-xyz/ethers-rs/blob/hyperlane/ethers-core/src/types/signature.rs#L54
+// To avoid depending on the `ethers` type
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Copy, Hash)]
+/// An ECDSA signature
+pub struct Signature {
+    /// R value
+    pub r: U256,
+    /// S Value
+    pub s: U256,
+    /// V value
+    pub v: u64,
+}
+
+impl Signature {
+    /// Copies and serializes `self` into a new `Vec` with the recovery id included
+    pub fn to_vec(&self) -> Vec<u8> {
+        self.into()
+    }
+}
+
+impl fmt::Display for Signature {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let sig = <[u8; 65]>::from(self);
+        write!(f, "{}", hex::encode(&sig[..]))
+    }
+}
+
+impl From<&Signature> for [u8; 65] {
+    fn from(src: &Signature) -> [u8; 65] {
+        let mut sig = [0u8; 65];
+        src.r.to_big_endian(&mut sig[0..32]);
+        src.s.to_big_endian(&mut sig[32..64]);
+        sig[64] = src.v as u8;
+        sig
+    }
+}
+
+impl From<Signature> for [u8; 65] {
+    fn from(src: Signature) -> [u8; 65] {
+        <[u8; 65]>::from(&src)
+    }
+}
+
+impl From<&Signature> for Vec<u8> {
+    fn from(src: &Signature) -> Vec<u8> {
+        <[u8; 65]>::from(src).to_vec()
+    }
+}
+
+impl From<Signature> for Vec<u8> {
+    fn from(src: Signature) -> Vec<u8> {
+        <[u8; 65]>::from(&src).to_vec()
+    }
+}
+
+#[cfg(feature = "ethers")]
+impl From<ethers_core::types::Signature> for Signature {
+    fn from(value: ethers_core::types::Signature) -> Self {
+        Self {
+            r: value.r.into(),
+            s: value.s.into(),
+            v: value.v,
+        }
+    }
+}
+
+#[cfg(feature = "ethers")]
+impl From<Signature> for ethers_core::types::Signature {
+    fn from(value: Signature) -> Self {
+        Self {
+            r: value.r.into(),
+            s: value.s.into(),
+            v: value.v,
+        }
+    }
+}
 
 /// A payment of a message's gas costs.
 #[derive(Debug, Copy, Clone)]

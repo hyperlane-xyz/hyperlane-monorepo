@@ -1,6 +1,6 @@
 import { utils as ethersUtils } from 'ethers';
 
-import { utils } from '@hyperlane-xyz/utils';
+import { types, utils } from '@hyperlane-xyz/utils';
 
 import { BytecodeHash } from '../consts/bytecode';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
@@ -8,6 +8,7 @@ import { proxyImplementation } from '../deploy/proxy';
 import {
   HyperlaneIsmFactory,
   collectValidators,
+  moduleMatchesConfig,
 } from '../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
@@ -46,13 +47,23 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     await this.checkMailbox(chain);
     await this.checkBytecodes(chain);
     await this.checkValidatorAnnounce(chain);
+    if (config.upgrade) {
+      await this.checkUpgrade(chain, config.upgrade);
+    }
   }
 
   async checkDomainOwnership(chain: ChainName): Promise<void> {
     const config = this.configMap[chain];
-    if (config.owner) {
-      return this.checkOwnership(chain, config.owner);
+
+    let ownableOverrides: Record<string, types.Address> = {};
+    if (config.upgrade) {
+      const timelockController =
+        this.app.getAddresses(chain).timelockController;
+      ownableOverrides = {
+        proxyAdmin: timelockController,
+      };
     }
+    return this.checkOwnership(chain, config.owner, ownableOverrides);
   }
 
   async checkMailbox(chain: ChainName): Promise<void> {
@@ -62,18 +73,15 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     utils.assert(localDomain === this.multiProvider.getDomainId(chain));
 
     const actualIsm = await mailbox.defaultIsm();
+
     const config = this.configMap[chain];
-    /*
-    TODO: Add this back in once the new ISM factories are adopted
-    const matches = await moduleMatches(
+    const matches = await moduleMatchesConfig(
       chain,
       actualIsm,
       config.defaultIsm,
       this.ismFactory.multiProvider,
       this.ismFactory.getContracts(chain),
     );
-    */
-    const matches = true;
     if (!matches) {
       const violation: MailboxViolation = {
         type: CoreViolationType.Mailbox,

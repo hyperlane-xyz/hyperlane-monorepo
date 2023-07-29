@@ -1,5 +1,5 @@
 name: Build and Push Monorepo Image to GCR
-on: 
+on:
   push:
     branches: [main]
     tags:
@@ -38,8 +38,6 @@ jobs:
         with:
           submodules: recursive
 
-      - name: remove submodule locks
-        run: git submodule foreach rm yarn.lock
       - name: Generate tag data
         id: taggen
         run: |

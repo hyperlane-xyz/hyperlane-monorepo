@@ -1,4 +1,9 @@
-import { AgentConnectionType, chainMetadata } from '@hyperlane-xyz/sdk';
+import {
+  AgentConnectionType,
+  chainMetadata,
+  hyperlaneEnvironments,
+  objMap,
+} from '@hyperlane-xyz/sdk';
 
 import {
   GasPaymentEnforcementPolicyType,
@@ -11,11 +16,19 @@ import { Contexts } from '../../contexts';
 
 import { chainNames, environment } from './chains';
 import { helloWorld } from './helloworld';
-import interchainQueryRouters from './middleware/queries/addresses.json';
-import { validators } from './validators';
+import { validatorChainConfig } from './validators';
 
 const releaseCandidateHelloworldMatchingList = routerMatchingList(
   helloWorld[Contexts.ReleaseCandidate].addresses,
+);
+
+const interchainQueryRouters = objMap(
+  hyperlaneEnvironments.mainnet,
+  (_, addresses) => {
+    return {
+      router: addresses.interchainQueryRouter,
+    };
+  },
 );
 
 const interchainQueriesMatchingList = routerMatchingList(
@@ -70,16 +83,16 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '40cc4a6-20230420-080111',
+      tag: '497db63-20230614-174455',
     },
     connectionType: AgentConnectionType.HttpQuorum,
-    chains: validators,
+    chains: validatorChainConfig(Contexts.Hyperlane),
   },
   scraper: {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: 'b75cfc4-20230612-195825',
+      tag: 'aaddba7-20230620-154941',
     },
   },
 };
@@ -87,12 +100,12 @@ const hyperlane: RootAgentConfig = {
 const releaseCandidate: RootAgentConfig = {
   ...contextBase,
   context: Contexts.ReleaseCandidate,
-  rolesWithKeys: [Role.Relayer, Role.Kathy],
+  rolesWithKeys: [Role.Relayer, Role.Kathy, Role.Validator],
   relayer: {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: '2deb9b8-20230602-205342',
+      tag: 'aa92fe3-20230717-210518',
     },
     whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
@@ -100,6 +113,14 @@ const releaseCandidate: RootAgentConfig = {
     // Skipping arbitrum because the gas price estimates are inclusive of L1
     // fees which leads to wildly off predictions.
     skipTransactionGasLimitFor: [chainMetadata.arbitrum.chainId],
+  },
+  validators: {
+    docker: {
+      repo,
+      tag: 'aa92fe3-20230717-210518',
+    },
+    connectionType: AgentConnectionType.HttpQuorum,
+    chains: validatorChainConfig(Contexts.ReleaseCandidate),
   },
 };
 
