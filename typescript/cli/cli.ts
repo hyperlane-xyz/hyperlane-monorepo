@@ -5,6 +5,7 @@ import yargs from 'yargs';
 import { chainsCommand } from './src/commands/chains.js';
 import { configCommand } from './src/commands/config.js';
 import { deployCommand } from './src/commands/deploy.js';
+import { sendCommand } from './src/commands/send.js';
 import './src/logger.js';
 import { errorRed } from './src/logger.js';
 
@@ -20,6 +21,7 @@ try {
     .command(chainsCommand)
     .command(configCommand)
     .command(deployCommand)
+    .command(sendCommand)
     .demandCommand()
     .strict()
     .help()

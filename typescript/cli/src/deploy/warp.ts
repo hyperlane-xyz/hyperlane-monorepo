@@ -38,18 +38,20 @@ import { runPreflightChecks } from './utils.js';
 
 export async function runWarpDeploy({
   key,
-  configPath,
+  chainConfigPath,
+  warpConfigPath,
   corePath,
   outPath,
 }: {
   key: string;
-  configPath: string;
+  chainConfigPath: string;
+  warpConfigPath: string;
   corePath: string;
   outPath: string;
 }) {
-  const { multiProvider, signer } = getDeployerContext(key, configPath);
+  const { multiProvider, signer } = getDeployerContext(key, chainConfigPath);
 
-  const warpRouteConfig = readWarpRouteConfig(configPath);
+  const warpRouteConfig = readWarpRouteConfig(warpConfigPath);
   const artifacts = corePath ? readDeploymentArtifacts(corePath) : undefined;
 
   const configs = await runBuildConfigStep({

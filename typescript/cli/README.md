@@ -53,3 +53,5 @@ Run hyperlane core deployments: `hyperlane deploy core`
 Run warp route deployments: `hyperlane deploy warp`
 
 View SDK contract addresses: `hyperlane chains addresses`
+
+Send test message: `hyperlane send message`

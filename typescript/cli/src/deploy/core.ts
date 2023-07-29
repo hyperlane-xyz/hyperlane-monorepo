@@ -49,16 +49,16 @@ import { runPreflightChecks } from './utils.js';
 
 export async function runCoreDeploy({
   key,
-  configPath,
+  chainConfigPath,
   outPath,
 }: {
   key: string;
-  configPath: string;
+  chainConfigPath: string;
   outPath: string;
 }) {
   const { customChains, multiProvider, signer } = getDeployerContext(
     key,
-    configPath,
+    chainConfigPath,
   );
 
   const { local, remotes, allChains } = await runChainSelectionStep(

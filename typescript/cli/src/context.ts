@@ -16,9 +16,9 @@ export const sdkContractAddressesMap = {
   ...hyperlaneEnvironments.mainnet,
 };
 
-export function getDeployerContext(key: string, configPath: string) {
+export function getDeployerContext(key: string, chainConfigPath: string) {
   const signer = keyToSigner(key);
-  const customChains = readChainConfigIfExists(configPath);
+  const customChains = readChainConfigIfExists(chainConfigPath);
   const multiProvider = getMultiProvider(customChains, signer);
   return { signer, customChains, multiProvider };
 }
