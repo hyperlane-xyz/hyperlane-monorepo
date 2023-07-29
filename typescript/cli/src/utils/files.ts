@@ -4,6 +4,10 @@ import { parse as yamlParse, stringify as yamlStringify } from 'yaml';
 
 import { objMerge } from '@hyperlane-xyz/sdk';
 
+import { logBlue } from '../logger.js';
+
+import { getTimestampForFilename } from './time.js';
+
 export type FileFormat = 'yaml' | 'json';
 
 export function readFileAtPath(filepath: string) {
@@ -70,9 +74,7 @@ export function mergeYaml<T extends Record<string, any>>(
   obj: T,
 ) {
   if (fs.existsSync(filepath)) {
-    console.log('MERGING');
     const previous = readYaml<T>(filepath);
-    console.log('MERGING', previous);
     writeYaml(filepath, objMerge(previous, obj));
   } else {
     writeYaml(filepath, obj);
@@ -126,4 +128,20 @@ function resolveYamlOrJson(
   } else {
     throw new Error(`Invalid file format for ${filepath}`);
   }
+}
+
+export function prepNewArtifactsFiles(
+  outPath: string,
+  files: Array<{ filename: string; description: string }>,
+) {
+  const timestamp = getTimestampForFilename();
+  const newPaths: string[] = [];
+  for (const file of files) {
+    const filePath = path.join(outPath, `${file.filename}-${timestamp}.json`);
+    // Write empty object to ensure permissions are okay
+    writeJson(filePath, {});
+    newPaths.push(filePath);
+    logBlue(`${file.description} will be written to ${filePath}`);
+  }
+  return newPaths;
 }

@@ -1,5 +1,12 @@
 # A config for a multisig Interchain Security Module (ISM)
 # Schema: https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/sdk/src/ism/types.ts
+# Module types:
+#   UNUSED : 0
+#   ROUTING : 1
+#   AGGREGATION : 2
+#   LEGACY_MULTISIG : 3
+#   MERKLE_ROOT_MULTISIG : 4
+#   MESSAGE_ID_MULTISIG : 5
 ---
 anvil1:
   type: 3 # ModuleType.LEGACY_MULTISIG

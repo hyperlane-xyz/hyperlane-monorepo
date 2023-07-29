@@ -1,10 +1,7 @@
 import { Separator, checkbox, confirm, input } from '@inquirer/prompts';
 import select from '@inquirer/select';
-import { log } from 'console';
+import chalk from 'chalk';
 import { ethers } from 'ethers';
-import fs from 'fs';
-import path from 'path';
-import { z } from 'zod';
 
 import {
   ChainMap,
@@ -25,12 +22,10 @@ import {
   MultiProvider,
   MultisigIsmConfig,
   OverheadIgpConfig,
-  ProtocolType,
   RoutingIsmConfig,
   agentStartBlocks,
   buildAgentConfig,
   defaultMultisigIsmConfigs,
-  hyperlaneEnvironments,
   mainnetChainsMetadata,
   multisigIsmVerificationCost,
   objFilter,
@@ -40,24 +35,17 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { types } from '@hyperlane-xyz/utils';
 
-import { readChainConfig } from '../chains/config.js';
+import { readDeploymentArtifacts, readMultisigConfig } from '../configs.js';
 import { MINIMUM_CORE_DEPLOY_BALANCE } from '../consts.js';
-import { logBlue, logGray, logGreen } from '../logger.js';
-import { assertBalances } from '../utils/balances.js';
-import { readYamlOrJson, writeJson } from '../utils/files.js';
-import { assertSigner, keyToSigner } from '../utils/keys.js';
-import { getMultiProvider } from '../utils/providers.js';
-import { getTimestampForFilename } from '../utils/time.js';
+import { getDeployerContext, sdkContractAddressesMap } from '../context.js';
+import { log, logBlue, logGray, logGreen } from '../logger.js';
+import { prepNewArtifactsFiles, writeJson } from '../utils/files.js';
 
 import {
   TestRecipientConfig,
   TestRecipientDeployer,
 } from './TestRecipientDeployer.js';
-
-export const sdkContractAddressesMap = {
-  ...hyperlaneEnvironments.testnet,
-  ...hyperlaneEnvironments.mainnet,
-};
+import { runPreflightChecks } from './utils.js';
 
 export async function runCoreDeploy({
   key,
@@ -68,9 +56,10 @@ export async function runCoreDeploy({
   configPath: string;
   outPath: string;
 }) {
-  const signer = keyToSigner(key);
-  const customChains = getCustomChains(configPath);
-  const multiProvider = getMultiProvider(customChains, signer);
+  const { customChains, multiProvider, signer } = getDeployerContext(
+    key,
+    configPath,
+  );
 
   const { local, remotes, allChains } = await runChainSelectionStep(
     customChains,
@@ -89,12 +78,10 @@ export async function runCoreDeploy({
   };
 
   await runDeployPlanStep(deploymentParams);
-  await runPreflightChecks(deploymentParams);
-
-  const isConfirmed = await confirm({
-    message: 'All systems ready, captain. Should we deploy?',
+  await runPreflightChecks({
+    ...deploymentParams,
+    minBalance: MINIMUM_CORE_DEPLOY_BALANCE,
   });
-  if (!isConfirmed) throw new Error('Deployment cancelled');
   await executeDeploy(deploymentParams);
 }
 
@@ -182,49 +169,18 @@ async function runIsmStep(allChains: ChainName[]) {
   return configs;
 }
 
-function getCustomChains(configPath: string) {
-  if (!fs.existsSync(configPath)) {
-    log('No config file provided, using default chains in SDK');
-    return {};
-  } else {
-    return readChainConfig(configPath);
-  }
-}
-
 function handleNewChain(chainNames: string[]) {
   if (chainNames.includes('__new__')) {
     logBlue(
-      'To choose a new chain, add them to a config file and use the --config flag',
+      'To use a new chain, use the --config argument add them to that file',
     );
-    logBlue(
-      'Use the "hyperlane config create" command to create new chain configs',
+    log(
+      chalk.blue('Use the'),
+      chalk.magentaBright('hyperlane config create'),
+      chalk.blue('command to create new configs'),
     );
     process.exit(0);
   }
-}
-
-const GenericDeploymentArtifactsSchema = z
-  .object({})
-  .catchall(z.object({}).catchall(z.string()));
-
-function readDeploymentArtifacts(filePath: string) {
-  const artifacts = readYamlOrJson<HyperlaneContractsMap<any>>(filePath);
-  if (!artifacts) throw new Error(`No artifacts found at ${filePath}`);
-  const result = GenericDeploymentArtifactsSchema.safeParse(artifacts);
-  if (!result.success) {
-    const firstIssue = result.error.issues[0];
-    throw new Error(
-      `Invalid artifacts: ${firstIssue.path} => ${firstIssue.message}`,
-    );
-  }
-  return artifacts;
-}
-
-function readMultisigConfig(filePath: string) {
-  const config = readYamlOrJson<ChainMap<MultisigIsmConfig>>(filePath);
-  if (!config) throw new Error(`No multisig config found at ${filePath}`);
-  // TODO validate multisig config
-  return config;
 }
 
 interface DeployParams {
@@ -244,62 +200,28 @@ async function runDeployPlanStep({
   artifacts,
 }: DeployParams) {
   const address = await signer.getAddress();
-  logBlue('Deployment plan:');
-  logGray('===================:');
-  log(`Transaction signer and contract owner will be account ${address}`);
-  log(
-    `Deploying Hyperlane to ${local} and connecting it to ${remotes.join(
-      ', ',
-    )}`,
-  );
+  logBlue('\nDeployment plan:');
+  logGray('===============:');
+  log(`Transaction signer and owner of new contracts will be ${address}`);
+  log(`Deploying to ${local} and connecting it to ${remotes.join(', ')}`);
+  const numContracts = Object.keys(
+    Object.values(sdkContractAddressesMap)[0],
+  ).length;
+  log(`There are ${numContracts} contracts for each chain`);
   if (artifacts) {
     log('But contracts with an address in the artifacts file will be skipped');
     for (const chain of [local, ...remotes]) {
       const chainArtifacts = artifacts[chain];
       if (!chainArtifacts) continue;
-      log(
-        `Skipped contracts for ${chain}: ${Object.keys(chainArtifacts).join(
-          ', ',
-        )}`,
-      );
+      const numRequired = numContracts - Object.keys(chainArtifacts).length;
+      log(`${chain} will require ${numRequired} of ${numContracts}`);
     }
   }
-  log(`The interchain security module will be a Multisig.`);
+  log('The interchain security module will be a Multisig.');
   const isConfirmed = await confirm({
     message: 'Is this deployment plan correct?',
   });
   if (!isConfirmed) throw new Error('Deployment cancelled');
-}
-
-async function runPreflightChecks({
-  local,
-  remotes,
-  signer,
-  multiProvider,
-}: DeployParams) {
-  log('Running pre-flight checks...');
-
-  if (!local || !remotes?.length) throw new Error('Invalid chain selection');
-  if (remotes.includes(local))
-    throw new Error('Local and remotes must be distinct');
-  for (const chain of [local, ...remotes]) {
-    const metadata = multiProvider.tryGetChainMetadata(chain);
-    if (!metadata) throw new Error(`No chain config found for ${chain}`);
-    if (metadata.protocol !== ProtocolType.Ethereum)
-      throw new Error('Only Ethereum chains are supported for now');
-  }
-  logGreen('Chains are valid ✅');
-
-  assertSigner(signer);
-  logGreen('Signer is valid ✅');
-
-  await assertBalances(
-    multiProvider,
-    signer,
-    [local, ...remotes],
-    MINIMUM_CORE_DEPLOY_BALANCE,
-  );
-  logGreen('Balances are sufficient ✅');
 }
 
 async function executeDeploy({
@@ -311,27 +233,30 @@ async function executeDeploy({
   artifacts = {},
   multiSigConfig = {},
 }: DeployParams) {
-  const { contractsFilePath, agentFilePath } =
-    prepNewArtifactsFilePaths(outPath);
+  logBlue('All systems ready, captain! Beginning deployment...');
+
+  const [contractsFilePath, agentFilePath] = prepNewArtifactsFiles(outPath, [
+    { filename: 'core-deployment', description: 'Contract addresses' },
+    { filename: 'agent-config', description: 'Agent configs' },
+  ]);
 
   const owner = await signer.getAddress();
   const allChains = [local, ...remotes];
 
   // 1. Deploy ISM factories to all deployable chains that don't have them.
-  logBlue('Deploying ISM factory contracts');
+  log('Deploying ISM factory contracts');
   const ismDeployer = new HyperlaneIsmFactoryDeployer(multiProvider);
   ismDeployer.cacheAddressesMap(objMerge(sdkContractAddressesMap, artifacts));
   const ismFactoryContracts = await ismDeployer.deploy(allChains);
-  console.log(ismFactoryContracts);
   artifacts = writeMergedAddresses(
     contractsFilePath,
     artifacts,
     ismFactoryContracts,
   );
-  logBlue(`ISM factory deployment complete`);
+  logGreen(`ISM factory contracts deployed`);
 
   // 2. Deploy IGPs to all deployable chains.
-  logBlue(`Deploying IGP contracts`);
+  log(`Deploying IGP contracts`);
   const igpConfig = buildIgpConfigMap(
     owner,
     allChains,
@@ -341,9 +266,8 @@ async function executeDeploy({
   const igpDeployer = new HyperlaneIgpDeployer(multiProvider);
   igpDeployer.cacheAddressesMap(artifacts);
   const igpContracts = await igpDeployer.deploy(igpConfig);
-  console.log(igpContracts);
   artifacts = writeMergedAddresses(contractsFilePath, artifacts, igpContracts);
-  logBlue(`IGP deployment complete`);
+  logGreen(`IGP contracts deployed`);
 
   // Build an IsmFactory that covers all chains so that we can
   // use it later to deploy ISMs to remote chains.
@@ -353,49 +277,52 @@ async function executeDeploy({
   );
 
   // 3. Deploy core contracts to local chain
-  logBlue(`Deploying core contracts to ${local}`);
+  log(`Deploying core contracts to ${local}`);
   const coreDeployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
   coreDeployer.cacheAddressesMap(artifacts);
   const coreConfig = buildCoreConfigMap(owner, local, remotes, multiSigConfig);
   const coreContracts = await coreDeployer.deploy(coreConfig);
-  console.log(coreContracts);
   artifacts = writeMergedAddresses(contractsFilePath, artifacts, coreContracts);
-  logBlue(`Core deployment complete`);
+  logGreen(`Core contracts deployed`);
 
   // 4. Deploy ISM contracts to remote deployable chains
-  logBlue(`Deploying ISMs to ${remotes}`);
+  log(`Deploying ISMs`);
   const ismConfigs = buildIsmConfigMap(
     owner,
     remotes,
     allChains,
     multiSigConfig,
   );
-  const ismContracts: ChainMap<{ interchainSecurityModule: DeployedIsm }> = {};
+  const ismContracts: ChainMap<{ multisigIsm: DeployedIsm }> = {};
   for (const [ismChain, ismConfig] of Object.entries(ismConfigs)) {
-    logBlue(`Deploying ISM to ${ismChain}`);
+    if (artifacts[ismChain].multisigIsm) {
+      log(`ISM contract recovered, skipping ISM deployment to ${ismChain}`);
+      continue;
+    }
+    log(`Deploying ISM to ${ismChain}`);
     ismContracts[ismChain] = {
-      interchainSecurityModule: await ismFactory.deploy(ismChain, ismConfig),
+      multisigIsm: await ismFactory.deploy(ismChain, ismConfig),
     };
   }
   artifacts = writeMergedAddresses(contractsFilePath, artifacts, ismContracts);
-  logBlue(`ISM deployment complete`);
+  logGreen(`ISM contracts deployed `);
 
   // 5. Deploy TestRecipients to all deployable chains
-  logBlue(`Deploying test recipient contracts`);
+  log(`Deploying test recipient contracts`);
   const testRecipientConfig = buildTestRecipientConfigMap(allChains, artifacts);
   const testRecipientDeployer = new TestRecipientDeployer(multiProvider);
   testRecipientDeployer.cacheAddressesMap(artifacts);
   const testRecipients = await testRecipientDeployer.deploy(
     testRecipientConfig,
   );
-  console.log(testRecipients);
   artifacts = writeMergedAddresses(
     contractsFilePath,
     artifacts,
     testRecipients,
   );
-  logBlue(`Test recipient deployment complete`);
+  logGreen(`Test recipient contracts deployed`);
 
+  log('Writing agent configs');
   await writeAgentConfig(
     agentFilePath,
     artifacts,
@@ -403,8 +330,11 @@ async function executeDeploy({
     remotes,
     multiProvider,
   );
+  logGreen('Agent configs written');
 
-  logBlue(`Writing agent config to artifacts/agent_config.json`);
+  logBlue('Deployment is complete!');
+  logBlue(`Contract address artifacts are in ${contractsFilePath}`);
+  logBlue(`Agent configs are in ${agentFilePath}`);
 }
 
 function buildIsmConfig(
@@ -498,7 +428,7 @@ function buildIgpConfigMap(
       beneficiary: owner,
       gasOracleType,
       overhead,
-      oracleKey: 'TODO',
+      oracleKey: owner,
     };
   }
   return configMap;
@@ -513,20 +443,6 @@ function writeMergedAddresses(
   const mergedAddresses = objMerge(aAddresses, bAddresses);
   writeJson(filePath, mergedAddresses);
   return mergedAddresses;
-}
-
-function prepNewArtifactsFilePaths(outPath: string) {
-  const timestamp = getTimestampForFilename();
-  const contractsFilePath = path.join(
-    outPath,
-    `core-deployment-${timestamp}.json`,
-  );
-  const agentFilePath = path.join(outPath, `agent-config-${timestamp}.json`);
-  // Write an empty object to the file to ensure permissions are okay
-  writeJson(contractsFilePath, {});
-  logBlue(`Contract address artifacts will be written to ${contractsFilePath}`);
-  logBlue(`Agent configs will be written to ${agentFilePath}`);
-  return { contractsFilePath, agentFilePath };
 }
 
 async function writeAgentConfig(

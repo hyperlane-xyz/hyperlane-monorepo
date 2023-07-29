@@ -8,6 +8,8 @@ import { deployCommand } from './src/commands/deploy.js';
 import './src/logger.js';
 import { errorRed } from './src/logger.js';
 
+const MISSING_PARAMS_ERROR = 'Not enough non-option arguments';
+
 console.log(chalk.blue('Hyperlane'), chalk.magentaBright('CLI'));
 
 try {
@@ -22,12 +24,12 @@ try {
     .strict()
     .help()
     .fail((msg, err, yargs) => {
-      if (msg) errorRed('Error: ' + msg);
+      if (msg && !msg.includes(MISSING_PARAMS_ERROR)) errorRed('Error: ' + msg);
       console.log('');
       yargs.showHelp();
       console.log('');
-      if (err) throw err; // preserve stack
-      else process.exit(1);
+      if (err) errorRed(err.toString());
+      process.exit(1);
     }).argv;
 } catch (error: any) {
   errorRed('Error: ' + error.message);

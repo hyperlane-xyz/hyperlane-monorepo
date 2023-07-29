@@ -161,6 +161,7 @@ export { HyperlaneRouterChecker } from './router/HyperlaneRouterChecker';
 export { HyperlaneRouterDeployer } from './router/HyperlaneRouterDeployer';
 export { GasRouterApp, Router, RouterApp } from './router/RouterApps';
 export {
+  ConnectionClientConfig,
   ConnectionClientViolation,
   ConnectionClientViolationType,
   GasConfig,

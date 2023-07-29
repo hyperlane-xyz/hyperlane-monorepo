@@ -8,7 +8,7 @@ import {
   isValidChainMetadata,
 } from '@hyperlane-xyz/sdk';
 
-import { readChainConfig } from '../chains/config.js';
+import { readChainConfig } from '../configs.js';
 import { errorRed, logBlue, logGreen } from '../logger.js';
 import { FileFormat, mergeYamlOrJson } from '../utils/files.js';
 
