@@ -76,7 +76,6 @@ async function executeDelivery({
   const mailbox = core.getContracts(origin).mailbox;
   const igp = HyperlaneIgp.fromAddressesMap(mergedContractAddrs, multiProvider);
   const igpContract = igp.getContracts(origin).defaultIsmInterchainGasPaymaster;
-  console.log('igpContract', igpContract.address);
 
   const destinationDomain = multiProvider.getDomainId(destination);
   const signerAddress = await signer.getAddress();
