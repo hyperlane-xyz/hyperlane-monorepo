@@ -20,6 +20,10 @@ import {
 const circleDomainMapping = [
   { hyperlaneDomain: chainMetadata[Chains.goerli].chainId, circleDomain: 0 },
   { hyperlaneDomain: chainMetadata[Chains.fuji].chainId, circleDomain: 1 },
+  {
+    hyperlaneDomain: chainMetadata[Chains.arbitrumgoerli].chainId,
+    circleDomain: 3,
+  },
 ];
 
 function buildCctpAdapterConfigMap(owner: types.Address) {
@@ -48,6 +52,19 @@ function buildCctpAdapterConfigMap(owner: types.Address) {
     interchainGasPaymaster:
       hyperlaneContractAddresses.fuji.interchainGasPaymaster,
     interchainSecurityModule: '0xE4922FfD478E385a4111a75c5DaA173763a778a1', // CctpIsm
+    owner: owner,
+  };
+  config[Chains.arbitrumgoerli] = {
+    type: AdapterType.CCTP,
+    tokenMessengerAddress: '0x12dcfd3fe2e9eac2859fd1ed86d2ab8c5a2f9352',
+    token: '0xfd064A18f3BF249cf1f87FC203E90D8f650f2d63',
+    tokenSymbol: 'USDC',
+    gasAmount: 300000,
+    circleDomainMapping: circleDomainMapping,
+    mailbox: hyperlaneContractAddresses.arbitrumgoerli.mailbox,
+    interchainGasPaymaster:
+      hyperlaneContractAddresses.arbitrumgoerli.interchainGasPaymaster,
+    interchainSecurityModule: '0x620FF345Ffc5C55033a453df2bc1d62871d27D4e', // CctpIsm
     owner: owner,
   };
   return config;
