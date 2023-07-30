@@ -33,8 +33,8 @@ function buildCctpAdapterConfigMap(owner: types.Address) {
     circleDomainMapping: circleDomainMapping,
     mailbox: hyperlaneContractAddresses.goerli.mailbox,
     interchainGasPaymaster:
-      hyperlaneContractAddresses.goerli.defaultIsmInterchainGasPaymaster,
-    interchainSecurityModule: '0x8EE099c620Fe635F86a4b97f3707359495022F37',
+      hyperlaneContractAddresses.goerli.interchainGasPaymaster,
+    interchainSecurityModule: '0x8EE099c620Fe635F86a4b97f3707359495022F37', // CctpIsm
     owner: owner,
   };
   config[Chains.fuji] = {
@@ -46,8 +46,8 @@ function buildCctpAdapterConfigMap(owner: types.Address) {
     circleDomainMapping: circleDomainMapping,
     mailbox: hyperlaneContractAddresses.fuji.mailbox,
     interchainGasPaymaster:
-      hyperlaneContractAddresses.fuji.defaultIsmInterchainGasPaymaster,
-    interchainSecurityModule: '0xE4922FfD478E385a4111a75c5DaA173763a778a1',
+      hyperlaneContractAddresses.fuji.interchainGasPaymaster,
+    interchainSecurityModule: '0xE4922FfD478E385a4111a75c5DaA173763a778a1', // CctpIsm
     owner: owner,
   };
   return config;
