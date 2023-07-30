@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 import {
   CctpAdapter__factory,
   ProxyAdmin__factory,
+  TimelockController__factory,
 } from '../../../../../solidity/dist';
 import { HyperlaneContracts, HyperlaneContractsMap } from '../../contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
@@ -62,6 +63,12 @@ export class CctpAdapterDeployer extends ProxiedRouterDeployer<
     ]
   > {
     const owner = await this.multiProvider.getSignerAddress(chain);
+    if (
+      config.interchainSecurityModule &&
+      typeof config.interchainSecurityModule !== 'string'
+    ) {
+      throw new Error('Invalid interchain security module address');
+    }
     return [
       owner,
       config.tokenMessengerAddress,
@@ -89,6 +96,7 @@ export class CctpAdapterDeployer extends ProxiedRouterDeployer<
     HyperlaneContracts<{
       proxyAdmin: ProxyAdmin__factory;
       CctpAdapter: CctpAdapter__factory;
+      timelockController: TimelockController__factory;
     }>
   > {
     const cctpAdapterFactory = await super.deployContracts(chain, config);
