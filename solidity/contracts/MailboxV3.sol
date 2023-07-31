@@ -37,9 +37,6 @@ contract MailboxV3 is IMailboxV3, Versioned, Ownable {
     // The default post dispatch hook, used for post processing of dispatched messages.
     IPostDispatchHook public defaultHook;
 
-    // The default metadata for the post dispatch hook.
-    bytes public defaultHookMetadata;
-
     // Mapping of message ID to whether or not that message has been delivered.
     mapping(bytes32 => bool) public delivered;
 
@@ -82,13 +79,6 @@ contract MailboxV3 is IMailboxV3, Versioned, Ownable {
         emit DefaultHookSet(_hook);
     }
 
-    function setDefaultHookMetadata(bytes calldata _metadata)
-        external
-        onlyOwner
-    {
-        defaultHookMetadata = _metadata;
-    }
-
     /**
      * @notice Dispatches a message to the destination domain & recipient.
      * @param _destinationDomain Domain of destination chain
@@ -101,13 +91,12 @@ contract MailboxV3 is IMailboxV3, Versioned, Ownable {
         bytes32 _recipientAddress,
         bytes calldata _messageBody
     ) external payable override returns (bytes32) {
-        bytes memory _metadata = bytes(defaultHookMetadata);
         return
             _dispatch(
                 _destinationDomain,
                 _recipientAddress,
                 _messageBody,
-                _metadata
+                new bytes(0)
             );
     }
 

@@ -14,8 +14,8 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 // ============ Internal Imports ============
-import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
-import {OptimismISM} from "../isms/hook/OptimismISM.sol";
+import {AbstractHook} from "./AbstractHook.sol";
+import {OPStackISM} from "../isms/hook/OPStackISM.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {Message} from "../libs/Message.sol";
 
@@ -24,21 +24,22 @@ import {ICrossDomainMessenger} from "../interfaces/optimism/ICrossDomainMessenge
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
- * @title OptimismMessageHook
+ * @title OPStackHook
  * @notice Message hook to inform the Optimism ISM of messages published through
- * the native Optimism bridge.
+ * the native OPStack bridge.
+ * @dev V3 WIP
  */
-contract OptimismMessageHook is IPostDispatchHook {
+contract OPStackHook is AbstractHook {
     using Message for bytes;
     using TypeCasts for address;
 
     // ============ Constants ============
 
-    // Domain of chain on which the optimism ISM is deployed
+    // Domain of chain on which the OPStack ISM is deployed
     uint32 public immutable destinationDomain;
     // Messenger used to send messages from L1 -> L2
     ICrossDomainMessenger public immutable l1Messenger;
-    // address for Optimism ISM to verify messages
+    // address for OPStack ISM to verify messages
     address public immutable ism;
     // Gas limit for sending messages to L2
     // First 1.92e6 gas is provided by Optimism, see more here:
@@ -48,20 +49,21 @@ contract OptimismMessageHook is IPostDispatchHook {
     // ============ Constructor ============
 
     constructor(
+        address _mailbox,
         uint32 _destinationDomain,
         address _messenger,
         address _ism
-    ) {
+    ) AbstractHook(_mailbox) {
         require(
             _destinationDomain != 0,
-            "OptimismHook: invalid destination domain"
+            "OPStackHook: invalid destination domain"
         );
-        require(_ism != address(0), "OptimismHook: invalid ISM");
+        require(_ism != address(0), "OPStackHook: invalid ISM");
         destinationDomain = _destinationDomain;
 
         require(
             Address.isContract(_messenger),
-            "OptimismHook: invalid messenger"
+            "OPStackHook: invalid messenger"
         );
         l1Messenger = ICrossDomainMessenger(_messenger);
         ism = _ism;
@@ -74,22 +76,23 @@ contract OptimismMessageHook is IPostDispatchHook {
      * metadata The metadata for the hook caller (unused)
      * @param message The message being dispatched
      */
-    function postDispatch(
+    function _postDispatch(
         bytes calldata, /*metadata*/
         bytes calldata message
-    ) external payable override {
+    ) internal override {
         bytes32 messageId = message.id();
 
         require(
             message.destination() == destinationDomain,
-            "OptimismHook: invalid destination domain"
+            "OPStackHook: invalid destination domain"
         );
 
         bytes memory payload = abi.encodeCall(
-            OptimismISM.verifyMessageId,
-            (msg.sender.addressToBytes32(), messageId)
+            OPStackISM.verifyMessageId,
+            (messageId)
         );
 
+        // send the rest of the val
         l1Messenger.sendMessage{value: msg.value}(ism, payload, GAS_LIMIT);
     }
 }
