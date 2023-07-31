@@ -245,8 +245,9 @@ impl SizedData for GasPaymentData {
         // 4 for destination_domain
         // 32 for message_id
         // 8 for gas_amount
+        // 32 for unique_gas_payment_pubkey
         // 8 for slot
-        8 + 32 + 4 + 32 + 8 + 8
+        8 + 32 + 4 + 32 + 8 + 32 + 8
     }
 }
 

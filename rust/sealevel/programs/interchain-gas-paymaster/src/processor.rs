@@ -373,7 +373,7 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
         program_id,
         system_program_info,
         gas_payment_account_info,
-        igp_gas_payment_pda_seeds!(unique_message_account_info.key, gas_payment_bump),
+        igp_gas_payment_pda_seeds!(unique_gas_payment_account_info.key, gas_payment_bump),
     )?;
 
     gas_payment_account.store(gas_payment_account_info, false)?;
