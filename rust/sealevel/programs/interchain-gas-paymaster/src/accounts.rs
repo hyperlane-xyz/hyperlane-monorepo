@@ -232,6 +232,8 @@ pub struct GasPaymentData {
     pub message_id: H256,
     /// The amount of gas paid for.
     pub gas_amount: u64,
+    /// The unique gas payment pubkey.
+    pub unique_gas_payment_pubkey: Pubkey,
     /// The slot of the gas payment.
     pub slot: Slot,
 }
