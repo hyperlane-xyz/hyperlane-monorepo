@@ -45,7 +45,7 @@ export async function sendTestMessage({
     remotes: [destination],
     multiProvider,
     signer,
-    minBalance: MINIMUM_TEST_SEND_BALANCE,
+    minBalanceWei: MINIMUM_TEST_SEND_BALANCE,
   });
 
   await utils.timeout(

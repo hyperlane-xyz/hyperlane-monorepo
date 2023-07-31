@@ -84,7 +84,7 @@ export async function runCoreDeploy({
   await runDeployPlanStep(deploymentParams);
   await runPreflightChecks({
     ...deploymentParams,
-    minBalance: MINIMUM_CORE_DEPLOY_BALANCE,
+    minBalanceWei: MINIMUM_CORE_DEPLOY_BALANCE,
   });
   await executeDeploy(deploymentParams);
 }

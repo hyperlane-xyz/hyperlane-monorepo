@@ -18,7 +18,8 @@ import { readDeploymentArtifacts } from '../configs.js';
 import { MINIMUM_TEST_SEND_BALANCE } from '../consts.js';
 import { getDeployerContext, getMergedContractAddresses } from '../context.js';
 import { runPreflightChecks } from '../deploy/utils.js';
-import { log, logGreen } from '../logger.js';
+import { log, logBlue, logGreen } from '../logger.js';
+import { assertTokenBalance } from '../utils/balances.js';
 
 // TODO improve the UX here by making params optional and
 // prompting for missing values
@@ -39,7 +40,7 @@ export async function sendTestTransfer({
   origin: ChainName;
   destination: ChainName;
   routerAddress: types.Address;
-  wei: number;
+  wei: string;
   recipient?: string;
   timeout: number;
 }) {
@@ -48,12 +49,19 @@ export async function sendTestTransfer({
     ? readDeploymentArtifacts(coreArtifactsPath)
     : undefined;
 
+  await assertTokenBalance(
+    multiProvider,
+    signer,
+    origin,
+    routerAddress,
+    wei.toString(),
+  );
   await runPreflightChecks({
     local: origin,
     remotes: [destination],
     multiProvider,
     signer,
-    minBalance: MINIMUM_TEST_SEND_BALANCE,
+    minBalanceWei: MINIMUM_TEST_SEND_BALANCE,
   });
 
   await utils.timeout(
@@ -85,7 +93,7 @@ async function executeDelivery({
   origin: ChainName;
   destination: ChainName;
   routerAddress: types.Address;
-  wei: number;
+  wei: string;
   recipient?: string;
   multiProvider: MultiProvider;
   signer: ethers.Signer;
@@ -133,8 +141,10 @@ async function executeDelivery({
   );
 
   const receipt = await app.transfer(origin, destination, recipient, wei);
-  const messages = await core.getDispatchedMessages(receipt);
-  const message = messages[0];
+  const message = core.getDispatchedMessages(receipt)[0];
+  logBlue(`Sent message from ${origin} to ${recipient} on ${destination}.`);
+  logBlue(`Message ID: ${message.id}`);
+
   const msgDestination = multiProvider.getChainName(message.parsed.destination);
   assert(destination === msgDestination);
 

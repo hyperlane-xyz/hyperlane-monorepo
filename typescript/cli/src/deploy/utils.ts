@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 import { ChainName, MultiProvider, ProtocolType } from '@hyperlane-xyz/sdk';
 
 import { log, logGreen } from '../logger.js';
-import { assertBalances } from '../utils/balances.js';
+import { assertNativeBalances } from '../utils/balances.js';
 import { assertSigner } from '../utils/keys.js';
 
 export async function runPreflightChecks({
@@ -11,13 +11,13 @@ export async function runPreflightChecks({
   remotes,
   signer,
   multiProvider,
-  minBalance,
+  minBalanceWei,
 }: {
   local: ChainName;
   remotes: ChainName[];
   signer: ethers.Signer;
   multiProvider: MultiProvider;
-  minBalance: number;
+  minBalanceWei: string;
 }) {
   log('Running pre-flight checks...');
 
@@ -35,6 +35,11 @@ export async function runPreflightChecks({
   assertSigner(signer);
   logGreen('Signer is valid ✅');
 
-  await assertBalances(multiProvider, signer, [local, ...remotes], minBalance);
+  await assertNativeBalances(
+    multiProvider,
+    signer,
+    [local, ...remotes],
+    minBalanceWei,
+  );
   logGreen('Balances are sufficient ✅');
 }

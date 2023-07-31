@@ -68,6 +68,7 @@ const messageCommand: CommandModule = {
       destination,
       timeout,
     });
+    process.exit(0);
   },
 };
 
@@ -86,7 +87,7 @@ const transferCommand: CommandModule = {
         demandOption: true,
       },
       wei: {
-        type: 'number',
+        type: 'string',
         description: 'Amount in wei to send',
         default: 1,
       },
@@ -103,9 +104,8 @@ const transferCommand: CommandModule = {
     const destination: string = argv.destination;
     const timeout: number = argv.timeout;
     const routerAddress: string = argv.router;
-    const wei: number = argv.wei;
+    const wei: string = argv.wei;
     const recipient: string | undefined = argv.recipient;
-
     await sendTestTransfer({
       key,
       chainConfigPath,
@@ -117,5 +117,6 @@ const transferCommand: CommandModule = {
       recipient,
       timeout,
     });
+    process.exit(0);
   },
 };

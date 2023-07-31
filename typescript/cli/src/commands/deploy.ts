@@ -45,6 +45,7 @@ const coreCommand: CommandModule = {
     const chainConfigPath: string = argv.chains;
     const outPath: string = argv.out;
     await runCoreDeploy({ key, chainConfigPath, outPath });
+    process.exit(0);
   },
 };
 
@@ -79,5 +80,6 @@ const warpCommand: CommandModule = {
       coreArtifactsPath,
       outPath,
     });
+    process.exit(0);
   },
 };

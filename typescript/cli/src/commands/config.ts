@@ -82,6 +82,7 @@ const createCommand: CommandModule = {
       );
       throw new Error('Invalid chain config');
     }
+    process.exit(0);
   },
 };
 

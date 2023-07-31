@@ -72,7 +72,7 @@ export async function runWarpDeploy({
   await runDeployPlanStep(deploymentParams);
   await runPreflightChecks({
     ...deploymentParams,
-    minBalance: MINIMUM_WARP_DEPLOY_BALANCE,
+    minBalanceWei: MINIMUM_WARP_DEPLOY_BALANCE,
   });
   await executeDeploy(deploymentParams);
 }
