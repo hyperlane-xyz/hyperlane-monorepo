@@ -13,47 +13,6 @@ use solana_sdk::{
     signature::{Keypair, Signer},
 };
 
-/// Open a file in append mode, or create it if it does not exist.
-fn append_to(p: impl AsRef<Path>) -> File {
-    File::options()
-        .create(true)
-        .append(true)
-        .open(p)
-        .expect("Failed to open file")
-}
-
-pub fn build_cmd(
-    cmd: &[&str],
-    log: impl AsRef<Path>,
-    log_all: bool,
-    wd: Option<&str>,
-    env: Option<&HashMap<&str, &str>>,
-    assert_success: bool,
-) {
-    assert!(!cmd.is_empty(), "Must specify a command!");
-    let mut c = Command::new(cmd[0]);
-    c.args(&cmd[1..]);
-    if log_all {
-        c.stdout(Stdio::inherit());
-    } else {
-        c.stdout(append_to(log));
-    }
-    if let Some(wd) = wd {
-        c.current_dir(wd);
-    }
-    if let Some(env) = env {
-        c.envs(env);
-    }
-    let status = c.status().expect("Failed to run command");
-    if assert_success {
-        assert!(
-            status.success(),
-            "Command returned non-zero exit code: {}",
-            cmd.join(" ")
-        );
-    }
-}
-
 pub(crate) fn account_exists(client: &RpcClient, account: &Pubkey) -> Result<bool, ClientError> {
     // Using `get_account_with_commitment` instead of `get_account` so we get Ok(None) when the account
     // doesn't exist, rather than an error
@@ -70,7 +29,6 @@ pub(crate) fn deploy_program_idempotent(
     program_keypair_path: &str,
     program_path: &str,
     url: &str,
-    log_file: impl AsRef<Path>,
 ) -> Result<(), ClientError> {
     let client = RpcClient::new(url.to_string());
     if !account_exists(&client, &program_keypair.pubkey())? {
@@ -79,7 +37,6 @@ pub(crate) fn deploy_program_idempotent(
             program_keypair_path,
             program_path,
             url,
-            log_file,
         );
     } else {
         println!("Program {} already deployed", program_keypair.pubkey());
@@ -93,7 +50,6 @@ pub(crate) fn deploy_program(
     program_keypair_path: &str,
     program_path: &str,
     url: &str,
-    log_file: impl AsRef<Path>,
 ) {
     build_cmd(
         &[
@@ -110,19 +66,10 @@ pub(crate) fn deploy_program(
             "--program-id",
             program_keypair_path,
         ],
-        log_file,
-        true,
         None,
         None,
         true,
     );
-}
-
-pub(crate) fn create_new_file(parent_dir: &Path, name: &str) -> PathBuf {
-    let path = parent_dir.join(name);
-    let _file = File::create(path.clone())
-        .unwrap_or_else(|_| panic!("Failed to create file {}", path.display()));
-    path
 }
 
 pub(crate) fn create_new_directory(parent_dir: &Path, name: &str) -> PathBuf {
@@ -157,4 +104,30 @@ pub(crate) fn create_and_write_keypair(
     println!("Wrote keypair {} to {}", keypair.pubkey(), path.display());
 
     (keypair, path)
+}
+
+fn build_cmd(
+    cmd: &[&str],
+    wd: Option<&str>,
+    env: Option<&HashMap<&str, &str>>,
+    assert_success: bool,
+) {
+    assert!(!cmd.is_empty(), "Must specify a command!");
+    let mut c = Command::new(cmd[0]);
+    c.args(&cmd[1..]);
+    c.stdout(Stdio::inherit());
+    if let Some(wd) = wd {
+        c.current_dir(wd);
+    }
+    if let Some(env) = env {
+        c.envs(env);
+    }
+    let status = c.status().expect("Failed to run command");
+    if assert_success {
+        assert!(
+            status.success(),
+            "Command returned non-zero exit code: {}",
+            cmd.join(" ")
+        );
+    }
 }

@@ -338,8 +338,6 @@ fn deploy_warp_route(
             .to_str()
             .unwrap(),
         &chain_config.public_rpc_urls[0].http,
-        // Not used
-        "/",
     )
     .unwrap();
 

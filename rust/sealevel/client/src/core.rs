@@ -6,7 +6,7 @@ use solana_sdk::{signature::Signer, signer::keypair::Keypair};
 use std::{fs::File, io::Write, path::Path, str::FromStr};
 
 use crate::{
-    cmd_utils::{create_and_write_keypair, create_new_directory, create_new_file, deploy_program},
+    cmd_utils::{create_and_write_keypair, create_new_directory, deploy_program},
     Context, CoreCmd, CoreSubCmd,
 };
 use hyperlane_core::H256;
@@ -18,14 +18,12 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
             let chain_dir = create_new_directory(&environments_dir, &core.chain);
             let core_dir = create_new_directory(&chain_dir, "core");
             let key_dir = create_new_directory(&core_dir, "keys");
-            let log_file = create_new_file(&core_dir, "deploy-logs.txt");
 
             let ism_program_id = deploy_multisig_ism_message_id(
                 &mut ctx,
                 core.use_existing_keys,
                 &key_dir,
                 &core.built_so_dir,
-                &log_file,
             );
 
             let mailbox_program_id = deploy_mailbox(
@@ -33,7 +31,6 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
                 core.use_existing_keys,
                 &key_dir,
                 &core.built_so_dir,
-                &log_file,
                 core.local_domain,
                 ism_program_id,
             );
@@ -43,7 +40,6 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
                 core.use_existing_keys,
                 &key_dir,
                 &core.built_so_dir,
-                &log_file,
                 mailbox_program_id,
                 core.local_domain,
             );
@@ -53,7 +49,6 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
                 core.use_existing_keys,
                 &key_dir,
                 &core.built_so_dir,
-                &log_file,
             );
 
             let program_ids = CoreProgramIds {
@@ -74,7 +69,6 @@ fn deploy_multisig_ism_message_id(
     use_existing_key: bool,
     key_dir: &Path,
     built_so_dir: &Path,
-    log_file: impl AsRef<Path>,
 ) -> Pubkey {
     let (keypair, keypair_path) = create_and_write_keypair(
         key_dir,
@@ -91,7 +85,6 @@ fn deploy_multisig_ism_message_id(
             .to_str()
             .unwrap(),
         &ctx.client.url(),
-        log_file,
     );
 
     println!(
@@ -120,7 +113,6 @@ fn deploy_mailbox(
     use_existing_key: bool,
     key_dir: &Path,
     built_so_dir: &Path,
-    log_file: impl AsRef<Path>,
     local_domain: u32,
     default_ism: Pubkey,
 ) -> Pubkey {
@@ -139,7 +131,6 @@ fn deploy_mailbox(
             .to_str()
             .unwrap(),
         &ctx.client.url(),
-        log_file,
     );
 
     println!("Deployed Mailbox at program ID {}", program_id);
@@ -167,7 +158,6 @@ fn deploy_validator_announce(
     use_existing_key: bool,
     key_dir: &Path,
     built_so_dir: &Path,
-    log_file: impl AsRef<Path>,
     mailbox_program_id: Pubkey,
     local_domain: u32,
 ) -> Pubkey {
@@ -186,7 +176,6 @@ fn deploy_validator_announce(
             .to_str()
             .unwrap(),
         &ctx.client.url(),
-        log_file,
     );
 
     println!("Deployed ValidatorAnnounce at program ID {}", program_id);
@@ -214,7 +203,6 @@ fn deploy_igp(
     use_existing_key: bool,
     key_dir: &Path,
     built_so_dir: &Path,
-    log_file: impl AsRef<Path>,
 ) -> (Pubkey, Pubkey, Pubkey) {
     let (keypair, keypair_path) = create_and_write_keypair(
         key_dir,
@@ -231,7 +219,6 @@ fn deploy_igp(
             .to_str()
             .unwrap(),
         &ctx.client.url(),
-        log_file,
     );
 
     println!("Deployed IGP at program ID {}", program_id);
