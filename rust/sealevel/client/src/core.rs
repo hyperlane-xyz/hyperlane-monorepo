@@ -44,11 +44,12 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
                 core.local_domain,
             );
 
-            let (igp_program_id, igp_program_data, igp_account) = deploy_igp(
+            let (igp_program_id, overhead_igp_account, igp_account) = deploy_igp(
                 &mut ctx,
                 core.use_existing_keys,
                 &key_dir,
                 &core.built_so_dir,
+                core.gas_oracle_config_file.as_deref(),
             );
 
             let program_ids = CoreProgramIds {
@@ -56,7 +57,7 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
                 validator_announce: validator_announce_program_id,
                 multisig_ism_message_id: ism_program_id,
                 igp_program_id,
-                igp_program_data,
+                overhead_igp_account,
                 igp_account,
             };
             write_program_ids(&core_dir, program_ids);
@@ -203,6 +204,7 @@ fn deploy_igp(
     use_existing_key: bool,
     key_dir: &Path,
     built_so_dir: &Path,
+    gas_oracle_config_file: Option<&Path>,
 ) -> (Pubkey, Pubkey, Pubkey) {
     let (keypair, keypair_path) = create_and_write_keypair(
         key_dir,
@@ -210,6 +212,11 @@ fn deploy_igp(
         use_existing_key,
     );
     let program_id = keypair.pubkey();
+    let gas_oracle_configs: Option<Vec<hyperlane_sealevel_igp::instruction::GasOracleConfig>> =
+        gas_oracle_config_file.map(|p| {
+            let file = File::open(p).expect("Failed to open oracle config file");
+            serde_json::from_reader(file).expect("Failed to parse oracle config file")
+        });
 
     deploy_program(
         &ctx.payer_path,
@@ -256,30 +263,46 @@ fn deploy_igp(
         Pubkey::find_program_address(hyperlane_sealevel_igp::igp_pda_seeds!(salt), &program_id);
     println!("Initialized IGP account {}", igp_account);
 
-    // Set gas oracle for remote domain 13376
-    let instruction = hyperlane_sealevel_igp::instruction::set_gas_oracle_configs_instruction(
+    let instruction = hyperlane_sealevel_igp::instruction::init_overhead_igp_instruction(
         program_id,
-        igp_account,
         ctx.payer.pubkey(),
-        vec![hyperlane_sealevel_igp::instruction::GasOracleConfig {
-            domain: 13376,
-            gas_oracle: Some(hyperlane_sealevel_igp::accounts::GasOracle::RemoteGasData(
-                hyperlane_sealevel_igp::accounts::RemoteGasData {
-                    token_exchange_rate:
-                        hyperlane_sealevel_igp::accounts::TOKEN_EXCHANGE_RATE_SCALE,
-                    gas_price: 1u128,
-                    token_decimals: hyperlane_sealevel_igp::accounts::SOL_DECIMALS,
-                },
-            )),
-        }],
+        salt,
+        Some(ctx.payer.pubkey()),
+        igp_account,
     )
     .unwrap();
-
     ctx.instructions.push(instruction);
     ctx.send_transaction(&[&ctx.payer]);
     ctx.instructions.clear();
 
-    println!("Set gas oracle for remote domain 13376");
+    let (overhead_igp_account, _) = Pubkey::find_program_address(
+        hyperlane_sealevel_igp::overhead_igp_pda_seeds!(salt),
+        &program_id,
+    );
+
+    println!("Initialized overhead IGP account {}", overhead_igp_account);
+
+    if let Some(gas_oracle_configs) = gas_oracle_configs {
+        let domains = gas_oracle_configs
+            .iter()
+            .map(|c| c.domain)
+            .collect::<Vec<_>>();
+        let instruction = hyperlane_sealevel_igp::instruction::set_gas_oracle_configs_instruction(
+            program_id,
+            igp_account,
+            ctx.payer.pubkey(),
+            gas_oracle_configs,
+        )
+        .unwrap();
+
+        ctx.instructions.push(instruction);
+        ctx.send_transaction(&[&ctx.payer]);
+        ctx.instructions.clear();
+
+        println!("Set gas oracle for remote domains {domains:?}",);
+    } else {
+        println!("Skipping settings gas oracle config");
+    }
 
     // Now make a gas payment for a message ID
     let message_id =
@@ -306,7 +329,7 @@ fn deploy_igp(
         message_id, gas_payment_data_account
     );
 
-    (program_id, program_data_account, igp_account)
+    (program_id, overhead_igp_account, igp_account)
 }
 
 #[derive(Debug)]
@@ -315,7 +338,7 @@ pub(crate) struct CoreProgramIds {
     pub validator_announce: Pubkey,
     pub multisig_ism_message_id: Pubkey,
     pub igp_program_id: Pubkey,
-    pub igp_program_data: Pubkey,
+    pub overhead_igp_account: Pubkey,
     pub igp_account: Pubkey,
 }
 
@@ -327,7 +350,8 @@ impl From<PrettyCoreProgramIds> for CoreProgramIds {
             multisig_ism_message_id: Pubkey::from_str(program_ids.multisig_ism_message_id.as_str())
                 .unwrap(),
             igp_program_id: Pubkey::from_str(program_ids.igp_program_id.as_str()).unwrap(),
-            igp_program_data: Pubkey::from_str(program_ids.igp_program_data.as_str()).unwrap(),
+            overhead_igp_account: Pubkey::from_str(program_ids.overhead_igp_account.as_str())
+                .unwrap(),
             igp_account: Pubkey::from_str(program_ids.igp_account.as_str()).unwrap(),
         }
     }
@@ -339,7 +363,7 @@ struct PrettyCoreProgramIds {
     validator_announce: String,
     multisig_ism_message_id: String,
     igp_program_id: String,
-    igp_program_data: String,
+    overhead_igp_account: String,
     igp_account: String,
 }
 
@@ -350,7 +374,7 @@ impl From<CoreProgramIds> for PrettyCoreProgramIds {
             validator_announce: program_ids.validator_announce.to_string(),
             multisig_ism_message_id: program_ids.multisig_ism_message_id.to_string(),
             igp_program_id: program_ids.igp_program_id.to_string(),
-            igp_program_data: program_ids.igp_program_data.to_string(),
+            overhead_igp_account: program_ids.overhead_igp_account.to_string(),
             igp_account: program_ids.igp_account.to_string(),
         }
     }

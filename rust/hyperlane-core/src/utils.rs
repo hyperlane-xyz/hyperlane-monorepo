@@ -118,6 +118,46 @@ pub fn fmt_sync_time(dur: Duration) -> String {
     }
 }
 
+/// Use as `#[serde(with = serde_u128)]` to serialize/deserialize u128s as strings but not break
+/// support for numbers.
+pub mod serde_u128 {
+    use serde::de::Visitor;
+    use serde::{de, Deserializer, Serializer};
+
+    struct U128Visitor;
+
+    impl Visitor<'_> for U128Visitor {
+        type Value = u128;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a string or number representing a u128")
+        }
+
+        fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
+            v.parse::<u128>()
+                .map_err(|_| E::custom("failed to parse u128"))
+        }
+
+        fn visit_u64<E: de::Error>(self, v: u64) -> Result<Self::Value, E> {
+            Ok(v as u128)
+        }
+
+        fn visit_u128<E: de::Error>(self, v: u128) -> Result<Self::Value, E> {
+            Ok(v)
+        }
+    }
+
+    /// Serialize a u128 as a string.
+    pub fn serialize<S: Serializer>(v: &u128, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&v.to_string())
+    }
+
+    /// Deserialize a u128 that might be a string or a number.
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<u128, D::Error> {
+        d.deserialize_any(U128Visitor)
+    }
+}
+
 /// Shortcut for many-to-one match statements that get very redundant. Flips the
 /// order such that the thing which is mapped to is listed first.
 ///

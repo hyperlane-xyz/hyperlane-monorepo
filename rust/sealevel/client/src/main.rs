@@ -151,6 +151,8 @@ struct CoreDeploy {
     #[arg(long)]
     environment: String,
     #[arg(long)]
+    gas_oracle_config_file: Option<PathBuf>,
+    #[arg(long)]
     chain: String,
     #[arg(long)]
     use_existing_keys: bool,

@@ -9,9 +9,7 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
-use crate::{
-    accounts::GasOracle, igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
-};
+use crate::{accounts::GasOracle, igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds, overhead_igp_pda_seeds};
 
 /// The program instructions.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
@@ -93,6 +91,7 @@ pub struct GasOverheadConfig {
 
 /// A config for setting remote gas data.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct GasOracleConfig {
     /// The destination domain.
     pub domain: u32,
@@ -146,6 +145,43 @@ pub fn init_igp_instruction(
         salt,
         owner,
         beneficiary,
+    });
+
+    // Accounts:
+    // 0. [executable] The system program.
+    // 1. [signer] The payer account.
+    // 2. [writeable] The IGP account to initialize.
+    let accounts = vec![
+        AccountMeta::new_readonly(solana_program::system_program::id(), false),
+        AccountMeta::new_readonly(payer, true),
+        AccountMeta::new(igp_account, false),
+    ];
+
+    let instruction = SolanaInstruction {
+        program_id,
+        data: ixn.try_to_vec()?,
+        accounts,
+    };
+
+    Ok(instruction)
+}
+
+/// Gets an instruction to initialize an overhead IGP account.
+pub fn init_overhead_igp_instruction(
+    program_id: Pubkey,
+    payer: Pubkey,
+    salt: H256,
+    owner: Option<Pubkey>,
+    inner: Pubkey,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (igp_account, _igp_bump) =
+        Pubkey::try_find_program_address(overhead_igp_pda_seeds!(salt), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+
+    let ixn = Instruction::InitOverheadIgp(InitOverheadIgp {
+        salt,
+        owner,
+        inner,
     });
 
     // Accounts:
