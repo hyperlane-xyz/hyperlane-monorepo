@@ -52,8 +52,8 @@ where
     T: SizedData,
 {
     fn size(&self) -> usize {
-        // 8 byte discriminator prefix
-        8 + self.data.size()
+        // Discriminator prefix + data
+        Discriminator::LENGTH + self.data.size()
     }
 }
 
@@ -108,3 +108,31 @@ pub trait DiscriminatorDecode: DiscriminatorData + borsh::BorshDeserialize {
 
 // Auto-implement
 impl<T> DiscriminatorDecode for T where T: DiscriminatorData + borsh::BorshDeserialize {}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_discriminator_prefixed_size() {
+        #[derive(BorshSerialize, BorshDeserialize)]
+        struct Foo {
+            a: u64,
+        }
+
+        impl DiscriminatorData for Foo {
+            const DISCRIMINATOR: [u8; 8] = [2, 2, 2, 2, 2, 2, 2, 2];
+        }
+
+        impl SizedData for Foo {
+            fn size(&self) -> usize {
+                8
+            }
+        }
+
+        let prefixed_foo = DiscriminatorPrefixed::new(Foo { a: 1 });
+        let serialized_prefixed_foo = prefixed_foo.try_to_vec().unwrap();
+
+        assert_eq!(serialized_prefixed_foo.len(), prefixed_foo.size());
+    }
+}

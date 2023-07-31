@@ -22,7 +22,7 @@ thiserror.workspace = true
 getrandom.workspace = true
 
 [dev-dependencies]
-solana-program-test = "1.14.13"
+solana-program-test.workspace = true
 solana-sdk.workspace = true
 hyperlane-test-utils ={ path = "../../libraries/test-utils" }
 
