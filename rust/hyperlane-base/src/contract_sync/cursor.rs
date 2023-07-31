@@ -326,10 +326,6 @@ impl BackwardMessageSyncCursor {
         }
 
         // Just keep going backwards.
-        let to = self.cursor.sync_state.next_block;
-        let from = to.saturating_sub(self.cursor.sync_state.chunk_size);
-        self.cursor.sync_state.next_block = from.saturating_sub(1);
-
         let (count, tip) = self.cursor.indexer.fetch_count_at_tip().await.ok()?;
         self.cursor
             .sync_state
