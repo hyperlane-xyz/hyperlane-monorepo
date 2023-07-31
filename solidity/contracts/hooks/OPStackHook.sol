@@ -18,6 +18,7 @@ import {AbstractHook} from "./AbstractHook.sol";
 import {OPStackISM} from "../isms/hook/OPStackISM.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {Message} from "../libs/Message.sol";
+import {OPStackHookMetadata} from "../libs/hooks/OPStackHookMetadata.sol";
 
 // ============ External Imports ============
 import {ICrossDomainMessenger} from "../interfaces/optimism/ICrossDomainMessenger.sol";
@@ -31,6 +32,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  */
 contract OPStackHook is AbstractHook {
     using Message for bytes;
+    using OPStackHookMetadata for bytes;
     using TypeCasts for address;
 
     // ============ Constants ============
@@ -76,11 +78,12 @@ contract OPStackHook is AbstractHook {
      * metadata The metadata for the hook caller (unused)
      * @param message The message being dispatched
      */
-    function _postDispatch(
-        bytes calldata, /*metadata*/
-        bytes calldata message
-    ) internal override {
+    function _postDispatch(bytes calldata metadata, bytes calldata message)
+        internal
+        override
+    {
         bytes32 messageId = message.id();
+        uint256 msgValue = metadata.msgValue();
 
         require(
             message.destination() == destinationDomain,
@@ -93,6 +96,6 @@ contract OPStackHook is AbstractHook {
         );
 
         // send the rest of the val
-        l1Messenger.sendMessage{value: msg.value}(ism, payload, GAS_LIMIT);
+        l1Messenger.sendMessage{value: msgValue}(ism, payload, GAS_LIMIT);
     }
 }
