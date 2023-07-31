@@ -57,6 +57,7 @@ build_programs() {
 
     # hyperlane sealevel programs
     build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_mailbox.so" "${SEALEVEL_DIR}/programs/mailbox" "${force_build}"
+    build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_igp.so" "${SEALEVEL_DIR}/programs/interchain-gas-paymaster" "${force_build}"
     build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_validator_announce.so" "${SEALEVEL_DIR}/programs/validator-announce" "${force_build}"
     build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_multisig_ism_message_id.so" "${SEALEVEL_DIR}/programs/ism/multisig-ism-message-id" "${force_build}"
     build_and_copy_program "${TARGET_DIR}/deploy/hyperlane_sealevel_token.so" "${SEALEVEL_DIR}/programs/hyperlane-sealevel-token" "${force_build}"

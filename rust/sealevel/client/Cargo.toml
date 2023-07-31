@@ -24,6 +24,7 @@ hyperlane-sealevel-connection-client = { path = "../libraries/hyperlane-sealevel
 hyperlane-sealevel-mailbox = { path = "../programs/mailbox" }
 hyperlane-sealevel-multisig-ism-message-id = { path = "../programs/ism/multisig-ism-message-id" }
 hyperlane-sealevel-token = { path = "../programs/hyperlane-sealevel-token" }
+hyperlane-sealevel-igp = { path = "../programs/interchain-gas-paymaster" }
 hyperlane-sealevel-token-collateral = { path = "../programs/hyperlane-sealevel-token-collateral" }
 hyperlane-sealevel-token-lib = { path = "../libraries/hyperlane-sealevel-token" }
 hyperlane-sealevel-token-native = { path = "../programs/hyperlane-sealevel-token-native" }

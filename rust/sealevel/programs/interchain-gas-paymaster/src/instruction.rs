@@ -3,9 +3,15 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H256;
 
-use solana_program::pubkey::Pubkey;
+use solana_program::{
+    instruction::{AccountMeta, Instruction as SolanaInstruction},
+    program_error::ProgramError,
+    pubkey::Pubkey,
+};
 
-use crate::accounts::GasOracle;
+use crate::{
+    accounts::GasOracle, igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
+};
 
 /// The program instructions.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
@@ -92,4 +98,149 @@ pub struct GasOracleConfig {
     pub domain: u32,
     /// The gas oracle.
     pub gas_oracle: Option<GasOracle>,
+}
+
+/// Gets an instruction to initialize the program.
+pub fn init_instruction(
+    program_id: Pubkey,
+    payer: Pubkey,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (program_data_account, _program_data_bump) =
+        Pubkey::try_find_program_address(igp_program_data_pda_seeds!(), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+
+    let ixn = Instruction::Init;
+
+    // Accounts:
+    // 0. [executable] The system program.
+    // 1. [signer] The payer account.
+    // 2. [writeable] The program data PDA account.
+    let accounts = vec![
+        AccountMeta::new_readonly(solana_program::system_program::id(), false),
+        AccountMeta::new_readonly(payer, true),
+        AccountMeta::new(program_data_account, false),
+    ];
+
+    let instruction = SolanaInstruction {
+        program_id,
+        data: ixn.try_to_vec()?,
+        accounts,
+    };
+
+    Ok(instruction)
+}
+
+/// Gets an instruction to initialize an IGP account.
+pub fn init_igp_instruction(
+    program_id: Pubkey,
+    payer: Pubkey,
+    salt: H256,
+    owner: Option<Pubkey>,
+    beneficiary: Pubkey,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (igp_account, _igp_bump) =
+        Pubkey::try_find_program_address(igp_pda_seeds!(salt), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+
+    let ixn = Instruction::InitIgp(InitIgp {
+        salt,
+        owner,
+        beneficiary,
+    });
+
+    // Accounts:
+    // 0. [executable] The system program.
+    // 1. [signer] The payer account.
+    // 2. [writeable] The IGP account to initialize.
+    let accounts = vec![
+        AccountMeta::new_readonly(solana_program::system_program::id(), false),
+        AccountMeta::new_readonly(payer, true),
+        AccountMeta::new(igp_account, false),
+    ];
+
+    let instruction = SolanaInstruction {
+        program_id,
+        data: ixn.try_to_vec()?,
+        accounts,
+    };
+
+    Ok(instruction)
+}
+
+/// Gets an instruction to set gas oracles.
+pub fn set_gas_oracle_configs_instruction(
+    program_id: Pubkey,
+    igp: Pubkey,
+    owner: Pubkey,
+    gas_oracle_configs: Vec<GasOracleConfig>,
+) -> Result<SolanaInstruction, ProgramError> {
+    let ixn = Instruction::SetGasOracleConfigs(gas_oracle_configs);
+
+    // Accounts:
+    // 0. [executable] The system program.
+    // 1. [writeable] The IGP.
+    // 2. [signer] The IGP owner.
+    let accounts = vec![
+        AccountMeta::new_readonly(solana_program::system_program::id(), false),
+        AccountMeta::new(igp, false),
+        AccountMeta::new(owner, true),
+    ];
+
+    let instruction = SolanaInstruction {
+        program_id,
+        data: ixn.try_to_vec()?,
+        accounts,
+    };
+
+    Ok(instruction)
+}
+
+/// Gets an instruction to pay for gas
+pub fn pay_for_gas_instruction(
+    program_id: Pubkey,
+    payer: Pubkey,
+    igp: Pubkey,
+    unique_gas_payment_account_pubkey: Pubkey,
+    message_id: H256,
+    destination_domain: u32,
+    gas_amount: u64,
+) -> Result<(SolanaInstruction, Pubkey), ProgramError> {
+    let (program_data_account, _program_data_bump) =
+        Pubkey::try_find_program_address(igp_program_data_pda_seeds!(), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+    let (gas_payment_account, _gas_payment_bump) = Pubkey::try_find_program_address(
+        igp_gas_payment_pda_seeds!(unique_gas_payment_account_pubkey),
+        &program_id,
+    )
+    .ok_or(ProgramError::InvalidSeeds)?;
+
+    let ixn = Instruction::PayForGas(PayForGas {
+        message_id,
+        destination_domain,
+        gas_amount,
+    });
+
+    // Accounts:
+    // 0. [executable] The system program.
+    // 1. [signer] The payer.
+    // 2. [writeable] The IGP program data.
+    // 3. [writeable] The IGP account.
+    // 4. [signer] Unique gas payment account.
+    // 5. [writeable] Gas payment PDA.
+    let accounts = vec![
+        AccountMeta::new_readonly(solana_program::system_program::id(), false),
+        AccountMeta::new(payer, true),
+        AccountMeta::new(program_data_account, false),
+        AccountMeta::new(igp, false),
+        AccountMeta::new_readonly(unique_gas_payment_account_pubkey, true),
+        AccountMeta::new(gas_payment_account, false),
+    ];
+
+    let instruction = SolanaInstruction {
+        program_id,
+        data: ixn.try_to_vec()?,
+        accounts,
+    };
+
+    Ok((instruction, gas_payment_account))
 }

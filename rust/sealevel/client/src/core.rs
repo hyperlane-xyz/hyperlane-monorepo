@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use solana_program::pubkey::Pubkey;
-use solana_sdk::signature::Signer;
+use solana_sdk::{signature::Signer, signer::keypair::Keypair};
 
 use std::{fs::File, io::Write, path::Path, str::FromStr};
 
@@ -9,6 +9,7 @@ use crate::{
     cmd_utils::{create_and_write_keypair, create_new_directory, create_new_file, deploy_program},
     Context, CoreCmd, CoreSubCmd,
 };
+use hyperlane_core::H256;
 
 pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
     match cmd.cmd {
@@ -47,10 +48,21 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
                 core.local_domain,
             );
 
+            let (igp_program_id, igp_program_data, igp_account) = deploy_igp(
+                &mut ctx,
+                core.use_existing_keys,
+                &key_dir,
+                &core.built_so_dir,
+                &log_file,
+            );
+
             let program_ids = CoreProgramIds {
                 mailbox: mailbox_program_id,
                 validator_announce: validator_announce_program_id,
                 multisig_ism_message_id: ism_program_id,
+                igp_program_id,
+                igp_program_data,
+                igp_account,
             };
             write_program_ids(&core_dir, program_ids);
         }
@@ -197,11 +209,127 @@ fn deploy_validator_announce(
     program_id
 }
 
+fn deploy_igp(
+    ctx: &mut Context,
+    use_existing_key: bool,
+    key_dir: &Path,
+    built_so_dir: &Path,
+    log_file: impl AsRef<Path>,
+) -> (Pubkey, Pubkey, Pubkey) {
+    let (keypair, keypair_path) = create_and_write_keypair(
+        key_dir,
+        "hyperlane_sealevel_igp-keypair.json",
+        use_existing_key,
+    );
+    let program_id = keypair.pubkey();
+
+    deploy_program(
+        &ctx.payer_path,
+        keypair_path.to_str().unwrap(),
+        built_so_dir
+            .join("hyperlane_sealevel_igp.so")
+            .to_str()
+            .unwrap(),
+        &ctx.client.url(),
+        log_file,
+    );
+
+    println!("Deployed IGP at program ID {}", program_id);
+
+    // Initialize the program data
+    let instruction =
+        hyperlane_sealevel_igp::instruction::init_instruction(program_id, ctx.payer.pubkey())
+            .unwrap();
+
+    ctx.instructions.push(instruction);
+    ctx.send_transaction(&[&ctx.payer]);
+    ctx.instructions.clear();
+
+    let (program_data_account, _program_data_bump) = Pubkey::find_program_address(
+        hyperlane_sealevel_igp::igp_program_data_pda_seeds!(),
+        &program_id,
+    );
+    println!("Initialized IGP program data {}", program_data_account);
+
+    // Initialize IGP with salt zero
+    let salt = H256::zero();
+    let instruction = hyperlane_sealevel_igp::instruction::init_igp_instruction(
+        program_id,
+        ctx.payer.pubkey(),
+        salt,
+        Some(ctx.payer.pubkey()),
+        ctx.payer.pubkey(),
+    )
+    .unwrap();
+    ctx.instructions.push(instruction);
+    ctx.send_transaction(&[&ctx.payer]);
+    ctx.instructions.clear();
+
+    let (igp_account, _igp_account_bump) =
+        Pubkey::find_program_address(hyperlane_sealevel_igp::igp_pda_seeds!(salt), &program_id);
+    println!("Initialized IGP account {}", igp_account);
+
+    // Set gas oracle for remote domain 13376
+    let instruction = hyperlane_sealevel_igp::instruction::set_gas_oracle_configs_instruction(
+        program_id,
+        igp_account,
+        ctx.payer.pubkey(),
+        vec![hyperlane_sealevel_igp::instruction::GasOracleConfig {
+            domain: 13376,
+            gas_oracle: Some(hyperlane_sealevel_igp::accounts::GasOracle::RemoteGasData(
+                hyperlane_sealevel_igp::accounts::RemoteGasData {
+                    token_exchange_rate:
+                        hyperlane_sealevel_igp::accounts::TOKEN_EXCHANGE_RATE_SCALE,
+                    gas_price: 1u128,
+                    token_decimals: hyperlane_sealevel_igp::accounts::SOL_DECIMALS,
+                },
+            )),
+        }],
+    )
+    .unwrap();
+
+    ctx.instructions.push(instruction);
+    ctx.send_transaction(&[&ctx.payer]);
+    ctx.instructions.clear();
+
+    println!("Set gas oracle for remote domain 13376");
+
+    // Now make a gas payment for a message ID
+    let message_id =
+        H256::from_str("0x6969000000000000000000000000000000000000000000000000000000006969")
+            .unwrap();
+    let unique_gas_payment_keypair = Keypair::new();
+    let (instruction, gas_payment_data_account) =
+        hyperlane_sealevel_igp::instruction::pay_for_gas_instruction(
+            program_id,
+            ctx.payer.pubkey(),
+            igp_account,
+            unique_gas_payment_keypair.pubkey(),
+            message_id,
+            13376,
+            100000,
+        )
+        .unwrap();
+    ctx.instructions.push(instruction);
+    ctx.send_transaction(&[&ctx.payer, &unique_gas_payment_keypair]);
+    ctx.instructions.clear();
+
+    println!(
+        "Made a payment for message {} with gas payment data account {}",
+        message_id, gas_payment_data_account
+    );
+
+    (program_id, program_data_account, igp_account)
+}
+
 #[derive(Debug)]
 pub(crate) struct CoreProgramIds {
     pub mailbox: Pubkey,
     pub validator_announce: Pubkey,
     pub multisig_ism_message_id: Pubkey,
+    pub igp_program_id: Pubkey,
+    pub igp_program_data: Pubkey,
+    pub igp_account: Pubkey,
 }
 
 impl From<PrettyCoreProgramIds> for CoreProgramIds {
@@ -211,6 +339,9 @@ impl From<PrettyCoreProgramIds> for CoreProgramIds {
             validator_announce: Pubkey::from_str(program_ids.validator_announce.as_str()).unwrap(),
             multisig_ism_message_id: Pubkey::from_str(program_ids.multisig_ism_message_id.as_str())
                 .unwrap(),
+            igp_program_id: Pubkey::from_str(program_ids.igp_program_id.as_str()).unwrap(),
+            igp_program_data: Pubkey::from_str(program_ids.igp_program_data.as_str()).unwrap(),
+            igp_account: Pubkey::from_str(program_ids.igp_account.as_str()).unwrap(),
         }
     }
 }
@@ -220,6 +351,9 @@ struct PrettyCoreProgramIds {
     mailbox: String,
     validator_announce: String,
     multisig_ism_message_id: String,
+    igp_program_id: String,
+    igp_program_data: String,
+    igp_account: String,
 }
 
 impl From<CoreProgramIds> for PrettyCoreProgramIds {
@@ -228,6 +362,9 @@ impl From<CoreProgramIds> for PrettyCoreProgramIds {
             mailbox: program_ids.mailbox.to_string(),
             validator_announce: program_ids.validator_announce.to_string(),
             multisig_ism_message_id: program_ids.multisig_ism_message_id.to_string(),
+            igp_program_id: program_ids.igp_program_id.to_string(),
+            igp_program_data: program_ids.igp_program_data.to_string(),
+            igp_account: program_ids.igp_account.to_string(),
         }
     }
 }
