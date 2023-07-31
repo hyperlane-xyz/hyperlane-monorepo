@@ -24,6 +24,7 @@ use hyperlane_sealevel_multisig_ism_message_id::{
     metadata::MultisigIsmMessageIdMetadata,
     processor::process_instruction,
 };
+use hyperlane_test_utils::assert_transaction_error;
 use multisig_ism::interface::{
     MultisigIsmInstruction, VALIDATORS_AND_THRESHOLD_ACCOUNT_METAS_PDA_SEEDS,
 };
@@ -184,18 +185,13 @@ async fn test_initialize_errors_if_called_twice() {
     let new_payer = new_funded_keypair(&mut banks_client, &payer, 1000000).await;
     let result = initialize(program_id, &mut banks_client, &new_payer, recent_blockhash).await;
 
-    // BanksClientError doesn't implement Eq, but TransactionError does
-    if let BanksClientError::TransactionError(tx_err) = result.err().unwrap() {
-        assert_eq!(
-            tx_err,
-            TransactionError::InstructionError(
-                0,
-                InstructionError::Custom(MultisigIsmError::AlreadyInitialized as u32)
-            )
-        );
-    } else {
-        panic!("expected TransactionError");
-    }
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(MultisigIsmError::AlreadyInitialized as u32),
+        ),
+    );
 }
 
 #[tokio::test]
