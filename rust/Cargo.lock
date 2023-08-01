@@ -3794,6 +3794,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-igp"
+version = "0.1.0"
+dependencies = [
+ "access-control",
+ "account-utils",
+ "borsh 0.9.3",
+ "getrandom 0.2.10",
+ "hyperlane-core",
+ "hyperlane-test-utils",
+ "num-derive",
+ "num-traits",
+ "serializable-account-meta",
+ "solana-program",
+ "solana-program-test",
+ "solana-sdk",
+ "thiserror",
+]
+
+[[package]]
 name = "hyperlane-sealevel-interchain-security-module-interface"
 version = "0.1.0"
 dependencies = [
@@ -3874,6 +3893,7 @@ dependencies = [
  "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-multisig-ism-message-id",
+ "hyperlane-test-utils",
  "multisig-ism",
  "num-derive",
  "num-traits",
@@ -4024,6 +4044,7 @@ dependencies = [
  "hex 0.4.3",
  "hyperlane-core",
  "hyperlane-sealevel-mailbox",
+ "hyperlane-test-utils",
  "serializable-account-meta",
  "solana-program",
  "solana-program-test",
