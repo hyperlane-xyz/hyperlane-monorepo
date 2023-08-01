@@ -15,7 +15,7 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {AbstractHook} from "./AbstractHook.sol";
-import {AbstractHookISM} from "../isms/hook/AbstractHookISMV3.sol";
+import {AbstractMessageIdAuthorizedIsm} from "../isms/hook/AbstractMessageIdAuthorizedIsm.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {Message} from "../libs/Message.sol";
 import {OPStackHookMetadata} from "../libs/hooks/OPStackHookMetadata.sol";
@@ -91,7 +91,7 @@ contract OPStackHook is AbstractHook {
         );
 
         bytes memory payload = abi.encodeCall(
-            AbstractHookISM.verifyMessageId,
+            AbstractMessageIdAuthorizedIsm.verifyMessageId,
             (messageId)
         );
 

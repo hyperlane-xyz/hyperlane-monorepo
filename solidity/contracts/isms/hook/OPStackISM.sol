@@ -19,7 +19,7 @@ import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityMod
 import {OptimismMessageHook} from "../../hooks/OptimismMessageHook.sol";
 import {Message} from "../../libs/Message.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
-import {AbstractHookISM} from "./AbstractHookISMV3.sol";
+import {AbstractMessageIdAuthorizedIsm} from "./AbstractMessageIdAuthorizedIsm.sol";
 import {CrossChainEnabledOptimism} from "./crossChainEnabled/optimism/CrossChainEnabledOptimism.sol";
 
 // ============ External Imports ============
@@ -32,7 +32,10 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * @notice Uses the native Optimism bridge to verify interchain messages.
  * @dev V3 WIP
  */
-contract OPStackISM is CrossChainEnabledOptimism, AbstractHookISM {
+contract OPStackIsm is
+    CrossChainEnabledOptimism,
+    AbstractMessageIdAuthorizedIsm
+{
     // ============ Constants ============
 
     uint8 public constant moduleType =
@@ -43,7 +46,7 @@ contract OPStackISM is CrossChainEnabledOptimism, AbstractHookISM {
     constructor(address _l2Messenger) CrossChainEnabledOptimism(_l2Messenger) {
         require(
             Address.isContract(_l2Messenger),
-            "OPStackISM: invalid L2Messenger"
+            "OPStackIsm: invalid L2Messenger"
         );
     }
 
@@ -55,7 +58,7 @@ contract OPStackISM is CrossChainEnabledOptimism, AbstractHookISM {
     function _isAuthorized() internal view override {
         require(
             _crossChainSender() == authorizedHook,
-            "OPStackISM: sender is not the hook"
+            "OPStackIsm: sender is not the hook"
         );
     }
 }

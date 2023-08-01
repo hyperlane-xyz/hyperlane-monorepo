@@ -31,7 +31,10 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  *      for more details see https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/2381
  * @dev V3 WIP
  */
-abstract contract AbstractHookISM is IInterchainSecurityModule, Initializable {
+abstract contract AbstractMessageIdAuthorizedIsm is
+    IInterchainSecurityModule,
+    Initializable
+{
     // ============ Public Storage ============
 
     // Maps messageId to whether or not the sender attested to that message ID on the origin chain
