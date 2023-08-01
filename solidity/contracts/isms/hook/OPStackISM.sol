@@ -38,50 +38,24 @@ contract OPStackISM is CrossChainEnabledOptimism, AbstractHookISM {
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.NULL);
 
-    // ============ Public Storage ============
-
-    // Address for Hook on L1 responsible for sending message via the Optimism bridge
-    address public l1Hook;
-
-    // ============ Modifiers ============
-
-    /**
-     * @notice Check if sender is authorized to message `verifyMessageId`.
-     */
-    modifier isAuthorized() {
-        require(
-            _crossChainSender() == l1Hook,
-            "OptimismISM: sender is not the hook"
-        );
-        _;
-    }
-
     // ============ Constructor ============
 
     constructor(address _l2Messenger) CrossChainEnabledOptimism(_l2Messenger) {
         require(
             Address.isContract(_l2Messenger),
-            "OptimismISM: invalid L2Messenger"
+            "OPStackISM: invalid L2Messenger"
         );
     }
 
-    // ============ Initializer ============
-
-    function setOptimismHook(address _l1Hook) external initializer {
-        require(_l1Hook != address(0), "OptimismISM: invalid l1Hook");
-        l1Hook = _l1Hook;
-    }
-
-    // ============ External Functions ============
+    // ============ Internal function ============
 
     /**
-     * @notice Receive a message from the L2 messenger.
-     * @dev Only callable by the L2 messenger.
-     * @param _messageId Hyperlane ID for the message.
+     * @notice Check if sender is authorized to message `verifyMessageId`.
      */
-    function verifyMessageId(bytes32 _messageId) external isAuthorized {
-        verifiedMessageIds[_messageId] = true;
-
-        emit ReceivedMessage(_messageId);
+    function _isAuthorized() internal view override {
+        require(
+            _crossChainSender() == authorizedHook,
+            "OPStackISM: sender is not the hook"
+        );
     }
 }

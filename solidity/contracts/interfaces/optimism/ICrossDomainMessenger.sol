@@ -3,6 +3,7 @@ pragma solidity >=0.8.0;
 
 /**
  * @title ICrossDomainMessenger interface for bedrock update
+ * @dev eth-optimism's version uses strict 0.8.15 which we don't want to restrict to
  */
 interface ICrossDomainMessenger {
     /**

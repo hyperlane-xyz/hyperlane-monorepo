@@ -96,7 +96,7 @@ contract MailboxV3 is IMailboxV3, Versioned, Ownable {
                 _destinationDomain,
                 _recipientAddress,
                 _messageBody,
-                new bytes(0)
+                bytes("")
             );
     }
 

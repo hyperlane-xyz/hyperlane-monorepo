@@ -7,6 +7,6 @@ library OPStackHookMetadata {
         pure
         returns (uint256)
     {
-        return abi.decode(_metadata, (uint256));
+        return uint256(bytes32(_metadata[0:32]));
     }
 }
