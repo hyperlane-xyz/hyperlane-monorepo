@@ -101,9 +101,17 @@ impl Drop for State {
         log!("Signaling children to stop...");
         // stop children in reverse order
         self.agents.reverse();
-        for (name, mut agent) in self.agents.drain(..) {
-            log!("Stopping child {}", name);
-            stop_child(&mut agent);
+
+        let stop_tasks = self
+            .agents
+            .drain(..)
+            .map(|(name, agent)| {
+                log!("Stopping child {}", name);
+                stop_child(agent)
+            })
+            .collect::<Vec<_>>();
+        for task in stop_tasks {
+            task.join().unwrap_or_default()
         }
         log!("Joining watchers...");
         RUN_LOG_WATCHERS.store(false, Ordering::Relaxed);
@@ -282,7 +290,8 @@ fn run() -> Result<bool> {
         solana_path.clone(),
         solana_program_path,
         solana_ledger_dir.as_ref().to_path_buf(),
-    ).join()?;
+    )
+    .join()?;
 
     state.push_agent(solana_validator);
     state.push_agent(start_anvil.join()?);
@@ -342,10 +351,13 @@ fn run() -> Result<bool> {
 
         // verify long-running tasks are still running
         for (name, child) in state.agents.iter_mut() {
-            child
+            if let Some(status) = child
                 .try_wait()
                 .map_err(|e| eyre!("Error when joining child process: {e}"))?
-                .ok_or_else(|| eyre!("Child process {} exited unexpectedly", name))?;
+            {
+                log!("Child process {} exited early with status {}", name, status);
+                return Err(eyre!("Child process {name} exited early"));
+            }
         }
 
         sleep(Duration::from_secs(5));

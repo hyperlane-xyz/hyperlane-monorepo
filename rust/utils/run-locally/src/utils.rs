@@ -1,7 +1,14 @@
-use eyre::{eyre, Result};
 use std::path::{Path, PathBuf};
 use std::process::Child;
-use std::thread::JoinHandle;
+use std::thread::{sleep, JoinHandle};
+use std::time::Duration;
+
+use eyre::{eyre, Result};
+use macro_rules_attribute::apply;
+use nix::libc::pid_t;
+use nix::sys::signal;
+use nix::sys::signal::Signal;
+use nix::unistd::Pid;
 
 use crate::logging::log;
 
@@ -16,7 +23,7 @@ macro_rules! as_task {
     ) => {
         $(#[$fn_meta])*
         $fn_vis fn $fn_name($($arg_name$(: $arg_type)*),*) -> impl $crate::utils::TaskHandle<Output=as_task!(@strip_result $($ret_type)?)> {
-            $crate::utils::SimpleTaskHandle(::std::thread::spawn(move || {Ok($body)}))
+            $crate::utils::SimpleTaskHandle(::std::thread::spawn(move || -> ::eyre::Result<_> {Ok($body)}))
         }
     };
 
@@ -99,14 +106,44 @@ where
     }
 }
 
-/// Attempt to stop a child process.
-pub fn stop_child(child: &mut Child) {
+/// Attempt to kindly signal a child to stop running, and kill it if that fails.
+#[apply(as_task)]
+pub(crate) fn stop_child(child: Child) {
+    let mut child = child;
     if let Err(e) = child.try_wait() {
         log!("{}", e);
     } else {
         // already stopped
-        return;
+        return Ok(());
     }
+
+    let pid = Pid::from_raw(child.id() as pid_t);
+    if signal::kill(pid, Signal::SIGTERM).is_err() {
+        log!("Failed to send sigterm, killing");
+    } else {
+        sleep(Duration::from_secs(5))
+    };
+
+    if let Err(e) = child.try_wait() {
+        log!("{}", e);
+    } else {
+        // already stopped
+        return Ok(());
+    }
+
+    if signal::kill(pid, Signal::SIGKILL).is_err() {
+        log!("Failed to send sigkill");
+    } else {
+        sleep(Duration::from_secs(2))
+    };
+
+    if let Err(e) = child.try_wait() {
+        log!("{}", e);
+    } else {
+        // already stopped
+        return Ok(());
+    }
+
     if let Err(e) = child.kill() {
         log!("{}", e);
     }
