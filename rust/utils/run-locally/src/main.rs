@@ -278,13 +278,12 @@ fn run() -> Result<bool> {
     build_rust.join()?;
 
     let solana_ledger_dir = tempdir().unwrap();
-    let start_solana_validator = start_solana_test_validator(
+    let (solana_config_path, solana_validator) = start_solana_test_validator(
         solana_path.clone(),
         solana_program_path,
         solana_ledger_dir.as_ref().to_path_buf(),
-    );
+    ).join()?;
 
-    let (solana_config_path, solana_validator) = start_solana_validator.join()?;
     state.push_agent(solana_validator);
     state.push_agent(start_anvil.join()?);
 
