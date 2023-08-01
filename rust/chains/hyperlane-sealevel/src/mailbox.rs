@@ -695,7 +695,6 @@ impl MessageIndexer for SealevelMailboxIndexer {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self as _).await?;
         // TODO: need to make sure the call and tip are at the same height?
         let count = self.mailbox.count(None).await;
-        println!("count: {:?}", count);
         Ok((count?, tip))
     }
 }

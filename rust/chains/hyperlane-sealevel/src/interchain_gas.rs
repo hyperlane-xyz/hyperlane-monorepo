@@ -3,9 +3,8 @@
 use async_trait::async_trait;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneProvider,
-    IndexRange::{self, SequenceRange},
-    Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta, H256, U256,
+    HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster, InterchainGasPayment,
+    LogMeta, SequenceIndexer, H256, U256,
 };
 use hyperlane_sealevel_igp::{
     accounts::{GasPaymentAccount, GasPaymentData, ProgramDataAccount},
@@ -138,11 +137,14 @@ impl SealevelInterchainGasPaymasterIndexer {
             },
             with_context: Some(false),
         };
+        // print program id
+        println!("igp program_id={}", self.igp.program_id);
         let accounts = self
             .rpc_client
             .get_program_accounts_with_config(&self.igp.program_id, config)
             .await
             .map_err(ChainCommunicationError::from_other)?;
+        println!("accounts={:#?}", accounts);
 
         // Now loop through matching accounts and find the one with a valid account pubkey
         // that proves it's an actual message storage PDA.
@@ -221,20 +223,17 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
-        let SequenceRange(range) = range else {
-            return Err(ChainCommunicationError::from_other_str(
-                "SealevelMailboxIndexer only supports sequence-based indexing",
-            ))
-        };
-
         info!(
             ?range,
-            "Fetching SealevelMailboxIndexer HyperlaneMessage logs"
+            "Fetching SealevelInterchainGasPaymasterIndexer InterchainGasPayment logs"
         );
 
+        println!("~~~~~~~~~~~ Indexing IGP payments in range: {:?}", range);
         let mut messages = Vec::with_capacity((range.end() - range.start()) as usize);
         for nonce in range {
-            messages.push(self.get_payment_with_sequence(nonce.into()).await?);
+            if let Ok(msg) = self.get_payment_with_sequence(nonce.into()).await {
+                messages.push(msg);
+            }
         }
         Ok(messages)
     }
