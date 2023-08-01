@@ -265,7 +265,7 @@ pub fn start_solana_test_validator(
         .run()
         .join();
 
-    log!("Solana validator started and initialized successfully");
+    log!("Local Solana chain started and hyperlane programs deployed and initialized successfully");
 
     (solana_config_path, validator)
 }
