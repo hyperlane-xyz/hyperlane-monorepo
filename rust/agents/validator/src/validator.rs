@@ -143,12 +143,11 @@ impl BaseAgent for Validator {
 
 impl Validator {
     async fn run_message_sync(&self) -> Instrumented<JoinHandle<Result<()>>> {
-        let index_settings = self.as_ref().settings.chains[self.origin_chain.name()]
-            .index
-            .clone();
+        let (index_settings, index_mode) =
+            self.as_ref().settings.chains[self.origin_chain.name()].index_settings_and_mode();
         let contract_sync = self.message_sync.clone();
         let cursor = contract_sync
-            .forward_backward_message_sync_cursor(index_settings)
+            .forward_backward_message_sync_cursor(index_settings, index_mode)
             .await;
         tokio::spawn(async move {
             contract_sync
