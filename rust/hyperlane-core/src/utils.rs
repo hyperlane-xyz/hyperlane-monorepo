@@ -156,6 +156,11 @@ pub mod serde_u128 {
     pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<u128, D::Error> {
         d.deserialize_any(U128Visitor)
     }
+
+    #[test]
+    fn test() {
+        todo!()
+    }
 }
 
 /// Shortcut for many-to-one match statements that get very redundant. Flips the

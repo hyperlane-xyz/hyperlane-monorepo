@@ -205,6 +205,7 @@ fn deploy_igp(
     key_dir: &Path,
     built_so_dir: &Path,
     gas_oracle_config_file: Option<&Path>,
+    overhead_config: Option<&Path>,
 ) -> (Pubkey, Pubkey, Pubkey) {
     let (keypair, keypair_path) = create_and_write_keypair(
         key_dir,
@@ -212,11 +213,21 @@ fn deploy_igp(
         use_existing_key,
     );
     let program_id = keypair.pubkey();
-    let gas_oracle_configs: Option<Vec<hyperlane_sealevel_igp::instruction::GasOracleConfig>> =
+    let gas_oracle_configs: Vec<hyperlane_sealevel_igp::instruction::GasOracleConfig> =
         gas_oracle_config_file.map(|p| {
             let file = File::open(p).expect("Failed to open oracle config file");
             serde_json::from_reader(file).expect("Failed to parse oracle config file")
+            todo!("Filter out the current domain's config")
+            // see also TOKEN_EXCHANGE_RATE_SCALE
+            todo!("Default to 1:1 exchange with other chains in the env and set default gas to 0")
         });
+
+    // parse config for overhead igp
+    // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/interchain-gas-paymaster/tests/functional.rs#L202-L210
+    // GasOverheadConfig
+
+    // then set
+    // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/interchain-gas-paymaster/src/instruction.rs#L30
 
     deploy_program(
         &ctx.payer_path,
