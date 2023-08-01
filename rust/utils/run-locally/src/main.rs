@@ -119,15 +119,6 @@ impl Drop for State {
 }
 
 fn main() -> ExitCode {
-    macro_rules! shutdown_if_needed {
-        () => {
-            if SHUTDOWN.load(Ordering::Relaxed) {
-                log!("Early termination, shutting down");
-                return ExitCode::FAILURE;
-            }
-        };
-    }
-
     // on sigint we want to trigger things to stop running
     ctrlc::set_handler(|| {
         log!("Terminating...");
@@ -135,17 +126,20 @@ fn main() -> ExitCode {
     })
     .unwrap();
 
+    assert_eq!(VALIDATOR_ORIGIN_CHAINS.len(), VALIDATOR_KEYS.len());
+    const VALIDATOR_COUNT: usize = VALIDATOR_KEYS.len();
+
     let config = Config::load();
 
     let solana_checkpoint_path = Path::new(SOLANA_CHECKPOINT_LOCATION);
     fs::remove_dir_all(solana_checkpoint_path).unwrap_or_default();
-    let checkpoints_dirs: Vec<DynPath> = (0..3)
+    let checkpoints_dirs: Vec<DynPath> = (0..VALIDATOR_COUNT - 1)
         .map(|_| Box::new(tempdir().unwrap()) as DynPath)
         .chain([Box::new(solana_checkpoint_path) as DynPath])
         .collect();
     let rocks_db_dir = tempdir().unwrap();
     let relayer_db = concat_path(&rocks_db_dir, "relayer");
-    let validator_dbs = (0..4)
+    let validator_dbs = (0..VALIDATOR_COUNT)
         .map(|i| concat_path(&rocks_db_dir, format!("validator{i}")))
         .collect::<Vec<_>>();
 
@@ -207,7 +201,7 @@ fn main() -> ExitCode {
         .hyp_env("INTERVAL", "5")
         .hyp_env("CHECKPOINTSYNCER_TYPE", "localStorage");
 
-    let validator_envs = (0..4)
+    let validator_envs = (0..VALIDATOR_COUNT)
         .map(|i| {
             base_validator_env
                 .clone()
@@ -260,7 +254,6 @@ fn main() -> ExitCode {
     state.data.push(Box::new(solana_path_tempdir));
     let solana_program_builder = build_solana_programs(solana_path.clone());
 
-    shutdown_if_needed!();
     // this task takes a long time in the CI so run it in parallel
     log!("Building rust...");
     let build_rust = Program::new("cargo")
