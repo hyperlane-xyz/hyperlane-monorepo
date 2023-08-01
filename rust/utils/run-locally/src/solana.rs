@@ -32,7 +32,6 @@ const SOLANA_PROGRAMS: &[(&str, &str)] = &[
 ];
 
 const SOLANA_KEYPAIR: &str = "config/test-sealevel-keys/test_deployer-keypair.json";
-const SOLANA_DEPLOYER_ACCOUNT: &str = "config/test-sealevel-keys/test_deployer-account.json";
 
 const SBF_OUT_PATH: &str = "target/dist";
 
@@ -183,7 +182,7 @@ pub fn start_solana_test_validator(
         .arg3(
             "account",
             "E9VrvAdGRvCguN2XgXsgu9PNmMM3vZsU8LSUrM68j8ty",
-            SOLANA_DEPLOYER_ACCOUNT,
+            "config/sealevel/test-keys/test_deployer-account.json",
         )
         .remember(solana_config);
     for &(address, lib) in SOLANA_PROGRAMS {

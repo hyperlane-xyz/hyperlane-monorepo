@@ -290,7 +290,7 @@ impl Program {
                 break exit_status.success();
             } else if SHUTDOWN.load(Ordering::Relaxed) {
                 log!("Forcing termination of command `{}`", &self);
-                stop_child(child).join()?;
+                stop_child(&mut child);
                 break false;
             }
         };

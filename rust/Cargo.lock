@@ -6323,7 +6323,6 @@ dependencies = [
  "eyre",
  "macro_rules_attribute",
  "maplit",
- "nix 0.26.2",
  "tempfile",
  "ureq",
  "which",
