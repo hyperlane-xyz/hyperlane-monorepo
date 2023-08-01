@@ -296,7 +296,7 @@ fn main() -> ExitCode {
     state.push_agent(start_anvil.join());
 
     // spawn 1st validator before any messages have been sent to test empty mailbox
-    state.push_agent(validator_envs.first().unwrap().clone().spawn("VAL1"));
+    state.push_agent(validator_envs.first().unwrap().clone().spawn("VL1"));
 
     sleep(Duration::from_secs(5));
 
