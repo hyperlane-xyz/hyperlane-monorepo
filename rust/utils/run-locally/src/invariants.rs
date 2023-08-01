@@ -1,8 +1,9 @@
 use std::path::Path;
 
-use crate::config::Config;
+use eyre::Result;
 use maplit::hashmap;
 
+use crate::config::Config;
 use crate::fetch_metric;
 use crate::logging::log;
 use crate::solana::solana_termination_invariants_met;
@@ -13,7 +14,7 @@ pub fn termination_invariants_met(
     config: &Config,
     solana_cli_tools_path: &Path,
     solana_config_path: &Path,
-) -> eyre::Result<bool> {
+) -> Result<bool> {
     let eth_messages_expected = (config.kathy_messages / 2) as u32 * 2;
     let sol_messages_expected = 1;
     let total_messages_expected = eth_messages_expected + sol_messages_expected;
@@ -58,7 +59,7 @@ pub fn termination_invariants_met(
         return Ok(false);
     }
 
-    if !solana_termination_invariants_met(solana_cli_tools_path, solana_config_path) {
+    if !solana_termination_invariants_met(solana_cli_tools_path, solana_config_path)? {
         log!("Solana termination invariants not met");
         return Ok(false);
     }

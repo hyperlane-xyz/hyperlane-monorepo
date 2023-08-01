@@ -3,14 +3,14 @@ use std::ffi::OsStr;
 use std::fmt::{Debug, Display, Formatter};
 use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Command, ExitStatus, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
 use std::sync::{mpsc, Arc};
 use std::thread::{sleep, spawn};
 use std::time::Duration;
 
-use eyre::Context;
+use eyre::{bail, Context, Result};
 use macro_rules_attribute::apply;
 
 use crate::logging::log;
@@ -283,26 +283,24 @@ impl Program {
             spawn(move || prefix_log(stderr, &name, &running, filter, None))
         };
 
-        let status = loop {
+        let success = loop {
             sleep(Duration::from_millis(500));
 
-            if let Some(exit_status) = child.try_wait().expect("Failed to run command") {
-                break exit_status;
+            if let Some(exit_status) = child.try_wait().context("Failed to run command")? {
+                break exit_status.success();
             } else if SHUTDOWN.load(Ordering::Relaxed) {
                 log!("Forcing termination of command `{}`", &self);
                 stop_child(&mut child);
-                break child.wait().expect("Failed to run command");
+                break false;
             }
         };
 
         running.store(false, Ordering::Relaxed);
-        stdout.join().unwrap();
-        stderr.join().unwrap();
-        assert!(
-            !assert_success || !RUN_LOG_WATCHERS.load(Ordering::Relaxed) || status.success(),
-            "Command returned non-zero exit code: {:?}",
-            &self
-        );
+        stdout.join().unwrap()?;
+        stderr.join().unwrap()?;
+        if assert_success && !success {
+            bail!("Command returned non-zero exit code: {:?}", &self);
+        }
 
         stdout_ch_rx.map(|rx| rx.into_iter().collect())
     }
@@ -315,7 +313,7 @@ fn prefix_log(
     run_log_watcher: &AtomicBool,
     filter: Option<LogFilter>,
     channel: Option<Sender<String>>,
-) {
+) -> Result<()> {
     let mut reader = BufReader::new(output).lines();
     loop {
         if let Some(line) = reader.next() {
@@ -343,4 +341,5 @@ fn prefix_log(
             break;
         }
     }
+    Ok(())
 }

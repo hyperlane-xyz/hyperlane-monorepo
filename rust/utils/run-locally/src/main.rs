@@ -21,6 +21,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use eyre::{eyre, Result};
 use tempfile::tempdir;
 
 use logging::log;
@@ -107,7 +108,8 @@ impl Drop for State {
         log!("Joining watchers...");
         RUN_LOG_WATCHERS.store(false, Ordering::Relaxed);
         for w in self.watchers.drain(..) {
-            w.join_box();
+            // ignore errors here
+            w.join_box().unwrap_or_default();
         }
         // drop any held data
         self.data.reverse();
@@ -118,15 +120,7 @@ impl Drop for State {
     }
 }
 
-fn main() -> ExitCode {
-    // on sigint we want to trigger things to stop running
-    ctrlc::set_handler(|| {
-        log!("Terminating...");
-        SHUTDOWN.store(true, Ordering::Relaxed);
-    })
-    .unwrap();
-
-    assert_eq!(VALIDATOR_ORIGIN_CHAINS.len(), VALIDATOR_KEYS.len());
+fn run() -> Result<bool> {
     const VALIDATOR_COUNT: usize = VALIDATOR_KEYS.len();
 
     let config = Config::load();
@@ -249,7 +243,7 @@ fn main() -> ExitCode {
     // Ready to run...
     //
 
-    let (solana_path, solana_path_tempdir) = install_solana_cli_tools().join();
+    let (solana_path, solana_path_tempdir) = install_solana_cli_tools().join()?;
     state.data.push(Box::new(solana_path_tempdir));
     let solana_program_builder = build_solana_programs(solana_path.clone());
 
@@ -268,7 +262,7 @@ fn main() -> ExitCode {
 
     let start_anvil = start_anvil(config.clone());
 
-    let solana_program_path = solana_program_builder.join();
+    let solana_program_path = solana_program_builder.join()?;
 
     log!("Running postgres db...");
     let postgres = Program::new("docker")
@@ -281,7 +275,7 @@ fn main() -> ExitCode {
         .spawn("SQL");
     state.push_agent(postgres);
 
-    build_rust.join();
+    build_rust.join()?;
 
     let solana_ledger_dir = tempdir().unwrap();
     let start_solana_validator = start_solana_test_validator(
@@ -290,9 +284,9 @@ fn main() -> ExitCode {
         solana_ledger_dir.as_ref().to_path_buf(),
     );
 
-    let (solana_config_path, solana_validator) = start_solana_validator.join();
+    let (solana_config_path, solana_validator) = start_solana_validator.join()?;
     state.push_agent(solana_validator);
-    state.push_agent(start_anvil.join());
+    state.push_agent(start_anvil.join()?);
 
     // spawn 1st validator before any messages have been sent to test empty mailbox
     state.push_agent(validator_envs.first().unwrap().clone().spawn("VL1"));
@@ -302,7 +296,7 @@ fn main() -> ExitCode {
     log!("Init postgres db...");
     Program::new(concat_path(AGENT_BIN_PATH, "init-db"))
         .run()
-        .join();
+        .join()?;
     state.push_agent(scraper_env.spawn("SCR"));
 
     // Send half the kathy messages before starting the rest of the agents
@@ -311,7 +305,7 @@ fn main() -> ExitCode {
         .cmd("kathy")
         .arg("messages", (config.kathy_messages / 2).to_string())
         .arg("timeout", "1000");
-    kathy_env.clone().run().join();
+    kathy_env.clone().run().join()?;
 
     // spawn the rest of the validators
     for (i, validator_env) in validator_envs.into_iter().enumerate().skip(1) {
@@ -321,7 +315,7 @@ fn main() -> ExitCode {
 
     state.push_agent(relayer_env.spawn("RLY"));
 
-    initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone()).join();
+    initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone()).join()?;
 
     log!("Setup complete! Agents running in background...");
     log!("Ctrl+C to end execution...");
@@ -332,7 +326,6 @@ fn main() -> ExitCode {
     let loop_start = Instant::now();
     // give things a chance to fully start.
     sleep(Duration::from_secs(5));
-    let mut failure_occurred = false;
     while !SHUTDOWN.load(Ordering::Relaxed) {
         if config.ci_mode {
             // for CI we have to look for the end condition.
@@ -344,29 +337,48 @@ fn main() -> ExitCode {
             } else if (Instant::now() - loop_start).as_secs() > config.ci_mode_timeout {
                 // we ran out of time
                 log!("CI timeout reached before queues emptied");
-                failure_occurred = true;
-                break;
+                return Ok(false);
             }
         }
 
         // verify long-running tasks are still running
         for (name, child) in state.agents.iter_mut() {
-            if child.try_wait().unwrap().is_some() {
-                log!("Child process {} exited unexpectedly, shutting down", name);
-                failure_occurred = true;
-                SHUTDOWN.store(true, Ordering::Relaxed);
-                break;
-            }
+            child
+                .try_wait()
+                .map_err(|e| eyre!("Error when joining child process: {e}"))?
+                .ok_or_else(|| eyre!("Child process {} exited unexpectedly", name))?;
         }
 
         sleep(Duration::from_secs(5));
     }
 
-    if failure_occurred {
-        log!("E2E tests failed");
-        ExitCode::FAILURE
-    } else {
-        log!("E2E tests passed");
-        ExitCode::SUCCESS
+    Ok(true)
+}
+
+fn main() -> ExitCode {
+    // on sigint we want to trigger things to stop running
+    ctrlc::set_handler(|| {
+        log!("Terminating...");
+        SHUTDOWN.store(true, Ordering::Relaxed);
+    })
+    .unwrap();
+
+    assert_eq!(VALIDATOR_ORIGIN_CHAINS.len(), VALIDATOR_KEYS.len());
+
+    let res = run();
+    SHUTDOWN.store(true, Ordering::Relaxed);
+    match res {
+        Ok(true) => {
+            log!("E2E tests passed");
+            ExitCode::SUCCESS
+        }
+        Ok(false) => {
+            log!("E2E tests failed");
+            ExitCode::FAILURE
+        }
+        Err(err) => {
+            log!("E2E tests failed: {}", err);
+            ExitCode::FAILURE
+        }
     }
 }
