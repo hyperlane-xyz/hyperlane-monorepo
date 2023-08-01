@@ -710,7 +710,8 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
             "Fetching SealevelMailboxIndexer HyperlaneMessage logs"
         );
 
-        let mut messages = Vec::with_capacity((range.end() - range.start()) as usize);
+        let message_capacity = range.end().saturating_sub(*range.start());
+        let mut messages = Vec::with_capacity(message_capacity as usize);
         for nonce in range {
             messages.push(self.get_message_with_nonce(nonce).await?);
         }

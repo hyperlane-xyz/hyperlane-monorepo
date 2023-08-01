@@ -56,7 +56,7 @@ impl SyncState {
         &mut self,
         max_sequence_index: Option<u32>,
         tip: Option<u32>,
-    ) -> ChainResult<RangeInclusive<u32>> {
+    ) -> ChainResult<Option<RangeInclusive<u32>>> {
         // We attempt to index a range of blocks that is as large as possible.
         let (from, to) = match self.direction {
             SyncDirection::Forward => {
@@ -83,16 +83,17 @@ impl SyncState {
                 if let Some(max_sequence_index) = max_sequence_index {
                     sequence_end = u32::min(sequence_end, max_sequence_index.saturating_sub(1));
                 }
-                // TODO: This should be `sequence_end + 1` but that causes a panic in cases where the
-                // range being returned is 0..=1
-                self.next_sequence = sequence_end;
+                self.next_sequence = sequence_end + 1;
                 if let Some(tip) = tip {
                     self.next_block = tip;
                 }
                 sequence_start..=sequence_end
             }
         };
-        Ok(range)
+        if range.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(range))
     }
 }
 
@@ -214,7 +215,7 @@ impl ForwardMessageSyncCursor {
                     .sync_state
                     .get_next_range(Some(mailbox_count), Some(tip))
                     .await?;
-                Ok(Some(range))
+                Ok(range)
             }
             Ordering::Greater => {
                 // Providers may be internally inconsistent, e.g. RPC request A could hit a node
@@ -293,7 +294,7 @@ impl BackwardMessageSyncCursor {
         }
     }
 
-    async fn get_next_range(&mut self) -> Option<RangeInclusive<u32>> {
+    async fn get_next_range(&mut self) -> ChainResult<Option<RangeInclusive<u32>>> {
         // Check if any new messages have been inserted into the DB,
         // and update the cursor accordingly.
         while !self.synced {
@@ -324,16 +325,15 @@ impl BackwardMessageSyncCursor {
                 self.cursor.sync_state.next_sequence.saturating_sub(1);
         }
         if self.synced {
-            return None;
+            return Ok(None);
         }
 
         // Just keep going backwards.
-        let (count, tip) = self.cursor.indexer.fetch_count_at_tip().await.ok()?;
+        let (count, tip) = self.cursor.indexer.fetch_count_at_tip().await?;
         self.cursor
             .sync_state
             .get_next_range(Some(count), Some(tip))
             .await
-            .ok()
     }
 
     /// If the previous block has been synced, rewind to the block number
@@ -411,7 +411,7 @@ impl ContractSyncCursor<HyperlaneMessage> for ForwardBackwardMessageSyncCursor {
             return Ok((CursorAction::Query(forward_range), eta));
         }
 
-        if let Some(backward_range) = self.backward.get_next_range().await {
+        if let Some(backward_range) = self.backward.get_next_range().await? {
             self.direction = SyncDirection::Backward;
             return Ok((CursorAction::Query(backward_range), eta));
         }
@@ -524,8 +524,12 @@ where
         let action = if let Some(rate_limit) = rate_limit {
             CursorAction::Sleep(rate_limit)
         } else {
-            let range = self.sync_state.get_next_range(None, None).await?;
-            CursorAction::Query(range)
+            // According to the logic in `get_rate_limit` we should be able to safely unwrap here.
+            // However, take the safer option and fall back to a zero duration sleep
+            match self.sync_state.get_next_range(None, None).await? {
+                Some(range) => CursorAction::Query(range),
+                None => CursorAction::Sleep(Duration::from_secs(0)),
+            }
         };
         Ok((action, eta))
     }
