@@ -307,6 +307,9 @@ pub fn solana_termination_invariants_met(
         .cmd("mailbox")
         .cmd("delivered")
         .arg(
+            // this will break if any parts of `transfer-remote` change.
+            // This value was gotten by observing the relayer logs.
+            // TODO: get the actual message-id so we don't have to hardcode it
             "message-id",
             "0x7b8ba684e5ce44f898c5fa81785c83a00e32b5bef3412e648eb7a17bec497685",
         )
