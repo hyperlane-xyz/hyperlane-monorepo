@@ -1,0 +1,21 @@
+# Configs for describing chain metadata for use in Hyperlane deployments or apps
+# Consists of a map of chain names to metadata
+# Schema here: https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/sdk/src/metadata/chainMetadataTypes.ts
+---
+anvil1:
+  # Required fields:
+  chainId: 31337 # Number: Use EIP-155 for EVM chains
+  domainId: 31337 # Number: Recommend matching chainId when possible
+  name: anvil1 # String: Unique identifier for the chain, must match key above
+  protocol: ethereum # ProtocolType: Ethereum, Sealevel, etc.
+  rpcUrls: # Array: List of RPC configs
+    # Only http field is required
+    - http: http://127.0.0.1:8545 # String: HTTP URL of the RPC endpoint (preferably HTTPS)
+anvil2:
+  # Required fields:
+  chainId: 31338
+  domainId: 31338
+  name: anvil2
+  protocol: ethereum
+  rpcUrls:
+    - http: http://127.0.0.1:8555

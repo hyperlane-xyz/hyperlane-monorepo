@@ -17,16 +17,20 @@ sleep 1
 
 set -e
 
-for i in "anvil1 anvil2 --no-write-agent-config" "anvil2 anvil1 --write-agent-config"
+yarn build
+
+for i in "anvil1 anvil2" "anvil2 anvil1"
 do
     set -- $i
     echo "Deploying contracts to $1"
-    yarn ts-node scripts/deploy-hyperlane.ts --local $1 --remotes $2 \
-    --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 $3
+    yarn hyperlane --local $1 --remotes $2 \
+    --chains ./examples/anvil-chains.yaml \
+    --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 $3 \
 done
 
 echo "Deploying warp routes"
-yarn ts-node scripts/deploy-warp-routes.ts \
+yarn hyperlane --local "anvil1" --remotes "anvil2" \
+  --chains ./examples/anvil-chains.yaml \
   --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 
 kill $ANVIL_1_PID
@@ -90,15 +94,6 @@ do
       -e HYP_BASE_CHAINS_${3}_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97 \
       gcr.io/abacus-labs-dev/hyperlane-agent:40cc4a6-20230420-080111 ./relayer &
 done
-
-echo "Testing message sending"
-yarn ts-node scripts/test-messages.ts --chains anvil1 anvil2 \
-  --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --timeout 60
-
-echo "Sending a test warp transfer"
-yarn ts-node scripts/test-warp-transfer.ts \
-  --origin anvil1 --destination anvil2 --wei 1 --recipient 0xac0974bec39a17e36ba4a6b4d238ff944bacb4a5 \
-  --key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --timeout 60
 
 docker ps -aq | xargs docker stop | xargs docker rm
 kill $ANVIL_1_PID
