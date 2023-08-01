@@ -221,7 +221,7 @@ async function executeDeploy(params: DeployParams) {
 
   const [contractsFilePath, tokenConfigPath] = prepNewArtifactsFiles(outPath, [
     { filename: 'warp-deployment', description: 'Contract addresses' },
-    { filename: 'warp-token-config', description: 'Warp UI token config' },
+    { filename: 'warp-ui-token-config', description: 'Warp UI token config' },
   ]);
 
   const deployer = isNft
