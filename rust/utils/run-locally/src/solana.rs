@@ -30,7 +30,7 @@ const SOLANA_PROGRAMS: &[(&str, &str)] = &[
     ("noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV", "spl_noop.so"),
 ];
 
-const SOLANA_KEYPAIR: &str = "config/sealevel/test-keys/test_deployer-keypair.json";
+const SOLANA_KEYPAIR: &str = "config/test-sealevel-keys/test_deployer-keypair.json";
 
 const SBF_OUT_PATH: &str = "target/dist";
 

@@ -145,7 +145,6 @@ fn main() -> ExitCode {
 
     let common_agent_env = Program::default()
         .env("RUST_BACKTRACE", "full")
-        .env("CONFIG_FILES", "config/sealevel/sealevel.json")
         .hyp_env("TRACING_FMT", "compact")
         .hyp_env("TRACING_LEVEL", "debug")
         .hyp_env("CHAINS_TEST1_INDEX_CHUNK", "1")
