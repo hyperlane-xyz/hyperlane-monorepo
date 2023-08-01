@@ -136,7 +136,6 @@ pub fn build_solana_programs(solana_cli_tools_path: PathBuf) -> PathBuf {
     fs::remove_file(concat_path(&out_path, "spl.tar.gz"))
         .expect("Failed to remove solana program archive");
 
-    // build solana program library
     let build_sbf = Program::new(
         concat_path(&solana_cli_tools_path, "cargo-build-sbf")
             .to_str()

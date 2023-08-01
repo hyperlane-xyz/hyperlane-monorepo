@@ -229,7 +229,7 @@ impl Program {
     #[allow(dead_code)]
     pub fn run_with_output(self) -> impl TaskHandle<Output = Vec<String>> {
         MappingTaskHandle(self.run_full(false, true), |o| {
-            o.expect("Build command did not return output")
+            o.expect("Command did not return output")
         })
     }
 
