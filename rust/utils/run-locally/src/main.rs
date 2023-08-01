@@ -337,7 +337,6 @@ fn main() -> ExitCode {
     while !SHUTDOWN.load(Ordering::Relaxed) {
         if config.ci_mode {
             // for CI we have to look for the end condition.
-            // Expect 1 extra message to be sent between solana chains
             if termination_invariants_met(&config, &solana_path, &solana_config_path)
                 .unwrap_or(false)
             {
