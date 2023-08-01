@@ -200,30 +200,27 @@ impl ForwardMessageSyncCursor {
 
         let (mailbox_count, tip) = self.cursor.indexer.fetch_count_at_tip().await?;
         let cursor_count = self.cursor.sync_state.next_sequence;
-        let cmp = cursor_count.cmp(&mailbox_count);
-        match cmp {
+        Ok(match cursor_count.cmp(&mailbox_count) {
             Ordering::Equal => {
                 // We are synced up to the latest nonce so we don't need to index anything.
                 // We update our next block number accordingly.
                 self.cursor.sync_state.next_block = tip;
-                Ok(None)
+                None
             }
             Ordering::Less => {
                 // The cursor is behind the mailbox, so we need to index some blocks.
-                let range = self
-                    .cursor
+                self.cursor
                     .sync_state
                     .get_next_range(Some(mailbox_count), Some(tip))
-                    .await?;
-                Ok(range)
+                    .await?
             }
             Ordering::Greater => {
                 // Providers may be internally inconsistent, e.g. RPC request A could hit a node
                 // whose tip is N and subsequent RPC request B could hit a node whose tip is < N.
                 debug!("Cursor count is greater than Mailbox count");
-                Ok(None)
+                None
             }
-        }
+        })
     }
 }
 

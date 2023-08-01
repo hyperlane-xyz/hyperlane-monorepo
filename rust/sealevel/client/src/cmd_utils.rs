@@ -35,8 +35,10 @@ pub fn build_cmd(
     c.args(&cmd[1..]);
     if log_all {
         c.stdout(Stdio::inherit());
+        c.stderr(Stdio::inherit());
     } else {
-        c.stdout(append_to(log));
+        c.stdout(append_to(log.as_ref()));
+        c.stderr(append_to(log));
     }
     if let Some(wd) = wd {
         c.current_dir(wd);
