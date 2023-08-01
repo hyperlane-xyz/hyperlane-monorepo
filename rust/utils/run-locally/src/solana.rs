@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 use std::thread::sleep;
 use std::time::Duration;
 
-use eyre::Result;
 use macro_rules_attribute::apply;
 use tempfile::{tempdir, NamedTempFile};
 
@@ -90,7 +89,7 @@ pub fn install_solana_cli_tools() -> (PathBuf, impl ArbitraryData) {
         .flag("silent")
         .working_dir(solana_download_dir.as_ref().to_str().unwrap())
         .run()
-        .join()?;
+        .join();
     log!("Uncompressing solana release");
 
     Program::new("tar")
@@ -98,7 +97,7 @@ pub fn install_solana_cli_tools() -> (PathBuf, impl ArbitraryData) {
         .arg("file", &solana_archive_name)
         .working_dir(solana_download_dir.as_ref().to_str().unwrap())
         .run()
-        .join()?;
+        .join();
 
     fs::rename(
         concat_path(&solana_download_dir, "solana-release"),
@@ -124,7 +123,7 @@ pub fn build_solana_programs(solana_cli_tools_path: PathBuf) -> PathBuf {
         .flag("silent")
         .working_dir(&out_path)
         .run()
-        .join()?;
+        .join();
     log!("Uncompressing solana programs");
 
     Program::new("tar")
@@ -132,7 +131,7 @@ pub fn build_solana_programs(solana_cli_tools_path: PathBuf) -> PathBuf {
         .arg("file", "spl.tar.gz")
         .working_dir(&out_path)
         .run()
-        .join()?;
+        .join();
     log!("Remove temporary solana files");
     fs::remove_file(concat_path(&out_path, "spl.tar.gz"))
         .expect("Failed to remove solana program archive");
@@ -151,7 +150,7 @@ pub fn build_solana_programs(solana_cli_tools_path: PathBuf) -> PathBuf {
             .clone()
             .working_dir(concat_path("sealevel/programs", path))
             .run()
-            .join()?;
+            .join();
     }
     log!("All hyperlane solana programs built successfully");
     out_path
@@ -172,7 +171,7 @@ pub fn start_solana_test_validator(
         .cmd("set")
         .arg("url", "localhost")
         .run()
-        .join()?;
+        .join();
 
     log!("Starting solana validator");
     let mut args = Program::new(concat_path(&solana_cli_tools_path, "solana-test-validator"))
@@ -213,13 +212,13 @@ pub fn start_solana_test_validator(
         .arg("local-domain", SOLANA_LOCAL_CHAIN_ID)
         .arg("chain", "sealeveltest1")
         .run()
-        .join()?;
+        .join();
 
     sealevel_client_deploy_core
         .arg("local-domain", SOLANA_REMOTE_CHAIN_ID)
         .arg("chain", "sealeveltest2")
         .run()
-        .join()?;
+        .join();
 
     sealevel_client
         .clone()
@@ -240,7 +239,7 @@ pub fn start_solana_test_validator(
         )
         .arg("ata-payer-funding-amount", "1000000000")
         .run()
-        .join()?;
+        .join();
 
     log!("Initializing solana programs");
     sealevel_client
@@ -252,7 +251,7 @@ pub fn start_solana_test_validator(
         .arg("threshold", "1")
         .arg("program-id", "4RSV6iyqW9X66Xq3RDCVsKJ7hMba5uv6XP8ttgxjVUB1")
         .run()
-        .join()?;
+        .join();
 
     sealevel_client
         .cmd("validator-announce")
@@ -264,7 +263,7 @@ pub fn start_solana_test_validator(
         )
         .arg("signature", "0xcd87b715cd4c2e3448be9e34204cf16376a6ba6106e147a4965e26ea946dd2ab19598140bf26f1e9e599c23f6b661553c7d89e8db22b3609068c91eb7f0fa2f01b")
         .run()
-        .join()?;
+        .join();
 
     log!("Local Solana chain started and hyperlane programs deployed and initialized successfully");
 
@@ -281,7 +280,7 @@ pub fn initiate_solana_hyperlane_transfer(
         .arg("keypair", SOLANA_KEYPAIR)
         .cmd("address")
         .run_with_output()
-        .join()?
+        .join()
         .get(0)
         .expect("failed to get sender address")
         .trim()
@@ -297,14 +296,14 @@ pub fn initiate_solana_hyperlane_transfer(
         .cmd("native")
         .arg("program-id", "CGn8yNtSD3aTTqJfYhUb6s1aVTN75NzwtsFKo1e83aga")
         .run()
-        .join()?;
+        .join();
 }
 
 pub fn solana_termination_invariants_met(
     solana_cli_tools_path: &Path,
     solana_config_path: &Path,
-) -> Result<bool> {
-    let delivered = sealevel_client(solana_cli_tools_path, solana_config_path)
+) -> bool {
+    sealevel_client(solana_cli_tools_path, solana_config_path)
         .cmd("mailbox")
         .cmd("delivered")
         .arg(
@@ -316,10 +315,9 @@ pub fn solana_termination_invariants_met(
         )
         .arg("program-id", "9tCUWNjpqcf3NUSrtp7vquYVCwbEByvLjZUrhG5dgvhj")
         .run_with_output()
-        .join()?
+        .join()
         .join("\n")
-        .contains("Message delivered");
-    Ok(delivered)
+        .contains("Message delivered")
 }
 
 fn sealevel_client(solana_cli_tools_path: &Path, solana_config_path: &Path) -> Program {

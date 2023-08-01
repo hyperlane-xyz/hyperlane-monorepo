@@ -1,7 +1,11 @@
-use eyre::{eyre, Result};
 use std::path::{Path, PathBuf};
 use std::process::Child;
 use std::thread::JoinHandle;
+
+use nix::libc::pid_t;
+use nix::sys::signal;
+use nix::sys::signal::Signal;
+use nix::unistd::Pid;
 
 use crate::logging::log;
 
@@ -15,14 +19,12 @@ macro_rules! as_task {
         ) $(-> $ret_type:ty)? $body:block
     ) => {
         $(#[$fn_meta])*
-        $fn_vis fn $fn_name($($arg_name$(: $arg_type)*),*) -> impl $crate::utils::TaskHandle<Output=as_task!(@strip_result $($ret_type)?)> {
-            $crate::utils::SimpleTaskHandle(::std::thread::spawn(move || {Ok($body)}))
+        $fn_vis fn $fn_name($($arg_name$(: $arg_type)*),*) -> impl $crate::utils::TaskHandle<Output=as_task!(@handle $($ret_type)?)> {
+            $crate::utils::SimpleTaskHandle(::std::thread::spawn(move || $body))
         }
     };
-
-    (@strip_result $(::)?$(eyre::)?Result<$ret_type:ty>) => { $ret_type };
-    (@strip_result $ret_type:ty) => {$ret_type};
-    (@strip_result) => {()};
+    (@handle $ret_type:ty) => {$ret_type};
+    (@handle) => {()};
 }
 
 pub(crate) use as_task;
@@ -59,24 +61,21 @@ pub type LogFilter = fn(&str) -> bool;
 pub trait TaskHandle: Send {
     type Output;
 
-    fn join(self) -> Result<Self::Output>;
-    fn join_box(self: Box<Self>) -> Result<Self::Output>;
+    fn join(self) -> Self::Output;
+    fn join_box(self: Box<Self>) -> Self::Output;
 }
 
 /// Wrapper around a join handle to simplify use.
 #[must_use]
-pub struct SimpleTaskHandle<T>(pub JoinHandle<Result<T>>);
+pub struct SimpleTaskHandle<T>(pub JoinHandle<T>);
 impl<T> TaskHandle for SimpleTaskHandle<T> {
     type Output = T;
 
-    fn join(self) -> Result<T> {
-        self.0
-            .join()
-            .map_err(|e| eyre!("Task thread panicked: {e:?}"))
-            .and_then(|r| r)
+    fn join(self) -> Self::Output {
+        self.0.join().expect("Task thread panicked!")
     }
 
-    fn join_box(self: Box<Self>) -> Result<T> {
+    fn join_box(self: Box<Self>) -> T {
         self.join()
     }
 }
@@ -90,24 +89,26 @@ where
 {
     type Output = U;
 
-    fn join(self) -> Result<U> {
-        self.0.join().map(self.1)
+    fn join(self) -> Self::Output {
+        (self.1)(self.0.join())
     }
 
-    fn join_box(self: Box<Self>) -> Result<U> {
+    fn join_box(self: Box<Self>) -> U {
         self.join()
     }
 }
 
-/// Attempt to stop a child process.
+/// Attempt to kindly signal a child to stop running, and kill it if that fails.
 pub fn stop_child(child: &mut Child) {
-    if let Err(e) = child.try_wait() {
-        log!("{}", e);
-    } else {
+    if child.try_wait().unwrap().is_some() {
         // already stopped
         return;
     }
-    if let Err(e) = child.kill() {
-        log!("{}", e);
-    }
+    let pid = Pid::from_raw(child.id() as pid_t);
+    if signal::kill(pid, Signal::SIGTERM).is_err() {
+        log!("Failed to send sigterm, killing");
+        if let Err(e) = child.kill() {
+            log!("{}", e);
+        }
+    };
 }
