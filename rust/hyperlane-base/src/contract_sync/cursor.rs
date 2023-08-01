@@ -81,9 +81,11 @@ impl SyncState {
                 let sequence_start = self.next_sequence;
                 let mut sequence_end = sequence_start + MAX_SEQUENCE_RANGE;
                 if let Some(max_sequence_index) = max_sequence_index {
-                    sequence_end = u32::min(sequence_end, max_sequence_index);
+                    sequence_end = u32::min(sequence_end, max_sequence_index.saturating_sub(1));
                 }
-                self.next_sequence = sequence_end + 1;
+                // TODO: This should be `sequence_end + 1` but that causes a panic in cases where the
+                // range being returned is 0..=1
+                self.next_sequence = sequence_end;
                 if let Some(tip) = tip {
                     self.next_block = tip;
                 }
