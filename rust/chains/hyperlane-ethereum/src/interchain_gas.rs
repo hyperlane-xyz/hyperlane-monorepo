@@ -9,9 +9,9 @@ use ethers::prelude::Middleware;
 use tracing::instrument;
 
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster,
-    InterchainGasPayment, LogMeta, H160, H256,
+    BlockRange, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider, IndexRange, Indexer,
+    InterchainGasPaymaster, InterchainGasPayment, LogMeta, H160, H256,
 };
 
 use crate::contracts::i_interchain_gas_paymaster::{
@@ -87,14 +87,19 @@ where
     #[instrument(err, skip(self))]
     async fn fetch_logs(
         &self,
-        from_block: u32,
-        to_block: u32,
+        range: IndexRange,
     ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
+        let BlockRange(range) = range else {
+            return Err(ChainCommunicationError::from_other_str(
+                "EthereumInterchainGasPaymasterIndexer only supports block-based indexing",
+            ));
+        };
+
         let events = self
             .contract
             .gas_payment_filter()
-            .from_block(from_block)
-            .to_block(to_block)
+            .from_block(*range.start())
+            .to_block(*range.end())
             .query_with_meta()
             .await?;
 
@@ -104,8 +109,8 @@ where
                 (
                     InterchainGasPayment {
                         message_id: H256::from(log.message_id),
-                        payment: log.payment,
-                        gas_amount: log.gas_amount,
+                        payment: log.payment.into(),
+                        gas_amount: log.gas_amount.into(),
                     },
                     log_meta.into(),
                 )

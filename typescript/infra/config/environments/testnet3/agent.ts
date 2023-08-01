@@ -1,4 +1,10 @@
-import { AgentConnectionType, chainMetadata } from '@hyperlane-xyz/sdk';
+import {
+  AgentConnectionType,
+  chainMetadata,
+  getDomainId,
+  hyperlaneEnvironments,
+  objMap,
+} from '@hyperlane-xyz/sdk';
 
 import {
   GasPaymentEnforcementPolicyType,
@@ -9,13 +15,22 @@ import { GasPaymentEnforcementConfig } from '../../../src/config/agent/relayer';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles';
 import { Contexts } from '../../contexts';
 
-import { chainNames, environment } from './chains';
+import { agentChainNames, environment } from './chains';
 import { helloWorld } from './helloworld';
-import interchainQueryRouters from './middleware/queries/addresses.json';
-import { validators } from './validators';
+import { validatorChainConfig } from './validators';
 
 const releaseCandidateHelloworldMatchingList = routerMatchingList(
   helloWorld[Contexts.ReleaseCandidate].addresses,
+);
+
+const interchainQueryRouters = objMap(
+  hyperlaneEnvironments.testnet,
+  (_, addresses) => {
+    return {
+      // @ts-ignore moonbasealpha has no interchain query router
+      router: addresses.interchainQueryRouter,
+    };
+  },
 );
 
 const interchainQueriesMatchingList = routerMatchingList(
@@ -27,8 +42,8 @@ const repo = 'gcr.io/abacus-labs-dev/hyperlane-agent';
 const contextBase = {
   namespace: environment,
   runEnv: environment,
-  contextChainNames: chainNames,
-  environmentChainNames: chainNames,
+  contextChainNames: agentChainNames,
+  environmentChainNames: agentChainNames,
   aws: {
     region: 'us-east-1',
   },
@@ -57,7 +72,7 @@ const hyperlane: RootAgentConfig = {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: '2deb9b8-20230602-205342',
+      tag: 'ed7569d-20230725-171222',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -74,9 +89,17 @@ const hyperlane: RootAgentConfig = {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: '497db63-20230614-174455',
+      tag: 'ed7569d-20230725-171222',
     },
-    chains: validators,
+    chainDockerOverrides: {
+      [chainMetadata.solanadevnet.name]: {
+        tag: '79bad9d-20230706-190752',
+      },
+      [chainMetadata.zbctestnet.name]: {
+        tag: '79bad9d-20230706-190752',
+      },
+    },
+    chains: validatorChainConfig(Contexts.Hyperlane),
   },
   scraper: {
     connectionType: AgentConnectionType.HttpFallback,
@@ -90,19 +113,66 @@ const hyperlane: RootAgentConfig = {
 const releaseCandidate: RootAgentConfig = {
   ...contextBase,
   context: Contexts.ReleaseCandidate,
-  rolesWithKeys: [Role.Relayer, Role.Kathy],
+  rolesWithKeys: [Role.Relayer, Role.Kathy, Role.Validator],
   relayer: {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: '2deb9b8-20230602-205342',
+      tag: 'ed7569d-20230725-171222',
     },
-    whitelist: releaseCandidateHelloworldMatchingList,
-    gasPaymentEnforcement,
+    whitelist: [
+      ...releaseCandidateHelloworldMatchingList,
+      // Whitelist all traffic to solanadevnet and zbctestnet
+      {
+        originDomain: '*',
+        senderAddress: '*',
+        destinationDomain: [
+          getDomainId(chainMetadata.solanadevnet),
+          getDomainId(chainMetadata.zbctestnet),
+        ],
+        recipientAddress: '*',
+      },
+      // Whitelist all traffic from solanadevnet and zbctestnet to fuji
+      {
+        originDomain: [
+          getDomainId(chainMetadata.solanadevnet),
+          getDomainId(chainMetadata.zbctestnet),
+        ],
+        senderAddress: '*',
+        destinationDomain: [getDomainId(chainMetadata.fuji)],
+        recipientAddress: '*',
+      },
+    ],
+    gasPaymentEnforcement: [
+      // Don't require gas payments from solanadevnet or zbctestnet
+      {
+        type: GasPaymentEnforcementPolicyType.None,
+        matchingList: [
+          {
+            originDomain: [
+              getDomainId(chainMetadata.solanadevnet),
+              getDomainId(chainMetadata.zbctestnet),
+            ],
+            senderAddress: '*',
+            destinationDomain: [getDomainId(chainMetadata.fuji)],
+            recipientAddress: '*',
+          },
+        ],
+      },
+      ...gasPaymentEnforcement,
+    ],
     transactionGasLimit: 750000,
     // Skipping arbitrum because the gas price estimates are inclusive of L1
     // fees which leads to wildly off predictions.
     skipTransactionGasLimitFor: [chainMetadata.arbitrumgoerli.chainId],
+  },
+  validators: {
+    connectionType: AgentConnectionType.HttpFallback,
+    docker: {
+      repo,
+      tag: 'ed7569d-20230725-171222',
+    },
+    chains: validatorChainConfig(Contexts.ReleaseCandidate),
   },
 };
 

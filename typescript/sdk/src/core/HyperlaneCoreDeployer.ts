@@ -11,10 +11,7 @@ import { types } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
-import {
-  HyperlaneIsmFactory,
-  moduleMatchesConfig,
-} from '../ism/HyperlaneIsmFactory';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { IsmConfig } from '../ism/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
@@ -38,37 +35,33 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     });
   }
 
-  async deployTimelock(
-    chain: ChainName,
-    delay: number,
-    owner: types.Address,
-  ): Promise<TimelockController> {
-    const timelock = await this.deployContract(
-      chain,
-      'timelockController',
-      // see https://docs.openzeppelin.com/contracts/4.x/api/governance#TimelockController-constructor-uint256-address---address---address-
-      // delay, [proposers], [executors], admin
-      [delay, [owner], [owner], ethers.constants.AddressZero],
-    );
-    return timelock;
-  }
-
   async deployMailbox(
     chain: ChainName,
-    defaultIsmAddress: types.Address,
+    ismConfig: IsmConfig,
     proxyAdmin: types.Address,
     owner: types.Address,
   ): Promise<Mailbox> {
-    const domain = this.multiProvider.getDomainId(chain);
+    const cachedMailbox = this.readCache(
+      chain,
+      this.factories.mailbox,
+      'mailbox',
+    );
 
-    const mailbox = await this.deployProxiedContract(
+    if (cachedMailbox) {
+      // let checker/governor handle cached mailbox default ISM configuration
+      // TODO: check if config matches AND deployer is owner?
+      return cachedMailbox;
+    }
+
+    const defaultIsmAddress = await this.deployIsm(chain, ismConfig);
+    const domain = this.multiProvider.getDomainId(chain);
+    return this.deployProxiedContract(
       chain,
       'mailbox',
       proxyAdmin,
       [domain],
       [owner, defaultIsmAddress],
     );
-    return mailbox;
   }
 
   async deployValidatorAnnounce(
@@ -84,22 +77,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   }
 
   async deployIsm(chain: ChainName, config: IsmConfig): Promise<types.Address> {
-    const cachedMailbox = this.deployedContracts[chain]?.mailbox;
-    if (cachedMailbox) {
-      const module = await cachedMailbox.defaultIsm();
-      if (
-        await moduleMatchesConfig(
-          chain,
-          module,
-          config,
-          this.ismFactory.multiProvider,
-          this.ismFactory.getContracts(chain),
-        )
-      ) {
-        this.logger(`Default ISM matches config for ${chain}`);
-        return module;
-      }
-    }
     this.logger(`Deploying new ISM to ${chain}`);
     const ism = await this.ismFactory.deploy(chain, config);
     return ism.address;
@@ -118,12 +95,11 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       .getProvider(chain)
       .getBlockNumber();
 
-    const ism = await this.deployIsm(chain, config.defaultIsm);
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
 
     const mailbox = await this.deployMailbox(
       chain,
-      ism,
+      config.defaultIsm,
       proxyAdmin.address,
       config.owner,
     );
@@ -133,18 +109,16 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     );
 
     let timelockController: TimelockController;
-    if (config.upgradeTimelockDelay) {
+    if (config.upgrade) {
       timelockController = await this.deployTimelock(
         chain,
-        config.upgradeTimelockDelay,
-        config.owner,
+        config.upgrade.timelock,
       );
       await this.transferOwnershipOfContracts(
         chain,
         timelockController.address,
         { proxyAdmin },
       );
-      await this.transferOwnershipOfContracts(chain, config.owner, { mailbox });
     } else {
       // mock this for consistent serialization
       timelockController = TimelockController__factory.connect(

@@ -15,7 +15,7 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {IMessageHook} from "../interfaces/hooks/IMessageHook.sol";
-import {OptimismISM} from "../isms/native/OptimismISM.sol";
+import {OptimismISM} from "../isms/hook/OptimismISM.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 
 // ============ External Imports ============

@@ -17,16 +17,14 @@ export abstract class RouterApp<
 
   getSecurityModules = (): Promise<ChainMap<types.Address>> =>
     promiseObjAll(
-      objMap(this.contractsMap, (_, contracts) =>
+      objMap(this.chainMap, (_, contracts) =>
         this.router(contracts).interchainSecurityModule(),
       ),
     );
 
   getOwners = (): Promise<ChainMap<types.Address>> =>
     promiseObjAll(
-      objMap(this.contractsMap, (_, contracts) =>
-        this.router(contracts).owner(),
-      ),
+      objMap(this.chainMap, (_, contracts) => this.router(contracts).owner()),
     );
 }
 

@@ -321,7 +321,7 @@ impl PendingMessage {
                 pm.next_attempt_after = next_attempt_after;
             }
             r => {
-                info!(message_id = ?pm.message.id(), result = ?r, "Failed to read retry count from HyperlaneDB for message.")
+                trace!(message_id = ?pm.message.id(), result = ?r, "Failed to read retry count from HyperlaneDB for message.")
             }
         }
         pm

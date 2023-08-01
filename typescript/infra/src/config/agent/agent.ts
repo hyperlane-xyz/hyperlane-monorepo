@@ -23,6 +23,7 @@ import { HelmValidatorValues, ValidatorBaseChainConfigMap } from './validator';
 export interface HelmRootAgentValues {
   image: HelmImageValues;
   hyperlane: HelmHyperlaneValues;
+  nameOverride?: string;
 }
 
 // See rust/helm/values.yaml for the full list of options and their defaults.
@@ -78,6 +79,7 @@ export interface AgentContextConfig extends AgentEnvConfig {
 // incomplete common agent configuration for a role
 interface AgentRoleConfig {
   docker: DockerConfig;
+  chainDockerOverrides?: Record<ChainName, Partial<DockerConfig>>;
   quorumProvider?: boolean;
   connectionType: AgentConnectionType;
   index?: IndexingConfig;
@@ -158,12 +160,14 @@ export abstract class AgentConfigHelper<R = unknown>
 {
   connectionType: AgentConnectionType;
   docker: DockerConfig;
+  chainDockerOverrides?: Record<ChainName, Partial<DockerConfig>>;
   index?: IndexingConfig;
 
   protected constructor(root: RootAgentConfig, agent: AgentRoleConfig) {
     super(root);
     this.connectionType = agent.connectionType;
     this.docker = agent.docker;
+    this.chainDockerOverrides = agent.chainDockerOverrides;
     this.index = agent.index;
   }
 
@@ -171,4 +175,15 @@ export abstract class AgentConfigHelper<R = unknown>
   abstract get role(): Role;
 
   abstract buildConfig(): Promise<R>;
+
+  // If the provided chain has an override, return the override, otherwise return the default.
+  dockerImageForChain(chainName: ChainName): DockerConfig {
+    if (this.chainDockerOverrides?.[chainName]) {
+      return {
+        ...this.docker,
+        ...this.chainDockerOverrides[chainName],
+      };
+    }
+    return this.docker;
+  }
 }

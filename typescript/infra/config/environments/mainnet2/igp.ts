@@ -9,9 +9,12 @@ import {
 import { utils } from '@hyperlane-xyz/utils';
 
 import { MainnetChains, chainNames } from './chains';
+import { core } from './core';
 import { owners } from './owners';
 
+// TODO: make this generic
 const KEY_FUNDER_ADDRESS = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
+const DEPLOYER_ADDRESS = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 
 function getGasOracles(local: MainnetChains) {
   return Object.fromEntries(
@@ -26,6 +29,7 @@ export const igp: ChainMap<OverheadIgpConfig> = objMap(
   (chain, owner) => {
     return {
       owner,
+      oracleKey: DEPLOYER_ADDRESS,
       beneficiary: KEY_FUNDER_ADDRESS,
       gasOracleType: getGasOracles(chain),
       overhead: Object.fromEntries(
@@ -39,6 +43,7 @@ export const igp: ChainMap<OverheadIgpConfig> = objMap(
             ),
           ]),
       ),
+      upgrade: core[chain].upgrade,
     };
   },
 );

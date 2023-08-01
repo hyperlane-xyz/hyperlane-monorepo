@@ -9,15 +9,15 @@ use async_trait::async_trait;
 use ethers::abi::AbiEncode;
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
-use hyperlane_core::accumulator::incremental::IncrementalMerkle;
-use hyperlane_core::accumulator::TREE_DEPTH;
 use tracing::instrument;
 
+use hyperlane_core::accumulator::incremental::IncrementalMerkle;
+use hyperlane_core::accumulator::TREE_DEPTH;
 use hyperlane_core::{
-    utils::fmt_bytes, ChainCommunicationError, ChainResult, Checkpoint, ContractLocator,
-    HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProtocolError, HyperlaneProvider, Indexer, LogMeta, Mailbox, MessageIndexer,
-    RawHyperlaneMessage, TxCostEstimate, TxOutcome, H160, H256, U256,
+    utils::fmt_bytes, BlockRange, ChainCommunicationError, ChainResult, Checkpoint,
+    ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneMessage, HyperlaneProtocolError, HyperlaneProvider, IndexRange, Indexer, LogMeta,
+    Mailbox, MessageIndexer, RawHyperlaneMessage, TxCostEstimate, TxOutcome, H160, H256, U256,
 };
 
 use crate::contracts::arbitrum_node_interface::ArbitrumNodeInterface;
@@ -130,16 +130,18 @@ where
     }
 
     #[instrument(err, skip(self))]
-    async fn fetch_logs(
-        &self,
-        from: u32,
-        to: u32,
-    ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
+    async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
+        let BlockRange(range) = range else {
+            return Err(ChainCommunicationError::from_other_str(
+                "EthereumMailboxIndexer only supports block-based indexing",
+            ))
+        };
+
         let mut events: Vec<(HyperlaneMessage, LogMeta)> = self
             .contract
             .dispatch_filter()
-            .from_block(from)
-            .to_block(to)
+            .from_block(*range.start())
+            .to_block(*range.end())
             .query_with_meta()
             .await?
             .into_iter()
@@ -176,12 +178,18 @@ where
     }
 
     #[instrument(err, skip(self))]
-    async fn fetch_logs(&self, from: u32, to: u32) -> ChainResult<Vec<(H256, LogMeta)>> {
+    async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(H256, LogMeta)>> {
+        let BlockRange(range) = range else {
+            return Err(ChainCommunicationError::from_other_str(
+                "EthereumMailboxIndexer only supports block-based indexing",
+            ))
+        };
+
         Ok(self
             .contract
             .process_id_filter()
-            .from_block(from)
-            .to_block(to)
+            .from_block(*range.start())
+            .to_block(*range.end())
             .query_with_meta()
             .await?
             .into_iter()
@@ -380,6 +388,7 @@ where
                     Some(fixed_block_number),
                 )
                 .await
+                .map(Into::into)
                 .map_err(ChainCommunicationError::from_other)?;
         }
 
@@ -446,13 +455,13 @@ where
             Some(
                 arbitrum_node_interface
                     .estimate_retryable_ticket(
-                        H160::zero(),
+                        H160::zero().into(),
                         // Give the sender a deposit, otherwise it reverts
-                        U256::MAX,
+                        U256::MAX.into(),
                         self.contract.address(),
-                        U256::zero(),
-                        H160::zero(),
-                        H160::zero(),
+                        U256::zero().into(),
+                        H160::zero().into(),
+                        H160::zero().into(),
                         contract_call.calldata().unwrap_or_default(),
                     )
                     .estimate_gas()
@@ -469,9 +478,9 @@ where
             .map_err(ChainCommunicationError::from_other)?;
 
         Ok(TxCostEstimate {
-            gas_limit,
-            gas_price,
-            l2_gas_limit,
+            gas_limit: gas_limit.into(),
+            gas_price: gas_price.into(),
+            l2_gas_limit: l2_gas_limit.map(|v| v.into()),
         })
     }
 
@@ -501,8 +510,9 @@ mod test {
 
     use ethers::{
         providers::{MockProvider, Provider},
-        types::{Block, Transaction},
+        types::{Block, Transaction, U256 as EthersU256},
     };
+
     use hyperlane_core::{
         ContractLocator, HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, Mailbox,
         TxCostEstimate, H160, H256, U256,
@@ -534,7 +544,7 @@ mod test {
         assert!(mailbox.arbitrum_node_interface.is_some());
         // Confirm `H160::from_low_u64_ne(0xC8)` does what's expected
         assert_eq!(
-            mailbox.arbitrum_node_interface.as_ref().unwrap().address(),
+            H160::from(mailbox.arbitrum_node_interface.as_ref().unwrap().address()),
             H160::from_str("0x00000000000000000000000000000000000000C8").unwrap(),
         );
 
@@ -544,7 +554,8 @@ mod test {
 
         // RPC 4: eth_gasPrice by process_estimate_costs
         // Return 15 gwei
-        let gas_price: U256 = ethers::utils::parse_units("15", "gwei").unwrap().into();
+        let gas_price: U256 =
+            EthersU256::from(ethers::utils::parse_units("15", "gwei").unwrap()).into();
         mock_provider.push(gas_price).unwrap();
 
         // RPC 3: eth_estimateGas to the ArbitrumNodeInterface's estimateRetryableTicket function by process_estimate_costs
