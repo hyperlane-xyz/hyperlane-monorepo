@@ -301,7 +301,7 @@ impl ChainConf {
     }
 
     /// Fetch the index settings and index mode, since they are often used together.
-    pub fn settings_and_mode(&self) -> (IndexSettings, IndexMode) {
+    pub fn index_settings_and_mode(&self) -> (IndexSettings, IndexMode) {
         (self.index.clone(), self.domain.index_mode())
     }
 

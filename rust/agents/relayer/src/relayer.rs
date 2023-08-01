@@ -267,7 +267,7 @@ impl Relayer {
         origin: &HyperlaneDomain,
     ) -> Instrumented<JoinHandle<eyre::Result<()>>> {
         let (index_settings, index_mode) =
-            self.as_ref().settings.chains[origin.name()].settings_and_mode();
+            self.as_ref().settings.chains[origin.name()].index_settings_and_mode();
         let contract_sync = self.message_syncs.get(origin).unwrap().clone();
         let cursor = contract_sync
             .forward_backward_message_sync_cursor(index_settings, index_mode)
@@ -286,7 +286,7 @@ impl Relayer {
         origin: &HyperlaneDomain,
     ) -> Instrumented<JoinHandle<eyre::Result<()>>> {
         let (index_settings, index_mode) =
-            self.as_ref().settings.chains[origin.name()].settings_and_mode();
+            self.as_ref().settings.chains[origin.name()].index_settings_and_mode();
         let contract_sync = self
             .interchain_gas_payment_syncs
             .get(origin)

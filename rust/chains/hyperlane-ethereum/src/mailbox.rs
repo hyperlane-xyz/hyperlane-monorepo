@@ -197,7 +197,7 @@ where
     M: Middleware + 'static,
 {
     async fn sequence_at_tip(&self) -> ChainResult<(u32, u32)> {
-        panic!("Gas payment nonce indexing not implemented");
+        panic!("Message delivery sequence indexing not implemented");
     }
 }
 
