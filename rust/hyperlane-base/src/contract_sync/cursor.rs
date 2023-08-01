@@ -369,7 +369,10 @@ impl ForwardBackwardMessageSyncCursor {
         chunk_size: u32,
         mode: IndexMode,
     ) -> Result<Self> {
-        let (count, tip) = indexer.fetch_count_at_tip().await?;
+        let res = indexer.fetch_count_at_tip().await;
+        print!("res: {:?}", res);
+        let (count, tip) = res?;
+        // let (count, tip) = indexer.fetch_count_at_tip().await?;
         let forward_cursor = ForwardMessageSyncCursor::new(
             indexer.clone(),
             db.clone(),

@@ -160,6 +160,10 @@ impl SealevelInterchainGasPaymasterIndexer {
                     "Could not find program address for unique_gas_payment_pubkey",
                 )
             })?;
+            info!(
+                "~~~~~~~ unique_message_pubkey={}\nexpected_pubkey={} \n program_id={}",
+                unique_message_pubkey, expected_pubkey, self.igp.program_id
+            );
             if expected_pubkey == *pubkey {
                 valid_payment_pda_pubkey = Some(*pubkey);
                 break;
