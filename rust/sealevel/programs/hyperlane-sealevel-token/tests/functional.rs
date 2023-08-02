@@ -4,8 +4,13 @@
 
 use account_utils::DiscriminatorEncode;
 use hyperlane_core::{Encode, HyperlaneMessage, H256, U256};
-use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
-use hyperlane_sealevel_igp::{accounts::InterchainGasPaymasterType, igp_gas_payment_pda_seeds};
+use hyperlane_sealevel_connection_client::{
+    gas_router::GasRouterConfig, router::RemoteRouterConfig,
+};
+use hyperlane_sealevel_igp::{
+    accounts::{GasPaymentAccount, GasPaymentData, InterchainGasPaymasterType},
+    igp_gas_payment_pda_seeds,
+};
 use hyperlane_sealevel_mailbox::{
     accounts::{DispatchedMessage, DispatchedMessageAccount},
     mailbox_dispatched_message_pda_seeds, mailbox_message_dispatch_authority_pda_seeds,
@@ -51,6 +56,7 @@ const LOCAL_DECIMALS: u8 = 8;
 const LOCAL_DECIMALS_U32: u32 = LOCAL_DECIMALS as u32;
 const REMOTE_DOMAIN: u32 = 4321;
 const REMOTE_DECIMALS: u8 = 18;
+const REMOTE_GAS_AMOUNT: u64 = 200000;
 
 fn hyperlane_sealevel_token_id() -> Pubkey {
     pubkey!("3MzUPjP5LEkiHH82nEAe28Xtz9ztuMqWc8UmuKxrpVQH")
@@ -188,6 +194,27 @@ async fn initialize_hyperlane_token(
     );
     banks_client.process_transaction(transaction).await?;
 
+    // Set destination gas configs
+    let transaction = Transaction::new_signed_with_payer(
+        &[Instruction::new_with_bytes(
+            *program_id,
+            &HyperlaneTokenInstruction::SetDestinationGasConfigs(vec![GasRouterConfig {
+                domain: REMOTE_DOMAIN,
+                gas: Some(REMOTE_GAS_AMOUNT),
+            }])
+            .encode()
+            .unwrap(),
+            vec![
+                AccountMeta::new(token_account_key, false),
+                AccountMeta::new_readonly(payer.pubkey(), true),
+            ],
+        )],
+        Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(transaction).await?;
+
     Ok(HyperlaneTokenAccounts {
         token: token_account_key,
         token_bump: token_account_bump_seed,
@@ -281,6 +308,7 @@ async fn test_initialize() {
                 igp_accounts.program,
                 InterchainGasPaymasterType::OverheadIgp(igp_accounts.overhead_igp),
             )),
+            destination_gas: HashMap::from([(REMOTE_DOMAIN, REMOTE_GAS_AMOUNT)]),
             remote_routers: HashMap::new(),
             plugin_data: SyntheticPlugin {
                 mint: hyperlane_token_accounts.mint,
@@ -748,6 +776,30 @@ async fn test_transfer_remote() {
             unique_message_account_keypair.pubkey(),
             message.to_vec(),
         )),
+    );
+
+    // And let's also look at the gas payment account to verify the gas payment looks right.
+    let gas_payment_account_data = banks_client
+        .get_account(gas_payment_pda_key)
+        .await
+        .unwrap()
+        .unwrap()
+        .data;
+    let gas_payment = GasPaymentAccount::fetch(&mut &gas_payment_account_data[..])
+        .unwrap()
+        .into_inner();
+
+    assert_eq!(
+        *gas_payment,
+        GasPaymentData {
+            sequence_number: 0,
+            igp: igp_accounts.igp,
+            destination_domain: REMOTE_DOMAIN,
+            message_id: message.id(),
+            gas_amount: REMOTE_GAS_AMOUNT,
+            slot: transfer_remote_tx_status.slot,
+        }
+        .into(),
     );
 }
 
