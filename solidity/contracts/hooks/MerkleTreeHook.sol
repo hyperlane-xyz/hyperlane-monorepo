@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0;
 
-import {AbstractHook} from "./AbstractHook.sol";
 import {MerkleLib, TREE_DEPTH} from "../libs/Merkle.sol";
 import {Message} from "../libs/Message.sol";
+import {MailboxClient} from "../client/MailboxClient.sol";
+import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 
-contract MerkleTreeHook is AbstractHook {
+contract MerkleTreeHook is IPostDispatchHook, MailboxClient {
     using Message for bytes;
     using MerkleLib for MerkleLib.Tree;
 
     // An incremental merkle tree used to store outbound message IDs.
     MerkleLib.Tree internal _tree;
 
-    constructor(address _mailbox) AbstractHook(_mailbox) {}
+    constructor(address _mailbox) MailboxClient(_mailbox) {}
 
     function count() public view returns (uint32) {
         return uint32(_tree.count);
@@ -34,7 +35,12 @@ contract MerkleTreeHook is AbstractHook {
         return (root(), count() - 1);
     }
 
-    function _postDispatch(bytes calldata message) internal override {
-        _tree.insert(message.id());
+    function postDispatch(
+        bytes calldata, /*metadata*/
+        bytes calldata message
+    ) external payable override {
+        bytes32 id = message.id();
+        require(isLatestDispatched(id), "message not dispatching");
+        _tree.insert(id);
     }
 }

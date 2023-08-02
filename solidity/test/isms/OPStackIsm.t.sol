@@ -7,8 +7,8 @@ import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {Mailbox} from "../../contracts/Mailbox.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {TestMultisigIsm} from "../../contracts/test/TestMultisigIsm.sol";
-import {OptimismISM} from "../../contracts/isms/hook/OptimismISM.sol";
-import {OptimismMessageHook} from "../../contracts/hooks/OptimismMessageHook.sol";
+import {OPStackIsm} from "../../contracts/isms/hook/OPStackIsm.sol";
+import {OPStackHook} from "../../contracts/hooks/OPStackHook.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
 import {NotCrossChainCall} from "../../contracts/isms/hook/crossChainEnabled/errors.sol";
 
@@ -20,7 +20,7 @@ import {L2CrossDomainMessenger} from "@eth-optimism/contracts-bedrock/contracts/
 import {Encoding} from "@eth-optimism/contracts-bedrock/contracts/libraries/Encoding.sol";
 import {Hashing} from "@eth-optimism/contracts-bedrock/contracts/libraries/Hashing.sol";
 
-contract OptimismISMTest is Test {
+contract OPStackIsmTest is Test {
     using TypeCasts for address;
 
     uint256 internal mainnetFork;
@@ -40,8 +40,8 @@ contract OptimismISMTest is Test {
 
     ICrossDomainMessenger internal l1Messenger;
     L2CrossDomainMessenger internal l2Messenger;
-    OptimismISM internal opISM;
-    OptimismMessageHook internal opHook;
+    OPStackIsmTest internal opISM;
+    OPStackHook internal opHook;
 
     TestRecipient internal testRecipient;
     bytes internal testMessage =
@@ -84,7 +84,7 @@ contract OptimismISMTest is Test {
 
         l1Messenger = ICrossDomainMessenger(L1_MESSENGER_ADDRESS);
 
-        opHook = new OptimismMessageHook(
+        opHook = new OPStackHook(
             OPTIMISM_DOMAIN,
             L1_MESSENGER_ADDRESS,
             address(opISM)
@@ -93,17 +93,17 @@ contract OptimismISMTest is Test {
         vm.makePersistent(address(opHook));
     }
 
-    function deployOptimismISM() public {
+    function deployOPStackIsm() public {
         vm.selectFork(optimismFork);
 
         l2Messenger = L2CrossDomainMessenger(L2_MESSENGER_ADDRESS);
-        opISM = new OptimismISM(L2_MESSENGER_ADDRESS);
+        opISM = new OPStackIsm(L2_MESSENGER_ADDRESS);
 
         vm.makePersistent(address(opISM));
     }
 
     function deployAll() public {
-        deployOptimismISM();
+        deployOPStackIsm();
         deployOptimismHook();
 
         vm.selectFork(optimismFork);
@@ -128,7 +128,7 @@ contract OptimismISMTest is Test {
         vm.selectFork(mainnetFork);
 
         bytes memory encodedHookData = abi.encodeCall(
-            OptimismISM.verifyMessageId,
+            OPStackIsm.verifyMessageId,
             (address(this).addressToBytes32(), messageId)
         );
 
@@ -164,7 +164,7 @@ contract OptimismISMTest is Test {
         vm.selectFork(optimismFork);
 
         bytes memory encodedHookData = abi.encodeCall(
-            OptimismISM.verifyMessageId,
+            OPStackIsm.verifyMessageId,
             (address(this).addressToBytes32(), messageId)
         );
 
@@ -222,7 +222,7 @@ contract OptimismISMTest is Test {
     //     vm.selectFork(optimismFork);
 
     //     bytes memory encodedHookData = abi.encodeCall(
-    //         OptimismISM.verifyMessageId,
+    //         OPStackIsm.verifyMessageId,
     //         (address(this), messageId)
     //     );
 
@@ -267,7 +267,7 @@ contract OptimismISMTest is Test {
         vm.startPrank(L2_MESSENGER_ADDRESS);
 
         // needs to be called by the authorized hook contract on Ethereum
-        vm.expectRevert("OptimismISM: sender is not the hook");
+        vm.expectRevert("OPStackIsm: sender is not the hook");
         opISM.verifyMessageId(address(opHook).addressToBytes32(), messageId);
     }
 
@@ -279,7 +279,7 @@ contract OptimismISMTest is Test {
         vm.selectFork(optimismFork);
 
         bytes memory encodedHookData = abi.encodeCall(
-            OptimismISM.verifyMessageId,
+            OPStackIsm.verifyMessageId,
             (address(this).addressToBytes32(), messageId)
         );
 
@@ -312,7 +312,7 @@ contract OptimismISMTest is Test {
         vm.selectFork(optimismFork);
 
         bytes memory encodedHookData = abi.encodeCall(
-            OptimismISM.verifyMessageId,
+            OPStackIsm.verifyMessageId,
             (address(this).addressToBytes32(), messageId)
         );
 
@@ -349,7 +349,7 @@ contract OptimismISMTest is Test {
         bytes32 _messageId = Message.id(invalidMessage);
 
         bytes memory encodedHookData = abi.encodeCall(
-            OptimismISM.verifyMessageId,
+            OPStackIsm.verifyMessageId,
             (address(this).addressToBytes32(), _messageId)
         );
 
@@ -381,7 +381,7 @@ contract OptimismISMTest is Test {
         vm.selectFork(optimismFork);
 
         bytes memory encodedHookData = abi.encodeCall(
-            OptimismISM.verifyMessageId,
+            OPStackIsm.verifyMessageId,
             (alice.addressToBytes32(), messageId)
         );
 

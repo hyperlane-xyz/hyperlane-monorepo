@@ -2,22 +2,15 @@
 pragma solidity >=0.8.0;
 
 import {IInterchainSecurityModule} from "./IInterchainSecurityModule.sol";
+import {IPostDispatchHook} from "./hooks/IPostDispatchHook.sol";
 
 interface IMailbox {
     // ============ Events ============
     /**
      * @notice Emitted when a new message is dispatched via Hyperlane
-     * @param sender The address that dispatched the message
-     * @param destination The destination domain of the message
-     * @param recipient The message recipient address on `destination`
      * @param message Raw bytes of message
      */
-    event Dispatch(
-        address indexed sender,
-        uint32 indexed destination,
-        bytes32 indexed recipient,
-        bytes message
-    );
+    event Dispatch(bytes message);
 
     /**
      * @notice Emitted when a new message is dispatched via Hyperlane
@@ -26,22 +19,16 @@ interface IMailbox {
     event DispatchId(bytes32 indexed messageId);
 
     /**
+     * @notice Emitted when a Hyperlane message is delivered
+     * @param message Raw bytes of message
+     */
+    event Process(bytes message);
+
+    /**
      * @notice Emitted when a Hyperlane message is processed
      * @param messageId The unique message identifier
      */
     event ProcessId(bytes32 indexed messageId);
-
-    /**
-     * @notice Emitted when a Hyperlane message is delivered
-     * @param origin The origin domain of the message
-     * @param sender The message sender address on `origin`
-     * @param recipient The address that handled the message
-     */
-    event Process(
-        uint32 indexed origin,
-        bytes32 indexed sender,
-        address indexed recipient
-    );
 
     function localDomain() external view returns (uint32);
 
@@ -49,23 +36,37 @@ interface IMailbox {
 
     function defaultIsm() external view returns (IInterchainSecurityModule);
 
+    function defaultHook() external view returns (IPostDispatchHook);
+
+    function latestDispatchedId() external view returns (bytes32);
+
     function dispatch(
-        uint32 _destinationDomain,
-        bytes32 _recipientAddress,
-        bytes calldata _messageBody
-    ) external returns (bytes32);
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata messageBody
+    ) external payable returns (bytes32 messageId);
 
-    function process(bytes calldata _metadata, bytes calldata _message)
-        external;
+    function dispatch(
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata body,
+        bytes calldata defaultHookMetadata
+    ) external payable returns (bytes32 messageId);
 
-    function count() external view returns (uint32);
+    function dispatch(
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata body,
+        IPostDispatchHook customHook,
+        bytes calldata customHookMetadata
+    ) external payable returns (bytes32 messageId);
 
-    function root() external view returns (bytes32);
+    function process(bytes calldata metadata, bytes calldata message)
+        external
+        payable;
 
-    function latestCheckpoint() external view returns (bytes32, uint32);
-
-    function recipientIsm(address _recipient)
+    function recipientIsm(address recipient)
         external
         view
-        returns (IInterchainSecurityModule);
+        returns (IInterchainSecurityModule module);
 }

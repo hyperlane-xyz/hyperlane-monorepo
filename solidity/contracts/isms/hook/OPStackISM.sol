@@ -19,34 +19,42 @@ import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityMod
 import {Message} from "../../libs/Message.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {AbstractMessageIdAuthorizedIsm} from "./AbstractMessageIdAuthorizedIsm.sol";
+import {CrossChainEnabledOptimism} from "./crossChainEnabled/optimism/CrossChainEnabledOptimism.sol";
 
 // ============ External Imports ============
 
+import {ICrossDomainMessenger} from "@eth-optimism/contracts/libraries/bridge/ICrossDomainMessenger.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
- * @title ERC5164ISM
- * @notice Uses the generic eip-5164 standard to verify interchain messages.
+ * @title OPStackIsm
+ * @notice Uses the native Optimism bridge to verify interchain messages.
+ * @dev V3 WIP
  */
-contract ERC5164ISM is AbstractMessageIdAuthorizedIsm {
+contract OPStackIsm is
+    CrossChainEnabledOptimism,
+    AbstractMessageIdAuthorizedIsm
+{
     // ============ Constants ============
 
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.NULL);
-    // corresponding 5164 executor address
-    address public immutable executor;
 
     // ============ Constructor ============
 
-    constructor(address _executor) {
-        require(Address.isContract(_executor), "ERC5164ISM: invalid executor");
-        executor = _executor;
+    constructor(address _l2Messenger) CrossChainEnabledOptimism(_l2Messenger) {
+        require(
+            Address.isContract(_l2Messenger),
+            "OPStackIsm: invalid L2Messenger"
+        );
     }
+
+    // ============ Internal function ============
 
     /**
      * @notice Check if sender is authorized to message `verifyMessageId`.
      */
     function _isAuthorized() internal view override returns (bool) {
-        return msg.sender == executor;
+        return _crossChainSender() == authorizedHook;
     }
 }
