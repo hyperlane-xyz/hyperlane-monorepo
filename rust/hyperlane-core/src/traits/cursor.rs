@@ -1,9 +1,9 @@
-use std::time::Duration;
+use std::{ops::RangeInclusive, time::Duration};
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
 
-use crate::{ChainResult, IndexRange, LogMeta};
+use crate::{ChainResult, LogMeta};
 
 /// A cursor governs event indexing for a contract.
 #[async_trait]
@@ -23,7 +23,7 @@ pub trait ContractSyncCursor<T>: Send + Sync + 'static {
 /// The action that should be taken by the contract sync loop
 pub enum CursorAction {
     /// Direct the contract_sync task to query a block range (inclusive)
-    Query(IndexRange),
+    Query(RangeInclusive<u32>),
     /// Direct the contract_sync task to sleep for a duration
     Sleep(Duration),
 }
