@@ -78,11 +78,14 @@ abstract contract AbstractMessageIdAuthorizedIsm is
      * @param _messageId Hyperlane ID for the message.
      */
     function verifyMessageId(bytes32 _messageId) external virtual {
-        _isAuthorized();
+        require(
+            _isAuthorized(),
+            "AbstractMessageIdAuthorizedIsm: sender is not the hook"
+        );
 
         verifiedMessageIds[_messageId] = true;
         emit ReceivedMessage(_messageId);
     }
 
-    function _isAuthorized() internal view virtual;
+    function _isAuthorized() internal view virtual returns (bool);
 }

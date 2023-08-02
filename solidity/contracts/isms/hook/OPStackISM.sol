@@ -55,10 +55,7 @@ contract OPStackIsm is
     /**
      * @notice Check if sender is authorized to message `verifyMessageId`.
      */
-    function _isAuthorized() internal view override {
-        require(
-            _crossChainSender() == authorizedHook,
-            "OPStackIsm: sender is not the hook"
-        );
+    function _isAuthorized() internal view override returns (bool) {
+        return _crossChainSender() == authorizedHook;
     }
 }
