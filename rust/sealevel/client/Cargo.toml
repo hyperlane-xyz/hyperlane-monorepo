@@ -24,7 +24,7 @@ hyperlane-sealevel-connection-client = { path = "../libraries/hyperlane-sealevel
 hyperlane-sealevel-mailbox = { path = "../programs/mailbox", features = ["no-entrypoint"] }
 hyperlane-sealevel-multisig-ism-message-id = { path = "../programs/ism/multisig-ism-message-id", features = ["no-entrypoint"] }
 hyperlane-sealevel-token = { path = "../programs/hyperlane-sealevel-token", features = ["no-entrypoint"] }
-hyperlane-sealevel-igp = { path = "../programs/interchain-gas-paymaster", features = ["serde"] }
+hyperlane-sealevel-igp = { path = "../programs/hyperlane-sealevel-igp", features = ["serde"] }
 hyperlane-sealevel-token-collateral = { path = "../programs/hyperlane-sealevel-token-collateral", features = ["no-entrypoint"] }
 hyperlane-sealevel-token-lib = { path = "../libraries/hyperlane-sealevel-token" }
 hyperlane-sealevel-token-native = { path = "../programs/hyperlane-sealevel-token-native", features = ["no-entrypoint"] }
