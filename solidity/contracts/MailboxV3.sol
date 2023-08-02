@@ -37,8 +37,17 @@ contract MailboxV3 is IMailboxV3, Versioned, Ownable {
     // The default post dispatch hook, used for post processing of dispatched messages.
     IPostDispatchHook public defaultHook;
 
-    // Mapping of message ID to whether or not that message has been delivered.
-    mapping(bytes32 => bool) public delivered;
+    // Mapping of message ID to Delivery struct
+    struct Delivery {
+        address sender;
+        // uint48 timestamp;
+        // uint48 gasUsed?
+    }
+    mapping(bytes32 => Delivery) internal deliveries;
+
+    function delivered(bytes32 messageId) public view override returns (bool) {
+        return deliveries[messageId].sender != address(0x0);
+    }
 
     // ============ Events ============
 
@@ -91,12 +100,37 @@ contract MailboxV3 is IMailboxV3, Versioned, Ownable {
         bytes32 _recipientAddress,
         bytes calldata _messageBody
     ) external payable override returns (bytes32) {
+        bytes calldata _defaultHookMetadata = _messageBody[0:0]; // empty calldata bytes
         return
-            _dispatch(
+            dispatch(
                 _destinationDomain,
                 _recipientAddress,
                 _messageBody,
-                bytes("")
+                _defaultHookMetadata
+            );
+    }
+
+    /**
+     * @notice Dispatches a message to the destination domain & recipient.
+     * @param destinationDomain Domain of destination chain
+     * @param recipientAddress Address of recipient on destination chain as bytes32
+     * @param messageBody Raw bytes content of message body
+     * @param defaultHookMetadata Metadata used by the post dispatch hook
+     * @return The message ID inserted into the Mailbox's merkle tree
+     */
+    function dispatch(
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata messageBody,
+        bytes calldata defaultHookMetadata
+    ) public payable override returns (bytes32) {
+        return
+            dispatch(
+                destinationDomain,
+                recipientAddress,
+                messageBody,
+                defaultHook,
+                defaultHookMetadata
             );
     }
 
@@ -112,15 +146,29 @@ contract MailboxV3 is IMailboxV3, Versioned, Ownable {
         uint32 destinationDomain,
         bytes32 recipientAddress,
         bytes calldata messageBody,
+        IPostDispatchHook hook,
         bytes calldata hookMetadata
-    ) external payable override returns (bytes32) {
-        return
-            _dispatch(
-                destinationDomain,
-                recipientAddress,
-                messageBody,
-                hookMetadata
-            );
+    ) public payable returns (bytes32) {
+        // Format the message into packed bytes.
+        bytes memory message = Message.formatMessage(
+            VERSION,
+            nonce,
+            localDomain,
+            msg.sender.addressToBytes32(),
+            destinationDomain,
+            recipientAddress,
+            messageBody
+        );
+
+        // effects
+        nonce += 1;
+        bytes32 id = message.id();
+        emit DispatchId(id);
+        emit Dispatch(message);
+
+        // interactions
+        hook.postDispatch{value: msg.value}(hookMetadata, message);
+        return id;
     }
 
     /**
@@ -140,22 +188,23 @@ contract MailboxV3 is IMailboxV3, Versioned, Ownable {
 
         // Check that the message hasn't already been delivered.
         bytes32 _id = _message.id();
-        require(delivered[_id] == false, "delivered");
+        require(delivered(_id) == false, "delivered");
 
         address recipient = _message.recipientAddress();
 
+        // effects
+        deliveries[_id].sender = msg.sender;
+        emit Process(_message);
+        emit ProcessId(_id);
+
+        // interactions
         // Verify the message via the ISM.
         IInterchainSecurityModule _ism = IInterchainSecurityModule(
             recipientIsm(recipient)
         );
         require(_ism.verify(_metadata, _message), "!module");
 
-        // effects
-        delivered[_id] = true;
-        emit Process(_message);
-        emit ProcessId(_id);
-
-        // Deliver the message to the recipient. (interactions)
+        // Deliver the message to the recipient.
         IMessageRecipient(recipient).handle{value: msg.value}(
             _message.origin(),
             _message.sender(),
@@ -191,35 +240,5 @@ contract MailboxV3 is IMailboxV3, Versioned, Ownable {
             // solhint-disable-next-line no-empty-blocks
         } catch {}
         return defaultIsm;
-    }
-
-    // ============ Internal Functions ============
-
-    function _dispatch(
-        uint32 destinationDomain,
-        bytes32 recipientAddress,
-        bytes calldata messageBody,
-        bytes memory hookMetadata
-    ) internal returns (bytes32) {
-        // Format the message into packed bytes.
-        bytes memory message = Message.formatMessage(
-            VERSION,
-            nonce,
-            localDomain,
-            msg.sender.addressToBytes32(),
-            destinationDomain,
-            recipientAddress,
-            messageBody
-        );
-
-        // effects
-        nonce += 1;
-        bytes32 id = message.id();
-        emit DispatchId(id);
-        emit Dispatch(message);
-
-        // interactions
-        defaultHook.postDispatch{value: msg.value}(hookMetadata, message);
-        return id;
     }
 }
