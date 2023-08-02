@@ -658,13 +658,13 @@ async fn test_transfer_remote() {
     .unwrap();
 
     // Call transfer_remote
-    let unique_message_account_keypair = Keypair::new();
+    let unique_gas_payment_keypair = Keypair::new();
     let (dispatched_message_key, _dispatched_message_bump) = Pubkey::find_program_address(
-        mailbox_dispatched_message_pda_seeds!(&unique_message_account_keypair.pubkey()),
+        mailbox_dispatched_message_pda_seeds!(&unique_gas_payment_keypair.pubkey()),
         &mailbox_program_id,
     );
     let (gas_payment_pda_key, _gas_payment_pda_bump) = Pubkey::find_program_address(
-        igp_gas_payment_pda_seeds!(&unique_message_account_keypair.pubkey()),
+        igp_gas_payment_pda_seeds!(&unique_gas_payment_keypair.pubkey()),
         &igp_program_id(),
     );
 
@@ -712,7 +712,7 @@ async fn test_transfer_remote() {
                 AccountMeta::new(mailbox_accounts.outbox, false),
                 AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
                 AccountMeta::new_readonly(token_sender_pubkey, true),
-                AccountMeta::new_readonly(unique_message_account_keypair.pubkey(), true),
+                AccountMeta::new_readonly(unique_gas_payment_keypair.pubkey(), true),
                 AccountMeta::new(dispatched_message_key, false),
                 AccountMeta::new_readonly(igp_accounts.program, false),
                 AccountMeta::new(igp_accounts.program_data, false),
@@ -725,7 +725,7 @@ async fn test_transfer_remote() {
             ],
         )],
         Some(&token_sender_pubkey),
-        &[&token_sender, &unique_message_account_keypair],
+        &[&token_sender, &unique_gas_payment_keypair],
         recent_blockhash,
     );
     let tx_signature = transaction.signatures[0];
@@ -773,7 +773,7 @@ async fn test_transfer_remote() {
         Box::new(DispatchedMessage::new(
             message.nonce,
             transfer_remote_tx_status.slot,
-            unique_message_account_keypair.pubkey(),
+            unique_gas_payment_keypair.pubkey(),
             message.to_vec(),
         )),
     );
@@ -797,6 +797,7 @@ async fn test_transfer_remote() {
             destination_domain: REMOTE_DOMAIN,
             message_id: message.id(),
             gas_amount: REMOTE_GAS_AMOUNT,
+            unique_gas_payment_pubkey: unique_gas_payment_keypair.pubkey(),
             slot: transfer_remote_tx_status.slot,
         }
         .into(),
