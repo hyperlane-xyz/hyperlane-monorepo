@@ -91,26 +91,36 @@ contract MailboxV3 is IMailboxV3, Versioned, Ownable {
         bytes32 _recipientAddress,
         bytes calldata _messageBody
     ) external payable override returns (bytes32) {
-        // Format the message into packed bytes.
-        bytes memory _message = Message.formatMessage(
-            VERSION,
-            nonce,
-            localDomain,
-            msg.sender.addressToBytes32(),
-            _destinationDomain,
-            _recipientAddress,
-            _messageBody
-        );
+        return
+            _dispatch(
+                _destinationDomain,
+                _recipientAddress,
+                _messageBody,
+                bytes("")
+            );
+    }
 
-        // effects
-        nonce += 1;
-        bytes32 _id = _message.id();
-        emit DispatchId(_id);
-        emit Dispatch(_message);
-
-        // interactions
-        defaultHook.postDispatch{value: msg.value}(_message);
-        return _id;
+    /**
+     * @notice Dispatches a message to the destination domain & recipient.
+     * @param destinationDomain Domain of destination chain
+     * @param recipientAddress Address of recipient on destination chain as bytes32
+     * @param messageBody Raw bytes content of message body
+     * @param hookMetadata Metadata used by the post dispatch hook
+     * @return The message ID inserted into the Mailbox's merkle tree
+     */
+    function dispatch(
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata messageBody,
+        bytes calldata hookMetadata
+    ) external payable override returns (bytes32) {
+        return
+            _dispatch(
+                destinationDomain,
+                recipientAddress,
+                messageBody,
+                hookMetadata
+            );
     }
 
     /**
@@ -181,5 +191,35 @@ contract MailboxV3 is IMailboxV3, Versioned, Ownable {
             // solhint-disable-next-line no-empty-blocks
         } catch {}
         return defaultIsm;
+    }
+
+    // ============ Internal Functions ============
+
+    function _dispatch(
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata messageBody,
+        bytes memory hookMetadata
+    ) internal returns (bytes32) {
+        // Format the message into packed bytes.
+        bytes memory message = Message.formatMessage(
+            VERSION,
+            nonce,
+            localDomain,
+            msg.sender.addressToBytes32(),
+            destinationDomain,
+            recipientAddress,
+            messageBody
+        );
+
+        // effects
+        nonce += 1;
+        bytes32 id = message.id();
+        emit DispatchId(id);
+        emit Dispatch(message);
+
+        // interactions
+        defaultHook.postDispatch{value: msg.value}(hookMetadata, message);
+        return id;
     }
 }
