@@ -9,7 +9,10 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
-use crate::{accounts::GasOracle, igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds, overhead_igp_pda_seeds};
+use crate::{
+    accounts::GasOracle, igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
+    overhead_igp_pda_seeds,
+};
 
 /// The program instructions.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
@@ -82,6 +85,8 @@ pub struct QuoteGasPayment {
 
 /// A config for setting a destination gas overhead.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct GasOverheadConfig {
     /// The destination domain.
     pub destination_domain: u32,
@@ -92,6 +97,7 @@ pub struct GasOverheadConfig {
 /// A config for setting remote gas data.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct GasOracleConfig {
     /// The destination domain.
     pub domain: u32,
@@ -178,11 +184,7 @@ pub fn init_overhead_igp_instruction(
         Pubkey::try_find_program_address(overhead_igp_pda_seeds!(salt), &program_id)
             .ok_or(ProgramError::InvalidSeeds)?;
 
-    let ixn = Instruction::InitOverheadIgp(InitOverheadIgp {
-        salt,
-        owner,
-        inner,
-    });
+    let ixn = Instruction::InitOverheadIgp(InitOverheadIgp { salt, owner, inner });
 
     // Accounts:
     // 0. [executable] The system program.
@@ -192,6 +194,34 @@ pub fn init_overhead_igp_instruction(
         AccountMeta::new_readonly(solana_program::system_program::id(), false),
         AccountMeta::new_readonly(payer, true),
         AccountMeta::new(igp_account, false),
+    ];
+
+    let instruction = SolanaInstruction {
+        program_id,
+        data: ixn.try_to_vec()?,
+        accounts,
+    };
+
+    Ok(instruction)
+}
+
+/// Gets an instruction to set the destination gas overheads.
+pub fn set_destination_gas_overheads(
+    program_id: Pubkey,
+    igp: Pubkey,
+    owner: Pubkey,
+    overhead_gas_amounts: Vec<GasOverheadConfig>,
+) -> Result<SolanaInstruction, ProgramError> {
+    let ixn = Instruction::SetDestinationGasOverheads(overhead_gas_amounts);
+
+    // Accounts:
+    // 0. [executable] The system program.
+    // 1. [writeable] The IGP.
+    // 2. [signer] The IGP owner.
+    let accounts = vec![
+        AccountMeta::new_readonly(solana_program::system_program::id(), false),
+        AccountMeta::new(igp, false),
+        AccountMeta::new(owner, true),
     ];
 
     let instruction = SolanaInstruction {

@@ -153,11 +153,15 @@ struct CoreDeploy {
     #[arg(long)]
     gas_oracle_config_file: Option<PathBuf>,
     #[arg(long)]
+    overhead_config_file: Option<PathBuf>,
+    #[arg(long)]
     chain: String,
     #[arg(long)]
     use_existing_keys: bool,
     #[arg(long)]
     environments_dir: PathBuf,
+    #[arg(long, value_parser = crate::cmd_utils::CslParser::<u32>::make())]
+    remote_domains: Vec<u32>,
     #[arg(long)]
     built_so_dir: PathBuf,
 }

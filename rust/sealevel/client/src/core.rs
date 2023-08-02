@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use solana_program::pubkey::Pubkey;
 use solana_sdk::{signature::Signer, signer::keypair::Keypair};
 
+use std::collections::HashMap;
 use std::{fs::File, io::Write, path::Path, str::FromStr};
 
 use crate::{
@@ -10,6 +11,7 @@ use crate::{
     Context, CoreCmd, CoreSubCmd,
 };
 use hyperlane_core::H256;
+use hyperlane_sealevel_igp::accounts::{SOL_DECIMALS, TOKEN_EXCHANGE_RATE_SCALE};
 
 pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
     match cmd.cmd {
@@ -49,7 +51,10 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
                 core.use_existing_keys,
                 &key_dir,
                 &core.built_so_dir,
+                core.local_domain,
+                &core.remote_domains,
                 core.gas_oracle_config_file.as_deref(),
+                core.overhead_config_file.as_deref(),
             );
 
             let program_ids = CoreProgramIds {
@@ -199,35 +204,67 @@ fn deploy_validator_announce(
     program_id
 }
 
+#[allow(clippy::too_many_arguments)]
 fn deploy_igp(
     ctx: &mut Context,
     use_existing_key: bool,
     key_dir: &Path,
     built_so_dir: &Path,
+    local_domain: u32,
+    remote_domains: &[u32],
     gas_oracle_config_file: Option<&Path>,
-    overhead_config: Option<&Path>,
+    overhead_config_file: Option<&Path>,
 ) -> (Pubkey, Pubkey, Pubkey) {
+    use hyperlane_sealevel_igp::{
+        accounts::{GasOracle, RemoteGasData},
+        instruction::{GasOracleConfig, GasOverheadConfig},
+    };
+
     let (keypair, keypair_path) = create_and_write_keypair(
         key_dir,
         "hyperlane_sealevel_igp-keypair.json",
         use_existing_key,
     );
     let program_id = keypair.pubkey();
-    let gas_oracle_configs: Vec<hyperlane_sealevel_igp::instruction::GasOracleConfig> =
-        gas_oracle_config_file.map(|p| {
+
+    let mut gas_oracle_configs = gas_oracle_config_file
+        .map(|p| {
             let file = File::open(p).expect("Failed to open oracle config file");
-            serde_json::from_reader(file).expect("Failed to parse oracle config file")
-            todo!("Filter out the current domain's config")
-            // see also TOKEN_EXCHANGE_RATE_SCALE
-            todo!("Default to 1:1 exchange with other chains in the env and set default gas to 0")
-        });
+            serde_json::from_reader::<_, Vec<GasOracleConfig>>(file)
+                .expect("Failed to parse oracle config file")
+        })
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|c| c.domain != local_domain)
+        .map(|c| (c.domain, c))
+        .collect::<HashMap<_, _>>();
+    for &remote in remote_domains {
+        gas_oracle_configs
+            .entry(remote)
+            .or_insert_with(|| GasOracleConfig {
+                domain: remote,
+                gas_oracle: Some(GasOracle::RemoteGasData(RemoteGasData {
+                    token_exchange_rate: TOKEN_EXCHANGE_RATE_SCALE,
+                    gas_price: 1,
+                    token_decimals: SOL_DECIMALS,
+                })),
+            });
+    }
+    let gas_oracle_configs = gas_oracle_configs.into_values().collect::<Vec<_>>();
 
-    // parse config for overhead igp
-    // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/interchain-gas-paymaster/tests/functional.rs#L202-L210
-    // GasOverheadConfig
-
-    // then set
-    // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/interchain-gas-paymaster/src/instruction.rs#L30
+    let overhead_configs = overhead_config_file
+        .map(|p| {
+            let file = File::open(p).expect("Failed to open overhead config file");
+            serde_json::from_reader::<_, Vec<GasOverheadConfig>>(file)
+                .expect("Failed to parse overhead config file")
+        })
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|c| c.destination_domain != local_domain)
+        .map(|c| (c.destination_domain, c))
+        .collect::<HashMap<_, _>>() // dedup
+        .into_values()
+        .collect::<Vec<_>>();
 
     deploy_program(
         &ctx.payer_path,
@@ -293,7 +330,7 @@ fn deploy_igp(
 
     println!("Initialized overhead IGP account {}", overhead_igp_account);
 
-    if let Some(gas_oracle_configs) = gas_oracle_configs {
+    if !gas_oracle_configs.is_empty() {
         let domains = gas_oracle_configs
             .iter()
             .map(|c| c.domain)
@@ -313,6 +350,29 @@ fn deploy_igp(
         println!("Set gas oracle for remote domains {domains:?}",);
     } else {
         println!("Skipping settings gas oracle config");
+    }
+
+    if !overhead_configs.is_empty() {
+        let domains = overhead_configs
+            .iter()
+            .map(|c| c.destination_domain)
+            .collect::<Vec<_>>();
+
+        let instruction = hyperlane_sealevel_igp::instruction::set_destination_gas_overheads(
+            program_id,
+            igp_account,
+            ctx.payer.pubkey(),
+            overhead_configs,
+        )
+        .unwrap();
+
+        ctx.instructions.push(instruction);
+        ctx.send_transaction(&[&ctx.payer]);
+        ctx.instructions.clear();
+
+        println!("Set gas overheads for remote domains {domains:?}",)
+    } else {
+        println!("Skipping setting gas overheads");
     }
 
     // Now make a gas payment for a message ID
