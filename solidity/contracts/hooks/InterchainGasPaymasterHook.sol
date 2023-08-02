@@ -50,10 +50,16 @@ contract InterchainGasPaymasterHook is
     // ============ Events ============
 
     /**
+     * @notice Emitted when the gas oracle is set.
+     * @param gasOracle The new beneficiary.
+     */
+    event GasOracleSet(address indexed gasOracle);
+
+    /**
      * @notice Emitted when the beneficiary is set.
      * @param beneficiary The new beneficiary.
      */
-    event BeneficiarySet(address beneficiary);
+    event BeneficiarySet(address indexed beneficiary);
 
     // ============ Constructor ============
 
@@ -64,14 +70,17 @@ contract InterchainGasPaymasterHook is
     /**
      * @param _owner The owner of the contract.
      * @param _beneficiary The beneficiary.
+     * @param _gasOracle The gas oracle.
      */
-    function initialize(address _owner, address _beneficiary)
-        public
-        initializer
-    {
+    function initialize(
+        address _owner,
+        address _beneficiary,
+        address _gasOracle
+    ) public initializer {
         __Ownable_init();
         _transferOwnership(_owner);
         _setBeneficiary(_beneficiary);
+        _setGasOracle(_gasOracle);
     }
 
     /**
@@ -82,6 +91,14 @@ contract InterchainGasPaymasterHook is
         // Transfer the entire balance to the beneficiary.
         (bool success, ) = beneficiary.call{value: address(this).balance}("");
         require(success, "!transfer");
+    }
+
+    /**
+     * @notice Updates the gas oracle
+     * @param _gasOracle address of the new gas oracle
+     */
+    function setGasOracles(address _gasOracle) external onlyOwner {
+        _setGasOracle(_gasOracle);
     }
 
     /**
@@ -185,5 +202,14 @@ contract InterchainGasPaymasterHook is
     function _setBeneficiary(address _beneficiary) internal {
         beneficiary = _beneficiary;
         emit BeneficiarySet(_beneficiary);
+    }
+
+    /**
+     * @notice Sets the storage oracle.
+     * @param _gasOracle The new storage oracle.
+     */
+    function _setGasOracle(address _gasOracle) internal {
+        gasOracle = _gasOracle;
+        emit GasOracleSet(_gasOracle);
     }
 }
