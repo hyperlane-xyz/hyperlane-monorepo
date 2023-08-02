@@ -24,7 +24,7 @@ where
     T: DiscriminatorData + borsh::BorshSerialize,
 {
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        PROGRAM_INSTRUCTION_DISCRIMINATOR.serialize(writer)?;
+        T::DISCRIMINATOR.serialize(writer)?;
         self.data.serialize(writer)
     }
 }
@@ -35,7 +35,7 @@ where
 {
     fn deserialize(buf: &mut &[u8]) -> std::io::Result<Self> {
         let (discriminator, rest) = buf.split_at(Discriminator::LENGTH);
-        if discriminator != PROGRAM_INSTRUCTION_DISCRIMINATOR {
+        if discriminator != T::DISCRIMINATOR {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 "Invalid discriminator",
@@ -134,5 +134,9 @@ mod test {
         let serialized_prefixed_foo = prefixed_foo.try_to_vec().unwrap();
 
         assert_eq!(serialized_prefixed_foo.len(), prefixed_foo.size());
+        assert_eq!(
+            serialized_prefixed_foo[0..Discriminator::LENGTH],
+            Foo::DISCRIMINATOR
+        );
     }
 }

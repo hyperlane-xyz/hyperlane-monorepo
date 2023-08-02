@@ -24,23 +24,12 @@ pub enum IndexMode {
     Sequence,
 }
 
-/// An indexing range.
-#[derive(Debug, Clone)]
-pub enum IndexRange {
-    /// For block-based indexers
-    BlockRange(RangeInclusive<u32>),
-    /// For indexers that look for specific sequences, e.g. message nonces.
-    SequenceRange(RangeInclusive<u32>),
-}
-
-pub use IndexRange::*;
-
 /// Interface for an indexer.
 #[async_trait]
 #[auto_impl(&, Box, Arc,)]
 pub trait Indexer<T: Sized>: Send + Sync + Debug {
     /// Fetch list of logs between blocks `from` and `to`, inclusive.
-    async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(T, LogMeta)>>;
+    async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(T, LogMeta)>>;
 
     /// Get the chain's latest block number that has reached finality
     async fn get_finalized_block_number(&self) -> ChainResult<u32>;
@@ -53,4 +42,12 @@ pub trait Indexer<T: Sized>: Send + Sync + Debug {
 pub trait MessageIndexer: Indexer<HyperlaneMessage> + 'static {
     /// Return the latest finalized mailbox count and block number
     async fn fetch_count_at_tip(&self) -> ChainResult<(u32, u32)>;
+}
+
+/// Interface for indexing data in sequence. Currently used in non-EVM chains
+#[async_trait]
+#[auto_impl(&, Box, Arc)]
+pub trait SequenceIndexer<T>: Indexer<T> + 'static {
+    /// Return the latest finalized sequence and block number
+    async fn sequence_at_tip(&self) -> ChainResult<(u32, u32)>;
 }

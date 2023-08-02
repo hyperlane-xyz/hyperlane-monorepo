@@ -1,16 +1,18 @@
-use clap::builder::{TypedValueParser, ValueParser};
-use clap::Arg;
-use std::ffi::OsStr;
-use std::marker::PhantomData;
-use std::str::FromStr;
 use std::{
     collections::HashMap,
+    ffi::OsStr,
     fs::File,
     io::Write,
+    marker::PhantomData,
     path::{Path, PathBuf},
     process::{Command, Stdio},
+    str::FromStr,
 };
 
+use clap::{
+    builder::{TypedValueParser, ValueParser},
+    Arg,
+};
 use solana_client::{client_error::ClientError, rpc_client::RpcClient};
 use solana_sdk::{
     commitment_config::CommitmentConfig,
@@ -150,6 +152,7 @@ fn build_cmd(
     let mut c = Command::new(cmd[0]);
     c.args(&cmd[1..]);
     c.stdout(Stdio::inherit());
+    c.stderr(Stdio::inherit());
     if let Some(wd) = wd {
         c.current_dir(wd);
     }
