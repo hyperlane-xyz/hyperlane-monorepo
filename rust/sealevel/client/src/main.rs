@@ -92,6 +92,8 @@ struct Cli {
     compute_budget: u32,
     #[arg(long, short = 'a')]
     heap_size: Option<u32>,
+    #[arg(long, short = 'C')]
+    config: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -472,8 +474,10 @@ fn main() {
     pretty_env_logger::init();
 
     let cli = Cli::parse();
-    let config = match CONFIG_FILE.as_ref() {
-        Some(config_file) => Config::load(config_file).unwrap(),
+    let config = match cli.config.as_ref().or(CONFIG_FILE.as_ref()) {
+        Some(config_file) => Config::load(config_file)
+            .map_err(|e| format!("Failed to load solana config file {}: {}", config_file, e))
+            .unwrap(),
         None => Config::default(),
     };
     let url = normalize_to_url_if_moniker(cli.url.unwrap_or(config.json_rpc_url));
