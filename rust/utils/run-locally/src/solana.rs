@@ -43,6 +43,7 @@ const SOLANA_HYPERLANE_PROGRAMS: &[&str] = &[
     "hyperlane-sealevel-token",
     "hyperlane-sealevel-token-native",
     "hyperlane-sealevel-token-collateral",
+    "hyperlane-sealevel-igp",
 ];
 
 const SOLANA_PROGRAM_LIBRARY_ARCHIVE: &str =
@@ -57,6 +58,8 @@ const SOLANA_CLI_VERSION: &str = "1.14.20";
 // TODO: use a temp dir instead!
 pub const SOLANA_CHECKPOINT_LOCATION: &str =
     "/tmp/test_sealevel_checkpoints_0x70997970c51812dc3a010c7d01b50e0d17dc79c8";
+
+const SOLANA_OVERHEAD_CONFIG_FILE: &str = "sealevel/environments/local-e2e/overheads.json";
 
 // Install the CLI tools and return the path to the bin dir.
 #[apply(as_task)]
@@ -206,17 +209,23 @@ pub fn start_solana_test_validator(
         .arg("environment", "local-e2e")
         .arg("environments-dir", "sealevel/environments")
         .arg("built-so-dir", SBF_OUT_PATH)
+        .arg("overhead-config-file", SOLANA_OVERHEAD_CONFIG_FILE)
         .flag("use-existing-keys");
 
     sealevel_client_deploy_core
         .clone()
         .arg("local-domain", SOLANA_LOCAL_CHAIN_ID)
+        .arg(
+            "remote-domains",
+            [SOLANA_REMOTE_CHAIN_ID, "13371", "13372", "13373"].join(","),
+        )
         .arg("chain", "sealeveltest1")
         .run()
         .join();
 
     sealevel_client_deploy_core
         .arg("local-domain", SOLANA_REMOTE_CHAIN_ID)
+        .arg("remote-domains", SOLANA_LOCAL_CHAIN_ID)
         .arg("chain", "sealeveltest2")
         .run()
         .join();

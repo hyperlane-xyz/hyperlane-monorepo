@@ -162,7 +162,7 @@ struct CoreDeploy {
     use_existing_keys: bool,
     #[arg(long)]
     environments_dir: PathBuf,
-    #[arg(long, value_parser = crate::cmd_utils::CslParser::<u32>::make())]
+    #[arg(long, num_args = 1.., value_delimiter = ',')]
     remote_domains: Vec<u32>,
     #[arg(long)]
     built_so_dir: PathBuf,

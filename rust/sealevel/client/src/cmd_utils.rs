@@ -1,18 +1,11 @@
 use std::{
     collections::HashMap,
-    ffi::OsStr,
     fs::File,
     io::Write,
-    marker::PhantomData,
     path::{Path, PathBuf},
     process::{Command, Stdio},
-    str::FromStr,
 };
 
-use clap::{
-    builder::{TypedValueParser, ValueParser},
-    Arg,
-};
 use solana_client::{client_error::ClientError, rpc_client::RpcClient};
 use solana_sdk::{
     commitment_config::CommitmentConfig,
@@ -106,40 +99,6 @@ pub(crate) fn create_and_write_keypair(
     println!("Wrote keypair {} to {}", keypair.pubkey(), path.display());
 
     (keypair, path)
-}
-
-/// Parser for comma separated lists
-#[derive(Clone)]
-pub(crate) struct CslParser<T>(PhantomData<T>);
-impl<T> CslParser<T>
-where
-    T: FromStr + Clone + Send + Sync + 'static,
-    T::Err: std::error::Error + Sized,
-{
-    pub(crate) fn make() -> ValueParser {
-        ValueParser::new(Self(PhantomData::<T>::default()))
-    }
-}
-
-impl<T> TypedValueParser for CslParser<T>
-where
-    T: FromStr + Clone + Send + Sync + 'static,
-    T::Err: std::error::Error + Sized,
-{
-    type Value = Vec<T>;
-
-    fn parse_ref(
-        &self,
-        _cmd: &clap::Command,
-        _arg: Option<&Arg>,
-        value: &OsStr,
-    ) -> Result<Self::Value, clap::Error> {
-        value
-            .to_str()
-            .ok_or_else(|| clap::Error::new(clap::error::ErrorKind::InvalidUtf8))
-            .map(|s: &str| s.split(',').map(T::from_str).collect::<Result<_, _>>())?
-            .map_err(|e| clap::Error::raw(clap::error::ErrorKind::InvalidValue, e))
-    }
 }
 
 fn build_cmd(
