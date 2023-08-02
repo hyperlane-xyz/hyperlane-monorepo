@@ -1023,7 +1023,7 @@ async fn assert_gas_payment(
     banks_client: &mut BanksClient,
     igp_key: Pubkey,
     payment_tx_signature: Signature,
-    _payment_unique_account_pubkey: Pubkey,
+    unique_gas_payment_pubkey: Pubkey,
     gas_payment_account_key: Pubkey,
     destination_domain: u32,
     gas_amount: u64,
@@ -1055,6 +1055,7 @@ async fn assert_gas_payment(
             destination_domain,
             message_id,
             gas_amount,
+            unique_gas_payment_pubkey,
             slot,
         }
         .into(),

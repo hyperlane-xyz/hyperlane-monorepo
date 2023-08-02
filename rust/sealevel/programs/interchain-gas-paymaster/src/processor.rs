@@ -288,15 +288,15 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
     // Account 3: The unique gas payment account.
     // Uniqueness is enforced by making sure the message storage PDA based on
     // this unique message account is empty, which is done next.
-    let unique_message_account_info = next_account_info(accounts_iter)?;
-    if !unique_message_account_info.is_signer {
+    let unique_gas_payment_account_info = next_account_info(accounts_iter)?;
+    if !unique_gas_payment_account_info.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
     }
 
     // Account 4: Gas payment PDA.
     let gas_payment_account_info = next_account_info(accounts_iter)?;
     let (gas_payment_key, gas_payment_bump) = Pubkey::find_program_address(
-        igp_gas_payment_pda_seeds!(unique_message_account_info.key),
+        igp_gas_payment_pda_seeds!(unique_gas_payment_account_info.key),
         program_id,
     );
     if gas_payment_account_info.key != &gas_payment_key {
@@ -357,6 +357,7 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
             destination_domain: payment.destination_domain,
             message_id: payment.message_id,
             gas_amount,
+            unique_gas_payment_pubkey: *unique_gas_payment_account_info.key,
             slot: Clock::get()?.slot,
         }
         .into(),
@@ -372,7 +373,7 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
         program_id,
         system_program_info,
         gas_payment_account_info,
-        igp_gas_payment_pda_seeds!(unique_message_account_info.key, gas_payment_bump),
+        igp_gas_payment_pda_seeds!(unique_gas_payment_account_info.key, gas_payment_bump),
     )?;
 
     gas_payment_account.store(gas_payment_account_info, false)?;
