@@ -63,7 +63,6 @@ pub(crate) fn deploy_program(
         ],
         None,
         None,
-        true,
     );
 }
 
@@ -101,12 +100,7 @@ pub(crate) fn create_and_write_keypair(
     (keypair, path)
 }
 
-fn build_cmd(
-    cmd: &[&str],
-    wd: Option<&str>,
-    env: Option<&HashMap<&str, &str>>,
-    assert_success: bool,
-) {
+fn build_cmd(cmd: &[&str], wd: Option<&str>, env: Option<&HashMap<&str, &str>>) {
     assert!(!cmd.is_empty(), "Must specify a command!");
     let mut c = Command::new(cmd[0]);
     c.args(&cmd[1..]);
@@ -119,11 +113,9 @@ fn build_cmd(
         c.envs(env);
     }
     let status = c.status().expect("Failed to run command");
-    if assert_success {
-        assert!(
-            status.success(),
-            "Command returned non-zero exit code: {}",
-            cmd.join(" ")
-        );
-    }
+    assert!(
+        status.success(),
+        "Command returned non-zero exit code: {}",
+        cmd.join(" ")
+    );
 }
