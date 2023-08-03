@@ -14,7 +14,7 @@ import {
   MockToken__factory,
   TestLiquidityLayerMessageRecipient__factory,
 } from '@hyperlane-xyz/core';
-import { utils } from '@hyperlane-xyz/utils';
+import { addressToBytes32, objMap } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../../consts/chainMetadata';
 import { Chains } from '../../consts/chains';
@@ -23,7 +23,6 @@ import { TestCoreDeployer } from '../../core/TestCoreDeployer';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { deployTestIgpsAndGetRouterConfig } from '../../test/testUtils';
 import { ChainMap } from '../../types';
-import { objMap } from '../../utils/objects';
 
 import { LiquidityLayerApp } from './LiquidityLayerApp';
 import {
@@ -133,7 +132,7 @@ describe('LiquidityLayerRouter', async () => {
     await mockToken.approve(local.address, amount);
     await local.dispatchWithTokens(
       remoteDomain,
-      utils.addressToBytes32(recipient.address),
+      addressToBytes32(recipient.address),
       mockToken.address,
       amount,
       BridgeAdapterType.Circle,
@@ -167,7 +166,7 @@ describe('LiquidityLayerRouter', async () => {
     await mockToken.approve(local.address, amount);
     await local.dispatchWithTokens(
       remoteDomain,
-      utils.addressToBytes32(recipient.address),
+      addressToBytes32(recipient.address),
       mockToken.address,
       amount,
       BridgeAdapterType.Portal,

@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 
+import { domainHash } from './domains';
 import {
   Address,
   Checkpoint,
@@ -8,7 +9,6 @@ import {
   S3Checkpoint,
   SignatureLike,
 } from './types';
-import { domainHash } from './utils';
 
 /**
  * Utilities for validators to construct and verify checkpoints.
@@ -29,9 +29,9 @@ export class BaseValidator {
   }
 
   message(checkpoint: Checkpoint, messageId?: HexString) {
-    let types = ['bytes32', 'bytes32', 'uint32'];
-    let values = [this.domainHash(), checkpoint.root, checkpoint.index];
-    if (!!messageId) {
+    const types = ['bytes32', 'bytes32', 'uint32'];
+    const values = [this.domainHash(), checkpoint.root, checkpoint.index];
+    if (messageId) {
       types.push('bytes32');
       values.push(messageId);
     }

@@ -1,17 +1,6 @@
 import { z } from 'zod';
 
-export enum ProtocolType {
-  Ethereum = 'ethereum',
-  Sealevel = 'sealevel',
-  Fuel = 'fuel',
-}
-// A type that also allows for literal values of the enum
-export type ProtocolTypeValue = `${ProtocolType}`;
-
-export const ProtocolSmallestUnit = {
-  [ProtocolType.Ethereum]: 'wei',
-  [ProtocolType.Sealevel]: 'lamports',
-};
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 export enum ExplorerFamily {
   Etherscan = 'etherscan',

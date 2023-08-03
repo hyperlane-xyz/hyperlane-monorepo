@@ -1,7 +1,7 @@
 import { BigNumber } from 'ethers';
 
 import { InterchainGasPaymaster, OverheadIgp } from '@hyperlane-xyz/core';
-import type { types } from '@hyperlane-xyz/utils';
+import type { Address } from '@hyperlane-xyz/utils';
 
 import { UpgradeConfig } from '../deploy/proxy';
 import type { CheckerViolation } from '../deploy/types';
@@ -12,10 +12,10 @@ export enum GasOracleContractType {
 }
 
 export type IgpConfig = {
-  owner: types.Address;
-  beneficiary: types.Address;
+  owner: Address;
+  beneficiary: Address;
   gasOracleType: ChainMap<GasOracleContractType>;
-  oracleKey: types.Address;
+  oracleKey: Address;
   upgrade?: UpgradeConfig;
 };
 
@@ -37,15 +37,15 @@ export interface IgpViolation extends CheckerViolation {
 export interface IgpBeneficiaryViolation extends IgpViolation {
   subType: IgpViolationType.Beneficiary;
   contract: InterchainGasPaymaster;
-  actual: types.Address;
-  expected: types.Address;
+  actual: Address;
+  expected: Address;
 }
 
 export interface IgpGasOraclesViolation extends IgpViolation {
   subType: IgpViolationType.GasOracles;
   contract: InterchainGasPaymaster;
-  actual: ChainMap<types.Address>;
-  expected: ChainMap<types.Address>;
+  actual: ChainMap<Address>;
+  expected: ChainMap<Address>;
 }
 
 export interface IgpOverheadViolation extends IgpViolation {

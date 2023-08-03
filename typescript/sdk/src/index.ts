@@ -111,9 +111,6 @@ export {
   ChainMetadataSchema,
   ExplorerFamily,
   ExplorerFamilyValue,
-  ProtocolSmallestUnit,
-  ProtocolType,
-  ProtocolTypeValue,
   getDomainId,
   isValidChainMetadata,
 } from './metadata/chainMetadataTypes';
@@ -135,6 +132,7 @@ export {
   BridgeAdapterConfig,
   BridgeAdapterType,
   CircleBridgeAdapterConfig,
+  LiquidityLayerConfig,
   LiquidityLayerDeployer,
   PortalAdapterConfig,
 } from './middleware/liquidity-layer/LiquidityLayerRouterDeployer';
@@ -178,22 +176,6 @@ export {
   TestChainNames,
 } from './types';
 export { MultiGeneric } from './utils/MultiGeneric';
-export { canonizeId, evmId } from './utils/ids';
+export { filterByChains } from './utils/filter';
 export { multisigIsmVerificationCost } from './utils/ism';
-export {
-  bigToFixed,
-  convertDecimalValue,
-  fixedToBig,
-  mulBigAndFixed,
-} from './utils/number';
-export {
-  filterByChains,
-  objFilter,
-  objMap,
-  objMapEntries,
-  objMerge,
-  pick,
-  promiseObjAll,
-} from './utils/objects';
-export { delay } from './utils/time';
 export { chainMetadataToWagmiChain, wagmiChainMetadata } from './utils/wagmi';
