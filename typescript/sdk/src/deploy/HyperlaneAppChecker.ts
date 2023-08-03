@@ -1,14 +1,18 @@
 import { keccak256 } from 'ethers/lib/utils';
 
 import { Ownable, TimelockController } from '@hyperlane-xyz/core';
-import type { types } from '@hyperlane-xyz/utils';
-import { utils } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  assert,
+  eqAddress,
+  objMap,
+  promiseObjAll,
+} from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
 import { filterOwnableContracts } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
-import { objMap, promiseObjAll } from '../utils/objects';
 
 import { UpgradeConfig, isProxy, proxyAdmin } from './proxy';
 import {
@@ -79,7 +83,7 @@ export abstract class HyperlaneAppChecker<
         if (await isProxy(provider, contract.address)) {
           // Check the ProxiedContract's admin matches expectation
           const actualAdmin = await proxyAdmin(provider, contract.address);
-          if (!utils.eqAddress(actualAdmin, expectedAdmin)) {
+          if (!eqAddress(actualAdmin, expectedAdmin)) {
             this.addViolation({
               type: ViolationType.ProxyAdmin,
               chain,
@@ -185,14 +189,14 @@ export abstract class HyperlaneAppChecker<
 
   protected async checkOwnership(
     chain: ChainName,
-    owner: types.Address,
-    ownableOverrides?: Record<string, types.Address>,
+    owner: Address,
+    ownableOverrides?: Record<string, Address>,
   ): Promise<void> {
     const ownableContracts = await this.ownables(chain);
     for (const [name, contract] of Object.entries(ownableContracts)) {
       const expectedOwner = ownableOverrides?.[name] ?? owner;
       const actual = await contract.owner();
-      if (!utils.eqAddress(actual, expectedOwner)) {
+      if (!eqAddress(actual, expectedOwner)) {
         const violation: OwnerViolation = {
           chain,
           name,
@@ -210,7 +214,7 @@ export abstract class HyperlaneAppChecker<
     // Every type should have exactly the number of expected matches.
     objMap(violationCounts, (type, count) => {
       const actual = this.violations.filter((v) => v.type === type).length;
-      utils.assert(
+      assert(
         actual == count,
         `Expected ${count} ${type} violations, got ${actual}`,
       );
@@ -218,12 +222,12 @@ export abstract class HyperlaneAppChecker<
     this.violations
       .filter((v) => !(v.type in violationCounts))
       .map((v) => {
-        utils.assert(false, `Unexpected violation: ${JSON.stringify(v)}`);
+        assert(false, `Unexpected violation: ${JSON.stringify(v)}`);
       });
   }
 
   expectEmpty(): void {
     const count = this.violations.length;
-    utils.assert(count === 0, `Found ${count} violations`);
+    assert(count === 0, `Found ${count} violations`);
   }
 }

@@ -9,7 +9,7 @@ import {
   TimelockController,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
-import { types, utils } from '@hyperlane-xyz/utils';
+import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
@@ -52,7 +52,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     for (const remote of remotes) {
       const remoteId = this.multiProvider.getDomainId(remote);
       const currentGasOracle = await igp.gasOracles(remoteId);
-      if (!utils.eqAddress(currentGasOracle, storageGasOracle.address)) {
+      if (!eqAddress(currentGasOracle, storageGasOracle.address)) {
         gasOracleConfigsToSet.push({
           remoteDomain: remoteId,
           gasOracle: storageGasOracle.address,
@@ -73,7 +73,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
   async deployOverheadIgp(
     chain: ChainName,
-    interchainGasPaymasterAddress: types.Address,
+    interchainGasPaymasterAddress: Address,
     config: OverheadIgpConfig,
   ): Promise<OverheadIgp> {
     const overheadInterchainGasPaymaster = await this.deployContract(

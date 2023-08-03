@@ -13,7 +13,7 @@ import {
   TransparentUpgradeableProxy,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
-import { types, utils } from '@hyperlane-xyz/utils';
+import { Address, eqAddress, runWithTimeout } from '@hyperlane-xyz/utils';
 
 import {
   HyperlaneAddressesMap,
@@ -93,7 +93,7 @@ export abstract class HyperlaneDeployer<
       this.startingBlockNumbers[chain] = await this.multiProvider
         .getProvider(chain)
         .getBlockNumber();
-      await utils.runWithTimeout(this.chainTimeoutMs, async () => {
+      await runWithTimeout(this.chainTimeoutMs, async () => {
         this.deployedContracts[chain] = await this.deployContracts(
           chain,
           configMap[chain],
@@ -110,7 +110,7 @@ export abstract class HyperlaneDeployer<
     label = 'address',
   ): Promise<T | undefined> {
     const signer = await this.multiProvider.getSignerAddress(chain);
-    if (utils.eqAddress(address, signer)) {
+    if (eqAddress(address, signer)) {
       return fn();
     } else {
       this.logger(`Signer (${signer}) does not match ${label} (${address})`);
@@ -306,7 +306,7 @@ export abstract class HyperlaneDeployer<
       this.multiProvider.getProvider(chain),
       proxy.address,
     );
-    if (utils.eqAddress(admin, actualAdmin)) {
+    if (eqAddress(admin, actualAdmin)) {
       this.logger(`Admin set correctly, skipping admin change`);
       return;
     }
@@ -336,7 +336,7 @@ export abstract class HyperlaneDeployer<
     initializeArgs: Parameters<C['initialize']>,
   ): Promise<void> {
     const current = await proxy.callStatic.implementation();
-    if (utils.eqAddress(implementation.address, current)) {
+    if (eqAddress(implementation.address, current)) {
       this.logger(`Implementation set correctly, skipping upgrade`);
       return;
     }
@@ -419,7 +419,7 @@ export abstract class HyperlaneDeployer<
   protected writeCache<K extends keyof Factories>(
     chain: ChainName,
     contractName: K,
-    address: types.Address,
+    address: Address,
   ): void {
     if (!this.cachedAddresses[chain]) {
       this.cachedAddresses[chain] = {};
@@ -507,14 +507,14 @@ export abstract class HyperlaneDeployer<
 
   protected async transferOwnershipOfContracts(
     chain: ChainName,
-    owner: types.Address,
+    owner: Address,
     ownables: { [key: string]: Ownable },
   ): Promise<ethers.ContractReceipt[]> {
     const receipts: ethers.ContractReceipt[] = [];
     for (const contractName of Object.keys(ownables)) {
       const ownable = ownables[contractName];
       const currentOwner = await ownable.owner();
-      if (!utils.eqAddress(currentOwner, owner)) {
+      if (!eqAddress(currentOwner, owner)) {
         this.logger(
           `Transferring ownership of ${contractName} to ${owner} on ${chain}`,
         );

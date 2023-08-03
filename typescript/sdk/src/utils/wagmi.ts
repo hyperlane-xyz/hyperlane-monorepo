@@ -1,10 +1,10 @@
 import type { Chain as WagmiChain } from '@wagmi/chains';
 
+import { objMap } from '@hyperlane-xyz/utils';
+
 import { chainMetadata, etherToken } from '../consts/chainMetadata';
 import type { ChainMetadata } from '../metadata/chainMetadataTypes';
 import type { ChainMap } from '../types';
-
-import { objMap } from './objects';
 
 // For convenient use in wagmi-based apps
 export const wagmiChainMetadata: ChainMap<WagmiChain> = objMap(
