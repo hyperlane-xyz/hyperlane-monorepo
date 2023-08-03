@@ -48,7 +48,7 @@ const SOLANA_HYPERLANE_PROGRAMS: &[&str] = &[
 
 const SOLANA_KEYPAIR: &str = "config/test-sealevel-keys/test_deployer-keypair.json";
 const SOLANA_DEPLOYER_ACCOUNT: &str = "config/test-sealevel-keys/test_deployer-account.json";
-const SOLANA_WARPROUT_TOKEN_CONFIG_FILE: &str =
+const SOLANA_WARPROUTE_TOKEN_CONFIG_FILE: &str =
     "sealevel/environments/local-e2e/warp-routes/testwarproute/token-config.json";
 const SOLANA_CHAIN_CONFIG_FILE: &str =
     "sealevel/environments/local-e2e/warp-routes/chain-config.json";
@@ -245,7 +245,7 @@ pub fn start_solana_test_validator(
         .arg("environments-dir", SOLANA_ENVS_DIR)
         .arg("built-so-dir", SBF_OUT_PATH)
         .arg("warp-route-name", "testwarproute")
-        .arg("token-config-file", SOLANA_WARPROUT_TOKEN_CONFIG_FILE)
+        .arg("token-config-file", SOLANA_WARPROUTE_TOKEN_CONFIG_FILE)
         .arg("chain-config-file", SOLANA_CHAIN_CONFIG_FILE)
         .arg("ata-payer-funding-amount", "1000000000")
         .run()
