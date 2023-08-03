@@ -17,7 +17,7 @@ export class EvmRouterAdapter<
     ContractAddrs extends RouterAddress = RouterAddress,
   >
   extends BaseEvmAdapter<ContractAddrs>
-  implements IRouterAdapter
+  implements IRouterAdapter<ContractAddrs>
 {
   constructor(
     public readonly multiProvider: MultiProtocolProvider<ContractAddrs>,
@@ -68,7 +68,7 @@ export class EvmGasRouterAdapter<
     ContractAddrs extends RouterAddress = RouterAddress,
   >
   extends EvmRouterAdapter<ContractAddrs>
-  implements IGasRouterAdapter
+  implements IGasRouterAdapter<ContractAddrs>
 {
   async quoteGasPayment(
     origin: ChainName,

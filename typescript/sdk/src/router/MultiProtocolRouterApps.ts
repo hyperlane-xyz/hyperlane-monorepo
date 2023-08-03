@@ -1,11 +1,6 @@
-import {
-  Address,
-  Domain,
-  ProtocolType,
-  promiseObjAll,
-} from '@hyperlane-xyz/utils';
+import { Address, Domain, ProtocolType } from '@hyperlane-xyz/utils';
 
-import { AdapterClassType, MultiProtocolApp } from '../app/MultiProtocolApp';
+import { MultiProtocolApp } from '../app/MultiProtocolApp';
 import { ChainMap, ChainName } from '../types';
 
 import {
@@ -25,17 +20,9 @@ export class MultiProtocolRouterApp<
   ContractAddrs extends RouterAddress = RouterAddress,
   IAdapterApi extends IRouterAdapter = IRouterAdapter,
 > extends MultiProtocolApp<ContractAddrs, IAdapterApi> {
-  // Explicit cast via unknown is unfortunately required here to enable both default adapters AND generic types
-  public readonly adapters = {
-    [ProtocolType.Ethereum]: EvmRouterAdapter as unknown as AdapterClassType<
-      ContractAddrs,
-      IAdapterApi
-    >,
-    [ProtocolType.Sealevel]:
-      SealevelRouterAdapter as unknown as AdapterClassType<
-        ContractAddrs,
-        IAdapterApi
-      >,
+  public override readonly protocolToAdapter = {
+    [ProtocolType.Ethereum]: EvmRouterAdapter,
+    [ProtocolType.Sealevel]: SealevelRouterAdapter,
   };
 
   router(chain: ChainName): Address {
@@ -43,19 +30,19 @@ export class MultiProtocolRouterApp<
   }
 
   interchainSecurityModules(): Promise<ChainMap<Address>> {
-    return promiseObjAll(
-      this.map((chain, adapter) => adapter.interchainSecurityModule(chain)),
+    return this.adapterMap((chain, adapter) =>
+      adapter.interchainSecurityModule(chain),
     );
   }
 
   owners(): Promise<ChainMap<Address>> {
-    return promiseObjAll(this.map((chain, adapter) => adapter.owner(chain)));
+    return this.adapterMap((chain, adapter) => adapter.owner(chain));
   }
 
   remoteRouters(
-    originChain: ChainName,
+    origin: ChainName,
   ): Promise<Array<{ domain: Domain; address: Address }>> {
-    return this.adapter(originChain).remoteRouters(originChain);
+    return this.adapter(origin).remoteRouters(origin);
   }
 }
 
@@ -64,16 +51,9 @@ export class MultiProtocolGasRouterApp<
   IAdapterApi extends IGasRouterAdapter = IGasRouterAdapter,
 > extends MultiProtocolRouterApp<ContractAddrs, IAdapterApi> {
   // Explicit cast via unknown is unfortunately required here to enable both default adapters AND generic types
-  public readonly adapters = {
-    [ProtocolType.Ethereum]: EvmGasRouterAdapter as unknown as AdapterClassType<
-      ContractAddrs,
-      IAdapterApi
-    >,
-    [ProtocolType.Sealevel]:
-      SealevelGasRouterAdapter as unknown as AdapterClassType<
-        ContractAddrs,
-        IAdapterApi
-      >,
+  public override readonly protocolToAdapter = {
+    [ProtocolType.Ethereum]: EvmGasRouterAdapter,
+    [ProtocolType.Sealevel]: SealevelGasRouterAdapter,
   };
 
   async quoteGasPayment(

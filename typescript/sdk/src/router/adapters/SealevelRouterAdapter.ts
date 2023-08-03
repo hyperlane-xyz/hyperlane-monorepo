@@ -96,7 +96,7 @@ export class SealevelRouterAdapter<
     ContractAddrs extends RouterAddress = RouterAddress,
   >
   extends BaseSealevelAdapter<ContractAddrs>
-  implements IRouterAdapter
+  implements IRouterAdapter<ContractAddrs>
 {
   constructor(
     public readonly multiProvider: MultiProtocolProvider<ContractAddrs>,
@@ -186,7 +186,7 @@ export class SealevelGasRouterAdapter<
     ContractAddrs extends RouterAddress = RouterAddress,
   >
   extends SealevelRouterAdapter<ContractAddrs>
-  implements IGasRouterAdapter
+  implements IGasRouterAdapter<ContractAddrs>
 {
   async quoteGasPayment(
     _origin: ChainName,
