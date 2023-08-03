@@ -94,7 +94,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
 }
 
 /// Transfers tokens to a remote.
-/// Burns the tokens from the sender's associated token account and
+/// Transfers the collateral token into the escrow PDA account and
 /// then dispatches a message to the remote recipient.
 ///
 /// Accounts:
@@ -105,12 +105,19 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
 /// 4.   [writeable] The mailbox outbox account.
 /// 5.   [] Message dispatch authority.
 /// 6.   [signer] The token sender and mailbox payer.
-/// 7.   [signer] Unique message account.
+/// 7.   [signer] Unique message / gas payment account.
 /// 8.   [writeable] Message storage PDA.
-/// 9.   [executable] The SPL token program for the mint.
-/// 10.  [writeable] The mint.
-/// 11.  [writeable] The token sender's associated token account, from which tokens will be sent.
-/// 12.  [writeable] The escrow PDA account.
+///      ---- If using an IGP ----
+/// 9.   [executable] The IGP program.
+/// 10.  [writeable] The IGP program data.
+/// 11.  [writeable] Gas payment PDA.
+/// 12.  [] OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
+/// 13.  [writeable] The IGP account.
+///      ---- End if ----
+/// 14.  [executable] The SPL token program for the mint.
+/// 15.  [writeable] The mint.
+/// 16.  [writeable] The token sender's associated token account, from which tokens will be sent.
+/// 17.  [writeable] The escrow PDA account.
 fn transfer_remote(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -155,8 +162,9 @@ fn transfer_from_remote_account_metas(
 /// Enrolls a remote router.
 ///
 /// Accounts:
-/// 0. [writeable] The token PDA account.
-/// 1. [signer] The owner.
+/// 0. [executable] The system program.
+/// 1. [writeable] The token PDA account.
+/// 2. [signer] The owner.
 fn enroll_remote_router(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -168,8 +176,9 @@ fn enroll_remote_router(
 /// Enrolls remote routers.
 ///
 /// Accounts:
-/// 0. [writeable] The token PDA account.
-/// 1. [signer] The owner.
+/// 0. [executable] The system program.
+/// 1. [writeable] The token PDA account.
+/// 2. [signer] The owner.
 fn enroll_remote_routers(
     program_id: &Pubkey,
     accounts: &[AccountInfo],

@@ -1,7 +1,7 @@
 //! Processor logic shared by all Hyperlane Sealevel Token programs.
 
 use access_control::AccessControl;
-use account_utils::create_pda_account;
+use account_utils::{create_pda_account, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{Decode, Encode};
 use hyperlane_sealevel_connection_client::{
@@ -69,8 +69,13 @@ macro_rules! hyperlane_token_pda_seeds {
 /// A plugin that handles token transfers for a Hyperlane Sealevel Token program.
 pub trait HyperlaneSealevelTokenPlugin
 where
-    Self:
-        BorshSerialize + BorshDeserialize + std::cmp::PartialEq + std::fmt::Debug + Default + Sized,
+    Self: BorshSerialize
+        + BorshDeserialize
+        + std::cmp::PartialEq
+        + std::fmt::Debug
+        + Default
+        + Sized
+        + SizedData,
 {
     /// Initializes the plugin.
     fn initialize<'a, 'b>(
@@ -139,9 +144,6 @@ where
     /// 3.   [signer] The payer and access control owner.
     /// 4..N [??..??] Plugin-specific accounts.
     pub fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramResult {
-        // On chain create appears to use realloc which is limited to 1024 byte increments.
-        let token_account_size = 2048;
-
         let accounts_iter = &mut accounts.iter();
 
         // Account 0: System program
@@ -205,11 +207,27 @@ where
 
         let rent = Rent::get()?;
 
+        let token: HyperlaneToken<T> = HyperlaneToken {
+            bump: token_bump,
+            mailbox: init.mailbox,
+            mailbox_process_authority,
+            dispatch_authority_bump,
+            owner: Some(*payer_account.key),
+            interchain_security_module: init.interchain_security_module,
+            interchain_gas_paymaster: init.interchain_gas_paymaster,
+            destination_gas: HashMap::new(),
+            decimals: init.decimals,
+            remote_decimals: init.remote_decimals,
+            remote_routers: HashMap::new(),
+            plugin_data,
+        };
+        let token_account_data = HyperlaneTokenAccount::<T>::from(token);
+
         // Create token account PDA
         create_pda_account(
             payer_account,
             &rent,
-            token_account_size,
+            token_account_data.size(),
             program_id,
             system_program,
             token_account,
@@ -227,27 +245,13 @@ where
             mailbox_message_dispatch_authority_pda_seeds!(dispatch_authority_bump),
         )?;
 
-        let token: HyperlaneToken<T> = HyperlaneToken {
-            bump: token_bump,
-            mailbox: init.mailbox,
-            mailbox_process_authority,
-            dispatch_authority_bump,
-            owner: Some(*payer_account.key),
-            interchain_security_module: init.interchain_security_module,
-            interchain_gas_paymaster: init.interchain_gas_paymaster,
-            destination_gas: HashMap::new(),
-            decimals: init.decimals,
-            remote_decimals: init.remote_decimals,
-            remote_routers: HashMap::new(),
-            plugin_data,
-        };
-        HyperlaneTokenAccount::<T>::from(token).store(token_account, true)?;
+        token_account_data.store_with_rent_exempt_realloc(token_account, &rent, payer_account)?;
 
         Ok(())
     }
 
     /// Transfers tokens to a remote.
-    /// Burns the tokens from the sender's associated token account and
+    /// Calls the plugin's `transfer_in` function to transfer tokens in,
     /// then dispatches a message to the remote recipient.
     ///
     /// Accounts:
@@ -617,8 +621,9 @@ where
     /// Enrolls a remote router.
     ///
     /// Accounts:
-    /// 0. [writeable] The token PDA account.
-    /// 1. [signer] The owner.
+    /// 0. [executable] The system program.
+    /// 1. [writeable] The token PDA account.
+    /// 2. [signer] The owner.
     pub fn enroll_remote_router(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -626,7 +631,13 @@ where
     ) -> ProgramResult {
         let accounts_iter = &mut accounts.iter();
 
-        // Account 0: Token account
+        // Account 0: System program. Only used if a realloc / rent exemption top up occurs.
+        let system_program = next_account_info(accounts_iter)?;
+        if system_program.key != &solana_program::system_program::id() {
+            return Err(ProgramError::InvalidArgument);
+        }
+
+        // Account 1: Token account
         let token_account = next_account_info(accounts_iter)?;
         let mut token =
             HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow()[..])?.into_inner();
@@ -639,14 +650,18 @@ where
             return Err(ProgramError::IncorrectProgramId);
         }
 
-        // Account 1: Owner
+        // Account 2: Owner
         let owner_account = next_account_info(accounts_iter)?;
 
         // This errors if owner_account is not really the owner.
         token.enroll_remote_router_only_owner(owner_account, config)?;
 
-        // Store the updated token account.
-        HyperlaneTokenAccount::<T>::from(token).store(token_account, true)?;
+        // Store the updated token account and realloc if necessary.
+        HyperlaneTokenAccount::<T>::from(token).store_with_rent_exempt_realloc(
+            token_account,
+            &Rent::get()?,
+            owner_account,
+        )?;
 
         Ok(())
     }
@@ -654,8 +669,9 @@ where
     /// Enrolls remote routers.
     ///
     /// Accounts:
-    /// 0. [writeable] The token PDA account.
-    /// 1. [signer] The owner.
+    /// 0. [executable] The system program.
+    /// 1. [writeable] The token PDA account.
+    /// 2. [signer] The owner.
     pub fn enroll_remote_routers(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -663,7 +679,13 @@ where
     ) -> ProgramResult {
         let accounts_iter = &mut accounts.iter();
 
-        // Account 0: Token account
+        // Account 0: System program. Only used if a realloc / rent exemption top up occurs.
+        let system_program = next_account_info(accounts_iter)?;
+        if system_program.key != &solana_program::system_program::id() {
+            return Err(ProgramError::InvalidArgument);
+        }
+
+        // Account 1: Token account
         let token_account = next_account_info(accounts_iter)?;
         let mut token =
             HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow()[..])?.into_inner();
@@ -676,14 +698,18 @@ where
             return Err(ProgramError::IncorrectProgramId);
         }
 
-        // Account 1: Owner
+        // Account 2: Owner
         let owner_account = next_account_info(accounts_iter)?;
 
         // This errors if owner_account is not really the owner.
         token.enroll_remote_routers_only_owner(owner_account, configs)?;
 
-        // Store the updated token account.
-        HyperlaneTokenAccount::<T>::from(token).store(token_account, true)?;
+        // Store the updated token account and realloc if necessary.
+        HyperlaneTokenAccount::<T>::from(token).store_with_rent_exempt_realloc(
+            token_account,
+            &Rent::get()?,
+            owner_account,
+        )?;
 
         Ok(())
     }
@@ -710,8 +736,8 @@ where
         // This errors if owner_account is not really the owner.
         token.transfer_ownership(owner_account, new_owner)?;
 
-        // Store the updated token account.
-        HyperlaneTokenAccount::<T>::from(token).store(token_account, true)?;
+        // Store the updated token account. No need to realloc, the size for the owner is the same.
+        HyperlaneTokenAccount::<T>::from(token).store(token_account, false)?;
 
         Ok(())
     }
@@ -783,8 +809,8 @@ where
         // This errors if owner_account is not really the owner.
         token.set_interchain_security_module_only_owner(owner_account, ism)?;
 
-        // Store the updated token account.
-        HyperlaneTokenAccount::<T>::from(token).store(token_account, true)?;
+        // Store the updated token account. No need to realloc, the size for the ISM is the same.
+        HyperlaneTokenAccount::<T>::from(token).store(token_account, false)?;
 
         Ok(())
     }
@@ -792,8 +818,9 @@ where
     /// Lets the owner set destination gas configs.
     ///
     /// Accounts:
-    /// 0. [writeable] The token PDA account.
-    /// 1. [signer] The access control owner.
+    /// 0. [executable] The system program.
+    /// 1. [writeable] The token PDA account.
+    /// 2. [signer] The access control owner.
     pub fn set_destination_gas_configs(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -801,18 +828,28 @@ where
     ) -> ProgramResult {
         let accounts_iter = &mut accounts.iter();
 
-        // Account 0: Token account
+        // Account 0: System program. Only used if a realloc / rent exemption top up occurs.
+        let system_program = next_account_info(accounts_iter)?;
+        if system_program.key != &solana_program::system_program::id() {
+            return Err(ProgramError::InvalidArgument);
+        }
+
+        // Account 1: Token account
         let token_account = next_account_info(accounts_iter)?;
         let mut token = HyperlaneToken::verify_account_and_fetch_inner(program_id, token_account)?;
 
-        // Account 1: Owner
+        // Account 2: Owner
         let owner_account = next_account_info(accounts_iter)?;
 
         // This errors if owner_account is not really the owner.
         token.set_destination_gas_configs_only_owner(owner_account, configs)?;
 
-        // Store the updated token account.
-        HyperlaneTokenAccount::<T>::from(token).store(token_account, true)?;
+        // Store the updated token account and realloc if necessary.
+        HyperlaneTokenAccount::<T>::from(token).store_with_rent_exempt_realloc(
+            token_account,
+            &Rent::get()?,
+            owner_account,
+        )?;
 
         Ok(())
     }

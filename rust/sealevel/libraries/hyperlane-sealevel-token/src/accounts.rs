@@ -1,7 +1,7 @@
 //! Accounts for the Hyperlane token program.
 
 use access_control::AccessControl;
-use account_utils::AccountData;
+use account_utils::{AccountData, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{H256, U256};
 use hyperlane_sealevel_connection_client::{
@@ -85,6 +85,46 @@ where
             .ok_or(ProgramError::InvalidArgument)?
             .as_u64();
         Ok(amount)
+    }
+}
+
+impl<T> SizedData for HyperlaneToken<T>
+where
+    T: SizedData,
+{
+    fn size(&self) -> usize {
+        // std::mem::size_of is used for primitive types, which are guaranteed to
+        // have consistent sizes across all platforms (https://doc.rust-lang.org/std/mem/fn.size_of.html).
+        // For extra safety, we don't use std::mem::size_of for non-primitive types.
+
+        // bump
+        std::mem::size_of::<u8>() +
+        // mailbox
+        32 +
+        // mailbox_process_authority
+        32 +
+        // dispatch_authority_bump
+        std::mem::size_of::<u8>() +
+        // decimals
+        std::mem::size_of::<u8>() +
+        // remote_decimals
+        std::mem::size_of::<u8>() +
+        // owner
+        1 + 32 +
+        // interchain_security_module
+        1 + 32 +
+        // interchain_gas_paymaster
+        1 + 32 + 1 + 32 +
+        // destination_gas length
+        std::mem::size_of::<u32>() +
+        // destination_gas keys & values
+        (self.destination_gas.len() * (std::mem::size_of::<u32>() + std::mem::size_of::<u64>())) +
+        // remote_routers length
+        std::mem::size_of::<u32>() +
+        // remote_routers keys & values
+        (self.remote_routers.len() * (std::mem::size_of::<u32>() + 32)) +
+        // plugin_data
+        self.plugin_data.size()
     }
 }
 
@@ -272,5 +312,40 @@ mod test {
         };
 
         assert_eq!(token.remote_amount_to_local_amount(100u64.into()), Ok(0));
+    }
+
+    #[test]
+    fn test_hyperlane_token_size() {
+        #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Default)]
+        struct Foo {
+            bar: u32,
+        }
+
+        impl SizedData for Foo {
+            fn size(&self) -> usize {
+                std::mem::size_of::<u32>()
+            }
+        }
+
+        let hyperlane_token_foo = HyperlaneToken::<Foo> {
+            bump: 1,
+            mailbox: Pubkey::new_unique(),
+            mailbox_process_authority: Pubkey::new_unique(),
+            dispatch_authority_bump: 2,
+            decimals: 3,
+            remote_decimals: 4,
+            owner: Some(Pubkey::new_unique()),
+            interchain_security_module: Some(Pubkey::new_unique()),
+            interchain_gas_paymaster: Some((
+                Pubkey::new_unique(),
+                InterchainGasPaymasterType::Igp(Pubkey::new_unique()),
+            )),
+            destination_gas: HashMap::from([(1000, 200000), (200, 400000)]),
+            remote_routers: HashMap::from([(1000, H256::random()), (200, H256::random())]),
+            plugin_data: Foo { bar: 69 },
+        };
+        let serialized = hyperlane_token_foo.try_to_vec().unwrap();
+
+        assert_eq!(serialized.len(), hyperlane_token_foo.size());
     }
 }
