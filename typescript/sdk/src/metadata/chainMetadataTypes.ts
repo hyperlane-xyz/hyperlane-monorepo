@@ -1,17 +1,6 @@
 import { z } from 'zod';
 
-export enum ProtocolType {
-  Ethereum = 'ethereum',
-  Sealevel = 'sealevel',
-  Fuel = 'fuel',
-}
-// A type that also allows for literal values of the enum
-export type ProtocolTypeValue = `${ProtocolType}`;
-
-export const ProtocolSmallestUnit = {
-  [ProtocolType.Ethereum]: 'wei',
-  [ProtocolType.Sealevel]: 'lamports',
-};
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 export enum ExplorerFamily {
   Etherscan = 'etherscan',
@@ -196,7 +185,8 @@ export const ChainMetadataSchema = z.object({
     .describe('Whether the chain is considered a testnet or a mainnet.'),
 });
 
-export type ChainMetadata = z.infer<typeof ChainMetadataSchema>;
+export type ChainMetadata<Ext = object> = z.infer<typeof ChainMetadataSchema> &
+  Ext;
 
 export function isValidChainMetadata(c: ChainMetadata): boolean {
   return ChainMetadataSchema.safeParse(c).success;

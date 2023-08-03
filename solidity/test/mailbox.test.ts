@@ -2,7 +2,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
-import { utils } from '@hyperlane-xyz/utils';
+import { addressToBytes32, messageId } from '@hyperlane-xyz/utils';
 
 import {
   BadRecipient1__factory,
@@ -74,7 +74,7 @@ describe('Mailbox', async () => {
       await expect(
         mailbox.dispatch(
           destDomain,
-          utils.addressToBytes32(recipient.address),
+          addressToBytes32(recipient.address),
           longMessage,
         ),
       ).to.be.revertedWith('msg too long');
@@ -82,14 +82,14 @@ describe('Mailbox', async () => {
 
     it('Dispatches a message', async () => {
       // Send message with signer address as msg.sender
-      const recipientBytes = utils.addressToBytes32(recipient.address);
+      const recipientBytes = addressToBytes32(recipient.address);
       await expect(
         mailbox.connect(signer).dispatch(destDomain, recipientBytes, body),
       )
         .to.emit(mailbox, 'Dispatch')
         .withArgs(signer.address, destDomain, recipientBytes, message)
         .to.emit(mailbox, 'DispatchId')
-        .withArgs(utils.messageId(message));
+        .withArgs(messageId(message));
     });
 
     it('Returns the id of the dispatched message', async () => {
@@ -97,7 +97,7 @@ describe('Mailbox', async () => {
         .connect(signer)
         .callStatic.dispatch(
           destDomain,
-          utils.addressToBytes32(recipient.address),
+          addressToBytes32(recipient.address),
           body,
         );
 
@@ -140,7 +140,7 @@ describe('Mailbox', async () => {
     beforeEach(async () => {
       await module.setAccept(true);
       const recipientF = new TestRecipient__factory(signer);
-      recipient = utils.addressToBytes32((await recipientF.deploy()).address);
+      recipient = addressToBytes32((await recipientF.deploy()).address);
       ({ message, id } = await inferMessageValues(
         mailbox,
         signer.address,
@@ -153,11 +153,7 @@ describe('Mailbox', async () => {
     it('processes a message', async () => {
       await expect(mailbox.process('0x', message))
         .to.emit(mailbox, 'Process')
-        .withArgs(
-          originDomain,
-          utils.addressToBytes32(signer.address),
-          recipient,
-        )
+        .withArgs(originDomain, addressToBytes32(signer.address), recipient)
         .to.emit(mailbox, 'ProcessId')
         .withArgs(id);
       expect(await mailbox.delivered(id)).to.be.true;
@@ -284,11 +280,7 @@ describe('Mailbox', async () => {
     it('should prevent dispatch and process', async () => {
       await mailbox.pause();
       await expect(
-        mailbox.dispatch(
-          destDomain,
-          utils.addressToBytes32(nonOwner.address),
-          '0x',
-        ),
+        mailbox.dispatch(destDomain, addressToBytes32(nonOwner.address), '0x'),
       ).to.be.revertedWith('paused');
       await expect(mailbox.process('0x', '0x')).to.be.revertedWith('paused');
     });

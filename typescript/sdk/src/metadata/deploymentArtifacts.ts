@@ -24,6 +24,7 @@ export const ChainMetadataWithArtifactsSchema = ChainMetadataSchema.merge(
   HyperlaneDeploymentArtifactsSchema,
 );
 
-export type ChainMetadataWithArtifacts = z.infer<
+export type ChainMetadataWithArtifacts<Ext = object> = z.infer<
   typeof ChainMetadataWithArtifactsSchema
->;
+> &
+  Ext;

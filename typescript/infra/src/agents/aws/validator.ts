@@ -1,4 +1,13 @@
-import { BaseValidator, types, utils } from '@hyperlane-xyz/utils';
+import {
+  BaseValidator,
+  Checkpoint,
+  HexString,
+  S3Checkpoint,
+  S3CheckpointWithId,
+  SignatureLike,
+  isS3Checkpoint,
+  isS3CheckpointWithId,
+} from '@hyperlane-xyz/utils';
 
 import { S3Receipt, S3Wrapper } from './s3';
 
@@ -17,9 +26,9 @@ interface CheckpointMetric {
 }
 
 interface SignedCheckpoint {
-  checkpoint: types.Checkpoint;
-  messageId?: types.HexString;
-  signature: types.SignatureLike;
+  checkpoint: Checkpoint;
+  messageId?: HexString;
+  signature: SignatureLike;
 }
 
 type S3CheckpointReceipt = S3Receipt<SignedCheckpoint>;
@@ -206,12 +215,12 @@ export class S3Validator extends BaseValidator {
       ? checkpointWithMessageIdKey(index)
       : checkpointKey(index);
     const s3Object = await this.s3Bucket.getS3Obj<
-      types.S3Checkpoint | types.S3CheckpointWithId
+      S3Checkpoint | S3CheckpointWithId
     >(key);
     if (!s3Object) {
       return;
     }
-    if (utils.isS3Checkpoint(s3Object.data)) {
+    if (isS3Checkpoint(s3Object.data)) {
       return {
         data: {
           checkpoint: s3Object.data.value,
@@ -219,7 +228,7 @@ export class S3Validator extends BaseValidator {
         },
         modified: s3Object.modified,
       };
-    } else if (utils.isS3CheckpointWithId(s3Object.data)) {
+    } else if (isS3CheckpointWithId(s3Object.data)) {
       return {
         data: {
           checkpoint: s3Object.data.value.checkpoint,

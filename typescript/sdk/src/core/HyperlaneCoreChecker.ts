@@ -1,6 +1,6 @@
 import { utils as ethersUtils } from 'ethers';
 
-import { types, utils } from '@hyperlane-xyz/utils';
+import { Address, assert, eqAddress } from '@hyperlane-xyz/utils';
 
 import { BytecodeHash } from '../consts/bytecode';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
@@ -55,7 +55,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
   async checkDomainOwnership(chain: ChainName): Promise<void> {
     const config = this.configMap[chain];
 
-    let ownableOverrides: Record<string, types.Address> = {};
+    let ownableOverrides: Record<string, Address> = {};
     if (config.upgrade) {
       const timelockController =
         this.app.getAddresses(chain).timelockController;
@@ -70,7 +70,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     const contracts = this.app.getContracts(chain);
     const mailbox = contracts.mailbox;
     const localDomain = await mailbox.localDomain();
-    utils.assert(localDomain === this.multiProvider.getDomainId(chain));
+    assert(localDomain === this.multiProvider.getDomainId(chain));
 
     const actualIsm = await mailbox.defaultIsm();
 
@@ -155,7 +155,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       await validatorAnnounce.getAnnouncedValidators();
     [...validators].forEach((validator) => {
       const matches = announcedValidators.filter((x) =>
-        utils.eqAddress(x, validator),
+        eqAddress(x, validator),
       );
       if (matches.length == 0) {
         const violation: ValidatorAnnounceViolation = {

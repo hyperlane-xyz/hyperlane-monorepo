@@ -1,14 +1,20 @@
 import { ethers } from 'ethers';
 
 import { Mailbox, Mailbox__factory } from '@hyperlane-xyz/core';
-import { types, utils } from '@hyperlane-xyz/utils';
+import {
+  ParsedMessage,
+  messageId,
+  parseMessage,
+  pollAsync,
+} from '@hyperlane-xyz/utils';
 
-import { HyperlaneApp } from '../HyperlaneApp';
+import { HyperlaneApp } from '../app/HyperlaneApp';
 import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
 } from '../consts/environments';
-import { HyperlaneAddressesMap, appFromAddressesMapHelper } from '../contracts';
+import { appFromAddressesMapHelper } from '../contracts/contracts';
+import { HyperlaneAddressesMap } from '../contracts/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName } from '../types';
 
@@ -17,7 +23,7 @@ import { CoreFactories, coreFactories } from './contracts';
 export type DispatchedMessage = {
   id: string;
   message: string;
-  parsed: types.ParsedMessage;
+  parsed: ParsedMessage;
 };
 
 export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
@@ -58,7 +64,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   protected waitForProcessReceipt(
     message: DispatchedMessage,
   ): Promise<ethers.ContractReceipt> {
-    const id = utils.messageId(message.message);
+    const id = messageId(message.message);
     const { destinationChain, mailbox } = this.getDestination(message);
     const filter = mailbox.filters.ProcessId(id);
 
@@ -77,9 +83,9 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   protected async waitForMessageWasProcessed(
     message: DispatchedMessage,
   ): Promise<void> {
-    const id = utils.messageId(message.message);
+    const id = messageId(message.message);
     const { mailbox } = this.getDestination(message);
-    await utils.pollAsync(async () => {
+    await pollAsync(async () => {
       const delivered = await mailbox.delivered(id);
       if (!delivered) {
         throw new Error(`Message ${id} not yet processed`);
@@ -127,8 +133,8 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       );
     return dispatchLogs.map((log) => {
       const message = log.args['message'];
-      const parsed = utils.parseMessage(message);
-      const id = utils.messageId(message);
+      const parsed = parseMessage(message);
+      const id = messageId(message);
       return { id, message, parsed };
     });
   }
