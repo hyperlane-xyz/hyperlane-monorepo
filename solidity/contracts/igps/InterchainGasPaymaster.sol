@@ -1,10 +1,27 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+/*@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+     @@@@@  HYPERLANE  @@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+@@@@@@@@@       @@@@@@@@*/
+
 // ============ Internal Imports ============
+import {Message} from "../libs/Message.sol";
+import {IGPHookMetadata} from "../libs/hooks/IGPHookMetadata.sol";
 import {IGasOracle} from "../interfaces/IGasOracle.sol";
 import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
+import {AbstractHook} from "../hooks/AbstractHook.sol";
+
 // ============ External Imports ============
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 /**
@@ -15,12 +32,18 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 contract InterchainGasPaymaster is
     IInterchainGasPaymaster,
     IGasOracle,
+    AbstractHook,
     OwnableUpgradeable
 {
+    using Address for address;
+    using IGPHookMetadata for bytes;
+    using Message for bytes;
     // ============ Constants ============
 
     /// @notice The scale of gas oracle token exchange rates.
-    uint256 internal constant TOKEN_EXCHANGE_RATE_SCALE = 1e10;
+    uint256 internal constant DECIMALS = 1e10;
+    /// @notice default for user call if metadata not provided
+    uint256 internal constant DEFAULT_GAS_USAGE = 69_420;
 
     // ============ Public Storage ============
 
@@ -49,6 +72,10 @@ contract InterchainGasPaymaster is
         uint32 remoteDomain;
         address gasOracle;
     }
+
+    // ============ Constructor ============
+
+    constructor(address _mailbox) AbstractHook(_mailbox) {}
 
     // ============ External Functions ============
 
@@ -80,19 +107,16 @@ contract InterchainGasPaymaster is
         uint32 _destinationDomain,
         uint256 _gasAmount,
         address _refundAddress
-    ) external payable override {
+    ) public payable override {
         uint256 _requiredPayment = quoteGasPayment(
             _destinationDomain,
             _gasAmount
         );
-        require(
-            msg.value >= _requiredPayment,
-            "insufficient interchain gas payment"
-        );
+        require(msg.value >= _requiredPayment, "IGP: insufficient gas payment");
         uint256 _overpayment = msg.value - _requiredPayment;
         if (_overpayment > 0) {
             (bool _success, ) = _refundAddress.call{value: _overpayment}("");
-            require(_success, "Interchain gas payment refund failed");
+            require(_success, "IGP: refund failed");
         }
 
         emit GasPayment(_messageId, _gasAmount, _requiredPayment);
@@ -155,9 +179,7 @@ contract InterchainGasPaymaster is
         uint256 _destinationGasCost = _gasAmount * uint256(_gasPrice);
 
         // Convert to the local native token.
-        return
-            (_destinationGasCost * _tokenExchangeRate) /
-            TOKEN_EXCHANGE_RATE_SCALE;
+        return (_destinationGasCost * _tokenExchangeRate) / DECIMALS;
     }
 
     /**
@@ -180,6 +202,30 @@ contract InterchainGasPaymaster is
     }
 
     // ============ Internal Functions ============
+
+    function _postDispatch(bytes calldata _metadata, bytes calldata _message)
+        internal
+        override
+    {
+        if (_metadata.length == 0) {
+            payForGas(
+                _message.id(),
+                _message.destination(),
+                DEFAULT_GAS_USAGE,
+                _message.senderAddress()
+            );
+        } else {
+            address refundAddress = _metadata.refundAddress();
+            if (refundAddress != address(0))
+                refundAddress = _message.senderAddress();
+            payForGas(
+                _message.id(),
+                _message.destination(),
+                _metadata.gasLimit(),
+                refundAddress
+            );
+        }
+    }
 
     /**
      * @notice Sets the beneficiary.

@@ -29,7 +29,7 @@ contract InterchainGasPaymasterTest is Test {
     event BeneficiarySet(address beneficiary);
 
     function setUp() public {
-        igp = new InterchainGasPaymaster();
+        igp = new InterchainGasPaymaster(address(0xdeadbeef));
         igp.initialize(address(this), beneficiary);
         oracle = new StorageGasOracle();
         setGasOracle(testDestinationDomain, address(oracle));

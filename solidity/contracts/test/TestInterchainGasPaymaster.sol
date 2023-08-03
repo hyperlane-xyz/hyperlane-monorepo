@@ -8,7 +8,7 @@ contract TestInterchainGasPaymaster is InterchainGasPaymaster {
     uint256 public constant gasPrice = 10;
 
     // Ensure the same constructor interface as the inherited InterchainGasPaymaster
-    constructor(address _beneficiary) {
+    constructor(address _beneficiary) InterchainGasPaymaster(address(0)) {
         initialize(msg.sender, _beneficiary);
     }
 
