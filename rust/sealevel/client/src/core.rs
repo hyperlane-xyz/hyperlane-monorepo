@@ -388,7 +388,7 @@ mod serde_pubkey {
 
     pub fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<Pubkey, D::Error> {
         match RawPubkey::deserialize(de)? {
-            RawPubkey::String(s) => Pubkey::from_str(&s).map_err(serde::de::Error::custom),
+            RawPubkey::String(s) => Pubkey::from_str(s).map_err(serde::de::Error::custom),
             RawPubkey::Bytes(b) => Ok(b),
         }
     }
