@@ -105,9 +105,7 @@ fn deploy_multisig_ism_message_id(
     )
     .unwrap();
 
-    ctx.instructions.push(instruction);
-    ctx.send_transaction(&[&ctx.payer]);
-    ctx.instructions.clear();
+    ctx.new_txn().add(instruction).send_with_payer();
 
     println!("Initialized Multisig ISM Message ID ");
 
@@ -150,9 +148,7 @@ fn deploy_mailbox(
     )
     .unwrap();
 
-    ctx.instructions.push(instruction);
-    ctx.send_transaction(&[&ctx.payer]);
-    ctx.instructions.clear();
+    ctx.new_txn().add(instruction).send_with_payer();
 
     println!("Initialized Mailbox");
 
@@ -195,9 +191,7 @@ fn deploy_validator_announce(
     )
     .unwrap();
 
-    ctx.instructions.push(instruction);
-    ctx.send_transaction(&[&ctx.payer]);
-    ctx.instructions.clear();
+    ctx.new_txn().add(instruction).send_with_payer();
 
     println!("Initialized ValidatorAnnounce");
 
@@ -283,9 +277,7 @@ fn deploy_igp(
         hyperlane_sealevel_igp::instruction::init_instruction(program_id, ctx.payer.pubkey())
             .unwrap();
 
-    ctx.instructions.push(instruction);
-    ctx.send_transaction(&[&ctx.payer]);
-    ctx.instructions.clear();
+    ctx.new_txn().add(instruction).send_with_payer();
 
     let (program_data_account, _program_data_bump) = Pubkey::find_program_address(
         hyperlane_sealevel_igp::igp_program_data_pda_seeds!(),
@@ -303,9 +295,8 @@ fn deploy_igp(
         ctx.payer.pubkey(),
     )
     .unwrap();
-    ctx.instructions.push(instruction);
-    ctx.send_transaction(&[&ctx.payer]);
-    ctx.instructions.clear();
+
+    ctx.new_txn().add(instruction).send_with_payer();
 
     let (igp_account, _igp_account_bump) =
         Pubkey::find_program_address(hyperlane_sealevel_igp::igp_pda_seeds!(salt), &program_id);
@@ -319,9 +310,8 @@ fn deploy_igp(
         igp_account,
     )
     .unwrap();
-    ctx.instructions.push(instruction);
-    ctx.send_transaction(&[&ctx.payer]);
-    ctx.instructions.clear();
+
+    ctx.new_txn().add(instruction).send_with_payer();
 
     let (overhead_igp_account, _) = Pubkey::find_program_address(
         hyperlane_sealevel_igp::overhead_igp_pda_seeds!(salt),
@@ -343,9 +333,7 @@ fn deploy_igp(
         )
         .unwrap();
 
-        ctx.instructions.push(instruction);
-        ctx.send_transaction(&[&ctx.payer]);
-        ctx.instructions.clear();
+        ctx.new_txn().add(instruction).send_with_payer();
 
         println!("Set gas oracle for remote domains {domains:?}",);
     } else {
@@ -366,9 +354,7 @@ fn deploy_igp(
         )
         .unwrap();
 
-        ctx.instructions.push(instruction);
-        ctx.send_transaction(&[&ctx.payer]);
-        ctx.instructions.clear();
+        ctx.new_txn().add(instruction).send_with_payer();
 
         println!("Set gas overheads for remote domains {domains:?}",)
     } else {
@@ -395,9 +381,9 @@ fn deploy_igp(
             )
             .unwrap();
 
-        ctx.instructions.push(instruction);
-        ctx.send_transaction(&[&ctx.payer, &unique_gas_payment_keypair]);
-        ctx.instructions.clear();
+        ctx.new_txn()
+            .add(instruction)
+            .send(&[&ctx.payer, &unique_gas_payment_keypair]);
 
         println!(
             "Made a payment for message {} with gas payment data account {}",

@@ -264,16 +264,17 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                         chain_name, program_id, router_configs,
                     );
 
-                    ctx.instructions.push(
-                        enroll_remote_routers_instruction(
-                            program_id,
-                            ctx.payer.pubkey(),
-                            router_configs,
+                    ctx.new_txn()
+                        .add(
+                            enroll_remote_routers_instruction(
+                                program_id,
+                                ctx.payer.pubkey(),
+                                router_configs,
+                            )
+                            .unwrap(),
                         )
-                        .unwrap(),
-                    );
-                    ctx.send_transaction_with_client(&chain_config.client(), &[&ctx.payer]);
-                    ctx.instructions.clear();
+                        .with_client(&chain_config.client())
+                        .send_with_payer();
                 } else {
                     println!(
                         "No router changes for chain: {}, program_id {}",
@@ -428,14 +429,14 @@ fn fund_ata_payer_up_to(
         "Funding ATA payer {} with funding_amount {} to reach total balance of {}",
         ata_payer_account, funding_amount, ata_payer_funding_amount
     );
-    ctx.instructions
-        .push(solana_program::system_instruction::transfer(
+    ctx.new_txn()
+        .add(solana_program::system_instruction::transfer(
             &ctx.payer.pubkey(),
             &ata_payer_account,
             funding_amount,
-        ));
-    ctx.send_transaction_with_client(client, &[&ctx.payer]);
-    ctx.instructions.clear();
+        ))
+        .with_client(client)
+        .send_with_payer();
 }
 
 fn init_warp_route(
@@ -466,27 +467,29 @@ fn init_warp_route(
         remote_decimals: token_config.decimal_metadata.remote_decimals(),
     };
 
-    let mut init_instructions = match &token_config.token_type {
-        TokenType::Native => vec![
+    match &token_config.token_type {
+        TokenType::Native => ctx.new_txn().add(
             hyperlane_sealevel_token_native::instruction::init_instruction(
                 program_id,
                 ctx.payer.pubkey(),
                 init,
             )?,
-        ],
+        ),
         TokenType::Synthetic(_token_metadata) => {
             let decimals = init.decimals;
 
-            let mut instructions = vec![hyperlane_sealevel_token::instruction::init_instruction(
-                program_id,
-                ctx.payer.pubkey(),
-                init,
-            )?];
+            let init_txn =
+                ctx.new_txn()
+                    .add(hyperlane_sealevel_token::instruction::init_instruction(
+                        program_id,
+                        ctx.payer.pubkey(),
+                        init,
+                    )?);
 
             let (mint_account, _mint_bump) =
                 Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
             // TODO: Also set Metaplex metadata?
-            instructions.push(
+            init_txn.add(
                 spl_token_2022::instruction::initialize_mint2(
                     &spl_token_2022::id(),
                     &mint_account,
@@ -495,30 +498,24 @@ fn init_warp_route(
                     decimals,
                 )
                 .unwrap(),
-            );
-
-            instructions
+            )
         }
-        TokenType::Collateral(collateral_info) => {
-            vec![
-                hyperlane_sealevel_token_collateral::instruction::init_instruction(
-                    program_id,
-                    ctx.payer.pubkey(),
-                    init,
-                    collateral_info
-                        .spl_token_program
-                        .as_ref()
-                        .expect("Cannot initalize collateral warp route without SPL token program")
-                        .program_id(),
-                    collateral_info.mint.parse().expect("Invalid mint address"),
-                )?,
-            ]
-        }
-    };
-
-    ctx.instructions.append(&mut init_instructions);
-    ctx.send_transaction_with_client(client, &[&ctx.payer]);
-    ctx.instructions.clear();
+        TokenType::Collateral(collateral_info) => ctx.new_txn().add(
+            hyperlane_sealevel_token_collateral::instruction::init_instruction(
+                program_id,
+                ctx.payer.pubkey(),
+                init,
+                collateral_info
+                    .spl_token_program
+                    .as_ref()
+                    .expect("Cannot initalize collateral warp route without SPL token program")
+                    .program_id(),
+                collateral_info.mint.parse().expect("Invalid mint address"),
+            )?,
+        ),
+    }
+    .with_client(client)
+    .send_with_payer();
 
     Ok(())
 }
