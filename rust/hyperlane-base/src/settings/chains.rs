@@ -10,8 +10,8 @@ use ethers_prometheus::middleware::{
 use hyperlane_core::{
     config::*, utils::hex_or_base58_to_h256, AggregationIsm, CcipReadIsm, ContractLocator,
     HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneProvider, HyperlaneSigner,
-    IndexMode, Indexer, InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule,
-    Mailbox, MessageIndexer, MultisigIsm, RoutingIsm, ValidatorAnnounce, H256,
+    IndexMode, InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
+    MessageIndexer, MultisigIsm, RoutingIsm, SequenceIndexer, ValidatorAnnounce, H256,
 };
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
@@ -137,8 +137,6 @@ pub struct IndexSettings {
     pub from: u32,
     /// The number of blocks to query at once when indexing contracts.
     pub chunk_size: u32,
-    /// The indexing mode.
-    pub mode: IndexMode,
 }
 
 #[derive(Debug, Deserialize)]
@@ -146,7 +144,6 @@ pub struct IndexSettings {
 struct RawIndexSettings {
     from: Option<StrOrInt>,
     chunk: Option<StrOrInt>,
-    mode: Option<IndexMode>,
 }
 
 impl FromRawConf<'_, RawIndexSettings> for IndexSettings {
@@ -168,11 +165,7 @@ impl FromRawConf<'_, RawIndexSettings> for IndexSettings {
             .unwrap_or(1999);
 
         err.into_result()?;
-        Ok(Self {
-            from,
-            chunk_size,
-            mode: raw.mode.unwrap_or_default(),
-        })
+        Ok(Self { from, chunk_size })
     }
 }
 
@@ -307,6 +300,11 @@ impl ChainConf {
             ))
     }
 
+    /// Fetch the index settings and index mode, since they are often used together.
+    pub fn index_settings_and_mode(&self) -> (IndexSettings, IndexMode) {
+        (self.index.clone(), self.domain.index_mode())
+    }
+
     /// Try to convert the chain settings into an HyperlaneProvider.
     pub async fn build_provider(
         &self,
@@ -386,7 +384,7 @@ impl ChainConf {
     pub async fn build_delivery_indexer(
         &self,
         metrics: &CoreMetrics,
-    ) -> Result<Box<dyn Indexer<H256>>> {
+    ) -> Result<Box<dyn SequenceIndexer<H256>>> {
         let ctx = "Building delivery indexer";
         let locator = self.locator(self.addresses.mailbox);
 
@@ -406,7 +404,7 @@ impl ChainConf {
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
-                Ok(indexer as Box<dyn Indexer<H256>>)
+                Ok(indexer as Box<dyn SequenceIndexer<H256>>)
             }
         }
         .context(ctx)
@@ -447,7 +445,7 @@ impl ChainConf {
     pub async fn build_interchain_gas_payment_indexer(
         &self,
         metrics: &CoreMetrics,
-    ) -> Result<Box<dyn Indexer<InterchainGasPayment>>> {
+    ) -> Result<Box<dyn SequenceIndexer<InterchainGasPayment>>> {
         let ctx = "Building IGP indexer";
         let locator = self.locator(self.addresses.interchain_gas_paymaster);
 
@@ -470,7 +468,7 @@ impl ChainConf {
                 let indexer = Box::new(h_sealevel::SealevelInterchainGasPaymasterIndexer::new(
                     conf, locator,
                 ));
-                Ok(indexer as Box<dyn Indexer<InterchainGasPayment>>)
+                Ok(indexer as Box<dyn SequenceIndexer<InterchainGasPayment>>)
             }
         }
         .context(ctx)

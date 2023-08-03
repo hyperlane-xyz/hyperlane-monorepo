@@ -5,9 +5,6 @@ name = "account-utils"
 version = "0.1.0"
 edition = "2021"
 
-[features]
-no-entrypoint = []
-
 [dependencies]
 borsh.workspace = true
 solana-program.workspace = true
