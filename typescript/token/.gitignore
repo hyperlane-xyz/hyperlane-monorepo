@@ -1,12 +1,12 @@
 node_modules/
 cache/
-artifacts/
-types/
-dist/
+# artifacts/
+# types/
+# dist/
 coverage/
 coverage.json
 *.swp
 .yarn/install-state.gz
 # foundry
 docs
-out
+# out
