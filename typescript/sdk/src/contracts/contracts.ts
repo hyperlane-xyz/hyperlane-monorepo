@@ -1,4 +1,4 @@
-import { Contract, ethers } from 'ethers';
+import { Contract } from 'ethers';
 
 import { Ownable } from '@hyperlane-xyz/core';
 import {
@@ -10,28 +10,16 @@ import {
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
-import { MultiProvider } from './providers/MultiProvider';
-import { ChainMap, Connection } from './types';
+import { MultiProvider } from '../providers/MultiProvider';
+import { ChainMap, Connection } from '../types';
 
-export type HyperlaneFactories = {
-  [key: string]: ethers.ContractFactory;
-};
-
-export type HyperlaneContracts<F extends HyperlaneFactories> = {
-  [P in keyof F]: Awaited<ReturnType<F[P]['deploy']>>;
-};
-
-export type HyperlaneContractsMap<F extends HyperlaneFactories> = ChainMap<
-  HyperlaneContracts<F>
->;
-
-export type HyperlaneAddresses<F extends HyperlaneFactories> = {
-  [P in keyof F]: Address;
-};
-
-export type HyperlaneAddressesMap<F extends HyperlaneFactories> = ChainMap<
-  HyperlaneAddresses<F>
->;
+import {
+  HyperlaneAddresses,
+  HyperlaneAddressesMap,
+  HyperlaneContracts,
+  HyperlaneContractsMap,
+  HyperlaneFactories,
+} from './types';
 
 export function serializeContractsMap<F extends HyperlaneFactories>(
   contractsMap: HyperlaneContractsMap<F>,

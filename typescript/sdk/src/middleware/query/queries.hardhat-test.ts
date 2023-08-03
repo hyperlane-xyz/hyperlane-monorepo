@@ -11,7 +11,7 @@ import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../../consts/chainMetadata';
 import { Chains } from '../../consts/chains';
-import { HyperlaneContractsMap } from '../../contracts';
+import { HyperlaneContractsMap } from '../../contracts/types';
 import { TestCoreApp } from '../../core/TestCoreApp';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer';
 import { MultiProvider } from '../../providers/MultiProvider';

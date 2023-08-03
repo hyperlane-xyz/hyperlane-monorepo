@@ -9,8 +9,8 @@ import {
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
-import { HyperlaneApp } from '../HyperlaneApp';
-import { filterOwnableContracts } from '../contracts';
+import { HyperlaneApp } from '../app/HyperlaneApp';
+import { filterOwnableContracts } from '../contracts/contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 

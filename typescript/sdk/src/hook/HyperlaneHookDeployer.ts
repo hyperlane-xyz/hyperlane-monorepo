@@ -10,7 +10,7 @@ import {
 } from '@hyperlane-xyz/core';
 import { Address, addressToBytes32 } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts, HyperlaneContractsMap } from '../contracts';
+import { HyperlaneContracts, HyperlaneContractsMap } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';

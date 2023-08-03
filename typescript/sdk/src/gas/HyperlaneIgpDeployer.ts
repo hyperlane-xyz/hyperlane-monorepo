@@ -11,7 +11,7 @@ import {
 } from '@hyperlane-xyz/core';
 import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts';
+import { HyperlaneContracts } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName } from '../types';

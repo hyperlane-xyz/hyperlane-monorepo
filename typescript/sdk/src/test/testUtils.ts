@@ -7,7 +7,7 @@ import {
 import { Address, objMap } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
-import { HyperlaneContractsMap } from '../contracts';
+import { HyperlaneContractsMap } from '../contracts/types';
 import { CoreFactories } from '../core/contracts';
 import { CoreConfig } from '../core/types';
 import { IgpFactories } from '../gas/contracts';
