@@ -50,7 +50,6 @@ export class MultiProtocolGasRouterApp<
   ContractAddrs extends RouterAddress = RouterAddress,
   IAdapterApi extends IGasRouterAdapter = IGasRouterAdapter,
 > extends MultiProtocolRouterApp<ContractAddrs, IAdapterApi> {
-  // Explicit cast via unknown is unfortunately required here to enable both default adapters AND generic types
   public override readonly protocolToAdapter = {
     [ProtocolType.Ethereum]: EvmGasRouterAdapter,
     [ProtocolType.Sealevel]: SealevelGasRouterAdapter,
