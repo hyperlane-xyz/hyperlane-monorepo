@@ -157,9 +157,57 @@ pub mod serde_u128 {
         d.deserialize_any(U128Visitor)
     }
 
-    #[test]
-    fn test() {
-        todo!()
+    #[cfg(test)]
+    mod test {
+        #[derive(Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+        struct Test {
+            #[serde(with = "super")]
+            v: u128,
+        }
+
+        #[test]
+        fn test_serialize() {
+            assert_eq!(
+                serde_json::to_string(&Test { v: 0 }).unwrap(),
+                r#"{"v":"0"}"#
+            );
+            assert_eq!(
+                serde_json::to_string(&Test { v: 42 }).unwrap(),
+                r#"{"v":"42"}"#
+            );
+            assert_eq!(
+                serde_json::to_string(&Test { v: u128::MAX }).unwrap(),
+                format!(r#"{{"v":"{}"}}"#, u128::MAX)
+            );
+        }
+
+        #[test]
+        fn test_deserialize_str() {
+            assert_eq!(
+                serde_json::from_str::<Test>(r#"{"v":"0"}"#).unwrap(),
+                Test { v: 0 }
+            );
+            assert_eq!(
+                serde_json::from_str::<Test>(r#"{"v":"42"}"#).unwrap(),
+                Test { v: 42 }
+            );
+            assert_eq!(
+                serde_json::from_str::<Test>(&format!(r#"{{"v":"{}"}}"#, u128::MAX)).unwrap(),
+                Test { v: u128::MAX }
+            )
+        }
+
+        #[test]
+        fn test_deserialize_int() {
+            assert_eq!(
+                serde_json::from_str::<Test>(r#"{"v":0}"#).unwrap(),
+                Test { v: 0 }
+            );
+            assert_eq!(
+                serde_json::from_str::<Test>(r#"{"v":42}"#).unwrap(),
+                Test { v: 42 }
+            );
+        }
     }
 }
 
