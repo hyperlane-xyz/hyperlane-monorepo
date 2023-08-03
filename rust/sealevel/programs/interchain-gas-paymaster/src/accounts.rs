@@ -17,7 +17,9 @@ pub const TOKEN_EXCHANGE_RATE_SCALE: u128 = 10u128.pow(19);
 /// The number of decimals for the native SOL token.
 pub const SOL_DECIMALS: u8 = 9;
 
-#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Clone)]
+#[derive(
+    BorshSerialize, BorshDeserialize, Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize,
+)]
 /// Types of IGPs that exist.
 pub enum InterchainGasPaymasterType {
     /// An IGP with gas oracles and that receives lamports as payment.

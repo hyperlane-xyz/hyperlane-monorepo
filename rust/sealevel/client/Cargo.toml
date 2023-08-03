@@ -22,6 +22,7 @@ account-utils = { path = "../libraries/account-utils" }
 hyperlane-core = { path = "../../hyperlane-core" }
 hyperlane-sealevel-connection-client = { path = "../libraries/hyperlane-sealevel-connection-client" }
 hyperlane-sealevel-mailbox = { path = "../programs/mailbox", features = ["no-entrypoint"] }
+hyperlane-sealevel-igp = { path = "../programs/interchain-gas-paymaster", features = ["no-entrypoint"] }
 hyperlane-sealevel-multisig-ism-message-id = { path = "../programs/ism/multisig-ism-message-id", features = ["no-entrypoint"] }
 hyperlane-sealevel-token = { path = "../programs/hyperlane-sealevel-token", features = ["no-entrypoint"] }
 hyperlane-sealevel-token-collateral = { path = "../programs/hyperlane-sealevel-token-collateral", features = ["no-entrypoint"] }

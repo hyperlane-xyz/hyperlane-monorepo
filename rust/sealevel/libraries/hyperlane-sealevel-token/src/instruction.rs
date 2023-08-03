@@ -121,9 +121,42 @@ pub fn enroll_remote_routers_instruction(
     let ixn = Instruction::EnrollRemoteRouters(configs);
 
     // Accounts:
-    // 0. [writeable] The token PDA account.
-    // 1. [signer] The owner.
+    // 0. [executable] The system program.
+    // 1. [writeable] The token PDA account.
+    // 2. [signer] The owner.
     let accounts = vec![
+        AccountMeta::new_readonly(solana_program::system_program::id(), false),
+        AccountMeta::new(token_key, false),
+        AccountMeta::new(owner_payer, true),
+    ];
+
+    let instruction = SolanaInstruction {
+        program_id,
+        data: ixn.encode()?,
+        accounts,
+    };
+
+    Ok(instruction)
+}
+
+/// Sets destination gas configs.
+pub fn set_destination_gas_configs(
+    program_id: Pubkey,
+    owner_payer: Pubkey,
+    configs: Vec<GasRouterConfig>,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (token_key, _token_bump) =
+        Pubkey::try_find_program_address(hyperlane_token_pda_seeds!(), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+
+    let ixn = Instruction::SetDestinationGasConfigs(configs);
+
+    // Accounts:
+    // 0. [executable] The system program.
+    // 1. [writeable] The token PDA account.
+    // 2. [signer] The owner.
+    let accounts = vec![
+        AccountMeta::new_readonly(solana_program::system_program::id(), false),
         AccountMeta::new(token_key, false),
         AccountMeta::new(owner_payer, true),
     ];
