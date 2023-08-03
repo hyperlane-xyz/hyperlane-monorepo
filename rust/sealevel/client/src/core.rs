@@ -294,9 +294,10 @@ fn deploy_igp(
 
     println!("Set gas oracle for remote domain 13376");
 
-    // Now make a gas payment for a message ID
+    // Now make a gas payment for the actual message ID that is sent
+    // So it passes the relayer's payment enforcement policy
     let message_id =
-        H256::from_str("0x6969000000000000000000000000000000000000000000000000000000006969")
+        H256::from_str("0x7b8ba684e5ce44f898c5fa81785c83a00e32b5bef3412e648eb7a17bec497685")
             .unwrap();
     let unique_gas_payment_keypair = Keypair::new();
     let (instruction, gas_payment_data_account) =

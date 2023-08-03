@@ -3,6 +3,7 @@ use std::error::Error as StdError;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::Deref;
 
+use crate::config::StrOrIntParseError;
 use crate::HyperlaneProviderError;
 use crate::H256;
 
@@ -74,6 +75,9 @@ pub enum ChainCommunicationError {
     /// No signer is available and was required for the operation
     #[error("Signer unavailable")]
     SignerUnavailable,
+    /// Failed to parse strings or integers
+    #[error("Data parsing error {0:?}")]
+    StrOrIntParseError(#[from] StrOrIntParseError),
 }
 
 impl ChainCommunicationError {

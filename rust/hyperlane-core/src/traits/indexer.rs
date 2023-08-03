@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use auto_impl::auto_impl;
 use serde::Deserialize;
 
-use crate::{ChainResult, HyperlaneMessage, LogMeta};
+use crate::{ChainResult, LogMeta};
 
 /// Indexing mode.
 #[derive(Copy, Debug, Default, Deserialize, Clone)]
@@ -35,16 +35,7 @@ pub trait Indexer<T: Sized>: Send + Sync + Debug {
     async fn get_finalized_block_number(&self) -> ChainResult<u32>;
 }
 
-/// Interface for Mailbox contract indexer. Interface for allowing other
-/// entities to retrieve chain-specific data from a mailbox.
-#[async_trait]
-#[auto_impl(&, Box, Arc)]
-pub trait MessageIndexer: Indexer<HyperlaneMessage> + 'static {
-    /// Return the latest finalized mailbox count and block number
-    async fn fetch_count_at_tip(&self) -> ChainResult<(u32, u32)>;
-}
-
-/// Interface for indexing data in sequence. Currently used in non-EVM chains
+/// Interface for indexing data in sequence.
 #[async_trait]
 #[auto_impl(&, Box, Arc)]
 pub trait SequenceIndexer<T>: Indexer<T> + 'static {

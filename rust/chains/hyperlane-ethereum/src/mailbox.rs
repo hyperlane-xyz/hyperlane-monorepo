@@ -10,7 +10,6 @@ use async_trait::async_trait;
 use ethers::abi::AbiEncode;
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
-use hyperlane_core::SequenceIndexer;
 use tracing::instrument;
 
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
@@ -18,8 +17,8 @@ use hyperlane_core::accumulator::TREE_DEPTH;
 use hyperlane_core::{
     utils::fmt_bytes, ChainCommunicationError, ChainResult, Checkpoint, ContractLocator,
     HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProtocolError, HyperlaneProvider, Indexer, LogMeta, Mailbox, MessageIndexer,
-    RawHyperlaneMessage, TxCostEstimate, TxOutcome, H160, H256, U256,
+    HyperlaneProtocolError, HyperlaneProvider, Indexer, LogMeta, Mailbox, RawHyperlaneMessage,
+    SequenceIndexer, TxCostEstimate, TxOutcome, H160, H256, U256,
 };
 
 use crate::contracts::arbitrum_node_interface::ArbitrumNodeInterface;
@@ -40,13 +39,13 @@ where
     }
 }
 
-pub struct MessageIndexerBuilder {
+pub struct SequenceIndexerBuilder {
     pub finality_blocks: u32,
 }
 
 #[async_trait]
-impl BuildableWithProvider for MessageIndexerBuilder {
-    type Output = Box<dyn MessageIndexer>;
+impl BuildableWithProvider for SequenceIndexerBuilder {
+    type Output = Box<dyn SequenceIndexer<HyperlaneMessage>>;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
@@ -153,12 +152,12 @@ where
 }
 
 #[async_trait]
-impl<M> MessageIndexer for EthereumMailboxIndexer<M>
+impl<M> SequenceIndexer<HyperlaneMessage> for EthereumMailboxIndexer<M>
 where
     M: Middleware + 'static,
 {
     #[instrument(err, skip(self))]
-    async fn fetch_count_at_tip(&self) -> ChainResult<(u32, u32)> {
+    async fn sequence_at_tip(&self) -> ChainResult<(u32, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self as _).await?;
         let base_call = self.contract.count();
         let call_at_tip = base_call.block(u64::from(tip));

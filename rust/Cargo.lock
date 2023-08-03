@@ -3734,6 +3734,7 @@ dependencies = [
  "async-trait",
  "base64 0.13.1",
  "borsh 0.9.3",
+ "derive-new",
  "hyperlane-core",
  "hyperlane-sealevel-igp",
  "hyperlane-sealevel-interchain-security-module-interface",

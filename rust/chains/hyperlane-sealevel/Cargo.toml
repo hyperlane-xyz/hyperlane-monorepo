@@ -10,6 +10,7 @@ anyhow.workspace = true
 async-trait.workspace = true
 base64.workspace = true
 borsh.workspace = true
+derive-new.workspace = true
 jsonrpc-core.workspace = true
 num-traits.workspace = true
 serde.workspace = true

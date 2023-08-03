@@ -11,7 +11,7 @@ use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     ContractLocator, Decode as _, Encode as _, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox,
-    MessageIndexer, SequenceIndexer, TxCostEstimate, TxOutcome, H256, U256,
+    SequenceIndexer, TxCostEstimate, TxOutcome, H256, U256,
 };
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
@@ -53,7 +53,7 @@ use solana_transaction_status::{
 
 use crate::RpcClientWithDebug;
 use crate::{
-    utils::{get_account_metas, simulate_instruction},
+    utils::{get_account_metas, get_finalized_block_number, simulate_instruction},
     ConnectionConf, SealevelProvider,
 };
 
@@ -689,9 +689,9 @@ impl SealevelMailboxIndexer {
 }
 
 #[async_trait]
-impl MessageIndexer for SealevelMailboxIndexer {
+impl SequenceIndexer<HyperlaneMessage> for SealevelMailboxIndexer {
     #[instrument(err, skip(self))]
-    async fn fetch_count_at_tip(&self) -> ChainResult<(u32, u32)> {
+    async fn sequence_at_tip(&self) -> ChainResult<(u32, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self as _).await?;
         // TODO: need to make sure the call and tip are at the same height?
         let count = self.mailbox.count(None).await;
@@ -719,7 +719,7 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.get_finalized_block_number().await
+        get_finalized_block_number(&self.rpc_client).await
     }
 }
 

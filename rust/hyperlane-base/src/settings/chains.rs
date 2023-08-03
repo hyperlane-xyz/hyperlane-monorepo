@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use ethers::prelude::Selector;
 use eyre::{eyre, Context, Result};
+use h_sealevel::SealevelConf;
 use serde::Deserialize;
 
 use ethers_prometheus::middleware::{
@@ -9,9 +10,10 @@ use ethers_prometheus::middleware::{
 };
 use hyperlane_core::{
     config::*, utils::hex_or_base58_to_h256, AggregationIsm, CcipReadIsm, ContractLocator,
-    HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneProvider, HyperlaneSigner,
-    IndexMode, InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
-    MessageIndexer, MultisigIsm, RoutingIsm, SequenceIndexer, ValidatorAnnounce, H256,
+    HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider,
+    HyperlaneSigner, IndexMode, InterchainGasPaymaster, InterchainGasPayment,
+    InterchainSecurityModule, Mailbox, MultisigIsm, RoutingIsm, SequenceIndexer, ValidatorAnnounce,
+    H256,
 };
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
@@ -19,6 +21,7 @@ use hyperlane_ethereum::{
 };
 use hyperlane_fuel as h_fuel;
 use hyperlane_sealevel as h_sealevel;
+use tracing::debug;
 
 use crate::{
     settings::signers::{BuildableWithSignerConf, RawSignerConf},
@@ -94,6 +97,21 @@ struct RawCoreContractAddresses {
     validator_announce: Option<String>,
 }
 
+macro_rules! parse_addr {
+    ($name:ident, $raw:ident, $cwp:ident, $err:ident) => {{
+        let path = || $cwp + stringify!($name);
+        $raw.$name
+            .ok_or_else(|| {
+                eyre!(
+                    "Missing {} contract address",
+                    stringify!($name).replace('_', " ")
+                )
+            })
+            .take_err(&mut $err, path)
+            .and_then(|v| hex_or_base58_to_h256(&v).take_err(&mut $err, path))
+    }};
+}
+
 impl FromRawConf<'_, RawCoreContractAddresses> for CoreContractAddresses {
     fn from_config_filtered(
         raw: RawCoreContractAddresses,
@@ -102,24 +120,9 @@ impl FromRawConf<'_, RawCoreContractAddresses> for CoreContractAddresses {
     ) -> ConfigResult<Self> {
         let mut err = ConfigParsingError::default();
 
-        macro_rules! parse_addr {
-            ($name:ident) => {{
-                let path = || cwp + stringify!($name);
-                raw.$name
-                    .ok_or_else(|| {
-                        eyre!(
-                            "Missing {} core contract address",
-                            stringify!($name).replace('_', " ")
-                        )
-                    })
-                    .take_err(&mut err, path)
-                    .and_then(|v| hex_or_base58_to_h256(&v).take_err(&mut err, path))
-            }};
-        }
-
-        let mb = parse_addr!(mailbox);
-        let igp = parse_addr!(interchain_gas_paymaster);
-        let va = parse_addr!(validator_announce);
+        let mb = parse_addr!(mailbox, raw, cwp, err);
+        let igp = parse_addr!(interchain_gas_paymaster, raw, cwp, err);
+        let va = parse_addr!(validator_announce, raw, cwp, err);
 
         err.into_result()?;
         Ok(Self {
@@ -169,6 +172,32 @@ impl FromRawConf<'_, RawIndexSettings> for IndexSettings {
     }
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawSealevelConf {
+    relayer_account: Option<String>,
+}
+
+impl FromRawConf<'_, RawSealevelConf> for SealevelConf {
+    fn from_config_filtered(
+        raw: RawSealevelConf,
+        cwp: &ConfigPath,
+        _filter: (),
+    ) -> ConfigResult<Self> {
+        let mut err = ConfigParsingError::default();
+
+        let relayer_account = parse_addr!(relayer_account, raw, cwp, err);
+
+        if let Err(err) = err.into_result() {
+            debug!(
+                ?err,
+                "No relayer IGP address configured (required for Sealevel indexing)."
+            );
+        }
+        Ok(Self::new(relayer_account))
+    }
+}
+
 /// A chain setup is a domain ID, an address on that chain (where the mailbox is
 /// deployed) and details for connecting to the chain API.
 #[derive(Clone, Debug)]
@@ -189,6 +218,8 @@ pub struct ChainConf {
     pub metrics_conf: PrometheusMiddlewareConf,
     /// Settings for event indexing
     pub index: IndexSettings,
+    /// Sealevel-specific settings
+    pub sealevel: Option<SealevelConf>,
 }
 
 /// A raw chain setup is a domain ID, an address on that chain (where the
@@ -208,6 +239,8 @@ pub struct RawChainConf {
     metrics_conf: Option<PrometheusMiddlewareConf>,
     #[serde(default)]
     index: Option<RawIndexSettings>,
+    #[serde(default)]
+    sealevel: Option<RawSealevelConf>,
 }
 
 impl FromRawConf<'_, RawChainConf> for ChainConf {
@@ -274,6 +307,11 @@ impl FromRawConf<'_, RawChainConf> for ChainConf {
             .and_then(|v| v.parse_config(&cwp.join("index")).take_config_err(&mut err))
             .unwrap_or_default();
 
+        let sealevel = raw.sealevel.and_then(|v| {
+            v.parse_config(&cwp.join("sealevel"))
+                .take_config_err(&mut err)
+        });
+
         let metrics_conf = raw.metrics_conf.unwrap_or_default();
 
         err.into_result()?;
@@ -285,6 +323,7 @@ impl FromRawConf<'_, RawChainConf> for ChainConf {
             finality_blocks,
             index,
             metrics_conf,
+            sealevel,
         })
     }
 }
@@ -354,7 +393,7 @@ impl ChainConf {
     pub async fn build_message_indexer(
         &self,
         metrics: &CoreMetrics,
-    ) -> Result<Box<dyn MessageIndexer>> {
+    ) -> Result<Box<dyn SequenceIndexer<HyperlaneMessage>>> {
         let ctx = "Building delivery indexer";
         let locator = self.locator(self.addresses.mailbox);
 
@@ -364,7 +403,7 @@ impl ChainConf {
                     conf,
                     &locator,
                     metrics,
-                    h_eth::MessageIndexerBuilder {
+                    h_eth::SequenceIndexerBuilder {
                         finality_blocks: self.finality_blocks,
                     },
                 )
@@ -374,7 +413,7 @@ impl ChainConf {
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
-                Ok(indexer as Box<dyn MessageIndexer>)
+                Ok(indexer as Box<dyn SequenceIndexer<HyperlaneMessage>>)
             }
         }
         .context(ctx)
@@ -466,7 +505,9 @@ impl ChainConf {
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let indexer = Box::new(h_sealevel::SealevelInterchainGasPaymasterIndexer::new(
-                    conf, locator,
+                    conf,
+                    locator,
+                    self.sealevel.clone(),
                 ));
                 Ok(indexer as Box<dyn SequenceIndexer<InterchainGasPayment>>)
             }

@@ -6,7 +6,7 @@ use cursor::*;
 use hyperlane_core::{
     utils::fmt_sync_time, ContractSyncCursor, CursorAction, HyperlaneDomain, HyperlaneLogStore,
     HyperlaneMessage, HyperlaneMessageStore, HyperlaneWatermarkedLogStore, IndexMode, Indexer,
-    MessageIndexer, SequenceIndexer,
+    SequenceIndexer,
 };
 pub use metrics::ContractSyncMetrics;
 use std::fmt::Debug;
@@ -122,8 +122,11 @@ where
 }
 
 /// A ContractSync for syncing messages using a MessageSyncCursor
-pub type MessageContractSync =
-    ContractSync<HyperlaneMessage, Arc<dyn HyperlaneMessageStore>, Arc<dyn MessageIndexer>>;
+pub type MessageContractSync = ContractSync<
+    HyperlaneMessage,
+    Arc<dyn HyperlaneMessageStore>,
+    Arc<dyn SequenceIndexer<HyperlaneMessage>>,
+>;
 impl MessageContractSync {
     /// Returns a new cursor to be used for syncing dispatched messages from the indexer
     pub async fn forward_message_sync_cursor(

@@ -171,6 +171,10 @@ fn main() -> ExitCode {
         .hyp_env("CHAINS_SEALEVELTEST2_SIGNER_KEY", RELAYER_KEYS[4])
         .hyp_env("RELAYCHAINS", "invalidchain,otherinvalid")
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
+        .hyp_env(
+            "GASPAYMENTENFORCEMENT",
+            "[{'type': 'minimum', 'payment': 1}]",
+        )
         .arg(
             "chains.test1.connection.urls",
             "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",

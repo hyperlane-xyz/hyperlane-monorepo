@@ -9,7 +9,7 @@ if [ -z $ECLIPSE_PROGRAM_LIBRARY_DIR ]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-TEST_KEYS_DIR="${SCRIPT_DIR}/../config/sealevel/test-keys"
+TEST_KEYS_DIR="${SCRIPT_DIR}/../config/test-sealevel-keys"
 KEYPAIR="${TEST_KEYS_DIR}/test_deployer-keypair.json"
 TARGET_DIR="${SCRIPT_DIR}/../target"
 SEALEVEL_DIR="${SCRIPT_DIR}/../sealevel"
