@@ -2,8 +2,11 @@ import { Address, Domain } from '@hyperlane-xyz/utils';
 
 import { BaseAppAdapter } from '../../app/MultiProtocolApp';
 import { ChainName } from '../../types';
+import { RouterAddress } from '../types';
 
-export interface IRouterAdapter extends BaseAppAdapter {
+export interface IRouterAdapter<
+  ContractAddrs extends RouterAddress = RouterAddress,
+> extends BaseAppAdapter<ContractAddrs> {
   interchainSecurityModule(chain: ChainName): Promise<Address>;
   owner: (chain: ChainName) => Promise<Address>;
   remoteDomains(originChain: ChainName): Promise<Domain[]>;
@@ -16,7 +19,9 @@ export interface IRouterAdapter extends BaseAppAdapter {
   ) => Promise<Array<{ domain: Domain; address: Address }>>;
 }
 
-export interface IGasRouterAdapter extends IRouterAdapter {
+export interface IGasRouterAdapter<
+  ContractAddrs extends RouterAddress = RouterAddress,
+> extends IRouterAdapter<ContractAddrs> {
   quoteGasPayment: (
     origin: ChainName,
     destination: ChainName,

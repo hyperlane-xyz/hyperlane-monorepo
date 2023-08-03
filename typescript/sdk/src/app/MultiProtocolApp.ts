@@ -1,6 +1,6 @@
 import debug from 'debug';
 
-import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
+import { ProtocolType, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata } from '../metadata/chainMetadataTypes';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
@@ -23,6 +23,10 @@ export abstract class BaseAppAdapter<ContractAddrs = {}> {
 export type AdapterClassType<ContractAddrs = {}, API = {}> = new (
   multiProvider: MultiProtocolProvider<ContractAddrs>,
 ) => API;
+
+export type AdapterProtocolMap<ContractAddrs = {}, API = {}> = Partial<
+  Record<ProtocolType, AdapterClassType<ContractAddrs, API>>
+>;
 
 export class BaseEvmAdapter<
   ContractAddrs = {},
@@ -54,32 +58,41 @@ export class BaseSealevelAdapter<
 export abstract class MultiProtocolApp<
   ContractAddrs = {},
   IAdapterApi extends BaseAppAdapter = BaseAppAdapter,
-> extends MultiGeneric<IAdapterApi> {
-  public abstract readonly adapters: Partial<
-    Record<ProtocolType, AdapterClassType<ContractAddrs, IAdapterApi>>
-  >;
+> extends MultiGeneric<ChainMetadata<ContractAddrs>> {
+  // Subclasses should override this with more specific adapters
+  public readonly protocolToAdapter: AdapterProtocolMap<any, BaseAppAdapter> = {
+    [ProtocolType.Ethereum]: BaseEvmAdapter,
+    [ProtocolType.Sealevel]: BaseSealevelAdapter,
+  };
 
   constructor(
     public readonly multiProvider: MultiProtocolProvider<ContractAddrs>,
     public readonly logger = debug('hyperlane:MultiProtocolApp'),
   ) {
-    const chainToAdapter: ChainMap<IAdapterApi> = objMap(
-      multiProvider.metadata,
-      (_, metadata) => {
-        const Adapter = this.adapters[metadata.protocol];
-        if (!Adapter)
-          throw new Error(`No adapter for protocol ${metadata.protocol}`);
-        return new Adapter(multiProvider);
-      },
-    );
-    super(chainToAdapter);
-  }
-
-  adapter(chain: ChainName): IAdapterApi {
-    return this.get(chain);
+    super(multiProvider.metadata);
   }
 
   metadata(chain: ChainName): ChainMetadata<ContractAddrs> {
-    return this.multiProvider.getChainMetadata(chain);
+    return this.get(chain);
+  }
+
+  adapter(chain: ChainName): IAdapterApi {
+    const metadata = this.metadata(chain);
+    const Adapter = this.protocolToAdapter[
+      metadata.protocol
+    ] as AdapterClassType<ContractAddrs, IAdapterApi>;
+    if (!Adapter)
+      throw new Error(`No adapter for protocol ${metadata.protocol}`);
+    return new Adapter(this.multiProvider);
+  }
+
+  adapters(): ChainMap<IAdapterApi> {
+    return this.map((chain, _) => this.adapter(chain));
+  }
+
+  adapterMap<Output>(
+    fn: (n: ChainName, a: IAdapterApi) => Promise<Output>,
+  ): Promise<ChainMap<Output>> {
+    return promiseObjAll(objMap(this.adapters(), fn));
   }
 }
