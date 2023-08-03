@@ -5,7 +5,8 @@ use derive_new::new;
 use cursor::*;
 use hyperlane_core::{
     utils::fmt_sync_time, ContractSyncCursor, CursorAction, HyperlaneDomain, HyperlaneLogStore,
-    HyperlaneMessage, HyperlaneMessageStore, HyperlaneWatermarkedLogStore, Indexer, MessageIndexer,
+    HyperlaneMessage, HyperlaneMessageStore, HyperlaneWatermarkedLogStore, IndexMode, Indexer,
+    MessageIndexer, SequenceIndexer,
 };
 pub use metrics::ContractSyncMetrics;
 use std::fmt::Debug;
@@ -90,7 +91,7 @@ where
 
 /// A ContractSync for syncing events using a RateLimitedContractSyncCursor
 pub type WatermarkContractSync<T> =
-    ContractSync<T, Arc<dyn HyperlaneWatermarkedLogStore<T>>, Arc<dyn Indexer<T>>>;
+    ContractSync<T, Arc<dyn HyperlaneWatermarkedLogStore<T>>, Arc<dyn SequenceIndexer<T>>>;
 impl<T> WatermarkContractSync<T>
 where
     T: Debug + Send + Sync + Clone + 'static,
@@ -99,12 +100,12 @@ where
     pub async fn rate_limited_cursor(
         &self,
         index_settings: IndexSettings,
+        index_mode: IndexMode,
     ) -> Box<dyn ContractSyncCursor<T>> {
         let watermark = self.db.retrieve_high_watermark().await.unwrap();
         let index_settings = IndexSettings {
             from: watermark.unwrap_or(index_settings.from),
             chunk_size: index_settings.chunk_size,
-            mode: index_settings.mode,
         };
         Box::new(
             RateLimitedContractSyncCursor::new(
@@ -112,6 +113,7 @@ where
                 self.db.clone(),
                 index_settings.chunk_size,
                 index_settings.from,
+                index_mode,
             )
             .await
             .unwrap(),
@@ -127,19 +129,17 @@ impl MessageContractSync {
     pub async fn forward_message_sync_cursor(
         &self,
         index_settings: IndexSettings,
+        index_mode: IndexMode,
         next_nonce: u32,
     ) -> Box<dyn ContractSyncCursor<HyperlaneMessage>> {
-        let forward_data = MessageSyncCursor::new(
+        Box::new(ForwardMessageSyncCursor::new(
             self.indexer.clone(),
             self.db.clone(),
             index_settings.chunk_size,
             index_settings.from,
             index_settings.from,
+            index_mode,
             next_nonce,
-        );
-        Box::new(ForwardMessageSyncCursor::new(
-            forward_data,
-            index_settings.mode,
         ))
     }
 
@@ -147,13 +147,14 @@ impl MessageContractSync {
     pub async fn forward_backward_message_sync_cursor(
         &self,
         index_settings: IndexSettings,
+        index_mode: IndexMode,
     ) -> Box<dyn ContractSyncCursor<HyperlaneMessage>> {
         Box::new(
             ForwardBackwardMessageSyncCursor::new(
                 self.indexer.clone(),
                 self.db.clone(),
                 index_settings.chunk_size,
-                index_settings.mode,
+                index_mode,
             )
             .await
             .unwrap(),

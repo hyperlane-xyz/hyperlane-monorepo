@@ -72,7 +72,7 @@ const hyperlane: RootAgentConfig = {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: 'f03257a-20230714-154845',
+      tag: 'ed7569d-20230725-171222',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -89,7 +89,7 @@ const hyperlane: RootAgentConfig = {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: '497db63-20230614-174455',
+      tag: 'ed7569d-20230725-171222',
     },
     chainDockerOverrides: {
       [chainMetadata.solanadevnet.name]: {
@@ -118,7 +118,7 @@ const releaseCandidate: RootAgentConfig = {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: 'f03257a-20230714-154845',
+      tag: 'ed7569d-20230725-171222',
     },
     whitelist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -170,7 +170,7 @@ const releaseCandidate: RootAgentConfig = {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: '497db63-20230614-174455',
+      tag: 'ed7569d-20230725-171222',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
   },

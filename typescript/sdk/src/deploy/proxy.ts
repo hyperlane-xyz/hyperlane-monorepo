@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-import { Address, areAddressesEqual } from '@hyperlane-xyz/utils';
+import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
 export type UpgradeConfig = {
   timelock: {
@@ -42,5 +42,5 @@ export async function isProxy(
   proxy: Address,
 ): Promise<boolean> {
   const admin = await proxyAdmin(provider, proxy);
-  return !areAddressesEqual(admin, ethers.constants.AddressZero);
+  return !eqAddress(admin, ethers.constants.AddressZero);
 }
