@@ -5,12 +5,7 @@ import {
   LiquidityLayerRouter,
   PortalAdapter,
 } from '@hyperlane-xyz/core';
-import {
-  Address,
-  areAddressesEqual,
-  objFilter,
-  objMap,
-} from '@hyperlane-xyz/utils';
+import { Address, eqAddress, objFilter, objMap } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts, HyperlaneContractsMap } from '../../contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
@@ -209,7 +204,7 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
     }
 
     if (
-      !areAddressesEqual(
+      !eqAddress(
         await router.liquidityLayerAdapters('Portal'),
         portalAdapter.address,
       )
@@ -248,7 +243,7 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
     );
 
     if (
-      !areAddressesEqual(
+      !eqAddress(
         await circleBridgeAdapter.tokenSymbolToAddress('USDC'),
         adapterConfig.usdcAddress,
       )
@@ -284,7 +279,7 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
     }
 
     if (
-      !areAddressesEqual(
+      !eqAddress(
         await router.liquidityLayerAdapters('Circle'),
         circleBridgeAdapter.address,
       )

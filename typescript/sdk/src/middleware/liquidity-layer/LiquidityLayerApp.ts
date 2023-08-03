@@ -9,8 +9,8 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   addressToBytes32,
-  areAddressesEqual,
   ensure0x,
+  eqAddress,
   strip0x,
 } from '@hyperlane-xyz/utils';
 
@@ -206,9 +206,7 @@ export class LiquidityLayerApp extends HyperlaneApp<
     const transferTokenAddress =
       await destinationPortalAdapter.portalTransfersProcessed(transferId);
 
-    if (
-      !areAddressesEqual(transferTokenAddress, ethers.constants.AddressZero)
-    ) {
+    if (!eqAddress(transferTokenAddress, ethers.constants.AddressZero)) {
       console.log(
         `Transfer with nonce ${message.nonce} from ${message.origin} to ${message.destination} already processed`,
       );

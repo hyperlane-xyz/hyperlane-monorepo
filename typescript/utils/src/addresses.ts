@@ -11,19 +11,19 @@ const SEALEVEL_TX_HASH_REGEX = /^[a-zA-Z1-9]{88}$/;
 
 const ZEROISH_ADDRESS_REGEX = /^(0x)?0*$/;
 
-export function isEvmAddress(address: Address) {
+export function isAddressEvm(address: Address) {
   return EVM_ADDRESS_REGEX.test(address);
 }
 
-export function isSealevelAddress(address: Address) {
+export function isAddressSealevel(address: Address) {
   return SEALEVEL_ADDRESS_REGEX.test(address);
 }
 
 export function getAddressProtocolType(address: Address) {
   if (!address) return undefined;
-  if (isEvmAddress(address)) {
+  if (isAddressEvm(address)) {
     return ProtocolType.Ethereum;
-  } else if (isSealevelAddress(address)) {
+  } else if (isAddressSealevel(address)) {
     return ProtocolType.Sealevel;
   } else {
     return undefined;
@@ -32,7 +32,7 @@ export function getAddressProtocolType(address: Address) {
 
 function routeAddressUtil<T>(
   evmFn: (param: string) => T,
-  solFn: (param: string) => T,
+  sealevelFn: (param: string) => T,
   fallback: T,
   param: string,
   protocol?: ProtocolType,
@@ -41,14 +41,14 @@ function routeAddressUtil<T>(
   if (protocol === ProtocolType.Ethereum) {
     return evmFn(param);
   } else if (protocol === ProtocolType.Sealevel) {
-    return solFn(param);
+    return sealevelFn(param);
   } else {
     return fallback;
   }
 }
 
-// Slower than isEvmAddress above but actually validates content and checksum
-export function isValidEvmAddress(address: Address) {
+// Slower than isAddressEvm above but actually validates content and checksum
+export function isValidAddressEvm(address: Address) {
   // Need to catch because ethers' isAddress throws in some cases (bad checksum)
   try {
     const isValid = address && ethersUtils.isAddress(address);
@@ -58,8 +58,8 @@ export function isValidEvmAddress(address: Address) {
   }
 }
 
-// Slower than isSealevelAddress above but actually validates content and checksum
-export function isValidSealevelAddress(address: Address) {
+// Slower than isAddressSealevel above but actually validates content and checksum
+export function isValidAddressSealevel(address: Address) {
   try {
     const isValid = address && new PublicKey(address).toBase58();
     return !!isValid;
@@ -70,15 +70,15 @@ export function isValidSealevelAddress(address: Address) {
 
 export function isValidAddress(address: Address, protocol?: ProtocolType) {
   return routeAddressUtil(
-    isValidEvmAddress,
-    isValidSealevelAddress,
+    isValidAddressEvm,
+    isValidAddressSealevel,
     false,
     address,
     protocol,
   );
 }
 
-export function normalizeEvmAddress(address: Address) {
+export function normalizeAddressEvm(address: Address) {
   if (isZeroishAddress(address)) return address;
   try {
     return ethersUtils.getAddress(address);
@@ -87,7 +87,7 @@ export function normalizeEvmAddress(address: Address) {
   }
 }
 
-export function normalizeSolAddress(address: Address) {
+export function normalizeAddressSealevel(address: Address) {
   if (isZeroishAddress(address)) return address;
   try {
     return new PublicKey(address).toBase58();
@@ -98,47 +98,47 @@ export function normalizeSolAddress(address: Address) {
 
 export function normalizeAddress(address: Address, protocol?: ProtocolType) {
   return routeAddressUtil(
-    normalizeEvmAddress,
-    normalizeSolAddress,
+    normalizeAddressEvm,
+    normalizeAddressSealevel,
     address,
     address,
     protocol,
   );
 }
 
-export function areEvmAddressesEqual(a1: Address, a2: Address) {
-  return normalizeEvmAddress(a1) === normalizeEvmAddress(a2);
+export function eqAddressEvm(a1: Address, a2: Address) {
+  return normalizeAddressEvm(a1) === normalizeAddressEvm(a2);
 }
 
-export function areSolAddressesEqual(a1: Address, a2: Address) {
-  return normalizeSolAddress(a1) === normalizeSolAddress(a2);
+export function eqAddressSol(a1: Address, a2: Address) {
+  return normalizeAddressSealevel(a1) === normalizeAddressSealevel(a2);
 }
 
-export function areAddressesEqual(a1: Address, a2: Address) {
+export function eqAddress(a1: Address, a2: Address) {
   const p1 = getAddressProtocolType(a1);
   const p2 = getAddressProtocolType(a2);
   if (p1 !== p2) return false;
   return routeAddressUtil(
-    (_a1) => areEvmAddressesEqual(_a1, a2),
-    (_a1) => areSolAddressesEqual(_a1, a2),
+    (_a1) => eqAddressEvm(_a1, a2),
+    (_a1) => eqAddressSol(_a1, a2),
     false,
     a1,
     p1,
   );
 }
 
-export function isValidEvmTransactionHash(input: string) {
+export function isValidTransactionHashEvm(input: string) {
   return EVM_TX_HASH_REGEX.test(input);
 }
 
-export function isValidSolTransactionHash(input: string) {
+export function isValidTransactionHashSealevel(input: string) {
   return SEALEVEL_TX_HASH_REGEX.test(input);
 }
 
 export function isValidTransactionHash(input: string, protocol?: ProtocolType) {
   return routeAddressUtil(
-    isValidEvmTransactionHash,
-    isValidSolTransactionHash,
+    isValidTransactionHashEvm,
+    isValidTransactionHashSealevel,
     false,
     input,
     protocol,
@@ -176,19 +176,19 @@ export function bytes32ToAddress(bytes32: HexString): Address {
   return ethersUtils.getAddress(bytes32.slice(-40));
 }
 
-export function EvmAdressToBytes(address: Address): Uint8Array {
+export function adressToBytesEvm(address: Address): Uint8Array {
   const addrBytes32 = addressToBytes32(address);
   return Buffer.from(addrBytes32.substring(2), 'hex');
 }
 
-export function SolAddressToBytes(address: Address): Uint8Array {
+export function addressToBytesSol(address: Address): Uint8Array {
   return new PublicKey(address).toBytes();
 }
 
 export function addressToBytes(address: Address, protocol?: ProtocolType) {
   return routeAddressUtil(
-    EvmAdressToBytes,
-    SolAddressToBytes,
+    adressToBytesEvm,
+    addressToBytesSol,
     new Uint8Array(),
     address,
     protocol,

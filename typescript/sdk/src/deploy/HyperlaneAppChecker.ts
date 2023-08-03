@@ -3,8 +3,8 @@ import { keccak256 } from 'ethers/lib/utils';
 import { Ownable, TimelockController } from '@hyperlane-xyz/core';
 import {
   Address,
-  areAddressesEqual,
   assert,
+  eqAddress,
   objMap,
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
@@ -83,7 +83,7 @@ export abstract class HyperlaneAppChecker<
         if (await isProxy(provider, contract.address)) {
           // Check the ProxiedContract's admin matches expectation
           const actualAdmin = await proxyAdmin(provider, contract.address);
-          if (!areAddressesEqual(actualAdmin, expectedAdmin)) {
+          if (!eqAddress(actualAdmin, expectedAdmin)) {
             this.addViolation({
               type: ViolationType.ProxyAdmin,
               chain,
@@ -196,7 +196,7 @@ export abstract class HyperlaneAppChecker<
     for (const [name, contract] of Object.entries(ownableContracts)) {
       const expectedOwner = ownableOverrides?.[name] ?? owner;
       const actual = await contract.owner();
-      if (!areAddressesEqual(actual, expectedOwner)) {
+      if (!eqAddress(actual, expectedOwner)) {
         const violation: OwnerViolation = {
           chain,
           name,

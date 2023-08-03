@@ -11,12 +11,7 @@ import {
   StaticAggregationIsm__factory,
   StaticMOfNAddressSetFactory,
 } from '@hyperlane-xyz/core';
-import {
-  Address,
-  areAddressesEqual,
-  formatMessage,
-  warn,
-} from '@hyperlane-xyz/utils';
+import { Address, eqAddress, formatMessage, warn } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
 import {
@@ -391,7 +386,7 @@ export async function moduleMatchesConfig(
           config.validators.sort(),
           config.threshold,
         );
-      matches = areAddressesEqual(expectedAddress, module.address);
+      matches = eqAddress(expectedAddress, module.address);
       break;
     }
     case ModuleType.MESSAGE_ID_MULTISIG: {
@@ -401,7 +396,7 @@ export async function moduleMatchesConfig(
           config.validators.sort(),
           config.threshold,
         );
-      matches = areAddressesEqual(expectedAddress, module.address);
+      matches = eqAddress(expectedAddress, module.address);
       break;
     }
     case ModuleType.LEGACY_MULTISIG: {
@@ -432,7 +427,7 @@ export async function moduleMatchesConfig(
       );
       // Check that the RoutingISM owner matches the config
       const owner = await routingIsm.owner();
-      matches = matches && areAddressesEqual(owner, config.owner);
+      matches = matches && eqAddress(owner, config.owner);
       // Recursively check that the submodule for each configured
       // domain matches the submodule config.
       for (const [origin, subConfig] of Object.entries(config.domains)) {
