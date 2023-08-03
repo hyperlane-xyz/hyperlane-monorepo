@@ -13,11 +13,7 @@ import {
   TransparentUpgradeableProxy,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
-import {
-  Address,
-  areAddressesEqual,
-  runWithTimeout,
-} from '@hyperlane-xyz/utils';
+import { Address, eqAddress, runWithTimeout } from '@hyperlane-xyz/utils';
 
 import {
   HyperlaneAddressesMap,
@@ -114,7 +110,7 @@ export abstract class HyperlaneDeployer<
     label = 'address',
   ): Promise<T | undefined> {
     const signer = await this.multiProvider.getSignerAddress(chain);
-    if (areAddressesEqual(address, signer)) {
+    if (eqAddress(address, signer)) {
       return fn();
     } else {
       this.logger(`Signer (${signer}) does not match ${label} (${address})`);
@@ -310,7 +306,7 @@ export abstract class HyperlaneDeployer<
       this.multiProvider.getProvider(chain),
       proxy.address,
     );
-    if (areAddressesEqual(admin, actualAdmin)) {
+    if (eqAddress(admin, actualAdmin)) {
       this.logger(`Admin set correctly, skipping admin change`);
       return;
     }
@@ -340,7 +336,7 @@ export abstract class HyperlaneDeployer<
     initializeArgs: Parameters<C['initialize']>,
   ): Promise<void> {
     const current = await proxy.callStatic.implementation();
-    if (areAddressesEqual(implementation.address, current)) {
+    if (eqAddress(implementation.address, current)) {
       this.logger(`Implementation set correctly, skipping upgrade`);
       return;
     }
@@ -518,7 +514,7 @@ export abstract class HyperlaneDeployer<
     for (const contractName of Object.keys(ownables)) {
       const ownable = ownables[contractName];
       const currentOwner = await ownable.owner();
-      if (!areAddressesEqual(currentOwner, owner)) {
+      if (!eqAddress(currentOwner, owner)) {
         this.logger(
           `Transferring ownership of ${contractName} to ${owner} on ${chain}`,
         );

@@ -75,7 +75,7 @@ export function tryParseAmount(
 
 // Checks if an amount is equal of nearly equal to balance within a small margin of error
 // Necessary because amounts in the UI are often rounded
-export function areAmountsNearlyEqual(
+export function eqAmountApproximate(
   amountInWei1: BigNumber,
   amountInWei2: NumberT,
 ) {

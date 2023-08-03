@@ -5,7 +5,7 @@ import {
   TimelockController,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
-import { areAddressesEqual } from '@hyperlane-xyz/utils';
+import { eqAddress } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
 import { ChainName } from '../types';
@@ -65,7 +65,7 @@ export abstract class ProxiedRouterDeployer<
     await super.runIfOwner(chain, proxyAdmin, async () => {
       this.logger(`Checking ownership of proxy admin to ${adminOwner}`);
 
-      if (!areAddressesEqual(await proxyAdmin.owner(), adminOwner)) {
+      if (!eqAddress(await proxyAdmin.owner(), adminOwner)) {
         this.logger(`Transferring ownership of proxy admin to ${adminOwner}`);
         return this.multiProvider.handleTx(
           chain,

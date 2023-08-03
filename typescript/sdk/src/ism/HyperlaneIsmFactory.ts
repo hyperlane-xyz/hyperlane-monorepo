@@ -11,12 +11,7 @@ import {
   StaticAggregationIsm__factory,
   StaticMOfNAddressSetFactory,
 } from '@hyperlane-xyz/core';
-import {
-  Address,
-  areAddressesEqual,
-  formatMessage,
-  warn,
-} from '@hyperlane-xyz/utils';
+import { Address, eqAddress, formatMessage, warn } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../app/HyperlaneApp';
 import {
@@ -153,19 +148,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     const signer = this.multiProvider.getSigner(chain);
     const routingIsmFactory = this.getContracts(chain).routingIsmFactory;
     const isms: ChainMap<Address> = {};
-    // deploy for all origins in parallel, keep running even if some fail
-    await Promise.allSettled(
-      Object.keys(config.domains).map(async (origin) => {
-        const ism = await this.deploy(chain, config.domains[origin], origin);
-        isms[origin] = ism.address;
-      }),
-    ).then((results) => {
-      results.forEach((result) => {
-        if (result.status === 'rejected') {
-          this.logger(`Failed to deploy routing ISM: ${result.reason}`);
-        }
-      });
-    });
+    for (const origin of Object.keys(config.domains)) {
+      const ism = await this.deploy(chain, config.domains[origin], origin);
+      isms[origin] = ism.address;
+    }
     const domains = Object.keys(isms).map((chain) =>
       this.multiProvider.getDomainId(chain),
     );
@@ -388,7 +374,7 @@ export async function moduleMatchesConfig(
           config.validators.sort(),
           config.threshold,
         );
-      matches = areAddressesEqual(expectedAddress, module.address);
+      matches = eqAddress(expectedAddress, module.address);
       break;
     }
     case ModuleType.MESSAGE_ID_MULTISIG: {
@@ -398,7 +384,7 @@ export async function moduleMatchesConfig(
           config.validators.sort(),
           config.threshold,
         );
-      matches = areAddressesEqual(expectedAddress, module.address);
+      matches = eqAddress(expectedAddress, module.address);
       break;
     }
     case ModuleType.LEGACY_MULTISIG: {
@@ -429,7 +415,7 @@ export async function moduleMatchesConfig(
       );
       // Check that the RoutingISM owner matches the config
       const owner = await routingIsm.owner();
-      matches = matches && areAddressesEqual(owner, config.owner);
+      matches = matches && eqAddress(owner, config.owner);
       // Recursively check that the submodule for each configured
       // domain matches the submodule config.
       for (const [origin, subConfig] of Object.entries(config.domains)) {

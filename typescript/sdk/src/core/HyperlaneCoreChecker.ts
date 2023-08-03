@@ -1,6 +1,6 @@
 import { utils as ethersUtils } from 'ethers';
 
-import { Address, areAddressesEqual, assert } from '@hyperlane-xyz/utils';
+import { Address, assert, eqAddress } from '@hyperlane-xyz/utils';
 
 import { BytecodeHash } from '../consts/bytecode';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
@@ -155,7 +155,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       await validatorAnnounce.getAnnouncedValidators();
     [...validators].forEach((validator) => {
       const matches = announcedValidators.filter((x) =>
-        areAddressesEqual(x, validator),
+        eqAddress(x, validator),
       );
       if (matches.length == 0) {
         const violation: ValidatorAnnounceViolation = {

@@ -1,10 +1,6 @@
 import { ethers } from 'ethers';
 
-import {
-  addressToBytes32,
-  areAddressesEqual,
-  assert,
-} from '@hyperlane-xyz/utils';
+import { addressToBytes32, assert, eqAddress } from '@hyperlane-xyz/utils';
 
 import { HyperlaneFactories } from '../contracts/types';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
@@ -46,7 +42,7 @@ export class HyperlaneRouterChecker<
         value && typeof value === 'string'
           ? value
           : ethers.constants.AddressZero;
-      if (!areAddressesEqual(actual, expected)) {
+      if (!eqAddress(actual, expected)) {
         const violation: ConnectionClientViolation = {
           chain,
           type: violationType,
