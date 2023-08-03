@@ -255,21 +255,21 @@ where
     /// then dispatches a message to the remote recipient.
     ///
     /// Accounts:
-    /// 0.   [executable] The system program.
-    /// 1.   [executable] The spl_noop program.
-    /// 2.   [] The token PDA account.
-    /// 3.   [executable] The mailbox program.
-    /// 4.   [writeable] The mailbox outbox account.
-    /// 5.   [] Message dispatch authority.
-    /// 6.   [signer] The token sender and mailbox payer.
-    /// 7.   [signer] Unique message / gas payment account.
-    /// 8.   [writeable] Message storage PDA.
-    ///      ---- If using an IGP ----
-    /// 9.   [executable] The IGP program.
-    /// 10.  [writeable] The IGP program data.
-    /// 11.  [writeable] Gas payment PDA.
-    /// 12.  [] OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
-    /// 13.  [writeable] The IGP account.
+    /// 0.    [executable] The system program.
+    /// 1.    [executable] The spl_noop program.
+    /// 2.    [] The token PDA account.
+    /// 3.    [executable] The mailbox program.
+    /// 4.    [writeable] The mailbox outbox account.
+    /// 5.    [] Message dispatch authority.
+    /// 6.    [signer] The token sender and mailbox payer.
+    /// 7.    [signer] Unique message / gas payment account.
+    /// 8.    [writeable] Message storage PDA.
+    ///       ---- If using an IGP ----
+    /// 9.    [executable] The IGP program.
+    /// 10.   [writeable] The IGP program data.
+    /// 11.   [writeable] Gas payment PDA.
+    /// 12.   [] OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
+    /// 13.   [writeable] The IGP account.
     ///      ---- End if ----
     /// 14..N [??..??] Plugin-specific accounts.
     pub fn transfer_remote(

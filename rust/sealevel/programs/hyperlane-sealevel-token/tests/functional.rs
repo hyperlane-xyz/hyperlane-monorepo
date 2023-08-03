@@ -195,26 +195,15 @@ async fn initialize_hyperlane_token(
     banks_client.process_transaction(transaction).await?;
 
     // Set destination gas configs
-    let transaction = Transaction::new_signed_with_payer(
-        &[Instruction::new_with_bytes(
-            *program_id,
-            &HyperlaneTokenInstruction::SetDestinationGasConfigs(vec![GasRouterConfig {
-                domain: REMOTE_DOMAIN,
-                gas: Some(REMOTE_GAS_AMOUNT),
-            }])
-            .encode()
-            .unwrap(),
-            vec![
-                AccountMeta::new_readonly(solana_program::system_program::id(), false),
-                AccountMeta::new(token_account_key, false),
-                AccountMeta::new_readonly(payer.pubkey(), true),
-            ],
-        )],
-        Some(&payer.pubkey()),
-        &[payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(transaction).await?;
+    set_destination_gas_config(
+        banks_client,
+        program_id,
+        payer,
+        &token_account_key,
+        REMOTE_DOMAIN,
+        REMOTE_GAS_AMOUNT,
+    )
+    .await?;
 
     Ok(HyperlaneTokenAccounts {
         token: token_account_key,
@@ -246,6 +235,40 @@ async fn enroll_remote_router(
                 domain,
                 router: Some(router),
             })
+            .encode()
+            .unwrap(),
+            vec![
+                AccountMeta::new_readonly(solana_program::system_program::id(), false),
+                AccountMeta::new(*token_account, false),
+                AccountMeta::new_readonly(payer.pubkey(), true),
+            ],
+        )],
+        Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(transaction).await?;
+
+    Ok(())
+}
+
+async fn set_destination_gas_config(
+    banks_client: &mut BanksClient,
+    program_id: &Pubkey,
+    payer: &Keypair,
+    token_account: &Pubkey,
+    domain: u32,
+    gas: u64,
+) -> Result<(), BanksClientError> {
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    // Enroll the remote router
+    let transaction = Transaction::new_signed_with_payer(
+        &[Instruction::new_with_bytes(
+            *program_id,
+            &HyperlaneTokenInstruction::SetDestinationGasConfigs(vec![GasRouterConfig {
+                domain,
+                gas: Some(gas),
+            }])
             .encode()
             .unwrap(),
             vec![
@@ -660,13 +683,13 @@ async fn test_transfer_remote() {
     .unwrap();
 
     // Call transfer_remote
-    let unique_gas_payment_keypair = Keypair::new();
+    let unique_message_account_keypair = Keypair::new();
     let (dispatched_message_key, _dispatched_message_bump) = Pubkey::find_program_address(
-        mailbox_dispatched_message_pda_seeds!(&unique_gas_payment_keypair.pubkey()),
+        mailbox_dispatched_message_pda_seeds!(&unique_message_account_keypair.pubkey()),
         &mailbox_program_id,
     );
     let (gas_payment_pda_key, _gas_payment_pda_bump) = Pubkey::find_program_address(
-        igp_gas_payment_pda_seeds!(&unique_gas_payment_keypair.pubkey()),
+        igp_gas_payment_pda_seeds!(&unique_message_account_keypair.pubkey()),
         &igp_program_id(),
     );
 
@@ -696,14 +719,14 @@ async fn test_transfer_remote() {
             // 6.  [signer] The token sender and mailbox payer.
             // 7.  [signer] Unique message account.
             // 8.  [writeable] Message storage PDA.
-            //      ---- If using an IGP ----
-            // 9.   [executable] The IGP program.
-            // 10.  [writeable] The IGP program data.
-            // 11.  [writeable] Gas payment PDA.
-            // 12.  [] OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
-            // 13.  [writeable] The IGP account.
+            //     ---- If using an IGP ----
+            // 9.  [executable] The IGP program.
+            // 10. [writeable] The IGP program data.
+            // 11. [writeable] Gas payment PDA.
+            // 12. [] OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
+            // 13. [writeable] The IGP account.
             //      ---- End if ----
-            // 14.  [executable] The spl_token_2022 program.
+            // 14. [executable] The spl_token_2022 program.
             // 15. [writeable] The mint / mint authority PDA account.
             // 16. [writeable] The token sender's associated token account, from which tokens will be burned.
             vec![
@@ -714,7 +737,7 @@ async fn test_transfer_remote() {
                 AccountMeta::new(mailbox_accounts.outbox, false),
                 AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
                 AccountMeta::new_readonly(token_sender_pubkey, true),
-                AccountMeta::new_readonly(unique_gas_payment_keypair.pubkey(), true),
+                AccountMeta::new_readonly(unique_message_account_keypair.pubkey(), true),
                 AccountMeta::new(dispatched_message_key, false),
                 AccountMeta::new_readonly(igp_accounts.program, false),
                 AccountMeta::new(igp_accounts.program_data, false),
@@ -727,7 +750,7 @@ async fn test_transfer_remote() {
             ],
         )],
         Some(&token_sender_pubkey),
-        &[&token_sender, &unique_gas_payment_keypair],
+        &[&token_sender, &unique_message_account_keypair],
         recent_blockhash,
     );
     let tx_signature = transaction.signatures[0];
@@ -775,7 +798,7 @@ async fn test_transfer_remote() {
         Box::new(DispatchedMessage::new(
             message.nonce,
             transfer_remote_tx_status.slot,
-            unique_gas_payment_keypair.pubkey(),
+            unique_message_account_keypair.pubkey(),
             message.to_vec(),
         )),
     );
@@ -799,7 +822,7 @@ async fn test_transfer_remote() {
             destination_domain: REMOTE_DOMAIN,
             message_id: message.id(),
             gas_amount: REMOTE_GAS_AMOUNT,
-            unique_gas_payment_pubkey: unique_gas_payment_keypair.pubkey(),
+            unique_gas_payment_pubkey: unique_message_account_keypair.pubkey(),
             slot: transfer_remote_tx_status.slot,
         }
         .into(),
@@ -859,7 +882,7 @@ async fn test_enroll_remote_router_errors_if_not_signed_by_owner() {
 
     let non_owner = new_funded_keypair(&mut banks_client, &payer, ONE_SOL_IN_LAMPORTS).await;
 
-    // Use the mint authority as the payer, which has a balance but is not the owner,
+    // Use the non_owner as the payer, which has a balance but is not the owner,
     // so we expect this to fail.
     let result = enroll_remote_router(
         &mut banks_client,
@@ -876,7 +899,7 @@ async fn test_enroll_remote_router_errors_if_not_signed_by_owner() {
         TransactionError::InstructionError(0, InstructionError::InvalidArgument),
     );
 
-    // Also try using the mint authority as the payer and specifying the correct
+    // Also try using the non_owner as the payer and specifying the correct
     // owner account, but the owner isn't a signer:
     let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
     // Enroll the remote router
@@ -887,6 +910,107 @@ async fn test_enroll_remote_router_errors_if_not_signed_by_owner() {
                 domain: REMOTE_DOMAIN,
                 router: Some(H256::random()),
             })
+            .encode()
+            .unwrap(),
+            vec![
+                AccountMeta::new_readonly(solana_program::system_program::id(), false),
+                AccountMeta::new(hyperlane_token_accounts.token, false),
+                AccountMeta::new_readonly(payer.pubkey(), false),
+            ],
+        )],
+        Some(&non_owner.pubkey()),
+        &[&non_owner],
+        recent_blockhash,
+    );
+    let result = banks_client.process_transaction(transaction).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::MissingRequiredSignature),
+    );
+}
+
+#[tokio::test]
+async fn test_set_destination_gas_configs() {
+    let program_id = hyperlane_sealevel_token_id();
+
+    let (mut banks_client, payer) = setup_client().await;
+
+    let hyperlane_token_accounts =
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, None)
+            .await
+            .unwrap();
+
+    // Set the destination gas config
+    let gas = 111222333;
+    set_destination_gas_config(
+        &mut banks_client,
+        &program_id,
+        &payer,
+        &hyperlane_token_accounts.token,
+        REMOTE_DOMAIN,
+        gas,
+    )
+    .await
+    .unwrap();
+
+    // Verify the destination gas was set.
+    let token_account_data = banks_client
+        .get_account(hyperlane_token_accounts.token)
+        .await
+        .unwrap()
+        .unwrap()
+        .data;
+    let token = HyperlaneTokenAccount::<SyntheticPlugin>::fetch(&mut &token_account_data[..])
+        .unwrap()
+        .into_inner();
+    assert_eq!(
+        token.destination_gas,
+        vec![(REMOTE_DOMAIN, gas)].into_iter().collect(),
+    );
+}
+
+#[tokio::test]
+async fn test_set_destination_gas_configs_errors_if_not_signed_by_owner() {
+    let program_id = hyperlane_sealevel_token_id();
+
+    let (mut banks_client, payer) = setup_client().await;
+
+    let hyperlane_token_accounts =
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, None)
+            .await
+            .unwrap();
+
+    let non_owner = new_funded_keypair(&mut banks_client, &payer, ONE_SOL_IN_LAMPORTS).await;
+
+    // Use the non_owner as the payer, which has a balance but is not the owner,
+    // so we expect this to fail.
+    let gas = 111222333;
+    let result = set_destination_gas_config(
+        &mut banks_client,
+        &program_id,
+        &non_owner,
+        &hyperlane_token_accounts.token,
+        REMOTE_DOMAIN,
+        gas,
+    )
+    .await;
+
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
+
+    // Also try using the non_owner as the payer and specifying the correct
+    // owner account, but the owner isn't a signer:
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    // Try setting
+    let transaction = Transaction::new_signed_with_payer(
+        &[Instruction::new_with_bytes(
+            program_id,
+            &HyperlaneTokenInstruction::SetDestinationGasConfigs(vec![GasRouterConfig {
+                domain: REMOTE_DOMAIN,
+                gas: Some(gas),
+            }])
             .encode()
             .unwrap(),
             vec![

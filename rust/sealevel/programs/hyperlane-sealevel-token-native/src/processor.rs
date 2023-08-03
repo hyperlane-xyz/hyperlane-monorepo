@@ -115,7 +115,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
 /// 12.  [] OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
 /// 13.  [writeable] The IGP account.
 ///      ---- End if ----
-/// 14.   [executable] The system program.
+/// 14.  [executable] The system program.
 /// 15.  [writeable] The native token collateral PDA account.
 fn transfer_remote(
     program_id: &Pubkey,
