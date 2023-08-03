@@ -253,6 +253,7 @@ mod test {
             connection: Default::default(),
             metrics_conf: Default::default(),
             index: Default::default(),
+            sealevel: Default::default(),
         }
     }
 
