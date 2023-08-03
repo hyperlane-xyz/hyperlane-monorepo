@@ -37,8 +37,13 @@ contract Mailbox is IMailbox, Versioned, Ownable {
     // The default post dispatch hook, used for post processing of dispatched messages.
     IPostDispatchHook public defaultHook;
 
-    // Mapping of message ID to whether or not that message has been delivered.
-    mapping(bytes32 => bool) public delivered;
+    // Mapping of message ID to sender of the call that processed the message.
+    struct Delivery {
+        address sender;
+        // uint48 value?
+        // uint48 timestamp?
+    }
+    mapping(bytes32 => Delivery) internal deliveries;
 
     // ============ Events ============
 
@@ -92,7 +97,7 @@ contract Mailbox is IMailbox, Versioned, Ownable {
         bytes calldata _messageBody
     ) external payable override returns (bytes32) {
         return
-            _dispatch(
+            dispatch(
                 _destinationDomain,
                 _recipientAddress,
                 _messageBody,
@@ -115,12 +120,46 @@ contract Mailbox is IMailbox, Versioned, Ownable {
         bytes calldata hookMetadata
     ) external payable override returns (bytes32) {
         return
-            _dispatch(
+            dispatch(
                 destinationDomain,
                 recipientAddress,
                 messageBody,
+                defaultHook,
                 hookMetadata
             );
+    }
+
+    function dispatch(
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata messageBody,
+        IPostDispatchHook hook,
+        bytes calldata metadata
+    ) public returns (bytes32) {
+        // Format the message into packed bytes.
+        bytes memory message = Message.formatMessage(
+            VERSION,
+            nonce,
+            localDomain,
+            msg.sender.addressToBytes32(),
+            destinationDomain,
+            recipientAddress,
+            messageBody
+        );
+
+        // effects
+        nonce += 1;
+        bytes32 id = message.id();
+        emit DispatchId(id);
+        emit Dispatch(message);
+
+        // interactions
+        hook.postDispatch{value: msg.value}(metadata, message);
+        return id;
+    }
+
+    function delivered(bytes32 _id) public view override returns (bool) {
+        return deliveries[_id].sender != address(0);
     }
 
     /**
@@ -135,12 +174,15 @@ contract Mailbox is IMailbox, Versioned, Ownable {
         override
     {
         // Check that the message was intended for this mailbox.
-        require(_message.version() == VERSION, "!version");
-        require(_message.destination() == localDomain, "!destination");
+        require(_message.version() == VERSION, "bad version");
+        require(
+            _message.destination() == localDomain,
+            "unexpected destination"
+        );
 
         // Check that the message hasn't already been delivered.
         bytes32 _id = _message.id();
-        require(delivered[_id] == false, "delivered");
+        require(delivered(_id) == false, "already delivered");
 
         address recipient = _message.recipientAddress();
 
@@ -148,10 +190,10 @@ contract Mailbox is IMailbox, Versioned, Ownable {
         IInterchainSecurityModule _ism = IInterchainSecurityModule(
             recipientIsm(recipient)
         );
-        require(_ism.verify(_metadata, _message), "!module");
+        require(_ism.verify(_metadata, _message), "verification failed");
 
         // effects
-        delivered[_id] = true;
+        deliveries[_id] = Delivery({sender: msg.sender});
         emit Process(_message);
         emit ProcessId(_id);
 
@@ -191,35 +233,5 @@ contract Mailbox is IMailbox, Versioned, Ownable {
             // solhint-disable-next-line no-empty-blocks
         } catch {}
         return defaultIsm;
-    }
-
-    // ============ Internal Functions ============
-
-    function _dispatch(
-        uint32 destinationDomain,
-        bytes32 recipientAddress,
-        bytes calldata messageBody,
-        bytes memory hookMetadata
-    ) internal returns (bytes32) {
-        // Format the message into packed bytes.
-        bytes memory message = Message.formatMessage(
-            VERSION,
-            nonce,
-            localDomain,
-            msg.sender.addressToBytes32(),
-            destinationDomain,
-            recipientAddress,
-            messageBody
-        );
-
-        // effects
-        nonce += 1;
-        bytes32 id = message.id();
-        emit DispatchId(id);
-        emit Dispatch(message);
-
-        // interactions
-        defaultHook.postDispatch{value: msg.value}(hookMetadata, message);
-        return id;
     }
 }
