@@ -354,58 +354,48 @@ fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, 
     (program_id, overhead_igp_account, igp_account)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct CoreProgramIds {
+    #[serde(with = "serde_pubkey")]
     pub mailbox: Pubkey,
+    #[serde(with = "serde_pubkey")]
     pub validator_announce: Pubkey,
+    #[serde(with = "serde_pubkey")]
     pub multisig_ism_message_id: Pubkey,
+    #[serde(with = "serde_pubkey")]
     pub igp_program_id: Pubkey,
+    #[serde(with = "serde_pubkey")]
     pub overhead_igp_account: Pubkey,
+    #[serde(with = "serde_pubkey")]
     pub igp_account: Pubkey,
 }
 
-impl From<PrettyCoreProgramIds> for CoreProgramIds {
-    fn from(program_ids: PrettyCoreProgramIds) -> Self {
-        Self {
-            mailbox: Pubkey::from_str(program_ids.mailbox.as_str()).unwrap(),
-            validator_announce: Pubkey::from_str(program_ids.validator_announce.as_str()).unwrap(),
-            multisig_ism_message_id: Pubkey::from_str(program_ids.multisig_ism_message_id.as_str())
-                .unwrap(),
-            igp_program_id: Pubkey::from_str(program_ids.igp_program_id.as_str()).unwrap(),
-            overhead_igp_account: Pubkey::from_str(program_ids.overhead_igp_account.as_str())
-                .unwrap(),
-            igp_account: Pubkey::from_str(program_ids.igp_account.as_str()).unwrap(),
-        }
+mod serde_pubkey {
+    use serde::{Deserialize, Deserializer, Serializer};
+    use solana_sdk::pubkey::Pubkey;
+    use std::str::FromStr;
+
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum RawPubkey<'a> {
+        String(&'a str),
+        Bytes(Pubkey),
     }
-}
 
-#[derive(Debug, Serialize, Deserialize)]
-struct PrettyCoreProgramIds {
-    mailbox: String,
-    validator_announce: String,
-    multisig_ism_message_id: String,
-    igp_program_id: String,
-    overhead_igp_account: String,
-    igp_account: String,
-}
+    pub fn serialize<S: Serializer>(k: &Pubkey, ser: S) -> Result<S::Ok, S::Error> {
+        ser.serialize_str(&k.to_string())
+    }
 
-impl From<CoreProgramIds> for PrettyCoreProgramIds {
-    fn from(program_ids: CoreProgramIds) -> Self {
-        Self {
-            mailbox: program_ids.mailbox.to_string(),
-            validator_announce: program_ids.validator_announce.to_string(),
-            multisig_ism_message_id: program_ids.multisig_ism_message_id.to_string(),
-            igp_program_id: program_ids.igp_program_id.to_string(),
-            overhead_igp_account: program_ids.overhead_igp_account.to_string(),
-            igp_account: program_ids.igp_account.to_string(),
+    pub fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<Pubkey, D::Error> {
+        match RawPubkey::deserialize(de)? {
+            RawPubkey::String(s) => Pubkey::from_str(&s).map_err(serde::de::Error::custom),
+            RawPubkey::Bytes(b) => Ok(b),
         }
     }
 }
 
 fn write_program_ids(core_dir: &Path, program_ids: CoreProgramIds) {
-    let pretty_program_ids = PrettyCoreProgramIds::from(program_ids);
-
-    let json = serde_json::to_string_pretty(&pretty_program_ids).unwrap();
+    let json = serde_json::to_string_pretty(&program_ids).unwrap();
     let path = core_dir.join("program-ids.json");
 
     println!("Writing program IDs to {}:\n{}", path.display(), json);
@@ -426,9 +416,5 @@ pub(crate) fn read_core_program_ids(
         .join("core")
         .join("program-ids.json");
     let file = File::open(path).expect("Failed to open program IDs file");
-
-    let pretty_program_ids: PrettyCoreProgramIds =
-        serde_json::from_reader(file).expect("Failed to read program IDs file");
-
-    CoreProgramIds::from(pretty_program_ids)
+    serde_json::from_reader(file).expect("Failed to read program IDs file")
 }
