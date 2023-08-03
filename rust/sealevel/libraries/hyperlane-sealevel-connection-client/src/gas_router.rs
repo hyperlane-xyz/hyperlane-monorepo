@@ -2,19 +2,13 @@ use access_control::AccessControl;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H256;
 
-
 use solana_program::{
-    account_info::AccountInfo,
-    instruction::{AccountMeta},
-    msg,
-    program_error::ProgramError,
+    account_info::AccountInfo, instruction::AccountMeta, msg, program_error::ProgramError,
     pubkey::Pubkey,
 };
 use std::collections::HashMap;
 
-use crate::{
-    router::HyperlaneRouterDispatch,
-};
+use crate::router::HyperlaneRouterDispatch;
 
 /// Gas router configuration for a single destination.
 #[derive(Debug, Clone, PartialEq, BorshDeserialize, BorshSerialize)]
