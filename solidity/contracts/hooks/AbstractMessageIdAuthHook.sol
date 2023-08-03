@@ -28,7 +28,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 /**
  * @title AbstractMessageIdAuthHook
  * @notice Message hook to inform an Abstract Message ID ISM of messages published through
- * the native OPStack bridge.
+ * the third-party bridge.
  * @dev V3 WIP
  */
 abstract contract AbstractMessageIdAuthHook is AbstractHook {
@@ -66,7 +66,7 @@ abstract contract AbstractMessageIdAuthHook is AbstractHook {
     function _postDispatch(bytes calldata metadata, bytes calldata message)
         internal
         override
-        returns (IPostDispatchHook)
+        returns (address[] memory)
     {
         require(
             message.destination() == destinationDomain,
@@ -79,8 +79,7 @@ abstract contract AbstractMessageIdAuthHook is AbstractHook {
         );
         _sendMessageId(metadata, payload);
 
-        // no next post-dispatch hook
-        // TODO: consider configuring?
-        return IPostDispatchHook(address(0));
+        // leaf hook
+        return new address[](0);
     }
 }

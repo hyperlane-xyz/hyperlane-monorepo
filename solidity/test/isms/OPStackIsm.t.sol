@@ -79,12 +79,12 @@ contract OPStackIsmTest is Test {
     ///                            SETUP                            ///
     ///////////////////////////////////////////////////////////////////
 
-    function deployOptimismHook() public {
+    function deployOPStackHook() public {
         vm.selectFork(mainnetFork);
 
         l1Messenger = ICrossDomainMessenger(L1_MESSENGER_ADDRESS);
 
-        opHook = new OptimismMessageHook(
+        opHook = new OPStackHook(
             OPTIMISM_DOMAIN,
             L1_MESSENGER_ADDRESS,
             address(opISM)
@@ -93,22 +93,22 @@ contract OPStackIsmTest is Test {
         vm.makePersistent(address(opHook));
     }
 
-    function deployOptimismISM() public {
+    function deployOPStackIsm() public {
         vm.selectFork(optimismFork);
 
         l2Messenger = L2CrossDomainMessenger(L2_MESSENGER_ADDRESS);
-        opISM = new OptimismISM(L2_MESSENGER_ADDRESS);
+        opISM = new OPStackIsm(L2_MESSENGER_ADDRESS);
 
         vm.makePersistent(address(opISM));
     }
 
     function deployAll() public {
-        deployOptimismISM();
-        deployOptimismHook();
+        deployOPStackIsm();
+        deployOPStackHook();
 
         vm.selectFork(optimismFork);
 
-        opISM.setOptimismHook(address(opHook));
+        opISM.setHook(address(opHook));
         // for sending value
         vm.deal(
             AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS),
@@ -128,7 +128,7 @@ contract OPStackIsmTest is Test {
         vm.selectFork(mainnetFork);
 
         bytes memory encodedHookData = abi.encodeCall(
-            OptimismISM.verifyMessageId,
+            OPStackHook.verifyMessageId,
             (address(this).addressToBytes32(), messageId)
         );
 
@@ -152,7 +152,7 @@ contract OPStackIsmTest is Test {
 
         vm.selectFork(mainnetFork);
 
-        vm.expectRevert("OptimismHook: invalid destination domain");
+        vm.expectRevert("OPStackHook: invalid destination domain");
         opHook.postDispatch(11, messageId);
     }
 
@@ -164,7 +164,7 @@ contract OPStackIsmTest is Test {
         vm.selectFork(optimismFork);
 
         bytes memory encodedHookData = abi.encodeCall(
-            OptimismISM.verifyMessageId,
+            OPStackIsm.verifyMessageId,
             (address(this).addressToBytes32(), messageId)
         );
 
@@ -222,7 +222,7 @@ contract OPStackIsmTest is Test {
     //     vm.selectFork(optimismFork);
 
     //     bytes memory encodedHookData = abi.encodeCall(
-    //         OptimismISM.verifyMessageId,
+    //         OPStackIsm.verifyMessageId,
     //         (address(this), messageId)
     //     );
 
@@ -267,7 +267,7 @@ contract OPStackIsmTest is Test {
         vm.startPrank(L2_MESSENGER_ADDRESS);
 
         // needs to be called by the authorized hook contract on Ethereum
-        vm.expectRevert("OptimismISM: sender is not the hook");
+        vm.expectRevert("OPStackIsm: sender is not the hook");
         opISM.verifyMessageId(address(opHook).addressToBytes32(), messageId);
     }
 
@@ -279,7 +279,7 @@ contract OPStackIsmTest is Test {
         vm.selectFork(optimismFork);
 
         bytes memory encodedHookData = abi.encodeCall(
-            OptimismISM.verifyMessageId,
+            OPStackIsm.verifyMessageId,
             (address(this).addressToBytes32(), messageId)
         );
 
@@ -312,7 +312,7 @@ contract OPStackIsmTest is Test {
         vm.selectFork(optimismFork);
 
         bytes memory encodedHookData = abi.encodeCall(
-            OptimismISM.verifyMessageId,
+            OPStackIsm.verifyMessageId,
             (address(this).addressToBytes32(), messageId)
         );
 
@@ -349,7 +349,7 @@ contract OPStackIsmTest is Test {
         bytes32 _messageId = Message.id(invalidMessage);
 
         bytes memory encodedHookData = abi.encodeCall(
-            OptimismISM.verifyMessageId,
+            OPStackIsm.verifyMessageId,
             (address(this).addressToBytes32(), _messageId)
         );
 
@@ -381,7 +381,7 @@ contract OPStackIsmTest is Test {
         vm.selectFork(optimismFork);
 
         bytes memory encodedHookData = abi.encodeCall(
-            OptimismISM.verifyMessageId,
+            OPStackIsm.verifyMessageId,
             (alice.addressToBytes32(), messageId)
         );
 

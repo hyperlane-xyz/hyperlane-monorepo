@@ -101,6 +101,7 @@ contract Mailbox is IMailbox, Versioned, Ownable {
                 _destinationDomain,
                 _recipientAddress,
                 _messageBody,
+                defaultHook,
                 bytes("")
             );
     }
@@ -134,8 +135,8 @@ contract Mailbox is IMailbox, Versioned, Ownable {
         bytes32 recipientAddress,
         bytes calldata messageBody,
         IPostDispatchHook hook,
-        bytes calldata metadata
-    ) public returns (bytes32) {
+        bytes memory metadata
+    ) public payable returns (bytes32) {
         // Format the message into packed bytes.
         bytes memory message = Message.formatMessage(
             VERSION,

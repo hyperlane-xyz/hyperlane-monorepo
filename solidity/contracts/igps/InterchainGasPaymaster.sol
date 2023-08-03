@@ -206,6 +206,7 @@ contract InterchainGasPaymaster is
     function _postDispatch(bytes calldata _metadata, bytes calldata _message)
         internal
         override
+        returns (address[] memory)
     {
         if (_metadata.length == 0) {
             payForGas(
@@ -225,6 +226,8 @@ contract InterchainGasPaymaster is
                 refundAddress
             );
         }
+
+        return new address[](0);
     }
 
     /**

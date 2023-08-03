@@ -12,7 +12,7 @@ abstract contract AbstractHook is MailboxClient, IPostDispatchHook {
         payable
         override
         onlyMailbox
-        returns (IPostDispatchHook)
+        returns (address[] memory)
     {
         return _postDispatch(metadata, message);
     }
@@ -20,5 +20,5 @@ abstract contract AbstractHook is MailboxClient, IPostDispatchHook {
     function _postDispatch(bytes calldata metadata, bytes calldata message)
         internal
         virtual
-        returns (IPostDispatchHook);
+        returns (address[] memory);
 }

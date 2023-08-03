@@ -6,20 +6,23 @@ import {TypeCasts} from "../libs/TypeCasts.sol";
 import {MerkleLib} from "../libs/Merkle.sol";
 import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
 
+// needs to be merkleHook
 contract TestMailbox is Mailbox {
     using TypeCasts for bytes32;
 
-    constructor(uint32 _localDomain) Mailbox(_localDomain) {} // solhint-disable-line no-empty-blocks
+    constructor(uint32 _localDomain) Mailbox(_localDomain, msg.sender) {} // solhint-disable-line no-empty-blocks
 
     function proof() external view returns (bytes32[32] memory) {
         bytes32[32] memory _zeroes = MerkleLib.zeroHashes();
-        uint256 _index = tree.count - 1;
+        // uint256 _index = tree.count - 1;
+        uint256 _index = 0;
         bytes32[32] memory _proof;
 
         for (uint256 i = 0; i < 32; i++) {
             uint256 _ithBit = (_index >> i) & 0x01;
             if (_ithBit == 1) {
-                _proof[i] = tree.branch[i];
+                // _proof[i] = tree.branch[i];
+                _proof[i] = _zeroes[i];
             } else {
                 _proof[i] = _zeroes[i];
             }

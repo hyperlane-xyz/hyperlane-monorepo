@@ -21,13 +21,13 @@ contract DomainRoutingHook is AbstractHook, Ownable {
         hooks[destination] = IPostDispatchHook(hook);
     }
 
-    function _postDispatch(bytes calldata metadata, bytes calldata message)
-        internal
-        override
-    {
-        hooks[message.destination()].postDispatch{value: msg.value}(
-            metadata,
-            message
-        );
+    function _postDispatch(
+        bytes calldata, /*metadata*/
+        bytes calldata message
+    ) internal view override returns (address[] memory) {
+        // check metadata
+        address[] memory result = new address[](1);
+        result[0] = address(hooks[message.destination()]);
+        return result;
     }
 }

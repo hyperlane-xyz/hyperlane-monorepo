@@ -5,5 +5,5 @@ interface IPostDispatchHook {
     function postDispatch(bytes calldata metadata, bytes calldata message)
         external
         payable
-        returns (IPostDispatchHook next);
+        returns (address[] memory next);
 }

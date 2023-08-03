@@ -8,6 +8,7 @@ import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 
 import {IMessageDispatcher} from "../../contracts/interfaces/IMessageDispatcher.sol";
 import {ERC5164Hook} from "../../contracts/hooks/ERC5164Hook.sol";
+import {AbstractMessageIdAuthHook} from "../../contracts/hooks/AbstractMessageIdAuthHook.sol";
 import {ERC5164ISM} from "../../contracts/isms/hook/ERC5164ISM.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
 import {MockMessageDispatcher, MockMessageExecutor} from "../../contracts/mock/MockERC5164.sol";
@@ -32,8 +33,9 @@ contract ERC5164ISMTest is Test {
     address internal alice = address(0x1);
 
     // req for most tests
-    bytes encodedMessage = _encodeTestMessage(0, address(testRecipient));
-    bytes32 messageId = encodedMessage.id();
+    bytes internal encodedMessage =
+        _encodeTestMessage(0, address(testRecipient));
+    bytes32 internal messageId = encodedMessage.id();
 
     event MessageDispatched(
         bytes32 indexed messageId,
@@ -73,13 +75,24 @@ contract ERC5164ISMTest is Test {
         ism = new ERC5164ISM(alice);
 
         vm.expectRevert("ERC5164Hook: invalid destination domain");
-        hook = new ERC5164MessageHook(0, address(dispatcher), address(ism));
+        hook = new ERC5164Hook(
+            address(this),
+            0,
+            address(dispatcher),
+            address(ism)
+        );
 
         vm.expectRevert("ERC5164Hook: invalid dispatcher");
-        hook = new ERC5164MessageHook(TEST2_DOMAIN, alice, address(ism));
+        hook = new ERC5164Hook(
+            address(this),
+            TEST2_DOMAIN,
+            alice,
+            address(ism)
+        );
 
         vm.expectRevert("ERC5164Hook: invalid ISM");
-        hook = new ERC5164MessageHook(
+        hook = new ERC5164Hook(
+            address(this),
             TEST2_DOMAIN,
             address(dispatcher),
             address(0)
@@ -90,8 +103,8 @@ contract ERC5164ISMTest is Test {
         deployContracts();
 
         bytes memory encodedHookData = abi.encodeCall(
-            ERC5164ISM.verifyMessageId,
-            (address(this).addressToBytes32(), messageId)
+            AbstractMessageIdAuthHook.verifyMessageId,
+            (messageId)
         );
 
         // note: not checking for messageId since this is implementation dependent on each vendor

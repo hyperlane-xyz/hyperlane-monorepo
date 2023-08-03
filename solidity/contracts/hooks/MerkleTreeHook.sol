@@ -37,7 +37,9 @@ contract MerkleTreeHook is AbstractHook {
     function _postDispatch(
         bytes calldata, /*metadata*/
         bytes calldata message
-    ) internal override {
+    ) internal override returns (address[] memory) {
         _tree.insert(message.id());
+
+        return new address[](0);
     }
 }
