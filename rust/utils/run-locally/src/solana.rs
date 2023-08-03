@@ -11,6 +11,11 @@ use crate::program::Program;
 use crate::utils::{as_task, concat_path, AgentHandles, ArbitraryData, TaskHandle};
 use crate::AGENT_BIN_PATH;
 
+/// The Solana CLI tool version to download and use.
+const SOLANA_CLI_VERSION: &str = "1.14.20";
+const SOLANA_PROGRAM_LIBRARY_ARCHIVE: &str =
+    "https://github.com/hyperlane-xyz/solana-program-library/releases/download/2023-07-27-01/spl.tar.gz";
+
 // Solana program tuples of:
 // 0: Solana address or keypair for the bpf program
 // 1: Name of the program's shared object file
@@ -30,11 +35,6 @@ const SOLANA_PROGRAMS: &[(&str, &str)] = &[
     ("noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV", "spl_noop.so"),
 ];
 
-const SOLANA_KEYPAIR: &str = "config/test-sealevel-keys/test_deployer-keypair.json";
-const SOLANA_DEPLOYER_ACCOUNT: &str = "config/test-sealevel-keys/test_deployer-account.json";
-
-const SBF_OUT_PATH: &str = "target/dist";
-
 // Relative paths to solana program source code within rust/sealevel/programs repo.
 const SOLANA_HYPERLANE_PROGRAMS: &[&str] = &[
     "mailbox",
@@ -46,14 +46,20 @@ const SOLANA_HYPERLANE_PROGRAMS: &[&str] = &[
     "hyperlane-sealevel-igp",
 ];
 
-const SOLANA_PROGRAM_LIBRARY_ARCHIVE: &str =
-    "https://github.com/hyperlane-xyz/solana-program-library/releases/download/2023-07-27-01/spl.tar.gz";
+const SOLANA_KEYPAIR: &str = "config/test-sealevel-keys/test_deployer-keypair.json";
+const SOLANA_DEPLOYER_ACCOUNT: &str = "config/test-sealevel-keys/test_deployer-account.json";
+const SOLANA_WARPROUT_TOKEN_CONFIG_FILE: &str =
+    "sealevel/environments/local-e2e/warp-routes/testwarproute/token-config.json";
+const SOLANA_CHAIN_CONFIG_FILE: &str =
+    "sealevel/environments/local-e2e/warp-routes/chain-config.json";
+const SOLANA_ENVS_DIR: &str = "sealevel/environments";
+
+const SOLANA_ENV_NAME: &str = "local-e2e";
+
+const SBF_OUT_PATH: &str = "target/dist";
 
 const SOLANA_LOCAL_CHAIN_ID: &str = "13375";
 const SOLANA_REMOTE_CHAIN_ID: &str = "13376";
-
-/// The Solana CLI tool version to download and use.
-const SOLANA_CLI_VERSION: &str = "1.14.20";
 
 // TODO: use a temp dir instead!
 pub const SOLANA_CHECKPOINT_LOCATION: &str =
@@ -206,8 +212,8 @@ pub fn start_solana_test_validator(
         .arg("compute-budget", "200000")
         .cmd("core")
         .cmd("deploy")
-        .arg("environment", "local-e2e")
-        .arg("environments-dir", "sealevel/environments")
+        .arg("environment", SOLANA_ENV_NAME)
+        .arg("environments-dir", SOLANA_ENVS_DIR)
         .arg("built-so-dir", SBF_OUT_PATH)
         .arg("overhead-config-file", SOLANA_OVERHEAD_CONFIG_FILE)
         .flag("use-existing-keys");
@@ -235,18 +241,12 @@ pub fn start_solana_test_validator(
         .arg("compute-budget", "200000")
         .cmd("warp-route")
         .cmd("deploy")
-        .arg("environment", "local-e2e")
-        .arg("environments-dir", "sealevel/environments")
+        .arg("environment", SOLANA_ENV_NAME)
+        .arg("environments-dir", SOLANA_ENVS_DIR)
         .arg("built-so-dir", SBF_OUT_PATH)
         .arg("warp-route-name", "testwarproute")
-        .arg(
-            "token-config-file",
-            "sealevel/environments/local-e2e/warp-routes/testwarproute/token-config.json",
-        )
-        .arg(
-            "chain-config-file",
-            "sealevel/environments/local-e2e/warp-routes/chain-config.json",
-        )
+        .arg("token-config-file", SOLANA_WARPROUT_TOKEN_CONFIG_FILE)
+        .arg("chain-config-file", SOLANA_CHAIN_CONFIG_FILE)
         .arg("ata-payer-funding-amount", "1000000000")
         .run()
         .join();

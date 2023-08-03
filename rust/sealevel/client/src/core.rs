@@ -375,31 +375,6 @@ fn deploy_igp(
         println!("Skipping setting gas overheads");
     }
 
-    // Now make a gas payment for a message ID
-    let message_id =
-        H256::from_str("0x6969000000000000000000000000000000000000000000000000000000006969")
-            .unwrap();
-    let unique_gas_payment_keypair = Keypair::new();
-    let (instruction, gas_payment_data_account) =
-        hyperlane_sealevel_igp::instruction::pay_for_gas_instruction(
-            program_id,
-            ctx.payer.pubkey(),
-            igp_account,
-            unique_gas_payment_keypair.pubkey(),
-            message_id,
-            13376,
-            100000,
-        )
-        .unwrap();
-    ctx.instructions.push(instruction);
-    ctx.send_transaction(&[&ctx.payer, &unique_gas_payment_keypair]);
-    ctx.instructions.clear();
-
-    println!(
-        "Made a payment for message {} with gas payment data account {}",
-        message_id, gas_payment_data_account
-    );
-
     (program_id, overhead_igp_account, igp_account)
 }
 
