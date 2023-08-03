@@ -31,7 +31,6 @@ use derive_new::new;
 #[derive(Debug)]
 pub struct SealevelInterchainGasPaymaster {
     program_id: Pubkey,
-    // pda: (Pubkey, u8),
     data_pda: (Pubkey, u8),
     domain: HyperlaneDomain,
 }
@@ -39,15 +38,12 @@ pub struct SealevelInterchainGasPaymaster {
 impl SealevelInterchainGasPaymaster {
     /// Create a new Sealevel IGP.
     pub fn new(conf: &ConnectionConf, locator: ContractLocator) -> Self {
-        // pub fn new(conf: &ConnectionConf, locator: ContractLocator, seed: u64) -> Self {
         // Set the `processed` commitment at rpc level
         let rpc_client =
             RpcClient::new_with_commitment(conf.url.to_string(), CommitmentConfig::processed());
 
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         let domain = locator.domain.id();
-        // TODO: is this the right way of passing the seed?
-        // let pda = Pubkey::find_program_address(igp_pda_seeds!(seed), &program_id);
         let data_pda = Pubkey::find_program_address(igp_program_data_pda_seeds!(), &program_id);
 
         debug!(
@@ -57,7 +53,6 @@ impl SealevelInterchainGasPaymaster {
 
         Self {
             program_id,
-            // pda,
             data_pda,
             domain: locator.domain.clone(),
         }
@@ -168,7 +163,6 @@ impl SealevelInterchainGasPaymasterIndexer {
         for (pubkey, account) in accounts.iter() {
             let unique_gas_payment_pubkey = Pubkey::new(&account.data);
             let (expected_pubkey, _bump) = Pubkey::try_find_program_address(
-                // TODO: should the bump be passed as a seed?
                 igp_gas_payment_pda_seeds!(unique_gas_payment_pubkey),
                 &self.igp.program_id,
             )
