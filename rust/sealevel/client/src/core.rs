@@ -8,7 +8,7 @@ use std::{fs::File, io::Write, path::Path, str::FromStr};
 
 use crate::{
     cmd_utils::{create_and_write_keypair, create_new_directory, deploy_program},
-    Context, CoreCmd, CoreSubCmd,
+    Context, CoreCmd, CoreDeploy, CoreSubCmd,
 };
 use hyperlane_core::H256;
 use hyperlane_sealevel_igp::accounts::{SOL_DECIMALS, TOKEN_EXCHANGE_RATE_SCALE};
@@ -21,41 +21,15 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
             let core_dir = create_new_directory(&chain_dir, "core");
             let key_dir = create_new_directory(&core_dir, "keys");
 
-            let ism_program_id = deploy_multisig_ism_message_id(
-                &mut ctx,
-                core.use_existing_keys,
-                &key_dir,
-                &core.built_so_dir,
-            );
+            let ism_program_id = deploy_multisig_ism_message_id(&mut ctx, &core, &key_dir);
 
-            let mailbox_program_id = deploy_mailbox(
-                &mut ctx,
-                core.use_existing_keys,
-                &key_dir,
-                &core.built_so_dir,
-                core.local_domain,
-                ism_program_id,
-            );
+            let mailbox_program_id = deploy_mailbox(&mut ctx, &core, &key_dir, ism_program_id);
 
-            let validator_announce_program_id = deploy_validator_announce(
-                &mut ctx,
-                core.use_existing_keys,
-                &key_dir,
-                &core.built_so_dir,
-                mailbox_program_id,
-                core.local_domain,
-            );
+            let validator_announce_program_id =
+                deploy_validator_announce(&mut ctx, &core, &key_dir, mailbox_program_id);
 
-            let (igp_program_id, overhead_igp_account, igp_account) = deploy_igp(
-                &mut ctx,
-                core.use_existing_keys,
-                &key_dir,
-                &core.built_so_dir,
-                core.local_domain,
-                &core.remote_domains,
-                core.gas_oracle_config_file.as_deref(),
-                core.overhead_config_file.as_deref(),
-            );
+            let (igp_program_id, overhead_igp_account, igp_account) =
+                deploy_igp(&mut ctx, &core, &key_dir);
 
             let program_ids = CoreProgramIds {
                 mailbox: mailbox_program_id,
@@ -70,23 +44,18 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
     }
 }
 
-fn deploy_multisig_ism_message_id(
-    ctx: &mut Context,
-    use_existing_key: bool,
-    key_dir: &Path,
-    built_so_dir: &Path,
-) -> Pubkey {
+fn deploy_multisig_ism_message_id(ctx: &mut Context, cmd: &CoreDeploy, key_dir: &Path) -> Pubkey {
     let (keypair, keypair_path) = create_and_write_keypair(
         key_dir,
         "hyperlane_sealevel_multisig_ism_message_id-keypair.json",
-        use_existing_key,
+        cmd.use_existing_keys,
     );
     let program_id = keypair.pubkey();
 
     deploy_program(
         &ctx.payer_path,
         keypair_path.to_str().unwrap(),
-        built_so_dir
+        cmd.built_so_dir
             .join("hyperlane_sealevel_multisig_ism_message_id.so")
             .to_str()
             .unwrap(),
@@ -114,23 +83,21 @@ fn deploy_multisig_ism_message_id(
 
 fn deploy_mailbox(
     ctx: &mut Context,
-    use_existing_key: bool,
+    core: &CoreDeploy,
     key_dir: &Path,
-    built_so_dir: &Path,
-    local_domain: u32,
     default_ism: Pubkey,
 ) -> Pubkey {
     let (keypair, keypair_path) = create_and_write_keypair(
         key_dir,
         "hyperlane_sealevel_mailbox-keypair.json",
-        use_existing_key,
+        core.use_existing_keys,
     );
     let program_id = keypair.pubkey();
 
     deploy_program(
         &ctx.payer_path,
         keypair_path.to_str().unwrap(),
-        built_so_dir
+        core.built_so_dir
             .join("hyperlane_sealevel_mailbox.so")
             .to_str()
             .unwrap(),
@@ -142,7 +109,7 @@ fn deploy_mailbox(
     // Initialize
     let instruction = hyperlane_sealevel_mailbox::instruction::init_instruction(
         program_id,
-        local_domain,
+        core.local_domain,
         default_ism,
         ctx.payer.pubkey(),
     )
@@ -157,23 +124,21 @@ fn deploy_mailbox(
 
 fn deploy_validator_announce(
     ctx: &mut Context,
-    use_existing_key: bool,
+    core: &CoreDeploy,
     key_dir: &Path,
-    built_so_dir: &Path,
     mailbox_program_id: Pubkey,
-    local_domain: u32,
 ) -> Pubkey {
     let (keypair, keypair_path) = create_and_write_keypair(
         key_dir,
         "hyperlane_sealevel_validator_announce-keypair.json",
-        use_existing_key,
+        core.use_existing_keys,
     );
     let program_id = keypair.pubkey();
 
     deploy_program(
         &ctx.payer_path,
         keypair_path.to_str().unwrap(),
-        built_so_dir
+        core.built_so_dir
             .join("hyperlane_sealevel_validator_announce.so")
             .to_str()
             .unwrap(),
@@ -187,7 +152,7 @@ fn deploy_validator_announce(
         program_id,
         ctx.payer.pubkey(),
         mailbox_program_id,
-        local_domain,
+        core.local_domain,
     )
     .unwrap();
 
@@ -199,16 +164,7 @@ fn deploy_validator_announce(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn deploy_igp(
-    ctx: &mut Context,
-    use_existing_key: bool,
-    key_dir: &Path,
-    built_so_dir: &Path,
-    local_domain: u32,
-    remote_domains: &[u32],
-    gas_oracle_config_file: Option<&Path>,
-    overhead_config_file: Option<&Path>,
-) -> (Pubkey, Pubkey, Pubkey) {
+fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, Pubkey, Pubkey) {
     use hyperlane_sealevel_igp::{
         accounts::{GasOracle, RemoteGasData},
         instruction::{GasOracleConfig, GasOverheadConfig},
@@ -217,11 +173,13 @@ fn deploy_igp(
     let (keypair, keypair_path) = create_and_write_keypair(
         key_dir,
         "hyperlane_sealevel_igp-keypair.json",
-        use_existing_key,
+        core.use_existing_keys,
     );
     let program_id = keypair.pubkey();
 
-    let mut gas_oracle_configs = gas_oracle_config_file
+    let mut gas_oracle_configs = core
+        .gas_oracle_config_file
+        .as_deref()
         .map(|p| {
             let file = File::open(p).expect("Failed to open oracle config file");
             serde_json::from_reader::<_, Vec<GasOracleConfig>>(file)
@@ -229,10 +187,10 @@ fn deploy_igp(
         })
         .unwrap_or_default()
         .into_iter()
-        .filter(|c| c.domain != local_domain)
+        .filter(|c| c.domain != core.local_domain)
         .map(|c| (c.domain, c))
         .collect::<HashMap<_, _>>();
-    for &remote in remote_domains {
+    for &remote in &core.remote_domains {
         gas_oracle_configs
             .entry(remote)
             .or_insert_with(|| GasOracleConfig {
@@ -246,7 +204,9 @@ fn deploy_igp(
     }
     let gas_oracle_configs = gas_oracle_configs.into_values().collect::<Vec<_>>();
 
-    let overhead_configs = overhead_config_file
+    let overhead_configs = core
+        .overhead_config_file
+        .as_deref()
         .map(|p| {
             let file = File::open(p).expect("Failed to open overhead config file");
             serde_json::from_reader::<_, Vec<GasOverheadConfig>>(file)
@@ -254,7 +214,7 @@ fn deploy_igp(
         })
         .unwrap_or_default()
         .into_iter()
-        .filter(|c| c.destination_domain != local_domain)
+        .filter(|c| c.destination_domain != core.local_domain)
         .map(|c| (c.destination_domain, c))
         .collect::<HashMap<_, _>>() // dedup
         .into_values()
@@ -263,7 +223,7 @@ fn deploy_igp(
     deploy_program(
         &ctx.payer_path,
         keypair_path.to_str().unwrap(),
-        built_so_dir
+        core.built_so_dir
             .join("hyperlane_sealevel_igp.so")
             .to_str()
             .unwrap(),
@@ -363,7 +323,7 @@ fn deploy_igp(
 
     // TODO: this payment logic should be in the transfer remote and this block of code needs to be
     //  removed after that
-    if remote_domains.contains(&13376) {
+    if core.remote_domains.contains(&13376) {
         // Now make a gas payment for a message ID
         let message_id =
             H256::from_str("0x6969000000000000000000000000000000000000000000000000000000006969")
