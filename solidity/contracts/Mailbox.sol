@@ -185,6 +185,39 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
             );
     }
 
+    function dispatch(
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata messageBody,
+        IPostDispatchHook hook,
+        bytes calldata metadata
+    ) public returns (bytes32) {
+        // Format the message into packed bytes.
+        bytes memory message = Message.formatMessage(
+            VERSION,
+            nonce,
+            localDomain,
+            msg.sender.addressToBytes32(),
+            destinationDomain,
+            recipientAddress,
+            messageBody
+        );
+
+        // effects
+        nonce += 1;
+        bytes32 id = message.id();
+        emit DispatchId(id);
+        emit Dispatch(message);
+
+        // interactions
+        hook.postDispatch{value: msg.value}(metadata, message);
+        return id;
+    }
+
+    function delivered(bytes32 _id) public view override returns (bool) {
+        return deliveries[_id].sender != address(0);
+    }
+
     /**
      * @notice Attempts to deliver `_message` to its recipient. Verifies
      * `_message` via the recipient's ISM using the provided `_metadata`.
