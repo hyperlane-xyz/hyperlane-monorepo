@@ -371,10 +371,10 @@ pub(crate) struct CoreProgramIds {
 }
 
 mod serde_pubkey {
+    use borsh::BorshDeserialize;
     use serde::{Deserialize, Deserializer, Serializer};
     use solana_sdk::pubkey::Pubkey;
     use std::str::FromStr;
-    use borsh::BorshDeserialize;
 
     #[derive(Deserialize)]
     #[serde(untagged)]
