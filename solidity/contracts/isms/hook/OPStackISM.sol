@@ -16,7 +16,6 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
-import {OptimismMessageHook} from "../../hooks/OptimismMessageHook.sol";
 import {Message} from "../../libs/Message.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {AbstractMessageIdAuthorizedIsm} from "./AbstractMessageIdAuthorizedIsm.sol";

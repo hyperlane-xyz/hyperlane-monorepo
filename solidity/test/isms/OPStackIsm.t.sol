@@ -7,8 +7,8 @@ import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {Mailbox} from "../../contracts/Mailbox.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {TestMultisigIsm} from "../../contracts/test/TestMultisigIsm.sol";
-import {OptimismISM} from "../../contracts/isms/hook/OptimismISM.sol";
-import {OptimismMessageHook} from "../../contracts/hooks/OptimismMessageHook.sol";
+import {OPStackIsm} from "../../contracts/isms/hook/OPStackIsm.sol";
+import {OPStackHook} from "../../contracts/hooks/OPStackHook.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
 import {NotCrossChainCall} from "../../contracts/isms/hook/crossChainEnabled/errors.sol";
 
@@ -20,7 +20,7 @@ import {L2CrossDomainMessenger} from "@eth-optimism/contracts-bedrock/contracts/
 import {Encoding} from "@eth-optimism/contracts-bedrock/contracts/libraries/Encoding.sol";
 import {Hashing} from "@eth-optimism/contracts-bedrock/contracts/libraries/Hashing.sol";
 
-contract OptimismISMTest is Test {
+contract OPStackIsmTest is Test {
     using TypeCasts for address;
 
     uint256 internal mainnetFork;
@@ -40,8 +40,8 @@ contract OptimismISMTest is Test {
 
     ICrossDomainMessenger internal l1Messenger;
     L2CrossDomainMessenger internal l2Messenger;
-    OptimismISM internal opISM;
-    OptimismMessageHook internal opHook;
+    OPStackIsmTest internal opISM;
+    OPStackHook internal opHook;
 
     TestRecipient internal testRecipient;
     bytes internal testMessage =

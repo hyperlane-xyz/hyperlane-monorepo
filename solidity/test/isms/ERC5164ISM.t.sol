@@ -6,19 +6,20 @@ import {Test} from "forge-std/Test.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 
-import {IMessageDispatcher} from "../../contracts/hooks/ERC5164/interfaces/IMessageDispatcher.sol";
-import {ERC5164MessageHook} from "../../contracts/hooks/ERC5164/ERC5164MessageHook.sol";
+import {IMessageDispatcher} from "../../contracts/interfaces/IMessageDispatcher.sol";
+import {ERC5164Hook} from "../../contracts/hooks/ERC5164Hook.sol";
 import {ERC5164ISM} from "../../contracts/isms/hook/ERC5164ISM.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
 import {MockMessageDispatcher, MockMessageExecutor} from "../../contracts/mock/MockERC5164.sol";
 
 contract ERC5164ISMTest is Test {
     using TypeCasts for address;
+    using Message for bytes;
 
     IMessageDispatcher internal dispatcher;
     MockMessageExecutor internal executor;
 
-    ERC5164MessageHook internal hook;
+    ERC5164Hook internal hook;
     ERC5164ISM internal ism;
     TestRecipient internal testRecipient;
 
@@ -32,7 +33,7 @@ contract ERC5164ISMTest is Test {
 
     // req for most tests
     bytes encodedMessage = _encodeTestMessage(0, address(testRecipient));
-    bytes32 messageId = Message.id(encodedMessage);
+    bytes32 messageId = encodedMessage.id();
 
     event MessageDispatched(
         bytes32 indexed messageId,
@@ -54,10 +55,12 @@ contract ERC5164ISMTest is Test {
 
     function deployContracts() public {
         ism = new ERC5164ISM(address(executor));
-        hook = new ERC5164MessageHook(
+        address mailbox = address(0); // TODO: check?
+        hook = new ERC5164Hook(
+            mailbox,
             TEST2_DOMAIN,
-            address(dispatcher),
-            address(ism)
+            address(ism),
+            address(dispatcher)
         );
     }
 
