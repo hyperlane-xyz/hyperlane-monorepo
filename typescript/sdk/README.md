@@ -6,11 +6,13 @@ For details on how to use the various abstractions and utilities, [see the docum
 
 ## Install
 
-`yarn install @hyperlane-xyz/sdk`
+```bash
+# Install with NPM
+npm install @hyperlane-xyz/sdk
 
-### Peer Dependencies
-
-_Experimental_: If you intend to use the SDK with a library other than Ethers.JS v5, you will need to install that lib. Supported options are `viem`, and `@solana/web3.js`
+# Or with Yarn
+yarn add @hyperlane-xyz/sdk
+```
 
 ## Contents
 

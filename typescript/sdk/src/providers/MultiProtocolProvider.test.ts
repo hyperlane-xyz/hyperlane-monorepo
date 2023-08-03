@@ -13,14 +13,14 @@ describe('MultiProtocolProvider', () => {
     });
     it('creates a multi protocol provider with type extension', async () => {
       const multiProvider = new MultiProtocolProvider<{
-        ism: string;
-        count: number;
+        foo: string;
+        bar: number;
       }>({
-        [Chains.ethereum]: { ...ethereum, ism: '0x123', count: 1 },
+        [Chains.ethereum]: { ...ethereum, foo: '0x123', bar: 1 },
       });
       const ethMetadata = multiProvider.getChainMetadata(Chains.ethereum);
-      expect(ethMetadata.ism).to.equal('0x123');
-      expect(ethMetadata.count).to.equal(1);
+      expect(ethMetadata.foo).to.equal('0x123');
+      expect(ethMetadata.bar).to.equal(1);
     });
   });
 });
