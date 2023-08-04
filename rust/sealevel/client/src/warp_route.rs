@@ -351,16 +351,17 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                         chain_name, program_id, destination_gas_configs,
                     );
 
-                    ctx.instructions.push(
-                        set_destination_gas_configs(
-                            program_id,
-                            ctx.payer.pubkey(),
-                            destination_gas_configs,
+                    ctx.new_txn()
+                        .add(
+                            set_destination_gas_configs(
+                                program_id,
+                                ctx.payer.pubkey(),
+                                destination_gas_configs,
+                            )
+                            .unwrap(),
                         )
-                        .unwrap(),
-                    );
-                    ctx.send_transaction_with_client(&chain_config.client(), &[&ctx.payer]);
-                    ctx.instructions.clear();
+                        .with_client(&chain_config.client())
+                        .send_with_payer();
                 } else {
                     println!(
                         "No destination gas amount changes for chain: {}, program_id {}",

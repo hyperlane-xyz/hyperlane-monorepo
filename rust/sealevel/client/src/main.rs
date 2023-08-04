@@ -51,9 +51,7 @@ use hyperlane_sealevel_token_collateral::{
 use hyperlane_sealevel_token_lib::{
     accounts::HyperlaneTokenAccount,
     hyperlane_token_pda_seeds,
-    instruction::{
-        Init as HtInit, Instruction as HtInstruction, TransferRemote as HtTransferRemote,
-    },
+    instruction::{Instruction as HtInstruction, TransferRemote as HtTransferRemote},
 };
 use hyperlane_sealevel_token_native::{
     hyperlane_token_native_collateral_pda_seeds, plugin::NativePlugin,
