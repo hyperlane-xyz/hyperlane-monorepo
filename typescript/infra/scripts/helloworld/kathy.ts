@@ -10,7 +10,14 @@ import {
   HyperlaneCore,
   HyperlaneIgp,
 } from '@hyperlane-xyz/sdk';
-import { debug, error, log, utils, warn } from '@hyperlane-xyz/utils';
+import {
+  debug,
+  error,
+  log,
+  retryAsync,
+  timeout,
+  warn,
+} from '@hyperlane-xyz/utils';
 
 import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { Role } from '../../src/roles';
@@ -363,7 +370,7 @@ async function sendMessage(
   const msg = 'Hello!';
   const expectedHandleGas = BigNumber.from(50_000);
 
-  const value = await utils.retryAsync(
+  const value = await retryAsync(
     () =>
       igp.quoteGasPaymentForDefaultIsmIgp(
         origin,
@@ -380,9 +387,9 @@ async function sendMessage(
     interchainGasPayment: value.toString(),
   });
 
-  const receipt = await utils.retryAsync(
+  const receipt = await retryAsync(
     () =>
-      utils.timeout(
+      timeout(
         app.sendHelloWorld(origin, destination, msg, value),
         messageSendTimeout,
         'Timeout sending message',
@@ -401,7 +408,7 @@ async function sendMessage(
   });
 
   try {
-    await utils.timeout(
+    await timeout(
       app.waitForMessageProcessed(receipt),
       messageReceiptTimeout,
       'Timeout waiting for message to be received',
@@ -416,7 +423,7 @@ async function sendMessage(
     // Try a few times to see if the message has been processed --
     // we've seen some intermittent issues when fetching state.
     // This will throw if the message is found to have not been processed.
-    await utils.retryAsync(async () => {
+    await retryAsync(async () => {
       if (!(await messageIsProcessed(app.core, origin, destination, message))) {
         throw error;
       }

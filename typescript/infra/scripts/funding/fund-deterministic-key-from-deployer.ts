@@ -1,8 +1,7 @@
 import { BigNumber } from 'ethers';
 import { format } from 'util';
 
-import { promiseObjAll } from '@hyperlane-xyz/sdk';
-import { error } from '@hyperlane-xyz/utils';
+import { error, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import {

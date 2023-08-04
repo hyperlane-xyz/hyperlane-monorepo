@@ -4,11 +4,11 @@ import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
 } from '../../consts/environments';
+import { appFromAddressesMapHelper } from '../../contracts/contracts';
 import {
   HyperlaneAddressesMap,
   HyperlaneContracts,
-  appFromAddressesMapHelper,
-} from '../../contracts';
+} from '../../contracts/types';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterApp } from '../../router/RouterApps';
 

@@ -17,9 +17,9 @@ pub const TOKEN_EXCHANGE_RATE_SCALE: u128 = 10u128.pow(19);
 /// The number of decimals for the native SOL token.
 pub const SOL_DECIMALS: u8 = 9;
 
-#[derive(
-    BorshSerialize, BorshDeserialize, Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize,
-)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(tag = "type", rename_all = "camelCase"))]
 /// Types of IGPs that exist.
 pub enum InterchainGasPaymasterType {
     /// An IGP with gas oracles and that receives lamports as payment.
@@ -40,6 +40,8 @@ impl InterchainGasPaymasterType {
 
 /// A gas oracle that provides gas data for a remote chain.
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(tag = "type", rename_all = "camelCase"))]
 pub enum GasOracle {
     /// Remote gas data stored directly in the variant data.
     RemoteGasData(RemoteGasData),
@@ -215,12 +217,16 @@ impl AccessControl for Igp {
 
 /// Remote gas data.
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct RemoteGasData {
     /// The token exchange rate for the remote token, adjusted by the
     /// TOKEN_EXCHANGE_RATE_SCALE.
     /// If this e.g. 0.2, then one local token would give you 5 remote tokens.
+    #[cfg_attr(feature = "serde", serde(with = "hyperlane_core::utils::serde_u128"))]
     pub token_exchange_rate: u128,
     /// The gas price for the remote chain.
+    #[cfg_attr(feature = "serde", serde(with = "hyperlane_core::utils::serde_u128"))]
     pub gas_price: u128,
     /// The number of decimals for the remote token.
     pub token_decimals: u8,

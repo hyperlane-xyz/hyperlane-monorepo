@@ -5,8 +5,21 @@
 
 use std::{path::PathBuf, str::FromStr};
 
-use account_utils::DiscriminatorEncode;
 use clap::{Args, Parser, Subcommand, ValueEnum};
+use solana_clap_utils::input_validators::{is_keypair, is_url, normalize_to_url_if_moniker};
+use solana_cli_config::{Config, CONFIG_FILE};
+use solana_client::rpc_client::RpcClient;
+use solana_program::pubkey;
+use solana_sdk::{
+    commitment_config::CommitmentConfig,
+    compute_budget::ComputeBudgetInstruction,
+    instruction::{AccountMeta, Instruction},
+    pubkey::Pubkey,
+    signature::{read_keypair_file, Keypair, Signer as _},
+    system_program,
+};
+
+use account_utils::DiscriminatorEncode;
 use hyperlane_core::{Encode, HyperlaneMessage, H160, H256};
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_igp::{
@@ -54,25 +67,12 @@ use hyperlane_sealevel_validator_announce::{
     replay_protection_pda_seeds, validator_announce_pda_seeds,
     validator_storage_locations_pda_seeds,
 };
-use solana_clap_utils::input_validators::{is_keypair, is_url, normalize_to_url_if_moniker};
-use solana_cli_config::{Config, CONFIG_FILE};
-use solana_client::{rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig};
-use solana_program::pubkey;
-use solana_sdk::{
-    commitment_config::CommitmentConfig,
-    compute_budget::ComputeBudgetInstruction,
-    instruction::{AccountMeta, Instruction},
-    pubkey::Pubkey,
-    signature::{read_keypair_file, Keypair, Signer as _},
-    signer::signers::Signers,
-    system_program,
-    transaction::Transaction,
-};
 
-pub(crate) use crate::core::*;
 use crate::warp_route::process_warp_route_cmd;
+pub(crate) use crate::{context::*, core::*};
 
 mod cmd_utils;
+mod context;
 mod r#core;
 mod warp_route;
 
@@ -157,11 +157,17 @@ struct CoreDeploy {
     #[arg(long)]
     environment: String,
     #[arg(long)]
+    gas_oracle_config_file: Option<PathBuf>,
+    #[arg(long)]
+    overhead_config_file: Option<PathBuf>,
+    #[arg(long)]
     chain: String,
     #[arg(long)]
     use_existing_keys: bool,
     #[arg(long)]
     environments_dir: PathBuf,
+    #[arg(long, num_args = 1.., value_delimiter = ',')]
+    remote_domains: Vec<u32>,
     #[arg(long)]
     built_so_dir: PathBuf,
 }
@@ -392,67 +398,6 @@ struct MultisigIsmMessageIdSetValidatorsAndThreshold {
     threshold: u8,
 }
 
-pub(crate) struct Context {
-    client: RpcClient,
-    payer: Keypair,
-    payer_path: String,
-    commitment: CommitmentConfig,
-    instructions: Vec<Instruction>,
-}
-
-impl Context {
-    fn send_transaction<T: Signers>(&self, signers: &T) {
-        let recent_blockhash = self.client.get_latest_blockhash().unwrap();
-        let txn = Transaction::new_signed_with_payer(
-            &self.instructions,
-            Some(&self.payer.pubkey()),
-            signers,
-            recent_blockhash,
-        );
-
-        let _signature = self
-            .client
-            .send_and_confirm_transaction_with_spinner_and_config(
-                &txn,
-                self.commitment,
-                RpcSendTransactionConfig {
-                    preflight_commitment: Some(self.commitment.commitment),
-                    ..RpcSendTransactionConfig::default()
-                },
-            )
-            .map_err(|err| {
-                eprintln!("{:#?}", err);
-                err
-            })
-            .unwrap();
-    }
-
-    fn send_transaction_with_client<T: Signers>(&self, client: &RpcClient, signers: &T) {
-        let recent_blockhash = client.get_latest_blockhash().unwrap();
-        let txn = Transaction::new_signed_with_payer(
-            &self.instructions,
-            Some(&self.payer.pubkey()),
-            signers,
-            recent_blockhash,
-        );
-
-        let _signature = client
-            .send_and_confirm_transaction_with_spinner_and_config(
-                &txn,
-                self.commitment,
-                RpcSendTransactionConfig {
-                    preflight_commitment: Some(self.commitment.commitment),
-                    ..RpcSendTransactionConfig::default()
-                },
-            )
-            .map_err(|err| {
-                eprintln!("{:#?}", err);
-                err
-            })
-            .unwrap();
-    }
-}
-
 fn main() {
     pretty_env_logger::init();
 
@@ -489,7 +434,7 @@ fn main() {
         payer,
         payer_path: keypair_path,
         commitment,
-        instructions,
+        initial_instructions: instructions.into(),
     };
     match cli.cmd {
         HyperlaneSealevelCmd::Mailbox(cmd) => process_mailbox_cmd(ctx, cmd),
@@ -503,7 +448,7 @@ fn main() {
     }
 }
 
-fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
+fn process_mailbox_cmd(ctx: Context, cmd: MailboxCmd) {
     match cmd.cmd {
         MailboxSubCmd::Init(init) => {
             let instruction = hyperlane_sealevel_mailbox::instruction::init_instruction(
@@ -514,8 +459,7 @@ fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
             )
             .unwrap();
 
-            ctx.instructions.push(instruction);
-            ctx.send_transaction(&[&ctx.payer]);
+            ctx.new_txn().add(instruction).send_with_payer();
         }
         MailboxSubCmd::Query(query) => {
             let (inbox_account, inbox_bump) =
@@ -574,8 +518,7 @@ fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
                     AccountMeta::new_readonly(spl_noop::id(), false),
                 ],
             };
-            ctx.instructions.push(outbox_instruction);
-            ctx.send_transaction(&[&ctx.payer]);
+            ctx.new_txn().add(outbox_instruction).send_with_payer();
         }
         MailboxSubCmd::Receive(inbox) => {
             // TODO this probably needs some love
@@ -619,8 +562,7 @@ fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
                     // they were to use other accounts.
                 ],
             };
-            ctx.instructions.push(inbox_instruction);
-            ctx.send_transaction(&[&ctx.payer]);
+            ctx.new_txn().add(inbox_instruction).send_with_payer();
         }
         MailboxSubCmd::Delivered(delivered) => {
             let (processed_message_account_key, _processed_message_account_bump) =
@@ -642,7 +584,7 @@ fn process_mailbox_cmd(mut ctx: Context, cmd: MailboxCmd) {
     };
 }
 
-fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
+fn process_token_cmd(ctx: Context, cmd: TokenCmd) {
     match cmd.cmd {
         TokenSubCmd::Query(query) => {
             let (token_account, token_bump) =
@@ -851,7 +793,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
             //       ---- End if ----
             // 14..N [??..??] Plugin-specific accounts.
             let mut accounts = vec![
-                AccountMeta::new_readonly(solana_program::system_program::id(), false),
+                AccountMeta::new_readonly(system_program::id(), false),
                 AccountMeta::new_readonly(spl_noop::id(), false),
                 AccountMeta::new_readonly(token_account, false),
                 AccountMeta::new_readonly(token.mailbox, false),
@@ -964,9 +906,11 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 data: ixn.encode().unwrap(),
                 accounts,
             };
-            ctx.instructions.push(xfer_instruction);
-
-            ctx.send_transaction(&[&ctx.payer, &sender, &unique_message_account_keypair]);
+            ctx.new_txn().add(xfer_instruction).send(&[
+                &ctx.payer,
+                &sender,
+                &unique_message_account_keypair,
+            ]);
         }
         TokenSubCmd::EnrollRemoteRouter(enroll) => {
             let enroll_instruction = HtInstruction::EnrollRemoteRouter(RemoteRouterConfig {
@@ -984,14 +928,12 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                     AccountMeta::new_readonly(ctx.payer.pubkey(), true),
                 ],
             };
-            ctx.instructions.push(instruction);
-
-            ctx.send_transaction(&[&ctx.payer]);
+            ctx.new_txn().add(instruction).send_with_payer();
         }
     }
 }
 
-fn process_validator_announce_cmd(mut ctx: Context, cmd: ValidatorAnnounceCmd) {
+fn process_validator_announce_cmd(ctx: Context, cmd: ValidatorAnnounceCmd) {
     match cmd.cmd {
         ValidatorAnnounceSubCmd::Init(init) => {
             let init_instruction =
@@ -1002,9 +944,7 @@ fn process_validator_announce_cmd(mut ctx: Context, cmd: ValidatorAnnounceCmd) {
                     init.local_domain,
                 )
                 .unwrap();
-            ctx.instructions.push(init_instruction);
-
-            ctx.send_transaction(&[&ctx.payer]);
+            ctx.new_txn().add(init_instruction).send_with_payer();
         }
         ValidatorAnnounceSubCmd::Announce(announce) => {
             let signature = hex::decode(if announce.signature.starts_with("0x") {
@@ -1057,9 +997,7 @@ fn process_validator_announce_cmd(mut ctx: Context, cmd: ValidatorAnnounceCmd) {
                 data: ixn.into_instruction_data().unwrap(),
                 accounts,
             };
-            ctx.instructions.push(announce_instruction);
-
-            ctx.send_transaction(&[&ctx.payer]);
+            ctx.new_txn().add(announce_instruction).send_with_payer();
         }
         ValidatorAnnounceSubCmd::Query(query) => {
             let (validator_storage_locations_key, _validator_storage_locations_bump_seed) =
@@ -1089,7 +1027,7 @@ fn process_validator_announce_cmd(mut ctx: Context, cmd: ValidatorAnnounceCmd) {
     }
 }
 
-fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: MultisigIsmMessageIdCmd) {
+fn process_multisig_ism_message_id_cmd(ctx: Context, cmd: MultisigIsmMessageIdCmd) {
     match cmd.cmd {
         MultisigIsmMessageIdSubCmd::Init(init) => {
             let init_instruction =
@@ -1098,9 +1036,7 @@ fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: MultisigIsmMessage
                     ctx.payer.pubkey(),
                 )
                 .unwrap();
-            ctx.instructions.push(init_instruction);
-
-            ctx.send_transaction(&[&ctx.payer]);
+            ctx.new_txn().add(init_instruction).send_with_payer();
         }
         MultisigIsmMessageIdSubCmd::SetValidatorsAndThreshold(set_config) => {
             let (access_control_pda_key, _access_control_pda_bump) = Pubkey::find_program_address(
@@ -1138,9 +1074,7 @@ fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: MultisigIsmMessage
                 data: ixn.encode().unwrap(),
                 accounts,
             };
-            ctx.instructions.push(set_instruction);
-
-            ctx.send_transaction(&[&ctx.payer]);
+            ctx.new_txn().add(set_instruction).send_with_payer();
         }
         MultisigIsmMessageIdSubCmd::Query(query) => {
             let (access_control_pda_key, _access_control_pda_bump) = Pubkey::find_program_address(
