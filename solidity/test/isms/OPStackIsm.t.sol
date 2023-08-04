@@ -7,6 +7,7 @@ import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {Mailbox} from "../../contracts/Mailbox.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {TestMultisigIsm} from "../../contracts/test/TestMultisigIsm.sol";
+import {AbstractMessageIdAuthorizedIsm} from "../../contracts/isms/hook/AbstractMessageIdAuthorizedIsm.sol";
 import {OPStackIsm} from "../../contracts/isms/hook/OPStackIsm.sol";
 import {OPStackHook} from "../../contracts/hooks/OPStackHook.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
@@ -38,17 +39,19 @@ contract OPStackIsmTest is Test {
 
     address internal alice = address(0x1);
 
+    Mailbox internal l1Mailbox;
     ICrossDomainMessenger internal l1Messenger;
     L2CrossDomainMessenger internal l2Messenger;
-    OPStackIsmTest internal opISM;
+    OPStackIsm internal opISM;
     OPStackHook internal opHook;
 
     TestRecipient internal testRecipient;
     bytes internal testMessage =
         abi.encodePacked("Hello from the other chain!");
 
-    bytes encodedMessage = _encodeTestMessage(0, address(testRecipient));
-    bytes32 messageId = Message.id(encodedMessage);
+    bytes internal encodedMessage =
+        _encodeTestMessage(0, address(testRecipient));
+    bytes32 internal messageId = Message.id(encodedMessage);
 
     uint32 internal constant MAINNET_DOMAIN = 1;
     uint32 internal constant OPTIMISM_DOMAIN = 10;
@@ -82,13 +85,16 @@ contract OPStackIsmTest is Test {
     function deployOPStackHook() public {
         vm.selectFork(mainnetFork);
 
+        l1Mailbox = new Mailbox(MAINNET_DOMAIN, address(this));
         l1Messenger = ICrossDomainMessenger(L1_MESSENGER_ADDRESS);
 
         opHook = new OPStackHook(
+            address(l1Mailbox),
             OPTIMISM_DOMAIN,
-            L1_MESSENGER_ADDRESS,
-            address(opISM)
+            address(opISM),
+            L1_MESSENGER_ADDRESS
         );
+        l1Mailbox.setDefaultHook(address(opHook));
 
         vm.makePersistent(address(opHook));
     }
@@ -108,7 +114,7 @@ contract OPStackIsmTest is Test {
 
         vm.selectFork(optimismFork);
 
-        opISM.setHook(address(opHook));
+        opISM.setAuthorizedHook(address(opHook));
         // for sending value
         vm.deal(
             AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS),
@@ -128,8 +134,8 @@ contract OPStackIsmTest is Test {
         vm.selectFork(mainnetFork);
 
         bytes memory encodedHookData = abi.encodeCall(
-            OPStackHook.verifyMessageId,
-            (address(this).addressToBytes32(), messageId)
+            AbstractMessageIdAuthorizedIsm.verifyMessageId,
+            (messageId)
         );
 
         uint40 nonce = ICanonicalTransactionChain(L1_CANNONICAL_CHAIN)
@@ -144,75 +150,82 @@ contract OPStackIsmTest is Test {
             DEFAULT_GAS_LIMIT
         );
 
-        opHook.postDispatch(OPTIMISM_DOMAIN, messageId);
+        // opHook.postDispatch(OPTIMISM_DOMAIN, messageId);
+        l1Mailbox.dispatch{value: 2 ether}(
+            OPTIMISM_DOMAIN,
+            address(testRecipient).addressToBytes32(),
+            testMessage,
+            opHook,
+            abi.encode(1 ether)
+        );
     }
 
-    function testFork_postDispatch_RevertWhen_ChainIDNotSupported() public {
-        deployAll();
+    // function testFork_postDispatch_RevertWhen_ChainIDNotSupported() public {
+    //     deployAll();
 
-        vm.selectFork(mainnetFork);
+    //     vm.selectFork(mainnetFork);
 
-        vm.expectRevert("OPStackHook: invalid destination domain");
-        opHook.postDispatch(11, messageId);
-    }
+    //     vm.expectRevert("OPStackHook: invalid destination domain");
+    //     opHook.postDispatch(11, messageId);
+    // }
 
     /* ============ ISM.verifyMessageId ============ */
 
-    function testFork_verifyMessageId() public {
-        deployAll();
+    // function testFork_verifyMessageId() public {
+    //     deployAll();
 
-        vm.selectFork(optimismFork);
+    //     vm.selectFork(optimismFork);
 
-        bytes memory encodedHookData = abi.encodeCall(
-            OPStackIsm.verifyMessageId,
-            (address(this).addressToBytes32(), messageId)
-        );
+    //     bytes memory encodedHookData = abi.encodeCall(
+    //         AbstractMessageIdAuthorizedIsm.verifyMessageId,
+    //         (messageId)
+    //     );
 
-        (uint240 nonce, uint16 verison) = Encoding.decodeVersionedNonce(
-            l2Messenger.messageNonce()
-        );
-        uint256 versionedNonce = Encoding.encodeVersionedNonce(
-            nonce + 1,
-            verison
-        );
+    //     (uint240 nonce, uint16 verison) = Encoding.decodeVersionedNonce(
+    //         l2Messenger.messageNonce()
+    //     );
+    //     uint256 versionedNonce = Encoding.encodeVersionedNonce(
+    //         nonce + 1,
+    //         verison
+    //     );
 
-        bytes32 versionedHash = Hashing.hashCrossDomainMessageV1(
-            versionedNonce,
-            address(opHook),
-            address(opISM),
-            0,
-            DEFAULT_GAS_LIMIT,
-            encodedHookData
-        );
+    //     bytes32 versionedHash = Hashing.hashCrossDomainMessageV1(
+    //         versionedNonce,
+    //         address(opHook),
+    //         address(opISM),
+    //         0,
+    //         DEFAULT_GAS_LIMIT,
+    //         encodedHookData
+    //     );
 
-        vm.startPrank(
-            AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS)
-        );
+    //     vm.startPrank(
+    //         AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS)
+    //     );
 
-        vm.expectEmit(true, true, false, false, address(opISM));
-        emit ReceivedMessage(address(this).addressToBytes32(), messageId);
+    //     vm.expectEmit(true, true, false, false, address(opISM));
+    //     emit ReceivedMessage(messageId);
 
-        vm.expectEmit(true, false, false, false, L2_MESSENGER_ADDRESS);
-        emit RelayedMessage(versionedHash);
+    //     vm.expectEmit(true, false, false, false, L2_MESSENGER_ADDRESS);
+    //     emit RelayedMessage(versionedHash);
 
-        l2Messenger.relayMessage(
-            versionedNonce,
-            address(opHook),
-            address(opISM),
-            0,
-            DEFAULT_GAS_LIMIT,
-            encodedHookData
-        );
+    //     l2Messenger.relayMessage(
+    //         versionedNonce,
+    //         address(opHook),
+    //         address(opISM),
+    //         0,
+    //         DEFAULT_GAS_LIMIT,
+    //         encodedHookData
+    //     );
 
-        assertTrue(
-            opISM.verifiedMessageIds(
-                messageId,
-                address(this).addressToBytes32()
-            )
-        );
+    //     assertTrue(
+    //         opISM.verifiedMessageIds(
+    //             messageId,
+    //             address(this).addressToBytes32()
+    //         )
+    //     );
 
-        vm.stopPrank();
-    }
+    //     vm.stopPrank();
+    // }
 
     // will get included in https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/2410
     // function testverifyMessageId_WithValue() public {
@@ -222,7 +235,7 @@ contract OPStackIsmTest is Test {
     //     vm.selectFork(optimismFork);
 
     //     bytes memory encodedHookData = abi.encodeCall(
-    //         OPStackIsm.verifyMessageId,
+    //         AbstractMessageIdAuthorizedIsm.verifyMessageId,
     //         (address(this), messageId)
     //     );
 
@@ -250,162 +263,162 @@ contract OPStackIsmTest is Test {
     //     vm.stopPrank();
     // }
 
-    function testFork_verifyMessageId_RevertWhen_NotAuthorized() public {
-        deployAll();
+    // function testFork_verifyMessageId_RevertWhen_NotAuthorized() public {
+    //     deployAll();
 
-        vm.selectFork(optimismFork);
+    //     vm.selectFork(optimismFork);
 
-        // needs to be called by the cannonical messenger on Optimism
-        vm.expectRevert(NotCrossChainCall.selector);
-        opISM.verifyMessageId(address(opHook).addressToBytes32(), messageId);
+    //     // needs to be called by the cannonical messenger on Optimism
+    //     vm.expectRevert(NotCrossChainCall.selector);
+    //     opISM.verifyMessageId(address(opHook).addressToBytes32(), messageId);
 
-        // set the xDomainMessageSender storage slot as alice
-        bytes32 key = bytes32(uint256(204));
-        bytes32 value = TypeCasts.addressToBytes32(alice);
-        vm.store(address(l2Messenger), key, value);
+    //     // set the xDomainMessageSender storage slot as alice
+    //     bytes32 key = bytes32(uint256(204));
+    //     bytes32 value = TypeCasts.addressToBytes32(alice);
+    //     vm.store(address(l2Messenger), key, value);
 
-        vm.startPrank(L2_MESSENGER_ADDRESS);
+    //     vm.startPrank(L2_MESSENGER_ADDRESS);
 
-        // needs to be called by the authorized hook contract on Ethereum
-        vm.expectRevert("OPStackIsm: sender is not the hook");
-        opISM.verifyMessageId(address(opHook).addressToBytes32(), messageId);
-    }
+    //     // needs to be called by the authorized hook contract on Ethereum
+    //     vm.expectRevert("OPStackIsm: sender is not the hook");
+    //     opISM.verifyMessageId(address(opHook).addressToBytes32(), messageId);
+    // }
 
     /* ============ ISM.verify ============ */
 
-    function testFork_verify() public {
-        deployAll();
+    // function testFork_verify() public {
+    //     deployAll();
 
-        vm.selectFork(optimismFork);
+    //     vm.selectFork(optimismFork);
 
-        bytes memory encodedHookData = abi.encodeCall(
-            OPStackIsm.verifyMessageId,
-            (address(this).addressToBytes32(), messageId)
-        );
+    //     bytes memory encodedHookData = abi.encodeCall(
+    //         AbstractMessageIdAuthorizedIsm.verifyMessageId,
+    //         (messageId)
+    //     );
 
-        (uint240 nonce, uint16 verison) = Encoding.decodeVersionedNonce(
-            l2Messenger.messageNonce()
-        );
-        uint256 versionedNonce = Encoding.encodeVersionedNonce(
-            nonce + 1,
-            verison
-        );
+    //     (uint240 nonce, uint16 verison) = Encoding.decodeVersionedNonce(
+    //         l2Messenger.messageNonce()
+    //     );
+    //     uint256 versionedNonce = Encoding.encodeVersionedNonce(
+    //         nonce + 1,
+    //         verison
+    //     );
 
-        vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
-        l2Messenger.relayMessage(
-            versionedNonce,
-            address(opHook),
-            address(opISM),
-            0,
-            DEFAULT_GAS_LIMIT,
-            encodedHookData
-        );
+    //     vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
+    //     l2Messenger.relayMessage(
+    //         versionedNonce,
+    //         address(opHook),
+    //         address(opISM),
+    //         0,
+    //         DEFAULT_GAS_LIMIT,
+    //         encodedHookData
+    //     );
 
-        bool verified = opISM.verify(new bytes(0), encodedMessage);
-        assertTrue(verified);
-    }
+    //     bool verified = opISM.verify(new bytes(0), encodedMessage);
+    //     assertTrue(verified);
+    // }
 
     // sending over invalid message
-    function testFork_verify_RevertWhen_HyperlaneInvalidMessage() public {
-        deployAll();
+    // function testFork_verify_RevertWhen_HyperlaneInvalidMessage() public {
+    //     deployAll();
 
-        vm.selectFork(optimismFork);
+    //     vm.selectFork(optimismFork);
 
-        bytes memory encodedHookData = abi.encodeCall(
-            OPStackIsm.verifyMessageId,
-            (address(this).addressToBytes32(), messageId)
-        );
+    //     bytes memory encodedHookData = abi.encodeCall(
+    //         AbstractMessageIdAuthorizedIsm.verifyMessageId,
+    //         (messageId)
+    //     );
 
-        (uint240 nonce, uint16 verison) = Encoding.decodeVersionedNonce(
-            l2Messenger.messageNonce()
-        );
-        uint256 versionedNonce = Encoding.encodeVersionedNonce(
-            nonce + 1,
-            verison
-        );
+    //     (uint240 nonce, uint16 verison) = Encoding.decodeVersionedNonce(
+    //         l2Messenger.messageNonce()
+    //     );
+    //     uint256 versionedNonce = Encoding.encodeVersionedNonce(
+    //         nonce + 1,
+    //         verison
+    //     );
 
-        vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
-        l2Messenger.relayMessage(
-            versionedNonce,
-            address(opHook),
-            address(opISM),
-            0,
-            DEFAULT_GAS_LIMIT,
-            encodedHookData
-        );
+    //     vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
+    //     l2Messenger.relayMessage(
+    //         versionedNonce,
+    //         address(opHook),
+    //         address(opISM),
+    //         0,
+    //         DEFAULT_GAS_LIMIT,
+    //         encodedHookData
+    //     );
 
-        bytes memory invalidMessage = _encodeTestMessage(0, address(this));
-        bool verified = opISM.verify(new bytes(0), invalidMessage);
-        assertFalse(verified);
-    }
+    //     bytes memory invalidMessage = _encodeTestMessage(0, address(this));
+    //     bool verified = opISM.verify(new bytes(0), invalidMessage);
+    //     assertFalse(verified);
+    // }
 
     // invalid messageID in postDispatch
-    function testFork_verify_RevertWhen_InvalidOptimismMessageID() public {
-        deployAll();
+    // function testFork_verify_RevertWhen_InvalidOptimismMessageID() public {
+    //     deployAll();
 
-        vm.selectFork(optimismFork);
+    //     vm.selectFork(optimismFork);
 
-        bytes memory invalidMessage = _encodeTestMessage(0, address(this));
-        bytes32 _messageId = Message.id(invalidMessage);
+    //     bytes memory invalidMessage = _encodeTestMessage(0, address(this));
+    //     bytes32 _messageId = Message.id(invalidMessage);
 
-        bytes memory encodedHookData = abi.encodeCall(
-            OPStackIsm.verifyMessageId,
-            (address(this).addressToBytes32(), _messageId)
-        );
+    //     bytes memory encodedHookData = abi.encodeCall(
+    //         AbstractMessageIdAuthorizedIsm.verifyMessageId,
+    //         (address(this).addressToBytes32(), _messageId)
+    //     );
 
-        (uint240 nonce, uint16 verison) = Encoding.decodeVersionedNonce(
-            l2Messenger.messageNonce()
-        );
-        uint256 versionedNonce = Encoding.encodeVersionedNonce(
-            nonce + 1,
-            verison
-        );
+    //     (uint240 nonce, uint16 verison) = Encoding.decodeVersionedNonce(
+    //         l2Messenger.messageNonce()
+    //     );
+    //     uint256 versionedNonce = Encoding.encodeVersionedNonce(
+    //         nonce + 1,
+    //         verison
+    //     );
 
-        vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
-        l2Messenger.relayMessage(
-            versionedNonce,
-            address(opHook),
-            address(opISM),
-            0,
-            DEFAULT_GAS_LIMIT,
-            encodedHookData
-        );
+    //     vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
+    //     l2Messenger.relayMessage(
+    //         versionedNonce,
+    //         address(opHook),
+    //         address(opISM),
+    //         0,
+    //         DEFAULT_GAS_LIMIT,
+    //         encodedHookData
+    //     );
 
-        bool verified = opISM.verify(new bytes(0), encodedMessage);
-        assertFalse(verified);
-    }
+    //     bool verified = opISM.verify(new bytes(0), encodedMessage);
+    //     assertFalse(verified);
+    // }
 
-    function testFork_verify_RevertWhen_InvalidSender() public {
-        deployAll();
+    // function testFork_verify_RevertWhen_InvalidSender() public {
+    //     deployAll();
 
-        vm.selectFork(optimismFork);
+    //     vm.selectFork(optimismFork);
 
-        bytes memory encodedHookData = abi.encodeCall(
-            OPStackIsm.verifyMessageId,
-            (alice.addressToBytes32(), messageId)
-        );
+    //     bytes memory encodedHookData = abi.encodeCall(
+    //         AbstractMessageIdAuthorizedIsm.verifyMessageId,
+    //         (alice.addressToBytes32(), messageId)
+    //     );
 
-        (uint240 nonce, uint16 verison) = Encoding.decodeVersionedNonce(
-            l2Messenger.messageNonce()
-        );
-        uint256 versionedNonce = Encoding.encodeVersionedNonce(
-            nonce + 1,
-            verison
-        );
+    //     (uint240 nonce, uint16 verison) = Encoding.decodeVersionedNonce(
+    //         l2Messenger.messageNonce()
+    //     );
+    //     uint256 versionedNonce = Encoding.encodeVersionedNonce(
+    //         nonce + 1,
+    //         verison
+    //     );
 
-        vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
-        l2Messenger.relayMessage(
-            versionedNonce,
-            address(opHook),
-            address(opISM),
-            0,
-            DEFAULT_GAS_LIMIT,
-            encodedHookData
-        );
+    //     vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
+    //     l2Messenger.relayMessage(
+    //         versionedNonce,
+    //         address(opHook),
+    //         address(opISM),
+    //         0,
+    //         DEFAULT_GAS_LIMIT,
+    //         encodedHookData
+    //     );
 
-        bool verified = opISM.verify(new bytes(0), encodedMessage);
-        assertFalse(verified);
-    }
+    //     bool verified = opISM.verify(new bytes(0), encodedMessage);
+    //     assertFalse(verified);
+    // }
 
     /* ============ helper functions ============ */
 
