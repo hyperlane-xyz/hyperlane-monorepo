@@ -2,4 +2,4 @@
 . "$(dirname -- "$0")/_/husky.sh"
 
 yarn lint-staged
-cargo fmt --all --manifest-path rust/Cargo.toml
+cargo fmt --all --check --manifest-path rust/Cargo.toml
