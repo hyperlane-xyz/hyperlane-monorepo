@@ -100,7 +100,8 @@ mod test {
         let test_cases = test_utils::load_merkle_test_json();
 
         for test_case in test_cases.iter() {
-            let mut tree = IncrementalMerkle::default();
+            let mut tree = IncrementalMerkle::
+            default();
 
             // insert the leaves
             for leaf in test_case.leaves.iter() {
