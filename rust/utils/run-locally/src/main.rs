@@ -173,7 +173,7 @@ fn main() -> ExitCode {
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
         .hyp_env(
             "GASPAYMENTENFORCEMENT",
-            "[{\"type\": \"minimum\", \"payment\": \"1\"}]",
+            "[{\"type\": \"minimum\", \"payment\": \"1\", \"matchingList\": [{\"destination\": \"13376\"}] }]",
         )
         .arg(
             "chains.test1.connection.urls",
