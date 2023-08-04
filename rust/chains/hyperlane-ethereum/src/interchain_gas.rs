@@ -12,7 +12,7 @@ use hyperlane_core::{
     HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster,
     InterchainGasPayment, LogMeta, SequenceIndexer, H160, H256,
 };
-use tracing::{instrument, info};
+use tracing::{info, instrument};
 
 use crate::contracts::i_interchain_gas_paymaster::{
     IInterchainGasPaymaster as EthereumInterchainGasPaymasterInternal, IINTERCHAINGASPAYMASTER_ABI,
