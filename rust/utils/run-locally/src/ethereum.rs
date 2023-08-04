@@ -23,7 +23,11 @@ pub fn start_anvil(config: Arc<Config>) -> AgentHandles {
 
     if !config.is_ci_env {
         // Kill any existing anvil processes just in case since it seems to have issues getting cleaned up
-        Program::new("pkill").raw_arg("-SIGKILL").cmd("anvil").run_ignore_code().join();
+        Program::new("pkill")
+            .raw_arg("-SIGKILL")
+            .cmd("anvil")
+            .run_ignore_code()
+            .join();
     }
     log!("Launching anvil...");
     let anvil_args = Program::new("anvil").flag("silent").filter_logs(|_| false); // for now do not keep any of the anvil logs
