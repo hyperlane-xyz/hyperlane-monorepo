@@ -21,7 +21,7 @@ use hyperlane_test_utils::{
 use serializable_account_meta::SimulationReturnData;
 
 use access_control::AccessControl;
-use account_utils::{AccountData, Data};
+use account_utils::{AccountData, DiscriminatorPrefixed, DiscriminatorPrefixedData};
 use hyperlane_sealevel_igp::{
     accounts::{
         GasOracle, GasPaymentAccount, GasPaymentData, Igp, IgpAccount, OverheadIgp,
@@ -235,10 +235,13 @@ async fn test_initialize() {
         .into_inner();
     assert_eq!(
         program_data,
-        Box::new(ProgramData {
-            bump_seed: program_data_bump_seed,
-            payment_count: 0,
-        }),
+        Box::new(
+            ProgramData {
+                bump_seed: program_data_bump_seed,
+                payment_count: 0,
+            }
+            .into()
+        ),
     );
 }
 
@@ -287,13 +290,16 @@ async fn test_initialize_igp() {
         .into_inner();
     assert_eq!(
         igp,
-        Box::new(Igp {
-            bump_seed: igp_bump_seed,
-            salt,
-            owner,
-            beneficiary,
-            gas_oracles: HashMap::new(),
-        }),
+        Box::new(
+            Igp {
+                bump_seed: igp_bump_seed,
+                salt,
+                owner,
+                beneficiary,
+                gas_oracles: HashMap::new(),
+            }
+            .into()
+        ),
     );
 }
 
@@ -353,13 +359,16 @@ async fn test_initialize_overhead_igp() {
         .into_inner();
     assert_eq!(
         overhead_igp,
-        Box::new(OverheadIgp {
-            bump_seed: overhead_igp_bump_seed,
-            salt,
-            owner,
-            inner,
-            gas_overheads: HashMap::new(),
-        }),
+        Box::new(
+            OverheadIgp {
+                bump_seed: overhead_igp_bump_seed,
+                salt,
+                owner,
+                inner,
+                gas_overheads: HashMap::new(),
+            }
+            .into()
+        ),
     );
 }
 
@@ -1424,7 +1433,7 @@ async fn test_set_igp_beneficiary_errors_if_owner_not_signer() {
 
 // ============ TransferIgpOwnership & TransferOverheadIgpOwnership ============
 
-async fn run_transfer_ownership_tests<T: Data + AccessControl>(
+async fn run_transfer_ownership_tests<T: DiscriminatorPrefixedData + AccessControl>(
     banks_client: &mut BanksClient,
     payer: &Keypair,
     account_key: Pubkey,
@@ -1455,7 +1464,7 @@ async fn run_transfer_ownership_tests<T: Data + AccessControl>(
         .await
         .unwrap()
         .unwrap();
-    let account_data = AccountData::<T>::fetch(&mut &account.data[..])
+    let account_data = AccountData::<DiscriminatorPrefixed<T>>::fetch(&mut &account.data[..])
         .unwrap()
         .into_inner();
 

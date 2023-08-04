@@ -55,7 +55,11 @@ impl Default for GasOracle {
 }
 
 /// The account for the program's global data.
-pub type ProgramDataAccount = AccountData<ProgramData>;
+pub type ProgramDataAccount = AccountData<DiscriminatorPrefixed<ProgramData>>;
+
+impl DiscriminatorData for ProgramData {
+    const DISCRIMINATOR: [u8; 8] = *b"PRGMDATA";
+}
 
 /// A singleton account that stores the program's global data.
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
@@ -75,7 +79,11 @@ impl SizedData for ProgramData {
 }
 
 /// An overhead IGP account.
-pub type OverheadIgpAccount = AccountData<OverheadIgp>;
+pub type OverheadIgpAccount = AccountData<DiscriminatorPrefixed<OverheadIgp>>;
+
+impl DiscriminatorData for OverheadIgp {
+    const DISCRIMINATOR: [u8; 8] = *b"OVRHDIGP";
+}
 
 /// Overhead IGP account data, intended to be configured with gas overheads
 /// to impose on application-specified gas payment amounts.
@@ -140,7 +148,11 @@ impl SizedData for OverheadIgp {
 }
 
 /// An IGP account.
-pub type IgpAccount = AccountData<Igp>;
+pub type IgpAccount = AccountData<DiscriminatorPrefixed<Igp>>;
+
+impl DiscriminatorData for Igp {
+    const DISCRIMINATOR: [u8; 8] = *b"IGP_____";
+}
 
 /// IGP account data.
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
