@@ -61,9 +61,20 @@ type EthersH160 = ethers_core::types::H160;
 #[cfg(feature = "ethers")]
 type EthersH256 = ethers_core::types::H256;
 #[cfg(feature = "ethers")]
+type EthersH512 = ethers_core::types::H512;
+
+#[cfg(feature = "ethers")]
 impl_fixed_hash_conversions!(H256, EthersH160);
 #[cfg(feature = "ethers")]
 impl_fixed_hash_conversions!(EthersH256, H160);
+#[cfg(feature = "ethers")]
+impl_fixed_hash_conversions!(EthersH512, H160);
+#[cfg(feature = "ethers")]
+impl_fixed_hash_conversions!(EthersH512, H256);
+#[cfg(feature = "ethers")]
+impl_fixed_hash_conversions!(H512, EthersH160);
+#[cfg(feature = "ethers")]
+impl_fixed_hash_conversions!(H512, EthersH256);
 
 impl_fixed_hash_conversions!(H256, H160);
 impl_fixed_hash_conversions!(H512, H256);
@@ -118,11 +129,19 @@ macro_rules! impl_fixed_uint_conversions {
     };
 }
 
-#[cfg(feature = "ethers")]
-impl_fixed_uint_conversions!(U256, ethers_core::types::U128);
 impl_fixed_uint_conversions!(U256, U128);
 impl_fixed_uint_conversions!(U512, U128);
 impl_fixed_uint_conversions!(U512, U256);
+#[cfg(feature = "ethers")]
+impl_fixed_uint_conversions!(U256, ethers_core::types::U128);
+#[cfg(feature = "ethers")]
+impl_fixed_uint_conversions!(U512, ethers_core::types::U128);
+#[cfg(feature = "ethers")]
+impl_fixed_uint_conversions!(U512, ethers_core::types::U256);
+#[cfg(feature = "ethers")]
+impl_fixed_uint_conversions!(ethers_core::types::U512, U256);
+#[cfg(feature = "ethers")]
+impl_fixed_uint_conversions!(ethers_core::types::U512, U128);
 
 macro_rules! impl_f64_conversions {
     ($ty:ty) => {
@@ -287,3 +306,19 @@ impl_fixed_hash_serde!(H128, 16);
 impl_fixed_hash_serde!(H160, 20);
 impl_fixed_hash_serde!(H256, 32);
 impl_fixed_hash_serde!(H512, 64);
+
+#[cfg(feature = "solana")]
+impl From<solana_sdk::hash::Hash> for H256 {
+    fn from(hash: solana_sdk::hash::Hash) -> Self {
+        H256(hash.to_bytes())
+    }
+}
+
+// Solana uses the first 64 byte signature of a transaction to uniquely identify the
+// transaction.
+#[cfg(feature = "solana")]
+impl From<solana_sdk::signature::Signature> for H512 {
+    fn from(sig: solana_sdk::signature::Signature) -> Self {
+        H512(sig.into())
+    }
+}
