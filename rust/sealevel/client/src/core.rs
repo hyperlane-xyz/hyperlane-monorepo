@@ -31,18 +31,11 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
             let (igp_program_id, overhead_igp_account, igp_account) =
                 deploy_igp(&mut ctx, &core, &key_dir);
 
-            let (igp_program_id, igp_program_data, igp_account) = deploy_igp(
-                &mut ctx,
-                &core,
-                &key_dir,
-            );
-
             let program_ids = CoreProgramIds {
                 mailbox: mailbox_program_id,
                 validator_announce: validator_announce_program_id,
                 multisig_ism_message_id: ism_program_id,
                 igp_program_id,
-                igp_program_data,
                 overhead_igp_account,
                 igp_account,
             };
@@ -372,8 +365,6 @@ pub(crate) struct CoreProgramIds {
     pub multisig_ism_message_id: Pubkey,
     #[serde(with = "serde_pubkey")]
     pub igp_program_id: Pubkey,
-    #[serde(with = "serde_pubkey")]
-    pub igp_program_data: Pubkey,
     #[serde(with = "serde_pubkey")]
     pub overhead_igp_account: Pubkey,
     #[serde(with = "serde_pubkey")]
