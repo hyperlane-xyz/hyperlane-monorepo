@@ -60,13 +60,6 @@ use crate::{
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
 const SPL_NOOP: &str = "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV";
 
-// FIXME solana uses the first 64 byte signature of a transaction to uniquely identify the
-// transaction rather than a 32 byte transaction hash like ethereum. Hash it here to reduce
-// size - requires more thought to ensure this makes sense to do...
-fn signature_to_txn_hash(signature: &Signature) -> H256 {
-    H256::from(solana_sdk::hash::hash(signature.as_ref()).to_bytes())
-}
-
 // The max amount of compute units for a transaction.
 // TODO: consider a more sane value and/or use IGP gas payments instead.
 const PROCESS_COMPUTE_UNITS: u32 = 1_400_000;
@@ -524,7 +517,7 @@ impl Mailbox for SealevelMailbox {
             .map_err(|err| warn!("Failed to confirm inbox process transaction: {}", err))
             .map(|ctx| ctx.value)
             .unwrap_or(false);
-        let txid = signature_to_txn_hash(&signature);
+        let txid = signature.into();
 
         Ok(TxOutcome {
             txid,

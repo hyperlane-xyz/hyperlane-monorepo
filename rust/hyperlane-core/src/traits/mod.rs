@@ -34,7 +34,7 @@ mod validator_announce;
 #[derive(Debug, Clone, Copy)]
 pub struct TxOutcome {
     /// The txid
-    pub txid: crate::H256,
+    pub txid: crate::H512,
     /// True if executed, false otherwise (reverted, etc.)
     pub executed: bool,
     /// Amount of gas used on this transaction.
