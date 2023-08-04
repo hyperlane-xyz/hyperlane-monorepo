@@ -3804,15 +3804,28 @@ dependencies = [
  "borsh 0.9.3",
  "getrandom 0.2.10",
  "hyperlane-core",
- "hyperlane-test-utils",
  "num-derive",
  "num-traits",
  "serde",
  "serializable-account-meta",
  "solana-program",
+ "thiserror",
+]
+
+[[package]]
+name = "hyperlane-sealevel-igp-test"
+version = "0.1.0"
+dependencies = [
+ "access-control",
+ "account-utils",
+ "borsh 0.9.3",
+ "hyperlane-core",
+ "hyperlane-sealevel-igp",
+ "hyperlane-test-utils",
+ "serializable-account-meta",
+ "solana-program",
  "solana-program-test",
  "solana-sdk",
- "thiserror",
 ]
 
 [[package]]

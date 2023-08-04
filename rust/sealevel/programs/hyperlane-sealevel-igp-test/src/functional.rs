@@ -4,7 +4,6 @@ use std::collections::HashMap;
 
 use solana_program::{
     instruction::{AccountMeta, Instruction},
-    pubkey,
     pubkey::Pubkey,
     system_program,
     sysvar::rent::Rent,
