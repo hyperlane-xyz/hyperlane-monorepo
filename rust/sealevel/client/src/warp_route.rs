@@ -547,12 +547,11 @@ fn init_warp_route(
         .connection_client
         .interchain_gas_paymaster
         .clone()
-        .map(|config| (config.program_id, config.igp_account));
-    // TODO: use when https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/2602 lands
-    // .unwrap_or(InterchainGasPaymasterConfig {
-    //     program_id: core_program_ids.igp_program_id,
-    //     igp_account: InterchainGasPaymasterType::OverheadIgp(core_program_ids.overhead_igp_account),
-    // })
+        .map(|config| (config.program_id, config.igp_account))
+        .unwrap_or((
+            core_program_ids.igp_program_id,
+            InterchainGasPaymasterType::OverheadIgp(core_program_ids.overhead_igp_account),
+        ));
 
     let init = Init {
         mailbox,
@@ -561,7 +560,7 @@ fn init_warp_route(
             .interchain_security_module
             .as_ref()
             .map(|s| Pubkey::from_str(s).unwrap()),
-        interchain_gas_paymaster,
+        interchain_gas_paymaster: Some(interchain_gas_paymaster),
         decimals: token_config.decimal_metadata.decimals,
         remote_decimals: token_config.decimal_metadata.remote_decimals(),
     };
