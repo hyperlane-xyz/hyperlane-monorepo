@@ -7,9 +7,9 @@ use crate::{Data, SizedData};
 
 pub const PROGRAM_INSTRUCTION_DISCRIMINATOR: [u8; Discriminator::LENGTH] = [1, 1, 1, 1, 1, 1, 1, 1];
 
-pub trait DiscriminatorPrefixedData: Data + DiscriminatorData + SizedData {}
+pub trait DiscriminatorPrefixedData: Data + DiscriminatorData {}
 
-impl<T> DiscriminatorPrefixedData for T where T: Data + DiscriminatorData + SizedData {}
+impl<T> DiscriminatorPrefixedData for T where T: Data + DiscriminatorData {}
 
 /// A wrapper type that prefixes data with a discriminator when Borsh (de)serialized.
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -59,7 +59,7 @@ where
 
 impl<T> SizedData for DiscriminatorPrefixed<T>
 where
-    T: DiscriminatorPrefixedData,
+    T: DiscriminatorPrefixedData + SizedData,
 {
     fn size(&self) -> usize {
         // Discriminator prefix + data

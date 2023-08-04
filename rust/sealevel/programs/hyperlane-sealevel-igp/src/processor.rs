@@ -205,7 +205,7 @@ fn init_overhead_igp(
 }
 
 /// Initializes an IGP variant.
-fn init_igp_variant<T: account_utils::DiscriminatorPrefixedData>(
+fn init_igp_variant<T: account_utils::DiscriminatorPrefixedData + SizedData>(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     get_data: impl FnOnce(u8) -> DiscriminatorPrefixed<T>,
