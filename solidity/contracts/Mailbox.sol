@@ -30,6 +30,7 @@ contract Mailbox is IMailbox, Versioned, Ownable {
 
     // A monotonically increasing nonce for outbound unique message IDs.
     uint32 public nonce;
+    bytes32 public latestDispatchedId;
 
     // The default ISM, used if the recipient fails to specify one.
     IInterchainSecurityModule public defaultIsm;
@@ -37,7 +38,7 @@ contract Mailbox is IMailbox, Versioned, Ownable {
     // The default post dispatch hook, used for post processing of dispatched messages.
     IPostDispatchHook public defaultHook;
 
-    // Mapping of message ID to sender of the call that processed the message.
+    // Mapping of message ID to delivery context that processed the message.
     struct Delivery {
         address sender;
         // uint48 value?
@@ -101,7 +102,8 @@ contract Mailbox is IMailbox, Versioned, Ownable {
                 _destinationDomain,
                 _recipientAddress,
                 _messageBody,
-                bytes("")
+                defaultHook,
+                _messageBody[0:0]
             );
     }
 
@@ -135,7 +137,7 @@ contract Mailbox is IMailbox, Versioned, Ownable {
         bytes calldata messageBody,
         IPostDispatchHook hook,
         bytes calldata metadata
-    ) public returns (bytes32) {
+    ) public payable returns (bytes32) {
         // Format the message into packed bytes.
         bytes memory message = Message.formatMessage(
             VERSION,
@@ -150,6 +152,7 @@ contract Mailbox is IMailbox, Versioned, Ownable {
         // effects
         nonce += 1;
         bytes32 id = message.id();
+        latestDispatchedId = id;
         emit DispatchId(id);
         emit Dispatch(message);
 
@@ -186,18 +189,23 @@ contract Mailbox is IMailbox, Versioned, Ownable {
 
         address recipient = _message.recipientAddress();
 
+        // effects
+        deliveries[_id] = Delivery({
+            sender: msg.sender
+            // value: uint48(msg.value),
+            // timestamp: uint48(block.number)
+        });
+        emit Process(_message);
+        emit ProcessId(_id);
+
+        // interactions
         // Verify the message via the ISM.
         IInterchainSecurityModule _ism = IInterchainSecurityModule(
             recipientIsm(recipient)
         );
         require(_ism.verify(_metadata, _message), "verification failed");
 
-        // effects
-        deliveries[_id] = Delivery({sender: msg.sender});
-        emit Process(_message);
-        emit ProcessId(_id);
-
-        // Deliver the message to the recipient. (interactions)
+        // Deliver the message to the recipient.
         IMessageRecipient(recipient).handle{value: msg.value}(
             _message.origin(),
             _message.sender(),

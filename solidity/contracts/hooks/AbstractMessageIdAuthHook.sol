@@ -14,11 +14,11 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 // ============ Internal Imports ============
-import {AbstractHook} from "./AbstractHook.sol";
 import {AbstractMessageIdAuthorizedIsm} from "../isms/hook/AbstractMessageIdAuthorizedIsm.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {Message} from "../libs/Message.sol";
 import {OPStackHookMetadata} from "../libs/hooks/OPStackHookMetadata.sol";
+import {MailboxClient} from "../client/MailboxClient.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 
 // ============ External Imports ============
@@ -31,7 +31,10 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * the native OPStack bridge.
  * @dev V3 WIP
  */
-abstract contract AbstractMessageIdAuthHook is AbstractHook {
+abstract contract AbstractMessageIdAuthHook is
+    IPostDispatchHook,
+    MailboxClient
+{
     using Message for bytes;
 
     // ============ Constants ============
@@ -44,43 +47,42 @@ abstract contract AbstractMessageIdAuthHook is AbstractHook {
     // ============ Constructor ============
 
     constructor(
-        address _mailbox,
+        address mailbox,
         uint32 _destinationDomain,
         address _ism
-    ) AbstractHook(_mailbox) {
+    ) MailboxClient(mailbox) {
         require(_ism != address(0), "invalid ISM");
         require(_destinationDomain != 0, "invalid destination domain");
         ism = _ism;
         destinationDomain = _destinationDomain;
     }
 
-    function _sendMessageId(bytes calldata metadata, bytes memory payload)
-        internal
-        virtual;
-
     /**
      * @notice Hook to inform the optimism ISM of messages published through.
      * metadata The metadata for the hook caller
      * @param message The message being dispatched
      */
-    function _postDispatch(bytes calldata metadata, bytes calldata message)
-        internal
+    function postDispatch(bytes calldata metadata, bytes calldata message)
+        external
+        payable
         override
-        returns (IPostDispatchHook)
     {
+        bytes32 id = message.id();
+        require(isLatestDispatched(id), "message not latest dispatched");
         require(
             message.destination() == destinationDomain,
             "invalid destination domain"
         );
+        // TODO: handle msg.value?
 
         bytes memory payload = abi.encodeCall(
             AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            message.id()
+            id
         );
         _sendMessageId(metadata, payload);
-
-        // no next post-dispatch hook
-        // TODO: consider configuring?
-        return IPostDispatchHook(address(0));
     }
+
+    function _sendMessageId(bytes calldata metadata, bytes memory payload)
+        internal
+        virtual;
 }

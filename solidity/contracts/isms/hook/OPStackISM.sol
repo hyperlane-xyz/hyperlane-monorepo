@@ -27,7 +27,7 @@ import {ICrossDomainMessenger} from "@eth-optimism/contracts/libraries/bridge/IC
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
- * @title OptimismISM
+ * @title OPStackIsm
  * @notice Uses the native Optimism bridge to verify interchain messages.
  * @dev V3 WIP
  */
