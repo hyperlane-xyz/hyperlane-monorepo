@@ -520,7 +520,7 @@ impl Mailbox for SealevelMailbox {
         let txid = signature.into();
 
         Ok(TxOutcome {
-            txid,
+            transaction_id: txid,
             executed,
             // TODO use correct data upon integrating IGP support
             gas_price: U256::zero(),
@@ -673,7 +673,7 @@ impl SealevelMailboxIndexer {
                 // TODO: get these when building out scraper support.
                 // It's inconvenient to get these :|
                 block_hash: H256::zero(),
-                transaction_hash: H256::zero(),
+                transaction_id: H256::zero(),
                 transaction_index: 0,
                 log_index: U256::zero(),
             },

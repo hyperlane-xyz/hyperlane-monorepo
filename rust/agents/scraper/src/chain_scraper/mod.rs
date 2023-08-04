@@ -80,7 +80,7 @@ impl HyperlaneSqlDb {
         log_meta: impl Iterator<Item = &LogMeta>,
     ) -> Result<impl Iterator<Item = TxnWithId>> {
         let block_hash_by_txn_hash: HashMap<H256, H256> = log_meta
-            .map(|meta| (meta.transaction_hash, meta.block_hash))
+            .map(|meta| (meta.transaction_id, meta.block_hash))
             .collect();
 
         // all blocks we care about
@@ -265,7 +265,7 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneSqlDb {
             .map(|t| (t.hash, t))
             .collect();
         let storable = messages.iter().map(|m| {
-            let txn = txns.get(&m.1.transaction_hash).unwrap();
+            let txn = txns.get(&m.1.transaction_id).unwrap();
             StorableMessage {
                 msg: m.0.clone(),
                 meta: &m.1,
@@ -292,7 +292,7 @@ impl HyperlaneLogStore<Delivery> for HyperlaneSqlDb {
             .map(|t| (t.hash, t))
             .collect();
         let storable = deliveries.iter().map(|(message_id, meta)| {
-            let txn_id = txns.get(&meta.transaction_hash).unwrap().id;
+            let txn_id = txns.get(&meta.transaction_id).unwrap().id;
             StorableDelivery {
                 message_id: *message_id,
                 meta,
@@ -320,7 +320,7 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneSqlDb {
             .map(|t| (t.hash, t))
             .collect();
         let storable = payments.iter().map(|(payment, meta)| {
-            let txn_id = txns.get(&meta.transaction_hash).unwrap().id;
+            let txn_id = txns.get(&meta.transaction_id).unwrap().id;
             StorablePayment {
                 payment,
                 meta,

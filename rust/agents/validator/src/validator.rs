@@ -209,7 +209,7 @@ impl Validator {
             Ok(outcome) => {
                 if !outcome.executed {
                     error!(
-                        hash=?outcome.txid,
+                        txid=?outcome.transaction_id,
                         gas_used=?outcome.gas_used,
                         gas_price=?outcome.gas_price,
                         "Transaction attempting to announce validator reverted. Make sure you have enough funds in your account to pay for transaction fees."

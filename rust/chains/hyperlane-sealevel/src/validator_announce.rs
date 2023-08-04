@@ -121,7 +121,7 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
             "Announcing validator storage locations within the agents is not supported on Sealevel"
         );
         Ok(TxOutcome {
-            txid: H512::zero(),
+            transaction_id: H512::zero(),
             executed: false,
             gas_used: U256::zero(),
             gas_price: U256::zero(),

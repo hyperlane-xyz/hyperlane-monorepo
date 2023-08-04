@@ -194,7 +194,7 @@ impl Decode for InterchainGasPaymentMeta {
 impl From<&LogMeta> for InterchainGasPaymentMeta {
     fn from(meta: &LogMeta) -> Self {
         Self {
-            transaction_hash: meta.transaction_hash,
+            transaction_hash: meta.transaction_id,
             log_index: meta.log_index.as_u64(),
         }
     }
