@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use ethers::abi::AbiEncode;
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
-use tracing::instrument;
+use tracing::{instrument, info};
 
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use hyperlane_core::accumulator::TREE_DEPTH;
@@ -196,7 +196,8 @@ where
     M: Middleware + 'static,
 {
     async fn sequence_at_tip(&self) -> ChainResult<(u32, u32)> {
-        panic!("Message delivery sequence indexing not implemented");
+        info!("Message delivery sequence indexing not implemented");
+        Ok((0, 0))
     }
 }
 
