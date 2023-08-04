@@ -3,12 +3,9 @@
 #![allow(clippy::assign_op_pattern)]
 #![allow(clippy::reversed_empty_ranges)]
 
-use std::fmt::Formatter;
-
 use crate::types::serialize;
 use borsh::{BorshDeserialize, BorshSerialize};
 use fixed_hash::{construct_fixed_hash, impl_fixed_hash_conversions};
-use serde::de::Visitor;
 use uint::construct_uint;
 
 /// Error type for conversion.
@@ -57,24 +54,6 @@ construct_fixed_hash! {
     /// 512-bit hash type.
     #[derive(BorshSerialize, BorshDeserialize)]
     pub struct H512(64);
-}
-
-struct H512Visitor;
-impl<'de> Visitor<'de> for H512Visitor {
-    type Value = H512;
-
-    fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {
-        formatter.write_str("a 512-bit hash")
-    }
-
-    fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
-    where
-        E: serde::de::Error,
-    {
-        v.try_into()
-            .map_err(|_| E::invalid_length(v.len(), &self))
-            .map(H512)
-    }
 }
 
 #[cfg(feature = "ethers")]
