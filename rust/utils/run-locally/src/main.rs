@@ -173,7 +173,19 @@ fn main() -> ExitCode {
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
         .hyp_env(
             "GASPAYMENTENFORCEMENT",
-            "[{\"type\": \"minimum\", \"payment\": \"1\", \"matchingList\": [{\"originDomain\": [\"13375\",\"13376\"], \"destinationDomain\": [\"13375\",\"13376\"]}] }]",
+            r#"[{
+                "type": "minimum",
+                "payment": "1",
+                "matchingList": [
+                    {
+                        "originDomain": ["13375","13376"],
+                        "destinationDomain": ["13375","13376"]
+                    }
+                ]
+            },
+            {
+                "type": "none"
+            }]"#,
         )
         .arg(
             "chains.test1.connection.urls",
