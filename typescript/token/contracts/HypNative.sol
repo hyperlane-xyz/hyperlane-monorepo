@@ -11,6 +11,8 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * @dev Supply on each chain is not constant but the aggregate supply across all chains is.
  */
 contract HypNative is TokenRouter {
+    event Donation(address indexed sender, uint256 amount);
+
     /**
      * @notice Initializes the Hyperlane router, ERC20 metadata, and mints initial supply to deployer.
      * @param _mailbox The address of the mailbox contract.
@@ -75,5 +77,12 @@ contract HypNative is TokenRouter {
         bytes calldata // no metadata
     ) internal override {
         Address.sendValue(payable(_recipient), _amount);
+    }
+
+    /**
+     * @dev Allows native tokens to be donated to the contract.
+     */
+    function donate() external payable {
+        emit Donation(msg.sender, msg.value);
     }
 }
