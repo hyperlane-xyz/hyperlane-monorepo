@@ -24,7 +24,7 @@ contract DomainRoutingHook is AbstractHook, Ownable {
     function _postDispatch(
         bytes calldata, /*metadata*/
         bytes calldata message
-    ) internal view override returns (address[] memory) {
+    ) internal virtual override returns (address[] memory) {
         // check metadata
         address[] memory result = new address[](1);
         result[0] = address(hooks[message.destination()]);
