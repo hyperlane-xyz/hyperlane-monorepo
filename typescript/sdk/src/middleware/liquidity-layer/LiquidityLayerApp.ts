@@ -14,8 +14,8 @@ import {
   strip0x,
 } from '@hyperlane-xyz/utils';
 
-import { HyperlaneApp } from '../../HyperlaneApp';
-import { HyperlaneContracts } from '../../contracts';
+import { HyperlaneApp } from '../../app/HyperlaneApp';
+import { HyperlaneContracts } from '../../contracts/types';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ChainMap, ChainName } from '../../types';
 import { fetchWithTimeout } from '../../utils/fetch';

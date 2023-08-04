@@ -7,7 +7,7 @@ import {
 } from '@hyperlane-xyz/core';
 import { eqAddress } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts';
+import { HyperlaneContracts } from '../contracts/types';
 import { ChainName } from '../types';
 
 import { HyperlaneRouterDeployer } from './HyperlaneRouterDeployer';

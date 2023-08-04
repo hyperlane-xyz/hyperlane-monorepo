@@ -3808,6 +3808,7 @@ dependencies = [
  "hyperlane-test-utils",
  "num-derive",
  "num-traits",
+ "serde",
  "serializable-account-meta",
  "solana-program",
  "solana-program-test",

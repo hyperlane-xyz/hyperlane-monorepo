@@ -8,12 +8,13 @@ import {
   pollAsync,
 } from '@hyperlane-xyz/utils';
 
-import { HyperlaneApp } from '../HyperlaneApp';
+import { HyperlaneApp } from '../app/HyperlaneApp';
 import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
 } from '../consts/environments';
-import { HyperlaneAddressesMap, appFromAddressesMapHelper } from '../contracts';
+import { appFromAddressesMapHelper } from '../contracts/contracts';
+import { HyperlaneAddressesMap } from '../contracts/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName } from '../types';
 

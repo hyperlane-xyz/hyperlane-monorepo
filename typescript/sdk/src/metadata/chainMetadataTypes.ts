@@ -185,7 +185,8 @@ export const ChainMetadataSchema = z.object({
     .describe('Whether the chain is considered a testnet or a mainnet.'),
 });
 
-export type ChainMetadata = z.infer<typeof ChainMetadataSchema>;
+export type ChainMetadata<Ext = object> = z.infer<typeof ChainMetadataSchema> &
+  Ext;
 
 export function isValidChainMetadata(c: ChainMetadata): boolean {
   return ChainMetadataSchema.safeParse(c).success;

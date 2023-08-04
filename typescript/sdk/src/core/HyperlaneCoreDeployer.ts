@@ -9,7 +9,7 @@ import {
 } from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts';
+import { HyperlaneContracts } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { IsmConfig } from '../ism/types';

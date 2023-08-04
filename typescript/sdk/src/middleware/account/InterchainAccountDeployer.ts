@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-import { HyperlaneContracts } from '../../contracts';
+import { HyperlaneContracts } from '../../contracts/types';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ProxiedRouterDeployer } from '../../router/ProxiedRouterDeployer';
 import { ProxiedRouterConfig, RouterConfig } from '../../router/types';

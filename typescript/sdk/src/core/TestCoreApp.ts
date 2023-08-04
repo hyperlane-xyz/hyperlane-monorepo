@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 import { TestMailbox, TestMailbox__factory } from '@hyperlane-xyz/core';
 import { messageId } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts';
+import { HyperlaneContracts } from '../contracts/types';
 import { ChainName } from '../types';
 
 import { HyperlaneCore } from './HyperlaneCore';

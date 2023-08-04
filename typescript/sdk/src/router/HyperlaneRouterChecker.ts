@@ -2,7 +2,7 @@ import { ethers } from 'ethers';
 
 import { addressToBytes32, assert, eqAddress } from '@hyperlane-xyz/utils';
 
-import { HyperlaneFactories } from '../contracts';
+import { HyperlaneFactories } from '../contracts/types';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
 import { ChainName } from '../types';
 

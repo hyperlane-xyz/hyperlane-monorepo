@@ -5,7 +5,7 @@ import {
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneFactories,
-} from '../contracts';
+} from '../contracts/types';
 import { ChainMap } from '../types';
 
 import { HyperlaneRouterDeployer } from './HyperlaneRouterDeployer';

@@ -20,7 +20,7 @@ import {
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneFactories,
-} from '../contracts';
+} from '../contracts/types';
 import {
   HyperlaneIsmFactory,
   moduleMatchesConfig,

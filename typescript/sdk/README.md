@@ -6,7 +6,13 @@ For details on how to use the various abstractions and utilities, [see the docum
 
 ## Install
 
-`yarn install @hyperlane-xyz/sdk`
+```bash
+# Install with NPM
+npm install @hyperlane-xyz/sdk
+
+# Or with Yarn
+yarn add @hyperlane-xyz/sdk
+```
 
 ## Contents
 
