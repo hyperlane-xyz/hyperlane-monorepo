@@ -691,11 +691,11 @@ impl SealevelMailboxIndexer {
 #[async_trait]
 impl SequenceIndexer<HyperlaneMessage> for SealevelMailboxIndexer {
     #[instrument(err, skip(self))]
-    async fn sequence_at_tip(&self) -> ChainResult<(u32, u32)> {
+    async fn sequence_at_tip(&self) -> ChainResult<Option<(u32, u32)>> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self as _).await?;
         // TODO: need to make sure the call and tip are at the same height?
         let count = self.mailbox.count(None).await;
-        Ok((count?, tip))
+        Ok(Some((count?, tip)))
     }
 }
 
@@ -736,10 +736,10 @@ impl Indexer<H256> for SealevelMailboxIndexer {
 
 #[async_trait]
 impl SequenceIndexer<H256> for SealevelMailboxIndexer {
-    async fn sequence_at_tip(&self) -> ChainResult<(u32, u32)> {
+    async fn sequence_at_tip(&self) -> ChainResult<Option<(u32, u32)>> {
         // TODO: implement when sealevel scraper support is implemented
         info!("Message delivery indexing not implemented");
-        Ok((1, 1))
+        Ok(Some((1, 1)))
     }
 }
 

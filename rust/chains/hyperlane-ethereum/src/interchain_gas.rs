@@ -129,7 +129,7 @@ impl<M> SequenceIndexer<InterchainGasPayment> for EthereumInterchainGasPaymaster
 where
     M: Middleware + 'static,
 {
-    async fn sequence_at_tip(&self) -> ChainResult<(u32, u32)> {
+    async fn sequence_at_tip(&self) -> ChainResult<Option<(u32, u32)>> {
         // The InterchainGasPaymasterIndexerBuilder must return a `SequenceIndexer` type.
         // It's fine if only a blanket implementation is provided for EVM chains, since their
         // indexing only uses the `Index` trait, which is a supertrait of `SequenceIndexer`.
@@ -137,7 +137,7 @@ where
         // dependency could be removed, even if the builder would still need to return a type that is both
         // ``SequenceIndexer` and `Indexer`.
         info!("Gas payment nonce indexing not implemented");
-        Ok((0, 0))
+        Ok(None)
     }
 }
 

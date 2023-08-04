@@ -10,7 +10,8 @@ use async_trait::async_trait;
 use ethers::abi::AbiEncode;
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
-use tracing::{info, instrument};
+use tracing::instrument;
+use tracing::log::trace;
 
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use hyperlane_core::accumulator::TREE_DEPTH;
@@ -157,12 +158,12 @@ where
     M: Middleware + 'static,
 {
     #[instrument(err, skip(self))]
-    async fn sequence_at_tip(&self) -> ChainResult<(u32, u32)> {
+    async fn sequence_at_tip(&self) -> ChainResult<Option<(u32, u32)>> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self as _).await?;
         let base_call = self.contract.count();
         let call_at_tip = base_call.block(u64::from(tip));
         let count = call_at_tip.call().await?;
-        Ok((count, tip))
+        Ok(Some((count, tip)))
     }
 }
 
@@ -195,9 +196,9 @@ impl<M> SequenceIndexer<H256> for EthereumMailboxIndexer<M>
 where
     M: Middleware + 'static,
 {
-    async fn sequence_at_tip(&self) -> ChainResult<(u32, u32)> {
-        info!("Message delivery sequence indexing not implemented");
-        Ok((0, 0))
+    async fn sequence_at_tip(&self) -> ChainResult<Option<(u32, u32)>> {
+        trace!("Message delivery sequence indexing not implemented");
+        Ok(None)
     }
 }
 

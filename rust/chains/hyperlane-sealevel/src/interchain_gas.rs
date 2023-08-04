@@ -255,7 +255,7 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
 
 #[async_trait]
 impl SequenceIndexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
-    async fn sequence_at_tip(&self) -> ChainResult<(u32, u32)> {
+    async fn sequence_at_tip(&self) -> ChainResult<Option<(u32, u32)>> {
         let program_data_account = self
             .rpc_client
             .get_account_with_commitment(&self.igp.data_pda.0, CommitmentConfig::finalized())
@@ -273,6 +273,6 @@ impl SequenceIndexer<InterchainGasPayment> for SealevelInterchainGasPaymasterInd
             .try_into()
             .map_err(|err| StrOrIntParseError::from(err))?;
         let tip = get_finalized_block_number(&self.rpc_client).await?;
-        Ok((payment_count, tip))
+        Ok(Some((payment_count, tip)))
     }
 }
