@@ -11,7 +11,7 @@ use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     ContractLocator, Decode as _, Encode as _, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox,
-    MessageIndexer, SequenceIndexer, TxCostEstimate, TxOutcome, H256, U256,
+    MessageIndexer, SequenceIndexer, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
@@ -673,7 +673,7 @@ impl SealevelMailboxIndexer {
                 // TODO: get these when building out scraper support.
                 // It's inconvenient to get these :|
                 block_hash: H256::zero(),
-                transaction_id: H256::zero(),
+                transaction_id: H512::zero(),
                 transaction_index: 0,
                 log_index: U256::zero(),
             },

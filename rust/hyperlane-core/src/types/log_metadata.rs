@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "ethers")]
 use ethers_contract::LogMeta as EthersLogMeta;
 
-use crate::{H256, U256};
+use crate::{H256, H512, U256};
 
 /// A close clone of the Ethereum `LogMeta`, this is designed to be a more
 /// generic metadata that we can use for other blockchains later. Some changes
@@ -22,7 +22,7 @@ pub struct LogMeta {
     pub block_hash: H256,
 
     /// The transaction identifier/hash in which the log was emitted
-    pub transaction_id: H256,
+    pub transaction_id: H512,
 
     /// Transactions index position log was created from
     pub transaction_index: u64,
@@ -42,7 +42,7 @@ impl From<EthersLogMeta> for LogMeta {
 impl From<&EthersLogMeta> for LogMeta {
     fn from(v: &EthersLogMeta) -> Self {
         Self {
-            address: crate::H160::from(v.address).into(),
+            address: v.address.into(),
             block_number: v.block_number.as_u64(),
             block_hash: v.block_hash.into(),
             transaction_id: v.transaction_hash.into(),
