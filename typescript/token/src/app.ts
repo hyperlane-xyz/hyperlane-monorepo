@@ -1,7 +1,7 @@
 import { BigNumberish } from 'ethers';
 
 import { ChainName, HyperlaneContracts, RouterApp } from '@hyperlane-xyz/sdk';
-import { types, utils } from '@hyperlane-xyz/utils';
+import { Address, addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import {
   HypERC20Factories,
@@ -20,7 +20,7 @@ class HyperlaneTokenApp<
   async transfer(
     origin: ChainName,
     destination: ChainName,
-    recipient: types.Address,
+    recipient: Address,
     amountOrId: BigNumberish,
   ) {
     const originRouter = this.getContracts(origin).router;
@@ -30,7 +30,7 @@ class HyperlaneTokenApp<
       origin,
       originRouter.transferRemote(
         destinationDomain,
-        utils.addressToBytes32(recipient),
+        addressToBytes32(recipient),
         amountOrId,
         {
           value: gasPayment,
@@ -44,7 +44,7 @@ export class HypERC20App extends HyperlaneTokenApp<HypERC20Factories> {
   async transfer(
     origin: ChainName,
     destination: ChainName,
-    recipient: types.Address,
+    recipient: Address,
     amount: BigNumberish,
   ) {
     const originRouter = this.getContracts(origin).router;
@@ -62,7 +62,7 @@ export class HypERC721App extends HyperlaneTokenApp<HypERC721Factories> {
   async transfer(
     origin: ChainName,
     destination: ChainName,
-    recipient: types.Address,
+    recipient: Address,
     tokenId: BigNumberish,
   ) {
     const originRouter = this.getContracts(origin).router;

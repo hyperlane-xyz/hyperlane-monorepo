@@ -1,4 +1,30 @@
-import { BigNumber, FixedNumber } from 'ethers';
+import { BigNumber, BigNumberish, FixedNumber, constants } from 'ethers';
+
+import { isNullish } from './typeof';
+
+export function isBigNumberish(value: any): value is BigNumberish {
+  try {
+    if (isNullish(value)) return false;
+    return BigNumber.from(value)._isBigNumber;
+  } catch (error) {
+    return false;
+  }
+}
+
+// If a value (e.g. hex string or number) is zeroish (0, 0x0, 0x00, etc.)
+export function isZeroish(value: BigNumberish) {
+  try {
+    if (
+      !value ||
+      value === constants.HashZero ||
+      value === constants.AddressZero
+    )
+      return true;
+    return BigNumber.from(value).isZero();
+  } catch (error) {
+    return false;
+  }
+}
 
 /**
  * Converts a BigNumber to a FixedNumber of the format fixed128x18.
@@ -58,4 +84,11 @@ export function convertDecimalValue(
     // if (fromDecimals < toDecimals)
     return value.mul(10 ** (toDecimals - fromDecimals));
   }
+}
+
+export function BigNumberMin(bn1: BigNumber, bn2: BigNumber) {
+  return bn1.gte(bn2) ? bn2 : bn1;
+}
+export function BigNumberMax(bn1: BigNumber, bn2: BigNumber) {
+  return bn1.lte(bn2) ? bn2 : bn1;
 }

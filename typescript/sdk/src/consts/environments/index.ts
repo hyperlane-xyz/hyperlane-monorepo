@@ -1,5 +1,6 @@
+import { objMerge } from '@hyperlane-xyz/utils';
+
 import { ChainName } from '../../types';
-import { objMerge } from '../../utils/objects';
 import { CoreChainName } from '../chains';
 
 import mainnet from './mainnet.json';
