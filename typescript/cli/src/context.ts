@@ -7,8 +7,8 @@ import {
   MultiProvider,
   chainMetadata,
   hyperlaneEnvironments,
-  objMerge,
 } from '@hyperlane-xyz/sdk';
+import { objMerge } from '@hyperlane-xyz/utils';
 
 import { readChainConfigIfExists } from './configs.js';
 import { keyToSigner } from './utils/keys.js';

@@ -1,5 +1,5 @@
 import type { ERC20Metadata, TokenType } from '@hyperlane-xyz/hyperlane-token';
-import type { types } from '@hyperlane-xyz/utils';
+import type { Address } from '@hyperlane-xyz/utils';
 
 export type MinimalTokenMetadata = Omit<ERC20Metadata, 'totalSupply'>;
 
@@ -15,13 +15,13 @@ interface BaseWarpUITokenConfig extends MinimalTokenMetadata {
 
 interface CollateralTokenConfig extends BaseWarpUITokenConfig {
   type: TokenType.collateral;
-  address: types.Address;
-  hypCollateralAddress: types.Address;
+  address: Address;
+  hypCollateralAddress: Address;
 }
 
 interface NativeTokenConfig extends BaseWarpUITokenConfig {
   type: TokenType.native;
-  hypNativeAddress: types.Address;
+  hypNativeAddress: Address;
 }
 
 export type WarpUITokenConfig = CollateralTokenConfig | NativeTokenConfig;

@@ -28,12 +28,10 @@ import {
   defaultMultisigIsmConfigs,
   mainnetChainsMetadata,
   multisigIsmVerificationCost,
-  objFilter,
-  objMerge,
   serializeContractsMap,
   testnetChainsMetadata,
 } from '@hyperlane-xyz/sdk';
-import { types } from '@hyperlane-xyz/utils';
+import { Address, objFilter, objMerge } from '@hyperlane-xyz/utils';
 
 import { readDeploymentArtifacts, readMultisigConfig } from '../configs.js';
 import { MINIMUM_CORE_DEPLOY_BALANCE } from '../consts.js';
@@ -343,7 +341,7 @@ async function executeDeploy({
 }
 
 function buildIsmConfig(
-  owner: types.Address,
+  owner: Address,
   remotes: ChainName[],
   multisigIsmConfigs: ChainMap<MultisigIsmConfig>,
 ): RoutingIsmConfig {
@@ -361,7 +359,7 @@ function buildIsmConfig(
 }
 
 function buildIsmConfigMap(
-  owner: types.Address,
+  owner: Address,
   chains: ChainName[],
   remotes: ChainName[],
   multisigIsmConfigs: ChainMap<MultisigIsmConfig>,
@@ -379,7 +377,7 @@ function buildIsmConfigMap(
 }
 
 function buildCoreConfigMap(
-  owner: types.Address,
+  owner: Address,
   local: ChainName,
   remotes: ChainName[],
   multisigIsmConfigs: ChainMap<MultisigIsmConfig>,
@@ -407,7 +405,7 @@ function buildTestRecipientConfigMap(
 }
 
 function buildIgpConfigMap(
-  owner: types.Address,
+  owner: Address,
   deployChains: ChainName[],
   allChains: ChainName[],
   multisigIsmConfigs: ChainMap<MultisigIsmConfig>,

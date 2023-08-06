@@ -8,7 +8,7 @@ import {
   HyperlaneIgp,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { utils } from '@hyperlane-xyz/utils';
+import { addressToBytes32, sleep, timeout } from '@hyperlane-xyz/utils';
 
 import { readDeploymentArtifacts } from '../configs.js';
 import { MINIMUM_TEST_SEND_BALANCE } from '../consts.js';
@@ -26,14 +26,14 @@ export async function sendTestMessage({
   coreArtifactsPath,
   origin,
   destination,
-  timeout,
+  timeoutSec,
 }: {
   key: string;
   chainConfigPath: string;
   coreArtifactsPath: string;
   origin: ChainName;
   destination: ChainName;
-  timeout: number;
+  timeoutSec: number;
 }) {
   const { signer, multiProvider } = getDeployerContext(key, chainConfigPath);
   const artifacts = coreArtifactsPath
@@ -48,9 +48,9 @@ export async function sendTestMessage({
     minBalanceWei: MINIMUM_TEST_SEND_BALANCE,
   });
 
-  await utils.timeout(
+  await timeout(
     executeDelivery({ origin, destination, multiProvider, signer, artifacts }),
-    timeout * 1000,
+    timeoutSec * 1000,
     'Timed out waiting for messages to be delivered',
   );
 }
@@ -90,7 +90,7 @@ async function executeDelivery({
     log('Dispatching message');
     const messageTx = await mailbox.dispatch(
       destinationDomain,
-      utils.addressToBytes32(recipient),
+      addressToBytes32(recipient),
       '0x48656c6c6f21', // Hello!
     );
     const messageReceipt = await multiProvider.handleTx(origin, messageTx);
@@ -125,7 +125,7 @@ async function executeDelivery({
     if (delivered) break;
 
     log('Waiting for message delivery on destination chain...');
-    await utils.sleep(5000);
+    await sleep(5000);
   }
 
   logGreen('Message was delivered!');

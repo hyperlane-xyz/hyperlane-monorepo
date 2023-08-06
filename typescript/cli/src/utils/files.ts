@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { parse as yamlParse, stringify as yamlStringify } from 'yaml';
 
-import { objMerge } from '@hyperlane-xyz/sdk';
+import { objMerge } from '@hyperlane-xyz/utils';
 
 import { logBlue } from '../logger.js';
 

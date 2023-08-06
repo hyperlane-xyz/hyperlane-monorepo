@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 
-import { ChainName, MultiProvider, ProtocolType } from '@hyperlane-xyz/sdk';
+import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { log, logGreen } from '../logger.js';
 import { assertNativeBalances } from '../utils/balances.js';

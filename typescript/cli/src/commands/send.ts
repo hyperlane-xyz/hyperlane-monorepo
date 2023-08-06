@@ -59,14 +59,14 @@ const messageCommand: CommandModule = {
     const coreArtifactsPath: string = argv.core;
     const origin: string = argv.origin;
     const destination: string = argv.destination;
-    const timeout: number = argv.timeout;
+    const timeoutSec: number = argv.timeout;
     await sendTestMessage({
       key,
       chainConfigPath,
       coreArtifactsPath,
       origin,
       destination,
-      timeout,
+      timeoutSec,
     });
     process.exit(0);
   },
@@ -102,7 +102,7 @@ const transferCommand: CommandModule = {
     const coreArtifactsPath: string = argv.core;
     const origin: string = argv.origin;
     const destination: string = argv.destination;
-    const timeout: number = argv.timeout;
+    const timeoutSec: number = argv.timeout;
     const routerAddress: string = argv.router;
     const wei: string = argv.wei;
     const recipient: string | undefined = argv.recipient;
@@ -115,7 +115,7 @@ const transferCommand: CommandModule = {
       routerAddress,
       wei,
       recipient,
-      timeout,
+      timeoutSec,
     });
     process.exit(0);
   },

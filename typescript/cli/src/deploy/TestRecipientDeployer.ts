@@ -6,10 +6,10 @@ import {
   HyperlaneDeployer,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { types, utils } from '@hyperlane-xyz/utils';
+import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
 export type TestRecipientConfig = {
-  interchainSecurityModule: types.Address;
+  interchainSecurityModule: Address;
 };
 
 export type TestRecipientContracts = {
@@ -17,7 +17,7 @@ export type TestRecipientContracts = {
 };
 
 export type TestRecipientAddresses = {
-  testRecipient: types.Address;
+  testRecipient: Address;
 };
 
 export const testRecipientFactories = {
@@ -43,7 +43,7 @@ export class TestRecipientDeployer extends HyperlaneDeployer<
       this.logger(`Checking ISM ${chain}`);
       const ism = await testRecipient.interchainSecurityModule();
       this.logger(`Found ISM for on ${chain}: ${ism}`);
-      if (!utils.eqAddress(ism, config.interchainSecurityModule)) {
+      if (!eqAddress(ism, config.interchainSecurityModule)) {
         this.logger(`Current ISM does not match config. Updating.`);
         const tx = testRecipient.setInterchainSecurityModule(
           config.interchainSecurityModule,

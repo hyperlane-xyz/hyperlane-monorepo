@@ -18,9 +18,8 @@ import {
   MultiProvider,
   RouterConfig,
   chainMetadata as defaultChainMetadata,
-  objMap,
 } from '@hyperlane-xyz/sdk';
-import { types } from '@hyperlane-xyz/utils';
+import { Address, objMap } from '@hyperlane-xyz/utils';
 
 import {
   WarpRouteConfig,
@@ -289,7 +288,7 @@ function writeTokenDeploymentArtifacts(
   { configMap }: DeployParams,
 ) {
   const artifacts: ChainMap<{
-    router: types.Address;
+    router: Address;
     tokenType: TokenType;
   }> = objMap(contracts, (chain, contract) => {
     return {

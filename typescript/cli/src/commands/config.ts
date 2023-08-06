@@ -2,11 +2,8 @@ import { input } from '@inquirer/prompts';
 import select from '@inquirer/select';
 import { CommandModule } from 'yargs';
 
-import {
-  ChainMetadata,
-  ProtocolType,
-  isValidChainMetadata,
-} from '@hyperlane-xyz/sdk';
+import { ChainMetadata, isValidChainMetadata } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { readChainConfig } from '../configs.js';
 import { errorRed, logBlue, logGreen } from '../logger.js';

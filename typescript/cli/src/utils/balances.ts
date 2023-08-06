@@ -2,7 +2,7 @@ import { ethers } from 'ethers';
 
 import { ERC20__factory } from '@hyperlane-xyz/hyperlane-token';
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
-import { types } from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
 
 export async function assertNativeBalances(
   multiProvider: MultiProvider,
@@ -30,7 +30,7 @@ export async function assertTokenBalance(
   multiProvider: MultiProvider,
   signer: ethers.Signer,
   chain: ChainName,
-  token: types.Address,
+  token: Address,
   minBalanceWei: string,
 ) {
   const address = await signer.getAddress();

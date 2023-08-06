@@ -12,7 +12,7 @@ import {
   HyperlaneCore,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { types, utils } from '@hyperlane-xyz/utils';
+import { Address, sleep, timeout } from '@hyperlane-xyz/utils';
 
 import { readDeploymentArtifacts } from '../configs.js';
 import { MINIMUM_TEST_SEND_BALANCE } from '../consts.js';
@@ -32,17 +32,17 @@ export async function sendTestTransfer({
   routerAddress,
   wei,
   recipient,
-  timeout,
+  timeoutSec,
 }: {
   key: string;
   chainConfigPath: string;
   coreArtifactsPath: string;
   origin: ChainName;
   destination: ChainName;
-  routerAddress: types.Address;
+  routerAddress: Address;
   wei: string;
   recipient?: string;
-  timeout: number;
+  timeoutSec: number;
 }) {
   const { signer, multiProvider } = getDeployerContext(key, chainConfigPath);
   const artifacts = coreArtifactsPath
@@ -64,7 +64,7 @@ export async function sendTestTransfer({
     minBalanceWei: MINIMUM_TEST_SEND_BALANCE,
   });
 
-  await utils.timeout(
+  await timeout(
     executeDelivery({
       origin,
       destination,
@@ -75,7 +75,7 @@ export async function sendTestTransfer({
       multiProvider,
       artifacts,
     }),
-    timeout * 1000,
+    timeoutSec * 1000,
     'Timed out waiting for messages to be delivered',
   );
 }
@@ -92,7 +92,7 @@ async function executeDelivery({
 }: {
   origin: ChainName;
   destination: ChainName;
-  routerAddress: types.Address;
+  routerAddress: Address;
   wei: string;
   recipient?: string;
   multiProvider: MultiProvider;
@@ -153,16 +153,16 @@ async function executeDelivery({
     const delivered = await mailbox.delivered(message.id);
     if (delivered) break;
     log('Waiting for message delivery on destination chain...');
-    await utils.sleep(5000);
+    await sleep(5000);
   }
 
   logGreen(`Transfer sent to destination chain!`);
 }
 
 async function getWrappedToken(
-  address: types.Address,
+  address: Address,
   provider: ethers.providers.Provider,
-): Promise<types.Address | null> {
+): Promise<Address | null> {
   try {
     const contract = HypERC20Collateral__factory.connect(address, provider);
     const wrappedToken = await contract.wrappedToken();
