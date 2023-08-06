@@ -6,16 +6,18 @@ import {
   ChainMap,
   ChainMetadata,
   HyperlaneContractsMap,
+  ModuleType,
   MultisigIsmConfig,
   isValidChainMetadata,
 } from '@hyperlane-xyz/sdk';
+import { objMap } from '@hyperlane-xyz/utils';
 
 import { getMultiProvider } from './context.js';
 import { errorRed, log, logGreen } from './logger.js';
 import { readYamlOrJson } from './utils/files.js';
 
 export function readChainConfig(filepath: string) {
-  console.log(`Reading file configs in ${filepath}`);
+  log(`Reading file configs in ${filepath}`);
   const chainToMetadata = readYamlOrJson<ChainMap<ChainMetadata>>(filepath);
 
   if (
@@ -76,7 +78,7 @@ export function readDeploymentArtifacts(filePath: string) {
 
 const MultisigConfigSchema = z.object({}).catchall(
   z.object({
-    type: z.number(),
+    type: z.string(),
     threshold: z.number(),
     validators: z.array(z.string()),
   }),
@@ -92,7 +94,20 @@ export function readMultisigConfig(filePath: string) {
       `Invalid multisig config: ${firstIssue.path} => ${firstIssue.message}`,
     );
   }
-  return result.data as ChainMap<MultisigIsmConfig>;
+  const parsedConfig = result.data;
+  const formattedConfig = objMap(parsedConfig, (_, config) => ({
+    ...config,
+    type: humanReadableIsmTypeToEnum(config.type),
+  }));
+
+  return formattedConfig as ChainMap<MultisigIsmConfig>;
+}
+
+function humanReadableIsmTypeToEnum(type: string): ModuleType {
+  for (const [key, value] of Object.entries(ModuleType)) {
+    if (key.toLowerCase() === type) return parseInt(value.toString(), 10);
+  }
+  throw new Error(`Invalid ISM type ${type}`);
 }
 
 const ConnectionConfigSchema = {

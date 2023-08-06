@@ -2,7 +2,7 @@ import { CommandModule } from 'yargs';
 
 import { runCoreDeploy } from '../deploy/core.js';
 import { runWarpDeploy } from '../deploy/warp.js';
-import { logGray } from '../logger.js';
+import { log, logGray } from '../logger.js';
 
 import {
   chainsCommandOption,
@@ -23,7 +23,7 @@ export const deployCommand: CommandModule = {
       .command(warpCommand)
       .version(false)
       .demandCommand(),
-  handler: () => console.log('Command required'),
+  handler: () => log('Command required'),
 };
 
 /**

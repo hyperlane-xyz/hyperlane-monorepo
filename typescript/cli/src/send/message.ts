@@ -2,13 +2,12 @@ import { BigNumber, ethers } from 'ethers';
 
 import {
   ChainName,
-  DispatchedMessage,
   HyperlaneContractsMap,
   HyperlaneCore,
   HyperlaneIgp,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32, sleep, timeout } from '@hyperlane-xyz/utils';
+import { addressToBytes32, timeout } from '@hyperlane-xyz/utils';
 
 import { readDeploymentArtifacts } from '../configs.js';
 import { MINIMUM_TEST_SEND_BALANCE } from '../consts.js';
@@ -80,7 +79,7 @@ async function executeDelivery({
   const destinationDomain = multiProvider.getDomainId(destination);
   const signerAddress = await signer.getAddress();
 
-  let message: DispatchedMessage;
+  let messageReceipt: ethers.ContractReceipt;
   try {
     const recipient = mergedContractAddrs[destination].testRecipient;
     if (!recipient) {
@@ -93,8 +92,8 @@ async function executeDelivery({
       addressToBytes32(recipient),
       '0x48656c6c6f21', // Hello!
     );
-    const messageReceipt = await multiProvider.handleTx(origin, messageTx);
-    message = core.getDispatchedMessages(messageReceipt)[0];
+    messageReceipt = await multiProvider.handleTx(origin, messageTx);
+    const message = core.getDispatchedMessages(messageReceipt)[0];
     logBlue(`Sent message from ${origin} to ${recipient} on ${destination}.`);
     logBlue(`Message ID: ${message.id}`);
 
@@ -118,15 +117,7 @@ async function executeDelivery({
     );
     throw e;
   }
-  while (true) {
-    const destination = multiProvider.getChainName(message.parsed.destination);
-    const mailbox = core.getContracts(destination).mailbox;
-    const delivered = await mailbox.delivered(message.id);
-    if (delivered) break;
-
-    log('Waiting for message delivery on destination chain...');
-    await sleep(5000);
-  }
-
+  log('Waiting for message delivery on destination chain...');
+  await core.waitForMessageProcessed(messageReceipt, 5000);
   logGreen('Message was delivered!');
 }

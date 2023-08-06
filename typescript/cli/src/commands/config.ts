@@ -1,4 +1,4 @@
-import { input } from '@inquirer/prompts';
+import { confirm, input } from '@inquirer/prompts';
 import select from '@inquirer/select';
 import { CommandModule } from 'yargs';
 
@@ -6,7 +6,7 @@ import { ChainMetadata, isValidChainMetadata } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { readChainConfig } from '../configs.js';
-import { errorRed, logBlue, logGreen } from '../logger.js';
+import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import { FileFormat, mergeYamlOrJson } from '../utils/files.js';
 
 /**
@@ -21,7 +21,7 @@ export const configCommand: CommandModule = {
       .command(validateCommand)
       .version(false)
       .demandCommand(),
-  handler: () => console.log('Command required'),
+  handler: () => log('Command required'),
 };
 
 /**
@@ -52,9 +52,17 @@ const createCommand: CommandModule = {
       message: 'Enter chain name (one word, lower case)',
     });
     const chainId = await input({ message: 'Enter chain id (number)' });
-    const domainId = await input({
-      message: 'Enter domain id (number, often matches chainId)',
+    const skipDomain = await confirm({
+      message: 'Will the domainId match the chainId (recommended)?',
     });
+    let domainId: string;
+    if (skipDomain) {
+      domainId = chainId;
+    } else {
+      domainId = await input({
+        message: 'Enter domain id (number, often matches chainId)',
+      });
+    }
     const protocol = await select({
       message: 'Select protocol type',
       choices: Object.values(ProtocolType).map((protocol) => ({

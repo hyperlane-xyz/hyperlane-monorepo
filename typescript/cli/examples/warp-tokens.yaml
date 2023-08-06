@@ -1,5 +1,6 @@
 # A config for a Warp Route deployment
 # Typically used with the 'hyperlane deploy warp' command
+#
 # Token Types:
 #   synthetic
 #   syntheticUri

@@ -1,11 +1,8 @@
-import { Separator, checkbox, confirm, input } from '@inquirer/prompts';
-import select from '@inquirer/select';
-import chalk from 'chalk';
+import { confirm, input } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
 import {
   ChainMap,
-  ChainMetadata,
   ChainName,
   CoreConfig,
   DeployedIsm,
@@ -26,10 +23,8 @@ import {
   agentStartBlocks,
   buildAgentConfig,
   defaultMultisigIsmConfigs,
-  mainnetChainsMetadata,
   multisigIsmVerificationCost,
   serializeContractsMap,
-  testnetChainsMetadata,
 } from '@hyperlane-xyz/sdk';
 import { Address, objFilter, objMerge } from '@hyperlane-xyz/utils';
 
@@ -41,6 +36,7 @@ import {
   sdkContractAddressesMap,
 } from '../context.js';
 import { log, logBlue, logGray, logGreen } from '../logger.js';
+import { runLocalAndRemotesSelectionStep } from '../utils/chains.js';
 import { prepNewArtifactsFiles, writeJson } from '../utils/files.js';
 
 import {
@@ -63,11 +59,10 @@ export async function runCoreDeploy({
     chainConfigPath,
   );
 
-  const { local, remotes, allChains } = await runChainSelectionStep(
-    customChains,
-  );
-  const artifacts = await runArtifactStep(allChains);
-  const multisigConfig = await runIsmStep(allChains);
+  const { local, remotes, selectedChains } =
+    await runLocalAndRemotesSelectionStep(customChains);
+  const artifacts = await runArtifactStep(selectedChains);
+  const multisigConfig = await runIsmStep(selectedChains);
 
   const deploymentParams = {
     local,
@@ -87,41 +82,10 @@ export async function runCoreDeploy({
   await executeDeploy(deploymentParams);
 }
 
-async function runChainSelectionStep(customChains: ChainMap<ChainMetadata>) {
-  const chainsToChoices = (chains: ChainMetadata[]) =>
-    chains.map((c) => ({ name: c.name, value: c.name }));
-  const choices: Parameters<typeof select>['0']['choices'] = [
-    new Separator('--Custom Chains--'),
-    ...chainsToChoices(Object.values(customChains)),
-    { name: '(New custom chain)', value: '__new__' },
-    new Separator('--Mainnet Chains--'),
-    ...chainsToChoices(mainnetChainsMetadata),
-    new Separator('--Testnet Chains--'),
-    ...chainsToChoices(testnetChainsMetadata),
-  ];
-
-  const local = (await select({
-    message: 'Select local chain (the chain to which you will deploy now)',
-    choices,
-    pageSize: 20,
-  })) as string;
-  handleNewChain([local]);
-
-  const remotes = (await checkbox({
-    message: 'Select remote chains the local will send messages to',
-    choices,
-    pageSize: 20,
-  })) as string[];
-  handleNewChain(remotes);
-  if (!remotes?.length) throw new Error('No remote chains selected');
-
-  const allChains = [local, ...remotes];
-  return { local, remotes, allChains };
-}
-
-async function runArtifactStep(allChains: ChainName[]) {
+async function runArtifactStep(selectedChains: ChainName[]) {
   logBlue(
-    '\nDeployments can be totally new or can use some existing contract addresses.',
+    '\n',
+    'Deployments can be totally new or can use some existing contract addresses.',
   );
   const isResume = await confirm({
     message: 'Do you want use some existing contract addresses?',
@@ -133,15 +97,16 @@ async function runArtifactStep(allChains: ChainName[]) {
   });
   const artifacts = readDeploymentArtifacts(artifactsPath);
   const artifactChains = Object.keys(artifacts).filter((c) =>
-    allChains.includes(c),
+    selectedChains.includes(c),
   );
   log(`Found existing artifacts for chains: ${artifactChains.join(', ')}`);
   return artifacts;
 }
 
-async function runIsmStep(allChains: ChainName[]) {
+async function runIsmStep(selectedChains: ChainName[]) {
   logBlue(
-    '\nHyperlane instances requires an Interchain Security Module (ISM).',
+    '\n',
+    'Hyperlane instances requires an Interchain Security Module (ISM).',
   );
   const isMultisig = await confirm({
     message: 'Do you want use a Multisig ISM?',
@@ -152,7 +117,7 @@ async function runIsmStep(allChains: ChainName[]) {
     );
 
   const defaultConfigChains = Object.keys(defaultMultisigIsmConfigs);
-  const configRequired = !!allChains.find(
+  const configRequired = !!selectedChains.find(
     (c) => !defaultConfigChains.includes(c),
   );
   if (!configRequired) return;
@@ -165,24 +130,10 @@ async function runIsmStep(allChains: ChainName[]) {
   });
   const configs = readMultisigConfig(multisigConfigPath);
   const multisigConfigChains = Object.keys(configs).filter((c) =>
-    allChains.includes(c),
+    selectedChains.includes(c),
   );
   log(`Found configs for chains: ${multisigConfigChains.join(', ')}`);
   return configs;
-}
-
-function handleNewChain(chainNames: string[]) {
-  if (chainNames.includes('__new__')) {
-    logBlue(
-      'To use a new chain, use the --config argument add them to that file',
-    );
-    log(
-      chalk.blue('Use the'),
-      chalk.magentaBright('hyperlane config create'),
-      chalk.blue('command to create new configs'),
-    );
-    process.exit(0);
-  }
 }
 
 interface DeployParams {
@@ -202,7 +153,7 @@ async function runDeployPlanStep({
   artifacts,
 }: DeployParams) {
   const address = await signer.getAddress();
-  logBlue('\nDeployment plan:');
+  logBlue('\n', 'Deployment plan:');
   logGray('===============:');
   log(`Transaction signer and owner of new contracts will be ${address}`);
   log(`Deploying to ${local} and connecting it to ${remotes.join(', ')}`);
@@ -210,14 +161,12 @@ async function runDeployPlanStep({
     Object.values(sdkContractAddressesMap)[0],
   ).length;
   log(`There are ${numContracts} contracts for each chain`);
-  if (artifacts) {
+  if (artifacts)
     log('But contracts with an address in the artifacts file will be skipped');
-    for (const chain of [local, ...remotes]) {
-      const chainArtifacts = artifacts[chain];
-      if (!chainArtifacts) continue;
-      const numRequired = numContracts - Object.keys(chainArtifacts).length;
-      log(`${chain} will require ${numRequired} of ${numContracts}`);
-    }
+  for (const chain of [local, ...remotes]) {
+    const chainArtifacts = artifacts?.[chain] || {};
+    const numRequired = numContracts - Object.keys(chainArtifacts).length;
+    log(`${chain} will require ${numRequired} of ${numContracts}`);
   }
   log('The interchain security module will be a Multisig.');
   const isConfirmed = await confirm({
@@ -243,14 +192,14 @@ async function executeDeploy({
   ]);
 
   const owner = await signer.getAddress();
-  const allChains = [local, ...remotes];
+  const selectedChains = [local, ...remotes];
   const mergedContractAddrs = getMergedContractAddresses(artifacts);
 
   // 1. Deploy ISM factories to all deployable chains that don't have them.
   log('Deploying ISM factory contracts');
   const ismDeployer = new HyperlaneIsmFactoryDeployer(multiProvider);
   ismDeployer.cacheAddressesMap(mergedContractAddrs);
-  const ismFactoryContracts = await ismDeployer.deploy(allChains);
+  const ismFactoryContracts = await ismDeployer.deploy(selectedChains);
   artifacts = writeMergedAddresses(
     contractsFilePath,
     artifacts,
@@ -262,8 +211,8 @@ async function executeDeploy({
   log(`Deploying IGP contracts`);
   const igpConfig = buildIgpConfigMap(
     owner,
-    allChains,
-    allChains,
+    selectedChains,
+    selectedChains,
     multiSigConfig,
   );
   const igpDeployer = new HyperlaneIgpDeployer(multiProvider);
@@ -293,7 +242,7 @@ async function executeDeploy({
   const ismConfigs = buildIsmConfigMap(
     owner,
     remotes,
-    allChains,
+    selectedChains,
     multiSigConfig,
   );
   const ismContracts: ChainMap<{ multisigIsm: DeployedIsm }> = {};
@@ -312,7 +261,10 @@ async function executeDeploy({
 
   // 5. Deploy TestRecipients to all deployable chains
   log(`Deploying test recipient contracts`);
-  const testRecipientConfig = buildTestRecipientConfigMap(allChains, artifacts);
+  const testRecipientConfig = buildTestRecipientConfigMap(
+    selectedChains,
+    artifacts,
+  );
   const testRecipientDeployer = new TestRecipientDeployer(multiProvider);
   testRecipientDeployer.cacheAddressesMap(artifacts);
   const testRecipients = await testRecipientDeployer.deploy(
@@ -407,7 +359,7 @@ function buildTestRecipientConfigMap(
 function buildIgpConfigMap(
   owner: Address,
   deployChains: ChainName[],
-  allChains: ChainName[],
+  selectedChains: ChainName[],
   multisigIsmConfigs: ChainMap<MultisigIsmConfig>,
 ): ChainMap<OverheadIgpConfig> {
   const mergedMultisigIsmConfig: ChainMap<MultisigIsmConfig> = objMerge(
@@ -418,7 +370,7 @@ function buildIgpConfigMap(
   for (const local of deployChains) {
     const overhead: ChainMap<number> = {};
     const gasOracleType: ChainMap<GasOracleContractType> = {};
-    for (const remote of allChains) {
+    for (const remote of selectedChains) {
       if (local === remote) continue;
       overhead[remote] = multisigIsmVerificationCost(
         mergedMultisigIsmConfig[remote].threshold,
@@ -455,7 +407,7 @@ async function writeAgentConfig(
   remotes: ChainName[],
   multiProvider: MultiProvider,
 ) {
-  const allChains = [local, ...remotes];
+  const selectedChains = [local, ...remotes];
   const startBlocks: ChainMap<number> = { ...agentStartBlocks };
   startBlocks[local] = await multiProvider.getProvider(local).getBlockNumber();
 
@@ -466,14 +418,14 @@ async function writeAgentConfig(
   const filteredAddressesMap = objFilter(
     mergedAddressesMap,
     (chain, v): v is HyperlaneAddresses<any> =>
-      allChains.includes(chain) &&
+      selectedChains.includes(chain) &&
       !!v.mailbox &&
       !!v.interchainGasPaymaster &&
       !!v.validatorAnnounce,
   ) as ChainMap<HyperlaneDeploymentArtifacts>;
 
   const agentConfig = buildAgentConfig(
-    allChains,
+    selectedChains,
     multiProvider,
     filteredAddressesMap,
     startBlocks,

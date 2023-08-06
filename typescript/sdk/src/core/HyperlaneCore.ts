@@ -82,15 +82,21 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
 
   protected async waitForMessageWasProcessed(
     message: DispatchedMessage,
+    delay?: number,
+    maxAttempts?: number,
   ): Promise<void> {
     const id = messageId(message.message);
     const { mailbox } = this.getDestination(message);
-    await pollAsync(async () => {
-      const delivered = await mailbox.delivered(id);
-      if (!delivered) {
-        throw new Error(`Message ${id} not yet processed`);
-      }
-    });
+    await pollAsync(
+      async () => {
+        const delivered = await mailbox.delivered(id);
+        if (!delivered) {
+          throw new Error(`Message ${id} not yet processed`);
+        }
+      },
+      delay,
+      maxAttempts,
+    );
     return;
   }
 
@@ -103,10 +109,14 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
 
   async waitForMessageProcessed(
     sourceTx: ethers.ContractReceipt,
+    delay?: number,
+    maxAttempts?: number,
   ): Promise<void> {
     const messages = HyperlaneCore.getDispatchedMessages(sourceTx);
     await Promise.all(
-      messages.map((msg) => this.waitForMessageWasProcessed(msg)),
+      messages.map((msg) =>
+        this.waitForMessageWasProcessed(msg, delay, maxAttempts),
+      ),
     );
   }
 

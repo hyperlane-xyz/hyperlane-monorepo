@@ -1,4 +1,3 @@
-import assert from 'assert';
 import { ethers } from 'ethers';
 
 import {
@@ -12,13 +11,13 @@ import {
   HyperlaneCore,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { Address, sleep, timeout } from '@hyperlane-xyz/utils';
+import { Address, timeout } from '@hyperlane-xyz/utils';
 
 import { readDeploymentArtifacts } from '../configs.js';
 import { MINIMUM_TEST_SEND_BALANCE } from '../consts.js';
 import { getDeployerContext, getMergedContractAddresses } from '../context.js';
 import { runPreflightChecks } from '../deploy/utils.js';
-import { log, logBlue, logGreen } from '../logger.js';
+import { logBlue, logGreen } from '../logger.js';
 import { assertTokenBalance } from '../utils/balances.js';
 
 // TODO improve the UX here by making params optional and
@@ -144,18 +143,7 @@ async function executeDelivery({
   const message = core.getDispatchedMessages(receipt)[0];
   logBlue(`Sent message from ${origin} to ${recipient} on ${destination}.`);
   logBlue(`Message ID: ${message.id}`);
-
-  const msgDestination = multiProvider.getChainName(message.parsed.destination);
-  assert(destination === msgDestination);
-
-  while (true) {
-    const mailbox = core.getContracts(destination).mailbox;
-    const delivered = await mailbox.delivered(message.id);
-    if (delivered) break;
-    log('Waiting for message delivery on destination chain...');
-    await sleep(5000);
-  }
-
+  await core.waitForMessageProcessed(receipt, 5000);
   logGreen(`Transfer sent to destination chain!`);
 }
 
