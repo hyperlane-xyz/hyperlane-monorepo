@@ -1,6 +1,6 @@
 # A config for a multisig Interchain Security Module (ISM)
 # Schema: https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/sdk/src/ism/types.ts
-# 
+#
 # Valid module types:
 #   routing
 #   aggregation
