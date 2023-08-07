@@ -140,7 +140,7 @@ mod test {
 
     #[test]
     fn test_discriminator_prefixed_size() {
-        #[derive(BorshSerialize, BorshDeserialize)]
+        #[derive(BorshSerialize, BorshDeserialize, Default)]
         struct Foo {
             a: u64,
         }
