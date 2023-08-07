@@ -47,8 +47,11 @@ impl SealevelInterchainGasPaymaster {
         let data_pda = Pubkey::find_program_address(igp_program_data_pda_seeds!(), &program_id);
 
         debug!(
-            "domain={}\nmailbox={}\ndata_pda=({}, {})",
-            domain, program_id, data_pda.0, data_pda.1,
+            domain,
+            %program_id,
+            data_pda_pubkey = %data_pda.0,
+            data_pda_seed = data_pda.1,
+            "Found sealevel IGP program data PDA"
         );
 
         Self {
@@ -142,6 +145,7 @@ impl SealevelInterchainGasPaymasterIndexer {
                 encoding: Some(UiAccountEncoding::Base64),
                 // Don't return any data
                 data_slice: Some(UiDataSliceConfig {
+                    // TODO: Do not use magic constants and use encoding sizes instead
                     offset: 1 + 8 + 8 + 32 + 4 + 32 + 8 + 8, // the offset to get the `unique_gas_payment_pubkey` field
                     length: 32, // the length of the `unique_gas_payment_pubkey` field
                 }),
@@ -160,7 +164,7 @@ impl SealevelInterchainGasPaymasterIndexer {
         // that proves it's an actual message storage PDA.
         let mut valid_payment_pda_pubkey = Option::<Pubkey>::None;
 
-        for (pubkey, account) in accounts.iter() {
+        for (pubkey, account) in accounts {
             let unique_gas_payment_pubkey = Pubkey::new(&account.data);
             let (expected_pubkey, _bump) = Pubkey::try_find_program_address(
                 igp_gas_payment_pda_seeds!(unique_gas_payment_pubkey),
@@ -171,8 +175,8 @@ impl SealevelInterchainGasPaymasterIndexer {
                     "Could not find program address for unique_gas_payment_pubkey",
                 )
             })?;
-            if expected_pubkey == *pubkey {
-                valid_payment_pda_pubkey = Some(*pubkey);
+            if expected_pubkey == pubkey {
+                valid_payment_pda_pubkey = Some(pubkey);
                 break;
             }
         }

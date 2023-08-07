@@ -628,7 +628,7 @@ impl SealevelMailboxIndexer {
         // that proves it's an actual message storage PDA.
         let mut valid_message_storage_pda_pubkey = Option::<Pubkey>::None;
 
-        for (pubkey, account) in accounts.iter() {
+        for (pubkey, account) in accounts {
             let unique_message_pubkey = Pubkey::new(&account.data);
             let (expected_pubkey, _bump) = Pubkey::try_find_program_address(
                 mailbox_dispatched_message_pda_seeds!(unique_message_pubkey),
@@ -639,8 +639,8 @@ impl SealevelMailboxIndexer {
                     "Could not find program address for unique_message_pubkey",
                 )
             })?;
-            if expected_pubkey == *pubkey {
-                valid_message_storage_pda_pubkey = Some(*pubkey);
+            if expected_pubkey == pubkey {
+                valid_message_storage_pda_pubkey = Some(pubkey);
                 break;
             }
         }
