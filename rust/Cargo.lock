@@ -3619,7 +3619,6 @@ dependencies = [
  "hyperlane-sealevel",
  "hyperlane-test",
  "itertools",
- "mockall",
  "opentelemetry 0.18.0",
  "opentelemetry-jaeger",
  "opentelemetry-zipkin",
