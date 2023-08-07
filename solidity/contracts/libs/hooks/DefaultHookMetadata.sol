@@ -20,6 +20,7 @@ pragma solidity >=0.8.0;
  */
 library DefaultHookMetadata {
     uint8 private constant VARIANT_OFFSET = 1;
+    uint8 private constant METADATA_OFFSET = 1;
 
     /**
      * @notice Returns the specified variant for the custom hook.
@@ -28,5 +29,13 @@ library DefaultHookMetadata {
      */
     function variant(bytes calldata _metadata) internal pure returns (uint8) {
         return uint8(bytes1(_metadata[VARIANT_OFFSET:VARIANT_OFFSET + 1]));
+    }
+
+    function striped(bytes calldata _metadata)
+        internal
+        pure
+        returns (bytes calldata)
+    {
+        return _metadata[METADATA_OFFSET:];
     }
 }

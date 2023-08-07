@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
 
+import "forge-std/console.sol";
+
 // ============ Internal Imports ============
 import {IMailbox} from "../interfaces/IMailbox.sol";
 
@@ -16,16 +18,24 @@ abstract contract MailboxClient {
     constructor(address _mailbox) {
         require(Address.isContract(_mailbox), "!contract");
         mailbox = IMailbox(_mailbox);
-        // defaultHook = mailbox.defaultHook();
+        defaultHook = address(mailbox.defaultHook());
     }
 
     // ============ Modifiers ============
 
     /**
-     * @notice Only accept messages from an Hyperlane Mailbox contract
+     * @notice Only accept messages from the Default Hook contract.
      */
-    modifier onlyMailbox() {
-        require(msg.sender == address(mailbox), "!mailbox");
+    modifier authorized() {
+        require(
+            msg.sender == address(mailbox) ||
+                msg.sender == address(defaultHook),
+            "!authorized"
+        );
         _;
+    }
+
+    function updateDefaultHook() external {
+        defaultHook = address(mailbox.defaultHook());
     }
 }

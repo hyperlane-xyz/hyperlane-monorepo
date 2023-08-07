@@ -11,7 +11,7 @@ abstract contract AbstractHook is MailboxClient, IPostDispatchHook {
         external
         payable
         override
-        onlyMailbox
+        authorized
         returns (address[] memory)
     {
         return _postDispatch(metadata, message);

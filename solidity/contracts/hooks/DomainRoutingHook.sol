@@ -17,8 +17,13 @@ contract DomainRoutingHook is AbstractHook, Ownable {
         _transferOwnership(_owner);
     }
 
-    function setHook(uint32 destination, address hook) external onlyOwner {
-        hooks[destination] = IPostDispatchHook(hook);
+    function setHooks(uint32[] memory destinations, address[] memory _hooks)
+        external
+        onlyOwner
+    {
+        for (uint256 i = 0; i < destinations.length; i++) {
+            hooks[destinations[i]] = IPostDispatchHook(_hooks[i]);
+        }
     }
 
     function _postDispatch(

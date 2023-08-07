@@ -23,6 +23,7 @@ import {CrossChainEnabledOptimism} from "./crossChainEnabled/optimism/CrossChain
 
 // ============ External Imports ============
 
+import {AddressAliasHelper} from "@eth-optimism/contracts/standards/AddressAliasHelper.sol";
 import {ICrossDomainMessenger} from "@eth-optimism/contracts/libraries/bridge/ICrossDomainMessenger.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
@@ -35,6 +36,7 @@ contract OPStackIsm is
     CrossChainEnabledOptimism,
     AbstractMessageIdAuthorizedIsm
 {
+    using Address for address payable;
     // ============ Constants ============
 
     uint8 public constant moduleType =
@@ -56,5 +58,28 @@ contract OPStackIsm is
      */
     function _isAuthorized() internal view override returns (bool) {
         return _crossChainSender() == authorizedHook;
+    }
+
+    /**
+     * @notice Verify message from the L1 and transfer value.
+     * @dev Only callable by the L2 messenger.
+     * @param _messageId Hyperlane ID for the message.
+     */
+    function verifyMessageId(bytes32 _messageId, address payable recipient)
+        external
+        payable
+    {
+        verifyMessageId(_messageId);
+
+        if (msg.value > 0) {
+            if (recipient.isContract()) {
+                recipient = payable(
+                    AddressAliasHelper.applyL1ToL2Alias(recipient)
+                );
+                recipient.sendValue(msg.value);
+            } else {
+                recipient.sendValue(msg.value);
+            }
+        }
     }
 }

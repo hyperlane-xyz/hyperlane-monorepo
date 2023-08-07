@@ -1,5 +1,19 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
+
+/*@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+     @@@@@  HYPERLANE  @@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+@@@@@@@@@       @@@@@@@@*/
+
+import "forge-std/console.sol";
 
 import {DefaultHookMetadata} from "../libs/hooks/DefaultHookMetadata.sol";
 import {DynamicBufferLib} from "../libs/DynamicBufferLib.sol";
@@ -14,7 +28,7 @@ contract DefaultHook is DomainRoutingHook {
 
     DynamicBufferLib.Stack internal hooksBuffer;
 
-    mapping(bytes32 => address) public customHooks;
+    mapping(bytes32 => address[]) public customHooks;
 
     constructor(address mailbox, address owner)
         DomainRoutingHook(mailbox, owner)
@@ -35,19 +49,26 @@ contract DefaultHook is DomainRoutingHook {
                 )
             );
 
+            // console.log(customHooks[hookKey][0]);
+
             require(
-                customHooks[hookKey] != address(0),
+                customHooks[hookKey].length > 0,
                 "DefaultHook: no hook specified"
             );
-            hooksBuffer.push(customHooks[hookKey]);
+            hooksBuffer = hooksBuffer.push(customHooks[hookKey]);
         } else {
+            console.log("No custom config");
             hooksBuffer.push(address(hooks[message.destination()]));
         }
 
+        address nextHook;
+        // striping metadata of default hook metadata
+        bytes memory striped = metadata.striped();
         // loop through hooks until empty stack
         while (!hooksBuffer.isEmpty()) {
-            address[] memory moreHooks = IPostDispatchHook(hooksBuffer.pop())
-                .postDispatch(metadata, message);
+            (hooksBuffer, nextHook) = hooksBuffer.pop();
+            address[] memory moreHooks = IPostDispatchHook(nextHook)
+                .postDispatch{value: msg.value}(striped, message);
             hooksBuffer.push(moreHooks);
         }
         return new address[](1);
@@ -58,11 +79,11 @@ contract DefaultHook is DomainRoutingHook {
         uint8 variant,
         uint32 destinationDomain,
         bytes32 recipient,
-        address hook
+        address[] calldata hooks
     ) external {
         bytes32 hookKey = keccak256(
             abi.encodePacked(variant, destinationDomain, recipient)
         );
-        customHooks[hookKey] = hook;
+        customHooks[hookKey] = hooks;
     }
 }
