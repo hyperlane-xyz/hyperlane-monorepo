@@ -182,16 +182,12 @@ contract OPStackIsmTest is Test {
 
         vm.selectFork(mainnetFork);
         defaultHook.configCustomHook(
-            0,
             OPTIMISM_DOMAIN,
             address(testRecipient).addressToBytes32(),
             customHooks
         );
 
-        bytes memory hookMetadata = abi.encodePacked(
-            uint8(69),
-            uint256(1 ether)
-        );
+        bytes memory hookMetadata = abi.encodePacked(uint256(1 ether));
 
         bytes memory encodedHookData = abi.encodeCall(
             AbstractMessageIdAuthorizedIsm.verifyMessageId,
@@ -222,25 +218,6 @@ contract OPStackIsmTest is Test {
     // test if igp payment made for custom config omission
 
     // test if igp payment made for custom config inclusion
-
-    // when you set the destination to 11 instead of 10 as in config
-    function testFork_postDispatch_RevertWhen_InvalidHookConfigured() public {
-        deployAll();
-
-        vm.selectFork(mainnetFork);
-        bytes memory hookMetadata = abi.encodePacked(
-            uint8(69),
-            uint256(1 ether)
-        );
-
-        vm.expectRevert("DefaultHook: no hook specified");
-        l1Mailbox.dispatch{value: 2 ether}(
-            11,
-            address(testRecipient).addressToBytes32(),
-            testMessage,
-            hookMetadata
-        );
-    }
 
     /* ============ ISM.verifyMessageId ============ */
 
