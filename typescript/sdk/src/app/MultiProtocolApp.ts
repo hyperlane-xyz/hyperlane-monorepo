@@ -24,10 +24,6 @@ export type AdapterClassType<ContractAddrs = {}, API = {}> = new (
   multiProvider: MultiProtocolProvider<ContractAddrs>,
 ) => API;
 
-export type AdapterProtocolMap<ContractAddrs = {}, API = {}> = Partial<
-  Record<ProtocolType, AdapterClassType<ContractAddrs, API>>
->;
-
 export class BaseEvmAdapter<
   ContractAddrs = {},
 > extends BaseAppAdapter<ContractAddrs> {
@@ -54,17 +50,13 @@ export class BaseSealevelAdapter<
  * @param multiProvider - A MultiProtocolProvider instance that MUST include the app's
  *   contract addresses in its chain metadata
  * @param logger - A logger instance
+ *
+ * @override protocolToAdapter - This should return an Adapter class for a given protocol type
  */
 export abstract class MultiProtocolApp<
   ContractAddrs = {},
   IAdapterApi extends BaseAppAdapter = BaseAppAdapter,
 > extends MultiGeneric<ChainMetadata<ContractAddrs>> {
-  // Subclasses should override this with more specific adapters
-  public readonly protocolToAdapter: AdapterProtocolMap<any, BaseAppAdapter> = {
-    [ProtocolType.Ethereum]: BaseEvmAdapter,
-    [ProtocolType.Sealevel]: BaseSealevelAdapter,
-  };
-
   constructor(
     public readonly multiProvider: MultiProtocolProvider<ContractAddrs>,
     public readonly logger = debug('hyperlane:MultiProtocolApp'),
@@ -72,15 +64,18 @@ export abstract class MultiProtocolApp<
     super(multiProvider.metadata);
   }
 
+  // Subclasses should override this with more specific adapters
+  abstract protocolToAdapter(
+    protocol: ProtocolType,
+  ): AdapterClassType<ContractAddrs, IAdapterApi>;
+
   metadata(chain: ChainName): ChainMetadata<ContractAddrs> {
     return this.get(chain);
   }
 
   adapter(chain: ChainName): IAdapterApi {
     const metadata = this.metadata(chain);
-    const Adapter = this.protocolToAdapter[
-      metadata.protocol
-    ] as AdapterClassType<ContractAddrs, IAdapterApi>;
+    const Adapter = this.protocolToAdapter(metadata.protocol);
     if (!Adapter)
       throw new Error(`No adapter for protocol ${metadata.protocol}`);
     return new Adapter(this.multiProvider);

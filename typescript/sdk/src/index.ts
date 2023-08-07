@@ -1,7 +1,6 @@
 export { HyperlaneApp } from './app/HyperlaneApp';
 export {
   AdapterClassType,
-  AdapterProtocolMap,
   BaseAppAdapter,
   BaseEvmAdapter,
   BaseSealevelAdapter,

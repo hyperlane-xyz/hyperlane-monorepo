@@ -2,9 +2,10 @@ import {
   ChainMap,
   ChainName,
   MultiProtocolRouterApp,
+  RouterAddress,
   TypedTransaction,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { StatCounts } from '../app/types';
 
@@ -13,13 +14,14 @@ import { SealevelHelloWorldAdapter } from './sealevelAdapter';
 import { IHelloWorldAdapter } from './types';
 
 export class HelloMultiProtocolApp extends MultiProtocolRouterApp<
-  { router: Address },
+  RouterAddress,
   IHelloWorldAdapter
 > {
-  public readonly adapters = {
-    [ProtocolType.Ethereum]: EvmHelloWorldAdapter,
-    [ProtocolType.Sealevel]: SealevelHelloWorldAdapter,
-  };
+  override protocolToAdapter(protocol: ProtocolType) {
+    if (protocol === ProtocolType.Ethereum) return EvmHelloWorldAdapter;
+    if (protocol === ProtocolType.Sealevel) return SealevelHelloWorldAdapter;
+    throw new Error(`No adapter for protocol ${protocol}`);
+  }
 
   populateHelloWorldTx(
     from: ChainName,
