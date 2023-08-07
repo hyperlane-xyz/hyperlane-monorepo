@@ -56,6 +56,10 @@ jobs:
         with:
           prefix-key: 'v2-rust'
           shared-key: 'e2e'
+          cache-on-failure: "true"
+          # If `true` all crates will be cached, otherwise only dependent crates will be cached.
+          # Useful if additional crates are used for CI tooling.
+          cache-all-crates: "true"
           workspaces: |
             ./rust
       - name: node module cache
