@@ -5,7 +5,6 @@ import { deserializeUnchecked } from 'borsh';
 import { Address, Domain } from '@hyperlane-xyz/utils';
 
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
 import { ChainName } from '../../types';
 import { RouterAddress } from '../types';
 
@@ -98,12 +97,6 @@ export class SealevelRouterAdapter<
   extends BaseSealevelAdapter<ContractAddrs>
   implements IRouterAdapter<ContractAddrs>
 {
-  constructor(
-    public readonly multiProvider: MultiProtocolProvider<ContractAddrs>,
-  ) {
-    super(multiProvider);
-  }
-
   async interchainSecurityModule(chain: ChainName): Promise<Address> {
     const routerAccountInfo = await this.getRouterAccountInfo(chain);
     if (!routerAccountInfo.interchain_security_module_pubkey)
@@ -149,8 +142,8 @@ export class SealevelRouterAdapter<
   // TODO this incorrectly assumes all sealevel routers will have the TokenRouter's data schema
   // This will need to change when other types of routers are supported
   async getRouterAccountInfo(chain: ChainName): Promise<SealevelTokenData> {
-    const address = this.multiProvider.getChainMetadata(chain).router;
-    const connection = this.multiProvider.getSolanaWeb3Provider(chain);
+    const address = this.multiProtocolProvider.getChainMetadata(chain).router;
+    const connection = this.multiProtocolProvider.getSolanaWeb3Provider(chain);
 
     const msgRecipientPda = this.deriveMessageRecipientPda(address);
     const accountInfo = await connection.getAccountInfo(msgRecipientPda);

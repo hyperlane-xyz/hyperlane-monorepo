@@ -1,16 +1,48 @@
-import { HelloMultiProtocolApp } from '@hyperlane-xyz/helloworld';
+import {
+  HelloMultiProtocolApp,
+  HelloWorldApp,
+  helloWorldFactories,
+} from '@hyperlane-xyz/helloworld';
 import {
   AgentConnectionType,
+  HyperlaneCore,
+  MultiProtocolCore,
   MultiProtocolProvider,
   MultiProvider,
+  attachContractsMap,
 } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import { EnvironmentConfig } from '../../src/config';
+import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { HelloWorldConfig } from '../../src/config/helloworld';
 import { Role } from '../../src/roles';
 
 export async function getHelloWorldApp(
+  coreConfig: EnvironmentConfig,
+  context: Contexts,
+  keyRole: Role,
+  keyContext: Contexts = context,
+  connectionType: AgentConnectionType = AgentConnectionType.Http,
+) {
+  const multiProvider: MultiProvider = await coreConfig.getMultiProvider(
+    keyContext,
+    keyRole,
+    connectionType,
+  );
+  const helloworldConfig = getHelloWorldConfig(coreConfig, context);
+  const contracts = attachContractsMap(
+    helloworldConfig.addresses,
+    helloWorldFactories,
+  );
+  const core = HyperlaneCore.fromEnvironment(
+    deployEnvToSdkEnv[coreConfig.environment],
+    multiProvider,
+  );
+  return new HelloWorldApp(core, contracts, multiProvider);
+}
+
+export async function getHelloWorldMultiProtocolApp(
   coreConfig: EnvironmentConfig,
   context: Contexts,
   keyRole: Role,
@@ -31,7 +63,12 @@ export async function getHelloWorldApp(
 
   const app = new HelloMultiProtocolApp(multiProtocolProvider);
 
-  return { app, multiProvider, multiProtocolProvider };
+  const core = MultiProtocolCore.fromEnvironment(
+    deployEnvToSdkEnv[coreConfig.environment],
+    multiProtocolProvider,
+  );
+
+  return { app, core, multiProvider, multiProtocolProvider };
 }
 
 export function getHelloWorldConfig(

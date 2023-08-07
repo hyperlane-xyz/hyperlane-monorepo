@@ -6,11 +6,11 @@ import { HelloMultiProtocolApp } from '@hyperlane-xyz/helloworld';
 import {
   AgentConnectionType,
   ChainName,
-  DispatchedMessage,
-  HyperlaneCore,
   HyperlaneIgp,
+  MultiProtocolCore,
   MultiProvider,
   ProviderType,
+  TypedTransactionReceipt,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -28,7 +28,7 @@ import { startMetricsServer } from '../../src/utils/metrics';
 import { assertChain, diagonalize, sleep } from '../../src/utils/utils';
 import { getArgs, getEnvironmentConfig, withContext } from '../utils';
 
-import { getHelloWorldApp } from './utils';
+import { getHelloWorldMultiProtocolApp } from './utils';
 
 const metricsRegister = new Registry();
 // TODO rename counter names
@@ -150,7 +150,7 @@ async function main(): Promise<boolean> {
   debug('Starting up', { environment });
 
   const coreConfig = getEnvironmentConfig(environment);
-  const { app, multiProvider } = await getHelloWorldApp(
+  const { app, core, multiProvider } = await getHelloWorldMultiProtocolApp(
     coreConfig,
     context,
     Role.Kathy,
@@ -332,6 +332,7 @@ async function main(): Promise<boolean> {
     try {
       await sendMessage(
         app,
+        core,
         multiProvider,
         igp,
         origin,
@@ -368,6 +369,7 @@ async function main(): Promise<boolean> {
 
 async function sendMessage(
   app: HelloMultiProtocolApp,
+  core: MultiProtocolCore,
   multiProvider: MultiProvider,
   igp: HyperlaneIgp,
   origin: ChainName,
@@ -397,16 +399,23 @@ async function sendMessage(
   });
 
   const sendAndConfirmMsg = async () => {
-    // TODO sol support here
     const tx = await app.populateHelloWorldTx(
       origin,
       destination,
       msg,
       value.toString(),
     );
+
+    // TODO sol support here
     if (tx.type !== ProviderType.EthersV5)
       throw new Error('Expected EthersV5 tx type');
-    return multiProvider.sendTransaction(origin, tx.transaction);
+
+    const receipt = await multiProvider.sendTransaction(origin, tx.transaction);
+    const typedReceipt: TypedTransactionReceipt = {
+      type: ProviderType.EthersV5,
+      receipt,
+    };
+    return typedReceipt;
   };
 
   const receipt = await retryAsync(
@@ -420,43 +429,17 @@ async function sendMessage(
   );
   messageSendSeconds.labels(metricLabels).inc((Date.now() - startTime) / 1000);
 
-  const [message] = app.core.getDispatchedMessages(receipt);
   log('Message sent', {
     origin,
     destination,
-    events: receipt.events,
-    logs: receipt.logs,
-    message,
+    receipt,
   });
 
-  try {
-    await timeout(
-      app.waitForMessageProcessed(receipt),
-      messageReceiptTimeout,
-      'Timeout waiting for message to be received',
-    );
-  } catch (error) {
-    // If we weren't able to get the receipt for message processing,
-    // try to read the state to ensure it wasn't a transient provider issue
-    log('Checking if message was received despite timeout', {
-      message,
-    });
-
-    // Try a few times to see if the message has been processed --
-    // we've seen some intermittent issues when fetching state.
-    // This will throw if the message is found to have not been processed.
-    await retryAsync(async () => {
-      if (!(await messageIsProcessed(app.core, destination, message))) {
-        throw error;
-      }
-    }, 3);
-
-    // Otherwise, the message has been processed
-    log(
-      'Did not receive event for message delivery even though it was delivered',
-      { origin, destination, message },
-    );
-  }
+  await timeout(
+    core.waitForMessageProcessed(destination, receipt, 1000, 10),
+    messageReceiptTimeout,
+    'Timeout waiting for message to be received',
+  );
 
   messageReceiptSeconds
     .labels(metricLabels)
@@ -465,15 +448,6 @@ async function sendMessage(
     origin,
     destination,
   });
-}
-
-async function messageIsProcessed(
-  core: HyperlaneCore,
-  destination: ChainName,
-  message: DispatchedMessage,
-): Promise<boolean> {
-  const destinationMailbox = core.getContracts(destination).mailbox;
-  return destinationMailbox.delivered(message.id);
 }
 
 async function updateWalletBalanceMetricFor(

@@ -16,7 +16,7 @@ import { MultiGeneric } from '../utils/MultiGeneric';
 export abstract class BaseAppAdapter<ContractAddrs = {}> {
   public abstract readonly protocol: ProtocolType;
   constructor(
-    public readonly multiProvider: MultiProtocolProvider<ContractAddrs>,
+    public readonly multiProtocolProvider: MultiProtocolProvider<ContractAddrs>,
   ) {}
 }
 

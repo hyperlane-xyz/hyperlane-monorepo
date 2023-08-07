@@ -1,6 +1,7 @@
 import type {
   Connection,
   Transaction as SolTransaction,
+  TransactionResponse as SolTransactionReceipt,
 } from '@solana/web3.js';
 import type {
   Contract as EV5Contract,
@@ -12,6 +13,7 @@ import type {
   GetContractReturnType,
   PublicClient,
   Transaction as VTransaction,
+  TransactionReceipt as VTransactionReceipt,
 } from 'viem';
 
 export enum ProviderType {
@@ -132,3 +134,36 @@ export type TypedTransaction =
   // | EthersV6Transaction
   | ViemTransaction
   | SolanaWeb3Transaction;
+
+/**
+ * Transaction receipt/response with discriminated union of provider type
+ */
+
+interface TypedTransactionReceiptBase<T> {
+  type: ProviderType;
+  receipt: T;
+}
+
+export interface EthersV5TransactionReceipt
+  extends TypedTransactionReceiptBase<EV5Providers.TransactionReceipt> {
+  type: ProviderType.EthersV5;
+  receipt: EV5Providers.TransactionReceipt;
+}
+
+export interface ViemTransactionReceipt
+  extends TypedTransactionBase<VTransactionReceipt> {
+  type: ProviderType.Viem;
+  receipt: VTransactionReceipt;
+}
+
+export interface SolanaWeb3TransactionReceipt
+  extends TypedTransactionBase<SolTransactionReceipt> {
+  type: ProviderType.SolanaWeb3;
+  // Transaction concept doesn't exist in @solana/web3.js
+  receipt: SolTransactionReceipt;
+}
+
+export type TypedTransactionReceipt =
+  | EthersV5TransactionReceipt
+  | ViemTransactionReceipt
+  | SolanaWeb3TransactionReceipt;

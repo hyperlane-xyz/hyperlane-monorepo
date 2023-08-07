@@ -46,16 +46,21 @@ export {
   HyperlaneContractsMap,
   HyperlaneFactories,
 } from './contracts/types';
-export { DispatchedMessage, HyperlaneCore } from './core/HyperlaneCore';
+export { HyperlaneCore } from './core/HyperlaneCore';
 export { HyperlaneCoreChecker } from './core/HyperlaneCoreChecker';
 export { HyperlaneCoreDeployer } from './core/HyperlaneCoreDeployer';
+export { MultiProtocolCore } from './core/MultiProtocolCore';
 export { TestCoreApp } from './core/TestCoreApp';
 export { TestCoreDeployer } from './core/TestCoreDeployer';
+export { EvmCoreAdapter } from './core/adapters/EvmCoreAdapter';
+export { SealevelCoreAdapter } from './core/adapters/SealevelCoreAdapter';
+export { ICoreAdapter } from './core/adapters/types';
 export { CoreFactories, coreFactories } from './core/contracts';
 export { HyperlaneLifecyleEvent } from './core/events';
 export {
   CoreConfig,
   CoreViolationType,
+  DispatchedMessage,
   MailboxMultisigIsmViolation,
   MailboxViolation,
   MailboxViolationType,
@@ -172,17 +177,21 @@ export {
   EthersV5Contract,
   EthersV5Provider,
   EthersV5Transaction,
+  EthersV5TransactionReceipt,
   ProviderMap,
   ProviderType,
   SolanaWeb3Contract,
   SolanaWeb3Provider,
   SolanaWeb3Transaction,
+  SolanaWeb3TransactionReceipt,
   TypedContract,
   TypedProvider,
   TypedTransaction,
+  TypedTransactionReceipt,
   ViemContract,
   ViemProvider,
   ViemTransaction,
+  ViemTransactionReceipt,
 } from './providers/ProviderType';
 export {
   RetryJsonRpcProvider,

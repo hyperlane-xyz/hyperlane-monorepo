@@ -1,12 +1,7 @@
 import { ethers } from 'ethers';
 
 import { Mailbox, Mailbox__factory } from '@hyperlane-xyz/core';
-import {
-  ParsedMessage,
-  messageId,
-  parseMessage,
-  pollAsync,
-} from '@hyperlane-xyz/utils';
+import { messageId, parseMessage, pollAsync } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../app/HyperlaneApp';
 import {
@@ -19,12 +14,7 @@ import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName } from '../types';
 
 import { CoreFactories, coreFactories } from './contracts';
-
-export type DispatchedMessage = {
-  id: string;
-  message: string;
-  parsed: ParsedMessage;
-};
+import { DispatchedMessage } from './types';
 
 export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   static fromEnvironment<Env extends HyperlaneEnvironment>(
@@ -82,15 +72,21 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
 
   protected async waitForMessageWasProcessed(
     message: DispatchedMessage,
+    delay?: number,
+    maxAttempts?: number,
   ): Promise<void> {
     const id = messageId(message.message);
     const { mailbox } = this.getDestination(message);
-    await pollAsync(async () => {
-      const delivered = await mailbox.delivered(id);
-      if (!delivered) {
-        throw new Error(`Message ${id} not yet processed`);
-      }
-    });
+    await pollAsync(
+      async () => {
+        const delivered = await mailbox.delivered(id);
+        if (!delivered) {
+          throw new Error(`Message ${id} not yet processed`);
+        }
+      },
+      delay,
+      maxAttempts,
+    );
     return;
   }
 
@@ -103,10 +99,14 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
 
   async waitForMessageProcessed(
     sourceTx: ethers.ContractReceipt,
+    delay?: number,
+    maxAttempts?: number,
   ): Promise<void> {
     const messages = HyperlaneCore.getDispatchedMessages(sourceTx);
     await Promise.all(
-      messages.map((msg) => this.waitForMessageWasProcessed(msg)),
+      messages.map((msg) =>
+        this.waitForMessageWasProcessed(msg, delay, maxAttempts),
+      ),
     );
   }
 

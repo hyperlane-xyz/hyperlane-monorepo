@@ -1,13 +1,13 @@
 import { Debugger, debug } from 'debug';
 
-import { objMap } from '@hyperlane-xyz/utils';
+import { objFilter, objMap } from '@hyperlane-xyz/utils';
 
 import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager';
 import type { ChainMetadata } from '../metadata/chainMetadataTypes';
 import type { ChainMap, ChainName } from '../types';
 
-import type { MultiProvider } from './MultiProvider';
+import { MultiProvider, MultiProviderOptions } from './MultiProvider';
 import {
   EthersV5Provider,
   ProviderMap,
@@ -23,6 +23,7 @@ import {
 
 export interface MultiProtocolProviderOptions {
   loggerName?: string;
+  providers?: ChainMap<ProviderMap<TypedProvider>>;
   providerBuilders?: Partial<ProviderBuilderMap>;
 }
 
@@ -39,7 +40,9 @@ export interface MultiProtocolProviderOptions {
 export class MultiProtocolProvider<
   MetaExt = {},
 > extends ChainMetadataManager<MetaExt> {
-  protected readonly providers: ChainMap<ProviderMap<TypedProvider>> = {};
+  // Chain name -> provider type -> provider
+  protected readonly providers: ChainMap<ProviderMap<TypedProvider>>;
+  // Chain name -> provider type -> signer
   protected signers: ChainMap<ProviderMap<never>> = {}; // TODO signer support
   protected readonly logger: Debugger;
   protected readonly providerBuilders: Partial<ProviderBuilderMap>;
@@ -54,6 +57,7 @@ export class MultiProtocolProvider<
     this.logger = debug(
       options?.loggerName || 'hyperlane:MultiProtocolProvider',
     );
+    this.providers = options.providers || {};
     this.providerBuilders =
       options.providerBuilders || defaultProviderBuilderMap;
   }
@@ -63,11 +67,30 @@ export class MultiProtocolProvider<
     options: MultiProtocolProviderOptions = {},
   ): MultiProtocolProvider<MetaExt> {
     const newMp = new MultiProtocolProvider<MetaExt>(mp.metadata, options);
+
     const typedProviders = objMap(mp.providers, (_, provider) => ({
       type: ProviderType.EthersV5,
       provider,
     })) as ChainMap<TypedProvider>;
+
     newMp.setProviders(typedProviders);
+    return newMp;
+  }
+
+  toMultiProvider(options?: MultiProviderOptions): MultiProvider<MetaExt> {
+    const newMp = new MultiProvider<MetaExt>(this.metadata, options);
+
+    const providers = objMap(
+      this.providers,
+      (_, typeToProviders) => typeToProviders[ProviderType.EthersV5]?.provider,
+    ) as ChainMap<EthersV5Provider['provider'] | undefined>;
+
+    const filteredProviders = objFilter(
+      providers,
+      (_, p): p is EthersV5Provider['provider'] => !!p,
+    ) as ChainMap<EthersV5Provider['provider']>;
+
+    newMp.setProviders(filteredProviders);
     return newMp;
   }
 
@@ -75,7 +98,11 @@ export class MultiProtocolProvider<
     additionalMetadata: ChainMap<NewExt>,
   ): MultiProtocolProvider<MetaExt & NewExt> {
     const newMetadata = super.extendChainMetadata(additionalMetadata).metadata;
-    return new MultiProtocolProvider(newMetadata, this.options);
+    const newMp = new MultiProtocolProvider(newMetadata, {
+      ...this.options,
+      providers: this.providers,
+    });
+    return newMp;
   }
 
   tryGetProvider(

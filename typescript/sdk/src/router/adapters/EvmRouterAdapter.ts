@@ -7,7 +7,6 @@ import {
 import { Address, Domain, bytes32ToAddress } from '@hyperlane-xyz/utils';
 
 import { BaseEvmAdapter } from '../../app/MultiProtocolApp';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
 import { ChainName } from '../../types';
 import { RouterAddress } from '../types';
 
@@ -19,12 +18,6 @@ export class EvmRouterAdapter<
   extends BaseEvmAdapter<ContractAddrs>
   implements IRouterAdapter<ContractAddrs>
 {
-  constructor(
-    public readonly multiProvider: MultiProtocolProvider<ContractAddrs>,
-  ) {
-    super(multiProvider);
-  }
-
   interchainSecurityModule(chain: ChainName): Promise<Address> {
     return this.getConnectedContract(chain).interchainSecurityModule();
   }
@@ -58,8 +51,8 @@ export class EvmRouterAdapter<
   }
 
   getConnectedContract(chain: ChainName): Router {
-    const address = this.multiProvider.getChainMetadata(chain).router;
-    const provider = this.multiProvider.getEthersV5Provider(chain);
+    const address = this.multiProtocolProvider.getChainMetadata(chain).router;
+    const provider = this.multiProtocolProvider.getEthersV5Provider(chain);
     return Router__factory.connect(address, provider);
   }
 }
@@ -74,7 +67,7 @@ export class EvmGasRouterAdapter<
     origin: ChainName,
     destination: ChainName,
   ): Promise<string> {
-    const destDomain = this.multiProvider.getDomainId(destination);
+    const destDomain = this.multiProtocolProvider.getDomainId(destination);
     const amount = await this.getConnectedContract(origin).quoteGasPayment(
       destDomain,
     );
@@ -82,8 +75,8 @@ export class EvmGasRouterAdapter<
   }
 
   override getConnectedContract(chain: ChainName): GasRouter {
-    const address = this.multiProvider.getChainMetadata(chain).router;
-    const provider = this.multiProvider.getEthersV5Provider(chain);
+    const address = this.multiProtocolProvider.getChainMetadata(chain).router;
+    const provider = this.multiProtocolProvider.getEthersV5Provider(chain);
     return GasRouter__factory.connect(address, provider);
   }
 }
