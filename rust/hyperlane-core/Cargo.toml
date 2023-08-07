@@ -38,7 +38,7 @@ ethers = { workspace = true, optional = true }
 ethers-core = { workspace = true, optional = true }
 ethers-contract = { workspace = true, optional = true }
 ethers-providers = { workspace = true, optional = true }
-strum = { workspace = true, optional = true }
+strum = { workspace = true, optional = true, features = ["derive"] }
 primitive-types = { workspace = true, optional = true }
 
 [dev-dependencies]
