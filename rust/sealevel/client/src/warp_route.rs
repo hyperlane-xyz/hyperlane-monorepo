@@ -56,7 +56,7 @@ impl TokenType {
     }
 
     // Borrowed from HypERC20Deployer's `gasOverheadDefault`.
-    fn default_destination_gas_amount(&self) -> u64 {
+    fn gas_overhead_default(&self) -> u64 {
         // TODO: note these are the amounts specific to the EVM.
         // We should make this configurable per protocol type.
         match &self {
@@ -317,7 +317,7 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                             domain,
                             GasRouterConfig {
                                 domain,
-                                gas: Some(token_config.token_type.default_destination_gas_amount()),
+                                gas: Some(token_config.token_type.gas_overhead_default()),
                             },
                         )
                     })
