@@ -58,7 +58,8 @@ impl TokenType {
     // Borrowed from HypERC20Deployer's `gasOverheadDefault`.
     fn gas_overhead_default(&self) -> u64 {
         // TODO: note these are the amounts specific to the EVM.
-        // We should make this configurable per protocol type.
+        // We should eventually make this configurable per protocol type before we
+        // enforce gas amounts to Sealevel chains.
         match &self {
             TokenType::Synthetic(_) => 64_000,
             TokenType::Native => 44_000,

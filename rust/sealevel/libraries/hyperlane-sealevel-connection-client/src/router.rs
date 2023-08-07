@@ -131,6 +131,9 @@ pub trait HyperlaneRouterDispatch: HyperlaneRouter + HyperlaneConnectionClient {
         Ok(message_id)
     }
 
+    /// Dispatches a message to the remote router for the provided destination domain,
+    /// paying for gas with the IGP.
+    /// Errors if there is no IGP configured.
     fn dispatch_with_gas(
         &self,
         program_id: &Pubkey,
