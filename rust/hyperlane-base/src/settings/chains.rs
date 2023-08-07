@@ -8,16 +8,17 @@ use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
 };
 use hyperlane_core::{
-    config::*, AggregationIsm, CcipReadIsm, ContractLocator, HyperlaneAbi, HyperlaneDomain,
-    HyperlaneDomainProtocol, HyperlaneProvider, HyperlaneSigner, Indexer, InterchainGasPaymaster,
-    InterchainGasPayment, InterchainSecurityModule, Mailbox, MessageIndexer, MultisigIsm,
-    RoutingIsm, ValidatorAnnounce, H160, H256,
+    config::*, utils::hex_or_base58_to_h256, AggregationIsm, CcipReadIsm, ContractLocator,
+    HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneProvider, HyperlaneSigner,
+    IndexMode, InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
+    MessageIndexer, MultisigIsm, RoutingIsm, SequenceIndexer, ValidatorAnnounce, H256,
 };
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
     EthereumValidatorAnnounceAbi,
 };
 use hyperlane_fuel as h_fuel;
+use hyperlane_sealevel as h_sealevel;
 
 use crate::{
     settings::signers::{BuildableWithSignerConf, RawSignerConf},
@@ -31,6 +32,8 @@ pub enum ChainConnectionConf {
     Ethereum(h_eth::ConnectionConf),
     /// Fuel configuration
     Fuel(h_fuel::ConnectionConf),
+    /// Sealevel configuration.
+    Sealevel(h_sealevel::ConnectionConf),
 }
 
 /// Specify the chain name (enum variant) under the `chain` key
@@ -39,6 +42,7 @@ pub enum ChainConnectionConf {
 enum RawChainConnectionConf {
     Ethereum(h_eth::RawConnectionConf),
     Fuel(h_fuel::RawConnectionConf),
+    Sealevel(h_sealevel::RawConnectionConf),
     #[serde(other)]
     Unknown,
 }
@@ -53,6 +57,7 @@ impl FromRawConf<'_, RawChainConnectionConf> for ChainConnectionConf {
         match raw {
             Ethereum(r) => Ok(Self::Ethereum(r.parse_config(&cwp.join("connection"))?)),
             Fuel(r) => Ok(Self::Fuel(r.parse_config(&cwp.join("connection"))?)),
+            Sealevel(r) => Ok(Self::Sealevel(r.parse_config(&cwp.join("connection"))?)),
             Unknown => {
                 Err(eyre!("Unknown chain protocol")).into_config_result(|| cwp.join("protocol"))
             }
@@ -65,6 +70,7 @@ impl ChainConnectionConf {
         match self {
             Self::Ethereum(_) => HyperlaneDomainProtocol::Ethereum,
             Self::Fuel(_) => HyperlaneDomainProtocol::Fuel,
+            Self::Sealevel(_) => HyperlaneDomainProtocol::Sealevel,
         }
     }
 }
@@ -107,13 +113,7 @@ impl FromRawConf<'_, RawCoreContractAddresses> for CoreContractAddresses {
                         )
                     })
                     .take_err(&mut err, path)
-                    .and_then(|v| {
-                        if v.len() <= 42 {
-                            v.parse::<H160>().take_err(&mut err, path).map(Into::into)
-                        } else {
-                            v.parse().take_err(&mut err, path)
-                        }
-                    })
+                    .and_then(|v| hex_or_base58_to_h256(&v).take_err(&mut err, path))
             }};
         }
 
@@ -300,6 +300,11 @@ impl ChainConf {
             ))
     }
 
+    /// Fetch the index settings and index mode, since they are often used together.
+    pub fn index_settings_and_mode(&self) -> (IndexSettings, IndexMode) {
+        (self.index.clone(), self.domain.index_mode())
+    }
+
     /// Try to convert the chain settings into an HyperlaneProvider.
     pub async fn build_provider(
         &self,
@@ -312,8 +317,8 @@ impl ChainConf {
                 self.build_ethereum(conf, &locator, metrics, h_eth::HyperlaneProviderBuilder {})
                     .await
             }
-
             ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(_) => todo!(),
         }
         .context(ctx)
     }
@@ -332,6 +337,12 @@ impl ChainConf {
             ChainConnectionConf::Fuel(conf) => {
                 let wallet = self.fuel_signer().await.context(ctx)?;
                 hyperlane_fuel::FuelMailbox::new(conf, locator, wallet)
+                    .map(|m| Box::new(m) as Box<dyn Mailbox>)
+                    .map_err(Into::into)
+            }
+            ChainConnectionConf::Sealevel(conf) => {
+                let keypair = self.sealevel_signer().await.context(ctx)?;
+                h_sealevel::SealevelMailbox::new(conf, locator, keypair)
                     .map(|m| Box::new(m) as Box<dyn Mailbox>)
                     .map_err(Into::into)
             }
@@ -361,6 +372,10 @@ impl ChainConf {
             }
 
             ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(conf) => {
+                let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
+                Ok(indexer as Box<dyn MessageIndexer>)
+            }
         }
         .context(ctx)
     }
@@ -369,7 +384,7 @@ impl ChainConf {
     pub async fn build_delivery_indexer(
         &self,
         metrics: &CoreMetrics,
-    ) -> Result<Box<dyn Indexer<H256>>> {
+    ) -> Result<Box<dyn SequenceIndexer<H256>>> {
         let ctx = "Building delivery indexer";
         let locator = self.locator(self.addresses.mailbox);
 
@@ -387,6 +402,10 @@ impl ChainConf {
             }
 
             ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(conf) => {
+                let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
+                Ok(indexer as Box<dyn SequenceIndexer<H256>>)
+            }
         }
         .context(ctx)
     }
@@ -412,6 +431,12 @@ impl ChainConf {
             }
 
             ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(conf) => {
+                let paymaster = Box::new(h_sealevel::SealevelInterchainGasPaymaster::new(
+                    conf, locator,
+                ));
+                Ok(paymaster as Box<dyn InterchainGasPaymaster>)
+            }
         }
         .context(ctx)
     }
@@ -420,7 +445,7 @@ impl ChainConf {
     pub async fn build_interchain_gas_payment_indexer(
         &self,
         metrics: &CoreMetrics,
-    ) -> Result<Box<dyn Indexer<InterchainGasPayment>>> {
+    ) -> Result<Box<dyn SequenceIndexer<InterchainGasPayment>>> {
         let ctx = "Building IGP indexer";
         let locator = self.locator(self.addresses.interchain_gas_paymaster);
 
@@ -439,6 +464,12 @@ impl ChainConf {
             }
 
             ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(conf) => {
+                let indexer = Box::new(h_sealevel::SealevelInterchainGasPaymasterIndexer::new(
+                    conf, locator,
+                ));
+                Ok(indexer as Box<dyn SequenceIndexer<InterchainGasPayment>>)
+            }
         }
         .context(ctx)
     }
@@ -456,6 +487,10 @@ impl ChainConf {
             }
 
             ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(conf) => {
+                let va = Box::new(h_sealevel::SealevelValidatorAnnounce::new(conf, locator));
+                Ok(va as Box<dyn ValidatorAnnounce>)
+            }
         }
         .context("Building ValidatorAnnounce")
     }
@@ -482,6 +517,13 @@ impl ChainConf {
             }
 
             ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(conf) => {
+                let keypair = self.sealevel_signer().await.context(ctx)?;
+                let ism = Box::new(h_sealevel::SealevelInterchainSecurityModule::new(
+                    conf, locator, keypair,
+                ));
+                Ok(ism as Box<dyn InterchainSecurityModule>)
+            }
         }
         .context(ctx)
     }
@@ -502,6 +544,11 @@ impl ChainConf {
             }
 
             ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(conf) => {
+                let keypair = self.sealevel_signer().await.context(ctx)?;
+                let ism = Box::new(h_sealevel::SealevelMultisigIsm::new(conf, locator, keypair));
+                Ok(ism as Box<dyn MultisigIsm>)
+            }
         }
         .context(ctx)
     }
@@ -525,6 +572,9 @@ impl ChainConf {
             }
 
             ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(_) => {
+                Err(eyre!("Sealevel does not support routing ISM yet")).context(ctx)
+            }
         }
         .context(ctx)
     }
@@ -548,6 +598,9 @@ impl ChainConf {
             }
 
             ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(_) => {
+                Err(eyre!("Sealevel does not support aggregation ISM yet")).context(ctx)
+            }
         }
         .context(ctx)
     }
@@ -571,6 +624,9 @@ impl ChainConf {
             }
 
             ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(_) => {
+                Err(eyre!("Sealevel does not support CCIP read ISM yet")).context(ctx)
+            }
         }
         .context(ctx)
     }
@@ -593,6 +649,10 @@ impl ChainConf {
         })
     }
 
+    async fn sealevel_signer(&self) -> Result<Option<h_sealevel::Keypair>> {
+        self.signer().await
+    }
+
     /// Get a clone of the ethereum metrics conf with correctly configured
     /// contract information.
     fn metrics_conf(
@@ -610,7 +670,7 @@ impl ChainConf {
 
         if let Some(signer) = signer {
             cfg.wallets
-                .entry(signer.eth_address())
+                .entry(signer.eth_address().into())
                 .or_insert_with(|| WalletInfo {
                     name: Some(agent_name.into()),
                 });

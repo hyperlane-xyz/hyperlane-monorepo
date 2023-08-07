@@ -13,8 +13,8 @@ import {
   InterchainAccountDeployer,
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
-  objMap,
 } from '@hyperlane-xyz/sdk';
+import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
 import { helloWorldConfig } from '../config/environments/testnet3/helloworld';
@@ -33,6 +33,7 @@ import {
   getEnvironmentConfig,
   getEnvironmentDirectory,
   getModuleDirectory,
+  getProxiedRouterConfig,
   getRouterConfig,
   withContext,
   withModuleAndFork,
@@ -80,13 +81,16 @@ async function main() {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
-    config = await getRouterConfig(environment, multiProvider);
+    config = await getProxiedRouterConfig(environment, multiProvider);
     deployer = new InterchainAccountDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
-    config = await getRouterConfig(environment, multiProvider);
+    config = await getProxiedRouterConfig(environment, multiProvider);
     deployer = new InterchainQueryDeployer(multiProvider);
   } else if (module === Modules.LIQUIDITY_LAYER) {
-    const routerConfig = await getRouterConfig(environment, multiProvider);
+    const routerConfig = await getProxiedRouterConfig(
+      environment,
+      multiProvider,
+    );
     if (!envConfig.liquidityLayerConfig) {
       throw new Error(`No liquidity layer config for ${environment}`);
     }
@@ -117,7 +121,7 @@ async function main() {
     deployer = new TestQuerySenderDeployer(multiProvider, igp);
   } else if (module === Modules.HELLO_WORLD) {
     const routerConfig = await getRouterConfig(environment, multiProvider);
-    config = helloWorldConfig(context, routerConfig);
+    config = helloWorldConfig(environment, context, routerConfig);
     const ismFactory = HyperlaneIsmFactory.fromEnvironment(
       deployEnvToSdkEnv[environment],
       multiProvider,

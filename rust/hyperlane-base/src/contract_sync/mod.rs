@@ -5,7 +5,8 @@ use derive_new::new;
 use cursor::*;
 use hyperlane_core::{
     utils::fmt_sync_time, ContractSyncCursor, CursorAction, HyperlaneDomain, HyperlaneLogStore,
-    HyperlaneMessage, HyperlaneMessageStore, HyperlaneWatermarkedLogStore, Indexer, MessageIndexer,
+    HyperlaneMessage, HyperlaneMessageStore, HyperlaneWatermarkedLogStore, IndexMode, Indexer,
+    MessageIndexer, SequenceIndexer,
 };
 pub use metrics::ContractSyncMetrics;
 use std::fmt::Debug;
@@ -62,17 +63,16 @@ where
             indexed_height.set(cursor.latest_block() as i64);
             let Ok((action, eta)) = cursor.next_action().await else { continue };
             match action {
-                CursorAction::Query((from, to)) => {
-                    debug!(from, to, "Looking for for events in block range");
+                CursorAction::Query(range) => {
+                    debug!(?range, "Looking for for events in index range");
 
-                    let logs = self.indexer.fetch_logs(from, to).await?;
+                    let logs = self.indexer.fetch_logs(range.clone()).await?;
 
                     info!(
-                        from,
-                        to,
+                        ?range,
                         num_logs = logs.len(),
                         estimated_time_to_sync = fmt_sync_time(eta),
-                        "Found log(s) in block range"
+                        "Found log(s) in index range"
                     );
                     // Store deliveries
                     let stored = self.db.store_logs(&logs).await?;
@@ -91,7 +91,7 @@ where
 
 /// A ContractSync for syncing events using a RateLimitedContractSyncCursor
 pub type WatermarkContractSync<T> =
-    ContractSync<T, Arc<dyn HyperlaneWatermarkedLogStore<T>>, Arc<dyn Indexer<T>>>;
+    ContractSync<T, Arc<dyn HyperlaneWatermarkedLogStore<T>>, Arc<dyn SequenceIndexer<T>>>;
 impl<T> WatermarkContractSync<T>
 where
     T: Debug + Send + Sync + Clone + 'static,
@@ -100,6 +100,7 @@ where
     pub async fn rate_limited_cursor(
         &self,
         index_settings: IndexSettings,
+        index_mode: IndexMode,
     ) -> Box<dyn ContractSyncCursor<T>> {
         let watermark = self.db.retrieve_high_watermark().await.unwrap();
         let index_settings = IndexSettings {
@@ -112,6 +113,7 @@ where
                 self.db.clone(),
                 index_settings.chunk_size,
                 index_settings.from,
+                index_mode,
             )
             .await
             .unwrap(),
@@ -127,29 +129,32 @@ impl MessageContractSync {
     pub async fn forward_message_sync_cursor(
         &self,
         index_settings: IndexSettings,
+        index_mode: IndexMode,
         next_nonce: u32,
     ) -> Box<dyn ContractSyncCursor<HyperlaneMessage>> {
-        let forward_data = MessageSyncCursor::new(
+        Box::new(ForwardMessageSyncCursor::new(
             self.indexer.clone(),
             self.db.clone(),
             index_settings.chunk_size,
             index_settings.from,
             index_settings.from,
+            index_mode,
             next_nonce,
-        );
-        Box::new(ForwardMessageSyncCursor::new(forward_data))
+        ))
     }
 
     /// Returns a new cursor to be used for syncing dispatched messages from the indexer
     pub async fn forward_backward_message_sync_cursor(
         &self,
-        chunk_size: u32,
+        index_settings: IndexSettings,
+        index_mode: IndexMode,
     ) -> Box<dyn ContractSyncCursor<HyperlaneMessage>> {
         Box::new(
             ForwardBackwardMessageSyncCursor::new(
                 self.indexer.clone(),
                 self.db.clone(),
-                chunk_size,
+                index_settings.chunk_size,
+                index_mode,
             )
             .await
             .unwrap(),

@@ -1,9 +1,10 @@
 import { z } from 'zod';
 
+import { ProtocolType } from '@hyperlane-xyz/utils';
+
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
-import { ProtocolType } from './chainMetadataTypes';
 import {
   ChainMetadataWithArtifactsSchema,
   HyperlaneDeploymentArtifacts,
@@ -52,7 +53,10 @@ export type AgentMetadataExtension = z.infer<typeof AgentMetadataExtSchema>;
 export const ChainMetadataForAgentSchema =
   ChainMetadataWithArtifactsSchema.merge(AgentMetadataExtSchema);
 
-export type ChainMetadataForAgent = z.infer<typeof ChainMetadataForAgentSchema>;
+export type ChainMetadataForAgent<Ext = object> = z.infer<
+  typeof ChainMetadataForAgentSchema
+> &
+  Ext;
 
 /**
  * Deprecated agent config shapes.

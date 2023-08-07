@@ -12,12 +12,11 @@ import {
   HyperlaneCore,
   HyperlaneIgp,
   MultiProvider,
-  ProtocolType,
   RouterConfig,
   collectValidators,
-  objMap,
-  promiseObjAll,
 } from '@hyperlane-xyz/sdk';
+import { ProxiedRouterConfig } from '@hyperlane-xyz/sdk/dist/router/types';
+import { ProtocolType, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
 import { environments } from '../config/environments';
@@ -277,6 +276,17 @@ export async function getRouterConfig(
     };
   }
   return config;
+}
+
+export async function getProxiedRouterConfig(
+  environment: DeployEnvironment,
+  multiProvider: MultiProvider,
+): Promise<ChainMap<ProxiedRouterConfig>> {
+  const config = await getRouterConfig(environment, multiProvider);
+  return objMap(config, (chain, routerConfig) => ({
+    timelock: environments[environment].core[chain].upgrade?.timelock,
+    ...routerConfig,
+  }));
 }
 
 export function getValidatorsByChain(

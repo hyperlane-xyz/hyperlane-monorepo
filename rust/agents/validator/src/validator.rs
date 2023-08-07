@@ -143,12 +143,11 @@ impl BaseAgent for Validator {
 
 impl Validator {
     async fn run_message_sync(&self) -> Instrumented<JoinHandle<Result<()>>> {
-        let index_settings = self.as_ref().settings.chains[self.origin_chain.name()]
-            .index
-            .clone();
+        let (index_settings, index_mode) =
+            self.as_ref().settings.chains[self.origin_chain.name()].index_settings_and_mode();
         let contract_sync = self.message_sync.clone();
         let cursor = contract_sync
-            .forward_backward_message_sync_cursor(index_settings.chunk_size)
+            .forward_backward_message_sync_cursor(index_settings, index_mode)
             .await;
         tokio::spawn(async move {
             contract_sync
@@ -256,7 +255,10 @@ impl Validator {
                     info!("Validator has announced signature storage location");
                     break;
                 }
-                info!("Validator has not announced signature storage location");
+                info!(
+                    announced_locations=?locations,
+                    "Validator has not announced signature storage location"
+                );
                 let balance_delta = self
                     .validator_announce
                     .announce_tokens_needed(signed_announcement.clone())
@@ -268,7 +270,6 @@ impl Validator {
                         validator_address=?announcement.validator,
                         "Please send tokens to the validator address to announce",
                     );
-                    sleep(self.interval).await;
                 } else {
                     let result = self
                         .validator_announce
@@ -276,6 +277,7 @@ impl Validator {
                         .await;
                     Self::log_on_announce_failure(result);
                 }
+                sleep(self.interval).await;
             }
         }
         Ok(())

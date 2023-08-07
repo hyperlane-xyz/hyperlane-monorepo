@@ -323,7 +323,7 @@ mod test {
     }
 
     fn add_db_entry(db: &HyperlaneRocksDB, msg: &HyperlaneMessage, retry_count: u32) {
-        db.store_message(&msg, Default::default()).unwrap();
+        db.store_message(msg, Default::default()).unwrap();
         if retry_count > 0 {
             db.store_pending_message_retry_count_by_message_id(&msg.id(), &retry_count)
                 .unwrap();
@@ -343,14 +343,14 @@ mod test {
     /// Only adds database entries to the pending message prefix if the message's
     /// retry count is greater than zero
     fn persist_retried_messages(
-        retries: &Vec<u32>,
+        retries: &[u32],
         db: &HyperlaneRocksDB,
         destination_domain: &HyperlaneDomain,
     ) {
         let mut nonce = 0;
         retries.iter().for_each(|num_retries| {
-            let message = dummy_hyperlane_message(&destination_domain, nonce);
-            add_db_entry(&db, &message, *num_retries);
+            let message = dummy_hyperlane_message(destination_domain, nonce);
+            add_db_entry(db, &message, *num_retries);
             nonce += 1;
         });
     }
@@ -365,7 +365,7 @@ mod test {
         num_operations: usize,
     ) -> Vec<Box<DynPendingOperation>> {
         let (message_processor, mut receive_channel) =
-            dummy_message_processor(&origin_domain, &destination_domain, &db);
+            dummy_message_processor(origin_domain, destination_domain, db);
 
         let process_fut = message_processor.spawn();
         let mut pending_messages = vec![];

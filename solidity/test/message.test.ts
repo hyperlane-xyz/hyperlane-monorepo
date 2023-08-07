@@ -1,7 +1,11 @@
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
-import { utils } from '@hyperlane-xyz/utils';
+import {
+  addressToBytes32,
+  formatMessage,
+  messageId,
+} from '@hyperlane-xyz/utils';
 
 import testCases from '../../vectors/message.json';
 import { TestMessage, TestMessage__factory } from '../types';
@@ -25,7 +29,7 @@ describe('Message', async () => {
     const [sender, recipient] = await ethers.getSigners();
     const body = ethers.utils.formatBytes32String('message');
 
-    const message = utils.formatMessage(
+    const message = formatMessage(
       version,
       nonce,
       remoteDomain,
@@ -39,11 +43,11 @@ describe('Message', async () => {
     expect(await messageLib.nonce(message)).to.equal(nonce);
     expect(await messageLib.origin(message)).to.equal(remoteDomain);
     expect(await messageLib.sender(message)).to.equal(
-      utils.addressToBytes32(sender.address),
+      addressToBytes32(sender.address),
     );
     expect(await messageLib.destination(message)).to.equal(localDomain);
     expect(await messageLib.recipient(message)).to.equal(
-      utils.addressToBytes32(recipient.address),
+      addressToBytes32(recipient.address),
     );
     expect(await messageLib.recipientAddress(message)).to.equal(
       recipient.address,
@@ -57,7 +61,7 @@ describe('Message', async () => {
 
       const hexBody = ethers.utils.hexlify(body);
 
-      const hyperlaneMessage = utils.formatMessage(
+      const hyperlaneMessage = formatMessage(
         version,
         nonce,
         origin,
@@ -74,7 +78,7 @@ describe('Message', async () => {
       );
       expect(await messageLib.recipient(hyperlaneMessage)).to.equal(recipient);
       expect(await messageLib.body(hyperlaneMessage)).to.equal(hexBody);
-      expect(utils.messageId(hyperlaneMessage)).to.equal(id);
+      expect(messageId(hyperlaneMessage)).to.equal(id);
     }
   });
 });

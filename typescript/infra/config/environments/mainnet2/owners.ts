@@ -1,6 +1,7 @@
 import { ChainMap } from '@hyperlane-xyz/sdk';
+import { Address } from '@hyperlane-xyz/utils';
 
-export const owners: ChainMap<string> = {
+export const owners: ChainMap<Address> = {
   celo: '0x1DE69322B55AC7E0999F8e7738a1428C8b130E4d',
   ethereum: '0x12C5AB61Fe17dF9c65739DBa73dF294708f78d23',
   avalanche: '0xDF9B28B76877f1b1B4B8a11526Eb7D8D7C49f4f3',

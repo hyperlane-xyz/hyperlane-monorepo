@@ -80,12 +80,12 @@ hyperlane:
         cpu: 100m
         memory: 256Mi
     # -- How long to wait between checking for updates
-    configs:
-      - interval:
-        reorgPeriod:
-        checkpointSyncers:
-        originChainName:
-        type: # "hexKey"
+    configs: []
+      # - interval:
+      #   reorgPeriod:
+      #   checkpointSyncers:
+      #   originChainName:
+      #   type: # "hexKey"
 
   relayer:
     enabled: false

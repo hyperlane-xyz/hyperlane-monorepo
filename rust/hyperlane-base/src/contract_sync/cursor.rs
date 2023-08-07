@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use std::fmt::Debug;
+use std::ops::RangeInclusive;
 use std::{
     sync::Arc,
     time::{Duration, Instant},
@@ -13,7 +14,7 @@ use tracing::{debug, warn};
 
 use hyperlane_core::{
     ChainResult, ContractSyncCursor, CursorAction, HyperlaneMessage, HyperlaneMessageStore,
-    HyperlaneWatermarkedLogStore, Indexer, LogMeta, MessageIndexer,
+    HyperlaneWatermarkedLogStore, IndexMode, Indexer, LogMeta, MessageIndexer, SequenceIndexer,
 };
 
 use crate::contract_sync::eta_calculator::SyncerEtaCalculator;
@@ -21,19 +22,79 @@ use crate::contract_sync::eta_calculator::SyncerEtaCalculator;
 /// Time window for the moving average used in the eta calculator in seconds.
 const ETA_TIME_WINDOW: f64 = 2. * 60.;
 
+const MAX_SEQUENCE_RANGE: u32 = 100;
+
 /// A struct that holds the data needed for forwards and backwards
 /// message sync cursors.
 #[derive(Debug, new)]
 pub(crate) struct MessageSyncCursor {
     indexer: Arc<dyn MessageIndexer>,
     db: Arc<dyn HyperlaneMessageStore>,
+    sync_state: SyncState,
+}
+
+#[derive(Debug, new)]
+pub(crate) struct SyncState {
     chunk_size: u32,
     /// The starting block for the cursor
     start_block: u32,
     /// The next block that should be indexed.
     next_block: u32,
-    /// The next nonce that the cursor is looking for.
-    next_nonce: u32,
+    mode: IndexMode,
+    /// The next sequence index that the cursor is looking for.
+    /// In the EVM, this is used for optimizing indexing,
+    /// because it's cheaper to make read calls for the sequence index than
+    /// to call `eth_getLogs` with a block range.
+    /// In Sealevel, historic queries aren't supported, so the nonce field
+    /// is used to query storage in sequence.
+    next_sequence: u32,
+    direction: SyncDirection,
+}
+
+impl SyncState {
+    async fn get_next_range(
+        &mut self,
+        max_sequence_index: Option<u32>,
+        tip: Option<u32>,
+    ) -> ChainResult<Option<RangeInclusive<u32>>> {
+        // We attempt to index a range of blocks that is as large as possible.
+        let (from, to) = match self.direction {
+            SyncDirection::Forward => {
+                let from = self.next_block;
+                let mut to = from + self.chunk_size;
+                if let Some(tip) = tip {
+                    to = u32::min(to, tip);
+                }
+                self.next_block = to + 1;
+                (from, to)
+            }
+            SyncDirection::Backward => {
+                let to = self.next_block;
+                let from = to.saturating_sub(self.chunk_size);
+                self.next_block = from.saturating_sub(1);
+                (from, to)
+            }
+        };
+        let range = match self.mode {
+            IndexMode::Block => from..=to,
+            IndexMode::Sequence => {
+                let sequence_start = self.next_sequence;
+                let mut sequence_end = sequence_start + MAX_SEQUENCE_RANGE;
+                if let Some(max_sequence_index) = max_sequence_index {
+                    sequence_end = u32::min(sequence_end, max_sequence_index.saturating_sub(1));
+                }
+                self.next_sequence = sequence_end + 1;
+                if let Some(tip) = tip {
+                    self.next_block = tip;
+                }
+                sequence_start..=sequence_end
+            }
+        };
+        if range.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(range))
+    }
 }
 
 impl MessageSyncCursor {
@@ -56,19 +117,23 @@ impl MessageSyncCursor {
     async fn update(
         &mut self,
         logs: Vec<(HyperlaneMessage, LogMeta)>,
-        prev_nonce: u32,
-    ) -> eyre::Result<()> {
+        prev_sequence: u32,
+    ) -> Result<()> {
         // If we found messages, but did *not* find the message we were looking for,
         // we need to rewind to the block at which we found the last message.
-        if !logs.is_empty() && !logs.iter().any(|m| m.0.nonce == self.next_nonce) {
-            warn!(next_nonce=?self.next_nonce, "Target nonce not found, rewinding");
+        if !logs.is_empty()
+            && !logs
+                .iter()
+                .any(|m| m.0.nonce == self.sync_state.next_sequence)
+        {
+            warn!(next_nonce=?self.sync_state.next_sequence, "Target nonce not found, rewinding");
             // If the previous nonce has been synced, rewind to the block number
             // at which it was dispatched. Otherwise, rewind all the way back to the start block.
-            if let Some(block_number) = self.retrieve_dispatched_block_number(prev_nonce).await {
-                self.next_block = block_number;
+            if let Some(block_number) = self.retrieve_dispatched_block_number(prev_sequence).await {
+                self.sync_state.next_block = block_number;
                 warn!(block_number, "Rewound to previous known message");
             } else {
-                self.next_block = self.start_block;
+                self.sync_state.next_block = self.sync_state.start_block;
             }
             Ok(())
         } else {
@@ -78,60 +143,84 @@ impl MessageSyncCursor {
 }
 
 /// A MessageSyncCursor that syncs forwards in perpetuity.
-#[derive(new)]
-pub(crate) struct ForwardMessageSyncCursor(MessageSyncCursor);
+pub(crate) struct ForwardMessageSyncCursor {
+    cursor: MessageSyncCursor,
+}
 
 impl ForwardMessageSyncCursor {
-    async fn get_next_range(&mut self) -> ChainResult<Option<(u32, u32)>> {
+    pub fn new(
+        indexer: Arc<dyn MessageIndexer>,
+        db: Arc<dyn HyperlaneMessageStore>,
+        chunk_size: u32,
+        start_block: u32,
+        next_block: u32,
+        mode: IndexMode,
+        next_sequence: u32,
+    ) -> Self {
+        Self {
+            cursor: MessageSyncCursor::new(
+                indexer,
+                db,
+                SyncState::new(
+                    chunk_size,
+                    start_block,
+                    next_block,
+                    mode,
+                    next_sequence,
+                    SyncDirection::Forward,
+                ),
+            ),
+        }
+    }
+
+    async fn get_next_range(&mut self) -> ChainResult<Option<RangeInclusive<u32>>> {
         // Check if any new messages have been inserted into the DB,
         // and update the cursor accordingly.
         while self
-            .0
-            .retrieve_message_by_nonce(self.0.next_nonce)
+            .cursor
+            .retrieve_message_by_nonce(self.cursor.sync_state.next_sequence)
             .await
             .is_some()
         {
             if let Some(block_number) = self
-                .0
-                .retrieve_dispatched_block_number(self.0.next_nonce)
+                .cursor
+                .retrieve_dispatched_block_number(self.cursor.sync_state.next_sequence)
                 .await
             {
                 debug!(next_block = block_number, "Fast forwarding next block");
                 // It's possible that eth_getLogs dropped logs from this block, therefore we cannot do block_number + 1.
-                self.0.next_block = block_number;
+                self.cursor.sync_state.next_block = block_number;
             }
             debug!(
-                next_nonce = self.0.next_nonce + 1,
+                next_nonce = self.cursor.sync_state.next_sequence + 1,
                 "Fast forwarding next nonce"
             );
-            self.0.next_nonce += 1;
+            self.cursor.sync_state.next_sequence += 1;
         }
 
-        let (mailbox_count, tip) = self.0.indexer.fetch_count_at_tip().await?;
-        let cursor_count = self.0.next_nonce;
-        let cmp = cursor_count.cmp(&mailbox_count);
-        match cmp {
+        let (mailbox_count, tip) = self.cursor.indexer.fetch_count_at_tip().await?;
+        let cursor_count = self.cursor.sync_state.next_sequence;
+        Ok(match cursor_count.cmp(&mailbox_count) {
             Ordering::Equal => {
                 // We are synced up to the latest nonce so we don't need to index anything.
                 // We update our next block number accordingly.
-                self.0.next_block = tip;
-                Ok(None)
+                self.cursor.sync_state.next_block = tip;
+                None
             }
             Ordering::Less => {
                 // The cursor is behind the mailbox, so we need to index some blocks.
-                // We attempt to index a range of blocks that is as large as possible.
-                let from = self.0.next_block;
-                let to = u32::min(tip, from + self.0.chunk_size);
-                self.0.next_block = to + 1;
-                Ok(Some((from, to)))
+                self.cursor
+                    .sync_state
+                    .get_next_range(Some(mailbox_count), Some(tip))
+                    .await?
             }
             Ordering::Greater => {
                 // Providers may be internally inconsistent, e.g. RPC request A could hit a node
                 // whose tip is N and subsequent RPC request B could hit a node whose tip is < N.
                 debug!("Cursor count is greater than Mailbox count");
-                Ok(None)
+                None
             }
-        }
+        })
     }
 }
 
@@ -149,89 +238,118 @@ impl ContractSyncCursor<HyperlaneMessage> for ForwardMessageSyncCursor {
     }
 
     fn latest_block(&self) -> u32 {
-        self.0.next_block.saturating_sub(1)
+        self.cursor.sync_state.next_block.saturating_sub(1)
     }
 
     /// If the previous block has been synced, rewind to the block number
     /// at which it was dispatched.
     /// Otherwise, rewind all the way back to the start block.
-    async fn update(&mut self, logs: Vec<(HyperlaneMessage, LogMeta)>) -> eyre::Result<()> {
-        let prev_nonce = self.0.next_nonce.saturating_sub(1);
+    async fn update(&mut self, logs: Vec<(HyperlaneMessage, LogMeta)>) -> Result<()> {
+        let prev_nonce = self.cursor.sync_state.next_sequence.saturating_sub(1);
         // We may wind up having re-indexed messages that are previous to the nonce that we are looking for.
         // We should not consider these messages when checking for continuity errors.
         let filtered_logs = logs
             .into_iter()
-            .filter(|m| m.0.nonce >= self.0.next_nonce)
+            .filter(|m| m.0.nonce >= self.cursor.sync_state.next_sequence)
             .collect();
-        self.0.update(filtered_logs, prev_nonce).await
+        self.cursor.update(filtered_logs, prev_nonce).await
     }
 }
 
-/// A MessageSyncCursor that syncs backwards to nonce zero.
-#[derive(new)]
+/// A MessageSyncCursor that syncs backwards to sequence (nonce) zero.
 pub(crate) struct BackwardMessageSyncCursor {
     cursor: MessageSyncCursor,
     synced: bool,
 }
 
 impl BackwardMessageSyncCursor {
-    async fn get_next_range(&mut self) -> Option<(u32, u32)> {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        indexer: Arc<dyn MessageIndexer>,
+        db: Arc<dyn HyperlaneMessageStore>,
+        chunk_size: u32,
+        start_block: u32,
+        next_block: u32,
+        mode: IndexMode,
+        next_sequence: u32,
+        synced: bool,
+    ) -> Self {
+        Self {
+            cursor: MessageSyncCursor::new(
+                indexer,
+                db,
+                SyncState::new(
+                    chunk_size,
+                    start_block,
+                    next_block,
+                    mode,
+                    next_sequence,
+                    SyncDirection::Backward,
+                ),
+            ),
+            synced,
+        }
+    }
+
+    async fn get_next_range(&mut self) -> ChainResult<Option<RangeInclusive<u32>>> {
         // Check if any new messages have been inserted into the DB,
         // and update the cursor accordingly.
         while !self.synced {
             if self
                 .cursor
-                .retrieve_message_by_nonce(self.cursor.next_nonce)
+                .retrieve_message_by_nonce(self.cursor.sync_state.next_sequence)
                 .await
                 .is_none()
             {
                 break;
             };
-            // If we found nonce zero or hit block zero, we are done rewinding.
-            if self.cursor.next_nonce == 0 || self.cursor.next_block == 0 {
+            // If we found sequence zero or hit block zero, we are done rewinding.
+            if self.cursor.sync_state.next_sequence == 0 || self.cursor.sync_state.next_block == 0 {
                 self.synced = true;
                 break;
             }
 
             if let Some(block_number) = self
                 .cursor
-                .retrieve_dispatched_block_number(self.cursor.next_nonce)
+                .retrieve_dispatched_block_number(self.cursor.sync_state.next_sequence)
                 .await
             {
                 // It's possible that eth_getLogs dropped logs from this block, therefore we cannot do block_number - 1.
-                self.cursor.next_block = block_number;
+                self.cursor.sync_state.next_block = block_number;
             }
 
-            self.cursor.next_nonce = self.cursor.next_nonce.saturating_sub(1);
+            self.cursor.sync_state.next_sequence =
+                self.cursor.sync_state.next_sequence.saturating_sub(1);
         }
         if self.synced {
-            return None;
+            return Ok(None);
         }
 
         // Just keep going backwards.
-        let to = self.cursor.next_block;
-        let from = to.saturating_sub(self.cursor.chunk_size);
-        self.cursor.next_block = from.saturating_sub(1);
-        // TODO: Consider returning a proper ETA for the backwards pass
-        Some((from, to))
+        let (count, tip) = self.cursor.indexer.fetch_count_at_tip().await?;
+        self.cursor
+            .sync_state
+            .get_next_range(Some(count), Some(tip))
+            .await
     }
 
     /// If the previous block has been synced, rewind to the block number
     /// at which it was dispatched.
     /// Otherwise, rewind all the way back to the start block.
-    async fn update(&mut self, logs: Vec<(HyperlaneMessage, LogMeta)>) -> eyre::Result<()> {
-        let prev_nonce = self.cursor.next_nonce.saturating_add(1);
-        // We may wind up having re-indexed messages that are previous to the nonce that we are looking for.
+    async fn update(&mut self, logs: Vec<(HyperlaneMessage, LogMeta)>) -> Result<()> {
+        let prev_sequence = self.cursor.sync_state.next_sequence.saturating_add(1);
+        // We may wind up having re-indexed messages that are previous to the sequence (nonce) that we are looking for.
         // We should not consider these messages when checking for continuity errors.
         let filtered_logs = logs
             .into_iter()
-            .filter(|m| m.0.nonce <= self.cursor.next_nonce)
+            .filter(|m| m.0.nonce <= self.cursor.sync_state.next_sequence)
             .collect();
-        self.cursor.update(filtered_logs, prev_nonce).await
+        self.cursor.update(filtered_logs, prev_sequence).await
     }
 }
 
-enum SyncDirection {
+#[derive(Debug)]
+pub enum SyncDirection {
     Forward,
     Backward,
 }
@@ -249,26 +367,26 @@ impl ForwardBackwardMessageSyncCursor {
         indexer: Arc<dyn MessageIndexer>,
         db: Arc<dyn HyperlaneMessageStore>,
         chunk_size: u32,
+        mode: IndexMode,
     ) -> Result<Self> {
         let (count, tip) = indexer.fetch_count_at_tip().await?;
-        let forward_cursor = ForwardMessageSyncCursor::new(MessageSyncCursor::new(
+        let forward_cursor = ForwardMessageSyncCursor::new(
             indexer.clone(),
             db.clone(),
             chunk_size,
             tip,
             tip,
+            mode,
             count,
-        ));
-
+        );
         let backward_cursor = BackwardMessageSyncCursor::new(
-            MessageSyncCursor::new(
-                indexer.clone(),
-                db.clone(),
-                chunk_size,
-                tip,
-                tip,
-                count.saturating_sub(1),
-            ),
+            indexer.clone(),
+            db.clone(),
+            chunk_size,
+            tip,
+            tip,
+            mode,
+            count.saturating_sub(1),
             count == 0,
         );
         Ok(Self {
@@ -290,7 +408,7 @@ impl ContractSyncCursor<HyperlaneMessage> for ForwardBackwardMessageSyncCursor {
             return Ok((CursorAction::Query(forward_range), eta));
         }
 
-        if let Some(backward_range) = self.backward.get_next_range().await {
+        if let Some(backward_range) = self.backward.get_next_range().await? {
             self.direction = SyncDirection::Backward;
             return Ok((CursorAction::Query(backward_range), eta));
         }
@@ -299,10 +417,10 @@ impl ContractSyncCursor<HyperlaneMessage> for ForwardBackwardMessageSyncCursor {
     }
 
     fn latest_block(&self) -> u32 {
-        self.forward.0.next_block.saturating_sub(1)
+        self.forward.cursor.sync_state.next_block.saturating_sub(1)
     }
 
-    async fn update(&mut self, logs: Vec<(HyperlaneMessage, LogMeta)>) -> eyre::Result<()> {
+    async fn update(&mut self, logs: Vec<(HyperlaneMessage, LogMeta)>) -> Result<()> {
         match self.direction {
             SyncDirection::Forward => self.forward.update(logs).await,
             SyncDirection::Backward => self.backward.update(logs).await,
@@ -314,41 +432,46 @@ impl ContractSyncCursor<HyperlaneMessage> for ForwardBackwardMessageSyncCursor {
 /// queried is and also handling rate limiting. Rate limiting is automatically
 /// performed by `next_action`.
 pub(crate) struct RateLimitedContractSyncCursor<T> {
-    indexer: Arc<dyn Indexer<T>>,
+    indexer: Arc<dyn SequenceIndexer<T>>,
     db: Arc<dyn HyperlaneWatermarkedLogStore<T>>,
     tip: u32,
     last_tip_update: Instant,
-    chunk_size: u32,
-    from: u32,
     eta_calculator: SyncerEtaCalculator,
-    initial_height: u32,
+    sync_state: SyncState,
 }
 
 impl<T> RateLimitedContractSyncCursor<T> {
     /// Construct a new contract sync helper.
     pub async fn new(
-        indexer: Arc<dyn Indexer<T>>,
+        indexer: Arc<dyn SequenceIndexer<T>>,
         db: Arc<dyn HyperlaneWatermarkedLogStore<T>>,
         chunk_size: u32,
         initial_height: u32,
+        mode: IndexMode,
     ) -> Result<Self> {
         let tip = indexer.get_finalized_block_number().await?;
         Ok(Self {
             indexer,
             db,
             tip,
-            chunk_size,
             last_tip_update: Instant::now(),
-            from: initial_height,
-            initial_height,
             eta_calculator: SyncerEtaCalculator::new(initial_height, tip, ETA_TIME_WINDOW),
+            sync_state: SyncState::new(
+                chunk_size,
+                initial_height,
+                initial_height,
+                mode,
+                Default::default(),
+                // The rate limited cursor currently only syncs in the forward direction.
+                SyncDirection::Forward,
+            ),
         })
     }
 
     /// Wait based on how close we are to the tip and update the tip,
     /// i.e. the highest block we may scrape.
     async fn get_rate_limit(&mut self) -> ChainResult<Option<Duration>> {
-        if self.from + self.chunk_size < self.tip {
+        if self.sync_state.next_block + self.sync_state.chunk_size < self.tip {
             // If doing the full chunk wouldn't exceed the already known tip we do not need to rate limit.
             Ok(None)
         } else {
@@ -383,8 +506,11 @@ where
     T: Send + Debug + 'static,
 {
     async fn next_action(&mut self) -> ChainResult<(CursorAction, Duration)> {
-        let to = u32::min(self.tip, self.from + self.chunk_size);
-        let from = to.saturating_sub(self.chunk_size);
+        let to = u32::min(
+            self.tip,
+            self.sync_state.next_block + self.sync_state.chunk_size,
+        );
+        let from = to.saturating_sub(self.sync_state.chunk_size);
         let eta = if to < self.tip {
             self.eta_calculator.calculate(from, self.tip)
         } else {
@@ -392,25 +518,32 @@ where
         };
 
         let rate_limit = self.get_rate_limit().await?;
-        if let Some(rate_limit) = rate_limit {
-            return Ok((CursorAction::Sleep(rate_limit), eta));
+        let action = if let Some(rate_limit) = rate_limit {
+            CursorAction::Sleep(rate_limit)
         } else {
-            self.from = to + 1;
-            return Ok((CursorAction::Query((from, to)), eta));
-        }
+            // According to the logic in `get_rate_limit` we should be able to safely unwrap here.
+            // However, take the safer option and fall back to a zero duration sleep
+            match self.sync_state.get_next_range(None, None).await? {
+                Some(range) => CursorAction::Query(range),
+                None => CursorAction::Sleep(Duration::from_secs(0)),
+            }
+        };
+        Ok((action, eta))
     }
 
     fn latest_block(&self) -> u32 {
-        self.from.saturating_sub(1)
+        self.sync_state.next_block.saturating_sub(1)
     }
 
-    async fn update(&mut self, _: Vec<(T, LogMeta)>) -> eyre::Result<()> {
+    async fn update(&mut self, _: Vec<(T, LogMeta)>) -> Result<()> {
         // Store a relatively conservative view of the high watermark, which should allow a single watermark to be
         // safely shared across multiple cursors, so long as they are running sufficiently in sync
         self.db
             .store_high_watermark(u32::max(
-                self.initial_height,
-                self.from.saturating_sub(self.chunk_size),
+                self.sync_state.start_block,
+                self.sync_state
+                    .next_block
+                    .saturating_sub(self.sync_state.chunk_size),
             ))
             .await?;
         Ok(())

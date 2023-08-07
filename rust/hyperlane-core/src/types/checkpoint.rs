@@ -1,10 +1,10 @@
-use derive_more::Deref;
-use ethers_core::types::{Address, Signature};
-use serde::{Deserialize, Serialize};
-use sha3::{digest::Update, Digest, Keccak256};
 use std::fmt::Debug;
 
-use crate::{utils::domain_hash, Signable, SignedType, H256};
+use derive_more::Deref;
+use serde::{Deserialize, Serialize};
+use sha3::{digest::Update, Digest, Keccak256};
+
+use crate::{utils::domain_hash, Signable, Signature, SignedType, H160, H256};
 
 /// An Hyperlane checkpoint
 #[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize, Debug)]
@@ -73,7 +73,7 @@ pub type SignedCheckpointWithMessageId = SignedType<CheckpointWithMessageId>;
 #[derive(Clone, Debug)]
 pub struct SignedCheckpointWithSigner<T: Signable> {
     /// The recovered signer
-    pub signer: Address,
+    pub signer: H160,
     /// The signed checkpoint
     pub signed_checkpoint: SignedType<T>,
 }
@@ -84,7 +84,7 @@ pub struct SignatureWithSigner {
     /// The signature
     pub signature: Signature,
     /// The signer of the signature
-    pub signer: Address,
+    pub signer: H160,
 }
 
 /// A checkpoint and multiple signatures

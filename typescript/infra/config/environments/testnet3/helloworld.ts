@@ -3,14 +3,14 @@ import {
   AgentConnectionType,
   ChainMap,
   RouterConfig,
-  objMap,
 } from '@hyperlane-xyz/sdk';
+import { objMap } from '@hyperlane-xyz/utils';
 
-import { HelloWorldConfig } from '../../../src/config';
+import { DeployEnvironment, HelloWorldConfig } from '../../../src/config';
 import { HelloWorldKathyRunMode } from '../../../src/config/helloworld';
+import { aggregationIsm } from '../../aggregationIsm';
 import { Contexts } from '../../contexts';
 
-import { aggregationIsm } from './aggregationIsm';
 import { environment } from './chains';
 import hyperlaneAddresses from './helloworld/hyperlane/addresses.json';
 import rcAddresses from './helloworld/rc/addresses.json';
@@ -60,10 +60,11 @@ export const helloWorld = {
 };
 
 export const helloWorldConfig = (
+  environment: DeployEnvironment,
   context: Contexts,
   routerConfigMap: ChainMap<RouterConfig>,
 ): ChainMap<HelloWorldContractsConfig> =>
   objMap(routerConfigMap, (chain, routerConfig) => ({
     ...routerConfig,
-    interchainSecurityModule: aggregationIsm(chain, context),
+    interchainSecurityModule: aggregationIsm(environment, chain, context),
   }));

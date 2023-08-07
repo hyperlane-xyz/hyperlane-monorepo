@@ -3,12 +3,13 @@ import { providers } from 'ethers';
 import {
   ChainMap,
   ChainName,
+  GasConfig,
   GasRouterDeployer,
   HyperlaneContracts,
   MultiProvider,
-  objMap,
+  RouterConfig,
 } from '@hyperlane-xyz/sdk';
-import { GasConfig, RouterConfig } from '@hyperlane-xyz/sdk/dist/router/types';
+import { objMap } from '@hyperlane-xyz/utils';
 
 import {
   CollateralConfig,
@@ -110,7 +111,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
     );
     // Filter out undefined values
     const definedConfigMetadata = Object.fromEntries(
-      Object.entries(metadata).filter(([_, v]) => v !== undefined),
+      Object.entries(metadata).filter(([k, v]) => !!k && !!v),
     );
     return {
       ...fetchedMetadata,
