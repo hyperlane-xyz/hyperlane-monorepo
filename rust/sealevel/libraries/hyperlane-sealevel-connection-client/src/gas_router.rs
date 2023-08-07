@@ -67,6 +67,7 @@ impl<T> HyperlaneGasRouterAccessControl for T where T: HyperlaneGasRouter + Acce
 
 /// The Hyperlane gas router pattern with a helper function to dispatch messages
 /// to a remote routers & pay for gas with the configured gas amount.
+#[allow(clippy::too_many_arguments)]
 pub trait HyperlaneGasRouterDispatch: HyperlaneGasRouter + HyperlaneRouterDispatch {
     fn dispatch_with_gas(
         &self,

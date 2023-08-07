@@ -134,6 +134,7 @@ pub trait HyperlaneRouterDispatch: HyperlaneRouter + HyperlaneConnectionClient {
     /// Dispatches a message to the remote router for the provided destination domain,
     /// paying for gas with the IGP.
     /// Errors if there is no IGP configured.
+    #[allow(clippy::too_many_arguments)]
     fn dispatch_with_gas(
         &self,
         program_id: &Pubkey,
