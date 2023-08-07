@@ -262,6 +262,7 @@ pub fn set_gas_oracle_configs_instruction(
 }
 
 /// Gets an instruction to pay for gas
+#[allow(clippy::too_many_arguments)]
 pub fn pay_for_gas_instruction(
     program_id: Pubkey,
     payer: Pubkey,
