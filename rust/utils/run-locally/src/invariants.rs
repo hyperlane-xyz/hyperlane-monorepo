@@ -47,6 +47,17 @@ pub fn termination_invariants_met(
     )?
     .iter()
     .sum::<u32>();
+
+    let gas_payment_sealevel_events_count = fetch_metric(
+        "9092",
+        "hyperlane_contract_sync_stored_events",
+        &hashmap! {
+                "data_type" => "gas_payments",
+                "chain" => "sealeveltest",
+        },
+    )?
+    .iter()
+    .sum::<u32>();
     // TestSendReceiver randomly breaks gas payments up into
     // two. So we expect at least as many gas payments as messages.
     if gas_payment_events_count < total_messages_expected {
@@ -87,11 +98,14 @@ pub fn termination_invariants_met(
     .iter()
     .sum::<u32>();
     // The relayer and scraper should have the same number of gas payments.
-    if gas_payments_scraped != gas_payment_events_count {
+    // TODO: Sealevel gas payments are not yet indexed.
+    // For now, treat as an exception in the invariants.
+    let expected_gas_payments = gas_payment_events_count - gas_payment_sealevel_events_count;
+    if gas_payments_scraped != expected_gas_payments {
         log!(
             "Scraper has scraped {} gas payments, expected {}",
             gas_payments_scraped,
-            eth_messages_expected
+            expected_gas_payments
         );
         return Ok(false);
     }

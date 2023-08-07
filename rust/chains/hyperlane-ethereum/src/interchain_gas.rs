@@ -12,7 +12,7 @@ use hyperlane_core::{
     HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster,
     InterchainGasPayment, LogMeta, SequenceIndexer, H160, H256,
 };
-use tracing::{info, instrument};
+use tracing::{instrument, log::trace};
 
 use crate::contracts::i_interchain_gas_paymaster::{
     IInterchainGasPaymaster as EthereumInterchainGasPaymasterInternal, IINTERCHAINGASPAYMASTER_ABI,
@@ -136,7 +136,7 @@ where
         // TODO: if `SequenceIndexer` turns out to not depend on `Indexer` at all, then the supertrait
         // dependency could be removed, even if the builder would still need to return a type that is both
         // ``SequenceIndexer` and `Indexer`.
-        info!("Gas payment nonce indexing not implemented");
+        trace!("Gas payment nonce indexing not implemented");
         Ok(None)
     }
 }
