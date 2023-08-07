@@ -616,9 +616,9 @@ dependencies = [
 
 [[package]]
 name = "blake3"
-version = "1.4.1"
+version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "199c42ab6972d92c9f8995f086273d25c42fc0f7b2a1fcefba465c1352d25ba5"
+checksum = "729b71f35bd3fa1a4c86b85d32c8b9069ea7fe14f7a53cfabb65f62d4265b888"
 dependencies = [
  "arrayref",
  "arrayvec",
@@ -1050,7 +1050,7 @@ dependencies = [
  "bitflags 1.3.2",
  "clap_derive 3.2.25",
  "clap_lex 0.2.4",
- "indexmap 1.9.3",
+ "indexmap",
  "once_cell",
  "strsim 0.10.0",
  "termcolor",
@@ -1295,9 +1295,9 @@ checksum = "795bc6e66a8e340f075fcf6227e417a2dc976b92b91f3cdc778bb858778b6747"
 
 [[package]]
 name = "constant_time_eq"
-version = "0.3.0"
+version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7144d30dcf0fafbce74250a3963025d8d52177934239851c917d29f1df280c2"
+checksum = "21a53c0a4d288377e7415b53dcfc3c04da5cdc2cc95c8d5ac178b58f0b861ad6"
 
 [[package]]
 name = "convert_case"
@@ -2163,12 +2163,6 @@ dependencies = [
  "regex",
  "termcolor",
 ]
-
-[[package]]
-name = "equivalent"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
 
 [[package]]
 name = "errno"
@@ -3265,7 +3259,7 @@ dependencies = [
  "futures-sink",
  "futures-util",
  "http",
- "indexmap 1.9.3",
+ "indexmap",
  "slab",
  "tokio",
  "tokio-util 0.7.8",
@@ -3841,6 +3835,7 @@ dependencies = [
  "access-control",
  "account-utils",
  "base64 0.13.1",
+ "blake3",
  "borsh 0.9.3",
  "getrandom 0.2.10",
  "hyperlane-core",
@@ -3850,6 +3845,7 @@ dependencies = [
  "log",
  "num-derive",
  "num-traits",
+ "proc-macro-crate 1.2.1",
  "serializable-account-meta",
  "solana-program",
  "spl-noop",
@@ -4043,7 +4039,7 @@ dependencies = [
  "solana-program-test",
  "solana-sdk",
  "spl-noop",
- "tarpc 0.33.0",
+ "tarpc",
  "thiserror",
 ]
 
@@ -4260,16 +4256,6 @@ checksum = "bd070e393353796e801d209ad339e89596eb4c8d430d18ede6a1cced8fafbd99"
 dependencies = [
  "autocfg",
  "hashbrown 0.12.3",
-]
-
-[[package]]
-name = "indexmap"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d5477fe2230a79769d8dc68e0eabf5437907c0457a5614a9e8dddb67f65eb65d"
-dependencies = [
- "equivalent",
- "hashbrown 0.14.0",
 ]
 
 [[package]]
@@ -5044,7 +5030,7 @@ version = "0.5.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dcbff9bc912032c62bf65ef1d5aea88983b420f4f839db1e9b0c281a25c9c799"
 dependencies = [
- "proc-macro-crate 1.3.1",
+ "proc-macro-crate 1.2.1",
  "proc-macro2 1.0.66",
  "quote 1.0.32",
  "syn 1.0.109",
@@ -5056,7 +5042,7 @@ version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "96667db765a921f7b295ffee8b60472b686a51d4f21c2ee4ffdb94c7013b65a6"
 dependencies = [
- "proc-macro-crate 1.3.1",
+ "proc-macro-crate 1.2.1",
  "proc-macro2 1.0.66",
  "quote 1.0.32",
  "syn 2.0.28",
@@ -5274,7 +5260,7 @@ dependencies = [
  "fnv",
  "futures-channel",
  "futures-util",
- "indexmap 1.9.3",
+ "indexmap",
  "js-sys",
  "once_cell",
  "pin-project-lite",
@@ -5383,7 +5369,7 @@ version = "3.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2a296c3079b5fefbc499e1de58dc26c09b1b9a5952d26694ee89f04a43ebbb3e"
 dependencies = [
- "proc-macro-crate 1.3.1",
+ "proc-macro-crate 1.2.1",
  "proc-macro2 1.0.66",
  "quote 1.0.32",
  "syn 1.0.109",
@@ -5756,12 +5742,13 @@ dependencies = [
 
 [[package]]
 name = "proc-macro-crate"
-version = "1.3.1"
+version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f4c021e1093a56626774e81216a4ce732a735e5bad4868a03f3ed65ca0c3919"
+checksum = "eda0fc3b0fb7c975631757e14d9049da17374063edb6ebbcbc54d880d4fe94e9"
 dependencies = [
  "once_cell",
- "toml_edit",
+ "thiserror",
+ "toml",
 ]
 
 [[package]]
@@ -6700,7 +6687,7 @@ version = "2.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "912e55f6d20e0e80d63733872b40e1227c0bce1e1ab81ba67d696339bfd7fd29"
 dependencies = [
- "proc-macro-crate 1.3.1",
+ "proc-macro-crate 1.2.1",
  "proc-macro2 1.0.66",
  "quote 1.0.32",
  "syn 1.0.109",
@@ -7162,7 +7149,7 @@ version = "0.8.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "578a7433b776b56a35785ed5ce9a7e777ac0598aac5a6dd1b4b18a307c7fc71b"
 dependencies = [
- "indexmap 1.9.3",
+ "indexmap",
  "ryu",
  "serde",
  "yaml-rust",
@@ -7391,7 +7378,7 @@ dependencies = [
  "solana-banks-interface",
  "solana-program",
  "solana-sdk",
- "tarpc 0.29.0",
+ "tarpc",
  "thiserror",
  "tokio",
  "tokio-serde",
@@ -7404,7 +7391,7 @@ source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-
 dependencies = [
  "serde",
  "solana-sdk",
- "tarpc 0.29.0",
+ "tarpc",
 ]
 
 [[package]]
@@ -7420,7 +7407,7 @@ dependencies = [
  "solana-runtime",
  "solana-sdk",
  "solana-send-transaction-service",
- "tarpc 0.29.0",
+ "tarpc",
  "tokio",
  "tokio-serde",
  "tokio-stream",
@@ -7506,7 +7493,7 @@ dependencies = [
  "enum_dispatch",
  "futures",
  "futures-util",
- "indexmap 1.9.3",
+ "indexmap",
  "indicatif",
  "itertools",
  "jsonrpc-core",
@@ -8002,7 +7989,7 @@ dependencies = [
  "crossbeam-channel",
  "futures-util",
  "histogram",
- "indexmap 1.9.3",
+ "indexmap",
  "itertools",
  "libc",
  "log",
@@ -8315,7 +8302,7 @@ dependencies = [
  "hex 0.4.3",
  "hkdf",
  "hmac 0.12.1",
- "indexmap 1.9.3",
+ "indexmap",
  "itoa",
  "libc",
  "log",
@@ -8553,28 +8540,6 @@ dependencies = [
  "tokio-util 0.6.10",
  "tracing",
  "tracing-opentelemetry 0.17.4",
-]
-
-[[package]]
-name = "tarpc"
-version = "0.33.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f41bce44d290df0598ae4b9cd6ea7f58f651fd3aa4af1b26060c4fa32b08af7"
-dependencies = [
- "anyhow",
- "fnv",
- "futures",
- "humantime 2.1.0",
- "opentelemetry 0.18.0",
- "pin-project",
- "rand 0.8.5",
- "static_assertions",
- "tarpc-plugins",
- "thiserror",
- "tokio",
- "tokio-util 0.7.8",
- "tracing",
- "tracing-opentelemetry 0.18.0",
 ]
 
 [[package]]
@@ -8941,7 +8906,6 @@ dependencies = [
  "futures-core",
  "futures-sink",
  "pin-project-lite",
- "slab",
  "tokio",
  "tracing",
 ]
@@ -8953,23 +8917,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f4f7f0dd8d50a853a531c426359045b1998f04219d88799810762cd4ad314234"
 dependencies = [
  "serde",
-]
-
-[[package]]
-name = "toml_datetime"
-version = "0.6.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7cda73e2f1397b1262d6dfdcef8aafae14d1de7748d66822d3bfeeb6d03e5e4b"
-
-[[package]]
-name = "toml_edit"
-version = "0.19.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8123f27e969974a3dfba720fdb560be359f57b44302d280ba72e76a74480e8a"
-dependencies = [
- "indexmap 2.0.0",
- "toml_datetime",
- "winnow",
 ]
 
 [[package]]
@@ -9773,15 +9720,6 @@ name = "windows_x86_64_msvc"
 version = "0.48.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1a515f5799fe4961cb532f983ce2b23082366b898e52ffbce459c86f67c8378a"
-
-[[package]]
-name = "winnow"
-version = "0.5.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "acaaa1190073b2b101e15083c38ee8ec891b5e05cbee516521e94ec008f61e64"
-dependencies = [
- "memchr",
-]
 
 [[package]]
 name = "winreg"
