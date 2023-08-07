@@ -311,8 +311,8 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                     .iter()
                     // filter out local chain
                     .filter(|(dest_chain_name, _)| *dest_chain_name != &chain_name)
-                    .map(|(_dest_chain_name, token_config)| {
-                        let domain = chain_configs.get(&chain_name).unwrap().domain_id();
+                    .map(|(dest_chain_name, token_config)| {
+                        let domain = chain_configs.get(dest_chain_name).unwrap().domain_id();
                         (
                             domain,
                             GasRouterConfig {
