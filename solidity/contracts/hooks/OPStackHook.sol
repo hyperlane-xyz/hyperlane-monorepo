@@ -34,6 +34,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * @dev V3 WIP
  */
 contract OPStackHook is AbstractHook {
+    using Address for address payable;
     using OPStackHookMetadata for bytes;
     using Message for bytes;
 
@@ -95,6 +96,11 @@ contract OPStackHook is AbstractHook {
             ism,
             payload,
             GAS_LIMIT
+        );
+
+        // refund unused msgvalue
+        payable(message.senderAddress()).sendValue(
+            msg.value - metadata.msgValue()
         );
 
         // leaf hook

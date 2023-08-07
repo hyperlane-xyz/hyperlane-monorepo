@@ -164,7 +164,7 @@ contract OPStackIsmTest is Test {
             DEFAULT_GAS_LIMIT
         );
 
-        // opHook.postDispatch(OPTIMISM_DOMAIN, messageId);
+        uint256 beforeBal = address(this).balance;
         l1Mailbox.dispatch{value: 2 ether}(
             OPTIMISM_DOMAIN,
             address(testRecipient).addressToBytes32(),
@@ -172,6 +172,8 @@ contract OPStackIsmTest is Test {
             opHook,
             abi.encode(1 ether)
         );
+        uint256 afterBal = address(this).balance;
+        assertEq(beforeBal - afterBal, 1 ether);
     }
 
     function testFork_postDispatch_customFromDefaultHook() public {
@@ -462,4 +464,6 @@ contract OPStackIsmTest is Test {
                 testMessage
             );
     }
+
+    receive() external payable {}
 }
