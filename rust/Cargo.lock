@@ -3620,7 +3620,6 @@ dependencies = [
  "hyperlane-test",
  "itertools",
  "mockall",
- "once_cell",
  "opentelemetry 0.18.0",
  "opentelemetry-jaeger",
  "opentelemetry-zipkin",

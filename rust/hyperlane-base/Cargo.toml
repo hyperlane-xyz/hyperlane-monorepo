@@ -23,7 +23,6 @@ fuels.workspace = true
 futures-util.workspace = true
 itertools.workspace = true
 mockall = "0.11"
-once_cell = "1.16"
 paste.workspace = true
 prometheus.workspace = true
 rocksdb.workspace = true
