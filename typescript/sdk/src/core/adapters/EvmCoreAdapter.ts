@@ -23,20 +23,20 @@ export class EvmCoreAdapter
   core: HyperlaneCore;
 
   constructor(
-    public readonly multiProtocolProvider: MultiProtocolProvider<CoreAddresses>,
+    public readonly multiProvider: MultiProtocolProvider<CoreAddresses>,
   ) {
-    super(multiProtocolProvider);
+    super(multiProvider);
 
     // Pick out the addresses from the metadata in the multiProvider
     // Reminder: MultiProtocol Apps expect the addresses to be in the metadata
     const contractNames = Object.keys(coreFactories) as Array<CoreAddressKeys>;
-    const addresses = objMap(multiProtocolProvider.metadata, (_, m) =>
+    const addresses = objMap(multiProvider.metadata, (_, m) =>
       pick<CoreAddressKeys, Address>(m, contractNames),
     );
 
     this.core = HyperlaneCore.fromAddressesMap(
       addresses,
-      multiProtocolProvider.toMultiProvider(),
+      multiProvider.toMultiProvider(),
     );
   }
 

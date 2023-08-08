@@ -51,8 +51,8 @@ export class EvmRouterAdapter<
   }
 
   getConnectedContract(chain: ChainName): Router {
-    const address = this.multiProtocolProvider.getChainMetadata(chain).router;
-    const provider = this.multiProtocolProvider.getEthersV5Provider(chain);
+    const address = this.multiProvider.getChainMetadata(chain).router;
+    const provider = this.multiProvider.getEthersV5Provider(chain);
     return Router__factory.connect(address, provider);
   }
 }
@@ -67,7 +67,7 @@ export class EvmGasRouterAdapter<
     origin: ChainName,
     destination: ChainName,
   ): Promise<string> {
-    const destDomain = this.multiProtocolProvider.getDomainId(destination);
+    const destDomain = this.multiProvider.getDomainId(destination);
     const amount = await this.getConnectedContract(origin).quoteGasPayment(
       destDomain,
     );
@@ -75,8 +75,8 @@ export class EvmGasRouterAdapter<
   }
 
   override getConnectedContract(chain: ChainName): GasRouter {
-    const address = this.multiProtocolProvider.getChainMetadata(chain).router;
-    const provider = this.multiProtocolProvider.getEthersV5Provider(chain);
+    const address = this.multiProvider.getChainMetadata(chain).router;
+    const provider = this.multiProvider.getEthersV5Provider(chain);
     return GasRouter__factory.connect(address, provider);
   }
 }

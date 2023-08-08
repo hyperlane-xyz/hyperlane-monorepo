@@ -142,8 +142,8 @@ export class SealevelRouterAdapter<
   // TODO this incorrectly assumes all sealevel routers will have the TokenRouter's data schema
   // This will need to change when other types of routers are supported
   async getRouterAccountInfo(chain: ChainName): Promise<SealevelTokenData> {
-    const address = this.multiProtocolProvider.getChainMetadata(chain).router;
-    const connection = this.multiProtocolProvider.getSolanaWeb3Provider(chain);
+    const address = this.multiProvider.getChainMetadata(chain).router;
+    const connection = this.multiProvider.getSolanaWeb3Provider(chain);
 
     const msgRecipientPda = this.deriveMessageRecipientPda(address);
     const accountInfo = await connection.getAccountInfo(msgRecipientPda);
