@@ -25,7 +25,7 @@ static_assertions.workspace = true
 tokio = { workspace = true, features = ["time", "sync", "parking_lot"] }
 
 # enable feature for this crate that is imported by ethers-rs
-primitive-types = { version = "*", features = ["fp-conversion"] }
+primitive-types = { workspace = true, features = ["fp-conversion"] }
 
 [build-dependencies]
 abigen = { path = "../utils/abigen", features = ["ethers"] }
