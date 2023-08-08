@@ -72,19 +72,23 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
 
   protected async waitForMessageWasProcessed(
     message: DispatchedMessage,
-    delay?: number,
+    delayMs?: number,
     maxAttempts?: number,
   ): Promise<void> {
     const id = messageId(message.message);
     const { mailbox } = this.getDestination(message);
     await pollAsync(
       async () => {
+        this.logger(`Checking if message ${id} was processed`);
         const delivered = await mailbox.delivered(id);
-        if (!delivered) {
+        if (delivered) {
+          this.logger(`Message ${id} was processed`);
+          return;
+        } else {
           throw new Error(`Message ${id} not yet processed`);
         }
       },
-      delay,
+      delayMs,
       maxAttempts,
     );
     return;

@@ -22,7 +22,7 @@ export class SealevelCoreAdapter
 {
   async waitForMessageProcessed(
     sourceTx: TypedTransactionReceipt,
-    delay?: number,
+    delayMs?: number,
     maxAttempts?: number,
   ): Promise<void> {
     if (sourceTx.type !== ProviderType.SolanaWeb3) {
@@ -52,7 +52,7 @@ export class SealevelCoreAdapter
         await connection.getBalance(pda);
         return;
       },
-      delay,
+      delayMs,
       maxAttempts,
     );
   }

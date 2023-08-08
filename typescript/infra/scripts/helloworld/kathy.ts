@@ -1,5 +1,5 @@
 import { Keypair, sendAndConfirmTransaction } from '@solana/web3.js';
-import { BigNumber, ethers } from 'ethers';
+import { BigNumber, Wallet, ethers } from 'ethers';
 import { Counter, Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
@@ -12,6 +12,7 @@ import {
   MultiProvider,
   ProviderType,
   TypedTransactionReceipt,
+  chainMetadata,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -23,7 +24,12 @@ import {
   warn,
 } from '@hyperlane-xyz/utils';
 
-import { deployEnvToSdkEnv } from '../../src/config/environment';
+import { Contexts } from '../../config/contexts';
+import { hyperlaneHelloworld } from '../../config/environments/testnet3/helloworld';
+import {
+  DeployEnvironment,
+  deployEnvToSdkEnv,
+} from '../../src/config/environment';
 import { Role } from '../../src/roles';
 import { startMetricsServer } from '../../src/utils/metrics';
 import { assertChain, diagonalize, sleep } from '../../src/utils/utils';
@@ -151,6 +157,8 @@ async function main(): Promise<boolean> {
   debug('Starting up', { environment });
 
   const coreConfig = getEnvironmentConfig(environment);
+  // const coreConfig = getCoreConfigStub(environment);
+
   const { app, core, multiProvider } = await getHelloWorldMultiProtocolApp(
     coreConfig,
     context,
@@ -159,7 +167,7 @@ async function main(): Promise<boolean> {
     connectionType,
   );
   const igp = HyperlaneIgp.fromEnvironment(
-    deployEnvToSdkEnv[coreConfig.environment],
+    deployEnvToSdkEnv[environment],
     multiProvider,
   );
   const appChains = app.chains();
@@ -459,14 +467,14 @@ async function sendMessage(
   );
   messageSendSeconds.labels(metricLabels).inc((Date.now() - startTime) / 1000);
 
-  log('Message sent', {
+  log('Message sent, waiting for it to be processed', {
     origin,
     destination,
     receipt,
   });
 
   await timeout(
-    core.waitForMessageProcessed(destination, receipt, 1000, 10),
+    core.waitForMessageProcessed(destination, receipt, 5000, 36),
     messageReceiptTimeout,
     'Timeout waiting for message to be received',
   );
@@ -500,6 +508,31 @@ async function updateWalletBalanceMetricFor(
     })
     .set(balance);
   debug('Wallet balance updated for chain', { chain, signerAddress, balance });
+}
+
+// Get a core config intended for testing Kathy without secret access
+export function getCoreConfigStub(environment: DeployEnvironment) {
+  const multiProvider = new MultiProvider({
+    // Desired chains here. Key must have funds on these chains
+    alfajores: chainMetadata.alfajores,
+    sepolia: chainMetadata.sepolia,
+  });
+  const privateKey = process.env.KATHY_PRIVATE_KEY;
+  if (!privateKey) throw new Error('KATHY_PRIVATE_KEY env var not set');
+  const signer = new Wallet(privateKey);
+  const signerAddress = signer.address;
+  multiProvider.setSharedSigner(signer);
+  return {
+    helloWorld: {
+      [Contexts.Hyperlane]: hyperlaneHelloworld,
+    },
+    environment,
+    owners: {
+      alfajores: signerAddress,
+      sepolia: signerAddress,
+    },
+    getMultiProvider: () => multiProvider,
+  } as any;
 }
 
 main()

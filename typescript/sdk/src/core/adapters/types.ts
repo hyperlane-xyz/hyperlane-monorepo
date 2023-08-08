@@ -5,7 +5,7 @@ import { CoreAddresses } from '../contracts';
 export interface ICoreAdapter extends BaseAppAdapter<CoreAddresses> {
   waitForMessageProcessed(
     r: TypedTransactionReceipt,
-    delay?: number,
+    delayMs?: number,
     maxAttempts?: number,
   ): Promise<void>;
 }

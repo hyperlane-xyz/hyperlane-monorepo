@@ -59,12 +59,12 @@ export class MultiProtocolCore extends MultiProtocolApp<
   waitForMessageProcessed(
     chain: ChainName,
     sourceTx: TypedTransactionReceipt,
-    delay?: number,
+    delayMs?: number,
     maxAttempts?: number,
   ): Promise<void> {
     return this.adapter(chain).waitForMessageProcessed(
       sourceTx,
-      delay,
+      delayMs,
       maxAttempts,
     );
   }

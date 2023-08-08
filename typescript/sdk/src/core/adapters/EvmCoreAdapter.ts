@@ -42,7 +42,7 @@ export class EvmCoreAdapter
 
   waitForMessageProcessed(
     sourceTx: TypedTransactionReceipt,
-    delay?: number,
+    delayMs?: number,
     maxAttempts?: number,
   ): Promise<void> {
     if (sourceTx.type !== ProviderType.EthersV5) {
@@ -52,7 +52,7 @@ export class EvmCoreAdapter
     }
     return this.core.waitForMessageProcessed(
       sourceTx.receipt,
-      delay,
+      delayMs,
       maxAttempts,
     );
   }
