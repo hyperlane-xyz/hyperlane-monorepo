@@ -20,11 +20,11 @@ use solana_sdk::{
 };
 
 use account_utils::DiscriminatorEncode;
-use hyperlane_core::{Encode, HyperlaneMessage, H160, H256};
+use hyperlane_core::{H160, H256};
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_mailbox::{
     accounts::{InboxAccount, OutboxAccount},
-    instruction::{InboxProcess, Instruction as MailboxInstruction, OutboxDispatch, VERSION},
+    instruction::{Instruction as MailboxInstruction, OutboxDispatch},
     mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds,
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
     mailbox_processed_message_pda_seeds, spl_noop,
@@ -70,6 +70,8 @@ pub(crate) use crate::{context::*, core::*};
 mod cmd_utils;
 mod context;
 mod r#core;
+mod helloworld;
+mod router;
 mod warp_route;
 
 // Note: from solana_program_runtime::compute_budget
@@ -179,7 +181,6 @@ enum MailboxSubCmd {
     Init(Init),
     Query(Query),
     Send(Outbox),
-    Receive(Inbox),
     Delivered(Delivered),
 }
 
@@ -215,8 +216,6 @@ struct Outbox {
     message: String,
     #[arg(long, short, default_value_t = MAILBOX_PROG_ID)]
     program_id: Pubkey,
-    // #[arg(long, short, default_value_t = MAX_MESSAGE_BODY_BYTES)]
-    // message_len: usize,
 }
 
 #[derive(Args)]
@@ -243,32 +242,6 @@ struct Delivered {
     program_id: Pubkey,
     #[arg(long, short)]
     message_id: H256,
-}
-
-// Actual content depends on which ISM is used.
-struct ExampleMetadata {
-    pub root: H256,
-    pub index: u32,
-    pub leaf_index: u32,
-    // pub proof: [H256; 32],
-    pub signatures: Vec<H256>,
-}
-impl Encode for ExampleMetadata {
-    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
-    where
-        W: std::io::Write,
-    {
-        writer.write_all(self.root.as_ref())?;
-        writer.write_all(&self.index.to_be_bytes())?;
-        writer.write_all(&self.leaf_index.to_be_bytes())?;
-        // for hash in self.proof {
-        //     writer.write_all(hash.as_ref())?;
-        // }
-        for signature in &self.signatures {
-            writer.write_all(signature.as_ref())?;
-        }
-        Ok(32 + 4 + 4 + (32 * 32) + (self.signatures.len() * 32))
-    }
 }
 
 #[derive(Args)]
@@ -415,6 +388,35 @@ struct MultisigIsmMessageIdSetValidatorsAndThreshold {
     threshold: u8,
 }
 
+#[derive(Args)]
+pub(crate) struct HelloWorldCmd {
+    #[command(subcommand)]
+    cmd: HelloWorldSubCmd,
+}
+
+#[derive(Subcommand)]
+pub(crate) enum HelloWorldSubCmd {
+    Deploy(HelloWorldDeploy),
+    // Query,
+    // Send,
+}
+
+#[derive(Args)]
+pub(crate) struct HelloWorldDeploy {
+    #[arg(long)]
+    environment: String,
+    #[arg(long)]
+    environments_dir: PathBuf,
+    #[arg(long)]
+    built_so_dir: PathBuf,
+    #[arg(long)]
+    warp_route_name: String,
+    #[arg(long)]
+    router_config_file: PathBuf,
+    #[arg(long)]
+    chain_config_file: PathBuf,
+}
+
 fn main() {
     pretty_env_logger::init();
 
@@ -524,7 +526,6 @@ fn process_mailbox_cmd(ctx: Context, cmd: MailboxCmd) {
                 destination_domain: outbox.destination,
                 recipient: H256(outbox.recipient.to_bytes()),
                 message_body: outbox.message.into(),
-                // message_body: std::iter::repeat(0x41).take(outbox.message_len).collect(),
             });
             let outbox_instruction = Instruction {
                 program_id: outbox.program_id,
@@ -536,50 +537,6 @@ fn process_mailbox_cmd(ctx: Context, cmd: MailboxCmd) {
                 ],
             };
             ctx.new_txn().add(outbox_instruction).send_with_payer();
-        }
-        MailboxSubCmd::Receive(inbox) => {
-            // TODO this probably needs some love
-
-            let (inbox_account, _inbox_bump) =
-                Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), &inbox.program_id);
-            let hyperlane_message = HyperlaneMessage {
-                version: VERSION,
-                nonce: inbox.nonce,
-                origin: inbox.origin,
-                sender: H256::repeat_byte(123),
-                destination: inbox.local_domain,
-                recipient: H256::from(inbox.recipient.to_bytes()),
-                body: inbox.message.bytes().collect(),
-            };
-            let mut encoded_message = vec![];
-            hyperlane_message.write_to(&mut encoded_message).unwrap();
-            let metadata = ExampleMetadata {
-                root: Default::default(),
-                index: 1,
-                leaf_index: 0,
-                // proof: Default::default(),
-                signatures: vec![],
-            };
-            let mut encoded_metadata = vec![];
-            metadata.write_to(&mut encoded_metadata).unwrap();
-
-            let ixn = MailboxInstruction::InboxProcess(InboxProcess {
-                metadata: encoded_metadata,
-                message: encoded_message,
-            });
-            let inbox_instruction = Instruction {
-                program_id: inbox.program_id,
-                data: ixn.into_instruction_data().unwrap(),
-                accounts: vec![
-                    AccountMeta::new(inbox_account, false),
-                    AccountMeta::new_readonly(spl_noop::id(), false),
-                    AccountMeta::new_readonly(inbox.ism, false),
-                    AccountMeta::new_readonly(inbox.recipient, false),
-                    // Note: we would have to provide ism accounts and recipient accounts here if
-                    // they were to use other accounts.
-                ],
-            };
-            ctx.new_txn().add(inbox_instruction).send_with_payer();
         }
         MailboxSubCmd::Delivered(delivered) => {
             let (processed_message_account_key, _processed_message_account_bump) =
