@@ -19,7 +19,7 @@ export class SealevelAccountDataWrapper {
   }
 }
 
-// Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/trevor/sealevel-validator-rebase/rust/sealevel/libraries/hyperlane-sealevel-token/src/accounts.rs#L21
+// Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/libraries/hyperlane-sealevel-token/src/accounts.rs
 export class SealevelTokenData {
   /// The bump seed for this PDA.
   bump!: number;
@@ -145,7 +145,8 @@ export class SealevelRouterAdapter<
     const address = this.multiProvider.getChainMetadata(chain).router;
     const connection = this.multiProvider.getSolanaWeb3Provider(chain);
 
-    const msgRecipientPda = this.deriveMessageRecipientPda(address);
+    const msgRecipientPda =
+      SealevelRouterAdapter.deriveMessageRecipientPda(address);
     const accountInfo = await connection.getAccountInfo(msgRecipientPda);
     if (!accountInfo)
       throw new Error(
@@ -159,8 +160,8 @@ export class SealevelRouterAdapter<
     return accountData.data;
   }
 
-  // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/trevor/sealevel-validator-rebase/rust/sealevel/libraries/hyperlane-sealevel-token/src/processor.rs#LL49C1-L53C30
-  deriveMessageRecipientPda(routerAddress: Address): PublicKey {
+  // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/libraries/hyperlane-sealevel-token/src/processor.rs
+  static deriveMessageRecipientPda(routerAddress: Address): PublicKey {
     const [pda] = PublicKey.findProgramAddressSync(
       [
         Buffer.from('hyperlane_message_recipient'),

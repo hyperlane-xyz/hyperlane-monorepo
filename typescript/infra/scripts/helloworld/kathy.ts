@@ -1,3 +1,4 @@
+import { Keypair, sendAndConfirmTransaction } from '@solana/web3.js';
 import { BigNumber, ethers } from 'ethers';
 import { Counter, Gauge, Registry } from 'prom-client';
 import { format } from 'util';
@@ -406,16 +407,45 @@ async function sendMessage(
       value.toString(),
     );
 
-    // TODO sol support here
-    if (tx.type !== ProviderType.EthersV5)
-      throw new Error('Expected EthersV5 tx type');
-
-    const receipt = await multiProvider.sendTransaction(origin, tx.transaction);
-    const typedReceipt: TypedTransactionReceipt = {
-      type: ProviderType.EthersV5,
-      receipt,
-    };
-    return typedReceipt;
+    let txReceipt: TypedTransactionReceipt;
+    if (tx.type == ProviderType.EthersV5) {
+      // Utilize the legacy evm-specific multiprovider utils to send the transaction
+      const receipt = await multiProvider.sendTransaction(
+        origin,
+        tx.transaction,
+      );
+      txReceipt = {
+        type: ProviderType.EthersV5,
+        receipt,
+      };
+    } else if (tx.type === ProviderType.SolanaWeb3) {
+      // Utilize the new multi-protocol provider for non-evm chains
+      // This could be done for EVM too but the legacy MP has tx formatting utils
+      // that have not yet been ported over
+      const connection = app.multiProvider.getSolanaWeb3Provider(origin);
+      // Note, tx signature essentially tx means hash on sealevel
+      // TODO hook in kathy keys for sealevel here
+      const keypair = Keypair.generate();
+      const payer = Keypair.generate();
+      const txSignature = await sendAndConfirmTransaction(
+        connection,
+        tx.transaction,
+        [payer, keypair],
+      );
+      const receipt = await connection.getTransaction(txSignature, {
+        commitment: 'confirmed',
+        maxSupportedTransactionVersion: 0,
+      });
+      if (!receipt)
+        throw new Error(`Sealevel tx not found with signature ${txSignature}`);
+      txReceipt = {
+        type: ProviderType.SolanaWeb3,
+        receipt,
+      };
+    } else {
+      throw new Error(`Unsupported provider type for kathy send ${tx.type}`);
+    }
+    return txReceipt;
   };
 
   const receipt = await retryAsync(

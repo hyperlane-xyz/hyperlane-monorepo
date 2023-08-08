@@ -1,7 +1,7 @@
 import type {
   Connection,
   Transaction as SolTransaction,
-  TransactionResponse as SolTransactionReceipt,
+  VersionedTransactionResponse as SolTransactionReceipt,
 } from '@solana/web3.js';
 import type {
   Contract as EV5Contract,
@@ -125,7 +125,6 @@ export interface ViemTransaction extends TypedTransactionBase<VTransaction> {
 export interface SolanaWeb3Transaction
   extends TypedTransactionBase<SolTransaction> {
   type: ProviderType.SolanaWeb3;
-  // Transaction concept doesn't exist in @solana/web3.js
   transaction: SolTransaction;
 }
 
@@ -151,15 +150,14 @@ export interface EthersV5TransactionReceipt
 }
 
 export interface ViemTransactionReceipt
-  extends TypedTransactionBase<VTransactionReceipt> {
+  extends TypedTransactionReceiptBase<VTransactionReceipt> {
   type: ProviderType.Viem;
   receipt: VTransactionReceipt;
 }
 
 export interface SolanaWeb3TransactionReceipt
-  extends TypedTransactionBase<SolTransactionReceipt> {
+  extends TypedTransactionReceiptBase<SolTransactionReceipt> {
   type: ProviderType.SolanaWeb3;
-  // Transaction concept doesn't exist in @solana/web3.js
   receipt: SolTransactionReceipt;
 }
 
