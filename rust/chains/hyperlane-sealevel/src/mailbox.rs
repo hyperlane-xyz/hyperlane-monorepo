@@ -11,7 +11,7 @@ use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     ContractLocator, Decode as _, Encode as _, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox,
-    MessageIndexer, SequenceIndexer, TxCostEstimate, TxOutcome, H256, U256,
+    MessageIndexer, SequenceIndexer, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
@@ -59,13 +59,6 @@ use crate::{
 
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
 const SPL_NOOP: &str = "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV";
-
-// FIXME solana uses the first 64 byte signature of a transaction to uniquely identify the
-// transaction rather than a 32 byte transaction hash like ethereum. Hash it here to reduce
-// size - requires more thought to ensure this makes sense to do...
-fn signature_to_txn_hash(signature: &Signature) -> H256 {
-    H256::from(solana_sdk::hash::hash(signature.as_ref()).to_bytes())
-}
 
 // The max amount of compute units for a transaction.
 // TODO: consider a more sane value and/or use IGP gas payments instead.
@@ -524,10 +517,10 @@ impl Mailbox for SealevelMailbox {
             .map_err(|err| warn!("Failed to confirm inbox process transaction: {}", err))
             .map(|ctx| ctx.value)
             .unwrap_or(false);
-        let txid = signature_to_txn_hash(&signature);
+        let txid = signature.into();
 
         Ok(TxOutcome {
-            txid,
+            transaction_id: txid,
             executed,
             // TODO use correct data upon integrating IGP support
             gas_price: U256::zero(),
@@ -680,7 +673,7 @@ impl SealevelMailboxIndexer {
                 // TODO: get these when building out scraper support.
                 // It's inconvenient to get these :|
                 block_hash: H256::zero(),
-                transaction_hash: H256::zero(),
+                transaction_id: H512::zero(),
                 transaction_index: 0,
                 log_index: U256::zero(),
             },
