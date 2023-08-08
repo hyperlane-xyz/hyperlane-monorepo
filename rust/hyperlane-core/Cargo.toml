@@ -11,11 +11,11 @@ version.workspace = true
 
 [dependencies]
 async-trait.workspace = true
-auto_impl = "1.0"
+auto_impl.workspace = true
 borsh.workspace = true
 bs58.workspace = true
-bytes = { version = "1", features = ["serde"] }
-convert_case = "0.6"
+bytes = { workspace = true, features = ["serde"] }
+convert_case.workspace = true
 derive-new.workspace = true
 derive_more.workspace = true
 eyre.workspace = true
@@ -27,19 +27,18 @@ num-derive.workspace = true
 num-traits.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-sha3 = "0.10"
+sha3.workspace = true
 thiserror.workspace = true
-uint = "0.9.5"
-fixed-hash = "0.8.0"
-tiny-keccak = { version = "2.0.2", features = ["keccak"]}
+uint.workspace = true
+fixed-hash.workspace = true
+tiny-keccak = { workspace = true, features = ["keccak"]}
 solana-sdk = { workspace = true, optional = true }
-
 config = { workspace = true, optional = true }
 ethers = { workspace = true, optional = true }
 ethers-core = { workspace = true, optional = true }
 ethers-contract = { workspace = true, optional = true }
 ethers-providers = { workspace = true, optional = true }
-strum = { workspace = true, optional = true }
+strum = { workspace = true, optional = true, features = ["derive"] }
 primitive-types = { workspace = true, optional = true }
 
 [dev-dependencies]
@@ -51,4 +50,3 @@ test-utils = ["dep:config"]
 agent = ["ethers", "strum"]
 strum = ["dep:strum"]
 ethers = ["dep:ethers-core", "dep:ethers-contract", "dep:ethers-providers", "dep:primitive-types", "dep:ethers"]
-solana = ["dep:solana-sdk"]
