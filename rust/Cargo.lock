@@ -3795,6 +3795,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-hello-world"
+version = "0.1.0"
+dependencies = [
+ "access-control",
+ "account-utils",
+ "borsh 0.9.3",
+ "hyperlane-core",
+ "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-igp",
+ "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-message-recipient-interface",
+ "hyperlane-test-utils",
+ "serializable-account-meta",
+ "solana-program",
+ "solana-program-test",
+ "solana-sdk",
+ "spl-noop",
+]
+
+[[package]]
 name = "hyperlane-sealevel-igp"
 version = "0.1.0"
 dependencies = [

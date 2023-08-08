@@ -22,6 +22,7 @@ members = [
     "sealevel/libraries/serializable-account-meta",
     "sealevel/libraries/test-transaction-utils",
     "sealevel/libraries/test-utils",
+    "sealevel/programs/helloworld",
     "sealevel/programs/hyperlane-sealevel-token",
     "sealevel/programs/hyperlane-sealevel-token-collateral",
     "sealevel/programs/hyperlane-sealevel-token-native",
