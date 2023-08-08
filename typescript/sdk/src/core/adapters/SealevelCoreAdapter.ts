@@ -39,7 +39,7 @@ export class SealevelCoreAdapter
     const { destination, messageId } = parsedLog;
     const destinationMailbox =
       this.multiProvider.getChainMetadata(destination).mailbox;
-    const pda = SealevelCoreAdapter.deriveMailboxMessageProcessedPda(
+    const pda = this.deriveMailboxMessageProcessedPda(
       messageId,
       destinationMailbox,
     );
@@ -58,7 +58,7 @@ export class SealevelCoreAdapter
   }
 
   // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/mailbox/src/pda_seeds.rs
-  static deriveMailboxMessageProcessedPda(
+  deriveMailboxMessageProcessedPda(
     messageId: string,
     mailboxProgramId: string,
   ): PublicKey {

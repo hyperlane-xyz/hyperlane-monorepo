@@ -145,8 +145,7 @@ export class SealevelRouterAdapter<
     const address = this.multiProvider.getChainMetadata(chain).router;
     const connection = this.multiProvider.getSolanaWeb3Provider(chain);
 
-    const msgRecipientPda =
-      SealevelRouterAdapter.deriveMessageRecipientPda(address);
+    const msgRecipientPda = this.deriveMessageRecipientPda(address);
     const accountInfo = await connection.getAccountInfo(msgRecipientPda);
     if (!accountInfo)
       throw new Error(
@@ -161,7 +160,7 @@ export class SealevelRouterAdapter<
   }
 
   // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/libraries/hyperlane-sealevel-token/src/processor.rs
-  static deriveMessageRecipientPda(routerAddress: Address): PublicKey {
+  deriveMessageRecipientPda(routerAddress: Address): PublicKey {
     const [pda] = PublicKey.findProgramAddressSync(
       [
         Buffer.from('hyperlane_message_recipient'),
