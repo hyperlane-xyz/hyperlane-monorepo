@@ -141,6 +141,6 @@ export function appFromAddressesMapHelper<F extends HyperlaneFactories>(
 
   return {
     contractsMap: filteredContractsMap,
-    multiProvider: intersection.multiProvider,
+    multiProvider: intersection.result,
   };
 }

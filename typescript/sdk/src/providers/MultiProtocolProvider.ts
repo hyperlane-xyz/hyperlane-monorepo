@@ -1,6 +1,6 @@
 import { Debugger, debug } from 'debug';
 
-import { objFilter, objMap } from '@hyperlane-xyz/utils';
+import { objFilter, objMap, pick } from '@hyperlane-xyz/utils';
 
 import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager';
@@ -182,5 +182,20 @@ export class MultiProtocolProvider<
     for (const chain of Object.keys(providers)) {
       this.setProvider(chain, providers[chain]);
     }
+  }
+
+  override intersect(
+    chains: ChainName[],
+    throwIfNotSubset = false,
+  ): {
+    intersection: ChainName[];
+    result: MultiProtocolProvider<MetaExt>;
+  } {
+    const { intersection, result } = super.intersect(chains, throwIfNotSubset);
+    const multiProvider = new MultiProtocolProvider(result.metadata, {
+      ...this.options,
+      providers: pick(this.providers, intersection),
+    });
+    return { intersection, result: multiProvider };
   }
 }

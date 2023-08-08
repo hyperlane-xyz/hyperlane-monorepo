@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import { ethers } from 'ethers';
 
 import { ethereum } from '../consts/chainMetadata';
 import { Chains } from '../consts/chains';
@@ -14,9 +15,9 @@ describe('MultiProtocolCore', () => {
       const multiProvider = new MultiProtocolProvider<CoreAddresses>({
         ethereum: {
           ...ethereum,
-          validatorAnnounce: '0x123',
-          proxyAdmin: '0x123',
-          mailbox: '0x123',
+          validatorAnnounce: ethers.constants.AddressZero,
+          proxyAdmin: ethers.constants.AddressZero,
+          mailbox: ethers.constants.AddressZero,
         },
       });
       const core = new MultiProtocolCore(multiProvider);

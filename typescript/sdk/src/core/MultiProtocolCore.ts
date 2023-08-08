@@ -42,7 +42,9 @@ export class MultiProtocolCore extends MultiProtocolApp<
     addressesMap: ChainMap<CoreAddresses>,
     multiProvider: MultiProtocolProvider,
   ): MultiProtocolCore {
-    const mpWithAddresses = multiProvider.extendChainMetadata(addressesMap);
+    const mpWithAddresses = multiProvider
+      .intersect(Object.keys(addressesMap))
+      .result.extendChainMetadata(addressesMap);
     return new MultiProtocolCore(mpWithAddresses);
   }
 
