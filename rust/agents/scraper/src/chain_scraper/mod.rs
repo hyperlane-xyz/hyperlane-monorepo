@@ -84,7 +84,7 @@ impl HyperlaneSqlDb {
                 (
                     meta.transaction_id
                         .try_into()
-                        .expect("Solana transaction ids are not supported yet"),
+                        .expect("256-bit transaction ids are the maximum supported at this time"),
                     meta.block_hash,
                 )
             })
@@ -276,7 +276,7 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneSqlDb {
                 .get(
                     &m.1.transaction_id
                         .try_into()
-                        .expect("Solana transaction ids are not supported yet"),
+                        .expect("256-bit transaction ids are the maximum supported at this time"),
                 )
                 .unwrap();
             StorableMessage {
@@ -310,7 +310,7 @@ impl HyperlaneLogStore<Delivery> for HyperlaneSqlDb {
                     &meta
                         .transaction_id
                         .try_into()
-                        .expect("Solana transaction ids are not supported yet"),
+                        .expect("256-bit transaction ids are the maximum supported at this time"),
                 )
                 .unwrap()
                 .id;
@@ -346,7 +346,7 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneSqlDb {
                     &meta
                         .transaction_id
                         .try_into()
-                        .expect("Solana transaction ids are not supported yet"),
+                        .expect("256-bit transaction ids are the maximum supported at this time"),
                 )
                 .unwrap()
                 .id;
