@@ -4,4 +4,6 @@
 #![deny(missing_docs)]
 #![deny(unsafe_code)]
 
-pub mod program;
+pub mod accounts;
+pub mod instruction;
+pub mod processor;

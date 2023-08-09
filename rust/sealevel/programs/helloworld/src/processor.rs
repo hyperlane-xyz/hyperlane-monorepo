@@ -1,16 +1,14 @@
 //! HelloWorld program.
-use std::collections::HashMap;
 
 use access_control::AccessControl;
-use account_utils::{create_pda_account, AccountData, SizedData};
+use account_utils::{create_pda_account, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
-use hyperlane_core::H256;
+
 // use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
 use hyperlane_sealevel_connection_client::router::{
-    HyperlaneRouter, HyperlaneRouterAccessControl, RemoteRouterConfig,
+    HyperlaneRouterAccessControl, HyperlaneRouterDispatch, RemoteRouterConfig,
 };
 use hyperlane_sealevel_mailbox::{
-    instruction::{Instruction as MailboxInstruction, OutboxDispatch},
     mailbox_message_dispatch_authority_pda_seeds, mailbox_process_authority_pda_seeds,
 };
 use hyperlane_sealevel_message_recipient_interface::{
@@ -20,9 +18,9 @@ use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
-    instruction::{AccountMeta, Instruction},
+    instruction::AccountMeta,
     msg,
-    program::{invoke_signed, set_return_data},
+    program::set_return_data,
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
@@ -30,89 +28,15 @@ use solana_program::{
     sysvar::Sysvar,
 };
 
-#[cfg(not(feature = "no-entrypoint"))]
-solana_program::entrypoint!(process_instruction);
+use crate::{
+    accounts::{HelloWorldStorage, HelloWorldStorageAccount},
+    instruction::{HelloWorldInstruction, HelloWorldMessage, Init},
+};
 
 /// The amount of gas to pay for.
 /// TODO: when we actually enforce gas amounts for messages to Solana,
 /// we'll need to revisit this and change HelloWorld to use GasRouter.
 pub const HANDLE_GAS_AMOUNT: u64 = 50000;
-
-/// The storage account.
-pub type HelloWorldStorageAccount = AccountData<HelloWorldStorage>;
-
-/// The storage account's data.
-#[derive(BorshSerialize, BorshDeserialize, Debug, Default)]
-pub struct HelloWorldStorage {
-    /// The local domain.
-    pub local_domain: u32,
-    /// The mailbox.
-    pub mailbox: Pubkey,
-    /// The ISM.
-    pub ism: Option<Pubkey>,
-    /// The IGP.
-    // pub igp: Option<(Pubkey, InterchainGasPaymasterType)>,
-    /// The owner.
-    pub owner: Option<Pubkey>,
-    /// A counter of how many messages have been sent from this contract.
-    pub sent: u64,
-    /// A counter of how many messages have been received by this contract.
-    pub received: u64,
-    /// Keyed by domain, a counter of how many messages that have been sent
-    /// from this contract to the domain.
-    pub sent_to: HashMap<u32, u64>,
-    /// Keyed by domain, a counter of how many messages that have been received
-    /// by this contract from the domain.
-    pub received_from: HashMap<u32, u64>,
-    /// Keyed by domain, the router for the remote domain.
-    pub routers: HashMap<u32, H256>,
-}
-
-impl SizedData for HelloWorldStorage {
-    fn size(&self) -> usize {
-        // local domain
-        std::mem::size_of::<u32>() +
-        // mailbox
-        32 +
-        // ism
-        1 + 32 +
-        // igp
-        1 + 32 + 1 + 32 +
-        // owner
-        1 + 32 +
-        // sent
-        std::mem::size_of::<u64>() +
-        // received
-        std::mem::size_of::<u64>() +
-        // sent_to
-        (self.sent_to.len() * (std::mem::size_of::<u32>() + std::mem::size_of::<u64>())) +
-        // received_from
-        (self.received_from.len() * (std::mem::size_of::<u32>() + std::mem::size_of::<u64>())) +
-        // routers
-        (self.routers.len() * (std::mem::size_of::<u32>() + 32))
-    }
-}
-
-impl AccessControl for HelloWorldStorage {
-    fn owner(&self) -> Option<&Pubkey> {
-        self.owner.as_ref()
-    }
-
-    fn set_owner(&mut self, new_owner: Option<Pubkey>) -> Result<(), ProgramError> {
-        self.owner = new_owner;
-        Ok(())
-    }
-}
-
-impl HyperlaneRouter for HelloWorldStorage {
-    fn router(&self, origin: u32) -> Option<&H256> {
-        self.routers.get(&origin)
-    }
-
-    fn enroll_remote_router(&mut self, config: RemoteRouterConfig) {
-        self.routers.insert(config.domain, config.router.unwrap());
-    }
-}
 
 /// Seeds relating to the PDA account with program data.
 #[macro_export]
@@ -133,42 +57,8 @@ macro_rules! program_storage_pda_seeds {
     }};
 }
 
-/// Init instruction data.
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
-pub struct Init {
-    /// The local domain.
-    pub local_domain: u32,
-    /// The mailbox.
-    pub mailbox: Pubkey,
-    /// The ISM.
-    pub ism: Option<Pubkey>,
-    /// The IGP.
-    // pub igp: Option<(Pubkey, InterchainGasPaymasterType)>,
-    /// The owner.
-    pub owner: Option<Pubkey>,
-}
-
-/// A HelloWorld message.
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
-pub struct HelloWorldMessage {
-    /// The destination domain.
-    pub destination: u32,
-    /// The message.
-    pub message: String,
-}
-
-/// Instructions for the program.
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
-pub enum HelloWorldInstruction {
-    /// Initializes the program.
-    Init(Init),
-    /// Dispatches a message using the dispatch authority.
-    SendHelloWorld(HelloWorldMessage),
-    /// Sets the ISM.
-    SetInterchainSecurityModule(Option<Pubkey>),
-    /// Enrolls remote routers
-    EnrollRemoteRouters(Vec<RemoteRouterConfig>),
-}
+#[cfg(not(feature = "no-entrypoint"))]
+solana_program::entrypoint!(process_instruction);
 
 /// The program's entrypoint.
 pub fn process_instruction(
@@ -264,8 +154,8 @@ fn init(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramRes
 /// Dispatches a message using the dispatch authority.
 ///
 /// Accounts:
-/// 0. [executable] The Mailbox program.
-/// And now the accounts expected by the Mailbox's OutboxDispatch instruction:
+/// 0. [writeable] Program storage.
+/// 1. [executable] The Mailbox program.
 /// 2. [writeable] Outbox PDA.
 /// 3. [] This program's dispatch authority.
 /// 4. [executable] System program.
@@ -281,13 +171,23 @@ fn send_hello_world(
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
-    // Account 0: Mailbox program.
+    // Account 0: Program storage.
+    let storage_info = next_account_info(accounts_iter)?;
+    let (storage_pda_key, _storage_pda_bump) =
+        Pubkey::find_program_address(program_storage_pda_seeds!(), program_id);
+    if storage_info.key != &storage_pda_key {
+        return Err(ProgramError::InvalidArgument);
+    }
+    let mut storage =
+        HelloWorldStorageAccount::fetch(&mut &storage_info.data.borrow()[..])?.into_inner();
+
+    // Account 1: Mailbox program.
     let mailbox_info = next_account_info(accounts_iter)?;
 
-    // Account 1: Outbox PDA.
+    // Account 2: Outbox PDA.
     let mailbox_outbox_info = next_account_info(accounts_iter)?;
 
-    // Account 2: Dispatch authority.
+    // Account 3: Dispatch authority.
     let dispatch_authority_info = next_account_info(accounts_iter)?;
     let (expected_dispatch_authority_key, expected_dispatch_authority_bump) =
         Pubkey::find_program_address(mailbox_message_dispatch_authority_pda_seeds!(), program_id);
@@ -295,36 +195,29 @@ fn send_hello_world(
         return Err(ProgramError::InvalidArgument);
     }
 
-    // Account 3: System program.
+    // Account 4: System program.
     let system_program_info = next_account_info(accounts_iter)?;
 
-    // Account 4: SPL Noop program.
+    // Account 5: SPL Noop program.
     let spl_noop_info = next_account_info(accounts_iter)?;
 
-    // Account 5: Payer.
+    // Account 6: Payer.
     let payer_info = next_account_info(accounts_iter)?;
 
-    // Account 6: Unique message account.
+    // Account 7: Unique message account.
     let unique_message_account_info = next_account_info(accounts_iter)?;
 
-    // Account 7: Dispatched message PDA.
+    // Account 8: Dispatched message PDA.
     let dispatched_message_info = next_account_info(accounts_iter)?;
 
-    let dispatch = OutboxDispatch {
-        sender: *program_id,
-        // The destination domain of the message.
-        destination_domain: hello_world.destination,
-        // The remote recipient of the message.
-        recipient: H256::zero(),
-        // The message body.
-        message_body: hello_world.message.into(),
-    };
-
-    // Dispatch
-    let instruction = Instruction {
-        program_id: *mailbox_info.key,
-        data: MailboxInstruction::OutboxDispatch(dispatch).into_instruction_data()?,
-        accounts: vec![
+    let dispatch_auth_seeds: &[&[u8]] =
+        mailbox_message_dispatch_authority_pda_seeds!(expected_dispatch_authority_bump);
+    let _ = storage.dispatch(
+        mailbox_info.key,
+        dispatch_auth_seeds,
+        hello_world.destination,
+        hello_world.message.into(),
+        vec![
             AccountMeta::new(*mailbox_outbox_info.key, false),
             AccountMeta::new_readonly(*dispatch_authority_info.key, true),
             AccountMeta::new_readonly(*system_program_info.key, false),
@@ -333,9 +226,6 @@ fn send_hello_world(
             AccountMeta::new_readonly(*unique_message_account_info.key, true),
             AccountMeta::new(*dispatched_message_info.key, false),
         ],
-    };
-    invoke_signed(
-        &instruction,
         &[
             mailbox_outbox_info.clone(),
             dispatch_authority_info.clone(),
@@ -345,10 +235,19 @@ fn send_hello_world(
             unique_message_account_info.clone(),
             dispatched_message_info.clone(),
         ],
-        &[mailbox_message_dispatch_authority_pda_seeds!(
-            expected_dispatch_authority_bump
-        )],
-    )
+    );
+
+    storage.sent += 1;
+    storage
+        .sent_to
+        .entry(hello_world.destination)
+        .and_modify(|c| *c += 1)
+        .or_insert(1);
+
+    // Store it
+    HelloWorldStorageAccount::from(storage).store(storage_info, false)?;
+
+    Ok(())
 }
 
 /// Handles a message.
@@ -533,81 +432,9 @@ fn enroll_remote_routers(
     HelloWorldStorageAccount::from(storage).store_with_rent_exempt_realloc(
         storage_info,
         &Rent::get()?,
-        &owner_info,
+        owner_info,
         system_program_info,
     )?;
 
     Ok(())
-}
-
-// --- instruction stuff ---
-
-/// Gets an instruction to initialize the program.
-pub fn init_instruction(
-    program_id: Pubkey,
-    payer: Pubkey,
-    local_domain: u32,
-    mailbox: Pubkey,
-    ism: Option<Pubkey>,
-    // igp: Option<(Pubkey, InterchainGasPaymasterType)>,
-    owner: Option<Pubkey>,
-) -> Result<Instruction, ProgramError> {
-    let (program_storage_account, _program_storage_bump) =
-        Pubkey::try_find_program_address(program_storage_pda_seeds!(), &program_id)
-            .ok_or(ProgramError::InvalidSeeds)?;
-
-    let init = Init {
-        local_domain,
-        mailbox,
-        ism,
-        // igp,
-        owner,
-    };
-
-    // Accounts:
-    // 0. [executable] System program.
-    // 1. [signer] Payer.
-    // 2. [writeable] Storage PDA.
-    let accounts = vec![
-        AccountMeta::new_readonly(solana_program::system_program::id(), false),
-        AccountMeta::new_readonly(payer, true),
-        AccountMeta::new(program_storage_account, false),
-    ];
-
-    let instruction = Instruction {
-        program_id,
-        data: HelloWorldInstruction::Init(init).try_to_vec()?,
-        accounts,
-    };
-
-    Ok(instruction)
-}
-
-/// Gets an instruction to enroll remote routers.
-pub fn enroll_remote_routers_instruction(
-    program_id: Pubkey,
-    owner: Pubkey,
-    configs: Vec<RemoteRouterConfig>,
-) -> Result<Instruction, ProgramError> {
-    let (program_storage_account, _program_storage_bump) =
-        Pubkey::try_find_program_address(program_storage_pda_seeds!(), &program_id)
-            .ok_or(ProgramError::InvalidSeeds)?;
-
-    // Accounts:
-    // 0. [executable] System program.
-    // 1. [signer] Payer.
-    // 2. [writeable] Storage PDA.
-    let accounts = vec![
-        AccountMeta::new_readonly(solana_program::system_program::id(), false),
-        AccountMeta::new(program_storage_account, false),
-        AccountMeta::new(owner, true),
-    ];
-
-    let instruction = Instruction {
-        program_id,
-        data: HelloWorldInstruction::EnrollRemoteRouters(configs).try_to_vec()?,
-        accounts,
-    };
-
-    Ok(instruction)
 }

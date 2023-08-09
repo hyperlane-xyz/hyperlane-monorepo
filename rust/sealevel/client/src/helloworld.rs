@@ -3,7 +3,9 @@ use std::collections::HashMap;
 use hyperlane_core::H256;
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_hello_world::{
-    program::HelloWorldStorageAccount, program_storage_pda_seeds,
+    accounts::HelloWorldStorageAccount,
+    instruction::{enroll_remote_routers_instruction, init_instruction},
+    program_storage_pda_seeds,
 };
 use serde::{Deserialize, Serialize};
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey, signature::Signer};
@@ -47,12 +49,7 @@ impl Deployable<HelloWorldConfig> for HelloWorldDeployer {
         payer: Pubkey,
         router_configs: Vec<RemoteRouterConfig>,
     ) -> Instruction {
-        hyperlane_sealevel_hello_world::program::enroll_remote_routers_instruction(
-            program_id,
-            payer,
-            router_configs,
-        )
-        .unwrap()
+        enroll_remote_routers_instruction(program_id, payer, router_configs).unwrap()
     }
 
     fn get_routers(&self, client: &RpcClient, program_id: &Pubkey) -> HashMap<u32, H256> {
@@ -105,7 +102,7 @@ impl Deployable<HelloWorldConfig> for HelloWorldDeployer {
 
         ctx.new_txn()
             .add(
-                hyperlane_sealevel_hello_world::program::init_instruction(
+                init_instruction(
                     program_id,
                     ctx.payer.pubkey(),
                     domain_id,
