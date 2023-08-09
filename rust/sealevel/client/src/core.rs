@@ -308,7 +308,7 @@ fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, 
 
         let instruction = hyperlane_sealevel_igp::instruction::set_destination_gas_overheads(
             program_id,
-            igp_account,
+            overhead_igp_account,
             ctx.payer.pubkey(),
             overhead_configs,
         )
@@ -326,7 +326,7 @@ fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, 
     if core.remote_domains.contains(&13376) {
         // Now make a gas payment for a message ID
         let message_id =
-            H256::from_str("0x6969000000000000000000000000000000000000000000000000000000006969")
+            H256::from_str("0x7b8ba684e5ce44f898c5fa81785c83a00e32b5bef3412e648eb7a17bec497685")
                 .unwrap();
         let unique_gas_payment_keypair = Keypair::new();
         let (instruction, gas_payment_data_account) =
@@ -334,6 +334,7 @@ fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, 
                 program_id,
                 ctx.payer.pubkey(),
                 igp_account,
+                Some(overhead_igp_account),
                 unique_gas_payment_keypair.pubkey(),
                 message_id,
                 13376,

@@ -6,13 +6,15 @@ use solana_client::{client_error::ClientError, rpc_client::RpcClient};
 use solana_program::program_error::ProgramError;
 use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey, signature::Signer};
 
-use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
-
+use hyperlane_sealevel_connection_client::{
+    gas_router::GasRouterConfig, router::RemoteRouterConfig,
+};
+use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
 use hyperlane_sealevel_token::{hyperlane_token_mint_pda_seeds, spl_token, spl_token_2022};
 use hyperlane_sealevel_token_lib::{
     accounts::HyperlaneTokenAccount,
     hyperlane_token_pda_seeds,
-    instruction::{enroll_remote_routers_instruction, Init},
+    instruction::{enroll_remote_routers_instruction, set_destination_gas_configs, Init},
 };
 
 use crate::{
@@ -52,6 +54,18 @@ impl TokenType {
             TokenType::Collateral(_) => "hyperlane_sealevel_token_collateral",
         }
     }
+
+    // Borrowed from HypERC20Deployer's `gasOverheadDefault`.
+    fn gas_overhead_default(&self) -> u64 {
+        // TODO: note these are the amounts specific to the EVM.
+        // We should eventually make this configurable per protocol type before we
+        // enforce gas amounts to Sealevel chains.
+        match &self {
+            TokenType::Synthetic(_) => 64_000,
+            TokenType::Native => 44_000,
+            TokenType::Collateral(_) => 68_000,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -88,9 +102,16 @@ struct CollateralInfo {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
+struct InterchainGasPaymasterConfig {
+    program_id: Pubkey,
+    igp_account: InterchainGasPaymasterType,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 struct OptionalConnectionClientConfig {
     mailbox: Option<String>,
-    interchain_gas_paymaster: Option<String>,
+    interchain_gas_paymaster: Option<InterchainGasPaymasterConfig>,
     interchain_security_module: Option<String>,
 }
 
@@ -179,6 +200,7 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
             let mut routers: HashMap<u32, H256> = foreign_deployments;
 
             let token_configs_to_deploy = token_configs
+                .clone()
                 .into_iter()
                 .filter(|(_, token_config)| token_config.foreign_deployment.is_none())
                 .collect::<HashMap<_, _>>();
@@ -278,6 +300,72 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                 } else {
                     println!(
                         "No router changes for chain: {}, program_id {}",
+                        chain_name, program_id
+                    );
+                }
+
+                // And set destination gas
+                let configured_destination_gas =
+                    get_destination_gas(&chain_config.client(), &program_id).unwrap();
+
+                let expected_destination_gas = token_configs
+                    .iter()
+                    // filter out local chain
+                    .filter(|(dest_chain_name, _)| *dest_chain_name != &chain_name)
+                    .map(|(dest_chain_name, token_config)| {
+                        let domain = chain_configs.get(dest_chain_name).unwrap().domain_id();
+                        (
+                            domain,
+                            GasRouterConfig {
+                                domain,
+                                gas: Some(token_config.token_type.gas_overhead_default()),
+                            },
+                        )
+                    })
+                    .collect::<HashMap<u32, GasRouterConfig>>();
+
+                // Destination gas to set or update to a Some value
+                let destination_gas_to_set = expected_destination_gas
+                    .iter()
+                    .filter(|(domain, expected_config)| {
+                        configured_destination_gas.get(domain) != expected_config.gas.as_ref()
+                    })
+                    .map(|(_, expected_config)| expected_config.clone());
+
+                // Destination gas to remove
+                let destination_gas_to_unset = configured_destination_gas
+                    .iter()
+                    .filter(|(domain, _)| !expected_destination_gas.contains_key(domain))
+                    .map(|(domain, _)| GasRouterConfig {
+                        domain: *domain,
+                        gas: None,
+                    });
+
+                // All destination gas config changes
+                let destination_gas_configs = destination_gas_to_set
+                    .chain(destination_gas_to_unset)
+                    .collect::<Vec<GasRouterConfig>>();
+
+                if !destination_gas_configs.is_empty() {
+                    println!(
+                        "Setting destination gas amounts for chain: {}, program_id {}, destination gas: {:?}",
+                        chain_name, program_id, destination_gas_configs,
+                    );
+
+                    ctx.new_txn()
+                        .add(
+                            set_destination_gas_configs(
+                                program_id,
+                                ctx.payer.pubkey(),
+                                destination_gas_configs,
+                            )
+                            .unwrap(),
+                        )
+                        .with_client(&chain_config.client())
+                        .send_with_payer();
+                } else {
+                    println!(
+                        "No destination gas amount changes for chain: {}, program_id {}",
                         chain_name, program_id
                     );
                 }
@@ -456,6 +544,16 @@ fn init_warp_route(
         .map(|s| Pubkey::from_str(s).unwrap())
         .unwrap_or(core_program_ids.mailbox);
 
+    let interchain_gas_paymaster = token_config
+        .connection_client
+        .interchain_gas_paymaster
+        .clone()
+        .map(|config| (config.program_id, config.igp_account))
+        .unwrap_or((
+            core_program_ids.igp_program_id,
+            InterchainGasPaymasterType::OverheadIgp(core_program_ids.overhead_igp_account),
+        ));
+
     let init = Init {
         mailbox,
         interchain_security_module: token_config
@@ -463,6 +561,7 @@ fn init_warp_route(
             .interchain_security_module
             .as_ref()
             .map(|s| Pubkey::from_str(s).unwrap()),
+        interchain_gas_paymaster: Some(interchain_gas_paymaster),
         decimals: token_config.decimal_metadata.decimals,
         remote_decimals: token_config.decimal_metadata.remote_decimals(),
     };
@@ -533,6 +632,21 @@ fn get_routers(
         .into_inner();
 
     Ok(token_data.remote_routers)
+}
+
+fn get_destination_gas(
+    client: &RpcClient,
+    token_program_id: &Pubkey,
+) -> Result<HashMap<u32, u64>, ClientError> {
+    let (token_pda, _token_bump) =
+        Pubkey::find_program_address(hyperlane_token_pda_seeds!(), token_program_id);
+
+    let account = client.get_account(&token_pda)?;
+    let token_data = HyperlaneTokenAccount::<()>::fetch(&mut &account.data[..])
+        .unwrap()
+        .into_inner();
+
+    Ok(token_data.destination_gas)
 }
 
 #[derive(Serialize, Deserialize)]
