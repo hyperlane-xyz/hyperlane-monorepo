@@ -245,7 +245,7 @@ where
             mailbox_message_dispatch_authority_pda_seeds!(dispatch_authority_bump),
         )?;
 
-        token_account_data.store_with_rent_exempt_realloc(token_account, &rent, payer_account)?;
+        token_account_data.store(token_account, false)?;
 
         Ok(())
     }

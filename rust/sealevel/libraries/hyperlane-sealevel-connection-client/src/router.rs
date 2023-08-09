@@ -111,8 +111,9 @@ pub trait HyperlaneRouterDispatch: HyperlaneRouter + HyperlaneConnectionClient {
             recipient,
             message_body,
         });
+        let mailbox = self.mailbox();
         let mailbox_ixn = Instruction {
-            program_id: *self.mailbox(),
+            program_id: *mailbox,
             data: dispatch_instruction.into_instruction_data()?,
             accounts: account_metas,
         };
@@ -122,7 +123,9 @@ pub trait HyperlaneRouterDispatch: HyperlaneRouter + HyperlaneConnectionClient {
         // Parse the message ID from the return data from the prior dispatch.
         let (returning_program_id, returned_data) =
             get_return_data().ok_or(ProgramError::InvalidArgument)?;
-        if returning_program_id != *self.mailbox() {
+        // The mailbox itself doesn't make any CPIs, but as a sanity check we confirm
+        // that the return data is from the mailbox.
+        if returning_program_id != *mailbox {
             return Err(ProgramError::InvalidArgument);
         }
         let message_id: H256 =
