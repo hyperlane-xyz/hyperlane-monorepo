@@ -97,7 +97,11 @@ impl ScraperDb {
         debug!(blocks = models.len(), "Writing blocks to database");
         trace!(?models, "Writing blocks to database");
         match Insert::many(models)
-            .on_conflict(OnConflict::new().do_nothing().to_owned())
+            .on_conflict(
+                OnConflict::column(block::Column::Hash)
+                    .do_nothing()
+                    .to_owned(),
+            )
             .exec(&self.0)
             .await
         {

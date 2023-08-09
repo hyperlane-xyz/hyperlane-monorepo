@@ -101,7 +101,11 @@ impl ScraperDb {
         trace!(?models, "Writing txns to database");
 
         match Insert::many(models)
-            .on_conflict(OnConflict::new().do_nothing().to_owned())
+            .on_conflict(
+                OnConflict::column(transaction::Column::Hash)
+                    .do_nothing()
+                    .to_owned(),
+            )
             .exec(&self.0)
             .await
         {
