@@ -33,7 +33,7 @@ hyperlane-test-utils = { path = "../../libraries/test-utils" }
 hyperlane-sealevel-test-ism = { path = "../ism/test-ism", features = ["no-entrypoint"] }
 # Unfortunately required for some functions in `solana-program-test`, and is not
 # re-exported
-tarpc = "*"
+tarpc = "~0.29"
 
 [lib]
 crate-type = ["cdylib", "lib"]

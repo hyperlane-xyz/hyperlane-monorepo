@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use eyre::Result;
-use once_cell::sync::OnceCell;
 use prometheus::{
     histogram_opts, labels, opts, register_counter_vec_with_registry,
     register_gauge_vec_with_registry, register_histogram_vec_with_registry,
@@ -48,10 +47,10 @@ pub struct CoreMetrics {
 
     /// Set of metrics that tightly wrap the JsonRpcClient for use with the
     /// quorum provider.
-    json_rpc_client_metrics: OnceCell<JsonRpcClientMetrics>,
+    json_rpc_client_metrics: OnceLock<JsonRpcClientMetrics>,
 
     /// Set of provider-specific metrics. These only need to get created once.
-    provider_metrics: OnceCell<MiddlewareMetrics>,
+    provider_metrics: OnceLock<MiddlewareMetrics>,
 }
 
 impl CoreMetrics {
@@ -179,8 +178,8 @@ impl CoreMetrics {
 
             latest_checkpoint,
 
-            json_rpc_client_metrics: OnceCell::new(),
-            provider_metrics: OnceCell::new(),
+            json_rpc_client_metrics: OnceLock::new(),
+            provider_metrics: OnceLock::new(),
         })
     }
 

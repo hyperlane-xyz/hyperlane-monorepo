@@ -29,7 +29,7 @@ tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
 tracing-futures.workspace = true
 tracing-subscriber.workspace = true
 tracing.workspace = true
-regex = "1.5"
+regex.workspace = true
 
 hyperlane-core = { path = "../../hyperlane-core", features = ["agent"] }
 hyperlane-base = { path = "../../hyperlane-base" }
@@ -39,7 +39,7 @@ num-traits.workspace = true
 derive_more.workspace = true
 
 [dev-dependencies]
-tokio-test = "0.4"
+tokio-test.workspace = true
 hyperlane-test = { path = "../../hyperlane-test" }
 hyperlane-base = { path = "../../hyperlane-base", features = ["test-utils"] }
 
