@@ -108,6 +108,8 @@ impl Deployable<HelloWorldConfig> for HelloWorldDeployer {
                     domain_id,
                     mailbox,
                     ism,
+                    // TODO revisit this when we want to deploy with IGPs
+                    None,
                     owner,
                 )
                 .unwrap(),

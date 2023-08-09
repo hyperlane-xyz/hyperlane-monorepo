@@ -4,10 +4,11 @@ use access_control::AccessControl;
 use account_utils::{create_pda_account, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
 
-// use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
-use hyperlane_sealevel_connection_client::router::{
-    HyperlaneRouterAccessControl, HyperlaneRouterDispatch, RemoteRouterConfig,
+use hyperlane_sealevel_connection_client::{
+    router::{HyperlaneRouterAccessControl, HyperlaneRouterDispatch, RemoteRouterConfig},
+    HyperlaneConnectionClient,
 };
+use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
 use hyperlane_sealevel_mailbox::{
     mailbox_message_dispatch_authority_pda_seeds, mailbox_process_authority_pda_seeds,
 };
@@ -132,7 +133,7 @@ fn init(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramRes
         local_domain: init.local_domain,
         mailbox: init.mailbox,
         ism: init.ism,
-        // igp: init.igp,
+        igp: init.igp,
         owner: init.owner,
         ..Default::default()
     });
@@ -182,7 +183,7 @@ fn send_hello_world(
         HelloWorldStorageAccount::fetch(&mut &storage_info.data.borrow()[..])?.into_inner();
 
     // Account 1: Mailbox program.
-    let mailbox_info = next_account_info(accounts_iter)?;
+    let _mailbox_info = next_account_info(accounts_iter)?;
 
     // Account 2: Outbox PDA.
     let mailbox_outbox_info = next_account_info(accounts_iter)?;
@@ -210,32 +211,126 @@ fn send_hello_world(
     // Account 8: Dispatched message PDA.
     let dispatched_message_info = next_account_info(accounts_iter)?;
 
-    let dispatch_auth_seeds: &[&[u8]] =
+    let dispatch_account_metas = vec![
+        AccountMeta::new(*mailbox_outbox_info.key, false),
+        AccountMeta::new_readonly(*dispatch_authority_info.key, true),
+        AccountMeta::new_readonly(*system_program_info.key, false),
+        AccountMeta::new_readonly(*spl_noop_info.key, false),
+        AccountMeta::new(*payer_info.key, true),
+        AccountMeta::new_readonly(*unique_message_account_info.key, true),
+        AccountMeta::new(*dispatched_message_info.key, false),
+    ];
+    let dispatch_account_infos = &[
+        mailbox_outbox_info.clone(),
+        dispatch_authority_info.clone(),
+        system_program_info.clone(),
+        spl_noop_info.clone(),
+        payer_info.clone(),
+        unique_message_account_info.clone(),
+        dispatched_message_info.clone(),
+    ];
+
+    let igp_payment_accounts =
+        if let Some((igp_program_id, igp_account_type)) = storage.interchain_gas_paymaster() {
+            // Account 9: The IGP program
+            let igp_program_account_info = next_account_info(accounts_iter)?;
+            if igp_program_account_info.key != igp_program_id {
+                return Err(ProgramError::InvalidArgument);
+            }
+
+            // Account 10: The IGP program data.
+            // No verification is performed here, the IGP will do that.
+            let igp_program_data_account_info = next_account_info(accounts_iter)?;
+
+            // Account 11: The gas payment PDA.
+            // No verification is performed here, the IGP will do that.
+            let igp_payment_pda_account_info = next_account_info(accounts_iter)?;
+
+            // Account 12: The configured IGP account.
+            let configured_igp_account_info = next_account_info(accounts_iter)?;
+            if configured_igp_account_info.key != igp_account_type.key() {
+                return Err(ProgramError::InvalidArgument);
+            }
+
+            // Accounts expected by the IGP's `PayForGas` instruction:
+            //
+            // 0. [executable] The system program.
+            // 1. [signer] The payer.
+            // 2. [writeable] The IGP program data.
+            // 3. [signer] Unique gas payment account.
+            // 4. [writeable] Gas payment PDA.
+            // 5. [writeable] The IGP account.
+            // 6. [] Overhead IGP account (optional).
+
+            let mut igp_payment_account_metas = vec![
+                AccountMeta::new_readonly(solana_program::system_program::id(), false),
+                AccountMeta::new(*payer_info.key, true),
+                AccountMeta::new(*igp_program_data_account_info.key, false),
+                AccountMeta::new_readonly(*unique_message_account_info.key, true),
+                AccountMeta::new(*igp_payment_pda_account_info.key, false),
+            ];
+            let mut igp_payment_account_infos = vec![
+                system_program_info.clone(),
+                payer_info.clone(),
+                igp_program_data_account_info.clone(),
+                unique_message_account_info.clone(),
+                igp_payment_pda_account_info.clone(),
+            ];
+
+            match igp_account_type {
+                InterchainGasPaymasterType::Igp(_) => {
+                    igp_payment_account_metas
+                        .push(AccountMeta::new(*configured_igp_account_info.key, false));
+                    igp_payment_account_infos.push(configured_igp_account_info.clone());
+                }
+                InterchainGasPaymasterType::OverheadIgp(_) => {
+                    // Account 13: The inner IGP account.
+                    let inner_igp_account_info = next_account_info(accounts_iter)?;
+
+                    // The inner IGP is expected first, then the overhead IGP.
+                    igp_payment_account_metas.extend([
+                        AccountMeta::new(*inner_igp_account_info.key, false),
+                        AccountMeta::new_readonly(*configured_igp_account_info.key, false),
+                    ]);
+                    igp_payment_account_infos.extend([
+                        inner_igp_account_info.clone(),
+                        configured_igp_account_info.clone(),
+                    ]);
+                }
+            };
+
+            Some((igp_payment_account_metas, igp_payment_account_infos))
+        } else {
+            None
+        };
+
+    let dispatch_authority_seeds: &[&[u8]] =
         mailbox_message_dispatch_authority_pda_seeds!(expected_dispatch_authority_bump);
-    let _ = storage.dispatch(
-        mailbox_info.key,
-        dispatch_auth_seeds,
-        hello_world.destination,
-        hello_world.message.into(),
-        vec![
-            AccountMeta::new(*mailbox_outbox_info.key, false),
-            AccountMeta::new_readonly(*dispatch_authority_info.key, true),
-            AccountMeta::new_readonly(*system_program_info.key, false),
-            AccountMeta::new_readonly(*spl_noop_info.key, false),
-            AccountMeta::new(*payer_info.key, true),
-            AccountMeta::new_readonly(*unique_message_account_info.key, true),
-            AccountMeta::new(*dispatched_message_info.key, false),
-        ],
-        &[
-            mailbox_outbox_info.clone(),
-            dispatch_authority_info.clone(),
-            system_program_info.clone(),
-            spl_noop_info.clone(),
-            payer_info.clone(),
-            unique_message_account_info.clone(),
-            dispatched_message_info.clone(),
-        ],
-    );
+
+    if let Some((igp_payment_account_metas, igp_payment_account_infos)) = igp_payment_accounts {
+        // Dispatch the message and pay for gas.
+        storage.dispatch_with_gas(
+            program_id,
+            dispatch_authority_seeds,
+            hello_world.destination,
+            hello_world.message.into(),
+            HANDLE_GAS_AMOUNT,
+            dispatch_account_metas,
+            dispatch_account_infos,
+            igp_payment_account_metas,
+            &igp_payment_account_infos,
+        )?;
+    } else {
+        // Dispatch the message.
+        storage.dispatch(
+            program_id,
+            dispatch_authority_seeds,
+            hello_world.destination,
+            hello_world.message.into(),
+            dispatch_account_metas,
+            dispatch_account_infos,
+        )?;
+    }
 
     storage.sent += 1;
     storage

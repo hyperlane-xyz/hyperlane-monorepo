@@ -1,8 +1,8 @@
 //! HelloWorld instructions.
 
 use borsh::{BorshDeserialize, BorshSerialize};
-// use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
+use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
 use solana_program::{
     instruction::{AccountMeta, Instruction},
     program_error::ProgramError,
@@ -21,7 +21,7 @@ pub struct Init {
     /// The ISM.
     pub ism: Option<Pubkey>,
     /// The IGP.
-    // pub igp: Option<(Pubkey, InterchainGasPaymasterType)>,
+    pub igp: Option<(Pubkey, InterchainGasPaymasterType)>,
     /// The owner.
     pub owner: Option<Pubkey>,
 }
@@ -55,7 +55,7 @@ pub fn init_instruction(
     local_domain: u32,
     mailbox: Pubkey,
     ism: Option<Pubkey>,
-    // igp: Option<(Pubkey, InterchainGasPaymasterType)>,
+    igp: Option<(Pubkey, InterchainGasPaymasterType)>,
     owner: Option<Pubkey>,
 ) -> Result<Instruction, ProgramError> {
     let (program_storage_account, _program_storage_bump) =
@@ -66,7 +66,7 @@ pub fn init_instruction(
         local_domain,
         mailbox,
         ism,
-        // igp,
+        igp,
         owner,
     };
 

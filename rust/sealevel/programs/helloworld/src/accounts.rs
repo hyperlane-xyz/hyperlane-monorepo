@@ -26,7 +26,7 @@ pub struct HelloWorldStorage {
     /// The ISM.
     pub ism: Option<Pubkey>,
     /// The IGP.
-    // pub igp: Option<(Pubkey, InterchainGasPaymasterType)>,
+    pub igp: Option<(Pubkey, InterchainGasPaymasterType)>,
     /// The owner.
     pub owner: Option<Pubkey>,
     /// A counter of how many messages have been sent from this contract.
@@ -95,7 +95,7 @@ impl HyperlaneConnectionClient for HelloWorldStorage {
     }
 
     fn interchain_gas_paymaster(&self) -> Option<&(Pubkey, InterchainGasPaymasterType)> {
-        None
+        self.igp.as_ref()
     }
 
     fn interchain_security_module(&self) -> Option<&Pubkey> {
