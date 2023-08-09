@@ -208,7 +208,7 @@ pub fn init_overhead_igp_instruction(
 /// Gets an instruction to set the destination gas overheads.
 pub fn set_destination_gas_overheads(
     program_id: Pubkey,
-    igp: Pubkey,
+    overhead_igp: Pubkey,
     owner: Pubkey,
     overhead_gas_amounts: Vec<GasOverheadConfig>,
 ) -> Result<SolanaInstruction, ProgramError> {
@@ -220,7 +220,7 @@ pub fn set_destination_gas_overheads(
     // 2. [signer] The IGP owner.
     let accounts = vec![
         AccountMeta::new_readonly(solana_program::system_program::id(), false),
-        AccountMeta::new(igp, false),
+        AccountMeta::new(overhead_igp, false),
         AccountMeta::new(owner, true),
     ];
 
@@ -262,10 +262,12 @@ pub fn set_gas_oracle_configs_instruction(
 }
 
 /// Gets an instruction to pay for gas
+#[allow(clippy::too_many_arguments)]
 pub fn pay_for_gas_instruction(
     program_id: Pubkey,
     payer: Pubkey,
     igp: Pubkey,
+    overhead_igp: Option<Pubkey>,
     unique_gas_payment_account_pubkey: Pubkey,
     message_id: H256,
     destination_domain: u32,
@@ -290,17 +292,21 @@ pub fn pay_for_gas_instruction(
     // 0. [executable] The system program.
     // 1. [signer] The payer.
     // 2. [writeable] The IGP program data.
-    // 3. [writeable] The IGP account.
-    // 4. [signer] Unique gas payment account.
-    // 5. [writeable] Gas payment PDA.
-    let accounts = vec![
+    // 3. [signer] Unique gas payment account.
+    // 4. [writeable] Gas payment PDA.
+    // 5. [writeable] The IGP account.
+    // 6. [] Overhead IGP account (optional).
+    let mut accounts = vec![
         AccountMeta::new_readonly(solana_program::system_program::id(), false),
         AccountMeta::new(payer, true),
         AccountMeta::new(program_data_account, false),
-        AccountMeta::new(igp, false),
         AccountMeta::new_readonly(unique_gas_payment_account_pubkey, true),
         AccountMeta::new(gas_payment_account, false),
+        AccountMeta::new(igp, false),
     ];
+    if let Some(overhead_igp) = overhead_igp {
+        accounts.push(AccountMeta::new_readonly(overhead_igp, false));
+    }
 
     let instruction = SolanaInstruction {
         program_id,

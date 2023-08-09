@@ -20,7 +20,8 @@ use solana_program::{
 
 use access_control::AccessControl;
 use account_utils::{
-    create_pda_account, verify_account_uninitialized, verify_rent_exempt, AccountData, SizedData,
+    create_pda_account, verify_account_uninitialized, verify_rent_exempt, AccountData,
+    DiscriminatorPrefixed, SizedData,
 };
 use serializable_account_meta::SimulationReturnData;
 
@@ -115,10 +116,13 @@ fn init(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
         return Err(ProgramError::InvalidSeeds);
     }
 
-    let program_data_account = ProgramDataAccount::from(ProgramData {
-        bump_seed: program_data_bump,
-        payment_count: 0,
-    });
+    let program_data_account = ProgramDataAccount::new(
+        ProgramData {
+            bump_seed: program_data_bump,
+            payment_count: 0,
+        }
+        .into(),
+    );
     // Create the program data PDA account.
     let program_data_account_size = program_data_account.size();
 
@@ -150,12 +154,15 @@ fn init_igp(program_id: &Pubkey, accounts: &[AccountInfo], data: InitIgp) -> Pro
     let igp_key = init_igp_variant(
         program_id,
         accounts,
-        |bump_seed| Igp {
-            bump_seed,
-            salt: data.salt,
-            owner: data.owner,
-            beneficiary: data.beneficiary,
-            gas_oracles: HashMap::new(),
+        |bump_seed| {
+            Igp {
+                bump_seed,
+                salt: data.salt,
+                owner: data.owner,
+                beneficiary: data.beneficiary,
+                gas_oracles: HashMap::new(),
+            }
+            .into()
         },
         igp_pda_seeds!(data.salt),
     )?;
@@ -179,12 +186,15 @@ fn init_overhead_igp(
     let igp_key = init_igp_variant(
         program_id,
         accounts,
-        |bump_seed| OverheadIgp {
-            bump_seed,
-            salt: data.salt,
-            owner: data.owner,
-            inner: data.inner,
-            gas_overheads: HashMap::new(),
+        |bump_seed| {
+            OverheadIgp {
+                bump_seed,
+                salt: data.salt,
+                owner: data.owner,
+                inner: data.inner,
+                gas_overheads: HashMap::new(),
+            }
+            .into()
         },
         overhead_igp_pda_seeds!(data.salt),
     )?;
@@ -195,10 +205,10 @@ fn init_overhead_igp(
 }
 
 /// Initializes an IGP variant.
-fn init_igp_variant<T: account_utils::Data + account_utils::SizedData>(
+fn init_igp_variant<T: account_utils::DiscriminatorPrefixedData + SizedData>(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
-    get_data: impl FnOnce(u8) -> T,
+    get_data: impl FnOnce(u8) -> DiscriminatorPrefixed<T>,
     pda_seeds: &[&[u8]],
 ) -> Result<Pubkey, ProgramError> {
     let accounts_iter = &mut accounts.iter();
@@ -223,7 +233,7 @@ fn init_igp_variant<T: account_utils::Data + account_utils::SizedData>(
         return Err(ProgramError::InvalidSeeds);
     }
 
-    let igp_account = AccountData::<T>::from(get_data(igp_bump));
+    let igp_account = AccountData::<DiscriminatorPrefixed<T>>::new(get_data(igp_bump));
 
     let igp_account_size = igp_account.size();
 
@@ -251,9 +261,9 @@ fn init_igp_variant<T: account_utils::Data + account_utils::SizedData>(
 /// 0. [executable] The system program.
 /// 1. [signer] The payer.
 /// 2. [writeable] The IGP program data.
-/// 3. [writeable] The IGP account.
-/// 4. [signer] Unique gas payment account.
-/// 5. [writeable] Gas payment PDA.
+/// 3. [signer] Unique gas payment account.
+/// 4. [writeable] Gas payment PDA.
+/// 5. [writeable] The IGP account.
 /// 6. [] Overhead IGP account (optional).
 fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
@@ -285,7 +295,27 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
         return Err(ProgramError::IncorrectProgramId);
     }
 
-    // Account 3: The IGP account.
+    // Account 3: The unique gas payment account.
+    // Uniqueness is enforced by making sure the message storage PDA based on
+    // this unique message account is empty, which is done next.
+    let unique_gas_payment_account_info = next_account_info(accounts_iter)?;
+    if !unique_gas_payment_account_info.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+
+    // Account 4: Gas payment PDA.
+    let gas_payment_account_info = next_account_info(accounts_iter)?;
+    let (gas_payment_key, gas_payment_bump) = Pubkey::find_program_address(
+        igp_gas_payment_pda_seeds!(unique_gas_payment_account_info.key),
+        program_id,
+    );
+    if gas_payment_account_info.key != &gas_payment_key {
+        return Err(ProgramError::InvalidSeeds);
+    }
+    // Make sure an account can't be written to that already exists.
+    verify_account_uninitialized(gas_payment_account_info)?;
+
+    // Account 5: The IGP account.
     let igp_info = next_account_info(accounts_iter)?;
     // The caller should validate the IGP account before paying for gas,
     // but we do a basic sanity check.
@@ -298,26 +328,6 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
     if igp_info.key != &igp_key {
         return Err(ProgramError::InvalidSeeds);
     }
-
-    // Account 4: The unique gas payment account.
-    // Uniqueness is enforced by making sure the message storage PDA based on
-    // this unique message account is empty, which is done next.
-    let unique_gas_payment_account_info = next_account_info(accounts_iter)?;
-    if !unique_gas_payment_account_info.is_signer {
-        return Err(ProgramError::MissingRequiredSignature);
-    }
-
-    // Account 5: Gas payment PDA.
-    let gas_payment_account_info = next_account_info(accounts_iter)?;
-    let (gas_payment_key, gas_payment_bump) = Pubkey::find_program_address(
-        igp_gas_payment_pda_seeds!(unique_gas_payment_account_info.key),
-        program_id,
-    );
-    if gas_payment_account_info.key != &gas_payment_key {
-        return Err(ProgramError::InvalidSeeds);
-    }
-    // Make sure an account can't be written to that already exists.
-    verify_account_uninitialized(gas_payment_account_info)?;
 
     // Account 6: Overhead IGP account (optional).
     // The caller is expected to only provide an overhead IGP they are comfortable
@@ -466,7 +476,7 @@ fn set_igp_beneficiary(
 
     // Update the beneficiary and store it.
     igp.beneficiary = beneficiary;
-    IgpAccount::from(igp).store(igp_info, false)?;
+    IgpAccount::new(igp.into()).store(igp_info, false)?;
 
     Ok(())
 }
@@ -476,9 +486,7 @@ fn set_igp_beneficiary(
 /// Accounts:
 /// 0. [] The IGP or OverheadIGP.
 /// 1. [signer] The owner of the IGP account.
-fn transfer_igp_variant_ownership<
-    T: account_utils::Data + account_utils::SizedData + AccessControl,
->(
+fn transfer_igp_variant_ownership<T: account_utils::DiscriminatorPrefixedData + AccessControl>(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     new_owner: Option<Pubkey>,
@@ -489,7 +497,7 @@ fn transfer_igp_variant_ownership<
 
     // Update the owner and store it.
     igp.set_owner(new_owner)?;
-    AccountData::<T>::from(igp).store(igp_info, false)?;
+    AccountData::<DiscriminatorPrefixed<T>>::new(igp.into()).store(igp_info, false)?;
 
     Ok(())
 }
@@ -502,7 +510,7 @@ fn transfer_igp_variant_ownership<
 fn get_igp_variant_and_verify_owner<
     'a,
     'b,
-    T: account_utils::Data + account_utils::SizedData + AccessControl,
+    T: account_utils::DiscriminatorPrefixedData + AccessControl,
 >(
     program_id: &Pubkey,
     accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
@@ -513,14 +521,15 @@ fn get_igp_variant_and_verify_owner<
         return Err(ProgramError::IncorrectProgramId);
     }
 
-    let igp = AccountData::<T>::fetch(&mut &igp_info.data.borrow()[..])?.into_inner();
+    let igp = AccountData::<DiscriminatorPrefixed<T>>::fetch(&mut &igp_info.data.borrow()[..])?
+        .into_inner();
 
     // Account 1: The owner of the IGP account.
     let owner_info = next_account_info(accounts_iter)?;
     // Errors if `owner_info` is not a signer or is not the current owner.
     igp.ensure_owner_signer(owner_info)?;
 
-    Ok((igp_info, *igp, owner_info))
+    Ok((igp_info, igp.data, owner_info))
 }
 
 /// Sends funds accrued in an IGP to its beneficiary.
@@ -605,7 +614,7 @@ fn set_destination_gas_overheads(
         };
     });
 
-    let overhead_igp_account = OverheadIgpAccount::from(overhead_igp);
+    let overhead_igp_account = OverheadIgpAccount::new(overhead_igp.into());
 
     overhead_igp_account.store_with_rent_exempt_realloc(
         overhead_igp_info,
@@ -647,7 +656,7 @@ fn set_gas_oracle_configs(
         };
     });
 
-    let igp_account = IgpAccount::from(igp);
+    let igp_account = IgpAccount::new(igp.into());
 
     igp_account.store_with_rent_exempt_realloc(igp_info, &Rent::get()?, owner_info)?;
 
