@@ -71,13 +71,17 @@ impl TracingConfig {
     /// Attempt to instantiate and register a tracing subscriber setup from
     /// settings.
     pub fn start_tracing(&self, metrics: &CoreMetrics) -> Result<()> {
-        let mut target_layer = Targets::new().with_default(self.level);
-        if self.level < Level::Trace {
-            // only show these debug and trace logs at trace level
-            target_layer = target_layer.with_target("hyper", Level::Info);
-            target_layer = target_layer.with_target("rusoto_core", Level::Info);
-            target_layer = target_layer.with_target("reqwest", Level::Info);
+        let mut target_layer = Targets::new()
+            .with_default(self.level)
+            // Reduce log noise from trusted libraries that we can reasonably assume are working correctly
+            .with_target("hyper", Level::Info)
+            .with_target("rusoto_core", Level::Info)
+            .with_target("reqwest", Level::Info)
+            .with_target("tokio", Level::Debug)
+            .with_target("tokio_util", Level::Debug)
+            .with_target("ethers_providers", Level::Debug);
 
+        if self.level < Level::Trace {
             // only show sqlx query logs at trace level
             target_layer = target_layer.with_target("sqlx::query", Level::Warn);
         }
