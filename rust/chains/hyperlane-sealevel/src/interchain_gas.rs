@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use hyperlane_core::{
     config::StrOrIntParseError, ChainCommunicationError, ChainResult, ContractLocator,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer,
-    InterchainGasPaymaster, InterchainGasPayment, LogMeta, SequenceIndexer, H256, U256,
+    InterchainGasPaymaster, InterchainGasPayment, LogMeta, SequenceIndexer, H256, H512, U256,
 };
 use hyperlane_sealevel_igp::{
     accounts::{GasPaymentAccount, GasPaymentData, ProgramDataAccount},
@@ -215,7 +215,7 @@ impl SealevelInterchainGasPaymasterIndexer {
                 // TODO: get these when building out scraper support.
                 // It's inconvenient to get these :|
                 block_hash: H256::zero(),
-                transaction_hash: H256::zero(),
+                transaction_id: H512::zero(),
                 transaction_index: 0,
                 log_index: U256::zero(),
             },

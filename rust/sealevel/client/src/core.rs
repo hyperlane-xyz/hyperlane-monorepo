@@ -308,7 +308,7 @@ fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, 
 
         let instruction = hyperlane_sealevel_igp::instruction::set_destination_gas_overheads(
             program_id,
-            igp_account,
+            overhead_igp_account,
             ctx.payer.pubkey(),
             overhead_configs,
         )
@@ -335,6 +335,7 @@ fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, 
                 program_id,
                 ctx.payer.pubkey(),
                 igp_account,
+                Some(overhead_igp_account),
                 unique_gas_payment_keypair.pubkey(),
                 message_id,
                 13376,

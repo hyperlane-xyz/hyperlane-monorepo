@@ -17,6 +17,27 @@ pub const TOKEN_EXCHANGE_RATE_SCALE: u128 = 10u128.pow(19);
 /// The number of decimals for the native SOL token.
 pub const SOL_DECIMALS: u8 = 9;
 
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(tag = "type", rename_all = "camelCase"))]
+/// Types of IGPs that exist.
+pub enum InterchainGasPaymasterType {
+    /// An IGP with gas oracles and that receives lamports as payment.
+    Igp(Pubkey),
+    /// An overhead IGP that points to an inner IGP and imposes a gas overhead for each destination domain.
+    OverheadIgp(Pubkey),
+}
+
+impl InterchainGasPaymasterType {
+    /// Returns the key for the IGP.
+    pub fn key(&self) -> &Pubkey {
+        match self {
+            InterchainGasPaymasterType::Igp(key) => key,
+            InterchainGasPaymasterType::OverheadIgp(key) => key,
+        }
+    }
+}
+
 /// A gas oracle that provides gas data for a remote chain.
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -34,7 +55,11 @@ impl Default for GasOracle {
 }
 
 /// The account for the program's global data.
-pub type ProgramDataAccount = AccountData<ProgramData>;
+pub type ProgramDataAccount = AccountData<DiscriminatorPrefixed<ProgramData>>;
+
+impl DiscriminatorData for ProgramData {
+    const DISCRIMINATOR: [u8; 8] = *b"PRGMDATA";
+}
 
 /// A singleton account that stores the program's global data.
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
@@ -54,7 +79,11 @@ impl SizedData for ProgramData {
 }
 
 /// An overhead IGP account.
-pub type OverheadIgpAccount = AccountData<OverheadIgp>;
+pub type OverheadIgpAccount = AccountData<DiscriminatorPrefixed<OverheadIgp>>;
+
+impl DiscriminatorData for OverheadIgp {
+    const DISCRIMINATOR: [u8; 8] = *b"OVRHDIGP";
+}
 
 /// Overhead IGP account data, intended to be configured with gas overheads
 /// to impose on application-specified gas payment amounts.
@@ -119,7 +148,11 @@ impl SizedData for OverheadIgp {
 }
 
 /// An IGP account.
-pub type IgpAccount = AccountData<Igp>;
+pub type IgpAccount = AccountData<DiscriminatorPrefixed<Igp>>;
+
+impl DiscriminatorData for Igp {
+    const DISCRIMINATOR: [u8; 8] = *b"IGP_____";
+}
 
 /// IGP account data.
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]

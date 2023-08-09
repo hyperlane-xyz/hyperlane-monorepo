@@ -1,3 +1,4 @@
+use base64::Engine;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{ChainCommunicationError, ChainResult};
 
@@ -41,9 +42,9 @@ pub async fn simulate_instruction<T: BorshDeserialize + BorshSerialize>(
 
     if let Some(return_data) = return_data {
         let bytes = match return_data.data.1 {
-            UiReturnDataEncoding::Base64 => {
-                base64::decode(return_data.data.0).map_err(ChainCommunicationError::from_other)?
-            }
+            UiReturnDataEncoding::Base64 => base64::engine::general_purpose::STANDARD
+                .decode(return_data.data.0)
+                .map_err(ChainCommunicationError::from_other)?,
         };
 
         let decoded_data =

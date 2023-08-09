@@ -10,7 +10,7 @@ use hyperlane_base::{
     SignerConf,
 };
 use hyperlane_core::config::*;
-use hyperlane_core::HyperlaneDomain;
+use hyperlane_core::{HyperlaneDomain, HyperlaneDomainProtocol};
 
 decl_settings!(Validator,
     Parsed {
@@ -54,7 +54,7 @@ impl FromRawConf<'_, RawValidatorSettings> for ValidatorSettings {
 
         let validator = raw
             .validator
-            .parse_config(&cwp.join("validator"))
+            .parse_config::<SignerConf>(&cwp.join("validator"))
             .take_config_err(&mut err);
 
         let checkpoint_syncer = raw
@@ -112,11 +112,26 @@ impl FromRawConf<'_, RawValidatorSettings> for ValidatorSettings {
         });
 
         err.into_result()?;
+
+        let mut base = base.unwrap();
+        let origin_chain = origin_chain.unwrap();
+        let validator = validator.unwrap();
+
+        if origin_chain.domain_protocol() == HyperlaneDomainProtocol::Ethereum {
+            // if an EVM chain we can assume the chain signer is the validator signer when not
+            // specified
+            base.chains
+                .get_mut(origin_chain.name())
+                .unwrap()
+                .signer
+                .get_or_insert_with(|| validator.clone());
+        }
+
         Ok(Self {
-            base: base.unwrap(),
+            base,
             db,
-            origin_chain: origin_chain.unwrap(),
-            validator: validator.unwrap(),
+            origin_chain,
+            validator,
             checkpoint_syncer: checkpoint_syncer.unwrap(),
             reorg_period: reorg_period.unwrap(),
             interval,

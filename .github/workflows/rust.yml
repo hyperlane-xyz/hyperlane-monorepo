@@ -84,4 +84,4 @@ jobs:
       - name: Setup WASM
         run: rustup target add wasm32-unknown-unknown
       - name: Check WASM
-        run: cargo check -p hyperlane-core --all-features --target wasm32-unknown-unknown
+        run: cargo check -p hyperlane-core --features=strum,test-utils --target wasm32-unknown-unknown
