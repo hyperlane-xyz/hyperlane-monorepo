@@ -490,8 +490,9 @@ fn set_account_meta_return_data(program_id: &Pubkey) -> ProgramResult {
 /// Enrolls remote routers.
 ///
 /// Accounts:
-/// 0. [writeable] Storage PDA account.
-/// 1. [signer] Owner.
+/// 0. [executable] System program.
+/// 1. [writeable] Storage PDA account.
+/// 2. [signer] Owner.
 fn enroll_remote_routers(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -499,7 +500,13 @@ fn enroll_remote_routers(
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
-    // Account 0: Storage PDA account.
+    // Account 0: System program.
+    let system_program_info = next_account_info(accounts_iter)?;
+    if system_program_info.key != &system_program::id() {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    // Account 1: Storage PDA account.
     let storage_info = next_account_info(accounts_iter)?;
     let (expected_storage_pda_key, _expected_storage_pda_bump) =
         Pubkey::find_program_address(program_storage_pda_seeds!(), program_id);
@@ -509,7 +516,7 @@ fn enroll_remote_routers(
     let mut storage =
         HelloWorldStorageAccount::fetch(&mut &storage_info.data.borrow()[..])?.into_inner();
 
-    // Account 1: Owner.
+    // Account 2: Owner.
     let owner_info = next_account_info(accounts_iter)?;
     storage.ensure_owner_signer(owner_info)?;
 
@@ -527,7 +534,80 @@ fn enroll_remote_routers(
         storage_info,
         &Rent::get()?,
         &owner_info,
+        system_program_info,
     )?;
 
     Ok(())
+}
+
+// --- instruction stuff ---
+
+/// Gets an instruction to initialize the program.
+pub fn init_instruction(
+    program_id: Pubkey,
+    payer: Pubkey,
+    local_domain: u32,
+    mailbox: Pubkey,
+    ism: Option<Pubkey>,
+    // igp: Option<(Pubkey, InterchainGasPaymasterType)>,
+    owner: Option<Pubkey>,
+) -> Result<Instruction, ProgramError> {
+    let (program_storage_account, _program_storage_bump) =
+        Pubkey::try_find_program_address(program_storage_pda_seeds!(), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+
+    let init = Init {
+        local_domain,
+        mailbox,
+        ism,
+        // igp,
+        owner,
+    };
+
+    // Accounts:
+    // 0. [executable] System program.
+    // 1. [signer] Payer.
+    // 2. [writeable] Storage PDA.
+    let accounts = vec![
+        AccountMeta::new_readonly(solana_program::system_program::id(), false),
+        AccountMeta::new_readonly(payer, true),
+        AccountMeta::new(program_storage_account, false),
+    ];
+
+    let instruction = Instruction {
+        program_id,
+        data: HelloWorldInstruction::Init(init).try_to_vec()?,
+        accounts,
+    };
+
+    Ok(instruction)
+}
+
+/// Gets an instruction to enroll remote routers.
+pub fn enroll_remote_routers_instruction(
+    program_id: Pubkey,
+    owner: Pubkey,
+    configs: Vec<RemoteRouterConfig>,
+) -> Result<Instruction, ProgramError> {
+    let (program_storage_account, _program_storage_bump) =
+        Pubkey::try_find_program_address(program_storage_pda_seeds!(), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+
+    // Accounts:
+    // 0. [executable] System program.
+    // 1. [signer] Payer.
+    // 2. [writeable] Storage PDA.
+    let accounts = vec![
+        AccountMeta::new_readonly(solana_program::system_program::id(), false),
+        AccountMeta::new(program_storage_account, false),
+        AccountMeta::new(owner, true),
+    ];
+
+    let instruction = Instruction {
+        program_id,
+        data: HelloWorldInstruction::EnrollRemoteRouters(configs).try_to_vec()?,
+        accounts,
+    };
+
+    Ok(instruction)
 }

@@ -584,7 +584,6 @@ fn set_destination_gas_overheads(
     let accounts_iter = &mut accounts.iter();
 
     // Account 0: System program.
-    // Required to invoke `system_instruction::transfer` in `store_with_rent_exempt_realloc`.
     let system_program_info = next_account_info(accounts_iter)?;
     if system_program_info.key != &solana_program::system_program::id() {
         return Err(ProgramError::IncorrectProgramId);
@@ -611,6 +610,7 @@ fn set_destination_gas_overheads(
         overhead_igp_info,
         &Rent::get()?,
         owner_info,
+        system_program_info,
     )?;
 
     Ok(())
@@ -649,7 +649,12 @@ fn set_gas_oracle_configs(
 
     let igp_account = IgpAccount::from(igp);
 
-    igp_account.store_with_rent_exempt_realloc(igp_info, &Rent::get()?, owner_info)?;
+    igp_account.store_with_rent_exempt_realloc(
+        igp_info,
+        &Rent::get()?,
+        owner_info,
+        system_program_info,
+    )?;
 
     Ok(())
 }

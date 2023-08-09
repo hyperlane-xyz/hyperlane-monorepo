@@ -64,6 +64,7 @@ use hyperlane_sealevel_validator_announce::{
     validator_storage_locations_pda_seeds,
 };
 
+use crate::helloworld::process_helloworld_cmd;
 use crate::warp_route::process_warp_route_cmd;
 pub(crate) use crate::{context::*, core::*};
 
@@ -106,6 +107,7 @@ enum HyperlaneSealevelCmd {
     ValidatorAnnounce(ValidatorAnnounceCmd),
     MultisigIsmMessageId(MultisigIsmMessageIdCmd),
     WarpRoute(WarpRouteCmd),
+    HelloWorld(HelloWorldCmd),
 }
 
 #[derive(Args)]
@@ -410,11 +412,11 @@ pub(crate) struct HelloWorldDeploy {
     #[arg(long)]
     built_so_dir: PathBuf,
     #[arg(long)]
-    warp_route_name: String,
-    #[arg(long)]
     config_file: PathBuf,
     #[arg(long)]
     chain_config_file: PathBuf,
+    #[arg(long)]
+    context: String,
 }
 
 fn main() {
@@ -464,6 +466,7 @@ fn main() {
         }
         HyperlaneSealevelCmd::Core(cmd) => process_core_cmd(ctx, cmd),
         HyperlaneSealevelCmd::WarpRoute(cmd) => process_warp_route_cmd(ctx, cmd),
+        HyperlaneSealevelCmd::HelloWorld(cmd) => process_helloworld_cmd(ctx, cmd),
     }
 }
 

@@ -4,6 +4,7 @@ use std::{
     collections::HashMap,
     fs::File,
     path::{Path, PathBuf},
+    str::FromStr,
 };
 
 use solana_client::rpc_client::RpcClient;
@@ -17,28 +18,50 @@ use crate::{
     read_core_program_ids, Context, CoreProgramIds,
 };
 
+fn parse_pubkey_or_default(maybe_str: Option<&String>, default: Pubkey) -> Pubkey {
+    maybe_str
+        .map(|s| Pubkey::from_str(s).unwrap())
+        .unwrap_or(default)
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct OptionalConnectionClientConfig {
-    mailbox: Option<String>,
-    interchain_gas_paymaster: Option<String>,
-    interchain_security_module: Option<String>,
+    pub mailbox: Option<String>,
+    pub interchain_gas_paymaster: Option<String>,
+    pub interchain_security_module: Option<String>,
+}
+
+impl OptionalConnectionClientConfig {
+    pub fn mailbox(&self, default: Pubkey) -> Pubkey {
+        parse_pubkey_or_default(self.mailbox.as_ref(), default)
+    }
+
+    pub fn interchain_security_module(&self, default: Pubkey) -> Pubkey {
+        parse_pubkey_or_default(self.interchain_security_module.as_ref(), default)
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct OptionalOwnableConfig {
-    owner: Option<String>,
+    pub owner: Option<String>,
+}
+
+impl OptionalOwnableConfig {
+    pub fn owner(&self, default: Pubkey) -> Pubkey {
+        parse_pubkey_or_default(self.owner.as_ref(), default)
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct RouterConfig {
-    foreign_deployment: Option<String>,
+    pub foreign_deployment: Option<String>,
     #[serde(flatten)]
-    ownable: OptionalOwnableConfig,
+    pub ownable: OptionalOwnableConfig,
     #[serde(flatten)]
-    connection_client: OptionalConnectionClientConfig,
+    pub connection_client: OptionalConnectionClientConfig,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -60,14 +83,14 @@ pub struct ChainMetadata {
 }
 
 impl ChainMetadata {
-    fn client(&self) -> RpcClient {
+    pub fn client(&self) -> RpcClient {
         RpcClient::new_with_commitment(
             self.public_rpc_urls[0].http.clone(),
             CommitmentConfig::confirmed(),
         )
     }
 
-    fn domain_id(&self) -> u32 {
+    pub fn domain_id(&self) -> u32 {
         self.domain_id.unwrap_or(self.chain_id)
     }
 }
