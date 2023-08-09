@@ -21,6 +21,7 @@ account-utils = { path = "../account-utils" }
 hyperlane-core = { path = "../../../hyperlane-core" }
 hyperlane-sealevel-connection-client = { path = "../hyperlane-sealevel-connection-client" }
 hyperlane-sealevel-mailbox = { path = "../../programs/mailbox", features = ["no-entrypoint"] }
+hyperlane-sealevel-igp = { path = "../../programs/hyperlane-sealevel-igp", features = ["no-entrypoint"] }
 hyperlane-sealevel-message-recipient-interface = { path = "../message-recipient-interface" }
 serializable-account-meta = { path = "../serializable-account-meta" }
 

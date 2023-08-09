@@ -1,6 +1,9 @@
 use access_control::AccessControl;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H256;
+use hyperlane_sealevel_igp::instruction::{
+    Instruction as IgpInstruction, PayForGas as IgpPayForGas,
+};
 use hyperlane_sealevel_mailbox::instruction::{
     Instruction as MailboxInstruction, OutboxDispatch as MailboxOutboxDispatch,
 };
@@ -8,7 +11,7 @@ use solana_program::{
     account_info::AccountInfo,
     instruction::{AccountMeta, Instruction},
     msg,
-    program::invoke_signed,
+    program::{get_return_data, invoke, invoke_signed},
     program_error::ProgramError,
     pubkey::Pubkey,
 };
@@ -96,7 +99,7 @@ pub trait HyperlaneRouterDispatch: HyperlaneRouter + HyperlaneConnectionClient {
         message_body: Vec<u8>,
         account_metas: Vec<AccountMeta>,
         account_infos: &[AccountInfo],
-    ) -> Result<(), ProgramError> {
+    ) -> Result<H256, ProgramError> {
         // The recipient is the remote router, which must be enrolled.
         let recipient = *self
             .router(destination_domain)
@@ -108,13 +111,72 @@ pub trait HyperlaneRouterDispatch: HyperlaneRouter + HyperlaneConnectionClient {
             recipient,
             message_body,
         });
+        let mailbox = self.mailbox();
         let mailbox_ixn = Instruction {
-            program_id: *self.mailbox(),
+            program_id: *mailbox,
             data: dispatch_instruction.into_instruction_data()?,
             accounts: account_metas,
         };
         // Call the Mailbox program to dispatch the message.
-        invoke_signed(&mailbox_ixn, account_infos, &[dispatch_authority_seeds])
+        invoke_signed(&mailbox_ixn, account_infos, &[dispatch_authority_seeds])?;
+
+        // Parse the message ID from the return data from the prior dispatch.
+        let (returning_program_id, returned_data) =
+            get_return_data().ok_or(ProgramError::InvalidArgument)?;
+        // The mailbox itself doesn't make any CPIs, but as a sanity check we confirm
+        // that the return data is from the mailbox.
+        if returning_program_id != *mailbox {
+            return Err(ProgramError::InvalidArgument);
+        }
+        let message_id: H256 =
+            H256::try_from_slice(&returned_data).map_err(|_| ProgramError::InvalidArgument)?;
+
+        Ok(message_id)
+    }
+
+    /// Dispatches a message to the remote router for the provided destination domain,
+    /// paying for gas with the IGP.
+    /// Errors if there is no IGP configured.
+    #[allow(clippy::too_many_arguments)]
+    fn dispatch_with_gas(
+        &self,
+        program_id: &Pubkey,
+        dispatch_authority_seeds: &[&[u8]],
+        destination_domain: u32,
+        message_body: Vec<u8>,
+        gas_amount: u64,
+        dispatch_account_metas: Vec<AccountMeta>,
+        dispatch_account_infos: &[AccountInfo],
+        payment_account_metas: Vec<AccountMeta>,
+        payment_account_infos: &[AccountInfo],
+    ) -> Result<H256, ProgramError> {
+        let message_id = self.dispatch(
+            program_id,
+            dispatch_authority_seeds,
+            destination_domain,
+            message_body,
+            dispatch_account_metas,
+            dispatch_account_infos,
+        )?;
+
+        // Call the IGP to pay for gas.
+        let (igp_program_id, _) = self
+            .interchain_gas_paymaster()
+            .ok_or(ProgramError::InvalidArgument)?;
+
+        let igp_ixn = Instruction::new_with_borsh(
+            *igp_program_id,
+            &IgpInstruction::PayForGas(IgpPayForGas {
+                message_id,
+                destination_domain,
+                gas_amount,
+            }),
+            payment_account_metas,
+        );
+
+        invoke(&igp_ixn, payment_account_infos)?;
+
+        Ok(message_id)
     }
 }
 
