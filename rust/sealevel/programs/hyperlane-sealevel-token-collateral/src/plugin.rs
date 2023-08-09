@@ -1,6 +1,6 @@
 //! A plugin for the Hyperlane token program that escrows SPL tokens as collateral.
 
-use account_utils::{create_pda_account, verify_rent_exempt};
+use account_utils::{create_pda_account, verify_rent_exempt, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_sealevel_token_lib::{
     accounts::HyperlaneToken, message::TokenMessage, processor::HyperlaneSealevelTokenPlugin,
@@ -62,6 +62,21 @@ pub struct CollateralPlugin {
     pub escrow_bump: u8,
     /// The ATA payer PDA bump seed.
     pub ata_payer_bump: u8,
+}
+
+impl SizedData for CollateralPlugin {
+    fn size(&self) -> usize {
+        // spl_token_program
+        32
+            // mint
+            + 32
+            // escrow
+            + 32
+            // escrow_bump
+            + std::mem::size_of::<u8>()
+            // ata_payer_bump
+            + std::mem::size_of::<u8>()
+    }
 }
 
 impl CollateralPlugin {

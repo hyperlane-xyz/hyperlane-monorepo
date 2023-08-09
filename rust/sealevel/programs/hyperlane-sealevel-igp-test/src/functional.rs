@@ -4,7 +4,6 @@ use std::collections::HashMap;
 
 use solana_program::{
     instruction::{AccountMeta, Instruction},
-    pubkey,
     pubkey::Pubkey,
     system_program,
     sysvar::rent::Rent,
@@ -16,13 +15,13 @@ use solana_sdk::{
 };
 
 use hyperlane_test_utils::{
-    assert_transaction_error, new_funded_keypair, process_instruction, simulate_instruction,
-    transfer_lamports,
+    assert_transaction_error, igp_program_id, new_funded_keypair, process_instruction,
+    simulate_instruction, transfer_lamports,
 };
 use serializable_account_meta::SimulationReturnData;
 
 use access_control::AccessControl;
-use account_utils::{AccountData, Data};
+use account_utils::{AccountData, DiscriminatorPrefixed, DiscriminatorPrefixedData};
 use hyperlane_sealevel_igp::{
     accounts::{
         GasOracle, GasPaymentAccount, GasPaymentData, Igp, IgpAccount, OverheadIgp,
@@ -43,10 +42,6 @@ const TEST_DESTINATION_DOMAIN: u32 = 11111;
 const TEST_GAS_AMOUNT: u64 = 300000;
 const TEST_GAS_OVERHEAD_AMOUNT: u64 = 100000;
 const LOCAL_DECIMALS: u8 = SOL_DECIMALS;
-
-fn igp_program_id() -> Pubkey {
-    pubkey!("BSffRJEwRcyEkjnbjAMMfv9kv3Y3SauxsBjCdNJyM2BN")
-}
 
 async fn setup_client() -> (BanksClient, Keypair) {
     let program_id = igp_program_id();
@@ -240,10 +235,13 @@ async fn test_initialize() {
         .into_inner();
     assert_eq!(
         program_data,
-        Box::new(ProgramData {
-            bump_seed: program_data_bump_seed,
-            payment_count: 0,
-        }),
+        Box::new(
+            ProgramData {
+                bump_seed: program_data_bump_seed,
+                payment_count: 0,
+            }
+            .into()
+        ),
     );
 }
 
@@ -292,13 +290,16 @@ async fn test_initialize_igp() {
         .into_inner();
     assert_eq!(
         igp,
-        Box::new(Igp {
-            bump_seed: igp_bump_seed,
-            salt,
-            owner,
-            beneficiary,
-            gas_oracles: HashMap::new(),
-        }),
+        Box::new(
+            Igp {
+                bump_seed: igp_bump_seed,
+                salt,
+                owner,
+                beneficiary,
+                gas_oracles: HashMap::new(),
+            }
+            .into()
+        ),
     );
 }
 
@@ -358,13 +359,16 @@ async fn test_initialize_overhead_igp() {
         .into_inner();
     assert_eq!(
         overhead_igp,
-        Box::new(OverheadIgp {
-            bump_seed: overhead_igp_bump_seed,
-            salt,
-            owner,
-            inner,
-            gas_overheads: HashMap::new(),
-        }),
+        Box::new(
+            OverheadIgp {
+                bump_seed: overhead_igp_bump_seed,
+                salt,
+                owner,
+                inner,
+                gas_overheads: HashMap::new(),
+            }
+            .into()
+        ),
     );
 }
 
@@ -985,17 +989,17 @@ async fn pay_for_gas(
     // 0. [executable] The system program.
     // 1. [signer] The payer.
     // 2. [writeable] The IGP program data.
-    // 3. [writeable] The IGP account.
-    // 4. [signer] Unique gas payment account.
-    // 5. [writeable] Gas payment PDA.
+    // 3. [signer] Unique gas payment account.
+    // 4. [writeable] Gas payment PDA.
+    // 5. [writeable] The IGP account.
     // 6. [] Overhead IGP account (optional).
     let mut accounts = vec![
         AccountMeta::new_readonly(system_program::id(), false),
         AccountMeta::new(payer.pubkey(), true),
         AccountMeta::new(igp_program_data_key, false),
-        AccountMeta::new(igp, false),
         AccountMeta::new_readonly(unique_payment_account.pubkey(), true),
         AccountMeta::new(gas_payment_pda_key, false),
+        AccountMeta::new(igp, false),
     ];
     if let Some(overhead_igp) = overhead_igp {
         accounts.push(AccountMeta::new_readonly(overhead_igp, false));
@@ -1429,7 +1433,7 @@ async fn test_set_igp_beneficiary_errors_if_owner_not_signer() {
 
 // ============ TransferIgpOwnership & TransferOverheadIgpOwnership ============
 
-async fn run_transfer_ownership_tests<T: Data + AccessControl>(
+async fn run_transfer_ownership_tests<T: DiscriminatorPrefixedData + AccessControl>(
     banks_client: &mut BanksClient,
     payer: &Keypair,
     account_key: Pubkey,
@@ -1460,7 +1464,7 @@ async fn run_transfer_ownership_tests<T: Data + AccessControl>(
         .await
         .unwrap()
         .unwrap();
-    let account_data = AccountData::<T>::fetch(&mut &account.data[..])
+    let account_data = AccountData::<DiscriminatorPrefixed<T>>::fetch(&mut &account.data[..])
         .unwrap()
         .into_inner();
 

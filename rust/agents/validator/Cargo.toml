@@ -29,7 +29,7 @@ hyperlane-base = { path = "../../hyperlane-base" }
 hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
 
 [dev-dependencies]
-tokio-test = "0.4"
+tokio-test.workspace = true
 hyperlane-test = { path = "../../hyperlane-test" }
 
 [features]
