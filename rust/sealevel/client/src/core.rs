@@ -355,7 +355,7 @@ fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, 
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct CoreProgramIds {
+pub struct CoreProgramIds {
     #[serde(with = "serde_pubkey")]
     pub mailbox: Pubkey,
     #[serde(with = "serde_pubkey")]

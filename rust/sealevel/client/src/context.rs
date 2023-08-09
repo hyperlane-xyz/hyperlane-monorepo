@@ -7,7 +7,7 @@ use solana_sdk::signers::Signers;
 use solana_sdk::transaction::Transaction;
 use std::cell::RefCell;
 
-pub(crate) struct Context {
+pub struct Context {
     pub client: RpcClient,
     pub payer: Keypair,
     pub payer_path: String,

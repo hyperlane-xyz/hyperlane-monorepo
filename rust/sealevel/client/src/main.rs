@@ -412,7 +412,7 @@ pub(crate) struct HelloWorldDeploy {
     #[arg(long)]
     warp_route_name: String,
     #[arg(long)]
-    router_config_file: PathBuf,
+    config_file: PathBuf,
     #[arg(long)]
     chain_config_file: PathBuf,
 }
