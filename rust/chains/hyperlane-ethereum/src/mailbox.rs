@@ -11,7 +11,6 @@ use ethers::abi::AbiEncode;
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
 use tracing::instrument;
-use tracing::log::trace;
 
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use hyperlane_core::accumulator::TREE_DEPTH;
@@ -197,7 +196,8 @@ where
     M: Middleware + 'static,
 {
     async fn sequence_at_tip(&self) -> ChainResult<Option<(u32, u32)>> {
-        trace!("Message delivery sequence indexing not implemented");
+        // A blanket implementation for this trait is fine for the EVM.
+        // TODO: Consider removing `Indexer` as a supertrait of `SequenceIndexer`
         Ok(None)
     }
 }

@@ -1,62 +1,59 @@
-#![allow(warnings)] // FIXME remove
-
 use async_trait::async_trait;
+use base64::{engine::general_purpose, Engine};
 use hyperlane_core::{
     config::StrOrIntParseError, ChainCommunicationError, ChainResult, ContractLocator,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer,
     InterchainGasPaymaster, InterchainGasPayment, LogMeta, SequenceIndexer, H256, H512, U256,
 };
 use hyperlane_sealevel_igp::{
-    accounts::{GasPaymentAccount, GasPaymentData, ProgramDataAccount},
-    igp_gas_payment_pda_seeds, igp_pda_seeds, igp_program_data_pda_seeds,
+    accounts::{GasPaymentAccount, ProgramDataAccount},
+    igp_gas_payment_pda_seeds, igp_program_data_pda_seeds,
 };
 use solana_account_decoder::{UiAccountEncoding, UiDataSliceConfig};
 use solana_client::{
-    nonblocking::rpc_client::RpcClient,
     rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig},
     rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType},
 };
 use std::ops::RangeInclusive;
+use std::sync::OnceLock;
 use tracing::{debug, info, instrument};
 
 use crate::{
-    client::RpcClientWithDebug, utils::get_finalized_block_number, ConnectionConf, SealevelConf,
-    SealevelProvider,
+    client::RpcClientWithDebug, utils::get_finalized_block_number, ConnectionConf, SealevelProvider,
 };
 use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey};
 
 use derive_new::new;
 
+/// The offset to get the `unique_gas_payment_pubkey` field from the serialized GasPaymentData
+const UNIQUE_GAS_PAYMENT_PUBKEY_OFFSET: usize = 1 + 8 + 8 + 32 + 4 + 32 + 8 + 8;
+
 /// A reference to an IGP contract on some Sealevel chain
 #[derive(Debug)]
 pub struct SealevelInterchainGasPaymaster {
     program_id: Pubkey,
-    data_pda: (Pubkey, u8),
+    data_pda_pubkey: Pubkey,
     domain: HyperlaneDomain,
 }
 
 impl SealevelInterchainGasPaymaster {
     /// Create a new Sealevel IGP.
-    pub fn new(conf: &ConnectionConf, locator: ContractLocator) -> Self {
-        // Set the `processed` commitment at rpc level
-        let rpc_client =
-            RpcClient::new_with_commitment(conf.url.to_string(), CommitmentConfig::processed());
-
+    pub fn new(locator: ContractLocator) -> Self {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         let domain = locator.domain.id();
-        let data_pda = Pubkey::find_program_address(igp_program_data_pda_seeds!(), &program_id);
+        let (data_pda_pubkey, _) =
+            Pubkey::find_program_address(igp_program_data_pda_seeds!(), &program_id);
 
         debug!(
             domain,
             %program_id,
-            data_pda_pubkey = %data_pda.0,
-            data_pda_seed = data_pda.1,
+            %data_pda_pubkey,
             "Found sealevel IGP program data PDA"
         );
 
         Self {
             program_id,
-            data_pda,
+            data_pda_pubkey,
             domain: locator.domain.clone(),
         }
     }
@@ -85,36 +82,58 @@ impl InterchainGasPaymaster for SealevelInterchainGasPaymaster {}
 pub struct SealevelInterchainGasPaymasterIndexer {
     rpc_client: RpcClientWithDebug,
     igp: SealevelInterchainGasPaymaster,
-    program_id: Pubkey,
-    sealevel_config: Option<SealevelConf>,
+    _program_id: Pubkey,
+    igp_account: OnceLock<H256>,
 }
 
+impl SealevelInterchainGasPaymasterIndexer {
+    async fn get_igp_account(&self, igp_account_pubkey: &H256) -> ChainResult<H256> {
+        if let Some(igp) = self.igp_account.get() {
+            return Ok(*igp);
+        }
+        let account = self
+            .rpc_client
+            .get_account_with_commitment(
+                &Pubkey::from(<[u8; 32]>::from(*igp_account_pubkey)),
+                CommitmentConfig::finalized(),
+            )
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .value
+            .ok_or_else(|| {
+                ChainCommunicationError::from_other_str("Could not find IGP account for pubkey")
+            })?;
+        let account_owner_pubkey = account.owner.to_bytes().into();
+        self.igp_account.set(account_owner_pubkey).map_err(|_| {
+            ChainCommunicationError::from_other_str("IGP account singleton set more than once")
+        })?;
+        Ok(account_owner_pubkey)
+    }
+}
+
+/// IGP payment data on Sealevel
 #[derive(Debug, new)]
 pub struct SealevelGasPayment {
     payment: InterchainGasPayment,
     log_meta: LogMeta,
-    beneficiary: H256,
+    igp_account_pubkey: H256,
 }
 
 impl SealevelInterchainGasPaymasterIndexer {
     /// Create a new Sealevel IGP indexer.
-    pub fn new(
-        conf: &ConnectionConf,
-        locator: ContractLocator,
-        sealevel_config: Option<SealevelConf>,
-    ) -> Self {
+    pub fn new(conf: &ConnectionConf, locator: ContractLocator) -> Self {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         // Set the `processed` commitment at rpc level
         let rpc_client = RpcClientWithDebug::new_with_commitment(
             conf.url.to_string(),
             CommitmentConfig::processed(),
         );
-        let igp = SealevelInterchainGasPaymaster::new(conf, locator);
+        let igp = SealevelInterchainGasPaymaster::new(locator);
         Self {
-            program_id,
+            _program_id: program_id,
             rpc_client,
             igp,
-            sealevel_config,
+            igp_account: OnceLock::new(),
         }
     }
 
@@ -127,12 +146,13 @@ impl SealevelInterchainGasPaymasterIndexer {
             &sequence_number.to_le_bytes()[..],
         ]
         .concat();
-        let payment_bytes: String = base64::encode(payment_bytes);
+        let payment_bytes: String = general_purpose::STANDARD.encode(payment_bytes);
 
         // First, find all accounts with the matching gas payment data.
         // To keep responses small in case there is ever more than 1
         // match, we don't request the full account data, and just request
         // the `unique_gas_payment_pubkey` field.
+        #[allow(deprecated)]
         let memcmp = RpcFilterType::Memcmp(Memcmp {
             // Ignore the first byte, which is the `initialized` bool flag.
             offset: 1,
@@ -146,7 +166,7 @@ impl SealevelInterchainGasPaymasterIndexer {
                 // Don't return any data
                 data_slice: Some(UiDataSliceConfig {
                     // TODO: Do not use magic constants and use encoding sizes instead
-                    offset: 1 + 8 + 8 + 32 + 4 + 32 + 8 + 8, // the offset to get the `unique_gas_payment_pubkey` field
+                    offset: UNIQUE_GAS_PAYMENT_PUBKEY_OFFSET,
                     length: 32, // the length of the `unique_gas_payment_pubkey` field
                 }),
                 commitment: Some(CommitmentConfig::finalized()),
@@ -197,21 +217,21 @@ impl SealevelInterchainGasPaymasterIndexer {
             .ok_or_else(|| {
                 ChainCommunicationError::from_other_str("Could not find account data")
             })?;
-        let dispatched_payment_account = GasPaymentAccount::fetch(&mut account.data.as_ref())
+        let gas_payment_account = GasPaymentAccount::fetch(&mut account.data.as_ref())
             .map_err(ChainCommunicationError::from_other)?
             .into_inner();
 
         let igp_payment = InterchainGasPayment {
-            message_id: dispatched_payment_account.message_id,
-            payment: dispatched_payment_account.payment.into(),
-            gas_amount: dispatched_payment_account.gas_amount.into(),
+            message_id: gas_payment_account.message_id,
+            payment: gas_payment_account.payment.into(),
+            gas_amount: gas_payment_account.gas_amount.into(),
         };
 
         Ok(SealevelGasPayment::new(
             igp_payment,
             LogMeta {
                 address: self.igp.program_id.to_bytes().into(),
-                block_number: dispatched_payment_account.slot,
+                block_number: gas_payment_account.slot,
                 // TODO: get these when building out scraper support.
                 // It's inconvenient to get these :|
                 block_hash: H256::zero(),
@@ -219,7 +239,7 @@ impl SealevelInterchainGasPaymasterIndexer {
                 transaction_index: 0,
                 log_index: U256::zero(),
             },
-            H256::from(dispatched_payment_account.igp.to_bytes()),
+            H256::from(gas_payment_account.igp.to_bytes()),
         ))
     }
 }
@@ -239,11 +259,10 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
         let mut payments = Vec::with_capacity((range.end() - range.start()) as usize);
         for nonce in range {
             if let Ok(sealevel_payment) = self.get_payment_with_sequence(nonce.into()).await {
-                let sealevel_config = self.sealevel_config.clone().unwrap_or_default();
-                let beneficiary_filter = sealevel_config
-                    .relayer_account
-                    .unwrap_or(sealevel_payment.beneficiary.clone());
-                if beneficiary_filter == sealevel_payment.beneficiary {
+                let igp_account_filter = self
+                    .get_igp_account(&sealevel_payment.igp_account_pubkey)
+                    .await?;
+                if igp_account_filter == sealevel_payment.igp_account_pubkey {
                     payments.push((sealevel_payment.payment, sealevel_payment.log_meta));
                 }
             }
@@ -262,7 +281,7 @@ impl SequenceIndexer<InterchainGasPayment> for SealevelInterchainGasPaymasterInd
     async fn sequence_at_tip(&self) -> ChainResult<Option<(u32, u32)>> {
         let program_data_account = self
             .rpc_client
-            .get_account_with_commitment(&self.igp.data_pda.0, CommitmentConfig::finalized())
+            .get_account_with_commitment(&self.igp.data_pda_pubkey, CommitmentConfig::finalized())
             .await
             .map_err(ChainCommunicationError::from_other)?
             .value
@@ -279,4 +298,35 @@ impl SequenceIndexer<InterchainGasPayment> for SealevelInterchainGasPaymasterInd
         let tip = get_finalized_block_number(&self.rpc_client).await?;
         Ok(Some((payment_count, tip)))
     }
+}
+
+#[test]
+fn test_unique_gas_payment_pubkey_offset() {
+    use borsh::BorshSerialize;
+    use hyperlane_sealevel_igp::accounts::GasPaymentData;
+    let expected_unique_gas_payment_pubkey = Pubkey::new_unique();
+
+    let gas_payment = GasPaymentAccount::new(
+        GasPaymentData {
+            sequence_number: 123,
+            igp: Default::default(),
+            destination_domain: Default::default(),
+            message_id: Default::default(),
+            gas_amount: Default::default(),
+            payment: Default::default(),
+            unique_gas_payment_pubkey: expected_unique_gas_payment_pubkey,
+            slot: Default::default(),
+        }
+        .into(),
+    );
+
+    let serialized = gas_payment.into_inner().try_to_vec().unwrap();
+    let sliced_unique_gas_payment_pubkey = Pubkey::new(
+        &serialized
+            [(UNIQUE_GAS_PAYMENT_PUBKEY_OFFSET - 1)..(UNIQUE_GAS_PAYMENT_PUBKEY_OFFSET + 32 - 1)],
+    );
+    assert_eq!(
+        expected_unique_gas_payment_pubkey,
+        sliced_unique_gas_payment_pubkey
+    );
 }

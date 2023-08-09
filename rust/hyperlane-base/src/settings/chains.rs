@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use ethers::prelude::Selector;
 use eyre::{eyre, Context, Result};
-use h_sealevel::SealevelConf;
 use serde::Deserialize;
 
 use ethers_prometheus::middleware::{
@@ -21,7 +20,6 @@ use hyperlane_ethereum::{
 };
 use hyperlane_fuel as h_fuel;
 use hyperlane_sealevel as h_sealevel;
-use tracing::debug;
 
 use crate::{
     settings::signers::{BuildableWithSignerConf, RawSignerConf},
@@ -172,32 +170,6 @@ impl FromRawConf<'_, RawIndexSettings> for IndexSettings {
     }
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct RawSealevelConf {
-    relayer_account: Option<String>,
-}
-
-impl FromRawConf<'_, RawSealevelConf> for SealevelConf {
-    fn from_config_filtered(
-        raw: RawSealevelConf,
-        cwp: &ConfigPath,
-        _filter: (),
-    ) -> ConfigResult<Self> {
-        let mut err = ConfigParsingError::default();
-
-        let relayer_account = parse_addr!(relayer_account, raw, cwp, err);
-
-        if let Err(err) = err.into_result() {
-            debug!(
-                ?err,
-                "No relayer IGP address configured (required for Sealevel indexing)."
-            );
-        }
-        Ok(Self::new(relayer_account))
-    }
-}
-
 /// A chain setup is a domain ID, an address on that chain (where the mailbox is
 /// deployed) and details for connecting to the chain API.
 #[derive(Clone, Debug)]
@@ -218,8 +190,6 @@ pub struct ChainConf {
     pub metrics_conf: PrometheusMiddlewareConf,
     /// Settings for event indexing
     pub index: IndexSettings,
-    /// Sealevel-specific settings
-    pub sealevel: Option<SealevelConf>,
 }
 
 /// A raw chain setup is a domain ID, an address on that chain (where the
@@ -239,8 +209,6 @@ pub struct RawChainConf {
     metrics_conf: Option<PrometheusMiddlewareConf>,
     #[serde(default)]
     index: Option<RawIndexSettings>,
-    #[serde(default)]
-    sealevel: Option<RawSealevelConf>,
 }
 
 impl FromRawConf<'_, RawChainConf> for ChainConf {
@@ -307,11 +275,6 @@ impl FromRawConf<'_, RawChainConf> for ChainConf {
             .and_then(|v| v.parse_config(&cwp.join("index")).take_config_err(&mut err))
             .unwrap_or_default();
 
-        let sealevel = raw.sealevel.and_then(|v| {
-            v.parse_config(&cwp.join("sealevel"))
-                .take_config_err(&mut err)
-        });
-
         let metrics_conf = raw.metrics_conf.unwrap_or_default();
 
         err.into_result()?;
@@ -323,7 +286,6 @@ impl FromRawConf<'_, RawChainConf> for ChainConf {
             finality_blocks,
             index,
             metrics_conf,
-            sealevel,
         })
     }
 }
@@ -470,10 +432,8 @@ impl ChainConf {
             }
 
             ChainConnectionConf::Fuel(_) => todo!(),
-            ChainConnectionConf::Sealevel(conf) => {
-                let paymaster = Box::new(h_sealevel::SealevelInterchainGasPaymaster::new(
-                    conf, locator,
-                ));
+            ChainConnectionConf::Sealevel(_) => {
+                let paymaster = Box::new(h_sealevel::SealevelInterchainGasPaymaster::new(locator));
                 Ok(paymaster as Box<dyn InterchainGasPaymaster>)
             }
         }
@@ -505,9 +465,7 @@ impl ChainConf {
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let indexer = Box::new(h_sealevel::SealevelInterchainGasPaymasterIndexer::new(
-                    conf,
-                    locator,
-                    self.sealevel.clone(),
+                    conf, locator,
                 ));
                 Ok(indexer as Box<dyn SequenceIndexer<InterchainGasPayment>>)
             }
