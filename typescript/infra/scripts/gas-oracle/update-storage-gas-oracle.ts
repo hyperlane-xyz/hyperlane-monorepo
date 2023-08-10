@@ -37,6 +37,12 @@ async function main() {
     multiProvider,
   );
 
+  console.log(
+    'after creating igp',
+    multiProvider.tryGetChainMetadata('solanadevnet'),
+  );
+  console.log('on igp', igp.multiProvider.tryGetChainMetadata('solanadevnet'));
+
   for (const chain of igp.chains()) {
     await setStorageGasOracleValues(
       igp,

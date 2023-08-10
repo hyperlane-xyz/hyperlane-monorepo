@@ -27,6 +27,7 @@ const gasPrices: ChainMap<BigNumber> = {
   moonbasealpha: ethers.utils.parseUnits('5', 'gwei'),
   optimismgoerli: ethers.utils.parseUnits('0.5', 'gwei'),
   arbitrumgoerli: ethers.utils.parseUnits('0.5', 'gwei'),
+  solanadevnet: ethers.utils.parseUnits('0.5', 'gwei'),
 };
 
 // Used to categorize rarity of testnet tokens & approximate exchange rates.
@@ -55,6 +56,7 @@ const chainTokenRarity: ChainMap<Rarity> = {
   moonbasealpha: Rarity.Common,
   optimismgoerli: Rarity.Mythic,
   arbitrumgoerli: Rarity.Mythic,
+  solanadevnet: Rarity.Common,
 };
 
 // Gets the "value" of a testnet chain
@@ -73,4 +75,7 @@ function getTokenExchangeRate(local: ChainName, remote: ChainName): BigNumber {
 }
 
 export const storageGasOracleConfig: AllStorageGasOracleConfigs =
-  getAllStorageGasOracleConfigs(chainNames, gasPrices, getTokenExchangeRate);
+  getAllStorageGasOracleConfigs(chainNames, gasPrices, getTokenExchangeRate, [
+    ...chainNames,
+    'solanadevnet',
+  ]);

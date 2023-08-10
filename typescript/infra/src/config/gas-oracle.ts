@@ -48,9 +48,10 @@ export function getAllStorageGasOracleConfigs(
   chainNames: ChainName[],
   gasPrices: ChainMap<BigNumber>,
   getTokenExchangeRate: (local: ChainName, remote: ChainName) => BigNumber,
+  remoteChainNames: ChainName[] = chainNames,
 ): AllStorageGasOracleConfigs {
   return chainNames.reduce((agg, local) => {
-    const remotes = chainNames.filter((chain) => local !== chain);
+    const remotes = remoteChainNames.filter((chain) => local !== chain);
     return {
       ...agg,
       [local]: getLocalStorageGasOracleConfig(

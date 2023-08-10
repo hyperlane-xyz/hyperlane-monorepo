@@ -182,8 +182,12 @@ export async function getMultiProviderForRole(
   if (process.env.CI === 'true') {
     return new MultiProvider(); // use default RPCs
   }
-
+  console.log('txConfigs', txConfigs);
   const multiProvider = new MultiProvider(txConfigs);
+  console.log(
+    'multiProvider solanadevnet',
+    multiProvider.tryGetChainMetadata('solanadevnet'),
+  );
   await promiseObjAll(
     objMap(txConfigs, async (chain, config) => {
       const provider = await fetchProvider(environment, chain, connectionType);
@@ -192,6 +196,11 @@ export async function getMultiProviderForRole(
       multiProvider.setProvider(chain, provider);
       multiProvider.setSigner(chain, signer);
     }),
+  );
+
+  console.log(
+    'multiProvider solanadevnet after',
+    multiProvider.tryGetChainMetadata('solanadevnet'),
   );
   return multiProvider;
 }

@@ -28,13 +28,24 @@ export const igp: ChainMap<OverheadIgpConfig> = objMap(
       beneficiary: owner,
       gasOracleType: getGasOracles(chain),
       overhead: Object.fromEntries(
-        exclude(chain, chainNames).map((remote) => [
-          remote,
-          multisigIsmVerificationCost(
-            defaultMultisigIsmConfigs[remote].threshold,
-            defaultMultisigIsmConfigs[remote].validators.length,
-          ),
-        ]),
+        exclude(chain, chainNames)
+          .filter((remote) => {
+            const remoteConfig = defaultMultisigIsmConfigs[remote];
+            if (!remoteConfig) {
+              console.warn(
+                `WARNING: No default multisig config for ${remote}. Skipping overhead calculation.`,
+              );
+              return false;
+            }
+            return true;
+          })
+          .map((remote) => [
+            remote,
+            multisigIsmVerificationCost(
+              defaultMultisigIsmConfigs[remote].threshold,
+              defaultMultisigIsmConfigs[remote].validators.length,
+            ),
+          ]),
       ),
     };
   },

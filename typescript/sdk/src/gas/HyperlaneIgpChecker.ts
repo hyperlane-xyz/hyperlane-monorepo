@@ -105,7 +105,13 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
 
     const remotes = this.app.remoteChains(local);
     for (const remote of remotes) {
-      const expectedOverhead = this.configMap[local].overhead[remote];
+      let expectedOverhead = this.configMap[local].overhead[remote];
+      if (!expectedOverhead) {
+        console.log(
+          `No overhead configured for ${local} -> ${remote}, defaulting to 0`,
+        );
+        expectedOverhead = 0;
+      }
 
       const remoteId = this.multiProvider.getDomainId(remote);
       const existingOverhead = await defaultIsmIgp.destinationGasOverhead(
@@ -147,7 +153,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
       const actualGasOracle = await igp.gasOracles(remoteId);
       const expectedGasOracle = this.getGasOracleAddress(local, remote);
 
-      if (eqAddress(actualGasOracle, expectedGasOracle)) {
+      if (!eqAddress(actualGasOracle, expectedGasOracle)) {
         const remoteChain = remote as ChainName;
         gasOraclesViolation.actual[remoteChain] = actualGasOracle;
         gasOraclesViolation.expected[remoteChain] = expectedGasOracle;
@@ -160,7 +166,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
 
     const actualBeneficiary = await igp.beneficiary();
     const expectedBeneficiary = this.configMap[local].beneficiary;
-    if (eqAddress(actualBeneficiary, expectedBeneficiary)) {
+    if (!eqAddress(actualBeneficiary, expectedBeneficiary)) {
       const violation: IgpBeneficiaryViolation = {
         type: 'InterchainGasPaymaster',
         subType: IgpViolationType.Beneficiary,
