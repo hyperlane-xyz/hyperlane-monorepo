@@ -155,7 +155,6 @@ impl SealevelInterchainGasPaymasterIndexer {
                 encoding: Some(UiAccountEncoding::Base64),
                 // Don't return any data
                 data_slice: Some(UiDataSliceConfig {
-                    // TODO: Do not use magic constants and use encoding sizes instead
                     offset: UNIQUE_GAS_PAYMENT_PUBKEY_OFFSET,
                     length: 32, // the length of the `unique_gas_payment_pubkey` field
                 }),
@@ -171,7 +170,7 @@ impl SealevelInterchainGasPaymasterIndexer {
             .map_err(ChainCommunicationError::from_other)?;
 
         // Now loop through matching accounts and find the one with a valid account pubkey
-        // that proves it's an actual message storage PDA.
+        // that proves it's an actual gas payment PDA.
         let mut valid_payment_pda_pubkey = Option::<Pubkey>::None;
 
         for (pubkey, account) in accounts {
@@ -192,12 +191,10 @@ impl SealevelInterchainGasPaymasterIndexer {
         }
 
         let valid_payment_pda_pubkey = valid_payment_pda_pubkey.ok_or_else(|| {
-            ChainCommunicationError::from_other_str(
-                "Could not find valid message storage PDA pubkey",
-            )
+            ChainCommunicationError::from_other_str("Could not find valid gas payment PDA pubkey")
         })?;
 
-        // Now that we have the valid message storage PDA pubkey, we can get the full account data.
+        // Now that we have the valid gas payment PDA pubkey, we can get the full account data.
         let account = self
             .rpc_client
             .get_account_with_commitment(&valid_payment_pda_pubkey, CommitmentConfig::finalized())

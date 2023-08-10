@@ -98,7 +98,7 @@ pub fn termination_invariants_met(
     .iter()
     .sum::<u32>();
     // The relayer and scraper should have the same number of gas payments.
-    // TODO: Sealevel gas payments are not yet indexed.
+    // TODO: Sealevel gas payments are not yet included in the event count.
     // For now, treat as an exception in the invariants.
     let expected_gas_payments = gas_payment_events_count - gas_payment_sealevel_events_count;
     if gas_payments_scraped != expected_gas_payments {
