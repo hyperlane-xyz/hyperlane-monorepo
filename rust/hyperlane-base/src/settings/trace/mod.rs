@@ -1,5 +1,4 @@
 use eyre::Result;
-use tracing_opentelemetry::OpenTelemetryLayer;
 use tracing_subscriber::{
     filter::{LevelFilter, Targets},
     prelude::*,
@@ -10,16 +9,10 @@ pub use span_metrics::TimeSpanLifetime;
 use crate::settings::trace::fmt::Style;
 use crate::CoreMetrics;
 
-use self::{fmt::LogOutputLayer, jaeger::JaegerConfig, zipkin::ZipkinConfig};
+use self::fmt::LogOutputLayer;
 
 /// Configure a `tracing_subscriber::fmt` Layer outputting to stdout
 pub mod fmt;
-
-/// Configure a Layer using `tracing_opentelemtry` + `opentelemetry-jaeger`
-pub mod jaeger;
-
-/// Configure a Layer using `tracing_opentelemtry` + `opentelemetry-zipkin`
-pub mod zipkin;
 
 mod span_metrics;
 
@@ -59,8 +52,6 @@ impl From<Level> for LevelFilter {
 /// Configuration for the tracing subscribers used by Hyperlane agents
 #[derive(Debug, Clone, Default, serde::Deserialize)]
 pub struct TracingConfig {
-    jaeger: Option<JaegerConfig>,
-    zipkin: Option<ZipkinConfig>,
     #[serde(default)]
     fmt: Style,
     #[serde(default)]
@@ -90,16 +81,6 @@ impl TracingConfig {
             .with(fmt_layer)
             .with(err_layer);
 
-        if let Some(jaeger) = &self.jaeger {
-            let layer: OpenTelemetryLayer<_, _> = jaeger.try_into_layer()?;
-            subscriber.with(layer).try_init()?;
-            return Ok(());
-        }
-        if let Some(zipkin) = &self.zipkin {
-            let layer: OpenTelemetryLayer<_, _> = zipkin.try_into_layer()?;
-            subscriber.with(layer).try_init()?;
-            return Ok(());
-        }
         subscriber.try_init()?;
         Ok(())
     }
