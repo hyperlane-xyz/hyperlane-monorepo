@@ -3899,6 +3899,7 @@ dependencies = [
  "hex 0.4.3",
  "hyperlane-base",
  "itertools 0.11.0",
+ "lazy_static",
  "num 0.4.1",
  "num-derive 0.4.1",
  "num-traits",
@@ -9058,9 +9059,12 @@ name = "strum"
 version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "290d54ea6f91c969195bdbcd7442c8c2a2ba87da8bf60a7ee86a235d4bc1e125"
+<<<<<<< HEAD
 dependencies = [
  "strum_macros 0.25.3",
 ]
+=======
+>>>>>>> 59dbe23de (feat: fix cargo error)
 
 [[package]]
 name = "strum_macros"
@@ -9088,6 +9092,7 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
 name = "strum_macros"
 version = "0.25.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9101,6 +9106,8 @@ dependencies = [
 ]
 
 [[package]]
+=======
+>>>>>>> 59dbe23de (feat: fix cargo error)
 name = "subtle"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
