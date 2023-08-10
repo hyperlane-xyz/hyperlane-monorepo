@@ -45,6 +45,7 @@ abstract contract AbstractMessageIdAuthorizedIsm is
     /// @notice Maps messageId to whether or not the message has been verified
     /// first bit is boolean for verification
     /// rest of bits is the amount to send to the recipient
+    /// @dev bc of the bit packing, we can only send up to 2^255 wei
     mapping(bytes32 => uint256) public verifiedMessageIds;
     /// @notice Index of verification bit in verifiedMessageIds
     uint256 public constant MASK_INDEX = 255;
