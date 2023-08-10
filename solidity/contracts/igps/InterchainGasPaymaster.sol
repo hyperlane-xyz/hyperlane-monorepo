@@ -92,7 +92,7 @@ contract InterchainGasPaymaster is
             );
         } else {
             address refundAddress = metadata.refundAddress();
-            if (refundAddress != address(0))
+            if (refundAddress == address(0))
                 refundAddress = message.senderAddress();
             payForGas(
                 message.id(),

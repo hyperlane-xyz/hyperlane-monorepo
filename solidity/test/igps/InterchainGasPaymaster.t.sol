@@ -1,19 +1,29 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
+import "forge-std/console.sol";
 import {Test} from "forge-std/Test.sol";
+
+import {Message} from "../../contracts/libs/Message.sol";
+import {MessageUtils} from "../isms/IsmTestUtils.sol";
+import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {InterchainGasPaymaster} from "../../contracts/igps/InterchainGasPaymaster.sol";
 import {StorageGasOracle} from "../../contracts/igps/gas-oracles/StorageGasOracle.sol";
 import {IGasOracle} from "../../contracts/interfaces/IGasOracle.sol";
 
 contract InterchainGasPaymasterTest is Test {
+    using TypeCasts for address;
+    using MessageUtils for bytes;
+
     InterchainGasPaymaster igp;
     StorageGasOracle oracle;
 
     address constant beneficiary = address(0x444444);
 
+    uint32 constant testOriginDomain = 22222;
     uint32 constant testDestinationDomain = 11111;
     uint256 constant testGasAmount = 300000;
+    bytes constant testMessage = "hello world";
     bytes32 constant testMessageId =
         0x6ae9a99190641b9ed0c07143340612dde0e9cb7deaa5fe07597858ae9ba5fd7f;
     address constant testRefundAddress = address(0xc0ffee);
@@ -46,6 +56,66 @@ contract InterchainGasPaymasterTest is Test {
     function testInitializeRevertsIfCalledTwice() public {
         vm.expectRevert("Initializable: contract is already initialized");
         igp.initialize(address(this), beneficiary);
+    }
+
+    // ============ postDispatch ============
+
+    function testPostDispatch_defaultGasLimit() public {
+        setRemoteGasData(
+            testDestinationDomain,
+            1 * 1e10, // 1.0 exchange rate (remote token has exact same value as local)
+            1 // 1 wei gas price
+        );
+
+        uint256 _igpBalanceBefore = address(igp).balance;
+        uint256 _refundAddressBalanceBefore = address(this).balance;
+        uint256 _quote = igp.quoteGasPayment(testDestinationDomain, 69_420);
+
+        uint256 _overpayment = 21000;
+        bytes memory message = _encodeTestMessage();
+
+        igp.postDispatch{value: _quote + _overpayment}("", message);
+
+        uint256 _igpBalanceAfter = address(igp).balance;
+        uint256 _refundAddressBalanceAfter = address(this).balance;
+        assertEq(_igpBalanceAfter - _igpBalanceBefore, _quote);
+        assertEq(
+            _refundAddressBalanceBefore - _refundAddressBalanceAfter,
+            _quote
+        );
+    }
+
+    function testPostDispatch_customWithMetadata() public {
+        setRemoteGasData(
+            testDestinationDomain,
+            1 * 1e10, // 1.0 exchange rate (remote token has exact same value as local)
+            1 // 1 wei gas price
+        );
+
+        uint256 _igpBalanceBefore = address(igp).balance;
+        uint256 _refundAddressBalanceBefore = testRefundAddress.balance;
+        uint256 _quote = igp.quoteGasPayment(
+            testDestinationDomain,
+            testGasAmount
+        );
+
+        uint256 _overpayment = 25000;
+        bytes memory metadata = abi.encodePacked(
+            uint256(testGasAmount), // gas limit
+            testRefundAddress // refund address
+        );
+        bytes memory message = _encodeTestMessage();
+
+        igp.postDispatch{value: _quote + _overpayment}(metadata, message);
+
+        uint256 _igpBalanceAfter = address(igp).balance;
+        uint256 _refundAddressBalanceAfter = testRefundAddress.balance;
+
+        assertEq(_igpBalanceAfter - _igpBalanceBefore, _quote);
+        assertEq(
+            _refundAddressBalanceAfter - _refundAddressBalanceBefore,
+            _overpayment
+        );
     }
 
     // ============ payForGas ============
@@ -290,4 +360,19 @@ contract InterchainGasPaymasterTest is Test {
             })
         );
     }
+
+    function _encodeTestMessage() internal view returns (bytes memory) {
+        return
+            MessageUtils.formatMessage(
+                uint8(0),
+                uint32(0),
+                testOriginDomain,
+                TypeCasts.addressToBytes32(address(this)),
+                testDestinationDomain,
+                TypeCasts.addressToBytes32(address(0x1)),
+                testMessage
+            );
+    }
+
+    receive() external payable {}
 }
