@@ -32,7 +32,7 @@ export const blessedNonEthereumTestnetConfigs: ChainMap<ChainMetadata> = {
 export const testnetConfigs: ChainMap<ChainMetadata> = {
   ...ethereumTestnetConfigs,
   ...blessedNonEthereumTestnetConfigs,
-  zbctestnet: chainMetadata.zbctestnet,
+  // zbctestnet: chainMetadata.zbctestnet,
 };
 
 // Chains that we want to run agents for.

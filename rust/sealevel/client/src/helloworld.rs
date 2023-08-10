@@ -21,6 +21,15 @@ pub(crate) fn process_helloworld_cmd(mut ctx: Context, cmd: HelloWorldCmd) {
         HelloWorldSubCmd::Deploy(deploy) => {
             deploy_helloworld(&mut ctx, deploy);
         }
+        HelloWorldSubCmd::Query(query) => {
+            let program_storage_key =
+                Pubkey::find_program_address(program_storage_pda_seeds!(), &query.program_id);
+            let account = ctx.client.get_account(&program_storage_key.0).unwrap();
+            let storage = HelloWorldStorageAccount::fetch(&mut &account.data[..])
+                .unwrap()
+                .into_inner();
+            println!("HelloWorld storage: {:?}", storage);
+        }
     }
 }
 

@@ -380,7 +380,7 @@ pub(crate) struct HelloWorldCmd {
 #[derive(Subcommand)]
 pub(crate) enum HelloWorldSubCmd {
     Deploy(HelloWorldDeploy),
-    // Query,
+    Query(HelloWorldQuery),
     // Send,
 }
 
@@ -398,6 +398,12 @@ pub(crate) struct HelloWorldDeploy {
     chain_config_file: PathBuf,
     #[arg(long)]
     context: String,
+}
+
+#[derive(Args)]
+pub(crate) struct HelloWorldQuery {
+    #[arg(long)]
+    program_id: Pubkey,
 }
 
 fn main() {

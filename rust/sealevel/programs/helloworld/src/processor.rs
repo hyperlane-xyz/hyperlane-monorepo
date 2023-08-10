@@ -467,7 +467,7 @@ fn set_account_meta_return_data(program_id: &Pubkey) -> ProgramResult {
         Pubkey::find_program_address(program_storage_pda_seeds!(), program_id);
 
     let account_metas: Vec<SerializableAccountMeta> =
-        vec![AccountMeta::new_readonly(storage_pda_key, false).into()];
+        vec![AccountMeta::new(storage_pda_key, false).into()];
 
     // Wrap it in the SimulationReturnData because serialized account_metas
     // may end with zero byte(s), which are incorrectly truncated as
