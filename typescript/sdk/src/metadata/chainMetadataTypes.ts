@@ -7,6 +7,7 @@ export enum ExplorerFamily {
   Blockscout = 'blockscout',
   Other = 'other',
 }
+
 // A type that also allows for literal values of the enum
 export type ExplorerFamilyValue = `${ExplorerFamily}`;
 
@@ -33,7 +34,7 @@ export const ChainMetadataSchema = z.object({
     ),
   name: z
     .string()
-    .regex(/^[a-z]+[a-z0-9]*$/)
+    .regex(/^[a-z][a-z0-9]*$/)
     .describe(
       'The unique string identifier of the chain, used as the key in ChainMap dictionaries.',
     ),

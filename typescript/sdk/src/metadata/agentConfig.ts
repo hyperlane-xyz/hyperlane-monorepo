@@ -5,14 +5,11 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
+import { ChainMetadata, ChainMetadataSchema } from './chainMetadataTypes';
 import {
-  ChainMetadataWithArtifactsSchema,
   HyperlaneDeploymentArtifacts,
+  HyperlaneDeploymentArtifactsSchema,
 } from './deploymentArtifacts';
-
-/**
- * New agent config shape that extends the existing chain metadata with agent-specific fields.
- */
 
 export enum AgentConnectionType {
   Http = 'http',
@@ -21,42 +18,123 @@ export enum AgentConnectionType {
   HttpFallback = 'httpFallback',
 }
 
-export const AgentMetadataExtSchema = z.object({
+export enum AgentConsensusType {
+  Fallback = 'fallback',
+  Quorum = 'quorum',
+}
+
+export const AgentSignerSchema = z.union([
+  z
+    .object({
+      type: z.literal('hexKey').optional(),
+      key: z.string().regex(/^(0x)?[0-9a-fA-F]{32,128}$/),
+    })
+    .describe('A local hex key'),
+  z
+    .object({
+      type: z.literal('aws').optional(),
+      id: z.string().describe('The UUID identifying the AWS KMS key'),
+      region: z.string().describe('The AWS region'),
+    })
+    .describe(
+      'An AWS signer. Note that AWS credentials must be inserted into the env separately.',
+    ),
+  z
+    .object({
+      type: z.literal('node'),
+    })
+    .describe('Assume the local node will sign on RPC calls automatically'),
+]);
+
+export type AgentSigner2 = z.infer<typeof AgentSignerSchema>;
+
+const ChainMetadataSchemaWithDeploy = ChainMetadataSchema.merge(
+  HyperlaneDeploymentArtifactsSchema,
+);
+export const AgentChainMetadataSchema = ChainMetadataSchemaWithDeploy.extend({
   rpcConsensusType: z
-    .nativeEnum(AgentConnectionType)
-    .default(AgentConnectionType.HttpFallback)
-    .describe(
-      'The consensus type to use when multiple RPCs are configured. `fallback` will use the first RPC that returns a result, `quorum` will require a majority of RPCs to return the same result. Different consumers may choose to default to different values here, i.e. validators may want to default to `quorum` while relayers may want to default to `fallback`.',
-    ),
-  overrideRpcUrls: z
-    .string()
-    .optional()
-    .describe(
-      'Used to allow for a comma-separated list of RPC URLs to be specified without a complex `path` in the agent configuration scheme. Agents should check for the existence of this field first and use that in conjunction with `rpcConsensusType` if it exists, otherwise fall back to `rpcUrls`.',
-    ),
+    .nativeEnum(AgentConsensusType)
+    .describe('The consensus type to use when multiple RPCs are configured.')
+    .optional(),
+  signer: AgentSignerSchema.optional().describe(
+    'The signer to use for this chain',
+  ),
   index: z.object({
     from: z
       .number()
-      .default(1999)
       .optional()
       .describe('The starting block from which to index events.'),
     chunk: z
       .number()
-      .default(1000)
       .optional()
       .describe('The number of blocks to index per chunk.'),
   }),
 });
 
-export type AgentMetadataExtension = z.infer<typeof AgentMetadataExtSchema>;
+export type AgentChainMetadata = z.infer<typeof AgentChainMetadataSchema>;
 
-export const ChainMetadataForAgentSchema =
-  ChainMetadataWithArtifactsSchema.merge(AgentMetadataExtSchema);
+export enum AgentLogLevel {
+  Off = 'off',
+  Error = 'error',
+  Warn = 'warn',
+  Info = 'info',
+  Debug = 'debug',
+  Trace = 'trace',
+}
 
-export type ChainMetadataForAgent<Ext = object> = z.infer<
-  typeof ChainMetadataForAgentSchema
-> &
-  Ext;
+export enum AgentLogFormat {
+  Json = 'json',
+  Compact = 'compact',
+  Full = 'full',
+  Pretty = 'pretty',
+}
+
+export const AgentConfigSchema = z.object({
+  metricsPort: z
+    .number()
+    .positive()
+    .default(9090)
+    .optional()
+    .describe(
+      'The port to expose prometheus metrics on. Accessible via `GET /metrics`.',
+    ),
+  chains: z
+    .record(AgentChainMetadataSchema)
+    .describe('Chain metadata for all chains that the agent will index.')
+    .superRefine((data, ctx) => {
+      for (const c in data) {
+        if (c != data[c].name) {
+          ctx.addIssue({
+            message: `Chain name ${c} does not match chain name in metadata ${data[c].name}`,
+            code: z.ZodIssueCode.custom,
+          });
+        }
+      }
+    }),
+  defaultSigner: AgentSignerSchema.optional().describe(
+    'Default signer to use for any chains that have not defined their own.',
+  ),
+  defaultRpcConsensusType: z
+    .nativeEnum(AgentConsensusType)
+    .describe(
+      'The default consensus type to use for any chains that have not defined their own.',
+    )
+    .optional(),
+  log: z
+    .object({
+      format: z
+        .nativeEnum(AgentLogFormat)
+        .optional()
+        .describe('The format to use for tracing logs.'),
+      level: z
+        .nativeEnum(AgentLogLevel)
+        .optional()
+        .describe("The log level to use for the agent's logs."),
+    })
+    .optional(),
+});
+
+export type AgentConfig2 = z.infer<typeof AgentConfigSchema>;
 
 /**
  * Deprecated agent config shapes.
@@ -108,13 +186,12 @@ export function buildAgentConfigNew(
   multiProvider: MultiProvider,
   addresses: ChainMap<HyperlaneDeploymentArtifacts>,
   startBlocks: ChainMap<number>,
-): ChainMap<ChainMetadataForAgent> {
-  const configs: ChainMap<ChainMetadataForAgent> = {};
+): ChainMap<AgentChainMetadata> {
+  const configs: ChainMap<AgentChainMetadata> = {};
   for (const chain of [...chains].sort()) {
-    const metadata = multiProvider.getChainMetadata(chain);
-    const config: ChainMetadataForAgent = {
+    const metadata: ChainMetadata = multiProvider.getChainMetadata(chain);
+    const config: AgentChainMetadata = {
       ...metadata,
-      rpcConsensusType: AgentConnectionType.HttpFallback,
       mailbox: addresses[chain].mailbox,
       interchainGasPaymaster: addresses[chain].interchainGasPaymaster,
       validatorAnnounce: addresses[chain].validatorAnnounce,
@@ -161,23 +238,14 @@ export function buildAgentConfigDeprecated(
   return agentConfig;
 }
 
-// For compat with the older agent config shape, we return a combination
-// of the two schemas (ChainMap<ChainMetadataForAgent> & AgentConfig).
-export type CombinedAgentConfig = ChainMap<ChainMetadataForAgent> | AgentConfig;
-
 export function buildAgentConfig(
   chains: ChainName[],
   multiProvider: MultiProvider,
   addresses: ChainMap<HyperlaneDeploymentArtifacts>,
   startBlocks: ChainMap<number>,
-): CombinedAgentConfig {
+): AgentConfig2 {
   return {
-    ...buildAgentConfigNew(chains, multiProvider, addresses, startBlocks),
-    ...buildAgentConfigDeprecated(
-      chains,
-      multiProvider,
-      addresses,
-      startBlocks,
-    ),
+    chains: buildAgentConfigNew(chains, multiProvider, addresses, startBlocks),
+    defaultRpcConsensusType: AgentConsensusType.Fallback,
   };
 }
