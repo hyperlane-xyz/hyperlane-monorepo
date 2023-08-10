@@ -155,16 +155,23 @@ fn init(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramRes
 /// Dispatches a message using the dispatch authority.
 ///
 /// Accounts:
-/// 0. [writeable] Program storage.
-/// 1. [executable] The Mailbox program.
-/// 2. [writeable] Outbox PDA.
-/// 3. [] This program's dispatch authority.
-/// 4. [executable] System program.
-/// 5. [executable] SPL Noop program.
-/// 6. [signer] Payer.
-/// 7. [signer] Unique message account.
-/// 8. [writeable] Dispatched message PDA. An empty message PDA relating to the seeds
-///    `mailbox_dispatched_message_pda_seeds` where the message contents will be stored.
+/// 0.  [writeable] Program storage.
+/// 1.  [executable] The Mailbox program.
+/// 2.  [writeable] Outbox PDA.
+/// 3.  [] This program's dispatch authority.
+/// 4.  [executable] System program.
+/// 5.  [executable] SPL Noop program.
+/// 6.  [signer] Payer.
+/// 7.  [signer] Unique message account.
+/// 8.  [writeable] Dispatched message PDA. An empty message PDA relating to the seeds
+///     `mailbox_dispatched_message_pda_seeds` where the message contents will be stored.
+///     ---- if an IGP is configured ----
+/// 9.  [executable] The IGP program.
+/// 10. [writeable] The IGP program data.
+/// 11. [writeable] The gas payment PDA.
+/// 12. [] OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
+/// 13. [writeable] The IGP account.
+///     ---- end if an IGP is configured ----
 fn send_hello_world(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
