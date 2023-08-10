@@ -1,3 +1,5 @@
+#![allow(dead_code)] // TODO: remove before PR merge
+
 use std::collections::HashMap;
 
 use ethers::prelude::Selector;
@@ -36,10 +38,9 @@ pub enum ChainConnectionConf {
     Sealevel(h_sealevel::ConnectionConf),
 }
 
-/// Specify the chain name (enum variant) under the `chain` key
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(tag = "protocol", content = "connection", rename_all = "camelCase")]
-enum RawChainConnectionConf {
+enum DeprecatedRawChainConnectionConf {
     Ethereum(h_eth::RawConnectionConf),
     Fuel(h_fuel::RawConnectionConf),
     Sealevel(h_sealevel::RawConnectionConf),
@@ -47,13 +48,138 @@ enum RawChainConnectionConf {
     Unknown,
 }
 
-impl FromRawConf<'_, RawChainConnectionConf> for ChainConnectionConf {
+#[derive(Debug, Deserialize)]
+#[serde(transparent)]
+struct RawAgentConfig(HashMap<String, RawChainMetadataForAgentConf>);
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawChainMetadataForAgentConf {
+    #[serde(default, flatten)]
+    agent_ext: RawAgentMetadataExtConf,
+    #[serde(default, flatten)]
+    metadata: RawChainMetadataWithArtifactsConf,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawAgentMetadataExtConf {
+    rpc_consensus_type: Option<String>,
+    override_rpc_urls: Option<String>,
+    #[serde(default)]
+    index: RawAgentMetadataExtIndexConf,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawAgentMetadataExtIndexConf {
+    number: Option<u32>,
+    chunk: Option<u32>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawChainMetadataWithArtifactsConf {
+    #[serde(default, flatten)]
+    metadata: RawChainMetadataConf,
+    #[serde(default, flatten)]
+    artifacts: RawHyperlaneDeploymentArtifactsConf,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawChainMetadataConf {
+    protocol: Option<String>,
+    chain_id: Option<u32>,
+    name: Option<String>,
+    display_name: Option<String>,
+    display_name_short: Option<String>,
+    logo_uri: Option<String>,
+    #[serde(default)]
+    native_token: RawNativeTokenConf,
+    #[serde(default)]
+    rpc_urls: Vec<RawRpcUrlConf>,
+    #[serde(default)]
+    block_explorers: Vec<RawBlockExplorerConf>,
+    #[serde(default)]
+    blocks: RawBlockConf,
+    #[serde(default)]
+    transaction_overrides: HashMap<String, serde_json::Value>,
+    gas_currency_coin_geco_id: Option<String>,
+    gnosis_safe_transaction_service_url: Option<String>,
+    #[serde(default)]
+    is_testnet: bool,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawNativeTokenConf {
+    name: Option<String>,
+    symbol: Option<String>,
+    decimals: Option<u32>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawRpcUrlConf {
+    http: Option<String>,
+    ws: Option<String>,
+    #[serde(default)]
+    pagination: RawPaginationConf,
+    #[serde(default)]
+    retry: RawRetryConfig,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawPaginationConf {
+    max_block_range: Option<u32>,
+    min_block_number: Option<u64>,
+    max_block_age: Option<u64>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawRetryConfig {
+    max_requests: Option<u32>,
+    base_retry_ms: Option<u64>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawBlockExplorerConf {
+    name: Option<String>,
+    url: Option<String>,
+    api_url: Option<String>,
+    api_key: Option<String>,
+    family: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawBlockConf {
+    confirmations: Option<u32>,
+    reorg_period: Option<u32>,
+    estimate_block_time: Option<u32>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawHyperlaneDeploymentArtifactsConf {
+    mailbox: Option<String>,
+    interchain_gas_paymaster: Option<String>,
+    validator_announce: Option<String>,
+    interchain_security_module: Option<String>,
+}
+
+#[allow(deprecated)]
+impl FromRawConf<'_, DeprecatedRawChainConnectionConf> for ChainConnectionConf {
     fn from_config_filtered(
-        raw: RawChainConnectionConf,
+        raw: DeprecatedRawChainConnectionConf,
         cwp: &ConfigPath,
         _filter: (),
     ) -> ConfigResult<Self> {
-        use RawChainConnectionConf::*;
+        use DeprecatedRawChainConnectionConf::*;
         match raw {
             Ethereum(r) => Ok(Self::Ethereum(r.parse_config(&cwp.join("connection"))?)),
             Fuel(r) => Ok(Self::Fuel(r.parse_config(&cwp.join("connection"))?)),
@@ -88,15 +214,15 @@ pub struct CoreContractAddresses {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct RawCoreContractAddresses {
+struct DeprecatedRawCoreContractAddresses {
     mailbox: Option<String>,
     interchain_gas_paymaster: Option<String>,
     validator_announce: Option<String>,
 }
 
-impl FromRawConf<'_, RawCoreContractAddresses> for CoreContractAddresses {
+impl FromRawConf<'_, DeprecatedRawCoreContractAddresses> for CoreContractAddresses {
     fn from_config_filtered(
-        raw: RawCoreContractAddresses,
+        raw: DeprecatedRawCoreContractAddresses,
         cwp: &ConfigPath,
         _filter: (),
     ) -> ConfigResult<Self> {
@@ -195,14 +321,14 @@ pub struct ChainConf {
 /// mailbox is deployed) and details for connecting to the chain API.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct RawChainConf {
+pub struct DeprecatedRawChainConf {
     name: Option<String>,
     domain: Option<StrOrInt>,
     pub(super) signer: Option<RawSignerConf>,
     finality_blocks: Option<StrOrInt>,
-    addresses: Option<RawCoreContractAddresses>,
+    addresses: Option<DeprecatedRawCoreContractAddresses>,
     #[serde(flatten, default)]
-    connection: Option<RawChainConnectionConf>,
+    connection: Option<DeprecatedRawChainConnectionConf>,
     // TODO: if people actually use the metrics conf we should also add a raw form.
     #[serde(default)]
     metrics_conf: Option<PrometheusMiddlewareConf>,
@@ -210,9 +336,9 @@ pub struct RawChainConf {
     index: Option<RawIndexSettings>,
 }
 
-impl FromRawConf<'_, RawChainConf> for ChainConf {
+impl FromRawConf<'_, DeprecatedRawChainConf> for ChainConf {
     fn from_config_filtered(
-        raw: RawChainConf,
+        raw: DeprecatedRawChainConf,
         cwp: &ConfigPath,
         _filter: (),
     ) -> ConfigResult<Self> {

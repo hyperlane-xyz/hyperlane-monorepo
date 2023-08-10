@@ -30,7 +30,7 @@ pub enum SignerConf {
         /// The AWS region
         region: Region,
     },
-    /// Assume node will sign on RPC calls
+    /// Assume the local node will sign on RPC calls automatically
     #[default]
     Node,
 }

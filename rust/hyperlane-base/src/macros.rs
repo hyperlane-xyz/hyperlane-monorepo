@@ -5,7 +5,7 @@ pub use paste;
 use serde::Deserialize;
 use std::fmt::Debug;
 
-use crate::settings::RawSettings;
+use crate::settings::DeprecatedRawSettings;
 
 #[macro_export]
 /// Shortcut for aborting a joinhandle and then awaiting and discarding its
@@ -100,15 +100,15 @@ macro_rules! decl_settings {
             #[serde(rename_all = "camelCase")]
             pub struct [<Raw $name Settings>] {
                 #[serde(flatten, default)]
-                base: hyperlane_base::RawSettings,
+                base: hyperlane_base::DeprecatedRawSettings,
                 $(
                     $(#[$raw_tags])*
                     $raw_prop: $raw_type,
                 )*
             }
 
-            impl AsMut<hyperlane_base::RawSettings> for [<Raw $name Settings>] {
-                fn as_mut(&mut self) -> &mut hyperlane_base::RawSettings {
+            impl AsMut<hyperlane_base::DeprecatedRawSettings> for [<Raw $name Settings>] {
+                fn as_mut(&mut self) -> &mut hyperlane_base::DeprecatedRawSettings {
                     &mut self.base
                 }
             }
@@ -157,7 +157,7 @@ macro_rules! decl_settings {
 #[doc(hidden)]
 pub fn _new_settings<'de, T, R>(name: &str) -> ConfigResult<R>
 where
-    T: Deserialize<'de> + AsMut<RawSettings> + Debug,
+    T: Deserialize<'de> + AsMut<DeprecatedRawSettings> + Debug,
     R: FromRawConf<'de, T>,
 {
     use crate::settings::loader::load_settings_object;

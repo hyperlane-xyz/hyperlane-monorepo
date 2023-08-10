@@ -1,3 +1,5 @@
+#![allow(dead_code)] // TODO: remove before PR merge
+
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::{collections::HashMap, sync::Arc};
@@ -14,7 +16,7 @@ use hyperlane_core::{
 
 use crate::{
     settings::{
-        chains::{ChainConf, RawChainConf},
+        chains::{ChainConf, DeprecatedRawChainConf},
         signers::SignerConf,
         trace::TracingConfig,
     },
@@ -59,16 +61,16 @@ pub struct Settings {
 /// Raw base settings.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct RawSettings {
-    chains: Option<HashMap<String, RawChainConf>>,
+pub struct DeprecatedRawSettings {
+    chains: Option<HashMap<String, DeprecatedRawChainConf>>,
     defaultsigner: Option<RawSignerConf>,
     metrics: Option<StrOrInt>,
     tracing: Option<TracingConfig>,
 }
 
-impl FromRawConf<'_, RawSettings, Option<&HashSet<&str>>> for Settings {
+impl FromRawConf<'_, DeprecatedRawSettings, Option<&HashSet<&str>>> for Settings {
     fn from_config_filtered(
-        raw: RawSettings,
+        raw: DeprecatedRawSettings,
         cwp: &ConfigPath,
         filter: Option<&HashSet<&str>>,
     ) -> Result<Self, ConfigParsingError> {

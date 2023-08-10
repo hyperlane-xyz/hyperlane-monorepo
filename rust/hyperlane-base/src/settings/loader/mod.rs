@@ -8,7 +8,7 @@ use config::{Config, Environment, File};
 use eyre::{bail, Context, Result};
 use serde::Deserialize;
 
-use crate::settings::RawSettings;
+use crate::settings::DeprecatedRawSettings;
 
 mod arguments;
 
@@ -19,7 +19,7 @@ pub(crate) fn load_settings_object<'de, T, S>(
     ignore_prefixes: &[S],
 ) -> Result<T>
 where
-    T: Deserialize<'de> + AsMut<RawSettings>,
+    T: Deserialize<'de> + AsMut<DeprecatedRawSettings>,
     S: AsRef<str>,
 {
     // Derive additional prefix from agent name
