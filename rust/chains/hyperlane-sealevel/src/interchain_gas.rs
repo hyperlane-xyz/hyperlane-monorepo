@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use base64::{engine::general_purpose, Engine};
 use hyperlane_core::{
     config::StrOrIntParseError, ChainCommunicationError, ChainResult, ContractLocator,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer,
@@ -15,8 +14,7 @@ use solana_client::{
     rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType},
 };
 use std::ops::RangeInclusive;
-use std::sync::OnceLock;
-use tracing::{debug, info, instrument};
+use tracing::{info, instrument};
 
 use crate::{
     client::RpcClientWithDebug, utils::get_finalized_block_number, ConnectionConf, SealevelProvider,
@@ -39,25 +37,43 @@ pub struct SealevelInterchainGasPaymaster {
 
 impl SealevelInterchainGasPaymaster {
     /// Create a new Sealevel IGP.
-    pub fn new(igp_account: H256, locator: ContractLocator) -> Self {
-        let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
-        let domain = locator.domain.id();
+    pub async fn new(
+        conf: &ConnectionConf,
+        igp_account_locator: &ContractLocator<'_>,
+    ) -> ChainResult<Self> {
+        let rpc_client = RpcClientWithDebug::new_with_commitment(
+            conf.url.to_string(),
+            CommitmentConfig::processed(),
+        );
+        let program_id =
+            Self::determine_igp_program_id(&rpc_client, &igp_account_locator.address).await?;
         let (data_pda_pubkey, _) =
             Pubkey::find_program_address(igp_program_data_pda_seeds!(), &program_id);
 
-        debug!(
-            domain,
-            %program_id,
-            %data_pda_pubkey,
-            "Found sealevel IGP program data PDA"
-        );
-
-        Self {
+        Ok(Self {
             program_id,
             data_pda_pubkey,
-            domain: locator.domain.clone(),
-            igp_account,
-        }
+            domain: igp_account_locator.domain.clone(),
+            igp_account: igp_account_locator.address,
+        })
+    }
+
+    async fn determine_igp_program_id(
+        rpc_client: &RpcClientWithDebug,
+        igp_account_pubkey: &H256,
+    ) -> ChainResult<Pubkey> {
+        let account = rpc_client
+            .get_account_with_commitment(
+                &Pubkey::from(<[u8; 32]>::from(*igp_account_pubkey)),
+                CommitmentConfig::finalized(),
+            )
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .value
+            .ok_or_else(|| {
+                ChainCommunicationError::from_other_str("Could not find IGP account for pubkey")
+            })?;
+        Ok(account.owner)
     }
 }
 
@@ -84,34 +100,6 @@ impl InterchainGasPaymaster for SealevelInterchainGasPaymaster {}
 pub struct SealevelInterchainGasPaymasterIndexer {
     rpc_client: RpcClientWithDebug,
     igp: SealevelInterchainGasPaymaster,
-    _program_id: Pubkey,
-    igp_account: OnceLock<H256>,
-}
-
-impl SealevelInterchainGasPaymasterIndexer {
-    async fn get_igp_account(&self, igp_account_pubkey: &H256) -> ChainResult<H256> {
-        if let Some(igp) = self.igp_account.get() {
-            return Ok(*igp);
-        }
-        let account = self
-            .rpc_client
-            .get_account_with_commitment(
-                &Pubkey::from(<[u8; 32]>::from(*igp_account_pubkey)),
-                CommitmentConfig::finalized(),
-            )
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .value
-            .ok_or_else(|| {
-                ChainCommunicationError::from_other_str("Could not find IGP account for pubkey")
-            })?;
-        let account_owner_pubkey = account.owner.to_bytes().into();
-        self.igp_account.set(account_owner_pubkey).map_err(|_| {
-            ChainCommunicationError::from_other_str("IGP account singleton set more than once")
-        })?;
-        println!("~~~ IGP account owner pubkey: {}", account.owner);
-        Ok(account_owner_pubkey)
-    }
 }
 
 /// IGP payment data on Sealevel
@@ -124,20 +112,18 @@ pub struct SealevelGasPayment {
 
 impl SealevelInterchainGasPaymasterIndexer {
     /// Create a new Sealevel IGP indexer.
-    pub fn new(conf: &ConnectionConf, igp_account: H256, locator: ContractLocator) -> Self {
-        let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
+    pub async fn new(
+        conf: &ConnectionConf,
+        igp_account_locator: ContractLocator<'_>,
+    ) -> ChainResult<Self> {
         // Set the `processed` commitment at rpc level
         let rpc_client = RpcClientWithDebug::new_with_commitment(
             conf.url.to_string(),
             CommitmentConfig::processed(),
         );
-        let igp = SealevelInterchainGasPaymaster::new(igp_account, locator);
-        Self {
-            _program_id: program_id,
-            rpc_client,
-            igp,
-            igp_account: OnceLock::new(),
-        }
+
+        let igp = SealevelInterchainGasPaymaster::new(conf, &igp_account_locator).await?;
+        Ok(Self { rpc_client, igp })
     }
 
     async fn get_payment_with_sequence(
@@ -149,7 +135,8 @@ impl SealevelInterchainGasPaymasterIndexer {
             &sequence_number.to_le_bytes()[..],
         ]
         .concat();
-        let payment_bytes: String = general_purpose::STANDARD.encode(payment_bytes);
+        #[allow(deprecated)]
+        let payment_bytes: String = base64::encode(payment_bytes);
 
         // First, find all accounts with the matching gas payment data.
         // To keep responses small in case there is ever more than 1
@@ -262,7 +249,7 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
         let mut payments = Vec::with_capacity((range.end() - range.start()) as usize);
         for nonce in range {
             if let Ok(sealevel_payment) = self.get_payment_with_sequence(nonce.into()).await {
-                let igp_account_filter = self.get_igp_account(&self.igp.igp_account).await?;
+                let igp_account_filter = self.igp.igp_account;
                 if igp_account_filter == sealevel_payment.igp_account_pubkey {
                     payments.push((sealevel_payment.payment, sealevel_payment.log_meta));
                 }

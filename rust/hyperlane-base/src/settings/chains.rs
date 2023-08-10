@@ -432,11 +432,10 @@ impl ChainConf {
             }
 
             ChainConnectionConf::Fuel(_) => todo!(),
-            ChainConnectionConf::Sealevel(_) => {
-                let paymaster = Box::new(h_sealevel::SealevelInterchainGasPaymaster::new(
-                    self.addresses.interchain_gas_paymaster,
-                    locator,
-                ));
+            ChainConnectionConf::Sealevel(conf) => {
+                let paymaster = Box::new(
+                    h_sealevel::SealevelInterchainGasPaymaster::new(conf, &locator).await?,
+                );
                 Ok(paymaster as Box<dyn InterchainGasPaymaster>)
             }
         }
@@ -467,11 +466,9 @@ impl ChainConf {
 
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
-                let indexer = Box::new(h_sealevel::SealevelInterchainGasPaymasterIndexer::new(
-                    conf,
-                    self.addresses.interchain_gas_paymaster,
-                    locator,
-                ));
+                let indexer = Box::new(
+                    h_sealevel::SealevelInterchainGasPaymasterIndexer::new(conf, locator).await?,
+                );
                 Ok(indexer as Box<dyn SequenceIndexer<InterchainGasPayment>>)
             }
         }
