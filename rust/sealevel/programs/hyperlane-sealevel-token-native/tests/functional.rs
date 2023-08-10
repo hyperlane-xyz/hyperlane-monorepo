@@ -551,6 +551,7 @@ async fn test_transfer_remote() {
             gas_amount: REMOTE_GAS_AMOUNT,
             unique_gas_payment_pubkey: unique_message_account_keypair.pubkey(),
             slot: transfer_remote_tx_status.slot,
+            payment: REMOTE_GAS_AMOUNT
         }
         .into(),
     );
