@@ -1,13 +1,16 @@
-import { confirm, input } from '@inquirer/prompts';
-import select from '@inquirer/select';
 import { CommandModule } from 'yargs';
 
-import { ChainMetadata, isValidChainMetadata } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { createChainConfig } from '../config/chain.js';
+import { createMultisigConfig } from '../config/multisig.js';
+import { readChainConfig, readMultisigConfig } from '../configs.js';
+import { log } from '../logger.js';
+import { FileFormat } from '../utils/files.js';
 
-import { readChainConfig } from '../configs.js';
-import { errorRed, log, logBlue, logGreen } from '../logger.js';
-import { FileFormat, mergeYamlOrJson } from '../utils/files.js';
+import {
+  chainsCommandOption,
+  fileFormatOption,
+  outputFileOption,
+} from './options.js';
 
 /**
  * Parent command
@@ -25,78 +28,72 @@ export const configCommand: CommandModule = {
 };
 
 /**
- * Create command
+ * Create commands
  */
 const createCommand: CommandModule = {
   command: 'create',
-  describe: 'Create a new, minimal Hyperlane config',
+  describe: 'Create a new Hyperlane config',
+  builder: (yargs) =>
+    yargs
+      .command(createChainCommand)
+      .command(createMultisigCommand)
+      .version(false)
+      .demandCommand(),
+  handler: () => log('Command required'),
+};
+
+const createChainCommand: CommandModule = {
+  command: 'chain',
+  describe: 'Create a new, minimal Hyperlane chain config (aka chain metadata)',
   builder: (yargs) =>
     yargs.options({
-      output: {
-        type: 'string',
-        alias: 'o',
-        description: 'Output file path',
-      },
-      format: {
-        type: 'string',
-        alias: 'f',
-        description: 'Output file format',
-        choices: ['json', 'yaml'],
-      },
+      output: outputFileOption('./configs/chain-config.yaml'),
+      format: fileFormatOption,
     }),
   handler: async (argv: any) => {
-    const format: FileFormat = argv.format || 'yaml';
-    const output: string = argv.output || `./configs/chain-config.${format}`;
-    logBlue('Creating a new chain config');
-    const name = await input({
-      message: 'Enter chain name (one word, lower case)',
-    });
-    const chainId = await input({ message: 'Enter chain id (number)' });
-    const skipDomain = await confirm({
-      message: 'Will the domainId match the chainId (recommended)?',
-    });
-    let domainId: string;
-    if (skipDomain) {
-      domainId = chainId;
-    } else {
-      domainId = await input({
-        message: 'Enter domain id (number, often matches chainId)',
-      });
-    }
-    const protocol = await select({
-      message: 'Select protocol type',
-      choices: Object.values(ProtocolType).map((protocol) => ({
-        name: protocol,
-        value: protocol,
-      })),
-    });
-    const rpcUrl = await input({ message: 'Enter http or https rpc url' });
-    const metadata: ChainMetadata = {
-      name,
-      chainId: parseInt(chainId, 10),
-      domainId: parseInt(domainId, 10),
-      protocol,
-      rpcUrls: [{ http: rpcUrl }],
-    };
-    if (isValidChainMetadata(metadata)) {
-      logGreen(`Chain config is valid, writing to file ${output}`);
-      mergeYamlOrJson(output, { [name]: metadata }, format);
-    } else {
-      errorRed(
-        `Chain config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/chain-config.yaml for an example`,
-      );
-      throw new Error('Invalid chain config');
-    }
+    const format: FileFormat = argv.format;
+    const outPath: string = argv.output;
+    await createChainConfig({ format, outPath });
+    process.exit(0);
+  },
+};
+
+const createMultisigCommand: CommandModule = {
+  command: 'multisig',
+  describe: 'Create a new Multisig ISM config',
+  builder: (yargs) =>
+    yargs.options({
+      output: outputFileOption('./configs/multisig-ism.yaml'),
+      format: fileFormatOption,
+      chains: chainsCommandOption,
+    }),
+  handler: async (argv: any) => {
+    const format: FileFormat = argv.format;
+    const outPath: string = argv.output;
+    const chainConfigPath: string = argv.chains;
+    await createMultisigConfig({ format, outPath, chainConfigPath });
     process.exit(0);
   },
 };
 
 /**
- * Validate command
+ * Validate commands
  */
 const validateCommand: CommandModule = {
   command: 'validate',
-  describe: 'Validate the configs in a YAML or JSON file',
+  describe: 'Validate a config in a YAML or JSON file',
+  builder: (yargs) =>
+    yargs
+      .command(validateChainCommand)
+      .command(validateMultisigCommand)
+      .version(false)
+      .demandCommand(),
+  handler: () => log('Command required'),
+};
+
+const validateChainCommand: CommandModule = {
+  command: 'chain',
+  describe: 'Validate a chain config in a YAML or JSON file',
   builder: (yargs) =>
     yargs.options({
       path: {
@@ -108,5 +105,22 @@ const validateCommand: CommandModule = {
   handler: async (argv) => {
     const path = argv.path as string;
     readChainConfig(path);
+  },
+};
+
+const validateMultisigCommand: CommandModule = {
+  command: 'multisig',
+  describe: 'Validate a multisig ism config in a YAML or JSON file',
+  builder: (yargs) =>
+    yargs.options({
+      path: {
+        type: 'string',
+        description: 'Input file path',
+        demandOption: true,
+      },
+    }),
+  handler: async (argv) => {
+    const path = argv.path as string;
+    readMultisigConfig(path);
   },
 };

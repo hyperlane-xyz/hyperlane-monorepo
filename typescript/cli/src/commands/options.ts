@@ -23,3 +23,18 @@ export const coreArtifactsOption: Options = {
   type: 'string',
   description: 'File path to core deployment output artifacts',
 };
+
+export const fileFormatOption: Options = {
+  type: 'string',
+  alias: 'f',
+  description: 'Output file format',
+  choices: ['json', 'yaml'],
+  default: 'yaml',
+};
+
+export const outputFileOption = (defaultPath: string): Options => ({
+  type: 'string',
+  alias: 'o',
+  description: 'Output file path',
+  default: defaultPath,
+});

@@ -16,16 +16,16 @@ import { getMultiProvider } from './context.js';
 import { errorRed, log, logGreen } from './logger.js';
 import { readYamlOrJson } from './utils/files.js';
 
-export function readChainConfig(filepath: string) {
-  log(`Reading file configs in ${filepath}`);
-  const chainToMetadata = readYamlOrJson<ChainMap<ChainMetadata>>(filepath);
+export function readChainConfig(filePath: string) {
+  log(`Reading file configs in ${filePath}`);
+  const chainToMetadata = readYamlOrJson<ChainMap<ChainMetadata>>(filePath);
 
   if (
     !chainToMetadata ||
     typeof chainToMetadata !== 'object' ||
     !Object.keys(chainToMetadata).length
   ) {
-    errorRed(`No configs found in ${filepath}`);
+    errorRed(`No configs found in ${filePath}`);
     process.exit(1);
   }
 
@@ -46,7 +46,7 @@ export function readChainConfig(filepath: string) {
   // Ensure multiprovider accepts this metadata
   getMultiProvider(chainToMetadata);
 
-  logGreen(`All chain configs in ${filepath} are valid`);
+  logGreen(`All chain configs in ${filePath} are valid`);
   return chainToMetadata;
 }
 
@@ -76,18 +76,19 @@ export function readDeploymentArtifacts(filePath: string) {
   return artifacts;
 }
 
-const MultisigConfigSchema = z.object({}).catchall(
+const MultisigConfigMapSchema = z.object({}).catchall(
   z.object({
     type: z.string(),
     threshold: z.number(),
     validators: z.array(z.string()),
   }),
 );
+export type MultisigConfigMap = z.infer<typeof MultisigConfigMapSchema>;
 
 export function readMultisigConfig(filePath: string) {
-  const config = readYamlOrJson<ChainMap<MultisigIsmConfig>>(filePath);
+  const config = readYamlOrJson(filePath);
   if (!config) throw new Error(`No multisig config found at ${filePath}`);
-  const result = MultisigConfigSchema.safeParse(config);
+  const result = MultisigConfigMapSchema.safeParse(config);
   if (!result.success) {
     const firstIssue = result.error.issues[0];
     throw new Error(
@@ -100,7 +101,12 @@ export function readMultisigConfig(filePath: string) {
     type: humanReadableIsmTypeToEnum(config.type),
   }));
 
+  logGreen(`All multisig configs in ${filePath} are valid`);
   return formattedConfig as ChainMap<MultisigIsmConfig>;
+}
+
+export function isValidMultisigConfig(config: any) {
+  return MultisigConfigMapSchema.safeParse(config).success;
 }
 
 function humanReadableIsmTypeToEnum(type: string): ModuleType {

@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/cli",
-  "version": "1.4.3-beta0",
+  "version": "1.4.3-beta1",
   "description": "A command-line utility for common Hyperlane operations",
   "dependencies": {
     "@hyperlane-xyz/hyperlane-token": "1.4.3-beta0",

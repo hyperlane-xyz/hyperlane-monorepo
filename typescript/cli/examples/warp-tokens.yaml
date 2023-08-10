@@ -11,8 +11,8 @@
 base:
   chainName: anvil1
   type: native
-  # address: 0x123... # Required for collateral types)
-  # isNft: true # If the token is an NFT (ERC721), set to true)
+  # address: 0x123... # Required for collateral types
+  # isNft: true # If the token is an NFT (ERC721), set to true
   # owner: 0x123 # Optional owner address for synthetic token
   # mailbox: 0x123 # Optional mailbox address route
   # interchainGasPaymaster: 0x123 # Optional interchainGasPaymaster address
