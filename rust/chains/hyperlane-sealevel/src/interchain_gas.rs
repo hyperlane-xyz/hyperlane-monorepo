@@ -34,11 +34,12 @@ pub struct SealevelInterchainGasPaymaster {
     program_id: Pubkey,
     data_pda_pubkey: Pubkey,
     domain: HyperlaneDomain,
+    igp_account: H256,
 }
 
 impl SealevelInterchainGasPaymaster {
     /// Create a new Sealevel IGP.
-    pub fn new(locator: ContractLocator) -> Self {
+    pub fn new(igp_account: H256, locator: ContractLocator) -> Self {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         let domain = locator.domain.id();
         let (data_pda_pubkey, _) =
@@ -55,6 +56,7 @@ impl SealevelInterchainGasPaymaster {
             program_id,
             data_pda_pubkey,
             domain: locator.domain.clone(),
+            igp_account,
         }
     }
 }
@@ -107,6 +109,7 @@ impl SealevelInterchainGasPaymasterIndexer {
         self.igp_account.set(account_owner_pubkey).map_err(|_| {
             ChainCommunicationError::from_other_str("IGP account singleton set more than once")
         })?;
+        println!("~~~ IGP account owner pubkey: {}", account.owner);
         Ok(account_owner_pubkey)
     }
 }
@@ -121,14 +124,14 @@ pub struct SealevelGasPayment {
 
 impl SealevelInterchainGasPaymasterIndexer {
     /// Create a new Sealevel IGP indexer.
-    pub fn new(conf: &ConnectionConf, locator: ContractLocator) -> Self {
+    pub fn new(conf: &ConnectionConf, igp_account: H256, locator: ContractLocator) -> Self {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         // Set the `processed` commitment at rpc level
         let rpc_client = RpcClientWithDebug::new_with_commitment(
             conf.url.to_string(),
             CommitmentConfig::processed(),
         );
-        let igp = SealevelInterchainGasPaymaster::new(locator);
+        let igp = SealevelInterchainGasPaymaster::new(igp_account, locator);
         Self {
             _program_id: program_id,
             rpc_client,
@@ -259,9 +262,7 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
         let mut payments = Vec::with_capacity((range.end() - range.start()) as usize);
         for nonce in range {
             if let Ok(sealevel_payment) = self.get_payment_with_sequence(nonce.into()).await {
-                let igp_account_filter = self
-                    .get_igp_account(&sealevel_payment.igp_account_pubkey)
-                    .await?;
+                let igp_account_filter = self.get_igp_account(&self.igp.igp_account).await?;
                 if igp_account_filter == sealevel_payment.igp_account_pubkey {
                     payments.push((sealevel_payment.payment, sealevel_payment.log_meta));
                 }
@@ -294,7 +295,7 @@ impl SequenceIndexer<InterchainGasPayment> for SealevelInterchainGasPaymasterInd
         let payment_count = program_data
             .payment_count
             .try_into()
-            .map_err(|err| StrOrIntParseError::from(err))?;
+            .map_err(StrOrIntParseError::from)?;
         let tip = get_finalized_block_number(&self.rpc_client).await?;
         Ok(Some((payment_count, tip)))
     }

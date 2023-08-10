@@ -5,11 +5,8 @@
       "domain": 13375,
       "addresses": {
         "mailbox": "692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1",
-        "interchainGasPaymaster": "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U",
+        "interchainGasPaymaster": "DrFtxirPPsfdY4HQiNZj2A9o4Ux7JaL3gELANgAoihhp",
         "validatorAnnounce": "DH43ae1LwemXAboWwSh8zc9pG8j72gKUEXNi57w8fEnn"
-      },
-      "sealevel": {
-        "relayerAccount": "DrFtxirPPsfdY4HQiNZj2A9o4Ux7JaL3gELANgAoihhp"
       },
       "protocol": "sealevel",
       "finalityBlocks": 0,
@@ -27,11 +24,8 @@
       "domain": 13376,
       "addresses": {
         "mailbox": "9tCUWNjpqcf3NUSrtp7vquYVCwbEByvLjZUrhG5dgvhj",
-        "interchainGasPaymaster": "FArd4tEikwz2fk3MB7S9kC82NGhkgT6f9aXi3C5cw1E5",
+        "interchainGasPaymaster": "G5rGigZBL8NmxCaukK2CAKr9Jq4SUfAhsjzeri7GUraK",
         "validatorAnnounce": "3Uo5j2Bti9aZtrDqJmAyuwiFaJFPFoNL5yxTpVCNcUhb"
-      },
-      "sealevel": {
-        "relayerAccount": "G5rGigZBL8NmxCaukK2CAKr9Jq4SUfAhsjzeri7GUraK"
       },
       "protocol": "sealevel",
       "finalityBlocks": 0,
