@@ -8,15 +8,6 @@
       }
     ]
   },
-  "zbctestnet": {
-    "chainId": 2053254516,
-    "name": "zbctestnet",
-    "publicRpcUrls": [
-      {
-        "http": "https://api.zebec.eclipsenetwork.xyz:8899"
-      }
-    ]
-  },
   "fuji": {
     "chainId": 43113,
     "name": "fuji",
