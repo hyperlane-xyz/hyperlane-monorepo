@@ -2,7 +2,7 @@
   "solanadevnet": {
     "chainId": 13375,
     "name": "solanadevnet",
-    "publicRpcUrls": [
+    "rpcUrls": [
       {
         "http": "https://api.devnet.solana.com"
       }
@@ -11,7 +11,7 @@
   "solanadevnet1": {
     "chainId": 13376,
     "name": "solanadevnet1",
-    "publicRpcUrls": [
+    "rpcUrls": [
       {
         "http": "https://api.devnet.solana.com"
       }
@@ -20,7 +20,7 @@
   "fuji": {
     "chainId": 43113,
     "name": "fuji",
-    "publicRpcUrls": [
+    "rpcUrls": [
       {
         "http": "https://api.avax-test.network/ext/bc/C/rpc"
       }

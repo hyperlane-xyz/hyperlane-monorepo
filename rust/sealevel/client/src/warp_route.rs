@@ -150,15 +150,12 @@ pub struct ChainMetadata {
     domain_id: Option<u32>,
     name: String,
     /// Collection of RPC endpoints
-    public_rpc_urls: Vec<RpcUrlConfig>,
+    rpc_urls: Vec<RpcUrlConfig>,
 }
 
 impl ChainMetadata {
     fn client(&self) -> RpcClient {
-        RpcClient::new_with_commitment(
-            self.public_rpc_urls[0].http.clone(),
-            CommitmentConfig::confirmed(),
-        )
+        RpcClient::new_with_commitment(self.rpc_urls[0].http.clone(), CommitmentConfig::confirmed())
     }
 
     fn domain_id(&self) -> u32 {
@@ -426,7 +423,7 @@ fn deploy_warp_route(
             .join(format!("{}.so", token_config.token_type.program_name()))
             .to_str()
             .unwrap(),
-        &chain_config.public_rpc_urls[0].http,
+        &chain_config.rpc_urls[0].http,
     )
     .unwrap();
 

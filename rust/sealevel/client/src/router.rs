@@ -79,15 +79,12 @@ pub struct ChainMetadata {
     domain_id: Option<u32>,
     name: String,
     /// Collection of RPC endpoints
-    public_rpc_urls: Vec<RpcUrlConfig>,
+    rpc_urls: Vec<RpcUrlConfig>,
 }
 
 impl ChainMetadata {
     pub fn client(&self) -> RpcClient {
-        RpcClient::new_with_commitment(
-            self.public_rpc_urls[0].http.clone(),
-            CommitmentConfig::confirmed(),
-        )
+        RpcClient::new_with_commitment(self.rpc_urls[0].http.clone(), CommitmentConfig::confirmed())
     }
 
     pub fn domain_id(&self) -> u32 {
@@ -132,7 +129,7 @@ pub trait Deployable<Config: RouterConfigGetter + std::fmt::Debug> {
                 .join(format!("{}.so", program_name))
                 .to_str()
                 .unwrap(),
-            &chain_config.public_rpc_urls[0].http,
+            &chain_config.rpc_urls[0].http,
         )
         .unwrap();
 

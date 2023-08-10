@@ -1,5 +1,8 @@
 {
   "mailbox": "AWgqPcY1vjHRoFLHNgs15fdvy4bqEakHmYXW78B8GgYk",
   "validator_announce": "4JRZrYJnXJn6KPSCG4tA6GBomP2zwQv8bD65anWnHmNz",
-  "multisig_ism_message_id": "HQcv2ibNRuJdHU8Lt9t655YUjXj4Rp9nW8mbcA26cYqM"
+  "multisig_ism_message_id": "HQcv2ibNRuJdHU8Lt9t655YUjXj4Rp9nW8mbcA26cYqM",
+  "igp_program_id": "FixmeFixmeFixmeFixmeFixmeFixmeFixmeFixmeFixm",
+  "overhead_igp_account": "FixmeFixmeFixmeFixmeFixmeFixmeFixmeFixmeFixm",
+  "igp_account": "FixmeFixmeFixmeFixmeFixmeFixmeFixmeFixmeFixm"
 }
