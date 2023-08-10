@@ -231,7 +231,7 @@ export abstract class HyperlaneDeployer<
 
           await this.multiProvider.handleTx(
             local,
-            connectionClient.setIpnterchainSecurityModule(
+            connectionClient.setInterchainSecurityModule(
               configuredIsm,
               txOverrides,
             ),
