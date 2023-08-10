@@ -53,6 +53,8 @@ abstract contract AbstractMessageIdAuthHook is
         destinationDomain = _destinationDomain;
     }
 
+    // ============ External functions ============
+
     /**
      * @notice Hook to inform the optimism ISM of messages published through.
      * metadata The metadata for the hook caller
@@ -64,13 +66,14 @@ abstract contract AbstractMessageIdAuthHook is
         override
     {
         bytes32 id = message.id();
-        require(isLatestDispatched(id), "message not latest dispatched");
+        require(
+            isLatestDispatched(id),
+            "AbstractMessageIdAuthHook: message not latest dispatched"
+        );
         require(
             message.destination() == destinationDomain,
-            "invalid destination domain"
+            "AbstractMessageIdAuthHook: invalid destination domain"
         );
-        // TODO: handle msg.value?
-
         bytes memory payload = abi.encodeCall(
             AbstractMessageIdAuthorizedIsm.verifyMessageId,
             id
@@ -78,6 +81,13 @@ abstract contract AbstractMessageIdAuthHook is
         _sendMessageId(metadata, payload);
     }
 
+    // ============ Internal functions ============
+
+    /**
+     * @notice Send a message to the ISM.
+     * @param metadata The metadata for the hook caller
+     * @param payload The payload for call to the ISM
+     */
     function _sendMessageId(bytes calldata metadata, bytes memory payload)
         internal
         virtual;
