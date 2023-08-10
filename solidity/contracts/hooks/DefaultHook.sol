@@ -17,7 +17,7 @@ import {Message} from "../libs/Message.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 import {DomainRoutingHook} from "./DomainRoutingHook.sol";
 
-contract DefaultHook is DomainRoutingHook {
+contract ConfigurableDomainRoutingHook is DomainRoutingHook {
     using Message for bytes;
 
     /// @notice mapping of destination domain and recipient to custom hook
@@ -34,10 +34,12 @@ contract DefaultHook is DomainRoutingHook {
             abi.encodePacked(message.destination(), message.recipient())
         );
 
-        if (customHooks[hookKey] != address(0)) {
-            IPostDispatchHook(customHooks[hookKey]).postDispatch{
-                value: msg.value
-            }(metadata, message);
+        address customHookPreset = customHooks[hookKey];
+        if (customHookPreset != address(0)) {
+            IPostDispatchHook(customHookPreset).postDispatch{value: msg.value}(
+                metadata,
+                message
+            );
         } else {
             super.postDispatch(metadata, message);
         }
