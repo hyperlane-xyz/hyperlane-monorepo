@@ -1,3 +1,7 @@
+//! The correct settings shape is defined in the TypeScript SDK metadata. While the the exact shape
+//! and validations it defines are not applied here, we should mirror them.
+//! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
+
 use std::fmt;
 use std::fmt::{Debug, Display, Formatter};
 use std::marker::PhantomData;
