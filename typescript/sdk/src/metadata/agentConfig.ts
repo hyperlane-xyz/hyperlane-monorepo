@@ -13,6 +13,7 @@ import {
   ChainMetadata,
   ChainMetadataSchema,
   RpcUrlSchema,
+  ZHash,
   ZNzUint,
   ZUWei,
   ZUint,
@@ -21,6 +22,7 @@ import {
   HyperlaneDeploymentArtifacts,
   HyperlaneDeploymentArtifactsSchema,
 } from './deploymentArtifacts';
+import { MatchingListSchema } from './matchingList';
 
 export enum AgentConnectionType {
   Http = 'http',
@@ -54,7 +56,7 @@ export const AgentSignerSchema = z.union([
   z
     .object({
       type: z.literal('hexKey').optional(),
-      key: z.string().regex(/^(0x)?[0-9a-fA-F]{32,128}$/),
+      key: ZHash,
     })
     .describe('A local hex key'),
   z
@@ -158,6 +160,33 @@ export const AgentConfigSchema = z.object({
 const CommaSeperatedChainList = z.string().regex(/^[a-z0-9]+(,[a-z0-9]+)*$/);
 const CommaSeperatedDomainList = z.string().regex(/^\d+(,\d+)*$/);
 
+const GasPaymentEnforcementBaseSchema = z.object({
+  matchingList: MatchingListSchema.optional().describe(
+    'An optional matching list, any message that matches will use this policy. By default all messages will match.',
+  ),
+});
+const GasPaymentEnforcementSchema = z.union([
+  GasPaymentEnforcementBaseSchema.extend({
+    type: z.literal('none').optional(),
+  }),
+  GasPaymentEnforcementBaseSchema.extend({
+    type: z.literal('minimum').optional(),
+    payment: ZUWei,
+    matchingList: MatchingListSchema.optional().describe(
+      'An optional matching list, any message that matches will use this policy. By default all messages will match.',
+    ),
+  }),
+  GasPaymentEnforcementBaseSchema.extend({
+    type: z.literal('onChainFeeQuoting'),
+    gasFraction: z.string().regex(/^\d+ ?\/ ?[1-9]\d*$/),
+    matchingList: MatchingListSchema.optional().describe(
+      'An optional matching list, any message that matches will use this policy. By default all messages will match.',
+    ),
+  }),
+]);
+
+export type GasPaymentEnforcement = z.infer<typeof GasPaymentEnforcementSchema>;
+
 export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
   db: z
     .string()
@@ -167,26 +196,20 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
   relayChains: CommaSeperatedChainList.describe(
     'Comma seperated list of chains to relay messages between.',
   ),
-  // TODO Accept non-serialize obj?
   gasPaymentEnforcement: z
-    .string()
-    .nonempty()
+    .union([GasPaymentEnforcementSchema, z.string().nonempty()])
     .optional()
     .describe(
       'The gas payment enforcement configuration as JSON. Expects an ordered array of `GasPaymentEnforcementConfig`.',
     ),
-  // TODO Accept non-serialize obj?
   whitelist: z
-    .string()
-    .nonempty()
+    .union([MatchingListSchema, z.string().nonempty()])
     .optional()
     .describe(
       'If no whitelist is provided ALL messages will be considered on the whitelist.',
     ),
-  // TODO Accept non-serialize obj?
   blacklist: z
-    .string()
-    .nonempty()
+    .union([MatchingListSchema, z.string().nonempty()])
     .optional()
     .describe(
       'If no blacklist is provided ALL will be considered to not be on the blacklist.',
