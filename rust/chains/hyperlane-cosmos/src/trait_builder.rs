@@ -1,19 +1,28 @@
+use cosmrs::proto::cosmwasm::wasm::v1::query_client::QueryClient as WasmQueryClient;
+use hyper::body::HttpBody;
 use hyperlane_core::config::{ConfigErrResultExt, ConfigPath, ConfigResult, FromRawConf};
 use url::Url;
 
 /// Cosmos connection configuration
 #[derive(Debug, Clone)]
-pub struct ConnectionConf {
-    // TODO: more settings?
-    #[allow(dead_code)]
-    url: Url,
+pub enum ConnectionConf {
+    /// Cosmos RPC URL
+    RpcUrl { url: String, chain_id: String },
+    /// Cosmos GRPC URL
+    GrpcUrl { url: String, chain_id: String },
 }
 
 /// Raw Cosmos connection configuration used for better deserialization errors.
 #[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RawConnectionConf {
-    // TODO: more settings?
+    /// The type of connection to use
+    #[serde(rename = "type")]
+    connection_type: Option<String>,
+    /// A single url to connect to
     url: Option<String>,
+    /// The chain ID
+    chain_id: Option<String>,
 }
 
 /// An error type when parsing a connection configuration.
@@ -22,9 +31,17 @@ pub enum ConnectionConfError {
     /// Missing `url` for connection configuration
     #[error("Missing `url` for connection configuration")]
     MissingConnectionUrl,
+    /// Missing `chainId` for connection configuration
+    #[error("Missing `chainId` for connection configuration")]
+    MissingChainId,
     /// Invalid `url` for connection configuration
     #[error("Invalid `url` for connection configuration: `{0}` ({1})")]
     InvalidConnectionUrl(String, url::ParseError),
+    /// Invalid `url` type
+    InvalidConnectionType,
+    /// Unsupported `url` type
+    #[error("Unsupported connection type: '{0}'")]
+    UnsupportedConnectionType(String),
 }
 
 impl FromRawConf<'_, RawConnectionConf> for ConnectionConf {
@@ -34,16 +51,42 @@ impl FromRawConf<'_, RawConnectionConf> for ConnectionConf {
         _filter: (),
     ) -> ConfigResult<Self> {
         use ConnectionConfError::*;
-        match raw {
-            RawConnectionConf { url: Some(url) } => Ok(Self {
-                url: url
-                    .parse()
-                    .map_err(|e| InvalidConnectionUrl(url, e))
-                    .into_config_result(|| cwp.join("url"))?,
-            }),
-            RawConnectionConf { url: None } => {
-                Err(MissingConnectionUrl).into_config_result(|| cwp.join("url"))
-            }
+
+        let connectiont_type = raw.connection_type.as_deref().unwrap_or("grpc");
+        let chain_id = raw.chain_id.ok_or(MissingChainId)?;
+        let url = raw.url.ok_or(MissingConnectionUrl)?;
+
+        match connectiont_type {
+            "grpc" => Ok(ConnectionConf::GrpcUrl { url, chain_id }),
+            "rpc" => Ok(ConnectionConf::RpcUrl { url, chain_id }),
+            t => Err(UnsupportedConnectionType(t.to_string())),
+        }
+    }
+}
+
+impl ConnectionConf {
+    /// Get the GRPC url
+    pub fn get_grpc_url(&self) -> Result<String, Error> {
+        if let ConnectionConf::GrpcUrl { url, .. } = self {
+            Ok(url.clone())
+        } else {
+            Err(Error::InvalidConnectionType)
+        }
+    }
+
+    /// Get the RPC url
+    pub fn get_rpc_url(&self) -> Result<String, Error> {
+        if let ConnectionConf::RpcUrl { url, .. } = self {
+            Ok(url.clone())
+        } else {
+            Err(Error::InvalidConnectionType)
+        }
+    }
+
+    pub fn get_chain_id(&self) -> String {
+        match self {
+            ConnectionConf::GrpcUrl { chain_id, .. } => chain_id.clone(),
+            ConnectionConf::RpcUrl { chain_id, .. } => chain_id.clone(),
         }
     }
 }
