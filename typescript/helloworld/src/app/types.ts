@@ -1,4 +1,4 @@
 export type StatCounts = {
-  sent: number;
-  received: number;
+  sent: number | bigint;
+  received: number | bigint;
 };

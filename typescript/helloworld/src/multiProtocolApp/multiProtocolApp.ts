@@ -5,7 +5,7 @@ import {
   RouterAddress,
   TypedTransaction,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { StatCounts } from '../app/types';
 
@@ -14,7 +14,7 @@ import { SealevelHelloWorldAdapter } from './sealevelAdapter';
 import { IHelloWorldAdapter } from './types';
 
 export class HelloMultiProtocolApp extends MultiProtocolRouterApp<
-  RouterAddress,
+  RouterAddress & { mailbox: Address },
   IHelloWorldAdapter
 > {
   override protocolToAdapter(protocol: ProtocolType) {
@@ -28,8 +28,15 @@ export class HelloMultiProtocolApp extends MultiProtocolRouterApp<
     to: ChainName,
     message: string,
     value: string,
+    sender: Address,
   ): Promise<TypedTransaction> {
-    return this.adapter(from).populateHelloWorldTx(from, to, message, value);
+    return this.adapter(from).populateSendHelloTx(
+      from,
+      to,
+      message,
+      value,
+      sender,
+    );
   }
 
   channelStats(from: ChainName, to: ChainName): Promise<StatCounts> {

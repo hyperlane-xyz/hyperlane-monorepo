@@ -30,6 +30,10 @@ export {
 } from './consts/environments';
 export { defaultMultisigIsmConfigs } from './consts/multisigIsm';
 export {
+  SEALEVEL_SPL_NOOP_ADDRESS,
+  SEALEVEL_ZERO_ADDRESS,
+} from './consts/sealevel';
+export {
   attachContracts,
   attachContractsMap,
   connectContracts,
@@ -256,4 +260,9 @@ export {
 export { MultiGeneric } from './utils/MultiGeneric';
 export { filterByChains } from './utils/filter';
 export { multisigIsmVerificationCost } from './utils/ism';
+export {
+  SealevelAccountDataWrapper,
+  SealevelInstructionWrapper,
+  getSealevelAccountDataSchema,
+} from './utils/sealevel';
 export { chainMetadataToWagmiChain, wagmiChainMetadata } from './utils/wagmi';

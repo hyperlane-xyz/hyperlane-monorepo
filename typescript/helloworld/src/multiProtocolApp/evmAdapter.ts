@@ -3,7 +3,9 @@ import {
   EthersV5Transaction,
   EvmRouterAdapter,
   ProviderType,
+  RouterAddress,
 } from '@hyperlane-xyz/sdk';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { StatCounts } from '../app/types';
 import { HelloWorld, HelloWorld__factory } from '../types';
@@ -11,10 +13,10 @@ import { HelloWorld, HelloWorld__factory } from '../types';
 import { IHelloWorldAdapter } from './types';
 
 export class EvmHelloWorldAdapter
-  extends EvmRouterAdapter
+  extends EvmRouterAdapter<RouterAddress & { mailbox: Address }>
   implements IHelloWorldAdapter
 {
-  async populateHelloWorldTx(
+  async populateSendHelloTx(
     from: ChainName,
     to: ChainName,
     message: string,

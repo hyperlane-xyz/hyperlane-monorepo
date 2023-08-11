@@ -61,12 +61,17 @@ export async function getHelloWorldMultiProtocolApp(
     multiProvider,
   ).extendChainMetadata(helloworldConfig.addresses);
 
-  const app = new HelloMultiProtocolApp(multiProtocolProvider);
-
   const core = MultiProtocolCore.fromEnvironment(
     deployEnvToSdkEnv[coreConfig.environment],
     multiProtocolProvider,
   );
+
+  // Extend the MP with mailbox addresses because the sealevel
+  // adapter needs that to function
+  const mpWithMailbox = multiProtocolProvider.extendChainMetadata(
+    core.chainMap,
+  );
+  const app = new HelloMultiProtocolApp(mpWithMailbox);
 
   return { app, core, multiProvider, multiProtocolProvider };
 }

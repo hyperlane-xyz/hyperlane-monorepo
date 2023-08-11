@@ -1,3 +1,4 @@
+import { PublicKey } from '@solana/web3.js';
 import debug from 'debug';
 
 import { ProtocolType, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
@@ -17,6 +18,7 @@ export abstract class BaseAppAdapter<ContractAddrs = {}> {
   public abstract readonly protocol: ProtocolType;
   constructor(
     public readonly multiProvider: MultiProtocolProvider<ContractAddrs>,
+    public readonly logger = debug(`hyperlane:AppAdapter`),
   ) {}
 }
 
@@ -34,6 +36,17 @@ export class BaseSealevelAdapter<
   ContractAddrs = {},
 > extends BaseAppAdapter<ContractAddrs> {
   public readonly protocol: ProtocolType = ProtocolType.Sealevel;
+
+  static derivePda(
+    seeds: Array<string | Buffer>,
+    programId: string | PublicKey,
+  ): PublicKey {
+    const [pda] = PublicKey.findProgramAddressSync(
+      seeds.map((s) => Buffer.from(s)),
+      new PublicKey(programId),
+    );
+    return pda;
+  }
 }
 
 /**

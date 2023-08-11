@@ -6,18 +6,13 @@ import { Address, Domain } from '@hyperlane-xyz/utils';
 
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp';
 import { ChainName } from '../../types';
+import {
+  SealevelAccountDataWrapper,
+  getSealevelAccountDataSchema,
+} from '../../utils/sealevel';
 import { RouterAddress } from '../types';
 
 import { IGasRouterAdapter, IRouterAdapter } from './types';
-
-// Hyperlane Token Borsh Schema
-export class SealevelAccountDataWrapper {
-  initialized!: boolean;
-  data!: SealevelTokenData;
-  constructor(public readonly fields: any) {
-    Object.assign(this, fields);
-  }
-}
 
 // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/libraries/hyperlane-sealevel-token/src/accounts.rs
 export class SealevelTokenData {
@@ -61,17 +56,9 @@ export class SealevelTokenData {
   }
 }
 
+// Hyperlane Token Borsh Schema
 export const SealevelTokenDataSchema = new Map<any, any>([
-  [
-    SealevelAccountDataWrapper,
-    {
-      kind: 'struct',
-      fields: [
-        ['initialized', 'u8'],
-        ['data', SealevelTokenData],
-      ],
-    },
-  ],
+  [SealevelAccountDataWrapper, getSealevelAccountDataSchema(SealevelTokenData)],
   [
     SealevelTokenData,
     {
@@ -156,11 +143,11 @@ export class SealevelRouterAdapter<
       SealevelAccountDataWrapper,
       accountInfo.data,
     );
-    return accountData.data;
+    return accountData.data as SealevelTokenData;
   }
 
   // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/libraries/hyperlane-sealevel-token/src/processor.rs
-  deriveMessageRecipientPda(routerAddress: Address): PublicKey {
+  deriveMessageRecipientPda(routerAddress: Address | PublicKey): PublicKey {
     const [pda] = PublicKey.findProgramAddressSync(
       [
         Buffer.from('hyperlane_message_recipient'),
