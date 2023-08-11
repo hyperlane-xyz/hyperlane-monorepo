@@ -20,10 +20,12 @@ use cosmrs::proto::traits::Message;
 
 use cosmrs::tx::{self, Fee, MessageExt, SignDoc, SignerInfo};
 use cosmrs::Coin;
-use hyperlane_core::{ChainResult, U256};
+use hyperlane_core::{ChainResult, ContractLocator, U256};
 use serde::Serialize;
 use std::num::NonZeroU64;
 use std::str::FromStr;
+
+use crate::{ConnectionConf, Signer};
 
 #[async_trait]
 /// Cosmwasm GRPC Provider
@@ -66,32 +68,19 @@ pub trait WasmProvider: Send + Sync {
 
 #[derive(Debug)]
 /// Cosmwasm GRPC Provider
-pub struct WasmGrpcProvider {
-    address: String,
-    private_key: Vec<u8>,
-    signer_address: String,
-    prefix: String,
-    grpc_endpoint: String, // grpc_endpoint
-    chain_id: String,
+pub struct WasmGrpcProvider<'a> {
+    conf: &'a ConnectionConf,
+    locator: &'a ContractLocator,
+    signer: &'a Signer,
 }
 
 impl WasmGrpcProvider {
     /// create new Cosmwasm GRPC Provider
-    pub fn new(
-        address: String,
-        private_key: Vec<u8>,
-        signer_address: String,
-        prefix: String,
-        grpc_endpoint: String,
-        chain_id: String,
-    ) -> Self {
+    pub fn new(conf: &ConnectionConf, locator: &ContractLocator, signer: &Signer) -> Self {
         Self {
-            address,
-            private_key,
-            signer_address,
-            prefix,
-            grpc_endpoint,
-            chain_id,
+            conf,
+            locator,
+            signer,
         }
     }
 }
@@ -99,7 +88,7 @@ impl WasmGrpcProvider {
 #[async_trait]
 impl WasmProvider for WasmGrpcProvider {
     async fn latest_block_height(&self) -> ChainResult<u64> {
-        let mut client = ServiceClient::connect(self.grpc_endpoint.clone()).await?;
+        let mut client = ServiceClient::connect(self.conf.get_grpc_url()?).await?;
 
         let request = tonic::Request::new(GetLatestBlockRequest {});
 
@@ -113,7 +102,7 @@ impl WasmProvider for WasmGrpcProvider {
     where
         T: Serialize + Send + Sync,
     {
-        let mut client = WasmQueryClient::connect(self.grpc_endpoint.clone()).await?;
+        let mut client = WasmQueryClient::connect(self.conf.get_grpc_url()?).await?;
 
         let mut request = tonic::Request::new(QuerySmartContractStateRequest {
             address: self.address.clone(),

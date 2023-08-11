@@ -1,0 +1,29 @@
+{
+    "chains": {
+        "mitosisgoerli": {
+            "name": "mitosisgoerli",
+            "domain": 26657,
+            "addresses": {
+              "mailbox": "0xF10238ba7f58B15F5FAAF32f370D55c65beeF2BE",
+              "interchainGasPaymaster": "0x30CEF6c8E8FbBA11D8a9Ba552eb0870AAa5747cc",
+              "validatorAnnounce": "0x6C4344110BA24eD5F2F98BFA3A6Fc045b1a702eC"
+            },
+            "protocol": "ethereum",
+            "finalityBlocks": 1,
+            "index": {
+              "from": 3244
+            }
+          },
+        "osmosistestnet": {
+            "name": "osmosistestnet",
+            "domain": 21295,
+            "addresses": {                
+                "mailbox": "0xaf9fb9e551459c6ac05cbec1913a8bc2c69617c3e91f4a53dbd8dc356aba7f19",
+                "interchainGasPaymaster": "0x8d234e850592f572d3fe582309c5729197e05ad30e33b2cfcbe7334583296a5b",
+                "validatorAnnounce": "0xd26f8b98e05d32c083868aa344f1eb882ba758d77a3fa66486aab63f2e253b41"
+            },
+            "protocol": "cosmos",
+            "finalityBlocks": 1
+        }     
+    }
+}
