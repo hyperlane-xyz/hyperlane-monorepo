@@ -8,13 +8,21 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {AbstractRoutingIsm} from "./AbstractRoutingIsm.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {Message} from "../../libs/Message.sol";
+import {TypeCasts} from "../../libs/TypeCasts.sol";
+import {EnumerableMapExtended} from "../../libs/EnumerableMapExtended.sol";
 
 /**
  * @title DomainRoutingIsm
  */
 contract DomainRoutingIsm is AbstractRoutingIsm, OwnableUpgradeable {
-    // ============ Public Storage ============
-    mapping(uint32 => IInterchainSecurityModule) public modules;
+    using EnumerableMapExtended for EnumerableMapExtended.UintToBytes32Map;
+    using Message for bytes;
+    using TypeCasts for bytes32;
+    using TypeCasts for address;
+    using Address for address;
+
+    // ============ Mutable Storage ============
+    EnumerableMapExtended.UintToBytes32Map internal modules;
 
     // ============ Events ============
 
@@ -23,7 +31,7 @@ contract DomainRoutingIsm is AbstractRoutingIsm, OwnableUpgradeable {
      * @param domain The origin domain.
      * @param module The ISM to use.
      */
-    event ModuleSet(uint32 indexed domain, IInterchainSecurityModule module);
+    event ModuleSet(uint32 indexed domain, address module);
 
     // ============ External Functions ============
 
@@ -50,7 +58,7 @@ contract DomainRoutingIsm is AbstractRoutingIsm, OwnableUpgradeable {
         require(_domains.length == _modules.length, "length mismatch");
         uint256 _length = _domains.length;
         for (uint256 i = 0; i < _length; ++i) {
-            _set(_domains[i], _modules[i]);
+            _set(_domains[i], address(_modules[i]));
         }
         _transferOwnership(_owner);
     }
@@ -64,11 +72,25 @@ contract DomainRoutingIsm is AbstractRoutingIsm, OwnableUpgradeable {
         external
         onlyOwner
     {
-        _set(_domain, _module);
+        _set(_domain, address(_module));
+    }
+
+    function domains() external view returns (uint256[] memory) {
+        return modules.keys();
+    }
+
+    function module(uint32 origin)
+        public
+        view
+        virtual
+        returns (IInterchainSecurityModule)
+    {
+        (bool contained, bytes32 _module) = modules.tryGet(origin);
+        require(contained, "No ISM found for origin domain");
+        return IInterchainSecurityModule(_module.bytes32ToAddress());
     }
 
     // ============ Public Functions ============
-
     /**
      * @notice Returns the ISM responsible for verifying _message
      * @dev Can change based on the content of _message
@@ -78,16 +100,10 @@ contract DomainRoutingIsm is AbstractRoutingIsm, OwnableUpgradeable {
     function route(bytes calldata _message)
         public
         view
-        virtual
         override
         returns (IInterchainSecurityModule)
     {
-        IInterchainSecurityModule module = modules[Message.origin(_message)];
-        require(
-            address(module) != address(0),
-            "No ISM found for origin domain"
-        );
-        return module;
+        return module(_message.origin());
     }
 
     // ============ Internal Functions ============
@@ -97,9 +113,9 @@ contract DomainRoutingIsm is AbstractRoutingIsm, OwnableUpgradeable {
      * @param _domain The origin domain
      * @param _module The ISM to use to verify messages
      */
-    function _set(uint32 _domain, IInterchainSecurityModule _module) internal {
-        require(Address.isContract(address(_module)), "!contract");
-        modules[_domain] = _module;
+    function _set(uint32 _domain, address _module) internal {
+        require(_module.isContract(), "!contract");
+        modules.set(_domain, _module.addressToBytes32());
         emit ModuleSet(_domain, _module);
     }
 }
