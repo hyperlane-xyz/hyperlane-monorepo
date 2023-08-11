@@ -14,6 +14,7 @@ import {
   ChainMetadataSchema,
   RpcUrlSchema,
   ZNzUint,
+  ZUWei,
   ZUint,
 } from './chainMetadataTypes';
 import {
@@ -153,6 +154,104 @@ export const AgentConfigSchema = z.object({
     })
     .optional(),
 });
+
+const CommaSeperatedChainList = z.string().regex(/^[a-z0-9]+(,[a-z0-9]+)*$/);
+const CommaSeperatedDomainList = z.string().regex(/^\d+(,\d+)*$/);
+
+export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
+  db: z
+    .string()
+    .nonempty()
+    .optional()
+    .describe('The path to the relayer database.'),
+  relayChains: CommaSeperatedChainList.describe(
+    'Comma seperated list of chains to relay messages between.',
+  ),
+  // TODO Accept non-serialize obj?
+  gasPaymentEnforcement: z
+    .string()
+    .nonempty()
+    .optional()
+    .describe(
+      'The gas payment enforcement configuration as JSON. Expects an ordered array of `GasPaymentEnforcementConfig`.',
+    ),
+  // TODO Accept non-serialize obj?
+  whitelist: z
+    .string()
+    .nonempty()
+    .optional()
+    .describe(
+      'If no whitelist is provided ALL messages will be considered on the whitelist.',
+    ),
+  // TODO Accept non-serialize obj?
+  blacklist: z
+    .string()
+    .nonempty()
+    .optional()
+    .describe(
+      'If no blacklist is provided ALL will be considered to not be on the blacklist.',
+    ),
+  transactionGasLimit: ZUWei.optional().describe(
+    'This is optional. If not specified, any amount of gas will be valid, otherwise this is the max allowed gas in wei to relay a transaction.',
+  ),
+  // TODO: this should be a list of chain names to be consistent
+  skipTransactionGasLimitFor: CommaSeperatedDomainList.optional().describe(
+    'Comma separated List of domain ids to skip applying the transaction gas limit to.',
+  ),
+  allowLocalCheckpointSyncers: z
+    .boolean()
+    .optional()
+    .describe(
+      'If true, allows local storage based checkpoint syncers. Not intended for production use.',
+    ),
+});
+
+export type RelayerConfig = z.infer<typeof RelayerAgentConfigSchema>;
+
+export const ScraperAgentConfigSchema = AgentConfigSchema.extend({
+  db: z.string().nonempty().describe('Database connection string'),
+  chainsToScrape: CommaSeperatedChainList.describe(
+    'Comma separated list of chain names to scrape',
+  ),
+});
+
+export type ScraperConfig = z.infer<typeof ScraperAgentConfigSchema>;
+
+export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
+  db: z
+    .string()
+    .nonempty()
+    .optional()
+    .describe('The path to the validator database.'),
+  originChainName: z
+    .string()
+    .nonempty()
+    .describe('Name of the chain to validate messages on'),
+  validator: AgentSignerSchema.describe('The validator attestation signer'),
+  checkpointSyncer: z.discriminatedUnion('type', [
+    z
+      .object({
+        type: z.literal('localStorage'),
+        path: z
+          .string()
+          .nonempty()
+          .describe('Path to the local storage location'),
+      })
+      .describe('A local checkpoint syncer'),
+    z
+      .object({
+        type: z.literal('s3'),
+        bucket: z.string().nonempty(),
+        region: z.string().nonempty(),
+      })
+      .describe('A checkpoint syncer that uses S3'),
+  ]),
+  interval: ZUint.optional().describe(
+    'How long to wait between checking for new checkpoints in seconds.',
+  ),
+});
+
+export type ValidatorConfig = z.infer<typeof ValidatorAgentConfigSchema>;
 
 export type AgentConfig2 = z.infer<typeof AgentConfigSchema>;
 

@@ -19,6 +19,8 @@ export type ExplorerFamilyValue = `${ExplorerFamily}`;
 export const ZUint = z.number().int().nonnegative();
 /** Zod NonZeroUint schema */
 export const ZNzUint = z.number().int().positive();
+/** Zod unsigned Wei schema which accepts either a string number or a literal number */
+export const ZUWei = z.union([ZUint.safe(), z.string().regex(/^\d+$/)]);
 
 export const RpcUrlSchema = z.object({
   http: z
