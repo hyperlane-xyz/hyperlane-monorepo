@@ -17,6 +17,7 @@ mod multisig_ism;
 mod payloads;
 mod providers;
 mod routing_ism;
+mod signers;
 mod trait_builder;
 mod validator_announce;
 mod verify;
