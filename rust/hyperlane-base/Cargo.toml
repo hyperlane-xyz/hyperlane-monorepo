@@ -45,6 +45,7 @@ hyperlane-core = { path = "../hyperlane-core", features = ["agent"] }
 hyperlane-ethereum = { path = "../chains/hyperlane-ethereum" }
 hyperlane-fuel = { path = "../chains/hyperlane-fuel" }
 hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
+hyperlane-cosmos = { path = "../chains/hyperlane-cosmos"}
 hyperlane-test = { path = "../hyperlane-test" }
 
 # dependency version is determined by etheres
