@@ -552,6 +552,40 @@ export const gnosis: ChainMetadata = {
     'https://safe-transaction-gnosis-chain.safe.global/',
 };
 
+export const proteustestnet: ChainMetadata = {
+  chainId: 88002,
+  domainId: 88002,
+  name: Chains.proteustestnet,
+  protocol: ProtocolType.Ethereum,
+  displayName: 'Proteus Testnet',
+  nativeToken: {
+    name: 'Zebec',
+    symbol: 'ZBC',
+    decimals: 18,
+  },
+  rpcUrls: [
+    {
+      http: 'https://api.proteus.nautchain.xyz/solana',
+    },
+  ],
+  // blockExplorers: [
+  //   {
+  //     name: 'GnosisScan',
+  //     url: 'https://gnosisscan.io',
+  //     apiUrl: 'https://api.gnosisscan.io/api',
+  //     family: ExplorerFamily.Etherscan,
+  //   },
+  // ],
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 1,
+    estimateBlockTime: 1,
+  },
+  // gasCurrencyCoinGeckoId: 'xdai',
+  // gnosisSafeTransactionServiceUrl:
+  //   'https://safe-transaction-gnosis-chain.safe.global/',
+};
+
 /**
  * Metadata for local test chains
  */
@@ -694,6 +728,7 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   optimismgoerli,
   polygon,
   gnosis,
+  proteustestnet,
   test1,
   test2,
   test3,

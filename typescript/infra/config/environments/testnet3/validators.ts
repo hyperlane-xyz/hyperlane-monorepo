@@ -182,6 +182,21 @@ export const validatorChainConfig = (
         'arbitrumgoerli',
       ),
     },
+    proteustestnet: {
+      interval: 5,
+      reorgPeriod: chainMetadata.proteustestnet.blocks!.reorgPeriod!,
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [
+            '0x79fc73656abb9eeaa5ee853c4569124f5bdaf9d8',
+            '0x72840388d5ab57323bc4f6e6d3ddedfd5cc911f0',
+            '0xd4b2a50c53fc6614bb3cd3198e0fdc03f5da973f',
+          ],
+          [Contexts.ReleaseCandidate]: [],
+        },
+        'proteustestnet',
+      ),
+    },
     solanadevnet: {
       interval: 10,
       reorgPeriod: chainMetadata.solanadevnet.blocks!.reorgPeriod!,

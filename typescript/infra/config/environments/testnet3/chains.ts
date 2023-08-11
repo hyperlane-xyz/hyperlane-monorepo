@@ -24,4 +24,8 @@ export const chainNames = Object.keys(testnetConfigs) as TestnetChains[];
 export const environment = 'testnet3';
 
 // Chains that we want to run agents for.
-export const agentChainNames = [...chainNames, 'solanadevnet'];
+export const agentChainNames = [
+  ...chainNames,
+  'solanadevnet',
+  'proteustestnet',
+];
