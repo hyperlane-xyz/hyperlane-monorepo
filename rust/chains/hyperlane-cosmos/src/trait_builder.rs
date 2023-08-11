@@ -1,7 +1,4 @@
-use cosmrs::proto::cosmwasm::wasm::v1::query_client::QueryClient as WasmQueryClient;
-use hyper::body::HttpBody;
 use hyperlane_core::config::{ConfigErrResultExt, ConfigPath, ConfigResult, FromRawConf};
-use url::Url;
 
 /// Cosmos connection configuration
 #[derive(Debug, Clone)]
@@ -38,6 +35,7 @@ pub enum ConnectionConfError {
     #[error("Invalid `url` for connection configuration: `{0}` ({1})")]
     InvalidConnectionUrl(String, url::ParseError),
     /// Invalid `url` type
+    #[error("Invalid connection type")]
     InvalidConnectionType,
     /// Unsupported `url` type
     #[error("Unsupported connection type: '{0}'")]
@@ -52,34 +50,44 @@ impl FromRawConf<'_, RawConnectionConf> for ConnectionConf {
     ) -> ConfigResult<Self> {
         use ConnectionConfError::*;
 
+        // parse the connection relate informations
         let connectiont_type = raw.connection_type.as_deref().unwrap_or("grpc");
-        let chain_id = raw.chain_id.ok_or(MissingChainId)?;
-        let url = raw.url.ok_or(MissingConnectionUrl)?;
+        let chain_id = raw
+            .chain_id
+            .ok_or(MissingChainId)
+            .into_config_result(|| cwp.join("chainId"))?;
+        let url = raw
+            .url
+            .ok_or(MissingConnectionUrl)
+            .into_config_result(|| cwp.join("url"))?;
 
         match connectiont_type {
             "grpc" => Ok(ConnectionConf::GrpcUrl { url, chain_id }),
             "rpc" => Ok(ConnectionConf::RpcUrl { url, chain_id }),
-            t => Err(UnsupportedConnectionType(t.to_string())),
+            t => Err(ConnectionConfError::UnsupportedConnectionType(
+                t.to_string(),
+            ))
+            .into_config_result(|| cwp.join("type")),
         }
     }
 }
 
 impl ConnectionConf {
     /// Get the GRPC url
-    pub fn get_grpc_url(&self) -> Result<String, Error> {
+    pub fn get_grpc_url(&self) -> Result<String, ConnectionConfError> {
         if let ConnectionConf::GrpcUrl { url, .. } = self {
             Ok(url.clone())
         } else {
-            Err(Error::InvalidConnectionType)
+            Err(ConnectionConfError::InvalidConnectionType)
         }
     }
 
     /// Get the RPC url
-    pub fn get_rpc_url(&self) -> Result<String, Error> {
+    pub fn get_rpc_url(&self) -> Result<String, ConnectionConfError> {
         if let ConnectionConf::RpcUrl { url, .. } = self {
             Ok(url.clone())
         } else {
-            Err(Error::InvalidConnectionType)
+            Err(ConnectionConfError::InvalidConnectionType)
         }
     }
 

@@ -31,13 +31,9 @@ pub enum SignerConf {
         /// The AWS region
         region: Region,
     },
-<<<<<<< HEAD
-    /// Assume the local node will sign on RPC calls automatically
-=======
     /// Cosmos Specific key
     CosmosKey { key: H256, prefix: String },
     /// Assume node will sign on RPC calls
->>>>>>> ee35aaef6 (feat: add default trait implements)
     #[default]
     Node,
 }

@@ -5,7 +5,7 @@ use crate::grpc::{WasmGrpcProvider, WasmProvider};
 use crate::payloads::mailbox::{ProcessMessageRequest, ProcessMessageRequestInner};
 use crate::payloads::{general, mailbox};
 use crate::rpc::{CosmosWasmIndexer, WasmIndexer};
-use crate::verify;
+use crate::{verify, ConnectionConf, Signer};
 use async_trait::async_trait;
 use cosmrs::crypto::secp256k1::SigningKey;
 
@@ -13,50 +13,27 @@ use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::proto::cosmos::tx::v1beta1::SimulateResponse;
 
 use cosmrs::tendermint::abci::EventAttribute;
-use hyperlane_core::RawHyperlaneMessage;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, utils::fmt_bytes, ChainResult, Checkpoint,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
     Indexer, LogMeta, Mailbox, TxCostEstimate, TxOutcome, H256, U256,
 };
+use hyperlane_core::{ContractLocator, RawHyperlaneMessage};
 use tracing::instrument;
 
 /// A reference to a Mailbox contract on some Cosmos chain
-pub struct CosmosMailbox {
+pub struct CosmosMailbox<'a> {
     domain: HyperlaneDomain,
     address: String,
     prefix: String,
-    provider: Box<WasmGrpcProvider>,
+    provider: Box<WasmGrpcProvider<'a>>,
 }
 
 impl CosmosMailbox {
     /// Create a reference to a mailbox at a specific Ethereum address on some
     /// chain
-    pub fn new(
-        domain: HyperlaneDomain,
-        address: String,
-        prefix: String,
-        private_key: Vec<u8>,
-        grpc_endpoint: String,
-        chain_id: String,
-    ) -> Self {
-        let signer_address = verify::pub_to_addr(
-            SigningKey::from_slice(&private_key)
-                .unwrap()
-                .public_key()
-                .to_bytes(),
-            &prefix,
-        )
-        .unwrap();
-
-        let provider = WasmGrpcProvider::new(
-            address.clone(),
-            private_key,
-            signer_address,
-            prefix.clone(),
-            grpc_endpoint,
-            chain_id,
-        );
+    pub fn new(conf: &ConnectionConf, locator: &ContractLocator, signer: Signer) -> Self {
+        let provider = WasmGrpcProvider::new(conf, locator, signer);
 
         Self {
             domain,

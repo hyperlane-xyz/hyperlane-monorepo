@@ -12,6 +12,7 @@ use hyperlane_core::{
     MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, RoutingIsm, SequenceIndexer,
     ValidatorAnnounce, H256,
 };
+use hyperlane_cosmos as h_cosmos;
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
     EthereumValidatorAnnounceAbi,
@@ -55,6 +56,39 @@ pub enum ChainConnectionConf {
     Fuel(h_fuel::ConnectionConf),
     /// Sealevel configuration.
     Sealevel(h_sealevel::ConnectionConf),
+    /// Cosmos configuration.
+    Cosmos(h_cosmos::ConnectionConf),
+}
+
+/// Specify the chain name (enum variant) under the `chain` key
+#[derive(Debug, Deserialize)]
+#[serde(tag = "protocol", content = "connection", rename_all = "camelCase")]
+enum RawChainConnectionConf {
+    Ethereum(h_eth::RawConnectionConf),
+    Fuel(h_fuel::RawConnectionConf),
+    Sealevel(h_sealevel::RawConnectionConf),
+    Cosmos(h_cosmos::RawConnectionConf),
+    #[serde(other)]
+    Unknown,
+}
+
+impl FromRawConf<'_, RawChainConnectionConf> for ChainConnectionConf {
+    fn from_config_filtered(
+        raw: RawChainConnectionConf,
+        cwp: &ConfigPath,
+        _filter: (),
+    ) -> ConfigResult<Self> {
+        use RawChainConnectionConf::*;
+        match raw {
+            Ethereum(r) => Ok(Self::Ethereum(r.parse_config(&cwp.join("connection"))?)),
+            Fuel(r) => Ok(Self::Fuel(r.parse_config(&cwp.join("connection"))?)),
+            Sealevel(r) => Ok(Self::Sealevel(r.parse_config(&cwp.join("connection"))?)),
+            Cosmos(r) => Ok(Self::Cosmos(r.parse_config(&cwp.join("connection")))),
+            Unknown => {
+                Err(eyre!("Unknown chain protocol")).into_config_result(|| cwp.join("protocol"))
+            }
+        }
+    }
 }
 
 impl ChainConnectionConf {
@@ -64,6 +98,7 @@ impl ChainConnectionConf {
             Self::Ethereum(_) => HyperlaneDomainProtocol::Ethereum,
             Self::Fuel(_) => HyperlaneDomainProtocol::Fuel,
             Self::Sealevel(_) => HyperlaneDomainProtocol::Sealevel,
+            Self::Cosmos(_) => HyperlaneDomainProtocol::Cosmos,
         }
     }
 }
@@ -137,6 +172,10 @@ impl ChainConf {
                 h_sealevel::SealevelMailbox::new(conf, locator, keypair)
                     .map(|m| Box::new(m) as Box<dyn Mailbox>)
                     .map_err(Into::into)
+            }
+            ChainConnectionConf::Cosmos(conf) => {
+                let signer = self.cosmos_signer().await.context(ctx)?;
+                h_cosmos::CosmosMailbox::new(conf, &locator, signer)
             }
         }
         .context(ctx)
@@ -506,6 +545,10 @@ impl ChainConf {
     }
 
     async fn sealevel_signer(&self) -> Result<Option<h_sealevel::Keypair>> {
+        self.signer().await
+    }
+
+    async fn cosmos_signer(&self) -> Result<Option<h_cosmos::Signer>> {
         self.signer().await
     }
 
