@@ -95,6 +95,9 @@ const hyperlane: RootAgentConfig = {
       [chainMetadata.solanadevnet.name]: {
         tag: '79bad9d-20230706-190752',
       },
+      [chainMetadata.proteustestnet.name]: {
+        tag: 'c7c44b2-20230811-133851',
+      },
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
   },
@@ -115,7 +118,7 @@ const releaseCandidate: RootAgentConfig = {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: 'ed7569d-20230725-171222',
+      tag: 'c7c44b2-20230811-133851',
     },
     whitelist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -123,14 +126,20 @@ const releaseCandidate: RootAgentConfig = {
       {
         originDomain: '*',
         senderAddress: '*',
-        destinationDomain: [getDomainId(chainMetadata.solanadevnet)],
+        destinationDomain: [
+          getDomainId(chainMetadata.solanadevnet),
+          getDomainId(chainMetadata.proteustestnet),
+        ],
         recipientAddress: '*',
       },
       // Whitelist all traffic from solanadevnet to fuji
       {
-        originDomain: [getDomainId(chainMetadata.solanadevnet)],
+        originDomain: [
+          getDomainId(chainMetadata.solanadevnet),
+          getDomainId(chainMetadata.proteustestnet),
+        ],
         senderAddress: '*',
-        destinationDomain: [getDomainId(chainMetadata.fuji)],
+        destinationDomain: [getDomainId(chainMetadata.bsctestnet)],
         recipientAddress: '*',
       },
     ],
@@ -142,7 +151,19 @@ const releaseCandidate: RootAgentConfig = {
           {
             originDomain: [getDomainId(chainMetadata.solanadevnet)],
             senderAddress: '*',
-            destinationDomain: [getDomainId(chainMetadata.fuji)],
+            destinationDomain: [
+              getDomainId(chainMetadata.bsctestnet),
+              getDomainId(chainMetadata.proteustestnet),
+            ],
+            recipientAddress: '*',
+          },
+          {
+            originDomain: [getDomainId(chainMetadata.bsctestnet)],
+            senderAddress: '*',
+            destinationDomain: [
+              getDomainId(chainMetadata.solanadevnet),
+              getDomainId(chainMetadata.proteustestnet),
+            ],
             recipientAddress: '*',
           },
         ],
