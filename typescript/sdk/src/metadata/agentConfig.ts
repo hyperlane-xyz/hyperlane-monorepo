@@ -5,7 +5,13 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
-import { ChainMetadata, ChainMetadataSchema } from './chainMetadataTypes';
+import {
+  ChainMetadata,
+  ChainMetadataSchema,
+  RpcUrlSchema,
+  ZNzUint,
+  ZUint,
+} from './chainMetadataTypes';
 import {
   HyperlaneDeploymentArtifacts,
   HyperlaneDeploymentArtifactsSchema,
@@ -21,6 +27,22 @@ export enum AgentConnectionType {
 export enum AgentConsensusType {
   Fallback = 'fallback',
   Quorum = 'quorum',
+}
+
+export enum AgentLogLevel {
+  Off = 'off',
+  Error = 'error',
+  Warn = 'warn',
+  Info = 'info',
+  Debug = 'debug',
+  Trace = 'trace',
+}
+
+export enum AgentLogFormat {
+  Json = 'json',
+  Compact = 'compact',
+  Full = 'full',
+  Pretty = 'pretty',
 }
 
 export const AgentSignerSchema = z.union([
@@ -48,10 +70,25 @@ export const AgentSignerSchema = z.union([
 
 export type AgentSigner2 = z.infer<typeof AgentSignerSchema>;
 
-const ChainMetadataSchemaWithDeploy = ChainMetadataSchema.merge(
+export const AgentChainMetadataSchema = ChainMetadataSchema.merge(
   HyperlaneDeploymentArtifactsSchema,
-);
-export const AgentChainMetadataSchema = ChainMetadataSchemaWithDeploy.extend({
+).extend({
+  customRpcUrls: z
+    .record(
+      RpcUrlSchema.extend({
+        priority: ZNzUint.optional().describe(
+          'The priority of this RPC relative to the others defined. A larger value means it will be preferred. Only effects some AgentConsensusTypes.',
+        ),
+      }),
+    )
+    .refine((data) => Object.keys(data).length > 0, {
+      message:
+        'Must specify at least one RPC url if not using the default rpcUrls.',
+    })
+    .optional()
+    .describe(
+      'Specify a custom RPC endpoint configuration for this chain. If this is set, then none of the `rpcUrls` will be used for this chain. The key value can be any valid string.',
+    ),
   rpcConsensusType: z
     .nativeEnum(AgentConsensusType)
     .describe('The consensus type to use when multiple RPCs are configured.')
@@ -60,40 +97,19 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaWithDeploy.extend({
     'The signer to use for this chain',
   ),
   index: z.object({
-    from: z
-      .number()
-      .optional()
-      .describe('The starting block from which to index events.'),
-    chunk: z
-      .number()
-      .optional()
-      .describe('The number of blocks to index per chunk.'),
+    from: ZUint.optional().describe(
+      'The starting block from which to index events.',
+    ),
+    chunk: ZNzUint.optional().describe(
+      'The number of blocks to index at a time.',
+    ),
   }),
 });
 
 export type AgentChainMetadata = z.infer<typeof AgentChainMetadataSchema>;
 
-export enum AgentLogLevel {
-  Off = 'off',
-  Error = 'error',
-  Warn = 'warn',
-  Info = 'info',
-  Debug = 'debug',
-  Trace = 'trace',
-}
-
-export enum AgentLogFormat {
-  Json = 'json',
-  Compact = 'compact',
-  Full = 'full',
-  Pretty = 'pretty',
-}
-
 export const AgentConfigSchema = z.object({
-  metricsPort: z
-    .number()
-    .positive()
-    .default(9090)
+  metricsPort: ZNzUint.lte(65535)
     .optional()
     .describe(
       'The port to expose prometheus metrics on. Accessible via `GET /metrics`.',

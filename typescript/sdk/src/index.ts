@@ -132,6 +132,8 @@ export {
 export {
   ChainMetadata,
   ChainMetadataSchema,
+  RpcUrlSchema,
+  RpcUrl,
   ExplorerFamily,
   ExplorerFamilyValue,
   getDomainId,
