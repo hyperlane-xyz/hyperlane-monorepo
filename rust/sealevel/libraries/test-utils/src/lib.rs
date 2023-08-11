@@ -32,6 +32,9 @@ use hyperlane_sealevel_message_recipient_interface::{
 use hyperlane_sealevel_test_ism::test_client::TestIsmTestClient;
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 
+pub mod igp;
+pub use igp::*;
+
 // ========= Mailbox =========
 
 pub fn mailbox_id() -> Pubkey {

@@ -3652,7 +3652,6 @@ dependencies = [
  "convert_case 0.6.0",
  "derive-new",
  "derive_more",
- "ethers",
  "ethers-contract",
  "ethers-core",
  "ethers-providers",
@@ -3668,6 +3667,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha3 0.10.8",
+ "solana-sdk",
  "strum 0.25.0",
  "thiserror",
  "tiny-keccak",
@@ -3783,6 +3783,7 @@ dependencies = [
  "access-control",
  "borsh 0.9.3",
  "hyperlane-core",
+ "hyperlane-sealevel-igp",
  "hyperlane-sealevel-mailbox",
  "solana-program",
 ]
@@ -3796,15 +3797,28 @@ dependencies = [
  "borsh 0.9.3",
  "getrandom 0.2.10",
  "hyperlane-core",
- "hyperlane-test-utils",
  "num-derive 0.4.0",
  "num-traits",
  "serde",
  "serializable-account-meta",
  "solana-program",
+ "thiserror",
+]
+
+[[package]]
+name = "hyperlane-sealevel-igp-test"
+version = "0.1.0"
+dependencies = [
+ "access-control",
+ "account-utils",
+ "borsh 0.9.3",
+ "hyperlane-core",
+ "hyperlane-sealevel-igp",
+ "hyperlane-test-utils",
+ "serializable-account-meta",
+ "solana-program",
  "solana-program-test",
  "solana-sdk",
- "thiserror",
 ]
 
 [[package]]
@@ -3941,6 +3955,7 @@ dependencies = [
  "borsh 0.9.3",
  "hyperlane-core",
  "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-igp",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
  "hyperlane-sealevel-test-ism",
@@ -3967,6 +3982,7 @@ dependencies = [
  "borsh 0.9.3",
  "hyperlane-core",
  "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-igp",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
  "hyperlane-sealevel-test-ism",
@@ -3994,6 +4010,7 @@ dependencies = [
  "borsh 0.9.3",
  "hyperlane-core",
  "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-igp",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
  "num-derive 0.4.0",
@@ -4015,6 +4032,7 @@ dependencies = [
  "borsh 0.9.3",
  "hyperlane-core",
  "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-igp",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
  "hyperlane-sealevel-test-ism",
@@ -4073,6 +4091,7 @@ version = "0.1.0"
 dependencies = [
  "borsh 0.9.3",
  "hyperlane-core",
+ "hyperlane-sealevel-igp",
  "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
