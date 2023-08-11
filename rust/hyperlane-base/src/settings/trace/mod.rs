@@ -37,6 +37,8 @@ pub enum Level {
     Debug = 3,
     /// Trace
     Trace = 5,
+    /// Trace + Additional logs from dependencies
+    DependencyTrace = 6,
     /// Info
     #[serde(other)]
     #[default]
@@ -50,7 +52,7 @@ impl From<Level> for LevelFilter {
             Level::Error => LevelFilter::ERROR,
             Level::Warn => LevelFilter::WARN,
             Level::Debug => LevelFilter::DEBUG,
-            Level::Trace => LevelFilter::TRACE,
+            Level::Trace | Level::DependencyTrace => LevelFilter::TRACE,
             Level::Info => LevelFilter::INFO,
         }
     }
@@ -72,12 +74,19 @@ impl TracingConfig {
     /// settings.
     pub fn start_tracing(&self, metrics: &CoreMetrics) -> Result<()> {
         let mut target_layer = Targets::new().with_default(self.level);
-        if self.level < Level::Trace {
-            // only show these debug and trace logs at trace level
-            target_layer = target_layer.with_target("hyper", Level::Info);
-            target_layer = target_layer.with_target("rusoto_core", Level::Info);
-            target_layer = target_layer.with_target("reqwest", Level::Info);
 
+        if self.level < Level::DependencyTrace {
+            // Reduce log noise from trusted libraries that we can reasonably assume are working correctly
+            target_layer = target_layer
+                .with_target("hyper", Level::Info)
+                .with_target("rusoto_core", Level::Info)
+                .with_target("reqwest", Level::Info)
+                .with_target("tokio", Level::Debug)
+                .with_target("tokio_util", Level::Debug)
+                .with_target("ethers_providers", Level::Debug);
+        }
+
+        if self.level < Level::Trace {
             // only show sqlx query logs at trace level
             target_layer = target_layer.with_target("sqlx::query", Level::Warn);
         }
