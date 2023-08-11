@@ -1,3 +1,7 @@
+use cosmrs::crypto::secp256k1::SigningKey;
+
+use crate::verify;
+
 #[derive(Clone, Debug)]
 pub struct Signer {
     pub prefix: String,
@@ -7,11 +11,12 @@ pub struct Signer {
 impl Signer {
     pub fn address(&self) -> String {
         verify::pub_to_addr(
-            SigningKey::from_slice(self.private_key)
+            SigningKey::from_slice(self.private_key.as_slice())
                 .unwrap()
                 .public_key()
                 .to_bytes(),
-            self.prefix.clone(),
+            self.prefix.as_str(),
         )
+        .unwrap()
     }
 }
