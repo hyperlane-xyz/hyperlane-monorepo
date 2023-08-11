@@ -46,8 +46,8 @@ abstract contract AbstractMessageIdAuthorizedIsm is
     /// first bit is boolean for verification
     /// rest of bits is the amount to send to the recipient
     /// @dev bc of the bit packing, we can only send up to 2^255 wei
-    mapping(bytes32 => uint256) public verifiedMessageIds;
-    /// @notice Index of verification bit in verifiedMessageIds
+    mapping(bytes32 => uint256) public verifiedMessages;
+    /// @notice Index of verification bit in verifiedMessages
     uint256 public constant MASK_INDEX = 255;
     /// @notice Address for Hook on L1 responsible for sending message via the Optimism bridge
     address public authorizedHook;
@@ -80,11 +80,12 @@ abstract contract AbstractMessageIdAuthorizedIsm is
     ) external returns (bool) {
         bytes32 messageId = message.id();
 
-        /// @dev only caller needs to be aliased
-        payable(message.recipientAddress()).sendValue(
-            verifiedMessageIds[messageId].clearBit(MASK_INDEX)
-        );
-        return verifiedMessageIds[messageId].isBitSet(MASK_INDEX);
+        bool verified = verifiedMessages[messageId].isBitSet(MASK_INDEX);
+        if (verified)
+            payable(message.recipientAddress()).sendValue(
+                verifiedMessages[messageId].clearBit(MASK_INDEX)
+            );
+        return verified;
     }
 
     /**
@@ -98,7 +99,7 @@ abstract contract AbstractMessageIdAuthorizedIsm is
             "AbstractMessageIdAuthorizedIsm: sender is not the hook"
         );
 
-        verifiedMessageIds[messageId] = msg.value.setBit(MASK_INDEX);
+        verifiedMessages[messageId] = msg.value.setBit(MASK_INDEX);
         emit ReceivedMessage(messageId);
     }
 

@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 
+import {LibBit} from "../../contracts/libs/LibBit.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {AbstractMessageIdAuthorizedIsm} from "../../contracts/isms/hook/AbstractMessageIdAuthorizedIsm.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
@@ -23,6 +24,7 @@ import {Encoding} from "@eth-optimism/contracts-bedrock/contracts/libraries/Enco
 import {Hashing} from "@eth-optimism/contracts-bedrock/contracts/libraries/Hashing.sol";
 
 contract OPStackIsmTest is Test {
+    using LibBit for uint256;
     using TypeCasts for address;
     using MessageUtils for bytes;
 
@@ -122,7 +124,7 @@ contract OPStackIsmTest is Test {
         // for sending value
         vm.deal(
             AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS),
-            1e18
+            2**255
         );
     }
 
@@ -163,12 +165,12 @@ contract OPStackIsmTest is Test {
 
         vm.selectFork(mainnetFork);
 
-        bytes memory message = abi.encodePacked(
+        bytes memory message = MessageUtils.formatMessage(
             VERSION,
-            uint8(0),
+            uint32(0),
             MAINNET_DOMAIN,
             TypeCasts.addressToBytes32(address(this)),
-            uint32(11), // wrong destinaion
+            11, // wrong domain
             TypeCasts.addressToBytes32(address(testRecipient)),
             testMessage
         );
@@ -178,6 +180,21 @@ contract OPStackIsmTest is Test {
             "AbstractMessageIdAuthHook: invalid destination domain"
         );
         opHook.postDispatch(testMetadata, message);
+    }
+
+    function testFork_postDispatch_RevertWhen_TooMuchValue() public {
+        deployAll();
+
+        vm.selectFork(mainnetFork);
+
+        vm.deal(address(this), uint256(2**255 + 1));
+        bytes memory excessValueMetadata = abi.encodePacked(
+            uint256(2**255 + 1)
+        );
+
+        l1Mailbox.updateLatestDispatchedId(messageId);
+        vm.expectRevert("OPStackHook: msgValue must less than 2 ** 255");
+        opHook.postDispatch(excessValueMetadata, encodedMessage);
     }
 
     function testFork_postDispatch_RevertWhen_NotLastDispatchedMessage()
@@ -241,7 +258,7 @@ contract OPStackIsmTest is Test {
             encodedHookData
         );
 
-        assertTrue(opISM.verifiedMessageIds(messageId) >> 255 == 1);
+        assertTrue(opISM.verifiedMessages(messageId).isBitSet(255));
         vm.stopPrank();
     }
 
@@ -302,7 +319,9 @@ contract OPStackIsmTest is Test {
         assertTrue(verified);
     }
 
-    function testFork_verify_WithValue() public {
+    /// forge-config: default.fuzz.runs = 10
+    function testFork_verify_WithValue(uint256 _msgValue) public {
+        _msgValue = bound(_msgValue, 0, 2**254);
         deployAll();
 
         vm.selectFork(optimismFork);
@@ -321,11 +340,11 @@ contract OPStackIsmTest is Test {
         );
 
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS));
-        l2Messenger.relayMessage{value: 1e18}(
+        l2Messenger.relayMessage{value: _msgValue}(
             versionedNonce,
             address(opHook),
             address(opISM),
-            1e18,
+            _msgValue,
             DEFAULT_GAS_LIMIT,
             encodedHookData
         );
@@ -334,7 +353,7 @@ contract OPStackIsmTest is Test {
         assertTrue(verified);
 
         assertEq(address(opISM).balance, 0);
-        assertEq(address(testRecipient).balance, 1e18);
+        assertEq(address(testRecipient).balance, _msgValue);
     }
 
     // sending over invalid message
@@ -366,13 +385,13 @@ contract OPStackIsmTest is Test {
             encodedHookData
         );
 
-        bytes memory invalidMessage = abi.encodePacked(
+        bytes memory invalidMessage = MessageUtils.formatMessage(
             VERSION,
             uint8(0),
             MAINNET_DOMAIN,
             TypeCasts.addressToBytes32(address(this)),
             OPTIMISM_DOMAIN,
-            TypeCasts.addressToBytes32(address(this)),
+            TypeCasts.addressToBytes32(address(this)), // wrong recipient
             testMessage
         );
         bool verified = opISM.verify(new bytes(0), invalidMessage);
@@ -384,7 +403,7 @@ contract OPStackIsmTest is Test {
         deployAll();
         vm.selectFork(optimismFork);
 
-        bytes memory invalidMessage = abi.encodePacked(
+        bytes memory invalidMessage = MessageUtils.formatMessage(
             VERSION,
             uint8(0),
             MAINNET_DOMAIN,

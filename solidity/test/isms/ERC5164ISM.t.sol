@@ -144,7 +144,7 @@ contract ERC5164ISMTest is Test {
         vm.startPrank(address(executor));
 
         ism.verifyMessageId(messageId);
-        assertTrue(ism.verifiedMessageIds(messageId));
+        assertTrue(ism.verifiedMessages(messageId));
 
         vm.stopPrank();
     }
