@@ -3819,8 +3819,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/cli@workspace:typescript/cli"
   dependencies:
-    "@hyperlane-xyz/hyperlane-token": 1.4.3-beta0
-    "@hyperlane-xyz/sdk": 1.4.3-beta0
+    "@hyperlane-xyz/hyperlane-token": 1.4.3-beta2
+    "@hyperlane-xyz/sdk": 1.4.3-beta2
     "@inquirer/prompts": ^3.0.0
     "@types/node": ^18.14.5
     "@types/yargs": ^17.0.24
@@ -3840,12 +3840,12 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/core@1.4.3-beta0, @hyperlane-xyz/core@workspace:solidity":
+"@hyperlane-xyz/core@1.4.3-beta2, @hyperlane-xyz/core@workspace:solidity":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/core@workspace:solidity"
   dependencies:
     "@eth-optimism/contracts": ^0.6.0
-    "@hyperlane-xyz/utils": 1.4.3-beta0
+    "@hyperlane-xyz/utils": 1.4.3-beta2
     "@nomiclabs/hardhat-ethers": ^2.2.1
     "@nomiclabs/hardhat-waffle": ^2.0.3
     "@openzeppelin/contracts": ^4.8.0
@@ -3868,11 +3868,11 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/helloworld@1.4.3-beta0, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
+"@hyperlane-xyz/helloworld@1.4.3-beta2, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
-    "@hyperlane-xyz/sdk": 1.4.3-beta0
+    "@hyperlane-xyz/sdk": 1.4.3-beta2
     "@nomiclabs/hardhat-ethers": ^2.2.1
     "@nomiclabs/hardhat-waffle": ^2.0.3
     "@openzeppelin/contracts-upgradeable": ^4.8.0
@@ -3900,13 +3900,13 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/hyperlane-token@1.4.3-beta0, @hyperlane-xyz/hyperlane-token@workspace:typescript/token":
+"@hyperlane-xyz/hyperlane-token@1.4.3-beta2, @hyperlane-xyz/hyperlane-token@workspace:typescript/token":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/hyperlane-token@workspace:typescript/token"
   dependencies:
-    "@hyperlane-xyz/core": 1.4.3-beta0
-    "@hyperlane-xyz/sdk": 1.4.3-beta0
-    "@hyperlane-xyz/utils": 1.4.3-beta0
+    "@hyperlane-xyz/core": 1.4.3-beta2
+    "@hyperlane-xyz/sdk": 1.4.3-beta2
+    "@hyperlane-xyz/utils": 1.4.3-beta2
     "@nomiclabs/hardhat-ethers": ^2.2.1
     "@nomiclabs/hardhat-waffle": ^2.0.3
     "@openzeppelin/contracts-upgradeable": ^4.8.0
@@ -3946,9 +3946,9 @@ __metadata:
     "@ethersproject/experimental": ^5.7.0
     "@ethersproject/hardware-wallets": ^5.7.0
     "@ethersproject/providers": ^5.7.2
-    "@hyperlane-xyz/helloworld": 1.4.3-beta0
-    "@hyperlane-xyz/sdk": 1.4.3-beta0
-    "@hyperlane-xyz/utils": 1.4.3-beta0
+    "@hyperlane-xyz/helloworld": 1.4.3-beta2
+    "@hyperlane-xyz/sdk": 1.4.3-beta2
+    "@hyperlane-xyz/utils": 1.4.3-beta2
     "@nomiclabs/hardhat-ethers": ^2.2.1
     "@nomiclabs/hardhat-etherscan": ^3.0.3
     "@nomiclabs/hardhat-waffle": ^2.0.3
@@ -3991,12 +3991,12 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/sdk@1.4.3-beta0, @hyperlane-xyz/sdk@workspace:typescript/sdk":
+"@hyperlane-xyz/sdk@1.4.3-beta2, @hyperlane-xyz/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/sdk@workspace:typescript/sdk"
   dependencies:
-    "@hyperlane-xyz/core": 1.4.3-beta0
-    "@hyperlane-xyz/utils": 1.4.3-beta0
+    "@hyperlane-xyz/core": 1.4.3-beta2
+    "@hyperlane-xyz/utils": 1.4.3-beta2
     "@nomiclabs/hardhat-ethers": ^2.2.1
     "@nomiclabs/hardhat-waffle": ^2.0.3
     "@solana/web3.js": ^1.78.0
@@ -4025,7 +4025,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/utils@1.4.3-beta0, @hyperlane-xyz/utils@workspace:typescript/utils":
+"@hyperlane-xyz/utils@1.4.3-beta2, @hyperlane-xyz/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/utils@workspace:typescript/utils"
   dependencies:
