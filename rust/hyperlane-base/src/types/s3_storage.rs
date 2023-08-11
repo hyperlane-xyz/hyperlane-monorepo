@@ -28,6 +28,8 @@ const S3_REQUEST_TIMEOUT_SECONDS: u64 = 30;
 pub struct S3Storage {
     /// The name of the bucket.
     bucket: String,
+    /// A specific folder inside the above repo - set to empty string to use the root of the bucket
+    folder: String,
     /// The region of the bucket.
     region: Region,
     /// A client with AWS credentials.
@@ -44,6 +46,7 @@ impl fmt::Debug for S3Storage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("S3Storage")
             .field("bucket", &self.bucket)
+            .field("folder", &self.folder)
             .field("region", &self.region)
             .finish()
     }
@@ -52,7 +55,7 @@ impl fmt::Debug for S3Storage {
 impl S3Storage {
     async fn write_to_bucket(&self, key: String, body: &str) -> Result<()> {
         let req = PutObjectRequest {
-            key,
+            key: self.get_composite_key(key),
             bucket: self.bucket.clone(),
             body: Some(Vec::from(body).into()),
             content_type: Some("application/json".to_owned()),
@@ -69,7 +72,7 @@ impl S3Storage {
     /// Uses an anonymous client. This should only be used for publicly accessible buckets.
     async fn anonymously_read_from_bucket(&self, key: String) -> Result<Option<Vec<u8>>> {
         let req = GetObjectRequest {
-            key,
+            key: self.get_composite_key(key),
             bucket: self.bucket.clone(),
             ..Default::default()
         };
@@ -118,6 +121,14 @@ impl S3Storage {
                 self.region.clone(),
             )
         })
+    }
+
+    fn get_composite_key(&self, key: String) -> String {
+        if self.folder != "" {
+            key
+        } else {
+            format!("{}/{}", self.folder, key)
+        }
     }
 
     fn legacy_checkpoint_key(index: u32) -> String {

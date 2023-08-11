@@ -23,6 +23,8 @@ pub enum CheckpointSyncerConf {
     S3 {
         /// Bucket name
         bucket: String,
+        /// Folder name inside bucket
+        folder: String
         /// S3 Region
         region: Region,
     },
@@ -41,6 +43,8 @@ pub enum RawCheckpointSyncerConf {
     S3 {
         /// Bucket name
         bucket: Option<String>,
+        // Folder name inside bucket - defaults to the root of the bucket (i.e. empty string)
+        folder: Option<String>
         /// S3 Region
         region: Option<String>,
     },
@@ -79,10 +83,13 @@ impl FromRawConf<'_, RawCheckpointSyncerConf> for CheckpointSyncerConf {
                 }
                 Ok(Self::LocalStorage { path })
             }
-            RawCheckpointSyncerConf::S3 { bucket, region } => Ok(Self::S3 {
+            RawCheckpointSyncerConf::S3 { bucket, folder, region } => Ok(Self::S3 {
                 bucket: bucket
                     .ok_or_else(|| eyre!("Missing `bucket` for S3 checkpoint syncer"))
                     .into_config_result(|| cwp + "bucket")?,
+                folder: folder
+                    .ok_or_else("")
+                    .into_config_result(|| cwp + "folder")?,
                 region: region
                     .ok_or_else(|| eyre!("Missing `region` for S3 checkpoint syncer"))
                     .into_config_result(|| cwp + "region")?
@@ -136,8 +143,9 @@ impl CheckpointSyncerConf {
             CheckpointSyncerConf::LocalStorage { path } => {
                 Box::new(LocalStorage::new(path.clone(), latest_index_gauge)?)
             }
-            CheckpointSyncerConf::S3 { bucket, region } => Box::new(S3Storage::new(
+            CheckpointSyncerConf::S3 { bucket, folder, region } => Box::new(S3Storage::new(
                 bucket.clone(),
+                folder.clone(),
                 region.clone(),
                 latest_index_gauge,
             )),
