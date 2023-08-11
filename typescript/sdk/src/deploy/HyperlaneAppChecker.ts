@@ -3,6 +3,7 @@ import { keccak256 } from 'ethers/lib/utils';
 import { Ownable, TimelockController } from '@hyperlane-xyz/core';
 import {
   Address,
+  ProtocolType,
   assert,
   eqAddress,
   objMap,
@@ -49,7 +50,7 @@ export abstract class HyperlaneAppChecker<
 
   async check(): Promise<void[]> {
     Object.keys(this.configMap)
-      .filter((_) => !this.app.chains().includes(_))
+      .filter((chain) => !this.app.chains().includes(chain))
       .forEach((chain: string) =>
         this.addViolation({
           type: ViolationType.NotDeployed,
@@ -60,7 +61,14 @@ export abstract class HyperlaneAppChecker<
       );
 
     return Promise.all(
-      this.app.chains().map((chain) => this.checkChain(chain)),
+      this.app
+        .chains()
+        .filter(
+          (chain) =>
+            this.multiProvider.getChainMetadata(chain).protocol ===
+            ProtocolType.Ethereum,
+        )
+        .map((chain) => this.checkChain(chain)),
     );
   }
 

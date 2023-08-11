@@ -1,4 +1,4 @@
-import { BigNumber, utils as ethersUtils } from 'ethers';
+import { BigNumber, ethers, utils as ethersUtils } from 'ethers';
 
 import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
@@ -107,7 +107,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
     for (const remote of remotes) {
       let expectedOverhead = this.configMap[local].overhead[remote];
       if (!expectedOverhead) {
-        console.log(
+        this.app.logger(
           `No overhead configured for ${local} -> ${remote}, defaulting to 0`,
         );
         expectedOverhead = 0;
@@ -183,9 +183,10 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
     const config = this.configMap[local];
     const gasOracleType = config.gasOracleType[remote];
     if (!gasOracleType) {
-      throw Error(
-        `Expected gas oracle type for local ${local} and remote ${remote}`,
+      this.app.logger(
+        `No gas oracle for local ${local} and remote ${remote}, defaulting to zero address`,
       );
+      return ethers.constants.AddressZero;
     }
     const coreContracts = this.app.getContracts(local);
     switch (gasOracleType) {

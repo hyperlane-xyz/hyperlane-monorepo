@@ -18,13 +18,6 @@ export const ethereumTestnetConfigs: ChainMap<ChainMetadata> = {
   arbitrumgoerli: chainMetadata.arbitrumgoerli,
 };
 
-// "Blessed" chains that we want core contracts for.
-export type TestnetChains = keyof typeof ethereumTestnetConfigs;
-export const chainNames = Object.keys(
-  ethereumTestnetConfigs,
-) as TestnetChains[];
-export const environment = 'testnet3';
-
 export const blessedNonEthereumTestnetConfigs: ChainMap<ChainMetadata> = {
   solanadevnet: chainMetadata.solanadevnet,
 };
@@ -32,9 +25,12 @@ export const blessedNonEthereumTestnetConfigs: ChainMap<ChainMetadata> = {
 export const testnetConfigs: ChainMap<ChainMetadata> = {
   ...ethereumTestnetConfigs,
   ...blessedNonEthereumTestnetConfigs,
-  // zbctestnet: chainMetadata.zbctestnet,
 };
 
+// "Blessed" chains that we want core contracts for.
+export type TestnetChains = keyof typeof testnetConfigs;
+export const chainNames = Object.keys(testnetConfigs) as TestnetChains[];
+export const environment = 'testnet3';
+
 // Chains that we want to run agents for.
-// export const agentChainNames = [...chainNames, 'solanadevnet', 'zbctestnet'];
 export const agentChainNames = Object.keys(testnetConfigs) as TestnetChains[];
