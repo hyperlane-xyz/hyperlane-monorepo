@@ -41,8 +41,6 @@ decl_settings!(Validator,
         validator: RawSignerConf,
         /// The checkpoint syncer configuration
         checkpointsyncer: Option<RawCheckpointSyncerConf>,
-        /// The reorg_period in blocks
-        reorgperiod: Option<StrOrInt>, // TODO: Remove this and use chain metadata instead
         /// How frequently to check for new checkpoints
         interval: Option<StrOrInt>,
     },

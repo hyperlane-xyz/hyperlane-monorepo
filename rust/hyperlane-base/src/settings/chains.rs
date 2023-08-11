@@ -53,41 +53,34 @@ enum DeprecatedRawChainConnectionConf {
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(transparent)]
-struct RawAgentConfig(HashMap<String, RawChainMetadataForAgentConf>);
-
-#[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct RawChainMetadataForAgentConf {
-    #[serde(default, flatten)]
-    agent_ext: RawAgentMetadataExtConf,
-    #[serde(default, flatten)]
-    metadata: RawChainMetadataWithArtifactsConf,
+struct RawAgentConfig {
+    metrics_port: u16,
+    chains: HashMap<String, RawAgentChainMetadataConf>,
+    default_signer: RawSignerConf,
+    default_rpc_consensus_type: Option<String>,
+    #[serde(default)]
+    log: RawAgentLogConf,
 }
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct RawAgentMetadataExtConf {
+struct RawAgentChainMetadataConf {
     rpc_consensus_type: Option<String>,
     override_rpc_urls: Option<String>,
     #[serde(default)]
-    index: RawAgentMetadataExtIndexConf,
-}
-
-#[derive(Debug, Default, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct RawAgentMetadataExtIndexConf {
-    number: Option<u32>,
-    chunk: Option<u32>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct RawChainMetadataWithArtifactsConf {
+    index: RawAgentChainMetadataIndexConf,
     #[serde(default, flatten)]
     metadata: RawChainMetadataConf,
     #[serde(default, flatten)]
     artifacts: RawHyperlaneDeploymentArtifactsConf,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawAgentChainMetadataIndexConf {
+    from: Option<u32>,
+    chunk: Option<u32>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -174,6 +167,13 @@ struct RawHyperlaneDeploymentArtifactsConf {
     interchain_gas_paymaster: Option<String>,
     validator_announce: Option<String>,
     interchain_security_module: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawAgentLogConf {
+    format: Option<String>,
+    level: Option<String>,
 }
 
 #[allow(deprecated)]
