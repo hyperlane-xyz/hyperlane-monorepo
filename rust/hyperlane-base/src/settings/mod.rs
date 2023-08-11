@@ -90,3 +90,6 @@ pub(crate) mod loader;
 mod signers;
 /// Tracing subscriber management
 pub mod trace;
+
+mod checkpoint_syncer;
+pub use checkpoint_syncer::*;
