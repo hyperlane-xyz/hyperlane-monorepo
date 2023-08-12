@@ -33,7 +33,7 @@ impl<'a> CosmosMailbox<'a> {
     /// Create a reference to a mailbox at a specific Ethereum address on some
     /// chain
     pub fn new(conf: &'a ConnectionConf, locator: &'a ContractLocator, signer: &'a Signer) -> Self {
-        let provider = WasmGrpcProvider::new(conf, locator, signer);
+        let provider: WasmGrpcProvider<'_> = WasmGrpcProvider::new(conf, locator, signer);
 
         Self {
             _conf: conf,
