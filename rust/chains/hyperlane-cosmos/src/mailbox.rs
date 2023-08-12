@@ -213,12 +213,7 @@ pub struct CosmosMailboxIndexer<'a> {
 impl<'a> CosmosMailboxIndexer<'a> {
     /// Create a reference to a mailbox at a specific Ethereum address on some
     /// chain
-    pub fn new(
-        conf: &'a ConnectionConf,
-        locator: &'a ContractLocator,
-        signer: &'a Signer,
-        event_type: String,
-    ) -> Self {
+    pub fn new(conf: &'a ConnectionConf, locator: &'a ContractLocator, event_type: String) -> Self {
         let indexer: CosmosWasmIndexer<'_> =
             CosmosWasmIndexer::new(conf, locator, signer, event_type.clone());
 

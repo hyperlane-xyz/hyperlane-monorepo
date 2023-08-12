@@ -20,7 +20,7 @@ use cosmrs::proto::traits::Message;
 
 use cosmrs::tx::{self, Fee, MessageExt, SignDoc, SignerInfo};
 use cosmrs::Coin;
-use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator, U256};
+use hyperlane_core::{ChainResult, ContractLocator, U256};
 use serde::Serialize;
 use std::num::NonZeroU64;
 use std::str::FromStr;
@@ -86,11 +86,7 @@ impl<'a> WasmGrpcProvider<'a> {
     }
 
     fn get_conn_url(&self) -> ChainResult<String> {
-        self.conf
-            .get_grpc_url()
-            .map_err(|_| ChainCommunicationError::NotMatchConnectionType {
-                msg: "grpc".to_string(),
-            })
+        Ok(self.conf.get_grpc_url())
     }
 
     fn get_contract_addr(&self) -> ChainResult<String> {

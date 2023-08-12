@@ -2,34 +2,29 @@ use hyperlane_core::config::{ConfigErrResultExt, ConfigPath, ConfigResult, FromR
 
 /// Cosmos connection configuration
 #[derive(Debug, Clone)]
-pub enum ConnectionConf {
-    /// Cosmos RPC URL
-    RpcUrl {
-        /// The RPC URL
-        url: String,
-        /// The chain ID
-        chain_id: String,
-    },
-    /// Cosmos GRPC URL
-    GrpcUrl {
-        /// The GRPC URL
-        url: String,
-        /// The chain ID
-        chain_id: String,
-    },
+pub struct ConnectionConf {
+    /// The GRPC url to connect to
+    grpc_url: String,
+    /// The RPC url to connect to
+    rpc_url: String,
+    /// The chain ID
+    chain_id: String,
+    /// The prefix for the account address
+    prefix: String,
 }
 
 /// Raw Cosmos connection configuration used for better deserialization errors.
 #[derive(Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RawConnectionConf {
-    /// The type of connection to use
-    #[serde(rename = "type")]
-    connection_type: Option<String>,
-    /// A single url to connect to
-    url: Option<String>,
+    /// A single url to connect to rpc
+    rpc_url: Option<String>,
+    /// A single url to connect to grpc
+    grpc_url: Option<String>,
     /// The chain ID
     chain_id: Option<String>,
+    /// chain prefix
+    prefix: Option<String>,
 }
 
 /// An error type when parsing a connection configuration.
@@ -41,15 +36,12 @@ pub enum ConnectionConfError {
     /// Missing `chainId` for connection configuration
     #[error("Missing `chainId` for connection configuration")]
     MissingChainId,
+    /// Missing `prefix` for connection configuration
+    #[error("Missing `prefix` for connection configuration")]
+    MissingPrefix,
     /// Invalid `url` for connection configuration
     #[error("Invalid `url` for connection configuration: `{0}` ({1})")]
     InvalidConnectionUrl(String, url::ParseError),
-    /// Invalid `url` type
-    #[error("Invalid connection type")]
-    InvalidConnectionType,
-    /// Unsupported `url` type
-    #[error("Unsupported connection type: '{0}'")]
-    UnsupportedConnectionType(String),
 }
 
 impl FromRawConf<'_, RawConnectionConf> for ConnectionConf {
@@ -61,51 +53,50 @@ impl FromRawConf<'_, RawConnectionConf> for ConnectionConf {
         use ConnectionConfError::*;
 
         // parse the connection relate informations
-        let connectiont_type = raw.connection_type.as_deref().unwrap_or("grpc");
         let chain_id = raw
             .chain_id
             .ok_or(MissingChainId)
             .into_config_result(|| cwp.join("chainId"))?;
-        let url = raw
-            .url
+        let rpc_url = raw
+            .rpc_url
             .ok_or(MissingConnectionUrl)
-            .into_config_result(|| cwp.join("url"))?;
+            .into_config_result(|| cwp.join("rpc_url"))?;
+        let grpc_url = raw
+            .grpc_url
+            .ok_or(MissingConnectionUrl)
+            .into_config_result(|| cwp.join("grpc_url"))?;
+        let prefix = raw
+            .prefix
+            .ok_or(MissingPrefix)
+            .into_config_result(|| cwp.join("prefix"))?;
 
-        match connectiont_type {
-            "grpc" => Ok(ConnectionConf::GrpcUrl { url, chain_id }),
-            "rpc" => Ok(ConnectionConf::RpcUrl { url, chain_id }),
-            t => Err(ConnectionConfError::UnsupportedConnectionType(
-                t.to_string(),
-            ))
-            .into_config_result(|| cwp.join("type")),
-        }
+        Ok(ConnectionConf {
+            grpc_url,
+            rpc_url,
+            chain_id,
+            prefix,
+        })
     }
 }
 
 impl ConnectionConf {
     /// Get the GRPC url
-    pub fn get_grpc_url(&self) -> Result<String, ConnectionConfError> {
-        if let ConnectionConf::GrpcUrl { url, .. } = self {
-            Ok(url.clone())
-        } else {
-            Err(ConnectionConfError::InvalidConnectionType)
-        }
+    pub fn get_grpc_url(&self) -> String {
+        self.grpc_url
     }
 
     /// Get the RPC url
-    pub fn get_rpc_url(&self) -> Result<String, ConnectionConfError> {
-        if let ConnectionConf::RpcUrl { url, .. } = self {
-            Ok(url.clone())
-        } else {
-            Err(ConnectionConfError::InvalidConnectionType)
-        }
+    pub fn get_rpc_url(&self) -> String {
+        self.rpc_url
     }
 
     /// Get the chain ID
     pub fn get_chain_id(&self) -> String {
-        match self {
-            ConnectionConf::GrpcUrl { chain_id, .. } => chain_id.clone(),
-            ConnectionConf::RpcUrl { chain_id, .. } => chain_id.clone(),
-        }
+        self.chain_id
+    }
+
+    /// Get the prefix
+    pub fn get_prefix(&self) -> String {
+        self.prefix
     }
 }
