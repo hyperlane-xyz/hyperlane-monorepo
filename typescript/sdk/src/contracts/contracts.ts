@@ -3,6 +3,7 @@ import { Contract } from 'ethers';
 import { Ownable } from '@hyperlane-xyz/core';
 import {
   Address,
+  ProtocolType,
   ValueOf,
   objFilter,
   objMap,
@@ -10,6 +11,7 @@ import {
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
+import { ChainMetadataManager } from '../metadata/ChainMetadataManager';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, Connection } from '../types';
 
@@ -60,6 +62,19 @@ export function filterAddressesMap<F extends HyperlaneFactories>(
     (_, addresses): addresses is HyperlaneAddresses<F> => {
       return Object.keys(addresses).every((a) => factoryKeys.includes(a));
     },
+  );
+}
+
+export function filterAddressesToProtocol(
+  addresses: HyperlaneAddressesMap<any>,
+  protocolType: ProtocolType,
+  // Note, MultiProviders are passable here
+  metadataManager: ChainMetadataManager<any>,
+): HyperlaneAddressesMap<any> {
+  return objFilter(
+    addresses,
+    (c, _addrs): _addrs is any =>
+      metadataManager.tryGetChainMetadata(c)?.protocol === protocolType,
   );
 }
 

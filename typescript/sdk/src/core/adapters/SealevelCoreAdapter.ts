@@ -1,4 +1,5 @@
 import { PublicKey } from '@solana/web3.js';
+import { utils } from 'ethers';
 
 import { pollAsync } from '@hyperlane-xyz/utils';
 
@@ -7,6 +8,7 @@ import {
   ProviderType,
   TypedTransactionReceipt,
 } from '../../providers/ProviderType';
+import { ChainName } from '../../types';
 import { CoreAddresses } from '../contracts';
 
 import { ICoreAdapter } from './types';
@@ -20,11 +22,9 @@ export class SealevelCoreAdapter
   extends BaseSealevelAdapter<CoreAddresses>
   implements ICoreAdapter
 {
-  async waitForMessageProcessed(
+  extractMessageIds(
     sourceTx: TypedTransactionReceipt,
-    delayMs?: number,
-    maxAttempts?: number,
-  ): Promise<void> {
+  ): Array<{ messageId: string; destination: ChainName }> {
     if (sourceTx.type !== ProviderType.SolanaWeb3) {
       throw new Error(
         `Unsupported provider type for SealevelCoreAdapter ${sourceTx.type}`,
@@ -34,14 +34,25 @@ export class SealevelCoreAdapter
     const logs = receipt.meta?.logMessages;
     if (!logs)
       throw new Error('Transaction logs required to check message delivery');
-    const parsedLog = SealevelCoreAdapter.parseMessageDispatchLog(logs);
-    if (!parsedLog) throw new Error('Message dispatch log not found');
-    const { destination, messageId } = parsedLog;
+    const parsedLogs = SealevelCoreAdapter.parseMessageDispatchLogs(logs);
+    if (!parsedLogs.length) throw new Error('Message dispatch log not found');
+    return parsedLogs.map(({ destination, messageId }) => ({
+      messageId: Buffer.from(utils.base58.decode(messageId)).toString('hex'),
+      destination: this.multiProvider.getChainName(destination),
+    }));
+  }
+
+  async waitForMessageProcessed(
+    messageId: string,
+    destination: ChainName,
+    delayMs?: number,
+    maxAttempts?: number,
+  ): Promise<void> {
     const destinationMailbox =
       this.multiProvider.getChainMetadata(destination).mailbox;
     const pda = SealevelCoreAdapter.deriveMailboxMessageProcessedPda(
-      messageId,
       destinationMailbox,
+      messageId,
     );
     const connection = this.multiProvider.getSolanaWeb3Provider(destination);
 
@@ -57,15 +68,16 @@ export class SealevelCoreAdapter
     );
   }
 
-  static parseMessageDispatchLog(
+  static parseMessageDispatchLogs(
     logs: string[],
-  ): { destination: string; messageId: string } | undefined {
+  ): Array<{ destination: string; messageId: string }> {
+    const result: Array<{ destination: string; messageId: string }> = [];
     for (const log of logs) {
       if (!MESSAGE_DISPATCH_LOG_REGEX.test(log)) continue;
       const [, destination, messageId] = MESSAGE_DISPATCH_LOG_REGEX.exec(log)!;
-      if (destination && messageId) return { destination, messageId };
+      if (destination && messageId) result.push({ destination, messageId });
     }
-    return undefined;
+    return result;
   }
 
   /*

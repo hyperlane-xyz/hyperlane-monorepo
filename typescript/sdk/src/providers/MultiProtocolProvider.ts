@@ -44,8 +44,8 @@ export class MultiProtocolProvider<
   protected readonly providers: ChainMap<ProviderMap<TypedProvider>>;
   // Chain name -> provider type -> signer
   protected signers: ChainMap<ProviderMap<never>> = {}; // TODO signer support
-  protected readonly logger: Debugger;
   protected readonly providerBuilders: Partial<ProviderBuilderMap>;
+  public readonly logger: Debugger;
 
   constructor(
     chainMetadata: ChainMap<
@@ -146,14 +146,14 @@ export class MultiProtocolProvider<
   // getEthersV6Provider(
   //   chainNameOrId: ChainName | number,
   // ): EthersV6Provider['provider'] {
-  //   const provider = this.getProvider(chainNameOrId, ProviderType.EthersV5);
+  //   const provider = this.getProvider(chainNameOrId, ProviderType.EthersV6);
   //   if (provider.type !== ProviderType.EthersV6)
   //     throw new Error('Invalid provider type');
   //   return provider.provider;
   // }
 
   getViemProvider(chainNameOrId: ChainName | number): ViemProvider['provider'] {
-    const provider = this.getProvider(chainNameOrId, ProviderType.EthersV5);
+    const provider = this.getProvider(chainNameOrId, ProviderType.Viem);
     if (provider.type !== ProviderType.Viem)
       throw new Error('Invalid provider type');
     return provider.provider;
@@ -162,7 +162,7 @@ export class MultiProtocolProvider<
   getSolanaWeb3Provider(
     chainNameOrId: ChainName | number,
   ): SolanaWeb3Provider['provider'] {
-    const provider = this.getProvider(chainNameOrId, ProviderType.EthersV5);
+    const provider = this.getProvider(chainNameOrId, ProviderType.SolanaWeb3);
     if (provider.type !== ProviderType.SolanaWeb3)
       throw new Error('Invalid provider type');
     return provider.provider;

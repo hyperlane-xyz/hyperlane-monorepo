@@ -22,7 +22,7 @@ export interface ChainMetadataManagerOptions {
  */
 export class ChainMetadataManager<MetaExt = {}> {
   public readonly metadata: ChainMap<ChainMetadata<MetaExt>> = {};
-  protected readonly logger: Debugger;
+  public readonly logger: Debugger;
 
   /**
    * Create a new ChainMetadataManager with the given chainMetadata,

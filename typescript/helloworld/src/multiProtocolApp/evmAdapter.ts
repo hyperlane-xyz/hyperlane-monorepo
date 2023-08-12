@@ -17,14 +17,15 @@ export class EvmHelloWorldAdapter
   implements IHelloWorldAdapter
 {
   async populateSendHelloTx(
-    from: ChainName,
-    to: ChainName,
+    origin: ChainName,
+    destination: ChainName,
     message: string,
     value: string,
   ): Promise<EthersV5Transaction> {
-    const contract = this.getConnectedContract(from);
-    const toDomain = this.multiProvider.getDomainId(to);
-    const { transactionOverrides } = this.multiProvider.getChainMetadata(from);
+    const contract = this.getConnectedContract(origin);
+    const toDomain = this.multiProvider.getDomainId(destination);
+    const { transactionOverrides } =
+      this.multiProvider.getChainMetadata(origin);
 
     // apply gas buffer due to https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/634
     const estimated = await contract.estimateGas.sendHelloWorld(
@@ -46,11 +47,14 @@ export class EvmHelloWorldAdapter
     return { transaction: tx, type: ProviderType.EthersV5 };
   }
 
-  async channelStats(from: ChainName, to: ChainName): Promise<StatCounts> {
-    const fromDomain = this.multiProvider.getDomainId(from);
-    const toDomain = this.multiProvider.getDomainId(to);
-    const sent = await this.getConnectedContract(from).sentTo(toDomain);
-    const received = await this.getConnectedContract(from).sentTo(fromDomain);
+  async channelStats(
+    origin: ChainName,
+    destination: ChainName,
+  ): Promise<StatCounts> {
+    const fromDomain = this.multiProvider.getDomainId(origin);
+    const toDomain = this.multiProvider.getDomainId(destination);
+    const sent = await this.getConnectedContract(origin).sentTo(toDomain);
+    const received = await this.getConnectedContract(origin).sentTo(fromDomain);
     return { sent: sent.toNumber(), received: received.toNumber() };
   }
 

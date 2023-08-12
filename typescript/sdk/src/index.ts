@@ -39,6 +39,8 @@ export {
   connectContracts,
   connectContractsMap,
   filterAddressesMap,
+  filterAddressesToProtocol,
+  filterOwnableContracts,
   serializeContracts,
   serializeContractsMap,
 } from './contracts/contracts';
@@ -87,6 +89,7 @@ export * as verificationUtils from './deploy/verify/utils';
 export { HyperlaneIgp } from './gas/HyperlaneIgp';
 export { HyperlaneIgpChecker } from './gas/HyperlaneIgpChecker';
 export { HyperlaneIgpDeployer } from './gas/HyperlaneIgpDeployer';
+export { IgpFactories, igpFactories } from './gas/contracts';
 export { CoinGeckoTokenPriceGetter } from './gas/token-prices';
 export {
   GasOracleContractType,
@@ -118,6 +121,10 @@ export {
   MultisigIsmConfig,
   RoutingIsmConfig,
 } from './ism/types';
+export {
+  ChainMetadataManager,
+  ChainMetadataManagerOptions,
+} from './metadata/ChainMetadataManager';
 export {
   AgentChainSetup,
   AgentChainSetupBase,

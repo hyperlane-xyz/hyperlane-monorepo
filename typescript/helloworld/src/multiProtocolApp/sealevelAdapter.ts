@@ -31,22 +31,22 @@ export class SealevelHelloWorldAdapter
   implements IHelloWorldAdapter
 {
   async populateSendHelloTx(
-    from: ChainName,
-    to: ChainName,
+    origin: ChainName,
+    destination: ChainName,
     message: string,
     value: string,
     sender: Address,
   ): Promise<SolanaWeb3Transaction> {
     this.logger(
       'Creating sendHelloWorld tx for sealevel',
-      from,
-      to,
+      origin,
+      destination,
       message,
       value,
     );
 
     const { mailbox, router: programId } =
-      this.multiProvider.getChainMetadata(to);
+      this.multiProvider.getChainMetadata(origin);
     const mailboxPubKey = new PublicKey(mailbox);
     const senderPubKey = new PublicKey(sender);
     const programPubKey = new PublicKey(programId);
@@ -59,10 +59,10 @@ export class SealevelHelloWorldAdapter
     );
 
     const instructionData =
-      new SealevelAccountDataWrapper<SendHelloWorldInstruction>({
+      new SealevelInstructionWrapper<SendHelloWorldInstruction>({
         instruction: HelloWorldInstruction.SendHelloWorld,
         data: new SendHelloWorldInstruction({
-          destination: this.multiProvider.getDomainId(to),
+          destination: this.multiProvider.getDomainId(destination),
           message,
         }),
       });
@@ -74,7 +74,7 @@ export class SealevelHelloWorldAdapter
       data: Buffer.from(serializedData),
     });
 
-    const connection = this.multiProvider.getSolanaWeb3Provider(from);
+    const connection = this.multiProvider.getSolanaWeb3Provider(origin);
     const recentBlockhash = (await connection.getLatestBlockhash('finalized'))
       .blockhash;
     // @ts-ignore Workaround for bug in the web3 lib, sometimes uses recentBlockhash and sometimes uses blockhash
@@ -163,8 +163,11 @@ export class SealevelHelloWorldAdapter
     return pda;
   }
 
-  async channelStats(from: ChainName, _to: ChainName): Promise<StatCounts> {
-    const data = await this.getAccountInfo(from);
+  async channelStats(
+    origin: ChainName,
+    _destination: ChainName,
+  ): Promise<StatCounts> {
+    const data = await this.getAccountInfo(origin);
     return { sent: data.sent, received: data.received };
   }
 
@@ -243,6 +246,7 @@ export class HelloWorldData {
   // The address of the IGP
   igp?: Uint8Array;
   igp_pubkey?: PublicKey;
+  igp_type?: number;
   // The address of the owner
   owner?: Uint8Array;
   owner_pubkey?: PublicKey;
@@ -279,6 +283,7 @@ export const HelloWorldDataSchema = new Map<any, any>([
         ['mailbox', [32]],
         ['ism', { kind: 'option', type: [32] }],
         ['igp', { kind: 'option', type: [32] }],
+        ['igp_type', { kind: 'option', type: 'u8' }],
         ['owner', { kind: 'option', type: [32] }],
         ['sent', 'u64'],
         ['received', 'u64'],

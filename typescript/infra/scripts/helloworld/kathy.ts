@@ -1,4 +1,4 @@
-import { Keypair, sendAndConfirmTransaction } from '@solana/web3.js';
+import { Keypair, sendAndConfirmRawTransaction } from '@solana/web3.js';
 import { BigNumber, Wallet, ethers } from 'ethers';
 import { Counter, Gauge, Registry } from 'prom-client';
 import { format } from 'util';
@@ -6,6 +6,7 @@ import { format } from 'util';
 import { HelloMultiProtocolApp } from '@hyperlane-xyz/helloworld';
 import {
   AgentConnectionType,
+  ChainMap,
   ChainName,
   HyperlaneIgp,
   MultiProtocolCore,
@@ -16,6 +17,8 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
+  ProtocolType,
+  base58ToBuffer,
   debug,
   error,
   log,
@@ -25,15 +28,15 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
-import { hyperlaneHelloworld } from '../../config/environments/testnet3/helloworld';
 import {
-  DeployEnvironment,
-  deployEnvToSdkEnv,
-} from '../../src/config/environment';
+  hyperlaneHelloworld,
+  releaseCandidateHelloworld,
+} from '../../config/environments/testnet3/helloworld';
+import { DeployEnvironment } from '../../src/config/environment';
 import { Role } from '../../src/roles';
 import { startMetricsServer } from '../../src/utils/metrics';
 import { assertChain, diagonalize, sleep } from '../../src/utils/utils';
-import { getArgs, getEnvironmentConfig, withContext } from '../utils';
+import { getAddressesForKey, getArgs, withContext } from '../utils';
 
 import { getHelloWorldMultiProtocolApp } from './utils';
 
@@ -156,20 +159,18 @@ async function main(): Promise<boolean> {
   startMetricsServer(metricsRegister);
   debug('Starting up', { environment });
 
-  const coreConfig = getEnvironmentConfig(environment);
-  // const coreConfig = getCoreConfigStub(environment);
+  // const coreConfig = getEnvironmentConfig(environment);
+  const coreConfig = getCoreConfigStub(environment);
 
-  const { app, core, multiProvider } = await getHelloWorldMultiProtocolApp(
-    coreConfig,
-    context,
-    Role.Kathy,
-    undefined,
-    connectionType,
-  );
-  const igp = HyperlaneIgp.fromEnvironment(
-    deployEnvToSdkEnv[environment],
-    multiProvider,
-  );
+  const { app, core, igp, multiProvider, keys } =
+    await getHelloWorldMultiProtocolApp(
+      coreConfig,
+      context,
+      Role.Kathy,
+      undefined,
+      connectionType,
+    );
+
   const appChains = app.chains();
 
   // Ensure the specified chains to skip are actually valid for the app.
@@ -342,6 +343,7 @@ async function main(): Promise<boolean> {
       await sendMessage(
         app,
         core,
+        keys,
         multiProvider,
         igp,
         origin,
@@ -379,6 +381,7 @@ async function main(): Promise<boolean> {
 async function sendMessage(
   app: HelloMultiProtocolApp,
   core: MultiProtocolCore,
+  keys: ChainMap<string>,
   multiProvider: MultiProvider,
   igp: HyperlaneIgp,
   origin: ChainName,
@@ -390,30 +393,39 @@ async function sendMessage(
   const msg = 'Hello!';
   const expectedHandleGas = BigNumber.from(50_000);
 
-  const value = await retryAsync(
-    () =>
-      igp.quoteGasPaymentForDefaultIsmIgp(
-        origin,
-        destination,
-        expectedHandleGas,
-      ),
-    2,
-  );
+  // TODO sealevel igp support here
+  let value: string;
+  if (app.metadata(origin).protocol == ProtocolType.Ethereum) {
+    const valueBn = await retryAsync(
+      () =>
+        igp.quoteGasPaymentForDefaultIsmIgp(
+          origin,
+          destination,
+          expectedHandleGas,
+        ),
+      2,
+    );
+    value = valueBn.toString();
+  } else {
+    value = '0';
+  }
+
   const metricLabels = { origin, remote: destination };
 
   log('Sending message', {
     origin,
     destination,
-    interchainGasPayment: value.toString(),
+    interchainGasPayment: value,
   });
 
   const sendAndConfirmMsg = async () => {
+    const sender = getAddressesForKey(keys, origin, multiProvider);
     const tx = await app.populateHelloWorldTx(
       origin,
       destination,
       msg,
-      value.toString(),
-      'TODO sender address here, required for sealevel',
+      value,
+      sender,
     );
 
     let txReceipt: TypedTransactionReceipt;
@@ -432,14 +444,12 @@ async function sendMessage(
       // This could be done for EVM too but the legacy MP has tx formatting utils
       // that have not yet been ported over
       const connection = app.multiProvider.getSolanaWeb3Provider(origin);
+      const payer = Keypair.fromSecretKey(base58ToBuffer(keys[origin]));
+      tx.transaction.partialSign(payer);
       // Note, tx signature essentially tx means hash on sealevel
-      // TODO hook in kathy keys for sealevel here
-      const keypair = Keypair.generate();
-      const payer = Keypair.generate();
-      const txSignature = await sendAndConfirmTransaction(
+      const txSignature = await sendAndConfirmRawTransaction(
         connection,
-        tx.transaction,
-        [payer, keypair],
+        tx.transaction.serialize(),
       );
       const receipt = await connection.getTransaction(txSignature, {
         commitment: 'confirmed',
@@ -475,7 +485,7 @@ async function sendMessage(
   });
 
   await timeout(
-    core.waitForMessageProcessed(destination, receipt, 5000, 36),
+    core.waitForMessagesProcessed(origin, destination, receipt, 5000, 36),
     messageReceiptTimeout,
     'Timeout waiting for message to be received',
   );
@@ -494,6 +504,7 @@ async function updateWalletBalanceMetricFor(
   chain: ChainName,
   signerAddress: Address,
 ): Promise<void> {
+  if (app.metadata(chain).protocol !== ProtocolType.Ethereum) return;
   const provider = app.multiProvider.getEthersV5Provider(chain);
   const signerBalance = await provider.getBalance(signerAddress);
   const balance = parseFloat(ethers.utils.formatEther(signerBalance));
@@ -515,24 +526,39 @@ async function updateWalletBalanceMetricFor(
 export function getCoreConfigStub(environment: DeployEnvironment) {
   const multiProvider = new MultiProvider({
     // Desired chains here. Key must have funds on these chains
-    alfajores: chainMetadata.alfajores,
-    sepolia: chainMetadata.sepolia,
+    fuji: chainMetadata.fuji,
+    solanadevnet: chainMetadata.solanadevnet,
   });
-  const privateKey = process.env.KATHY_PRIVATE_KEY;
-  if (!privateKey) throw new Error('KATHY_PRIVATE_KEY env var not set');
-  const signer = new Wallet(privateKey);
-  const signerAddress = signer.address;
-  multiProvider.setSharedSigner(signer);
+
+  const privateKeyEvm = process.env.KATHY_PRIVATE_KEY_EVM;
+  if (!privateKeyEvm) throw new Error('KATHY_PRIVATE_KEY_EVM env var not set');
+  const evmSigner = new Wallet(privateKeyEvm);
+  console.log('evmSigner address', evmSigner.address);
+  multiProvider.setSharedSigner(evmSigner);
+
+  const privateKeySealevel = process.env.KATHY_PRIVATE_KEY_SEALEVEL;
+  if (!privateKeySealevel)
+    throw new Error('KATHY_PRIVATE_KEY_SEALEVEL env var not set');
+  const sealevelSigner = Keypair.fromSecretKey(
+    base58ToBuffer(privateKeySealevel),
+  );
+  console.log('sealevelSigner address', sealevelSigner.publicKey.toBase58());
+
   return {
     helloWorld: {
       [Contexts.Hyperlane]: hyperlaneHelloworld,
+      [Contexts.ReleaseCandidate]: releaseCandidateHelloworld,
     },
     environment,
     owners: {
-      alfajores: signerAddress,
-      sepolia: signerAddress,
+      fuji: evmSigner.address,
+      solanadevnet: sealevelSigner.publicKey.toBase58(),
     },
     getMultiProvider: () => multiProvider,
+    getKeys: () => ({
+      fuji: privateKeyEvm,
+      solanadevnet: privateKeySealevel,
+    }),
   } as any;
 }
 

@@ -1,11 +1,22 @@
-import { Address, objMap, pick } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  HexString,
+  ProtocolType,
+  objMap,
+  pick,
+} from '@hyperlane-xyz/utils';
 
 import { BaseEvmAdapter } from '../../app/MultiProtocolApp';
+import {
+  attachContractsMap,
+  filterAddressesToProtocol,
+} from '../../contracts/contracts';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
 import {
   ProviderType,
   TypedTransactionReceipt,
 } from '../../providers/ProviderType';
+import { ChainName } from '../../types';
 import { HyperlaneCore } from '../HyperlaneCore';
 import { CoreAddresses, coreFactories } from '../contracts';
 
@@ -33,25 +44,44 @@ export class EvmCoreAdapter
     const addresses = objMap(multiProvider.metadata, (_, m) =>
       pick<CoreAddressKeys, Address>(m, contractNames),
     );
-
-    this.core = HyperlaneCore.fromAddressesMap(
+    // Then filter it to just the addresses for Ethereum chains
+    // Otherwise the factory creators will throw
+    const filteredAddresses = filterAddressesToProtocol(
       addresses,
+      ProtocolType.Ethereum,
+      multiProvider,
+    );
+    const contractsMap = attachContractsMap(filteredAddresses, coreFactories);
+    this.core = new HyperlaneCore(
+      contractsMap,
       multiProvider.toMultiProvider(),
     );
   }
 
-  waitForMessageProcessed(
+  extractMessageIds(
     sourceTx: TypedTransactionReceipt,
-    delayMs?: number,
-    maxAttempts?: number,
-  ): Promise<void> {
+  ): Array<{ messageId: string; destination: ChainName }> {
     if (sourceTx.type !== ProviderType.EthersV5) {
       throw new Error(
         `Unsupported provider type for EvmCoreAdapter ${sourceTx.type}`,
       );
     }
-    return this.core.waitForMessageProcessed(
-      sourceTx.receipt,
+    const messages = this.core.getDispatchedMessages(sourceTx.receipt);
+    return messages.map(({ id, parsed }) => ({
+      messageId: id,
+      destination: this.multiProvider.getChainName(parsed.destination),
+    }));
+  }
+
+  waitForMessageProcessed(
+    messageId: HexString,
+    destination: ChainName,
+    delayMs?: number,
+    maxAttempts?: number,
+  ): Promise<void> {
+    return this.core.waitForMessageIdProcessed(
+      messageId,
+      destination,
       delayMs,
       maxAttempts,
     );

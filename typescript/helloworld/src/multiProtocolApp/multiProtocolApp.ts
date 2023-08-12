@@ -24,23 +24,23 @@ export class HelloMultiProtocolApp extends MultiProtocolRouterApp<
   }
 
   populateHelloWorldTx(
-    from: ChainName,
-    to: ChainName,
+    origin: ChainName,
+    destination: ChainName,
     message: string,
     value: string,
     sender: Address,
   ): Promise<TypedTransaction> {
-    return this.adapter(from).populateSendHelloTx(
-      from,
-      to,
+    return this.adapter(origin).populateSendHelloTx(
+      origin,
+      destination,
       message,
       value,
       sender,
     );
   }
 
-  channelStats(from: ChainName, to: ChainName): Promise<StatCounts> {
-    return this.adapter(from).channelStats(from, to);
+  channelStats(origin: ChainName, destination: ChainName): Promise<StatCounts> {
+    return this.adapter(origin).channelStats(origin, destination);
   }
 
   async stats(): Promise<ChainMap<ChainMap<StatCounts>>> {

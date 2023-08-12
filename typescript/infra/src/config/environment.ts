@@ -45,6 +45,7 @@ export type EnvironmentConfig = {
     role?: Role,
     connectionType?: AgentConnectionType,
   ) => Promise<MultiProvider>;
+  getKeys: (context?: Contexts, role?: Role) => Promise<ChainMap<string>>;
   helloWorld?: Partial<Record<Contexts, HelloWorldConfig>>;
   keyFunderConfig?: KeyFunderConfig;
   liquidityLayerConfig?: {

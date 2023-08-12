@@ -1,3 +1,5 @@
+import { Keypair } from '@solana/web3.js';
+import { Wallet } from 'ethers';
 import path from 'path';
 import yargs from 'yargs';
 
@@ -6,6 +8,7 @@ import {
   AllChains,
   ChainMap,
   ChainMetadata,
+  ChainMetadataManager,
   ChainName,
   Chains,
   CoreConfig,
@@ -16,7 +19,12 @@ import {
   RouterConfig,
   collectValidators,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  base58ToBuffer,
+  objMap,
+  promiseObjAll,
+} from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
 import { environments } from '../config/environments';
@@ -194,6 +202,43 @@ export async function getMultiProviderForRole(
     }),
   );
   return multiProvider;
+}
+
+export async function getKeysForRole(
+  txConfigs: ChainMap<ChainMetadata>,
+  environment: DeployEnvironment,
+  context: Contexts,
+  role: Role,
+  index?: number,
+): Promise<ChainMap<string>> {
+  if (process.env.CI === 'true') {
+    return {};
+  }
+
+  const keys = await promiseObjAll(
+    objMap(txConfigs, async (chain, _) => {
+      const key = getKeyForRole(environment, context, chain, role, index);
+      return key.privateKey;
+    }),
+  );
+  return keys;
+}
+
+export function getAddressesForKey(
+  keys: ChainMap<string>,
+  chain: ChainName,
+  manager: ChainMetadataManager<any>,
+) {
+  const protocol = manager.getChainMetadata(chain).protocol;
+  if (protocol === ProtocolType.Ethereum) {
+    return new Wallet(keys[chain]).address;
+  } else if (protocol === ProtocolType.Sealevel) {
+    return Keypair.fromSecretKey(
+      base58ToBuffer(keys[chain]),
+    ).publicKey.toBase58();
+  } else {
+    throw Error(`Protocol ${protocol} not supported`);
+  }
 }
 
 export function getContractAddressesSdkFilepath() {

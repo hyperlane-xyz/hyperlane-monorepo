@@ -11,12 +11,15 @@ import { StatCounts } from '../app/types';
 export interface IHelloWorldAdapter
   extends IRouterAdapter<RouterAddress & { mailbox: Address }> {
   populateSendHelloTx: (
-    from: ChainName,
-    to: ChainName,
+    origin: ChainName,
+    destination: ChainName,
     message: string,
     value: string,
     sender: Address,
   ) => Promise<TypedTransaction>;
 
-  channelStats: (from: ChainName, to: ChainName) => Promise<StatCounts>;
+  channelStats: (
+    origin: ChainName,
+    destination: ChainName,
+  ) => Promise<StatCounts>;
 }

@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-import { Mailbox, Mailbox__factory } from '@hyperlane-xyz/core';
+import { Mailbox__factory } from '@hyperlane-xyz/core';
 import { messageId, parseMessage, pollAsync } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../app/HyperlaneApp';
@@ -40,22 +40,16 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     return new HyperlaneCore(helper.contractsMap, helper.multiProvider);
   }
 
-  protected getDestination(message: DispatchedMessage): {
-    destinationChain: ChainName;
-    mailbox: Mailbox;
-  } {
-    const destinationChain = this.multiProvider.getChainName(
-      message.parsed.destination,
-    );
-    const mailbox = this.getContracts(destinationChain).mailbox;
-    return { destinationChain, mailbox };
+  protected getDestination(message: DispatchedMessage): ChainName {
+    return this.multiProvider.getChainName(message.parsed.destination);
   }
 
   protected waitForProcessReceipt(
     message: DispatchedMessage,
   ): Promise<ethers.ContractReceipt> {
     const id = messageId(message.message);
-    const { destinationChain, mailbox } = this.getDestination(message);
+    const destinationChain = this.getDestination(message);
+    const mailbox = this.contractsMap[destinationChain].mailbox;
     const filter = mailbox.filters.ProcessId(id);
 
     return new Promise<ethers.ContractReceipt>((resolve, reject) => {
@@ -70,22 +64,22 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     });
   }
 
-  protected async waitForMessageWasProcessed(
-    message: DispatchedMessage,
+  async waitForMessageIdProcessed(
+    messageId: string,
+    destination: ChainName,
     delayMs?: number,
     maxAttempts?: number,
   ): Promise<void> {
-    const id = messageId(message.message);
-    const { mailbox } = this.getDestination(message);
     await pollAsync(
       async () => {
-        this.logger(`Checking if message ${id} was processed`);
-        const delivered = await mailbox.delivered(id);
+        this.logger(`Checking if message ${messageId} was processed`);
+        const mailbox = this.contractsMap[destination].mailbox;
+        const delivered = await mailbox.delivered(messageId);
         if (delivered) {
-          this.logger(`Message ${id} was processed`);
+          this.logger(`Message ${messageId} was processed`);
           return;
         } else {
-          throw new Error(`Message ${id} not yet processed`);
+          throw new Error(`Message ${messageId} not yet processed`);
         }
       },
       delayMs,
@@ -101,6 +95,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     return Promise.all(messages.map((msg) => this.waitForProcessReceipt(msg)));
   }
 
+  // TODO consider renaming this, all the waitForMessage* methods are confusing
   async waitForMessageProcessed(
     sourceTx: ethers.ContractReceipt,
     delay?: number,
@@ -109,7 +104,12 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     const messages = HyperlaneCore.getDispatchedMessages(sourceTx);
     await Promise.all(
       messages.map((msg) =>
-        this.waitForMessageWasProcessed(msg, delay, maxAttempts),
+        this.waitForMessageIdProcessed(
+          msg.id,
+          this.getDestination(msg),
+          delay,
+          maxAttempts,
+        ),
       ),
     );
   }

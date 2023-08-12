@@ -56,16 +56,23 @@ export class MultiProtocolCore extends MultiProtocolApp<
     throw new Error(`No adapter for protocol ${protocol}`);
   }
 
-  waitForMessageProcessed(
-    chain: ChainName,
+  waitForMessagesProcessed(
+    origin: ChainName,
+    destination: ChainName,
     sourceTx: TypedTransactionReceipt,
     delayMs?: number,
     maxAttempts?: number,
-  ): Promise<void> {
-    return this.adapter(chain).waitForMessageProcessed(
-      sourceTx,
-      delayMs,
-      maxAttempts,
+  ): Promise<void[]> {
+    const messages = this.adapter(origin).extractMessageIds(sourceTx);
+    return Promise.all(
+      messages.map((msg) =>
+        this.adapter(destination).waitForMessageProcessed(
+          msg.messageId,
+          msg.destination,
+          delayMs,
+          maxAttempts,
+        ),
+      ),
     );
   }
 }
