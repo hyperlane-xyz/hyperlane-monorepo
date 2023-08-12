@@ -25,9 +25,9 @@ pub struct CosmosValidatorAnnounce<'a> {
     provider: Box<WasmGrpcProvider<'a>>,
 }
 
-impl CosmosValidatorAnnounce<'_> {
+impl<'a> CosmosValidatorAnnounce<'a> {
     /// create a new instance of CosmosValidatorAnnounce
-    pub fn new(conf: &ConnectionConf, locator: &ContractLocator, signer: &Signer) -> Self {
+    pub fn new(conf: &'a ConnectionConf, locator: &'a ContractLocator, signer: &'a Signer) -> Self {
         let provider = WasmGrpcProvider::new(conf, locator, signer);
 
         Self {
