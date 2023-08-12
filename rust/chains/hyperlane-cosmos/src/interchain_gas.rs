@@ -1,5 +1,3 @@
-use std::ops::RangeInclusive;
-
 use async_trait::async_trait;
 use cosmrs::tendermint::abci::EventAttribute;
 use hyperlane_core::{
@@ -7,28 +5,31 @@ use hyperlane_core::{
     InterchainGasPaymaster, U256,
 };
 use hyperlane_core::{HyperlaneDomain, HyperlaneProvider, InterchainGasPayment, LogMeta, H256};
+use std::ops::RangeInclusive;
 
+use crate::grpc::{WasmGrpcProvider, WasmProvider};
 use crate::rpc::{CosmosWasmIndexer, WasmIndexer};
 use crate::signers::Signer;
-use crate::verify::bech32_decode;
 use crate::ConnectionConf;
 
 /// A reference to a InterchainGasPaymaster contract on some Cosmos chain
 #[derive(Debug)]
-pub struct CosmosInterchainGasPaymaster {
-    domain: HyperlaneDomain,
-    address: String,
+pub struct CosmosInterchainGasPaymaster<'a> {
+    _conf: &'a ConnectionConf,
+    locator: &'a ContractLocator<'a>,
+    _signer: &'a Signer,
+    _provider: Box<WasmGrpcProvider<'a>>,
 }
 
-impl HyperlaneContract for CosmosInterchainGasPaymaster {
+impl HyperlaneContract for CosmosInterchainGasPaymaster<'_> {
     fn address(&self) -> H256 {
-        bech32_decode(self.address.clone())
+        self.locator.address
     }
 }
 
-impl HyperlaneChain for CosmosInterchainGasPaymaster {
+impl HyperlaneChain for CosmosInterchainGasPaymaster<'_> {
     fn domain(&self) -> &HyperlaneDomain {
-        &self.domain
+        self.locator.domain
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
@@ -36,12 +37,19 @@ impl HyperlaneChain for CosmosInterchainGasPaymaster {
     }
 }
 
-impl InterchainGasPaymaster for CosmosInterchainGasPaymaster {}
+impl InterchainGasPaymaster for CosmosInterchainGasPaymaster<'_> {}
 
-impl CosmosInterchainGasPaymaster {
+impl<'a> CosmosInterchainGasPaymaster<'a> {
     /// create new Cosmos InterchainGasPaymaster agent
-    pub fn new(domain: HyperlaneDomain, address: String) -> Self {
-        Self { domain, address }
+    pub fn new(conf: &'a ConnectionConf, locator: &'a ContractLocator, signer: &'a Signer) -> Self {
+        let provider = WasmGrpcProvider::new(conf, locator, signer);
+
+        Self {
+            _conf: conf,
+            locator,
+            _signer: signer,
+            _provider: Box::new(provider),
+        }
     }
 }
 
@@ -53,14 +61,9 @@ pub struct CosmosInterchainGasPaymasterIndexer<'a> {
 
 impl<'a> CosmosInterchainGasPaymasterIndexer<'a> {
     /// create new Cosmos InterchainGasPaymasterIndexer agent
-    pub fn new(
-        conf: &'a ConnectionConf,
-        locator: &'a ContractLocator,
-        signer: &'a Signer,
-        event_type: String,
-    ) -> Self {
+    pub fn new(conf: &'a ConnectionConf, locator: &'a ContractLocator, event_type: String) -> Self {
         let indexer: CosmosWasmIndexer<'_> =
-            CosmosWasmIndexer::new(conf, locator, signer, event_type.clone());
+            CosmosWasmIndexer::new(conf, locator, event_type.clone());
 
         Self {
             indexer: Box::new(indexer),

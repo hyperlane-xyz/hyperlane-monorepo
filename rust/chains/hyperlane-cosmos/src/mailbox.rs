@@ -215,7 +215,7 @@ impl<'a> CosmosMailboxIndexer<'a> {
     /// chain
     pub fn new(conf: &'a ConnectionConf, locator: &'a ContractLocator, event_type: String) -> Self {
         let indexer: CosmosWasmIndexer<'_> =
-            CosmosWasmIndexer::new(conf, locator, signer, event_type.clone());
+            CosmosWasmIndexer::new(conf, locator, event_type.clone());
 
         Self {
             indexer: Box::new(indexer),
