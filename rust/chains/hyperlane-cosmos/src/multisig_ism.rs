@@ -17,9 +17,9 @@ use crate::{
 /// A reference to a MultisigIsm contract on some Cosmos chain
 #[derive(Debug)]
 pub struct CosmosMultisigIsm<'a> {
-    conf: &'a ConnectionConf,
+    _conf: &'a ConnectionConf,
     locator: &'a ContractLocator<'a>,
-    signer: &'a Signer,
+    _signer: &'a Signer,
     provider: Box<WasmGrpcProvider<'a>>,
 }
 
@@ -29,9 +29,9 @@ impl<'a> CosmosMultisigIsm<'a> {
         let provider = WasmGrpcProvider::new(conf, locator, signer);
 
         Self {
-            conf,
+            _conf: conf,
             locator,
-            signer,
+            _signer: signer,
             provider: Box::new(provider),
         }
     }
@@ -45,7 +45,7 @@ impl HyperlaneContract for CosmosMultisigIsm<'_> {
 
 impl HyperlaneChain for CosmosMultisigIsm<'_> {
     fn domain(&self) -> &HyperlaneDomain {
-        &self.locator.domain
+        self.locator.domain
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
