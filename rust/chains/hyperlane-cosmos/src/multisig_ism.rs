@@ -1,12 +1,12 @@
 use crate::{
     grpc::{WasmGrpcProvider, WasmProvider},
-    verify,
+    signers::Signer,
+    ConnectionConf,
 };
 use async_trait::async_trait;
-use cosmrs::crypto::secp256k1::SigningKey;
 use hyperlane_core::{
-    ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProvider, MultisigIsm, RawHyperlaneMessage, H256,
+    ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneMessage, HyperlaneProvider, MultisigIsm, RawHyperlaneMessage, H256,
 };
 
 use crate::{
@@ -23,51 +23,29 @@ pub struct CosmosMultisigIsm<'a> {
     provider: Box<WasmGrpcProvider<'a>>,
 }
 
-impl CosmosMultisigIsm {
+impl CosmosMultisigIsm<'_> {
     /// create a new instance of CosmosMultisigIsm
-    pub fn new(
-        domain: HyperlaneDomain,
-        address: String,
-        prefix: String,
-        private_key: Vec<u8>,
-        grpc_endpoint: String,
-        chain_id: String,
-    ) -> Self {
-        let signer_address = verify::pub_to_addr(
-            SigningKey::from_slice(&private_key)
-                .unwrap()
-                .public_key()
-                .to_bytes(),
-            &prefix,
-        )
-        .unwrap();
-
-        let provider = WasmGrpcProvider::new(
-            address.clone(),
-            private_key,
-            signer_address,
-            prefix,
-            grpc_endpoint,
-            chain_id,
-        );
+    pub fn new(conf: &ConnectionConf, locator: &ContractLocator, signer: &Signer) -> Self {
+        let provider = WasmGrpcProvider::new(conf, locator, signer);
 
         Self {
-            domain,
-            address,
+            conf,
+            locator,
+            signer,
             provider: Box::new(provider),
         }
     }
 }
 
-impl HyperlaneContract for CosmosMultisigIsm {
+impl HyperlaneContract for CosmosMultisigIsm<'_> {
     fn address(&self) -> H256 {
-        bech32_decode(self.address.clone())
+        self.locator.address
     }
 }
 
-impl HyperlaneChain for CosmosMultisigIsm {
+impl HyperlaneChain for CosmosMultisigIsm<'_> {
     fn domain(&self) -> &HyperlaneDomain {
-        &self.domain
+        &self.locator.domain
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
@@ -76,7 +54,7 @@ impl HyperlaneChain for CosmosMultisigIsm {
 }
 
 #[async_trait]
-impl MultisigIsm for CosmosMultisigIsm {
+impl MultisigIsm for CosmosMultisigIsm<'_> {
     /// Returns the validator and threshold needed to verify message
     async fn validators_and_threshold(
         &self,

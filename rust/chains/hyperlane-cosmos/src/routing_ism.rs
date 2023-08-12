@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 
-use cosmrs::crypto::secp256k1::SigningKey;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, RawHyperlaneMessage, RoutingIsm, H256,
@@ -10,7 +9,7 @@ use crate::{
     grpc::{WasmGrpcProvider, WasmProvider},
     payloads::ism_routes::{IsmRouteRequest, IsmRouteRequestInner, IsmRouteRespnose},
     signers::Signer,
-    verify::{self, bech32_decode},
+    verify::bech32_decode,
     ConnectionConf,
 };
 
