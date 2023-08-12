@@ -22,9 +22,9 @@ pub struct CosmosRoutingIsm<'a> {
     provider: Box<WasmGrpcProvider<'a>>,
 }
 
-impl CosmosRoutingIsm<'_> {
+impl<'a> CosmosRoutingIsm<'a> {
     /// create a new instance of CosmosRoutingIsm
-    pub fn new(conf: &ConnectionConf, locator: &ContractLocator, signer: &Signer) -> Self {
+    pub fn new(conf: &'a ConnectionConf, locator: &'a ContractLocator, signer: &'a Signer) -> Self {
         let provider = WasmGrpcProvider::new(conf, locator, signer);
 
         Self {
