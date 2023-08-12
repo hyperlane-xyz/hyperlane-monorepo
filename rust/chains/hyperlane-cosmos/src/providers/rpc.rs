@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use cosmrs::rpc::client::{Client, CompatMode, HttpClient, HttpClientUrl};
+use cosmrs::rpc::client::{Client, CompatMode, HttpClient};
 use cosmrs::tendermint::abci::EventAttribute;
 use cosmrs::tendermint::hash::Algorithm;
 use cosmrs::tendermint::Hash;
