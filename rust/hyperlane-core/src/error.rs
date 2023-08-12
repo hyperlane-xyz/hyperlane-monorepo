@@ -117,6 +117,12 @@ pub enum ChainCommunicationError {
         /// Error message
         msg: String,
     },
+    /// Not match connection type
+    #[error("Not match connection type: require {msg:?}")]
+    NotMatchConnectionType {
+        /// Error message
+        msg: String,
+    },
 }
 
 impl ChainCommunicationError {
