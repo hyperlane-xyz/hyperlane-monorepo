@@ -75,9 +75,9 @@ pub struct WasmGrpcProvider<'a> {
     signer: &'a Signer,
 }
 
-impl WasmGrpcProvider<'_> {
+impl<'a> WasmGrpcProvider<'a> {
     /// create new Cosmwasm GRPC Provider
-    pub fn new(conf: &ConnectionConf, locator: &ContractLocator, signer: &Signer) -> Self {
+    pub fn new(conf: &'a ConnectionConf, locator: &'a ContractLocator, signer: &'a Signer) -> Self {
         Self {
             conf,
             locator,

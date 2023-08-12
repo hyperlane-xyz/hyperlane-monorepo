@@ -55,16 +55,16 @@ pub struct CosmosInterchainGasPaymasterIndexer<'a> {
     indexer: Box<CosmosWasmIndexer<'a>>,
 }
 
-impl CosmosInterchainGasPaymasterIndexer<'_> {
+impl<'a> CosmosInterchainGasPaymasterIndexer<'a> {
     /// create new Cosmos InterchainGasPaymasterIndexer agent
     pub fn new(
-        conf: &ConnectionConf,
-        locator: &ContractLocator,
-        signer: &Signer,
+        conf: &'a ConnectionConf,
+        locator: &'a ContractLocator,
+        signer: &'a Signer,
         event_type: String,
     ) -> Self {
         let indexer: CosmosWasmIndexer<'_> =
-            CosmosWasmIndexer::new(conf, locator, signer, event_type);
+            CosmosWasmIndexer::new(conf, locator, signer, event_type.clone());
 
         Self {
             conf,

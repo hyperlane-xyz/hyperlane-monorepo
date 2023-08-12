@@ -46,14 +46,14 @@ pub struct CosmosWasmIndexer<'a> {
     event_type: String,
 }
 
-impl CosmosWasmIndexer<'_> {
+impl<'a> CosmosWasmIndexer<'a> {
     const WASM_TYPE: &str = "wasm";
 
     /// create new Cosmwasm RPC Provider
     pub fn new(
-        conf: &ConnectionConf,
-        locator: &ContractLocator,
-        signer: &Signer,
+        conf: &'a ConnectionConf,
+        locator: &'a ContractLocator,
+        signer: &'a Signer,
         event_type: String,
     ) -> Self {
         Self {

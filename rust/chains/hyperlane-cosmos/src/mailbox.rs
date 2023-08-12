@@ -29,10 +29,10 @@ pub struct CosmosMailbox<'a> {
     provider: Box<WasmGrpcProvider<'a>>,
 }
 
-impl CosmosMailbox<'_> {
+impl<'a> CosmosMailbox<'a> {
     /// Create a reference to a mailbox at a specific Ethereum address on some
     /// chain
-    pub fn new(conf: &ConnectionConf, locator: &ContractLocator, signer: &Signer) -> Self {
+    pub fn new(conf: &'a ConnectionConf, locator: &'a ContractLocator, signer: &'a Signer) -> Self {
         let provider = WasmGrpcProvider::new(conf, locator, signer);
 
         Self {
@@ -62,7 +62,7 @@ impl HyperlaneChain for CosmosMailbox<'_> {
 
 impl Debug for CosmosMailbox<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self as &dyn HyperlaneContract)
+        Debug::fmt(&(self as &dyn HyperlaneContract), f)
     }
 }
 
@@ -213,16 +213,17 @@ pub struct CosmosMailboxIndexer<'a> {
     indexer: Box<CosmosWasmIndexer<'a>>,
 }
 
-impl CosmosMailboxIndexer<'_> {
+impl<'a> CosmosMailboxIndexer<'a> {
     /// Create a reference to a mailbox at a specific Ethereum address on some
     /// chain
     pub fn new(
-        conf: &ConnectionConf,
-        locator: &ContractLocator,
-        signer: &Signer,
+        conf: &'a ConnectionConf,
+        locator: &'a ContractLocator,
+        signer: &'a Signer,
         event_type: String,
     ) -> Self {
-        let indexer = CosmosWasmIndexer::new(conf, locator, signer, event_type);
+        let indexer: CosmosWasmIndexer<'_> =
+            CosmosWasmIndexer::new(conf, locator, signer, event_type.clone());
 
         Self {
             conf,
