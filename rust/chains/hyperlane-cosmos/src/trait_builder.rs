@@ -82,21 +82,21 @@ impl FromRawConf<'_, RawConnectionConf> for ConnectionConf {
 impl ConnectionConf {
     /// Get the GRPC url
     pub fn get_grpc_url(&self) -> String {
-        self.grpc_url
+        self.grpc_url.clone()
     }
 
     /// Get the RPC url
     pub fn get_rpc_url(&self) -> String {
-        self.rpc_url
+        self.rpc_url.clone()
     }
 
     /// Get the chain ID
     pub fn get_chain_id(&self) -> String {
-        self.chain_id
+        self.chain_id.clone()
     }
 
     /// Get the prefix
     pub fn get_prefix(&self) -> String {
-        self.prefix
+        self.prefix.clone()
     }
 }
