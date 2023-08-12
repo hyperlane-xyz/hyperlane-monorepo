@@ -18,36 +18,38 @@ use crate::{
 
 /// A reference to a ValidatorAnnounce contract on some Cosmos chain
 #[derive(Debug)]
-pub struct CosmosValidatorAnnounce<'a> {
-    _conf: &'a ConnectionConf,
-    locator: &'a ContractLocator<'a>,
-    _signer: &'a Signer,
-    provider: Box<WasmGrpcProvider<'a>>,
+pub struct CosmosValidatorAnnounce {
+    _conf: ConnectionConf,
+    domain: HyperlaneDomain,
+    address: H256,
+    _signer: Signer,
+    provider: Box<WasmGrpcProvider>,
 }
 
-impl<'a> CosmosValidatorAnnounce<'a> {
+impl CosmosValidatorAnnounce {
     /// create a new instance of CosmosValidatorAnnounce
-    pub fn new(conf: &'a ConnectionConf, locator: &'a ContractLocator, signer: &'a Signer) -> Self {
-        let provider = WasmGrpcProvider::new(conf, locator, signer);
+    pub fn new(conf: ConnectionConf, locator: ContractLocator, signer: Signer) -> Self {
+        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer.clone());
 
         Self {
             _conf: conf,
-            locator,
+            domain: locator.domain.clone(),
+            address: locator.address,
             _signer: signer,
             provider: Box::new(provider),
         }
     }
 }
 
-impl HyperlaneContract for CosmosValidatorAnnounce<'_> {
+impl HyperlaneContract for CosmosValidatorAnnounce {
     fn address(&self) -> H256 {
-        self.locator.address
+        self.address
     }
 }
 
-impl HyperlaneChain for CosmosValidatorAnnounce<'_> {
+impl HyperlaneChain for CosmosValidatorAnnounce {
     fn domain(&self) -> &HyperlaneDomain {
-        self.locator.domain
+        &self.domain
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
@@ -56,7 +58,7 @@ impl HyperlaneChain for CosmosValidatorAnnounce<'_> {
 }
 
 #[async_trait]
-impl ValidatorAnnounce for CosmosValidatorAnnounce<'_> {
+impl ValidatorAnnounce for CosmosValidatorAnnounce {
     async fn get_announced_storage_locations(
         &self,
         validators: &[H256],

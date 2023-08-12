@@ -3,7 +3,7 @@ use cosmrs::rpc::client::{Client, CompatMode, HttpClient};
 use cosmrs::tendermint::abci::EventAttribute;
 use cosmrs::tendermint::hash::Algorithm;
 use cosmrs::tendermint::Hash;
-use hyperlane_core::{ChainResult, ContractLocator, LogMeta, H256, H512, U256};
+use hyperlane_core::{ChainResult, ContractLocator, HyperlaneDomain, LogMeta, H256, H512, U256};
 use sha256::digest;
 
 use crate::verify::{self, bech32_decode};
@@ -36,20 +36,22 @@ pub trait WasmIndexer: Send + Sync {
 
 #[derive(Debug)]
 /// Cosmwasm RPC Provider
-pub struct CosmosWasmIndexer<'a> {
-    conf: &'a ConnectionConf,
-    locator: &'a ContractLocator<'a>,
+pub struct CosmosWasmIndexer {
+    conf: ConnectionConf,
+    domain: HyperlaneDomain,
+    address: H256,
     event_type: String,
 }
 
-impl<'a> CosmosWasmIndexer<'a> {
+impl CosmosWasmIndexer {
     const WASM_TYPE: &str = "wasm";
 
     /// create new Cosmwasm RPC Provider
-    pub fn new(conf: &'a ConnectionConf, locator: &'a ContractLocator, event_type: String) -> Self {
+    pub fn new(conf: ConnectionConf, locator: ContractLocator, event_type: String) -> Self {
         Self {
             conf,
-            locator,
+            domain: locator.domain.clone(),
+            address: locator.address,
             event_type,
         }
     }
@@ -61,12 +63,12 @@ impl<'a> CosmosWasmIndexer<'a> {
 
     /// get contract address
     pub fn get_contract_addr(&self) -> ChainResult<String> {
-        verify::digest_to_addr(self.locator.address, self.conf.get_prefix().as_str())
+        verify::digest_to_addr(self.address, self.conf.get_prefix().as_str())
     }
 }
 
 #[async_trait]
-impl WasmIndexer for CosmosWasmIndexer<'_> {
+impl WasmIndexer for CosmosWasmIndexer {
     fn get_client(&self) -> ChainResult<HttpClient> {
         Ok(HttpClient::builder(self.get_conn_url()?.parse()?)
             .compat_mode(CompatMode::V0_34)

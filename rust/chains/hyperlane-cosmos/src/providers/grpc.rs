@@ -20,7 +20,7 @@ use cosmrs::proto::traits::Message;
 
 use cosmrs::tx::{self, Fee, MessageExt, SignDoc, SignerInfo};
 use cosmrs::Coin;
-use hyperlane_core::{ChainResult, ContractLocator, U256};
+use hyperlane_core::{ChainResult, ContractLocator, HyperlaneDomain, H256, U256};
 use serde::Serialize;
 use std::num::NonZeroU64;
 use std::str::FromStr;
@@ -69,18 +69,20 @@ pub trait WasmProvider: Send + Sync {
 
 #[derive(Debug)]
 /// Cosmwasm GRPC Provider
-pub struct WasmGrpcProvider<'a> {
-    conf: &'a ConnectionConf,
-    locator: &'a ContractLocator<'a>,
-    signer: &'a Signer,
+pub struct WasmGrpcProvider {
+    conf: ConnectionConf,
+    domain: HyperlaneDomain,
+    address: H256,
+    signer: Signer,
 }
 
-impl<'a> WasmGrpcProvider<'a> {
+impl WasmGrpcProvider {
     /// create new Cosmwasm GRPC Provider
-    pub fn new(conf: &'a ConnectionConf, locator: &'a ContractLocator, signer: &'a Signer) -> Self {
+    pub fn new(conf: ConnectionConf, locator: ContractLocator, signer: Signer) -> Self {
         Self {
             conf,
-            locator,
+            domain: locator.domain.clone(),
+            address: locator.address,
             signer,
         }
     }
@@ -90,12 +92,12 @@ impl<'a> WasmGrpcProvider<'a> {
     }
 
     fn get_contract_addr(&self) -> ChainResult<String> {
-        verify::digest_to_addr(self.locator.address, self.signer.prefix.as_str())
+        verify::digest_to_addr(self.address, self.signer.prefix.as_str())
     }
 }
 
 #[async_trait]
-impl WasmProvider for WasmGrpcProvider<'_> {
+impl WasmProvider for WasmGrpcProvider {
     async fn latest_block_height(&self) -> ChainResult<u64> {
         let mut client = ServiceClient::connect(self.get_conn_url()?).await?;
         let request = tonic::Request::new(GetLatestBlockRequest {});

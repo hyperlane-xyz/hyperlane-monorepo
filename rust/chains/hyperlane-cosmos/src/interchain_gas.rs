@@ -2,10 +2,11 @@ use async_trait::async_trait;
 use cosmrs::tendermint::abci::EventAttribute;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, Indexer,
-    InterchainGasPaymaster, U256,
+    InterchainGasPaymaster, SequenceIndexer, U256,
 };
 use hyperlane_core::{HyperlaneDomain, HyperlaneProvider, InterchainGasPayment, LogMeta, H256};
 use std::ops::RangeInclusive;
+use tracing::info;
 
 use crate::grpc::WasmGrpcProvider;
 use crate::rpc::{CosmosWasmIndexer, WasmIndexer};
@@ -14,22 +15,23 @@ use crate::ConnectionConf;
 
 /// A reference to a InterchainGasPaymaster contract on some Cosmos chain
 #[derive(Debug)]
-pub struct CosmosInterchainGasPaymaster<'a> {
-    _conf: &'a ConnectionConf,
-    locator: &'a ContractLocator<'a>,
-    _signer: &'a Signer,
-    _provider: Box<WasmGrpcProvider<'a>>,
+pub struct CosmosInterchainGasPaymaster {
+    _conf: ConnectionConf,
+    domain: HyperlaneDomain,
+    address: H256,
+    _signer: Signer,
+    _provider: Box<WasmGrpcProvider>,
 }
 
-impl HyperlaneContract for CosmosInterchainGasPaymaster<'_> {
+impl HyperlaneContract for CosmosInterchainGasPaymaster {
     fn address(&self) -> H256 {
-        self.locator.address
+        self.address
     }
 }
 
-impl HyperlaneChain for CosmosInterchainGasPaymaster<'_> {
+impl HyperlaneChain for CosmosInterchainGasPaymaster {
     fn domain(&self) -> &HyperlaneDomain {
-        self.locator.domain
+        &self.domain
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
@@ -37,16 +39,17 @@ impl HyperlaneChain for CosmosInterchainGasPaymaster<'_> {
     }
 }
 
-impl InterchainGasPaymaster for CosmosInterchainGasPaymaster<'_> {}
+impl InterchainGasPaymaster for CosmosInterchainGasPaymaster {}
 
-impl<'a> CosmosInterchainGasPaymaster<'a> {
+impl CosmosInterchainGasPaymaster {
     /// create new Cosmos InterchainGasPaymaster agent
-    pub fn new(conf: &'a ConnectionConf, locator: &'a ContractLocator, signer: &'a Signer) -> Self {
-        let provider = WasmGrpcProvider::new(conf, locator, signer);
+    pub fn new(conf: ConnectionConf, locator: ContractLocator, signer: Signer) -> Self {
+        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer.clone());
 
         Self {
             _conf: conf,
-            locator,
+            domain: locator.domain.clone(),
+            address: locator.address,
             _signer: signer,
             _provider: Box::new(provider),
         }
@@ -55,15 +58,14 @@ impl<'a> CosmosInterchainGasPaymaster<'a> {
 
 /// A reference to a InterchainGasPaymasterIndexer contract on some Cosmos chain
 #[derive(Debug)]
-pub struct CosmosInterchainGasPaymasterIndexer<'a> {
-    indexer: Box<CosmosWasmIndexer<'a>>,
+pub struct CosmosInterchainGasPaymasterIndexer {
+    indexer: Box<CosmosWasmIndexer>,
 }
 
-impl<'a> CosmosInterchainGasPaymasterIndexer<'a> {
+impl CosmosInterchainGasPaymasterIndexer {
     /// create new Cosmos InterchainGasPaymasterIndexer agent
-    pub fn new(conf: &'a ConnectionConf, locator: &'a ContractLocator, event_type: String) -> Self {
-        let indexer: CosmosWasmIndexer<'_> =
-            CosmosWasmIndexer::new(conf, locator, event_type.clone());
+    pub fn new(conf: ConnectionConf, locator: ContractLocator, event_type: String) -> Self {
+        let indexer: CosmosWasmIndexer = CosmosWasmIndexer::new(conf, locator, event_type.clone());
 
         Self {
             indexer: Box::new(indexer),
@@ -98,7 +100,7 @@ impl<'a> CosmosInterchainGasPaymasterIndexer<'a> {
 }
 
 #[async_trait]
-impl Indexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer<'_> {
+impl Indexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
     async fn fetch_logs(
         &self,
         range: RangeInclusive<u32>,
@@ -116,5 +118,45 @@ impl Indexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer<'_> {
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         self.indexer.latest_block_height().await
+    }
+}
+
+#[async_trait]
+impl Indexer<H256> for CosmosInterchainGasPaymasterIndexer {
+    async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
+        let mut result: Vec<(InterchainGasPayment, LogMeta)> = vec![];
+        let parser = self.get_parser();
+
+        for block_number in range {
+            let logs = self.indexer.get_event_log(block_number, parser).await?;
+            result.extend(logs);
+        }
+
+        Ok(result
+            .into_iter()
+            .map(|(msg, meta)| (msg.message_id, meta))
+            .collect())
+    }
+
+    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+        self.indexer.latest_block_height().await
+    }
+}
+
+#[async_trait]
+impl SequenceIndexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
+    async fn sequence_at_tip(&self) -> ChainResult<(u32, u32)> {
+        // TODO: implement when sealevel scraper support is implemented
+        info!("Message delivery indexing not implemented");
+        Ok((1, 1))
+    }
+}
+
+#[async_trait]
+impl SequenceIndexer<H256> for CosmosInterchainGasPaymasterIndexer {
+    async fn sequence_at_tip(&self) -> ChainResult<(u32, u32)> {
+        // TODO: implement when sealevel scraper support is implemented
+        info!("Message delivery indexing not implemented");
+        Ok((1, 1))
     }
 }

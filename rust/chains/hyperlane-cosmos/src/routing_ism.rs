@@ -15,36 +15,38 @@ use crate::{
 
 /// A reference to a RoutingIsm contract on some Cosmos chain
 #[derive(Debug)]
-pub struct CosmosRoutingIsm<'a> {
-    _conf: &'a ConnectionConf,
-    locator: &'a ContractLocator<'a>,
-    _signer: &'a Signer,
-    provider: Box<WasmGrpcProvider<'a>>,
+pub struct CosmosRoutingIsm {
+    _conf: ConnectionConf,
+    domain: HyperlaneDomain,
+    address: H256,
+    _signer: Signer,
+    provider: Box<WasmGrpcProvider>,
 }
 
-impl<'a> CosmosRoutingIsm<'a> {
+impl CosmosRoutingIsm {
     /// create a new instance of CosmosRoutingIsm
-    pub fn new(conf: &'a ConnectionConf, locator: &'a ContractLocator, signer: &'a Signer) -> Self {
-        let provider = WasmGrpcProvider::new(conf, locator, signer);
+    pub fn new(conf: ConnectionConf, locator: ContractLocator, signer: Signer) -> Self {
+        let provider = WasmGrpcProvider::new(conf.clone(), locator.clone(), signer.clone());
 
         Self {
             _conf: conf,
-            locator,
+            domain: locator.domain.clone(),
+            address: locator.address,
             _signer: signer,
             provider: Box::new(provider),
         }
     }
 }
 
-impl HyperlaneContract for CosmosRoutingIsm<'_> {
+impl HyperlaneContract for CosmosRoutingIsm {
     fn address(&self) -> H256 {
-        self.locator.address
+        self.address
     }
 }
 
-impl HyperlaneChain for CosmosRoutingIsm<'_> {
+impl HyperlaneChain for CosmosRoutingIsm {
     fn domain(&self) -> &HyperlaneDomain {
-        self.locator.domain
+        &self.domain
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
@@ -53,7 +55,7 @@ impl HyperlaneChain for CosmosRoutingIsm<'_> {
 }
 
 #[async_trait]
-impl RoutingIsm for CosmosRoutingIsm<'_> {
+impl RoutingIsm for CosmosRoutingIsm {
     async fn route(&self, message: &HyperlaneMessage) -> ChainResult<H256> {
         let payload = IsmRouteRequest {
             route: IsmRouteRequestInner {
