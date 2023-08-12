@@ -85,7 +85,7 @@ impl WasmGrpcProvider<'_> {
         }
     }
 
-    pub fn get_conn_url(&self) -> ChainResult<String> {
+    fn get_conn_url(&self) -> ChainResult<String> {
         self.conf
             .get_grpc_url()
             .map_err(|_| ChainCommunicationError::NotMatchConnectionType {
@@ -93,7 +93,7 @@ impl WasmGrpcProvider<'_> {
             })
     }
 
-    pub fn get_contract_addr(&self) -> ChainResult<String> {
+    fn get_contract_addr(&self) -> ChainResult<String> {
         verify::digest_to_addr(self.locator.address, self.signer.prefix.as_str())
     }
 }

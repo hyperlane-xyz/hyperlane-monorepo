@@ -3,10 +3,14 @@ use cosmrs::rpc::client::{Client, CompatMode, HttpClient, HttpClientUrl};
 use cosmrs::tendermint::abci::EventAttribute;
 use cosmrs::tendermint::hash::Algorithm;
 use cosmrs::tendermint::Hash;
-use hyperlane_core::{ChainResult, LogMeta, H256, U256};
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, ContractLocator, LogMeta, H256, H512, U256,
+};
 use sha256::digest;
 
-use crate::verify::bech32_decode;
+use crate::signers::Signer;
+use crate::verify::{self, bech32_decode};
+use crate::ConnectionConf;
 
 #[async_trait]
 /// Trait for wasm indexer. Use rpc provider
@@ -25,31 +29,60 @@ pub trait WasmIndexer: Send + Sync {
         T: Send + Sync;
 }
 
+// #[derive(Debug)]
+// /// Cosmwasm RPC Provider
+// pub struct CosmosWasmIndexer {
+//     address: String,
+//     rpc_endpoint: HttpClientUrl, // rpc_endpoint
+//     target_type: String,
+// }
+
 #[derive(Debug)]
 /// Cosmwasm RPC Provider
-pub struct CosmosWasmIndexer {
-    address: String,
-    rpc_endpoint: HttpClientUrl, // rpc_endpoint
-    target_type: String,
+pub struct CosmosWasmIndexer<'a> {
+    conf: &'a ConnectionConf,
+    locator: &'a ContractLocator<'a>,
+    signer: &'a Signer,
+    event_type: String,
 }
 
-impl CosmosWasmIndexer {
+impl CosmosWasmIndexer<'_> {
     const WASM_TYPE: &str = "wasm";
 
     /// create new Cosmwasm RPC Provider
-    pub fn new(address: String, target_type: String, rpc_endpoint: HttpClientUrl) -> Self {
+    pub fn new(
+        conf: &ConnectionConf,
+        locator: &ContractLocator,
+        signer: &Signer,
+        event_type: String,
+    ) -> Self {
         Self {
-            address,
-            target_type,
-            rpc_endpoint,
+            conf,
+            locator,
+            signer,
+            event_type,
         }
+    }
+
+    /// get rpc client url
+    fn get_conn_url(&self) -> ChainResult<String> {
+        self.conf
+            .get_rpc_url()
+            .map_err(|_| ChainCommunicationError::NotMatchConnectionType {
+                msg: "rpc".to_string(),
+            })
+    }
+
+    /// get contract address
+    pub fn get_contract_addr(&self) -> ChainResult<String> {
+        verify::digest_to_addr(self.locator.address, self.signer.prefix.as_str())
     }
 }
 
 #[async_trait]
-impl WasmIndexer for CosmosWasmIndexer {
+impl WasmIndexer for CosmosWasmIndexer<'_> {
     fn get_client(&self) -> ChainResult<HttpClient> {
-        Ok(HttpClient::builder(self.rpc_endpoint.clone())
+        Ok(HttpClient::builder(self.get_conn_url()?.parse()?)
             .compat_mode(CompatMode::V0_34)
             .build()?)
     }
@@ -92,6 +125,7 @@ impl WasmIndexer for CosmosWasmIndexer {
 
         let mut result: Vec<(T, LogMeta)> = vec![];
         let tx_results = block_result.txs_results.unwrap();
+        let addr = self.get_contract_addr()?;
 
         for (idx, tx) in tx_results.iter().enumerate() {
             let tx_hash = tx_hash[idx];
@@ -101,19 +135,19 @@ impl WasmIndexer for CosmosWasmIndexer {
 
             for (log_idx, event) in tx.events.clone().iter().enumerate() {
                 if event.kind.as_str().starts_with(Self::WASM_TYPE)
-                    && event.attributes[0].value == self.address
+                    && event.attributes[0].value == addr
                 {
                     available = true;
-                } else if event.kind.as_str() != self.target_type.as_str() {
+                } else if event.kind.as_str() != self.event_type {
                     continue;
                 }
 
                 let msg = parser(event.attributes.clone());
                 let meta = LogMeta {
-                    address: bech32_decode(self.address.clone()),
+                    address: bech32_decode(addr.clone()),
                     block_number: block_number as u64,
                     block_hash: H256::from_slice(block.block_id.hash.as_bytes()),
-                    transaction_hash: H256::from_slice(tx_hash.clone().as_bytes()),
+                    transaction_id: H512::from_slice(tx_hash.clone().as_bytes()),
                     transaction_index: idx as u64,
                     log_index: U256::from(log_idx),
                 };

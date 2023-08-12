@@ -1,13 +1,13 @@
 use std::fmt::{Debug, Formatter};
 use std::num::NonZeroU64;
+use std::ops::RangeInclusive;
 
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
 use crate::payloads::mailbox::{ProcessMessageRequest, ProcessMessageRequestInner};
 use crate::payloads::{general, mailbox};
 use crate::rpc::{CosmosWasmIndexer, WasmIndexer};
-use crate::{verify, ConnectionConf, Signer};
+use crate::{signers::Signer, verify, ConnectionConf};
 use async_trait::async_trait;
-use cosmrs::crypto::secp256k1::SigningKey;
 
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::proto::cosmos::tx::v1beta1::SimulateResponse;
@@ -18,41 +18,41 @@ use hyperlane_core::{
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
     Indexer, LogMeta, Mailbox, TxCostEstimate, TxOutcome, H256, U256,
 };
-use hyperlane_core::{ContractLocator, RawHyperlaneMessage};
+use hyperlane_core::{ContractLocator, RawHyperlaneMessage, H512};
 use tracing::instrument;
 
 /// A reference to a Mailbox contract on some Cosmos chain
 pub struct CosmosMailbox<'a> {
-    domain: HyperlaneDomain,
-    address: String,
-    prefix: String,
+    conf: &'a ConnectionConf,
+    locator: &'a ContractLocator<'a>,
+    signer: &'a Signer,
     provider: Box<WasmGrpcProvider<'a>>,
 }
 
-impl CosmosMailbox {
+impl CosmosMailbox<'_> {
     /// Create a reference to a mailbox at a specific Ethereum address on some
     /// chain
-    pub fn new(conf: &ConnectionConf, locator: &ContractLocator, signer: Signer) -> Self {
+    pub fn new(conf: &ConnectionConf, locator: &ContractLocator, signer: &Signer) -> Self {
         let provider = WasmGrpcProvider::new(conf, locator, signer);
 
         Self {
-            domain,
-            address,
-            prefix,
+            conf,
+            locator,
+            signer,
             provider: Box::new(provider),
         }
     }
 }
 
-impl HyperlaneContract for CosmosMailbox {
+impl HyperlaneContract for CosmosMailbox<'_> {
     fn address(&self) -> H256 {
-        verify::bech32_decode(self.address.clone())
+        self.locator.address
     }
 }
 
-impl HyperlaneChain for CosmosMailbox {
+impl HyperlaneChain for CosmosMailbox<'_> {
     fn domain(&self) -> &HyperlaneDomain {
-        &self.domain
+        &self.locator.domain
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
@@ -60,14 +60,14 @@ impl HyperlaneChain for CosmosMailbox {
     }
 }
 
-impl Debug for CosmosMailbox {
+impl Debug for CosmosMailbox<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self as &dyn HyperlaneContract)
     }
 }
 
 #[async_trait]
-impl Mailbox for CosmosMailbox {
+impl Mailbox for CosmosMailbox<'_> {
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
         let payload = mailbox::MerkleTreeRequest {
@@ -135,7 +135,7 @@ impl Mailbox for CosmosMailbox {
 
     #[instrument(err, ret, skip(self))]
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
-        let address = verify::digest_to_addr(recipient, &self.prefix)?;
+        let address = verify::digest_to_addr(recipient, &self.signer.prefix)?;
 
         let payload = mailbox::DefaultIsmRequest {
             default_ism: general::EmptyStruct {},
@@ -168,7 +168,7 @@ impl Mailbox for CosmosMailbox {
             .wasm_send(process_message, tx_gas_limit)
             .await?;
         Ok(TxOutcome {
-            txid: H256::from_slice(hex::decode(response.txhash).unwrap().as_slice()),
+            transaction_id: H512::from_slice(hex::decode(response.txhash).unwrap().as_slice()),
             executed: response.code == 0,
             gas_used: U256::from(response.gas_used),
             gas_price: U256::from(response.gas_wanted),
@@ -205,21 +205,30 @@ impl Mailbox for CosmosMailbox {
 
 /// Struct that retrieves event data for a Cosmos Mailbox contract
 #[derive(Debug)]
-pub struct CosmosMailboxIndexer {
-    indexer: Box<CosmosWasmIndexer>,
+pub struct CosmosMailboxIndexer<'a> {
+    conf: &'a ConnectionConf,
+    locator: &'a ContractLocator<'a>,
+    signer: &'a Signer,
+    event_type: String,
+    indexer: Box<CosmosWasmIndexer<'a>>,
 }
 
-impl CosmosMailboxIndexer {
+impl CosmosMailboxIndexer<'_> {
     /// Create a reference to a mailbox at a specific Ethereum address on some
     /// chain
-    pub fn new(address: String, rpc_endpoint: String) -> Self {
-        let indexer = CosmosWasmIndexer::new(
-            address,
-            "mailbox_dispatch".to_string(),
-            rpc_endpoint.parse().unwrap(),
-        );
+    pub fn new(
+        conf: &ConnectionConf,
+        locator: &ContractLocator,
+        signer: &Signer,
+        event_type: String,
+    ) -> Self {
+        let indexer = CosmosWasmIndexer::new(conf, locator, signer, event_type);
 
         Self {
+            conf,
+            locator,
+            signer,
+            event_type,
             indexer: Box::new(indexer),
         }
     }
@@ -254,16 +263,15 @@ impl CosmosMailboxIndexer {
 }
 
 #[async_trait]
-impl Indexer<HyperlaneMessage> for CosmosMailboxIndexer {
+impl Indexer<HyperlaneMessage> for CosmosMailboxIndexer<'_> {
     async fn fetch_logs(
         &self,
-        from: u32,
-        to: u32,
+        range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
         let mut result: Vec<(HyperlaneMessage, LogMeta)> = vec![];
         let parser = self.get_parser();
 
-        for block_number in from..to {
+        for block_number in range {
             let logs = self.indexer.get_event_log(block_number, parser).await?;
             result.extend(logs);
         }
@@ -277,12 +285,12 @@ impl Indexer<HyperlaneMessage> for CosmosMailboxIndexer {
 }
 
 #[async_trait]
-impl Indexer<H256> for CosmosMailboxIndexer {
-    async fn fetch_logs(&self, from: u32, to: u32) -> ChainResult<Vec<(H256, LogMeta)>> {
+impl Indexer<H256> for CosmosMailboxIndexer<'_> {
+    async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
         let mut result: Vec<(HyperlaneMessage, LogMeta)> = vec![];
         let parser: fn(Vec<EventAttribute>) -> HyperlaneMessage = self.get_parser();
 
-        for block_number in from..to {
+        for block_number in range {
             let logs = self.indexer.get_event_log(block_number, parser).await?;
             result.extend(logs);
         }

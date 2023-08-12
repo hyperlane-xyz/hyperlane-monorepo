@@ -16,10 +16,11 @@ use crate::{
 
 /// A reference to a MultisigIsm contract on some Cosmos chain
 #[derive(Debug)]
-pub struct CosmosMultisigIsm {
-    domain: HyperlaneDomain,
-    address: String,
-    provider: Box<WasmGrpcProvider>,
+pub struct CosmosMultisigIsm<'a> {
+    conf: &'a ConnectionConf,
+    locator: &'a ContractLocator<'a>,
+    signer: &'a Signer,
+    provider: Box<WasmGrpcProvider<'a>>,
 }
 
 impl CosmosMultisigIsm {
