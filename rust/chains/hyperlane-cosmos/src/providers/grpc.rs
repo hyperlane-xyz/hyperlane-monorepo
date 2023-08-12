@@ -20,12 +20,13 @@ use cosmrs::proto::traits::Message;
 
 use cosmrs::tx::{self, Fee, MessageExt, SignDoc, SignerInfo};
 use cosmrs::Coin;
-use hyperlane_core::{ChainResult, ContractLocator, U256};
+use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator, U256};
 use serde::Serialize;
 use std::num::NonZeroU64;
 use std::str::FromStr;
 
-use crate::{ConnectionConf, Signer};
+use crate::verify;
+use crate::{signers::Signer, ConnectionConf};
 
 #[async_trait]
 /// Cosmwasm GRPC Provider
@@ -70,11 +71,11 @@ pub trait WasmProvider: Send + Sync {
 /// Cosmwasm GRPC Provider
 pub struct WasmGrpcProvider<'a> {
     conf: &'a ConnectionConf,
-    locator: &'a ContractLocator,
+    locator: &'a ContractLocator<'a>,
     signer: &'a Signer,
 }
 
-impl WasmGrpcProvider {
+impl WasmGrpcProvider<'_> {
     /// create new Cosmwasm GRPC Provider
     pub fn new(conf: &ConnectionConf, locator: &ContractLocator, signer: &Signer) -> Self {
         Self {
@@ -83,13 +84,24 @@ impl WasmGrpcProvider {
             signer,
         }
     }
+
+    pub fn get_conn_url(&self) -> ChainResult<String> {
+        self.conf
+            .get_grpc_url()
+            .map_err(|_| ChainCommunicationError::NotMatchConnectionType {
+                msg: "grpc".to_string(),
+            })
+    }
+
+    pub fn get_contract_addr(&self) -> ChainResult<String> {
+        verify::digest_to_addr(self.locator.address, self.signer.prefix.as_str())
+    }
 }
 
 #[async_trait]
-impl WasmProvider for WasmGrpcProvider {
+impl WasmProvider for WasmGrpcProvider<'_> {
     async fn latest_block_height(&self) -> ChainResult<u64> {
-        let mut client = ServiceClient::connect(self.conf.get_grpc_url()?).await?;
-
+        let mut client = ServiceClient::connect(self.get_conn_url()?).await?;
         let request = tonic::Request::new(GetLatestBlockRequest {});
 
         let response = client.get_latest_block(request).await.unwrap().into_inner();
@@ -102,10 +114,10 @@ impl WasmProvider for WasmGrpcProvider {
     where
         T: Serialize + Send + Sync,
     {
-        let mut client = WasmQueryClient::connect(self.conf.get_grpc_url()?).await?;
+        let mut client = WasmQueryClient::connect(self.get_conn_url()?).await?;
 
         let mut request = tonic::Request::new(QuerySmartContractStateRequest {
-            address: self.address.clone(),
+            address: self.signer.address(),
             query_data: serde_json::to_string(&payload)?.as_bytes().to_vec(),
         });
 
@@ -137,8 +149,7 @@ impl WasmProvider for WasmGrpcProvider {
     where
         T: Serialize + Send + Sync,
     {
-        let mut client = WasmQueryClient::connect(self.grpc_endpoint.clone()).await?;
-
+        let mut client = WasmQueryClient::connect(self.get_conn_url()?).await?;
         let mut request = tonic::Request::new(QuerySmartContractStateRequest {
             address: to,
             query_data: serde_json::to_string(&payload)?.as_bytes().to_vec(),
@@ -164,7 +175,7 @@ impl WasmProvider for WasmGrpcProvider {
     }
 
     async fn account_query(&self, account: String) -> ChainResult<BaseAccount> {
-        let mut client = QueryAccountClient::connect(self.grpc_endpoint.clone()).await?;
+        let mut client = QueryAccountClient::connect(self.get_conn_url()?).await?;
 
         let request = tonic::Request::new(QueryAccountRequest { address: account });
         let response = client.account(request).await.unwrap().into_inner();
@@ -177,16 +188,17 @@ impl WasmProvider for WasmGrpcProvider {
     where
         T: Serialize + Send + Sync,
     {
-        let account_info = self.account_query(self.signer_address.clone()).await?;
+        let account_info = self.account_query(self.signer.address()).await?;
+        let contract_addr = self.get_contract_addr()?;
 
         let msg = MsgExecuteContract {
-            sender: self.address.clone(),
-            contract: self.address.clone(),
+            sender: contract_addr.clone(),
+            contract: contract_addr.clone(),
             msg: serde_json::to_string(&payload)?.as_bytes().to_vec(),
             funds: vec![],
         };
 
-        let private_key = SigningKey::from_slice(&self.private_key).unwrap();
+        let private_key = SigningKey::from_slice(&self.signer.private_key).unwrap();
         let public_key = private_key.public_key();
 
         let tx_body = tx::Body::new(vec![msg.to_any().unwrap()], "", 900u16);
@@ -198,7 +210,7 @@ impl WasmProvider for WasmGrpcProvider {
 
         let auth_info = signer_info.auth_info(Fee::from_amount_and_gas(
             Coin {
-                denom: format!("u{}", self.prefix).parse().unwrap(),
+                denom: format!("u{}", self.signer.prefix.clone()).parse().unwrap(),
                 amount: 10000u128,
             },
             gas_limit,
@@ -208,7 +220,7 @@ impl WasmProvider for WasmGrpcProvider {
         let sign_doc = SignDoc::new(
             &tx_body,
             &auth_info,
-            &self.chain_id.parse().unwrap(),
+            &self.conf.get_chain_id().parse().unwrap(),
             account_info.account_number,
         )
         .unwrap();
@@ -221,7 +233,7 @@ impl WasmProvider for WasmGrpcProvider {
     where
         T: Serialize + Send + Sync,
     {
-        let mut client = TxServiceClient::connect(self.grpc_endpoint.clone()).await?;
+        let mut client = TxServiceClient::connect(self.get_conn_url()?).await?;
         let tx_bytes = self.generate_raw_tx(payload, gas_limit).await?;
         let request = tonic::Request::new(BroadcastTxRequest {
             tx_bytes,
@@ -236,7 +248,7 @@ impl WasmProvider for WasmGrpcProvider {
     where
         T: Serialize + Send + Sync,
     {
-        let mut client = TxServiceClient::connect(self.grpc_endpoint.clone()).await?;
+        let mut client = TxServiceClient::connect(self.get_conn_url()?).await?;
         let tx_bytes = self.generate_raw_tx(payload, None).await?;
 
         let request = tonic::Request::new(SimulateRequest { tx: None, tx_bytes });
