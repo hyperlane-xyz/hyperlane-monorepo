@@ -23,7 +23,7 @@ use tracing::instrument;
 
 /// A reference to a Mailbox contract on some Cosmos chain
 pub struct CosmosMailbox<'a> {
-    conf: &'a ConnectionConf,
+    _conf: &'a ConnectionConf,
     locator: &'a ContractLocator<'a>,
     signer: &'a Signer,
     provider: Box<WasmGrpcProvider<'a>>,
@@ -36,7 +36,7 @@ impl<'a> CosmosMailbox<'a> {
         let provider = WasmGrpcProvider::new(conf, locator, signer);
 
         Self {
-            conf,
+            _conf: conf,
             locator,
             signer,
             provider: Box::new(provider),
@@ -52,7 +52,7 @@ impl HyperlaneContract for CosmosMailbox<'_> {
 
 impl HyperlaneChain for CosmosMailbox<'_> {
     fn domain(&self) -> &HyperlaneDomain {
-        &self.locator.domain
+        self.locator.domain
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
@@ -62,7 +62,8 @@ impl HyperlaneChain for CosmosMailbox<'_> {
 
 impl Debug for CosmosMailbox<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        Debug::fmt(&(self as &dyn HyperlaneContract), f)
+        // Debug::fmt(&(self as &dyn HyperlaneContract), f)
+        todo!()
     }
 }
 
@@ -206,10 +207,6 @@ impl Mailbox for CosmosMailbox<'_> {
 /// Struct that retrieves event data for a Cosmos Mailbox contract
 #[derive(Debug)]
 pub struct CosmosMailboxIndexer<'a> {
-    conf: &'a ConnectionConf,
-    locator: &'a ContractLocator<'a>,
-    signer: &'a Signer,
-    event_type: String,
     indexer: Box<CosmosWasmIndexer<'a>>,
 }
 
@@ -226,10 +223,6 @@ impl<'a> CosmosMailboxIndexer<'a> {
             CosmosWasmIndexer::new(conf, locator, signer, event_type.clone());
 
         Self {
-            conf,
-            locator,
-            signer,
-            event_type,
             indexer: Box::new(indexer),
         }
     }

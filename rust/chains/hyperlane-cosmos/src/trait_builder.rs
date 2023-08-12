@@ -4,9 +4,19 @@ use hyperlane_core::config::{ConfigErrResultExt, ConfigPath, ConfigResult, FromR
 #[derive(Debug, Clone)]
 pub enum ConnectionConf {
     /// Cosmos RPC URL
-    RpcUrl { url: String, chain_id: String },
+    RpcUrl {
+        /// The RPC URL
+        url: String,
+        /// The chain ID
+        chain_id: String,
+    },
     /// Cosmos GRPC URL
-    GrpcUrl { url: String, chain_id: String },
+    GrpcUrl {
+        /// The GRPC URL
+        url: String,
+        /// The chain ID
+        chain_id: String,
+    },
 }
 
 /// Raw Cosmos connection configuration used for better deserialization errors.
@@ -91,6 +101,7 @@ impl ConnectionConf {
         }
     }
 
+    /// Get the chain ID
     pub fn get_chain_id(&self) -> String {
         match self {
             ConnectionConf::GrpcUrl { chain_id, .. } => chain_id.clone(),

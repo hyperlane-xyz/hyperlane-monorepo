@@ -48,10 +48,6 @@ impl CosmosInterchainGasPaymaster {
 /// A reference to a InterchainGasPaymasterIndexer contract on some Cosmos chain
 #[derive(Debug)]
 pub struct CosmosInterchainGasPaymasterIndexer<'a> {
-    conf: &'a ConnectionConf,
-    locator: &'a ContractLocator<'a>,
-    signer: &'a Signer,
-    event_type: String,
     indexer: Box<CosmosWasmIndexer<'a>>,
 }
 
@@ -67,10 +63,6 @@ impl<'a> CosmosInterchainGasPaymasterIndexer<'a> {
             CosmosWasmIndexer::new(conf, locator, signer, event_type.clone());
 
         Self {
-            conf,
-            locator,
-            signer,
-            event_type,
             indexer: Box::new(indexer),
         }
     }

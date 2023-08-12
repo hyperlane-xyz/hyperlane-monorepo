@@ -16,9 +16,9 @@ use crate::{
 /// A reference to a RoutingIsm contract on some Cosmos chain
 #[derive(Debug)]
 pub struct CosmosRoutingIsm<'a> {
-    conf: &'a ConnectionConf,
+    _conf: &'a ConnectionConf,
     locator: &'a ContractLocator<'a>,
-    signer: &'a Signer,
+    _signer: &'a Signer,
     provider: Box<WasmGrpcProvider<'a>>,
 }
 
@@ -28,9 +28,9 @@ impl<'a> CosmosRoutingIsm<'a> {
         let provider = WasmGrpcProvider::new(conf, locator, signer);
 
         Self {
-            conf,
+            _conf: conf,
             locator,
-            signer,
+            _signer: signer,
             provider: Box::new(provider),
         }
     }
@@ -44,7 +44,7 @@ impl HyperlaneContract for CosmosRoutingIsm<'_> {
 
 impl HyperlaneChain for CosmosRoutingIsm<'_> {
     fn domain(&self) -> &HyperlaneDomain {
-        &self.locator.domain
+        self.locator.domain
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
