@@ -3,12 +3,9 @@ use cosmrs::rpc::client::{Client, CompatMode, HttpClient};
 use cosmrs::tendermint::abci::EventAttribute;
 use cosmrs::tendermint::hash::Algorithm;
 use cosmrs::tendermint::Hash;
-use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractLocator, LogMeta, H256, H512, U256,
-};
+use hyperlane_core::{ChainResult, ContractLocator, LogMeta, H256, H512, U256};
 use sha256::digest;
 
-use crate::signers::Signer;
 use crate::verify::{self, bech32_decode};
 use crate::ConnectionConf;
 
@@ -42,7 +39,6 @@ pub trait WasmIndexer: Send + Sync {
 pub struct CosmosWasmIndexer<'a> {
     conf: &'a ConnectionConf,
     locator: &'a ContractLocator<'a>,
-    signer: &'a Signer,
     event_type: String,
 }
 
@@ -50,32 +46,22 @@ impl<'a> CosmosWasmIndexer<'a> {
     const WASM_TYPE: &str = "wasm";
 
     /// create new Cosmwasm RPC Provider
-    pub fn new(
-        conf: &'a ConnectionConf,
-        locator: &'a ContractLocator,
-        signer: &'a Signer,
-        event_type: String,
-    ) -> Self {
+    pub fn new(conf: &'a ConnectionConf, locator: &'a ContractLocator, event_type: String) -> Self {
         Self {
             conf,
             locator,
-            signer,
             event_type,
         }
     }
 
     /// get rpc client url
     fn get_conn_url(&self) -> ChainResult<String> {
-        self.conf
-            .get_rpc_url()
-            .map_err(|_| ChainCommunicationError::NotMatchConnectionType {
-                msg: "rpc".to_string(),
-            })
+        Ok(self.conf.get_rpc_url())
     }
 
     /// get contract address
     pub fn get_contract_addr(&self) -> ChainResult<String> {
-        verify::digest_to_addr(self.locator.address, self.signer.prefix.as_str())
+        verify::digest_to_addr(self.locator.address, self.conf.get_prefix().as_str())
     }
 }
 
