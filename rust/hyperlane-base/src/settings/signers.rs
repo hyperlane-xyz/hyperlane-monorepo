@@ -10,7 +10,7 @@ use rusoto_core::{HttpClient, HttpConfig, Region};
 use rusoto_kms::KmsClient;
 use tracing::instrument;
 
-use ed25519_dalek::{SecretKey, Signer};
+use ed25519_dalek::SecretKey;
 use hyperlane_sealevel::Keypair;
 
 use super::aws_credentials::AwsChainCredentialsProvider;
@@ -32,7 +32,12 @@ pub enum SignerConf {
         region: Region,
     },
     /// Cosmos Specific key
-    CosmosKey { key: H256, prefix: String },
+    CosmosKey {
+        /// Private key value
+        key: H256,
+        /// Prefix for cosmos address
+        prefix: String,
+    },
     /// Assume node will sign on RPC calls
     #[default]
     Node,
@@ -113,6 +118,20 @@ impl BuildableWithSignerConf for Keypair {
             SignerConf::Aws { .. } => bail!("Aws signer is not supported by fuel"),
             SignerConf::CosmosKey { .. } => bail!("Cosmos signer is not supported by fuel"),
             SignerConf::Node => bail!("Node signer is not supported by fuel"),
+        })
+    }
+}
+
+#[async_trait]
+impl BuildableWithSignerConf for hyperlane_cosmos::Signer {
+    async fn build(conf: &SignerConf) -> Result<Self, Report> {
+        Ok(match conf {
+            SignerConf::HexKey { .. } => bail!("HexKey signer is not supported by cosmos"),
+            SignerConf::Aws { .. } => bail!("Aws signer is not supported by cosmos"),
+            SignerConf::CosmosKey { key, prefix } => {
+                hyperlane_cosmos::Signer::new(key.as_bytes().to_vec(), prefix.clone())
+            }
+            SignerConf::Node => bail!("Node signer is not supported by cosmos"),
         })
     }
 }

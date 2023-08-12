@@ -1,4 +1,7 @@
 use ethers::{prelude::Selector, types::Chain};
+use std::collections::HashMap;
+
+use ethers::prelude::Selector;
 use eyre::{eyre, Context, Result};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -85,7 +88,7 @@ impl FromRawConf<'_, RawChainConnectionConf> for ChainConnectionConf {
             Ethereum(r) => Ok(Self::Ethereum(r.parse_config(&cwp.join("connection"))?)),
             Fuel(r) => Ok(Self::Fuel(r.parse_config(&cwp.join("connection"))?)),
             Sealevel(r) => Ok(Self::Sealevel(r.parse_config(&cwp.join("connection"))?)),
-            Cosmos(r) => Ok(Self::Cosmos(r.parse_config(&cwp.join("connection")))),
+            Cosmos(r) => Ok(Self::Cosmos(r.parse_config(&cwp.join("connection"))?)),
             Unknown => {
                 Err(eyre!("Unknown chain protocol")).into_config_result(|| cwp.join("protocol"))
             }
@@ -178,7 +181,11 @@ impl ChainConf {
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
-                h_cosmos::CosmosMailbox::new(conf, &locator, signer)
+                Ok(Box::new(h_cosmos::CosmosMailbox::new(
+                    conf.clone(),
+                    locator.clone(),
+                    signer.clone().unwrap(),
+                )) as Box<dyn Mailbox>)
             }
         }
         .context(ctx)
@@ -241,11 +248,13 @@ impl ChainConf {
                 Ok(indexer as Box<dyn SequenceIndexer<HyperlaneMessage>>)
             }
             ChainConnectionConf::Cosmos(conf) => {
+                let signer = self.cosmos_signer().await.context(ctx)?.unwrap();
                 let indexer = Box::new(h_cosmos::CosmosMailboxIndexer::new(
-                    conf,
-                    &locator,
+                    conf.clone(),
+                    locator,
+                    signer.clone(),
                     "mailbox_dispatch".to_string(), // TODO: is this correct for?
-                )?);
+                ));
                 Ok(indexer as Box<dyn MessageIndexer>)
             }
         }
@@ -278,12 +287,14 @@ impl ChainConf {
                 Ok(indexer as Box<dyn SequenceIndexer<H256>>)
             }
             ChainConnectionConf::Cosmos(conf) => {
+                let signer = self.cosmos_signer().await.context(ctx)?.unwrap();
                 let indexer = Box::new(h_cosmos::CosmosMailboxIndexer::new(
-                    conf,
-                    &locator,
+                    conf.clone(),
+                    locator,
+                    signer,
                     "mailbox_process".to_string(), // TODO: is this correct for?
-                )?);
-                Ok(indexer as Box<dyn MessageIndexer>)
+                ));
+                Ok(indexer as Box<dyn SequenceIndexer<H256>>)
             }
         }
         .context(ctx)
@@ -318,7 +329,9 @@ impl ChainConf {
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
                 let paymaster = Box::new(h_cosmos::CosmosInterchainGasPaymaster::new(
-                    conf, &locator, signer,
+                    conf.clone(),
+                    locator.clone(),
+                    signer.unwrap().clone(),
                 ));
                 Ok(paymaster as Box<dyn InterchainGasPaymaster>)
             }
@@ -356,8 +369,8 @@ impl ChainConf {
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let indexer = Box::new(h_cosmos::CosmosInterchainGasPaymasterIndexer::new(
-                    conf,
-                    &locator,
+                    conf.clone(),
+                    locator,
                     "pay-for-gas".to_string(),
                 ));
                 Ok(indexer as Box<dyn SequenceIndexer<InterchainGasPayment>>)
@@ -404,6 +417,7 @@ impl ChainConf {
         &self,
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn ValidatorAnnounce>> {
+        let ctx = "Building validator announce";
         let locator = self.locator(self.addresses.validator_announce);
         match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
@@ -418,7 +432,9 @@ impl ChainConf {
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
                 let va = Box::new(h_cosmos::CosmosValidatorAnnounce::new(
-                    conf, &locator, signer,
+                    conf.clone(),
+                    locator.clone(),
+                    signer.unwrap().clone(),
                 ));
 
                 Ok(va as Box<dyn ValidatorAnnounce>)
@@ -455,13 +471,7 @@ impl ChainConf {
                 ));
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
-            ChainConnectionConf::Cosmos(conf) => {
-                let signer = self.cosmos_signer().await.context(ctx)?;
-                let ism = Box::new(h_cosmos::CosmosInterchainSecurityModule::new(
-                    conf, &locator, signer,
-                ));
-                Ok(ism as Box<dyn InterchainSecurityModule>)
-            }
+            ChainConnectionConf::Cosmos(_conf) => todo!(),
         }
         .context(ctx)
     }
@@ -489,7 +499,11 @@ impl ChainConf {
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
-                let ism = Box::new(h_cosmos::CosmosMultisigIsm::new(conf, &locator, signer));
+                let ism = Box::new(h_cosmos::CosmosMultisigIsm::new(
+                    conf.clone(),
+                    locator.clone(),
+                    signer.unwrap().clone(),
+                ));
                 Ok(ism as Box<dyn MultisigIsm>)
             }
         }
@@ -519,7 +533,11 @@ impl ChainConf {
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
-                let ism = Box::new(h_cosmos::CosmosRoutingIsm::new(conf, &locator, signer));
+                let ism = Box::new(h_cosmos::CosmosRoutingIsm::new(
+                    conf.clone(),
+                    locator.clone(),
+                    signer.unwrap().clone(),
+                ));
                 Ok(ism as Box<dyn RoutingIsm>)
             }
         }
