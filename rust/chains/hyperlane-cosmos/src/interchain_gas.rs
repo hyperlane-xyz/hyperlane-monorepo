@@ -7,7 +7,7 @@ use hyperlane_core::{
 use hyperlane_core::{HyperlaneDomain, HyperlaneProvider, InterchainGasPayment, LogMeta, H256};
 use std::ops::RangeInclusive;
 
-use crate::grpc::{WasmGrpcProvider, WasmProvider};
+use crate::grpc::WasmGrpcProvider;
 use crate::rpc::{CosmosWasmIndexer, WasmIndexer};
 use crate::signers::Signer;
 use crate::ConnectionConf;
