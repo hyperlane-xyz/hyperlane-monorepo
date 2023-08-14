@@ -41,7 +41,7 @@ contract ConfigurableDomainRoutingHook is DomainRoutingHook {
                 message
             );
         } else {
-            super.postDispatch(metadata, message);
+            customHookPreset.postDispatch{value: msg.value}(metadata, message);
         }
     }
 
