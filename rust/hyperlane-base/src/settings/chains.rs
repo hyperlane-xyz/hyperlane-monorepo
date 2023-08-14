@@ -31,6 +31,32 @@ use crate::{
     CoreMetrics, SignerConf,
 };
 
+//////////////////////////
+// PARSED CONFIG TYPES //
+////////////////////////
+
+/// A chain setup is a domain ID, an address on that chain (where the mailbox is
+/// deployed) and details for connecting to the chain API.
+#[derive(Clone, Debug)]
+pub struct ChainConf {
+    /// The domain
+    pub domain: HyperlaneDomain,
+    /// Signer configuration for this chain
+    pub signer: Option<SignerConf>,
+    /// Number of blocks until finality
+    pub finality_blocks: u32,
+    /// Addresses of contracts on the chain
+    pub addresses: CoreContractAddresses,
+    /// The chain connection details
+    pub connection: Option<ChainConnectionConf>,
+    /// Configure chain-specific metrics information. This will automatically
+    /// add all contract addresses but will not override any set explicitly.
+    /// Use `metrics_conf()` to get the metrics.
+    pub metrics_conf: PrometheusMiddlewareConf,
+    /// Settings for event indexing
+    pub index: IndexSettings,
+}
+
 /// A connection to _some_ blockchain.
 #[derive(Clone, Debug)]
 pub enum ChainConnectionConf {
@@ -42,15 +68,39 @@ pub enum ChainConnectionConf {
     Sealevel(h_sealevel::ConnectionConf),
 }
 
-#[derive(Deserialize, Debug)]
-#[serde(tag = "protocol", content = "connection", rename_all = "camelCase")]
-enum DeprecatedRawChainConnectionConf {
-    Ethereum(h_eth::RawConnectionConf),
-    Fuel(h_fuel::RawConnectionConf),
-    Sealevel(h_sealevel::RawConnectionConf),
-    #[serde(other)]
-    Unknown,
+impl ChainConnectionConf {
+    fn protocol(&self) -> HyperlaneDomainProtocol {
+        match self {
+            Self::Ethereum(_) => HyperlaneDomainProtocol::Ethereum,
+            Self::Fuel(_) => HyperlaneDomainProtocol::Fuel,
+            Self::Sealevel(_) => HyperlaneDomainProtocol::Sealevel,
+        }
+    }
 }
+
+/// Addresses for mailbox chain contracts
+#[derive(Clone, Debug, Default)]
+pub struct CoreContractAddresses {
+    /// Address of the mailbox contract
+    pub mailbox: H256,
+    /// Address of the InterchainGasPaymaster contract
+    pub interchain_gas_paymaster: H256,
+    /// Address of the ValidatorAnnounce contract
+    pub validator_announce: H256,
+}
+
+/// Indexing settings
+#[derive(Debug, Default, Clone)]
+pub struct IndexSettings {
+    /// The height at which to start indexing contracts.
+    pub from: u32,
+    /// The number of blocks to query at once when indexing contracts.
+    pub chunk_size: u32,
+}
+
+////////////////////
+// NEW RAW TYPES //
+//////////////////
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -177,7 +227,20 @@ struct RawAgentLogConf {
     level: Option<String>,
 }
 
-#[allow(deprecated)]
+///////////////////////////
+// DEPRECATED RAW TYPES //
+/////////////////////////
+
+#[derive(Deserialize, Debug)]
+#[serde(tag = "protocol", content = "connection", rename_all = "camelCase")]
+enum DeprecatedRawChainConnectionConf {
+    Ethereum(h_eth::RawConnectionConf),
+    Fuel(h_fuel::RawConnectionConf),
+    Sealevel(h_sealevel::RawConnectionConf),
+    #[serde(other)]
+    Unknown,
+}
+
 impl FromRawConf<'_, DeprecatedRawChainConnectionConf> for ChainConnectionConf {
     fn from_config_filtered(
         raw: DeprecatedRawChainConnectionConf,
@@ -194,27 +257,6 @@ impl FromRawConf<'_, DeprecatedRawChainConnectionConf> for ChainConnectionConf {
             }
         }
     }
-}
-
-impl ChainConnectionConf {
-    fn protocol(&self) -> HyperlaneDomainProtocol {
-        match self {
-            Self::Ethereum(_) => HyperlaneDomainProtocol::Ethereum,
-            Self::Fuel(_) => HyperlaneDomainProtocol::Fuel,
-            Self::Sealevel(_) => HyperlaneDomainProtocol::Sealevel,
-        }
-    }
-}
-
-/// Addresses for mailbox chain contracts
-#[derive(Clone, Debug, Default)]
-pub struct CoreContractAddresses {
-    /// Address of the mailbox contract
-    pub mailbox: H256,
-    /// Address of the InterchainGasPaymaster contract
-    pub interchain_gas_paymaster: H256,
-    /// Address of the ValidatorAnnounce contract
-    pub validator_announce: H256,
 }
 
 #[derive(Debug, Deserialize)]
@@ -261,15 +303,6 @@ impl FromRawConf<'_, DeprecatedRawCoreContractAddresses> for CoreContractAddress
     }
 }
 
-/// Indexing settings
-#[derive(Debug, Default, Clone)]
-pub struct IndexSettings {
-    /// The height at which to start indexing contracts.
-    pub from: u32,
-    /// The number of blocks to query at once when indexing contracts.
-    pub chunk_size: u32,
-}
-
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RawIndexSettings {
@@ -298,28 +331,6 @@ impl FromRawConf<'_, RawIndexSettings> for IndexSettings {
         err.into_result()?;
         Ok(Self { from, chunk_size })
     }
-}
-
-/// A chain setup is a domain ID, an address on that chain (where the mailbox is
-/// deployed) and details for connecting to the chain API.
-#[derive(Clone, Debug)]
-pub struct ChainConf {
-    /// The domain
-    pub domain: HyperlaneDomain,
-    /// Signer configuration for this chain
-    pub signer: Option<SignerConf>,
-    /// Number of blocks until finality
-    pub finality_blocks: u32,
-    /// Addresses of contracts on the chain
-    pub addresses: CoreContractAddresses,
-    /// The chain connection details
-    pub connection: Option<ChainConnectionConf>,
-    /// Configure chain-specific metrics information. This will automatically
-    /// add all contract addresses but will not override any set explicitly.
-    /// Use `metrics_conf()` to get the metrics.
-    pub metrics_conf: PrometheusMiddlewareConf,
-    /// Settings for event indexing
-    pub index: IndexSettings,
 }
 
 /// A raw chain setup is a domain ID, an address on that chain (where the
@@ -419,6 +430,10 @@ impl FromRawConf<'_, DeprecatedRawChainConf> for ChainConf {
         })
     }
 }
+
+/////////////////////////
+// CHAIN CONF HELPERS //
+///////////////////////
 
 impl ChainConf {
     /// Get the chain connection config or generate an error
