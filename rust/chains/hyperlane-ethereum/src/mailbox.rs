@@ -3,23 +3,21 @@
 
 use std::collections::HashMap;
 use std::num::NonZeroU64;
-use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::abi::AbiEncode;
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
-use hyperlane_core::SequenceIndexer;
 use tracing::instrument;
 
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use hyperlane_core::accumulator::TREE_DEPTH;
 use hyperlane_core::{
-    utils::fmt_bytes, ChainCommunicationError, ChainResult, Checkpoint, ContractLocator,
-    HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProtocolError, HyperlaneProvider, Indexer, LogMeta, Mailbox, MessageIndexer,
-    RawHyperlaneMessage, TxCostEstimate, TxOutcome, H160, H256, U256,
+    utils::fmt_bytes, BlockRange, ChainCommunicationError, ChainResult, Checkpoint,
+    ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneMessage, HyperlaneProtocolError, HyperlaneProvider, IndexRange, Indexer, LogMeta,
+    Mailbox, MessageIndexer, RawHyperlaneMessage, TxCostEstimate, TxOutcome, H160, H256, U256,
 };
 
 use crate::contracts::arbitrum_node_interface::ArbitrumNodeInterface;
@@ -67,7 +65,7 @@ pub struct DeliveryIndexerBuilder {
 
 #[async_trait]
 impl BuildableWithProvider for DeliveryIndexerBuilder {
-    type Output = Box<dyn SequenceIndexer<H256>>;
+    type Output = Box<dyn Indexer<H256>>;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
@@ -132,10 +130,13 @@ where
     }
 
     #[instrument(err, skip(self))]
-    async fn fetch_logs(
-        &self,
-        range: RangeInclusive<u32>,
-    ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
+    async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
+        let BlockRange(range) = range else {
+            return Err(ChainCommunicationError::from_other_str(
+                "EthereumMailboxIndexer only supports block-based indexing",
+            ))
+        };
+
         let mut events: Vec<(HyperlaneMessage, LogMeta)> = self
             .contract
             .dispatch_filter()
@@ -177,7 +178,13 @@ where
     }
 
     #[instrument(err, skip(self))]
-    async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
+    async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(H256, LogMeta)>> {
+        let BlockRange(range) = range else {
+            return Err(ChainCommunicationError::from_other_str(
+                "EthereumMailboxIndexer only supports block-based indexing",
+            ))
+        };
+
         Ok(self
             .contract
             .process_id_filter()
@@ -190,17 +197,6 @@ where
             .collect())
     }
 }
-
-#[async_trait]
-impl<M> SequenceIndexer<H256> for EthereumMailboxIndexer<M>
-where
-    M: Middleware + 'static,
-{
-    async fn sequence_at_tip(&self) -> ChainResult<(u32, u32)> {
-        panic!("Message delivery sequence indexing not implemented");
-    }
-}
-
 pub struct MailboxBuilder {}
 
 #[async_trait]
