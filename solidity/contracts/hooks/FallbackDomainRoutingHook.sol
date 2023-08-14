@@ -44,13 +44,19 @@ contract DomainRoutingHook is IPostDispatchHook, MailboxClient, Ownable {
         virtual
         override
     {
-        try
+        if (_isHookSet(message.destination()))
             hooks[message.destination()].postDispatch{value: msg.value}(
                 metadata,
                 message
-            )
-        {} catch {
-            mailbox.defaultHook().postDispatch(metadata, message);
-        }
+            );
+        else
+            mailbox.defaultHook().postDispatch{value: msg.value}(
+                metadata,
+                message
+            );
+    }
+
+    function _isHookSet(uint32 destination) internal view returns (bool) {
+        return hooks[destination] != IPostDispatchHook(address(0));
     }
 }
