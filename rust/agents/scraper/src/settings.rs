@@ -65,8 +65,7 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
             })
             .unwrap_or_default();
 
-        err.into_result()?;
-        Ok(Self {
+        err.into_result(Self {
             base: base.unwrap(),
             db: db.unwrap(),
             chains_to_scrape,

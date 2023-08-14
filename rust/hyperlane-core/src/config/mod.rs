@@ -89,9 +89,9 @@ impl ConfigParsingError {
 
     /// Convert this error into a result, returning `Ok(())` if there are no
     /// errors.
-    pub fn into_result(self) -> ConfigResult<()> {
+    pub fn into_result<T>(self, val: T) -> ConfigResult<T> {
         if self.is_ok() {
-            Ok(())
+            Ok(val)
         } else {
             Err(self)
         }

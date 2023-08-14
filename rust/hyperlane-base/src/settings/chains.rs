@@ -230,8 +230,7 @@ impl FromRawConf<RawAgentChainMetadataConf> for ChainConf {
         let domain = (&raw).parse_config(cwp).take_config_err(&mut err);
 
         cfg_unwrap_all!(cwp, err: domain);
-
-        err.into_result().map(|_| Self {
+        err.into_result(Self {
             domain,
             signer: None,
             finality_blocks: 0,
@@ -297,7 +296,7 @@ impl FromRawConf<&RawAgentChainMetadataConf> for HyperlaneDomain {
             .take_err(&mut err, || cwp.clone());
 
         cfg_unwrap_all!(cwp, err: domain);
-        Ok(domain)
+        err.into_result(domain)
     }
 }
 
@@ -368,8 +367,7 @@ impl FromRawConf<DeprecatedRawCoreContractAddresses> for CoreContractAddresses {
         let igp = parse_addr!(interchain_gas_paymaster);
         let va = parse_addr!(validator_announce);
 
-        err.into_result()?;
-        Ok(Self {
+        err.into_result(Self {
             mailbox: mb.unwrap(),
             interchain_gas_paymaster: igp.unwrap(),
             validator_announce: va.unwrap(),
@@ -402,8 +400,7 @@ impl FromRawConf<RawIndexSettings> for IndexSettings {
             .and_then(|v| v.try_into().take_err(&mut err, || cwp + "chunk"))
             .unwrap_or(1999);
 
-        err.into_result()?;
-        Ok(Self { from, chunk_size })
+        err.into_result(Self { from, chunk_size })
     }
 }
 
@@ -492,8 +489,7 @@ impl FromRawConf<DeprecatedRawChainConf> for ChainConf {
 
         let metrics_conf = raw.metrics_conf.unwrap_or_default();
 
-        err.into_result()?;
-        Ok(Self {
+        err.into_result(Self {
             connection,
             domain: domain.unwrap(),
             addresses: addresses.unwrap(),

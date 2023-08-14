@@ -116,8 +116,7 @@ impl FromRawConf<DeprecatedRawSettings, Option<&HashSet<&str>>> for Settings {
             .and_then(|port| port.try_into().take_err(&mut err, || cwp + "metrics"))
             .unwrap_or(9090);
 
-        err.into_result()?;
-        Ok(Self {
+        err.into_result(Self {
             chains,
             metrics_port: metrics,
             tracing,

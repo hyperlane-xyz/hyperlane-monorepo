@@ -13,7 +13,7 @@ use tracing::warn;
 
 use hyperlane_base::{decl_settings, Settings};
 use hyperlane_core::config::*;
-use hyperlane_core::{HyperlaneDomain, U256};
+use hyperlane_core::{cfg_unwrap_all, HyperlaneDomain, U256};
 
 use crate::settings::matching_list::MatchingList;
 
@@ -128,8 +128,7 @@ impl FromRawConf<RawGasPaymentEnforcementConf> for GasPaymentEnforcementConf {
             });
 
         let matching_list = raw.matching_list.unwrap_or_default();
-        err.into_result()?;
-        Ok(Self {
+        err.into_result(Self {
             policy: policy.unwrap(),
             matching_list,
         })
@@ -363,7 +362,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .unwrap_or_default();
 
         if let Some(base) = &base {
-            for domain in destination_chains.iter() {
+            for domain in &destination_chains {
                 base.chain_setup(domain)
                     .unwrap()
                     .signer
@@ -373,9 +372,9 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             }
         }
 
-        err.into_result()?;
-        Ok(Self {
-            base: base.unwrap(),
+        cfg_unwrap_all!(cwp, err: base);
+        err.into_result(Self {
+            base,
             db,
             origin_chains,
             destination_chains,
