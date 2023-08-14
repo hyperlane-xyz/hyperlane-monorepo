@@ -68,11 +68,13 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
                     .take_config_err(&mut err)
             });
 
-        let reorg_period = raw
-            .reorgperiod
-            .ok_or_else(|| eyre!("Missing `reorgperiod`"))
-            .take_err(&mut err, || cwp + "reorgperiod")
-            .and_then(|r| r.try_into().take_err(&mut err, || cwp + "reorgperiod"));
+        // TODO: This
+        // let reorg_period = raw
+        //     .reorgperiod
+        //     .ok_or_else(|| eyre!("Missing `reorgperiod`"))
+        //     .take_err(&mut err, || cwp + "reorgperiod")
+        //     .and_then(|r| r.try_into().take_err(&mut err, || cwp + "reorgperiod"));
+        let reorg_period = None;
 
         let interval = raw
             .interval
@@ -119,8 +121,8 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
         if origin_chain.domain_protocol() == HyperlaneDomainProtocol::Ethereum {
             // if an EVM chain we can assume the chain signer is the validator signer when not
             // specified
-            if let Some(signer) = base.chains.get_mut(origin_chain.name()) {
-                signer.get_or_insert_with(|| validator.clone());
+            if let Some(chain) = base.chains.get_mut(origin_chain.name()) {
+                chain.signer.get_or_insert_with(|| validator.clone());
             }
         }
 
