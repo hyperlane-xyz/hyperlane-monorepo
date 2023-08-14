@@ -16,13 +16,11 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
-import {LibBit} from "../../libs/LibBit.sol";
 import {Message} from "../../libs/Message.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 
 // ============ External Imports ============
 
-import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
@@ -37,25 +35,16 @@ abstract contract AbstractMessageIdAuthorizedIsm is
     IInterchainSecurityModule,
     Initializable
 {
-    using Address for address payable;
-    using LibBit for uint256;
-    using Message for bytes;
     // ============ Public Storage ============
 
-    /// @notice Maps messageId to whether or not the message has been verified
-    /// first bit is boolean for verification
-    /// rest of bits is the amount to send to the recipient
-    /// @dev bc of the bit packing, we can only send up to 2^255 wei
-    mapping(bytes32 => uint256) public verifiedMessageIds;
-    /// @notice Index of verification bit in verifiedMessageIds
-    uint256 public constant MASK_INDEX = 255;
-    /// @notice Address for Hook on L1 responsible for sending message via the Optimism bridge
+    // Maps messageId to whether or not the sender attested to that message ID on the origin chain
+    // @dev anyone can send an untrusted messageId, so need to check for that while verifying
+    mapping(bytes32 => bool) public verifiedMessageIds;
+    // Address for Hook on L1 responsible for sending message via the Optimism bridge
     address public authorizedHook;
 
     // ============ Events ============
 
-    /// @notice Emitted when a message is received from the external bridge
-    /// Might be useful for debugging for the scraper
     event ReceivedMessage(bytes32 indexed messageId);
 
     // ============ Initializer ============
@@ -72,34 +61,30 @@ abstract contract AbstractMessageIdAuthorizedIsm is
 
     /**
      * @notice Verify a message was received by ISM.
-     * @param message Message to verify.
+     * @param _message Message to verify.
      */
     function verify(
         bytes calldata, /*_metadata*/
-        bytes calldata message
-    ) external returns (bool) {
-        bytes32 messageId = message.id();
+        bytes calldata _message
+    ) external view returns (bool) {
+        bytes32 _messageId = Message.id(_message);
 
-        /// @dev only caller needs to be aliased
-        payable(message.recipientAddress()).sendValue(
-            verifiedMessageIds[messageId].clearBit(MASK_INDEX)
-        );
-        return verifiedMessageIds[messageId].isBitSet(MASK_INDEX);
+        return verifiedMessageIds[_messageId];
     }
 
     /**
      * @notice Receive a message from the L2 messenger.
      * @dev Only callable by the L2 messenger.
-     * @param messageId Hyperlane Id of the message.
+     * @param _messageId Hyperlane ID for the message.
      */
-    function verifyMessageId(bytes32 messageId) external payable {
+    function verifyMessageId(bytes32 _messageId) external {
         require(
             _isAuthorized(),
             "AbstractMessageIdAuthorizedIsm: sender is not the hook"
         );
 
-        verifiedMessageIds[messageId] = msg.value.setBit(MASK_INDEX);
-        emit ReceivedMessage(messageId);
+        verifiedMessageIds[_messageId] = true;
+        emit ReceivedMessage(_messageId);
     }
 
     function _isAuthorized() internal view virtual returns (bool);

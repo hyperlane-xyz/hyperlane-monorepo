@@ -54,4 +54,18 @@ library IGPMetadata {
                 )
             );
     }
+
+    /**
+     * @notice Formats the specified gas limit and refund address into IGP hook metadata.
+     * @param _gasLimit Gas limit for the message.
+     * @param _refundAddress Refund address for the message.
+     * @return ABI encoded IGP hook metadata.
+     */
+    function formatMetadata(uint256 _gasLimit, address _refundAddress)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return abi.encodePacked(bytes32(_gasLimit), bytes20(_refundAddress));
+    }
 }

@@ -8,6 +8,7 @@ import {IGasOracle} from "../interfaces/IGasOracle.sol";
 import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 // ============ External Imports ============
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 /**
@@ -21,6 +22,7 @@ contract InterchainGasPaymaster is
     IGasOracle,
     OwnableUpgradeable
 {
+    using Address for address payable;
     using Message for bytes;
     using IGPMetadata for bytes;
     // ============ Constants ============
@@ -28,7 +30,7 @@ contract InterchainGasPaymaster is
     /// @notice The scale of gas oracle token exchange rates.
     uint256 internal constant TOKEN_EXCHANGE_RATE_SCALE = 1e10;
     /// @notice default for user call if metadata not provided
-    uint256 internal constant DEFAULT_GAS_USAGE = 69_420;
+    uint256 internal immutable DEFAULT_GAS_USAGE = 69_420;
 
     // ============ Public Storage ============
 
@@ -83,24 +85,18 @@ contract InterchainGasPaymaster is
         payable
         override
     {
+        uint256 gasLimit;
+        address refundAddress;
         if (metadata.length == 0) {
-            payForGas(
-                message.id(),
-                message.destination(),
-                DEFAULT_GAS_USAGE,
-                message.senderAddress()
-            );
+            gasLimit = DEFAULT_GAS_USAGE;
+            refundAddress = message.senderAddress();
         } else {
-            address refundAddress = metadata.refundAddress();
+            gasLimit = metadata.gasLimit();
+            refundAddress = metadata.refundAddress();
             if (refundAddress == address(0))
                 refundAddress = message.senderAddress();
-            payForGas(
-                message.id(),
-                message.destination(),
-                metadata.gasLimit(),
-                refundAddress
-            );
         }
+        payForGas(message.id(), message.destination(), gasLimit, refundAddress);
     }
 
     /**
@@ -163,8 +159,7 @@ contract InterchainGasPaymaster is
         );
         uint256 _overpayment = msg.value - _requiredPayment;
         if (_overpayment > 0) {
-            (bool _success, ) = _refundAddress.call{value: _overpayment}("");
-            require(_success, "Interchain gas payment refund failed");
+            payable(_refundAddress).sendValue(_overpayment);
         }
 
         emit GasPayment(_messageId, _gasAmount, _requiredPayment);
