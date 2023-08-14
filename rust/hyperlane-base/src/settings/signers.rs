@@ -58,6 +58,7 @@ impl FromRawConf<RawSignerConf> for SignerConf {
     ) -> ConfigResult<Self> {
         let key_path = || cwp + "key";
         let region_path = || cwp + "region";
+
         match raw.signer_type.as_deref() {
             Some("hexKey") => Ok(Self::HexKey {
                 key: raw
@@ -82,6 +83,18 @@ impl FromRawConf<RawSignerConf> for SignerConf {
             Some(t) => Err(eyre!("Unknown signer type `{t}`")).into_config_result(|| cwp + "type"),
             None if raw.key.is_some() => Ok(Self::HexKey {
                 key: raw.key.unwrap().parse().into_config_result(key_path)?,
+            }),
+            None if raw.id.is_some() | raw.region.is_some() => Ok(Self::Aws {
+                id: raw
+                    .id
+                    .ok_or_else(|| eyre!("Missing `id` for Aws signer"))
+                    .into_config_result(|| cwp + "id")?,
+                region: raw
+                    .region
+                    .ok_or_else(|| eyre!("Missing `region` for Aws signer"))
+                    .into_config_result(region_path)?
+                    .parse()
+                    .into_config_result(region_path)?,
             }),
             None => Ok(Self::Node),
         }
