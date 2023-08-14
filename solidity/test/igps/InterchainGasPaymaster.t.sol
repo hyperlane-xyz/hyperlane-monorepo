@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 
+import {IGPMetadata} from "../../contracts/libs/hooks/IGPMetadata.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {MessageUtils} from "../isms/IsmTestUtils.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
@@ -11,6 +12,7 @@ import {StorageGasOracle} from "../../contracts/igps/gas-oracles/StorageGasOracl
 import {IGasOracle} from "../../contracts/interfaces/IGasOracle.sol";
 
 contract InterchainGasPaymasterTest is Test {
+    using IGPMetadata for bytes;
     using TypeCasts for address;
     using MessageUtils for bytes;
 
@@ -99,7 +101,7 @@ contract InterchainGasPaymasterTest is Test {
         );
 
         uint256 _overpayment = 25000;
-        bytes memory metadata = abi.encodePacked(
+        bytes memory metadata = IGPMetadata.formatMetadata(
             uint256(testGasAmount), // gas limit
             testRefundAddress // refund address
         );
