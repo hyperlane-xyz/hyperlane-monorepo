@@ -12,7 +12,7 @@ contract HypNativeScaledTest is Test {
     uint32 nativeDomain = 1;
     uint32 synthDomain = 2;
 
-    uint256 synthSupply = 123456789; // 9 decimals
+    uint256 synthSupply = 123456789;
     uint256 scale = 10**9;
 
     HypNativeScaled native;
@@ -23,12 +23,6 @@ contract HypNativeScaledTest is Test {
     function setUp() public {
         environment = new MockHyperlaneEnvironment(synthDomain, nativeDomain);
 
-        native = new HypNativeScaled(scale);
-        native.initialize(
-            address(environment.mailboxes(nativeDomain)),
-            address(environment.igps(nativeDomain))
-        );
-
         synth = new HypERC20();
         synth.initialize(
             address(environment.mailboxes(synthDomain)),
@@ -36,6 +30,12 @@ contract HypNativeScaledTest is Test {
             synthSupply,
             "Zebec BSC Token",
             "ZBC"
+        );
+
+        native = new HypNativeScaled(scale);
+        native.initialize(
+            address(environment.mailboxes(nativeDomain)),
+            address(environment.igps(nativeDomain))
         );
 
         native.enrollRemoteRouter(
@@ -48,11 +48,38 @@ contract HypNativeScaledTest is Test {
         );
     }
 
-    function testTransferRemote(uint256 amount) public {
-        vm.assume(amount < synthSupply && amount > 0);
-        bytes32 recipient = TypeCasts.addressToBytes32(address(this));
+    uint256 receivedValue;
 
+    receive() external payable {
+        receivedValue = msg.value;
+    }
+
+    function test_handle(uint256 amount) public {
+        vm.assume(amount < synthSupply);
+
+        bytes32 recipient = TypeCasts.addressToBytes32(address(this));
         synth.transferRemote(nativeDomain, recipient, amount);
+
+        uint256 nativeValue = amount * scale;
+        vm.deal(address(native), nativeValue);
+
         environment.processNextPendingMessage();
+        assertEq(receivedValue, nativeValue);
+    }
+
+    function test_tranferRemote(uint256 nativeValue) public {
+        vm.assume(nativeValue < address(this).balance);
+
+        address recipient = address(0xdeadbeef);
+        bytes32 bRecipient = TypeCasts.addressToBytes32(recipient);
+        native.transferRemote{value: nativeValue}(
+            synthDomain,
+            bRecipient,
+            nativeValue
+        );
+
+        uint256 synthValue = nativeValue / scale;
+        environment.processNextPendingMessageFromDestination();
+        assertEq(synth.balanceOf(recipient), synthValue);
     }
 }
