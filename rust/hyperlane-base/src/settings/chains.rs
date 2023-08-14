@@ -14,10 +14,11 @@ use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
 };
 use hyperlane_core::{
-    config::*, utils::hex_or_base58_to_h256, AggregationIsm, CcipReadIsm, ContractLocator,
-    HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneProvider, HyperlaneSigner,
-    IndexMode, InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
-    MessageIndexer, MultisigIsm, RoutingIsm, SequenceIndexer, ValidatorAnnounce, H256,
+    cfg_unwrap_all, config::*, utils::hex_or_base58_to_h256, AggregationIsm, CcipReadIsm,
+    ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneProvider,
+    HyperlaneSigner, IndexMode, InterchainGasPaymaster, InterchainGasPayment,
+    InterchainSecurityModule, Mailbox, MessageIndexer, MultisigIsm, RoutingIsm, SequenceIndexer,
+    ValidatorAnnounce, H256,
 };
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
@@ -116,26 +117,13 @@ struct RawAgentConf {
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RawAgentChainMetadataConf {
+    // -- AgentChainMetadata --
     rpc_consensus_type: Option<String>,
     override_rpc_urls: Option<String>,
     #[serde(default)]
     index: RawAgentChainMetadataIndexConf,
-    #[serde(default, flatten)]
-    metadata: RawChainMetadataConf,
-    #[serde(default, flatten)]
-    artifacts: RawHyperlaneDeploymentArtifactsConf,
-}
 
-#[derive(Debug, Default, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct RawAgentChainMetadataIndexConf {
-    from: Option<StrOrInt>,
-    chunk: Option<StrOrInt>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct RawChainMetadataConf {
+    // -- ChainMetadata --
     protocol: Option<String>,
     chain_id: Option<StrOrInt>,
     domain_id: Option<StrOrInt>,
@@ -157,6 +145,19 @@ struct RawChainMetadataConf {
     gnosis_safe_transaction_service_url: Option<String>,
     #[serde(default)]
     is_testnet: bool,
+
+    // -- HyperlaneDeploymentArtifacts --
+    mailbox: Option<String>,
+    interchain_gas_paymaster: Option<String>,
+    validator_announce: Option<String>,
+    interchain_security_module: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawAgentChainMetadataIndexConf {
+    from: Option<StrOrInt>,
+    chunk: Option<StrOrInt>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -213,18 +214,91 @@ struct RawBlockConf {
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct RawHyperlaneDeploymentArtifactsConf {
-    mailbox: Option<String>,
-    interchain_gas_paymaster: Option<String>,
-    validator_announce: Option<String>,
-    interchain_security_module: Option<String>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct RawAgentLogConf {
     format: Option<String>,
     level: Option<String>,
+}
+
+impl FromRawConf<RawAgentChainMetadataConf> for ChainConf {
+    fn from_config_filtered(
+        raw: RawAgentChainMetadataConf,
+        cwp: &ConfigPath,
+        _filter: (),
+    ) -> ConfigResult<Self> {
+        let mut err = ConfigParsingError::default();
+
+        let domain = (&raw).parse_config(cwp).take_config_err(&mut err);
+
+        cfg_unwrap_all!(cwp, err: domain);
+
+        err.into_result().map(|_| Self {
+            domain,
+            signer: None,
+            finality_blocks: 0,
+            addresses: Default::default(),
+            connection: None,
+            metrics_conf: Default::default(),
+            index: Default::default(),
+        })
+    }
+}
+
+impl FromRawConf<&RawAgentChainMetadataConf> for HyperlaneDomain {
+    fn from_config_filtered(
+        raw: &RawAgentChainMetadataConf,
+        cwp: &ConfigPath,
+        _filter: (),
+    ) -> ConfigResult<Self> {
+        let mut err = ConfigParsingError::default();
+
+        let chain_id = raw
+            .chain_id
+            .as_ref()
+            .ok_or_else(|| eyre!("Missing `chainId`"))
+            .take_err(&mut err, || cwp + "chain_id")
+            .and_then(|d| {
+                d.try_into()
+                    .context("Invalid `chainId`, expected integer")
+                    .take_err(&mut err, || cwp + "chain_id")
+            });
+
+        let domain_id = raw
+            .domain_id
+            .as_ref()
+            .and_then(|d| {
+                d.try_into()
+                    .context("Invalid `domainId`, expected integer")
+                    .take_err(&mut err, || cwp + "domain_id")
+            })
+            // default to chain id if domain id is not set
+            .or(chain_id);
+
+        let protocol = raw
+            .protocol
+            .as_deref()
+            .ok_or_else(|| eyre!("Missing `protocol`"))
+            .take_err(&mut err, || cwp + "protocol")
+            .and_then(|d| {
+                HyperlaneDomainProtocol::try_from(d)
+                    .context("Invalid (or unknown) `protocol`")
+                    .take_err(&mut err, || cwp + "protocol")
+            });
+
+        let name = raw
+            .name
+            .as_deref()
+            .ok_or_else(|| eyre!("Missing chain `name`"))
+            .take_err(&mut err, || cwp + "name");
+
+        cfg_unwrap_all!(cwp, err: domain_id, protocol, name);
+
+        let domain = Self::from_config(domain_id, name, protocol)
+            .context("Invalid domain data")
+            .take_err(&mut err, || cwp.clone());
+
+        cfg_unwrap_all!(cwp, err: domain);
+        Ok(domain)
+    }
 }
 
 ///////////////////////////
@@ -241,7 +315,7 @@ enum DeprecatedRawChainConnectionConf {
     Unknown,
 }
 
-impl FromRawConf<'_, DeprecatedRawChainConnectionConf> for ChainConnectionConf {
+impl FromRawConf<DeprecatedRawChainConnectionConf> for ChainConnectionConf {
     fn from_config_filtered(
         raw: DeprecatedRawChainConnectionConf,
         cwp: &ConfigPath,
@@ -267,7 +341,7 @@ struct DeprecatedRawCoreContractAddresses {
     validator_announce: Option<String>,
 }
 
-impl FromRawConf<'_, DeprecatedRawCoreContractAddresses> for CoreContractAddresses {
+impl FromRawConf<DeprecatedRawCoreContractAddresses> for CoreContractAddresses {
     fn from_config_filtered(
         raw: DeprecatedRawCoreContractAddresses,
         cwp: &ConfigPath,
@@ -310,7 +384,7 @@ struct RawIndexSettings {
     chunk: Option<StrOrInt>,
 }
 
-impl FromRawConf<'_, RawIndexSettings> for IndexSettings {
+impl FromRawConf<RawIndexSettings> for IndexSettings {
     fn from_config_filtered(
         raw: RawIndexSettings,
         cwp: &ConfigPath,
@@ -352,7 +426,7 @@ pub struct DeprecatedRawChainConf {
     index: Option<RawIndexSettings>,
 }
 
-impl FromRawConf<'_, DeprecatedRawChainConf> for ChainConf {
+impl FromRawConf<DeprecatedRawChainConf> for ChainConf {
     fn from_config_filtered(
         raw: DeprecatedRawChainConf,
         cwp: &ConfigPath,

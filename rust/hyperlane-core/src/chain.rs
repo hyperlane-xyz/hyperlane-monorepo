@@ -304,9 +304,9 @@ impl HyperlaneDomain {
             Ok(HyperlaneDomain::Unknown {
                 domain_id,
                 domain_name: name,
-                // we might want to support accepting these from the config later
-                domain_type: HyperlaneDomainType::Unknown,
                 domain_protocol: protocol,
+                // we might want to support accepting this from the config later
+                domain_type: HyperlaneDomainType::Unknown,
             })
         }
     }

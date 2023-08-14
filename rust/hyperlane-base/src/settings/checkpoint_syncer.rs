@@ -53,7 +53,7 @@ pub enum RawCheckpointSyncerConf {
     Unknown,
 }
 
-impl FromRawConf<'_, RawCheckpointSyncerConf> for CheckpointSyncerConf {
+impl FromRawConf<RawCheckpointSyncerConf> for CheckpointSyncerConf {
     fn from_config_filtered(
         raw: RawCheckpointSyncerConf,
         cwp: &ConfigPath,

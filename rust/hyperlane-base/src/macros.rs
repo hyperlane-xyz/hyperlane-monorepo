@@ -115,9 +115,9 @@ macro_rules! decl_settings {
 
             // ensure the settings struct implements `FromRawConf`
             const _: fn() = || {
-                fn assert_impl<'de, T>()
+                fn assert_impl<T>()
                 where
-                    T: ?Sized + hyperlane_core::config::FromRawConf<'de, [<Raw $name Settings>]>
+                    T: ?Sized + hyperlane_core::config::FromRawConf<[<Raw $name Settings>]>
                 {}
 
                 assert_impl::<[<$name Settings>]>();
@@ -158,7 +158,7 @@ macro_rules! decl_settings {
 pub fn _new_settings<'de, T, R>(name: &str) -> ConfigResult<R>
 where
     T: Deserialize<'de> + AsMut<DeprecatedRawSettings> + Debug,
-    R: FromRawConf<'de, T>,
+    R: FromRawConf<T>,
 {
     use crate::settings::loader::load_settings_object;
     let root_path = ConfigPath::default();

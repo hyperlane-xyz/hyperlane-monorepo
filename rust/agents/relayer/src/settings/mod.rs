@@ -53,7 +53,7 @@ enum RawGasPaymentEnforcementPolicy {
     Unknown,
 }
 
-impl FromRawConf<'_, RawGasPaymentEnforcementPolicy> for GasPaymentEnforcementPolicy {
+impl FromRawConf<RawGasPaymentEnforcementPolicy> for GasPaymentEnforcementPolicy {
     fn from_config_filtered(
         raw: RawGasPaymentEnforcementPolicy,
         cwp: &ConfigPath,
@@ -114,7 +114,7 @@ struct RawGasPaymentEnforcementConf {
     matching_list: Option<MatchingList>,
 }
 
-impl FromRawConf<'_, RawGasPaymentEnforcementConf> for GasPaymentEnforcementConf {
+impl FromRawConf<RawGasPaymentEnforcementConf> for GasPaymentEnforcementConf {
     fn from_config_filtered(
         raw: RawGasPaymentEnforcementConf,
         cwp: &ConfigPath,
@@ -190,7 +190,7 @@ decl_settings!(Relayer,
     }
 );
 
-impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
+impl FromRawConf<RawRelayerSettings> for RelayerSettings {
     fn from_config_filtered(
         raw: RawRelayerSettings,
         cwp: &ConfigPath,

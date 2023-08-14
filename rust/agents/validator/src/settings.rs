@@ -46,7 +46,7 @@ decl_settings!(Validator,
     },
 );
 
-impl FromRawConf<'_, RawValidatorSettings> for ValidatorSettings {
+impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
     fn from_config_filtered(
         raw: RawValidatorSettings,
         cwp: &ConfigPath,

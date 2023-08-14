@@ -67,7 +67,7 @@ pub enum ConnectionConfError {
     EmptyUrls,
 }
 
-impl FromRawConf<'_, RawConnectionConf> for ConnectionConf {
+impl FromRawConf<RawConnectionConf> for ConnectionConf {
     fn from_config_filtered(
         raw: RawConnectionConf,
         cwp: &ConfigPath,

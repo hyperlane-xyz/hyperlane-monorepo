@@ -72,7 +72,7 @@ pub struct DeprecatedRawSettings {
     tracing: Option<TracingConfig>,
 }
 
-impl FromRawConf<'_, DeprecatedRawSettings, Option<&HashSet<&str>>> for Settings {
+impl FromRawConf<DeprecatedRawSettings, Option<&HashSet<&str>>> for Settings {
     fn from_config_filtered(
         raw: DeprecatedRawSettings,
         cwp: &ConfigPath,

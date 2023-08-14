@@ -23,7 +23,7 @@ decl_settings!(Scraper,
     }
 );
 
-impl FromRawConf<'_, RawScraperSettings> for ScraperSettings {
+impl FromRawConf<RawScraperSettings> for ScraperSettings {
     fn from_config_filtered(
         raw: RawScraperSettings,
         cwp: &ConfigPath,

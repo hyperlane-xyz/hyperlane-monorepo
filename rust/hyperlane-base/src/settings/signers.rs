@@ -50,7 +50,7 @@ pub struct RawSignerConf {
     region: Option<String>,
 }
 
-impl FromRawConf<'_, RawSignerConf> for SignerConf {
+impl FromRawConf<RawSignerConf> for SignerConf {
     fn from_config_filtered(
         raw: RawSignerConf,
         cwp: &ConfigPath,
