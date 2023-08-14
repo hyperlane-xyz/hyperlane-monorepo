@@ -26,15 +26,15 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
  * @title OPStackHook
- * @notice Message hook to inform the OPStackISM of messages published through
+ * @notice Message hook to inform the Optimism ISM of messages published through
  * the native OPStack bridge.
+ * @dev V3 WIP
  */
 contract OPStackHook is AbstractMessageIdAuthHook {
     using OPStackHookMetadata for bytes;
 
     // ============ Constants ============
 
-    /// @notice messenger contract specified by the rollup
     ICrossDomainMessenger public immutable l1Messenger;
 
     // Gas limit for sending messages to L2
@@ -52,14 +52,11 @@ contract OPStackHook is AbstractMessageIdAuthHook {
     ) AbstractMessageIdAuthHook(_mailbox, _destinationDomain, _ism) {
         require(
             Address.isContract(_messenger),
-            "OPStackHook: invalid messenger"
+            "ERC5164Hook: invalid dispatcher"
         );
         l1Messenger = ICrossDomainMessenger(_messenger);
     }
 
-    // ============ Internal functions ============
-
-    /// @inheritdoc AbstractMessageIdAuthHook
     function _sendMessageId(bytes calldata metadata, bytes memory payload)
         internal
         override
