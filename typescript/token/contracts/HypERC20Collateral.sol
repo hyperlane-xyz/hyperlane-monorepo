@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.0;
 
-import {TokenRouter, FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
+import {TokenRouter} from "./libs/TokenRouter.sol";
 import {Message} from "./libs/Message.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -11,7 +11,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
  * @title Hyperlane ERC20 Token Collateral that wraps an existing ERC20 with remote transfer functionality.
  * @author Abacus Works
  */
-contract HypERC20Collateral is FungibleTokenRouter {
+contract HypERC20Collateral is TokenRouter {
     using SafeERC20 for IERC20;
 
     IERC20 public immutable wrappedToken;
@@ -20,11 +20,7 @@ contract HypERC20Collateral is FungibleTokenRouter {
      * @notice Constructor
      * @param erc20 Address of the token to keep as collateral
      */
-    constructor(
-        address erc20,
-        uint8 __decimals,
-        uint8 __interchainDecimals
-    ) FungibleTokenRouter(__decimals, __interchainDecimals) {
+    constructor(address erc20) {
         wrappedToken = IERC20(erc20);
     }
 

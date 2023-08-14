@@ -51,16 +51,32 @@ abstract contract TokenRouter is GasRouter {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amountOrId
-    ) public payable virtual returns (bytes32 messageId) {
+    ) external payable virtual returns (bytes32 messageId) {
+        return
+            _transferRemote(_destination, _recipient, _amountOrId, msg.value);
+    }
+
+    /**
+     * @notice Transfers `_amountOrId` token to `_recipient` on `_destination` domain.
+     * @dev Delegates transfer logic to `_transferFromSender` implementation.
+     * @dev Emits `SentTransferRemote` event on the origin chain.
+     * @param _destination The identifier of the destination chain.
+     * @param _recipient The address of the recipient on the destination chain.
+     * @param _amountOrId The amount or identifier of tokens to be sent to the remote recipient.
+     * @param _gasPayment The amount of native token to pay for interchain gas.
+     * @return messageId The identifier of the dispatched message.
+     */
+    function _transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amountOrId,
+        uint256 _gasPayment
+    ) internal returns (bytes32 messageId) {
         bytes memory metadata = _transferFromSender(_amountOrId);
         messageId = _dispatchWithGas(
             _destination,
-            Message.format(
-                _recipient,
-                _toInterchainAmount(_amountOrId),
-                metadata
-            ),
-            msg.value, // interchain gas payment
+            Message.format(_recipient, _amountOrId, metadata),
+            _gasPayment,
             msg.sender // refund address
         );
         emit SentTransferRemote(_destination, _recipient, _amountOrId);
@@ -88,7 +104,7 @@ abstract contract TokenRouter is GasRouter {
         bytes calldata _message
     ) internal override {
         bytes32 recipient = _message.recipient();
-        uint256 amount = _fromInterchainAmount(_message.amount());
+        uint256 amount = _message.amount();
         bytes calldata metadata = _message.metadata();
         _transferTo(recipient.bytes32ToAddress(), amount, metadata);
         emit ReceivedTransferRemote(_origin, recipient, amount);
@@ -104,30 +120,4 @@ abstract contract TokenRouter is GasRouter {
         uint256 _amountOrId,
         bytes calldata metadata
     ) internal virtual;
-
-    /**
-     * @dev Given an amount or identifier of tokens, returns the amount to encoded in the interchain message.
-     * @param _amountOrId The amount or identifier of tokens to be sent to the remote recipient.
-     */
-    function _toInterchainAmount(uint256 _amountOrId)
-        internal
-        view
-        virtual
-        returns (uint256)
-    {
-        return _amountOrId;
-    }
-
-    /**
-     * @dev Given an amount or identifier of tokens encoded in the interchain message, returns the amount to be minted.
-     * @param _amountOrId The amount or identifier of tokens encoded in the interchain message.
-     */
-    function _fromInterchainAmount(uint256 _amountOrId)
-        internal
-        view
-        virtual
-        returns (uint256)
-    {
-        return _amountOrId;
-    }
 }

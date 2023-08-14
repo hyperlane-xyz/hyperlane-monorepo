@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.0;
 
-import {TokenRouter, FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
+import {TokenRouter} from "./libs/TokenRouter.sol";
 import {Message} from "./libs/Message.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
@@ -10,18 +10,13 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * @author Abacus Works
  * @dev Supply on each chain is not constant but the aggregate supply across all chains is.
  */
-contract HypNative is FungibleTokenRouter {
+contract HypNative is TokenRouter {
     /**
      * @dev Emitted when native tokens are donated to the contract.
      * @param sender The address of the sender.
      * @param amount The amount of native tokens donated.
      */
     event Donation(address indexed sender, uint256 amount);
-
-    // solhint-disable no-empty-blocks
-    constructor(uint8 __decimals, uint8 __interchainDecimals)
-        FungibleTokenRouter(__decimals, __interchainDecimals)
-    {}
 
     /**
      * @notice Initializes the Hyperlane router, ERC20 metadata, and mints initial supply to deployer.
@@ -41,22 +36,15 @@ contract HypNative is FungibleTokenRouter {
 
     /**
      * @inheritdoc TokenRouter
-     * @dev uses (`msg.value` - `_amount`) as interchain gas payment and `msg.sender` as refund address.
+     * @dev uses (`msg.value` - `_amount`) as interchain gas payment.
      */
     function transferRemote(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) public payable override returns (bytes32 messageId) {
-        require(msg.value >= _amount, "Native: amount exceeds msg.value");
+    ) public payable virtual override returns (bytes32 messageId) {
         uint256 gasPayment = msg.value - _amount;
-        messageId = _dispatchWithGas(
-            _destination,
-            Message.format(_recipient, _amount, ""),
-            gasPayment,
-            msg.sender
-        );
-        emit SentTransferRemote(_destination, _recipient, _amount);
+        return _transferRemote(_destination, _recipient, _amount, gasPayment);
     }
 
     function balanceOf(address _account) external view returns (uint256) {
@@ -64,16 +52,15 @@ contract HypNative is FungibleTokenRouter {
     }
 
     /**
-     * @dev No-op because native amount is transferred in `msg.value`
-     * @dev Compiler will not include this in the bytecode.
      * @inheritdoc TokenRouter
+     * @dev Requires `msg.value` to be greater than or equal to `_amount`.
      */
-    function _transferFromSender(uint256)
+    function _transferFromSender(uint256 _amount)
         internal
-        pure
         override
         returns (bytes memory)
     {
+        require(msg.value >= _amount, "Native: amount exceeds msg.value");
         return bytes(""); // no metadata
     }
 
@@ -85,14 +72,11 @@ contract HypNative is FungibleTokenRouter {
         address _recipient,
         uint256 _amount,
         bytes calldata // no metadata
-    ) internal override {
+    ) internal virtual override {
         Address.sendValue(payable(_recipient), _amount);
     }
 
-    /**
-     * @dev Allows native tokens to be donated to the contract.
-     */
-    function donate() external payable {
+    receive() external payable {
         emit Donation(msg.sender, msg.value);
     }
 }
