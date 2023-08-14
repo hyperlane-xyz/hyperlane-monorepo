@@ -32,6 +32,9 @@ contract Mailbox is IMailbox, Versioned, Ownable {
     uint32 public nonce;
     bytes32 public latestDispatchedId;
 
+    // The latest dispatched message ID used for auth in post-dispatch hooks.
+    bytes32 public latestDispatchedId;
+
     // The default ISM, used if the recipient fails to specify one.
     IInterchainSecurityModule public defaultIsm;
 
@@ -40,7 +43,8 @@ contract Mailbox is IMailbox, Versioned, Ownable {
 
     // Mapping of message ID to delivery context that processed the message.
     struct Delivery {
-        address sender;
+        // address sender;
+        IInterchainSecurityModule ism;
         // uint48 value?
         // uint48 timestamp?
     }
@@ -138,6 +142,8 @@ contract Mailbox is IMailbox, Versioned, Ownable {
         IPostDispatchHook hook,
         bytes calldata metadata
     ) public payable returns (bytes32) {
+        /// CHECKS ///
+
         // Format the message into packed bytes.
         bytes memory message = Message.formatMessage(
             VERSION,
@@ -148,21 +154,24 @@ contract Mailbox is IMailbox, Versioned, Ownable {
             recipientAddress,
             messageBody
         );
-
-        // effects
-        nonce += 1;
         bytes32 id = message.id();
+
+        /// EFFECTS ///
+
+        nonce += 1;
         latestDispatchedId = id;
         emit DispatchId(id);
         emit Dispatch(message);
 
-        // interactions
+        /// INTERACTIONS ///
+
         hook.postDispatch{value: msg.value}(metadata, message);
+
         return id;
     }
 
     function delivered(bytes32 _id) public view override returns (bool) {
-        return deliveries[_id].sender != address(0);
+        return address(deliveries[_id].ism) != address(0);
     }
 
     /**
@@ -176,6 +185,8 @@ contract Mailbox is IMailbox, Versioned, Ownable {
         payable
         override
     {
+        /// CHECKS ///
+
         // Check that the message was intended for this mailbox.
         require(_message.version() == VERSION, "bad version");
         require(
@@ -187,23 +198,25 @@ contract Mailbox is IMailbox, Versioned, Ownable {
         bytes32 _id = _message.id();
         require(delivered(_id) == false, "already delivered");
 
+        // Get the recipient's ISM.
         address recipient = _message.recipientAddress();
+        IInterchainSecurityModule ism = recipientIsm(recipient);
 
-        // effects
+        /// EFFECTS ///
+
         deliveries[_id] = Delivery({
-            sender: msg.sender
+            ism: ism
+            // sender: msg.sender
             // value: uint48(msg.value),
             // timestamp: uint48(block.number)
         });
         emit Process(_message);
         emit ProcessId(_id);
 
-        // interactions
+        /// INTERACTIONS ///
+
         // Verify the message via the ISM.
-        IInterchainSecurityModule _ism = IInterchainSecurityModule(
-            recipientIsm(recipient)
-        );
-        require(_ism.verify(_metadata, _message), "verification failed");
+        require(ism.verify(_metadata, _message), "verification failed");
 
         // Deliver the message to the recipient.
         IMessageRecipient(recipient).handle{value: msg.value}(
