@@ -35,6 +35,7 @@ contract DomainRoutingHook is IPostDispatchHook, Ownable {
     function postDispatch(bytes calldata metadata, bytes calldata message)
         external
         payable
+        virtual
         override
     {
         hooks[message.destination()].postDispatch{value: msg.value}(
