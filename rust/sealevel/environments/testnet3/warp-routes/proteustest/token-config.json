@@ -12,11 +12,11 @@
         "token": "0x64544969ed7ebf5f083679233325356ebe738930",
         "name": "USDC",
         "symbol": "USDC",
-        "foreignDeployment": "0x68A9C6CFD28b49522AAc82E2C2130415498977a3"
+        "foreignDeployment": "0x31b5234A896FbC4b3e2F7237592D054716762131"
     },
     "proteustestnet": {
         "type": "native",
         "decimals": 18,
-        "foreignDeployment": "0xcf39Fc8803c199e4F44B24aDC43C0D062205Dc33"
+        "foreignDeployment": "0x34A9af13c5555BAD0783C220911b9ef59CfDBCEf"
     }
 }

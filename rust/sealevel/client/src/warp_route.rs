@@ -544,15 +544,20 @@ fn init_warp_route(
         .map(|s| Pubkey::from_str(s).unwrap())
         .unwrap_or(core_program_ids.mailbox);
 
-    let interchain_gas_paymaster = token_config
-        .connection_client
-        .interchain_gas_paymaster
-        .clone()
-        .map(|config| (config.program_id, config.igp_account))
-        .unwrap_or((
-            core_program_ids.igp_program_id,
-            InterchainGasPaymasterType::OverheadIgp(core_program_ids.overhead_igp_account),
-        ));
+    // TODO for now not specifying an IGP for compatibility with the warp route UI.
+
+    // let interchain_gas_paymaster = Some(token_config
+    //     .connection_client
+    //     .interchain_gas_paymaster
+    //     .clone()
+    //     .map(|config| (config.program_id, config.igp_account))
+    //     .unwrap_or((
+    //         core_program_ids.igp_program_id,
+    //         InterchainGasPaymasterType::OverheadIgp(core_program_ids.overhead_igp_account),
+    //     ))
+    // );
+
+    let interchain_gas_paymaster = None;
 
     let init = Init {
         mailbox,
@@ -561,7 +566,7 @@ fn init_warp_route(
             .interchain_security_module
             .as_ref()
             .map(|s| Pubkey::from_str(s).unwrap()),
-        interchain_gas_paymaster: Some(interchain_gas_paymaster),
+        interchain_gas_paymaster,
         decimals: token_config.decimal_metadata.decimals,
         remote_decimals: token_config.decimal_metadata.remote_decimals(),
     };
