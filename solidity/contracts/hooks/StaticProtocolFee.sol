@@ -13,10 +13,8 @@ pragma solidity >=0.8.0;
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
 
-import "forge-std/console.sol";
-
 // ============ Internal Imports ============
-import {ProtocolFeeMetadata} from "../libs/hooks/ProtocolFeeMetadata.sol";
+import {Message} from "../libs/Message.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
@@ -29,7 +27,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
  */
 contract StaticProtocolFee is IPostDispatchHook, Ownable {
     using Address for address payable;
-    using ProtocolFeeMetadata for bytes;
+    using Message for bytes;
 
     // ============ Constants ============
 
@@ -48,12 +46,13 @@ contract StaticProtocolFee is IPostDispatchHook, Ownable {
     constructor(
         uint256 _maxProtocolFee,
         uint256 _protocolFee,
-        address _beneficiary
+        address _beneficiary,
+        address _owner
     ) {
         MAX_PROTOCOL_FEE = _maxProtocolFee;
         _setProtocolFee(_protocolFee);
         _setBeneficiary(_beneficiary);
-        _transferOwnership(msg.sender);
+        _transferOwnership(_owner);
     }
 
     // ============ External Functions ============
@@ -61,7 +60,7 @@ contract StaticProtocolFee is IPostDispatchHook, Ownable {
     /**
      * @notice Collects the protocol fee from the sender.
      */
-    function postDispatch(bytes calldata metadata, bytes calldata)
+    function postDispatch(bytes calldata, bytes calldata message)
         external
         payable
         override
@@ -72,13 +71,7 @@ contract StaticProtocolFee is IPostDispatchHook, Ownable {
         );
 
         uint256 refund = msg.value - protocolFee;
-        if (refund > 0) {
-            require(
-                metadata.hasSenderAddress(),
-                "StaticProtocolFee: invalid metadata"
-            );
-            payable(metadata.senderAddress()).sendValue(refund);
-        }
+        if (refund > 0) payable(message.senderAddress()).sendValue(refund);
     }
 
     /**
@@ -92,7 +85,7 @@ contract StaticProtocolFee is IPostDispatchHook, Ownable {
     /**
      * @notice Collects protocol fees from the contract.
      */
-    function collectProtocolFees() external onlyOwner {
+    function collectProtocolFees() external {
         payable(beneficiary).sendValue(address(this).balance);
     }
 
@@ -105,7 +98,7 @@ contract StaticProtocolFee is IPostDispatchHook, Ownable {
     function _setProtocolFee(uint256 _protocolFee) internal {
         require(
             _protocolFee <= MAX_PROTOCOL_FEE,
-            "StaticProtocolFee: protocol fee too high"
+            "StaticProtocolFee: exceeds max protocol fee"
         );
         protocolFee = _protocolFee;
     }

@@ -1,18 +1,28 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
-import "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
+import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
+import {MessageUtils} from "../isms/IsmTestUtils.sol";
 
 import {StaticProtocolFee} from "../../contracts/hooks/StaticProtocolFee.sol";
 
 contract StaticProtocolFeeTest is Test {
+    using TypeCasts for address;
     StaticProtocolFee internal fees;
 
     address internal alice = address(0x1); // alice the user
     address internal bob = address(0x2); // bob the beneficiary
 
+    uint32 internal constant TEST_ORIGIN_DOMAIN = 1;
+    uint32 internal constant TEST_DESTINATION_DOMAIN = 2;
+
+    bytes internal testMessage;
+
     function setUp() public {
-        fees = new StaticProtocolFee(1e16, 1e15, bob);
+        fees = new StaticProtocolFee(1e16, 1e15, bob, address(this));
+
+        testMessage = _encodeTestMessage();
     }
 
     function testConstructor() public {
@@ -23,6 +33,19 @@ contract StaticProtocolFeeTest is Test {
         fee = bound(fee, 0, fees.MAX_PROTOCOL_FEE());
         fees.setProtocolFee(fee);
         assertEq(fees.protocolFee(), fee);
+    }
+
+    function testSetProtocolFee_revertWhen_exceedsMax(uint256 fee) public {
+        fee = bound(
+            fee,
+            fees.MAX_PROTOCOL_FEE() + 1,
+            10 * fees.MAX_PROTOCOL_FEE()
+        );
+
+        vm.expectRevert("StaticProtocolFee: exceeds max protocol fee");
+        fees.setProtocolFee(fee);
+
+        assertEq(fees.protocolFee(), 1e15);
     }
 
     function testFuzz_postDispatch_inusfficientFees(
@@ -45,43 +68,22 @@ contract StaticProtocolFeeTest is Test {
         assertEq(alice.balance, balanceBefore);
     }
 
-    function testFuzz_postDispatch_invalidMetadata(
-        uint256 feeRequired,
-        uint256 feeSent
-    ) public {
-        feeRequired = bound(feeRequired, 1, fees.MAX_PROTOCOL_FEE());
-        feeSent = bound(feeSent, feeRequired + 1, 10 * feeRequired);
-        vm.deal(alice, feeSent);
-
-        fees.setProtocolFee(feeRequired);
-
-        uint256 balanceBefore = alice.balance;
-
-        vm.prank(alice);
-        vm.expectRevert("StaticProtocolFee: invalid metadata");
-        fees.postDispatch{value: feeSent}("", "");
-
-        assertEq(alice.balance, balanceBefore);
-    }
-
     function testFuzz_postDispatch_sufficientFees(
         uint256 feeRequired,
         uint256 feeSent
     ) public {
+        console.log("alice: ", alice);
         feeRequired = bound(feeRequired, 1, fees.MAX_PROTOCOL_FEE());
         feeSent = bound(feeSent, feeRequired, 10 * feeRequired);
         vm.deal(alice, feeSent);
 
         fees.setProtocolFee(feeRequired);
-
-        uint256 balanceBefore = alice.balance;
-
-        bytes memory metadata = abi.encodePacked(alice);
-
+        uint256 aliceBalanceBefore = alice.balance;
         vm.prank(alice);
-        fees.postDispatch{value: feeSent}(metadata, "");
 
-        assertEq(alice.balance, balanceBefore - feeRequired);
+        fees.postDispatch{value: feeSent}("", testMessage);
+
+        assertEq(alice.balance, aliceBalanceBefore - feeRequired);
     }
 
     function testFuzz_collectProtocolFee(
@@ -108,6 +110,19 @@ contract StaticProtocolFeeTest is Test {
     }
 
     // ============ Helper Functions ============
+
+    function _encodeTestMessage() internal view returns (bytes memory) {
+        return
+            MessageUtils.formatMessage(
+                uint8(0),
+                uint32(1),
+                TEST_ORIGIN_DOMAIN,
+                alice.addressToBytes32(),
+                TEST_DESTINATION_DOMAIN,
+                alice.addressToBytes32(),
+                abi.encodePacked("Hello World")
+            );
+    }
 
     receive() external payable {}
 }
