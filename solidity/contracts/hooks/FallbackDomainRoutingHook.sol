@@ -9,7 +9,11 @@ import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 // ============ External Imports ============
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract DomainRoutingHook is IPostDispatchHook, MailboxClient, Ownable {
+contract FallbackDomainRoutingHook is
+    IPostDispatchHook,
+    MailboxClient,
+    Ownable
+{
     using Message for bytes;
 
     struct HookConfig {
