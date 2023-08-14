@@ -8,6 +8,7 @@ import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 
 import {IMessageDispatcher} from "../../contracts/interfaces/IMessageDispatcher.sol";
 import {ERC5164Hook} from "../../contracts/hooks/ERC5164Hook.sol";
+import {AbstractMessageIdAuthorizedIsm} from "../../contracts/isms/hook/AbstractMessageIdAuthorizedIsm.sol";
 import {ERC5164ISM} from "../../contracts/isms/hook/ERC5164ISM.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
 import {MockMessageDispatcher, MockMessageExecutor} from "../../contracts/mock/MockERC5164.sol";
@@ -72,16 +73,35 @@ contract ERC5164ISMTest is Test {
         vm.expectRevert("ERC5164ISM: invalid executor");
         ism = new ERC5164ISM(alice);
 
-        vm.expectRevert("ERC5164Hook: invalid destination domain");
-        hook = new ERC5164MessageHook(0, address(dispatcher), address(ism));
+        vm.expectRevert("MailboxClient: invalid mailbox");
+        hook = new ERC5164Hook(
+            address(0),
+            0,
+            address(ism),
+            address(dispatcher)
+        );
 
-        vm.expectRevert("ERC5164Hook: invalid dispatcher");
-        hook = new ERC5164MessageHook(TEST2_DOMAIN, alice, address(ism));
+        vm.expectRevert("ERC5164Hook: invalid destination domain");
+        hook = new ERC5164Hook(
+            address(dispatcher),
+            0,
+            address(ism),
+            address(dispatcher)
+        );
 
         vm.expectRevert("ERC5164Hook: invalid ISM");
-        hook = new ERC5164MessageHook(
-            TEST2_DOMAIN,
+        hook = new ERC5164Hook(
             address(dispatcher),
+            TEST2_DOMAIN,
+            address(0),
+            address(dispatcher)
+        );
+
+        vm.expectRevert("ERC5164Hook: invalid dispatcher");
+        hook = new ERC5164Hook(
+            address(dispatcher),
+            TEST2_DOMAIN,
+            address(ism),
             address(0)
         );
     }
@@ -90,8 +110,8 @@ contract ERC5164ISMTest is Test {
         deployContracts();
 
         bytes memory encodedHookData = abi.encodeCall(
-            ERC5164ISM.verifyMessageId,
-            (address(this).addressToBytes32(), messageId)
+            AbstractMessageIdAuthorizedIsm.verifyMessageId,
+            (messageId)
         );
 
         // note: not checking for messageId since this is implementation dependent on each vendor
@@ -104,14 +124,16 @@ contract ERC5164ISMTest is Test {
             encodedHookData
         );
 
-        hook.postDispatch(TEST2_DOMAIN, messageId);
+        hook.postDispatch(bytes(""), encodedMessage);
     }
 
     function test_postDispatch_RevertWhen_ChainIDNotSupported() public {
         deployContracts();
 
+        encodedMessage = _encodeTestMessage(0, address(this));
+
         vm.expectRevert("ERC5164Hook: invalid destination domain");
-        hook.postDispatch(3, messageId);
+        hook.postDispatch(bytes(""), encodedMessage);
     }
 
     /* ============ ISM.verifyMessageId ============ */
@@ -121,10 +143,8 @@ contract ERC5164ISMTest is Test {
 
         vm.startPrank(address(executor));
 
-        ism.verifyMessageId(address(this).addressToBytes32(), messageId);
-        assertTrue(
-            ism.verifiedMessageIds(messageId, address(this).addressToBytes32())
-        );
+        ism.verifyMessageId(messageId);
+        assertTrue(ism.verifiedMessageIds(messageId));
 
         vm.stopPrank();
     }
@@ -136,7 +156,7 @@ contract ERC5164ISMTest is Test {
 
         // needs to be called by the authorized hook contract on Ethereum
         vm.expectRevert("ERC5164ISM: sender is not the executor");
-        ism.verifyMessageId(alice.addressToBytes32(), messageId);
+        ism.verifyMessageId(messageId);
 
         vm.stopPrank();
     }
@@ -148,7 +168,7 @@ contract ERC5164ISMTest is Test {
 
         vm.startPrank(address(executor));
 
-        ism.verifyMessageId(address(this).addressToBytes32(), messageId);
+        ism.verifyMessageId(messageId);
 
         bool verified = ism.verify(new bytes(0), encodedMessage);
         assertTrue(verified);
@@ -161,7 +181,7 @@ contract ERC5164ISMTest is Test {
 
         vm.startPrank(address(executor));
 
-        ism.verifyMessageId(address(this).addressToBytes32(), messageId);
+        ism.verifyMessageId(messageId);
 
         bytes memory invalidMessage = _encodeTestMessage(0, address(this));
         bool verified = ism.verify(new bytes(0), invalidMessage);
@@ -175,7 +195,7 @@ contract ERC5164ISMTest is Test {
 
         vm.startPrank(address(executor));
 
-        ism.verifyMessageId(alice.addressToBytes32(), messageId);
+        ism.verifyMessageId(messageId);
 
         bool verified = ism.verify(new bytes(0), encodedMessage);
         assertFalse(verified);
