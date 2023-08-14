@@ -54,8 +54,8 @@ enum DeprecatedRawChainConnectionConf {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct RawAgentConfig {
-    metrics_port: u16,
+struct RawAgentConf {
+    metrics_port: StrOrInt,
     chains: HashMap<String, RawAgentChainMetadataConf>,
     default_signer: RawSignerConf,
     default_rpc_consensus_type: Option<String>,
@@ -79,15 +79,16 @@ struct RawAgentChainMetadataConf {
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RawAgentChainMetadataIndexConf {
-    from: Option<u32>,
-    chunk: Option<u32>,
+    from: Option<StrOrInt>,
+    chunk: Option<StrOrInt>,
 }
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RawChainMetadataConf {
     protocol: Option<String>,
-    chain_id: Option<u32>,
+    chain_id: Option<StrOrInt>,
+    domain_id: Option<StrOrInt>,
     name: Option<String>,
     display_name: Option<String>,
     display_name_short: Option<String>,
@@ -113,7 +114,7 @@ struct RawChainMetadataConf {
 struct RawNativeTokenConf {
     name: Option<String>,
     symbol: Option<String>,
-    decimals: Option<u32>,
+    decimals: Option<StrOrInt>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -130,16 +131,16 @@ struct RawRpcUrlConf {
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RawPaginationConf {
-    max_block_range: Option<u32>,
-    min_block_number: Option<u64>,
-    max_block_age: Option<u64>,
+    max_block_range: Option<StrOrInt>,
+    min_block_number: Option<StrOrInt>,
+    max_block_age: Option<StrOrInt>,
 }
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RawRetryConfig {
-    max_requests: Option<u32>,
-    base_retry_ms: Option<u64>,
+    max_requests: Option<StrOrInt>,
+    base_retry_ms: Option<StrOrInt>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -155,9 +156,9 @@ struct RawBlockExplorerConf {
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RawBlockConf {
-    confirmations: Option<u32>,
-    reorg_period: Option<u32>,
-    estimate_block_time: Option<u32>,
+    confirmations: Option<StrOrInt>,
+    reorg_period: Option<StrOrInt>,
+    estimate_block_time: Option<StrOrInt>,
 }
 
 #[derive(Debug, Default, Deserialize)]
