@@ -18,7 +18,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { utils } from '@hyperlane-xyz/utils';
 
-import { TokenConfig, TokenType } from '../src/config';
+import { TokenConfig, TokenDecimals, TokenType } from '../src/config';
 import { HypERC20Factories } from '../src/contracts';
 import { HypERC20Deployer } from '../src/deploy';
 import {
@@ -44,10 +44,22 @@ const tokenMetadata = {
   totalSupply,
 };
 
-for (const variant of [
-  TokenType.synthetic,
-  TokenType.collateral,
-  TokenType.native,
+for (const { variant, localDecimals, remoteDecimals } of [
+  {
+    variant: TokenType.synthetic,
+    localDecimals: { decimals: 9, interchainDecimals: 18 },
+    remoteDecimals: { decimals: 18, interchainDecimals: 18 },
+  },
+  {
+    variant: TokenType.collateral,
+    localDecimals: { decimals: 18, interchainDecimals: 18 },
+    remoteDecimals: { decimals: 9, interchainDecimals: 18 },
+  },
+  {
+    variant: TokenType.native,
+    localDecimals: { decimals: 18 },
+    remoteDecimals: { decimals: 18 },
+  },
 ]) {
   describe(`HypERC20${variant}`, async () => {
     let owner: SignerWithAddress;
@@ -96,11 +108,16 @@ for (const variant of [
         localTokenConfig = { type: variant, ...tokenMetadata };
       }
 
+      localTokenConfig = {
+        ...localTokenConfig,
+        ...localDecimals,
+      };
+
       const config = objMap(routerConfig, (key) => ({
         ...routerConfig[key],
         ...(key === localChain
           ? localTokenConfig
-          : { type: TokenType.synthetic }),
+          : { type: TokenType.synthetic, ...remoteDecimals }),
         owner: owner.address,
       })) as ChainMap<TokenConfig & RouterConfig>;
 
@@ -220,7 +237,18 @@ for (const variant of [
         expectedLocal = await local.balanceOf(owner.address);
       }
       await expectBalance(local, owner, expectedLocal);
-      await expectBalance(remote, recipient, remoteRecipient.add(amount));
+
+      const remoteAmountReceived = convertDecimals(
+        localDecimals.decimals,
+        remoteDecimals.decimals,
+        amount,
+      );
+
+      await expectBalance(
+        remote,
+        recipient,
+        remoteRecipient.add(remoteAmountReceived),
+      );
       await expectBalance(remote, owner, remoteOwner);
     });
 
@@ -288,4 +316,20 @@ const expectBalance = async (
   balance: BigNumberish,
 ) => {
   return expect(await token.balanceOf(signer.address)).to.eq(balance);
+};
+
+const convertDecimals = (
+  fromDecimals: number,
+  toDecimals: number,
+  amount: BigNumberish,
+) => {
+  const bnAmount = BigNumber.from(amount);
+
+  if (fromDecimals === toDecimals) {
+    return bnAmount;
+  }
+  if (fromDecimals > toDecimals) {
+    return bnAmount.div(10 ** (fromDecimals - toDecimals));
+  }
+  return bnAmount.mul(10 ** (toDecimals - fromDecimals));
 };
