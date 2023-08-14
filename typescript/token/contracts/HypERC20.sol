@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.0;
 
-import {TokenRouter} from "./libs/TokenRouter.sol";
+import {TokenRouter, FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
 
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
@@ -10,12 +10,11 @@ import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/
  * @author Abacus Works
  * @dev Supply on each chain is not constant but the aggregate supply across all chains is.
  */
-contract HypERC20 is ERC20Upgradeable, TokenRouter {
-    uint8 private immutable _decimals;
-
-    constructor(uint8 __decimals) {
-        _decimals = __decimals;
-    }
+contract HypERC20 is ERC20Upgradeable, FungibleTokenRouter {
+    // solhint-disable no-empty-blocks
+    constructor(uint8 __decimals, uint8 __interchainDecimals)
+        FungibleTokenRouter(__decimals, __interchainDecimals)
+    {}
 
     /**
      * @notice Initializes the Hyperlane router, ERC20 metadata, and mints initial supply to deployer.

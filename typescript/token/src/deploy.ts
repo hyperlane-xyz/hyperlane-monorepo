@@ -126,7 +126,11 @@ export class HypERC20Deployer extends GasRouterDeployer<
       chain,
       new HypERC20Collateral__factory(),
       'HypERC20Collateral',
-      [config.token],
+      [
+        config.token,
+        config.decimals,
+        config.interchainDecimals ?? config.decimals,
+      ],
     );
     await this.multiProvider.handleTx(
       chain,
@@ -143,7 +147,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
       chain,
       new HypNative__factory(),
       'HypNative',
-      [],
+      [config.decimals, config.interchainDecimals ?? config.decimals],
     );
     await this.multiProvider.handleTx(
       chain,
@@ -160,7 +164,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
       chain,
       new HypERC20__factory(),
       'HypERC20',
-      [config.decimals],
+      [config.decimals, config.interchainDecimals ?? config.decimals],
     );
     await this.multiProvider.handleTx(
       chain,

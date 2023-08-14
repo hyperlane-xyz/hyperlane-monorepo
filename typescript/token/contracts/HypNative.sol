@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.0;
 
-import {TokenRouter} from "./libs/TokenRouter.sol";
+import {TokenRouter, FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
 import {Message} from "./libs/Message.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
@@ -10,8 +10,18 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * @author Abacus Works
  * @dev Supply on each chain is not constant but the aggregate supply across all chains is.
  */
-contract HypNative is TokenRouter {
+contract HypNative is FungibleTokenRouter {
+    /**
+     * @dev Emitted when native tokens are donated to the contract.
+     * @param sender The address of the sender.
+     * @param amount The amount of native tokens donated.
+     */
     event Donation(address indexed sender, uint256 amount);
+
+    // solhint-disable no-empty-blocks
+    constructor(uint8 __decimals, uint8 __interchainDecimals)
+        FungibleTokenRouter(__decimals, __interchainDecimals)
+    {}
 
     /**
      * @notice Initializes the Hyperlane router, ERC20 metadata, and mints initial supply to deployer.

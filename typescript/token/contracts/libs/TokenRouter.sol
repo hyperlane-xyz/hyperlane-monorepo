@@ -55,7 +55,11 @@ abstract contract TokenRouter is GasRouter {
         bytes memory metadata = _transferFromSender(_amountOrId);
         messageId = _dispatchWithGas(
             _destination,
-            Message.format(_recipient, _amountOrId, metadata),
+            Message.format(
+                _recipient,
+                _toInterchainAmount(_amountOrId),
+                metadata
+            ),
             msg.value, // interchain gas payment
             msg.sender // refund address
         );
@@ -84,7 +88,7 @@ abstract contract TokenRouter is GasRouter {
         bytes calldata _message
     ) internal override {
         bytes32 recipient = _message.recipient();
-        uint256 amount = _message.amount();
+        uint256 amount = _fromInterchainAmount(_message.amount());
         bytes calldata metadata = _message.metadata();
         _transferTo(recipient.bytes32ToAddress(), amount, metadata);
         emit ReceivedTransferRemote(_origin, recipient, amount);
@@ -100,4 +104,30 @@ abstract contract TokenRouter is GasRouter {
         uint256 _amountOrId,
         bytes calldata metadata
     ) internal virtual;
+
+    /**
+     * @dev Given an amount or identifier of tokens, returns the amount to encoded in the interchain message.
+     * @param _amountOrId The amount or identifier of tokens to be sent to the remote recipient.
+     */
+    function _toInterchainAmount(uint256 _amountOrId)
+        internal
+        view
+        virtual
+        returns (uint256)
+    {
+        return _amountOrId;
+    }
+
+    /**
+     * @dev Given an amount or identifier of tokens encoded in the interchain message, returns the amount to be minted.
+     * @param _amountOrId The amount or identifier of tokens encoded in the interchain message.
+     */
+    function _fromInterchainAmount(uint256 _amountOrId)
+        internal
+        view
+        virtual
+        returns (uint256)
+    {
+        return _amountOrId;
+    }
 }
