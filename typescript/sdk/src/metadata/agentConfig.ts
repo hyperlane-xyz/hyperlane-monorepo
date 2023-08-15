@@ -52,6 +52,11 @@ export enum AgentLogFormat {
   Pretty = 'pretty',
 }
 
+export enum AgentIndexMode {
+  Block = 'block',
+  Sequence = 'sequence',
+}
+
 export const AgentSignerSchema = z.union([
   z
     .object({
@@ -110,6 +115,13 @@ export const AgentChainMetadataSchema = ChainMetadataSchema.merge(
     chunk: ZNzUint.optional().describe(
       'The number of blocks to index at a time.',
     ),
+    // TODO(2214): I think we can always interpret this from the ProtocolType
+    mode: z
+      .nativeEnum(AgentIndexMode)
+      .optional()
+      .describe(
+        'The indexing method to use for this chain; will attempt to choose a suitable default if not specified.',
+      ),
   }),
 });
 
