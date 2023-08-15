@@ -4,6 +4,7 @@ use account_utils::DiscriminatorDecode;
 use hyperlane_sealevel_connection_client::{
     gas_router::GasRouterConfig, router::RemoteRouterConfig,
 };
+use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
 use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
 };
@@ -71,6 +72,9 @@ pub fn process_instruction(
         }
         TokenIxn::SetInterchainSecurityModule(new_ism) => {
             set_interchain_security_module(program_id, accounts, new_ism)
+        }
+        TokenIxn::SetInterchainGasPaymaster(new_igp) => {
+            set_interchain_gas_paymaster(program_id, accounts, new_igp)
         }
         TokenIxn::TransferOwnership(new_owner) => {
             transfer_ownership(program_id, accounts, new_owner)
@@ -242,5 +246,20 @@ fn set_interchain_security_module(
 ) -> ProgramResult {
     HyperlaneSealevelToken::<SyntheticPlugin>::set_interchain_security_module(
         program_id, accounts, new_ism,
+    )
+}
+
+/// Lets the owner set the interchain gas paymaster.
+///
+/// Accounts:
+/// 0. [writeable] The token PDA account.
+/// 1. [signer] The access control owner.
+fn set_interchain_gas_paymaster(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    new_igp: Option<(Pubkey, InterchainGasPaymasterType)>,
+) -> ProgramResult {
+    HyperlaneSealevelToken::<SyntheticPlugin>::set_interchain_gas_paymaster(
+        program_id, accounts, new_igp,
     )
 }
