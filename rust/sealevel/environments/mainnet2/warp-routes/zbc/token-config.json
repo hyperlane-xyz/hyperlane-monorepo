@@ -1,0 +1,22 @@
+{
+    "solana": {
+        "type": "collateral",
+        "decimals": 9,
+        "remoteDecimals": 9,
+        "token": "zebeczgi5fSEtbpfQKVZKCJ3WgYXxjkMUkNNx7fLKAF",
+        "splTokenProgram": "token"
+    },
+    "bsc": {
+        "type": "collateral",
+        "decimals": 9,
+        "token": "0x37a56cdcD83Dce2868f721De58cB3830C44C6303",
+        "name": "Zebec",
+        "symbol": "ZBC",
+        "foreignDeployment": "0x0205712c623803720F271D4787517bC5114eDBC7"
+    },
+    "nautilus": {
+        "type": "native",
+        "decimals": 18,
+        "foreignDeployment": "0xCB5C99F908410add8241b558299fe9aadC06bA99"
+    }
+}

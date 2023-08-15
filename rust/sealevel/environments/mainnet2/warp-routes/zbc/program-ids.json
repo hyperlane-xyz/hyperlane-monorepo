@@ -1,0 +1,14 @@
+{
+  "solana": {
+    "hex": "0xd6d38f335e9f8bc4c7339d52275a502fc42caeaaf9370b9d47aa92de4bb2adcc",
+    "base58": "FTbMPUDfbejo8MRze4Mom4hM7HC2yb7KaHFzRTdLCoG7"
+  },
+  "bsc": {
+    "hex": "0x0000000000000000000000000205712c623803720f271d4787517bc5114edbc7",
+    "base58": "1111111111112djG8cE2HTAJxMhnu3CChyXv6eA"
+  },
+  "nautilus": {
+    "hex": "0x000000000000000000000000cb5c99f908410add8241b558299fe9aadc06ba99",
+    "base58": "1111111111113qKnb55eK5TV5iwo97eenoZaVDVa"
+  }
+}
