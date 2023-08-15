@@ -30,8 +30,6 @@ contract Mailbox is IMailbox, Versioned, Ownable {
 
     // A monotonically increasing nonce for outbound unique message IDs.
     uint32 public nonce;
-
-    // The latest dispatched message ID used for auth in post-dispatch hooks.
     bytes32 public latestDispatchedId;
 
     // The default ISM, used if the recipient fails to specify one.

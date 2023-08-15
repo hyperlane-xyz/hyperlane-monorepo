@@ -33,7 +33,7 @@ contract DomainRoutingHook is IPostDispatchHook, Ownable {
     }
 
     function postDispatch(bytes calldata metadata, bytes calldata message)
-        external
+        public
         payable
         virtual
         override
