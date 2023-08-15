@@ -45,7 +45,7 @@
   "main": "dist/index.js",
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "scripts": {
-    "build": "hardhat compile && forge build && tsc",
+    "build": "hardhat compile && tsc",
     "lint": "solhint contracts/**/*.sol",
     "clean": "hardhat clean && rm -rf ./dist ./cache ./types",
     "coverage": "hardhat coverage && forge coverage --report lcov",
