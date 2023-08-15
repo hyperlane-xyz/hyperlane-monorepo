@@ -234,7 +234,7 @@ macro_rules! spawn_sync_task {
                 .await
                 .unwrap();
             let cursor = sync
-                .$cursor(index_settings.clone())
+                .$cursor(index_settings.clone(), domain.clone().index_mode())
                 .await;
                 tokio::spawn(async move {
                     sync
@@ -275,7 +275,11 @@ impl Scraper {
             .unwrap_or(None)
             .unwrap_or(0);
         let cursor = sync
-            .forward_message_sync_cursor(index_settings.clone(), latest_nonce.saturating_sub(1))
+            .forward_message_sync_cursor(
+                index_settings.clone(),
+                domain.index_mode(),
+                latest_nonce.saturating_sub(1),
+            )
             .await;
         tokio::spawn(async move { sync.sync("message_dispatch", cursor).await }).instrument(
             info_span!("ChainContractSync", chain=%domain.name(), event="message_dispatch"),
