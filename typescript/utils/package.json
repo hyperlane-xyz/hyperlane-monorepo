@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/utils",
   "description": "General utilities for the Hyperlane network",
-  "version": "1.4.2-beta69",
+  "version": "1.4.2-beta71",
   "dependencies": {
     "ethers": "^5.7.2"
   },
