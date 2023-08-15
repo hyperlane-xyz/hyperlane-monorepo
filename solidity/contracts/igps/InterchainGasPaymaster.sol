@@ -2,10 +2,14 @@
 pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
+import {Message} from "../libs/Message.sol";
+import {IGPMetadata} from "../libs/hooks/IGPMetadata.sol";
 import {IGasOracle} from "../interfaces/IGasOracle.sol";
 import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
+import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 // ============ External Imports ============
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 /**
@@ -15,13 +19,19 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
  */
 contract InterchainGasPaymaster is
     IInterchainGasPaymaster,
+    IPostDispatchHook,
     IGasOracle,
     OwnableUpgradeable
 {
+    using Address for address payable;
+    using Message for bytes;
+    using IGPMetadata for bytes;
     // ============ Constants ============
 
     /// @notice The scale of gas oracle token exchange rates.
     uint256 internal constant TOKEN_EXCHANGE_RATE_SCALE = 1e10;
+    /// @notice default for user call if metadata not provided
+    uint256 internal immutable DEFAULT_GAS_USAGE = 69_420;
 
     // ============ Public Storage ============
 
@@ -67,36 +77,27 @@ contract InterchainGasPaymaster is
     }
 
     /**
-     * @notice Deposits msg.value as a payment for the relaying of a message
-     * to its destination chain.
-     * @dev Overpayment will result in a refund of native tokens to the _refundAddress.
-     * Callers should be aware that this may present reentrancy issues.
-     * @param _messageId The ID of the message to pay for.
-     * @param _destinationDomain The domain of the message's destination chain.
-     * @param _gasAmount The amount of destination gas to pay for.
-     * @param _refundAddress The address to refund any overpayment to.
+     * @notice pay for gas as a hook
+     * @param metadata The metadata as gasConfig.
+     * @param message The message to pay for.
      */
-    function payForGas(
-        bytes32 _messageId,
-        uint32 _destinationDomain,
-        uint256 _gasAmount,
-        address _refundAddress
-    ) external payable override {
-        uint256 _requiredPayment = quoteGasPayment(
-            _destinationDomain,
-            _gasAmount
-        );
-        require(
-            msg.value >= _requiredPayment,
-            "insufficient interchain gas payment"
-        );
-        uint256 _overpayment = msg.value - _requiredPayment;
-        if (_overpayment > 0) {
-            (bool _success, ) = _refundAddress.call{value: _overpayment}("");
-            require(_success, "Interchain gas payment refund failed");
+    function postDispatch(bytes calldata metadata, bytes calldata message)
+        external
+        payable
+        override
+    {
+        uint256 gasLimit;
+        address refundAddress;
+        if (metadata.length == 0) {
+            gasLimit = DEFAULT_GAS_USAGE;
+            refundAddress = message.senderAddress();
+        } else {
+            gasLimit = metadata.gasLimit();
+            refundAddress = metadata.refundAddress();
+            if (refundAddress == address(0))
+                refundAddress = message.senderAddress();
         }
-
-        emit GasPayment(_messageId, _gasAmount, _requiredPayment);
+        payForGas(message.id(), message.destination(), gasLimit, refundAddress);
     }
 
     /**
@@ -132,6 +133,38 @@ contract InterchainGasPaymaster is
     }
 
     // ============ Public Functions ============
+
+    /**
+     * @notice Deposits msg.value as a payment for the relaying of a message
+     * to its destination chain.
+     * @dev Overpayment will result in a refund of native tokens to the _refundAddress.
+     * Callers should be aware that this may present reentrancy issues.
+     * @param _messageId The ID of the message to pay for.
+     * @param _destinationDomain The domain of the message's destination chain.
+     * @param _gasAmount The amount of destination gas to pay for.
+     * @param _refundAddress The address to refund any overpayment to.
+     */
+    function payForGas(
+        bytes32 _messageId,
+        uint32 _destinationDomain,
+        uint256 _gasAmount,
+        address _refundAddress
+    ) public payable override {
+        uint256 _requiredPayment = quoteGasPayment(
+            _destinationDomain,
+            _gasAmount
+        );
+        require(
+            msg.value >= _requiredPayment,
+            "insufficient interchain gas payment"
+        );
+        uint256 _overpayment = msg.value - _requiredPayment;
+        if (_overpayment > 0) {
+            payable(_refundAddress).sendValue(_overpayment);
+        }
+
+        emit GasPayment(_messageId, _gasAmount, _requiredPayment);
+    }
 
     /**
      * @notice Quotes the amount of native tokens to pay for interchain gas.
