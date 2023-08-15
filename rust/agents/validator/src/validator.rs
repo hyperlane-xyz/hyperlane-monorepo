@@ -227,14 +227,6 @@ impl Validator {
     }
 
     async fn announce(&self) -> Result<()> {
-        if self.core.settings.chains[self.origin_chain.name()]
-            .signer
-            .is_none()
-        {
-            warn!(origin_chain=%self.origin_chain, "Cannot announce validator without a signer; make sure a signer is set for the origin chain");
-            return Ok(());
-        }
-
         // Sign and post the validator announcement
         let announcement = Announcement {
             validator: self.signer.eth_address(),
@@ -268,6 +260,15 @@ impl Validator {
                     announced_locations=?locations,
                     "Validator has not announced signature storage location"
                 );
+
+                if self.core.settings.chains[self.origin_chain.name()]
+                    .signer
+                    .is_none()
+                {
+                    warn!(origin_chain=%self.origin_chain, "Cannot announce validator without a signer; make sure a signer is set for the origin chain");
+                    continue;
+                }
+
                 let balance_delta = self
                     .validator_announce
                     .announce_tokens_needed(signed_announcement.clone())
