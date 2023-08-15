@@ -56,6 +56,7 @@ contract ERC5164Hook is AbstractMessageIdAuthHook {
         bytes calldata, /* metadata */
         bytes memory payload
     ) internal override {
+        require(msg.value == 0, "ERC5164Hook: no value allowed");
         dispatcher.dispatchMessage(destinationDomain, ism, payload);
     }
 }

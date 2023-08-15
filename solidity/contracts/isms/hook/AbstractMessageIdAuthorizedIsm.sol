@@ -93,7 +93,7 @@ abstract contract AbstractMessageIdAuthorizedIsm is
      * @dev Only callable by the L2 messenger.
      * @param messageId Hyperlane Id of the message.
      */
-    function verifyMessageId(bytes32 messageId) external payable {
+    function verifyMessageId(bytes32 messageId) external payable virtual {
         require(
             _isAuthorized(),
             "AbstractMessageIdAuthorizedIsm: sender is not the hook"
