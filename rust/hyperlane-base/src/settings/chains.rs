@@ -5,12 +5,13 @@
 #![allow(dead_code)] // TODO(2214): remove before PR merge
 
 use std::cmp::Reverse;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use ethers::prelude::Selector;
 use eyre::{eyre, Context, Result};
 use itertools::Itertools;
 use serde::Deserialize;
+use serde_json::json;
 
 use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
@@ -29,9 +30,10 @@ use hyperlane_ethereum::{
 use hyperlane_fuel as h_fuel;
 use hyperlane_sealevel as h_sealevel;
 
+use crate::trace::TracingConfig;
 use crate::{
     settings::signers::{BuildableWithSignerConf, RawSignerConf},
-    CoreMetrics, SignerConf,
+    CoreMetrics, Settings, SignerConf,
 };
 
 //////////////////////////
@@ -236,6 +238,89 @@ enum RawRpcConsensusType {
     Quorum,
     #[serde(other)]
     Unknown,
+}
+
+/////////////////////
+// CONFIG PARSING //
+///////////////////
+
+impl FromRawConf<RawAgentConf, Option<&HashSet<&str>>> for Settings {
+    fn from_config_filtered(
+        raw: RawAgentConf,
+        cwp: &ConfigPath,
+        filter: Option<&HashSet<&str>>,
+    ) -> Result<Self, ConfigParsingError> {
+        let mut err = ConfigParsingError::default();
+
+        let metrics_port = raw
+            .metrics_port
+            .try_into()
+            .take_err(&mut err, || cwp + "metrics_port")
+            .unwrap_or(9090);
+
+        let tracing = raw
+            .log
+            .parse_config(&cwp.join("log"))
+            .take_config_err(&mut err);
+
+        let raw_chains = if let Some(filter) = filter {
+            raw.chains
+                .into_iter()
+                .filter(|(k, _)| filter.contains(&**k))
+                .collect()
+        } else {
+            raw.chains
+        };
+
+        let chains_path = cwp + "chains";
+        let chains = raw_chains
+            .into_iter()
+            .filter_map(|(name, chain)| {
+                let cwp = &chains_path + &name;
+                chain
+                    .parse_config::<ChainConf>(&cwp)
+                    .take_config_err(&mut err)
+                    .and_then(|c| {
+                        (c.domain.name() == name)
+                            .then_some((name, c))
+                            .ok_or_else(|| {
+                                eyre!("detected chain name mismatch, the config may be corrupted")
+                            })
+                            .take_err(&mut err, || &cwp + "name")
+                    })
+            })
+            .collect();
+
+        cfg_unwrap_all!(cwp, err: tracing);
+
+        err.into_result(Self {
+            chains,
+            metrics_port,
+            tracing,
+        })
+    }
+}
+
+impl FromRawConf<RawAgentLogConf> for TracingConfig {
+    fn from_config_filtered(
+        raw: RawAgentLogConf,
+        cwp: &ConfigPath,
+        _filter: (),
+    ) -> ConfigResult<Self> {
+        let mut err = ConfigParsingError::default();
+
+        let fmt = raw
+            .format
+            .and_then(|fmt| serde_json::from_value(json!(fmt)).take_err(&mut err, || cwp + "fmt"))
+            .unwrap_or_default();
+
+        let level = raw
+            .level
+            .and_then(|lvl| serde_json::from_value(json!(lvl)).take_err(&mut err, || cwp + "level"))
+            .unwrap_or_default();
+
+        err.into_result(Self { fmt, level })
+    }
 }
 
 impl FromRawConf<RawAgentChainMetadataConf> for ChainConf {
