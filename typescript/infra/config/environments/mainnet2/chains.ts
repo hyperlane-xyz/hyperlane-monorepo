@@ -41,3 +41,10 @@ export const mainnetConfigs: ChainMap<ChainMetadata> = {
 export type MainnetChains = keyof typeof mainnetConfigs;
 export const chainNames = Object.keys(mainnetConfigs) as MainnetChains[];
 export const environment = 'mainnet2';
+
+// Chains that we want to run agents for.
+export const agentChainNames = [
+  ...chainNames,
+  chainMetadata.solana.name,
+  chainMetadata.nautilus.name,
+];

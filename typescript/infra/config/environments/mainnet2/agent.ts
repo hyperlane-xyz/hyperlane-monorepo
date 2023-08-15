@@ -14,7 +14,7 @@ import { GasPaymentEnforcementConfig } from '../../../src/config/agent/relayer';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles';
 import { Contexts } from '../../contexts';
 
-import { chainNames, environment } from './chains';
+import { agentChainNames, environment } from './chains';
 import { helloWorld } from './helloworld';
 import { validatorChainConfig } from './validators';
 
@@ -40,8 +40,8 @@ const repo = 'gcr.io/abacus-labs-dev/hyperlane-agent';
 const contextBase = {
   namespace: environment,
   runEnv: environment,
-  contextChainNames: chainNames,
-  environmentChainNames: chainNames,
+  contextChainNames: agentChainNames,
+  environmentChainNames: agentChainNames,
   aws: {
     region: 'us-east-1',
   },

@@ -26,6 +26,7 @@ export enum Chains {
   test3 = 'test3',
   solanadevnet = 'solanadevnet',
   proteustestnet = 'proteustestnet',
+  solana = 'solana',
   nautilus = 'nautilus',
 }
 

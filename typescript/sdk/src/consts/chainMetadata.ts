@@ -746,6 +746,8 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   test2,
   test3,
   solanadevnet,
+  solana,
+  nautilus,
 };
 
 export const chainIdToMetadata = Object.values(chainMetadata).reduce<
