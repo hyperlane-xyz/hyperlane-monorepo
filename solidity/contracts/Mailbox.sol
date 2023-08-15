@@ -157,7 +157,6 @@ contract Mailbox is IMailbox, Versioned, Ownable {
         /// EFFECTS ///
 
         nonce += 1;
-
         latestDispatchedId = id;
         emit DispatchId(id);
         emit Dispatch(message);
