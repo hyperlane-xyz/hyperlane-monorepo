@@ -3,8 +3,8 @@ pragma solidity >=0.8.0;
 
 import "forge-std/Test.sol";
 
-import {HypNativeScaled} from "../extensions/HypNativeScaled.sol";
-import {HypERC20} from "../HypERC20.sol";
+import {HypNativeScaled} from "../contracts/extensions/HypNativeScaled.sol";
+import {HypERC20} from "../contracts/HypERC20.sol";
 import {TypeCasts} from "@hyperlane-xyz/core/contracts/libs/TypeCasts.sol";
 import {MockHyperlaneEnvironment} from "@hyperlane-xyz/core/contracts/mock/MockHyperlaneEnvironment.sol";
 
@@ -12,8 +12,9 @@ contract HypNativeScaledTest is Test {
     uint32 nativeDomain = 1;
     uint32 synthDomain = 2;
 
-    uint256 synthSupply = 123456789;
+    uint8 decimals = 9;
     uint256 scale = 10**9;
+    uint256 synthSupply = 123456789;
 
     HypNativeScaled native;
     HypERC20 synth;
@@ -23,7 +24,7 @@ contract HypNativeScaledTest is Test {
     function setUp() public {
         environment = new MockHyperlaneEnvironment(synthDomain, nativeDomain);
 
-        synth = new HypERC20();
+        synth = new HypERC20(decimals);
         synth.initialize(
             address(environment.mailboxes(synthDomain)),
             address(environment.igps(synthDomain)),

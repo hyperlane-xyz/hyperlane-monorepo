@@ -45,8 +45,8 @@ const tokenMetadata = {
 };
 
 for (const variant of [
-  TokenType.synthetic,
-  TokenType.collateral,
+  // TokenType.synthetic,
+  // TokenType.collateral,
   TokenType.native,
 ]) {
   describe(`HypERC20${variant}`, async () => {

@@ -18,7 +18,7 @@ export type TokenMetadata = {
 
 export type TokenDecimals = {
   decimals: number;
-  interchainDecimals?: number;
+  scale?: number;
 };
 
 export type ERC20Metadata = TokenMetadata & TokenDecimals;
@@ -29,9 +29,9 @@ export const isTokenMetadata = (metadata: any): metadata is TokenMetadata =>
 export const isErc20Metadata = (metadata: any): metadata is ERC20Metadata =>
   metadata.decimals && isTokenMetadata(metadata);
 
-export type SyntheticConfig = TokenMetadata & {
+export type SyntheticConfig = {
   type: TokenType.synthetic | TokenType.syntheticUri;
-} & Partial<TokenDecimals>;
+} & TokenMetadata;
 export type CollateralConfig = {
   type: TokenType.collateral | TokenType.collateralUri;
   token: string;
@@ -63,8 +63,8 @@ export const isUriConfig = (config: TokenConfig) =>
 export type HypERC20Config = GasRouterConfig & SyntheticConfig & ERC20Metadata;
 export type HypERC20CollateralConfig = GasRouterConfig &
   CollateralConfig &
-  TokenDecimals;
-export type HypNativeConfig = GasRouterConfig & NativeConfig & TokenDecimals;
+  Partial<ERC20Metadata>;
+export type HypNativeConfig = GasRouterConfig & NativeConfig;
 export type ERC20RouterConfig =
   | HypERC20Config
   | HypERC20CollateralConfig

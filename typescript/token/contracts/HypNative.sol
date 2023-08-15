@@ -43,6 +43,7 @@ contract HypNative is TokenRouter {
         bytes32 _recipient,
         uint256 _amount
     ) public payable virtual override returns (bytes32 messageId) {
+        require(msg.value >= _amount, "Native: amount exceeds msg.value");
         uint256 gasPayment = msg.value - _amount;
         return _transferRemote(_destination, _recipient, _amount, gasPayment);
     }
@@ -53,14 +54,15 @@ contract HypNative is TokenRouter {
 
     /**
      * @inheritdoc TokenRouter
-     * @dev Requires `msg.value` to be greater than or equal to `_amount`.
+     * @dev No-op because native amount is transferred in `msg.value`
+     * @dev Compiler will not include this in the bytecode.
      */
-    function _transferFromSender(uint256 _amount)
+    function _transferFromSender(uint256)
         internal
+        pure
         override
         returns (bytes memory)
     {
-        require(msg.value >= _amount, "Native: amount exceeds msg.value");
         return bytes(""); // no metadata
     }
 

@@ -44,6 +44,7 @@ import {
   HypERC721URIStorage__factory,
   HypERC721__factory,
   HypNative,
+  HypNativeScaled__factory,
   HypNative__factory,
 } from './types';
 
@@ -126,11 +127,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
       chain,
       new HypERC20Collateral__factory(),
       'HypERC20Collateral',
-      [
-        config.token,
-        config.decimals,
-        config.interchainDecimals ?? config.decimals,
-      ],
+      [config.token],
     );
     await this.multiProvider.handleTx(
       chain,
@@ -143,12 +140,22 @@ export class HypERC20Deployer extends GasRouterDeployer<
     chain: ChainName,
     config: HypNativeConfig,
   ): Promise<HypNative> {
-    const router = await this.deployContractFromFactory(
-      chain,
-      new HypNative__factory(),
-      'HypNative',
-      [config.decimals, config.interchainDecimals ?? config.decimals],
-    );
+    let router: HypNative;
+    if (config.scale) {
+      router = await this.deployContractFromFactory(
+        chain,
+        new HypNativeScaled__factory(),
+        'HypNativeScaled',
+        [config.scale],
+      );
+    } else {
+      router = await this.deployContractFromFactory(
+        chain,
+        new HypNative__factory(),
+        'HypNative',
+        [],
+      );
+    }
     await this.multiProvider.handleTx(
       chain,
       router.initialize(config.mailbox, config.interchainGasPaymaster),
@@ -164,7 +171,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
       chain,
       new HypERC20__factory(),
       'HypERC20',
-      [config.decimals, config.interchainDecimals ?? config.decimals],
+      [config.decimals],
     );
     await this.multiProvider.handleTx(
       chain,
