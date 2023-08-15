@@ -32,9 +32,6 @@ contract Mailbox is IMailbox, Versioned, Ownable {
     uint32 public nonce;
     bytes32 public latestDispatchedId;
 
-    // The latest dispatched message ID used for auth in post-dispatch hooks.
-    bytes32 public latestDispatchedId;
-
     // The default ISM, used if the recipient fails to specify one.
     IInterchainSecurityModule public defaultIsm;
 
