@@ -6,13 +6,13 @@ import "forge-std/Test.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MessageUtils} from "../isms/IsmTestUtils.sol";
 import {Mailbox} from "../../contracts/Mailbox.sol";
-import {FallbackDomainRoutingHook} from "../../contracts/hooks/FallbackDomainRoutingHook.sol";
+import {ConfigFallbackDomainRoutingHook} from "../../contracts/hooks/ConfigFallbackDomainRoutingHook.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
 
 contract FallbackDomainRoutingHookTest is Test {
     using TypeCasts for address;
-    FallbackDomainRoutingHook internal fallbackHook;
+    ConfigFallbackDomainRoutingHook internal fallbackHook;
     TestPostDispatchHook internal configuredTestHook;
     TestPostDispatchHook internal mailboxDefaultHook;
     TestRecipient internal testRecipient;
@@ -29,10 +29,7 @@ contract FallbackDomainRoutingHookTest is Test {
         configuredTestHook = new TestPostDispatchHook();
         mailboxDefaultHook = new TestPostDispatchHook();
         testRecipient = new TestRecipient();
-        fallbackHook = new FallbackDomainRoutingHook(
-            address(mailbox),
-            address(this)
-        );
+        fallbackHook = new ConfigFallbackDomainRoutingHook(address(mailbox));
         testMessage = _encodeTestMessage();
         mailbox.setDefaultHook(address(mailboxDefaultHook));
     }
@@ -40,7 +37,8 @@ contract FallbackDomainRoutingHookTest is Test {
     function test_postDispatchHook_configured() public payable {
         fallbackHook.setHook(
             TEST_DESTINATION_DOMAIN,
-            address(configuredTestHook)
+            address(testRecipient).addressToBytes32(),
+            configuredTestHook
         );
 
         vm.expectEmit(false, false, false, false, address(configuredTestHook));
