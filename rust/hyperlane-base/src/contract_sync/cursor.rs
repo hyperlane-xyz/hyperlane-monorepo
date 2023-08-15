@@ -514,11 +514,6 @@ where
             self.sync_state.next_block + self.sync_state.chunk_size,
         );
         let from = to.saturating_sub(self.sync_state.chunk_size);
-
-        println!(
-            "~~~ rate limited cursor from: {}, to: {}, tip: {}",
-            from, to, self.tip
-        );
         let eta = if to < self.tip {
             self.eta_calculator.calculate(from, self.tip)
         } else {

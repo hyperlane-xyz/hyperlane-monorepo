@@ -159,13 +159,6 @@ where
     #[instrument(err, skip(self))]
     async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
-        let chainid = self.provider.get_chainid().await.unwrap();
-        println!(
-            "~~~ finalized block number: {}, chainid: {}, contract: {:?}",
-            tip,
-            chainid,
-            self.contract.address()
-        );
         let base_call = self.contract.count();
         let call_at_tip = base_call.block(u64::from(tip));
         let count = call_at_tip.call().await?;
