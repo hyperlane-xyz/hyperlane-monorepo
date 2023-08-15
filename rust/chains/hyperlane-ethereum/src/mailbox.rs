@@ -161,8 +161,8 @@ where
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
         let base_call = self.contract.count();
         let call_at_tip = base_call.block(u64::from(tip));
-        let count = call_at_tip.call().await?;
-        Ok((Some(count), tip))
+        let sequence = call_at_tip.call().await?;
+        Ok((Some(sequence), tip))
     }
 }
 
