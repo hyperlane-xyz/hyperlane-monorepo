@@ -20,7 +20,7 @@ contract TestQuery {
      * @dev Fetches owner of InterchainQueryRouter on provided domain and passes along with provided secret to `this.receiveRouterOwner`
      */
     function queryRouterOwner(uint32 domain, uint256 secret) external {
-        address target = TypeCasts.bytes32ToAddress(router.router(domain));
+        address target = TypeCasts.bytes32ToAddress(router.routers(domain));
         CallLib.StaticCallWithCallback[]
             memory calls = new CallLib.StaticCallWithCallback[](1);
         calls[0] = CallLib.build(

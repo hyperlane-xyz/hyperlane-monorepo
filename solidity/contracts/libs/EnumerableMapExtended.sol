@@ -28,6 +28,18 @@ library EnumerableMapExtended {
         }
     }
 
+    function uint32Keys(UintToBytes32Map storage map)
+        internal
+        view
+        returns (uint32[] memory _keys)
+    {
+        uint256[] memory uint256keys = keys(map);
+        _keys = new uint32[](uint256keys.length);
+        for (uint256 i = 0; i < uint256keys.length; i++) {
+            _keys[i] = uint32(uint256keys[i]);
+        }
+    }
+
     function set(
         UintToBytes32Map storage map,
         uint256 key,

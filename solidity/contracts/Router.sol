@@ -69,8 +69,8 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
     }
 
     // ============ External functions ============
-    function domains() external view returns (uint256[] memory) {
-        return _routers.keys();
+    function domains() external view returns (uint32[] memory) {
+        return _routers.uint32Keys();
     }
 
     /**
@@ -79,7 +79,7 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
      * @dev Returns 0 address if no router is enrolled for the given domain
      * @return router The address of the Router contract for the given domain
      */
-    function router(uint32 _domain) public view virtual returns (bytes32) {
+    function routers(uint32 _domain) public view virtual returns (bytes32) {
         (, bytes32 _router) = _routers.tryGet(_domain);
         return _router;
     }
@@ -141,7 +141,10 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
      * @param _domain The domain
      * @param _address The new router
      */
-    function _enrollRemoteRouter(uint32 _domain, bytes32 _address) internal {
+    function _enrollRemoteRouter(uint32 _domain, bytes32 _address)
+        internal
+        virtual
+    {
         _routers.set(_domain, _address);
         emit RemoteRouterEnrolled(_domain, _address);
     }
@@ -156,7 +159,7 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
         view
         returns (bool)
     {
-        return router(_domain) == _address;
+        return routers(_domain) == _address;
     }
 
     /**
