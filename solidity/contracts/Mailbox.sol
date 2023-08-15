@@ -30,8 +30,6 @@ contract Mailbox is IMailbox, Versioned, Ownable {
 
     // A monotonically increasing nonce for outbound unique message IDs.
     uint32 public nonce;
-    bytes32 public latestDispatchedId;
-
     // The latest dispatched message ID used for auth in post-dispatch hooks.
     bytes32 public latestDispatchedId;
 
@@ -143,7 +141,7 @@ contract Mailbox is IMailbox, Versioned, Ownable {
         bytes calldata metadata
     ) public payable returns (bytes32) {
         /// CHECKS ///
-        
+
         // Format the message into packed bytes.
         bytes memory message = Message.formatMessage(
             VERSION,
