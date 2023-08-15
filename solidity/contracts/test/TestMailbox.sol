@@ -39,4 +39,8 @@ contract TestMailbox is Mailbox {
             _body
         );
     }
+
+    function updateLatestDispatchedId(bytes32 _id) external {
+        latestDispatchedId = _id;
+    }
 }

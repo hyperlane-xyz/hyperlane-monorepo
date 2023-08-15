@@ -21,14 +21,10 @@ import {OPStackHookMetadata} from "../libs/hooks/OPStackHookMetadata.sol";
 import {MailboxClient} from "../client/MailboxClient.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 
-// ============ External Imports ============
-import {ICrossDomainMessenger} from "../interfaces/optimism/ICrossDomainMessenger.sol";
-import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-
 /**
  * @title AbstractMessageIdAuthHook
  * @notice Message hook to inform an Abstract Message ID ISM of messages published through
- * the native OPStack bridge.
+ * a third-party bridge.
  * @dev V3 WIP
  */
 abstract contract AbstractMessageIdAuthHook is
