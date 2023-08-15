@@ -1159,4 +1159,142 @@ async fn test_set_interchain_security_module_errors_if_owner_not_signer() {
         result,
         TransactionError::InstructionError(0, InstructionError::InvalidArgument),
     );
+
+    // Also try using the non_owner as the payer and specifying the correct
+    // owner account, but the owner isn't a signer:
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &[Instruction::new_with_bytes(
+            program_id,
+            &HyperlaneTokenInstruction::SetInterchainSecurityModule(new_ism)
+                .encode()
+                .unwrap(),
+            vec![
+                AccountMeta::new(hyperlane_token_accounts.token, false),
+                AccountMeta::new_readonly(payer.pubkey(), false),
+            ],
+        )],
+        Some(&non_owner.pubkey()),
+        &[&non_owner],
+        recent_blockhash,
+    );
+    let result = banks_client.process_transaction(transaction).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::MissingRequiredSignature),
+    );
+}
+
+#[tokio::test]
+async fn test_set_interchain_gas_paymaster() {
+    let program_id = hyperlane_sealevel_token_native_id();
+
+    let (mut banks_client, payer) = setup_client().await;
+
+    let hyperlane_token_accounts =
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, None)
+            .await
+            .unwrap();
+
+    let new_igp = Some((
+        Pubkey::new_unique(),
+        InterchainGasPaymasterType::OverheadIgp(Pubkey::new_unique()),
+    ));
+
+    // Set the IGP
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &[Instruction::new_with_bytes(
+            program_id,
+            &HyperlaneTokenInstruction::SetInterchainGasPaymaster(new_igp.clone())
+                .encode()
+                .unwrap(),
+            vec![
+                AccountMeta::new(hyperlane_token_accounts.token, false),
+                AccountMeta::new_readonly(payer.pubkey(), true),
+            ],
+        )],
+        Some(&payer.pubkey()),
+        &[&payer],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(transaction).await.unwrap();
+
+    // Verify the new IGP is set
+    let token_account_data = banks_client
+        .get_account(hyperlane_token_accounts.token)
+        .await
+        .unwrap()
+        .unwrap()
+        .data;
+    let token = HyperlaneTokenAccount::<NativePlugin>::fetch(&mut &token_account_data[..])
+        .unwrap()
+        .into_inner();
+    assert_eq!(token.interchain_gas_paymaster, new_igp);
+}
+
+#[tokio::test]
+async fn test_set_interchain_gas_paymaster_errors_if_owner_not_signer() {
+    let program_id = hyperlane_sealevel_token_native_id();
+
+    let (mut banks_client, payer) = setup_client().await;
+
+    let hyperlane_token_accounts =
+        initialize_hyperlane_token(&program_id, &mut banks_client, &payer, None)
+            .await
+            .unwrap();
+
+    let new_igp = Some((
+        Pubkey::new_unique(),
+        InterchainGasPaymasterType::OverheadIgp(Pubkey::new_unique()),
+    ));
+    let non_owner = new_funded_keypair(&mut banks_client, &payer, ONE_SOL_IN_LAMPORTS).await;
+
+    // Try setting the ISM using the mint authority key
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &[Instruction::new_with_bytes(
+            program_id,
+            &HyperlaneTokenInstruction::SetInterchainGasPaymaster(new_igp.clone())
+                .encode()
+                .unwrap(),
+            vec![
+                AccountMeta::new(hyperlane_token_accounts.token, false),
+                AccountMeta::new_readonly(non_owner.pubkey(), true),
+            ],
+        )],
+        Some(&non_owner.pubkey()),
+        &[&non_owner],
+        recent_blockhash,
+    );
+    let result = banks_client.process_transaction(transaction).await;
+
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
+
+    // Also try using the non_owner as the payer and specifying the correct
+    // owner account, but the owner isn't a signer:
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &[Instruction::new_with_bytes(
+            program_id,
+            &HyperlaneTokenInstruction::SetInterchainGasPaymaster(new_igp)
+                .encode()
+                .unwrap(),
+            vec![
+                AccountMeta::new(hyperlane_token_accounts.token, false),
+                AccountMeta::new_readonly(payer.pubkey(), false),
+            ],
+        )],
+        Some(&non_owner.pubkey()),
+        &[&non_owner],
+        recent_blockhash,
+    );
+    let result = banks_client.process_transaction(transaction).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::MissingRequiredSignature),
+    );
 }
