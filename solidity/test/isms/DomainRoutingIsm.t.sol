@@ -27,7 +27,7 @@ contract DomainRoutingIsmTest is Test {
     }
 
     function getMetadata(uint32 domain) private view returns (bytes memory) {
-        return TestIsm(address(ism.module(domain))).requiredMetadata();
+        return TestIsm(address(ism.modules(domain))).requiredMetadata();
     }
 
     function testSet(uint32 domain) public {
@@ -35,7 +35,7 @@ contract DomainRoutingIsmTest is Test {
         vm.expectEmit(true, true, false, true);
         emit ModuleSet(domain, _ism);
         ism.set(domain, _ism);
-        assertEq(address(ism.module(domain)), address(_ism));
+        assertEq(address(ism.modules(domain)), address(_ism));
     }
 
     function testSetManyViaFactory(uint8 count, uint32 domain) public {
@@ -52,7 +52,7 @@ contract DomainRoutingIsmTest is Test {
         }
         ism = factory.deploy(_domains, _isms);
         for (uint256 i = 0; i < count; ++i) {
-            assertEq(address(ism.module(_domains[i])), address(_isms[i]));
+            assertEq(address(ism.modules(_domains[i])), address(_isms[i]));
         }
     }
 
