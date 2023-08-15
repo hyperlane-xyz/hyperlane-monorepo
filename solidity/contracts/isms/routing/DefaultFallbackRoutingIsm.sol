@@ -17,13 +17,13 @@ contract DefaultFallbackRoutingIsm is DomainRoutingIsm {
         mailbox = IMailbox(_mailbox);
     }
 
-    function module(uint32 origin)
+    function modules(uint32 origin)
         public
         view
         override
         returns (IInterchainSecurityModule)
     {
-        (bool contained, bytes32 _module) = modules.tryGet(origin);
+        (bool contained, bytes32 _module) = _modules.tryGet(origin);
         if (contained) {
             return IInterchainSecurityModule(_module.bytes32ToAddress());
         } else {
