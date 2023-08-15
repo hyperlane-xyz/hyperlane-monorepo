@@ -157,8 +157,8 @@ where
     M: Middleware + 'static,
 {
     #[instrument(err, skip(self))]
-    async fn sequence_at_tip(&self) -> ChainResult<Option<(u32, u32)>> {
-        let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self as _).await?;
+    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
         let chainid = self.provider.get_chainid().await.unwrap();
         println!(
             "~~~ finalized block number: {}, chainid: {}, contract: {:?}",
@@ -169,7 +169,7 @@ where
         let base_call = self.contract.count();
         let call_at_tip = base_call.block(u64::from(tip));
         let count = call_at_tip.call().await?;
-        Ok(Some((count, tip)))
+        Ok((Some(count), tip))
     }
 }
 
@@ -202,10 +202,11 @@ impl<M> SequenceIndexer<H256> for EthereumMailboxIndexer<M>
 where
     M: Middleware + 'static,
 {
-    async fn sequence_at_tip(&self) -> ChainResult<Option<(u32, u32)>> {
+    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         // A blanket implementation for this trait is fine for the EVM.
         // TODO: Consider removing `Indexer` as a supertrait of `SequenceIndexer`
-        Ok(None)
+        let tip = Indexer::<H256>::get_finalized_block_number(self).await?;
+        Ok((None, tip))
     }
 }
 

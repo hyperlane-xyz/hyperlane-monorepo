@@ -55,16 +55,15 @@ pub(crate) struct SyncState {
 impl SyncState {
     async fn get_next_range(
         &mut self,
-        max_sequence_and_tip: Option<(u32, u32)>,
+        max_sequence: Option<u32>,
+        tip: u32,
     ) -> ChainResult<Option<RangeInclusive<u32>>> {
         // We attempt to index a range of blocks that is as large as possible.
         let (from, to) = match self.direction {
             SyncDirection::Forward => {
                 let from = self.next_block;
                 let mut to = from + self.chunk_size;
-                if let Some((_, tip)) = max_sequence_and_tip {
-                    to = u32::min(to, tip);
-                }
+                to = u32::min(to, tip);
                 self.next_block = to + 1;
                 (from, to)
             }
@@ -80,19 +79,17 @@ impl SyncState {
             IndexMode::Sequence => {
                 let sequence_start = self.next_sequence;
                 let mut sequence_end = sequence_start + MAX_SEQUENCE_RANGE;
-                if let Some((max_sequence_index, tip)) = max_sequence_and_tip {
-                    if self.next_sequence >= max_sequence_index {
+                if let Some(max_sequence) = max_sequence {
+                    if self.next_sequence >= max_sequence {
                         return Ok(None);
                     }
-                    sequence_end = u32::min(sequence_end, max_sequence_index.saturating_sub(1));
+                    sequence_end = u32::min(sequence_end, max_sequence.saturating_sub(1));
                     self.next_block = tip;
                 }
                 self.next_sequence = sequence_end + 1;
                 sequence_start..=sequence_end
             }
         };
-
-        println!("~~~ cursor: {:?}", range);
         if range.is_empty() {
             return Ok(None);
         }
@@ -201,7 +198,7 @@ impl ForwardMessageSyncCursor {
             self.cursor.sync_state.next_sequence += 1;
         }
 
-        let Some((mailbox_count, tip)) = self.cursor.indexer.sequence_at_tip().await?
+        let (Some(mailbox_count), tip) = self.cursor.indexer.sequence_and_tip().await?
             else {
                 return Ok(None);
             };
@@ -217,7 +214,7 @@ impl ForwardMessageSyncCursor {
                 // The cursor is behind the mailbox, so we need to index some blocks.
                 self.cursor
                     .sync_state
-                    .get_next_range(Some((mailbox_count, tip)))
+                    .get_next_range(Some(mailbox_count), tip)
                     .await?
             }
             Ordering::Greater => {
@@ -332,8 +329,8 @@ impl BackwardMessageSyncCursor {
         }
 
         // Just keep going backwards.
-        let count_and_tip = self.cursor.indexer.sequence_at_tip().await?;
-        self.cursor.sync_state.get_next_range(count_and_tip).await
+        let (count, tip) = self.cursor.indexer.sequence_and_tip().await?;
+        self.cursor.sync_state.get_next_range(count, tip).await
     }
 
     /// If the previous block has been synced, rewind to the block number
@@ -372,13 +369,10 @@ impl ForwardBackwardMessageSyncCursor {
         chunk_size: u32,
         mode: IndexMode,
     ) -> Result<Self> {
-        let (count, tip) =
-            indexer
-                .sequence_at_tip()
-                .await?
-                .ok_or(ChainCommunicationError::from_other_str(
-                    "Failed to query message count",
-                ))?;
+        let (count, tip) = indexer.sequence_and_tip().await?;
+        let count = count.ok_or(ChainCommunicationError::from_other_str(
+            "Failed to query message count",
+        ))?;
         let forward_cursor = ForwardMessageSyncCursor::new(
             indexer.clone(),
             db.clone(),
@@ -535,8 +529,8 @@ where
         if let Some(rate_limit) = rate_limit {
             return Ok((CursorAction::Sleep(rate_limit), eta));
         }
-        let max_sequence_and_tip = self.indexer.sequence_at_tip().await?;
-        if let Some(range) = self.sync_state.get_next_range(max_sequence_and_tip).await? {
+        let (count, tip) = self.indexer.sequence_and_tip().await?;
+        if let Some(range) = self.sync_state.get_next_range(count, tip).await? {
             return Ok((CursorAction::Query(range), eta));
         }
 

@@ -39,6 +39,6 @@ pub trait Indexer<T: Sized>: Send + Sync + Debug {
 #[async_trait]
 #[auto_impl(&, Box, Arc)]
 pub trait SequenceIndexer<T>: Indexer<T> + 'static {
-    /// Return the latest finalized sequence and block number
-    async fn sequence_at_tip(&self) -> ChainResult<Option<(u32, u32)>>;
+    /// Return the latest finalized sequence (if any) and block number
+    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)>;
 }
