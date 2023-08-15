@@ -4,10 +4,12 @@
 
 #![allow(dead_code)] // TODO: remove before PR merge
 
+use std::cmp::Reverse;
 use std::collections::HashMap;
 
 use ethers::prelude::Selector;
 use eyre::{eyre, Context, Result};
+use itertools::Itertools;
 use serde::Deserialize;
 
 use ethers_prometheus::middleware::{
@@ -118,8 +120,10 @@ struct RawAgentConf {
 #[serde(rename_all = "camelCase")]
 struct RawAgentChainMetadataConf {
     // -- AgentChainMetadata --
+    #[serde(default)]
+    custom_rpc_urls: HashMap<String, RawRpcUrlConf>,
     rpc_consensus_type: Option<String>,
-    override_rpc_urls: Option<String>,
+    signer: Option<RawSignerConf>,
     #[serde(default)]
     index: RawAgentChainMetadataIndexConf,
 
@@ -177,6 +181,9 @@ struct RawRpcUrlConf {
     pagination: RawPaginationConf,
     #[serde(default)]
     retry: RawRetryConfig,
+
+    // -- AgentChainMetadata Ext for `custom_rpc_urls` --
+    priority: Option<StrOrInt>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -228,13 +235,56 @@ impl FromRawConf<RawAgentChainMetadataConf> for ChainConf {
         let mut err = ConfigParsingError::default();
 
         let domain = (&raw).parse_config(cwp).take_config_err(&mut err);
+        let addresses = (&raw).parse_config(cwp).take_config_err(&mut err);
 
-        cfg_unwrap_all!(cwp, err: domain);
+        let signer = raw.signer.and_then(|s| {
+            s.parse_config(&cwp.join("signer"))
+                .take_config_err(&mut err)
+        });
+
+        // TODO: is it correct to define finality blocks as `confirmations` and not `reorgPeriod`?
+        // TODO: should we rename `finalityBlocks` in ChainConf?
+        let finality_blocks = raw
+            .blocks
+            .confirmations
+            .ok_or_else(|| eyre!("Missing `confirmations`"))
+            .take_err(&mut err, || cwp + "confirmations")
+            .and_then(|v| {
+                v.try_into()
+                    .context("Invalid `confirmations`, expected integer")
+                    .take_err(&mut err, || cwp + "confirmations")
+            });
+
+        let rpcs = if raw.custom_rpc_urls.is_empty() {
+            // if no custom rpc urls are set, use the default rpc urls
+            raw.rpc_urls
+        } else {
+            // use the custom defined urls, sorted by highest prio first
+            raw.custom_rpc_urls
+                .into_iter()
+                .map(|(k, v)| {
+                    (
+                        v.priority
+                            .as_ref()
+                            .and_then(|v| {
+                                v.try_into()
+                                    .take_err(&mut err, || cwp + "customRpcUrls" + k)
+                            })
+                            .unwrap_or(0i32),
+                        v,
+                    )
+                })
+                .sorted_unstable_by_key(|(p, _)| Reverse(*p))
+                .map(|(_, v)| v)
+                .collect()
+        };
+
+        cfg_unwrap_all!(cwp, err: domain, finality_blocks, addresses);
         err.into_result(Self {
             domain,
-            signer: None,
-            finality_blocks: 0,
-            addresses: Default::default(),
+            signer,
+            finality_blocks,
+            addresses,
             connection: None,
             metrics_conf: Default::default(),
             index: Default::default(),
@@ -297,6 +347,48 @@ impl FromRawConf<&RawAgentChainMetadataConf> for HyperlaneDomain {
 
         cfg_unwrap_all!(cwp, err: domain);
         err.into_result(domain)
+    }
+}
+
+impl FromRawConf<&RawAgentChainMetadataConf> for CoreContractAddresses {
+    fn from_config_filtered(
+        raw: &RawAgentChainMetadataConf,
+        cwp: &ConfigPath,
+        _filter: (),
+    ) -> ConfigResult<Self> {
+        let mut err = ConfigParsingError::default();
+
+        let mailbox = raw
+            .mailbox
+            .as_ref()
+            .ok_or_else(|| eyre!("Missing `mailbox` address"))
+            .take_err(&mut err, || cwp + "mailbox")
+            .and_then(|v| hex_or_base58_to_h256(v).take_err(&mut err, || cwp + "mailbox"));
+
+        let interchain_gas_paymaster = raw
+            .interchain_gas_paymaster
+            .as_ref()
+            .ok_or_else(|| eyre!("Missing `interchainGasPaymaster` address"))
+            .take_err(&mut err, || cwp + "interchain_gas_paymaster")
+            .and_then(|v| {
+                hex_or_base58_to_h256(v).take_err(&mut err, || cwp + "interchain_gas_paymaster")
+            });
+
+        let validator_announce = raw
+            .validator_announce
+            .as_ref()
+            .ok_or_else(|| eyre!("Missing `validatorAnnounce` address"))
+            .take_err(&mut err, || cwp + "validator_announce")
+            .and_then(|v| {
+                hex_or_base58_to_h256(v).take_err(&mut err, || cwp + "validator_announce")
+            });
+
+        cfg_unwrap_all!(cwp, err: mailbox, interchain_gas_paymaster, validator_announce);
+        err.into_result(Self {
+            mailbox,
+            interchain_gas_paymaster,
+            validator_announce,
+        })
     }
 }
 

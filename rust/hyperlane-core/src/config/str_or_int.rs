@@ -68,6 +68,7 @@ macro_rules! convert_to {
 
 convert_to!(u16);
 convert_to!(u32);
+convert_to!(i32);
 convert_to!(u64);
 
 impl TryFrom<StrOrInt> for U256 {
