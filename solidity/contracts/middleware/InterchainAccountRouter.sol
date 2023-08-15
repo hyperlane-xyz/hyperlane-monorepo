@@ -441,6 +441,11 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         bytes32 _router,
         bytes32 _ism
     ) private {
+        require(
+            routers(_destination) == bytes32(0) &&
+                isms[_destination] == bytes32(0),
+            "router and ISM defaults are immutable once set"
+        );
         Router._enrollRemoteRouter(_destination, _router);
         _enrollRemoteIsm(_destination, _ism);
     }
