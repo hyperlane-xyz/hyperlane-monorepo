@@ -1,3 +1,5 @@
+import { chainMetadata } from '@hyperlane-xyz/sdk';
+
 import { ValidatorBaseChainConfigMap } from '../../../src/config/agent';
 import { Contexts } from '../../contexts';
 import { validatorBaseConfigsFn } from '../utils';
@@ -124,6 +126,17 @@ export const validatorChainConfig = (
           ],
         },
         'gnosis',
+      ),
+    },
+    nautilus: {
+      interval: 5,
+      reorgPeriod: chainMetadata.nautilus.blocks!.reorgPeriod!,
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['', '', ''],
+          [Contexts.ReleaseCandidate]: [],
+        },
+        'nautilus',
       ),
     },
   };
