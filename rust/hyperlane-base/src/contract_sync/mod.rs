@@ -58,12 +58,17 @@ where
             .metrics
             .stored_events
             .with_label_values(&[label, chain_name]);
-
+        // 2023-08-11 16:28:34.961 BST
         loop {
             indexed_height.set(cursor.latest_block() as i64);
             let Ok((action, eta)) = cursor.next_action().await else { continue };
             match action {
                 CursorAction::Query(range) => {
+                    let finalized_block = self.indexer.get_finalized_block_number().await.unwrap();
+                    println!(
+                        "~~~ domain: {:?}, range: {:?}, tip: {:?}",
+                        self.domain, range, finalized_block
+                    );
                     debug!(?range, "Looking for for events in index range");
 
                     let logs = self.indexer.fetch_logs(range.clone()).await?;
