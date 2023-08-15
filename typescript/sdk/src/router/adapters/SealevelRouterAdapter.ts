@@ -8,9 +8,9 @@ import { BaseSealevelAdapter } from '../../app/MultiProtocolApp';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
 import { ChainName } from '../../types';
 import {
-  AccountDataWrapper,
   HyperlaneTokenData,
-  HyperlaneTokenDataSchema,
+  SealevelAccountDataWrapper,
+  SealevelHyperlaneTokenDataSchema,
 } from '../../utils/sealevel/tokenSerialization';
 import { RouterAddress } from '../types';
 
@@ -83,8 +83,8 @@ export class SealevelRouterAdapter<
         `No account info found for ${msgRecipientPda.toBase58()}}`,
       );
     const accountData = deserializeUnchecked(
-      HyperlaneTokenDataSchema,
-      AccountDataWrapper,
+      SealevelHyperlaneTokenDataSchema,
+      SealevelAccountDataWrapper,
       accountInfo.data,
     );
     return accountData.data;

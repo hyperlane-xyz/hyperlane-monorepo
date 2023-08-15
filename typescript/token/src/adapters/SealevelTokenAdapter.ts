@@ -18,22 +18,22 @@ import BigNumber from 'bignumber.js';
 import { deserializeUnchecked, serialize } from 'borsh';
 
 import {
-  AccountDataWrapper,
   HypTokenInstruction,
   HyperlaneTokenData,
-  HyperlaneTokenDataSchema,
+  SealevelAccountDataWrapper,
+  SealevelHyperlaneTokenDataSchema,
   TransferRemoteInstruction,
   TransferRemoteSchema,
   TransferRemoteWrapper,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
+  DomainId,
   addressToBytes,
   isZeroishAddress,
 } from '@hyperlane-xyz/utils';
 
 import { SOL_SPL_NOOP_ADDRESS } from '../consts/values';
-import { DomainId } from '../globalTypes';
 
 import {
   IHypTokenAdapter,
@@ -170,8 +170,8 @@ export abstract class SealevelHypTokenAdapter
     const accountInfo = await this.connection.getAccountInfo(tokenPda);
     if (!accountInfo) throw new Error(`No account info found for ${tokenPda}`);
     const wrappedData = deserializeUnchecked(
-      HyperlaneTokenDataSchema,
-      AccountDataWrapper,
+      SealevelHyperlaneTokenDataSchema,
+      SealevelAccountDataWrapper,
       accountInfo.data,
     );
     return wrappedData.data;

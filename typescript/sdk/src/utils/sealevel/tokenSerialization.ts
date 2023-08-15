@@ -5,7 +5,7 @@ import { DomainId } from '@hyperlane-xyz/utils';
 /**
  * Hyperlane Token Borsh Schema
  */
-export class AccountDataWrapper {
+export class SealevelAccountDataWrapper {
   initialized!: boolean;
   data!: HyperlaneTokenData;
   constructor(public readonly fields: any) {
@@ -13,7 +13,7 @@ export class AccountDataWrapper {
   }
 }
 
-// Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/76467daf3a813952bb84254a09896c0f95046365/rust/sealevel/libraries/hyperlane-sealevel-token/src/accounts.rs#L25C12-L25C26
+// Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/libraries/hyperlane-sealevel-token/src/accounts.rs#L25C12-L25C26
 export class HyperlaneTokenData {
   /// The bump seed for this PDA.
   bump!: number;
@@ -67,9 +67,9 @@ export class HyperlaneTokenData {
   }
 }
 
-export const HyperlaneTokenDataSchema = new Map<any, any>([
+export const SealevelHyperlaneTokenDataSchema = new Map<any, any>([
   [
-    AccountDataWrapper,
+    SealevelAccountDataWrapper,
     {
       kind: 'struct',
       fields: [
@@ -104,7 +104,7 @@ export const HyperlaneTokenDataSchema = new Map<any, any>([
             },
           },
         ],
-        // ['interchain_gas_paymaster_type', { kind: 'option', type: 'u8' }],
+        ['interchain_gas_paymaster_type', { kind: 'option', type: 'u8' }],
         ['destination_gas', { kind: 'map', key: 'u32', value: 'u64' }],
         ['remote_routers', { kind: 'map', key: 'u32', value: [32] }],
       ],
