@@ -1,7 +1,3 @@
-/**
- * The types defined here are the source of truth for the agent configs.
- * ANY CHANGES HERE NEED TO BE REFLECTED IN HYPERLANE-BASE CONFIG PARSING.
- */
 import { z } from 'zod';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
