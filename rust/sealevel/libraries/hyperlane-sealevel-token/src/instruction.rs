@@ -32,6 +32,8 @@ pub enum Instruction {
     SetDestinationGasConfigs(Vec<GasRouterConfig>),
     /// Set the interchain security module. Only owner.
     SetInterchainSecurityModule(Option<Pubkey>),
+    /// Set the interchain gas paymaster program and account. Only owner.
+    SetInterchainGasPaymaster(Option<(Pubkey, InterchainGasPaymasterType)>),
     /// Transfer ownership of the program. Only owner.
     TransferOwnership(Option<Pubkey>),
 }

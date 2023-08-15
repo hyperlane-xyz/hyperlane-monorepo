@@ -366,7 +366,11 @@ async fn test_set_validators_and_threshold_creates_pda_account() {
         .unwrap()
         .data;
     assert_eq!(
-        ValidatorsAndThreshold::try_from_slice(validators_and_threshold_bytes.as_slice()).unwrap(),
+        SimulationReturnData::<ValidatorsAndThreshold>::try_from_slice(
+            validators_and_threshold_bytes.as_slice()
+        )
+        .unwrap()
+        .return_data,
         validators_and_threshold
     );
 }

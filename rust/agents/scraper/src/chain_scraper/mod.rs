@@ -17,9 +17,8 @@ use hyperlane_core::{
 };
 
 use crate::db::StorablePayment;
-use crate::{
-    date_time,
-    db::{BasicBlock, BlockCursor, ScraperDb, StorableDelivery, StorableMessage, StorableTxn},
+use crate::db::{
+    BasicBlock, BlockCursor, ScraperDb, StorableDelivery, StorableMessage, StorableTxn,
 };
 
 /// Maximum number of records to query at a time. This came about because when a
@@ -150,20 +149,23 @@ impl HyperlaneSqlDb {
         let mut txns_to_fetch = txns.iter_mut().filter(|(_, id)| id.0.is_none());
 
         let mut txns_to_insert: Vec<StorableTxn> = Vec::with_capacity(CHUNK_SIZE);
+        let mut hashes_to_insert: Vec<&H256> = Vec::with_capacity(CHUNK_SIZE);
+
         for mut chunk in as_chunks::<(&H256, &mut (Option<i64>, i64))>(txns_to_fetch, CHUNK_SIZE) {
             for (hash, (_, block_id)) in chunk.iter() {
                 let info = self.provider.get_txn_by_hash(hash).await?;
+                hashes_to_insert.push(*hash);
                 txns_to_insert.push(StorableTxn {
                     info,
                     block_id: *block_id,
                 });
             }
 
-            let mut cur_id = self.db.store_txns(txns_to_insert.drain(..)).await?;
-            for (_hash, (txn_id, _block_id)) in chunk.iter_mut() {
-                debug_assert!(cur_id > 0);
-                let _ = txn_id.insert(cur_id);
-                cur_id += 1;
+            self.db.store_txns(txns_to_insert.drain(..)).await?;
+            let ids = self.db.get_txn_ids(hashes_to_insert.drain(..)).await?;
+
+            for (hash, (txn_id, _block_id)) in chunk.iter_mut() {
+                let _ = txn_id.insert(ids[hash]);
             }
         }
 
@@ -216,6 +218,7 @@ impl HyperlaneSqlDb {
 
         let mut blocks_to_insert: Vec<(&mut BasicBlock, Option<BlockInfo>)> =
             Vec::with_capacity(CHUNK_SIZE);
+        let mut hashes_to_insert: Vec<&H256> = Vec::with_capacity(CHUNK_SIZE);
         for chunk in as_chunks(blocks_to_fetch, CHUNK_SIZE) {
             debug_assert!(!chunk.is_empty());
             for (hash, block_info) in chunk {
@@ -223,13 +226,12 @@ impl HyperlaneSqlDb {
                 let basic_info_ref = block_info.insert(BasicBlock {
                     id: -1,
                     hash: *hash,
-                    timestamp: date_time::from_unix_timestamp_s(info.timestamp),
                 });
                 blocks_to_insert.push((basic_info_ref, Some(info)));
+                hashes_to_insert.push(hash);
             }
 
-            let mut cur_id = self
-                .db
+            self.db
                 .store_blocks(
                     self.domain().id(),
                     blocks_to_insert
@@ -238,9 +240,16 @@ impl HyperlaneSqlDb {
                 )
                 .await?;
 
+            let hashes = self
+                .db
+                .get_block_basic(hashes_to_insert.drain(..))
+                .await?
+                .into_iter()
+                .map(|b| (b.hash, b.id))
+                .collect::<HashMap<_, _>>();
+
             for (block_ref, _) in blocks_to_insert.drain(..) {
-                block_ref.id = cur_id;
-                cur_id += 1;
+                block_ref.id = hashes[&block_ref.hash];
             }
         }
 

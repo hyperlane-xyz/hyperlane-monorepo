@@ -9,7 +9,7 @@ use num_traits::FromPrimitive;
 use strum::{EnumIter, EnumString, IntoStaticStr};
 
 use crate::utils::many_to_one;
-use crate::{HyperlaneProtocolError, IndexMode, H160, H256};
+use crate::{HyperlaneProtocolError, H160, H256};
 
 #[derive(Debug, Clone)]
 pub struct Address(pub bytes::Bytes);
@@ -104,6 +104,17 @@ pub enum HyperlaneDomain {
         domain_type: HyperlaneDomainType,
         domain_protocol: HyperlaneDomainProtocol,
     },
+}
+
+impl HyperlaneDomain {
+    pub fn is_arbitrum_nitro(&self) -> bool {
+        matches!(
+            self,
+            HyperlaneDomain::Known(
+                KnownHyperlaneDomain::Arbitrum | KnownHyperlaneDomain::ArbitrumGoerli,
+            )
+        )
+    }
 }
 
 #[cfg(any(test, feature = "test-utils"))]
@@ -347,24 +358,6 @@ impl HyperlaneDomain {
                 domain_protocol, ..
             } => *domain_protocol,
         }
-    }
-
-    pub fn is_arbitrum_nitro(&self) -> bool {
-        matches!(
-            self,
-            HyperlaneDomain::Known(
-                KnownHyperlaneDomain::Arbitrum | KnownHyperlaneDomain::ArbitrumGoerli,
-            )
-        )
-    }
-
-    pub const fn index_mode(&self) -> IndexMode {
-        use HyperlaneDomainProtocol::*;
-        let protocol = self.domain_protocol();
-        many_to_one!(match protocol {
-            IndexMode::Block: [Ethereum],
-            IndexMode::Sequence : [Sealevel, Fuel],
-        })
     }
 }
 
