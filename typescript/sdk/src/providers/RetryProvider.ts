@@ -2,7 +2,7 @@
 // See: https://github.com/ethers-io/ethers.js/discussions/3006
 import { ethers } from 'ethers';
 
-import { utils } from '@hyperlane-xyz/utils';
+import { assert, retryAsync } from '@hyperlane-xyz/utils';
 
 export type RetryProviderOptions = {
   // Maximum number of times to make the RPC
@@ -21,11 +21,11 @@ export class RetryJsonRpcProvider extends ethers.providers
     network?: ethers.providers.Networkish,
   ) {
     super(url, network);
-    utils.assert(
+    assert(
       retryOptions.maxRequests >= 1,
       'RetryOptions.maxRequests must be >= 1',
     );
-    utils.assert(
+    assert(
       retryOptions.baseRetryMs >= 1,
       'RetryOptions.baseRetryMs must be >= 1',
     );
@@ -33,7 +33,7 @@ export class RetryJsonRpcProvider extends ethers.providers
   }
 
   async send(method: string, params: Array<any>): Promise<any> {
-    return utils.retryAsync(
+    return retryAsync(
       () => super.send(method, params),
       this.retryOptions.maxRequests,
       this.retryOptions.baseRetryMs,

@@ -46,9 +46,7 @@ export class MultiGeneric<Value> {
     }
   }
 
-  map<Output>(
-    fn: (n: ChainName, dc: Value) => Output,
-  ): Record<ChainName, Output> {
+  map<Output>(fn: (n: ChainName, dc: Value) => Output): ChainMap<Output> {
     const entries: [ChainName, Output][] = [];
     for (const chain of this.chains()) {
       entries.push([chain, fn(chain, this.chainMap[chain])]);

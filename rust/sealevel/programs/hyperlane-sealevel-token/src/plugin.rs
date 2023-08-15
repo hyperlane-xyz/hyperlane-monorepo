@@ -2,7 +2,7 @@
 //! tokens upon receiving a transfer from a remote chain, and burns
 //! synthetic tokens when transferring out to a remote chain.
 
-use account_utils::{create_pda_account, verify_rent_exempt};
+use account_utils::{create_pda_account, verify_rent_exempt, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_sealevel_token_lib::{
     accounts::HyperlaneToken, message::TokenMessage, processor::HyperlaneSealevelTokenPlugin,
@@ -60,6 +60,17 @@ pub struct SyntheticPlugin {
     pub mint_bump: u8,
     /// The bump seed for the ATA payer PDA account.
     pub ata_payer_bump: u8,
+}
+
+impl SizedData for SyntheticPlugin {
+    fn size(&self) -> usize {
+        // mint
+        32 +
+        // mint_bump
+        std::mem::size_of::<u8>() +
+        // ata_payer_bump
+        std::mem::size_of::<u8>()
+    }
 }
 
 impl SyntheticPlugin {

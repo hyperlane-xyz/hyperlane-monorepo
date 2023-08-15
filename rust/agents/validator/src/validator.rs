@@ -143,12 +143,11 @@ impl BaseAgent for Validator {
 
 impl Validator {
     async fn run_message_sync(&self) -> Instrumented<JoinHandle<Result<()>>> {
-        let index_settings = self.as_ref().settings.chains[self.origin_chain.name()]
-            .index
-            .clone();
+        let (index_settings, index_mode) =
+            self.as_ref().settings.chains[self.origin_chain.name()].index_settings_and_mode();
         let contract_sync = self.message_sync.clone();
         let cursor = contract_sync
-            .forward_backward_message_sync_cursor(index_settings)
+            .forward_backward_message_sync_cursor(index_settings, index_mode)
             .await;
         tokio::spawn(async move {
             contract_sync
@@ -210,7 +209,7 @@ impl Validator {
             Ok(outcome) => {
                 if !outcome.executed {
                     error!(
-                        hash=?outcome.txid,
+                        txid=?outcome.transaction_id,
                         gas_used=?outcome.gas_used,
                         gas_price=?outcome.gas_price,
                         "Transaction attempting to announce validator reverted. Make sure you have enough funds in your account to pay for transaction fees."
@@ -227,6 +226,14 @@ impl Validator {
     }
 
     async fn announce(&self) -> Result<()> {
+        if self.core.settings.chains[self.origin_chain.name()]
+            .signer
+            .is_none()
+        {
+            warn!(origin_chain=%self.origin_chain, "Cannot announce validator without a signer; make sure a signer is set for the origin chain");
+            return Ok(());
+        }
+
         // Sign and post the validator announcement
         let announcement = Announcement {
             validator: self.signer.eth_address(),
@@ -271,7 +278,6 @@ impl Validator {
                         validator_address=?announcement.validator,
                         "Please send tokens to the validator address to announce",
                     );
-                    sleep(self.interval).await;
                 } else {
                     let result = self
                         .validator_announce
@@ -279,6 +285,7 @@ impl Validator {
                         .await;
                     Self::log_on_announce_failure(result);
                 }
+                sleep(self.interval).await;
             }
         }
         Ok(())

@@ -1,7 +1,7 @@
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
 
-import { utils } from '@hyperlane-xyz/utils';
+import { streamToString } from '@hyperlane-xyz/utils';
 
 export const S3_BUCKET_REGEX =
   /^(?:https?:\/\/)?(.*)\.s3\.(.*)\.amazonaws.com\/?$/;
@@ -35,9 +35,7 @@ export class S3Wrapper {
     });
     try {
       const response = await this.client.send(command);
-      const body: string = await utils.streamToString(
-        response.Body as Readable,
-      );
+      const body: string = await streamToString(response.Body as Readable);
       return {
         data: JSON.parse(body),
         modified: response.LastModified!,

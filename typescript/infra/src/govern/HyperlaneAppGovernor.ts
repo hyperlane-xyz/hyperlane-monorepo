@@ -6,9 +6,8 @@ import {
   HyperlaneApp,
   HyperlaneAppChecker,
   OwnerViolation,
-  objMap,
 } from '@hyperlane-xyz/sdk';
-import { types } from '@hyperlane-xyz/utils';
+import { Address, CallData, objMap } from '@hyperlane-xyz/utils';
 
 import { canProposeSafeTransactions } from '../utils/safe';
 
@@ -25,7 +24,7 @@ export enum SubmissionType {
   SAFE = 'SAFE',
 }
 
-export type AnnotatedCallData = types.CallData & {
+export type AnnotatedCallData = CallData & {
   submissionType?: SubmissionType;
   description: string;
 };
@@ -35,13 +34,13 @@ export abstract class HyperlaneAppGovernor<
   Config,
 > {
   readonly checker: HyperlaneAppChecker<App, Config>;
-  private owners: ChainMap<types.Address>;
+  private owners: ChainMap<Address>;
   private calls: ChainMap<AnnotatedCallData[]>;
   private canPropose: ChainMap<Map<string, boolean>>;
 
   constructor(
     checker: HyperlaneAppChecker<App, Config>,
-    owners: ChainMap<types.Address>,
+    owners: ChainMap<Address>,
   ) {
     this.checker = checker;
     this.owners = owners;
@@ -149,7 +148,7 @@ export abstract class HyperlaneAppGovernor<
     const signerAddress = await signer.getAddress();
 
     const transactionSucceedsFromSender = async (
-      submitterAddress: types.Address,
+      submitterAddress: Address,
     ): Promise<boolean> => {
       try {
         await multiProvider.estimateGas(chain, call, submitterAddress);

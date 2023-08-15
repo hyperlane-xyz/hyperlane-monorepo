@@ -7,9 +7,9 @@ import {
   TimelockController__factory,
   ValidatorAnnounce,
 } from '@hyperlane-xyz/core';
-import { types } from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts';
+import { HyperlaneContracts } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { IsmConfig } from '../ism/types';
@@ -37,9 +37,9 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
   async deployMailbox(
     chain: ChainName,
-    ismConfig: IsmConfig | types.Address,
-    proxyAdmin: types.Address,
-    owner: types.Address,
+    ismConfig: IsmConfig,
+    proxyAdmin: Address,
+    owner: Address,
   ): Promise<Mailbox> {
     const cachedMailbox = this.readCache(
       chain,
@@ -80,7 +80,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     return validatorAnnounce;
   }
 
-  async deployIsm(chain: ChainName, config: IsmConfig): Promise<types.Address> {
+  async deployIsm(chain: ChainName, config: IsmConfig): Promise<Address> {
     this.logger(`Deploying new ISM to ${chain}`);
     const ism = await this.ismFactory.deploy(chain, config);
     return ism.address;

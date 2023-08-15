@@ -1,4 +1,5 @@
-import { ChainMap, CoreConfig, objMap } from '@hyperlane-xyz/sdk';
+import { ChainMap, CoreConfig } from '@hyperlane-xyz/sdk';
+import { objMap } from '@hyperlane-xyz/utils';
 
 import { aggregationIsm } from '../../aggregationIsm';
 import { Contexts } from '../../contexts';

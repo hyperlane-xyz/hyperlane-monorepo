@@ -1,5 +1,10 @@
-// TODO move to utils package
-import { ChainMap } from '../types';
+export function isObject(item: any) {
+  return item && typeof item === 'object' && !Array.isArray(item);
+}
+
+export function deepEquals(v1: any, v2: any) {
+  return JSON.stringify(v1) === JSON.stringify(v2);
+}
 
 type MappedObject<M extends Record<any, any>, O> = {
   [Property in keyof M]: O;
@@ -57,10 +62,6 @@ export function pick<K extends string, V = any>(obj: Record<K, V>, keys: K[]) {
   return ret as Record<K, V>;
 }
 
-export function isObject(item: any) {
-  return item && typeof item === 'object' && !Array.isArray(item);
-}
-
 // Recursively merges b into a
 // Where there are conflicts, b takes priority over a
 export function objMerge(
@@ -91,14 +92,16 @@ export function objMerge(
   }
 }
 
-export function filterByChains<T>(
-  owners: ChainMap<T>,
-  filterByChainName: Set<string>,
-): ChainMap<T> {
-  return Object.keys(owners).reduce((result, chain) => {
-    if (filterByChainName.has(chain)) {
-      result[chain] = owners[chain];
-    }
+export function invertKeysAndValues(data: any) {
+  return Object.fromEntries(
+    Object.entries(data).map(([key, value]) => [value, key]),
+  );
+}
+
+// Returns an object with the keys as values from an array and value set to true
+export function arrayToObject(keys: Array<string | number>, val = true) {
+  return keys.reduce<Record<string | number, boolean>>((result, k) => {
+    result[k] = val;
     return result;
-  }, {} as ChainMap<T>);
+  }, {});
 }

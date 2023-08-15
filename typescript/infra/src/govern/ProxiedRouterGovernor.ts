@@ -6,7 +6,7 @@ import {
   RouterApp,
   RouterConfig,
 } from '@hyperlane-xyz/sdk';
-import { types } from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { HyperlaneAppGovernor } from './HyperlaneAppGovernor';
 
@@ -16,7 +16,7 @@ export class ProxiedRouterGovernor<
 > extends HyperlaneAppGovernor<App, Config> {
   constructor(
     checker: HyperlaneAppChecker<App, Config>,
-    owners: ChainMap<types.Address>,
+    owners: ChainMap<Address>,
   ) {
     super(checker, owners);
   }

@@ -1,4 +1,17 @@
-import { ethers } from 'ethers';
+import type { ethers } from 'ethers';
+
+export enum ProtocolType {
+  Ethereum = 'ethereum',
+  Sealevel = 'sealevel',
+  Fuel = 'fuel',
+}
+// A type that also allows for literal values of the enum
+export type ProtocolTypeValue = `${ProtocolType}`;
+
+export const ProtocolSmallestUnit = {
+  [ProtocolType.Ethereum]: 'wei',
+  [ProtocolType.Sealevel]: 'lamports',
+};
 
 /********* BASIC TYPES *********/
 export type Domain = number;

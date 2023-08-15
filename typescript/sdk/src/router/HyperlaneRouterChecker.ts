@@ -1,8 +1,8 @@
 import { ethers } from 'ethers';
 
-import { utils } from '@hyperlane-xyz/utils';
+import { addressToBytes32, assert, eqAddress } from '@hyperlane-xyz/utils';
 
-import { HyperlaneFactories } from '../contracts';
+import { HyperlaneFactories } from '../contracts/types';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
 import { ChainName } from '../types';
 
@@ -42,7 +42,7 @@ export class HyperlaneRouterChecker<
         value && typeof value === 'string'
           ? value
           : ethers.constants.AddressZero;
-      if (!utils.eqAddress(actual, expected)) {
+      if (!eqAddress(actual, expected)) {
         const violation: ConnectionClientViolation = {
           chain,
           type: violationType,
@@ -78,7 +78,7 @@ export class HyperlaneRouterChecker<
         );
         const remoteDomainId = this.multiProvider.getDomainId(remoteChain);
         const address = await router.routers(remoteDomainId);
-        utils.assert(address === utils.addressToBytes32(remoteRouter.address));
+        assert(address === addressToBytes32(remoteRouter.address));
       }),
     );
   }

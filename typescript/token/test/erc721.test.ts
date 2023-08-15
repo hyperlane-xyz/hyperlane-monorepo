@@ -12,9 +12,8 @@ import {
   TestCoreApp,
   TestCoreDeployer,
   deployTestIgpsAndGetRouterConfig,
-  objMap,
 } from '@hyperlane-xyz/sdk';
-import { utils } from '@hyperlane-xyz/utils';
+import { addressToBytes32, objMap } from '@hyperlane-xyz/utils';
 
 import { TokenConfig, TokenType } from '../src/config';
 import { HypERC721Factories } from '../src/contracts';
@@ -181,7 +180,7 @@ for (const withCollateral of [true, false]) {
         await expect(
           local.transferRemote(
             remoteDomain,
-            utils.addressToBytes32(recipient.address),
+            addressToBytes32(recipient.address),
             invalidTokenId,
             { value: interchainGasPayment },
           ),
@@ -191,7 +190,7 @@ for (const withCollateral of [true, false]) {
       it('should allow for remote transfers', async () => {
         await local.transferRemote(
           remoteDomain,
-          utils.addressToBytes32(recipient.address),
+          addressToBytes32(recipient.address),
           tokenId2,
           { value: interchainGasPayment },
         );
@@ -216,7 +215,7 @@ for (const withCollateral of [true, false]) {
 
           await local.transferRemote(
             remoteDomain,
-            utils.addressToBytes32(recipient.address),
+            addressToBytes32(recipient.address),
             tokenId2,
             { value: interchainGasPayment },
           );
@@ -240,7 +239,7 @@ for (const withCollateral of [true, false]) {
             .connect(recipient)
             .transferRemote(
               remoteDomain,
-              utils.addressToBytes32(recipient.address),
+              addressToBytes32(recipient.address),
               tokenId2,
               { value: interchainGasPayment },
             ),
@@ -261,16 +260,16 @@ for (const withCollateral of [true, false]) {
         } else {
           tokenIdToUse = totalSupply + 1;
         }
-        const message = `${utils.addressToBytes32(
-          recipient.address,
-        )}${BigNumber.from(tokenIdToUse)
+        const message = `${addressToBytes32(recipient.address)}${BigNumber.from(
+          tokenIdToUse,
+        )
           .toHexString()
           .slice(2)
           .padStart(64, '0')}`;
         try {
           const gas = await localRaw.estimateGas.handle(
             remoteDomain,
-            utils.addressToBytes32(remote.address),
+            addressToBytes32(remote.address),
             message,
             { from: mailboxAddress },
           );
@@ -287,7 +286,7 @@ for (const withCollateral of [true, false]) {
         await expect(
           local.transferRemote(
             remoteDomain,
-            utils.addressToBytes32(recipient.address),
+            addressToBytes32(recipient.address),
             tokenId3,
             {
               value: interchainGasPayment,
@@ -300,7 +299,7 @@ for (const withCollateral of [true, false]) {
         expect(
           await local.transferRemote(
             remoteDomain,
-            utils.addressToBytes32(recipient.address),
+            addressToBytes32(recipient.address),
             tokenId4,
             { value: interchainGasPayment },
           ),

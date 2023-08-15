@@ -11,7 +11,7 @@ import {
   MailboxViolation,
   MailboxViolationType,
 } from '@hyperlane-xyz/sdk/dist/core/types';
-import { types } from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { HyperlaneAppGovernor } from '../govern/HyperlaneAppGovernor';
 
@@ -21,7 +21,7 @@ export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
 > {
   constructor(
     readonly checker: HyperlaneCoreChecker,
-    owners: ChainMap<types.Address>,
+    owners: ChainMap<Address>,
   ) {
     super(checker, owners);
   }

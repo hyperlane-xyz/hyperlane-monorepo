@@ -1,8 +1,6 @@
-import {
-  ChainMetadata,
-  ExplorerFamily,
-  ProtocolType,
-} from '../metadata/chainMetadataTypes';
+import { ProtocolType } from '@hyperlane-xyz/utils';
+
+import { ChainMetadata, ExplorerFamily } from '../metadata/chainMetadataTypes';
 import { ChainMap } from '../types';
 
 import { Chains, Mainnets, Testnets } from './chains';

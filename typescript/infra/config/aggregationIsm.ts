@@ -8,10 +8,8 @@ import {
   MultisigIsmConfig,
   RoutingIsmConfig,
   defaultMultisigIsmConfigs,
-  objFilter,
-  objMap,
 } from '@hyperlane-xyz/sdk';
-import { types } from '@hyperlane-xyz/utils';
+import { Address, objFilter, objMap } from '@hyperlane-xyz/utils';
 
 import { DeployEnvironment } from '../src/config';
 
@@ -94,7 +92,7 @@ export const aggregationIsm = (
   environment: DeployEnvironment,
   local: ChainName,
   context: Contexts,
-): AggregationIsmConfig | types.Address => {
+): AggregationIsmConfig | Address => {
   if (environment === 'mainnet2') {
     return aggregationIsmAddresses[local];
   }
