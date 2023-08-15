@@ -180,6 +180,7 @@ decl_settings!(Relayer,
         /// This is optional. If not specified, any amount of gas will be valid, otherwise this
         /// is the max allowed gas in wei to relay a transaction.
         transactiongaslimit: Option<StrOrInt>,
+        // TODO: this should be a list of chain names to be consistent
         /// Comma separated List of domain ids to skip applying the transaction gas limit to.
         skiptransactiongaslimitfor: Option<String>,
         /// If true, allows local storage based checkpoint syncers.

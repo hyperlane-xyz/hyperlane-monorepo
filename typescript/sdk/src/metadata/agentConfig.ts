@@ -217,9 +217,8 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
   transactionGasLimit: ZUWei.optional().describe(
     'This is optional. If not specified, any amount of gas will be valid, otherwise this is the max allowed gas in wei to relay a transaction.',
   ),
-  // TODO: this should be a list of chain names to be consistent
   skipTransactionGasLimitFor: CommaSeperatedDomainList.optional().describe(
-    'Comma separated List of domain ids to skip applying the transaction gas limit to.',
+    'Comma separated List of chain names to skip applying the transaction gas limit to.',
   ),
   allowLocalCheckpointSyncers: z
     .boolean()
