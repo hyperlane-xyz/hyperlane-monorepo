@@ -8,12 +8,12 @@ use hyperlane_core::{config::*, ChainCommunicationError, ChainResult};
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
     /// Fully qualified string to connect to
-    url: Url,
+    pub url: Url,
 }
 
 /// Raw fuel connection configuration used for better deserialization errors.
 #[derive(Debug, serde::Deserialize)]
-pub struct RawConnectionConf {
+pub struct DeprecatedRawConnectionConf {
     url: Option<String>,
 }
 
@@ -28,21 +28,21 @@ pub enum ConnectionConfError {
     InvalidConnectionUrl(String, url::ParseError),
 }
 
-impl FromRawConf<RawConnectionConf> for ConnectionConf {
+impl FromRawConf<DeprecatedRawConnectionConf> for ConnectionConf {
     fn from_config_filtered(
-        raw: RawConnectionConf,
+        raw: DeprecatedRawConnectionConf,
         cwp: &ConfigPath,
         _filter: (),
     ) -> ConfigResult<Self> {
         use ConnectionConfError::*;
         match raw {
-            RawConnectionConf { url: Some(url) } => Ok(Self {
+            DeprecatedRawConnectionConf { url: Some(url) } => Ok(Self {
                 url: url
                     .parse()
                     .map_err(|e| InvalidConnectionUrl(url, e))
                     .into_config_result(|| cwp.join("url"))?,
             }),
-            RawConnectionConf { url: None } => {
+            DeprecatedRawConnectionConf { url: None } => {
                 Err(MissingConnectionUrl).into_config_result(|| cwp.join("url"))
             }
         }

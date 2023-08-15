@@ -44,6 +44,10 @@ impl ConfigPath {
     pub fn join(&self, part: impl Into<String>) -> Self {
         let part = part.into();
         debug_assert!(!part.contains('.'));
+        debug_assert!(!part.contains('['));
+        debug_assert!(!part.contains(']'));
+        debug_assert!(!part.is_empty());
+        debug_assert!(part.to_ascii_lowercase() == part);
         let mut new = self.clone();
         new.0.push(Arc::new(part));
         new

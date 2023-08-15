@@ -2,7 +2,7 @@
 //! and validations it defines are not applied here, we should mirror them.
 //! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 
-#![allow(dead_code)] // TODO: remove before PR merge
+#![allow(dead_code)] // TODO(2214): remove before PR merge
 
 use std::cmp::Reverse;
 use std::collections::HashMap;
@@ -51,7 +51,7 @@ pub struct ChainConf {
     /// Addresses of contracts on the chain
     pub addresses: CoreContractAddresses,
     /// The chain connection details
-    pub connection: Option<ChainConnectionConf>,
+    pub connection: ChainConnectionConf,
     /// Configure chain-specific metrics information. This will automatically
     /// add all contract addresses but will not override any set explicitly.
     /// Use `metrics_conf()` to get the metrics.
@@ -124,7 +124,7 @@ struct RawAgentChainMetadataConf {
     // -- AgentChainMetadata --
     #[serde(default)]
     custom_rpc_urls: HashMap<String, RawRpcUrlConf>,
-    rpc_consensus_type: Option<String>,
+    rpc_consensus_type: Option<RawRpcConsensusType>,
     signer: Option<RawSignerConf>,
     #[serde(default)]
     index: RawAgentChainMetadataIndexConf,
@@ -164,6 +164,7 @@ struct RawAgentChainMetadataConf {
 struct RawAgentChainMetadataIndexConf {
     from: Option<StrOrInt>,
     chunk: Option<StrOrInt>,
+    mode: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -228,6 +229,15 @@ struct RawAgentLogConf {
     level: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+enum RawRpcConsensusType {
+    Fallback,
+    Quorum,
+    #[serde(other)]
+    Unknown,
+}
+
 impl FromRawConf<RawAgentChainMetadataConf> for ChainConf {
     fn from_config_filtered(
         raw: RawAgentChainMetadataConf,
@@ -244,8 +254,8 @@ impl FromRawConf<RawAgentChainMetadataConf> for ChainConf {
                 .take_config_err(&mut err)
         });
 
-        // TODO: is it correct to define finality blocks as `confirmations` and not `reorgPeriod`?
-        // TODO: should we rename `finalityBlocks` in ChainConf?
+        // TODO(2214): is it correct to define finality blocks as `confirmations` and not `reorgPeriod`?
+        // TODO(2214): should we rename `finalityBlocks` in ChainConf?
         let finality_blocks = raw
             .blocks
             .confirmations
@@ -257,39 +267,121 @@ impl FromRawConf<RawAgentChainMetadataConf> for ChainConf {
                     .take_err(&mut err, || cwp + "confirmations")
             });
 
-        let rpcs = if raw.custom_rpc_urls.is_empty() {
+        let index: Option<IndexSettings> = raw
+            .index
+            .parse_config_with_filter(&cwp.join("index"), domain.as_ref())
+            .take_config_err(&mut err);
+
+        let rpcs: Vec<(ConfigPath, RawRpcUrlConf)> = if raw.custom_rpc_urls.is_empty() {
+            let cwp = cwp + "rpc_urls";
             // if no custom rpc urls are set, use the default rpc urls
             raw.rpc_urls
+                .into_iter()
+                .enumerate()
+                .map(|(i, v)| (&cwp + i.to_string(), v))
+                .collect()
         } else {
             // use the custom defined urls, sorted by highest prio first
+            let cwp = cwp + "custom_rpc_urls";
             raw.custom_rpc_urls
                 .into_iter()
                 .map(|(k, v)| {
                     (
                         v.priority
                             .as_ref()
-                            .and_then(|v| {
-                                v.try_into()
-                                    .take_err(&mut err, || cwp + "customRpcUrls" + k)
-                            })
+                            .and_then(|v| v.try_into().take_err(&mut err, || &cwp + &k))
                             .unwrap_or(0i32),
+                        k,
                         v,
                     )
                 })
-                .sorted_unstable_by_key(|(p, _)| Reverse(*p))
-                .map(|(_, v)| v)
+                .sorted_unstable_by_key(|(p, _, _)| Reverse(*p))
+                .map(|(_, k, v)| (&cwp + k, v))
                 .collect()
         };
 
-        cfg_unwrap_all!(cwp, err: domain, finality_blocks, addresses);
+        if rpcs.is_empty() {
+            err.push(
+                cwp + "rpc_urls",
+                eyre!("Missing base rpc definitions for chain"),
+            );
+            err.push(
+                cwp + "custom_rpc_urls",
+                eyre!("Also missing rpc overrides for chain"),
+            );
+        }
+
+        cfg_unwrap_all!(cwp, err: index, finality_blocks, domain);
+
+        let connection: Option<ChainConnectionConf> = match domain.domain_protocol() {
+            HyperlaneDomainProtocol::Ethereum => {
+                if rpcs.len() <= 1 {
+                    rpcs.into_iter()
+                        .next()
+                        .and_then(|(cwp, rpc)| rpc.http.map(|url| (cwp, url)))
+                        .and_then(|(cwp, url)| url.parse().take_err(&mut err, || cwp))
+                        .map(|url| {
+                            ChainConnectionConf::Ethereum(h_eth::ConnectionConf::Http { url })
+                        })
+                } else {
+                    let urls = rpcs
+                        .into_iter()
+                        .filter_map(|(cwp, rpc)| {
+                            let cwp = || &cwp + "http";
+                            rpc.http
+                                .ok_or_else(|| {
+                                    eyre!(
+                                        "missing http url for multi-rpc configured ethereum client"
+                                    )
+                                })
+                                .take_err(&mut err, cwp)
+                                .and_then(|url| url.parse().take_err(&mut err, cwp))
+                        })
+                        .collect_vec();
+
+                    match raw
+                        .rpc_consensus_type {
+                        Some(RawRpcConsensusType::Fallback) => {
+                            Some(h_eth::ConnectionConf::HttpFallback { urls })
+                        }
+                        Some(RawRpcConsensusType::Quorum) => {
+                            Some(h_eth::ConnectionConf::HttpQuorum { urls })
+                        }
+                        Some(RawRpcConsensusType::Unknown) => {
+                            err.push(cwp + "rpc_consensus_type", eyre!("unknown rpc consensus type"));
+                            None
+                        }
+                        None => {
+                            err.push(cwp + "rpc_consensus_type", eyre!("missing consensus type for multi-rpc configured ethereum client"));
+                            None
+                        },
+                    }
+                    .map(ChainConnectionConf::Ethereum)
+                }
+            }
+            HyperlaneDomainProtocol::Fuel => rpcs
+                .into_iter()
+                .next()
+                .and_then(|(cwp, rpc)| rpc.http.map(|url| (cwp, url)))
+                .and_then(|(cwp, url)| url.parse().take_err(&mut err, || cwp))
+                .map(|url| ChainConnectionConf::Fuel(h_fuel::ConnectionConf { url })),
+            HyperlaneDomainProtocol::Sealevel => rpcs
+                .into_iter()
+                .next()
+                .and_then(|(cwp, rpc)| rpc.http.map(|url| (cwp, url)))
+                .and_then(|(cwp, url)| url.parse().take_err(&mut err, || cwp))
+                .map(|url| ChainConnectionConf::Sealevel(h_sealevel::ConnectionConf { url })),
+        };
+
+        cfg_unwrap_all!(cwp, err: addresses, connection);
         err.into_result(Self {
             domain,
             signer,
             finality_blocks,
             addresses,
-            connection: None,
+            connection,
             metrics_conf: Default::default(),
-            index: Default::default(),
+            index,
         })
     }
 }
@@ -394,6 +486,50 @@ impl FromRawConf<&RawAgentChainMetadataConf> for CoreContractAddresses {
     }
 }
 
+impl FromRawConf<RawAgentChainMetadataIndexConf, Option<&HyperlaneDomain>> for IndexSettings {
+    fn from_config_filtered(
+        raw: RawAgentChainMetadataIndexConf,
+        cwp: &ConfigPath,
+        domain: Option<&HyperlaneDomain>,
+    ) -> ConfigResult<Self> {
+        let mut err = ConfigParsingError::default();
+
+        let from = raw
+            .from
+            .and_then(|v| v.try_into().take_err(&mut err, || cwp + "from"))
+            .unwrap_or_default();
+
+        let chunk_size = raw
+            .chunk
+            .and_then(|v| v.try_into().take_err(&mut err, || cwp + "chunk"))
+            .unwrap_or(1999);
+
+        let mode = raw
+            .mode
+            .map(serde_json::Value::from)
+            .and_then(|m| {
+                serde_json::from_value(m)
+                    .context("Invalid mode")
+                    .take_err(&mut err, || cwp + "mode")
+            })
+            .or_else(|| {
+                // attempt to choose a reasonable default
+                domain.and_then(|d| match d.domain_protocol() {
+                    HyperlaneDomainProtocol::Ethereum => Some(IndexMode::Block),
+                    HyperlaneDomainProtocol::Sealevel => Some(IndexMode::Sequence),
+                    _ => None,
+                })
+            })
+            .unwrap_or_default();
+
+        err.into_result(Self {
+            from,
+            chunk_size,
+            mode,
+        })
+    }
+}
+
 ///////////////////////////
 // DEPRECATED RAW TYPES //
 /////////////////////////
@@ -402,8 +538,8 @@ impl FromRawConf<&RawAgentChainMetadataConf> for CoreContractAddresses {
 #[serde(tag = "protocol", content = "connection", rename_all = "camelCase")]
 enum DeprecatedRawChainConnectionConf {
     Ethereum(h_eth::RawConnectionConf),
-    Fuel(h_fuel::RawConnectionConf),
-    Sealevel(h_sealevel::RawConnectionConf),
+    Fuel(h_fuel::DeprecatedRawConnectionConf),
+    Sealevel(h_sealevel::DeprecatedRawConnectionConf),
     #[serde(other)]
     Unknown,
 }
@@ -443,43 +579,47 @@ impl FromRawConf<DeprecatedRawCoreContractAddresses> for CoreContractAddresses {
         let mut err = ConfigParsingError::default();
 
         macro_rules! parse_addr {
-            ($name:ident) => {{
-                let path = || cwp + stringify!($name);
-                raw.$name
+            ($name:ident) => {
+                let $name = raw
+                    .$name
                     .ok_or_else(|| {
                         eyre!(
                             "Missing {} core contract address",
                             stringify!($name).replace('_', " ")
                         )
                     })
-                    .take_err(&mut err, path)
-                    .and_then(|v| hex_or_base58_to_h256(&v).take_err(&mut err, path))
-            }};
+                    .take_err(&mut err, || cwp + stringify!($name))
+                    .and_then(|v| {
+                        hex_or_base58_to_h256(&v).take_err(&mut err, || cwp + stringify!($name))
+                    });
+            };
         }
 
-        let mb = parse_addr!(mailbox);
-        let igp = parse_addr!(interchain_gas_paymaster);
-        let va = parse_addr!(validator_announce);
+        parse_addr!(mailbox);
+        parse_addr!(interchain_gas_paymaster);
+        parse_addr!(validator_announce);
+
+        cfg_unwrap_all!(cwp, err: mailbox, interchain_gas_paymaster, validator_announce);
 
         err.into_result(Self {
-            mailbox: mb.unwrap(),
-            interchain_gas_paymaster: igp.unwrap(),
-            validator_announce: va.unwrap(),
+            mailbox,
+            interchain_gas_paymaster,
+            validator_announce,
         })
     }
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct RawIndexSettings {
+struct DeprecatedRawIndexSettings {
     from: Option<StrOrInt>,
     chunk: Option<StrOrInt>,
     mode: Option<String>,
 }
 
-impl FromRawConf<RawIndexSettings> for IndexSettings {
+impl FromRawConf<DeprecatedRawIndexSettings> for IndexSettings {
     fn from_config_filtered(
-        raw: RawIndexSettings,
+        raw: DeprecatedRawIndexSettings,
         cwp: &ConfigPath,
         _filter: (),
     ) -> ConfigResult<Self> {
@@ -529,7 +669,7 @@ pub struct DeprecatedRawChainConf {
     #[serde(default)]
     metrics_conf: Option<PrometheusMiddlewareConf>,
     #[serde(default)]
-    index: Option<RawIndexSettings>,
+    index: Option<DeprecatedRawIndexSettings>,
 }
 
 impl FromRawConf<DeprecatedRawChainConf> for ChainConf {
@@ -542,31 +682,29 @@ impl FromRawConf<DeprecatedRawChainConf> for ChainConf {
 
         let connection = raw
             .connection
-            .and_then(|r| r.parse_config(cwp).take_config_err(&mut err));
-
-        let domain = connection
-            .as_ref()
             .ok_or_else(|| eyre!("Missing `connection` configuration"))
             .take_err(&mut err, || cwp + "connection")
-            .and_then(|c: &ChainConnectionConf| {
-                let protocol = c.protocol();
-                let domain_id = raw
-                    .domain
-                    .ok_or_else(|| eyre!("Missing `domain` configuration"))
-                    .take_err(&mut err, || cwp + "domain")
-                    .and_then(|r| {
-                        r.try_into()
-                            .context("Invalid domain id, expected integer")
-                            .take_err(&mut err, || cwp + "domain")
-                    });
-                let name = raw
-                    .name
-                    .as_deref()
-                    .ok_or_else(|| eyre!("Missing domain `name` configuration"))
-                    .take_err(&mut err, || cwp + "name");
-                HyperlaneDomain::from_config(domain_id?, name?, protocol)
-                    .take_err(&mut err, || cwp.clone())
-            });
+            .and_then(|r| r.parse_config(cwp).take_config_err(&mut err));
+
+        let domain = connection.as_ref().and_then(|c: &ChainConnectionConf| {
+            let protocol = c.protocol();
+            let domain_id = raw
+                .domain
+                .ok_or_else(|| eyre!("Missing `domain` configuration"))
+                .take_err(&mut err, || cwp + "domain")
+                .and_then(|r| {
+                    r.try_into()
+                        .context("Invalid domain id, expected integer")
+                        .take_err(&mut err, || cwp + "domain")
+                });
+            let name = raw
+                .name
+                .as_deref()
+                .ok_or_else(|| eyre!("Missing domain `name` configuration"))
+                .take_err(&mut err, || cwp + "name");
+            HyperlaneDomain::from_config(domain_id?, name?, protocol)
+                .take_err(&mut err, || cwp.clone())
+        });
 
         let addresses = raw
             .addresses
@@ -598,10 +736,12 @@ impl FromRawConf<DeprecatedRawChainConf> for ChainConf {
 
         let metrics_conf = raw.metrics_conf.unwrap_or_default();
 
+        cfg_unwrap_all!(cwp, err: connection, domain, addresses);
+
         err.into_result(Self {
             connection,
-            domain: domain.unwrap(),
-            addresses: addresses.unwrap(),
+            domain,
+            addresses,
             signer,
             finality_blocks,
             index,
@@ -615,23 +755,13 @@ impl FromRawConf<DeprecatedRawChainConf> for ChainConf {
 ///////////////////////
 
 impl ChainConf {
-    /// Get the chain connection config or generate an error
-    pub fn connection(&self) -> Result<&ChainConnectionConf> {
-        self.connection
-            .as_ref()
-            .ok_or_else(|| eyre!(
-                "Missing chain configuration for {}; this includes protocol type and the connection information",
-                self.domain.name()
-            ))
-    }
-
     /// Try to convert the chain settings into an HyperlaneProvider.
     pub async fn build_provider(
         &self,
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn HyperlaneProvider>> {
         let ctx = "Building provider";
-        match &self.connection()? {
+        match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
                 let locator = self.locator(H256::zero());
                 self.build_ethereum(conf, &locator, metrics, h_eth::HyperlaneProviderBuilder {})
@@ -648,7 +778,7 @@ impl ChainConf {
         let ctx = "Building provider";
         let locator = self.locator(self.addresses.mailbox);
 
-        match &self.connection()? {
+        match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(conf, &locator, metrics, h_eth::MailboxBuilder {})
                     .await
@@ -678,7 +808,7 @@ impl ChainConf {
         let ctx = "Building delivery indexer";
         let locator = self.locator(self.addresses.mailbox);
 
-        match &self.connection()? {
+        match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(
                     conf,
@@ -708,7 +838,7 @@ impl ChainConf {
         let ctx = "Building delivery indexer";
         let locator = self.locator(self.addresses.mailbox);
 
-        match &self.connection()? {
+        match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(
                     conf,
@@ -739,7 +869,7 @@ impl ChainConf {
         let ctx = "Building IGP";
         let locator = self.locator(self.addresses.interchain_gas_paymaster);
 
-        match &self.connection()? {
+        match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(
                     conf,
@@ -769,7 +899,7 @@ impl ChainConf {
         let ctx = "Building IGP indexer";
         let locator = self.locator(self.addresses.interchain_gas_paymaster);
 
-        match &self.connection()? {
+        match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(
                     conf,
@@ -800,7 +930,7 @@ impl ChainConf {
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn ValidatorAnnounce>> {
         let locator = self.locator(self.addresses.validator_announce);
-        match &self.connection()? {
+        match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(conf, &locator, metrics, h_eth::ValidatorAnnounceBuilder {})
                     .await
@@ -825,7 +955,7 @@ impl ChainConf {
         let ctx = "Building ISM";
         let locator = self.locator(address);
 
-        match &self.connection()? {
+        match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(
                     conf,
@@ -857,7 +987,7 @@ impl ChainConf {
         let ctx = "Building multisig ISM";
         let locator = self.locator(address);
 
-        match &self.connection()? {
+        match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(conf, &locator, metrics, h_eth::MultisigIsmBuilder {})
                     .await
@@ -885,7 +1015,7 @@ impl ChainConf {
             address,
         };
 
-        match &self.connection()? {
+        match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(conf, &locator, metrics, h_eth::RoutingIsmBuilder {})
                     .await
@@ -911,7 +1041,7 @@ impl ChainConf {
             address,
         };
 
-        match &self.connection()? {
+        match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(conf, &locator, metrics, h_eth::AggregationIsmBuilder {})
                     .await
@@ -937,7 +1067,7 @@ impl ChainConf {
             address,
         };
 
-        match &self.connection()? {
+        match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(conf, &locator, metrics, h_eth::CcipReadIsmBuilder {})
                     .await
