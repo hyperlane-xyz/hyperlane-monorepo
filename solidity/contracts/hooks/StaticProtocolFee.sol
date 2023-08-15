@@ -83,6 +83,14 @@ contract StaticProtocolFee is IPostDispatchHook, Ownable {
     }
 
     /**
+     * @notice Sets the beneficiary of protocol fees.
+     * @param _beneficiary The new beneficiary.
+     */
+    function setBeneficiary(address _beneficiary) external onlyOwner {
+        _setBeneficiary(_beneficiary);
+    }
+
+    /**
      * @notice Collects protocol fees from the contract.
      */
     function collectProtocolFees() external {
