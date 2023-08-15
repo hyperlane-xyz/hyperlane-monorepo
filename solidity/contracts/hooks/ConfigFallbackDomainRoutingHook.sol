@@ -45,6 +45,21 @@ contract ConfigFallbackDomainRoutingHook is IPostDispatchHook {
         configuredHook.postDispatch{value: msg.value}(metadata, message);
     }
 
+    function quoteDispatch(bytes calldata metadata, bytes calldata message)
+        public
+        view
+        returns (uint256)
+    {
+        IPostDispatchHook configuredHook = customHooks[message.senderAddress()][
+            message.destination()
+        ][message.recipient()];
+        if (address(configuredHook) == address(0)) {
+            configuredHook = mailbox.defaultHook();
+        }
+
+        return configuredHook.quoteDispatch(metadata, message);
+    }
+
     function setHook(
         uint32 destinationDomain,
         bytes32 recipient,

@@ -28,6 +28,7 @@ contract InterchainGasPaymasterTest is Test {
     bytes32 constant testMessageId =
         0x6ae9a99190641b9ed0c07143340612dde0e9cb7deaa5fe07597858ae9ba5fd7f;
     address constant testRefundAddress = address(0xc0ffee);
+    bytes testEncodedMessage;
 
     event GasPayment(
         bytes32 indexed messageId,
@@ -44,6 +45,8 @@ contract InterchainGasPaymasterTest is Test {
         igp.initialize(address(this), beneficiary);
         oracle = new StorageGasOracle();
         setGasOracle(testDestinationDomain, address(oracle));
+
+        testEncodedMessage = _encodeTestMessage();
     }
 
     // ============ constructor ============
@@ -57,6 +60,34 @@ contract InterchainGasPaymasterTest is Test {
     function testInitializeRevertsIfCalledTwice() public {
         vm.expectRevert("Initializable: contract is already initialized");
         igp.initialize(address(this), beneficiary);
+    }
+
+    // ============ quoteDispatch ============
+
+    function testQuoteDispatch_defaultGasLimit() public {
+        setRemoteGasData(
+            testDestinationDomain,
+            1 * 1e10, // 1.0 exchange rate (remote token has exact same value as local)
+            150 // 1 wei gas price
+        );
+
+        // 150 * 69_420 = 10_413_000
+        assertEq(igp.quoteDispatch("", testEncodedMessage), 10_413_000);
+    }
+
+    function testQuoteDispatch_customWithMetadata() public {
+        setRemoteGasData(
+            testDestinationDomain,
+            1 * 1e10, // 1.0 exchange rate (remote token has exact same value as local)
+            150 // 1 wei gas price
+        );
+
+        bytes memory metadata = IGPMetadata.formatMetadata(
+            uint256(testGasAmount), // gas limit
+            testRefundAddress // refund address
+        );
+        // 150 * 300_000 = 45_000_000
+        assertEq(igp.quoteDispatch(metadata, testEncodedMessage), 45_000_000);
     }
 
     // ============ postDispatch ============
@@ -73,9 +104,8 @@ contract InterchainGasPaymasterTest is Test {
         uint256 _quote = igp.quoteGasPayment(testDestinationDomain, 69_420);
 
         uint256 _overpayment = 21000;
-        bytes memory message = _encodeTestMessage();
 
-        igp.postDispatch{value: _quote + _overpayment}("", message);
+        igp.postDispatch{value: _quote + _overpayment}("", testEncodedMessage);
 
         uint256 _igpBalanceAfter = address(igp).balance;
         uint256 _refundAddressBalanceAfter = address(this).balance;

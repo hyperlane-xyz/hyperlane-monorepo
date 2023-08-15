@@ -43,4 +43,14 @@ contract DomainRoutingHook is IPostDispatchHook, Ownable {
             message
         );
     }
+
+    function quoteDispatch(bytes calldata metadata, bytes calldata message)
+        public
+        view
+        virtual
+        override
+        returns (uint256)
+    {
+        return hooks[message.destination()].quoteDispatch(metadata, message);
+    }
 }

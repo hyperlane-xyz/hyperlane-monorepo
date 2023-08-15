@@ -67,6 +67,10 @@ contract StaticProtocolFeeTest is Test {
         assertEq(fees.beneficiary(), bob);
     }
 
+    function testQuoteDispatch() public {
+        assertEq(fees.quoteDispatch("", testMessage), 1e15);
+    }
+
     function testFuzz_postDispatch_inusfficientFees(
         uint256 feeRequired,
         uint256 feeSent

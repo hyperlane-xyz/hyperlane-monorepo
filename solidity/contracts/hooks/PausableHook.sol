@@ -13,6 +13,16 @@ contract PausableHook is IPostDispatchHook, Ownable, Pausable {
         whenNotPaused
     {}
 
+    /// @inheritdoc IPostDispatchHook
+    function quoteDispatch(bytes calldata, bytes calldata)
+        external
+        pure
+        override
+        returns (uint256)
+    {
+        return 0;
+    }
+
     function pause() external onlyOwner {
         _pause();
     }

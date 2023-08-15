@@ -43,6 +43,15 @@ contract ERC5164Hook is AbstractMessageIdAuthHook {
         dispatcher = IMessageDispatcher(_dispatcher);
     }
 
+    function quoteDispatch(bytes calldata, bytes calldata)
+        external
+        pure
+        override
+        returns (uint256)
+    {
+        revert("not implemented");
+    }
+
     function _sendMessageId(
         bytes calldata, /* metadata */
         bytes memory payload

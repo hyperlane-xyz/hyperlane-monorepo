@@ -132,6 +132,16 @@ contract OPStackIsmTest is Test {
     ///                         FORK TESTS                          ///
     ///////////////////////////////////////////////////////////////////
 
+    /* ============ hook.quoteDispatch ============ */
+
+    function testFork_quoteDispatch() public {
+        deployAll();
+
+        vm.selectFork(mainnetFork);
+
+        assertEq(opHook.quoteDispatch(testMetadata, encodedMessage), 0);
+    }
+
     /* ============ hook.postDispatch ============ */
 
     function testFork_postDispatch() public {

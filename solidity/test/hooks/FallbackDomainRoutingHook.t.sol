@@ -34,6 +34,32 @@ contract FallbackDomainRoutingHookTest is Test {
         mailbox.setDefaultHook(address(mailboxDefaultHook));
     }
 
+    /* ============ hook.quoteDispatch ============ */
+
+    function test_quoteDispatchHook_configured() public {
+        fallbackHook.setHook(
+            TEST_DESTINATION_DOMAIN,
+            address(testRecipient).addressToBytes32(),
+            configuredTestHook
+        );
+
+        vm.expectCall(
+            address(configuredTestHook),
+            abi.encodeCall(configuredTestHook.quoteDispatch, ("", testMessage))
+        );
+        assertEq(fallbackHook.quoteDispatch("", testMessage), 25000);
+    }
+
+    function test_quoteDispatch_default() public payable {
+        vm.expectCall(
+            address(mailboxDefaultHook),
+            abi.encodeCall(mailboxDefaultHook.quoteDispatch, ("", testMessage))
+        );
+        fallbackHook.quoteDispatch("", testMessage);
+    }
+
+    /* ============ hook.postDispatch ============ */
+
     function test_postDispatchHook_configured() public payable {
         fallbackHook.setHook(
             TEST_DESTINATION_DOMAIN,
@@ -41,15 +67,18 @@ contract FallbackDomainRoutingHookTest is Test {
             configuredTestHook
         );
 
-        vm.expectEmit(false, false, false, false, address(configuredTestHook));
-        emit PostDispatchHookCalled();
-
+        vm.expectCall(
+            address(configuredTestHook),
+            abi.encodeCall(configuredTestHook.postDispatch, ("", testMessage))
+        );
         fallbackHook.postDispatch{value: msg.value}("", testMessage);
     }
 
     function test_postDispatch_default() public payable {
-        vm.expectEmit(false, false, false, false, address(mailboxDefaultHook));
-        emit PostDispatchHookCalled();
+        vm.expectCall(
+            address(mailboxDefaultHook),
+            abi.encodeCall(mailboxDefaultHook.postDispatch, ("", testMessage))
+        );
 
         fallbackHook.postDispatch{value: msg.value}("", testMessage);
     }

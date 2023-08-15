@@ -100,6 +100,26 @@ contract InterchainGasPaymaster is
     }
 
     /**
+     * @notice Quote gas payment for a hook call.
+     * @param metadata The metadata as gasConfig.
+     * @param message The message to pay for.
+     */
+    function quoteDispatch(bytes calldata metadata, bytes calldata message)
+        external
+        view
+        override
+        returns (uint256)
+    {
+        uint256 gasLimit;
+        if (metadata.length == 0) {
+            gasLimit = DEFAULT_GAS_USAGE;
+        } else {
+            gasLimit = metadata.gasLimit();
+        }
+        return quoteGasPayment(message.destination(), gasLimit);
+    }
+
+    /**
      * @notice Transfers the entire native token balance to the beneficiary.
      * @dev The beneficiary must be able to receive native tokens.
      */
