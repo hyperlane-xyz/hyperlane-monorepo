@@ -53,8 +53,6 @@ abstract contract AbstractMessageIdAuthHook is
         destinationDomain = _destinationDomain;
     }
 
-    // ============ External functions ============
-
     /**
      * @notice Hook to inform the optimism ISM of messages published through.
      * metadata The metadata for the hook caller
