@@ -577,8 +577,8 @@ export const proteustestnet: ChainMetadata = {
 };
 
 export const nautilus: ChainMetadata = {
-  chainId: 88002,
-  domainId: 88002,
+  chainId: 22222,
+  domainId: 22222,
   name: Chains.nautilus,
   protocol: ProtocolType.Ethereum,
   displayName: 'Nautilus',
