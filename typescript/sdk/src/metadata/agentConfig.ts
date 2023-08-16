@@ -1,5 +1,5 @@
 /**
- * The types defined here are the source of truth for the agent configs.
+ * The types defined here are the source of truth for chain metadata.
  * ANY CHANGES HERE NEED TO BE REFLECTED IN HYPERLANE-BASE CONFIG PARSING.
  */
 import { z } from 'zod';
@@ -13,11 +13,8 @@ import {
   ChainMetadata,
   ChainMetadataSchema,
   RpcUrlSchema,
-  ZHash,
-  ZNzUint,
-  ZUWei,
-  ZUint,
 } from './chainMetadataTypes';
+import { ZHash, ZNzUint, ZUWei, ZUint } from './customZodTypes';
 import {
   HyperlaneDeploymentArtifacts,
   HyperlaneDeploymentArtifactsSchema,
@@ -80,7 +77,7 @@ export const AgentSignerSchema = z.union([
     .describe('Assume the local node will sign on RPC calls automatically'),
 ]);
 
-export type AgentSigner2 = z.infer<typeof AgentSignerSchema>;
+export type AgentSignerV2 = z.infer<typeof AgentSignerSchema>;
 
 export const AgentChainMetadataSchema = ChainMetadataSchema.merge(
   HyperlaneDeploymentArtifactsSchema,
@@ -287,7 +284,7 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
 
 export type ValidatorConfig = z.infer<typeof ValidatorAgentConfigSchema>;
 
-export type AgentConfig2 = z.infer<typeof AgentConfigSchema>;
+export type AgentConfigV2 = z.infer<typeof AgentConfigSchema>;
 
 /**
  * Deprecated agent config shapes.
@@ -396,7 +393,7 @@ export function buildAgentConfig(
   multiProvider: MultiProvider,
   addresses: ChainMap<HyperlaneDeploymentArtifacts>,
   startBlocks: ChainMap<number>,
-): AgentConfig2 {
+): AgentConfigV2 {
   return {
     chains: buildAgentConfigNew(chains, multiProvider, addresses, startBlocks),
     defaultRpcConsensusType: AgentConsensusType.Fallback,

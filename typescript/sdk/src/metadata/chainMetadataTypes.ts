@@ -6,6 +6,8 @@ import { z } from 'zod';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
+import { ZNzUint, ZUint } from './customZodTypes';
+
 export enum ExplorerFamily {
   Etherscan = 'etherscan',
   Blockscout = 'blockscout',
@@ -14,19 +16,6 @@ export enum ExplorerFamily {
 
 // A type that also allows for literal values of the enum
 export type ExplorerFamilyValue = `${ExplorerFamily}`;
-
-/** Zod uint schema */
-export const ZUint = z.number().int().nonnegative();
-/** Zod NonZeroUint schema */
-export const ZNzUint = z.number().int().positive();
-/** Zod unsigned Wei schema which accepts either a string number or a literal number */
-export const ZUWei = z.union([ZUint.safe(), z.string().regex(/^\d+$/)]);
-/** Zod 128, 160, 256, or 512 bit hex-defined hash with a 0x prefix for hex and no prefix for base58 */
-export const ZHash = z
-  .string()
-  .regex(
-    /^(0x[0-9a-fA-F]{32}|[0-9a-fA-F]{40}|[0-9a-fA-F]{64}|[0-9a-fA-F]{128})|([123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]{32})$/,
-  );
 
 export const RpcUrlSchema = z.object({
   http: z

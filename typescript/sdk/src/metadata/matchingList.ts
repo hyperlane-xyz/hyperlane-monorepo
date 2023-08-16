@@ -4,7 +4,7 @@
  */
 import { z } from 'zod';
 
-import { ZHash, ZNzUint } from './chainMetadataTypes';
+import { ZHash, ZNzUint } from './customZodTypes';
 
 const DomainSchema = z.union([
   z.literal('*'),
