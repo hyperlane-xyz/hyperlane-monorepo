@@ -9,11 +9,8 @@ import {
   ChainMetadata,
   ChainMetadataSchema,
   RpcUrlSchema,
-  ZHash,
-  ZNzUint,
-  ZUWei,
-  ZUint,
 } from './chainMetadataTypes';
+import { ZHash, ZNzUint, ZUWei, ZUint } from './customZodTypes';
 import {
   HyperlaneDeploymentArtifacts,
   HyperlaneDeploymentArtifactsSchema,
@@ -76,7 +73,7 @@ export const AgentSignerSchema = z.union([
     .describe('Assume the local node will sign on RPC calls automatically'),
 ]);
 
-export type AgentSigner2 = z.infer<typeof AgentSignerSchema>;
+export type AgentSignerV2 = z.infer<typeof AgentSignerSchema>;
 
 export const AgentChainMetadataSchema = ChainMetadataSchema.merge(
   HyperlaneDeploymentArtifactsSchema,
@@ -283,7 +280,7 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
 
 export type ValidatorConfig = z.infer<typeof ValidatorAgentConfigSchema>;
 
-export type AgentConfig2 = z.infer<typeof AgentConfigSchema>;
+export type AgentConfigV2 = z.infer<typeof AgentConfigSchema>;
 
 /**
  * Deprecated agent config shapes.
@@ -388,7 +385,7 @@ export function buildAgentConfigDeprecated(
 }
 
 // TODO(2215): this eventually needs to to be replaced with just `AgentConfig2` (and that ident needs renaming)
-export type CombinedAgentConfig = AgentConfig2['chains'] | AgentConfig;
+export type CombinedAgentConfig = AgentConfigV2['chains'] | AgentConfig;
 
 export function buildAgentConfig(
   chains: ChainName[],
