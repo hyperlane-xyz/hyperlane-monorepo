@@ -1,6 +1,6 @@
 #![allow(warnings)] // FIXME remove
 
-use std::{collections::HashMap, num::NonZeroU64, ops::RangeInclusive, str::FromStr as _};
+use std::{collections::HashMap, num::NonZeroU64, str::FromStr as _};
 
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -10,8 +10,8 @@ use tracing::{debug, info, instrument, warn};
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     ContractLocator, Decode as _, Encode as _, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox,
-    MessageIndexer, SequenceIndexer, TxCostEstimate, TxOutcome, H256, U256,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, IndexRange, Indexer, LogMeta, Mailbox,
+    MessageIndexer, SequenceRange, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
@@ -59,13 +59,6 @@ use crate::{
 
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
 const SPL_NOOP: &str = "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV";
-
-// FIXME solana uses the first 64 byte signature of a transaction to uniquely identify the
-// transaction rather than a 32 byte transaction hash like ethereum. Hash it here to reduce
-// size - requires more thought to ensure this makes sense to do...
-fn signature_to_txn_hash(signature: &Signature) -> H256 {
-    H256::from(solana_sdk::hash::hash(signature.as_ref()).to_bytes())
-}
 
 // The max amount of compute units for a transaction.
 // TODO: consider a more sane value and/or use IGP gas payments instead.
@@ -524,10 +517,10 @@ impl Mailbox for SealevelMailbox {
             .map_err(|err| warn!("Failed to confirm inbox process transaction: {}", err))
             .map(|ctx| ctx.value)
             .unwrap_or(false);
-        let txid = signature_to_txn_hash(&signature);
+        let txid = signature.into();
 
         Ok(TxOutcome {
-            txid,
+            transaction_id: txid,
             executed,
             // TODO use correct data upon integrating IGP support
             gas_price: U256::zero(),
@@ -680,7 +673,7 @@ impl SealevelMailboxIndexer {
                 // TODO: get these when building out scraper support.
                 // It's inconvenient to get these :|
                 block_hash: H256::zero(),
-                transaction_hash: H256::zero(),
+                transaction_id: H512::zero(),
                 transaction_index: 0,
                 log_index: U256::zero(),
             },
@@ -701,17 +694,19 @@ impl MessageIndexer for SealevelMailboxIndexer {
 
 #[async_trait]
 impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
-    async fn fetch_logs(
-        &self,
-        range: RangeInclusive<u32>,
-    ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
+    async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
+        let SequenceRange(range) = range else {
+            return Err(ChainCommunicationError::from_other_str(
+                "SealevelMailboxIndexer only supports sequence-based indexing",
+            ))
+        };
+
         info!(
             ?range,
             "Fetching SealevelMailboxIndexer HyperlaneMessage logs"
         );
 
-        let message_capacity = range.end().saturating_sub(*range.start());
-        let mut messages = Vec::with_capacity(message_capacity as usize);
+        let mut messages = Vec::with_capacity((range.end() - range.start()) as usize);
         for nonce in range {
             messages.push(self.get_message_with_nonce(nonce).await?);
         }
@@ -725,21 +720,12 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
 
 #[async_trait]
 impl Indexer<H256> for SealevelMailboxIndexer {
-    async fn fetch_logs(&self, _range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
+    async fn fetch_logs(&self, _range: IndexRange) -> ChainResult<Vec<(H256, LogMeta)>> {
         todo!()
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         self.get_finalized_block_number().await
-    }
-}
-
-#[async_trait]
-impl SequenceIndexer<H256> for SealevelMailboxIndexer {
-    async fn sequence_at_tip(&self) -> ChainResult<(u32, u32)> {
-        // TODO: implement when sealevel scraper support is implemented
-        info!("Message delivery indexing not implemented");
-        Ok((1, 1))
     }
 }
 

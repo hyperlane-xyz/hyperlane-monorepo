@@ -3,7 +3,8 @@ use tracing::{info, instrument, warn};
 
 use hyperlane_core::{
     Announcement, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, SignedType, TxOutcome, ValidatorAnnounce, H160, H256, U256,
+    HyperlaneContract, HyperlaneDomain, SignedType, TxOutcome, ValidatorAnnounce, H160, H256, H512,
+    U256,
 };
 use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey};
 
@@ -117,10 +118,10 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
         _tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
         warn!(
-            "Announcing validator storage locations within the agents is not supported on Sealevel"
+            "Announcing validator storage locations within the agents is not supported on Sealevel"
         );
         Ok(TxOutcome {
-            txid: H256::zero(),
+            transaction_id: H512::zero(),
             executed: false,
             gas_used: U256::zero(),
             gas_price: U256::zero(),

@@ -95,9 +95,6 @@ const hyperlane: RootAgentConfig = {
       [chainMetadata.solanadevnet.name]: {
         tag: '79bad9d-20230706-190752',
       },
-      [chainMetadata.zbctestnet.name]: {
-        tag: '79bad9d-20230706-190752',
-      },
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
   },
@@ -122,37 +119,28 @@ const releaseCandidate: RootAgentConfig = {
     },
     whitelist: [
       ...releaseCandidateHelloworldMatchingList,
-      // Whitelist all traffic to solanadevnet and zbctestnet
+      // Whitelist all traffic to solanadevnet
       {
         originDomain: '*',
         senderAddress: '*',
-        destinationDomain: [
-          getDomainId(chainMetadata.solanadevnet),
-          getDomainId(chainMetadata.zbctestnet),
-        ],
+        destinationDomain: [getDomainId(chainMetadata.solanadevnet)],
         recipientAddress: '*',
       },
-      // Whitelist all traffic from solanadevnet and zbctestnet to fuji
+      // Whitelist all traffic from solanadevnet to fuji
       {
-        originDomain: [
-          getDomainId(chainMetadata.solanadevnet),
-          getDomainId(chainMetadata.zbctestnet),
-        ],
+        originDomain: [getDomainId(chainMetadata.solanadevnet)],
         senderAddress: '*',
         destinationDomain: [getDomainId(chainMetadata.fuji)],
         recipientAddress: '*',
       },
     ],
     gasPaymentEnforcement: [
-      // Don't require gas payments from solanadevnet or zbctestnet
+      // Don't require gas payments from solanadevnet
       {
         type: GasPaymentEnforcementPolicyType.None,
         matchingList: [
           {
-            originDomain: [
-              getDomainId(chainMetadata.solanadevnet),
-              getDomainId(chainMetadata.zbctestnet),
-            ],
+            originDomain: [getDomainId(chainMetadata.solanadevnet)],
             senderAddress: '*',
             destinationDomain: [getDomainId(chainMetadata.fuji)],
             recipientAddress: '*',

@@ -42,7 +42,6 @@ hyperlane:
     format: json
     # Set the log level
     level: debug
-    uri: ''
   metrics:
     port: 9090
   aws: # true | false

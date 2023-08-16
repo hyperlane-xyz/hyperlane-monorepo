@@ -9,7 +9,7 @@ use num_traits::FromPrimitive;
 use strum::{EnumIter, EnumString, IntoStaticStr};
 
 use crate::utils::many_to_one;
-use crate::{ChainResult, HyperlaneProtocolError, IndexMode, H160, H256};
+use crate::{HyperlaneProtocolError, H160, H256};
 
 #[derive(Debug, Clone)]
 pub struct Address(pub bytes::Bytes);
@@ -33,30 +33,6 @@ impl<'a> std::fmt::Display for ContractLocator<'a> {
             self.domain.id(),
             self.address
         )
-    }
-}
-
-#[async_trait::async_trait]
-pub trait Chain {
-    /// Query the balance on a chain
-    async fn query_balance(&self, addr: Address) -> ChainResult<Balance>;
-}
-
-impl From<Address> for H160 {
-    fn from(addr: Address) -> Self {
-        H160::from_slice(addr.0.as_ref())
-    }
-}
-
-impl From<H160> for Address {
-    fn from(addr: H160) -> Self {
-        Address(addr.as_bytes().to_owned().into())
-    }
-}
-
-impl From<&'_ Address> for H160 {
-    fn from(addr: &Address) -> Self {
-        H160::from_slice(addr.0.as_ref())
     }
 }
 
@@ -128,6 +104,17 @@ pub enum HyperlaneDomain {
         domain_type: HyperlaneDomainType,
         domain_protocol: HyperlaneDomainProtocol,
     },
+}
+
+impl HyperlaneDomain {
+    pub fn is_arbitrum_nitro(&self) -> bool {
+        matches!(
+            self,
+            HyperlaneDomain::Known(
+                KnownHyperlaneDomain::Arbitrum | KnownHyperlaneDomain::ArbitrumGoerli,
+            )
+        )
+    }
 }
 
 #[cfg(any(test, feature = "test-utils"))]
@@ -371,24 +358,6 @@ impl HyperlaneDomain {
                 domain_protocol, ..
             } => *domain_protocol,
         }
-    }
-
-    pub fn is_arbitrum_nitro(&self) -> bool {
-        matches!(
-            self,
-            HyperlaneDomain::Known(
-                KnownHyperlaneDomain::Arbitrum | KnownHyperlaneDomain::ArbitrumGoerli,
-            )
-        )
-    }
-
-    pub const fn index_mode(&self) -> IndexMode {
-        use HyperlaneDomainProtocol::*;
-        let protocol = self.domain_protocol();
-        many_to_one!(match protocol {
-            IndexMode::Block: [Ethereum],
-            IndexMode::Sequence : [Sealevel, Fuel],
-        })
     }
 }
 

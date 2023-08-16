@@ -729,7 +729,14 @@ fn outbox_get_count(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramRes
         .count()
         .try_into()
         .expect("Too many messages in outbox tree");
-    set_return_data(&count.to_le_bytes());
+    // Wrap it in the SimulationReturnData because serialized `count.to_le_bytes()`
+    // may end with zero byte(s), which are incorrectly truncated as
+    // simulated transaction return data.
+    // See `SimulationReturnData` for details.
+    let bytes = SimulationReturnData::new(count.to_le_bytes())
+        .try_to_vec()
+        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+    set_return_data(&bytes[..]);
     Ok(())
 }
 
@@ -757,7 +764,15 @@ fn outbox_get_latest_checkpoint(program_id: &Pubkey, accounts: &[AccountInfo]) -
     let mut ret_buf = [0; 36];
     ret_buf[0..31].copy_from_slice(root.as_ref());
     ret_buf[32..].copy_from_slice(&count.to_le_bytes());
-    set_return_data(&ret_buf);
+
+    // Wrap it in the SimulationReturnData because serialized ret_buf
+    // may end with zero byte(s), which are incorrectly truncated as
+    // simulated transaction return data.
+    // See `SimulationReturnData` for details.
+    let bytes = SimulationReturnData::new(ret_buf.to_vec())
+        .try_to_vec()
+        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+    set_return_data(&bytes[..]);
     Ok(())
 }
 
@@ -777,7 +792,15 @@ fn outbox_get_root(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResu
     }
 
     let root = outbox.tree.root();
-    set_return_data(root.as_ref());
+
+    // Wrap it in the SimulationReturnData because serialized root
+    // may end with zero byte(s), which are incorrectly truncated as
+    // simulated transaction return data.
+    // See `SimulationReturnData` for details.
+    let bytes = SimulationReturnData::new(root)
+        .try_to_vec()
+        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+    set_return_data(&bytes[..]);
     Ok(())
 }
 
@@ -792,12 +815,14 @@ fn get_owner(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let outbox_info = next_account_info(accounts_iter)?;
     let outbox = Outbox::verify_account_and_fetch_inner(program_id, outbox_info)?;
 
-    set_return_data(
-        &outbox
-            .owner
-            .try_to_vec()
-            .map_err(|err| ProgramError::BorshIoError(err.to_string()))?,
-    );
+    // Wrap it in the SimulationReturnData because serialized `outbox.owner`
+    // may end with zero byte(s), which are incorrectly truncated as
+    // simulated transaction return data.
+    // See `SimulationReturnData` for details.
+    let bytes = SimulationReturnData::new(outbox.owner)
+        .try_to_vec()
+        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+    set_return_data(&bytes[..]);
     Ok(())
 }
 
