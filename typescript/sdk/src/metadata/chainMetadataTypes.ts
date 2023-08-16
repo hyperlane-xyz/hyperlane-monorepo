@@ -2,13 +2,54 @@ import { z } from 'zod';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
+import { ZNzUint, ZUint } from './customZodTypes';
+
 export enum ExplorerFamily {
   Etherscan = 'etherscan',
   Blockscout = 'blockscout',
   Other = 'other',
 }
+
 // A type that also allows for literal values of the enum
 export type ExplorerFamilyValue = `${ExplorerFamily}`;
+
+export const RpcUrlSchema = z.object({
+  http: z
+    .string()
+    .url()
+    .describe('The HTTP URL of the RPC endpoint (preferably HTTPS).'),
+  webSocket: z
+    .string()
+    .optional()
+    .describe('The WSS URL if the endpoint also supports websockets.'),
+  pagination: z
+    .object({
+      maxBlockRange: ZNzUint.optional().describe(
+        'The maximum range between block numbers for which the RPC can query data',
+      ),
+      minBlockNumber: ZUint.optional().describe(
+        'The absolute minimum block number that this RPC supports.',
+      ),
+      maxBlockAge: ZNzUint.optional().describe(
+        'The relative different from latest block that this RPC supports.',
+      ),
+    })
+    .optional()
+    .describe('Limitations on the block range/age that can be queried.'),
+  retry: z
+    .object({
+      maxRequests: ZNzUint.describe(
+        'The maximum number of requests to attempt before failing.',
+      ),
+      baseRetryMs: ZNzUint.describe('The base retry delay in milliseconds.'),
+    })
+    .optional()
+    .describe(
+      'Default retry settings to be used by a provider such as MultiProvider.',
+    ),
+});
+
+export type RpcUrl = z.infer<typeof RpcUrlSchema>;
 
 /**
  * A collection of useful properties and settings for chains using Hyperlane
@@ -20,20 +61,15 @@ export const ChainMetadataSchema = z.object({
     .describe(
       'The type of protocol used by this chain. See ProtocolType for valid values.',
     ),
-  chainId: z
-    .number()
-    .positive()
-    .describe(`The chainId of the chain. Uses EIP-155 for EVM chains`),
-  domainId: z
-    .number()
-    .positive()
-    .optional()
-    .describe(
-      'The domainId of the chain, should generally default to `chainId`. Consumer of `ChainMetadata` should use this value if present, but otherwise fallback to `chainId`.',
-    ),
+  chainId: ZNzUint.describe(
+    `The chainId of the chain. Uses EIP-155 for EVM chains`,
+  ),
+  domainId: ZNzUint.optional().describe(
+    'The domainId of the chain, should generally default to `chainId`. Consumer of `ChainMetadata` should use this value if present, but otherwise fallback to `chainId`.',
+  ),
   name: z
     .string()
-    .regex(/^[a-z]+[a-z0-9]*$/)
+    .regex(/^[a-z][a-z0-9]*$/)
     .describe(
       'The unique string identifier of the chain, used as the key in ChainMap dictionaries.',
     ),
@@ -57,68 +93,14 @@ export const ChainMetadataSchema = z.object({
     .object({
       name: z.string(),
       symbol: z.string(),
-      decimals: z.number().nonnegative(),
+      decimals: ZUint.lt(256),
     })
     .optional()
     .describe(
       'The metadata of the native token of the chain (e.g. ETH for Ethereum).',
     ),
   rpcUrls: z
-    .array(
-      z.object({
-        http: z
-          .string()
-          .url()
-          .describe('The HTTP URL of the RPC endpoint (preferably HTTPS).'),
-        webSocket: z
-          .string()
-          .optional()
-          .describe('The WSS URL if the endpoint also supports websockets.'),
-        pagination: z
-          .object({
-            maxBlockRange: z
-              .number()
-              .positive()
-              .optional()
-              .describe(
-                'The maximum range between block numbers for which the RPC can query data',
-              ),
-            minBlockNumber: z
-              .number()
-              .positive()
-              .optional()
-              .describe(
-                'The absolute minimum block number that this RPC supports.',
-              ),
-            maxBlockAge: z
-              .number()
-              .positive()
-              .optional()
-              .describe(
-                'The relative different from latest block that this RPC supports.',
-              ),
-          })
-          .optional()
-          .describe('Limitations on the block range/age that can be queried.'),
-        retry: z
-          .object({
-            maxRequests: z
-              .number()
-              .positive()
-              .describe(
-                'The maximum number of requests to attempt before failing.',
-              ),
-            baseRetryMs: z
-              .number()
-              .positive()
-              .describe('The base retry delay in milliseconds.'),
-          })
-          .optional()
-          .describe(
-            'Default retry settings to be used by a provider such as MultiProvider.',
-          ),
-      }),
-    )
+    .array(RpcUrlSchema)
     .nonempty()
     .describe('The list of RPC endpoints for interacting with the chain.'),
   blockExplorers: z
@@ -148,20 +130,16 @@ export const ChainMetadataSchema = z.object({
     .describe('A list of block explorers with data for this chain'),
   blocks: z
     .object({
-      confirmations: z
-        .number()
-        .describe(
-          'Number of blocks to wait before considering a transaction confirmed.',
-        ),
-      reorgPeriod: z
-        .number()
-        .optional()
-        .describe(
-          'Number of blocks before a transaction has a near-zero chance of reverting.',
-        ),
+      confirmations: ZUint.describe(
+        'Number of blocks to wait before considering a transaction confirmed.',
+      ),
+      reorgPeriod: ZUint.optional().describe(
+        'Number of blocks before a transaction has a near-zero chance of reverting.',
+      ),
       estimateBlockTime: z
         .number()
         .positive()
+        .finite()
         .optional()
         .describe('Rough estimate of time per block in seconds.'),
     })
