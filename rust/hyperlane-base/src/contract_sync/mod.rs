@@ -1,6 +1,9 @@
+use std::fmt::Debug;
 use std::{marker::PhantomData, sync::Arc};
 
 use derive_new::new;
+use tokio::time::sleep;
+use tracing::{debug, info};
 
 use cursor::*;
 use hyperlane_core::{
@@ -8,11 +11,8 @@ use hyperlane_core::{
     HyperlaneMessage, HyperlaneMessageStore, HyperlaneWatermarkedLogStore, Indexer, MessageIndexer,
 };
 pub use metrics::ContractSyncMetrics;
-use std::fmt::Debug;
-use tokio::time::sleep;
-use tracing::{debug, info};
 
-use crate::chains::IndexSettings;
+use crate::settings::IndexSettings;
 
 mod cursor;
 mod eta_calculator;

@@ -1,30 +1,18 @@
-//! The correct settings shape is defined in the TypeScript SDK metadata. While the the exact shape
-//! and validations it defines are not applied here, we should mirror them.
-//! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
-
-#![allow(dead_code)] // TODO(2214): remove before PR merge
-
-use std::collections::HashSet;
 use std::fmt::Debug;
 use std::{collections::HashMap, sync::Arc};
 
 use eyre::{eyre, Context, Result};
 use futures_util::future::try_join_all;
-use serde::Deserialize;
 
 use hyperlane_core::{
-    config::*, Delivery, HyperlaneChain, HyperlaneDomain, HyperlaneMessageStore, HyperlaneProvider,
+    Delivery, HyperlaneChain, HyperlaneDomain, HyperlaneMessageStore, HyperlaneProvider,
     HyperlaneWatermarkedLogStore, InterchainGasPaymaster, InterchainGasPayment, Mailbox,
     MultisigIsm, ValidatorAnnounce, H256,
 };
 
 use crate::{
-    settings::{
-        chains::{ChainConf, DeprecatedRawChainConf},
-        signers::SignerConf,
-        trace::TracingConfig,
-    },
-    CoreMetrics, HyperlaneAgentCore, RawSignerConf,
+    settings::{chains::ChainConf, trace::TracingConfig},
+    CoreMetrics, HyperlaneAgentCore,
 };
 use crate::{ContractSync, ContractSyncMetrics, MessageContractSync, WatermarkContractSync};
 
@@ -60,68 +48,6 @@ pub struct Settings {
     pub metrics_port: u16,
     /// The tracing configuration
     pub tracing: TracingConfig,
-}
-
-/// Raw base settings.
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DeprecatedRawSettings {
-    chains: Option<HashMap<String, DeprecatedRawChainConf>>,
-    defaultsigner: Option<RawSignerConf>,
-    metrics: Option<StrOrInt>,
-    tracing: Option<TracingConfig>,
-}
-
-impl FromRawConf<DeprecatedRawSettings, Option<&HashSet<&str>>> for Settings {
-    fn from_config_filtered(
-        raw: DeprecatedRawSettings,
-        cwp: &ConfigPath,
-        filter: Option<&HashSet<&str>>,
-    ) -> Result<Self, ConfigParsingError> {
-        let mut err = ConfigParsingError::default();
-        let chains: HashMap<String, ChainConf> = if let Some(mut chains) = raw.chains {
-            let default_signer: Option<SignerConf> = raw.defaultsigner.and_then(|r| {
-                r.parse_config(&cwp.join("defaultsigner"))
-                    .take_config_err(&mut err)
-            });
-            if let Some(filter) = filter {
-                chains.retain(|k, _| filter.contains(&k.as_str()));
-            }
-            let chains_path = cwp + "chains";
-            chains
-                .into_iter()
-                .map(|(k, v)| {
-                    let cwp = &chains_path + &k;
-                    let k = k.to_ascii_lowercase();
-                    let mut parsed: ChainConf = v.parse_config(&cwp)?;
-                    if let Some(default_signer) = &default_signer {
-                        parsed.signer.get_or_insert_with(|| default_signer.clone());
-                    }
-                    Ok((k, parsed))
-                })
-                .filter_map(|res| match res {
-                    Ok((k, v)) => Some((k, v)),
-                    Err(e) => {
-                        err.merge(e);
-                        None
-                    }
-                })
-                .collect()
-        } else {
-            Default::default()
-        };
-        let tracing = raw.tracing.unwrap_or_default();
-        let metrics = raw
-            .metrics
-            .and_then(|port| port.try_into().take_err(&mut err, || cwp + "metrics"))
-            .unwrap_or(9090);
-
-        err.into_result(Self {
-            chains,
-            metrics_port: metrics,
-            tracing,
-        })
-    }
 }
 
 impl Settings {

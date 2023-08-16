@@ -9,12 +9,13 @@ use std::time::Duration;
 
 use eyre::{eyre, Context};
 
-use hyperlane_base::{
-    decl_settings, CheckpointSyncerConf, RawCheckpointSyncerConf, RawSignerConf, Settings,
-    SignerConf,
-};
+use hyperlane_base::decl_settings;
+use hyperlane_base::settings::parser::{RawCheckpointSyncerConf, RawSignerConf};
+use hyperlane_base::settings::CheckpointSyncerConf;
+use hyperlane_base::settings::{Settings, SignerConf};
 use hyperlane_core::config::*;
-use hyperlane_core::{cfg_unwrap_all, HyperlaneDomain, HyperlaneDomainProtocol};
+use hyperlane_core::HyperlaneDomain;
+use hyperlane_core::{cfg_unwrap_all, HyperlaneDomainProtocol};
 
 decl_settings!(Validator,
     Parsed {

@@ -11,7 +11,7 @@ use eyre::{eyre, Context};
 use serde::Deserialize;
 use tracing::warn;
 
-use hyperlane_base::{decl_settings, Settings};
+use hyperlane_base::{decl_settings, settings::Settings};
 use hyperlane_core::config::*;
 use hyperlane_core::{cfg_unwrap_all, HyperlaneDomain, U256};
 

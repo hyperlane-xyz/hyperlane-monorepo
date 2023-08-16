@@ -7,7 +7,7 @@
 use eyre::{eyre, Context};
 use itertools::Itertools;
 
-use hyperlane_base::{decl_settings, Settings};
+use hyperlane_base::{decl_settings, settings::Settings};
 use hyperlane_core::{config::*, HyperlaneDomain};
 
 decl_settings!(Scraper,

@@ -6,7 +6,7 @@ use tokio::task::JoinHandle;
 use tracing::info_span;
 use tracing::{instrument::Instrumented, trace, Instrument};
 
-use hyperlane_base::chains::IndexSettings;
+use hyperlane_base::settings::IndexSettings;
 use hyperlane_base::{run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore};
 use hyperlane_core::HyperlaneDomain;
 

@@ -8,9 +8,8 @@ use eyre::{Context, Result};
 use tokio::sync::RwLock;
 use tracing::{debug, info, instrument, warn};
 
-use hyperlane_base::{
-    ChainConf, CheckpointSyncer, CheckpointSyncerConf, CoreMetrics, MultisigCheckpointSyncer,
-};
+use hyperlane_base::settings::{ChainConf, CheckpointSyncerConf};
+use hyperlane_base::{CheckpointSyncer, CoreMetrics, MultisigCheckpointSyncer};
 use hyperlane_core::accumulator::merkle::Proof;
 use hyperlane_core::{
     AggregationIsm, CcipReadIsm, Checkpoint, HyperlaneDomain, HyperlaneMessage,

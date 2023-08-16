@@ -1,22 +1,17 @@
-//! The correct settings shape is defined in the TypeScript SDK metadata. While the the exact shape
-//! and validations it defines are not applied here, we should mirror them.
-//! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
-
 use std::time::Duration;
 
 use async_trait::async_trait;
+use ed25519_dalek::SecretKey;
 use ethers::prelude::{AwsSigner, LocalWallet};
-use eyre::{bail, eyre, Context, Report};
+use eyre::{bail, Context, Report};
 use rusoto_core::{HttpClient, HttpConfig, Region};
 use rusoto_kms::KmsClient;
-use serde::Deserialize;
 use tracing::instrument;
 
-use ed25519_dalek::SecretKey;
+use hyperlane_core::H256;
 use hyperlane_sealevel::Keypair;
 
 use super::aws_credentials::AwsChainCredentialsProvider;
-use hyperlane_core::{config::*, H256};
 
 /// Signer types
 #[derive(Default, Debug, Clone)]
@@ -39,68 +34,6 @@ pub enum SignerConf {
     Node,
 }
 
-/// Raw signer types
-#[derive(Debug, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct RawSignerConf {
-    #[serde(rename = "type")]
-    signer_type: Option<String>,
-    key: Option<String>,
-    id: Option<String>,
-    region: Option<String>,
-}
-
-impl FromRawConf<RawSignerConf> for SignerConf {
-    fn from_config_filtered(
-        raw: RawSignerConf,
-        cwp: &ConfigPath,
-        _filter: (),
-    ) -> ConfigResult<Self> {
-        let key_path = || cwp + "key";
-        let region_path = || cwp + "region";
-
-        match raw.signer_type.as_deref() {
-            Some("hexKey") => Ok(Self::HexKey {
-                key: raw
-                    .key
-                    .ok_or_else(|| eyre!("Missing `key` for HexKey signer"))
-                    .into_config_result(key_path)?
-                    .parse()
-                    .into_config_result(key_path)?,
-            }),
-            Some("aws") => Ok(Self::Aws {
-                id: raw
-                    .id
-                    .ok_or_else(|| eyre!("Missing `id` for Aws signer"))
-                    .into_config_result(|| cwp + "id")?,
-                region: raw
-                    .region
-                    .ok_or_else(|| eyre!("Missing `region` for Aws signer"))
-                    .into_config_result(region_path)?
-                    .parse()
-                    .into_config_result(region_path)?,
-            }),
-            Some(t) => Err(eyre!("Unknown signer type `{t}`")).into_config_result(|| cwp + "type"),
-            None if raw.key.is_some() => Ok(Self::HexKey {
-                key: raw.key.unwrap().parse().into_config_result(key_path)?,
-            }),
-            None if raw.id.is_some() | raw.region.is_some() => Ok(Self::Aws {
-                id: raw
-                    .id
-                    .ok_or_else(|| eyre!("Missing `id` for Aws signer"))
-                    .into_config_result(|| cwp + "id")?,
-                region: raw
-                    .region
-                    .ok_or_else(|| eyre!("Missing `region` for Aws signer"))
-                    .into_config_result(region_path)?
-                    .parse()
-                    .into_config_result(region_path)?,
-            }),
-            None => Ok(Self::Node),
-        }
-    }
-}
-
 impl SignerConf {
     /// Try to convert the ethereum signer to a local wallet
     #[instrument(err)]
@@ -112,6 +45,7 @@ impl SignerConf {
 /// Builder trait for signers
 #[async_trait]
 pub trait BuildableWithSignerConf: Sized {
+    /// Build a signer from a conf
     async fn build(conf: &SignerConf) -> Result<Self, Report>;
 }
 

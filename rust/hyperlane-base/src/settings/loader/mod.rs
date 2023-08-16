@@ -8,7 +8,7 @@ use config::{Config, Environment, File};
 use eyre::{bail, Context, Result};
 use serde::Deserialize;
 
-use crate::settings::DeprecatedRawSettings;
+use super::deprecated_parser::DeprecatedRawSettings;
 
 mod arguments;
 

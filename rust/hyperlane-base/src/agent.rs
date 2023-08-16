@@ -8,7 +8,7 @@ use futures_util::future::select_all;
 use tokio::task::JoinHandle;
 use tracing::{debug_span, instrument::Instrumented, Instrument};
 
-use crate::{cancel_task, metrics::CoreMetrics, settings::Settings};
+use crate::{metrics::CoreMetrics, settings::Settings};
 
 /// Properties shared across all hyperlane agents
 #[derive(Debug)]
@@ -86,7 +86,9 @@ pub fn run_all(
         let (res, _, remaining) = select_all(tasks).await;
 
         for task in remaining.into_iter() {
-            cancel_task!(task);
+            let t = task.into_inner();
+            t.abort();
+            t.await;
         }
 
         res?

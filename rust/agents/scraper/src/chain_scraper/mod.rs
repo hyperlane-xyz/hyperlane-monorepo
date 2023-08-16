@@ -9,7 +9,7 @@ use eyre::Result;
 use itertools::Itertools;
 use tracing::trace;
 
-use hyperlane_base::chains::IndexSettings;
+use hyperlane_base::settings::IndexSettings;
 use hyperlane_core::{
     BlockInfo, Delivery, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
     HyperlaneMessageStore, HyperlaneProvider, HyperlaneWatermarkedLogStore, InterchainGasPayment,
