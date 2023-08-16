@@ -1,24 +1,22 @@
 //! This module (and children) are responsible for scraping blockchain data and
 //! keeping things updated.
 
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use eyre::Result;
-use itertools::Itertools;
-use tracing::trace;
-
 use hyperlane_base::settings::IndexSettings;
 use hyperlane_core::{
     BlockInfo, Delivery, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
     HyperlaneMessageStore, HyperlaneProvider, HyperlaneWatermarkedLogStore, InterchainGasPayment,
     LogMeta, H256,
 };
+use itertools::Itertools;
+use tracing::trace;
 
-use crate::db::StorablePayment;
 use crate::db::{
-    BasicBlock, BlockCursor, ScraperDb, StorableDelivery, StorableMessage, StorableTxn,
+    BasicBlock, BlockCursor, ScraperDb, StorableDelivery, StorableMessage, StorablePayment,
+    StorableTxn,
 };
 
 /// Maximum number of records to query at a time. This came about because when a
