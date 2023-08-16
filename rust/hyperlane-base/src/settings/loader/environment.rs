@@ -100,7 +100,7 @@ impl Source for Environment {
             let key = if let Some(case) = self.casing {
                 // if case is given, replace case of each key component
                 key.split(separator).map(|s| s.to_case(case)).join(".")
-            } else if separator.is_empty() && separator != "." {
+            } else if !separator.is_empty() && separator != "." {
                 // If separator is given replace with `.`
                 key.replace(separator, ".")
             } else {
