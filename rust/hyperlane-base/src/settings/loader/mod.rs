@@ -1,16 +1,17 @@
-use std::collections::HashMap;
-use std::env;
-use std::error::Error;
-use std::path::PathBuf;
+use std::{collections::HashMap, env, error::Error, path::PathBuf};
 
-use crate::settings::loader::arguments::CommandLineArguments;
-use config::{Config, Environment, File};
+use config::{Config, Environment as DeprecatedEnvironment, File};
 use eyre::{bail, Context, Result};
 use serde::Deserialize;
 
-use crate::settings::RawSettings;
+use super::deprecated_parser::DeprecatedRawSettings;
+use crate::settings::loader::{
+    arguments::CommandLineArguments, deprecated_arguments::DeprecatedCommandLineArguments,
+};
 
 mod arguments;
+mod deprecated_arguments;
+mod environment;
 
 /// Load a settings object from the config locations.
 /// Further documentation can be found in the `settings` module.
@@ -77,16 +78,16 @@ where
     let config_deserializer = builder
         // Use a base configuration env variable prefix
         .add_source(
-            Environment::with_prefix("HYP_BASE")
+            DeprecatedEnvironment::with_prefix("HYP_BASE")
                 .separator("_")
                 .source(Some(filtered_env.clone())),
         )
         .add_source(
-            Environment::with_prefix(&prefix)
+            DeprecatedEnvironment::with_prefix(&prefix)
                 .separator("_")
                 .source(Some(filtered_env)),
         )
-        .add_source(CommandLineArguments::default().separator("."))
+        .add_source(DeprecatedCommandLineArguments::default().separator("."))
         .build()?;
 
     let formatted_config = {

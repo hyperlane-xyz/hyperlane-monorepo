@@ -3601,6 +3601,7 @@ dependencies = [
  "bs58 0.5.0",
  "color-eyre",
  "config",
+ "convert_case 0.6.0",
  "derive-new",
  "ed25519-dalek",
  "ethers",
