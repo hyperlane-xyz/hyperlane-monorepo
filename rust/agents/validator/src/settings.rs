@@ -4,18 +4,17 @@
 //! and validations it defines are not applied here, we should mirror them.
 //! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 
-use std::path::PathBuf;
-use std::time::Duration;
+use std::{path::PathBuf, time::Duration};
 
 use eyre::{eyre, Context};
-
-use hyperlane_base::decl_settings;
-use hyperlane_base::settings::parser::{RawCheckpointSyncerConf, RawSignerConf};
-use hyperlane_base::settings::CheckpointSyncerConf;
-use hyperlane_base::settings::{Settings, SignerConf};
-use hyperlane_core::config::*;
-use hyperlane_core::HyperlaneDomain;
-use hyperlane_core::{cfg_unwrap_all, HyperlaneDomainProtocol};
+use hyperlane_base::{
+    decl_settings,
+    settings::{
+        parser::{RawCheckpointSyncerConf, RawSignerConf},
+        CheckpointSyncerConf, Settings, SignerConf,
+    },
+};
+use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol};
 
 decl_settings!(Validator,
     Parsed {
@@ -42,6 +41,8 @@ decl_settings!(Validator,
         validator: RawSignerConf,
         /// The checkpoint syncer configuration
         checkpointsyncer: Option<RawCheckpointSyncerConf>,
+        /// The reorg_period in blocks
+        reorgperiod: Option<StrOrInt>,
         /// How frequently to check for new checkpoints
         interval: Option<StrOrInt>,
     },
@@ -69,13 +70,11 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
                     .take_config_err(&mut err)
             });
 
-        // TODO: This
-        // let reorg_period = raw
-        //     .reorgperiod
-        //     .ok_or_else(|| eyre!("Missing `reorgperiod`"))
-        //     .take_err(&mut err, || cwp + "reorgperiod")
-        //     .and_then(|r| r.try_into().take_err(&mut err, || cwp + "reorgperiod"));
-        let reorg_period = None;
+        let reorg_period = raw
+            .reorgperiod
+            .ok_or_else(|| eyre!("Missing `reorgperiod`"))
+            .take_err(&mut err, || cwp + "reorgperiod")
+            .and_then(|r| r.try_into().take_err(&mut err, || cwp + "reorgperiod"));
 
         let interval = raw
             .interval
@@ -116,7 +115,14 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
                 .take_err(&mut err, || cwp + "chains" + &origin_chain_name)
         });
 
-        cfg_unwrap_all!(cwp, err: base, origin_chain, validator, checkpoint_syncer, reorg_period);
+        cfg_unwrap_all!(
+            cwp,
+            err: base,
+            origin_chain,
+            validator,
+            checkpoint_syncer,
+            reorg_period
+        );
         let mut base = base;
 
         if origin_chain.domain_protocol() == HyperlaneDomainProtocol::Ethereum {
