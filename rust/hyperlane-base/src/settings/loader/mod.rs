@@ -4,10 +4,7 @@ use config::{Config, Environment as DeprecatedEnvironment, File};
 use eyre::{bail, Context, Result};
 use serde::Deserialize;
 
-use super::deprecated_parser::DeprecatedRawSettings;
-use crate::settings::loader::{
-    arguments::CommandLineArguments, deprecated_arguments::DeprecatedCommandLineArguments,
-};
+use crate::{settings::loader::deprecated_arguments::DeprecatedCommandLineArguments, RawSettings};
 
 mod arguments;
 mod deprecated_arguments;
