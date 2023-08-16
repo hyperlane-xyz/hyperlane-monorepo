@@ -1,14 +1,11 @@
-use std::collections::HashMap;
-use std::env;
-use std::error::Error;
-use std::path::PathBuf;
+use std::{collections::HashMap, env, error::Error, path::PathBuf};
 
-use crate::settings::loader::arguments::CommandLineArguments;
 use config::{Config, Environment, File};
 use eyre::{bail, Context, Result};
 use serde::Deserialize;
 
-use crate::settings::RawSettings;
+use super::deprecated_parser::DeprecatedRawSettings;
+use crate::settings::loader::arguments::CommandLineArguments;
 
 mod arguments;
 
@@ -19,7 +16,7 @@ pub(crate) fn load_settings_object<'de, T, S>(
     ignore_prefixes: &[S],
 ) -> Result<T>
 where
-    T: Deserialize<'de> + AsMut<RawSettings>,
+    T: Deserialize<'de> + AsMut<DeprecatedRawSettings>,
     S: AsRef<str>,
 {
     // Derive additional prefix from agent name

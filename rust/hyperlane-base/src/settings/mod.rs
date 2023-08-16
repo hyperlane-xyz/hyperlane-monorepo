@@ -1,4 +1,8 @@
-//! Settings and configuration for Hyperlane agents
+//! Common settings and configuration for Hyperlane agents
+//!
+//! The correct settings shape is defined in the TypeScript SDK metadata. While the the exact shape
+//! and validations it defines are not applied here, we should mirror them.
+//! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 //!
 //! ## Introduction
 //!
@@ -95,7 +99,7 @@ mod envs {
 pub(crate) mod aws_credentials;
 mod base;
 /// Chain configuration
-pub mod chains;
+mod chains;
 pub(crate) mod loader;
 /// Signer configuration
 mod signers;
