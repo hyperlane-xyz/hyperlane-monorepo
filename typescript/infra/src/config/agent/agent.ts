@@ -6,6 +6,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../../config/contexts';
+import { AgentChainNames } from '../../../config/environments/testnet3/chains';
 import { Role } from '../../roles';
 import { DeployEnvironment } from '../environment';
 import { HelmImageValues } from '../infrastructure';
@@ -73,7 +74,7 @@ export interface AgentContextConfig extends AgentEnvConfig {
   // Roles to manage keys for
   rolesWithKeys: Role[];
   // Names of chains this context cares about (subset of environmentChainNames)
-  contextChainNames: ChainName[];
+  contextChainNames: AgentChainNames;
 }
 
 // incomplete common agent configuration for a role

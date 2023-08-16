@@ -14,7 +14,7 @@ import {
 import { GasPaymentEnforcementConfig } from '../../../src/config/agent/relayer';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles';
 import { Contexts } from '../../contexts';
-import { chainNames } from '../mainnet2/chains';
+import { supportedChainNames } from '../mainnet2/chains';
 
 import { agentChainNames, environment } from './chains';
 import { helloWorld } from './helloworld';
@@ -67,7 +67,7 @@ const gasPaymentEnforcement: GasPaymentEnforcementConfig[] = [
 
 const hyperlane: RootAgentConfig = {
   ...contextBase,
-  contextChainNames: chainNames,
+  contextChainNames: supportedChainNames,
   context: Contexts.Hyperlane,
   rolesWithKeys: ALL_KEY_ROLES,
   relayer: {
