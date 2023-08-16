@@ -48,6 +48,6 @@ contract MerkleTreeHook is IPostDispatchHook, MailboxClient {
         bytes calldata, /*metadata*/
         bytes calldata /*message*/
     ) external pure override returns (uint256) {
-        revert("not implemented");
+        return 0;
     }
 }
