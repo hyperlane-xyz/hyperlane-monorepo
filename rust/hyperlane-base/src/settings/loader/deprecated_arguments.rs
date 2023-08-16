@@ -1,8 +1,12 @@
+//! TODO: Remove this file after deprecated config parsing has been removed.
+
 use std::ffi::{OsStr, OsString};
 
 use config::{ConfigError, Map, Source, Value, ValueKind};
 
 /// A source for loading configuration from command line arguments.
+/// Command line argument keys are case-insensitive, and the following forms are
+/// supported:
 ///
 /// * `--key=value`
 /// * `--key="value"`
@@ -66,7 +70,7 @@ impl Source for DeprecatedCommandLineArguments {
             ArgumentParser::from_env()
         };
 
-        while let Some((mut key, value)) = args
+        while let Some((key, value)) = args
             .next()
             .transpose()
             .map_err(|e| ConfigError::Foreign(Box::new(e)))?
@@ -75,9 +79,17 @@ impl Source for DeprecatedCommandLineArguments {
                 continue;
             }
 
+            let mut key = key.to_lowercase();
+
             // If separator is given replace with `.`
             if !separator.is_empty() && separator != "." {
                 key = key.replace(separator, ".");
+            }
+
+            if key.ends_with("interchaingaspaymaster") {
+                key = key.replace("interchaingaspaymaster", "interchainGasPaymaster");
+            } else if key.ends_with("validatorannounce") {
+                key = key.replace("validatorannounce", "validatorAnnounce");
             }
 
             m.insert(key, Value::new(Some(&uri), ValueKind::String(value)));
@@ -287,12 +299,11 @@ mod test {
     const ARGUMENTS: &[&str] = &[
         "--key-a",
         "value-a",
-        "--key-b=value-b",
-        "--key-c-partA=\"value c a\"",
-        "--key-c-PartB=\"value c b\"",
-        "--key-d='valUE d'",
+        "--keY-b=value-b",
+        "--key-c=\"value c\"",
+        "--KEY-d='valUE d'",
         "--key-e=''",
-        "--key-f",
+        "--key-F",
         "--key-g=value-g",
         "--key-h",
     ];
@@ -306,8 +317,7 @@ mod test {
 
         assert_arg!(config, "key.a", "value-a");
         assert_arg!(config, "key.b", "value-b");
-        assert_arg!(config, "key.c.partA", "value c a");
-        assert_arg!(config, "key.c.PartB", "value c b");
+        assert_arg!(config, "key.c", "value c");
         assert_arg!(config, "key.d", "valUE d");
         assert_arg!(config, "key.e", "");
         assert_arg!(config, "key.f", "");
@@ -327,8 +337,7 @@ mod test {
 
         assert_arg!(config, "key.a", "value-a");
         assert_arg!(config, "key.b", "value-b");
-        assert_arg!(config, "key.c.partA", "value c a");
-        assert_arg!(config, "key.c.PartB", "value c b");
+        assert_arg!(config, "key.c", "value c");
         assert_arg!(config, "key.d", "valUE d");
         assert_arg!(config, "key.g", "value-g");
 
