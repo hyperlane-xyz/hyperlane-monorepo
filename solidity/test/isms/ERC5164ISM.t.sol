@@ -61,7 +61,7 @@ contract ERC5164ISMTest is Test {
     }
 
     function deployContracts() public {
-        srcMailbox = new TestMailbox(TEST1_DOMAIN);
+        srcMailbox = new TestMailbox(TEST1_DOMAIN, address(this));
         ism = new ERC5164ISM(address(executor));
         hook = new ERC5164Hook(
             address(srcMailbox),

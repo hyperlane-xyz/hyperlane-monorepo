@@ -12,6 +12,8 @@ import {
   BadRecipient6__factory,
   TestMailbox,
   TestMailbox__factory,
+  TestMerkleTreeHook,
+  TestMerkleTreeHook__factory,
   TestMultisigIsm,
   TestMultisigIsm__factory,
   TestRecipient,
@@ -26,6 +28,7 @@ const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
 
 describe('Mailbox', async () => {
   let mailbox: TestMailbox,
+    defaultHook: TestMerkleTreeHook,
     module: TestMultisigIsm,
     signer: SignerWithAddress,
     nonOwner: SignerWithAddress;
@@ -35,24 +38,22 @@ describe('Mailbox', async () => {
     const moduleFactory = new TestMultisigIsm__factory(signer);
     module = await moduleFactory.deploy();
     const mailboxFactory = new TestMailbox__factory(signer);
-    mailbox = await mailboxFactory.deploy(originDomain);
-    await mailbox.initialize(signer.address, module.address);
+    mailbox = await mailboxFactory.deploy(originDomain, signer.address);
+    const defaultHookFactory = new TestMerkleTreeHook__factory(signer);
+    defaultHook = await defaultHookFactory.deploy(mailbox.address);
+    await mailbox.setDefaultIsm(module.address);
+    await mailbox.setDefaultHook(defaultHook.address);
   });
 
   describe('#initialize', () => {
     it('Sets the owner', async () => {
       const mailboxFactory = new TestMailbox__factory(signer);
-      mailbox = await mailboxFactory.deploy(originDomain);
+      mailbox = await mailboxFactory.deploy(originDomain, nonOwner.address);
       const expectedOwner = nonOwner.address;
-      await mailbox.initialize(expectedOwner, module.address);
+
+      await mailbox.connect(nonOwner).setDefaultIsm(module.address);
       const owner = await mailbox.owner();
       expect(owner).equals(expectedOwner);
-    });
-
-    it('Cannot be initialized twice', async () => {
-      await expect(
-        mailbox.initialize(signer.address, module.address),
-      ).to.be.revertedWith('Initializable: contract is already initialized');
     });
   });
 
@@ -69,22 +70,13 @@ describe('Mailbox', async () => {
       ));
     });
 
-    it('Does not dispatch too large messages', async () => {
-      const longMessage = `0x${Buffer.alloc(3000).toString('hex')}`;
-      await expect(
-        mailbox.dispatch(
-          destDomain,
-          utils.addressToBytes32(recipient.address),
-          longMessage,
-        ),
-      ).to.be.revertedWith('msg too long');
-    });
-
     it('Dispatches a message', async () => {
       // Send message with signer address as msg.sender
       const recipientBytes = utils.addressToBytes32(recipient.address);
       await expect(
-        mailbox.connect(signer).dispatch(destDomain, recipientBytes, body),
+        mailbox
+          .connect(signer)
+          ['dispatch(uint32,bytes32,bytes)'](destDomain, recipientBytes, body),
       )
         .to.emit(mailbox, 'Dispatch')
         .withArgs(signer.address, destDomain, recipientBytes, message)
@@ -95,7 +87,7 @@ describe('Mailbox', async () => {
     it('Returns the id of the dispatched message', async () => {
       const actualId = await mailbox
         .connect(signer)
-        .callStatic.dispatch(
+        .callStatic['dispatch(uint32,bytes32,bytes)'](
           destDomain,
           utils.addressToBytes32(recipient.address),
           body,
@@ -175,7 +167,7 @@ describe('Mailbox', async () => {
     it('Fails to process message when rejected by module', async () => {
       await module.setAccept(false);
       await expect(mailbox.process('0x', message)).to.be.revertedWith(
-        '!module',
+        'verification failed',
       );
     });
 
@@ -263,40 +255,6 @@ describe('Mailbox', async () => {
       await expect(mailbox.setDefaultIsm(signer.address)).to.be.revertedWith(
         '!contract',
       );
-    });
-  });
-
-  describe('#pause', () => {
-    it('should revert on non-owner', async () => {
-      await expect(mailbox.connect(nonOwner).pause()).to.be.revertedWith(
-        ONLY_OWNER_REVERT_MSG,
-      );
-      await expect(mailbox.connect(nonOwner).unpause()).to.be.revertedWith(
-        ONLY_OWNER_REVERT_MSG,
-      );
-    });
-
-    it('should emit events', async () => {
-      await expect(mailbox.pause()).to.emit(mailbox, 'Paused');
-      await expect(mailbox.unpause()).to.emit(mailbox, 'Unpaused');
-    });
-
-    it('should prevent dispatch and process', async () => {
-      await mailbox.pause();
-      await expect(
-        mailbox.dispatch(
-          destDomain,
-          utils.addressToBytes32(nonOwner.address),
-          '0x',
-        ),
-      ).to.be.revertedWith('paused');
-      await expect(mailbox.process('0x', '0x')).to.be.revertedWith('paused');
-    });
-
-    it('isPaused should be true', async () => {
-      await mailbox.pause();
-      const paused = await mailbox.isPaused();
-      expect(paused);
     });
   });
 });
