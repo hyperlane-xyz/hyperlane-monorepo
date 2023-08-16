@@ -1,6 +1,8 @@
 use std::ffi::{OsStr, OsString};
 
 use config::{ConfigError, Map, Source, Value, ValueKind};
+use convert_case::{Case, Casing};
+use itertools::Itertools;
 
 /// A source for loading configuration from command line arguments.
 ///
@@ -11,7 +13,7 @@ use config::{ConfigError, Map, Source, Value, ValueKind};
 /// * `--key` (value is an empty string)
 #[must_use]
 #[derive(Clone, Debug, Default)]
-pub struct DeprecatedCommandLineArguments {
+pub struct CommandLineArguments {
     /// Optional character sequence that separates each key segment in an
     /// environment key pattern. Consider a nested configuration such as
     /// `redis.password`, a separator of `-` would allow an environment key
@@ -21,6 +23,10 @@ pub struct DeprecatedCommandLineArguments {
     /// Ignore empty env values (treat as unset).
     ignore_empty: bool,
 
+    /// What casing to use for the keys in the environment. By default it will not mutate the key
+    /// value.
+    casing: Option<Case>,
+
     /// Alternate source for the environment. This can be used when you want to
     /// test your own code using this source, without the need to change the
     /// actual system environment variables.
@@ -28,7 +34,7 @@ pub struct DeprecatedCommandLineArguments {
 }
 
 #[allow(unused)]
-impl DeprecatedCommandLineArguments {
+impl CommandLineArguments {
     pub fn separator(mut self, s: &str) -> Self {
         self.separator = Some(s.into());
         self
@@ -36,6 +42,11 @@ impl DeprecatedCommandLineArguments {
 
     pub fn ignore_empty(mut self, ignore: bool) -> Self {
         self.ignore_empty = ignore;
+        self
+    }
+
+    pub fn casing(mut self, casing: Case) -> Self {
+        self.casing = Some(casing);
         self
     }
 
@@ -49,7 +60,7 @@ impl DeprecatedCommandLineArguments {
     }
 }
 
-impl Source for DeprecatedCommandLineArguments {
+impl Source for CommandLineArguments {
     fn clone_into_box(&self) -> Box<dyn Source + Send + Sync> {
         Box::new((*self).clone())
     }
@@ -66,7 +77,7 @@ impl Source for DeprecatedCommandLineArguments {
             ArgumentParser::from_env()
         };
 
-        while let Some((mut key, value)) = args
+        while let Some((key, value)) = args
             .next()
             .transpose()
             .map_err(|e| ConfigError::Foreign(Box::new(e)))?
@@ -75,10 +86,15 @@ impl Source for DeprecatedCommandLineArguments {
                 continue;
             }
 
-            // If separator is given replace with `.`
-            if !separator.is_empty() && separator != "." {
-                key = key.replace(separator, ".");
-            }
+            let key = if let Some(case) = self.casing {
+                // if case is given, replace case of each key component
+                key.split(separator).map(|s| s.to_case(case)).join(".")
+            } else if separator.is_empty() && separator != "." {
+                // If separator is given replace with `.`
+                key.replace(separator, ".")
+            } else {
+                key
+            };
 
             m.insert(key, Value::new(Some(&uri), ValueKind::String(value)));
         }
@@ -279,7 +295,8 @@ mod test {
                 Some(Value::new(
                     Some(&origin),
                     ValueKind::String($value.to_owned())
-                ))
+                )),
+                $key
             );
         };
     }
@@ -299,7 +316,7 @@ mod test {
 
     #[test]
     fn default_case() {
-        let mut config = DeprecatedCommandLineArguments::default()
+        let mut config = CommandLineArguments::default()
             .source(ARGUMENTS)
             .collect()
             .unwrap();
@@ -319,7 +336,7 @@ mod test {
 
     #[test]
     fn ignore_empty() {
-        let mut config = DeprecatedCommandLineArguments::default()
+        let mut config = CommandLineArguments::default()
             .source(ARGUMENTS)
             .ignore_empty(true)
             .collect()

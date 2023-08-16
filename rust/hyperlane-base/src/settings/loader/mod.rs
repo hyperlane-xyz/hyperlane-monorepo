@@ -1,6 +1,6 @@
 use std::{collections::HashMap, env, error::Error, path::PathBuf};
 
-use config::{Config, Environment, File};
+use config::{Config, Environment as DeprecatedEnvironment, File};
 use eyre::{bail, Context, Result};
 use serde::Deserialize;
 
@@ -9,6 +9,7 @@ use crate::settings::loader::deprecated_arguments::DeprecatedCommandLineArgument
 
 mod arguments;
 mod deprecated_arguments;
+mod environment;
 
 /// Load a settings object from the config locations.
 /// Further documentation can be found in the `settings` module.
@@ -75,12 +76,12 @@ where
     let config_deserializer = builder
         // Use a base configuration env variable prefix
         .add_source(
-            Environment::with_prefix("HYP_BASE")
+            DeprecatedEnvironment::with_prefix("HYP_BASE")
                 .separator("_")
                 .source(Some(filtered_env.clone())),
         )
         .add_source(
-            Environment::with_prefix(&prefix)
+            DeprecatedEnvironment::with_prefix(&prefix)
                 .separator("_")
                 .source(Some(filtered_env)),
         )
