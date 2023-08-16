@@ -1,3 +1,7 @@
+/**
+ * The types defined here are the source of truth for chain metadata.
+ * ANY CHANGES HERE NEED TO BE REFLECTED IN HYPERLANE-BASE CONFIG PARSING.
+ */
 import { z } from 'zod';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
@@ -384,22 +388,14 @@ export function buildAgentConfigDeprecated(
   return agentConfig;
 }
 
-// TODO(2215): this eventually needs to to be replaced with just `AgentConfig2` (and that ident needs renaming)
-export type CombinedAgentConfig = AgentConfigV2['chains'] | AgentConfig;
-
 export function buildAgentConfig(
   chains: ChainName[],
   multiProvider: MultiProvider,
   addresses: ChainMap<HyperlaneDeploymentArtifacts>,
   startBlocks: ChainMap<number>,
-): CombinedAgentConfig {
+): AgentConfigV2 {
   return {
-    ...buildAgentConfigNew(chains, multiProvider, addresses, startBlocks),
-    ...buildAgentConfigDeprecated(
-      chains,
-      multiProvider,
-      addresses,
-      startBlocks,
-    ),
+    chains: buildAgentConfigNew(chains, multiProvider, addresses, startBlocks),
+    defaultRpcConsensusType: AgentConsensusType.Fallback,
   };
 }
