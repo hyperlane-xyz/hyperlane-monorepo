@@ -5,9 +5,6 @@ name = "ecdsa-signature"
 version = "0.1.0"
 edition = "2021"
 
-[features]
-no-entrypoint = []
-
 [dependencies]
 solana-program.workspace = true
 thiserror.workspace = true
@@ -16,3 +13,6 @@ hyperlane-core = { path = "../../../hyperlane-core" }
 
 [lib]
 crate-type = ["cdylib", "lib"]
+
+[profile.release]
+overflow-checks = true

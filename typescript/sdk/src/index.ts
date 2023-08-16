@@ -1,4 +1,12 @@
-export { HyperlaneApp } from './HyperlaneApp';
+export { HyperlaneApp } from './app/HyperlaneApp';
+export {
+  AdapterClassType,
+  AdapterProtocolMap,
+  BaseAppAdapter,
+  BaseEvmAdapter,
+  BaseSealevelAdapter,
+  MultiProtocolApp,
+} from './app/MultiProtocolApp';
 export {
   chainIdToMetadata,
   chainMetadata,
@@ -16,16 +24,13 @@ export {
   Testnets,
 } from './consts/chains';
 export {
+  HyperlaneEnvironment,
+  HyperlaneEnvironmentChain,
   hyperlaneContractAddresses,
   hyperlaneEnvironments,
 } from './consts/environments';
 export { defaultMultisigIsmConfigs } from './consts/multisigIsm';
 export {
-  HyperlaneAddresses,
-  HyperlaneAddressesMap,
-  HyperlaneContracts,
-  HyperlaneContractsMap,
-  HyperlaneFactories,
   attachContracts,
   attachContractsMap,
   connectContracts,
@@ -33,7 +38,15 @@ export {
   filterAddressesMap,
   serializeContracts,
   serializeContractsMap,
-} from './contracts';
+} from './contracts/contracts';
+export {
+  AddressesMap,
+  HyperlaneAddresses,
+  HyperlaneAddressesMap,
+  HyperlaneContracts,
+  HyperlaneContractsMap,
+  HyperlaneFactories,
+} from './contracts/types';
 export { DispatchedMessage, HyperlaneCore } from './core/HyperlaneCore';
 export { HyperlaneCoreChecker } from './core/HyperlaneCoreChecker';
 export { HyperlaneCoreDeployer } from './core/HyperlaneCoreDeployer';
@@ -41,7 +54,14 @@ export { TestCoreApp } from './core/TestCoreApp';
 export { TestCoreDeployer } from './core/TestCoreDeployer';
 export { CoreFactories, coreFactories } from './core/contracts';
 export { HyperlaneLifecyleEvent } from './core/events';
-export { CoreConfig, CoreViolationType } from './core/types';
+export {
+  CoreConfig,
+  CoreViolationType,
+  MailboxMultisigIsmViolation,
+  MailboxViolation,
+  MailboxViolationType,
+  ValidatorAnnounceViolation,
+} from './core/types';
 export { HyperlaneAppChecker } from './deploy/HyperlaneAppChecker';
 export { DeployerOptions, HyperlaneDeployer } from './deploy/HyperlaneDeployer';
 export {
@@ -96,12 +116,15 @@ export {
   AgentConfig,
   AgentConnection,
   AgentConnectionType,
-  AgentMetadataExtSchema,
-  AgentMetadataExtension,
   AgentSigner,
-  ChainMetadataForAgent,
-  ChainMetadataForAgentSchema,
-  CombinedAgentConfig,
+  AgentSignerSchema,
+  AgentSignerV2,
+  AgentChainMetadata,
+  AgentChainMetadataSchema,
+  AgentConfigSchema,
+  AgentLogLevel,
+  AgentLogFormat,
+  AgentConfigV2,
   buildAgentConfig,
   buildAgentConfigDeprecated,
   buildAgentConfigNew,
@@ -109,17 +132,14 @@ export {
 export {
   ChainMetadata,
   ChainMetadataSchema,
+  RpcUrlSchema,
+  RpcUrl,
   ExplorerFamily,
   ExplorerFamilyValue,
-  ProtocolSmallestUnit,
-  ProtocolType,
-  ProtocolTypeValue,
   getDomainId,
   isValidChainMetadata,
 } from './metadata/chainMetadataTypes';
 export {
-  ChainMetadataWithArtifacts,
-  ChainMetadataWithArtifactsSchema,
   HyperlaneDeploymentArtifacts,
   HyperlaneDeploymentArtifactsSchema,
 } from './metadata/deploymentArtifacts';
@@ -135,6 +155,7 @@ export {
   BridgeAdapterConfig,
   BridgeAdapterType,
   CircleBridgeAdapterConfig,
+  LiquidityLayerConfig,
   LiquidityLayerDeployer,
   PortalAdapterConfig,
 } from './middleware/liquidity-layer/LiquidityLayerRouterDeployer';
@@ -147,24 +168,74 @@ export {
 } from './middleware/query/InterchainQueryDeployer';
 export { interchainQueryFactories } from './middleware/query/contracts';
 export {
-  MultiProvider,
-  ProviderBuilderFn,
-  defaultProviderBuilder,
-} from './providers/MultiProvider';
+  MultiProtocolProvider,
+  MultiProtocolProviderOptions,
+} from './providers/MultiProtocolProvider';
+export { MultiProvider, MultiProviderOptions } from './providers/MultiProvider';
+export {
+  EthersV5Contract,
+  EthersV5Provider,
+  EthersV5Transaction,
+  ProviderMap,
+  ProviderType,
+  SolanaWeb3Contract,
+  SolanaWeb3Provider,
+  SolanaWeb3Transaction,
+  TypedContract,
+  TypedProvider,
+  TypedTransaction,
+  ViemContract,
+  ViemProvider,
+  ViemTransaction,
+} from './providers/ProviderType';
 export {
   RetryJsonRpcProvider,
   RetryProviderOptions,
 } from './providers/RetryProvider';
+export {
+  DEFAULT_RETRY_OPTIONS,
+  ProviderBuilderFn,
+  ProviderBuilderMap,
+  TypedProviderBuilderFn,
+  defaultEthersV5ProviderBuilder,
+  defaultFuelProviderBuilder,
+  defaultProviderBuilder,
+  defaultProviderBuilderMap,
+  defaultSolProviderBuilder,
+  defaultViemProviderBuilder,
+  protocolToDefaultProviderBuilder,
+} from './providers/providerBuilders';
 export { GasRouterDeployer } from './router/GasRouterDeployer';
 export { HyperlaneRouterChecker } from './router/HyperlaneRouterChecker';
 export { HyperlaneRouterDeployer } from './router/HyperlaneRouterDeployer';
+export {
+  MultiProtocolGasRouterApp,
+  MultiProtocolRouterApp,
+} from './router/MultiProtocolRouterApps';
 export { GasRouterApp, Router, RouterApp } from './router/RouterApps';
 export {
+  EvmGasRouterAdapter,
+  EvmRouterAdapter,
+} from './router/adapters/EvmRouterAdapter';
+export {
+  SealevelGasRouterAdapter,
+  SealevelRouterAdapter,
+  SealevelTokenDataSchema,
+} from './router/adapters/SealevelRouterAdapter';
+export { IGasRouterAdapter, IRouterAdapter } from './router/adapters/types';
+export {
+  ConnectionClientConfig,
   ConnectionClientViolation,
   ConnectionClientViolationType,
+  ForeignDeploymentConfig,
   GasConfig,
   GasRouterConfig,
+  OwnableConfig,
+  ProxiedFactories,
+  ProxiedRouterConfig,
+  RouterAddress,
   RouterConfig,
+  proxiedFactories,
 } from './router/types';
 export {
   createRouterConfigMap,
@@ -178,22 +249,6 @@ export {
   TestChainNames,
 } from './types';
 export { MultiGeneric } from './utils/MultiGeneric';
-export { canonizeId, evmId } from './utils/ids';
+export { filterByChains } from './utils/filter';
 export { multisigIsmVerificationCost } from './utils/ism';
-export {
-  bigToFixed,
-  convertDecimalValue,
-  fixedToBig,
-  mulBigAndFixed,
-} from './utils/number';
-export {
-  filterByChains,
-  objFilter,
-  objMap,
-  objMapEntries,
-  objMerge,
-  pick,
-  promiseObjAll,
-} from './utils/objects';
-export { delay } from './utils/time';
 export { chainMetadataToWagmiChain, wagmiChainMetadata } from './utils/wagmi';

@@ -63,10 +63,6 @@ spec:
 {{- end }}
           - name: HYP_SCRAPER_CHAINSTOSCRAPE
             value: {{ $scraperChainNames | join "," }}
-          {{- if .Values.hyperlane.tracing.uri }}
-          - name: HYP_BASE_TRACING_JAEGER_NAME
-            value: {{ include "agent-common.fullname" . }}-scraper3
-          {{- end }}
         resources:
           {{- toYaml .Values.hyperlane.scraper.resources | nindent 10 }}
         ports: 
