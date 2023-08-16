@@ -856,4 +856,32 @@ where
 
         Ok(())
     }
+
+    /// Lets the owner set the interchain gas paymaster.
+    ///
+    /// Accounts:
+    /// 0. [writeable] The token PDA account.
+    /// 1. [signer] The access control owner.
+    pub fn set_interchain_gas_paymaster(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+        igp: Option<(Pubkey, InterchainGasPaymasterType)>,
+    ) -> ProgramResult {
+        let accounts_iter = &mut accounts.iter();
+
+        // Account 0: Token account
+        let token_account = next_account_info(accounts_iter)?;
+        let mut token = HyperlaneToken::verify_account_and_fetch_inner(program_id, token_account)?;
+
+        // Account 1: Owner
+        let owner_account = next_account_info(accounts_iter)?;
+
+        // This errors if owner_account is not really the owner.
+        token.set_interchain_gas_paymaster_only_owner(owner_account, igp)?;
+
+        // Store the updated token account. No need to realloc, the size for the ISM is the same.
+        HyperlaneTokenAccount::<T>::from(token).store(token_account, false)?;
+
+        Ok(())
+    }
 }

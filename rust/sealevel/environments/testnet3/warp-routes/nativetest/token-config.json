@@ -3,12 +3,6 @@
     "type": "native",
     "decimals": 9
   },
-  "zbctestnet": {
-    "type": "synthetic",
-    "decimals": 9,
-    "name": "Solana (solanadevnet)",
-    "symbol": "SOL"
-  },
   "fuji": {
     "type": "synthetic",
     "decimals": 9,

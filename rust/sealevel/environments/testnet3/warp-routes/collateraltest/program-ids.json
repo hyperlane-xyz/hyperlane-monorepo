@@ -1,8 +1,4 @@
 {
-  "zbctestnet": {
-    "hex": "0xa7b75e9d68d3a8f9a84720e039cbb1f9ef1c515f2b3aa99619ecb6f07792bde4",
-    "base58": "CHhFzfTi46rzdocEpvbkSwdiqkYmfWrJo6Ru7haFTr2w"
-  },
   "fuji": {
     "hex": "0x000000000000000000000000a97f4eacbc363f82d25a540440afc6f78920299b",
     "base58": "1111111111113Mxh1B6fskiQrE2FY7RuvZDF7PfQ"

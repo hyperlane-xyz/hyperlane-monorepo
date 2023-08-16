@@ -20,8 +20,8 @@ pub fn termination_invariants_met(
 
     let lengths = fetch_metric("9092", "hyperlane_submitter_queue_length", &hashmap! {})?;
     assert!(!lengths.is_empty(), "Could not find queue length metric");
-    if lengths.into_iter().any(|n| n != 0) {
-        log!("Relayer queues not empty");
+    if lengths.iter().any(|n| *n != 0) {
+        log!("Relayer queues not empty. Lengths: {:?}", lengths);
         return Ok(false);
     };
 

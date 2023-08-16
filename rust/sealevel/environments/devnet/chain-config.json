@@ -8,15 +8,6 @@
       }
     ]
   },
-  "solanadevnet1": {
-    "chainId": 13376,
-    "name": "solanadevnet1",
-    "rpcUrls": [
-      {
-        "http": "https://api.devnet.solana.com"
-      }
-    ]
-  },
   "fuji": {
     "chainId": 43113,
     "name": "fuji",
