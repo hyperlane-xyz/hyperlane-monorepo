@@ -1,16 +1,16 @@
 //! Configuration
 
-use std::path::PathBuf;
-use std::time::Duration;
+use std::{path::PathBuf, time::Duration};
 
 use eyre::{eyre, Context};
-
 use hyperlane_base::{
-    decl_settings, CheckpointSyncerConf, RawCheckpointSyncerConf, RawSignerConf, Settings,
-    SignerConf,
+    decl_settings,
+    settings::{
+        parser::{RawCheckpointSyncerConf, RawSignerConf},
+        CheckpointSyncerConf, Settings, SignerConf,
+    },
 };
-use hyperlane_core::config::*;
-use hyperlane_core::{HyperlaneDomain, HyperlaneDomainProtocol};
+use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol};
 
 decl_settings!(Validator,
     Parsed {
@@ -44,7 +44,7 @@ decl_settings!(Validator,
     },
 );
 
-impl FromRawConf<'_, RawValidatorSettings> for ValidatorSettings {
+impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
     fn from_config_filtered(
         raw: RawValidatorSettings,
         cwp: &ConfigPath,
@@ -111,29 +111,31 @@ impl FromRawConf<'_, RawValidatorSettings> for ValidatorSettings {
                 .take_err(&mut err, || cwp + "chains" + &origin_chain_name)
         });
 
-        err.into_result()?;
-
-        let mut base = base.unwrap();
-        let origin_chain = origin_chain.unwrap();
-        let validator = validator.unwrap();
+        cfg_unwrap_all!(
+            cwp,
+            err: base,
+            origin_chain,
+            validator,
+            checkpoint_syncer,
+            reorg_period
+        );
+        let mut base = base;
 
         if origin_chain.domain_protocol() == HyperlaneDomainProtocol::Ethereum {
             // if an EVM chain we can assume the chain signer is the validator signer when not
             // specified
-            base.chains
-                .get_mut(origin_chain.name())
-                .unwrap()
-                .signer
-                .get_or_insert_with(|| validator.clone());
+            if let Some(chain) = base.chains.get_mut(origin_chain.name()) {
+                chain.signer.get_or_insert_with(|| validator.clone());
+            }
         }
 
-        Ok(Self {
+        err.into_result(Self {
             base,
             db,
             origin_chain,
             validator,
-            checkpoint_syncer: checkpoint_syncer.unwrap(),
-            reorg_period: reorg_period.unwrap(),
+            checkpoint_syncer,
+            reorg_period,
             interval,
         })
     }
