@@ -135,7 +135,7 @@ contract MerkleRootMultisigIsmTest is AbstractMultisigIsmTest {
     using Message for bytes;
 
     function setUp() public {
-        mailbox = new TestMailbox(ORIGIN);
+        mailbox = new TestMailbox(ORIGIN, address(this));
         merkleTreeHook = new TestMerkleTreeHook(address(mailbox));
         factory = new StaticMerkleRootMultisigIsmFactory();
         mailbox.setDefaultHook(address(merkleTreeHook));
@@ -163,7 +163,7 @@ contract MessageIdMultisigIsmTest is AbstractMultisigIsmTest {
     using Message for bytes;
 
     function setUp() public {
-        mailbox = new TestMailbox(ORIGIN);
+        mailbox = new TestMailbox(ORIGIN, address(this));
         merkleTreeHook = new TestMerkleTreeHook(address(mailbox));
         factory = new StaticMessageIdMultisigIsmFactory();
         mailbox.setDefaultHook(address(merkleTreeHook));

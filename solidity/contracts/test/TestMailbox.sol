@@ -9,7 +9,9 @@ import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
 contract TestMailbox is Mailbox {
     using TypeCasts for bytes32;
 
-    constructor(uint32 _localDomain) Mailbox(_localDomain, msg.sender) {} // solhint-disable-line no-empty-blocks
+    constructor(uint32 _localDomain, address _owner)
+        Mailbox(_localDomain, _owner)
+    {} // solhint-disable-line no-empty-blocks
 
     function testHandle(
         uint32 _origin,
