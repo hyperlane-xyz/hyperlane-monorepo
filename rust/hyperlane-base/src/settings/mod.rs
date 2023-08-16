@@ -100,7 +100,12 @@ pub(crate) mod loader;
 /// Signer configuration
 mod signers;
 /// Tracing subscriber management
-pub mod trace;
+mod trace;
+
+mod checkpoint_syncer;
+pub mod deprecated_parser;
+pub mod parser;
+
 #[macro_export]
 /// Declare a new settings block
 ///
