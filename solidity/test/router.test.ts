@@ -11,6 +11,8 @@ import {
   TestInterchainGasPaymaster__factory,
   TestMailbox,
   TestMailbox__factory,
+  TestMerkleTreeHook,
+  TestMerkleTreeHook__factory,
   TestMultisigIsm__factory,
   TestRouter,
   TestRouter__factory,
@@ -35,6 +37,7 @@ interface GasPaymentParams {
 describe('Router', async () => {
   let router: TestRouter,
     mailbox: TestMailbox,
+    defaultHook: TestMerkleTreeHook,
     igp: TestInterchainGasPaymaster,
     signer: SignerWithAddress,
     nonOwner: SignerWithAddress;
@@ -45,7 +48,10 @@ describe('Router', async () => {
 
   beforeEach(async () => {
     const mailboxFactory = new TestMailbox__factory(signer);
-    mailbox = await mailboxFactory.deploy(origin);
+    mailbox = await mailboxFactory.deploy(origin, signer.address);
+    const defaultHookFactory = new TestMerkleTreeHook__factory(signer);
+    defaultHook = await defaultHookFactory.deploy(mailbox.address);
+    await mailbox.setDefaultHook(defaultHook.address);
     igp = await new TestInterchainGasPaymaster__factory(signer).deploy(
       signer.address,
     );
@@ -88,7 +94,7 @@ describe('Router', async () => {
       await router.initialize(mailbox.address, igp.address);
       const ism = await new TestMultisigIsm__factory(signer).deploy();
       await ism.setAccept(true);
-      await mailbox.initialize(signer.address, ism.address);
+      await mailbox.setDefaultIsm(ism.address);
     });
 
     it('accepts message from enrolled mailbox and router', async () => {

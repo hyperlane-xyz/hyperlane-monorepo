@@ -200,7 +200,7 @@ describe('Mailbox', async () => {
       ));
 
       await expect(mailbox.process('0x', message)).to.be.revertedWith(
-        '!destination',
+        'Mailbox: unexpected destination',
       );
     });
 
@@ -215,7 +215,7 @@ describe('Mailbox', async () => {
         version + 1,
       ));
       await expect(mailbox.process('0x', message)).to.be.revertedWith(
-        '!version',
+        'Mailbox: bad version',
       );
     });
 
@@ -253,7 +253,7 @@ describe('Mailbox', async () => {
 
     it('Reverts if the provided ISM is not a contract', async () => {
       await expect(mailbox.setDefaultIsm(signer.address)).to.be.revertedWith(
-        '!contract',
+        'Mailbox: !contract',
       );
     });
   });
