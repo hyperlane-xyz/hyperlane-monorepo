@@ -16,11 +16,6 @@ pub use settings::*;
 mod agent;
 pub use agent::*;
 
-#[doc(hidden)]
-#[cfg_attr(tarpaulin, skip)]
-#[macro_use]
-pub mod macros;
-
 mod metrics;
 pub use metrics::*;
 
