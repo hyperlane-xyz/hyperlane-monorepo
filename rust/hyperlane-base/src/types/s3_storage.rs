@@ -220,6 +220,6 @@ impl CheckpointSyncer for S3Storage {
     }
 
     fn announcement_location(&self) -> String {
-        format!("s3://{}/{}", self.bucket, self.region.name())
+        format!("s3://{}/{}/{}", self.bucket, self.region.name(), self.folder)
     }
 }

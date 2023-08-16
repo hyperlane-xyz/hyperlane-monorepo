@@ -24,7 +24,7 @@ pub enum CheckpointSyncerConf {
         /// Bucket name
         bucket: String,
         /// Folder name inside bucket
-        folder: String
+        folder: String,
         /// S3 Region
         region: Region,
     },
@@ -43,8 +43,8 @@ pub enum RawCheckpointSyncerConf {
     S3 {
         /// Bucket name
         bucket: Option<String>,
-        // Folder name inside bucket - defaults to the root of the bucket (i.e. empty string)
-        folder: Option<String>
+        /// Folder name inside bucket - defaults to the root of the bucket (i.e. empty string)
+        folder: Option<String>,
         /// S3 Region
         region: Option<String>,
     },
@@ -88,7 +88,7 @@ impl FromRawConf<'_, RawCheckpointSyncerConf> for CheckpointSyncerConf {
                     .ok_or_else(|| eyre!("Missing `bucket` for S3 checkpoint syncer"))
                     .into_config_result(|| cwp + "bucket")?,
                 folder: folder
-                    .ok_or_else("")
+                    .map_or(Ok::<String, Report>(String::from("")), Result::Ok)
                     .into_config_result(|| cwp + "folder")?,
                 region: region
                     .ok_or_else(|| eyre!("Missing `region` for S3 checkpoint syncer"))
@@ -113,13 +113,17 @@ impl FromStr for CheckpointSyncerConf {
 
         match prefix {
             "s3" => {
-                let [bucket, region]: [&str; 2] = suffix
+                let url_components = suffix
                     .split('/')
-                    .collect::<Vec<_>>()
-                    .try_into()
-                    .map_err(|_| eyre!("Error parsing storage location; could not split bucket and region ({suffix})"))?;
+                    .collect::<Vec<&str>>();
+                let [bucket, region, folder]: [&str; 3] = match url_components[..] {
+                    [bucket, region] => Ok([bucket, region, ""]), // no folder means empty folder path
+                    [bucket, region, folder] => Ok([bucket, region, folder]),
+                    _ => Err(eyre!("Error parsing storage location; could not split bucket, region and folder ({suffix})"))
+                }?;
                 Ok(CheckpointSyncerConf::S3 {
                     bucket: bucket.into(),
+                    folder: folder.into(),
                     region: region
                         .parse()
                         .context("Invalid region when parsing storage location")?,
