@@ -1,10 +1,8 @@
-use std::ops::RangeInclusive;
-
 use async_trait::async_trait;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneProvider, Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta,
-    SequenceIndexer, H256,
+    HyperlaneProvider, IndexRange, Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta,
+    H256,
 };
 use tracing::{info, instrument};
 
@@ -63,7 +61,7 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
     #[instrument(err, skip(self))]
     async fn fetch_logs(
         &self,
-        _range: RangeInclusive<u32>,
+        _range: IndexRange,
     ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
         info!("Gas payment indexing not implemented for Sealevel");
         Ok(vec![])
@@ -74,13 +72,5 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
         // As a workaround to avoid gas payment indexing on Sealevel,
         // we pretend the block number is 1.
         Ok(1)
-    }
-}
-
-#[async_trait]
-impl SequenceIndexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
-    async fn sequence_at_tip(&self) -> ChainResult<(u32, u32)> {
-        info!("Gas payment indexing not implemented for Sealevel");
-        Ok((1, 1))
     }
 }
