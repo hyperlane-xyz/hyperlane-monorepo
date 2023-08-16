@@ -39,12 +39,6 @@
       "address": "0xAb65C41a1BC580a52f0b166879122EFdce0cB868",
       "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c7000000000000000000000000056f52c0a1ddcd557285f7cbc782d3d83096ce1cc",
       "isProxy": false
-    },
-    {
-      "name": "Router",
-      "address": "0x2F1d0ba5E79EcA27E9fE8edDD5892Ba5bfA913f3",
-      "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c7000000000000000000000000056f52c0a1ddcd557285f7cbc782d3d83096ce1cc",
-      "isProxy": false
     }
   ],
   "celo": [
@@ -57,12 +51,6 @@
     {
       "name": "router",
       "address": "0xfE29f6a4468536029Fc9c97d3a9669b9fe38E114",
-      "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c7000000000000000000000000056f52c0a1ddcd557285f7cbc782d3d83096ce1cc",
-      "isProxy": false
-    },
-    {
-      "name": "Router",
-      "address": "0xaB28CA63C5e4BA2c7178c26F9f7a2c24008D81b0",
       "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c7000000000000000000000000056f52c0a1ddcd557285f7cbc782d3d83096ce1cc",
       "isProxy": false
     }
@@ -105,12 +93,6 @@
     {
       "name": "router",
       "address": "0xed31c20c5517EaC05decD5F6dCd01Fe6d16fD09D",
-      "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c7000000000000000000000000056f52c0a1ddcd557285f7cbc782d3d83096ce1cc",
-      "isProxy": false
-    },
-    {
-      "name": "Router",
-      "address": "0x2C0b88dEa83EBf15ab6D275FA582241E36900B4f",
       "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c7000000000000000000000000056f52c0a1ddcd557285f7cbc782d3d83096ce1cc",
       "isProxy": false
     }
