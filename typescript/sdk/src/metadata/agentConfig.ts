@@ -388,14 +388,22 @@ export function buildAgentConfigDeprecated(
   return agentConfig;
 }
 
+// TODO(2215): this eventually needs to to be replaced with just `AgentConfig2` (and that ident needs renaming)
+export type CombinedAgentConfig = AgentConfigV2['chains'] | AgentConfig;
+
 export function buildAgentConfig(
   chains: ChainName[],
   multiProvider: MultiProvider,
   addresses: ChainMap<HyperlaneDeploymentArtifacts>,
   startBlocks: ChainMap<number>,
-): AgentConfigV2 {
+): CombinedAgentConfig {
   return {
-    chains: buildAgentConfigNew(chains, multiProvider, addresses, startBlocks),
-    defaultRpcConsensusType: AgentConsensusType.Fallback,
+    ...buildAgentConfigNew(chains, multiProvider, addresses, startBlocks),
+    ...buildAgentConfigDeprecated(
+      chains,
+      multiProvider,
+      addresses,
+      startBlocks,
+    ),
   };
 }
