@@ -77,13 +77,17 @@ contract Mailbox is IMailbox, Versioned, Ownable, Indexed {
      * @param _module The new default ISM. Must be a contract.
      */
     function setDefaultIsm(address _module) external onlyOwner {
-        require(Address.isContract(_module), "!contract");
+        require(Address.isContract(_module), "Mailbox: !contract");
         defaultIsm = IInterchainSecurityModule(_module);
         emit DefaultIsmSet(_module);
     }
 
+    /**
+     * @notice Sets the default post dispatch hook for the Mailbox.
+     * @param _hook The new default post dispatch hook. Must be a contract.
+     */
     function setDefaultHook(address _hook) external onlyOwner {
-        require(Address.isContract(_hook), "!contract");
+        require(Address.isContract(_hook), "Mailbox: !contract");
         defaultHook = IPostDispatchHook(_hook);
         emit DefaultHookSet(_hook);
     }
@@ -159,8 +163,9 @@ contract Mailbox is IMailbox, Versioned, Ownable, Indexed {
 
         nonce += 1;
         latestDispatchedId = id;
-        emit DispatchId(id);
+
         emit Dispatch(message);
+        emit DispatchId(id);
 
         /// INTERACTIONS ///
 
@@ -187,15 +192,15 @@ contract Mailbox is IMailbox, Versioned, Ownable, Indexed {
         /// CHECKS ///
 
         // Check that the message was intended for this mailbox.
-        require(_message.version() == VERSION, "bad version");
+        require(_message.version() == VERSION, "Mailbox: bad version");
         require(
             _message.destination() == localDomain,
-            "unexpected destination"
+            "Mailbox: unexpected destination"
         );
 
         // Check that the message hasn't already been delivered.
         bytes32 _id = _message.id();
-        require(delivered(_id) == false, "already delivered");
+        require(delivered(_id) == false, "Mailbox: already delivered");
 
         // Get the recipient's ISM.
         address recipient = _message.recipientAddress();
@@ -215,7 +220,10 @@ contract Mailbox is IMailbox, Versioned, Ownable, Indexed {
         /// INTERACTIONS ///
 
         // Verify the message via the ISM.
-        require(ism.verify(_metadata, _message), "verification failed");
+        require(
+            ism.verify(_metadata, _message),
+            "Mailbox: verification failed"
+        );
 
         // Deliver the message to the recipient.
         IMessageRecipient(recipient).handle{value: msg.value}(

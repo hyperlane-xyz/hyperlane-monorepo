@@ -93,7 +93,7 @@ contract OPStackIsmTest is Test {
         vm.selectFork(mainnetFork);
 
         l1Messenger = ICrossDomainMessenger(L1_MESSENGER_ADDRESS);
-        l1Mailbox = new TestMailbox(MAINNET_DOMAIN);
+        l1Mailbox = new TestMailbox(MAINNET_DOMAIN, address(this));
 
         opHook = new OPStackHook(
             address(l1Mailbox),
@@ -131,6 +131,16 @@ contract OPStackIsmTest is Test {
     ///////////////////////////////////////////////////////////////////
     ///                         FORK TESTS                          ///
     ///////////////////////////////////////////////////////////////////
+
+    /* ============ hook.quoteDispatch ============ */
+
+    function testFork_quoteDispatch() public {
+        deployAll();
+
+        vm.selectFork(mainnetFork);
+
+        assertEq(opHook.quoteDispatch(testMetadata, encodedMessage), 0);
+    }
 
     /* ============ hook.postDispatch ============ */
 
