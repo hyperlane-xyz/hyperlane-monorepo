@@ -179,4 +179,46 @@ abstract contract OptimisticIsm is IOptimisticIsm, OwnableUpgradeable {
         watchers[_watcherToBeRemoved] = false;
     }
 
+  // ============ Core Functionality ============
+    /**
+     * @notice pre verifies messages recieved by a relayer,
+     *         adding their addresses to the relayers mapping,
+     *         initiating a fraudWindow, mapping the message to this fraudWindow and
+     *         mapping the message sent to the submodule used to verify the message
+     * @param  _metadata arbitrary bytes that can be specified by an off-chain relayer
+     * @param  _message formatted Hyperlane message (see Message.sol).
+     */
+    function preVerify(bytes calldata _metadata, bytes calldata _message)
+        public
+        override
+        returns (bool)
+    {
+        require(_relayerToMessages[msg.sender], "you are only allowed to send one message at a time");
+        bool isVerified = verify(_metadata, _message);
+        if (isVerified) {
+            _relayerToMessages[msg.sender] = _message;
+            _initiateFraudWindow(_message);
+            IInterchainSecurityModule currentModule = submodule(_message);
+            emit FraudWindowOpened(currentModule);
+            emit RelayerCalledMessagePreVerify(msg.sender);
+            return true;
+        }
+    }
 
+    /**
+     * @notice calls preVerifiedCheck() to ensure the submodule has not been flagged as fraudulent
+     *         and, if preVerifiedCheck() returns true, delivers the message to recipient address
+     * @param  _destination destination for message sent by relayer (msg.sender)
+     */
+    function deliver(
+        address _destination,
+        bytes calldata _metadata,
+        bytes calldata _message
+    ) public {
+        bool messagePassesChecks = preVerifiedCheck(_metadata, _message);
+        if (messagePassesChecks) {
+            _destination.call(_message);
+            emit MessageDelivered(_message);
+        }
+    }
+}
