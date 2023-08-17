@@ -44,8 +44,8 @@ const tokenMetadata = {
 };
 
 for (const variant of [
-  // TokenType.synthetic,
-  // TokenType.collateral,
+  TokenType.synthetic,
+  TokenType.collateral,
   TokenType.native,
 ]) {
   describe(`HypERC20${variant}`, async () => {
@@ -82,6 +82,7 @@ for (const variant of [
           tokenMetadata.name,
           tokenMetadata.symbol,
           tokenMetadata.totalSupply,
+          tokenMetadata.decimals,
         );
         localTokenConfig = {
           type: variant,

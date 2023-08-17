@@ -16,6 +16,8 @@ contract HypNativeScaledTest is Test {
     uint256 scale = 10**9;
     uint256 synthSupply = 123456789;
 
+    event Donation(address indexed sender, uint256 amount);
+
     HypNativeScaled native;
     HypERC20 synth;
 
@@ -53,6 +55,17 @@ contract HypNativeScaledTest is Test {
 
     receive() external payable {
         receivedValue = msg.value;
+    }
+
+    function test_receive(uint256 amount) public {
+        vm.assume(amount < address(this).balance);
+        vm.expectEmit(true, true, true, true);
+        emit Donation(address(this), amount);
+        (bool success, bytes memory returnData) = address(native).call{
+            value: amount
+        }("");
+        assert(success);
+        assertEq(returnData.length, 0);
     }
 
     function test_handle(uint256 amount) public {
