@@ -1,3 +1,5 @@
+cargo-features = ["workspace-inheritance"]
+
 [package]
 name = "run-locally"
 documentation.workspace = true
@@ -8,9 +10,11 @@ publish.workspace = true
 version.workspace = true
 
 [dependencies]
-ctrlc = "3.2"
-tempfile = "3.3"
-maplit = "1.0"
-nix = { version = "0.26", default-features = false, features = ["signal"] }
-ureq = { version = "2.4", default-features = false }
+ctrlc.workspace = true
 eyre.workspace = true
+maplit.workspace = true
+nix = { workspace = true, features = ["signal"], default-features = false }
+tempfile.workspace = true
+ureq = { workspace = true, default-features = false }
+which.workspace = true
+macro_rules_attribute.workspace = true

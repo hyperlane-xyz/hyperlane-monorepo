@@ -1,3 +1,5 @@
+cargo-features = ["workspace-inheritance"]
+
 [package]
 name = "validator"
 documentation.workspace = true
@@ -19,15 +21,14 @@ serde_json.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
 tracing-futures.workspace = true
-tracing-subscriber.workspace = true
 tracing.workspace = true
 
-hyperlane-core = { path = "../../hyperlane-core" }
+hyperlane-core = { path = "../../hyperlane-core", features = ["agent"] }
 hyperlane-base = { path = "../../hyperlane-base" }
 hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
 
 [dev-dependencies]
-tokio-test = "0.4"
+tokio-test.workspace = true
 hyperlane-test = { path = "../../hyperlane-test" }
 
 [features]

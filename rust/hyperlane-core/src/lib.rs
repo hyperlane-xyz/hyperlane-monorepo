@@ -2,7 +2,7 @@
 //! implementations.
 
 #![warn(missing_docs)]
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
 #![forbid(where_clauses_object_safety)]
 
 extern crate core;

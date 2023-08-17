@@ -1,0 +1,10 @@
+{
+  "fuji": {
+    "hex": "0x000000000000000000000000ddd2e6d7cc3fa4599de681376690c8ba538dab51",
+    "base58": "11111111111146F2zy7DPHvybUST2mVP2A8mFRDi"
+  },
+  "solanadevnet": {
+    "hex": "0x2a8cb95fbada0e0c294c85e739226f17adaca5ddf01ab99e0efaf8a73be32103",
+    "base58": "3s6afZYk3EmjsZQ33N9yPTdSk4cY5CKeQ5wtoBcWjFUn"
+  }
+}

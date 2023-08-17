@@ -1,3 +1,4 @@
+use borsh::{BorshDeserialize, BorshSerialize};
 use derive_new::new;
 
 use crate::accumulator::{
@@ -6,7 +7,7 @@ use crate::accumulator::{
     H256, TREE_DEPTH, ZERO_HASHES,
 };
 
-#[derive(Debug, Clone, Copy, new)]
+#[derive(BorshDeserialize, BorshSerialize, Debug, Clone, Copy, new, PartialEq, Eq)]
 /// An incremental merkle tree, modeled on the eth2 deposit contract
 pub struct IncrementalMerkle {
     branch: [H256; TREE_DEPTH],
@@ -86,7 +87,7 @@ impl IncrementalMerkle {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "ethers"))]
 mod test {
     use ethers_core::utils::hash_message;
 
@@ -104,7 +105,7 @@ mod test {
             // insert the leaves
             for leaf in test_case.leaves.iter() {
                 let hashed_leaf = hash_message(leaf);
-                tree.ingest(hashed_leaf);
+                tree.ingest(hashed_leaf.into());
             }
 
             // assert the tree has the proper leaf count

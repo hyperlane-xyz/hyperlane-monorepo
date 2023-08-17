@@ -64,10 +64,6 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: metadata.name
-          {{- if .Values.hyperlane.tracing.uri }}
-          - name: HYP_BASE_TRACING_JAEGER_NAME
-            value: {{ include "agent-common.fullname" . }}-validator
-          {{- end }}
         resources:
           {{- toYaml .Values.hyperlane.validator.resources | nindent 10 }}
         volumeMounts:

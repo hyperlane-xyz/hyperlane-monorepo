@@ -125,6 +125,25 @@
       "index": {
         "from": 1941997
       }
+    },
+    "solanadevnet": {
+      "name": "solanadevnet",
+      "domain": 1399811151,
+      "addresses": {
+        "mailbox": "4v25Dz9RccqUrTzmfHzJMsjd1iVoNrWzeJ4o6GYuJrVn",
+        "interchainGasPaymaster": "FixmeFixmeFixmeFixmeFixmeFixmeFixmeFixmeFixm",
+        "validatorAnnounce": "CMHKvdq4CopDf7qXnDCaTybS15QekQeRt4oUB219yxsp"
+      },
+      "protocol": "sealevel",
+      "finalityBlocks": 0,
+      "connection": {
+        "type": "http",
+        "url": "https://api.devnet.solana.com"
+      },
+      "index": {
+        "from": 1,
+        "mode": "sequence"
+      }
     }
   }
 }

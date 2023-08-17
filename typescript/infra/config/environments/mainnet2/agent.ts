@@ -2,8 +2,8 @@ import {
   AgentConnectionType,
   chainMetadata,
   hyperlaneEnvironments,
-  objMap,
 } from '@hyperlane-xyz/sdk';
+import { objMap } from '@hyperlane-xyz/utils';
 
 import {
   GasPaymentEnforcementPolicyType,
@@ -16,7 +16,7 @@ import { Contexts } from '../../contexts';
 
 import { chainNames, environment } from './chains';
 import { helloWorld } from './helloworld';
-import { validators } from './validators';
+import { validatorChainConfig } from './validators';
 
 const releaseCandidateHelloworldMatchingList = routerMatchingList(
   helloWorld[Contexts.ReleaseCandidate].addresses,
@@ -69,7 +69,7 @@ const hyperlane: RootAgentConfig = {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: '2deb9b8-20230602-205342',
+      tag: 'ed7569d-20230725-171222',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -83,10 +83,10 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '497db63-20230614-174455',
+      tag: 'ed7569d-20230725-171222',
     },
     connectionType: AgentConnectionType.HttpQuorum,
-    chains: validators,
+    chains: validatorChainConfig(Contexts.Hyperlane),
   },
   scraper: {
     connectionType: AgentConnectionType.HttpFallback,
@@ -100,12 +100,12 @@ const hyperlane: RootAgentConfig = {
 const releaseCandidate: RootAgentConfig = {
   ...contextBase,
   context: Contexts.ReleaseCandidate,
-  rolesWithKeys: [Role.Relayer, Role.Kathy],
+  rolesWithKeys: [Role.Relayer, Role.Kathy, Role.Validator],
   relayer: {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: '2deb9b8-20230602-205342',
+      tag: 'ed7569d-20230725-171222',
     },
     whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
@@ -113,6 +113,14 @@ const releaseCandidate: RootAgentConfig = {
     // Skipping arbitrum because the gas price estimates are inclusive of L1
     // fees which leads to wildly off predictions.
     skipTransactionGasLimitFor: [chainMetadata.arbitrum.chainId],
+  },
+  validators: {
+    docker: {
+      repo,
+      tag: 'ed7569d-20230725-171222',
+    },
+    connectionType: AgentConnectionType.HttpQuorum,
+    chains: validatorChainConfig(Contexts.ReleaseCandidate),
   },
 };
 

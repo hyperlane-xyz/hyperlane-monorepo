@@ -1,0 +1,17 @@
+cargo-features = ["workspace-inheritance"]
+
+[package]
+name = "hyperlane-test-transaction-utils"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+solana-program.workspace = true
+solana-program-test.workspace = true
+solana-sdk.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[profile.release]
+overflow-checks = true

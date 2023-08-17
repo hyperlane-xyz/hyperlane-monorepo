@@ -7,9 +7,9 @@ import {
   TimelockController__factory,
   ValidatorAnnounce,
 } from '@hyperlane-xyz/core';
-import { types } from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts';
+import { HyperlaneContracts } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { IsmConfig } from '../ism/types';
@@ -35,26 +35,11 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     });
   }
 
-  async deployTimelock(
-    chain: ChainName,
-    delay: number,
-    owner: types.Address,
-  ): Promise<TimelockController> {
-    const timelock = await this.deployContract(
-      chain,
-      'timelockController',
-      // see https://docs.openzeppelin.com/contracts/4.x/api/governance#TimelockController-constructor-uint256-address---address---address-
-      // delay, [proposers], [executors], admin
-      [delay, [owner], [owner], ethers.constants.AddressZero],
-    );
-    return timelock;
-  }
-
   async deployMailbox(
     chain: ChainName,
     ismConfig: IsmConfig,
-    proxyAdmin: types.Address,
-    owner: types.Address,
+    proxyAdmin: Address,
+    owner: Address,
   ): Promise<Mailbox> {
     const cachedMailbox = this.readCache(
       chain,
@@ -68,7 +53,11 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       return cachedMailbox;
     }
 
-    const defaultIsmAddress = await this.deployIsm(chain, ismConfig);
+    const defaultIsmAddress =
+      typeof ismConfig === 'string'
+        ? ismConfig
+        : await this.deployIsm(chain, ismConfig);
+
     const domain = this.multiProvider.getDomainId(chain);
     return this.deployProxiedContract(
       chain,
@@ -91,7 +80,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     return validatorAnnounce;
   }
 
-  async deployIsm(chain: ChainName, config: IsmConfig): Promise<types.Address> {
+  async deployIsm(chain: ChainName, config: IsmConfig): Promise<Address> {
     this.logger(`Deploying new ISM to ${chain}`);
     const ism = await this.ismFactory.deploy(chain, config);
     return ism.address;
@@ -124,11 +113,10 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     );
 
     let timelockController: TimelockController;
-    if (config.upgradeTimelockDelay) {
+    if (config.upgrade) {
       timelockController = await this.deployTimelock(
         chain,
-        config.upgradeTimelockDelay,
-        config.owner,
+        config.upgrade.timelock,
       );
       await this.transferOwnershipOfContracts(
         chain,

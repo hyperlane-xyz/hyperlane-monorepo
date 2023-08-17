@@ -1,0 +1,42 @@
+{
+  "chains": {
+    "sealeveltest1": {
+      "name": "sealeveltest1",
+      "domain": 13375,
+      "addresses": {
+        "mailbox": "692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1",
+        "interchainGasPaymaster": "FixmeFixmeFixmeFixmeFixmeFixmeFixmeFixmeFixm",
+        "validatorAnnounce": "DH43ae1LwemXAboWwSh8zc9pG8j72gKUEXNi57w8fEnn"
+      },
+      "protocol": "sealevel",
+      "finalityBlocks": 0,
+      "connection": {
+        "type": "http",
+        "url": "http://localhost:8899"
+      },
+      "index": {
+        "from": 1,
+        "mode": "sequence"
+      }
+    },
+    "sealeveltest2": {
+      "name": "sealeveltest2",
+      "domain": 13376,
+      "addresses": {
+        "mailbox": "9tCUWNjpqcf3NUSrtp7vquYVCwbEByvLjZUrhG5dgvhj",
+        "interchainGasPaymaster": "FixmeFixmeFixmeFixmeFixmeFixmeFixmeFixmeFixm",
+        "validatorAnnounce": "3Uo5j2Bti9aZtrDqJmAyuwiFaJFPFoNL5yxTpVCNcUhb"
+      },
+      "protocol": "sealevel",
+      "finalityBlocks": 0,
+      "connection": {
+        "type": "http",
+        "url": "http://localhost:8899"
+      },
+      "index": {
+        "from": 1,
+        "mode": "sequence"
+      }
+    }
+  }
+}

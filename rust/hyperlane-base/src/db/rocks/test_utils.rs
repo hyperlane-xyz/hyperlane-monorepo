@@ -32,7 +32,7 @@ where
 mod test {
     use hyperlane_core::{
         HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage, LogMeta, RawHyperlaneMessage, H256,
-        U256,
+        H512, U256,
     };
 
     use crate::db::HyperlaneRocksDB;
@@ -60,7 +60,7 @@ mod test {
                 address: H256::from_low_u64_be(1),
                 block_number: 1,
                 block_hash: H256::from_low_u64_be(1),
-                transaction_hash: H256::from_low_u64_be(1),
+                transaction_id: H512::from_low_u64_be(1),
                 transaction_index: 0,
                 log_index: U256::from(0),
             };

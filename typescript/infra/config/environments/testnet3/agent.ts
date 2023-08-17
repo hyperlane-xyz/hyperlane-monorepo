@@ -3,8 +3,8 @@ import {
   chainMetadata,
   getDomainId,
   hyperlaneEnvironments,
-  objMap,
 } from '@hyperlane-xyz/sdk';
+import { objMap } from '@hyperlane-xyz/utils';
 
 import {
   GasPaymentEnforcementPolicyType,
@@ -17,7 +17,7 @@ import { Contexts } from '../../contexts';
 
 import { agentChainNames, environment } from './chains';
 import { helloWorld } from './helloworld';
-import { validators } from './validators';
+import { validatorChainConfig } from './validators';
 
 const releaseCandidateHelloworldMatchingList = routerMatchingList(
   helloWorld[Contexts.ReleaseCandidate].addresses,
@@ -72,7 +72,7 @@ const hyperlane: RootAgentConfig = {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: '2deb9b8-20230602-205342',
+      tag: 'ed7569d-20230725-171222',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -89,17 +89,14 @@ const hyperlane: RootAgentConfig = {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: '497db63-20230614-174455',
+      tag: 'ed7569d-20230725-171222',
     },
     chainDockerOverrides: {
       [chainMetadata.solanadevnet.name]: {
         tag: '79bad9d-20230706-190752',
       },
-      [chainMetadata.zbctestnet.name]: {
-        tag: '79bad9d-20230706-190752',
-      },
     },
-    chains: validators,
+    chains: validatorChainConfig(Contexts.Hyperlane),
   },
   scraper: {
     connectionType: AgentConnectionType.HttpFallback,
@@ -113,46 +110,37 @@ const hyperlane: RootAgentConfig = {
 const releaseCandidate: RootAgentConfig = {
   ...contextBase,
   context: Contexts.ReleaseCandidate,
-  rolesWithKeys: [Role.Relayer, Role.Kathy],
+  rolesWithKeys: [Role.Relayer, Role.Kathy, Role.Validator],
   relayer: {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: '79bad9d-20230706-190752',
+      tag: 'ed7569d-20230725-171222',
     },
     whitelist: [
       ...releaseCandidateHelloworldMatchingList,
-      // Whitelist all traffic to solanadevnet and zbctestnet
+      // Whitelist all traffic to solanadevnet
       {
         originDomain: '*',
         senderAddress: '*',
-        destinationDomain: [
-          getDomainId(chainMetadata.solanadevnet),
-          getDomainId(chainMetadata.zbctestnet),
-        ],
+        destinationDomain: [getDomainId(chainMetadata.solanadevnet)],
         recipientAddress: '*',
       },
-      // Whitelist all traffic from solanadevnet and zbctestnet to fuji
+      // Whitelist all traffic from solanadevnet to fuji
       {
-        originDomain: [
-          getDomainId(chainMetadata.solanadevnet),
-          getDomainId(chainMetadata.zbctestnet),
-        ],
+        originDomain: [getDomainId(chainMetadata.solanadevnet)],
         senderAddress: '*',
         destinationDomain: [getDomainId(chainMetadata.fuji)],
         recipientAddress: '*',
       },
     ],
     gasPaymentEnforcement: [
-      // Don't require gas payments from solanadevnet or zbctestnet
+      // Don't require gas payments from solanadevnet
       {
         type: GasPaymentEnforcementPolicyType.None,
         matchingList: [
           {
-            originDomain: [
-              getDomainId(chainMetadata.solanadevnet),
-              getDomainId(chainMetadata.zbctestnet),
-            ],
+            originDomain: [getDomainId(chainMetadata.solanadevnet)],
             senderAddress: '*',
             destinationDomain: [getDomainId(chainMetadata.fuji)],
             recipientAddress: '*',
@@ -165,6 +153,14 @@ const releaseCandidate: RootAgentConfig = {
     // Skipping arbitrum because the gas price estimates are inclusive of L1
     // fees which leads to wildly off predictions.
     skipTransactionGasLimitFor: [chainMetadata.arbitrumgoerli.chainId],
+  },
+  validators: {
+    connectionType: AgentConnectionType.HttpFallback,
+    docker: {
+      repo,
+      tag: 'ed7569d-20230725-171222',
+    },
+    chains: validatorChainConfig(Contexts.ReleaseCandidate),
   },
 };
 

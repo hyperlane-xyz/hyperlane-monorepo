@@ -42,7 +42,6 @@ hyperlane:
     format: json
     # Set the log level
     level: debug
-    uri: ''
   metrics:
     port: 9090
   aws: # true | false
@@ -80,11 +79,11 @@ hyperlane:
         cpu: 100m
         memory: 256Mi
     # -- How long to wait between checking for updates
-    configs:
-      - interval:
-        reorgPeriod:
-        checkpointSyncers:
-        originChainName:
+    configs: []
+      # - interval:
+      #   reorgPeriod:
+      #   checkpointSyncers:
+      #   originChainName:
 
   relayer:
     enabled: false
