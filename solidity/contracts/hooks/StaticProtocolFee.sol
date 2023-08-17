@@ -74,6 +74,16 @@ contract StaticProtocolFee is IPostDispatchHook, Ownable {
         if (refund > 0) payable(message.senderAddress()).sendValue(refund);
     }
 
+    /// @inheritdoc IPostDispatchHook
+    function quoteDispatch(bytes calldata, bytes calldata)
+        external
+        view
+        override
+        returns (uint256)
+    {
+        return protocolFee;
+    }
+
     /**
      * @notice Sets the protocol fee.
      * @param _protocolFee The new protocol fee.

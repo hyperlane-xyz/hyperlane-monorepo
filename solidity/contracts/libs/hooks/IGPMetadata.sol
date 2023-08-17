@@ -28,11 +28,12 @@ library IGPMetadata {
      * @param _metadata ABI encoded IGP hook metadata.
      * @return Gas limit for the message as uint256.
      */
-    function gasLimit(bytes calldata _metadata)
+    function gasLimit(bytes calldata _metadata, uint256 _default)
         internal
         pure
         returns (uint256)
     {
+        if (_metadata.length < GAS_LIMIT_OFFSET + 32) return _default;
         return
             uint256(bytes32(_metadata[GAS_LIMIT_OFFSET:GAS_LIMIT_OFFSET + 32]));
     }
@@ -42,17 +43,23 @@ library IGPMetadata {
      * @param _metadata ABI encoded IGP hook metadata.
      * @return Refund address for the message as address.
      */
-    function refundAddress(bytes calldata _metadata)
+    function refundAddress(bytes calldata _metadata, address _default)
         internal
         pure
         returns (address)
     {
-        return
-            address(
+        address _refundAddress;
+        if (_metadata.length < REFUND_ADDRESS_OFFSET + 20) {
+            _refundAddress = _default;
+        } else {
+            _refundAddress = address(
                 bytes20(
                     _metadata[REFUND_ADDRESS_OFFSET:REFUND_ADDRESS_OFFSET + 20]
                 )
             );
+            if (_refundAddress == address(0)) _refundAddress = _default;
+        }
+        return _refundAddress;
     }
 
     /**

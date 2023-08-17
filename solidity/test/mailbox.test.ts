@@ -79,7 +79,7 @@ describe('Mailbox', async () => {
           ['dispatch(uint32,bytes32,bytes)'](destDomain, recipientBytes, body),
       )
         .to.emit(mailbox, 'Dispatch')
-        .withArgs(signer.address, destDomain, recipientBytes, message)
+        .withArgs(message)
         .to.emit(mailbox, 'DispatchId')
         .withArgs(messageId(message));
     });
