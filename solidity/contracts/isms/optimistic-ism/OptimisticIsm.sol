@@ -41,3 +41,14 @@ abstract contract OptimisticIsm is IOptimisticIsm, OwnableUpgradeable {
         _;
     }
 
+  // ============ Constructor ============
+    constructor(
+        uint32 _domain,
+        IInterchainSecurityModule _module,
+        uint256 _fraudWindow
+    ) {
+        _set(_domain, _module);
+        fraudWindow = _fraudWindow;
+    }
+
+
