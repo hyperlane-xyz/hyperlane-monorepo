@@ -10,6 +10,9 @@ publish.workspace = true
 version.workspace = true
 
 [dependencies]
+toml_edit.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 ctrlc.workspace = true
 eyre.workspace = true
 maplit.workspace = true
