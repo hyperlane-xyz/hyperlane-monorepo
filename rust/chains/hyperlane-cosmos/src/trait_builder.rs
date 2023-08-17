@@ -15,7 +15,6 @@ pub struct ConnectionConf {
 
 /// Raw Cosmos connection configuration used for better deserialization errors.
 #[derive(Debug, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct RawConnectionConf {
     /// A single url to connect to rpc
     rpc_url: Option<String>,

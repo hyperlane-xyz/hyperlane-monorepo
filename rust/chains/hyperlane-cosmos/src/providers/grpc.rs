@@ -115,7 +115,7 @@ impl WasmProvider for WasmGrpcProvider {
         let mut client = WasmQueryClient::connect(self.get_conn_url()?).await?;
 
         let mut request = tonic::Request::new(QuerySmartContractStateRequest {
-            address: self.signer.address(),
+            address: self.get_contract_addr()?,
             query_data: serde_json::to_string(&payload)?.as_bytes().to_vec(),
         });
 
