@@ -51,8 +51,7 @@
     "coverage": "hardhat coverage && forge coverage --report lcov",
     "docs": "forge doc",
     "prettier": "prettier --write ./contracts ./test",
-    "test": "hardhat test && yarn test:forge",
-    "test:forge": "forge test -vvv",
+    "test": "hardhat test && forge test -vvv",
     "gas": "forge snapshot",
     "gas-ci": "yarn gas --check --tolerance 2 || (echo 'Manually update gas snapshot' && exit 1)",
     "slither": "slither ."
