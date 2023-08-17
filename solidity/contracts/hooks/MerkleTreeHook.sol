@@ -43,4 +43,11 @@ contract MerkleTreeHook is IPostDispatchHook, MailboxClient {
         require(isLatestDispatched(id), "message not dispatching");
         _tree.insert(id);
     }
+
+    function quoteDispatch(
+        bytes calldata, /*metadata*/
+        bytes calldata /*message*/
+    ) external pure override returns (uint256) {
+        return 0;
+    }
 }

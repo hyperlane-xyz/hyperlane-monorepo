@@ -1,6 +1,18 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+/*@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+     @@@@@  HYPERLANE  @@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+@@@@@@@@@       @@@@@@@@*/
+
 // ============ Internal Imports ============
 import {Message} from "../libs/Message.sol";
 import {IGPMetadata} from "../libs/hooks/IGPMetadata.sol";
@@ -85,18 +97,24 @@ contract InterchainGasPaymaster is
         payable
         override
     {
-        uint256 gasLimit;
-        address refundAddress;
-        if (metadata.length == 0) {
-            gasLimit = DEFAULT_GAS_USAGE;
-            refundAddress = message.senderAddress();
-        } else {
-            gasLimit = metadata.gasLimit();
-            refundAddress = metadata.refundAddress();
-            if (refundAddress == address(0))
-                refundAddress = message.senderAddress();
-        }
+        uint256 gasLimit = metadata.gasLimit(DEFAULT_GAS_USAGE);
+        address refundAddress = metadata.refundAddress(message.senderAddress());
         payForGas(message.id(), message.destination(), gasLimit, refundAddress);
+    }
+
+    /**
+     * @notice Quote gas payment for a hook call.
+     * @param metadata The metadata as gasConfig.
+     * @param message The message to pay for.
+     */
+    function quoteDispatch(bytes calldata metadata, bytes calldata message)
+        external
+        view
+        override
+        returns (uint256)
+    {
+        uint256 gasLimit = metadata.gasLimit(DEFAULT_GAS_USAGE);
+        return quoteGasPayment(message.destination(), gasLimit);
     }
 
     /**
