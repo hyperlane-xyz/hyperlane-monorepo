@@ -111,7 +111,9 @@ contract GasRouterTest is Test {
 
         vm.deal(address(this), requiredPayment + 1);
         passRefund = false;
-        vm.expectRevert("Interchain gas payment refund failed");
+        vm.expectRevert(
+            "Address: unable to send value, recipient may have reverted"
+        );
         originRouter.dispatchWithGas{value: requiredPayment + 1}(
             remoteDomain,
             ""

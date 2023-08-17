@@ -174,7 +174,7 @@ jobs:
         run: yarn workspace @hyperlane-xyz/core run test
 
       - name: Run Slither
-        uses: crytic/slither-action@main
+        uses: crytic/slither-action@v0.3.0
         id: slither
         with:
           target: 'solidity/'

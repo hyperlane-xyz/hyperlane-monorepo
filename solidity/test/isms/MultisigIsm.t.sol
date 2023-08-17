@@ -11,6 +11,7 @@ import {CheckpointLib} from "../../contracts/libs/CheckpointLib.sol";
 import {StaticMOfNAddressSetFactory} from "../../contracts/libs/StaticMOfNAddressSetFactory.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MerkleTreeHook} from "../../contracts/hooks/MerkleTreeHook.sol";
+import {TestMerkleTreeHook} from "../../contracts/test/TestMerkleTreeHook.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {MOfNTestUtils} from "./IsmTestUtils.sol";
 
@@ -21,7 +22,7 @@ abstract contract AbstractMultisigIsmTest is Test {
     uint32 constant ORIGIN = 11;
     StaticMOfNAddressSetFactory factory;
     IMultisigIsm ism;
-    MerkleTreeHook merkleTreeHook;
+    TestMerkleTreeHook internal merkleTreeHook;
     TestMailbox mailbox;
 
     function metadataPrefix(bytes memory message)
@@ -134,8 +135,8 @@ contract MerkleRootMultisigIsmTest is AbstractMultisigIsmTest {
     using Message for bytes;
 
     function setUp() public {
-        mailbox = new TestMailbox(ORIGIN);
-        merkleTreeHook = new MerkleTreeHook(address(mailbox));
+        mailbox = new TestMailbox(ORIGIN, address(this));
+        merkleTreeHook = new TestMerkleTreeHook(address(mailbox));
         factory = new StaticMerkleRootMultisigIsmFactory();
         mailbox.setDefaultHook(address(merkleTreeHook));
     }
@@ -152,8 +153,8 @@ contract MerkleRootMultisigIsmTest is AbstractMultisigIsmTest {
             abi.encodePacked(
                 mailboxAsBytes32,
                 checkpointIndex,
-                message.id()
-                // mailbox.proof()
+                message.id(),
+                merkleTreeHook.proof()
             );
     }
 }
@@ -162,8 +163,8 @@ contract MessageIdMultisigIsmTest is AbstractMultisigIsmTest {
     using Message for bytes;
 
     function setUp() public {
-        mailbox = new TestMailbox(ORIGIN);
-        merkleTreeHook = new MerkleTreeHook(address(mailbox));
+        mailbox = new TestMailbox(ORIGIN, address(this));
+        merkleTreeHook = new TestMerkleTreeHook(address(mailbox));
         factory = new StaticMessageIdMultisigIsmFactory();
         mailbox.setDefaultHook(address(merkleTreeHook));
     }
