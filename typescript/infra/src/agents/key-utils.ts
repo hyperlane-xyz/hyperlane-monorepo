@@ -71,11 +71,13 @@ export function getValidatorCloudAgentKeys(
   // For each chainName, create validatorCount keys
   if (!agentConfig.validators) return [];
   const validators = agentConfig.validators;
-  return agentConfig.contextChainNames[Role.Validator].flatMap((chainName) =>
-    validators.chains[chainName].validators.map((_, index) =>
-      getCloudAgentKey(agentConfig, Role.Validator, chainName, index),
-    ),
-  );
+  return agentConfig.contextChainNames[Role.Validator]
+    .filter((chainName) => !!validators.chains[chainName])
+    .flatMap((chainName) =>
+      validators.chains[chainName].validators.map((_, index) =>
+        getCloudAgentKey(agentConfig, Role.Validator, chainName, index),
+      ),
+    );
 }
 
 export function getAllCloudAgentKeys(
