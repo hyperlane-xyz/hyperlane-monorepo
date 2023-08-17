@@ -1,15 +1,13 @@
 use std::{collections::BTreeMap, io::Write, path::PathBuf, process::Stdio};
 
-use macro_rules_attribute::apply;
-
 use crate::{
     program::Program,
-    utils::{as_task, concat_path, AgentHandles, TaskHandle},
+    utils::{concat_path, AgentHandles, TaskHandle},
 };
 
 use super::{
-    modify_toml, parse::TxResponse, sed, wait_for_node, KEY_ACCOUNTS1, KEY_ACCOUNTS2,
-    KEY_ACCOUNTS3, KEY_VALIDATOR,
+    modify_toml, sed, wait_for_node, KEY_ACCOUNTS1, KEY_ACCOUNTS2, KEY_ACCOUNTS3, KEY_VALIDATOR,
+    {Coin, TxResponse},
 };
 
 const GENESIS_FUND: u128 = 1000000000000;
@@ -114,13 +112,7 @@ impl OsmosisCLI {
         self.cli().cmd("collect-gentxs").run().join();
     }
 
-    #[apply(as_task)]
-    pub fn run(
-        self,
-        addr_base: String,
-        port_base: u32,
-        codes: BTreeMap<String, PathBuf>,
-    ) -> (AgentHandles, OsmosisEndpoint, BTreeMap<String, u64>) {
+    pub fn start(&self, addr_base: String, port_base: u32) -> (AgentHandles, OsmosisEndpoint) {
         if !addr_base.starts_with("tcp://") {
             panic!("invalid addr_base: {}", addr_base);
         }
@@ -157,12 +149,10 @@ impl OsmosisCLI {
 
         endpoint.wait_for_node();
 
-        let stored_codes = self.deploy_contracts(&endpoint, "validator", codes);
-
-        (node, endpoint, stored_codes)
+        (node, endpoint)
     }
 
-    fn deploy_contracts(
+    pub fn store_codes(
         &self,
         endpoint: &OsmosisEndpoint,
         sender: &str,
@@ -171,7 +161,7 @@ impl OsmosisCLI {
         let mut ret = BTreeMap::<String, u64>::new();
 
         for (name, code) in codes {
-            let wasm_store_cmd = self
+            let cmd = self
                 .cli()
                 .cmd("tx")
                 .cmd("wasm")
@@ -179,13 +169,11 @@ impl OsmosisCLI {
                 .cmd(code.to_str().unwrap())
                 .arg("from", sender);
 
-            let wasm_store_cmd = self.add_gas(wasm_store_cmd);
-            let wasm_store_cmd = endpoint.add_rpc(wasm_store_cmd).run_with_output().join();
-
-            println!("{:?}", wasm_store_cmd.first().unwrap());
+            let cmd = self.add_gas(cmd);
+            let cmd = endpoint.add_rpc(cmd);
 
             let wasm_store_tx_resp: TxResponse =
-                serde_json::from_str(wasm_store_cmd.first().unwrap()).unwrap();
+                serde_json::from_str(cmd.run_with_output().join().first().unwrap()).unwrap();
 
             let store_code_log = wasm_store_tx_resp.logs.first().unwrap();
             let store_code_evt = store_code_log
@@ -201,6 +189,108 @@ impl OsmosisCLI {
         }
 
         ret
+    }
+
+    pub fn wasm_init<T: serde::ser::Serialize>(
+        &self,
+        endpoint: &OsmosisEndpoint,
+        sender: &str,
+        admin: Option<&str>,
+        code_id: u64,
+        init_msg: T,
+        label: &str,
+    ) -> String {
+        let mut cmd = self
+            .cli()
+            .cmd("tx")
+            .cmd("wasm")
+            .cmd("instantiate")
+            .cmd(code_id.to_string())
+            .cmd(serde_json::to_string(&init_msg).unwrap())
+            .arg("from", sender)
+            .arg("label", label);
+
+        cmd = self.add_gas(cmd);
+        cmd = endpoint.add_rpc(cmd);
+
+        if let Some(admin) = admin {
+            cmd = cmd.arg("admin", admin);
+        } else {
+            cmd = cmd.flag("no-admin");
+        }
+
+        let wasm_init_resp: TxResponse =
+            serde_json::from_str(cmd.run_with_output().join().first().unwrap()).unwrap();
+
+        let init_log = wasm_init_resp.logs.first().unwrap();
+        let init_evt = init_log.events.iter().find(|v| v.typ == "reply").unwrap();
+
+        let contract_addr = &init_evt
+            .attributes
+            .iter()
+            .find(|v| v.key == "_contract_address")
+            .unwrap()
+            .value;
+
+        contract_addr.to_string()
+    }
+
+    pub fn wasm_execute<T: serde::ser::Serialize>(
+        &self,
+        endpoint: &OsmosisEndpoint,
+        sender: &str,
+        contract: &str,
+        execute_msg: T,
+        funds: Vec<Coin>,
+    ) -> TxResponse {
+        let mut cmd = self
+            .cli()
+            .cmd("tx")
+            .cmd("wasm")
+            .cmd("execute")
+            .cmd(contract)
+            .cmd(serde_json::to_string(&execute_msg).unwrap())
+            .arg("from", sender);
+
+        cmd = self.add_gas(cmd);
+        cmd = endpoint.add_rpc(cmd);
+
+        if funds.len() > 0 {
+            cmd = cmd.arg(
+                "amount",
+                funds
+                    .into_iter()
+                    .map(|v| format!("{}{}", v.amount, v.denom))
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+        }
+
+        let output = serde_json::from_str(cmd.run_with_output().join().first().unwrap());
+
+        output.unwrap()
+    }
+
+    pub fn wasm_query<T: serde::ser::Serialize, U: serde::de::DeserializeOwned>(
+        &self,
+        endpoint: &OsmosisEndpoint,
+        contract: &str,
+        query_msg: T,
+    ) -> U {
+        let mut cmd = self
+            .cli()
+            .cmd("query")
+            .cmd("wasm")
+            .cmd("contract-state")
+            .cmd("smart")
+            .cmd(contract)
+            .cmd(serde_json::to_string(&query_msg).unwrap());
+
+        cmd = endpoint.add_rpc(cmd);
+
+        let output = serde_json::from_str(cmd.run_with_output().join().first().unwrap());
+
+        output.unwrap()
     }
 
     fn add_genesis_accs(&self) {
