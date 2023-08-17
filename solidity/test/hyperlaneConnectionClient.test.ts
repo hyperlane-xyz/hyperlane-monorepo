@@ -27,8 +27,8 @@ describe('HyperlaneConnectionClient', async () => {
   beforeEach(async () => {
     const mailboxFactory = new Mailbox__factory(signer);
     const domain = 1000;
-    mailbox = await mailboxFactory.deploy(domain);
-    newMailbox = await mailboxFactory.deploy(domain);
+    mailbox = await mailboxFactory.deploy(domain, signer.address);
+    newMailbox = await mailboxFactory.deploy(domain, signer.address);
 
     const connectionClientFactory = new TestHyperlaneConnectionClient__factory(
       signer,
