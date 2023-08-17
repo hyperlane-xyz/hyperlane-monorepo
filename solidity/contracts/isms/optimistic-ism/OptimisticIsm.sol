@@ -6,6 +6,6 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 // ============ Internal Imports ============
-import {IOptimisticIsm} from "./IOptimisticIsm.sol";
+import {IOptimisticIsm} from "../../interfaces/IOptimisticIsm.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {Message} from "../../libs/Message.sol";
