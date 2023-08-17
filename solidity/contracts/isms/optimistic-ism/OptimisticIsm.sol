@@ -51,4 +51,46 @@ abstract contract OptimisticIsm is IOptimisticIsm, OwnableUpgradeable {
         fraudWindow = _fraudWindow;
     }
 
+  // ============ Internal/Private Functions ============
+
+    /**
+     * @notice sets ISM to be used in message verification
+     * @param _domain origin domain of the ISM
+     * @param _module ISM module to use for verification
+     */
+    function _set(uint32 _domain, IInterchainSecurityModule _module) internal {
+        require(Address.isContract(address(_module)), "!contract");
+        module[_domain] = _module;
+    }
+
+    /**
+     * @notice opens a fraud window in which watchers can mark submodules as fraudulent
+     */
+    function _initiateFraudWindow(bytes calldata _message) internal {
+        fraudWindows[_message] = block.timestamp + fraudWindow;
+    }
+
+    /**
+     * @notice checks to see if the fraud window is still open
+     * @param _message formatted Hyperlane message (see Message.sol) mapped to fraud window
+     */
+    function _checkFraudWindow(bytes calldata _message)
+        internal
+        returns (bool)
+    {
+        if (block.timestamp > fraudWindows[_message]) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    /**
+     * @notice allows owner to modify current fraud window duration
+     * @param _newFraudWindow time duration of new fraud window
+     */
+    function _changeFraudWindow(uint256 _newFraudWindow) external onlyOwner {
+        fraudWindow = _newFraudWindow;
+    }
+
 
