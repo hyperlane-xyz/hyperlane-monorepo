@@ -32,7 +32,7 @@ export class AgentCli {
     for (const role of this.roles) {
       switch (role) {
         case Role.Validator:
-          for (const chain of this.agentConfig.contextChainNames) {
+          for (const chain of this.agentConfig.contextChainNames[role]) {
             if (chain !== 'solana' && chain !== 'nautilus') continue;
             const key = `${role}-${chain}`;
             managers[key] = new ValidatorHelmManager(this.agentConfig, chain);

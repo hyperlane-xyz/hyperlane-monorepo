@@ -1,5 +1,7 @@
 import { ChainMap, ChainMetadata, chainMetadata } from '@hyperlane-xyz/sdk';
 
+import { AgentChainNames, Role } from '../../../src/roles';
+
 export const mainnetConfigs: ChainMap<ChainMetadata> = {
   bsc: {
     ...chainMetadata.bsc,
@@ -39,12 +41,21 @@ export const mainnetConfigs: ChainMap<ChainMetadata> = {
 };
 
 export type MainnetChains = keyof typeof mainnetConfigs;
-export const chainNames = Object.keys(mainnetConfigs) as MainnetChains[];
+export const supportedChainNames = Object.keys(
+  mainnetConfigs,
+) as MainnetChains[];
 export const environment = 'mainnet2';
 
-// Chains that we want to run agents for.
-export const agentChainNames = [
-  ...chainNames,
+const validatorChainNames = [
+  ...supportedChainNames,
   chainMetadata.solana.name,
   chainMetadata.nautilus.name,
 ];
+
+const relayerChainNames = validatorChainNames;
+
+export const agentChainNames: AgentChainNames = {
+  [Role.Validator]: validatorChainNames,
+  [Role.Relayer]: relayerChainNames,
+  [Role.Scraper]: supportedChainNames,
+};

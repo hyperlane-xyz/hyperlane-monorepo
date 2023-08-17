@@ -1,7 +1,6 @@
 import {
   AgentConnectionType,
   chainMetadata,
-  getDomainId,
   hyperlaneEnvironments,
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
@@ -9,6 +8,7 @@ import { objMap } from '@hyperlane-xyz/utils';
 import {
   GasPaymentEnforcementPolicyType,
   RootAgentConfig,
+  allAgentChainNames,
   routerMatchingList,
 } from '../../../src/config';
 import { GasPaymentEnforcementConfig } from '../../../src/config/agent/relayer';
@@ -42,7 +42,7 @@ const contextBase = {
   namespace: environment,
   runEnv: environment,
   contextChainNames: agentChainNames,
-  environmentChainNames: agentChainNames,
+  environmentChainNames: allAgentChainNames(agentChainNames),
   aws: {
     region: 'us-east-1',
   },

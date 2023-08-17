@@ -9,12 +9,12 @@ import { objMap } from '@hyperlane-xyz/utils';
 import {
   GasPaymentEnforcementPolicyType,
   RootAgentConfig,
+  allAgentChainNames,
   routerMatchingList,
 } from '../../../src/config';
 import { GasPaymentEnforcementConfig } from '../../../src/config/agent/relayer';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles';
 import { Contexts } from '../../contexts';
-import { chainNames } from '../mainnet2/chains';
 
 import { agentChainNames, environment } from './chains';
 import { helloWorld } from './helloworld';
@@ -44,7 +44,7 @@ const contextBase = {
   namespace: environment,
   runEnv: environment,
   contextChainNames: agentChainNames,
-  environmentChainNames: agentChainNames,
+  environmentChainNames: allAgentChainNames(agentChainNames),
   aws: {
     region: 'us-east-1',
   },
@@ -67,7 +67,7 @@ const gasPaymentEnforcement: GasPaymentEnforcementConfig[] = [
 
 const hyperlane: RootAgentConfig = {
   ...contextBase,
-  contextChainNames: chainNames,
+  contextChainNames: agentChainNames,
   context: Contexts.Hyperlane,
   rolesWithKeys: ALL_KEY_ROLES,
   relayer: {
