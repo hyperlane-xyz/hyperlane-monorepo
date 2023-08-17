@@ -12,9 +12,15 @@ import {Message} from "../../libs/Message.sol";
 
 // ============ CONTRACT ============
 abstract contract OptimisticIsm is IOptimisticIsm, OwnableUpgradeable {
-    // ============ Events ============
+   // ============ Events ============
     event RelayerCalledMessagePreVerify(address indexed _relayer);
     event MessageDelivered(bytes indexed _message);
     event SubmoduleChanged(IInterchainSecurityModule _module);
     event FraudWindowOpened(IInterchainSecurityModule _module);
     event SubmoduleMarkedFraudulent(IInterchainSecurityModule _module);
+
+  // ============ Core Variables ============
+    mapping(address => bool) public watchers; //watchers added by owner
+    mapping(address => bool) public relayers; //relayers who have sent messages pending between preVerify() and deliver()
+    mapping(uint32 => IInterchainSecurityModule) public module; //domain to submodule mapping
+    mapping(address => bytes) private _relayerToMessages; //relayer to message mapping
