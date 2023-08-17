@@ -105,6 +105,11 @@ contract DefaultFallbackRoutingIsmTest is DomainRoutingIsmTest {
         ism.initialize(address(this));
     }
 
+    function testConstructorReverts() public {
+        vm.expectRevert("DefaultFallbackRoutingIsm: INVALID_MAILBOX");
+        new DefaultFallbackRoutingIsm(address(0));
+    }
+
     function testVerifyNoIsm(uint32 domain, bytes32 seed) public override {
         vm.assume(domain > 0);
         ism.set(domain, deployTestIsm(seed));
