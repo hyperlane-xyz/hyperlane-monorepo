@@ -3,6 +3,7 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {Versioned} from "./upgrade/Versioned.sol";
+import {Indexed} from "./Indexed.sol";
 import {Message} from "./libs/Message.sol";
 import {TypeCasts} from "./libs/TypeCasts.sol";
 import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "./interfaces/IInterchainSecurityModule.sol";
@@ -14,7 +15,7 @@ import {IMailbox} from "./interfaces/IMailbox.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract Mailbox is IMailbox, Versioned, Ownable {
+contract Mailbox is IMailbox, Versioned, Ownable, Indexed {
     // ============ Libraries ============
 
     using Message for bytes;
