@@ -130,8 +130,30 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         uint32 _destination,
         bytes32 _router,
         bytes32 _ism
-    ) public onlyOwner {
+    ) external onlyOwner {
         _enrollRemoteRouterAndIsm(_destination, _router, _ism);
+    }
+
+    /**
+     * @notice Registers the address of remote InterchainAccountRouters
+     * and ISM contracts to use as defaults when making interchain calls
+     * @param _destinations The remote domains
+     * @param _routers The address of the remote InterchainAccountRouters
+     * @param _isms The address of the remote ISMs
+     */
+    function enrollRemoteRouterAndIsms(
+        uint32[] calldata _destinations,
+        bytes32[] calldata _routers,
+        bytes32[] calldata _isms
+    ) external onlyOwner {
+        require(
+            _destinations.length == _routers.length &&
+                _destinations.length == _isms.length,
+            "length mismatch"
+        );
+        for (uint256 i = 0; i < _destinations.length; i++) {
+            _enrollRemoteRouterAndIsm(_destinations[i], _routers[i], _isms[i]);
+        }
     }
 
     // ============ External Functions ============
