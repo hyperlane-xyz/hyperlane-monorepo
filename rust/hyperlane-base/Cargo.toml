@@ -47,17 +47,6 @@ hyperlane-fuel = { path = "../chains/hyperlane-fuel" }
 hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
 hyperlane-test = { path = "../hyperlane-test" }
 
-# these versions are important!
-tracing-opentelemetry.workspace = true
-opentelemetry = { workspace = true, features = ["rt-tokio", "trace"] }
-opentelemetry-jaeger = { workspace = true, features = [
-    "reqwest_collector_client",
-    "rt-tokio"
-] }
-opentelemetry-zipkin = { workspace = true, features = [
-    "reqwest-client",
-] }
-
 # dependency version is determined by etheres
 rusoto_core = "*"
 rusoto_kms = "*"

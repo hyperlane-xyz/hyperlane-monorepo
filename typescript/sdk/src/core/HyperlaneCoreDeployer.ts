@@ -53,7 +53,11 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       return cachedMailbox;
     }
 
-    const defaultIsmAddress = await this.deployIsm(chain, ismConfig);
+    const defaultIsmAddress =
+      typeof ismConfig === 'string'
+        ? ismConfig
+        : await this.deployIsm(chain, ismConfig);
+
     const domain = this.multiProvider.getDomainId(chain);
     return this.deployProxiedContract(
       chain,

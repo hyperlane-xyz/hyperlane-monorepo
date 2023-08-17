@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use eyre::{eyre, Context, Result};
+use sea_orm::sea_query::OnConflict;
 use sea_orm::{prelude::*, ActiveValue::*, DeriveColumn, EnumIter, Insert, NotSet, QuerySelect};
 use tracing::{debug, instrument, trace};
 
@@ -66,7 +67,7 @@ impl ScraperDb {
 
     /// Store a new transaction into the database (or update an existing one).
     #[instrument(skip_all)]
-    pub async fn store_txns(&self, txns: impl Iterator<Item = StorableTxn>) -> Result<i64> {
+    pub async fn store_txns(&self, txns: impl Iterator<Item = StorableTxn>) -> Result<()> {
         let models = txns
             .map(|txn| {
                 let receipt = txn
@@ -96,11 +97,21 @@ impl ScraperDb {
             .collect::<Result<Vec<_>>>()?;
 
         debug_assert!(!models.is_empty());
-        let id_offset = models.len() as i64 - 1;
         debug!(txns = models.len(), "Writing txns to database");
         trace!(?models, "Writing txns to database");
-        let first_id = Insert::many(models).exec(&self.0).await?.last_insert_id - id_offset;
-        debug_assert!(first_id > 0);
-        Ok(first_id)
+
+        match Insert::many(models)
+            .on_conflict(
+                OnConflict::column(transaction::Column::Hash)
+                    .do_nothing()
+                    .to_owned(),
+            )
+            .exec(&self.0)
+            .await
+        {
+            Ok(_) => Ok(()),
+            Err(DbErr::RecordNotInserted) => Ok(()),
+            Err(e) => Err(e).context("When inserting transactions"),
+        }
     }
 }
