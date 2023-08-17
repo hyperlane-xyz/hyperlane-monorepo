@@ -47,8 +47,11 @@ abstract contract AbstractMessageIdAuthHook is
         uint32 _destinationDomain,
         address _ism
     ) MailboxClient(mailbox) {
-        require(_ism != address(0), "invalid ISM");
-        require(_destinationDomain != 0, "invalid destination domain");
+        require(_ism != address(0), "AbstractMessageIdAuthHook: invalid ISM");
+        require(
+            _destinationDomain != 0,
+            "AbstractMessageIdAuthHook: invalid destination domain"
+        );
         ism = _ism;
         destinationDomain = _destinationDomain;
     }
