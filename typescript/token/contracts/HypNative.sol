@@ -36,7 +36,7 @@ contract HypNative is TokenRouter {
 
     /**
      * @inheritdoc TokenRouter
-     * @dev uses (`msg.value` - `_amount`) as interchain gas payment.
+     * @dev uses (`msg.value` - `_amount`) as interchain gas payment and `msg.sender` as refund address.
      */
     function transferRemote(
         uint32 _destination,

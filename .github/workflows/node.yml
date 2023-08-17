@@ -50,6 +50,9 @@ jobs:
         with:
           node-version: 18
 
+      - name: Install Foundry
+        uses: onbjerg/foundry-toolchain@v1
+
       - name: yarn-cache
         uses: actions/cache@v3
         with:
@@ -158,15 +161,6 @@ jobs:
             **/node_modules
             .yarn/cache
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
-
-      - name: Install Foundry
-        uses: onbjerg/foundry-toolchain@v1
-
-      - name: Install dependencies
-        run: cd solidity && forge install
-
-      - name: Forge build
-        run: cd solidity && forge build --build-info
 
       #- name: gas
       #  run: yarn workspace @hyperlane-xyz/core run gas-ci
