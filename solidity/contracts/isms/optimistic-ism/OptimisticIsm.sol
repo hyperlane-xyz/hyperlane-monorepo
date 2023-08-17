@@ -32,3 +32,12 @@ abstract contract OptimisticIsm is IOptimisticIsm, OwnableUpgradeable {
 
   // ============ Custom Errors ============
     error NotWatcher(address attemptedAccess);
+
+  // ============ Modifiers ============
+    modifier onlyWatcher(address _inquisitor) {
+        if (!watchers[_inquisitor]) {
+            revert NotWatcher(msg.sender);
+        }
+        _;
+    }
+
