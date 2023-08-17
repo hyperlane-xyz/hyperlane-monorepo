@@ -17,6 +17,16 @@ contract HypNativeScaledTest is Test {
     uint256 synthSupply = 123456789;
 
     event Donation(address indexed sender, uint256 amount);
+    event SentTransferRemote(
+        uint32 indexed destination,
+        bytes32 indexed recipient,
+        uint256 amount
+    );
+    event ReceivedTransferRemote(
+        uint32 indexed origin,
+        bytes32 indexed recipient,
+        uint256 amount
+    );
 
     HypNativeScaled native;
     HypERC20 synth;
@@ -51,6 +61,10 @@ contract HypNativeScaledTest is Test {
         );
     }
 
+    function test_constructor() public {
+        assertEq(native.scale(), scale);
+    }
+
     uint256 receivedValue;
 
     receive() external payable {
@@ -77,8 +91,27 @@ contract HypNativeScaledTest is Test {
         uint256 nativeValue = amount * scale;
         vm.deal(address(native), nativeValue);
 
+        vm.expectEmit(true, true, true, true);
+        emit ReceivedTransferRemote(synthDomain, recipient, amount);
         environment.processNextPendingMessage();
         assertEq(receivedValue, nativeValue);
+    }
+
+    function test_handle_reverts_whenAmountExceedsSupply(uint256 amount)
+        public
+    {
+        vm.assume(amount < synthSupply);
+
+        bytes32 recipient = TypeCasts.addressToBytes32(address(this));
+        synth.transferRemote(nativeDomain, recipient, amount);
+
+        uint256 nativeValue = amount * scale;
+        vm.deal(address(native), nativeValue / 2);
+
+        if (amount > 0) {
+            vm.expectRevert(bytes("Address: insufficient balance"));
+        }
+        environment.processNextPendingMessage();
     }
 
     function test_tranferRemote(uint256 nativeValue) public {
@@ -86,14 +119,30 @@ contract HypNativeScaledTest is Test {
 
         address recipient = address(0xdeadbeef);
         bytes32 bRecipient = TypeCasts.addressToBytes32(recipient);
+        uint256 synthValue = nativeValue / scale;
+        vm.expectEmit(true, true, true, true);
+        emit SentTransferRemote(synthDomain, bRecipient, synthValue);
         native.transferRemote{value: nativeValue}(
             synthDomain,
             bRecipient,
             nativeValue
         );
-
-        uint256 synthValue = nativeValue / scale;
         environment.processNextPendingMessageFromDestination();
         assertEq(synth.balanceOf(recipient), synthValue);
+    }
+
+    function test_transferRemote_reverts_whenAmountExceedsValue(
+        uint256 nativeValue
+    ) public {
+        vm.assume(nativeValue < address(this).balance);
+
+        address recipient = address(0xdeadbeef);
+        bytes32 bRecipient = TypeCasts.addressToBytes32(recipient);
+        vm.expectRevert("Native: amount exceeds msg.value");
+        native.transferRemote{value: nativeValue}(
+            synthDomain,
+            bRecipient,
+            nativeValue + 1
+        );
     }
 }
