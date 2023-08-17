@@ -6,6 +6,8 @@ import {TokenRouter} from "../libs/TokenRouter.sol";
 
 /**
  * @title Hyperlane Native Token that scales native value by a fixed factor for consistency with other tokens.
+ * @dev The scale factor multiplies the `message.amount` to the local native token amount.
+ *      Conversely, it divides the local native `msg.value` amount by `scale` to encode the `message.amount`.
  * @author Abacus Works
  */
 contract HypNativeScaled is HypNative {

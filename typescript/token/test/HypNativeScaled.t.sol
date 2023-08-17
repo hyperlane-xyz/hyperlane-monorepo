@@ -13,8 +13,9 @@ contract HypNativeScaledTest is Test {
     uint32 synthDomain = 2;
 
     uint8 decimals = 9;
-    uint256 scale = 10**9;
-    uint256 synthSupply = 123456789;
+    uint256 mintAmount = 123456789;
+    uint256 nativeDecimals = 18;
+    uint256 scale = 10**(nativeDecimals - decimals);
 
     event Donation(address indexed sender, uint256 amount);
     event SentTransferRemote(
@@ -40,7 +41,7 @@ contract HypNativeScaledTest is Test {
         synth.initialize(
             address(environment.mailboxes(synthDomain)),
             address(environment.igps(synthDomain)),
-            synthSupply,
+            mintAmount * (10**decimals),
             "Zebec BSC Token",
             "ZBC"
         );
@@ -83,24 +84,27 @@ contract HypNativeScaledTest is Test {
     }
 
     function test_handle(uint256 amount) public {
-        vm.assume(amount < synthSupply);
+        vm.assume(amount <= mintAmount);
+
+        uint256 synthAmount = amount * (10**decimals);
+        uint256 nativeAmount = amount * (10**nativeDecimals);
+
+        vm.deal(address(native), nativeAmount);
 
         bytes32 recipient = TypeCasts.addressToBytes32(address(this));
-        synth.transferRemote(nativeDomain, recipient, amount);
-
-        uint256 nativeValue = amount * scale;
-        vm.deal(address(native), nativeValue);
+        synth.transferRemote(nativeDomain, recipient, synthAmount);
 
         vm.expectEmit(true, true, true, true);
-        emit ReceivedTransferRemote(synthDomain, recipient, amount);
+        emit ReceivedTransferRemote(synthDomain, recipient, synthAmount);
         environment.processNextPendingMessage();
-        assertEq(receivedValue, nativeValue);
+
+        assertEq(receivedValue, nativeAmount);
     }
 
     function test_handle_reverts_whenAmountExceedsSupply(uint256 amount)
         public
     {
-        vm.assume(amount < synthSupply);
+        vm.assume(amount <= mintAmount);
 
         bytes32 recipient = TypeCasts.addressToBytes32(address(this));
         synth.transferRemote(nativeDomain, recipient, amount);
@@ -114,21 +118,24 @@ contract HypNativeScaledTest is Test {
         environment.processNextPendingMessage();
     }
 
-    function test_tranferRemote(uint256 nativeValue) public {
-        vm.assume(nativeValue < address(this).balance);
+    function test_tranferRemote(uint256 amount) public {
+        vm.assume(amount <= mintAmount);
 
+        uint256 nativeValue = amount * (10**nativeDecimals);
+        uint256 synthAmount = amount * (10**decimals);
         address recipient = address(0xdeadbeef);
         bytes32 bRecipient = TypeCasts.addressToBytes32(recipient);
-        uint256 synthValue = nativeValue / scale;
+
+        vm.assume(nativeValue < address(this).balance);
         vm.expectEmit(true, true, true, true);
-        emit SentTransferRemote(synthDomain, bRecipient, synthValue);
+        emit SentTransferRemote(synthDomain, bRecipient, synthAmount);
         native.transferRemote{value: nativeValue}(
             synthDomain,
             bRecipient,
             nativeValue
         );
         environment.processNextPendingMessageFromDestination();
-        assertEq(synth.balanceOf(recipient), synthValue);
+        assertEq(synth.balanceOf(recipient), synthAmount);
     }
 
     function test_transferRemote_reverts_whenAmountExceedsValue(
