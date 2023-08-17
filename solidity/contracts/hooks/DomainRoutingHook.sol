@@ -38,7 +38,7 @@ contract DomainRoutingHook is IPostDispatchHook, Ownable {
         virtual
         override
     {
-        hooks[message.destination()].postDispatch{value: msg.value}(
+        _getConfiguredHook(message).postDispatch{value: msg.value}(
             metadata,
             message
         );
@@ -51,6 +51,16 @@ contract DomainRoutingHook is IPostDispatchHook, Ownable {
         override
         returns (uint256)
     {
-        return hooks[message.destination()].quoteDispatch(metadata, message);
+        return _getConfiguredHook(message).quoteDispatch(metadata, message);
+    }
+
+    // ============ Internal Functions ============
+
+    function _getConfiguredHook(bytes calldata message)
+        internal
+        view
+        returns (IPostDispatchHook)
+    {
+        return hooks[message.destination()];
     }
 }
