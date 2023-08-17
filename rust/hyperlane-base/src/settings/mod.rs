@@ -78,15 +78,14 @@
 
 use std::fmt::Debug;
 
-/// Export this so they don't need to import paste.
-#[doc(hidden)]
-pub use paste;
-use serde::Deserialize;
-
 pub use base::*;
 pub use chains::*;
 pub use checkpoint_syncer::*;
 use hyperlane_core::config::*;
+/// Export this so they don't need to import paste.
+#[doc(hidden)]
+pub use paste;
+use serde::Deserialize;
 pub use signers::*;
 pub use trace::*;
 
@@ -110,6 +109,9 @@ mod trace;
 mod checkpoint_syncer;
 pub mod deprecated_parser;
 pub mod parser;
+
+#[doc(hidden)]
+pub use derive_more;
 
 #[macro_export]
 /// Declare a new settings block
@@ -144,8 +146,16 @@ macro_rules! decl_settings {
     ) => {
         hyperlane_base::settings::paste::paste! {
             #[doc = "Settings for `" $name "`"]
-            #[derive(Debug)]
+            #[derive(
+                Debug,
+                hyperlane_base::settings::derive_more::AsRef,
+                hyperlane_base::settings::derive_more::AsMut,
+                hyperlane_base::settings::derive_more::Deref,
+                hyperlane_base::settings::derive_more::DerefMut,
+            )]
             pub struct [<$name Settings>] {
+                #[as_ref] #[as_mut]
+                #[deref] #[deref_mut]
                 base: hyperlane_base::settings::Settings,
                 $(
                     $(#[$parsed_tags])*
@@ -154,21 +164,20 @@ macro_rules! decl_settings {
             }
 
             #[doc = "Raw settings for `" $name "`"]
-            #[derive(Debug, serde::Deserialize)]
+            #[derive(
+                Debug,
+                serde::Deserialize,
+                hyperlane_base::settings::derive_more::AsMut,
+            )]
             #[serde(rename_all = "camelCase")]
             pub struct [<Raw $name Settings>] {
                 #[serde(flatten, default)]
+                #[as_mut]
                 base: hyperlane_base::settings::deprecated_parser::DeprecatedRawSettings,
                 $(
                     $(#[$raw_tags])*
                     $raw_prop: $raw_type,
                 )*
-            }
-
-            impl AsMut<hyperlane_base::settings::deprecated_parser::DeprecatedRawSettings> for [<Raw $name Settings>] {
-                fn as_mut(&mut self) -> &mut hyperlane_base::settings::deprecated_parser::DeprecatedRawSettings {
-                    &mut self.base
-                }
             }
 
             // ensure the settings struct implements `FromRawConf`
@@ -181,27 +190,7 @@ macro_rules! decl_settings {
                 assert_impl::<[<$name Settings>]>();
             };
 
-            impl std::ops::Deref for [<$name Settings>] {
-                type Target = hyperlane_base::settings::Settings;
-
-                fn deref(&self) -> &Self::Target {
-                    &self.base
-                }
-            }
-
-            impl AsRef<hyperlane_base::settings::Settings> for [<$name Settings>] {
-                fn as_ref(&self) -> &hyperlane_base::settings::Settings {
-                    &self.base
-                }
-            }
-
-            impl AsMut<hyperlane_base::settings::Settings> for [<$name Settings>] {
-                fn as_mut(&mut self) -> &mut hyperlane_base::settings::Settings {
-                    &mut self.base
-                }
-            }
-
-            impl hyperlane_base::NewFromSettings<> for [<$name Settings>] {
+            impl hyperlane_base::NewFromSettings for [<$name Settings>] {
                 /// See `load_settings_object` for more information about how settings are loaded.
                 fn new() -> hyperlane_core::config::ConfigResult<Self> {
                     hyperlane_base::settings::_new_settings::<[<Raw $name Settings>], [<$name Settings>]>(stringify!($name))

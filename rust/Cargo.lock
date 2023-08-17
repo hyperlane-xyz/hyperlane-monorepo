@@ -3603,6 +3603,7 @@ dependencies = [
  "config",
  "convert_case 0.6.0",
  "derive-new",
+ "derive_more",
  "ed25519-dalek",
  "ethers",
  "ethers-prometheus",
