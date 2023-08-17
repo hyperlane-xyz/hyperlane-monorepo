@@ -189,8 +189,7 @@ abstract contract OptimisticIsm is IOptimisticIsm, OwnableUpgradeable {
      * @param  _message formatted Hyperlane message (see Message.sol).
      */
     function preVerify(bytes calldata _metadata, bytes calldata _message)
-        public
-        override
+        external
         returns (bool)
     {
         require(_relayerToMessages[msg.sender], "you are only allowed to send one message at a time");
