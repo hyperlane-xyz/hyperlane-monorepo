@@ -35,14 +35,18 @@ contract ConfigFallbackDomainRoutingHook is IPostDispatchHook {
         payable
         override
     {
-        IPostDispatchHook configuredHook = customHooks[message.senderAddress()][
-            message.destination()
-        ][message.recipient()];
-        if (address(configuredHook) == address(0)) {
-            configuredHook = mailbox.defaultHook();
-        }
+        _getConfiguredHook(message).postDispatch{value: msg.value}(
+            metadata,
+            message
+        );
+    }
 
-        configuredHook.postDispatch{value: msg.value}(metadata, message);
+    function quoteDispatch(bytes calldata metadata, bytes calldata message)
+        public
+        view
+        returns (uint256)
+    {
+        return _getConfiguredHook(message).quoteDispatch(metadata, message);
     }
 
     function setHook(
@@ -51,5 +55,21 @@ contract ConfigFallbackDomainRoutingHook is IPostDispatchHook {
         IPostDispatchHook hook
     ) external {
         customHooks[msg.sender][destinationDomain][recipient] = hook;
+    }
+
+    // ============ Internal Functions ============
+
+    function _getConfiguredHook(bytes calldata message)
+        internal
+        view
+        returns (IPostDispatchHook)
+    {
+        IPostDispatchHook configuredHook = customHooks[message.senderAddress()][
+            message.destination()
+        ][message.recipient()];
+        if (address(configuredHook) == address(0)) {
+            configuredHook = mailbox.defaultHook();
+        }
+        return configuredHook;
     }
 }

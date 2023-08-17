@@ -57,6 +57,18 @@ contract OPStackHook is AbstractMessageIdAuthHook {
         l1Messenger = ICrossDomainMessenger(_messenger);
     }
 
+    // ============ External functions ============
+
+    /// @inheritdoc IPostDispatchHook
+    function quoteDispatch(bytes calldata, bytes calldata)
+        external
+        pure
+        override
+        returns (uint256)
+    {
+        return 0; // gas subsidized by the L2
+    }
+
     // ============ Internal functions ============
 
     /// @inheritdoc AbstractMessageIdAuthHook
