@@ -306,6 +306,11 @@ fn test_unique_gas_payment_pubkey_offset() {
     );
 
     let serialized = gas_payment.into_inner().try_to_vec().unwrap();
+    // Note: although unclear in the docs, the reason for subtracting 1 is as follows.
+    // The `offset` field of `memcmp` does not add to the offset of the `dataSlice` filtering param in `get_payment_with_sequence`.
+    // As such, `UNIQUE_GAS_PAYMENT_PUBKEY_OFFSET` has to account for that 1-byte offset of that `offset` field, which represents
+    // an `is_initialized` boolean.
+    // Since the dummy `GasPaymentAccount` is not prefixed by an `is_initialized` boolean, we have to subtract 1 from the offset.
     let sliced_unique_gas_payment_pubkey = Pubkey::new(
         &serialized
             [(UNIQUE_GAS_PAYMENT_PUBKEY_OFFSET - 1)..(UNIQUE_GAS_PAYMENT_PUBKEY_OFFSET + 32 - 1)],
