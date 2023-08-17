@@ -24,3 +24,8 @@ abstract contract OptimisticIsm is IOptimisticIsm, OwnableUpgradeable {
     mapping(address => bool) public relayers; //relayers who have sent messages pending between preVerify() and deliver()
     mapping(uint32 => IInterchainSecurityModule) public module; //domain to submodule mapping
     mapping(address => bytes) private _relayerToMessages; //relayer to message mapping
+
+  // ============ Fraud Variables ============
+    uint256 public fraudWindow; //fraud window duration as defined by owner in deployment OR after via changeFraudWindow()
+    mapping(bytes => uint256) public fraudWindows; //message to uint (time duration) to be initiated by initiateFraudWindow()
+    mapping(IInterchainSecurityModule => bool) public subModuleFlags; //markFraudulent() manipulates this
