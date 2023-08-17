@@ -22,3 +22,4 @@ export const ALL_AGENT_ROLES = [
   Role.Scraper,
 ] as const;
 export type ALL_AGENT_ROLES = typeof ALL_AGENT_ROLES[number];
+export type AgentChainNames = Record<ALL_AGENT_ROLES, string[]>;

@@ -3,6 +3,7 @@
  * Must be string type to be used with Object.keys
  */
 export enum Chains {
+  solana = 'solana',
   alfajores = 'alfajores',
   arbitrum = 'arbitrum',
   arbitrumgoerli = 'arbitrumgoerli',
@@ -26,7 +27,6 @@ export enum Chains {
   test3 = 'test3',
   solanadevnet = 'solanadevnet',
   proteustestnet = 'proteustestnet',
-  solana = 'solana',
   nautilus = 'nautilus',
 }
 

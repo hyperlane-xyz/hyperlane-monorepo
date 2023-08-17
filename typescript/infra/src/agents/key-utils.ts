@@ -31,7 +31,7 @@ export function getRelayerCloudAgentKeys(
 
   const keys = [];
   keys.push(new AgentAwsKey(agentConfig, Role.Relayer));
-  const nonEthereumChains = agentConfig.contextChainNames.find(
+  const nonEthereumChains = agentConfig.contextChainNames[Role.Relayer].find(
     (chainName) => chainMetadata[chainName].protocol !== ProtocolType.Ethereum,
   );
   // If there are any non-ethereum chains, we also want hex keys.
@@ -71,7 +71,7 @@ export function getValidatorCloudAgentKeys(
   // For each chainName, create validatorCount keys
   if (!agentConfig.validators) return [];
   const validators = agentConfig.validators;
-  return agentConfig.contextChainNames.flatMap((chainName) =>
+  return agentConfig.contextChainNames[Role.Validator].flatMap((chainName) =>
     validators.chains[chainName].validators.map((_, index) =>
       getCloudAgentKey(agentConfig, Role.Validator, chainName, index),
     ),

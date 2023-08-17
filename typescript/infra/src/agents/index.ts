@@ -19,7 +19,7 @@ import {
   ScraperConfigHelper,
   ValidatorConfigHelper,
 } from '../config';
-import { Role } from '../roles';
+import { ALL_AGENT_ROLES, Role } from '../roles';
 import { fetchGCPSecret } from '../utils/gcloud';
 import {
   HelmCommand,
@@ -37,7 +37,7 @@ if (!fs.existsSync(HELM_CHART_PATH + 'Chart.yaml'))
   );
 
 export abstract class AgentHelmManager {
-  abstract readonly role: Role;
+  abstract readonly role: ALL_AGENT_ROLES;
   abstract readonly helmReleaseName: string;
   readonly helmChartPath: string = HELM_CHART_PATH;
   protected abstract readonly config: AgentConfigHelper;
@@ -70,7 +70,7 @@ export abstract class AgentHelmManager {
       return;
     }
 
-    const values = helmifyValues(await this.helmValues());
+    const values = helmifyValues(await this.helmValues(this.role));
     if (action == HelmCommand.InstallOrUpgrade && !dryRun) {
       // Delete secrets to avoid them being stale
       const cmd = [
@@ -106,7 +106,7 @@ export abstract class AgentHelmManager {
     await execCmd(cmd, {}, false, true);
   }
 
-  async helmValues(): Promise<HelmRootAgentValues> {
+  async helmValues(role: ALL_AGENT_ROLES): Promise<HelmRootAgentValues> {
     const dockerImage = this.dockerImage();
     return {
       image: {
@@ -119,7 +119,7 @@ export abstract class AgentHelmManager {
         aws: !!this.config.aws,
         chains: this.config.environmentChainNames.map((name) => ({
           name,
-          disabled: !this.config.contextChainNames.includes(name),
+          disabled: !this.config.contextChainNames[role].includes(name),
           connection: { type: this.connectionType(name) },
         })),
       },
@@ -191,7 +191,7 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
   }
 
   async helmValues(): Promise<HelmRootAgentValues> {
-    const values = await super.helmValues();
+    const values = await super.helmValues(Role.Relayer);
     values.hyperlane.relayer = {
       enabled: true,
       aws: this.config.requiresAwsCredentials,
@@ -222,7 +222,7 @@ export class ScraperHelmManager extends OmniscientAgentHelmManager {
   }
 
   async helmValues(): Promise<HelmRootAgentValues> {
-    const values = await super.helmValues();
+    const values = await super.helmValues(Role.Scraper);
     values.hyperlane.scraper = {
       enabled: true,
       config: await this.config.buildConfig(),
@@ -240,7 +240,7 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
   constructor(config: RootAgentConfig, chainName: ChainName) {
     super(chainName);
     this.config = new ValidatorConfigHelper(config, chainName);
-    if (!this.config.contextChainNames.includes(chainName))
+    if (!this.config.contextChainNames[Role.Validator].includes(chainName))
       throw Error('Context does not support chain');
     if (!this.config.environmentChainNames.includes(chainName))
       throw Error('Environment does not support chain');
@@ -251,7 +251,7 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
   }
 
   async helmValues(): Promise<HelmRootAgentValues> {
-    const helmValues = await super.helmValues();
+    const helmValues = await super.helmValues(Role.Validator);
     helmValues.hyperlane.validator = {
       enabled: true,
       configs: await this.config.buildConfig(),

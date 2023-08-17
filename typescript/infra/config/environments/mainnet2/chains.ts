@@ -1,6 +1,6 @@
 import { ChainMap, ChainMetadata, chainMetadata } from '@hyperlane-xyz/sdk';
 
-import { ALL_AGENT_ROLES, Role } from '../../../src/roles';
+import { AgentChainNames, Role } from '../../../src/roles';
 
 export const mainnetConfigs: ChainMap<ChainMetadata> = {
   bsc: {
@@ -54,9 +54,8 @@ const validatorChainNames = [
 
 const relayerChainNames = validatorChainNames;
 
-export type AgentRoles = typeof ALL_AGENT_ROLES;
-export const agentChainNames: Map<ALL_AGENT_ROLES, string[]> = new Map([
-  [Role.Validator, validatorChainNames],
-  [Role.Relayer, relayerChainNames],
-  [Role.Scraper, supportedChainNames],
-]);
+export const agentChainNames: AgentChainNames = {
+  [Role.Validator]: validatorChainNames,
+  [Role.Relayer]: relayerChainNames,
+  [Role.Scraper]: supportedChainNames,
+};

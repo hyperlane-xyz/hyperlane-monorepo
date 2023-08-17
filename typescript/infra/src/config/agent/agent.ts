@@ -6,8 +6,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../../config/contexts';
-import { AgentChainNames } from '../../../config/environments/testnet3/chains';
-import { Role } from '../../roles';
+import { AgentChainNames, Role } from '../../roles';
 import { DeployEnvironment } from '../environment';
 import { HelmImageValues } from '../infrastructure';
 
@@ -128,7 +127,7 @@ export class RootAgentConfigHelper implements AgentContextConfig {
   runEnv: DeployEnvironment;
   aws?: AwsConfig;
   rolesWithKeys: Role[];
-  contextChainNames: ChainName[];
+  contextChainNames: AgentChainNames;
   environmentChainNames: ChainName[];
 
   constructor(root: RootAgentConfig) {
@@ -188,3 +187,7 @@ export abstract class AgentConfigHelper<R = unknown>
     return this.docker;
   }
 }
+
+export const allAgentChainNames = (agentChainNames: AgentChainNames) => [
+  ...new Set(Object.values(agentChainNames).reduce((a, b) => a.concat(b), [])),
+];
