@@ -29,3 +29,6 @@ abstract contract OptimisticIsm is IOptimisticIsm, OwnableUpgradeable {
     uint256 public fraudWindow; //fraud window duration as defined by owner in deployment OR after via changeFraudWindow()
     mapping(bytes => uint256) public fraudWindows; //message to uint (time duration) to be initiated by initiateFraudWindow()
     mapping(IInterchainSecurityModule => bool) public subModuleFlags; //markFraudulent() manipulates this
+
+  // ============ Custom Errors ============
+    error NotWatcher(address attemptedAccess);
