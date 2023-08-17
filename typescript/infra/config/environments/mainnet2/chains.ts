@@ -48,8 +48,8 @@ export const environment = 'mainnet2';
 
 const validatorChainNames = [
   ...supportedChainNames,
-  'solanadevnet',
-  'proteustestnet',
+  chainMetadata.solana.name,
+  chainMetadata.nautilus.name,
 ];
 
 const relayerChainNames = validatorChainNames;

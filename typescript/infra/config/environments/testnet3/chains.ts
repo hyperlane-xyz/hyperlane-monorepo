@@ -1,6 +1,6 @@
 import { ChainMap, ChainMetadata, chainMetadata } from '@hyperlane-xyz/sdk';
 
-import { ALL_AGENT_ROLES, AgentChainNames, Role } from '../../../src/roles';
+import { AgentChainNames, AgentRole, Role } from '../../../src/roles';
 
 export const testnetConfigs: ChainMap<ChainMetadata> = {
   alfajores: chainMetadata.alfajores,
@@ -29,8 +29,8 @@ export const environment = 'testnet3';
 
 const validatorChainNames = [
   ...supportedChainNames,
-  'solanadevnet',
-  'proteustestnet',
+  chainMetadata.solanadevnet.name,
+  chainMetadata.proteustestnet.name,
 ];
 
 const relayerChainNames = validatorChainNames;

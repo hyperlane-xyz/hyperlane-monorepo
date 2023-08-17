@@ -11,12 +11,8 @@ export const testConfigs: ChainMap<ChainMetadata> = {
 export type TestChains = keyof typeof testConfigs;
 export const chainNames = Object.keys(testConfigs) as TestChains[];
 
-const validatorChainNames = [...chainNames, 'solanadevnet', 'proteustestnet'];
-
-const relayerChainNames = validatorChainNames;
-
 export const agentChainNames: AgentChainNames = {
-  [Role.Validator]: validatorChainNames,
-  [Role.Relayer]: relayerChainNames,
+  [Role.Validator]: chainNames,
+  [Role.Relayer]: chainNames,
   [Role.Scraper]: chainNames,
 };
