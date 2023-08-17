@@ -6,11 +6,12 @@ use macro_rules_attribute::apply;
 use tempfile::tempdir;
 
 mod cli;
-mod parse;
 mod rpc;
+mod types;
 mod utils;
 
 use rpc::*;
+use types::*;
 use utils::*;
 
 use crate::logging::log;
@@ -28,24 +29,26 @@ const KEY_ACCOUNTS3: &str = "maple often cargo polar eager jaguar eight inflict 
 const CW_HYPERLANE_GIT: &str = "https://github.com/many-things/cw-hyperlane";
 const CW_HYPERLANE_VERSION: &str = "0.0.1";
 
-pub fn install_cli(dir: Option<PathBuf>) -> PathBuf {
-    let target = {
-        let os = if cfg!(target_os = "linux") {
-            "linux"
-        } else if cfg!(target_os = "macos") {
-            "darwin"
-        } else {
-            panic!("Current os is not supported by Osmosis")
-        };
-
-        let arch = if cfg!(target_arch = "aarch64") {
-            "arm64"
-        } else {
-            "amd64"
-        };
-
-        format!("{}-{}", os, arch)
+fn make_target() -> String {
+    let os = if cfg!(target_os = "linux") {
+        "linux"
+    } else if cfg!(target_os = "macos") {
+        "darwin"
+    } else {
+        panic!("Current os is not supported by Osmosis")
     };
+
+    let arch = if cfg!(target_arch = "aarch64") {
+        "arm64"
+    } else {
+        "amd64"
+    };
+
+    format!("{}-{}", os, arch)
+}
+
+pub fn install_cli(dir: Option<PathBuf>) -> PathBuf {
+    let target = make_target();
 
     let dir_path = match dir {
         Some(path) => path,
@@ -107,7 +110,7 @@ pub fn install_cosmos(
 }
 
 #[derive(Clone)]
-struct CosmosInitConfig {
+struct CosmosConfig {
     pub cli_path: PathBuf,
     pub home_path: Option<PathBuf>,
 
@@ -120,16 +123,16 @@ struct CosmosInitConfig {
     pub chain_id: String,
 }
 
+struct CosmosResp {
+    pub node: AgentHandles,
+    pub endpoint: OsmosisEndpoint,
+    pub codes: BTreeMap<String, u64>,
+    pub home_path: PathBuf,
+}
+
 #[allow(dead_code)]
 #[apply(as_task)]
-fn launch_cosmos_validator(
-    config: CosmosInitConfig,
-) -> (
-    AgentHandles,
-    OsmosisEndpoint,
-    BTreeMap<String, u64>,
-    PathBuf,
-) {
+fn launch_cosmos_validator(config: CosmosConfig) -> CosmosResp {
     let home_path = match config.home_path {
         Some(v) => v,
         None => tempdir().unwrap().into_path(),
@@ -138,12 +141,15 @@ fn launch_cosmos_validator(
     let cli = OsmosisCLI::new(config.cli_path, home_path.to_str().unwrap());
 
     cli.init(&config.moniker, &config.chain_id);
+    let (node, endpoint) = cli.start(config.node_addr_base, config.node_port_base);
+    let codes = cli.store_codes(&endpoint, "validator", config.codes);
 
-    let (node, endpoint, stored_codes) = cli
-        .run(config.node_addr_base, config.node_port_base, config.codes)
-        .join();
-
-    (node, endpoint, stored_codes, home_path)
+    CosmosResp {
+        node,
+        endpoint,
+        codes,
+        home_path,
+    }
 }
 
 #[cfg(test)]
@@ -173,7 +179,7 @@ mod test {
         let (osmosisd, codes) = install_cosmos(Some(test_cli_dir), Some(test_codes_dir));
 
         let addr_base = "tcp://0.0.0.0";
-        let default_config = CosmosInitConfig {
+        let default_config = CosmosConfig {
             cli_path: osmosisd.clone(),
             home_path: None,
 
@@ -186,24 +192,24 @@ mod test {
             chain_id: "local-node".to_string(),
         };
 
-        let launch_node1_res = launch_cosmos_validator(CosmosInitConfig {
+        let launch_node1_res = launch_cosmos_validator(CosmosConfig {
             home_path: Some(test_node1_home),
             node_port_base: 26600,
             chain_id: "local-node-1".to_string(),
             ..default_config.clone()
         });
 
-        let launch_node2_res = launch_cosmos_validator(CosmosInitConfig {
+        let launch_node2_res = launch_cosmos_validator(CosmosConfig {
             home_path: Some(test_node2_home),
             node_port_base: 26610,
             chain_id: "local-node-2".to_string(),
             ..default_config.clone()
         });
 
-        let (_, _, node1_codes, ..) = launch_node1_res.join();
-        let (_, _, node2_codes, ..) = launch_node2_res.join();
+        let node1_run_res = launch_node1_res.join();
+        let node2_run_res = launch_node2_res.join();
 
-        println!("node1 codes: {:?}", node1_codes);
-        println!("node2 codes: {:?}", node2_codes);
+        println!("node1 codes: {:?}", node1_run_res.codes);
+        println!("node2 codes: {:?}", node2_run_res.codes);
     }
 }
