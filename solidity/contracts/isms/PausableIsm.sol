@@ -20,7 +20,7 @@ contract PausableIsm is IInterchainSecurityModule, Ownable, Pausable {
         view
         returns (bool)
     {
-        return paused();
+        return !paused();
     }
 
     function pause() external onlyOwner {
