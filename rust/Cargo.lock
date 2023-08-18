@@ -6996,8 +6996,10 @@ version = "0.1.0"
 dependencies = [
  "ctrlc",
  "eyre",
+ "hex 0.4.3",
  "hpl-interface",
  "hyperlane-core",
+ "k256 0.13.1",
  "macro_rules_attribute",
  "maplit",
  "nix 0.27.1",
