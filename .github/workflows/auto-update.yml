@@ -5,6 +5,7 @@ name: autoupdate
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 jobs:
   autoupdate:
     name: autoupdate
