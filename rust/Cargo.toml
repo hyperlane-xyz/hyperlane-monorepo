@@ -89,6 +89,7 @@ getrandom = { version = "0.2", features = [
 ] } # Required for WASM support https://docs.rs/getrandom/latest/getrandom/#webassembly-support
 itertools = "0.11.0"
 jsonrpc-core = "18.0"
+k256 = { version = "0.13.1", features = ["std", "ecdsa"] }
 log = "0.4"
 macro_rules_attribute = "0.2"
 maplit = "1.0"
