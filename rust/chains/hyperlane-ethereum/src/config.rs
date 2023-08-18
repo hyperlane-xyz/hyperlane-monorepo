@@ -1,7 +1,6 @@
+use hyperlane_core::config::*;
 use serde::Deserialize;
 use url::Url;
-
-use hyperlane_core::config::*;
 
 /// Ethereum connection configuration
 #[derive(Debug, Clone)]
@@ -67,7 +66,7 @@ pub enum ConnectionConfError {
     EmptyUrls,
 }
 
-impl FromRawConf<'_, RawConnectionConf> for ConnectionConf {
+impl FromRawConf<RawConnectionConf> for ConnectionConf {
     fn from_config_filtered(
         raw: RawConnectionConf,
         cwp: &ConfigPath,
