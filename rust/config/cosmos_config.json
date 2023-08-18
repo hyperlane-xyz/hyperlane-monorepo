@@ -17,10 +17,10 @@
         "osmosistestnet": {
             "name": "osmosistestnet",
             "domain": 21295,
-            "addresses": {                
-                "mailbox": "0xaf9fb9e551459c6ac05cbec1913a8bc2c69617c3e91f4a53dbd8dc356aba7f19",
-                "interchainGasPaymaster": "0x8d234e850592f572d3fe582309c5729197e05ad30e33b2cfcbe7334583296a5b",
-                "validatorAnnounce": "0xd26f8b98e05d32c083868aa344f1eb882ba758d77a3fa66486aab63f2e253b41"
+            "addresses": {
+                "mailbox": "0xbbef451fd60c0bdcdf2b410e20ca788e2366a06837b6fb22e071bca11b3e7194",
+                "interchainGasPaymaster": "0x3e42b0dc5f37381544fe4c5dfcba7a38443adb3d98b59d7a655cc6b7643e6dc1",
+                "validatorAnnounce": "0x883ee377c9a17a7434906338b81ba510408a34c98e7843a86b219d430f33e80a"
             },
             "protocol": "cosmos",
             "finalityBlocks": 1

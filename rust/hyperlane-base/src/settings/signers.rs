@@ -145,7 +145,14 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
                 let signer = AwsSigner::new(client, id, 0).await?;
                 hyperlane_ethereum::Signers::Aws(signer)
             }
-            SignerConf::CosmosKey { .. } => bail!("Cosmos signer"), // TODO: should be implement
+            SignerConf::CosmosKey { key, .. } => {
+                hyperlane_ethereum::Signers::Local(LocalWallet::from(
+                    ethers::core::k256::ecdsa::SigningKey::from(
+                        ethers::core::k256::SecretKey::from_be_bytes(key.as_bytes())
+                            .context("Invalid ethereum signer key")?,
+                    ),
+                ))
+            }
             SignerConf::Node => bail!("Node signer"),
         })
     }
