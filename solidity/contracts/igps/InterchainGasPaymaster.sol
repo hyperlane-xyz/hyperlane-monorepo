@@ -34,8 +34,8 @@ contract InterchainGasPaymaster is
     IInterchainGasPaymaster,
     IPostDispatchHook,
     IGasOracle,
-    OwnableUpgradeable,
-    Indexed
+    Indexed,
+    OwnableUpgradeable
 {
     using Address for address payable;
     using Message for bytes;
