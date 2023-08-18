@@ -13,7 +13,6 @@ mod rpc;
 mod types;
 mod utils;
 
-use crypto::*;
 use rpc::*;
 use types::*;
 use utils::*;
