@@ -19,7 +19,7 @@ use utils::*;
 
 use crate::cosmos::link::link_networks;
 use crate::logging::log;
-use crate::utils::{as_task, concat_path, AgentHandles, TaskHandle};
+use crate::utils::{as_task, concat_path, stop_child, AgentHandles, TaskHandle};
 use cli::{OsmosisCLI, OsmosisEndpoint};
 
 use self::deploy::deploy_cw_hyperlane;
@@ -47,7 +47,7 @@ fn default_keys<'a>() -> [(&'a str, &'a str); 6] {
 }
 
 const CW_HYPERLANE_GIT: &str = "https://github.com/many-things/cw-hyperlane";
-const CW_HYPERLANE_VERSION: &str = "0.0.1";
+const CW_HYPERLANE_VERSION: &str = "0.0.2";
 
 fn make_target() -> String {
     let os = if cfg!(target_os = "linux") {
@@ -100,7 +100,8 @@ pub fn install_codes(dir: Option<PathBuf>) -> BTreeMap<String, PathBuf> {
     let release_comp = format!("{release_name}.tar.gz");
 
     log!("Downloading cw-hyperlane v{}", CW_HYPERLANE_VERSION);
-    let uri = format!("{CW_HYPERLANE_GIT}/releases/download/{CW_HYPERLANE_VERSION}/{release_comp}");
+    let uri =
+        format!("{CW_HYPERLANE_GIT}/releases/download/v{CW_HYPERLANE_VERSION}/{release_comp}");
     download(&release_comp, &uri, dir_path);
 
     log!("Uncompressing cw-hyperlane release");
@@ -162,6 +163,12 @@ pub struct CosmosNetwork {
     pub domain: u32,
 }
 
+impl Drop for CosmosNetwork {
+    fn drop(&mut self) {
+        stop_child(&mut self.launch_resp.node.1);
+    }
+}
+
 impl From<(CosmosResp, Deployments, u32)> for CosmosNetwork {
     fn from(v: (CosmosResp, Deployments, u32)) -> Self {
         Self {
@@ -173,7 +180,7 @@ impl From<(CosmosResp, Deployments, u32)> for CosmosNetwork {
 }
 
 #[apply(as_task)]
-fn launch_cosmos_validator(config: CosmosConfig) -> CosmosResp {
+fn launch_cosmos_node(config: CosmosConfig) -> CosmosResp {
     let home_path = match config.home_path {
         Some(v) => v,
         None => tempdir().unwrap().into_path(),
@@ -219,7 +226,7 @@ fn run_locally() {
     let nodes = (0..node_count)
         .map(|i| {
             (
-                launch_cosmos_validator(CosmosConfig {
+                launch_cosmos_node(CosmosConfig {
                     node_port_base: port_start + (i * 10),
                     chain_id: format!("local-node-{}", i),
                     ..default_config.clone()
