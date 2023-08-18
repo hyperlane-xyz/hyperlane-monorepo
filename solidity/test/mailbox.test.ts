@@ -1,5 +1,6 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
+import { BigNumber } from 'ethers';
 import { ethers } from 'hardhat';
 
 import { addressToBytes32, messageId } from '@hyperlane-xyz/utils';
@@ -31,7 +32,8 @@ describe('Mailbox', async () => {
     defaultHook: TestMerkleTreeHook,
     module: TestMultisigIsm,
     signer: SignerWithAddress,
-    nonOwner: SignerWithAddress;
+    nonOwner: SignerWithAddress,
+    beforeBlock: number;
 
   beforeEach(async () => {
     [signer, nonOwner] = await ethers.getSigners();
@@ -39,10 +41,21 @@ describe('Mailbox', async () => {
     module = await moduleFactory.deploy();
     const mailboxFactory = new TestMailbox__factory(signer);
     mailbox = await mailboxFactory.deploy(originDomain, signer.address);
+    beforeBlock = mailbox.deployTransaction.blockNumber!;
     const defaultHookFactory = new TestMerkleTreeHook__factory(signer);
     defaultHook = await defaultHookFactory.deploy(mailbox.address);
     await mailbox.setDefaultIsm(module.address);
     await mailbox.setDefaultHook(defaultHook.address);
+  });
+
+  it('#deployedBlock', async () => {
+    const block = await mailbox.deployedBlock();
+    expect(block).to.equal(beforeBlock);
+  });
+
+  it('#VERSION', async () => {
+    const version = await mailbox.VERSION();
+    expect(version).to.equal(3);
   });
 
   describe('#initialize', () => {
