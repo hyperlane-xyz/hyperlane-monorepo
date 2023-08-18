@@ -215,8 +215,7 @@ export const celo: ChainMetadata = {
     reorgPeriod: 0,
     estimateBlockTime: 5,
   },
-  gnosisSafeTransactionServiceUrl:
-    'https://transaction-service.gnosis-safe-staging.celo-networks-dev.org',
+  gnosisSafeTransactionServiceUrl: 'https://safe-transaction-celo.safe.global/',
 };
 
 export const ethereum: ChainMetadata = {
