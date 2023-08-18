@@ -1,11 +1,64 @@
-use std::path::PathBuf;
+use std::path::Path;
 
 use hpl_interface::ism;
 
-use super::{CosmosNetwork, OsmosisCLI};
+use super::{cli::OsmosisCLI, crypto::KeyPair, CosmosNetwork};
 
-pub fn link_network(
-    bin: &PathBuf,
+fn link_network(
+    cli: &OsmosisCLI,
+    network: &CosmosNetwork,
+    hrp: &str,
+    linker: &str,
+    validator: &KeyPair,
+    target_domain: u32,
+) {
+    let validator_addr = validator.addr(hrp);
+    let validator_pubkey = validator.pub_key_to_binary();
+
+    // link src chain
+    cli.wasm_execute(
+        &network.launch_resp.endpoint,
+        linker,
+        &network.deployments.ism_multisig,
+        ism::multisig::ExecuteMsg::EnrollValidator {
+            set: ism::multisig::ValidatorSet {
+                domain: target_domain,
+                validator: validator_addr.clone(),
+                validator_pubkey: validator_pubkey.clone().into(),
+            },
+        },
+        vec![],
+    );
+
+    cli.wasm_execute(
+        &network.launch_resp.endpoint,
+        linker,
+        &network.deployments.ism_multisig,
+        ism::multisig::ExecuteMsg::SetThreshold {
+            set: ism::multisig::ThresholdSet {
+                domain: target_domain,
+                threshold: 1,
+            },
+        },
+        vec![],
+    );
+
+    cli.wasm_execute(
+        &network.launch_resp.endpoint,
+        linker,
+        &network.deployments.ism_routing,
+        ism::routing::ExecuteMsg::Set {
+            ism: ism::routing::ISMSet {
+                domain: target_domain,
+                address: network.deployments.ism_multisig.clone(),
+            },
+        },
+        vec![],
+    );
+}
+
+pub fn link_networks(
+    bin: &Path,
     linker: &str,
     validator: &str,
     src: &CosmosNetwork,
@@ -14,32 +67,8 @@ pub fn link_network(
     let src_cli = src.launch_resp.cli(bin);
     let dst_cli = dst.launch_resp.cli(bin);
 
-    let src_linker_addr = src_cli.get_addr(linker);
-    let dst_linker_addr = dst_cli.get_addr(linker);
-
     let keypair = src_cli.get_keypair(validator);
 
-    let src_to_dst_ism = src_cli.wasm_init(
-        &src.launch_resp.endpoint,
-        linker,
-        Some(&src_linker_addr),
-        src.launch_resp.codes.hpl_ism_multisig,
-        ism::multisig::InstantiateMsg {
-            owner: src_linker_addr.to_string(),
-            addr_prefix: "osmo".to_string(),
-        },
-        &format!("[{} => {}]hpl-ism-multisig", src.domain, dst.domain),
-    );
-
-    let dst_to_src_ism = dst_cli.wasm_init(
-        &dst.launch_resp.endpoint,
-        linker,
-        Some(&dst_linker_addr),
-        dst.launch_resp.codes.hpl_ism_multisig,
-        ism::multisig::InstantiateMsg {
-            owner: dst_linker_addr.to_string(),
-            addr_prefix: "osmo".to_string(),
-        },
-        &format!("[{} => {}]hpl-ism-multisig", dst.domain, src.domain),
-    );
+    link_network(&src_cli, src, "osmo", linker, &keypair, dst.domain);
+    link_network(&dst_cli, dst, "osmo", linker, &keypair, src.domain);
 }

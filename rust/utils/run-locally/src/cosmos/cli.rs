@@ -8,6 +8,7 @@ use std::{
 use k256::ecdsa::SigningKey;
 
 use crate::{
+    logging::log,
     program::Program,
     utils::{concat_path, AgentHandles, TaskHandle},
 };
@@ -368,16 +369,16 @@ impl OsmosisCLI {
         let mut proc = cmd
             .create_command()
             .stderr(Stdio::piped())
-            .stdout(Stdio::piped())
+            .stdin(Stdio::piped())
             .spawn()
             .unwrap();
 
         proc.stdin.as_mut().unwrap().write_all(b"y\n").unwrap();
         let proc_output = proc.wait_with_output().unwrap();
-
         let proc_output_str = String::from_utf8_lossy(&proc_output.stderr).to_string();
 
-        let priv_key = SigningKey::from_slice(&hex::decode(proc_output_str).unwrap()).unwrap();
+        let priv_key =
+            SigningKey::from_slice(&hex::decode(proc_output_str.trim()).unwrap()).unwrap();
         let pub_key = *priv_key.verifying_key();
 
         KeyPair { priv_key, pub_key }

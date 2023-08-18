@@ -18,6 +18,7 @@ use rpc::*;
 use types::*;
 use utils::*;
 
+use crate::cosmos::link::link_networks;
 use crate::logging::log;
 use crate::utils::{as_task, concat_path, AgentHandles, TaskHandle};
 use cli::{OsmosisCLI, OsmosisEndpoint};
@@ -214,7 +215,7 @@ fn run_locally() {
 
     let port_start = 26600u32;
     let domain_start = 26657u32;
-    let node_count = 1;
+    let node_count = 2;
 
     let nodes = (0..node_count)
         .map(|i| {
@@ -230,6 +231,8 @@ fn run_locally() {
         .collect::<Vec<_>>();
 
     let deployer = "validator";
+    let linker = "validator";
+    let validator = "hpl-validator";
 
     let nodes = nodes
         .into_iter()
@@ -257,19 +260,34 @@ fn run_locally() {
     for (i, node) in nodes.iter().enumerate() {
         let targets = &nodes[(i + 1)..];
 
-        println!(
-            "{} -> {:?}",
-            node.domain,
-            targets.iter().map(|v| v.domain).collect::<Vec<_>>()
-        );
+        if !targets.is_empty() {
+            println!(
+                "{} -> {:?}",
+                node.domain,
+                targets.iter().map(|v| v.domain).collect::<Vec<_>>()
+            );
+        }
+
+        for target in targets {
+            link_networks(&osmosisd, linker, validator, node, target);
+        }
     }
 
     // for debug
     println!(
         "{}",
-        serde_json::to_string(&nodes.into_iter().map(|v| v.deployments).collect::<Vec<_>>())
-            .unwrap()
+        serde_json::to_string(
+            &nodes
+                .iter()
+                .map(|v| (v.domain, v.deployments.clone()))
+                .collect::<BTreeMap<_, _>>()
+        )
+        .unwrap()
     );
+
+    for mut node in nodes {
+        let _ = node.launch_resp.node.1.kill();
+    }
 }
 
 #[cfg(test)]

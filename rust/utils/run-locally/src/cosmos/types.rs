@@ -47,10 +47,12 @@ pub struct Codes {
     pub hpl_validator_announce: u64,
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct Deployments {
     pub igp: String,
     pub igp_oracle: String,
+    pub ism_routing: String,
+    pub ism_multisig: String,
     pub hub: String,
     pub mailbox: String,
     pub va: String,
