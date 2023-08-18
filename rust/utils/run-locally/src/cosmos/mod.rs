@@ -1,7 +1,10 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::thread::sleep;
+use std::time::Duration;
 
+use hpl_interface::types::bech32_decode;
 use macro_rules_attribute::apply;
 use tempfile::tempdir;
 
@@ -19,6 +22,7 @@ use utils::*;
 
 use crate::cosmos::link::link_networks;
 use crate::logging::log;
+use crate::program::Program;
 use crate::utils::{as_task, concat_path, stop_child, AgentHandles, TaskHandle};
 use cli::{OsmosisCLI, OsmosisEndpoint};
 
@@ -160,6 +164,7 @@ impl CosmosResp {
 pub struct CosmosNetwork {
     pub launch_resp: CosmosResp,
     pub deployments: Deployments,
+    pub chain_id: String,
     pub domain: u32,
 }
 
@@ -169,12 +174,13 @@ impl Drop for CosmosNetwork {
     }
 }
 
-impl From<(CosmosResp, Deployments, u32)> for CosmosNetwork {
-    fn from(v: (CosmosResp, Deployments, u32)) -> Self {
+impl From<(CosmosResp, Deployments, String, u32)> for CosmosNetwork {
+    fn from(v: (CosmosResp, Deployments, String, u32)) -> Self {
         Self {
             launch_resp: v.0,
             deployments: v.1,
-            domain: v.2,
+            chain_id: v.2,
+            domain: v.3,
         }
     }
 }
@@ -199,6 +205,59 @@ fn launch_cosmos_node(config: CosmosConfig) -> CosmosResp {
         codes,
         home_path,
     }
+}
+
+#[apply(as_task)]
+fn launch_cosmos_validator(
+    agent_config: AgentConfig,
+    agent_config_path: PathBuf,
+    remotes: Vec<String>,
+) -> AgentHandles {
+    let validator_base = tempdir().unwrap();
+    let validator_base_db = concat_path(&validator_base, "db");
+
+    let checkpoint_path = concat_path(&validator_base, "checkpoint");
+    let signature_path = concat_path(&validator_base, "signature");
+
+    let validator = Program::new("cargo")
+        .cmd("run")
+        .arg("bin", "validator")
+        .env("CONFIG_FILES", agent_config_path.to_str().unwrap())
+        .env(
+            "MY_VALIDATOR_SIGNATURE_DIRECTORY",
+            signature_path.to_str().unwrap(),
+        )
+        .env("RUST_BACKTRACE", "1")
+        .hyp_env("CHECKPOINTSYNCER_PATH", checkpoint_path.to_str().unwrap())
+        .hyp_env("CHECKPOINTSYNCER_TYPE", "localStorage")
+        .hyp_env("ORIGINCHAINNAME", agent_config.name)
+        .hyp_env("RELAYCHAINS", remotes.join(","))
+        .hyp_env("REORGPERIOD", "1")
+        .hyp_env("VALIDATOR_KEY", agent_config.signer.key)
+        .hyp_env("VALIDATOR_TYPE", agent_config.signer.typ)
+        .hyp_env("DB", validator_base_db.to_str().unwrap())
+        .hyp_env("VALIDATOR_PREFIX", "osmo1")
+        .spawn("VAL");
+
+    validator
+}
+
+#[apply(as_task)]
+fn launch_cosmos_relayer(agent_config_path: PathBuf, relay_chains: Vec<String>) -> AgentHandles {
+    let relayer_base = tempdir().unwrap();
+    let relayer_base_db = concat_path(&relayer_base, "db");
+
+    let relayer = Program::new("cargo")
+        .cmd("run")
+        .arg("--bin", "relayer")
+        .env("CONFIG_FILES", agent_config_path.to_str().unwrap())
+        .env("RUST_BACKTRACE", "1")
+        .hyp_env("RELAYCHAINS", relay_chains.join(","))
+        .hyp_env("REORGPERIOD", "1")
+        .hyp_env("DB", relayer_base_db.to_str().unwrap())
+        .spawn("RLY");
+
+    relayer
 }
 
 #[allow(dead_code)]
@@ -231,6 +290,7 @@ fn run_locally() {
                     chain_id: format!("local-node-{}", i),
                     ..default_config.clone()
                 }),
+                format!("local-node-{}", i),
                 domain_start + i,
             )
         })
@@ -239,11 +299,12 @@ fn run_locally() {
     let deployer = "validator";
     let linker = "validator";
     let validator = "hpl-validator";
+    let relayer = "hpl-relayer";
 
     let nodes = nodes
         .into_iter()
-        .map(|v| (v.0.join(), v.1))
-        .map(|(launch_resp, domain)| {
+        .map(|v| (v.0.join(), v.1, v.2))
+        .map(|(launch_resp, chain_id, domain)| {
             let deployments = deploy_cw_hyperlane(
                 launch_resp.cli(&osmosisd),
                 launch_resp.endpoint.clone(),
@@ -252,14 +313,14 @@ fn run_locally() {
                 domain,
             );
 
-            (launch_resp, deployments, domain)
+            (launch_resp, deployments, chain_id, domain)
         })
         .collect::<Vec<_>>();
 
     // nodes with base deployments
     let nodes = nodes
         .into_iter()
-        .map(|v| (v.0, v.1.join(), v.2))
+        .map(|v| (v.0, v.1.join(), v.2, v.3))
         .map(|v| v.into())
         .collect::<Vec<CosmosNetwork>>();
 
@@ -291,9 +352,53 @@ fn run_locally() {
         .unwrap()
     );
 
-    for mut node in nodes {
-        let _ = node.launch_resp.node.1.kill();
+    let config_dir = tempdir().unwrap();
+
+    // export agent config
+    let agent_config_out = AgentConfigOut {
+        chains: nodes
+            .iter()
+            .map(|v| {
+                (
+                    v.chain_id.to_string(),
+                    AgentConfig::new(osmosisd.clone(), validator, v),
+                )
+            })
+            .collect::<BTreeMap<String, AgentConfig>>(),
+    };
+
+    let agent_config_path = concat_path(&config_dir, "config.json");
+    fs::write(
+        &agent_config_path,
+        serde_json::to_string_pretty(&agent_config_out).unwrap(),
+    )
+    .unwrap();
+
+    let hpl_val = agent_config_out
+        .chains
+        .clone()
+        .into_iter()
+        .map(|(chain_id, agent_config)| {
+            let mut others = agent_config_out.chains.clone();
+            others.remove(&chain_id);
+            let remotes = others.into_iter().map(|v| v.0).collect::<Vec<_>>();
+
+            launch_cosmos_validator(agent_config, agent_config_path.clone(), remotes)
+        })
+        .collect::<Vec<_>>();
+    let hpl_val = hpl_val.into_iter().map(|v| v.join()).collect::<Vec<_>>();
+    let mut hpl_rly = launch_cosmos_relayer(
+        agent_config_path,
+        agent_config_out.chains.into_keys().collect::<Vec<_>>(),
+    )
+    .join();
+
+    sleep(Duration::from_secs(30));
+
+    for mut node in hpl_val {
+        node.1.kill().unwrap();
     }
+    hpl_rly.1.kill().unwrap();
 }
 
 #[cfg(test)]
