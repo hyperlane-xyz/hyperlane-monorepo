@@ -142,12 +142,7 @@ impl FromRawConf<DeprecatedRawCoreContractAddresses> for CoreContractAddresses {
         parse_addr!(interchain_gas_paymaster);
         parse_addr!(validator_announce);
 
-        cfg_unwrap_all!(
-            cwp,
-            err: mailbox,
-            interchain_gas_paymaster,
-            validator_announce
-        );
+        cfg_unwrap_all!(cwp, err: [mailbox, interchain_gas_paymaster, validator_announce]);
 
         err.into_result(Self {
             mailbox,
@@ -284,7 +279,7 @@ impl FromRawConf<DeprecatedRawChainConf> for ChainConf {
 
         let metrics_conf = raw.metrics_conf.unwrap_or_default();
 
-        cfg_unwrap_all!(cwp, err: connection, domain, addresses);
+        cfg_unwrap_all!(cwp, err: [connection, domain, addresses]);
 
         err.into_result(Self {
             connection,

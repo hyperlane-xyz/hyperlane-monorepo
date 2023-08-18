@@ -111,14 +111,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
                 .take_err(&mut err, || cwp + "chains" + &origin_chain_name)
         });
 
-        cfg_unwrap_all!(
-            cwp,
-            err: base,
-            origin_chain,
-            validator,
-            checkpoint_syncer,
-            reorg_period
-        );
+        cfg_unwrap_all!(cwp, err: [base, origin_chain, validator, checkpoint_syncer, reorg_period]);
         let mut base = base;
 
         if origin_chain.domain_protocol() == HyperlaneDomainProtocol::Ethereum {

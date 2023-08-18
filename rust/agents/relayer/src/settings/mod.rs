@@ -365,7 +365,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             }
         }
 
-        cfg_unwrap_all!(cwp, err: base);
+        cfg_unwrap_all!(cwp, err: [base]);
         err.into_result(Self {
             base,
             db,
