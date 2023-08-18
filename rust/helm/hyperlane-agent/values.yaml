@@ -105,6 +105,9 @@ hyperlane:
     config:
       multisigCheckpointSyncer:
         checkpointSyncers:
+    # -- Specify whether a default signer key is used for all chains in Values.hyperlane.relayerChains list.
+    # It affects chains whose signer type is hexKey.
+    usingDefaultSignerKey: true
 
   relayerChains:
     - name: 'alfajores'
