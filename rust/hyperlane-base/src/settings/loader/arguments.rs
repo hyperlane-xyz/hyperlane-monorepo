@@ -87,12 +87,13 @@ impl Source for CommandLineArguments {
             }
 
             let key = if let Some(case) = self.casing {
-                // if case is given, replace case of each key component
+                // if case is given, replace case of each key component and separate them with `.`
                 key.split(separator).map(|s| s.to_case(case)).join(".")
             } else if !separator.is_empty() && separator != "." {
-                // If separator is given replace with `.`
+                // Just standardize the separator to `.`
                 key.replace(separator, ".")
             } else {
+                // no changes needed if there was no separator defined and we are preserving case.
                 key
             };
 
