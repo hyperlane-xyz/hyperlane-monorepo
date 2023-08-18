@@ -1,29 +1,56 @@
 {
-    "chains": {
-        "mitosisgoerli": {
-            "name": "mitosisgoerli",
-            "domain": 26657,
-            "addresses": {
-              "mailbox": "0xF10238ba7f58B15F5FAAF32f370D55c65beeF2BE",
-              "interchainGasPaymaster": "0x30CEF6c8E8FbBA11D8a9Ba552eb0870AAa5747cc",
-              "validatorAnnounce": "0x6C4344110BA24eD5F2F98BFA3A6Fc045b1a702eC"
-            },
-            "protocol": "ethereum",
-            "finalityBlocks": 1,
-            "index": {
-              "from": 3244
-            }
-          },
-        "osmosistestnet": {
-            "name": "osmosistestnet",
-            "domain": 21295,
-            "addresses": {
-                "mailbox": "0xbbef451fd60c0bdcdf2b410e20ca788e2366a06837b6fb22e071bca11b3e7194",
-                "interchainGasPaymaster": "0x3e42b0dc5f37381544fe4c5dfcba7a38443adb3d98b59d7a655cc6b7643e6dc1",
-                "validatorAnnounce": "0x883ee377c9a17a7434906338b81ba510408a34c98e7843a86b219d430f33e80a"
-            },
-            "protocol": "cosmos",
-            "finalityBlocks": 1
-        }     
+  "chains": {
+    "cosmostest1": {
+      "name": "cosmostest1",
+      "domain": 2660,
+      "addresses": {
+        "mailbox": "0xc6f76a4bd3b31f4307f11d019c0ad01f29c9140ca03b9e50fcc0e08b20d5bce1",
+        "interchainGasPaymaster": "0xfccb93acc5b25b40d5cc723e6a9a32284ed9a55646f48bf2970e237bf15c3be5",
+        "validatorAnnounce": "0xc387032a0e3bbb29327c824d40c9bf446e0f9aa99937c23e5b18c3938373915f"
+      },
+      "protocol": "cosmos",
+      "finalityBlocks": 1,
+      "connection": {
+        "rpc_url": "https://rpc.osmotest5.osmosis.zone",
+        "grpc_url": "https://osmosis-testnet-grpc.polkachu.com:12590",
+        "chain_id": "osmo-test-5",
+        "prefix": "osmo"
+      },
+      "signer": {
+        "type": "cosmosKey",
+        "key": "984e39bb0d8974432114adcfcbe99d5984e8ac052fa3bb6059f5a77a88ef9912",
+        "prefix": "osmo"
+      },
+      "index": {
+        "from": 2208944,
+        "chunk": 10
+      }
+    },
+    "cosmostest2": {
+      "name": "cosmostest2",
+      "domain": 21295,
+      "addresses": {
+        "mailbox": "0xc6f76a4bd3b31f4307f11d019c0ad01f29c9140ca03b9e50fcc0e08b20d5bce1",
+        "interchainGasPaymaster": "0xfccb93acc5b25b40d5cc723e6a9a32284ed9a55646f48bf2970e237bf15c3be5",
+        "validatorAnnounce": "0xc387032a0e3bbb29327c824d40c9bf446e0f9aa99937c23e5b18c3938373915f"
+      },
+      "protocol": "cosmos",
+      "finalityBlocks": 1,
+      "connection": {
+        "rpc_url": "https://rpc.osmotest5.osmosis.zone",
+        "grpc_url": "https://osmosis-testnet-grpc.polkachu.com:12590",
+        "chain_id": "osmo-test-5",
+        "prefix": "osmo"
+      },
+      "signer": {
+        "type": "cosmosKey",
+        "key": "984e39bb0d8974432114adcfcbe99d5984e8ac052fa3bb6059f5a77a88ef9912",
+        "prefix": "osmo"
+      },
+      "index": {
+        "from": 2208944,
+        "chunk": 10
+      }
     }
+  }
 }
