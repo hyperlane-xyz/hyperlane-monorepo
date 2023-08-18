@@ -4,20 +4,16 @@
 
 use std::collections::{HashMap, HashSet};
 
+use ethers_prometheus::middleware::PrometheusMiddlewareConf;
 use eyre::{eyre, Context};
+use hyperlane_core::{cfg_unwrap_all, config::*, utils::hex_or_base58_to_h256, HyperlaneDomain};
 use serde::Deserialize;
 
-use ethers_prometheus::middleware::PrometheusMiddlewareConf;
-use hyperlane_core::config::*;
-use hyperlane_core::utils::hex_or_base58_to_h256;
-use hyperlane_core::{cfg_unwrap_all, HyperlaneDomain};
-
+use super::envs::*;
 use crate::settings::{
     chains::IndexSettings, parser::RawSignerConf, trace::TracingConfig, ChainConf,
     ChainConnectionConf, CoreContractAddresses, Settings, SignerConf,
 };
-
-use super::envs::*;
 
 /// Raw base settings.
 #[derive(Debug, Deserialize)]
@@ -146,7 +142,7 @@ impl FromRawConf<DeprecatedRawCoreContractAddresses> for CoreContractAddresses {
         parse_addr!(interchain_gas_paymaster);
         parse_addr!(validator_announce);
 
-        cfg_unwrap_all!(cwp, err: mailbox, interchain_gas_paymaster, validator_announce);
+        cfg_unwrap_all!(cwp, err: [mailbox, interchain_gas_paymaster, validator_announce]);
 
         err.into_result(Self {
             mailbox,
@@ -283,7 +279,7 @@ impl FromRawConf<DeprecatedRawChainConf> for ChainConf {
 
         let metrics_conf = raw.metrics_conf.unwrap_or_default();
 
-        cfg_unwrap_all!(cwp, err: connection, domain, addresses);
+        cfg_unwrap_all!(cwp, err: [connection, domain, addresses]);
 
         err.into_result(Self {
             connection,

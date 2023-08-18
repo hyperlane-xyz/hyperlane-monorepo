@@ -1,9 +1,7 @@
-use std::fmt::Debug;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
 use eyre::{eyre, Context, Result};
 use futures_util::future::try_join_all;
-
 use hyperlane_core::{
     Delivery, HyperlaneChain, HyperlaneDomain, HyperlaneMessageStore, HyperlaneProvider,
     HyperlaneWatermarkedLogStore, InterchainGasPaymaster, InterchainGasPayment, Mailbox,
@@ -12,9 +10,9 @@ use hyperlane_core::{
 
 use crate::{
     settings::{chains::ChainConf, trace::TracingConfig},
-    CoreMetrics, HyperlaneAgentCore,
+    ContractSync, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore, MessageContractSync,
+    WatermarkContractSync,
 };
-use crate::{ContractSync, ContractSyncMetrics, MessageContractSync, WatermarkContractSync};
 
 /// Settings. Usually this should be treated as a base config and used as
 /// follows:

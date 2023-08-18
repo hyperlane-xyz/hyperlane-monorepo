@@ -1,8 +1,9 @@
 use std::env;
 
 use config::{ConfigError, Map, Source, Value, ValueKind};
-use convert_case::{Case, Casing};
-use itertools::Itertools;
+use convert_case::Case;
+
+use crate::settings::loader::split_and_recase_key;
 
 #[must_use]
 #[derive(Clone, Debug, Default)]
@@ -97,16 +98,7 @@ impl Source for Environment {
                 return None;
             }
 
-            let key = if let Some(case) = self.casing {
-                // if case is given, replace case of each key component
-                key.split(separator).map(|s| s.to_case(case)).join(".")
-            } else if !separator.is_empty() && separator != "." {
-                // If separator is given replace with `.`
-                key.replace(separator, ".")
-            } else {
-                key
-            };
-
+            let key = split_and_recase_key(separator, self.casing, key);
             Some((key, Value::new(Some(&uri), ValueKind::String(value))))
         };
 

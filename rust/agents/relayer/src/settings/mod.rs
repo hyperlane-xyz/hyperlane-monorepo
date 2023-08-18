@@ -4,16 +4,13 @@
 //! and validations it defines are not applied here, we should mirror them.
 //! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 
-use std::collections::HashSet;
-use std::path::PathBuf;
+use std::{collections::HashSet, path::PathBuf};
 
 use eyre::{eyre, Context};
+use hyperlane_base::{decl_settings, settings::Settings};
+use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, U256};
 use serde::Deserialize;
 use tracing::warn;
-
-use hyperlane_base::{decl_settings, settings::Settings};
-use hyperlane_core::config::*;
-use hyperlane_core::{cfg_unwrap_all, HyperlaneDomain, U256};
 
 use crate::settings::matching_list::MatchingList;
 
@@ -373,7 +370,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             }
         }
 
-        cfg_unwrap_all!(cwp, err: base);
+        cfg_unwrap_all!(cwp, err: [base]);
         err.into_result(Self {
             base,
             db,

@@ -1,12 +1,10 @@
 use core::str::FromStr;
-use std::collections::HashMap;
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
 use eyre::{eyre, Context, Report, Result};
+use hyperlane_core::H160;
 use prometheus::{IntGauge, IntGaugeVec};
 use rusoto_core::Region;
-
-use hyperlane_core::H160;
 
 use crate::{CheckpointSyncer, LocalStorage, MultisigCheckpointSyncer, S3Storage};
 

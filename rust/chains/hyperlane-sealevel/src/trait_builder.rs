@@ -1,9 +1,8 @@
-use url::Url;
-
 use hyperlane_core::{
     config::{ConfigErrResultExt, ConfigPath, ConfigResult, FromRawConf},
     ChainCommunicationError,
 };
+use url::Url;
 
 /// Sealevel connection configuration
 #[derive(Debug, Clone)]

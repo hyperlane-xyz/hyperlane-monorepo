@@ -4,12 +4,11 @@ use async_trait::async_trait;
 use ed25519_dalek::SecretKey;
 use ethers::prelude::{AwsSigner, LocalWallet};
 use eyre::{bail, Context, Report};
+use hyperlane_core::H256;
+use hyperlane_sealevel::Keypair;
 use rusoto_core::{HttpClient, HttpConfig, Region};
 use rusoto_kms::KmsClient;
 use tracing::instrument;
-
-use hyperlane_core::H256;
-use hyperlane_sealevel::Keypair;
 
 use super::aws_credentials::AwsChainCredentialsProvider;
 

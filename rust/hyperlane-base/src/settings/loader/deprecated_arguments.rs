@@ -1,8 +1,11 @@
-//! TODO: Remove this file after deprecated config parsing has been removed.
+// TODO: Remove this file after deprecated config parsing has been removed.
 
 use std::ffi::{OsStr, OsString};
 
 use config::{ConfigError, Map, Source, Value, ValueKind};
+use convert_case::Case;
+
+use crate::settings::loader::split_and_recase_key;
 
 /// A source for loading configuration from command line arguments.
 /// Command line argument keys are case-insensitive, and the following forms are
@@ -79,13 +82,7 @@ impl Source for DeprecatedCommandLineArguments {
                 continue;
             }
 
-            let mut key = key.to_lowercase();
-
-            // If separator is given replace with `.`
-            if !separator.is_empty() && separator != "." {
-                key = key.replace(separator, ".");
-            }
-
+            let mut key = split_and_recase_key(separator, Some(Case::Flat), key);
             if key.ends_with("interchaingaspaymaster") {
                 key = key.replace("interchaingaspaymaster", "interchainGasPaymaster");
             } else if key.ends_with("validatorannounce") {

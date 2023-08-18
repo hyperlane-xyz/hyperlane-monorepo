@@ -1,6 +1,8 @@
-use std::fmt::{Display, Formatter};
-use std::ops::Add;
-use std::sync::Arc;
+use std::{
+    fmt::{Display, Formatter},
+    ops::Add,
+    sync::Arc,
+};
 
 use convert_case::{Case, Casing};
 use itertools::Itertools;

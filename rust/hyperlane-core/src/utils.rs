@@ -108,8 +108,7 @@ pub fn fmt_sync_time(dur: Duration) -> String {
 /// Use as `#[serde(with = serde_u128)]` to serialize/deserialize u128s as strings but not break
 /// support for numbers.
 pub mod serde_u128 {
-    use serde::de::Visitor;
-    use serde::{de, Deserializer, Serializer};
+    use serde::{de, de::Visitor, Deserializer, Serializer};
 
     struct U128Visitor;
 

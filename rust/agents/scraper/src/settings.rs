@@ -5,10 +5,9 @@
 //! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 
 use eyre::{eyre, Context};
-use itertools::Itertools;
-
 use hyperlane_base::{decl_settings, settings::Settings};
 use hyperlane_core::{config::*, HyperlaneDomain};
+use itertools::Itertools;
 
 decl_settings!(Scraper,
     Parsed {

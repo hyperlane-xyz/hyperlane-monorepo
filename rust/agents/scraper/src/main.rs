@@ -13,9 +13,8 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
-use eyre::Result;
-
 use agent::Scraper;
+use eyre::Result;
 use hyperlane_base::agent_main;
 
 mod db;

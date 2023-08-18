@@ -3,8 +3,10 @@
 use std::{collections::HashMap, env, error::Error, fmt::Debug, path::PathBuf};
 
 use config::{Config, Environment as DeprecatedEnvironment, File};
+use convert_case::{Case, Casing};
 use eyre::{bail, Context, Result};
 use hyperlane_core::config::*;
+use itertools::Itertools;
 use serde::de::DeserializeOwned;
 
 use crate::settings::loader::deprecated_arguments::DeprecatedCommandLineArguments;
@@ -129,5 +131,20 @@ where
             println!("Error during deserialization, showing the config for debugging: {formatted_config}");
             err.context("Config deserialization error, please check the config reference (https://docs.hyperlane.xyz/docs/operators/agent-configuration/configuration-reference)")
         }
+    }
+}
+
+/// Load a settings object from the config locations and re-join the components with the standard
+/// `config` crate separator `.`.
+fn split_and_recase_key(sep: &str, case: Option<Case>, key: String) -> String {
+    if let Some(case) = case {
+        // if case is given, replace case of each key component and separate them with `.`
+        key.split(sep).map(|s| s.to_case(case)).join(".")
+    } else if !sep.is_empty() && sep != "." {
+        // Just standardize the separator to `.`
+        key.replace(sep, ".")
+    } else {
+        // no changes needed if there was no separator defined and we are preserving case.
+        key
     }
 }

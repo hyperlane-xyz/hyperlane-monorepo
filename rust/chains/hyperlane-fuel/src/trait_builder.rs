@@ -1,8 +1,6 @@
-use fuels::client::FuelClient;
-use fuels::prelude::Provider;
-use url::Url;
-
+use fuels::{client::FuelClient, prelude::Provider};
 use hyperlane_core::{config::*, ChainCommunicationError, ChainResult};
+use url::Url;
 
 /// Fuel connection configuration
 #[derive(Debug, Clone)]

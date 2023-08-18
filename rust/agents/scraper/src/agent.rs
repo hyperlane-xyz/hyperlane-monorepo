@@ -1,18 +1,15 @@
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use tokio::task::JoinHandle;
-use tracing::info_span;
-use tracing::{instrument::Instrumented, trace, Instrument};
-
-use hyperlane_base::settings::IndexSettings;
-use hyperlane_base::{run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore};
+use hyperlane_base::{
+    run_all, settings::IndexSettings, BaseAgent, ContractSyncMetrics, CoreMetrics,
+    HyperlaneAgentCore,
+};
 use hyperlane_core::HyperlaneDomain;
+use tokio::task::JoinHandle;
+use tracing::{info_span, instrument::Instrumented, trace, Instrument};
 
-use crate::chain_scraper::HyperlaneSqlDb;
-use crate::db::ScraperDb;
-use crate::settings::ScraperSettings;
+use crate::{chain_scraper::HyperlaneSqlDb, db::ScraperDb, settings::ScraperSettings};
 
 /// A message explorer scraper agent
 #[derive(Debug)]

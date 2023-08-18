@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 
 use ethers::prelude::Selector;
-use eyre::{eyre, Context, Result};
-
 use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
 };
+use eyre::{eyre, Context, Result};
 use hyperlane_core::{
     AggregationIsm, CcipReadIsm, ContractLocator, HyperlaneAbi, HyperlaneDomain,
     HyperlaneDomainProtocol, HyperlaneProvider, HyperlaneSigner, IndexMode, Indexer,

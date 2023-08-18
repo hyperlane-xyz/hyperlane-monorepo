@@ -6,27 +6,26 @@
 
 #![allow(dead_code)] // TODO(2214): remove before PR merge
 
-use std::cmp::Reverse;
-use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::{
+    cmp::Reverse,
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+};
 
 use eyre::{eyre, Context};
+use hyperlane_core::{
+    cfg_unwrap_all, config::*, utils::hex_or_base58_to_h256, HyperlaneDomain,
+    HyperlaneDomainProtocol, IndexMode,
+};
 use itertools::Itertools;
 use serde::Deserialize;
 use serde_json::json;
 
-use hyperlane_core::config::*;
-use hyperlane_core::utils::hex_or_base58_to_h256;
-use hyperlane_core::{cfg_unwrap_all, HyperlaneDomain, HyperlaneDomainProtocol, IndexMode};
-
-use crate::settings::chains::IndexSettings;
-use crate::settings::trace::TracingConfig;
-use crate::settings::{
-    ChainConf, ChainConnectionConf, CheckpointSyncerConf, CoreContractAddresses, Settings,
-    SignerConf,
-};
-
 pub use super::envs::*;
+use crate::settings::{
+    chains::IndexSettings, trace::TracingConfig, ChainConf, ChainConnectionConf,
+    CheckpointSyncerConf, CoreContractAddresses, Settings, SignerConf,
+};
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -238,7 +237,7 @@ impl FromRawConf<RawAgentConf, Option<&HashSet<&str>>> for Settings {
             })
             .collect();
 
-        cfg_unwrap_all!(cwp, err: tracing);
+        cfg_unwrap_all!(cwp, err: [tracing]);
 
         err.into_result(Self {
             chains,
@@ -343,7 +342,7 @@ impl FromRawConf<RawAgentChainMetadataConf> for ChainConf {
             );
         }
 
-        cfg_unwrap_all!(cwp, err: index, finality_blocks, domain);
+        cfg_unwrap_all!(cwp, err: [index, finality_blocks, domain]);
 
         let connection: Option<ChainConnectionConf> = match domain.domain_protocol() {
             HyperlaneDomainProtocol::Ethereum => {
@@ -405,7 +404,7 @@ impl FromRawConf<RawAgentChainMetadataConf> for ChainConf {
                 .map(|url| ChainConnectionConf::Sealevel(h_sealevel::ConnectionConf { url })),
         };
 
-        cfg_unwrap_all!(cwp, err: addresses, connection);
+        cfg_unwrap_all!(cwp, err: [addresses, connection]);
         err.into_result(Self {
             domain,
             signer,
@@ -465,13 +464,13 @@ impl FromRawConf<&RawAgentChainMetadataConf> for HyperlaneDomain {
             .ok_or_else(|| eyre!("Missing chain `name`"))
             .take_err(&mut err, || cwp + "name");
 
-        cfg_unwrap_all!(cwp, err: domain_id, protocol, name);
+        cfg_unwrap_all!(cwp, err: [domain_id, protocol, name]);
 
         let domain = Self::from_config(domain_id, name, protocol)
             .context("Invalid domain data")
             .take_err(&mut err, || cwp.clone());
 
-        cfg_unwrap_all!(cwp, err: domain);
+        cfg_unwrap_all!(cwp, err: [domain]);
         err.into_result(domain)
     }
 }
@@ -509,7 +508,7 @@ impl FromRawConf<&RawAgentChainMetadataConf> for CoreContractAddresses {
                 hex_or_base58_to_h256(v).take_err(&mut err, || cwp + "validator_announce")
             });
 
-        cfg_unwrap_all!(cwp, err: mailbox, interchain_gas_paymaster, validator_announce);
+        cfg_unwrap_all!(cwp, err: [mailbox, interchain_gas_paymaster, validator_announce]);
         err.into_result(Self {
             mailbox,
             interchain_gas_paymaster,

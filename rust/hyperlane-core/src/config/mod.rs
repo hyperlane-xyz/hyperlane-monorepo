@@ -5,9 +5,8 @@
 
 use std::fmt::{Debug, Display, Formatter};
 
-use eyre::Report;
-
 pub use config_path::ConfigPath;
+use eyre::Report;
 pub use str_or_int::{StrOrInt, StrOrIntParseError};
 pub use trait_ext::*;
 
@@ -128,29 +127,31 @@ impl std::error::Error for ConfigParsingError {}
 /// Try to unwrap a series of options during config parsing and handle errors more gracefully than
 /// unwrapping and causing a panic if we forgot to assert something earlier.
 ///
-/// Use as `cfg_unwrap_all!(cwp, err: a, b, c)` where `cwp` is the current working path and `err` is
-/// the `ConfigParsingError`, and a, b, and c are the options to unwrap. The result will be that
+/// Use as `cfg_unwrap_all!(cwp, err: [a, b, c])` where `cwp` is the current working path and `err`
+/// is the `ConfigParsingError`, and a, b, and c are the options to unwrap. The result will be that
 /// calling this macro a, b, and c will be unwrapped and assigned to variables of the same name.
 #[macro_export]
 macro_rules! cfg_unwrap_all {
-    ($cwp:ident, $err:ident: $($i:ident),+$(,)?) => {
-        #[allow(unused_parens)]
-        let ($($i),*) = if let ($(Some($i)),*) = ($($i),*) {
-            ($($i),*)
-        } else if $err.is_ok() {
-            $err.push($cwp.clone(), eyre::eyre!(
-                    "Invalid configuration; seeing this error means we forgot to handle a specific error case before unwrapping it. Occurred when accessing ({})",
-                    [$(stringify!($i)),*].join(", ")
-                )
-            );
-            return Err($err);
+    ($cwp:ident, $err:ident: [$($i:ident),+$(,)?]) => {
+        $(cfg_unwrap_all!(@unwrap $cwp, $err, $i);)*
+    };
+    (@unwrap $cwp:ident, $err:ident, $i:ident) => {
+        let $i = if let Some($i) = $i {
+            $i
         } else {
-            $err.push($cwp.clone(), eyre::eyre!(
-                    "Occurred when accessing ({})",
-                    [$(stringify!($i)),*].join(", ")
-                )
-            );
+            if $err.is_ok() {
+                // This should never happen if we write our code correctly
+                tracing::warn!(
+                    ident=stringify!($i),
+                    config_path=%$cwp,
+                    "Invalid configuration; seeing this error means we forgot to handle a specific error case before unwrapping it."
+                );
+                $err.push($cwp.clone(), eyre::eyre!(
+                    "Invalid configuration; seeing this error means we forgot to handle a specific error case before unwrapping it. Occurred when accessing ({})",
+                    stringify!($i)
+                ));
+            }
             return Err($err);
         };
-    }
+    };
 }

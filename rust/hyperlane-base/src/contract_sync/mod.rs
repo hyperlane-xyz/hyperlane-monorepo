@@ -1,16 +1,14 @@
-use std::fmt::Debug;
-use std::{marker::PhantomData, sync::Arc};
-
-use derive_new::new;
-use tokio::time::sleep;
-use tracing::{debug, info};
+use std::{fmt::Debug, marker::PhantomData, sync::Arc};
 
 use cursor::*;
+use derive_new::new;
 use hyperlane_core::{
     utils::fmt_sync_time, ContractSyncCursor, CursorAction, HyperlaneDomain, HyperlaneLogStore,
     HyperlaneMessage, HyperlaneMessageStore, HyperlaneWatermarkedLogStore, Indexer, MessageIndexer,
 };
 pub use metrics::ContractSyncMetrics;
+use tokio::time::sleep;
+use tracing::{debug, info};
 
 use crate::settings::IndexSettings;
 

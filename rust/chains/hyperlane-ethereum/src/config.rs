@@ -1,7 +1,6 @@
+use hyperlane_core::config::*;
 use serde::Deserialize;
 use url::Url;
-
-use hyperlane_core::config::*;
 
 /// Ethereum connection configuration
 #[derive(Debug, Clone)]
