@@ -1,5 +1,6 @@
 import {
   IAggregationIsm,
+  IInterchainSecurityModule,
   IMultisigIsm,
   IRoutingIsm,
 } from '@hyperlane-xyz/core';
@@ -7,7 +8,11 @@ import type { Address } from '@hyperlane-xyz/utils';
 
 import { ChainMap } from '../types';
 
-export type DeployedIsm = IMultisigIsm | IAggregationIsm | IRoutingIsm;
+export type DeployedIsm =
+  | IInterchainSecurityModule
+  | IMultisigIsm
+  | IAggregationIsm
+  | IRoutingIsm;
 
 export enum ModuleType {
   UNUSED,
@@ -40,6 +45,7 @@ export type AggregationIsmConfig = {
 };
 
 export type IsmConfig =
+  | Address
   | RoutingIsmConfig
   | MultisigIsmConfig
   | AggregationIsmConfig;
