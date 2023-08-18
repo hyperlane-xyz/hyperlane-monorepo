@@ -1,8 +1,9 @@
 use std::ffi::{OsStr, OsString};
 
 use config::{ConfigError, Map, Source, Value, ValueKind};
-use convert_case::{Case, Casing};
-use itertools::Itertools;
+use convert_case::Case;
+
+use crate::settings::loader::split_and_recase_key;
 
 /// A source for loading configuration from command line arguments.
 ///
@@ -86,17 +87,7 @@ impl Source for CommandLineArguments {
                 continue;
             }
 
-            let key = if let Some(case) = self.casing {
-                // if case is given, replace case of each key component and separate them with `.`
-                key.split(separator).map(|s| s.to_case(case)).join(".")
-            } else if !separator.is_empty() && separator != "." {
-                // Just standardize the separator to `.`
-                key.replace(separator, ".")
-            } else {
-                // no changes needed if there was no separator defined and we are preserving case.
-                key
-            };
-
+            let key = split_and_recase_key(separator, self.casing, key);
             m.insert(key, Value::new(Some(&uri), ValueKind::String(value)));
         }
 
