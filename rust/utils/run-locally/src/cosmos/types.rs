@@ -34,3 +34,24 @@ pub struct Coin {
     pub denom: String,
     pub amount: String,
 }
+
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+pub struct Codes {
+    pub hpl_hub: u64,
+    pub hpl_igp_core: u64,
+    pub hpl_igp_gas_oracle: u64,
+    pub hpl_ism_multisig: u64,
+    pub hpl_ism_routing: u64,
+    pub hpl_mailbox: u64,
+    pub hpl_multicall: u64,
+    pub hpl_validator_announce: u64,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct Deployments {
+    pub igp: String,
+    pub igp_oracle: String,
+    pub hub: String,
+    pub mailbox: String,
+    pub va: String,
+}

@@ -1,4 +1,11 @@
-use std::{collections::BTreeMap, io::Write, path::PathBuf, process::Stdio};
+use std::{
+    collections::BTreeMap,
+    io::{BufRead, BufReader, Write},
+    path::PathBuf,
+    process::Stdio,
+};
+
+use k256::ecdsa::SigningKey;
 
 use crate::{
     program::Program,
@@ -6,12 +13,12 @@ use crate::{
 };
 
 use super::{
-    modify_toml, sed, wait_for_node, KEY_ACCOUNTS1, KEY_ACCOUNTS2, KEY_ACCOUNTS3, KEY_VALIDATOR,
-    {Coin, TxResponse},
+    crypto::KeyPair, default_keys, modify_toml, sed, wait_for_node, Codes, Coin, TxResponse,
 };
 
 const GENESIS_FUND: u128 = 1000000000000;
 
+#[derive(Clone)]
 pub struct OsmosisEndpoint {
     pub addr: String,
     pub rpc_addr: String,
@@ -145,6 +152,7 @@ impl OsmosisCLI {
             .arg("rpc.laddr", &endpoint.rpc_addr) // default is tcp://0.0.0.0:26657
             .arg("grpc.address", &endpoint.grpc_addr) // default is 0.0.0.0:9090
             .arg("rpc.pprof_laddr", pprof_addr) // default is localhost:6060
+            .arg("log_level", "panic")
             .spawn("COSMOS");
 
         endpoint.wait_for_node();
@@ -157,7 +165,7 @@ impl OsmosisCLI {
         endpoint: &OsmosisEndpoint,
         sender: &str,
         codes: BTreeMap<String, PathBuf>,
-    ) -> BTreeMap<String, u64> {
+    ) -> Codes {
         let mut ret = BTreeMap::<String, u64>::new();
 
         for (name, code) in codes {
@@ -188,7 +196,7 @@ impl OsmosisCLI {
             ret.insert(name, code_id);
         }
 
-        ret
+        serde_json::from_str(&serde_json::to_string(&ret).unwrap()).unwrap()
     }
 
     pub fn wasm_init<T: serde::ser::Serialize>(
@@ -223,7 +231,11 @@ impl OsmosisCLI {
             serde_json::from_str(cmd.run_with_output().join().first().unwrap()).unwrap();
 
         let init_log = wasm_init_resp.logs.first().unwrap();
-        let init_evt = init_log.events.iter().find(|v| v.typ == "reply").unwrap();
+        let init_evt = init_log
+            .events
+            .iter()
+            .find(|v| v.typ == "instantiate")
+            .unwrap();
 
         let contract_addr = &init_evt
             .attributes
@@ -255,7 +267,7 @@ impl OsmosisCLI {
         cmd = self.add_gas(cmd);
         cmd = endpoint.add_rpc(cmd);
 
-        if funds.len() > 0 {
+        if !funds.is_empty() {
             cmd = cmd.arg(
                 "amount",
                 funds
@@ -294,7 +306,7 @@ impl OsmosisCLI {
     }
 
     fn add_genesis_accs(&self) {
-        for name in [("validator"), ("account1"), ("account2"), ("account3")] {
+        for name in default_keys().into_iter().map(|(name, _)| name) {
             self.cli()
                 .cmd("add-genesis-account")
                 .cmd(self.get_addr(name))
@@ -305,12 +317,7 @@ impl OsmosisCLI {
     }
 
     fn add_default_keys(&self) {
-        for (name, mnemonic) in [
-            ("validator", KEY_VALIDATOR),
-            ("account1", KEY_ACCOUNTS1),
-            ("account2", KEY_ACCOUNTS2),
-            ("account3", KEY_ACCOUNTS3),
-        ] {
+        for (name, mnemonic) in default_keys() {
             self.add_key(name, mnemonic);
         }
     }
@@ -346,7 +353,33 @@ impl OsmosisCLI {
             .cmd(name)
             .run_with_output()
             .join();
-        println!("{:?}", out);
         out.first().unwrap().clone()
+    }
+
+    pub fn get_keypair(&self, name: &str) -> KeyPair {
+        let cmd = self
+            .cli()
+            .cmd("keys")
+            .cmd("export")
+            .cmd(name)
+            .flag("unarmored-hex")
+            .flag("unsafe");
+
+        let mut proc = cmd
+            .create_command()
+            .stderr(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+
+        proc.stdin.as_mut().unwrap().write_all(b"y\n").unwrap();
+        let proc_output = proc.wait_with_output().unwrap();
+
+        let proc_output_str = String::from_utf8_lossy(&proc_output.stderr).to_string();
+
+        let priv_key = SigningKey::from_slice(&hex::decode(proc_output_str).unwrap()).unwrap();
+        let pub_key = *priv_key.verifying_key();
+
+        KeyPair { priv_key, pub_key }
     }
 }
