@@ -25,9 +25,7 @@ defaults:
 
 jobs:
   test-rs:
-    runs-on:
-      labels: ubuntu-latest-large-runner
-
+    runs-on: large-runner
     steps:
       - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
