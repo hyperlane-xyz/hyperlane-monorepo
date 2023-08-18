@@ -92,7 +92,7 @@ pub fn deploy_cw_hyperlane(
     );
 
     // deploy ism - routing ism with empty routes
-    let default_ism = cli.wasm_init(
+    let ism_routing = cli.wasm_init(
         &endpoint,
         &deployer,
         Some(deployer_addr),
@@ -104,13 +104,26 @@ pub fn deploy_cw_hyperlane(
         "hpl_routing_ism",
     );
 
+    // deploy ism - multisig ism with no enrolled validators
+    let ism_multisig = cli.wasm_init(
+        &endpoint,
+        &deployer,
+        Some(deployer_addr),
+        codes.hpl_ism_multisig,
+        ism::multisig::InstantiateMsg {
+            owner: deployer_addr.clone(),
+            addr_prefix: "osmo".to_string(),
+        },
+        "hpl_multisig_ism",
+    );
+
     let (hub, mailbox) = deploy_hub_mailbox(
         &cli,
         &endpoint,
         (&deployer, deployer_addr),
         codes.hpl_hub,
         codes.hpl_mailbox,
-        &default_ism,
+        &ism_routing,
         domain,
     );
 
@@ -131,6 +144,8 @@ pub fn deploy_cw_hyperlane(
     Deployments {
         igp,
         igp_oracle,
+        ism_routing,
+        ism_multisig,
         hub,
         mailbox,
         va,
