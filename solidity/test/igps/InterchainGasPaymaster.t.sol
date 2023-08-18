@@ -30,6 +30,8 @@ contract InterchainGasPaymasterTest is Test {
     address constant testRefundAddress = address(0xc0ffee);
     bytes testEncodedMessage;
 
+    uint256 blockNumber;
+
     event GasPayment(
         bytes32 indexed messageId,
         uint256 gasAmount,
@@ -41,6 +43,7 @@ contract InterchainGasPaymasterTest is Test {
     event BeneficiarySet(address beneficiary);
 
     function setUp() public {
+        blockNumber = block.number;
         igp = new InterchainGasPaymaster();
         igp.initialize(address(this), beneficiary);
         oracle = new StorageGasOracle();
@@ -53,6 +56,10 @@ contract InterchainGasPaymasterTest is Test {
 
     function testConstructorSetsBeneficiary() public {
         assertEq(igp.beneficiary(), beneficiary);
+    }
+
+    function testConstructorSetsDeployedBlock() public {
+        assertEq(igp.deployedBlock(), blockNumber);
     }
 
     // ============ initialize ============
