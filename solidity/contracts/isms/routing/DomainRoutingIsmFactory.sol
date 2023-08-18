@@ -3,27 +3,16 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {DomainRoutingIsm} from "./DomainRoutingIsm.sol";
+import {DefaultFallbackRoutingIsm} from "./DefaultFallbackRoutingIsm.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {MinimalProxy} from "../../libs/MinimalProxy.sol";
 
-/**
- * @title DomainRoutingIsmFactory
- */
-contract DomainRoutingIsmFactory {
-    // ============ Immutables ============
-    address private immutable _implementation;
-
+abstract contract AbstractDomainRoutingIsmFactory {
     /**
      * @notice Emitted when a routing module is deployed
      * @param module The deployed ISM
      */
     event ModuleDeployed(DomainRoutingIsm module);
-
-    // ============ Constructor ============
-
-    constructor() {
-        _implementation = address(new DomainRoutingIsm());
-    }
 
     // ============ External Functions ============
 
@@ -37,10 +26,46 @@ contract DomainRoutingIsmFactory {
         IInterchainSecurityModule[] calldata _modules
     ) external returns (DomainRoutingIsm) {
         DomainRoutingIsm _ism = DomainRoutingIsm(
-            MinimalProxy.create(_implementation)
+            MinimalProxy.create(implementation())
         );
         emit ModuleDeployed(_ism);
         _ism.initialize(msg.sender, _domains, _modules);
         return _ism;
+    }
+
+    // ============ Internal Functions ============
+
+    function implementation() internal view virtual returns (address);
+}
+
+/**
+ * @title DomainRoutingIsmFactory
+ */
+contract DomainRoutingIsmFactory is AbstractDomainRoutingIsmFactory {
+    // ============ Immutables ============
+    address internal immutable _implementation;
+
+    constructor() {
+        _implementation = address(new DomainRoutingIsm());
+    }
+
+    function implementation() internal view override returns (address) {
+        return _implementation;
+    }
+}
+
+/**
+ * @title DefaultFallbackRoutingIsmFactory
+ */
+contract DefaultFallbackRoutingIsmFactory is AbstractDomainRoutingIsmFactory {
+    // ============ Immutables ============
+    address internal immutable _implementation;
+
+    constructor(address mailbox) {
+        _implementation = address(new DefaultFallbackRoutingIsm(mailbox));
+    }
+
+    function implementation() internal view override returns (address) {
+        return _implementation;
     }
 }

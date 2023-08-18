@@ -215,8 +215,7 @@ export const celo: ChainMetadata = {
     reorgPeriod: 0,
     estimateBlockTime: 5,
   },
-  gnosisSafeTransactionServiceUrl:
-    'https://transaction-service.gnosis-safe-staging.celo-networks-dev.org',
+  gnosisSafeTransactionServiceUrl: 'https://safe-transaction-celo.safe.global/',
 };
 
 export const ethereum: ChainMetadata = {
@@ -669,24 +668,6 @@ export const solanadevnet: ChainMetadata = {
   isTestnet: true,
 };
 
-export const zbctestnet: ChainMetadata = {
-  chainId: 2053254516,
-  domainId: 2053254516,
-  name: Chains.zbctestnet,
-  protocol: ProtocolType.Sealevel,
-  displayName: 'Zebec Devnet',
-  displayNameShort: 'Zebec Dev',
-  nativeToken: solToken,
-  rpcUrls: [{ http: 'https://api.zebec.eclipsenetwork.xyz:8899' }],
-  blockExplorers: [],
-  blocks: {
-    confirmations: 1,
-    reorgPeriod: 0,
-    estimateBlockTime: 0.4,
-  },
-  isTestnet: true,
-};
-
 /**
  * Collection maps
  *
@@ -716,7 +697,6 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   test2,
   test3,
   solanadevnet,
-  zbctestnet,
 };
 
 export const chainIdToMetadata = Object.values(chainMetadata).reduce<
