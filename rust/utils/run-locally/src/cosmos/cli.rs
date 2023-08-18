@@ -1,14 +1,8 @@
-use std::{
-    collections::BTreeMap,
-    io::{BufRead, BufReader, Write},
-    path::PathBuf,
-    process::Stdio,
-};
+use std::{collections::BTreeMap, io::Write, path::PathBuf, process::Stdio};
 
 use k256::ecdsa::SigningKey;
 
 use crate::{
-    logging::log,
     program::Program,
     utils::{concat_path, AgentHandles, TaskHandle},
 };
@@ -284,6 +278,7 @@ impl OsmosisCLI {
         output.unwrap()
     }
 
+    #[allow(dead_code)]
     pub fn wasm_query<T: serde::ser::Serialize, U: serde::de::DeserializeOwned>(
         &self,
         endpoint: &OsmosisEndpoint,
