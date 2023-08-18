@@ -15,7 +15,8 @@ contract PausableIsmTest is Test {
     function test_verify() public {
         assertTrue(ism.verify("", ""));
         ism.pause();
-        assertFalse(ism.verify("", ""));
+        vm.expectRevert(bytes("Pausable: paused"));
+        ism.verify("", "");
     }
 
     function test_pause() public {

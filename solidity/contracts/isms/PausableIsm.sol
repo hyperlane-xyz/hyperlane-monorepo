@@ -13,14 +13,15 @@ contract PausableIsm is IInterchainSecurityModule, Ownable, Pausable {
 
     /**
      * @inheritdoc IInterchainSecurityModule
-     * @dev Returns `false` when paused, `true` otherwise.
+     * @dev Reverts when paused, otherwise returns `true`.
      */
     function verify(bytes calldata, bytes calldata)
         external
         view
+        whenNotPaused
         returns (bool)
     {
-        return !paused();
+        return true;
     }
 
     function pause() external onlyOwner {
