@@ -15,5 +15,5 @@ jobs:
           GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
           PR_FILTER: auto_merge
           PR_READY_STATE: ready_for_review
-          MERGE_CONFLICT_ACTION: fail
+          MERGE_CONFLICT_ACTION: ignore
           MERGE_MSG: "Branch was auto-updated."
