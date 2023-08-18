@@ -20,7 +20,8 @@ defaults:
 
 jobs:
   e2e:
-    runs-on: large-runner
+    runs-on:
+      labels: large-runner
     steps:
       - uses: actions/setup-node@v3
         with:
