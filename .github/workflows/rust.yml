@@ -25,7 +25,7 @@ defaults:
 
 jobs:
   test-rs:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-large-runner
 
     steps:
       - uses: actions/checkout@v3
@@ -51,6 +51,7 @@ jobs:
         run: cargo test
 
   lint-rs:
+    # this runs quickly, don't use the large runner
     runs-on: ubuntu-latest
 
     steps:
