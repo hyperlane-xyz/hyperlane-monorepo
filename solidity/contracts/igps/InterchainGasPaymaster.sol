@@ -19,6 +19,8 @@ import {IGPMetadata} from "../libs/hooks/IGPMetadata.sol";
 import {IGasOracle} from "../interfaces/IGasOracle.sol";
 import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
+import {Indexed} from "../Indexed.sol";
+
 // ============ External Imports ============
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
@@ -33,6 +35,7 @@ contract InterchainGasPaymaster is
     IInterchainGasPaymaster,
     IPostDispatchHook,
     IGasOracle,
+    Indexed,
     OwnableUpgradeable
 {
     using Address for address payable;
