@@ -25,7 +25,8 @@ defaults:
 
 jobs:
   test-rs:
-    runs-on: ubuntu-latest-large-runner
+    runs-on:
+      labels: ubuntu-latest-large-runner
 
     steps:
       - uses: actions/checkout@v3
