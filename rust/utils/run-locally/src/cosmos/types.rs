@@ -42,6 +42,8 @@ pub struct Codes {
     pub hpl_igp_gas_oracle: u64,
     pub hpl_ism_multisig: u64,
     pub hpl_ism_routing: u64,
+    pub hpl_token_cw20: u64,
+    pub hpl_token_native: u64,
     pub hpl_mailbox: u64,
     pub hpl_multicall: u64,
     pub hpl_validator_announce: u64,
