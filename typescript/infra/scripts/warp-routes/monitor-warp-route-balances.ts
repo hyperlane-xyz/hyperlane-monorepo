@@ -1,3 +1,4 @@
+import { Connection } from '@solana/web3.js';
 import { ethers } from 'ethers';
 import { Gauge, Registry } from 'prom-client';
 
@@ -24,7 +25,6 @@ const warpRouteTokenBalance = new Gauge({
     'token_type',
   ],
 });
-console.log(warpRouteTokenBalance);
 
 async function main(): Promise<boolean> {
   startMetricsServer(metricsRegister);
@@ -41,9 +41,6 @@ async function main(): Promise<boolean> {
   setInterval(async () => {
     console.log('Checking balances');
     let balances = await checkBalance(tokenList, multiProvider);
-
-    console.log('Total balance', balances);
-
     await updateTokenBalanceMetrics(tokenList, balances);
   }, checkFreqeuncy);
   return true;
@@ -122,6 +119,10 @@ async function updateTokenBalanceMetrics(
       balance: balances[chain],
     });
   });
+}
+
+async function getSealevelBalance() {
+  let connection: Connection;
 }
 
 main().then(console.log).catch(console.error);

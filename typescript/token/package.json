@@ -7,6 +7,7 @@
     "@hyperlane-xyz/sdk": "1.4.2",
     "@hyperlane-xyz/utils": "1.4.2",
     "@openzeppelin/contracts-upgradeable": "^4.8.0",
+    "@solana/spl-token": "^0.3.8",
     "ethers": "^5.7.2"
   },
   "devDependencies": {
