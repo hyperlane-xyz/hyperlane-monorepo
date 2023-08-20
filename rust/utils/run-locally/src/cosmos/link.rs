@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use hpl_interface::ism;
+use hpl_interface::{ism, va};
 
 use super::{cli::OsmosisCLI, crypto::KeyPair, CosmosNetwork};
 
@@ -55,6 +55,19 @@ fn link_network(
         },
         vec![],
     );
+
+    // TODO
+    // cli.wasm_execute(
+    //     &network.launch_resp.endpoint,
+    //     linker,
+    //     &network.deployments.va,
+    //     va::ExecuteMsg::Announce {
+    //         validator: (),
+    //         storage_location: (),
+    //         signature: (),
+    //     },
+    //     vec![],
+    // );
 }
 
 pub fn link_networks(

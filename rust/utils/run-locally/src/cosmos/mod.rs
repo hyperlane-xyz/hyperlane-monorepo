@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 use std::thread::sleep;
 use std::time::Duration;
 
-use hpl_interface::types::bech32_decode;
 use macro_rules_attribute::apply;
 use tempfile::tempdir;
 
@@ -216,6 +215,7 @@ fn launch_cosmos_validator(
 ) -> AgentHandles {
     let validator_base = tempdir().unwrap();
     let validator_base_db = concat_path(&validator_base, "db");
+    fs::create_dir_all(&validator_base_db).unwrap();
 
     let checkpoint_path = concat_path(&validator_base, "checkpoint");
     let signature_path = concat_path(&validator_base, "signature");
@@ -233,9 +233,10 @@ fn launch_cosmos_validator(
         .hyp_env("ORIGINCHAINNAME", agent_config.name)
         .hyp_env("RELAYCHAINS", remotes.join(","))
         .hyp_env("REORGPERIOD", "1")
+        .hyp_env("DB", validator_base_db.to_str().unwrap())
+        .hyp_env("METRICS", agent_config.domain.to_string())
         .hyp_env("VALIDATOR_KEY", agent_config.signer.key)
         .hyp_env("VALIDATOR_TYPE", agent_config.signer.typ)
-        .hyp_env("DB", validator_base_db.to_str().unwrap())
         .hyp_env("VALIDATOR_PREFIX", "osmo1")
         .spawn("VAL");
 
@@ -246,6 +247,7 @@ fn launch_cosmos_validator(
 fn launch_cosmos_relayer(agent_config_path: PathBuf, relay_chains: Vec<String>) -> AgentHandles {
     let relayer_base = tempdir().unwrap();
     let relayer_base_db = concat_path(&relayer_base, "db");
+    fs::create_dir_all(&relayer_base_db).unwrap();
 
     let relayer = Program::default()
         .bin(concat_path(format!("../../{AGENT_BIN_PATH}"), "relayer"))
@@ -359,7 +361,7 @@ fn run_locally() {
             .iter()
             .map(|v| {
                 (
-                    v.chain_id.to_string(),
+                    format!("cosmos-test-{}", v.domain),
                     AgentConfig::new(osmosisd.clone(), validator, v),
                 )
             })
