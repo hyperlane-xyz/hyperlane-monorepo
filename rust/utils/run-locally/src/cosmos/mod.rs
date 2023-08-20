@@ -24,6 +24,7 @@ use crate::cosmos::link::link_networks;
 use crate::logging::log;
 use crate::program::Program;
 use crate::utils::{as_task, concat_path, stop_child, AgentHandles, TaskHandle};
+use crate::AGENT_BIN_PATH;
 use cli::{OsmosisCLI, OsmosisEndpoint};
 
 use self::deploy::deploy_cw_hyperlane;
@@ -219,9 +220,8 @@ fn launch_cosmos_validator(
     let checkpoint_path = concat_path(&validator_base, "checkpoint");
     let signature_path = concat_path(&validator_base, "signature");
 
-    let validator = Program::new("cargo")
-        .cmd("run")
-        .arg("bin", "validator")
+    let validator = Program::default()
+        .bin(concat_path(format!("../../{AGENT_BIN_PATH}"), "validator"))
         .env("CONFIG_FILES", agent_config_path.to_str().unwrap())
         .env(
             "MY_VALIDATOR_SIGNATURE_DIRECTORY",
@@ -247,9 +247,8 @@ fn launch_cosmos_relayer(agent_config_path: PathBuf, relay_chains: Vec<String>) 
     let relayer_base = tempdir().unwrap();
     let relayer_base_db = concat_path(&relayer_base, "db");
 
-    let relayer = Program::new("cargo")
-        .cmd("run")
-        .arg("--bin", "relayer")
+    let relayer = Program::default()
+        .bin(concat_path(format!("../../{AGENT_BIN_PATH}"), "relayer"))
         .env("CONFIG_FILES", agent_config_path.to_str().unwrap())
         .env("RUST_BACKTRACE", "1")
         .hyp_env("RELAYCHAINS", relay_chains.join(","))
