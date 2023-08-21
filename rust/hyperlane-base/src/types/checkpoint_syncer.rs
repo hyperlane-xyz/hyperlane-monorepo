@@ -8,6 +8,7 @@ use rusoto_core::Region;
 use serde::Deserialize;
 
 use hyperlane_core::{config::*, H160};
+use tracing::info;
 
 use crate::{CheckpointSyncer, LocalStorage, MultisigCheckpointSyncer, S3Storage};
 
@@ -116,9 +117,13 @@ impl FromStr for CheckpointSyncerConf {
                 let url_components = suffix
                     .split('/')
                     .collect::<Vec<&str>>();
-                let [bucket, region, folder]: [&str; 3] = match url_components[..] {
-                    [bucket, region] => Ok([bucket, region, ""]), // no folder means empty folder path
-                    [bucket, region, folder] => Ok([bucket, region, folder]),
+                let mut folder = String::from("");
+                let [bucket, region]: [&str; 2] = match url_components.len() {
+                    2 => Ok([url_components[0], url_components[1]]),
+                    3 .. => {
+                        folder.push_str(url_components[2..].join("/").as_str());
+                        Ok([url_components[0], url_components[1]])
+                    },
                     _ => Err(eyre!("Error parsing storage location; could not split bucket, region and folder ({suffix})"))
                 }?;
                 Ok(CheckpointSyncerConf::S3 {

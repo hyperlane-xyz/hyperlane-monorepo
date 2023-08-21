@@ -124,7 +124,7 @@ impl S3Storage {
     }
 
     fn get_composite_key(&self, key: String) -> String {
-        if self.folder != "" {
+        if self.folder == "" {
             key
         } else {
             format!("{}/{}", self.folder, key)
@@ -220,6 +220,10 @@ impl CheckpointSyncer for S3Storage {
     }
 
     fn announcement_location(&self) -> String {
-        format!("s3://{}/{}/{}", self.bucket, self.region.name(), self.folder)
+        if self.folder == "" {
+            format!("s3://{}/{}", self.bucket, self.region.name())
+        } else {
+            format!("s3://{}/{}/{}", self.bucket, self.region.name(), self.folder)
+        }
     }
 }
