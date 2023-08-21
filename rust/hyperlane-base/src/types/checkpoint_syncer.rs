@@ -8,7 +8,6 @@ use rusoto_core::Region;
 use serde::Deserialize;
 
 use hyperlane_core::{config::*, H160};
-use tracing::info;
 
 use crate::{CheckpointSyncer, LocalStorage, MultisigCheckpointSyncer, S3Storage};
 
@@ -25,7 +24,7 @@ pub enum CheckpointSyncerConf {
         /// Bucket name
         bucket: String,
         /// Folder name inside bucket
-        folder: String,
+        folder: Option<String>,
         /// S3 Region
         region: Region,
     },
@@ -88,9 +87,7 @@ impl FromRawConf<'_, RawCheckpointSyncerConf> for CheckpointSyncerConf {
                 bucket: bucket
                     .ok_or_else(|| eyre!("Missing `bucket` for S3 checkpoint syncer"))
                     .into_config_result(|| cwp + "bucket")?,
-                folder: folder
-                    .map_or(Ok::<String, Report>(String::from("")), Result::Ok)
-                    .into_config_result(|| cwp + "folder")?,
+                folder,
                 region: region
                     .ok_or_else(|| eyre!("Missing `region` for S3 checkpoint syncer"))
                     .into_config_result(|| cwp + "region")?
@@ -117,13 +114,9 @@ impl FromStr for CheckpointSyncerConf {
                 let url_components = suffix
                     .split('/')
                     .collect::<Vec<&str>>();
-                let mut folder = String::from("");
-                let [bucket, region]: [&str; 2] = match url_components.len() {
-                    2 => Ok([url_components[0], url_components[1]]),
-                    3 .. => {
-                        folder.push_str(url_components[2..].join("/").as_str());
-                        Ok([url_components[0], url_components[1]])
-                    },
+                let (bucket, region, folder): (&str, &str, Option<String>) = match url_components.len() {
+                    2 => Ok((url_components[0], url_components[1], None)),
+                    3 .. => Ok((url_components[0], url_components[1], Some(url_components[2..].join("/")))),
                     _ => Err(eyre!("Error parsing storage location; could not split bucket, region and folder ({suffix})"))
                 }?;
                 Ok(CheckpointSyncerConf::S3 {

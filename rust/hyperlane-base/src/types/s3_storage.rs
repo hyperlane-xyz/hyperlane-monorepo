@@ -29,7 +29,7 @@ pub struct S3Storage {
     /// The name of the bucket.
     bucket: String,
     /// A specific folder inside the above repo - set to empty string to use the root of the bucket
-    folder: String,
+    folder: Option<String>,
     /// The region of the bucket.
     region: Region,
     /// A client with AWS credentials.
@@ -124,10 +124,9 @@ impl S3Storage {
     }
 
     fn get_composite_key(&self, key: String) -> String {
-        if self.folder == "" {
-            key
-        } else {
-            format!("{}/{}", self.folder, key)
+        match self.folder.as_deref() {
+            None | Some("") => key,
+            Some(folder_str) => format!("{}/{}", folder_str, key),
         }
     }
 
@@ -220,10 +219,9 @@ impl CheckpointSyncer for S3Storage {
     }
 
     fn announcement_location(&self) -> String {
-        if self.folder == "" {
-            format!("s3://{}/{}", self.bucket, self.region.name())
-        } else {
-            format!("s3://{}/{}/{}", self.bucket, self.region.name(), self.folder)
+        match self.folder.as_deref() {
+            None | Some("") => format!("s3://{}/{}", self.bucket, self.region.name()),
+            Some(folder_str) => format!("s3://{}/{}/{}", self.bucket, self.region.name(), folder_str),
         }
     }
 }
