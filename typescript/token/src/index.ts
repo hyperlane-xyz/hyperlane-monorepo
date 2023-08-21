@@ -1,3 +1,4 @@
+export { SealevelHypCollateralAdapter } from './adaptors/SealevelTokenAdapter';
 export { HypERC20App, HypERC721App } from './app';
 export {
   CollateralConfig,

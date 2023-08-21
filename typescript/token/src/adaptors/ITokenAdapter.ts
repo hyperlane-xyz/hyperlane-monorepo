@@ -1,4 +1,7 @@
+import { Address } from '@hyperlane-xyz/utils';
+
 import { ERC20Metadata } from '../config';
+import { DomainId } from '../globalTypes';
 
 export type MinimalTokenMetadata = Omit<ERC20Metadata, 'totalSupply'>;
 

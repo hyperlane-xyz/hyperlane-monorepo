@@ -17,7 +17,11 @@ import {
 import BigNumber from 'bignumber.js';
 import { deserializeUnchecked, serialize } from 'borsh';
 
-import { addressToBytes, isZeroishAddress } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  addressToBytes,
+  isZeroishAddress,
+} from '@hyperlane-xyz/utils';
 
 import { SOL_SPL_NOOP_ADDRESS } from '../consts/values';
 import {
@@ -29,6 +33,7 @@ import {
   TransferRemoteSchema,
   TransferRemoteWrapper,
 } from '../contracts/sealevelSerialization';
+import { DomainId } from '../globalTypes';
 
 import {
   IHypTokenAdapter,

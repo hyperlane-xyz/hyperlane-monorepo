@@ -2,7 +2,10 @@ import { Connection } from '@solana/web3.js';
 import { ethers } from 'ethers';
 import { Gauge, Registry } from 'prom-client';
 
-import { ERC20__factory } from '@hyperlane-xyz/hyperlane-token';
+import {
+  ERC20__factory,
+  SealevelHypCollateralAdapter,
+} from '@hyperlane-xyz/hyperlane-token';
 import { ChainMap, MultiProvider } from '@hyperlane-xyz/sdk';
 import { debug, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
@@ -40,7 +43,7 @@ async function main(): Promise<boolean> {
 
   setInterval(async () => {
     console.log('Checking balances');
-    let balances = await checkBalance(tokenList, multiProvider);
+    const balances = await checkBalance(tokenList, multiProvider);
     await updateTokenBalanceMetrics(tokenList, balances);
   }, checkFreqeuncy);
   return true;
@@ -59,12 +62,11 @@ async function checkBalance(
           const nativeBalance = await provider.getBalance(
             token.hypNativeAddress,
           );
-          console.log('decimals', token.decimals);
           return parseFloat(
             ethers.utils.formatUnits(nativeBalance, token.decimals),
           );
         } else {
-          // TODO
+          // TODO - solana native
           return 0;
         }
       } else {
@@ -78,12 +80,24 @@ async function checkBalance(
             ethers.utils.formatUnits(collateralBalance, token.decimals),
           );
         } else {
-          // TODO
-          return 0;
+          const connection = new Connection(multiprovider.getRpcUrl(chain));
+          const adapter = new SealevelHypCollateralAdapter(
+            connection,
+            token.hypCollateralAddress,
+            token.address,
+            token.isSpl2022,
+          );
+          const collateralBalance = ethers.BigNumber.from(
+            await adapter.getBalance(token.hypCollateralAddress),
+          );
+          return parseFloat(
+            ethers.utils.formatUnits(collateralBalance, token.decimals),
+          );
         }
       }
     },
   );
+
   return await promiseObjAll(output);
 }
 
@@ -119,10 +133,6 @@ async function updateTokenBalanceMetrics(
       balance: balances[chain],
     });
   });
-}
-
-async function getSealevelBalance() {
-  let connection: Connection;
 }
 
 main().then(console.log).catch(console.error);
