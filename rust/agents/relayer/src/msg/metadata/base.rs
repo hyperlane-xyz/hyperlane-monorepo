@@ -1,30 +1,30 @@
-use std::str::FromStr;
-use std::sync::Arc;
-use std::{collections::HashMap, fmt::Debug};
+use std::{collections::HashMap, fmt::Debug, str::FromStr, sync::Arc};
 
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::{Context, Result};
+use hyperlane_base::{
+    settings::{ChainConf, CheckpointSyncerConf},
+    CheckpointSyncer, CoreMetrics, MultisigCheckpointSyncer,
+};
+use hyperlane_core::{
+    accumulator::merkle::Proof, AggregationIsm, CcipReadIsm, Checkpoint, HyperlaneDomain,
+    HyperlaneMessage, InterchainSecurityModule, ModuleType, MultisigIsm, RoutingIsm,
+    ValidatorAnnounce, H160, H256,
+};
 use tokio::sync::RwLock;
 use tracing::{debug, info, instrument, warn};
 
-use hyperlane_base::{
-    ChainConf, CheckpointSyncer, CheckpointSyncerConf, CoreMetrics, MultisigCheckpointSyncer,
-};
-use hyperlane_core::accumulator::merkle::Proof;
-use hyperlane_core::{
-    AggregationIsm, CcipReadIsm, Checkpoint, HyperlaneDomain, HyperlaneMessage,
-    InterchainSecurityModule, ModuleType, MultisigIsm, RoutingIsm, ValidatorAnnounce, H160, H256,
-};
-
-use crate::merkle_tree_builder::MerkleTreeBuilder;
-use crate::msg::metadata::multisig::{
-    LegacyMultisigMetadataBuilder, MerkleRootMultisigMetadataBuilder,
-    MessageIdMultisigMetadataBuilder,
-};
-use crate::msg::metadata::{
-    AggregationIsmMetadataBuilder, CcipReadIsmMetadataBuilder, NullMetadataBuilder,
-    RoutingIsmMetadataBuilder,
+use crate::{
+    merkle_tree_builder::MerkleTreeBuilder,
+    msg::metadata::{
+        multisig::{
+            LegacyMultisigMetadataBuilder, MerkleRootMultisigMetadataBuilder,
+            MessageIdMultisigMetadataBuilder,
+        },
+        AggregationIsmMetadataBuilder, CcipReadIsmMetadataBuilder, NullMetadataBuilder,
+        RoutingIsmMetadataBuilder,
+    },
 };
 
 #[derive(Debug, thiserror::Error)]
