@@ -213,6 +213,7 @@ fn launch_cosmos_validator(
     agent_config_path: PathBuf,
     remotes: Vec<String>,
 ) -> AgentHandles {
+    let validator_bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "validator");
     let validator_base = tempdir().unwrap();
     let validator_base_db = concat_path(&validator_base, "db");
     fs::create_dir_all(&validator_base_db).unwrap();
@@ -221,7 +222,7 @@ fn launch_cosmos_validator(
     let signature_path = concat_path(&validator_base, "signature");
 
     let validator = Program::default()
-        .bin(concat_path(format!("../../{AGENT_BIN_PATH}"), "validator"))
+        .bin(validator_bin)
         .env("CONFIG_FILES", agent_config_path.to_str().unwrap())
         .env(
             "MY_VALIDATOR_SIGNATURE_DIRECTORY",
@@ -245,17 +246,16 @@ fn launch_cosmos_validator(
 
 #[apply(as_task)]
 fn launch_cosmos_relayer(agent_config_path: PathBuf, relay_chains: Vec<String>) -> AgentHandles {
+    let relayer_bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "relayer");
     let relayer_base = tempdir().unwrap();
-    let relayer_base_db = concat_path(&relayer_base, "db");
-    fs::create_dir_all(&relayer_base_db).unwrap();
 
     let relayer = Program::default()
-        .bin(concat_path(format!("../../{AGENT_BIN_PATH}"), "relayer"))
+        .bin(relayer_bin)
         .env("CONFIG_FILES", agent_config_path.to_str().unwrap())
         .env("RUST_BACKTRACE", "1")
         .hyp_env("RELAYCHAINS", relay_chains.join(","))
         .hyp_env("REORGPERIOD", "1")
-        .hyp_env("DB", relayer_base_db.to_str().unwrap())
+        .hyp_env("DB", relayer_base.as_ref().to_str().unwrap())
         .spawn("RLY");
 
     relayer

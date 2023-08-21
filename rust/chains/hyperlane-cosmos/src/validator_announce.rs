@@ -100,8 +100,10 @@ impl ValidatorAnnounce for CosmosValidatorAnnounce {
             .provider
             .wasm_send(announce_request, tx_gas_limit)
             .await?;
+
         Ok(TxOutcome {
-            transaction_id: H512::from_slice(hex::decode(response.txhash).unwrap().as_slice()),
+            transaction_id: H256::from_slice(hex::decode(response.txhash).unwrap().as_slice())
+                .into(),
             executed: response.code == 0,
             gas_used: U256::from(response.gas_used),
             gas_price: U256::from(response.gas_wanted),
@@ -109,6 +111,11 @@ impl ValidatorAnnounce for CosmosValidatorAnnounce {
     }
 
     async fn announce_tokens_needed(&self, announcement: SignedType<Announcement>) -> Option<U256> {
-        todo!() // not implemented yet
+        let out = self
+            .announce(announcement, None)
+            .await
+            .expect("failed to announce");
+
+        None
     }
 }
