@@ -148,7 +148,7 @@ impl AgentConfig {
                 key: hex::encode(validator.priv_key.to_bytes()),
                 prefix: "osmo".to_string(),
             },
-            index: AgentConfigIndex { from: 0, chunk: 10 },
+            index: AgentConfigIndex { from: 1, chunk: 10 },
         }
     }
 }
