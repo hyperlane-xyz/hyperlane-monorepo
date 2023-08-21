@@ -10,11 +10,11 @@ publish.workspace = true
 version.workspace = true
 
 [dependencies]
-# Main block
 async-trait.workspace = true
 bs58.workspace = true
 color-eyre = { workspace = true, optional = true }
 config.workspace = true
+convert_case.workspace = true
 derive-new.workspace = true
 ed25519-dalek.workspace = true
 ethers.workspace = true
@@ -46,17 +46,6 @@ hyperlane-ethereum = { path = "../chains/hyperlane-ethereum" }
 hyperlane-fuel = { path = "../chains/hyperlane-fuel" }
 hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
 hyperlane-test = { path = "../hyperlane-test" }
-
-# these versions are important!
-tracing-opentelemetry.workspace = true
-opentelemetry = { workspace = true, features = ["rt-tokio", "trace"] }
-opentelemetry-jaeger = { workspace = true, features = [
-    "reqwest_collector_client",
-    "rt-tokio"
-] }
-opentelemetry-zipkin = { workspace = true, features = [
-    "reqwest-client",
-] }
 
 # dependency version is determined by etheres
 rusoto_core = "*"
