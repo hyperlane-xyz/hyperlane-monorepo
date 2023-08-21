@@ -58,14 +58,16 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   protected waitForProcessReceipt(
     message: DispatchedMessage,
   ): Promise<ethers.ContractReceipt> {
-    const id = utils.messageId(message.message);
     const { destinationChain, mailbox } = this.getDestination(message);
-    const filter = mailbox.filters.ProcessId(id);
+    const id = message.id;
+    const filter = mailbox.filters.Process(id);
 
     return new Promise<ethers.ContractReceipt>((resolve, reject) => {
-      mailbox.once(filter, (emittedId, event) => {
+      mailbox.once(filter, (emittedId, message, event) => {
         if (id !== emittedId) {
           reject(`Expected message id ${id} but got ${emittedId}`);
+        } else {
+          this.logger(`Processed message ${message}`);
         }
         resolve(
           this.multiProvider.handleTx(destinationChain, event.getTransaction()),
@@ -77,7 +79,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   protected async waitForMessageWasProcessed(
     message: DispatchedMessage,
   ): Promise<void> {
-    const id = utils.messageId(message.message);
+    const id = message.id;
     const { mailbox } = this.getDestination(message);
     await utils.pollAsync(async () => {
       const delivered = await mailbox.delivered(id);

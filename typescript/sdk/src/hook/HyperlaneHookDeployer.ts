@@ -1,10 +1,10 @@
 import debug from 'debug';
 
 import {
-  OptimismISM,
-  OptimismISM__factory,
-  OptimismMessageHook,
-  OptimismMessageHook__factory,
+  OPStackHook,
+  OPStackHook__factory,
+  OPStackIsm,
+  OPStackIsm__factory,
   TestRecipient,
   TestRecipient__factory,
 } from '@hyperlane-xyz/core';
@@ -18,7 +18,7 @@ import { ChainMap, ChainName } from '../types';
 
 import { isHookConfig, isISMConfig } from './config';
 import { HookFactories, hookFactories } from './contracts';
-import { HookConfig } from './types';
+import { HookConfig, MessageHookConfig } from './types';
 
 export class HyperlaneHookDeployer extends HyperlaneDeployer<
   HookConfig,
@@ -104,9 +104,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     } else if (isHookConfig(hookConfig)) {
       optimismMessageHook = await this.deployOptimismMessageHook(
         chain,
-        hookConfig.destinationDomain,
-        hookConfig.nativeBridge,
-        hookConfig.remoteIsm,
+        hookConfig,
       );
       return {
         optimismMessageHook,
@@ -118,10 +116,10 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
   async deployOptimismISM(
     chain: ChainName,
     nativeBridge: types.Address,
-  ): Promise<OptimismISM> {
+  ): Promise<OPStackIsm> {
     const signer = this.multiProvider.getSigner(chain);
 
-    const optimismISM = await new OptimismISM__factory(signer).deploy(
+    const optimismISM = await new OPStackIsm__factory(signer).deploy(
       nativeBridge,
     );
 
@@ -147,15 +145,16 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
 
   async deployOptimismMessageHook(
     chain: ChainName,
-    destinationDomain: number,
-    nativeBridge: types.Address,
-    optimismISM: types.Address,
-  ): Promise<OptimismMessageHook> {
+    hookConfig: MessageHookConfig,
+  ): Promise<OPStackHook> {
     const signer = this.multiProvider.getSigner(chain);
 
-    const optimismMessageHook = await new OptimismMessageHook__factory(
-      signer,
-    ).deploy(destinationDomain, nativeBridge, optimismISM);
+    const optimismMessageHook = await new OPStackHook__factory(signer).deploy(
+      hookConfig.mailbox,
+      hookConfig.destinationDomain,
+      hookConfig.remoteIsm,
+      hookConfig.nativeBridge,
+    );
 
     await this.multiProvider.handleTx(
       chain,

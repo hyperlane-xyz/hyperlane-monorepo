@@ -46,13 +46,14 @@ export class TestCoreApp extends HyperlaneCore {
     const dispatchFilter = outbox.filters.Dispatch();
     const dispatches = await outbox.queryFilter(dispatchFilter);
     for (const dispatch of dispatches) {
-      const destination = dispatch.args.destination;
+      const message = utils.parseMessage(dispatch.args.message);
+      const destination = message.destination;
       if (destination === this.multiProvider.getDomainId(origin)) {
         throw new Error('Dispatched message to local domain');
       }
       const destinationChain = this.multiProvider.getChainName(destination);
       const inbox = this.getContracts(destinationChain).mailbox;
-      const id = utils.messageId(dispatch.args.message);
+      const id = dispatch.args.id;
       const delivered = await inbox.delivered(id);
       if (!delivered) {
         const response = await inbox.process('0x', dispatch.args.message);

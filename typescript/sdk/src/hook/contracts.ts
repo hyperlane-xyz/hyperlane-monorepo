@@ -1,15 +1,15 @@
 import {
-  OptimismISM__factory,
-  OptimismMessageHook__factory,
+  OPStackHook__factory,
+  OPStackIsm__factory,
   TestRecipient__factory,
 } from '@hyperlane-xyz/core';
 
 export const optimismMessageHookFactories = {
-  optimismMessageHook: new OptimismMessageHook__factory(),
+  optimismMessageHook: new OPStackHook__factory(),
 };
 
 export const optimismIsmFactories = {
-  optimismISM: new OptimismISM__factory(),
+  optimismISM: new OPStackIsm__factory(),
 };
 
 export const testRecipientFactories = {

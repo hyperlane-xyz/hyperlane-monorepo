@@ -7,6 +7,7 @@ export enum HookContractType {
 
 export type MessageHookConfig = {
   hookContractType: HookContractType.HOOK;
+  mailbox: types.Address;
   nativeBridge: types.Address;
   remoteIsm: types.Address;
   destinationDomain: number;

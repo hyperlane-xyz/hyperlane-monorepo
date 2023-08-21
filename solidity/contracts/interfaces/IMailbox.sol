@@ -8,27 +8,17 @@ interface IMailbox {
     // ============ Events ============
     /**
      * @notice Emitted when a new message is dispatched via Hyperlane
+     * @param id The unique message identifier
      * @param message Raw bytes of message
      */
-    event Dispatch(bytes message);
-
-    /**
-     * @notice Emitted when a new message is dispatched via Hyperlane
-     * @param messageId The unique message identifier
-     */
-    event DispatchId(bytes32 indexed messageId);
+    event Dispatch(bytes32 indexed id, bytes message);
 
     /**
      * @notice Emitted when a Hyperlane message is delivered
+     * @param id The unique message identifier
      * @param message Raw bytes of message
      */
-    event Process(bytes message);
-
-    /**
-     * @notice Emitted when a Hyperlane message is processed
-     * @param messageId The unique message identifier
-     */
-    event ProcessId(bytes32 indexed messageId);
+    event Process(bytes32 indexed id, bytes message);
 
     function localDomain() external view returns (uint32);
 
@@ -37,6 +27,8 @@ interface IMailbox {
     function defaultIsm() external view returns (IInterchainSecurityModule);
 
     function defaultHook() external view returns (IPostDispatchHook);
+
+    function requiredHook() external view returns (IPostDispatchHook);
 
     function latestDispatchedId() external view returns (bytes32);
 

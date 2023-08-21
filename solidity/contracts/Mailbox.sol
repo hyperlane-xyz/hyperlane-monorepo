@@ -37,8 +37,11 @@ contract Mailbox is IMailbox, Indexed, Versioned, Ownable {
     // The default ISM, used if the recipient fails to specify one.
     IInterchainSecurityModule public defaultIsm;
 
-    // The default post dispatch hook, used for post processing of dispatched messages.
+    // The default post dispatch hook, used for post processing of opting-in dispatches.
     IPostDispatchHook public defaultHook;
+
+    // The required post dispatch hook, used for post processing of ALL dispatches.
+    IPostDispatchHook public requiredHook;
 
     // Mapping of message ID to delivery context that processed the message.
     struct Delivery {
@@ -62,6 +65,12 @@ contract Mailbox is IMailbox, Indexed, Versioned, Ownable {
      * @param hook The new default hook
      */
     event DefaultHookSet(address indexed hook);
+
+    /**
+     * @notice Emitted when the required hook is updated
+     * @param hook The new required hook
+     */
+    event RequiredHookSet(address indexed hook);
 
     // ============ Constructor ============
 
@@ -90,6 +99,16 @@ contract Mailbox is IMailbox, Indexed, Versioned, Ownable {
         require(Address.isContract(_hook), "Mailbox: !contract");
         defaultHook = IPostDispatchHook(_hook);
         emit DefaultHookSet(_hook);
+    }
+
+    /**
+     * @notice Sets the required post dispatch hook for the Mailbox.
+     * @param _hook The new default post dispatch hook. Must be a contract.
+     */
+    function setRequiredHook(address _hook) external onlyOwner {
+        require(Address.isContract(_hook), "Mailbox: !contract");
+        requiredHook = IPostDispatchHook(_hook);
+        emit RequiredHookSet(_hook);
     }
 
     /**
@@ -163,12 +182,10 @@ contract Mailbox is IMailbox, Indexed, Versioned, Ownable {
 
         nonce += 1;
         latestDispatchedId = id;
-
-        emit Dispatch(message);
-        emit DispatchId(id);
+        emit Dispatch(id, message);
 
         /// INTERACTIONS ///
-
+        requiredHook.postDispatch{value: msg.value}(metadata, message);
         hook.postDispatch{value: msg.value}(metadata, message);
 
         return id;
@@ -214,8 +231,7 @@ contract Mailbox is IMailbox, Indexed, Versioned, Ownable {
             // value: uint48(msg.value),
             // timestamp: uint48(block.number)
         });
-        emit Process(_message);
-        emit ProcessId(_id);
+        emit Process(_id, _message);
 
         /// INTERACTIONS ///
 
