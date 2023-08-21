@@ -17,9 +17,6 @@ import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 import {MetaProxy} from "../libs/MetaProxy.sol";
 
 contract AggregationHook is IPostDispatchHook {
-    event SuccessfulAggregationHookCall(address indexed hook);
-    event ErroneousAggregationHookCall(address indexed hook);
-
     function postDispatch(bytes calldata metadata, bytes calldata message)
         external
         payable
@@ -28,16 +25,15 @@ contract AggregationHook is IPostDispatchHook {
         address[] memory _hooks = hooks(message);
         uint256 count = _hooks.length;
         for (uint256 i = 0; i < count; i++) {
-            try
-                IPostDispatchHook(_hooks[i]).postDispatch{value: msg.value}(
-                    metadata,
-                    message
-                )
-            {
-                emit SuccessfulAggregationHookCall(_hooks[i]);
-            } catch {
-                emit ErroneousAggregationHookCall(_hooks[i]);
-            }
+            uint256 quote = IPostDispatchHook(_hooks[i]).quoteDispatch(
+                metadata,
+                message
+            );
+
+            IPostDispatchHook(_hooks[i]).postDispatch{value: quote}(
+                metadata,
+                message
+            );
         }
     }
 
@@ -51,11 +47,10 @@ contract AggregationHook is IPostDispatchHook {
         uint256 count = _hooks.length;
         uint256 total = 0;
         for (uint256 i = 0; i < count; i++) {
-            try
-                IPostDispatchHook(_hooks[i]).quoteDispatch(metadata, message)
-            returns (uint256 _quote) {
-                total += _quote;
-            } catch {}
+            total += IPostDispatchHook(_hooks[i]).quoteDispatch(
+                metadata,
+                message
+            );
         }
         return total;
     }
