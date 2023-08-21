@@ -182,6 +182,8 @@ pub enum RawCheckpointSyncerConf {
     S3 {
         /// Bucket name
         bucket: Option<String>,
+        /// Folder name inside bucket - defaults to the root of the bucket
+        folder: Option<String>,
         /// S3 Region
         region: Option<String>,
     },
@@ -642,10 +644,11 @@ impl FromRawConf<RawCheckpointSyncerConf> for CheckpointSyncerConf {
                 }
                 Ok(Self::LocalStorage { path })
             }
-            RawCheckpointSyncerConf::S3 { bucket, region } => Ok(Self::S3 {
+            RawCheckpointSyncerConf::S3 { bucket, folder, region } => Ok(Self::S3 {
                 bucket: bucket
                     .ok_or_else(|| eyre!("Missing `bucket` for S3 checkpoint syncer"))
                     .into_config_result(|| cwp + "bucket")?,
+                folder,
                 region: region
                     .ok_or_else(|| eyre!("Missing `region` for S3 checkpoint syncer"))
                     .into_config_result(|| cwp + "region")?

@@ -20,7 +20,7 @@ pub enum CheckpointSyncerConf {
     S3 {
         /// Bucket name
         bucket: String,
-        /// Folder name inside bucket
+        /// Folder name inside bucket - defaults to the root of the bucket
         folder: Option<String>,
         /// S3 Region
         region: Region,
