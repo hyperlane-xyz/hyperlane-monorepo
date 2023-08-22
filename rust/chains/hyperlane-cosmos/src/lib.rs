@@ -15,11 +15,11 @@ mod routing_ism;
 mod signers;
 mod trait_builder;
 mod validator_announce;
-mod verify;
+mod libs;
 
 pub use self::{
     interchain_gas::*, mailbox::*, multisig_ism::*, providers::*, routing_ism::*, signers::*,
-    trait_builder::*, trait_builder::*, validator_announce::*, validator_announce::*, verify::*,
+    trait_builder::*, trait_builder::*, validator_announce::*, validator_announce::*, libs::*,
 };
 
 /// Safe default imports of commonly used traits/types.

@@ -5,6 +5,7 @@ use cosmrs::tendermint::hash::Algorithm;
 use cosmrs::tendermint::Hash;
 use hyperlane_core::{ChainResult, ContractLocator, HyperlaneDomain, LogMeta, H256, H512, U256};
 use sha256::digest;
+use crate::binary::h256_to_h512;
 
 use crate::verify::{self, bech32_decode};
 use crate::ConnectionConf;
@@ -136,7 +137,7 @@ impl WasmIndexer for CosmosWasmIndexer {
                         address: bech32_decode(addr.clone()),
                         block_number: block_number as u64,
                         block_hash: H256::from_slice(block.block_id.hash.as_bytes()),
-                        transaction_id: H512::from_slice(tx_hash.clone().as_bytes()),
+                        transaction_id: h256_to_h512(tx_hash.clone()),
                         transaction_index: idx as u64,
                         log_index: U256::from(log_idx),
                     };
