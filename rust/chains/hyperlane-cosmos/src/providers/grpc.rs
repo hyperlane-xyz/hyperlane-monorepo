@@ -19,7 +19,7 @@ use cosmrs::proto::cosmwasm::wasm::v1::{
 use cosmrs::proto::traits::Message;
 
 use cosmrs::tx::{self, Fee, MessageExt, SignDoc, SignerInfo};
-use cosmrs::Coin;
+use cosmrs::{Amount, Coin};
 use hyperlane_core::{ChainResult, ContractLocator, HyperlaneDomain, H256, U256};
 use serde::Serialize;
 use std::num::NonZeroU64;
@@ -207,10 +207,10 @@ impl WasmProvider for WasmGrpcProvider {
             .as_u64();
 
         let auth_info = signer_info.auth_info(Fee::from_amount_and_gas(
-            Coin {
-                denom: format!("u{}", self.signer.prefix.clone()).parse().unwrap(),
-                amount: 10000u128,
-            },
+            Coin::new(
+                Amount::from(10000u128),
+                format!("u{}", self.signer.prefix.clone()).as_str(),
+            ).unwrap(),
             gas_limit,
         ));
 
