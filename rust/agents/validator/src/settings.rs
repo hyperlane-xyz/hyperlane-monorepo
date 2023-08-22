@@ -6,51 +6,70 @@
 
 use std::{path::PathBuf, time::Duration};
 
+use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use eyre::{eyre, Context};
 use hyperlane_base::{
-    decl_settings,
+    impl_loadable_from_settings,
     settings::{
-        deprecated_parser::{DeprecatedRawCheckpointSyncerConf, DeprecatedRawSignerConf},
+        deprecated_parser::{
+            DeprecatedRawCheckpointSyncerConf, DeprecatedRawSettings, DeprecatedRawSignerConf,
+        },
         CheckpointSyncerConf, Settings, SignerConf,
     },
 };
 use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol};
+use serde::Deserialize;
 
-decl_settings!(Validator,
-    Parsed {
-        /// Database path
-        db: PathBuf,
-        /// Chain to validate messages on
-        origin_chain: HyperlaneDomain,
-        /// The validator attestation signer
-        validator: SignerConf,
-        /// The checkpoint syncer configuration
-        checkpoint_syncer: CheckpointSyncerConf,
-        /// The reorg_period in blocks
-        reorg_period: u64,
-        /// How frequently to check for new checkpoints
-        interval: Duration,
-    },
-    Raw {
-        /// Database path (path on the fs)
-        db: Option<String>,
-        // Name of the chain to validate message on
-        originchainname: Option<String>,
-        /// The validator attestation signer
-        #[serde(default)]
-        validator: DeprecatedRawSignerConf,
-        /// The checkpoint syncer configuration
-        checkpointsyncer: Option<DeprecatedRawCheckpointSyncerConf>,
-        /// The reorg_period in blocks
-        reorgperiod: Option<StrOrInt>,
-        /// How frequently to check for new checkpoints
-        interval: Option<StrOrInt>,
-    },
-);
+/// Settings for `Validator`
+#[derive(Debug, AsRef, AsMut, Deref, DerefMut)]
+pub struct ValidatorSettings {
+    #[as_ref]
+    #[as_mut]
+    #[deref]
+    #[deref_mut]
+    base: Settings,
 
-impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
+    /// Database path
+    pub db: PathBuf,
+    /// Chain to validate messages on
+    pub origin_chain: HyperlaneDomain,
+    /// The validator attestation signer
+    pub validator: SignerConf,
+    /// The checkpoint syncer configuration
+    pub checkpoint_syncer: CheckpointSyncerConf,
+    /// The reorg_period in blocks
+    pub reorg_period: u64,
+    /// How frequently to check for new checkpoints
+    pub interval: Duration,
+}
+
+/// Raw settings for `Validator`
+#[derive(Debug, Deserialize, AsMut)]
+#[serde(rename_all = "camelCase")]
+pub struct DeprecatedRawValidatorSettings {
+    #[serde(flatten, default)]
+    #[as_mut]
+    base: DeprecatedRawSettings,
+    /// Database path (path on the fs)
+    db: Option<String>,
+    // Name of the chain to validate message on
+    originchainname: Option<String>,
+    /// The validator attestation signer
+    #[serde(default)]
+    validator: DeprecatedRawSignerConf,
+    /// The checkpoint syncer configuration
+    checkpointsyncer: Option<DeprecatedRawCheckpointSyncerConf>,
+    /// The reorg_period in blocks
+    reorgperiod: Option<StrOrInt>,
+    /// How frequently to check for new checkpoints
+    interval: Option<StrOrInt>,
+}
+
+impl_loadable_from_settings!(Validator, DeprecatedRawValidatorSettings -> ValidatorSettings);
+
+impl FromRawConf<DeprecatedRawValidatorSettings> for ValidatorSettings {
     fn from_config_filtered(
-        raw: RawValidatorSettings,
+        raw: DeprecatedRawValidatorSettings,
         cwp: &ConfigPath,
         _filter: (),
     ) -> ConfigResult<Self> {

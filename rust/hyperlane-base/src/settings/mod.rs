@@ -106,81 +106,6 @@ mod checkpoint_syncer;
 pub mod deprecated_parser;
 pub mod parser;
 
-#[doc(hidden)]
-pub use derive_more;
-
-/// Declare a new settings block
-///
-/// This macro declares a settings struct for an agent. The new settings block
-/// contains a [`crate::Settings`] and any other specified attributes.
-///
-/// Please note that integers must be specified as `String` in order to allow
-/// them to be configured via env var. They must then be parsed in the
-/// [`Agent::from_settings`](crate::agent::Agent::from_settings)
-/// method.
-///
-/// ### Usage
-///
-/// ```ignore
-/// decl_settings!(Validator {
-///    validator: SignerConf,
-///    checkpointsyncer: CheckpointSyncerConf,
-///    reorgperiod: String,
-///    interval: String,
-/// });
-/// ```
-#[macro_export]
-macro_rules! decl_settings {
-    (
-        $name:ident,
-        Parsed {
-            $($(#[$parsed_tags:meta])* $parsed_prop:ident: $parsed_type:ty,)*
-        },
-        Raw {
-            $($(#[$raw_tags:meta])* $raw_prop:ident: $raw_type:ty,)*
-        }$(,)?
-    ) => {
-        hyperlane_base::settings::paste::paste! {
-            #[doc = "Settings for `" $name "`"]
-            #[derive(
-                Debug,
-                hyperlane_base::settings::derive_more::AsRef,
-                hyperlane_base::settings::derive_more::AsMut,
-                hyperlane_base::settings::derive_more::Deref,
-                hyperlane_base::settings::derive_more::DerefMut,
-            )]
-            pub struct [<$name Settings>] {
-                #[as_ref] #[as_mut]
-                #[deref] #[deref_mut]
-                base: hyperlane_base::settings::Settings,
-                $(
-                    $(#[$parsed_tags])*
-                    pub(crate) $parsed_prop: $parsed_type,
-                )*
-            }
-
-            #[doc = "Raw settings for `" $name "`"]
-            #[derive(
-                Debug,
-                serde::Deserialize,
-                hyperlane_base::settings::derive_more::AsMut,
-            )]
-            #[serde(rename_all = "camelCase")]
-            pub struct [<Raw $name Settings>] {
-                #[serde(flatten, default)]
-                #[as_mut]
-                base: hyperlane_base::settings::deprecated_parser::DeprecatedRawSettings,
-                $(
-                    $(#[$raw_tags])*
-                    $raw_prop: $raw_type,
-                )*
-            }
-
-            hyperlane_base::impl_loadable_from_settings!(stringify!($name), [<Raw $name Settings>] -> [<$name Settings>]);
-        }
-    };
-}
-
 /// Declare that an agent can be constructed from settings.
 ///
 /// E.g.
@@ -189,11 +114,11 @@ macro_rules! decl_settings {
 /// ```
 #[macro_export]
 macro_rules! impl_loadable_from_settings {
-    ($agent:expr, $settingsparser:ident -> $settingsobj:ident) => {
+    ($agent:ident, $settingsparser:ident -> $settingsobj:ident) => {
         impl hyperlane_base::LoadableFromSettings for $settingsobj {
             fn load() -> hyperlane_core::config::ConfigResult<Self> {
-                hyperlane_base::settings::loader::load_settings::<$settingsparser, $settingsobj>(
-                    $agent,
+                hyperlane_base::settings::loader::load_settings::<$settingsparser, Self>(
+                    stringify!($agent),
                 )
             }
         }

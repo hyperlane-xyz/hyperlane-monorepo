@@ -30,7 +30,7 @@ use crate::settings::{
 mod json_value_parser;
 mod parse_pipe;
 
-#[derive(Debug, Deserialize, derive_more::Deref)]
+#[derive(Debug, Deserialize)]
 #[serde(transparent)]
 struct RawAgentConf(Value);
 

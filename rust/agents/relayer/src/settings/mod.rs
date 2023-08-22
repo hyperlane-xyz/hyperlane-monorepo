@@ -6,8 +6,12 @@
 
 use std::{collections::HashSet, path::PathBuf};
 
+use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use eyre::{eyre, Context};
-use hyperlane_base::{decl_settings, settings::Settings};
+use hyperlane_base::{
+    impl_loadable_from_settings,
+    settings::{deprecated_parser::DeprecatedRawSettings, Settings},
+};
 use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, U256};
 use serde::Deserialize;
 use tracing::warn;
@@ -132,64 +136,78 @@ impl FromRawConf<RawGasPaymentEnforcementConf> for GasPaymentEnforcementConf {
     }
 }
 
-decl_settings!(Relayer,
-    Parsed {
-        /// Database path
-        db: PathBuf,
-        /// The chain to relay messages from
-        origin_chains: HashSet<HyperlaneDomain>,
-        /// Chains to relay messages to
-        destination_chains: HashSet<HyperlaneDomain>,
-        /// The gas payment enforcement policies
-        gas_payment_enforcement: Vec<GasPaymentEnforcementConf>,
-        /// Filter for what messages to relay.
-        whitelist: MatchingList,
-        /// Filter for what messages to block.
-        blacklist: MatchingList,
-        /// This is optional. If not specified, any amount of gas will be valid, otherwise this
-        /// is the max allowed gas in wei to relay a transaction.
-        transaction_gas_limit: Option<U256>,
-        /// List of domain ids to skip transaction gas for.
-        skip_transaction_gas_limit_for: HashSet<u32>,
-        /// If true, allows local storage based checkpoint syncers.
-        /// Not intended for production use.
-        allow_local_checkpoint_syncers: bool,
-    },
-    Raw {
-        /// Database path (path on the fs)
-        db: Option<String>,
-        // Comma separated list of chains to relay between.
-        relaychains: Option<String>,
-        // Comma separated list of origin chains.
-        #[deprecated(note = "Use `relaychains` instead")]
-        originchainname: Option<String>,
-        // Comma separated list of destination chains.
-        #[deprecated(note = "Use `relaychains` instead")]
-        destinationchainnames: Option<String>,
-        /// The gas payment enforcement configuration as JSON. Expects an ordered array of `GasPaymentEnforcementConfig`.
-        gaspaymentenforcement: Option<String>,
-        /// This is optional. If no whitelist is provided ALL messages will be considered on the
-        /// whitelist.
-        whitelist: Option<String>,
-        /// This is optional. If no blacklist is provided ALL will be considered to not be on
-        /// the blacklist.
-        blacklist: Option<String>,
-        /// This is optional. If not specified, any amount of gas will be valid, otherwise this
-        /// is the max allowed gas in wei to relay a transaction.
-        transactiongaslimit: Option<StrOrInt>,
-        // TODO: this should be a list of chain names to be consistent
-        /// Comma separated List of domain ids to skip applying the transaction gas limit to.
-        skiptransactiongaslimitfor: Option<String>,
-        /// If true, allows local storage based checkpoint syncers.
-        /// Not intended for production use. Defaults to false.
-        #[serde(default)]
-        allowlocalcheckpointsyncers: bool,
-    }
-);
+/// Settings for `Relayer`
+#[derive(Debug, AsRef, AsMut, Deref, DerefMut)]
+pub struct RelayerSettings {
+    #[as_ref]
+    #[as_mut]
+    #[deref]
+    #[deref_mut]
+    base: Settings,
 
-impl FromRawConf<RawRelayerSettings> for RelayerSettings {
+    /// Database path
+    pub db: PathBuf,
+    /// The chain to relay messages from
+    pub origin_chains: HashSet<HyperlaneDomain>,
+    /// Chains to relay messages to
+    pub destination_chains: HashSet<HyperlaneDomain>,
+    /// The gas payment enforcement policies
+    pub gas_payment_enforcement: Vec<GasPaymentEnforcementConf>,
+    /// Filter for what messages to relay.
+    pub whitelist: MatchingList,
+    /// Filter for what messages to block.
+    pub blacklist: MatchingList,
+    /// This is optional. If not specified, any amount of gas will be valid, otherwise this
+    /// is the max allowed gas in wei to relay a transaction.
+    pub transaction_gas_limit: Option<U256>,
+    /// List of domain ids to skip transaction gas for.
+    pub skip_transaction_gas_limit_for: HashSet<u32>,
+    /// If true, allows local storage based checkpoint syncers.
+    /// Not intended for production use.
+    pub allow_local_checkpoint_syncers: bool,
+}
+
+#[derive(Debug, Deserialize, AsMut)]
+#[serde(rename_all = "camelCase")]
+pub struct DeprecatedRawRelayerSettings {
+    #[serde(flatten)]
+    #[as_mut]
+    base: DeprecatedRawSettings,
+    /// Database path (path on the fs)
+    db: Option<String>,
+    // Comma separated list of chains to relay between.
+    relaychains: Option<String>,
+    // Comma separated list of origin chains.
+    #[deprecated(note = "Use `relaychains` instead")]
+    originchainname: Option<String>,
+    // Comma separated list of destination chains.
+    #[deprecated(note = "Use `relaychains` instead")]
+    destinationchainnames: Option<String>,
+    /// The gas payment enforcement configuration as JSON. Expects an ordered array of `GasPaymentEnforcementConfig`.
+    gaspaymentenforcement: Option<String>,
+    /// This is optional. If no whitelist is provided ALL messages will be considered on the
+    /// whitelist.
+    whitelist: Option<String>,
+    /// This is optional. If no blacklist is provided ALL will be considered to not be on
+    /// the blacklist.
+    blacklist: Option<String>,
+    /// This is optional. If not specified, any amount of gas will be valid, otherwise this
+    /// is the max allowed gas in wei to relay a transaction.
+    transactiongaslimit: Option<StrOrInt>,
+    // TODO: this should be a list of chain names to be consistent
+    /// Comma separated List of domain ids to skip applying the transaction gas limit to.
+    skiptransactiongaslimitfor: Option<String>,
+    /// If true, allows local storage based checkpoint syncers.
+    /// Not intended for production use. Defaults to false.
+    #[serde(default)]
+    allowlocalcheckpointsyncers: bool,
+}
+
+impl_loadable_from_settings!(Relayer, DeprecatedRawRelayerSettings -> RelayerSettings);
+
+impl FromRawConf<DeprecatedRawRelayerSettings> for RelayerSettings {
     fn from_config_filtered(
-        raw: RawRelayerSettings,
+        raw: DeprecatedRawRelayerSettings,
         cwp: &ConfigPath,
         _filter: (),
     ) -> ConfigResult<Self> {

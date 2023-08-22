@@ -4,27 +4,47 @@
 //! and validations it defines are not applied here, we should mirror them.
 //! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 
+use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use eyre::{eyre, Context};
-use hyperlane_base::{decl_settings, settings::Settings};
+use hyperlane_base::{
+    impl_loadable_from_settings,
+    settings::{deprecated_parser::DeprecatedRawSettings, Settings},
+};
 use hyperlane_core::{config::*, HyperlaneDomain};
 use itertools::Itertools;
+use serde::Deserialize;
 
-decl_settings!(Scraper,
-    Parsed {
-        db: String,
-        chains_to_scrape: Vec<HyperlaneDomain>,
-    },
-    Raw {
-        /// Database connection string
-        db: Option<String>,
-        /// Comma separated list of chains to scrape
-        chainstoscrape: Option<String>,
-    }
-);
+/// Settings for `Scraper`
+#[derive(Debug, AsRef, AsMut, Deref, DerefMut)]
+pub struct ScraperSettings {
+    #[as_ref]
+    #[as_mut]
+    #[deref]
+    #[deref_mut]
+    base: Settings,
 
-impl FromRawConf<RawScraperSettings> for ScraperSettings {
+    pub db: String,
+    pub chains_to_scrape: Vec<HyperlaneDomain>,
+}
+
+/// Raw settings for `Scraper`
+#[derive(Debug, Deserialize, AsMut)]
+#[serde(rename_all = "camelCase")]
+pub struct DeprecatedRawScraperSettings {
+    #[serde(flatten, default)]
+    #[as_mut]
+    base: DeprecatedRawSettings,
+    /// Database connection string
+    db: Option<String>,
+    /// Comma separated list of chains to scrape
+    chainstoscrape: Option<String>,
+}
+
+impl_loadable_from_settings!(Scraper, DeprecatedRawScraperSettings -> ScraperSettings);
+
+impl FromRawConf<DeprecatedRawScraperSettings> for ScraperSettings {
     fn from_config_filtered(
-        raw: RawScraperSettings,
+        raw: DeprecatedRawScraperSettings,
         cwp: &ConfigPath,
         _filter: (),
     ) -> ConfigResult<Self> {

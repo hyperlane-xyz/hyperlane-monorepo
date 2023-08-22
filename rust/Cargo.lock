@@ -3603,7 +3603,6 @@ dependencies = [
  "config",
  "convert_case 0.6.0",
  "derive-new",
- "derive_more",
  "ed25519-dalek",
  "ethers",
  "ethers-prometheus",
@@ -6622,6 +6621,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "config",
+ "derive_more",
  "ethers",
  "eyre",
  "futures",
@@ -9148,6 +9148,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "config",
+ "derive_more",
  "ethers",
  "eyre",
  "futures-util",
