@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use hpl_interface::{ism, va};
+use hpl_interface::ism;
 
 use super::{cli::OsmosisCLI, crypto::KeyPair, CosmosNetwork};
 

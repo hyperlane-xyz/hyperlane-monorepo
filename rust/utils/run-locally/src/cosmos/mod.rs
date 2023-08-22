@@ -300,7 +300,7 @@ fn run_locally() {
     let deployer = "validator";
     let linker = "validator";
     let validator = "hpl-validator";
-    let relayer = "hpl-relayer";
+    let _relayer = "hpl-relayer";
 
     let nodes = nodes
         .into_iter()

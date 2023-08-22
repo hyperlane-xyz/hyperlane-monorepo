@@ -8,7 +8,8 @@ use crate::{
 };
 
 use super::{
-    crypto::KeyPair, default_keys, modify_toml, sed, wait_for_node, Codes, Coin, TxResponse,
+    crypto::KeyPair, default_keys, modify_toml, sed, types::BalanceResponse, wait_for_node, Codes,
+    Coin, TxResponse,
 };
 
 const GENESIS_FUND: u128 = 1000000000000;
@@ -35,6 +36,7 @@ pub struct OsmosisCLI {
     pub home: String,
 }
 
+#[allow(dead_code)]
 impl OsmosisCLI {
     pub fn new(bin: PathBuf, home: &str) -> Self {
         Self {
@@ -278,7 +280,6 @@ impl OsmosisCLI {
         output.unwrap()
     }
 
-    #[allow(dead_code)]
     pub fn wasm_query<T: serde::ser::Serialize, U: serde::de::DeserializeOwned>(
         &self,
         endpoint: &OsmosisEndpoint,
@@ -299,6 +300,21 @@ impl OsmosisCLI {
         let output = serde_json::from_str(cmd.run_with_output().join().first().unwrap());
 
         output.unwrap()
+    }
+
+    pub fn query_balance(&self, endpoint: &OsmosisEndpoint, addr: &str) -> BalanceResponse {
+        let cmd = endpoint
+            .add_rpc(self.cli())
+            .cmd("query")
+            .cmd("bank")
+            .cmd("balances")
+            .cmd(addr)
+            .run_with_output()
+            .join();
+
+        let output = serde_json::from_str(cmd.first().unwrap()).unwrap();
+
+        output
     }
 
     fn add_genesis_accs(&self) {
