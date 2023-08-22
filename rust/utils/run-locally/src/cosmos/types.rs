@@ -66,6 +66,11 @@ pub struct Deployments {
     pub va: String,
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct BalanceResponse {
+    pub balances: Vec<Coin>,
+}
+
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentConfigAddrs {
