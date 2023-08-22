@@ -348,8 +348,8 @@ fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, 
             .send(&[&ctx.payer, &unique_gas_payment_keypair]);
 
         println!(
-            "Made a payment for message {} with gas payment data account {}",
-            message_id, gas_payment_data_account
+            "Made a payment for message {} with gas payment data account {}, igp program_id: {}",
+            message_id, gas_payment_data_account, igp_account
         );
     }
 
