@@ -132,10 +132,10 @@ impl std::error::Error for ConfigParsingError {}
 /// calling this macro a, b, and c will be unwrapped and assigned to variables of the same name.
 #[macro_export]
 macro_rules! cfg_unwrap_all {
-    ($cwp:ident, $err:ident: [$($i:ident),+$(,)?]) => {
+    ($cwp:expr, $err:ident: [$($i:ident),+$(,)?]) => {
         $(cfg_unwrap_all!(@unwrap $cwp, $err, $i);)*
     };
-    (@unwrap $cwp:ident, $err:ident, $i:ident) => {
+    (@unwrap $cwp:expr, $err:ident, $i:ident) => {
         let $i = if let Some($i) = $i {
             $i
         } else {

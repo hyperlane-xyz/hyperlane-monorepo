@@ -10,7 +10,7 @@ use eyre::{eyre, Context};
 use hyperlane_base::{
     decl_settings,
     settings::{
-        parser::{RawCheckpointSyncerConf, RawSignerConf},
+        deprecated_parser::{DeprecatedRawCheckpointSyncerConf, DeprecatedRawSignerConf},
         CheckpointSyncerConf, Settings, SignerConf,
     },
 };
@@ -38,9 +38,9 @@ decl_settings!(Validator,
         originchainname: Option<String>,
         /// The validator attestation signer
         #[serde(default)]
-        validator: RawSignerConf,
+        validator: DeprecatedRawSignerConf,
         /// The checkpoint syncer configuration
-        checkpointsyncer: Option<RawCheckpointSyncerConf>,
+        checkpointsyncer: Option<DeprecatedRawCheckpointSyncerConf>,
         /// The reorg_period in blocks
         reorgperiod: Option<StrOrInt>,
         /// How frequently to check for new checkpoints
