@@ -43,7 +43,7 @@ export const igp: ChainMap<OverheadIgpConfig> = objMap(
             ),
           ]),
       ),
-      upgrade: core[chain].upgrade,
+      // upgrade: core[chain].upgrade,
     };
   },
 );
