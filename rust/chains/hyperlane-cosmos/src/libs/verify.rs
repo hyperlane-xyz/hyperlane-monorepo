@@ -1,7 +1,8 @@
 use std::cmp;
 
 use bech32::{FromBase32, ToBase32};
-use hyperlane_core::{ChainCommunicationError, ChainResult, H256};
+use cosmrs::crypto::secp256k1::SigningKey;
+use hyperlane_core::{ChainCommunicationError, ChainResult, H160, H256};
 use ripemd::Ripemd160;
 use sha2::{Digest, Sha256};
 
@@ -75,4 +76,17 @@ pub fn pub_to_addr(pub_key: Vec<u8>, prefix: &str) -> ChainResult<String> {
         })?;
 
     Ok(addr)
+}
+
+/// encode H256 to bech32 address
+pub fn priv_to_binary_addr(priv_key: Vec<u8>) -> ChainResult<H160> {
+    let sha_hash = sha256_digest(
+        SigningKey::from_slice(priv_key.as_slice())
+            .unwrap()
+            .public_key()
+            .to_bytes(),
+    )?;
+    let rip_hash = ripemd160_digest(sha_hash)?;
+
+    Ok(H160::from_slice(rip_hash.as_slice()))
 }
