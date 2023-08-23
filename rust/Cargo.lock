@@ -3752,6 +3752,7 @@ version = "0.1.0"
 dependencies = [
  "account-utils",
  "borsh 0.9.3",
+ "bs58 0.5.0",
  "clap 4.3.19",
  "hex 0.4.3",
  "hyperlane-core",

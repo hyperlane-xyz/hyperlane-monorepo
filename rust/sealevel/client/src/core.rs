@@ -53,7 +53,7 @@ fn deploy_multisig_ism_message_id(ctx: &mut Context, cmd: &CoreDeploy, key_dir: 
     let program_id = keypair.pubkey();
 
     deploy_program(
-        &ctx.payer_path,
+        &ctx.payer_keypair_path(),
         keypair_path.to_str().unwrap(),
         cmd.built_so_dir
             .join("hyperlane_sealevel_multisig_ism_message_id.so")
@@ -70,7 +70,7 @@ fn deploy_multisig_ism_message_id(ctx: &mut Context, cmd: &CoreDeploy, key_dir: 
     // Initialize
     let instruction = hyperlane_sealevel_multisig_ism_message_id::instruction::init_instruction(
         program_id,
-        ctx.payer.pubkey(),
+        ctx.payer_pubkey,
     )
     .unwrap();
 
@@ -95,7 +95,7 @@ fn deploy_mailbox(
     let program_id = keypair.pubkey();
 
     deploy_program(
-        &ctx.payer_path,
+        &ctx.payer_keypair_path(),
         keypair_path.to_str().unwrap(),
         core.built_so_dir
             .join("hyperlane_sealevel_mailbox.so")
@@ -111,7 +111,7 @@ fn deploy_mailbox(
         program_id,
         core.local_domain,
         default_ism,
-        ctx.payer.pubkey(),
+        ctx.payer_pubkey,
     )
     .unwrap();
 
@@ -136,7 +136,7 @@ fn deploy_validator_announce(
     let program_id = keypair.pubkey();
 
     deploy_program(
-        &ctx.payer_path,
+        &ctx.payer_keypair_path(),
         keypair_path.to_str().unwrap(),
         core.built_so_dir
             .join("hyperlane_sealevel_validator_announce.so")
@@ -150,7 +150,7 @@ fn deploy_validator_announce(
     // Initialize
     let instruction = hyperlane_sealevel_validator_announce::instruction::init_instruction(
         program_id,
-        ctx.payer.pubkey(),
+        ctx.payer_pubkey,
         mailbox_program_id,
         core.local_domain,
     )
@@ -221,7 +221,7 @@ fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, 
         .collect::<Vec<_>>();
 
     deploy_program(
-        &ctx.payer_path,
+        &ctx.payer_keypair_path(),
         keypair_path.to_str().unwrap(),
         core.built_so_dir
             .join("hyperlane_sealevel_igp.so")
@@ -234,7 +234,7 @@ fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, 
 
     // Initialize the program data
     let instruction =
-        hyperlane_sealevel_igp::instruction::init_instruction(program_id, ctx.payer.pubkey())
+        hyperlane_sealevel_igp::instruction::init_instruction(program_id, ctx.payer_pubkey)
             .unwrap();
 
     ctx.new_txn().add(instruction).send_with_payer();
@@ -249,10 +249,10 @@ fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, 
     let salt = H256::zero();
     let instruction = hyperlane_sealevel_igp::instruction::init_igp_instruction(
         program_id,
-        ctx.payer.pubkey(),
+        ctx.payer_pubkey,
         salt,
-        Some(ctx.payer.pubkey()),
-        ctx.payer.pubkey(),
+        Some(ctx.payer_pubkey),
+        ctx.payer_pubkey,
     )
     .unwrap();
 
@@ -264,9 +264,9 @@ fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, 
 
     let instruction = hyperlane_sealevel_igp::instruction::init_overhead_igp_instruction(
         program_id,
-        ctx.payer.pubkey(),
+        ctx.payer_pubkey,
         salt,
-        Some(ctx.payer.pubkey()),
+        Some(ctx.payer_pubkey),
         igp_account,
     )
     .unwrap();
@@ -288,7 +288,7 @@ fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, 
         let instruction = hyperlane_sealevel_igp::instruction::set_gas_oracle_configs_instruction(
             program_id,
             igp_account,
-            ctx.payer.pubkey(),
+            ctx.payer_pubkey,
             gas_oracle_configs,
         )
         .unwrap();
@@ -309,7 +309,7 @@ fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, 
         let instruction = hyperlane_sealevel_igp::instruction::set_destination_gas_overheads(
             program_id,
             overhead_igp_account,
-            ctx.payer.pubkey(),
+            ctx.payer_pubkey,
             overhead_configs,
         )
         .unwrap();
@@ -332,7 +332,7 @@ fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, 
         let (instruction, gas_payment_data_account) =
             hyperlane_sealevel_igp::instruction::pay_for_gas_instruction(
                 program_id,
-                ctx.payer.pubkey(),
+                ctx.payer_pubkey,
                 igp_account,
                 Some(overhead_igp_account),
                 unique_gas_payment_keypair.pubkey(),
@@ -344,7 +344,7 @@ fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, 
 
         ctx.new_txn()
             .add(instruction)
-            .send(&[&ctx.payer, &unique_gas_payment_keypair]);
+            .send(&[&*ctx.payer_signer(), &unique_gas_payment_keypair]);
 
         println!(
             "Made a payment for message {} with gas payment data account {}",

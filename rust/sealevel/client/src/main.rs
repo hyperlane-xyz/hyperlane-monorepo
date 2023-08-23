@@ -284,6 +284,7 @@ enum TokenSubCmd {
     Query(TokenQuery),
     TransferRemote(TokenTransferRemote),
     EnrollRemoteRouter(TokenEnrollRemoteRouter),
+    TransferOwnership(TransferOwnership),
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -321,6 +322,15 @@ struct TokenEnrollRemoteRouter {
     program_id: Pubkey,
     domain: u32,
     router: H256,
+}
+
+#[derive(Args)]
+struct TransferOwnership {
+    #[arg(long, short)]
+    program_id: Pubkey,
+    // To avoid accidentally transferring ownership to None,
+    // only support transferring to other Pubkeys for now.
+    new_owner: Pubkey,
 }
 
 #[derive(Args)]
@@ -408,11 +418,24 @@ fn main() {
     };
     let url = normalize_to_url_if_moniker(cli.url.unwrap_or(config.json_rpc_url));
     is_url(&url).unwrap();
-    let keypair_path = cli.keypair.unwrap_or(config.keypair_path);
-    is_keypair(&keypair_path).unwrap();
-
     let client = RpcClient::new(url);
-    let payer = read_keypair_file(keypair_path.clone()).unwrap();
+
+    let keypair_path = cli.keypair.unwrap_or(config.keypair_path);
+    let (payer_pubkey, payer_keypair, payer_keypair_path) =
+        if let Ok(payer_keypair) = read_keypair_file(&keypair_path) {
+            (
+                payer_keypair.pubkey(),
+                Some(payer_keypair),
+                Some(keypair_path),
+            )
+        } else {
+            println!(
+                "Provided key is not a keypair file, treating as a public key {}",
+                keypair_path
+            );
+            (Pubkey::from_str(&keypair_path).unwrap(), None, None)
+        };
+
     let commitment = CommitmentConfig::processed();
 
     let mut instructions = vec![];
@@ -427,13 +450,14 @@ fn main() {
         instructions.push(ComputeBudgetInstruction::request_heap_frame(heap_size));
     }
 
-    let ctx = Context {
+    let ctx = Context::new(
         client,
-        payer,
-        payer_path: keypair_path,
+        payer_pubkey,
+        payer_keypair,
+        payer_keypair_path,
         commitment,
-        initial_instructions: instructions.into(),
-    };
+        instructions.into(),
+    );
     match cli.cmd {
         HyperlaneSealevelCmd::Mailbox(cmd) => process_mailbox_cmd(ctx, cmd),
         HyperlaneSealevelCmd::Token(cmd) => process_token_cmd(ctx, cmd),
@@ -453,7 +477,7 @@ fn process_mailbox_cmd(ctx: Context, cmd: MailboxCmd) {
                 init.program_id,
                 init.local_domain,
                 init.default_ism,
-                ctx.payer.pubkey(),
+                ctx.payer_pubkey,
             )
             .unwrap();
 
@@ -501,7 +525,7 @@ fn process_mailbox_cmd(ctx: Context, cmd: MailboxCmd) {
             let (outbox_account, _outbox_bump) =
                 Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), &outbox.program_id);
             let ixn = MailboxInstruction::OutboxDispatch(OutboxDispatch {
-                sender: ctx.payer.pubkey(),
+                sender: ctx.payer_pubkey,
                 destination_domain: outbox.destination,
                 recipient: H256(outbox.recipient.to_bytes()),
                 message_body: outbox.message.into(),
@@ -512,7 +536,7 @@ fn process_mailbox_cmd(ctx: Context, cmd: MailboxCmd) {
                 data: ixn.into_instruction_data().unwrap(),
                 accounts: vec![
                     AccountMeta::new(outbox_account, false),
-                    AccountMeta::new_readonly(ctx.payer.pubkey(), true),
+                    AccountMeta::new_readonly(ctx.payer_pubkey, true),
                     AccountMeta::new_readonly(spl_noop::id(), false),
                 ],
             };
@@ -915,7 +939,7 @@ fn process_token_cmd(ctx: Context, cmd: TokenCmd) {
                 accounts,
             };
             ctx.new_txn().add(xfer_instruction).send(&[
-                &ctx.payer,
+                &*ctx.payer_signer(),
                 &sender,
                 &unique_message_account_keypair,
             ]);
@@ -933,9 +957,21 @@ fn process_token_cmd(ctx: Context, cmd: TokenCmd) {
                 data: enroll_instruction.encode().unwrap(),
                 accounts: vec![
                     AccountMeta::new(token_account, false),
-                    AccountMeta::new_readonly(ctx.payer.pubkey(), true),
+                    AccountMeta::new_readonly(ctx.payer_pubkey, true),
                 ],
             };
+            ctx.new_txn().add(instruction).send_with_payer();
+        }
+        TokenSubCmd::TransferOwnership(transfer) => {
+            let instruction = hyperlane_sealevel_token_lib::instruction::transfer_ownership(
+                transfer.program_id,
+                ctx.payer_pubkey,
+                Some(transfer.new_owner),
+            )
+            .unwrap();
+
+            println!("instruction {:?}", instruction);
+
             ctx.new_txn().add(instruction).send_with_payer();
         }
     }
@@ -947,7 +983,7 @@ fn process_validator_announce_cmd(ctx: Context, cmd: ValidatorAnnounceCmd) {
             let init_instruction =
                 hyperlane_sealevel_validator_announce::instruction::init_instruction(
                     init.program_id,
-                    ctx.payer.pubkey(),
+                    ctx.payer_pubkey,
                     init.mailbox_id,
                     init.local_domain,
                 )
@@ -993,7 +1029,7 @@ fn process_validator_announce_cmd(ctx: Context, cmd: ValidatorAnnounceCmd) {
             // 3. [writeable] The validator-specific ValidatorStorageLocationsAccount PDA account.
             // 4. [writeable] The ReplayProtection PDA account specific to the announcement being made.
             let accounts = vec![
-                AccountMeta::new_readonly(ctx.payer.pubkey(), true),
+                AccountMeta::new_readonly(ctx.payer_pubkey, true),
                 AccountMeta::new_readonly(system_program::id(), false),
                 AccountMeta::new_readonly(validator_announce_account, false),
                 AccountMeta::new(validator_storage_locations_key, false),
@@ -1041,7 +1077,7 @@ fn process_multisig_ism_message_id_cmd(ctx: Context, cmd: MultisigIsmMessageIdCm
             let init_instruction =
                 hyperlane_sealevel_multisig_ism_message_id::instruction::init_instruction(
                     init.program_id,
-                    ctx.payer.pubkey(),
+                    ctx.payer_pubkey,
                 )
                 .unwrap();
             ctx.new_txn().add(init_instruction).send_with_payer();
@@ -1071,7 +1107,7 @@ fn process_multisig_ism_message_id_cmd(ctx: Context, cmd: MultisigIsmMessageIdCm
             // 2. `[writable]` The PDA relating to the provided domain.
             // 3. `[executable]` OPTIONAL - The system program account. Required if creating the domain PDA.
             let accounts = vec![
-                AccountMeta::new(ctx.payer.pubkey(), true),
+                AccountMeta::new(ctx.payer_pubkey, true),
                 AccountMeta::new_readonly(access_control_pda_key, false),
                 AccountMeta::new(domain_data_pda_key, false),
                 AccountMeta::new_readonly(system_program::id(), false),

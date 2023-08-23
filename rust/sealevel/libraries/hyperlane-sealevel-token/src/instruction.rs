@@ -171,3 +171,32 @@ pub fn set_destination_gas_configs(
 
     Ok(instruction)
 }
+
+/// Transfers ownership.
+pub fn transfer_ownership(
+    program_id: Pubkey,
+    owner_payer: Pubkey,
+    new_owner: Option<Pubkey>,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (token_key, _token_bump) =
+        Pubkey::try_find_program_address(hyperlane_token_pda_seeds!(), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+
+    let ixn = Instruction::TransferOwnership(new_owner);
+
+    // Accounts:
+    // 0. [writeable] The token PDA account.
+    // 1. [signer] The current owner.
+    let accounts = vec![
+        AccountMeta::new(token_key, false),
+        AccountMeta::new_readonly(owner_payer, true),
+    ];
+
+    let instruction = SolanaInstruction {
+        program_id,
+        data: ixn.encode()?,
+        accounts,
+    };
+
+    Ok(instruction)
+}
