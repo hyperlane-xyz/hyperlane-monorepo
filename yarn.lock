@@ -3990,7 +3990,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/hyperlane-token@workspace:typescript/token":
+"@hyperlane-xyz/hyperlane-token@1.4.2, @hyperlane-xyz/hyperlane-token@workspace:typescript/token":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/hyperlane-token@workspace:typescript/token"
   dependencies:
@@ -4038,6 +4038,7 @@ __metadata:
     "@ethersproject/hardware-wallets": ^5.7.0
     "@ethersproject/providers": ^5.7.2
     "@hyperlane-xyz/helloworld": 1.4.2
+    "@hyperlane-xyz/hyperlane-token": 1.4.2
     "@hyperlane-xyz/sdk": 1.4.2
     "@hyperlane-xyz/utils": 1.4.2
     "@nomiclabs/hardhat-ethers": ^2.2.1
