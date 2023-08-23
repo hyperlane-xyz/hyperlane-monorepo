@@ -28,17 +28,22 @@ use std::str::FromStr;
 use crate::verify;
 use crate::{signers::Signer, ConnectionConf};
 
+const DEFAULT_GAS_PRICE: f32 = 0.05;
+const DEFAULT_GAS_ADJUSTMENT: f32 = 1.25;
+
 #[async_trait]
 /// Cosmwasm GRPC Provider
 pub trait WasmProvider: Send + Sync {
     /// get latest block height
     async fn latest_block_height(&self) -> ChainResult<u64>;
+
     /// query to already define contract address
     async fn wasm_query<T: Serialize + Sync + Send>(
         &self,
         payload: T,
         maybe_lag: Option<NonZeroU64>,
     ) -> ChainResult<Vec<u8>>;
+
     /// query to specific contract address
     async fn wasm_query_to<T: Serialize + Sync + Send>(
         &self,
@@ -46,20 +51,31 @@ pub trait WasmProvider: Send + Sync {
         payload: T,
         maybe_lag: Option<NonZeroU64>,
     ) -> ChainResult<Vec<u8>>;
+
     /// query account info
     async fn account_query(&self, address: String) -> ChainResult<BaseAccount>;
-    /// generate raw tx
-    async fn generate_raw_tx<T: Serialize + Sync + Send>(
+
+    /// simulate raw tx
+    async fn simulate_raw_tx<I: IntoIterator<Item = cosmrs::Any> + Sync + Send>(
         &self,
-        payload: T,
+        msgs: I,
+        gas_limit: Option<U256>,
+    ) -> ChainResult<SimulateResponse>;
+
+    /// generate raw tx
+    async fn generate_raw_tx<I: IntoIterator<Item = cosmrs::Any> + Sync + Send>(
+        &self,
+        msgs: I,
         gas_limit: Option<U256>,
     ) -> ChainResult<Vec<u8>>;
+
     /// send tx
     async fn wasm_send<T: Serialize + Sync + Send>(
         &self,
         payload: T,
         gas_limit: Option<U256>,
     ) -> ChainResult<TxResponse>;
+
     /// simulate tx
     async fn wasm_simulate<T: Serialize + Sync + Send>(
         &self,
@@ -182,24 +198,39 @@ impl WasmProvider for WasmGrpcProvider {
         Ok(account)
     }
 
-    async fn generate_raw_tx<T>(&self, payload: T, gas_limit: Option<U256>) -> ChainResult<Vec<u8>>
+    async fn simulate_raw_tx<I>(
+        &self,
+        msgs: I,
+        gas_limit: Option<U256>,
+    ) -> ChainResult<SimulateResponse>
     where
-        T: Serialize + Send + Sync,
+        I: IntoIterator<Item = cosmrs::Any> + Send + Sync,
+    {
+        let mut client = TxServiceClient::connect(self.get_conn_url()?).await?;
+
+        let tx_bytes = self.generate_raw_tx(msgs, gas_limit).await?;
+        let sim_req = tonic::Request::new(SimulateRequest { tx: None, tx_bytes });
+        let mut sim_res = client.simulate(sim_req).await.unwrap().into_inner();
+
+        // apply gas adjustment
+        sim_res.gas_info.as_mut().map(|v| {
+            v.gas_used = (v.gas_used as f32 * DEFAULT_GAS_ADJUSTMENT) as u64;
+            v
+        });
+
+        Ok(sim_res)
+    }
+
+    async fn generate_raw_tx<I>(&self, msgs: I, gas_limit: Option<U256>) -> ChainResult<Vec<u8>>
+    where
+        I: IntoIterator<Item = cosmrs::Any> + Send + Sync,
     {
         let account_info = self.account_query(self.signer.address()).await?;
-        let contract_addr = self.get_contract_addr()?;
-
-        let msg = MsgExecuteContract {
-            sender: contract_addr.clone(),
-            contract: contract_addr.clone(),
-            msg: serde_json::to_string(&payload)?.as_bytes().to_vec(),
-            funds: vec![],
-        };
 
         let private_key = SigningKey::from_slice(&self.signer.private_key).unwrap();
         let public_key = private_key.public_key();
 
-        let tx_body = tx::Body::new(vec![msg.to_any().unwrap()], "", 900u16);
+        let tx_body = tx::Body::new(msgs, "", 900u16);
         let signer_info = SignerInfo::single_direct(Some(public_key), account_info.sequence);
 
         let gas_limit: u64 = gas_limit
@@ -208,9 +239,10 @@ impl WasmProvider for WasmGrpcProvider {
 
         let auth_info = signer_info.auth_info(Fee::from_amount_and_gas(
             Coin::new(
-                Amount::from(10000u128),
+                Amount::from((gas_limit as f32 * DEFAULT_GAS_PRICE) as u64),
                 format!("u{}", self.signer.prefix.clone()).as_str(),
-            ).unwrap(),
+            )
+            .unwrap(),
             gas_limit,
         ));
 
@@ -222,6 +254,7 @@ impl WasmProvider for WasmGrpcProvider {
             account_info.account_number,
         )
         .unwrap();
+
         let tx_signed = sign_doc.sign(&private_key).unwrap();
 
         Ok(tx_signed.to_bytes().unwrap())
@@ -232,25 +265,49 @@ impl WasmProvider for WasmGrpcProvider {
         T: Serialize + Send + Sync,
     {
         let mut client = TxServiceClient::connect(self.get_conn_url()?).await?;
-        let tx_bytes = self.generate_raw_tx(payload, gas_limit).await?;
-        let request = tonic::Request::new(BroadcastTxRequest {
-            tx_bytes,
-            mode: BroadcastMode::Block as i32,
-        });
 
-        let response = client.broadcast_tx(request).await.unwrap().into_inner();
-        Ok(response.tx_response.unwrap())
+        let msgs = vec![MsgExecuteContract {
+            sender: self.signer.address(),
+            contract: self.get_contract_addr()?,
+            msg: serde_json::to_string(&payload)?.as_bytes().to_vec(),
+            funds: vec![],
+        }
+        .to_any()
+        .unwrap()];
+
+        let tx_req = BroadcastTxRequest {
+            tx_bytes: self.generate_raw_tx(msgs, gas_limit).await?,
+            mode: BroadcastMode::Block as i32,
+        };
+
+        let tx_res = client
+            .broadcast_tx(tx_req)
+            .await
+            .unwrap()
+            .into_inner()
+            .tx_response
+            .unwrap();
+        if tx_res.code != 0 {
+            println!("TX_ERROR: {}", tx_res.raw_log);
+        }
+
+        Ok(tx_res)
     }
 
     async fn wasm_simulate<T>(&self, payload: T) -> ChainResult<SimulateResponse>
     where
         T: Serialize + Send + Sync,
     {
-        let mut client = TxServiceClient::connect(self.get_conn_url()?).await?;
-        let tx_bytes = self.generate_raw_tx(payload, None).await?;
+        let msg = MsgExecuteContract {
+            sender: self.signer.address(),
+            contract: self.get_contract_addr()?,
+            msg: serde_json::to_string(&payload)?.as_bytes().to_vec(),
+            funds: vec![],
+        };
 
-        let request = tonic::Request::new(SimulateRequest { tx: None, tx_bytes });
-        let response = client.simulate(request).await.unwrap().into_inner();
+        let response = self
+            .simulate_raw_tx(vec![msg.to_any().unwrap()], None)
+            .await?;
 
         Ok(response)
     }
