@@ -108,20 +108,16 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     mailboxAddress: string,
   ): Promise<MerkleTreeHook> {
     this.logger(`Deploying Merkle Tree Hook to ${chain}`);
-    const merkleTree = await new MerkleTreeHook__factory(
-      this.multiProvider.getSigner(chain),
-    ).deploy(mailboxAddress);
-    await this.multiProvider.handleTx(chain, merkleTree.deployTransaction);
-    return merkleTree;
+    const merkleTreeFactory = new MerkleTreeHook__factory();
+    return this.multiProvider.handleDeploy(chain, merkleTreeFactory, [
+      mailboxAddress,
+    ]);
   }
 
   async deployIgpHook(chain: ChainName): Promise<InterchainGasPaymaster> {
     this.logger(`Deploying Interchain Gas Paymaster Hook to ${chain}`);
-    const igp = await new InterchainGasPaymaster__factory(
-      this.multiProvider.getSigner(chain),
-    ).deploy();
-    await this.multiProvider.handleTx(chain, igp.deployTransaction);
-    return igp;
+    const igpFactory = new InterchainGasPaymaster__factory();
+    return this.multiProvider.handleDeploy(chain, igpFactory, []);
   }
 
   async deployContracts(

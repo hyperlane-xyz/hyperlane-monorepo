@@ -1,7 +1,6 @@
-import { ethers } from 'ethers';
-
 import {
   ChainMap,
+  Chains,
   HookConfig,
   HookContractType,
   MessageHookConfig,
@@ -12,19 +11,17 @@ import {
 
 import { owners } from './owners';
 
-const chainNameFilter = new Set(['goerli', 'optimismgoerli']);
+const chainNameFilter = new Set([Chains.goerli, Chains.optimismgoerli]);
 const filteredOwnersResult = filterByChains<string>(owners, chainNameFilter);
 
 export const hooks: ChainMap<HookConfig> = objMap(
   filteredOwnersResult,
   (chain) => {
-    if (chain === 'goerli') {
+    if (chain === Chains.goerli) {
       const hookConfig: MessageHookConfig = {
         hookContractType: HookContractType.HOOK,
-        mailbox: ethers.constants.AddressZero, // TODO: how to configure this?
+        destination: Chains.optimismgoerli,
         nativeBridge: '0x5086d1eEF304eb5284A0f6720f79403b4e9bE294',
-        remoteIsm: '0x4c5859f0f772848b2d91f1d83e2fe57935348029', // dummy, remoteISM should be deployed first
-        destinationDomain: 420,
       };
       return hookConfig;
     } else {

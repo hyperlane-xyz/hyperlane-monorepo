@@ -1,31 +1,27 @@
 import {
   ChainMap,
+  Chains,
   HookConfig,
   HookContractType,
   MessageHookConfig,
   NoMetadataIsmConfig,
   filterByChains,
-  hyperlaneEnvironments,
   objMap,
 } from '@hyperlane-xyz/sdk';
 
 import { owners } from './owners';
 
-const chainNameFilter = new Set(['ethereum', 'optimism']);
+const chainNameFilter = new Set([Chains.ethereum, Chains.optimism]);
 const filteredOwnersResult = filterByChains<string>(owners, chainNameFilter);
-
-const ethereumMailbox = hyperlaneEnvironments.mainnet.ethereum.mailbox;
 
 export const hooks: ChainMap<HookConfig> = objMap(
   filteredOwnersResult,
   (chain) => {
-    if (chain === 'ethereum') {
+    if (chain === Chains.ethereum) {
       const hookConfig: MessageHookConfig = {
         hookContractType: HookContractType.HOOK,
-        mailbox: ethereumMailbox,
+        destination: Chains.optimism,
         nativeBridge: '0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1',
-        remoteIsm: '0x4c5859f0f772848b2d91f1d83e2fe57935348029', // dummy, remoteISM should be deployed first
-        destinationDomain: 10,
       };
       return hookConfig;
     } else {

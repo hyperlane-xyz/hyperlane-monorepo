@@ -115,12 +115,14 @@ export class HyperlaneIsmFactory extends HyperlaneApp<IsmFactoryFactories> {
     const signer = this.multiProvider.getSigner(chain);
     let address: string;
     if (config.type === ModuleType.LEGACY_MULTISIG) {
-      const multisig = await new LegacyMultisigIsm__factory()
-        .connect(signer)
-        .deploy();
-      await this.multiProvider.handleTx(chain, multisig.deployTransaction);
+      const multisigFactory = new LegacyMultisigIsm__factory();
+      const multisig = await this.multiProvider.handleDeploy(
+        chain,
+        multisigFactory,
+        [],
+      );
+      this.logger(`Enrolling validators for ${origin}`);
       const originDomain = this.multiProvider.getDomainId(origin!);
-      this.logger(`Enrolling validators for ${originDomain}`);
       await this.multiProvider.handleTx(
         chain,
         multisig.enrollValidators([originDomain], [config.validators]),

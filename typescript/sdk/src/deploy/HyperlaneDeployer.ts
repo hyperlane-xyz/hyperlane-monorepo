@@ -251,18 +251,16 @@ export abstract class HyperlaneDeployer<
       return cachedContract;
     }
 
-    const signer = this.multiProvider.getSigner(chain);
-    const overrides = this.multiProvider.getTransactionOverrides(chain);
-
     this.logger(`Deploy ${contractName} on ${chain}`);
-    const contract = await (factory
-      .connect(signer)
-      .deploy(...constructorArgs, overrides) as ReturnType<F['deploy']>);
-
-    await this.multiProvider.handleTx(chain, contract.deployTransaction);
+    const contract = await this.multiProvider.handleDeploy(
+      chain,
+      factory,
+      constructorArgs,
+    );
 
     if (initializeArgs) {
       this.logger(`Initialize ${contractName} on ${chain}`);
+      const overrides = this.multiProvider.getTransactionOverrides(chain);
       const initTx = await contract.initialize(...initializeArgs, overrides);
       await this.multiProvider.handleTx(chain, initTx);
     }

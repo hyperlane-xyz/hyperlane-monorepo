@@ -280,17 +280,6 @@ export async function getRouterConfig(
   return config;
 }
 
-// export async function getRouterConfig(
-//   environment: DeployEnvironment,
-//   multiProvider: MultiProvider,
-// ): Promise<ChainMap<ProxiedRouterConfig>> {
-//   const config = await getRouterConfig(environment, multiProvider);
-//   return objMap(config, (chain, routerConfig) => ({
-//     // timelock: environments[environment].core[chain].upgrade?.timelock,
-//     ...routerConfig,
-//   }));
-// }
-
 export function getValidatorsByChain(
   config: ChainMap<CoreConfig>,
 ): ChainMap<Set<string>> {
