@@ -5,10 +5,8 @@
 
 use std::fmt::{Debug, Display, Formatter};
 
-use eyre::Report;
-use serde::Deserialize;
-
 pub use config_path::ConfigPath;
+use eyre::Report;
 pub use str_or_int::{StrOrInt, StrOrIntParseError};
 pub use trait_ext::*;
 
@@ -21,11 +19,9 @@ mod trait_ext;
 pub type ConfigResult<T> = Result<T, ConfigParsingError>;
 
 /// A trait that allows for constructing `Self` from a raw config type.
-pub trait FromRawConf<'de, T, F = ()>: Sized
+pub trait FromRawConf<T, F = ()>: Sized
 where
-    // technically we don't need this bound but it enforces
-    // the correct usage.
-    T: Debug + Deserialize<'de>,
+    T: Debug,
     F: Default,
 {
     /// Construct `Self` from a raw config type.
@@ -44,26 +40,26 @@ where
 }
 
 /// A trait that allows for converting a raw config type into a "parsed" type.
-pub trait IntoParsedConf<'de, F: Default>: Debug + Deserialize<'de> {
+pub trait IntoParsedConf<F: Default>: Debug + Sized {
     /// Parse the config with a filter to limit what config paths are used.
-    fn parse_config_with_filter<O: FromRawConf<'de, Self, F>>(
+    fn parse_config_with_filter<O: FromRawConf<Self, F>>(
         self,
         cwp: &ConfigPath,
         filter: F,
     ) -> ConfigResult<O>;
 
     /// Parse the config.
-    fn parse_config<O: FromRawConf<'de, Self, F>>(self, cwp: &ConfigPath) -> ConfigResult<O> {
+    fn parse_config<O: FromRawConf<Self, F>>(self, cwp: &ConfigPath) -> ConfigResult<O> {
         self.parse_config_with_filter(cwp, F::default())
     }
 }
 
-impl<'de, S, F> IntoParsedConf<'de, F> for S
+impl<S, F> IntoParsedConf<F> for S
 where
-    S: Deserialize<'de> + Debug,
+    S: Debug,
     F: Default,
 {
-    fn parse_config_with_filter<O: FromRawConf<'de, S, F>>(
+    fn parse_config_with_filter<O: FromRawConf<S, F>>(
         self,
         cwp: &ConfigPath,
         filter: F,
@@ -92,12 +88,17 @@ impl ConfigParsingError {
 
     /// Convert this error into a result, returning `Ok(())` if there are no
     /// errors.
-    pub fn into_result(self) -> ConfigResult<()> {
-        if self.0.is_empty() {
-            Ok(())
+    pub fn into_result<T>(self, val: T) -> ConfigResult<T> {
+        if self.is_ok() {
+            Ok(val)
         } else {
             Err(self)
         }
+    }
+
+    /// Checks if there are no errors.
+    pub fn is_ok(&self) -> bool {
+        self.0.is_empty()
     }
 }
 
@@ -122,3 +123,35 @@ impl Display for ConfigParsingError {
 }
 
 impl std::error::Error for ConfigParsingError {}
+
+/// Try to unwrap a series of options during config parsing and handle errors more gracefully than
+/// unwrapping and causing a panic if we forgot to assert something earlier.
+///
+/// Use as `cfg_unwrap_all!(cwp, err: [a, b, c])` where `cwp` is the current working path and `err`
+/// is the `ConfigParsingError`, and a, b, and c are the options to unwrap. The result will be that
+/// calling this macro a, b, and c will be unwrapped and assigned to variables of the same name.
+#[macro_export]
+macro_rules! cfg_unwrap_all {
+    ($cwp:ident, $err:ident: [$($i:ident),+$(,)?]) => {
+        $(cfg_unwrap_all!(@unwrap $cwp, $err, $i);)*
+    };
+    (@unwrap $cwp:ident, $err:ident, $i:ident) => {
+        let $i = if let Some($i) = $i {
+            $i
+        } else {
+            if $err.is_ok() {
+                // This should never happen if we write our code correctly
+                tracing::warn!(
+                    ident=stringify!($i),
+                    config_path=%$cwp,
+                    "Invalid configuration; seeing this error means we forgot to handle a specific error case before unwrapping it."
+                );
+                $err.push($cwp.clone(), eyre::eyre!(
+                    "Invalid configuration; seeing this error means we forgot to handle a specific error case before unwrapping it. Occurred when accessing ({})",
+                    stringify!($i)
+                ));
+            }
+            return Err($err);
+        };
+    };
+}

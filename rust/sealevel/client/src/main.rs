@@ -721,6 +721,16 @@ fn process_token_cmd(ctx: Context, cmd: TokenCmd) {
                         "escrow_account (key, bump)=({}, {})",
                         escrow_account, escrow_bump,
                     );
+
+                    let (ata_payer_account, ata_payer_bump) = Pubkey::find_program_address(
+                        hyperlane_token_ata_payer_pda_seeds!(),
+                        &query.program_id,
+                    );
+
+                    println!(
+                        "ATA payer account: {}, bump={}",
+                        ata_payer_account, ata_payer_bump,
+                    );
                 }
             }
         }
