@@ -70,21 +70,18 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
 
     // ============ External functions ============
     function domains() external view returns (uint32[] memory) {
-        bytes32[] storage rawKeys = _routers.keys();
-        uint256 length = rawKeys.length;
-        uint32[] memory keys = new uint32[](length);
-        for (uint256 i = 0; i < length; i++) {
-            keys[i] = uint32(uint256(rawKeys[i]));
-        }
-        return keys;
+        return _routers.uint32Keys();
     }
 
-    function routers(uint32 _domain) public view returns (bytes32) {
-        if (_routers.contains(_domain)) {
-            return _routers.get(_domain);
-        } else {
-            return bytes32(0); // for backwards compatibility with storage mapping
-        }
+    /**
+     * @notice Returns the address of the Router contract for the given domain
+     * @param _domain The remote domain ID.
+     * @dev Returns 0 address if no router is enrolled for the given domain
+     * @return router The address of the Router contract for the given domain
+     */
+    function routers(uint32 _domain) public view virtual returns (bytes32) {
+        (, bytes32 _router) = _routers.tryGet(_domain);
+        return _router;
     }
 
     /**
@@ -144,7 +141,10 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
      * @param _domain The domain
      * @param _address The new router
      */
-    function _enrollRemoteRouter(uint32 _domain, bytes32 _address) internal {
+    function _enrollRemoteRouter(uint32 _domain, bytes32 _address)
+        internal
+        virtual
+    {
         _routers.set(_domain, _address);
         emit RemoteRouterEnrolled(_domain, _address);
     }
@@ -170,10 +170,11 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
     function _mustHaveRemoteRouter(uint32 _domain)
         internal
         view
-        returns (bytes32 _router)
+        returns (bytes32)
     {
-        _router = routers(_domain);
-        require(_router != bytes32(0), NO_ROUTER_ENROLLED_REVERT_MESSAGE);
+        (bool contained, bytes32 _router) = _routers.tryGet(_domain);
+        require(contained, NO_ROUTER_ENROLLED_REVERT_MESSAGE);
+        return _router;
     }
 
     /**

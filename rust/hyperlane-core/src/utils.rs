@@ -5,19 +5,6 @@ use sha3::{digest::Update, Digest, Keccak256};
 
 use crate::{KnownHyperlaneDomain, H160, H256};
 
-/// Strips the '0x' prefix off of hex string so it can be deserialized.
-///
-/// # Arguments
-///
-/// * `s` - The hex str
-pub fn strip_0x_prefix(s: &str) -> &str {
-    if s.len() < 2 || &s[..2] != "0x" {
-        s
-    } else {
-        &s[2..]
-    }
-}
-
 /// Converts a hex or base58 string to an H256.
 pub fn hex_or_base58_to_h256(string: &str) -> Result<H256> {
     let h256 = if string.starts_with("0x") {
@@ -121,8 +108,7 @@ pub fn fmt_sync_time(dur: Duration) -> String {
 /// Use as `#[serde(with = serde_u128)]` to serialize/deserialize u128s as strings but not break
 /// support for numbers.
 pub mod serde_u128 {
-    use serde::de::Visitor;
-    use serde::{de, Deserializer, Serializer};
+    use serde::{de, de::Visitor, Deserializer, Serializer};
 
     struct U128Visitor;
 

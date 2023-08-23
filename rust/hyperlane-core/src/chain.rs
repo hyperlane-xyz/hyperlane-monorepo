@@ -1,15 +1,16 @@
 #![allow(missing_docs)]
 
-use std::fmt::{Debug, Formatter};
-use std::hash::{Hash, Hasher};
+use std::{
+    fmt::{Debug, Formatter},
+    hash::{Hash, Hasher},
+};
 
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 #[cfg(feature = "strum")]
 use strum::{EnumIter, EnumString, IntoStaticStr};
 
-use crate::utils::many_to_one;
-use crate::{HyperlaneProtocolError, IndexMode, H160, H256};
+use crate::{utils::many_to_one, HyperlaneProtocolError, IndexMode, H160, H256};
 
 #[derive(Debug, Clone)]
 pub struct Address(pub bytes::Bytes);
@@ -304,9 +305,9 @@ impl HyperlaneDomain {
             Ok(HyperlaneDomain::Unknown {
                 domain_id,
                 domain_name: name,
-                // we might want to support accepting these from the config later
-                domain_type: HyperlaneDomainType::Unknown,
                 domain_protocol: protocol,
+                // we might want to support accepting this from the config later
+                domain_type: HyperlaneDomainType::Unknown,
             })
         }
     }
@@ -371,8 +372,9 @@ impl HyperlaneDomain {
 #[cfg(test)]
 #[cfg(feature = "strum")]
 mod tests {
-    use crate::KnownHyperlaneDomain;
     use std::str::FromStr;
+
+    use crate::KnownHyperlaneDomain;
 
     #[test]
     fn domain_strings() {
