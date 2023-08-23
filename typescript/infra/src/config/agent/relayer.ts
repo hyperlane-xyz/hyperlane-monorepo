@@ -102,7 +102,7 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
     const baseConfig = this.#relayerConfig!;
 
     const relayerConfig: RelayerConfig = {
-      relayChains: this.contextChainNames.join(','),
+      relayChains: this.contextChainNames[Role.Relayer].join(','),
       gasPaymentEnforcement: JSON.stringify(baseConfig.gasPaymentEnforcement),
     };
 
@@ -136,7 +136,7 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       await awsUser.createIfNotExists();
       const awsKey = (await awsUser.createKeyIfNotExists(this)).keyConfig;
       return Object.fromEntries(
-        this.contextChainNames.map((name) => {
+        this.contextChainNames[Role.Relayer].map((name) => {
           const chain = chainMetadata[name];
           // Sealevel chains always use hex keys
           if (chain?.protocol == ProtocolType.Sealevel) {
@@ -148,7 +148,10 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       );
     } else {
       return Object.fromEntries(
-        this.contextChainNames.map((name) => [name, { type: KeyType.Hex }]),
+        this.contextChainNames[Role.Relayer].map((name) => [
+          name,
+          { type: KeyType.Hex },
+        ]),
       );
     }
   }
