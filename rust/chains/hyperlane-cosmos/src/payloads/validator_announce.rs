@@ -19,7 +19,7 @@ pub struct GetAnnounceStorageLocationsRequestInner {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AnnouncementRequest {
-    pub announcement: AnnouncementRequestInner,
+    pub announce: AnnouncementRequestInner,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
