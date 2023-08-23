@@ -10,7 +10,7 @@ export async function runWarpRouteHelmCommand(helmCommand: HelmCommand) {
   return execCmd(
     `helm ${helmCommand} ${getHelmReleaseName(
       'zebec',
-    )} ./helm/warp-routes --namespace mainnet2 --set image.repository="gcr.io/abacus-labs-dev/hyperlane-monorepo" --set image.tag="4c598b9-20230503-205323"`,
+    )} ./helm/warp-routes --namespace mainnet2 --set image.repository="gcr.io/abacus-labs-dev/hyperlane-monorepo" --set image.tag="c328618-20230822-230047"`,
   );
 }
 
