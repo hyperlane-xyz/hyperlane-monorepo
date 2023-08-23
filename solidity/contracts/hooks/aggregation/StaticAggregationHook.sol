@@ -13,10 +13,10 @@ pragma solidity >=0.8.0;
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
 
-import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
-import {MetaProxy} from "../libs/MetaProxy.sol";
+import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
+import {MetaProxy} from "../../libs/MetaProxy.sol";
 
-contract AggregationHook is IPostDispatchHook {
+contract StaticAggregationHook is IPostDispatchHook {
     function postDispatch(bytes calldata metadata, bytes calldata message)
         external
         payable
