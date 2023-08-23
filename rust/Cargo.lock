@@ -10082,6 +10082,7 @@ dependencies = [
  "futures-util",
  "hyperlane-base",
  "hyperlane-core",
+ "hyperlane-cosmos",
  "hyperlane-ethereum",
  "hyperlane-test",
  "prometheus",
