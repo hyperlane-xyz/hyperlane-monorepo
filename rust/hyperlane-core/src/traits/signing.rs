@@ -54,13 +54,6 @@ impl<S: HyperlaneSigner> HyperlaneSignerExt for S {
         let signing_hash = value.signing_hash();
         let signature = self.sign_hash(&signing_hash).await?;
 
-        println!("{}", self.eth_address());
-        println!(
-            "hash: {}, sign: {}",
-            hex::encode(&signing_hash),
-            hex::encode(&signature.to_vec())
-        );
-
         Ok(SignedType { value, signature })
     }
 
@@ -161,7 +154,6 @@ mod hashes {
 
         let mut eth_message = format!("{PREFIX}{}", message.len()).into_bytes();
         eth_message.extend_from_slice(message);
-
         keccak256(&eth_message).into()
     }
 

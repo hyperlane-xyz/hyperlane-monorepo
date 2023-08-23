@@ -27,6 +27,7 @@ tracing.workspace = true
 hyperlane-core = { path = "../../hyperlane-core", features = ["agent"] }
 hyperlane-base = { path = "../../hyperlane-base" }
 hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
+hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos" }
 
 [dev-dependencies]
 tokio-test.workspace = true
