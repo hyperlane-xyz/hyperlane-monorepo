@@ -10,11 +10,11 @@ publish.workspace = true
 version.workspace = true
 
 [dependencies]
-# Main block
 async-trait.workspace = true
 bs58.workspace = true
 color-eyre = { workspace = true, optional = true }
 config.workspace = true
+convert_case.workspace = true
 derive-new.workspace = true
 ed25519-dalek.workspace = true
 ethers.workspace = true
