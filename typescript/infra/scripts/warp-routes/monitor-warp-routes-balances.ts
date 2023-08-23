@@ -15,7 +15,7 @@ import { WarpTokenConfig, tokenList } from './token_config';
 
 const metricsRegister = new Registry();
 const warpRouteTokenBalance = new Gauge({
-  name: 'warp_route_token_balance',
+  name: 'hyperlane_warp_route_token_balance',
   help: 'HypERC20 token balance of a Warp Route',
   registers: [metricsRegister],
   labelNames: [

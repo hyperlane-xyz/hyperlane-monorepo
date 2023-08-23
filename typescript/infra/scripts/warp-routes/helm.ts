@@ -10,12 +10,14 @@ export async function runWarpRouteHelmCommand(helmCommand: HelmCommand) {
   return execCmd(
     `helm ${helmCommand} ${getHelmReleaseName(
       'zebec',
-    )} ./helm/warp-routes --namespace mainnet2 --set image.repository="gcr.io/abacus-labs-dev/hyperlane-monorepo" --set image.tag="95377a9-20230823-162113"`,
+    )} ./helm/warp-routes --namespace mainnet2 --set image.repository="gcr.io/abacus-labs-dev/hyperlane-monorepo" --set image.tag="5bf6416-20230823-164531" --set fullNameOverride="${getHelmReleaseName(
+      'zebec',
+    )}"`,
   );
 }
 
 function getHelmReleaseName(route: string): string {
-  return `helloworld-warp-route-${route}`;
+  return `hyperlane-warp-route-${route}`;
 }
 
 // function getWarpRoutesHelmValues() {
