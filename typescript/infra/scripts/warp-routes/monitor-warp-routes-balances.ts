@@ -30,17 +30,9 @@ const warpRouteTokenBalance = new Gauge({
 async function main(): Promise<boolean> {
   startMetricsServer(metricsRegister);
 
-  const checkFreqeuncy = 1000;
-
-  // const config = getEnvironmentConfig('mainnet2');
-  // const mainnetMultiProvider = await config.getMultiProvider();
+  const checkFreqeuncy = 1000; // 1 second
 
   const multiProvider = new MultiProvider();
-  // for (const chain of ['solana', 'nautlius']) {
-  //   multiProvider.addChain(chains[chain]);
-  // }
-  // multiProvider.addChain(mainnetMultiProvider.getChainMetadata('bsc'));
-  // multiProvider.intersect(['bsc', 'nautilus', 'solana']);
 
   setInterval(async () => {
     console.log('Checking balances');
