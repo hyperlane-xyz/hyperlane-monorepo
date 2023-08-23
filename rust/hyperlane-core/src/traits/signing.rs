@@ -53,6 +53,14 @@ impl<S: HyperlaneSigner> HyperlaneSignerExt for S {
     ) -> Result<SignedType<T>, HyperlaneSignerError> {
         let signing_hash = value.signing_hash();
         let signature = self.sign_hash(&signing_hash).await?;
+
+        println!("{}", self.eth_address());
+        println!(
+            "hash: {}, sign: {}",
+            hex::encode(&signing_hash),
+            hex::encode(&signature.to_vec())
+        );
+
         Ok(SignedType { value, signature })
     }
 

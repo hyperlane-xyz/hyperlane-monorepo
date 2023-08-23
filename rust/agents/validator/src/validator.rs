@@ -11,8 +11,8 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, Announcement, ChainResult, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox,
-    MerkleTreeHook, TxOutcome, ValidatorAnnounce, H256, U256,
+    HyperlaneContract, HyperlaneDomain, HyperlaneSigner,HyperlaneSignerExt, Mailbox, MerkleTreeHook,
+    Signable, TxOutcome,, ValidatorAnnounce, H256, U256,
 };
 use hyperlane_ethereum::{SingletonSigner, SingletonSignerHandle};
 use tokio::{task::JoinHandle, time::sleep};

@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 
+use base64::Engine;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use hyperlane_core::{
     Announcement, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
@@ -22,7 +23,7 @@ pub struct CosmosValidatorAnnounce {
     _conf: ConnectionConf,
     domain: HyperlaneDomain,
     address: H256,
-    _signer: Signer,
+    signer: Signer,
     provider: Box<WasmGrpcProvider>,
 }
 
@@ -35,7 +36,7 @@ impl CosmosValidatorAnnounce {
             _conf: conf,
             domain: locator.domain.clone(),
             address: locator.address,
-            _signer: signer,
+            signer: signer,
             provider: Box::new(provider),
         }
     }
@@ -89,12 +90,18 @@ impl ValidatorAnnounce for CosmosValidatorAnnounce {
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
         let announce_request = AnnouncementRequest {
-            announcement: AnnouncementRequestInner {
-                validator: announcement.value.validator.to_string(),
+            announce: AnnouncementRequestInner {
+                validator: hex::encode(announcement.value.validator),
                 storage_location: announcement.value.storage_location,
-                signature: hex::encode(announcement.signature.to_vec()),
+                signature: base64::engine::general_purpose::STANDARD
+                    .encode(announcement.signature.to_vec()),
             },
         };
+        println!("sender: {}", self.signer.address());
+        println!(
+            "payload: {}",
+            serde_json::to_string(&announce_request).unwrap()
+        );
 
         let response: TxResponse = self
             .provider
