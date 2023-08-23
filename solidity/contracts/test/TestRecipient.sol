@@ -21,6 +21,7 @@ contract TestRecipient is
     event ReceivedMessage(
         uint32 indexed origin,
         bytes32 indexed sender,
+        uint256 indexed value,
         string message
     );
 
@@ -30,8 +31,8 @@ contract TestRecipient is
         uint32 _origin,
         bytes32 _sender,
         bytes calldata _data
-    ) external virtual override {
-        emit ReceivedMessage(_origin, _sender, string(_data));
+    ) external payable virtual override {
+        emit ReceivedMessage(_origin, _sender, msg.value, string(_data));
         lastSender = _sender;
         lastData = _data;
     }

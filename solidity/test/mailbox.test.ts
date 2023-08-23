@@ -1,6 +1,5 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
-import { BigNumber } from 'ethers';
 import { ethers } from 'hardhat';
 
 import { utils } from '@hyperlane-xyz/utils';
@@ -11,9 +10,9 @@ import {
   BadRecipient3__factory,
   BadRecipient5__factory,
   BadRecipient6__factory,
+  TestHook__factory,
   TestMailbox,
   TestMailbox__factory,
-  TestMerkleTreeHook,
   TestMerkleTreeHook__factory,
   TestMultisigIsm,
   TestMultisigIsm__factory,
@@ -29,7 +28,6 @@ const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
 
 describe('Mailbox', async () => {
   let mailbox: TestMailbox,
-    defaultHook: TestMerkleTreeHook,
     module: TestMultisigIsm,
     signer: SignerWithAddress,
     nonOwner: SignerWithAddress,
@@ -43,9 +41,11 @@ describe('Mailbox', async () => {
     mailbox = await mailboxFactory.deploy(originDomain, signer.address);
     beforeBlock = mailbox.deployTransaction.blockNumber!;
     const defaultHookFactory = new TestMerkleTreeHook__factory(signer);
-    defaultHook = await defaultHookFactory.deploy(mailbox.address);
+    const defaultHook = await defaultHookFactory.deploy(mailbox.address);
+    const requiredHook = await new TestHook__factory(signer).deploy();
     await mailbox.setDefaultIsm(module.address);
     await mailbox.setDefaultHook(defaultHook.address);
+    await mailbox.setRequiredHook(requiredHook.address);
   });
 
   it('#deployedBlock', async () => {
@@ -92,7 +92,7 @@ describe('Mailbox', async () => {
           ['dispatch(uint32,bytes32,bytes)'](destDomain, recipientBytes, body),
       )
         .to.emit(mailbox, 'Dispatch')
-        .withArgs(message)
+        .withArgs(signer.address, destDomain, recipientBytes, message)
         .to.emit(mailbox, 'DispatchId')
         .withArgs(utils.messageId(message));
     });

@@ -8,6 +8,7 @@ import { Validator, types, utils } from '@hyperlane-xyz/utils';
 import domainHashTestCases from '../../../vectors/domainHash.json';
 import {
   LightTestRecipient__factory,
+  TestHook__factory,
   TestLegacyMultisigIsm,
   TestLegacyMultisigIsm__factory,
   TestMailbox,
@@ -42,6 +43,8 @@ describe('LegacyMultisigIsm', async () => {
     const defaultHookFactory = new TestMerkleTreeHook__factory(signer);
     defaultHook = await defaultHookFactory.deploy(mailbox.address);
     await mailbox.setDefaultHook(defaultHook.address);
+    const requiredHook = await new TestHook__factory(signer).deploy();
+    await mailbox.setRequiredHook(requiredHook.address);
     validators = await Promise.all(
       signers
         .filter((_, i) => i > 1)

@@ -7,6 +7,7 @@ import { ethers } from 'hardhat';
 import { utils } from '@hyperlane-xyz/utils';
 
 import {
+  TestHook__factory,
   TestInterchainGasPaymaster,
   TestInterchainGasPaymaster__factory,
   TestMailbox,
@@ -52,6 +53,8 @@ describe('Router', async () => {
     const defaultHookFactory = new TestMerkleTreeHook__factory(signer);
     defaultHook = await defaultHookFactory.deploy(mailbox.address);
     await mailbox.setDefaultHook(defaultHook.address);
+    const requiredHook = await new TestHook__factory(signer).deploy();
+    await mailbox.setRequiredHook(requiredHook.address);
     igp = await new TestInterchainGasPaymaster__factory(signer).deploy(
       signer.address,
     );

@@ -8,7 +8,7 @@ import {Message} from "./libs/Message.sol";
 import {TypeCasts} from "./libs/TypeCasts.sol";
 import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "./interfaces/IInterchainSecurityModule.sol";
 import {IPostDispatchHook} from "./interfaces/hooks/IPostDispatchHook.sol";
-import {IMessageRecipient} from "./interfaces/IMessageRecipientV3.sol";
+import {IMessageRecipient} from "./interfaces/IMessageRecipient.sol";
 import {IMailbox} from "./interfaces/IMailbox.sol";
 
 // ============ External Imports ============
@@ -46,9 +46,10 @@ contract Mailbox is IMailbox, Indexed, Versioned, Ownable {
     // Mapping of message ID to delivery context that processed the message.
     struct Delivery {
         // address sender;
-        IInterchainSecurityModule ism;
+        // uint48 gasUsed;
+        uint48 timestamp;
+        // IInterchainSecurityModule ism;
         // uint48 value?
-        // uint48 timestamp?
     }
     mapping(bytes32 => Delivery) internal deliveries;
 
@@ -182,9 +183,11 @@ contract Mailbox is IMailbox, Indexed, Versioned, Ownable {
 
         nonce += 1;
         latestDispatchedId = id;
-        emit Dispatch(id, message);
+        emit Dispatch(msg.sender, destinationDomain, recipientAddress, message);
+        emit DispatchId(id);
 
         /// INTERACTIONS ///
+        // TODO: fix msg.value
         requiredHook.postDispatch{value: msg.value}(metadata, message);
         hook.postDispatch{value: msg.value}(metadata, message);
 
@@ -192,7 +195,7 @@ contract Mailbox is IMailbox, Indexed, Versioned, Ownable {
     }
 
     function delivered(bytes32 _id) public view override returns (bool) {
-        return address(deliveries[_id].ism) != address(0);
+        return deliveries[_id].timestamp > 0;
     }
 
     /**
@@ -226,12 +229,12 @@ contract Mailbox is IMailbox, Indexed, Versioned, Ownable {
         /// EFFECTS ///
 
         deliveries[_id] = Delivery({
-            ism: ism
+            timestamp: uint48(block.timestamp)
             // sender: msg.sender
-            // value: uint48(msg.value),
-            // timestamp: uint48(block.number)
+            // gasUsed: gasleft()
         });
-        emit Process(_id, _message);
+        emit Process(_message.origin(), _message.sender(), recipient);
+        emit ProcessId(_id);
 
         /// INTERACTIONS ///
 
