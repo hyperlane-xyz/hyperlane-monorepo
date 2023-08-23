@@ -12,7 +12,6 @@
     "@ethersproject/hardware-wallets": "^5.7.0",
     "@ethersproject/providers": "^5.7.2",
     "@hyperlane-xyz/helloworld": "1.4.2",
-    "@hyperlane-xyz/hyperlane-token": "1.4.2",
     "@hyperlane-xyz/sdk": "1.4.2",
     "@hyperlane-xyz/utils": "1.4.2",
     "@nomiclabs/hardhat-etherscan": "^3.0.3",
