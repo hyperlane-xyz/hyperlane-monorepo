@@ -1,6 +1,6 @@
 import { utils as ethersUtils } from 'ethers';
 
-import { utils } from '@hyperlane-xyz/utils';
+import { types, utils } from '@hyperlane-xyz/utils';
 
 import { BytecodeHash } from '../consts/bytecode';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
@@ -47,11 +47,23 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     await this.checkMailbox(chain);
     await this.checkBytecodes(chain);
     await this.checkValidatorAnnounce(chain);
+    if (config.upgrade) {
+      await this.checkUpgrade(chain, config.upgrade);
+    }
   }
 
   async checkDomainOwnership(chain: ChainName): Promise<void> {
     const config = this.configMap[chain];
-    return this.checkOwnership(chain, config.owner);
+
+    let ownableOverrides: Record<string, types.Address> = {};
+    if (config.upgrade) {
+      const timelockController =
+        this.app.getAddresses(chain).timelockController;
+      ownableOverrides = {
+        proxyAdmin: timelockController,
+      };
+    }
+    return this.checkOwnership(chain, config.owner, ownableOverrides);
   }
 
   async checkMailbox(chain: ChainName): Promise<void> {
@@ -119,6 +131,12 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       'Mailbox proxy',
       contracts.mailbox.address,
       [BytecodeHash.TRANSPARENT_PROXY_BYTECODE_HASH],
+    );
+    await this.checkBytecode(
+      chain,
+      'ProxyAdmin',
+      contracts.proxyAdmin.address,
+      [BytecodeHash.PROXY_ADMIN_BYTECODE_HASH],
     );
   }
 

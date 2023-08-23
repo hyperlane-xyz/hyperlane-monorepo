@@ -96,15 +96,15 @@ export function testCoreConfig(chains: ChainName[]): ChainMap<CoreConfig> {
   );
 
   // test partial timelock config
-  // config.test3.upgrade = {
-  //   timelock: {
-  //     delay: 100,
-  //     roles: {
-  //       executor: nonZeroAddress,
-  //       proposer: nonZeroAddress,
-  //     },
-  //   },
-  // };
+  config.test3.upgrade = {
+    timelock: {
+      delay: 100,
+      roles: {
+        executor: nonZeroAddress,
+        proposer: nonZeroAddress,
+      },
+    },
+  };
 
   return config;
 }

@@ -1,11 +1,8 @@
 import debug from 'debug';
 
-import {
-  HyperlaneAddressesMap,
-  HyperlaneContracts,
-  HyperlaneContractsMap,
-} from '../contracts';
-import { CoreFactories } from '../core/contracts';
+import { types } from '@hyperlane-xyz/utils';
+
+import { HyperlaneContracts, HyperlaneContractsMap } from '../contracts';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
@@ -22,7 +19,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
 > {
   constructor(
     multiProvider: MultiProvider,
-    readonly core: HyperlaneAddressesMap<CoreFactories>,
+    readonly core: ChainMap<{ mailbox: types.Address }>,
   ) {
     super(multiProvider, optimismHookFactories, {
       logger: debug('hyperlane:HookDeployer'),

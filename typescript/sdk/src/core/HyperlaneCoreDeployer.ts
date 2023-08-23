@@ -1,4 +1,5 @@
 import debug from 'debug';
+import { ethers } from 'ethers';
 
 import {
   InterchainGasPaymaster,
@@ -6,6 +7,8 @@ import {
   Mailbox,
   MerkleTreeHook,
   MerkleTreeHook__factory,
+  TimelockController,
+  TimelockController__factory,
   ValidatorAnnounce,
 } from '@hyperlane-xyz/core';
 import { types } from '@hyperlane-xyz/utils';
@@ -37,6 +40,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   async deployMailbox(
     chain: ChainName,
     ismConfig: IsmConfig,
+    proxyAdmin: types.Address,
     owner: types.Address,
   ): Promise<Mailbox> {
     const cachedMailbox = this.readCache(
@@ -53,10 +57,12 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
     // deploy mailbox
     const domain = this.multiProvider.getDomainId(chain);
-    const mailbox = await this.deployContract(chain, 'mailbox', [
-      domain,
-      owner,
-    ]);
+    const mailbox = await this.deployProxiedContract(
+      chain,
+      'mailbox',
+      proxyAdmin,
+      [domain, owner],
+    );
 
     // deploy default ISM
     const defaultIsmAddress = await this.deployIsm(chain, ismConfig);
@@ -129,9 +135,12 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       return undefined as any;
     }
 
+    const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
+
     const mailbox = await this.deployMailbox(
       chain,
       config.defaultIsm,
+      proxyAdmin.address,
       config.owner,
     );
 
@@ -140,8 +149,33 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       mailbox.address,
     );
 
+    let timelockController: TimelockController;
+    if (config.upgrade) {
+      timelockController = await this.deployTimelock(
+        chain,
+        config.upgrade.timelock,
+      );
+      await this.transferOwnershipOfContracts(
+        chain,
+        timelockController.address,
+        { proxyAdmin },
+      );
+    } else {
+      // mock this for consistent serialization
+      timelockController = TimelockController__factory.connect(
+        ethers.constants.AddressZero,
+        this.multiProvider.getProvider(chain),
+      );
+      await this.transferOwnershipOfContracts(chain, config.owner, {
+        mailbox,
+        proxyAdmin,
+      });
+    }
+
     return {
       mailbox,
+      proxyAdmin,
+      timelockController,
       validatorAnnounce,
     };
   }
