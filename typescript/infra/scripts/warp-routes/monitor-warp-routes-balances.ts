@@ -10,9 +10,7 @@ import { ChainMap, MultiProvider } from '@hyperlane-xyz/sdk';
 import { debug, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { startMetricsServer } from '../../src/utils/metrics';
-import { getEnvironmentConfig } from '../utils';
 
-import { chains } from './chain_config';
 import { WarpTokenConfig, tokenList } from './token_config';
 
 const metricsRegister = new Registry();
@@ -34,12 +32,15 @@ async function main(): Promise<boolean> {
 
   const checkFreqeuncy = 1000;
 
-  const config = getEnvironmentConfig('mainnet2');
-  const mainnetMultiProvider = await config.getMultiProvider();
+  // const config = getEnvironmentConfig('mainnet2');
+  // const mainnetMultiProvider = await config.getMultiProvider();
 
-  const multiProvider = new MultiProvider(chains);
-  multiProvider.addChain(mainnetMultiProvider.getChainMetadata('bsc'));
-  multiProvider.intersect(['bsc', 'nautilus', 'solana']);
+  const multiProvider = new MultiProvider();
+  // for (const chain of ['solana', 'nautlius']) {
+  //   multiProvider.addChain(chains[chain]);
+  // }
+  // multiProvider.addChain(mainnetMultiProvider.getChainMetadata('bsc'));
+  // multiProvider.intersect(['bsc', 'nautilus', 'solana']);
 
   setInterval(async () => {
     console.log('Checking balances');
