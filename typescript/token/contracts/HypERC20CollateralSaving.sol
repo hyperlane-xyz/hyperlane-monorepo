@@ -65,8 +65,8 @@ contract HypERC20CollateralSaving is HypERC20Collateral {
             }
         }
         if (assetsAmount[_recipient] != 0) {
-            if (assetsAmount[_recipient] > shares) {
-                assetsAmount[_recipient] = assetsAmount[_recipient] - shares;
+            if (assetsAmount[_recipient] > _amount) {
+                assetsAmount[_recipient] = assetsAmount[_recipient] - _amount;
             } else {
                 assetsAmount[_recipient] = 0;
             }
