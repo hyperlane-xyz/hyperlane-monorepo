@@ -221,7 +221,9 @@ impl CheckpointSyncer for S3Storage {
     fn announcement_location(&self) -> String {
         match self.folder.as_deref() {
             None | Some("") => format!("s3://{}/{}", self.bucket, self.region.name()),
-            Some(folder_str) => format!("s3://{}/{}/{}", self.bucket, self.region.name(), folder_str),
+            Some(folder_str) => {
+                format!("s3://{}/{}/{}", self.bucket, self.region.name(), folder_str)
+            }
         }
     }
 }

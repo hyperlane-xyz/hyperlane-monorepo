@@ -38,9 +38,7 @@ impl FromStr for CheckpointSyncerConf {
 
         match prefix {
             "s3" => {
-                let url_components = suffix
-                    .split('/')
-                    .collect::<Vec<&str>>();
+                let url_components = suffix.split('/').collect::<Vec<&str>>();
                 let (bucket, region, folder): (&str, &str, Option<String>) = match url_components.len() {
                     2 => Ok((url_components[0], url_components[1], None)),
                     3 .. => Ok((url_components[0], url_components[1], Some(url_components[2..].join("/")))),
@@ -72,7 +70,11 @@ impl CheckpointSyncerConf {
             CheckpointSyncerConf::LocalStorage { path } => {
                 Box::new(LocalStorage::new(path.clone(), latest_index_gauge)?)
             }
-            CheckpointSyncerConf::S3 { bucket, folder, region } => Box::new(S3Storage::new(
+            CheckpointSyncerConf::S3 {
+                bucket,
+                folder,
+                region,
+            } => Box::new(S3Storage::new(
                 bucket.clone(),
                 folder.clone(),
                 region.clone(),

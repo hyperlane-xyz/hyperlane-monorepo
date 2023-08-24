@@ -644,7 +644,11 @@ impl FromRawConf<RawCheckpointSyncerConf> for CheckpointSyncerConf {
                 }
                 Ok(Self::LocalStorage { path })
             }
-            RawCheckpointSyncerConf::S3 { bucket, folder, region } => Ok(Self::S3 {
+            RawCheckpointSyncerConf::S3 {
+                bucket,
+                folder,
+                region,
+            } => Ok(Self::S3 {
                 bucket: bucket
                     .ok_or_else(|| eyre!("Missing `bucket` for S3 checkpoint syncer"))
                     .into_config_result(|| cwp + "bucket")?,
