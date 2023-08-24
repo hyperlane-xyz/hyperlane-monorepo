@@ -250,4 +250,13 @@ export {
 export { MultiGeneric } from './utils/MultiGeneric';
 export { filterByChains } from './utils/filter';
 export { multisigIsmVerificationCost } from './utils/ism';
+export {
+  AccountDataWrapper,
+  HypTokenInstruction,
+  HyperlaneTokenData,
+  HyperlaneTokenDataSchema,
+  TransferRemoteInstruction,
+  TransferRemoteSchema,
+  TransferRemoteWrapper,
+} from './utils/sealevel/tokenSerialization';
 export { chainMetadataToWagmiChain, wagmiChainMetadata } from './utils/wagmi';

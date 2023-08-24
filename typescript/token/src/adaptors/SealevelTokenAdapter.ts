@@ -18,13 +18,6 @@ import BigNumber from 'bignumber.js';
 import { deserializeUnchecked, serialize } from 'borsh';
 
 import {
-  Address,
-  addressToBytes,
-  isZeroishAddress,
-} from '@hyperlane-xyz/utils';
-
-import { SOL_SPL_NOOP_ADDRESS } from '../consts/values';
-import {
   AccountDataWrapper,
   HypTokenInstruction,
   HyperlaneTokenData,
@@ -32,7 +25,14 @@ import {
   TransferRemoteInstruction,
   TransferRemoteSchema,
   TransferRemoteWrapper,
-} from '../contracts/sealevelSerialization';
+} from '@hyperlane-xyz/sdk';
+import {
+  Address,
+  addressToBytes,
+  isZeroishAddress,
+} from '@hyperlane-xyz/utils';
+
+import { SOL_SPL_NOOP_ADDRESS } from '../consts/values';
 import { DomainId } from '../globalTypes';
 
 import {
