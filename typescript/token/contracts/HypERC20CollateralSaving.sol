@@ -53,7 +53,7 @@ contract HypERC20CollateralSaving is HypERC20Collateral {
         bytes calldata _metadata // no metadata
     ) internal override {
         uint256 shares = erc4626Token.withdraw(
-            redeemAmount,
+            _amount,
             address(this),
             address(this)
         );
@@ -72,11 +72,11 @@ contract HypERC20CollateralSaving is HypERC20Collateral {
             }
         }
         // send it back to user
-        super._transferTo(_recipient, amount, _metadata);
+        super._transferTo(_recipient, _amount, _metadata);
     }
 
     function previewRedeem(uint256 _amount) external view returns (uint256) {
-        return erc4626Token.previewRedeem(_convertToRedeemToken(_amount));
+        return erc4626Token.previewRedeem(_amount);
     }
 
     function getAssetAmount() public view returns (uint256) {
@@ -87,7 +87,7 @@ contract HypERC20CollateralSaving is HypERC20Collateral {
         return shareAmount[msg.sender];
     }
 
-    function takeProfit() public {
+    function takeProfit() public returns (uint256) {
         require(
             assetsAmount[msg.sender] == 0,
             "You have to withdraw all assets before take profit"
@@ -101,5 +101,6 @@ contract HypERC20CollateralSaving is HypERC20Collateral {
             msg.sender,
             address(this)
         );
+        return shares;
     }
 }
