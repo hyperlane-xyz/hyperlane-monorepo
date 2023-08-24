@@ -249,7 +249,7 @@ impl Validator {
         // the main validator submit loop. This is to avoid a situation in
         // which the validator is signing checkpoints but has not announced
         // their locations, which makes them functionally unusable.
-        let validators: [H256; 1] = [self.signer.eth_address().into()];
+        let validators: [H256; 1] = [address.into()];
         loop {
             info!("Checking for validator announcement");
             if let Some(locations) = self

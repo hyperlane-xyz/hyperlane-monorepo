@@ -99,9 +99,14 @@ impl Mailbox for CosmosMailbox {
             count: general::EmptyStruct {},
         };
 
-        let data = self.provider.wasm_query(payload, lag).await?;
-        let response: mailbox::CountResponse = serde_json::from_slice(&data)?;
+        let data = self.provider.wasm_query(payload, lag).await;
 
+        if let Err(e) = data {
+            println!("error: {:?}", e);
+            return Ok(0);
+        }
+
+        let response: mailbox::CountResponse = serde_json::from_slice(&data?)?;
         Ok(response.count)
     }
 

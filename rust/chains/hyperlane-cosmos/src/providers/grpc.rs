@@ -20,7 +20,9 @@ use cosmrs::proto::traits::Message;
 
 use cosmrs::tx::{self, Fee, MessageExt, SignDoc, SignerInfo};
 use cosmrs::{Amount, Coin};
-use hyperlane_core::{ChainResult, ContractLocator, HyperlaneDomain, H256, U256};
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneDomain, H256, U256,
+};
 use serde::Serialize;
 use std::num::NonZeroU64;
 use std::str::FromStr;
@@ -144,11 +146,13 @@ impl WasmProvider for WasmGrpcProvider {
                 .insert("x-cosmos-block-height", height.into());
         }
 
-        let response = client
-            .smart_contract_state(request)
-            .await
-            .unwrap()
-            .into_inner();
+        let result = client.smart_contract_state(request).await;
+
+        if let Err(e) = result {
+            return Err(ChainCommunicationError::InvalidRequest { msg: e.to_string() });
+        }
+
+        let response = result.unwrap().into_inner();
 
         // TODO: handle query to specific block number
         Ok(response.data)
@@ -178,11 +182,13 @@ impl WasmProvider for WasmGrpcProvider {
                 .insert("x-cosmos-block-height", height.into());
         }
 
-        let response = client
-            .smart_contract_state(request)
-            .await
-            .unwrap()
-            .into_inner();
+        let result = client.smart_contract_state(request).await;
+
+        if let Err(e) = result {
+            return Err(ChainCommunicationError::InvalidRequest { msg: e.to_string() });
+        }
+
+        let response = result.unwrap().into_inner();
 
         // TODO: handle query to specific block number
         Ok(response.data)
