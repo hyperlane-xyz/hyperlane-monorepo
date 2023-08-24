@@ -10085,6 +10085,7 @@ dependencies = [
  "hyperlane-cosmos",
  "hyperlane-ethereum",
  "hyperlane-test",
+ "k256 0.13.1",
  "prometheus",
  "serde",
  "serde_json",
