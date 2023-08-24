@@ -64,10 +64,7 @@ impl ValidatorAnnounce for CosmosValidatorAnnounce {
         &self,
         validators: &[H256],
     ) -> ChainResult<Vec<Vec<String>>> {
-        let vss = validators
-            .iter()
-            .map(|v| hex::encode(H160::from_slice(&v.as_bytes()[12..])))
-            .collect::<Vec<String>>();
+        let vss = validators.iter().map(hex::encode).collect::<Vec<String>>();
 
         let payload = GetAnnounceStorageLocationsRequest {
             get_announce_storage_locations: GetAnnounceStorageLocationsRequestInner {
@@ -99,11 +96,6 @@ impl ValidatorAnnounce for CosmosValidatorAnnounce {
                     .encode(announcement.signature.to_vec()),
             },
         };
-        println!("sender: {}", self.signer.address());
-        println!(
-            "payload: {}",
-            serde_json::to_string(&announce_request).unwrap()
-        );
 
         let response: TxResponse = self
             .provider
