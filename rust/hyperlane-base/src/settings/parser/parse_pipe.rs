@@ -44,11 +44,11 @@ macro_rules! parse {
         )
     };
     // Primary case where a function call is made and returns a config error that we should consume
-    (@a $prev:block, $parser:ident($err:ident) |> $fn1:ident($($fn1_arg:expr),*)? $($rest:tt)*) => {
+    (@a $prev:block, $parser:ident($err:ident) |> $fn1:ident$(::<$($fn1_temp:path),+>)?($($fn1_arg:expr),*)? $($rest:tt)*) => {
         parse!(@a
             {
                 $prev.and_then(|v| {
-                    v.$fn1($($fn1_arg),*)
+                    v.$fn1$(::<$($fn1_temp),*>)?($($fn1_arg),*)
                         .take_config_err(&mut $err)
                 })
             },
@@ -57,10 +57,10 @@ macro_rules! parse {
         )
     };
     // Function call that we don't want to consume the config error for or does not return a Result
-    (@a $prev:block, $parser:ident($err:ident) |> $fn1:ident($($fn1_arg:expr),*) $($rest:tt)*) => {
+    (@a $prev:block, $parser:ident($err:ident) |> $fn1:ident$(::<$($fn1_temp:path),+>)?($($fn1_arg:expr),*) $($rest:tt)*) => {
         parse!(@a
             {
-                $prev.map(|v| v.$fn1($($fn1_arg),*))
+                $prev.map(|v| v.$fn1$(::<$($fn1_temp),*>)?($($fn1_arg),*))
             },
             $parser($err)
             $($rest)*
@@ -68,20 +68,20 @@ macro_rules! parse {
     };
     // Function call that we want to pass the chained value as an argument to and then consume the
     // config result.
-    (@a $prev:block, $parser:ident($err:ident) @> $fn1:ident($($fn1_arg:expr),*)? $($rest:tt)*) => {
+    (@a $prev:block, $parser:ident($err:ident) @> $fn1:ident$(::<$($fn1_temp:path),+>)?($($fn1_arg:expr),*)? $($rest:tt)*) => {
         parse!(@a
             {
-                $prev.and_then(|v| $fn1(v, $($fn1_arg),*).take_config_err(&mut $err))
+                $prev.and_then(|v| $fn1$(::<$($fn1_temp),*>)?(v, $($fn1_arg),*).take_config_err(&mut $err))
             },
             $parser($err)
             $($rest)*
         )
     };
     // Function call that we want to pass the chained value as an argument to
-    (@a $prev:block, $parser:ident($err:ident) @> $fn1:ident($($fn1_arg:expr),*) $($rest:tt)*) => {
+    (@a $prev:block, $parser:ident($err:ident) @> $fn1:ident$(::<$($fn1_temp:path),+>)?($($fn1_arg:expr),*) $($rest:tt)*) => {
         parse!(@a
             {
-                $prev.map(|v| $fn1(v, $($fn1_arg),*))
+                $prev.map(|v| $fn1$(::<$($fn1_temp),*>)?(v, $($fn1_arg),*))
             },
             $parser($err)
             $($rest)*

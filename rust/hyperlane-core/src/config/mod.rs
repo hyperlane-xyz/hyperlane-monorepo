@@ -17,9 +17,11 @@ mod trait_ext;
 /// A result type that is used for config parsing and may contain multiple
 /// errors.
 pub type ConfigResult<T> = Result<T, ConfigParsingError>;
+/// A no-op filter type.
+pub type NoFilter = ();
 
 /// A trait that allows for constructing `Self` from a raw config type.
-pub trait FromRawConf<T, F = ()>: Sized
+pub trait FromRawConf<T, F = NoFilter>: Sized
 where
     T: Debug,
     F: Default,

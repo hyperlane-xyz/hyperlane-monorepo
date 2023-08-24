@@ -9,11 +9,16 @@ use std::{collections::HashSet, path::PathBuf};
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use eyre::{eyre, Context};
 use hyperlane_base::{
-    impl_loadable_from_settings,
-    settings::{deprecated_parser::DeprecatedRawSettings, Settings},
+    impl_loadable_from_settings, parse,
+    settings::{
+        deprecated_parser::DeprecatedRawSettings,
+        parser::{RawAgentConf, ValueParser},
+        Settings,
+    },
 };
 use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, U256};
 use serde::Deserialize;
+use serde_json::Value;
 use tracing::warn;
 
 use crate::settings::matching_list::MatchingList;
@@ -204,6 +209,96 @@ pub struct DeprecatedRawRelayerSettings {
 }
 
 impl_loadable_from_settings!(Relayer, DeprecatedRawRelayerSettings -> RelayerSettings);
+
+#[derive(Debug, Deserialize)]
+#[serde(transparent)]
+struct RawRelayerSettings(Value);
+
+impl FromRawConf<RawRelayerSettings> for RelayerSettings {
+    fn from_config_filtered(
+        raw: RawRelayerSettings,
+        cwp: &ConfigPath,
+        _filter: (),
+    ) -> ConfigResult<Self> {
+        let mut err = ConfigParsingError::default();
+
+        let p = ValueParser::new(cwp.clone(), &raw.0);
+
+        let relay_chain_names: Option<HashSet<&str>> = parse! {
+            p(err)
+            |> get_key("relayChains")?
+            |> parse_string()?
+            |> split(",")
+            |> collect()
+        };
+
+        let base = parse! {
+            p(err)
+            |> parse_from_raw_config::<Settings, RawAgentConf, Option<&HashSet<&str>>>(
+                relay_chain_names.as_ref(),
+                "Parsing base config"
+            )?
+        };
+
+        let db = parse! {
+            p(err)
+            |> get_opt_key("db")??
+            |> parse_from_str("Expected database path")?
+            || std::env::current_dir().unwrap().join("hyperlane_db")
+        };
+
+        let relay_chains: HashSet<HyperlaneDomain> =
+            if let (Some(base), Some(relay_chain_names)) = (&base, relay_chain_names) {
+                relay_chain_names
+                    .into_iter()
+                    .filter_map(|chain| {
+                        base.lookup_domain(chain)
+                            .context("Missing configuration for a chain in `relayChains`")
+                            .into_config_result(|| cwp + "relayChains")
+                            .take_config_err(&mut err)
+                    })
+                    .collect()
+            } else {
+                Default::default()
+            };
+
+        // pub gas_payment_enforcement: Vec<GasPaymentEnforcementConf>,
+        // /// Filter for what messages to relay.
+        // pub whitelist: MatchingList,
+        // /// Filter for what messages to block.
+        // pub blacklist: MatchingList,
+        // /// This is optional. If not specified, any amount of gas will be valid, otherwise this
+        // /// is the max allowed gas in wei to relay a transaction.
+        // pub transaction_gas_limit: Option<U256>,
+        // /// List of domain ids to skip transaction gas for.
+        // pub skip_transaction_gas_limit_for: HashSet<u32>,
+        // /// If true, allows local storage based checkpoint syncers.
+
+        let transaction_gas_limit = parse! {
+            p(err)
+            |> get_opt_key("transactionGasLimit")??
+            |> parse_u256()?
+        };
+
+        let skip_transaction_gas_limit_for_names: HashSet<&str> = parse! {
+            p(err)
+            |> get_opt_key("skipTransactionGasLimitFor")??
+            |> parse_string()?
+            |> split(",")
+            |> collect()
+            || Default
+        };
+
+        let allow_local_checkpoint_syncers = parse! {
+            p(err)
+            |> get_opt_key("allowLocalCheckpointSyncers")??
+            |> parse_bool()?
+            || false
+        };
+
+        todo!()
+    }
+}
 
 impl FromRawConf<DeprecatedRawRelayerSettings> for RelayerSettings {
     fn from_config_filtered(

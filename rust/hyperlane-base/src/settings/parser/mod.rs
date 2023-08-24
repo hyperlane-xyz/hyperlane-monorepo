@@ -24,15 +24,16 @@ pub use self::{json_value_parser::ValueParser, parse_pipe::parse};
 pub use super::envs::*;
 use crate::settings::{
     chains::IndexSettings, trace::TracingConfig, ChainConf, ChainConnectionConf,
-    CheckpointSyncerConf, CoreContractAddresses, Settings, SignerConf,
+    CoreContractAddresses, Settings, SignerConf,
 };
 
 mod json_value_parser;
 mod parse_pipe;
 
+/// The base agent config
 #[derive(Debug, Deserialize)]
 #[serde(transparent)]
-struct RawAgentConf(Value);
+pub struct RawAgentConf(Value);
 
 impl FromRawConf<RawAgentConf, Option<&HashSet<&str>>> for Settings {
     fn from_config_filtered(
@@ -399,43 +400,24 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
     }
 }
 
-/// Expects ValidatorAgentConfig.checkpointSyncer
-fn parse_checkpoint_syncer(syncer: ValueParser) -> ConfigResult<CheckpointSyncerConf> {
-    let mut err = ConfigParsingError::default();
-    let syncer_type = parse! {
-        syncer(err)
-        |> get_key("type")?
-        |> parse_string()?
-    };
+/// Parser for agent signers.
+#[derive(Debug, Deserialize)]
+#[serde(transparent)]
+pub struct RawAgentSignerConf(Value);
 
-    match syncer_type {
-        Some("localStorage") => {
-            let path = parse! {
-                syncer(err)
-                |> get_key("path")?
-                |> parse_from_str("Expected file path")?
-            };
-            cfg_unwrap_all!(&syncer.cwp, err: [path]);
-            err.into_result(CheckpointSyncerConf::LocalStorage { path })
-        }
-        Some("s3") => {
-            let bucket = parse! {
-                syncer(err)
-                |> get_key("bucket")?
-                |> parse_string()?
-                |> to_owned()
-            };
-            let region = parse! {
-                syncer(err)
-                |> get_key("region")?
-                |> parse_from_str("Expected aws region")?
-            };
-            cfg_unwrap_all!(&syncer.cwp, err: [bucket, region]);
-            err.into_result(CheckpointSyncerConf::S3 { bucket, region })
-        }
-        Some(_) => {
-            Err(eyre!("Unknown checkpoint syncer type")).into_config_result(|| &syncer.cwp + "type")
-        }
-        None => Err(err),
+impl FromRawConf<RawAgentSignerConf> for SignerConf {
+    fn from_config_filtered(
+        raw: RawAgentSignerConf,
+        cwp: &ConfigPath,
+        _filter: (),
+    ) -> ConfigResult<Self> {
+        let mut err = ConfigParsingError::default();
+        let p = ValueParser::new(cwp.clone(), &raw.0);
+        let signer = parse! {
+            p(err)
+            @> parse_signer()?
+            || Default
+        };
+        err.into_result(signer)
     }
 }

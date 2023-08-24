@@ -1,9 +1,9 @@
-use std::str::FromStr;
+use std::{fmt::Debug, str::FromStr};
 
 use convert_case::{Case, Casing};
 use derive_new::new;
 use eyre::{eyre, Context};
-use hyperlane_core::{config::*, utils::hex_or_base58_to_h256, H256};
+use hyperlane_core::{config::*, utils::hex_or_base58_to_h256, H256, U256};
 use serde::de::{DeserializeOwned, StdError};
 use serde_json::Value;
 
@@ -155,6 +155,36 @@ impl<'v> ValueParser<'v> {
             .into_config_result(|| self.cwp.clone())
     }
 
+    /// Parse a u256 value allowing for it to be represented as string or number.
+    pub fn parse_u256(&self) -> ConfigResult<U256> {
+        match self.val {
+            Value::String(s) => s.parse().context("Expected a valid U256 string"),
+            Value::Number(n) => {
+                if let Some(n) = n.as_u64() {
+                    Ok(n.into())
+                } else {
+                    Err(eyre!("Expected an unsigned integer"))
+                }
+            }
+            _ => Err(eyre!("Expected a U256, got `{:?}`", self.val)),
+        }
+        .into_config_result(|| self.cwp.clone())
+    }
+
+    /// Parse a boolean value allowing for it to be represented as string or bool.
+    pub fn parse_bool(&self) -> ConfigResult<bool> {
+        match self.val {
+            Value::Bool(b) => Ok(*b),
+            Value::String(s) => match s.to_ascii_lowercase().as_str() {
+                "true" => Ok(true),
+                "false" => Ok(false),
+                s => Err(eyre!("Expected a boolean, got string `{s}`")),
+            },
+            _ => Err(eyre!("Expected a boolean, got `{:?}`", self.val)),
+        }
+        .into_config_result(|| self.cwp.clone())
+    }
+
     /// Parse a string value.
     pub fn parse_string(&self) -> ConfigResult<&'v str> {
         match self.val {
@@ -203,5 +233,15 @@ impl<'v> ValueParser<'v> {
             .parse()
             .context(ctx)
             .into_config_result(|| self.cwp.clone())
+    }
+
+    /// Use FromRawConf to parse a value.
+    pub fn parse_from_raw_config<O, T, F>(&self, filter: F, ctx: &'static str) -> ConfigResult<O>
+    where
+        O: FromRawConf<T, F>,
+        T: Debug + DeserializeOwned,
+        F: Default,
+    {
+        O::from_config_filtered(self.parse_value::<T>(ctx)?, &self.cwp, filter)
     }
 }

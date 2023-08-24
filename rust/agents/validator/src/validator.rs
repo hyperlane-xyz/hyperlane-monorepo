@@ -1,12 +1,8 @@
-use std::num::NonZeroU64;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{num::NonZeroU64, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
+use derive_more::AsRef;
 use eyre::Result;
-use tokio::{task::JoinHandle, time::sleep};
-use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument};
-
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     run_all, BaseAgent, CheckpointSyncer, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
@@ -18,15 +14,19 @@ use hyperlane_core::{
     ValidatorAnnounce, H256, U256,
 };
 use hyperlane_ethereum::{SingletonSigner, SingletonSignerHandle};
+use tokio::{task::JoinHandle, time::sleep};
+use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument};
 
 use crate::{
-    settings::ValidatorSettings, submit::ValidatorSubmitter, submit::ValidatorSubmitterMetrics,
+    settings::ValidatorSettings,
+    submit::{ValidatorSubmitter, ValidatorSubmitterMetrics},
 };
 
 /// A validator agent
-#[derive(Debug)]
+#[derive(Debug, AsRef)]
 pub struct Validator {
     origin_chain: HyperlaneDomain,
+    #[as_ref]
     core: HyperlaneAgentCore,
     db: HyperlaneRocksDB,
     message_sync: Arc<MessageContractSync>,
@@ -39,13 +39,6 @@ pub struct Validator {
     interval: Duration,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
 }
-
-impl AsRef<HyperlaneAgentCore> for Validator {
-    fn as_ref(&self) -> &HyperlaneAgentCore {
-        &self.core
-    }
-}
-
 #[async_trait]
 impl BaseAgent for Validator {
     const AGENT_NAME: &'static str = "validator";
