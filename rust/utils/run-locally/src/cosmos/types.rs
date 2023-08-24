@@ -127,6 +127,10 @@ impl AgentConfig {
         let cli = OsmosisCLI::new(bin, network.launch_resp.home_path.to_str().unwrap());
         let validator = cli.get_keypair(validator);
 
+        println!("val_priv : {}", hex::encode(validator.priv_key.to_bytes()));
+        println!("val_pub  : {}", hex::encode(validator.pub_key_to_binary()));
+        println!("val_addr : {}", validator.addr("osmo"));
+
         AgentConfig {
             name: format!("cosmos-test-{}", network.domain),
             domain: network.domain,

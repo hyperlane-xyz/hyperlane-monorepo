@@ -4,7 +4,7 @@ use base64::Engine;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use hyperlane_core::{
     Announcement, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H256, H512, U256,
+    HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H160, H256, H512, U256,
 };
 
 use crate::{
@@ -64,12 +64,14 @@ impl ValidatorAnnounce for CosmosValidatorAnnounce {
         &self,
         validators: &[H256],
     ) -> ChainResult<Vec<Vec<String>>> {
+        let vss = validators
+            .iter()
+            .map(|v| hex::encode(H160::from_slice(&v.as_bytes()[12..])))
+            .collect::<Vec<String>>();
+
         let payload = GetAnnounceStorageLocationsRequest {
             get_announce_storage_locations: GetAnnounceStorageLocationsRequestInner {
-                validators: validators
-                    .iter()
-                    .map(|v| hex::encode(v.as_bytes()))
-                    .collect::<Vec<String>>(),
+                validators: vss,
             },
         };
 
