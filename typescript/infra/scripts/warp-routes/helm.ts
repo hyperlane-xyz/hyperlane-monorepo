@@ -1,18 +1,22 @@
-import { HelmCommand } from '../../src/utils/helm';
+import { DeployEnvironment } from '../../src/config';
+import { HelmCommand, helmifyValues } from '../../src/utils/helm';
 import { execCmd } from '../../src/utils/utils';
 import { assertCorrectKubeContext, getEnvironmentConfig } from '../utils';
 
-export async function runWarpRouteHelmCommand(helmCommand: HelmCommand) {
-  //   const values = getWarpRoutesHelmValues();
-  const mainnetConfig = getEnvironmentConfig('mainnet2');
-  await assertCorrectKubeContext(mainnetConfig);
-  // TODO from config
+export async function runWarpRouteHelmCommand(
+  helmCommand: HelmCommand,
+  runEnv: DeployEnvironment,
+) {
+  const envConfig = getEnvironmentConfig(runEnv);
+  await assertCorrectKubeContext(envConfig);
+  const values = getWarpRoutesHelmValues();
+
   return execCmd(
     `helm ${helmCommand} ${getHelmReleaseName(
       'zebec',
-    )} ./helm/warp-routes --namespace mainnet2 --set image.repository="gcr.io/abacus-labs-dev/hyperlane-monorepo" --set image.tag="955b872-20230823-171506" --set fullnameOverride="${getHelmReleaseName(
-      'zebec',
-    )}"`,
+    )} ./helm/warp-routes --namespace ${runEnv} ${values.join(
+      ' ',
+    )} --set fullnameOverride="${getHelmReleaseName('zebec')}"`,
   );
 }
 
@@ -20,12 +24,12 @@ function getHelmReleaseName(route: string): string {
   return `hyperlane-warp-route-${route}`;
 }
 
-// function getWarpRoutesHelmValues() {
-//   const values = {
-//     image: {
-//       repository: warpRouteConfig.docker.repo,
-//       tag: warpRouteConfig.docker.tag,
-//     },
-//   };
-//   return helmifyValues(values);
-// }
+function getWarpRoutesHelmValues() {
+  const values = {
+    image: {
+      repository: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
+      tag: '955b872-20230823-171506',
+    },
+  };
+  return helmifyValues(values);
+}
