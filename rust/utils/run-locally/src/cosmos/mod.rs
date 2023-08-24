@@ -51,7 +51,7 @@ fn default_keys<'a>() -> [(&'a str, &'a str); 6] {
 }
 
 const CW_HYPERLANE_GIT: &str = "https://github.com/many-things/cw-hyperlane";
-const CW_HYPERLANE_VERSION: &str = "0.0.2";
+const CW_HYPERLANE_VERSION: &str = "0.0.3";
 
 fn make_target() -> String {
     let os = if cfg!(target_os = "linux") {
@@ -112,7 +112,7 @@ pub fn install_codes(dir: Option<PathBuf>) -> BTreeMap<String, PathBuf> {
     unzip(&release_comp, dir_path);
 
     // make contract_name => path map
-    fs::read_dir(dir_path)
+    fs::read_dir(concat_path(dir_path, "artifacts"))
         .unwrap()
         .map(|v| {
             let entry = v.unwrap();
