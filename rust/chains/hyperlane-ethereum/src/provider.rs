@@ -6,13 +6,13 @@ use std::time::Duration;
 use async_trait::async_trait;
 use derive_new::new;
 use ethers::prelude::Middleware;
+use hyperlane_core::ethers_core_types;
 use tokio::time::sleep;
 use tracing::instrument;
 
 use hyperlane_core::{
     BlockInfo, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain,
-    HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H160,
-    H256,
+    HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H256,
 };
 
 use crate::BuildableWithProvider;
@@ -51,7 +51,11 @@ where
 {
     #[instrument(err, skip(self))]
     async fn get_block_by_hash(&self, hash: &H256) -> ChainResult<BlockInfo> {
-        let block = get_with_retry_on_none(hash, |h| self.provider.get_block(*h)).await?;
+        let block = get_with_retry_on_none(hash, |h| {
+            let eth_h256: ethers_core_types::H256 = h.into();
+            self.provider.get_block(eth_h256)
+        })
+        .await?;
         Ok(BlockInfo {
             hash: *hash,
             timestamp: block.timestamp.as_u64(),
@@ -72,19 +76,19 @@ where
             .map_err(ChainCommunicationError::from_other)?
             .map(|r| -> Result<_, HyperlaneProviderError> {
                 Ok(TxnReceiptInfo {
-                    gas_used: r.gas_used.ok_or(HyperlaneProviderError::NoGasUsed)?,
-                    cumulative_gas_used: r.cumulative_gas_used,
-                    effective_gas_price: r.effective_gas_price,
+                    gas_used: r.gas_used.ok_or(HyperlaneProviderError::NoGasUsed)?.into(),
+                    cumulative_gas_used: r.cumulative_gas_used.into(),
+                    effective_gas_price: r.effective_gas_price.map(Into::into),
                 })
             })
             .transpose()?;
 
         Ok(TxnInfo {
             hash: *hash,
-            max_fee_per_gas: txn.max_fee_per_gas,
-            max_priority_fee_per_gas: txn.max_priority_fee_per_gas,
-            gas_price: txn.gas_price,
-            gas_limit: txn.gas,
+            max_fee_per_gas: txn.max_fee_per_gas.map(Into::into),
+            max_priority_fee_per_gas: txn.max_priority_fee_per_gas.map(Into::into),
+            gas_price: txn.gas_price.map(Into::into),
+            gas_limit: txn.gas.into(),
             nonce: txn.nonce.as_u64(),
             sender: txn.from.into(),
             recipient: txn.to.map(Into::into),
@@ -96,7 +100,7 @@ where
     async fn is_contract(&self, address: &H256) -> ChainResult<bool> {
         let code = self
             .provider
-            .get_code(H160::from(*address), None)
+            .get_code(ethers_core_types::H160::from(*address), None)
             .await
             .map_err(ChainCommunicationError::from_other)?;
         Ok(!code.is_empty())
@@ -111,10 +115,14 @@ where
     async fn get_storage_at(&self, address: H256, location: H256) -> ChainResult<H256> {
         let storage = self
             .provider
-            .get_storage_at(H160::from(address), location, None)
+            .get_storage_at(
+                ethers_core_types::H160::from(address),
+                location.into(),
+                None,
+            )
             .await
             .map_err(ChainCommunicationError::from_other)?;
-        Ok(storage)
+        Ok(storage.into())
     }
 }
 

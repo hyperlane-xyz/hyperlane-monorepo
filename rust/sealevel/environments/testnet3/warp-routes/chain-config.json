@@ -1,0 +1,29 @@
+{
+  "solanadevnet": {
+    "chainId": 1399811151,
+    "name": "solanadevnet",
+    "publicRpcUrls": [
+      {
+        "http": "https://api.devnet.solana.com"
+      }
+    ]
+  },
+  "bsctestnet": {
+    "chainId": 97,
+    "name": "bsctestnet",
+    "publicRpcUrls": [
+      {
+        "http": "https://rpc.ankr.com/bsc_testnet_chapel"
+      }
+    ]
+  },
+  "proteustestnet": {
+    "chainId": 88002,
+    "name": "proteustestnet",
+    "publicRpcUrls": [
+      {
+        "http": "https://api.proteus.nautchain.xyz/solana"
+      }
+    ]
+  }
+}

@@ -8,7 +8,7 @@ import {
 } from '../../../src/config';
 import { TOKEN_EXCHANGE_RATE_DECIMALS } from '../../../src/config/gas-oracle';
 
-import { TestnetChains, chainNames } from './chains';
+import { TestnetChains, supportedChainNames } from './chains';
 
 // Overcharge by 30% to account for market making risk
 const TOKEN_EXCHANGE_RATE_MULTIPLIER = ethers.utils.parseUnits(
@@ -73,4 +73,8 @@ function getTokenExchangeRate(local: ChainName, remote: ChainName): BigNumber {
 }
 
 export const storageGasOracleConfig: AllStorageGasOracleConfigs =
-  getAllStorageGasOracleConfigs(chainNames, gasPrices, getTokenExchangeRate);
+  getAllStorageGasOracleConfigs(
+    supportedChainNames,
+    gasPrices,
+    getTokenExchangeRate,
+  );

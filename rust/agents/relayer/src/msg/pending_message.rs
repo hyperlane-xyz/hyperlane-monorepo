@@ -242,7 +242,7 @@ impl PendingOperation for PendingMessage {
         op_try!(critical: self.ctx.origin_gas_payment_enforcer.record_tx_outcome(&self.message, tx_outcome), "recording tx outcome");
         if tx_outcome.executed {
             info!(
-                hash=?tx_outcome.txid,
+                txid=?tx_outcome.transaction_id,
                 "Message successfully processed by transaction"
             );
             self.submitted = true;
@@ -251,7 +251,7 @@ impl PendingOperation for PendingMessage {
             PendingOperationResult::Success
         } else {
             info!(
-                hash=?tx_outcome.txid,
+                txid=?tx_outcome.transaction_id,
                 "Transaction attempting to process message reverted"
             );
             self.on_reprepare()
@@ -321,7 +321,7 @@ impl PendingMessage {
                 pm.next_attempt_after = next_attempt_after;
             }
             r => {
-                info!(message_id = ?pm.message.id(), result = ?r, "Failed to read retry count from HyperlaneDB for message.")
+                trace!(message_id = ?pm.message.id(), result = ?r, "Failed to read retry count from HyperlaneDB for message.")
             }
         }
         pm

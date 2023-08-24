@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import "forge-std/Test.sol";
 import "../contracts/mock/MockMailbox.sol";
 import "../contracts/HyperlaneConnectionClient.sol";
 import "../contracts/mock/MockHyperlaneEnvironment.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 import {IInterchainSecurityModule} from "../contracts/interfaces/IInterchainSecurityModule.sol";
+import {IInterchainGasPaymaster} from "../contracts/interfaces/IInterchainGasPaymaster.sol";
 import {InterchainAccountRouter} from "../contracts/middleware/InterchainAccountRouter.sol";
 import {InterchainAccountIsm} from "../contracts/isms/routing/InterchainAccountIsm.sol";
 import {OwnableMulticall} from "../contracts/OwnableMulticall.sol";
@@ -67,29 +69,52 @@ contract InterchainAccountRouterTest is Test {
 
     Callable target;
 
+    function deployProxiedIcaRouter(
+        uint32 _domain,
+        MockMailbox _mailbox,
+        IInterchainGasPaymaster _igps,
+        IInterchainSecurityModule _ism,
+        address _owner
+    ) public returns (InterchainAccountRouter) {
+        InterchainAccountRouter implementation = new InterchainAccountRouter(
+            _domain
+        );
+
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
+            address(implementation),
+            address(1), // no proxy owner necessary for testing
+            abi.encodeWithSelector(
+                InterchainAccountRouter.initialize.selector,
+                address(_mailbox),
+                address(_igps),
+                address(_ism),
+                _owner
+            )
+        );
+
+        return InterchainAccountRouter(address(proxy));
+    }
+
     function setUp() public {
         environment = new MockHyperlaneEnvironment(origin, destination);
 
         icaIsm = new InterchainAccountIsm(
             address(environment.mailboxes(destination))
         );
-        originRouter = new InterchainAccountRouter(origin, address(0));
-        destinationRouter = new InterchainAccountRouter(
-            destination,
-            address(0)
-        );
 
         address owner = address(this);
-        originRouter.initialize(
-            address(environment.mailboxes(origin)),
-            address(environment.igps(destination)),
-            address(icaIsm),
+        originRouter = deployProxiedIcaRouter(
+            origin,
+            environment.mailboxes(origin),
+            environment.igps(destination),
+            icaIsm,
             owner
         );
-        destinationRouter.initialize(
-            address(environment.mailboxes(destination)),
-            address(environment.igps(destination)),
-            address(icaIsm),
+        destinationRouter = deployProxiedIcaRouter(
+            destination,
+            environment.mailboxes(destination),
+            environment.igps(destination),
+            icaIsm,
             owner
         );
 
@@ -116,20 +141,6 @@ contract InterchainAccountRouterTest is Test {
             address(environment.isms(destination))
         );
         assertEq(ica.owner(), address(destinationRouter));
-
-        // The deployed ICA should be owned by the provided address
-        address owner = address(this);
-        InterchainAccountRouter router = new InterchainAccountRouter(
-            destination,
-            owner
-        );
-        ica = router.getDeployedInterchainAccount(
-            origin,
-            address(this),
-            address(originRouter),
-            address(environment.isms(destination))
-        );
-        assertEq(ica.owner(), owner);
     }
 
     function testGetRemoteInterchainAccount() public {
@@ -190,6 +201,29 @@ contract InterchainAccountRouterTest is Test {
         assertEq(actualIsm, ism);
     }
 
+    function testEnrollRemoteRouterAndIsms(
+        uint32[] calldata destinations,
+        bytes32[] calldata routers,
+        bytes32[] calldata isms
+    ) public {
+        if (
+            destinations.length != routers.length ||
+            destinations.length != isms.length
+        ) {
+            vm.expectRevert(bytes("length mismatch"));
+            originRouter.enrollRemoteRouterAndIsms(destinations, routers, isms);
+            return;
+        }
+
+        originRouter.enrollRemoteRouterAndIsms(destinations, routers, isms);
+        for (uint256 i = 0; i < destinations.length; i++) {
+            bytes32 actualRouter = originRouter.routers(destinations[i]);
+            bytes32 actualIsm = originRouter.isms(destinations[i]);
+            assertEq(actualRouter, routers[i]);
+            assertEq(actualIsm, isms[i]);
+        }
+    }
+
     function testEnrollRemoteRouterAndIsmImmutable(
         bytes32 routerA,
         bytes32 ismA,
@@ -215,7 +249,11 @@ contract InterchainAccountRouterTest is Test {
         originRouter.enrollRemoteRouterAndIsm(destination, router, ism);
     }
 
-    function getCalls(bytes32 data) private returns (CallLib.Call[] memory) {
+    function getCalls(bytes32 data)
+        private
+        view
+        returns (CallLib.Call[] memory)
+    {
         vm.assume(data != bytes32(0));
         CallLib.Call memory call = CallLib.Call(
             TypeCasts.addressToBytes32(address(target)),

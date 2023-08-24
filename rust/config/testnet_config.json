@@ -125,6 +125,39 @@
       "index": {
         "from": 1941997
       }
+    },
+    "solanadevnet": {
+      "name": "solanadevnet",
+      "domain": 1399811151,
+      "addresses": {
+        "mailbox": "4v25Dz9RccqUrTzmfHzJMsjd1iVoNrWzeJ4o6GYuJrVn",
+        "interchainGasPaymaster": "7hMPEGdgBQFsjEz3aaNwZp8WMFHs615zAM3erXBDJuJR",
+        "validatorAnnounce": "CMHKvdq4CopDf7qXnDCaTybS15QekQeRt4oUB219yxsp"
+      },
+      "protocol": "sealevel",
+      "finalityBlocks": 0,
+      "connection": {
+        "type": "http",
+        "url": "https://api.devnet.solana.com"
+      },
+      "index": {
+        "from": 1,
+        "mode": "sequence"
+      }
+    },
+    "proteustestnet": {
+      "name": "proteustestnet",
+      "domain": 88002,
+      "addresses": {
+        "mailbox": "0x918D3924Fad8F71551D9081172e9Bb169745461e",
+        "interchainGasPaymaster": "0x06b62A9F5AEcc1E601D0E02732b4E1D0705DE7Db",
+        "validatorAnnounce": "0xEEea93d0d0287c71e47B3f62AFB0a92b9E8429a1"
+      },
+      "protocol": "ethereum",
+      "finalityBlocks": 1,
+      "index": {
+        "from": 8609588
+      }
     }
   }
 }

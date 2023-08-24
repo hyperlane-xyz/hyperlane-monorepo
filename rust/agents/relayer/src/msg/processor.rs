@@ -1,8 +1,14 @@
-use std::fmt::{Debug, Formatter};
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    fmt::{Debug, Formatter},
+    sync::Arc,
+    time::Duration,
+};
 
 use derive_new::new;
 use eyre::Result;
+use hyperlane_base::{db::HyperlaneRocksDB, CoreMetrics};
+use hyperlane_core::{HyperlaneDomain, HyperlaneMessage};
 use prometheus::IntGauge;
 use tokio::{
     sync::{mpsc::UnboundedSender, RwLock},
@@ -10,13 +16,11 @@ use tokio::{
 };
 use tracing::{debug, info_span, instrument, instrument::Instrumented, trace, Instrument};
 
-use hyperlane_base::{db::HyperlaneRocksDB, CoreMetrics};
-use hyperlane_core::{HyperlaneDomain, HyperlaneMessage};
-
-use crate::msg::pending_operation::DynPendingOperation;
-use crate::{merkle_tree_builder::MerkleTreeBuilder, settings::matching_list::MatchingList};
-
 use super::pending_message::*;
+use crate::{
+    merkle_tree_builder::MerkleTreeBuilder, msg::pending_operation::DynPendingOperation,
+    settings::matching_list::MatchingList,
+};
 
 /// Finds unprocessed messages from an origin and submits then through a channel
 /// for to the appropriate destination.
@@ -206,21 +210,21 @@ impl MessageProcessorMetrics {
 mod test {
     use std::time::Instant;
 
-    use crate::msg::{
-        gas_payment::GasPaymentEnforcer, metadata::BaseMetadataBuilder,
-        pending_operation::PendingOperation,
-    };
-
-    use super::*;
     use hyperlane_base::{
         db::{test_utils, HyperlaneRocksDB},
-        ChainConf, Settings,
+        settings::{ChainConf, ChainConnectionConf, Settings},
     };
     use hyperlane_test::mocks::{MockMailboxContract, MockValidatorAnnounceContract};
     use prometheus::{IntCounter, Registry};
     use tokio::{
         sync::mpsc::{self, UnboundedReceiver},
         time::sleep,
+    };
+
+    use super::*;
+    use crate::msg::{
+        gas_payment::GasPaymentEnforcer, metadata::BaseMetadataBuilder,
+        pending_operation::PendingOperation,
     };
 
     fn dummy_processor_metrics(domain_id: u32) -> MessageProcessorMetrics {
@@ -250,7 +254,9 @@ mod test {
             signer: Default::default(),
             finality_blocks: Default::default(),
             addresses: Default::default(),
-            connection: Default::default(),
+            connection: ChainConnectionConf::Ethereum(hyperlane_ethereum::ConnectionConf::Http {
+                url: "http://example.com".parse().unwrap(),
+            }),
             metrics_conf: Default::default(),
             index: Default::default(),
         }
@@ -323,7 +329,7 @@ mod test {
     }
 
     fn add_db_entry(db: &HyperlaneRocksDB, msg: &HyperlaneMessage, retry_count: u32) {
-        db.store_message(&msg, Default::default()).unwrap();
+        db.store_message(msg, Default::default()).unwrap();
         if retry_count > 0 {
             db.store_pending_message_retry_count_by_message_id(&msg.id(), &retry_count)
                 .unwrap();
@@ -343,14 +349,14 @@ mod test {
     /// Only adds database entries to the pending message prefix if the message's
     /// retry count is greater than zero
     fn persist_retried_messages(
-        retries: &Vec<u32>,
+        retries: &[u32],
         db: &HyperlaneRocksDB,
         destination_domain: &HyperlaneDomain,
     ) {
         let mut nonce = 0;
         retries.iter().for_each(|num_retries| {
-            let message = dummy_hyperlane_message(&destination_domain, nonce);
-            add_db_entry(&db, &message, *num_retries);
+            let message = dummy_hyperlane_message(destination_domain, nonce);
+            add_db_entry(db, &message, *num_retries);
             nonce += 1;
         });
     }
@@ -365,7 +371,7 @@ mod test {
         num_operations: usize,
     ) -> Vec<Box<DynPendingOperation>> {
         let (message_processor, mut receive_channel) =
-            dummy_message_processor(&origin_domain, &destination_domain, &db);
+            dummy_message_processor(origin_domain, destination_domain, db);
 
         let process_fut = message_processor.spawn();
         let mut pending_messages = vec![];

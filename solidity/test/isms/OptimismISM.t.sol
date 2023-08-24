@@ -7,9 +7,10 @@ import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {Mailbox} from "../../contracts/Mailbox.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {TestMultisigIsm} from "../../contracts/test/TestMultisigIsm.sol";
-import {OptimismISM} from "../../contracts/isms/native/OptimismISM.sol";
+import {OptimismISM} from "../../contracts/isms/hook/OptimismISM.sol";
 import {OptimismMessageHook} from "../../contracts/hooks/OptimismMessageHook.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
+import {NotCrossChainCall} from "../../contracts/isms/hook/crossChainEnabled/errors.sol";
 
 import {Lib_CrossDomainUtils} from "@eth-optimism/contracts/libraries/bridge/Lib_CrossDomainUtils.sol";
 import {AddressAliasHelper} from "@eth-optimism/contracts/standards/AddressAliasHelper.sol";
@@ -65,8 +66,6 @@ contract OptimismISMTest is Test {
     event FailedRelayedMessage(bytes32 indexed msgHash);
 
     event ReceivedMessage(bytes32 indexed sender, bytes32 indexed messageId);
-
-    error NotCrossChainCall();
 
     function setUp() public {
         // block numbers to fork from, chain data is cached to ../../forge-cache/
@@ -205,9 +204,11 @@ contract OptimismISMTest is Test {
             encodedHookData
         );
 
-        assertEq(
-            opISM.verifiedMessageIds(messageId),
-            address(this).addressToBytes32()
+        assertTrue(
+            opISM.verifiedMessageIds(
+                messageId,
+                address(this).addressToBytes32()
+            )
         );
 
         vm.stopPrank();

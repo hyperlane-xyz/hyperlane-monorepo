@@ -1,3 +1,5 @@
+cargo-features = ["workspace-inheritance"]
+
 [package]
 name = "ethers-prometheus"
 documentation.workspace = true
@@ -8,23 +10,22 @@ publish.workspace = true
 version.workspace = true
 
 [dependencies]
-prometheus = "0.13"
-ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-06-01" }
-derive_builder = "0.12"
-derive-new = "0.5"
-async-trait = { version = "0.1", default-features = false }
-futures = "0.3"
-parking_lot = { version = "0.12" }
-maplit = "1.0"
-log = "0.4"
-tokio = { workspace = true, features = ["time", "sync", "parking_lot"] }
+async-trait.workspace = true
+derive-new.workspace = true
+derive_builder.workspace = true
+ethers.workspace = true
+futures.workspace = true
+log.workspace = true
+maplit.workspace = true
+parking_lot.workspace = true
+prometheus.workspace = true
+serde = { workspace = true, features = ["derive"], optional = true }
+serde_json = { workspace = true }
 static_assertions.workspace = true
-
-serde = { version = "1.0", features = ["derive"], optional = true }
-serde_json = { version = "1.0", default-features = false }
+tokio = { workspace = true, features = ["time", "sync", "parking_lot"] }
 
 # enable feature for this crate that is imported by ethers-rs
-primitive-types = { version = "*", features = ["fp-conversion"] }
+primitive-types = { workspace = true, features = ["fp-conversion"] }
 
 [build-dependencies]
 abigen = { path = "../utils/abigen", features = ["ethers"] }

@@ -1,12 +1,17 @@
 import {
   ChainMap,
   CoreConfig,
+  CoreViolationType,
   HyperlaneCore,
   HyperlaneCoreChecker,
   OwnerViolation,
   ViolationType,
 } from '@hyperlane-xyz/sdk';
-import { types } from '@hyperlane-xyz/utils';
+import {
+  MailboxViolation,
+  MailboxViolationType,
+} from '@hyperlane-xyz/sdk/dist/core/types';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { HyperlaneAppGovernor } from '../govern/HyperlaneAppGovernor';
 
@@ -14,8 +19,42 @@ export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
   HyperlaneCore,
   CoreConfig
 > {
-  constructor(checker: HyperlaneCoreChecker, owners: ChainMap<types.Address>) {
+  constructor(
+    readonly checker: HyperlaneCoreChecker,
+    owners: ChainMap<Address>,
+  ) {
     super(checker, owners);
+  }
+
+  protected async handleMailboxViolation(violation: MailboxViolation) {
+    switch (violation.mailboxType) {
+      case MailboxViolationType.DefaultIsm: {
+        let ismAddress: string;
+        if (typeof violation.expected === 'object') {
+          const ism = await this.checker.ismFactory.deploy(
+            violation.chain,
+            violation.expected,
+          );
+          ismAddress = ism.address;
+        } else if (typeof violation.expected === 'string') {
+          ismAddress = violation.expected;
+        } else {
+          throw new Error('Invalid mailbox violation expected value');
+        }
+
+        this.pushCall(violation.chain, {
+          to: violation.contract.address,
+          data: violation.contract.interface.encodeFunctionData(
+            'setDefaultIsm',
+            [ismAddress],
+          ),
+          description: `Set ${violation.chain} Mailbox default ISM to ${ismAddress}`,
+        });
+        break;
+      }
+      default:
+        throw new Error(`Unsupported mailbox violation type ${violation.type}`);
+    }
   }
 
   protected async mapViolationsToCalls() {
@@ -23,6 +62,10 @@ export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
       switch (violation.type) {
         case ViolationType.Owner: {
           this.handleOwnerViolation(violation as OwnerViolation);
+          break;
+        }
+        case CoreViolationType.Mailbox: {
+          await this.handleMailboxViolation(violation as MailboxViolation);
           break;
         }
         default:

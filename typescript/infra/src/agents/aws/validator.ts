@@ -1,4 +1,13 @@
-import { BaseValidator, types, utils } from '@hyperlane-xyz/utils';
+import {
+  BaseValidator,
+  Checkpoint,
+  HexString,
+  S3Checkpoint,
+  S3CheckpointWithId,
+  SignatureLike,
+  isS3Checkpoint,
+  isS3CheckpointWithId,
+} from '@hyperlane-xyz/utils';
 
 import { S3Receipt, S3Wrapper } from './s3';
 
@@ -16,27 +25,18 @@ interface CheckpointMetric {
   index: number;
 }
 
-// TODO: merge with types.Checkpoint
-/**
- * Shape of a checkpoint in S3 as published by the agent.
- */
-interface S3Checkpoint {
-  value: {
-    outbox_domain: number;
-    root: string;
-    index: number;
-  };
-  signature: {
-    r: string;
-    s: string;
-    v: number;
-  };
+interface SignedCheckpoint {
+  checkpoint: Checkpoint;
+  messageId?: HexString;
+  signature: SignatureLike;
 }
 
-type CheckpointReceipt = S3Receipt<types.Checkpoint>;
+type S3CheckpointReceipt = S3Receipt<SignedCheckpoint>;
 
 const checkpointKey = (checkpointIndex: number) =>
   `checkpoint_${checkpointIndex}.json`;
+const checkpointWithMessageIdKey = (checkpointIndex: number) =>
+  `checkpoint_${checkpointIndex}_with_id.json`;
 const LATEST_KEY = 'checkpoint_latest_index.json';
 const ANNOUNCEMENT_KEY = 'announcement.json';
 const LOCATION_PREFIX = 's3://';
@@ -99,7 +99,11 @@ export class S3Validator extends BaseValidator {
     return latestCheckpointIndex.data;
   }
 
-  async compare(other: S3Validator, count = 20): Promise<CheckpointMetric[]> {
+  async compare(
+    other: S3Validator,
+    withId = false,
+    count = 5,
+  ): Promise<CheckpointMetric[]> {
     const latestCheckpointIndex = await this.s3Bucket.getS3Obj<number>(
       LATEST_KEY,
     );
@@ -136,8 +140,11 @@ export class S3Validator extends BaseValidator {
     const stop = Math.max(maxIndex - count, 0);
 
     for (; checkpointIndex > stop; checkpointIndex--) {
-      const expected = await other.getCheckpointReceipt(checkpointIndex);
-      const actual = await this.getCheckpointReceipt(checkpointIndex);
+      const expected = await other.getCheckpointReceipt(
+        checkpointIndex,
+        withId,
+      );
+      const actual = await this.getCheckpointReceipt(checkpointIndex, withId);
 
       const metric: CheckpointMetric = {
         status: CheckpointStatus.MISSING,
@@ -146,18 +153,42 @@ export class S3Validator extends BaseValidator {
 
       if (actual) {
         metric.status = CheckpointStatus.VALID;
-        if (!this.matchesSigner(actual.data)) {
-          const signerAddress = this.recoverAddressFromCheckpoint(actual.data);
+        if (
+          !this.matchesSigner(
+            actual.data.checkpoint,
+            actual.data.signature,
+            actual.data.messageId,
+          )
+        ) {
+          const signerAddress = this.recoverAddressFromCheckpoint(
+            actual.data.checkpoint,
+            actual.data.signature,
+            actual.data.messageId,
+          );
           metric.violation = `signer mismatch: expected ${this.address}, received ${signerAddress}`;
         }
 
         if (expected) {
           metric.delta =
             actual.modified.getSeconds() - expected.modified.getSeconds();
-          if (expected.data.root !== actual.data.root) {
-            metric.violation = `root mismatch: expected ${expected.data.root}, received ${actual.data.root}`;
-          } else if (expected.data.index !== actual.data.index) {
-            metric.violation = `index mismatch: expected ${expected.data.index}, received ${actual.data.index}`;
+          if (expected.data.checkpoint.root !== actual.data.checkpoint.root) {
+            metric.violation = `root mismatch: expected ${expected.data.checkpoint.root}, received ${actual.data.checkpoint.root}`;
+          } else if (
+            expected.data.checkpoint.index !== actual.data.checkpoint.index
+          ) {
+            metric.violation = `index mismatch: expected ${expected.data.checkpoint.index}, received ${actual.data.checkpoint.index}`;
+          } else if (
+            expected.data.checkpoint.mailbox_address !==
+            actual.data.checkpoint.mailbox_address
+          ) {
+            metric.violation = `mailbox address mismatch: expected ${expected.data.checkpoint.mailbox_address}, received ${actual.data.checkpoint.mailbox_address}`;
+          } else if (
+            expected.data.checkpoint.mailbox_domain !==
+            actual.data.checkpoint.mailbox_domain
+          ) {
+            metric.violation = `mailbox domain mismatch: expected ${expected.data.checkpoint.mailbox_domain}, received ${actual.data.checkpoint.mailbox_domain}`;
+          } else if (expected.data.messageId !== actual.data.messageId) {
+            metric.violation = `message id mismatch: expected ${expected.data.messageId}, received ${actual.data.messageId}`;
           }
         }
 
@@ -178,24 +209,36 @@ export class S3Validator extends BaseValidator {
 
   private async getCheckpointReceipt(
     index: number,
-  ): Promise<CheckpointReceipt | undefined> {
-    const key = checkpointKey(index);
-    const s3Object = await this.s3Bucket.getS3Obj<S3Checkpoint>(key);
+    withId = false,
+  ): Promise<S3CheckpointReceipt | undefined> {
+    const key = withId
+      ? checkpointWithMessageIdKey(index)
+      : checkpointKey(index);
+    const s3Object = await this.s3Bucket.getS3Obj<
+      S3Checkpoint | S3CheckpointWithId
+    >(key);
     if (!s3Object) {
       return;
     }
-    const checkpoint: types.Checkpoint = {
-      signature: s3Object.data.signature,
-      // @ts-ignore Old checkpoints might still be in this format
-      ...s3Object.data.checkpoint,
-      ...s3Object.data.value,
-    };
-    if (!utils.isCheckpoint(checkpoint)) {
+    if (isS3Checkpoint(s3Object.data)) {
+      return {
+        data: {
+          checkpoint: s3Object.data.value,
+          signature: s3Object.data.signature,
+        },
+        modified: s3Object.modified,
+      };
+    } else if (isS3CheckpointWithId(s3Object.data)) {
+      return {
+        data: {
+          checkpoint: s3Object.data.value.checkpoint,
+          messageId: s3Object.data.value.message_id,
+          signature: s3Object.data.signature,
+        },
+        modified: s3Object.modified,
+      };
+    } else {
       throw new Error('Failed to parse checkpoint');
     }
-    return {
-      data: checkpoint,
-      modified: s3Object.modified,
-    };
   }
 }

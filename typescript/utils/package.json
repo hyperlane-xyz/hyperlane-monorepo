@@ -1,19 +1,21 @@
 {
   "name": "@hyperlane-xyz/utils",
-  "description": "General utilities for the Hyperlane network",
-  "version": "1.3.7",
+  "description": "General utilities and types for the Hyperlane network",
+  "version": "1.4.2",
   "dependencies": {
+    "@solana/web3.js": "^1.78.0",
+    "bignumber.js": "^9.1.1",
     "ethers": "^5.7.2"
   },
   "devDependencies": {
     "chai": "^4.3.0",
     "prettier": "^2.4.1",
-    "typescript": "^4.7.2"
+    "typescript": "^5.1.6"
   },
   "homepage": "https://www.hyperlane.xyz",
   "keywords": [
     "Hyperlane",
-    "SDK",
+    "Utilities",
     "Typescript"
   ],
   "license": "Apache-2.0",
@@ -26,6 +28,7 @@
     "check": "tsc --noEmit",
     "prettier": "prettier --write ./src"
   },
+  "sideEffects": false,
   "types": "dist/index.d.ts",
   "files": [
     "/dist"

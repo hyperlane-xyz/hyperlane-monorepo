@@ -1,3 +1,5 @@
+cargo-features = ["workspace-inheritance"]
+
 [package]
 name = "hyperlane-fuel"
 documentation.workspace = true
@@ -8,7 +10,7 @@ publish.workspace = true
 version.workspace = true
 
 [dependencies]
-anyhow = "1.0"
+anyhow.workspace = true
 async-trait.workspace = true
 fuels.workspace = true
 serde.workspace = true

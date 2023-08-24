@@ -1,0 +1,42 @@
+cargo-features = ["workspace-inheritance"]
+
+[package]
+name = "hyperlane-sealevel-mailbox"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+no-entrypoint = []
+no-spl-noop = []
+
+[dependencies]
+borsh.workspace = true
+num-derive.workspace = true
+num-traits.workspace = true
+solana-program.workspace = true
+thiserror.workspace = true
+spl-noop.workspace = true
+# Required to allow dependencies `getrandom` but to preserve determinism required by programs, see
+# https://github.com/solana-labs/solana/blob/master/docs/src/developing/on-chain-programs/developing-rust.md#depending-on-rand
+getrandom = { workspace = true, features = ["custom"] }
+
+proc-macro-crate = "~1.2.1" # TODO: remove this dependency once solana supports rust >=1.64
+blake3 = "=1.4.0" # TODO: update once solana supports rust >= 1.66
+
+access-control = { path = "../../libraries/access-control" }
+account-utils = { path = "../../libraries/account-utils" }
+hyperlane-core = { path = "../../../hyperlane-core" }
+hyperlane-sealevel-interchain-security-module-interface = { path = "../../libraries/interchain-security-module-interface" }
+hyperlane-sealevel-message-recipient-interface = { path = "../../libraries/message-recipient-interface" }
+serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
+
+[dev-dependencies]
+base64.workspace = true
+itertools.workspace = true
+log.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[profile.release]
+overflow-checks = true

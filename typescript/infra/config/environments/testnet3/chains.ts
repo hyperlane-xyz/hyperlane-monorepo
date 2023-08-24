@@ -1,5 +1,7 @@
 import { ChainMap, ChainMetadata, chainMetadata } from '@hyperlane-xyz/sdk';
 
+import { AgentChainNames, AgentRole, Role } from '../../../src/roles';
+
 export const testnetConfigs: ChainMap<ChainMetadata> = {
   alfajores: chainMetadata.alfajores,
   fuji: chainMetadata.fuji,
@@ -20,8 +22,21 @@ export const testnetConfigs: ChainMap<ChainMetadata> = {
 
 // "Blessed" chains that we want core contracts for.
 export type TestnetChains = keyof typeof testnetConfigs;
-export const chainNames = Object.keys(testnetConfigs) as TestnetChains[];
+export const supportedChainNames = Object.keys(
+  testnetConfigs,
+) as TestnetChains[];
 export const environment = 'testnet3';
 
-// Chains that we want to run agents for.
-export const agentChainNames = [...chainNames, 'solanadevnet', 'zbctestnet'];
+const validatorChainNames = [
+  ...supportedChainNames,
+  chainMetadata.solanadevnet.name,
+  chainMetadata.proteustestnet.name,
+];
+
+const relayerChainNames = validatorChainNames;
+
+export const agentChainNames: AgentChainNames = {
+  [Role.Validator]: validatorChainNames,
+  [Role.Relayer]: relayerChainNames,
+  [Role.Scraper]: supportedChainNames,
+};

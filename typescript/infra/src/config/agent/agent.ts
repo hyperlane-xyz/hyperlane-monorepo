@@ -6,7 +6,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../../config/contexts';
-import { Role } from '../../roles';
+import { AgentChainNames, Role } from '../../roles';
 import { DeployEnvironment } from '../environment';
 import { HelmImageValues } from '../infrastructure';
 
@@ -23,6 +23,7 @@ import { HelmValidatorValues, ValidatorBaseChainConfigMap } from './validator';
 export interface HelmRootAgentValues {
   image: HelmImageValues;
   hyperlane: HelmHyperlaneValues;
+  nameOverride?: string;
 }
 
 // See rust/helm/values.yaml for the full list of options and their defaults.
@@ -72,7 +73,7 @@ export interface AgentContextConfig extends AgentEnvConfig {
   // Roles to manage keys for
   rolesWithKeys: Role[];
   // Names of chains this context cares about (subset of environmentChainNames)
-  contextChainNames: ChainName[];
+  contextChainNames: AgentChainNames;
 }
 
 // incomplete common agent configuration for a role
@@ -126,7 +127,7 @@ export class RootAgentConfigHelper implements AgentContextConfig {
   runEnv: DeployEnvironment;
   aws?: AwsConfig;
   rolesWithKeys: Role[];
-  contextChainNames: ChainName[];
+  contextChainNames: AgentChainNames;
   environmentChainNames: ChainName[];
 
   constructor(root: RootAgentConfig) {
@@ -186,3 +187,7 @@ export abstract class AgentConfigHelper<R = unknown>
     return this.docker;
   }
 }
+
+export const allAgentChainNames = (agentChainNames: AgentChainNames) => [
+  ...new Set(Object.values(agentChainNames).reduce((a, b) => a.concat(b), [])),
+];

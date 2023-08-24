@@ -1,6 +1,5 @@
-import Safe from '@safe-global/safe-core-sdk';
-import EthersAdapter from '@safe-global/safe-ethers-lib';
-import SafeServiceClient from '@safe-global/safe-service-client';
+import SafeApiKit from '@safe-global/api-kit';
+import Safe, { EthersAdapter } from '@safe-global/protocol-kit';
 import { ethers } from 'ethers';
 
 import { ChainName, MultiProvider, chainMetadata } from '@hyperlane-xyz/sdk';
@@ -8,13 +7,13 @@ import { ChainName, MultiProvider, chainMetadata } from '@hyperlane-xyz/sdk';
 export function getSafeService(
   chain: ChainName,
   multiProvider: MultiProvider,
-): SafeServiceClient {
+): SafeApiKit {
   const signer = multiProvider.getSigner(chain);
   const ethAdapter = new EthersAdapter({ ethers, signerOrProvider: signer });
   const txServiceUrl = chainMetadata[chain].gnosisSafeTransactionServiceUrl;
   if (!txServiceUrl)
     throw new Error(`must provide tx service url for ${chain}`);
-  return new SafeServiceClient({ txServiceUrl, ethAdapter });
+  return new SafeApiKit({ txServiceUrl, ethAdapter });
 }
 
 export function getSafe(
@@ -31,10 +30,10 @@ export function getSafe(
 }
 
 export async function getSafeDelegates(
-  service: SafeServiceClient,
-  safe: string,
+  service: SafeApiKit,
+  safeAddress: string,
 ) {
-  const delegateResponse = await service.getSafeDelegates(safe);
+  const delegateResponse = await service.getSafeDelegates({ safeAddress });
   return delegateResponse.results.map((r) => r.delegate);
 }
 

@@ -5,11 +5,12 @@ import {
   ChainMetadata,
   ChainName,
   CoreConfig,
+  HookConfig,
   MultiProvider,
   OverheadIgpConfig,
 } from '@hyperlane-xyz/sdk';
 import { HyperlaneEnvironment } from '@hyperlane-xyz/sdk/dist/consts/environments';
-import { types } from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import { environments } from '../../config/environments';
@@ -35,8 +36,9 @@ export type EnvironmentConfig = {
   // Each AgentConfig, keyed by the context
   agents: Partial<Record<Contexts, RootAgentConfig>>;
   core: ChainMap<CoreConfig>;
+  hooks: ChainMap<HookConfig>;
   igp: ChainMap<OverheadIgpConfig>;
-  owners: ChainMap<types.Address>;
+  owners: ChainMap<Address>;
   infra: InfrastructureConfig;
   getMultiProvider: (
     context?: Contexts,

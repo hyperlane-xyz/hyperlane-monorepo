@@ -1,3 +1,5 @@
+cargo-features = ["workspace-inheritance"]
+
 [package]
 name = "scraper"
 documentation.workspace = true
@@ -14,21 +16,20 @@ ethers.workspace = true
 eyre.workspace = true
 futures.workspace = true
 itertools.workspace = true
-num-bigint = "0.4"
+num-bigint.workspace = true
 prometheus.workspace = true
-sea-orm = { version = "0.11.1", features = ["sqlx-postgres", "runtime-tokio-native-tls", "with-bigdecimal", "with-time", "macros"] }
+sea-orm = { workspace = true }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-time = "0.3"
+time.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
 tracing-futures.workspace = true
-tracing-subscriber.workspace = true
 tracing.workspace = true
 
 hex = { path = "../../utils/hex" }
 hyperlane-base = { path = "../../hyperlane-base" }
-hyperlane-core = { path = "../../hyperlane-core" }
+hyperlane-core = { path = "../../hyperlane-core", features = ["agent"] }
 migration = { path = "migration" }
 
 [dev-dependencies]

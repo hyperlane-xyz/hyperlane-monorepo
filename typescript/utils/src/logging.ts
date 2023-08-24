@@ -1,4 +1,4 @@
-import { safelyAccessEnvVar } from './utils';
+import { safelyAccessEnvVar } from './env';
 
 /* eslint-disable no-console */
 type LOG_LEVEL = 'none' | 'error' | 'warn' | 'info' | 'debug' | 'trace';

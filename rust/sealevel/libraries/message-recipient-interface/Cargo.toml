@@ -1,0 +1,22 @@
+cargo-features = ["workspace-inheritance"]
+
+[package]
+name = "hyperlane-sealevel-message-recipient-interface"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+borsh.workspace = true
+solana-program.workspace = true
+spl-type-length-value.workspace = true
+
+hyperlane-core = { path = "../../../hyperlane-core" }
+# Required to allow dependencies `getrandom` but to preserve determinism required by programs, see
+# https://github.com/solana-labs/solana/blob/master/docs/src/developing/on-chain-programs/developing-rust.md#depending-on-rand
+getrandom = { workspace = true, features = ["custom"] }
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[profile.release]
+overflow-checks = true

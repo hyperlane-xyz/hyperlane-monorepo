@@ -3,31 +3,40 @@ import { Contract, ethers } from 'ethers';
 
 import {
   HyperlaneConnectionClient,
+  Mailbox,
+  Mailbox__factory,
   Ownable,
   ProxyAdmin,
   ProxyAdmin__factory,
+  TimelockController,
+  TimelockController__factory,
   TransparentUpgradeableProxy,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
-import { types, utils } from '@hyperlane-xyz/utils';
+import { Address, eqAddress, runWithTimeout } from '@hyperlane-xyz/utils';
 
 import {
   HyperlaneAddressesMap,
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneFactories,
-} from '../contracts';
+} from '../contracts/types';
+import {
+  HyperlaneIsmFactory,
+  moduleMatchesConfig,
+} from '../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ConnectionClientConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
 
-import { proxyAdmin } from './proxy';
+import { UpgradeConfig, proxyAdmin } from './proxy';
 import { ContractVerificationInput } from './verify/types';
 import { getContractVerificationInput } from './verify/utils';
 
 export interface DeployerOptions {
   logger?: Debugger;
   chainTimeoutMs?: number;
+  ismFactory?: HyperlaneIsmFactory;
 }
 
 export abstract class HyperlaneDeployer<
@@ -67,7 +76,6 @@ export abstract class HyperlaneDeployer<
   async deploy(
     configMap: ChainMap<Config>,
   ): Promise<HyperlaneContractsMap<Factories>> {
-    await this.checkConfig(configMap);
     const configChains = Object.keys(configMap);
     const targetChains = this.multiProvider.intersect(
       configChains,
@@ -85,7 +93,7 @@ export abstract class HyperlaneDeployer<
       this.startingBlockNumbers[chain] = await this.multiProvider
         .getProvider(chain)
         .getBlockNumber();
-      await utils.runWithTimeout(this.chainTimeoutMs, async () => {
+      await runWithTimeout(this.chainTimeoutMs, async () => {
         this.deployedContracts[chain] = await this.deployContracts(
           chain,
           configMap[chain],
@@ -102,7 +110,7 @@ export abstract class HyperlaneDeployer<
     label = 'address',
   ): Promise<T | undefined> {
     const signer = await this.multiProvider.getSignerAddress(chain);
-    if (utils.eqAddress(address, signer)) {
+    if (eqAddress(address, signer)) {
       return fn();
     } else {
       this.logger(`Signer (${signer}) does not match ${label} (${address})`);
@@ -152,12 +160,13 @@ export abstract class HyperlaneDeployer<
       `Initializing connection client (if not already) on ${local}...`,
     );
     await this.runIfOwner(local, connectionClient, async () => {
+      const txOverrides = this.multiProvider.getTransactionOverrides(local);
       // set mailbox if not already set (and configured)
       if (config.mailbox !== (await connectionClient.mailbox())) {
         this.logger(`Set mailbox on (${local})`);
         await this.multiProvider.handleTx(
           local,
-          connectionClient.setMailbox(config.mailbox),
+          connectionClient.setMailbox(config.mailbox, txOverrides),
         );
       }
 
@@ -171,23 +180,63 @@ export abstract class HyperlaneDeployer<
           local,
           connectionClient.setInterchainGasPaymaster(
             config.interchainGasPaymaster,
+            txOverrides,
           ),
         );
       }
 
-      // set interchain security module if not already set (and configured)
-      if (
-        config.interchainSecurityModule &&
-        config.interchainSecurityModule !==
-          (await connectionClient.interchainSecurityModule())
-      ) {
-        this.logger(`Set interchain security module on ${local}`);
-        await this.multiProvider.handleTx(
-          local,
-          connectionClient.setInterchainSecurityModule(
-            config.interchainSecurityModule,
-          ),
+      let currentIsm = await connectionClient.interchainSecurityModule();
+      // in case the above returns zero address, fetch the defaultISM from the mailbox
+      if (currentIsm === ethers.constants.AddressZero) {
+        const mailbox: Mailbox = Mailbox__factory.connect(
+          config.mailbox,
+          connectionClient.signer,
         );
+        currentIsm = await mailbox.defaultIsm();
+      }
+
+      if (config.interchainSecurityModule) {
+        // set interchain security module if not already set (and configured)
+        let configuredIsm: string;
+        if (typeof config.interchainSecurityModule === 'string') {
+          configuredIsm = config.interchainSecurityModule;
+        } else if (this.options?.ismFactory) {
+          const matches = await moduleMatchesConfig(
+            local,
+            currentIsm,
+            config.interchainSecurityModule,
+            this.multiProvider,
+            this.options.ismFactory.chainMap[local],
+          );
+          if (matches) {
+            // when the ISM recursively matches the IsmConfig, we don't need to deploy a new ISM
+            this.logger(
+              `ISM matches config for chain ${local}, skipping deploy`,
+            );
+            return;
+          }
+          const ism = await this.options.ismFactory.deploy(
+            local,
+            config.interchainSecurityModule,
+          );
+          configuredIsm = ism.address;
+        } else {
+          throw new Error('No ISM factory provided');
+        }
+
+        if (!eqAddress(currentIsm, configuredIsm)) {
+          this.logger(
+            `Set interchain security module on ${local} at ${configuredIsm}`,
+          );
+
+          await this.multiProvider.handleTx(
+            local,
+            connectionClient.setInterchainSecurityModule(
+              configuredIsm,
+              txOverrides,
+            ),
+          );
+        }
       }
     });
     this.logger(`Connection client on ${local} initialized...`);
@@ -217,7 +266,7 @@ export abstract class HyperlaneDeployer<
 
     if (initializeArgs) {
       this.logger(`Initialize ${contractName} on ${chain}`);
-      const initTx = await contract.initialize(...initializeArgs);
+      const initTx = await contract.initialize(...initializeArgs, overrides);
       await this.multiProvider.handleTx(chain, initTx);
     }
 
@@ -260,20 +309,25 @@ export abstract class HyperlaneDeployer<
       this.multiProvider.getProvider(chain),
       proxy.address,
     );
-    if (utils.eqAddress(admin, actualAdmin)) {
+    if (eqAddress(admin, actualAdmin)) {
       this.logger(`Admin set correctly, skipping admin change`);
       return;
     }
 
+    const txOverrides = this.multiProvider.getTransactionOverrides(chain);
     this.logger(`Changing proxy admin`);
     await this.runIfAdmin(
       chain,
       proxy,
-      () => this.multiProvider.handleTx(chain, proxy.changeAdmin(admin)),
+      () =>
+        this.multiProvider.handleTx(
+          chain,
+          proxy.changeAdmin(admin, txOverrides),
+        ),
       (proxyAdmin) =>
         this.multiProvider.handleTx(
           chain,
-          proxyAdmin.changeProxyAdmin(proxy.address, admin),
+          proxyAdmin.changeProxyAdmin(proxy.address, admin, txOverrides),
         ),
     );
   }
@@ -285,7 +339,7 @@ export abstract class HyperlaneDeployer<
     initializeArgs: Parameters<C['initialize']>,
   ): Promise<void> {
     const current = await proxy.callStatic.implementation();
-    if (utils.eqAddress(implementation.address, current)) {
+    if (eqAddress(implementation.address, current)) {
       this.logger(`Implementation set correctly, skipping upgrade`);
       return;
     }
@@ -346,10 +400,29 @@ export abstract class HyperlaneDeployer<
     return implementation.attach(proxy.address) as C;
   }
 
+  async deployTimelock(
+    chain: ChainName,
+    timelockConfig: UpgradeConfig['timelock'],
+  ): Promise<TimelockController> {
+    const timelock = await this.deployContractFromFactory(
+      chain,
+      new TimelockController__factory(),
+      'timelockController',
+      // delay, [proposers], [executors], admin
+      [
+        timelockConfig.delay,
+        [timelockConfig.roles.proposer],
+        [timelockConfig.roles.executor],
+        ethers.constants.AddressZero,
+      ],
+    );
+    return timelock;
+  }
+
   protected writeCache<K extends keyof Factories>(
     chain: ChainName,
     contractName: K,
-    address: types.Address,
+    address: Address,
   ): void {
     if (!this.cachedAddresses[chain]) {
       this.cachedAddresses[chain] = {};
@@ -363,7 +436,8 @@ export abstract class HyperlaneDeployer<
     contractName: string,
   ): Awaited<ReturnType<F['deploy']>> | undefined {
     const cachedAddress = this.cachedAddresses[chain]?.[contractName];
-    const hit = !!cachedAddress;
+    const hit =
+      !!cachedAddress && cachedAddress !== ethers.constants.AddressZero;
     const contractAddress = hit ? cachedAddress : ethers.constants.AddressZero;
     const contract = factory
       .attach(contractAddress)
@@ -436,14 +510,14 @@ export abstract class HyperlaneDeployer<
 
   protected async transferOwnershipOfContracts(
     chain: ChainName,
-    owner: types.Address,
+    owner: Address,
     ownables: { [key: string]: Ownable },
   ): Promise<ethers.ContractReceipt[]> {
     const receipts: ethers.ContractReceipt[] = [];
     for (const contractName of Object.keys(ownables)) {
       const ownable = ownables[contractName];
       const currentOwner = await ownable.owner();
-      if (!utils.eqAddress(currentOwner, owner)) {
+      if (!eqAddress(currentOwner, owner)) {
         this.logger(
           `Transferring ownership of ${contractName} to ${owner} on ${chain}`,
         );

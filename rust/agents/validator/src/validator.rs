@@ -148,7 +148,7 @@ impl Validator {
             .clone();
         let contract_sync = self.message_sync.clone();
         let cursor = contract_sync
-            .forward_backward_message_sync_cursor(index_settings.chunk_size)
+            .forward_backward_message_sync_cursor(index_settings)
             .await;
         tokio::spawn(async move {
             contract_sync
@@ -210,7 +210,7 @@ impl Validator {
             Ok(outcome) => {
                 if !outcome.executed {
                     error!(
-                        hash=?outcome.txid,
+                        txid=?outcome.transaction_id,
                         gas_used=?outcome.gas_used,
                         gas_price=?outcome.gas_price,
                         "Transaction attempting to announce validator reverted. Make sure you have enough funds in your account to pay for transaction fees."
@@ -256,26 +256,38 @@ impl Validator {
                     info!("Validator has announced signature storage location");
                     break;
                 }
-                info!("Validator has not announced signature storage location");
-                let balance_delta = self
-                    .validator_announce
-                    .announce_tokens_needed(signed_announcement.clone())
-                    .await
-                    .unwrap_or_default();
-                if balance_delta > U256::zero() {
-                    warn!(
-                        tokens_needed=%balance_delta,
-                        validator_address=?announcement.validator,
-                        "Please send tokens to the validator address to announce",
-                    );
-                    sleep(self.interval).await;
-                } else {
-                    let result = self
+                info!(
+                    announced_locations=?locations,
+                    "Validator has not announced signature storage location"
+                );
+
+                if self.core.settings.chains[self.origin_chain.name()]
+                    .signer
+                    .is_some()
+                {
+                    let balance_delta = self
                         .validator_announce
-                        .announce(signed_announcement.clone(), None)
-                        .await;
-                    Self::log_on_announce_failure(result);
+                        .announce_tokens_needed(signed_announcement.clone())
+                        .await
+                        .unwrap_or_default();
+                    if balance_delta > U256::zero() {
+                        warn!(
+                            tokens_needed=%balance_delta,
+                            validator_address=?announcement.validator,
+                            "Please send tokens to the validator address to announce",
+                        );
+                    } else {
+                        let result = self
+                            .validator_announce
+                            .announce(signed_announcement.clone(), None)
+                            .await;
+                        Self::log_on_announce_failure(result);
+                    }
+                } else {
+                    warn!(origin_chain=%self.origin_chain, "Cannot announce validator without a signer; make sure a signer is set for the origin chain");
                 }
+
+                sleep(self.interval).await;
             }
         }
         Ok(())

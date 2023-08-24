@@ -1,4 +1,17 @@
-import { ethers } from 'ethers';
+import type { ethers } from 'ethers';
+
+export enum ProtocolType {
+  Ethereum = 'ethereum',
+  Sealevel = 'sealevel',
+  Fuel = 'fuel',
+}
+// A type that also allows for literal values of the enum
+export type ProtocolTypeValue = `${ProtocolType}`;
+
+export const ProtocolSmallestUnit = {
+  [ProtocolType.Ethereum]: 'wei',
+  [ProtocolType.Sealevel]: 'lamports',
+};
 
 /********* BASIC TYPES *********/
 export type Domain = number;
@@ -27,6 +40,23 @@ export type MerkleProof = {
 export type Checkpoint = {
   root: string;
   index: number; // safe because 2 ** 32 leaves < Number.MAX_VALUE
+  mailbox_domain: Domain;
+  mailbox_address: Address;
+};
+
+/**
+ * Shape of a checkpoint in S3 as published by the agent.
+ */
+export type S3CheckpointWithId = {
+  value: {
+    checkpoint: Checkpoint;
+    message_id: HexString;
+  };
+  signature: SignatureLike;
+};
+
+export type S3Checkpoint = {
+  value: Checkpoint;
   signature: SignatureLike;
 };
 

@@ -1,28 +1,31 @@
-use std::str::FromStr;
-use std::sync::Arc;
-use std::{collections::HashMap, fmt::Debug};
+use std::{collections::HashMap, fmt::Debug, str::FromStr, sync::Arc};
 
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::{Context, Result};
+use hyperlane_base::{
+    settings::{ChainConf, CheckpointSyncerConf},
+    CheckpointSyncer, CoreMetrics, MultisigCheckpointSyncer,
+};
+use hyperlane_core::{
+    accumulator::merkle::Proof, AggregationIsm, CcipReadIsm, Checkpoint, HyperlaneDomain,
+    HyperlaneMessage, InterchainSecurityModule, ModuleType, MultisigIsm, RoutingIsm,
+    ValidatorAnnounce, H160, H256,
+};
 use tokio::sync::RwLock;
 use tracing::{debug, info, instrument, warn};
 
-use hyperlane_base::{
-    ChainConf, CheckpointSyncer, CheckpointSyncerConf, CoreMetrics, MultisigCheckpointSyncer,
+use crate::{
+    merkle_tree_builder::MerkleTreeBuilder,
+    msg::metadata::{
+        multisig::{
+            LegacyMultisigMetadataBuilder, MerkleRootMultisigMetadataBuilder,
+            MessageIdMultisigMetadataBuilder,
+        },
+        AggregationIsmMetadataBuilder, CcipReadIsmMetadataBuilder, NullMetadataBuilder,
+        RoutingIsmMetadataBuilder,
+    },
 };
-use hyperlane_core::accumulator::merkle::Proof;
-use hyperlane_core::{
-    AggregationIsm, Checkpoint, HyperlaneDomain, HyperlaneMessage, InterchainSecurityModule,
-    ModuleType, MultisigIsm, RoutingIsm, ValidatorAnnounce, H160, H256,
-};
-
-use crate::merkle_tree_builder::MerkleTreeBuilder;
-use crate::msg::metadata::multisig::{
-    LegacyMultisigMetadataBuilder, MerkleRootMultisigMetadataBuilder,
-    MessageIdMultisigMetadataBuilder,
-};
-use crate::msg::metadata::{AggregationIsmMetadataBuilder, RoutingIsmMetadataBuilder};
 
 #[derive(Debug, thiserror::Error)]
 pub enum MetadataBuilderError {
@@ -84,6 +87,8 @@ impl MetadataBuilder for BaseMetadataBuilder {
             ModuleType::MessageIdMultisig => Box::new(MessageIdMultisigMetadataBuilder::new(base)),
             ModuleType::Routing => Box::new(RoutingIsmMetadataBuilder::new(base)),
             ModuleType::Aggregation => Box::new(AggregationIsmMetadataBuilder::new(base)),
+            ModuleType::Null => Box::new(NullMetadataBuilder::new()),
+            ModuleType::CcipRead => Box::new(CcipReadIsmMetadataBuilder::new(base)),
             _ => return Err(MetadataBuilderError::UnsupportedModuleType(module_type).into()),
         };
         metadata_builder
@@ -156,6 +161,12 @@ impl BaseMetadataBuilder {
     pub async fn build_aggregation_ism(&self, address: H256) -> Result<Box<dyn AggregationIsm>> {
         self.destination_chain_setup
             .build_aggregation_ism(address, &self.metrics)
+            .await
+    }
+
+    pub async fn build_ccip_read_ism(&self, address: H256) -> Result<Box<dyn CcipReadIsm>> {
+        self.destination_chain_setup
+            .build_ccip_read_ism(address, &self.metrics)
             .await
     }
 

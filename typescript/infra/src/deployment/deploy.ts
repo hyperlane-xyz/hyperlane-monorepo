@@ -2,14 +2,13 @@ import {
   ChainMap,
   ChainName,
   HyperlaneAddresses,
-  HyperlaneAgentAddresses,
   HyperlaneDeployer,
+  HyperlaneDeploymentArtifacts,
   MultiProvider,
-  buildAgentConfig,
-  objMap,
-  promiseObjAll,
+  buildAgentConfigDeprecated,
   serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
+import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { getAgentConfigDirectory } from '../../scripts/utils';
 import { DeployEnvironment } from '../config';
@@ -50,7 +49,10 @@ export async function deployWithArtifacts<Config>(
 
   try {
     if (fork) {
-      await deployer.deployContracts(fork, configMap[fork]);
+      deployer.deployedContracts[fork] = await deployer.deployContracts(
+        fork,
+        configMap[fork],
+      );
     } else {
       await deployer.deploy(configMap);
     }
@@ -105,10 +107,10 @@ export async function writeAgentConfig(
       multiProvider.getProvider(chain).getBlockNumber(),
     ),
   );
-  const agentConfig = buildAgentConfig(
+  const agentConfig = buildAgentConfigDeprecated(
     multiProvider.getKnownChainNames(),
     multiProvider,
-    addresses as unknown as ChainMap<HyperlaneAgentAddresses>,
+    addresses as ChainMap<HyperlaneDeploymentArtifacts>,
     startBlocks,
   );
   const sdkEnv = deployEnvToSdkEnv[environment];

@@ -2,9 +2,8 @@ use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
 
-use primitive_types::H256;
-
 use crate::accumulator::merkle::Proof;
+use crate::H256;
 
 /// Struct representing a single merkle test case
 #[derive(serde::Deserialize, serde::Serialize)]

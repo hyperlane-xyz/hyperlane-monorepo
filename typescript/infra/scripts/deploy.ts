@@ -1,9 +1,11 @@
 import path from 'path';
 
+import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
   ChainMap,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
+  HyperlaneHookDeployer,
   HyperlaneIgp,
   HyperlaneIgpDeployer,
   HyperlaneIsmFactory,
@@ -11,9 +13,11 @@ import {
   InterchainAccountDeployer,
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
-  objMap,
 } from '@hyperlane-xyz/sdk';
+import { objMap } from '@hyperlane-xyz/utils';
 
+import { Contexts } from '../config/contexts';
+import { helloWorldConfig } from '../config/environments/testnet3/helloworld';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
@@ -29,12 +33,19 @@ import {
   getEnvironmentConfig,
   getEnvironmentDirectory,
   getModuleDirectory,
+  getProxiedRouterConfig,
   getRouterConfig,
+  withContext,
   withModuleAndFork,
 } from './utils';
 
 async function main() {
-  const { module, fork, environment } = await withModuleAndFork(getArgs()).argv;
+  const {
+    context = Contexts.Hyperlane,
+    module,
+    fork,
+    environment,
+  } = await withContext(withModuleAndFork(getArgs())).argv;
   const envConfig = getEnvironmentConfig(environment);
   const multiProvider = await envConfig.getMultiProvider();
 
@@ -63,17 +74,23 @@ async function main() {
       multiProvider,
     );
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
+  } else if (module === Modules.HOOK) {
+    config = envConfig.hooks;
+    deployer = new HyperlaneHookDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
-    config = await getRouterConfig(environment, multiProvider);
+    config = await getProxiedRouterConfig(environment, multiProvider);
     deployer = new InterchainAccountDeployer(multiProvider);
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
-    config = await getRouterConfig(environment, multiProvider);
+    config = await getProxiedRouterConfig(environment, multiProvider);
     deployer = new InterchainQueryDeployer(multiProvider);
   } else if (module === Modules.LIQUIDITY_LAYER) {
-    const routerConfig = await getRouterConfig(environment, multiProvider);
+    const routerConfig = await getProxiedRouterConfig(
+      environment,
+      multiProvider,
+    );
     if (!envConfig.liquidityLayerConfig) {
       throw new Error(`No liquidity layer config for ${environment}`);
     }
@@ -102,12 +119,26 @@ async function main() {
       queryRouterAddress: conf.router,
     }));
     deployer = new TestQuerySenderDeployer(multiProvider, igp);
+  } else if (module === Modules.HELLO_WORLD) {
+    const routerConfig = await getRouterConfig(
+      environment,
+      multiProvider,
+      true,
+    );
+    config = helloWorldConfig(environment, context, routerConfig);
+    const ismFactory = HyperlaneIsmFactory.fromEnvironment(
+      deployEnvToSdkEnv[environment],
+      multiProvider,
+    );
+    deployer = new HelloWorldDeployer(multiProvider, ismFactory);
   } else {
     console.log(`Skipping ${module}, deployer unimplemented`);
     return;
   }
 
-  const modulePath = getModuleDirectory(environment, module);
+  const modulePath = getModuleDirectory(environment, module, context);
+
+  console.log(`Deploying to ${modulePath}`);
 
   const addresses = SDK_MODULES.includes(module)
     ? path.join(
