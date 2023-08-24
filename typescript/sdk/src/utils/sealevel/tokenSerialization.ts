@@ -1,11 +1,10 @@
 import { PublicKey } from '@solana/web3.js';
 
-import { DomainId } from '../globalTypes';
+import { DomainId } from '@hyperlane-xyz/utils';
 
 /**
  * Hyperlane Token Borsh Schema
  */
-
 export class AccountDataWrapper {
   initialized!: boolean;
   data!: HyperlaneTokenData;
@@ -14,7 +13,7 @@ export class AccountDataWrapper {
   }
 }
 
-// Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/trevor/sealevel-validator-rebase/rust/sealevel/libraries/hyperlane-sealevel-token/src/accounts.rs#L21
+// Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/76467daf3a813952bb84254a09896c0f95046365/rust/sealevel/libraries/hyperlane-sealevel-token/src/accounts.rs#L25C12-L25C26
 export class HyperlaneTokenData {
   /// The bump seed for this PDA.
   bump!: number;

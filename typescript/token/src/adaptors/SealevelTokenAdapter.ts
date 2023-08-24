@@ -311,7 +311,7 @@ export abstract class SealevelHypTokenAdapter
     ];
   }
 
-  // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/trevor/sealevel-validator-rebase/rust/sealevel/programs/mailbox/src/pda_seeds.rs#L19
+  // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/mailbox/src/pda_seeds.rs#L19
   deriveMailboxOutboxAccount(mailbox: PublicKey): PublicKey {
     const [pda] = PublicKey.findProgramAddressSync(
       [Buffer.from('hyperlane'), Buffer.from('-'), Buffer.from('outbox')],
@@ -320,7 +320,7 @@ export abstract class SealevelHypTokenAdapter
     return pda;
   }
 
-  // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/trevor/sealevel-validator-rebase/rust/sealevel/programs/mailbox/src/pda_seeds.rs#L57
+  // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/mailbox/src/pda_seeds.rs#L57
   deriveMessageDispatchAuthorityAccount(): PublicKey {
     const [pda] = PublicKey.findProgramAddressSync(
       [
@@ -333,7 +333,7 @@ export abstract class SealevelHypTokenAdapter
     return pda;
   }
 
-  // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/trevor/sealevel-validator-rebase/rust/sealevel/programs/mailbox/src/pda_seeds.rs#L33-L37
+  // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/mailbox/src/pda_seeds.rs#L33-L37
   deriveMsgStorageAccount(
     mailbox: PublicKey,
     randomWalletPubKey: PublicKey,
@@ -351,7 +351,7 @@ export abstract class SealevelHypTokenAdapter
     return pda;
   }
 
-  // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/trevor/sealevel-validator-rebase/rust/sealevel/libraries/hyperlane-sealevel-token/src/processor.rs#LL49C1-L53C30
+  // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/libraries/hyperlane-sealevel-token/src/processor.rs#LL49C1-L53C30
   deriveHypTokenAccount(): PublicKey {
     const [pda] = PublicKey.findProgramAddressSync(
       [
@@ -417,7 +417,7 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
     ];
   }
 
-  // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/trevor/sealevel-validator-rebase/rust/sealevel/programs/hyperlane-sealevel-token-native/src/plugin.rs#L26
+  // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/hyperlane-sealevel-token-native/src/plugin.rs#L26
   deriveNativeTokenCollateralAccount(): PublicKey {
     const [pda] = PublicKey.findProgramAddressSync(
       [

@@ -220,7 +220,6 @@ export {
 export {
   SealevelGasRouterAdapter,
   SealevelRouterAdapter,
-  SealevelTokenDataSchema,
 } from './router/adapters/SealevelRouterAdapter';
 export { IGasRouterAdapter, IRouterAdapter } from './router/adapters/types';
 export {

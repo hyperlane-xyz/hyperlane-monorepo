@@ -94,9 +94,12 @@ export { isNullish, isNumeric } from './src/typeof';
 export {
   Address,
   AddressBytes32,
+  Caip19Id,
+  Caip2Id,
   CallData,
   Checkpoint,
   Domain,
+  DomainId,
   HexString,
   InterchainSecurityModuleType,
   MerkleProof,
