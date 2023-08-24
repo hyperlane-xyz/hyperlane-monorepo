@@ -9,6 +9,7 @@ import { objMap } from '@hyperlane-xyz/utils';
 import {
   GasPaymentEnforcementPolicyType,
   RootAgentConfig,
+  allAgentChainNames,
   routerMatchingList,
 } from '../../../src/config';
 import { GasPaymentEnforcementConfig } from '../../../src/config/agent/relayer';
@@ -43,7 +44,7 @@ const contextBase = {
   namespace: environment,
   runEnv: environment,
   contextChainNames: agentChainNames,
-  environmentChainNames: agentChainNames,
+  environmentChainNames: allAgentChainNames(agentChainNames),
   aws: {
     region: 'us-east-1',
   },
@@ -66,6 +67,7 @@ const gasPaymentEnforcement: GasPaymentEnforcementConfig[] = [
 
 const hyperlane: RootAgentConfig = {
   ...contextBase,
+  contextChainNames: agentChainNames,
   context: Contexts.Hyperlane,
   rolesWithKeys: ALL_KEY_ROLES,
   relayer: {
@@ -95,6 +97,9 @@ const hyperlane: RootAgentConfig = {
       [chainMetadata.solanadevnet.name]: {
         tag: '79bad9d-20230706-190752',
       },
+      [chainMetadata.proteustestnet.name]: {
+        tag: 'c7c44b2-20230811-133851',
+      },
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
   },
@@ -115,7 +120,7 @@ const releaseCandidate: RootAgentConfig = {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: 'ed7569d-20230725-171222',
+      tag: 'c7c44b2-20230811-133851',
     },
     whitelist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -123,14 +128,20 @@ const releaseCandidate: RootAgentConfig = {
       {
         originDomain: '*',
         senderAddress: '*',
-        destinationDomain: [getDomainId(chainMetadata.solanadevnet)],
+        destinationDomain: [
+          getDomainId(chainMetadata.solanadevnet),
+          getDomainId(chainMetadata.proteustestnet),
+        ],
         recipientAddress: '*',
       },
       // Whitelist all traffic from solanadevnet to fuji
       {
-        originDomain: [getDomainId(chainMetadata.solanadevnet)],
+        originDomain: [
+          getDomainId(chainMetadata.solanadevnet),
+          getDomainId(chainMetadata.proteustestnet),
+        ],
         senderAddress: '*',
-        destinationDomain: [getDomainId(chainMetadata.fuji)],
+        destinationDomain: [getDomainId(chainMetadata.bsctestnet)],
         recipientAddress: '*',
       },
     ],
@@ -142,7 +153,19 @@ const releaseCandidate: RootAgentConfig = {
           {
             originDomain: [getDomainId(chainMetadata.solanadevnet)],
             senderAddress: '*',
-            destinationDomain: [getDomainId(chainMetadata.fuji)],
+            destinationDomain: [
+              getDomainId(chainMetadata.bsctestnet),
+              getDomainId(chainMetadata.proteustestnet),
+            ],
+            recipientAddress: '*',
+          },
+          {
+            originDomain: [getDomainId(chainMetadata.bsctestnet)],
+            senderAddress: '*',
+            destinationDomain: [
+              getDomainId(chainMetadata.solanadevnet),
+              getDomainId(chainMetadata.proteustestnet),
+            ],
             recipientAddress: '*',
           },
         ],
