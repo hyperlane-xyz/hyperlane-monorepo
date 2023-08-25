@@ -76,16 +76,12 @@
 //! 5. Arguments passed to the agent on the command line.
 //!    E.g. `--originChainName ethereum`
 
-use std::fmt::Debug;
-
 pub use base::*;
 pub use chains::*;
 pub use checkpoint_syncer::*;
-use hyperlane_core::config::*;
 /// Export this so they don't need to import paste.
 #[doc(hidden)]
 pub use paste;
-use serde::Deserialize;
 pub use signers::*;
 pub use trace::*;
 
@@ -100,7 +96,7 @@ pub(crate) mod aws_credentials;
 mod base;
 /// Chain configuration
 mod chains;
-pub(crate) mod loader;
+pub mod loader;
 /// Signer configuration
 mod signers;
 /// Tracing subscriber management
@@ -110,116 +106,21 @@ mod checkpoint_syncer;
 pub mod deprecated_parser;
 pub mod parser;
 
-#[macro_export]
-/// Declare a new settings block
+/// Declare that an agent can be constructed from settings.
 ///
-/// This macro declares a settings struct for an agent. The new settings block
-/// contains a [`crate::Settings`] and any other specified attributes.
-///
-/// Please note that integers must be specified as `String` in order to allow
-/// them to be configured via env var. They must then be parsed in the
-/// [`Agent::from_settings`](crate::agent::Agent::from_settings)
-/// method.
-///
-/// ### Usage
-///
+/// E.g.
 /// ```ignore
-/// decl_settings!(Validator {
-///    validator: SignerConf,
-///    checkpointsyncer: CheckpointSyncerConf,
-///    reorgperiod: String,
-///    interval: String,
-/// });
+/// impl_loadable_from_settings!(MyAgent, RawSettingsForMyAgent -> SettingsForMyAgent);
 /// ```
-macro_rules! decl_settings {
-    (
-        $name:ident,
-        Parsed {
-            $($(#[$parsed_tags:meta])* $parsed_prop:ident: $parsed_type:ty,)*
-        },
-        Raw {
-            $($(#[$raw_tags:meta])* $raw_prop:ident: $raw_type:ty,)*
-        }$(,)?
-    ) => {
-        hyperlane_base::settings::paste::paste! {
-            #[doc = "Settings for `" $name "`"]
-            #[derive(Debug)]
-            pub struct [<$name Settings>] {
-                base: hyperlane_base::settings::Settings,
-                $(
-                    $(#[$parsed_tags])*
-                    pub(crate) $parsed_prop: $parsed_type,
-                )*
-            }
-
-            #[doc = "Raw settings for `" $name "`"]
-            #[derive(Debug, serde::Deserialize)]
-            #[serde(rename_all = "camelCase")]
-            pub struct [<Raw $name Settings>] {
-                #[serde(flatten, default)]
-                base: hyperlane_base::settings::deprecated_parser::DeprecatedRawSettings,
-                $(
-                    $(#[$raw_tags])*
-                    $raw_prop: $raw_type,
-                )*
-            }
-
-            impl AsMut<hyperlane_base::settings::deprecated_parser::DeprecatedRawSettings> for [<Raw $name Settings>] {
-                fn as_mut(&mut self) -> &mut hyperlane_base::settings::deprecated_parser::DeprecatedRawSettings {
-                    &mut self.base
-                }
-            }
-
-            // ensure the settings struct implements `FromRawConf`
-            const _: fn() = || {
-                fn assert_impl<T>()
-                where
-                    T: ?Sized + hyperlane_core::config::FromRawConf<[<Raw $name Settings>]>
-                {}
-
-                assert_impl::<[<$name Settings>]>();
-            };
-
-            impl std::ops::Deref for [<$name Settings>] {
-                type Target = hyperlane_base::settings::Settings;
-
-                fn deref(&self) -> &Self::Target {
-                    &self.base
-                }
-            }
-
-            impl AsRef<hyperlane_base::settings::Settings> for [<$name Settings>] {
-                fn as_ref(&self) -> &hyperlane_base::settings::Settings {
-                    &self.base
-                }
-            }
-
-            impl AsMut<hyperlane_base::settings::Settings> for [<$name Settings>] {
-                fn as_mut(&mut self) -> &mut hyperlane_base::settings::Settings {
-                    &mut self.base
-                }
-            }
-
-            impl hyperlane_base::NewFromSettings<> for [<$name Settings>] {
-                /// See `load_settings_object` for more information about how settings are loaded.
-                fn new() -> hyperlane_core::config::ConfigResult<Self> {
-                    hyperlane_base::settings::_new_settings::<[<Raw $name Settings>], [<$name Settings>]>(stringify!($name))
-                }
+#[macro_export]
+macro_rules! impl_loadable_from_settings {
+    ($agent:ident, $settingsparser:ident -> $settingsobj:ident) => {
+        impl hyperlane_base::LoadableFromSettings for $settingsobj {
+            fn load() -> hyperlane_core::config::ConfigResult<Self> {
+                hyperlane_base::settings::loader::load_settings::<$settingsparser, Self>(
+                    stringify!($agent),
+                )
             }
         }
     };
-}
-
-/// Static logic called by the decl_settings! macro. Do not call directly!
-#[doc(hidden)]
-pub fn _new_settings<'de, T, R>(name: &str) -> ConfigResult<R>
-where
-    T: Deserialize<'de> + AsMut<deprecated_parser::DeprecatedRawSettings> + Debug,
-    R: FromRawConf<T>,
-{
-    use crate::settings::loader::load_settings_object;
-    let root_path = ConfigPath::default();
-    let raw =
-        load_settings_object::<T, &str>(name, &[]).into_config_result(|| root_path.clone())?;
-    raw.parse_config(&root_path)
 }
