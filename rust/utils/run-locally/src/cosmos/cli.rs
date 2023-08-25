@@ -85,6 +85,7 @@ impl OsmosisCLI {
             app_config_path,
             Box::new(|v| {
                 v["minimum-gas-prices"] = toml_edit::value("0.025uosmo");
+                v["pruning"] = toml_edit::value("nothing"); // archive
                 v["api"]["enable"] = toml_edit::value(false);
                 v["grpc-web"]["enable"] = toml_edit::value(false);
             }),
