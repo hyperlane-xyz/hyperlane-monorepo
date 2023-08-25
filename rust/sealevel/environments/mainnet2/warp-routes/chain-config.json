@@ -1,0 +1,29 @@
+{
+    "solana": {
+      "chainId": 1399811149,
+      "name": "solana",
+      "publicRpcUrls": [
+        {
+          "http": "https://api.mainnet-beta.solana.com"
+        }
+      ]
+    },
+    "bsc": {
+      "chainId": 56,
+      "name": "bsc",
+      "publicRpcUrls": [
+        {
+          "http": "https://bsc-dataseed.binance.org"
+        }
+      ]
+    },
+    "nautilus": {
+      "chainId": 22222,
+      "name": "nautilus",
+      "publicRpcUrls": [
+        {
+          "http": "https://api.nautilus.nautchain.xyz"
+        }
+      ]
+    }
+  }
