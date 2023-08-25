@@ -3,6 +3,7 @@ use std::{collections::BTreeMap, io::Write, path::PathBuf, process::Stdio};
 use k256::ecdsa::SigningKey;
 
 use crate::{
+    cosmos::types::CliWasmQueryResponse,
     program::Program,
     utils::{concat_path, AgentHandles, TaskHandle},
 };
@@ -74,7 +75,7 @@ impl OsmosisCLI {
             node_config_path,
             Box::new(|v| {
                 v["p2p"]["pex"] = toml_edit::value(false);
-                v["consensus"]["timeout_commit"] = toml_edit::value("1s");
+                v["consensus"]["timeout_commit"] = toml_edit::value("0.1s");
             }),
         );
 
@@ -297,9 +298,11 @@ impl OsmosisCLI {
 
         cmd = endpoint.add_rpc(cmd);
 
-        let output = serde_json::from_str(cmd.run_with_output().join().first().unwrap());
+        let output = cmd.run_with_output().join();
+        let output = output.first().unwrap();
+        let output: CliWasmQueryResponse<U> = serde_json::from_str(output).unwrap();
 
-        output.unwrap()
+        output.data
     }
 
     pub fn query_balance(&self, endpoint: &OsmosisEndpoint, addr: &str) -> BalanceResponse {
