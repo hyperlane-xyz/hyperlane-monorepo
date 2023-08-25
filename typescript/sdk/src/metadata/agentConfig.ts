@@ -176,25 +176,24 @@ const GasPaymentEnforcementBaseSchema = z.object({
     'An optional matching list, any message that matches will use this policy. By default all messages will match.',
   ),
 });
-const GasPaymentEnforcementSchema = z.union([
-  GasPaymentEnforcementBaseSchema.extend({
-    type: z.literal('none').optional(),
-  }),
-  GasPaymentEnforcementBaseSchema.extend({
-    type: z.literal('minimum').optional(),
-    payment: ZUWei,
-    matchingList: MatchingListSchema.optional().describe(
-      'An optional matching list, any message that matches will use this policy. By default all messages will match.',
-    ),
-  }),
-  GasPaymentEnforcementBaseSchema.extend({
-    type: z.literal('onChainFeeQuoting'),
-    gasFraction: z.string().regex(/^\d+ ?\/ ?[1-9]\d*$/),
-    matchingList: MatchingListSchema.optional().describe(
-      'An optional matching list, any message that matches will use this policy. By default all messages will match.',
-    ),
-  }),
-]);
+const GasPaymentEnforcementSchema = z.array(
+  z.union([
+    GasPaymentEnforcementBaseSchema.extend({
+      type: z.literal('none').optional(),
+    }),
+    GasPaymentEnforcementBaseSchema.extend({
+      type: z.literal('minimum').optional(),
+      payment: ZUWei,
+    }),
+    GasPaymentEnforcementBaseSchema.extend({
+      type: z.literal('onChainFeeQuoting'),
+      gasFraction: z
+        .string()
+        .regex(/^\d+ ?\/ ?[1-9]\d*$/)
+        .optional(),
+    }),
+  ]),
+);
 
 export type GasPaymentEnforcement = z.infer<typeof GasPaymentEnforcementSchema>;
 
