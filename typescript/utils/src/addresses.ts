@@ -176,7 +176,7 @@ export function bytes32ToAddress(bytes32: HexString): Address {
   return ethersUtils.getAddress(bytes32.slice(-40));
 }
 
-export function adressToBytesEvm(address: Address): Uint8Array {
+export function addressToBytesEvm(address: Address): Uint8Array {
   const addrBytes32 = addressToBytes32(address);
   return Buffer.from(addrBytes32.substring(2), 'hex');
 }
@@ -187,7 +187,7 @@ export function addressToBytesSol(address: Address): Uint8Array {
 
 export function addressToBytes(address: Address, protocol?: ProtocolType) {
   return routeAddressUtil(
-    adressToBytesEvm,
+    addressToBytesEvm,
     addressToBytesSol,
     new Uint8Array(),
     address,
