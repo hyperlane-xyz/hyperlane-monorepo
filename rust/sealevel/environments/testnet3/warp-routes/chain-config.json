@@ -8,12 +8,21 @@
       }
     ]
   },
-  "fuji": {
-    "chainId": 43113,
-    "name": "fuji",
+  "bsctestnet": {
+    "chainId": 97,
+    "name": "bsctestnet",
     "publicRpcUrls": [
       {
-        "http": "https://api.avax-test.network/ext/bc/C/rpc"
+        "http": "https://rpc.ankr.com/bsc_testnet_chapel"
+      }
+    ]
+  },
+  "proteustestnet": {
+    "chainId": 88002,
+    "name": "proteustestnet",
+    "publicRpcUrls": [
+      {
+        "http": "https://api.proteus.nautchain.xyz/solana"
       }
     ]
   }

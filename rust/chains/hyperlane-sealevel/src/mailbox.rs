@@ -1,6 +1,6 @@
 #![allow(warnings)] // FIXME remove
 
-use std::{collections::HashMap, num::NonZeroU64, ops::RangeInclusive, str::FromStr as _};
+use std::{collections::HashMap, num::NonZeroU64, str::FromStr as _};
 
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -10,8 +10,8 @@ use tracing::{debug, info, instrument, warn};
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     ContractLocator, Decode as _, Encode as _, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox,
-    MessageIndexer, SequenceIndexer, TxCostEstimate, TxOutcome, H256, H512, U256,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, IndexRange, Indexer, LogMeta, Mailbox,
+    MessageIndexer, SequenceRange, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
@@ -694,17 +694,19 @@ impl MessageIndexer for SealevelMailboxIndexer {
 
 #[async_trait]
 impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
-    async fn fetch_logs(
-        &self,
-        range: RangeInclusive<u32>,
-    ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
+    async fn fetch_logs(&self, range: IndexRange) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
+        let SequenceRange(range) = range else {
+            return Err(ChainCommunicationError::from_other_str(
+                "SealevelMailboxIndexer only supports sequence-based indexing",
+            ))
+        };
+
         info!(
             ?range,
             "Fetching SealevelMailboxIndexer HyperlaneMessage logs"
         );
 
-        let message_capacity = range.end().saturating_sub(*range.start());
-        let mut messages = Vec::with_capacity(message_capacity as usize);
+        let mut messages = Vec::with_capacity((range.end() - range.start()) as usize);
         for nonce in range {
             messages.push(self.get_message_with_nonce(nonce).await?);
         }
@@ -718,21 +720,12 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
 
 #[async_trait]
 impl Indexer<H256> for SealevelMailboxIndexer {
-    async fn fetch_logs(&self, _range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
+    async fn fetch_logs(&self, _range: IndexRange) -> ChainResult<Vec<(H256, LogMeta)>> {
         todo!()
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         self.get_finalized_block_number().await
-    }
-}
-
-#[async_trait]
-impl SequenceIndexer<H256> for SealevelMailboxIndexer {
-    async fn sequence_at_tip(&self) -> ChainResult<(u32, u32)> {
-        // TODO: implement when sealevel scraper support is implemented
-        info!("Message delivery indexing not implemented");
-        Ok((1, 1))
     }
 }
 

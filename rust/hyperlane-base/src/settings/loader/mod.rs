@@ -1,16 +1,17 @@
-use std::collections::HashMap;
-use std::env;
-use std::error::Error;
-use std::path::PathBuf;
+use std::{collections::HashMap, env, error::Error, path::PathBuf};
 
-use crate::settings::loader::arguments::CommandLineArguments;
-use config::{Config, Environment, File};
+use config::{Config, Environment as DeprecatedEnvironment, File};
+use convert_case::{Case, Casing};
 use eyre::{bail, Context, Result};
+use itertools::Itertools;
 use serde::Deserialize;
 
-use crate::settings::RawSettings;
+use super::deprecated_parser::DeprecatedRawSettings;
+use crate::settings::loader::deprecated_arguments::DeprecatedCommandLineArguments;
 
 mod arguments;
+mod deprecated_arguments;
+mod environment;
 
 /// Load a settings object from the config locations.
 /// Further documentation can be found in the `settings` module.
@@ -19,7 +20,7 @@ pub(crate) fn load_settings_object<'de, T, S>(
     ignore_prefixes: &[S],
 ) -> Result<T>
 where
-    T: Deserialize<'de> + AsMut<RawSettings>,
+    T: Deserialize<'de> + AsMut<DeprecatedRawSettings>,
     S: AsRef<str>,
 {
     // Derive additional prefix from agent name
@@ -77,16 +78,16 @@ where
     let config_deserializer = builder
         // Use a base configuration env variable prefix
         .add_source(
-            Environment::with_prefix("HYP_BASE")
+            DeprecatedEnvironment::with_prefix("HYP_BASE")
                 .separator("_")
                 .source(Some(filtered_env.clone())),
         )
         .add_source(
-            Environment::with_prefix(&prefix)
+            DeprecatedEnvironment::with_prefix(&prefix)
                 .separator("_")
                 .source(Some(filtered_env)),
         )
-        .add_source(CommandLineArguments::default().separator("."))
+        .add_source(DeprecatedCommandLineArguments::default().separator("."))
         .build()?;
 
     let formatted_config = {
@@ -123,5 +124,20 @@ where
 
             err.context("Config deserialization error, please check the config reference (https://docs.hyperlane.xyz/docs/operators/agent-configuration/configuration-reference)")
         }
+    }
+}
+
+/// Load a settings object from the config locations and re-join the components with the standard
+/// `config` crate separator `.`.
+fn split_and_recase_key(sep: &str, case: Option<Case>, key: String) -> String {
+    if let Some(case) = case {
+        // if case is given, replace case of each key component and separate them with `.`
+        key.split(sep).map(|s| s.to_case(case)).join(".")
+    } else if !sep.is_empty() && sep != "." {
+        // Just standardize the separator to `.`
+        key.replace(sep, ".")
+    } else {
+        // no changes needed if there was no separator defined and we are preserving case.
+        key
     }
 }

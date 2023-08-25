@@ -1,23 +1,15 @@
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use eyre::{eyre, WrapErr};
-use hyperlane_base::chains::IndexSettings;
-use itertools::Itertools;
-use tokio::task::JoinHandle;
-use tracing::info_span;
-use tracing::{instrument::Instrumented, trace, Instrument};
-
 use hyperlane_base::{
-    decl_settings, run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
-    Settings,
+    run_all, settings::IndexSettings, BaseAgent, ContractSyncMetrics, CoreMetrics,
+    HyperlaneAgentCore,
 };
-use hyperlane_core::config::*;
 use hyperlane_core::HyperlaneDomain;
+use tokio::task::JoinHandle;
+use tracing::{info_span, instrument::Instrumented, trace, Instrument};
 
-use crate::chain_scraper::HyperlaneSqlDb;
-use crate::db::ScraperDb;
+use crate::{chain_scraper::HyperlaneSqlDb, db::ScraperDb, settings::ScraperSettings};
 
 /// A message explorer scraper agent
 #[derive(Debug)]
@@ -34,70 +26,6 @@ struct ChainScraper {
     index_settings: IndexSettings,
     db: HyperlaneSqlDb,
     domain: HyperlaneDomain,
-}
-
-decl_settings!(Scraper,
-    Parsed {
-        db: String,
-        chains_to_scrape: Vec<HyperlaneDomain>,
-    },
-    Raw {
-        /// Database connection string
-        db: Option<String>,
-        /// Comma separated list of chains to scrape
-        chainstoscrape: Option<String>,
-    }
-);
-
-impl FromRawConf<'_, RawScraperSettings> for ScraperSettings {
-    fn from_config_filtered(
-        raw: RawScraperSettings,
-        cwp: &ConfigPath,
-        _filter: (),
-    ) -> ConfigResult<Self> {
-        let mut err = ConfigParsingError::default();
-
-        let db = raw
-            .db
-            .ok_or_else(|| eyre!("Missing `db` connection string"))
-            .take_err(&mut err, || cwp + "db");
-
-        let Some(chains_to_scrape) = raw
-            .chainstoscrape
-            .ok_or_else(|| eyre!("Missing `chainstoscrape` list"))
-            .take_err(&mut err, || cwp + "chainstoscrape")
-            .map(|s| s.split(',').map(str::to_ascii_lowercase).collect::<Vec<_>>())
-        else { return Err(err) };
-
-        let base = raw
-            .base
-            .parse_config_with_filter::<Settings>(
-                cwp,
-                Some(&chains_to_scrape.iter().map(String::as_str).collect()),
-            )
-            .take_config_err(&mut err);
-
-        let chains_to_scrape = base
-            .as_ref()
-            .map(|base| {
-                chains_to_scrape
-                    .iter()
-                    .filter_map(|chain| {
-                        base.lookup_domain(chain)
-                            .context("Missing configuration for a chain in `chainstoscrape`")
-                            .take_err(&mut err, || cwp + "chains" + chain)
-                    })
-                    .collect_vec()
-            })
-            .unwrap_or_default();
-
-        err.into_result()?;
-        Ok(Self {
-            base: base.unwrap(),
-            db: db.unwrap(),
-            chains_to_scrape,
-        })
-    }
 }
 
 #[async_trait]
@@ -234,7 +162,7 @@ macro_rules! spawn_sync_task {
                 .await
                 .unwrap();
             let cursor = sync
-                .$cursor(index_settings.clone(), domain.clone().index_mode())
+                .$cursor(index_settings.clone())
                 .await;
                 tokio::spawn(async move {
                     sync
@@ -275,11 +203,7 @@ impl Scraper {
             .unwrap_or(None)
             .unwrap_or(0);
         let cursor = sync
-            .forward_message_sync_cursor(
-                index_settings.clone(),
-                domain.index_mode(),
-                latest_nonce.saturating_sub(1),
-            )
+            .forward_message_sync_cursor(index_settings.clone(), latest_nonce.saturating_sub(1))
             .await;
         tokio::spawn(async move { sync.sync("message_dispatch", cursor).await }).instrument(
             info_span!("ChainContractSync", chain=%domain.name(), event="message_dispatch"),

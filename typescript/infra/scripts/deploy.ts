@@ -120,7 +120,11 @@ async function main() {
     }));
     deployer = new TestQuerySenderDeployer(multiProvider, igp);
   } else if (module === Modules.HELLO_WORLD) {
-    const routerConfig = await getRouterConfig(environment, multiProvider);
+    const routerConfig = await getRouterConfig(
+      environment,
+      multiProvider,
+      true,
+    );
     config = helloWorldConfig(environment, context, routerConfig);
     const ismFactory = HyperlaneIsmFactory.fromEnvironment(
       deployEnvToSdkEnv[environment],
