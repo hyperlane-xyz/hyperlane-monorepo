@@ -48,6 +48,8 @@ pub struct Codes {
     pub hpl_igp_gas_oracle: u64,
     pub hpl_ism_multisig: u64,
     pub hpl_ism_routing: u64,
+    pub hpl_test_mock_ism: u64,
+    pub hpl_test_mock_msg_receiver: u64,
     pub hpl_token_cw20: u64,
     pub hpl_token_native: u64,
     pub hpl_mailbox: u64,
@@ -63,12 +65,18 @@ pub struct Deployments {
     pub ism_multisig: String,
     pub hub: String,
     pub mailbox: String,
+    pub mock_receiver: String,
     pub va: String,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct BalanceResponse {
     pub balances: Vec<Coin>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct CliWasmQueryResponse<T> {
+    pub data: T,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
@@ -126,10 +134,6 @@ impl AgentConfig {
     pub fn new(bin: PathBuf, validator: &str, network: &CosmosNetwork) -> Self {
         let cli = OsmosisCLI::new(bin, network.launch_resp.home_path.to_str().unwrap());
         let validator = cli.get_keypair(validator);
-
-        println!("val_priv : {}", hex::encode(validator.priv_key.to_bytes()));
-        println!("val_pub  : {}", hex::encode(validator.pub_key_to_binary()));
-        println!("val_addr : {}", validator.addr("osmo"));
 
         AgentConfig {
             name: format!("cosmos-test-{}", network.domain),

@@ -1,6 +1,7 @@
 use std::fmt::{Debug, Formatter};
 use std::num::NonZeroU64;
 use std::ops::RangeInclusive;
+use std::str::FromStr;
 
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
 use crate::payloads::mailbox::{ProcessMessageRequest, ProcessMessageRequestInner};
@@ -84,8 +85,16 @@ impl Mailbox for CosmosMailbox {
         let branch = response
             .branch
             .iter()
-            .map(|b| H256::from_slice(&hex::decode(b).unwrap()))
-            .collect::<Vec<H256>>();
+            .map(|b| {
+                if b.is_empty() {
+                    "0000000000000000000000000000000000000000000000000000000000000000"
+                } else {
+                    b
+                }
+            })
+            .map(H256::from_str)
+            .collect::<Result<Vec<H256>, _>>()
+            .expect("fail to parse tree branch");
 
         Ok(IncrementalMerkle {
             branch: branch.try_into().unwrap(),
@@ -125,7 +134,19 @@ impl Mailbox for CosmosMailbox {
 
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn latest_checkpoint(&self, lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
-        todo!()
+        let payload = mailbox::CheckPointRequest {
+            check_point: general::EmptyStruct {},
+        };
+
+        let data = self.provider.wasm_query(payload, None).await?;
+        let response: mailbox::CheckPointResponse = serde_json::from_slice(&data)?;
+
+        Ok(Checkpoint {
+            mailbox_address: self.address,
+            mailbox_domain: self.domain.id(),
+            root: response.root.parse().unwrap(),
+            index: response.count,
+        })
     }
 
     #[instrument(err, ret, skip(self))]

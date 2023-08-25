@@ -40,6 +40,12 @@ pub struct ProcessMessageRequestInner {
     pub metadata: String,
     pub message: String,
 }
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CheckPointRequest {
+    pub check_point: EmptyStruct,
+}
+
 // Responses
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -60,5 +66,11 @@ pub struct DeliveredResponse {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MerkleTreeResponse {
     pub branch: [String; TREE_DEPTH],
+    pub count: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CheckPointResponse {
+    pub root: String,
     pub count: u32,
 }
