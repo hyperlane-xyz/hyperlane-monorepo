@@ -4,6 +4,8 @@ use std::path::{Path, PathBuf};
 use std::thread::sleep;
 use std::time::Duration;
 
+use hpl_interface::mailbox;
+use hpl_interface::types::bech32_decode;
 use macro_rules_attribute::apply;
 use tempfile::tempdir;
 
@@ -51,7 +53,7 @@ fn default_keys<'a>() -> [(&'a str, &'a str); 6] {
 }
 
 const CW_HYPERLANE_GIT: &str = "https://github.com/many-things/cw-hyperlane";
-const CW_HYPERLANE_VERSION: &str = "0.0.3";
+const CW_HYPERLANE_VERSION: &str = "0.0.4";
 
 fn make_target() -> String {
     let os = if cfg!(target_os = "linux") {
@@ -112,7 +114,7 @@ pub fn install_codes(dir: Option<PathBuf>) -> BTreeMap<String, PathBuf> {
     unzip(&release_comp, dir_path);
 
     // make contract_name => path map
-    fs::read_dir(concat_path(dir_path, "artifacts"))
+    fs::read_dir(dir_path)
         .unwrap()
         .map(|v| {
             let entry = v.unwrap();
@@ -182,6 +184,20 @@ impl From<(CosmosResp, Deployments, String, u32)> for CosmosNetwork {
             chain_id: v.2,
             domain: v.3,
         }
+    }
+}
+
+pub struct CosmosHyperlaneStack {
+    pub validators: Vec<AgentHandles>,
+    pub relayer: AgentHandles,
+}
+
+impl Drop for CosmosHyperlaneStack {
+    fn drop(&mut self) {
+        for v in &mut self.validators {
+            stop_child(&mut v.1);
+        }
+        stop_child(&mut self.relayer.1);
     }
 }
 
@@ -256,6 +272,7 @@ fn launch_cosmos_relayer(agent_config_path: PathBuf, relay_chains: Vec<String>) 
         .hyp_env("RELAYCHAINS", relay_chains.join(","))
         .hyp_env("REORGPERIOD", "1")
         .hyp_env("DB", relayer_base.as_ref().to_str().unwrap())
+        .hyp_env("ALLOW_LOCAL_CHECKPOINT_SYNCERS", "true")
         .spawn("RLY");
 
     relayer
@@ -330,7 +347,7 @@ fn run_locally() {
 
         if !targets.is_empty() {
             println!(
-                "{} -> {:?}",
+                "LINKING NODES: {} -> {:?}",
                 node.domain,
                 targets.iter().map(|v| v.domain).collect::<Vec<_>>()
             );
@@ -387,19 +404,53 @@ fn run_locally() {
             launch_cosmos_validator(agent_config, agent_config_path.clone(), remotes)
         })
         .collect::<Vec<_>>();
-    let hpl_val = hpl_val.into_iter().map(|v| v.join()).collect::<Vec<_>>();
-    let mut hpl_rly = launch_cosmos_relayer(
+    let hpl_rly = launch_cosmos_relayer(
         agent_config_path,
         agent_config_out.chains.into_keys().collect::<Vec<_>>(),
-    )
-    .join();
+    );
 
-    sleep(Duration::from_secs(30));
+    for node in nodes.iter() {
+        let targets = nodes
+            .iter()
+            .filter(|v| v.domain == node.domain)
+            .collect::<Vec<_>>();
 
-    for mut node in hpl_val {
-        node.1.kill().unwrap();
+        if !targets.is_empty() {
+            println!(
+                "DISPATCHING MAILBOX: {} -> {:?}",
+                node.domain,
+                targets.iter().map(|v| v.domain).collect::<Vec<_>>()
+            );
+        }
+
+        for target in targets {
+            let cli = OsmosisCLI::new(
+                osmosisd.clone(),
+                node.launch_resp.home_path.to_str().unwrap(),
+            );
+
+            cli.wasm_execute(
+                &node.launch_resp.endpoint,
+                linker,
+                &node.deployments.mailbox,
+                mailbox::ExecuteMsg::Dispatch {
+                    dest_domain: target.domain,
+                    recipient_addr: bech32_decode(&target.deployments.mock_receiver)
+                        .unwrap()
+                        .into(),
+                    msg_body: b"hello".into(),
+                },
+                vec![],
+            );
+        }
     }
-    hpl_rly.1.kill().unwrap();
+
+    let stack = CosmosHyperlaneStack {
+        validators: hpl_val.into_iter().map(|v| v.join()).collect(),
+        relayer: hpl_rly.join(),
+    };
+
+    sleep(Duration::from_secs(1000)); // wait for 2 min
 }
 
 #[cfg(test)]

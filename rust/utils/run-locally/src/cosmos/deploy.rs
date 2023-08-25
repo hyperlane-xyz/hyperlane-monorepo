@@ -127,6 +127,16 @@ pub fn deploy_cw_hyperlane(
         domain,
     );
 
+    // deploy mock receiver
+    let mock_receiver = cli.wasm_init(
+        &endpoint,
+        &deployer,
+        Some(deployer_addr),
+        codes.hpl_test_mock_msg_receiver,
+        igp_gas_oracle::InstantiateMsg {},
+        "hpl_test_mock_msg_receiver",
+    );
+
     // deploy va
     let va = cli.wasm_init(
         &endpoint,
@@ -148,6 +158,7 @@ pub fn deploy_cw_hyperlane(
         ism_multisig,
         hub,
         mailbox,
+        mock_receiver,
         va,
     }
 }
