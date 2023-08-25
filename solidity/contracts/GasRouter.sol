@@ -2,6 +2,7 @@
 pragma solidity >=0.6.11;
 
 import {Router} from "./Router.sol";
+import {IGPMetadata} from "./libs/hooks/IGPMetadata.sol";
 
 abstract contract GasRouter is Router {
     // ============ Mutable Storage ============
@@ -45,9 +46,14 @@ abstract contract GasRouter is Router {
         returns (uint256 _gasPayment)
     {
         return
-            interchainGasPaymaster.quoteGasPayment(
+            mailbox.quoteDispatch(
                 _destinationDomain,
-                destinationGas[_destinationDomain]
+                _mustHaveRemoteRouter(_destinationDomain),
+                "",
+                IGPMetadata.formatMetadata(
+                    destinationGas[_destinationDomain],
+                    address(this)
+                )
             );
     }
 

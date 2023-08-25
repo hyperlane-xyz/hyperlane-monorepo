@@ -4,36 +4,56 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import "../contracts/mock/MockHyperlaneEnvironment.sol";
 import "../contracts/test/TestGasRouter.sol";
+import "../contracts/test/TestMailbox.sol";
+import "../contracts/test/TestIsm.sol";
+import "../contracts/test/TestInterchainGasPaymaster.sol";
+import "../contracts/test/TestMerkleTreeHook.sol";
 
 contract GasRouterTest is Test {
     event DestinationGasSet(uint32 indexed domain, uint256 gas);
-
-    MockHyperlaneEnvironment environment;
 
     uint32 originDomain = 1;
     uint32 remoteDomain = 2;
 
     uint256 gasPrice; // The gas price used in IGP.quoteGasPayment
 
+    TestMailbox originMailbox;
+    TestMailbox remoteMailbox;
+
     TestGasRouter originRouter;
     TestGasRouter remoteRouter;
 
     function setUp() public {
-        environment = new MockHyperlaneEnvironment(originDomain, remoteDomain);
+        originMailbox = new TestMailbox(originDomain);
+        TestIsm ism = new TestIsm();
+        TestInterchainGasPaymaster igp = new TestInterchainGasPaymaster(
+            address(this)
+        );
+        TestMerkleTreeHook _requiredHook = new TestMerkleTreeHook(
+            address(originMailbox)
+        );
+        originMailbox.initialize(
+            address(this),
+            address(ism),
+            address(igp),
+            address(_requiredHook)
+        );
+        remoteMailbox = new TestMailbox(remoteDomain);
+        remoteMailbox.initialize(
+            address(this),
+            address(ism),
+            address(igp),
+            address(_requiredHook)
+        );
+
         // Same for origin and remote
-        gasPrice = environment.igps(originDomain).gasPrice();
+        gasPrice = igp.gasPrice();
 
         originRouter = new TestGasRouter();
         remoteRouter = new TestGasRouter();
 
-        originRouter.initialize(
-            address(environment.mailboxes(originDomain)),
-            address(environment.igps(originDomain))
-        );
-        remoteRouter.initialize(
-            address(environment.mailboxes(remoteDomain)),
-            address(environment.igps(remoteDomain))
-        );
+        originRouter.initialize(address(originMailbox));
+        remoteRouter.initialize(address(remoteMailbox));
 
         originRouter.enrollRemoteRouter(
             remoteDomain,
@@ -107,7 +127,7 @@ contract GasRouterTest is Test {
         assertEq(refund, 1);
 
         // Reset the IGP balance to avoid a balance overflow
-        vm.deal(address(environment.igps(originDomain)), 0);
+        vm.deal(address(originMailbox.defaultHook()), 0);
 
         vm.deal(address(this), requiredPayment + 1);
         passRefund = false;

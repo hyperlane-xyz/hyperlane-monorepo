@@ -38,14 +38,18 @@ describe('Mailbox', async () => {
     const moduleFactory = new TestMultisigIsm__factory(signer);
     module = await moduleFactory.deploy();
     const mailboxFactory = new TestMailbox__factory(signer);
-    mailbox = await mailboxFactory.deploy(originDomain, signer.address);
-    beforeBlock = mailbox.deployTransaction.blockNumber!;
-    const defaultHookFactory = new TestMerkleTreeHook__factory(signer);
-    const defaultHook = await defaultHookFactory.deploy(mailbox.address);
+    mailbox = await mailboxFactory.deploy(originDomain);
+    const defaultHook = await new TestMerkleTreeHook__factory(signer).deploy(
+      mailbox.address,
+    );
     const requiredHook = await new TestHook__factory(signer).deploy();
-    await mailbox.setDefaultIsm(module.address);
-    await mailbox.setDefaultHook(defaultHook.address);
-    await mailbox.setRequiredHook(requiredHook.address);
+    await mailbox.initialize(
+      signer.address,
+      module.address,
+      defaultHook.address,
+      requiredHook.address,
+    );
+    beforeBlock = mailbox.deployTransaction.blockNumber!;
   });
 
   it('#deployedBlock', async () => {
@@ -60,13 +64,8 @@ describe('Mailbox', async () => {
 
   describe('#initialize', () => {
     it('Sets the owner', async () => {
-      const mailboxFactory = new TestMailbox__factory(signer);
-      mailbox = await mailboxFactory.deploy(originDomain, nonOwner.address);
-      const expectedOwner = nonOwner.address;
-
-      await mailbox.connect(nonOwner).setDefaultIsm(module.address);
       const owner = await mailbox.owner();
-      expect(owner).equals(expectedOwner);
+      expect(owner).equals(signer.address);
     });
   });
 

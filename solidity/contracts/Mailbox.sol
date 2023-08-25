@@ -13,9 +13,9 @@ import {IMailbox} from "./interfaces/IMailbox.sol";
 
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-contract Mailbox is IMailbox, Indexed, Versioned, Ownable {
+contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
     // ============ Libraries ============
 
     using Message for bytes;
@@ -31,6 +31,7 @@ contract Mailbox is IMailbox, Indexed, Versioned, Ownable {
 
     // A monotonically increasing nonce for outbound unique message IDs.
     uint32 public nonce;
+
     // The latest dispatched message ID used for auth in post-dispatch hooks.
     bytes32 public latestDispatchedId;
 
@@ -74,44 +75,25 @@ contract Mailbox is IMailbox, Indexed, Versioned, Ownable {
     event RequiredHookSet(address indexed hook);
 
     // ============ Constructor ============
-
-    constructor(uint32 _localDomain, address _owner) {
+    constructor(uint32 _localDomain) {
         localDomain = _localDomain;
-        _transferOwnership(_owner);
+    }
+
+    // ============ Initializers ============
+    function initialize(
+        address _owner,
+        address _defaultIsm,
+        address _defaultHook,
+        address _requiredHook
+    ) external initializer {
+        __Ownable_init();
+        setDefaultIsm(_defaultIsm);
+        setDefaultHook(_defaultHook);
+        setRequiredHook(_requiredHook);
+        transferOwnership(_owner);
     }
 
     // ============ External Functions ============
-
-    /**
-     * @notice Sets the default ISM for the Mailbox.
-     * @param _module The new default ISM. Must be a contract.
-     */
-    function setDefaultIsm(address _module) external onlyOwner {
-        require(Address.isContract(_module), "Mailbox: !contract");
-        defaultIsm = IInterchainSecurityModule(_module);
-        emit DefaultIsmSet(_module);
-    }
-
-    /**
-     * @notice Sets the default post dispatch hook for the Mailbox.
-     * @param _hook The new default post dispatch hook. Must be a contract.
-     */
-    function setDefaultHook(address _hook) external onlyOwner {
-        require(Address.isContract(_hook), "Mailbox: !contract");
-        defaultHook = IPostDispatchHook(_hook);
-        emit DefaultHookSet(_hook);
-    }
-
-    /**
-     * @notice Sets the required post dispatch hook for the Mailbox.
-     * @param _hook The new default post dispatch hook. Must be a contract.
-     */
-    function setRequiredHook(address _hook) external onlyOwner {
-        require(Address.isContract(_hook), "Mailbox: !contract");
-        requiredHook = IPostDispatchHook(_hook);
-        emit RequiredHookSet(_hook);
-    }
-
     /**
      * @notice Dispatches a message to the destination domain & recipient.
      * @param _destinationDomain Domain of destination chain
@@ -187,11 +169,50 @@ contract Mailbox is IMailbox, Indexed, Versioned, Ownable {
         emit DispatchId(id);
 
         /// INTERACTIONS ///
-        // TODO: fix msg.value
-        requiredHook.postDispatch{value: msg.value}(metadata, message);
-        hook.postDispatch{value: msg.value}(metadata, message);
+        uint256 requiredValue = requiredHook.quoteDispatch(metadata, message);
+        requiredHook.postDispatch{value: requiredValue}(metadata, message);
+        hook.postDispatch{value: msg.value - requiredValue}(metadata, message);
 
         return id;
+    }
+
+    function quoteDispatch(
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata messageBody
+    ) external view returns (uint256 fee) {
+        bytes memory message = Message.formatMessage(
+            VERSION,
+            nonce,
+            localDomain,
+            msg.sender.addressToBytes32(),
+            destinationDomain,
+            recipientAddress,
+            messageBody
+        );
+        return
+            requiredHook.quoteDispatch("", message) +
+            defaultHook.quoteDispatch("", message);
+    }
+
+    function quoteDispatch(
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata messageBody,
+        bytes calldata defaultHookMetadata
+    ) external view returns (uint256 fee) {
+        bytes memory message = Message.formatMessage(
+            VERSION,
+            nonce,
+            localDomain,
+            msg.sender.addressToBytes32(),
+            destinationDomain,
+            recipientAddress,
+            messageBody
+        );
+        return
+            requiredHook.quoteDispatch(defaultHookMetadata, message) +
+            defaultHook.quoteDispatch(defaultHookMetadata, message);
     }
 
     function delivered(bytes32 _id) public view override returns (bool) {
@@ -253,6 +274,36 @@ contract Mailbox is IMailbox, Indexed, Versioned, Ownable {
     }
 
     // ============ Public Functions ============
+
+    /**
+     * @notice Sets the default ISM for the Mailbox.
+     * @param _module The new default ISM. Must be a contract.
+     */
+    function setDefaultIsm(address _module) public onlyOwner {
+        require(Address.isContract(_module), "Mailbox: !contract");
+        defaultIsm = IInterchainSecurityModule(_module);
+        emit DefaultIsmSet(_module);
+    }
+
+    /**
+     * @notice Sets the default post dispatch hook for the Mailbox.
+     * @param _hook The new default post dispatch hook. Must be a contract.
+     */
+    function setDefaultHook(address _hook) public onlyOwner {
+        require(Address.isContract(_hook), "Mailbox: !contract");
+        defaultHook = IPostDispatchHook(_hook);
+        emit DefaultHookSet(_hook);
+    }
+
+    /**
+     * @notice Sets the required post dispatch hook for the Mailbox.
+     * @param _hook The new default post dispatch hook. Must be a contract.
+     */
+    function setRequiredHook(address _hook) public onlyOwner {
+        require(Address.isContract(_hook), "Mailbox: !contract");
+        requiredHook = IPostDispatchHook(_hook);
+        emit RequiredHookSet(_hook);
+    }
 
     /**
      * @notice Returns the ISM to use for the recipient, defaulting to the
