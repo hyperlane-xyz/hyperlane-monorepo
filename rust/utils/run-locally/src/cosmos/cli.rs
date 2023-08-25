@@ -75,7 +75,7 @@ impl OsmosisCLI {
             node_config_path,
             Box::new(|v| {
                 v["p2p"]["pex"] = toml_edit::value(false);
-                v["consensus"]["timeout_commit"] = toml_edit::value("0.1s");
+                v["consensus"]["timeout_commit"] = toml_edit::value("0.5s");
             }),
         );
 
