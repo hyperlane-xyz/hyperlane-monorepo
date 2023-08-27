@@ -21,16 +21,16 @@ use super::{
 // these keys MUST not be given multiple uses in case multiple agents are
 // started with the same database and domain.
 
-const MESSAGE_ID: &str = "message_id_";
-const MESSAGE_DISPATCHED_BLOCK_NUMBER: &str = "message_dispatched_block_number_";
-const MESSAGE: &str = "message_";
-const NONCE_PROCESSED: &str = "nonce_processed_";
-const GAS_PAYMENT_FOR_MESSAGE_ID: &str = "gas_payment_for_message_id_v2_";
-const GAS_PAYMENT_META_PROCESSED: &str = "gas_payment_meta_processed_v3_";
-const GAS_EXPENDITURE_FOR_MESSAGE_ID: &str = "gas_expenditure_for_message_id_v2_";
-const PENDING_MESSAGE_RETRY_COUNT_FOR_MESSAGE_ID: &str =
+pub const MESSAGE_ID: &str = "message_id_";
+pub const MESSAGE_DISPATCHED_BLOCK_NUMBER: &str = "message_dispatched_block_number_";
+pub const MESSAGE: &str = "message_";
+pub const NONCE_PROCESSED: &str = "nonce_processed_";
+pub const GAS_PAYMENT_FOR_MESSAGE_ID: &str = "gas_payment_for_message_id_v2_";
+pub const GAS_PAYMENT_META_PROCESSED: &str = "gas_payment_meta_processed_v3_";
+pub const GAS_EXPENDITURE_FOR_MESSAGE_ID: &str = "gas_expenditure_for_message_id_v2_";
+pub const PENDING_MESSAGE_RETRY_COUNT_FOR_MESSAGE_ID: &str =
     "pending_message_retry_count_for_message_id_";
-const LATEST_INDEXED_GAS_PAYMENT_BLOCK: &str = "latest_indexed_gas_payment_block";
+pub const LATEST_INDEXED_GAS_PAYMENT_BLOCK: &str = "latest_indexed_gas_payment_block";
 
 type DbResult<T> = std::result::Result<T, DbError>;
 

@@ -19,20 +19,26 @@ impl AsRef<DB> for TypedDB {
     }
 }
 
+pub fn domain_name_to_prefix(domain: &HyperlaneDomain) -> Vec<u8> {
+    domain
+        .name()
+        .as_bytes()
+        .iter()
+        .chain(b"_")
+        .copied()
+        .collect()
+}
+
 impl TypedDB {
     /// Create a new TypedDB instance scoped to a given domain.
     pub fn new(domain: &HyperlaneDomain, db: DB) -> Self {
-        let domain_prefix = domain
-            .name()
-            .as_bytes()
-            .iter()
-            .chain(b"_")
-            .copied()
-            .collect();
-        Self { domain_prefix, db }
+        Self {
+            domain_prefix: domain_name_to_prefix(domain),
+            db,
+        }
     }
 
-    fn prefixed_key(&self, prefix: &[u8], key: &[u8]) -> Vec<u8> {
+    pub fn prefixed_key(&self, prefix: &[u8], key: &[u8]) -> Vec<u8> {
         self.domain_prefix
             .iter()
             .chain(prefix)
@@ -48,10 +54,14 @@ impl TypedDB {
         key: impl AsRef<[u8]>,
         value: &V,
     ) -> Result<()> {
-        self.db.store(
-            &self.prefixed_key(prefix.as_ref(), key.as_ref()),
-            &value.to_vec(),
-        )
+        let prefixed_key = self.prefixed_key(prefix.as_ref(), key.as_ref());
+        println!("Storing prefixed key: {:?}", prefixed_key);
+        println!("prefix as bytes: {:?}", prefix.as_ref());
+        println!(
+            "prefix: {}",
+            String::from_utf8(prefix.as_ref().to_vec()).unwrap()
+        );
+        self.db.store(&prefixed_key, &value.to_vec())
     }
 
     /// Retrieve decodable value

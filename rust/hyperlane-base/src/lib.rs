@@ -27,5 +27,7 @@ pub use types::*;
 /// Hyperlane database utils
 pub mod db;
 
+pub mod migrations;
+
 #[cfg(feature = "oneline-eyre")]
 pub mod oneline_eyre;

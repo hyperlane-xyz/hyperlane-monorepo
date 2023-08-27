@@ -6,6 +6,7 @@ use std::{
 
 use async_trait::async_trait;
 use eyre::Result;
+use hyperlane_base::migrations::migrate;
 use hyperlane_base::{MessageContractSync, WatermarkContractSync};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::{
@@ -235,6 +236,7 @@ impl BaseAgent for Relayer {
 
     #[allow(clippy::async_yields_async)]
     async fn run(self) -> Instrumented<JoinHandle<Result<()>>> {
+        migrate(&self.dbs).unwrap();
         let mut tasks = vec![];
 
         // send channels by destination chain

@@ -2,7 +2,9 @@ use std::path::PathBuf;
 use std::{io, path::Path, sync::Arc};
 
 use hyperlane_core::HyperlaneProtocolError;
-use rocksdb::{Options, DB as Rocks};
+use rocksdb::{
+    DBIteratorWithThreadMode, IteratorMode, Options, WriteBatchWithTransaction, DB as Rocks,
+};
 use tracing::info;
 
 pub use hyperlane_db::*;
@@ -97,6 +99,19 @@ impl DB {
     /// Store a value in the DB
     pub fn store(&self, key: &[u8], value: &[u8]) -> Result<()> {
         Ok(self.0.put(key, value)?)
+    }
+
+    /// Atomically perform a batch of DB writes
+    pub fn batched_store(&self, batch: WriteBatchWithTransaction<false>) -> Result<()> {
+        Ok(self.0.write(batch)?)
+    }
+
+    pub fn iterator(&self) -> DBIteratorWithThreadMode<'_, Rocks> {
+        self.0.iterator(IteratorMode::Start)
+    }
+
+    pub fn write(&self, batch: WriteBatchWithTransaction<false>) -> Result<()> {
+        Ok(self.0.write(batch)?)
     }
 
     /// Retrieve a value from the DB
