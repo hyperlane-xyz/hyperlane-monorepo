@@ -42,8 +42,10 @@ contract Mailbox is IMailbox, Indexed, Versioned, Ownable {
 
     // Mapping of message ID to delivery context that processed the message.
     struct Delivery {
-        // address sender;
-        IInterchainSecurityModule ism;
+        address relayer;
+        uint48 timestamp;
+        // uint48 gasUsed;
+        // IInterchainSecurityModule ism;
         // uint48 value?
         // uint48 timestamp?
     }
@@ -178,6 +180,10 @@ contract Mailbox is IMailbox, Indexed, Versioned, Ownable {
         return address(deliveries[_id].ism) != address(0);
     }
 
+    function relayer(bytes32 _id) public view returns (address) {
+        return deliveries[_id].sender;
+    }
+
     /**
      * @notice Attempts to deliver `_message` to its recipient. Verifies
      * `_message` via the recipient's ISM using the provided `_metadata`.
@@ -209,10 +215,9 @@ contract Mailbox is IMailbox, Indexed, Versioned, Ownable {
         /// EFFECTS ///
 
         deliveries[_id] = Delivery({
-            ism: ism
-            // sender: msg.sender
-            // value: uint48(msg.value),
-            // timestamp: uint48(block.number)
+            timestamp: uint48(block.timestamp),
+            relayer: msg.sender
+            // gasUsed: gasleft()
         });
         emit Process(_message);
         emit ProcessId(_id);
