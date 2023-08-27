@@ -45,8 +45,10 @@ pub fn batch_updates<'a>(
     let mut migration_updates = WriteBatchWithTransaction::<false>::default();
     for (k, v) in raw_iterator {
         println!("Migrating key: {:?}, value: {:?}", k, v);
-        match migration.migrate(k, v) {
+        match migration.migrate(k.clone(), v) {
             Ok((new_key, new_value)) => {
+                // In case the migration changes the key, we need to delete the old key
+                migration_updates.delete(k);
                 migration_updates.put(new_key, new_value);
             }
             Err(e) => {
