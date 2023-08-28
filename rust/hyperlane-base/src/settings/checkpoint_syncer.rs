@@ -46,7 +46,7 @@ impl FromStr for CheckpointSyncerConf {
                 }?;
                 Ok(CheckpointSyncerConf::S3 {
                     bucket: bucket.into(),
-                    folder: folder.into(),
+                    folder,
                     region: region
                         .parse()
                         .context("Invalid region when parsing storage location")?,
