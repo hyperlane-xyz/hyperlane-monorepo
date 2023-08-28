@@ -275,6 +275,13 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
         type: z.literal('s3'),
         bucket: z.string().nonempty(),
         region: z.string().nonempty(),
+        folder: z
+          .string()
+          .nonempty()
+          .optional()
+          .describe(
+            'The folder/key-prefix to use, defaults to the root of the bucket',
+          ),
       })
       .describe('A checkpoint syncer that uses S3'),
   ]),
