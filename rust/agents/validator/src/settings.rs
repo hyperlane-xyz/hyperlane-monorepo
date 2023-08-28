@@ -197,8 +197,18 @@ fn parse_checkpoint_syncer(syncer: ValueParser) -> ConfigResult<CheckpointSyncer
                 |> get_key("region")?
                 |> parse_from_str("Expected aws region")?
             };
+            let folder = parse! {
+                syncer(err)
+                |> get_opt_key("folder")??
+                |> parse_string()?
+                |> to_owned()
+            };
             cfg_unwrap_all!(&syncer.cwp, err: [bucket, region]);
-            err.into_result(CheckpointSyncerConf::S3 { bucket, region })
+            err.into_result(CheckpointSyncerConf::S3 {
+                bucket,
+                region,
+                folder,
+            })
         }
         Some(_) => {
             Err(eyre!("Unknown checkpoint syncer type")).into_config_result(|| &syncer.cwp + "type")

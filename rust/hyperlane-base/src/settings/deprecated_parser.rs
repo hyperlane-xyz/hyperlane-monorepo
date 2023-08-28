@@ -322,6 +322,8 @@ pub enum DeprecatedRawCheckpointSyncerConf {
         bucket: Option<String>,
         /// S3 Region
         region: Option<String>,
+        /// Folder name inside bucket - defaults to the root of the bucket
+        folder: Option<String>,
     },
     /// Unknown checkpoint syncer type was specified
     #[serde(other)]
@@ -409,10 +411,15 @@ impl FromRawConf<DeprecatedRawCheckpointSyncerConf> for CheckpointSyncerConf {
                 }
                 Ok(Self::LocalStorage { path })
             }
-            DeprecatedRawCheckpointSyncerConf::S3 { bucket, region } => Ok(Self::S3 {
+            DeprecatedRawCheckpointSyncerConf::S3 {
+                bucket,
+                folder,
+                region,
+            } => Ok(Self::S3 {
                 bucket: bucket
                     .ok_or_else(|| eyre!("Missing `bucket` for S3 checkpoint syncer"))
                     .into_config_result(|| cwp + "bucket")?,
+                folder,
                 region: region
                     .ok_or_else(|| eyre!("Missing `region` for S3 checkpoint syncer"))
                     .into_config_result(|| cwp + "region")?
