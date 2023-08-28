@@ -164,10 +164,10 @@ pub struct InterchainGasPaymentMeta {
     pub transaction_id: H512,
     /// The index of the GasPayment log within the transaction's logs
     pub log_index: u64,
-    /// The block number in which the GasPayment log was emitted
-    pub block_number: u64,
-    /// The storage schema version of this struct
-    pub schema_version: u32,
+    // /// The block number in which the GasPayment log was emitted
+    // pub block_number: u64,
+    // /// The storage schema version of this struct
+    // pub schema_version: u32,
 }
 
 impl Encode for InterchainGasPaymentMeta {
@@ -178,8 +178,8 @@ impl Encode for InterchainGasPaymentMeta {
         let mut written = 0;
         written += self.transaction_id.write_to(writer)?;
         written += self.log_index.write_to(writer)?;
-        written += self.block_number.write_to(writer)?;
-        written += self.schema_version.write_to(writer)?;
+        // written += self.block_number.write_to(writer)?;
+        // written += self.schema_version.write_to(writer)?;
         Ok(written)
     }
 }
@@ -193,8 +193,8 @@ impl Decode for InterchainGasPaymentMeta {
         Ok(Self {
             transaction_id: H512::read_from(reader)?,
             log_index: u64::read_from(reader)?,
-            block_number: u64::read_from(reader)?,
-            schema_version: u32::read_from(reader)?,
+            // block_number: u64::read_from(reader)?,
+            // schema_version: u32::read_from(reader)?,
         })
     }
 }
@@ -204,8 +204,8 @@ impl From<&LogMeta> for InterchainGasPaymentMeta {
         Self {
             transaction_id: meta.transaction_id,
             log_index: meta.log_index.as_u64(),
-            block_number: meta.block_number,
-            schema_version: 1,
+            // block_number: meta.block_number,
+            // schema_version: 1,
         }
     }
 }

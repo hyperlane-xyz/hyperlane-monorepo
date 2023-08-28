@@ -1,3 +1,4 @@
+use core::fmt::Debug;
 use hyperlane_core::{Decode, Encode, HyperlaneDomain};
 
 use crate::db::{DbError, DB};
@@ -57,6 +58,7 @@ impl TypedDB {
         let prefixed_key = self.prefixed_key(prefix.as_ref(), key.as_ref());
         println!("Storing prefixed key: {:?}", prefixed_key);
         println!("prefix as bytes: {:?}", prefix.as_ref());
+        println!("key as bytes: {:?}", key.as_ref());
         println!(
             "prefix: {}",
             String::from_utf8(prefix.as_ref().to_vec()).unwrap()
@@ -78,12 +80,14 @@ impl TypedDB {
     }
 
     /// Store encodable kv pair
-    pub fn store_keyed_encodable<K: Encode, V: Encode>(
+    pub fn store_keyed_encodable<K: Encode + Debug, V: Encode>(
         &self,
         prefix: impl AsRef<[u8]>,
         key: &K,
         value: &V,
     ) -> Result<()> {
+        println!("key: {:?}", key);
+        println!("key as bytes: {:?}", key.to_vec());
         self.store_encodable(prefix, key.to_vec(), value)
     }
 
