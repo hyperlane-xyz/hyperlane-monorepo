@@ -1,15 +1,12 @@
 use eyre::Result;
+pub use span_metrics::TimeSpanLifetime;
 use tracing_subscriber::{
     filter::{LevelFilter, Targets},
     prelude::*,
 };
 
-pub use span_metrics::TimeSpanLifetime;
-
-use crate::settings::trace::fmt::Style;
-use crate::CoreMetrics;
-
 use self::fmt::LogOutputLayer;
+use crate::{settings::trace::fmt::Style, CoreMetrics};
 
 /// Configure a `tracing_subscriber::fmt` Layer outputting to stdout
 pub mod fmt;
@@ -55,9 +52,9 @@ impl From<Level> for LevelFilter {
 #[derive(Debug, Clone, Default, serde::Deserialize)]
 pub struct TracingConfig {
     #[serde(default)]
-    fmt: Style,
+    pub(crate) fmt: Style,
     #[serde(default)]
-    level: Level,
+    pub(crate) level: Level,
 }
 
 impl TracingConfig {

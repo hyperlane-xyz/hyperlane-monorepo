@@ -11,6 +11,9 @@ solana-program.workspace = true
 spl-type-length-value.workspace = true
 
 hyperlane-core = { path = "../../../hyperlane-core" }
+# Required to allow dependencies `getrandom` but to preserve determinism required by programs, see
+# https://github.com/solana-labs/solana/blob/master/docs/src/developing/on-chain-programs/developing-rust.md#depending-on-rand
+getrandom = { workspace = true, features = ["custom"] }
 
 [lib]
 crate-type = ["cdylib", "lib"]

@@ -6,7 +6,8 @@ use eyre::{bail, Context, Result};
 use itertools::Itertools;
 use serde::Deserialize;
 
-use crate::{settings::loader::deprecated_arguments::DeprecatedCommandLineArguments, RawSettings};
+use super::deprecated_parser::DeprecatedRawSettings;
+use crate::settings::loader::deprecated_arguments::DeprecatedCommandLineArguments;
 
 mod arguments;
 mod deprecated_arguments;
@@ -19,7 +20,7 @@ pub(crate) fn load_settings_object<'de, T, S>(
     ignore_prefixes: &[S],
 ) -> Result<T>
 where
-    T: Deserialize<'de> + AsMut<RawSettings>,
+    T: Deserialize<'de> + AsMut<DeprecatedRawSettings>,
     S: AsRef<str>,
 {
     // Derive additional prefix from agent name
@@ -127,7 +128,7 @@ where
 }
 
 /// Load a settings object from the config locations and re-join the components with the standard
-/// `config` crate separator `.`.  
+/// `config` crate separator `.`.
 fn split_and_recase_key(sep: &str, case: Option<Case>, key: String) -> String {
     if let Some(case) = case {
         // if case is given, replace case of each key component and separate them with `.`
