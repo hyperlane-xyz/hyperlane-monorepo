@@ -175,6 +175,9 @@ jobs:
       - name: Unit tests
         run: yarn workspace @hyperlane-xyz/core run test
 
+      - name: Prepare build for Slither
+        run: forge build --build-info
+
       - name: Run Slither
         uses: crytic/slither-action@main
         id: slither
