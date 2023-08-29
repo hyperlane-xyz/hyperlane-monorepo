@@ -9,6 +9,7 @@ import {
 import { deserializeUnchecked, serialize } from 'borsh';
 
 import {
+  BaseSealevelAdapter,
   ChainName,
   ProviderType,
   RouterAddress,
@@ -96,7 +97,7 @@ export class SealevelHelloWorldAdapter
     randomWallet: PublicKey,
   ): Array<AccountMeta> {
     return [
-      // 0. [executable] Program storage.
+      // 0. [writable] Program storage.
       {
         pubkey: this.deriveProgramStoragePDA(programId),
         isSigner: false,
@@ -106,7 +107,7 @@ export class SealevelHelloWorldAdapter
       { pubkey: mailbox, isSigner: false, isWritable: false },
       // 2. [writeable] Outbox PDA
       {
-        pubkey: SealevelCoreAdapter.deriveMailboxOutboxPda(programId),
+        pubkey: SealevelCoreAdapter.deriveMailboxOutboxPda(mailbox),
         isSigner: false,
         isWritable: true,
       },
@@ -126,7 +127,7 @@ export class SealevelHelloWorldAdapter
         isWritable: false,
       },
       // 6. [signer] Tx payer.
-      { pubkey: sender, isSigner: true, isWritable: false },
+      { pubkey: sender, isSigner: true, isWritable: true },
       // 7. [signer] Unique message account.
       { pubkey: randomWallet, isSigner: true, isWritable: false },
       // 8. [writeable] Dispatched message PDA
@@ -150,17 +151,10 @@ export class SealevelHelloWorldAdapter
 
   // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/dd7ff727b0d3d393a159afa5f0a364775bde3a58/rust/sealevel/programs/helloworld/src/processor.rs#L44
   deriveProgramStoragePDA(programId: string | PublicKey): PublicKey {
-    const [pda] = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from('hello_world'),
-        Buffer.from('-'),
-        Buffer.from('handle'),
-        Buffer.from('-'),
-        Buffer.from('storage'),
-      ],
-      new PublicKey(programId),
+    return BaseSealevelAdapter.derivePda(
+      ['hello_world', '-', 'handle', '-', 'storage'],
+      programId,
     );
-    return pda;
   }
 
   async channelStats(

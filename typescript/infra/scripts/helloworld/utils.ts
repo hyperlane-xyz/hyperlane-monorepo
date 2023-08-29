@@ -11,6 +11,7 @@ import {
   MultiProtocolProvider,
   MultiProvider,
   attachContractsMap,
+  chainMetadata,
   hyperlaneEnvironments,
   igpFactories,
 } from '@hyperlane-xyz/sdk';
@@ -64,9 +65,18 @@ export async function getHelloWorldMultiProtocolApp(
 
   const helloworldConfig = getHelloWorldConfig(coreConfig, context);
 
-  const multiProtocolProvider = MultiProtocolProvider.fromMultiProvider(
-    multiProvider,
-  ).extendChainMetadata(helloworldConfig.addresses);
+  const multiProtocolProvider =
+    MultiProtocolProvider.fromMultiProvider(multiProvider);
+  // Hacking around infra code limitations, we may need to add solana manually
+  // because the it's not in typescript/infra/config/environments/testnet3/chains.ts
+  // Adding it there breaks many things
+  if (!multiProtocolProvider.getKnownChainNames().includes('solanadevnet')) {
+    multiProtocolProvider.addChain(chainMetadata.solanadevnet);
+  }
+  // Add the helloWorld contract addresses to the metadata
+  const mpWithHelloWorld = multiProtocolProvider.extendChainMetadata(
+    helloworldConfig.addresses,
+  );
 
   const core = MultiProtocolCore.fromEnvironment(
     sdkEnvName,
@@ -75,9 +85,7 @@ export async function getHelloWorldMultiProtocolApp(
 
   // Extend the MP with mailbox addresses because the sealevel
   // adapter needs that to function
-  const mpWithMailbox = multiProtocolProvider.extendChainMetadata(
-    core.chainMap,
-  );
+  const mpWithMailbox = mpWithHelloWorld.extendChainMetadata(core.chainMap);
   const app = new HelloMultiProtocolApp(mpWithMailbox);
 
   // TODO we need a MultiProtocolIgp

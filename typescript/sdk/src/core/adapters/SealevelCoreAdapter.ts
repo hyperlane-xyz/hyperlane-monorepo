@@ -1,7 +1,6 @@
 import { PublicKey } from '@solana/web3.js';
-import { utils } from 'ethers';
 
-import { pollAsync } from '@hyperlane-xyz/utils';
+import { HexString, pollAsync } from '@hyperlane-xyz/utils';
 
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp';
 import {
@@ -24,7 +23,7 @@ export class SealevelCoreAdapter
 {
   extractMessageIds(
     sourceTx: TypedTransactionReceipt,
-  ): Array<{ messageId: string; destination: ChainName }> {
+  ): Array<{ messageId: HexString; destination: ChainName }> {
     if (sourceTx.type !== ProviderType.SolanaWeb3) {
       throw new Error(
         `Unsupported provider type for SealevelCoreAdapter ${sourceTx.type}`,
@@ -37,7 +36,7 @@ export class SealevelCoreAdapter
     const parsedLogs = SealevelCoreAdapter.parseMessageDispatchLogs(logs);
     if (!parsedLogs.length) throw new Error('Message dispatch log not found');
     return parsedLogs.map(({ destination, messageId }) => ({
-      messageId: Buffer.from(utils.base58.decode(messageId)).toString('hex'),
+      messageId: Buffer.from(messageId, 'hex').toString('hex'),
       destination: this.multiProvider.getChainName(destination),
     }));
   }
@@ -106,6 +105,7 @@ export class SealevelCoreAdapter
         'hyperlane',
         '-',
         'dispatched_message',
+        '-',
         new PublicKey(uniqueMessageAccount).toBuffer(),
       ],
       mailboxProgramId,
@@ -113,11 +113,11 @@ export class SealevelCoreAdapter
   }
 
   static deriveMailboxDispatchAuthorityPda(
-    mailboxProgramId: string | PublicKey,
+    programId: string | PublicKey,
   ): PublicKey {
     return super.derivePda(
       ['hyperlane_dispatcher', '-', 'dispatch_authority'],
-      mailboxProgramId,
+      programId,
     );
   }
 
