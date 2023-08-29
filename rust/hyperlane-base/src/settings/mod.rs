@@ -103,7 +103,6 @@ mod signers;
 mod trace;
 
 mod checkpoint_syncer;
-pub mod deprecated_parser;
 pub mod parser;
 
 /// Declare that an agent can be constructed from settings.

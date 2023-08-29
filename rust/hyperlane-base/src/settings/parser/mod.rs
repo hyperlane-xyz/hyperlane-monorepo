@@ -4,8 +4,6 @@
 //! and validations it defines are not applied here, we should mirror them.
 //! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 
-#![allow(dead_code)] // TODO(2214): remove before PR merge
-
 use std::{
     cmp::Reverse,
     collections::{HashMap, HashSet},
