@@ -58,7 +58,7 @@ impl Environment {
 
     pub fn source<'a, I, S>(mut self, source: I) -> Self
     where
-        I: IntoIterator<Item = &'a (S, S)>,
+        I: IntoIterator<Item = (S, S)>,
         S: AsRef<str> + 'a,
     {
         self.source = Some(
@@ -138,7 +138,7 @@ mod test {
     #[test]
     fn default_case() {
         let mut config = Environment::default()
-            .source(ENVS)
+            .source(ENVS.iter().cloned())
             .prefix("PRE__")
             .separator("__")
             .casing(Case::Camel)
@@ -156,9 +156,9 @@ mod test {
     #[test]
     fn ignore_empty() {
         let mut config = Environment::default()
-            .source(ENVS)
+            .source(ENVS.iter().cloned())
             .ignore_empty(true)
-            .source(ENVS)
+            .source(ENVS.iter().cloned())
             .prefix("PRE__")
             .separator("__")
             .casing(Case::Snake)

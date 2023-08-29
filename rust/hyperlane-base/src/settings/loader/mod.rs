@@ -2,14 +2,14 @@
 
 use std::{collections::HashMap, env, error::Error, fmt::Debug, path::PathBuf};
 
-use config::{Config, Environment as DeprecatedEnvironment, File};
+use config::{Config, File};
 use convert_case::{Case, Casing};
 use eyre::{bail, Context, Result};
 use hyperlane_core::config::*;
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
 
-use crate::settings::loader::arguments::CommandLineArguments;
+use crate::settings::loader::{arguments::CommandLineArguments, environment::Environment};
 
 mod arguments;
 mod environment;
@@ -88,14 +88,16 @@ where
     let config_deserializer = builder
         // Use a base configuration env variable prefix
         .add_source(
-            DeprecatedEnvironment::with_prefix("HYP_BASE")
+            Environment::default()
+                .prefix("HYP_BASE")
                 .separator("_")
-                .source(Some(filtered_env.clone())),
+                .source(&filtered_env),
         )
         .add_source(
-            DeprecatedEnvironment::with_prefix(&prefix)
+            Environment::default()
+                .prefix(&prefix)
                 .separator("_")
-                .source(Some(filtered_env)),
+                .source(&filtered_env),
         )
         .add_source(CommandLineArguments::default().separator("."))
         .build()?;
