@@ -265,6 +265,7 @@ export async function getRouterConfig(
   const knownChains = multiProvider.intersect(
     core.chains().concat(igp.chains()),
   ).intersection;
+
   for (const chain of knownChains) {
     config[chain] = {
       owner: useMultiProviderOwners
