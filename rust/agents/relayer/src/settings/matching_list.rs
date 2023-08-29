@@ -2,15 +2,17 @@
 //! and validations it defines are not applied here, we should mirror them.
 //! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 
-use std::fmt;
-use std::fmt::{Debug, Display, Formatter};
-use std::marker::PhantomData;
+use std::{
+    fmt,
+    fmt::{Debug, Display, Formatter},
+    marker::PhantomData,
+};
 
-use serde::de::{Error, SeqAccess, Visitor};
-use serde::{Deserialize, Deserializer};
-
-use hyperlane_core::config::StrOrInt;
-use hyperlane_core::{HyperlaneMessage, H160, H256};
+use hyperlane_core::{config::StrOrInt, HyperlaneMessage, H160, H256};
+use serde::{
+    de::{Error, SeqAccess, Visitor},
+    Deserialize, Deserializer,
+};
 
 /// Defines a set of patterns for determining if a message should or should not
 /// be relayed. This is useful for determine if a message matches a given set or
@@ -264,9 +266,8 @@ fn parse_addr<E: Error>(addr_str: &str) -> Result<H256, E> {
 mod test {
     use hyperlane_core::{H160, H256};
 
-    use crate::settings::matching_list::MatchInfo;
-
     use super::{Filter::*, MatchingList};
+    use crate::settings::matching_list::MatchInfo;
 
     #[test]
     fn basic_config() {
