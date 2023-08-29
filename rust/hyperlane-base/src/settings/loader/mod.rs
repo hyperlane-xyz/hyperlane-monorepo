@@ -9,10 +9,9 @@ use hyperlane_core::config::*;
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
 
-use crate::settings::loader::deprecated_arguments::DeprecatedCommandLineArguments;
+use crate::settings::loader::arguments::CommandLineArguments;
 
 mod arguments;
-mod deprecated_arguments;
 mod environment;
 
 /// Deserialize a settings object from the configs.
@@ -98,7 +97,7 @@ where
                 .separator("_")
                 .source(Some(filtered_env)),
         )
-        .add_source(DeprecatedCommandLineArguments::default().separator("."))
+        .add_source(CommandLineArguments::default().separator("."))
         .build()?;
 
     let formatted_config = {
